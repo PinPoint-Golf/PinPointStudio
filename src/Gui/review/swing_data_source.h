@@ -103,6 +103,11 @@ class SwingDataSource : public QObject
     Q_PROPERTY(QVariantList resolvedSources READ resolvedSources NOTIFY viewChanged) // [{label,colorKey,kind,ref,removable}]
     Q_PROPERTY(QVariantList phases          READ phases          NOTIFY loadedChanged) // [{label,t_us,kind}]
     Q_PROPERTY(QVariantList metadata        READ metadata        NOTIFY loadedChanged) // grouped provenance
+    // The region's readings a gate kept out of the table (trust stage 6 session 2): a lane the region
+    // asks for that the swing does not carry because a gate refused it, one per subject, in the gate's
+    // words — [{ label ("Club track"), subject ("track.club"), words ("refused") }]. Empty on a swing
+    // analysed before records existed, and for a lane that is simply not in the file.
+    Q_PROPERTY(QVariantList notShown        READ notShown        NOTIFY viewChanged)
 
     Q_PROPERTY(QObject *coverage READ coverage CONSTANT)
     Q_PROPERTY(QObject *table    READ table    CONSTANT)
@@ -134,6 +139,7 @@ public:
     QVariantList resolvedSources() const;
     QVariantList phases() const { return m_phases; }
     QVariantList metadata() const { return m_metadata; }
+    QVariantList notShown() const { return m_notShown; }
 
     QObject *coverage() const;
     QObject *table() const;
@@ -190,6 +196,8 @@ private:
     QVector<PartSpec>    m_customSpecs;// the user's explicit set when region == Custom
     QVariantList m_phases;
     QVariantList m_metadata;
+    QVariantList m_gates;             // analysis.gates as stored ({} before records existed)
+    QVariantList m_notShown;          // see notShown
     QVariantList m_segments;          // phase-bounded windows ([0]=Full)
     QString      m_bestRegion = QStringLiteral("Axial");
     QVariantMap  m_regionLaneCounts;  // region name → resolved lane count

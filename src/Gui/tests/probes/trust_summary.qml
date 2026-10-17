@@ -45,6 +45,8 @@ Item {
     readonly property bool openFold: arg("--probe-open", "off") === "on"
     readonly property string tab: arg("--probe-tab", "shot")
     readonly property string mode: arg("--probe-mode", "analyse")     // analyse | replay (the register)
+    // the stage panels to show, comma-separated (default: Session diagnostics alone)
+    readonly property var panels: arg("--probe-panels", "sessionDiagnostics").split(",")
 
     function log(s) { console.warn("PROBE: " + s) }
     function walk(item, name, out) {
@@ -57,6 +59,11 @@ Item {
         let i = item
         while (i && i !== top) { if (!i.visible) return false; i = i.parent }
         return !!i
+    }
+    function findDefs(item, out) {
+        if (!item) return
+        if (item._defs !== undefined && item.visible) out.push(item)
+        for (const k of (item.children || [])) findDefs(k, out)
     }
     function texts(item, out) {
         if (!item) return
@@ -93,8 +100,8 @@ Item {
             } else if (probe.step === 3) {
                 if (probe.mode === "analyse") SessionMode.enterAnalyse()
                 const m = probe.mode === "analyse" ? SessionMode.analyse : SessionMode.mode
-                for (const k of ["camera", "swing3d", "launchMonitor", "charts", "table", "markup"]) ViewLayout.setPanel(m, k, false)
-                ViewLayout.setPanel(m, "sessionDiagnostics", true)
+                for (const k of ["camera", "swing3d", "launchMonitor", "charts", "table", "markup", "sessionDiagnostics"])
+                    ViewLayout.setPanel(m, k, probe.panels.indexOf(k) >= 0)
                 ViewLayout.setPanel(m, "trust", probe.trustPanel)
                 ViewLayout.setArrangement(m, "split")
             } else if (probe.step === 4) {
@@ -104,7 +111,7 @@ Item {
                 // the regrade runs on activation and the series model loads in the background: wait for the fold
                 const folds = []; probe.walk(root, "trustSummaryFold", folds)
                 const fold = folds.filter(f => probe.shown(f, root) && f.scope === probe.tab)[0]
-                if (!fold && probe.waits < 16) { probe.waits += 1; probe.step -= 1; return }
+                if (!fold && probe.panels.indexOf("sessionDiagnostics") >= 0 && probe.waits < 16) { probe.waits += 1; probe.step -= 1; return }
                 if (!fold) { probe.log("NO FOLD SHOWN on " + probe.tab + " (folds: " + folds.length + ")"); return }
                 probe.log("fold (" + probe.tab + ", closed): " + (fold.summary ? fold.summary.tail : "?") + " · open=" + fold.open
                           + " · lines=" + fold.lines.length + " · height " + Math.round(fold.height))
@@ -117,6 +124,10 @@ Item {
                 const g = fold ? fold.lines.find(l => l.kind === "gated" && l.subject) : null
                 if (g && probe.openFold && !TrustFocus.open(g.subject, g.swingDir)) fold.openSubject = g.subject
                 if (g && probe.openFold) probe.log("Why on " + g.subject + (probe.trustPanel ? " → Trust panel ('" + TrustFocus.subject + "')" : " → in place"))
+                // every gate note on screen, by its words (a surface that draws nothing offscreen still says)
+                const marks = []; probe.texts(root, marks)
+                const seenMarks = {}
+                for (const t of marks) if (t.indexOf("›") >= 0 && !seenMarks[t] && t.length < 160) { seenMarks[t] = true; probe.log("mark: " + t) }
                 const old = []; probe.walk(root, "sdNotJudgedLine", old)
                 probe.log("old not-judged line present: " + (old.filter(o => probe.shown(o, root)).length > 0))
                 const panels = []; probe.walk(root, "trustPanel", panels)
@@ -133,10 +144,11 @@ Item {
                 for (const x of inl) if (x.visible && x.open) probe.log("in place: open for " + x.subject + ", height " + Math.round(x.height))
             } else if (probe.step === 8) {
                 if (probe.png === "") { Qt.exit(0); return }
+                const stages = []; probe.findDefs(root, stages)
                 const bodies = []; probe.walk(root, "sdBody", bodies)
-                let t = bodies[0] || root
-                while (t && t._defs === undefined) t = t.parent      // the whole stage (both panels)
-                const target = t || bodies[0] || root
+                let t = bodies[0] || null
+                while (t && t._defs === undefined) t = t.parent      // the whole stage (all panels)
+                const target = t || stages[0] || root
                 probe.log("grabbing " + Math.round(target.width) + "×" + Math.round(target.height))
                 target.grabToImage(function (res) { res.saveToFile(probe.png); Qt.exit(0) })
             }

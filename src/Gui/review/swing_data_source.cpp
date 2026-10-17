@@ -17,12 +17,14 @@
  */
 
 #include "swing_data_source.h"
+#include "../../Metrics/gate_catalogue.h"
 
 #include "swing_coverage_model.h"
 #include "swing_series_model.h"
 #include "timeline_labels.h"              // the one phase-tag vocabulary (P1…P10 + mnemonics)
 #include "../Analysis/swing_analysis.h"   // SegmentRole + segmentRoleForSlot/Name
 #include "../../Export/swing_store.h"   // the document, whichever format it is in
+#include "../trust/trust_readings.h"     // gateFor: the gate behind a lane the region lacks
 
 #include <QDir>
 #include <QFile>
@@ -305,6 +307,7 @@ void SwingDataSource::reload()
     m_resolved.clear();
     m_phases.clear();
     m_metadata.clear();
+    m_gates.clear();
     m_doc = QJsonObject();
     m_loaded = false;
     m_spanUs = 0;
@@ -397,6 +400,8 @@ void SwingDataSource::reload()
 
     // ── analysis (absolute OR window-relative t_us → window-relative via toRel) ─
     const QJsonObject analysis = m_doc.value(QStringLiteral("analysis")).toObject();
+    if (analysis.contains(QStringLiteral("gatesVersion")))
+        m_gates = analysis.value(QStringLiteral("gates")).toArray().toVariantList();
 
     // metrics
     const QJsonArray metrics = analysis.value(QStringLiteral("metrics")).toArray();
@@ -929,7 +934,39 @@ QVector<SwingSeries> SwingDataSource::resolve(const QVector<PartSpec> &specs) co
 
 void SwingDataSource::rebuild()
 {
-    m_resolved = resolve(specsForRegion(m_region));
+    const QVector<PartSpec> specs = specsForRegion(m_region);
+    m_resolved = resolve(specs);
+
+    // THE REGION'S LANES A GATE KEPT OUT (trust stage 6 session 2). A metric or club lane the region
+    // asks for, absent from the file, whose reading a gate refused (a record naming it, or a cascade —
+    // the club track — covering it): one entry per gate subject, in the gate's words, so the table says
+    // "Not shown: Club track — refused" rather than silently showing fewer lanes. IMU and pose lanes
+    // carry no records.
+    m_notShown.clear();
+    if (!m_gates.isEmpty()) {
+        QStringList seenSubjects;
+        for (const PartSpec &spec : specs) {
+            QString key;
+            if (spec.kind == QLatin1String("metric"))    key = spec.ref;
+            else if (spec.kind == QLatin1String("club")) key = QStringLiteral("track.club");
+            else continue;
+            if (key.isEmpty() || findSeries(spec.kind, spec.ref, spec.part)) continue;
+            const QVariantMap g = pinpoint::trust::gateFor(m_gates, key);
+            // the gate's own words: the label below already names the cascade ("Club track — refused")
+            const pinpoint::gates::GateEntry *ge = pinpoint::gates::gateEntry(g.value(QStringLiteral("gate")).toString());
+            const QString words = ge ? pinpoint::gates::claimWords(*ge) : QString();
+            const QString subject = g.value(QStringLiteral("subject")).toString();
+            if (words.isEmpty() || subject.isEmpty() || seenSubjects.contains(subject)) continue;
+            seenSubjects << subject;
+            QVariantMap m;
+            // the reading as the reader names it: the metric a record named, or the track a cascade
+            // took the lane down with ("Club track")
+            m[QStringLiteral("label")]   = pinpoint::trust::subjectLabel(subject);
+            m[QStringLiteral("subject")] = subject;
+            m[QStringLiteral("words")]   = words;
+            m_notShown.append(m);
+        }
+    }
     // Coverage is a stable full-swing overview; the table windows to the detail
     // range, which the strip marks with its selection band.
     m_coverage->setLanes(m_resolved, 0, m_spanUs, 64);

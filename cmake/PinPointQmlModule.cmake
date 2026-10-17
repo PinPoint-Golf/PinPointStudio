@@ -322,6 +322,7 @@ set(PP_QML_FILES
     src/Gui/trust/PpTrustInline.qml
     src/Gui/trust/PpTrustInlineFor.qml
     src/Gui/trust/PpTrustSummaryFold.qml
+    src/Gui/trust/PpGateNote.qml
     src/Gui/session/PpLmGraphicsBody.qml
     src/Gui/shot/PpSessionDiagnosticsWindow.qml
     src/Gui/components/PpQualityPill.qml
@@ -431,6 +432,8 @@ set(PP_QML_SOURCES
     src/Gui/trust/trust_readings.cpp
     src/Gui/trust/trust_presenter.h
     src/Gui/trust/trust_presenter.cpp
+    src/Gui/trust/trust_words.h
+    src/Gui/trust/trust_words.cpp
     src/Gui/review/metric_catalog.h
     src/Gui/review/metric_catalog.cpp
     # metric_catalog.cpp's setupSummary() — listed here, not beside the other Metrics sources, so

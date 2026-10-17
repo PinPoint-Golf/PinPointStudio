@@ -137,6 +137,61 @@ Item {
                         lineHeight:     1.3
                         color:          Theme.colorText2
                     }
+                    // WHY, per reading (trust stage 6 session 2): the gate behind each fact the warning
+                    // names, in the catalogue's words, opening in the Trust panel — or, with the panel
+                    // off, here, under the line (PpTrustInlineFor).
+                    Column {
+                        id: whyCol
+                        objectName: "swingWarningWhy"
+                        width:   parent.width
+                        spacing: Theme.gap(2)
+                        property string openSubject: ""
+                        readonly property string swingDir: (root.summary && root.summary.swingDir) || ""
+                        // one line per subject the warning names: [{ subject, words }]
+                        readonly property var lines: {
+                            const out = []
+                            for (const r of DataWarningFormat.reasons(root.summary.dataWarningDetail)) {
+                                const w = TrustWords.words(r.gate)
+                                let line = null
+                                for (const l of out) if (l.subject === r.subject) line = l
+                                if (!line) { line = { subject: r.subject, words: [] }; out.push(line) }
+                                if (w && line.words.indexOf(w) < 0) line.words.push(w)
+                            }
+                            return out.map(l => ({ subject: l.subject, words: l.words.join(", ") }))
+                        }
+                        visible: swingDir !== "" && lines.length > 0
+                        Repeater {
+                            model: whyCol.lines
+                            delegate: Text {
+                                required property var modelData
+                                width:          whyCol.width
+                                wrapMode:       Text.WordWrap
+                                textFormat:     Text.StyledText
+                                font.family:    Theme.fontBody
+                                font.pixelSize: Theme.fontSzMicro
+                                color:          Theme.colorText3
+                                text: (modelData.words ? modelData.words + "  " : "")
+                                      + "<font color='" + Theme.colorAccent + "'>" + qsTr("Why") + " ›</font>"
+                                MouseArea {
+                                    anchors.fill: parent
+                                    anchors.margins: -2
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (!TrustFocus.open(modelData.subject, whyCol.swingDir))
+                                            whyCol.openSubject = whyCol.openSubject === modelData.subject ? "" : modelData.subject
+                                    }
+                                }
+                            }
+                        }
+                        PpTrustInlineFor {
+                            width:    whyCol.width
+                            roles:    whyRoles
+                            subject:  whyCol.openSubject
+                            swingDir: whyCol.swingDir
+                            onClosed: whyCol.openSubject = ""
+                        }
+                        PpTypeset { id: whyRoles }
+                    }
                 }
             }
         }

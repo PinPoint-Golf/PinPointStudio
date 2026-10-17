@@ -185,6 +185,14 @@ LiveMeasureSource::GateCause LiveMeasureSource::gateCause(const QString &measure
     return {};
 }
 
+LiveMeasureSource::GateCause LiveMeasureSource::gateForSubject(const QString &subject) const
+{
+    if (subject.isEmpty() || m_grid.gatesVersion <= 0) return {};
+    if (const GateRecord *r = gates::primaryRecord(m_grid.gates, subject))
+        return { r->gate, r->subject, gates::notJudgedClause(r->subject, r->gate) };
+    return {};
+}
+
 MissingKind LiveMeasureSource::missingKind(const QString &measureId) const
 {
     return m_reasons.value(measureId, MissingKind::None);

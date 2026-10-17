@@ -54,6 +54,8 @@ Column {
     readonly property var keyKinds: ["box", "ring", "fired"]
     signal rowActivated(string readingId)
     signal shotActivated(int ordinal)
+    // a value a gate refused (row.trustSubject): the gate's words stand in the value's place and open the reason
+    signal trustClicked(string subject)
     objectName: "chProfile"
 
     readonly property real em: roles ? roles.em : 14
@@ -137,10 +139,16 @@ Column {
                                 radius: pt.roles.square ? 0 : width / 2; color: row.r ? pt.roles.hue(row.r.key) : "transparent" }
                 }
                 Text { visible: pt.wideCols; width: pt.atW; text: row.r ? row.r.tag : ""; font: pt.roles.fSmall; color: pt.roles.ink3; anchors.baseline: name.baseline }
-                Text { width: pt.valW; horizontalAlignment: Text.AlignRight; anchors.baseline: name.baseline
-                       text: row.r ? row.r.valueText : "-"; font: pt.roles.fFig
-                       color: row.r && row.r.fired ? pt.roles.warn : row.r && row.r.measured ? pt.roles.ink : pt.roles.ink3 }
-                Text { width: pt.unitW; text: row.r ? (row.r.unitText || "") : ""; font: pt.roles.fSmall; color: pt.roles.ink3; anchors.baseline: name.baseline }
+                // a gated value takes the unit column too (the unit is hidden), so its words never crowd the name
+                Text { id: valT
+                       readonly property bool gated: !!(row.r && row.r.trustSubject)
+                       objectName: gated ? "chProfileWhy:" + row.r.trustSubject : ""
+                       width: gated ? pt.valW + pt.gap + pt.unitW : pt.valW
+                       horizontalAlignment: gated ? Text.AlignLeft : Text.AlignRight; anchors.baseline: name.baseline
+                       elide: gated ? Text.ElideRight : Text.ElideNone
+                       text: row.r ? (row.r.valueText + (gated ? " ›" : "")) : "-"; font: gated ? pt.roles.fSmall : pt.roles.fFig
+                       color: gated ? pt.roles.link : row.r && row.r.fired ? pt.roles.warn : row.r && row.r.measured ? pt.roles.ink : pt.roles.ink3 }
+                Text { visible: !valT.gated; width: pt.unitW; text: row.r ? (row.r.unitText || "") : ""; font: pt.roles.fSmall; color: pt.roles.ink3; anchors.baseline: name.baseline }
                 Text { visible: pt.wideCols; width: pt.medW; horizontalAlignment: Text.AlignRight; anchors.baseline: name.baseline
                        text: row.r ? row.r.medianText : "-"; font: pt.roles.fFig; color: pt.roles.ink2 }
                 Text { visible: pt.wideCols && pt.showPlace; width: pt.placeW; text: row.r ? (row.r.place || "") : ""; font: pt.roles.fSmall; color: pt.roles.ink2; anchors.baseline: name.baseline }
@@ -182,9 +190,16 @@ Column {
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: pt.roles.hw; color: pt.roles.hair }
             MouseArea {
                 id: ma; enabled: pt.interactive; hoverEnabled: true
-                width: pt.nameW + pt.valW + pt.unitW + 2 * pt.gap; height: row.line1 + row.line2
+                width: pt.nameW + pt.valW + pt.unitW + 2 * pt.gap + (pt.wideCols ? pt.atW + pt.gap : 0); height: row.line1 + row.line2
                 cursorShape: Qt.PointingHandCursor
-                onClicked: pt.rowActivated(row.readingId)
+                // a click on a gated value's words opens the reason; anywhere else, the row
+                onClicked: (mouse) => {
+                    if (valT.gated) {
+                        const q = valT.mapFromItem(ma, mouse.x, mouse.y)
+                        if (q.x >= 0 && q.x <= Math.min(valT.width, valT.implicitWidth + 4)) { pt.trustClicked(row.r.trustSubject); return }
+                    }
+                    pt.rowActivated(row.readingId)
+                }
             }
         }
     }

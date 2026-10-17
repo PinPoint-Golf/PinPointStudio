@@ -63,6 +63,28 @@ Item {
     height: has ? secHead.height + ty.u(14) + (rail ? Math.max(mainCol.height, railCol.height) : mainCol.height) : 0
 
     function seekTo(us) { if (us >= 0 && typeof shotReplay !== "undefined" && shotReplay) shotReplay.seekToUs(us) }
+    // WHY, ON DEMAND (trust stage 6 session 2): a gate's words where a value is missing open its reading in the
+    // Trust panel, else in place under the profile (PpTrustInlineFor)
+    property string trustSubject: ""
+    function openTrust(subject) {
+        if (!subject) return
+        if (TrustFocus.open(subject, sh.swingDir || "")) return
+        trustSubject = trustSubject === subject ? "" : subject
+    }
+    readonly property string _dir: sh ? (sh.swingDir || "") : ""
+    on_DirChanged: trustSubject = ""
+    function esc(t) { return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") }
+    // the caption, and the DOFs not measured on this swing, each a gate refused naming its words as a link
+    readonly property bool missingLinks: (prof.missingParts || []).some(function (m) { return !!m.subject })
+    readonly property string missingRich: {
+        const parts = prof.missingParts || []
+        let t = esc(prof.caption || "")
+        if (parts.length)
+            t += " Not measured on this swing: " + parts.map(function (m) {
+                return esc(m.name) + (m.subject ? " (<a href=\"" + esc(m.subject) + "\">" + esc(m.words) + " ›</a>)" : "") }).join(", ") + "."
+        if (prof.missingTail) t += " " + esc(prof.missingTail)
+        return t
+    }
     function setReference() {
         const ref = wc.reference || {}
         if (!interactive || !ref.canSet) return
@@ -118,8 +140,15 @@ Item {
                 Text { text: "Wrist score"; font: ws.ty.fKicker; color: ws.ty.ink3 }
                 Row {
                     spacing: ws.ty.u(6)
-                    Text { id: big; text: ws.score.scoreText || "-"; font: ws.ty.fFigL; color: ws.ty.ink }
-                    Text { anchors.baseline: big.baseline; text: "/ " + (ws.score.base !== undefined ? ws.score.base : 100); font: ws.ty.fFigS; color: ws.ty.ink3 }
+                    // no score because a gate refused the wrist: the gate's words, quiet, opening the reason
+                    Text { id: big
+                           readonly property bool why: !!ws.score.trust
+                           objectName: why ? "chWristScoreWhy:" + ws.score.trust : ""
+                           text: why ? (ws.score.gateWords || "") + " ›" : (ws.score.scoreText || "-")
+                           font: why ? ws.ty.fBody : ws.ty.fFigL; color: why ? ws.ty.link : ws.ty.ink
+                           MouseArea { enabled: big.why && ws.interactive; anchors.fill: parent; anchors.margins: -2
+                                       cursorShape: Qt.PointingHandCursor; onClicked: ws.openTrust(ws.score.trust) } }
+                    Text { visible: !big.why; anchors.baseline: big.baseline; text: "/ " + (ws.score.base !== undefined ? ws.score.base : 100); font: ws.ty.fFigS; color: ws.ty.ink3 }
                     Text { anchors.baseline: big.baseline; text: ws.score.band || ""; font: ws.ty.fBody; color: ws.ty.ink2 }
                 }
                 Text { visible: !!ws.score.sumText; text: ws.score.sumText || ""; font: ws.ty.fFigS; color: ws.ty.ink2 }
@@ -186,10 +215,17 @@ Item {
                 selected: ws.body ? ws.body.wSelected : -1
                 mode: "shot"
                 onColumnActivated: (i) => { const p = (ws.prof.positions || [])[i]; if (p) ws.seekTo(p.seekUs) }
+                onTrustClicked: (subject) => ws.openTrust(subject)
             }
             Text { visible: !ws.replay; width: ws.ty.measureW(parent.width); wrapMode: Text.WordWrap
-                   text: (ws.prof.caption || "") + (ws.prof.missingText ? " " + ws.prof.missingText : "")
-                   font: ws.ty.fSmall; color: ws.ty.ink3 }
+                   textFormat: ws.missingLinks ? Text.StyledText : Text.PlainText
+                   linkColor: ws.ty.link
+                   text: ws.missingLinks ? ws.missingRich : (ws.prof.caption || "") + (ws.prof.missingText ? " " + ws.prof.missingText : "")
+                   font: ws.ty.fSmall; color: ws.ty.ink3
+                   onLinkActivated: (link) => { if (ws.interactive) ws.openTrust(link) }
+                   HoverHandler { enabled: ws.missingLinks; cursorShape: parent.hoveredLink !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor } }
+            PpTrustInlineFor { width: parent.width; roles: ws.ty; subject: ws.trustSubject; swingDir: ws._dir
+                               onClosed: ws.trustSubject = "" }
         }
         Loader { active: !ws.rail && ws.has && !ws.replay; visible: active; width: ws.mainW; sourceComponent: ledgersC }
         Loader { active: !ws.rail && ws.has && !ws.replay; visible: active; width: ws.mainW; sourceComponent: movesC }

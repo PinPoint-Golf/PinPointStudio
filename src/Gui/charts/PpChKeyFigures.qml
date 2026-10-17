@@ -66,16 +66,21 @@ Item {
             }
             Row {
                 x: it.lx; y: kf.roles.u(21); spacing: kf.roles.u(4)
-                Text { id: fg; text: it.modelData.figure; font: kf.roles.fFigL; color: it.modelData.warn ? kf.roles.warn : kf.roles.ink }
+                // a figure a gate refused (item.gated) is the gate's words, quiet, in the link colour; it opens the reason
+                Text { id: fg; text: it.modelData.figure + (it.modelData.gated ? " ›" : "")
+                       font: it.modelData.gated ? kf.roles.fBody : kf.roles.fFigL
+                       color: it.modelData.gated ? kf.roles.link : it.modelData.warn ? kf.roles.warn : kf.roles.ink
+                       MouseArea { enabled: !!it.modelData.gated && !!it.modelData.trustSubject; anchors.fill: parent; anchors.margins: -2
+                                   cursorShape: Qt.PointingHandCursor; onClicked: kf.trustClicked(it.modelData.trustSubject) } }
                 Text { text: it.modelData.unit || ""; font: kf.roles.fSmall; color: kf.roles.ink3; anchors.baseline: fg.baseline }
                 Text { visible: it.modelData.warn && !!it.modelData.warnWord; text: it.modelData.warnWord || ""; font: kf.roles.fSmall; color: kf.roles.warn; anchors.baseline: fg.baseline }
             }
             Text { id: foot; x: it.lx; y: kf.roles.u(42); width: parent.width - x - kf.roles.u(4); wrapMode: Text.WordWrap
                    readonly property bool why: !!it.modelData.trustSubject
                    objectName: why ? "chKeyFigureWhy:" + it.modelData.trustSubject : ""
-                   text: (it.modelData.foot || "") + (why ? "  ›" : "")
-                   font: kf.roles.fSmall; color: why ? kf.roles.link : kf.roles.ink3
-                   MouseArea { enabled: foot.why; anchors.fill: parent; anchors.margins: -2; cursorShape: Qt.PointingHandCursor
+                   text: (it.modelData.foot || "") + (why && !it.modelData.gated ? "  ›" : "")
+                   font: kf.roles.fSmall; color: why && !it.modelData.gated ? kf.roles.link : kf.roles.ink3
+                   MouseArea { enabled: foot.why && !it.modelData.gated; anchors.fill: parent; anchors.margins: -2; cursorShape: Qt.PointingHandCursor
                                onClicked: kf.trustClicked(it.modelData.trustSubject) } }
         }
     }

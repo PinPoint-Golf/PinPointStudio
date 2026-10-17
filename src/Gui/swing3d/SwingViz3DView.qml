@@ -97,6 +97,29 @@ Item {
         positionUs: root.positionUs
     }
 
+    // THE GATES BEHIND A MISSING SKELETON OR PLANE (trust stage 6 session 2): the swing's records, read
+    // with the skeleton (drv.gates), in the gate's own words; a click opens the reason in the Trust panel
+    // (TrustFocus) or, with the panel off, in place (PpTrustInlineFor). An old swing has no records and
+    // keeps today's words.
+    readonly property var skeletonGate: TrustWords.gateFor(drv.gates, "track.skeleton3d")
+    // the downswing half of the plane refused for scatter (the backswing half is not this chip's plane)
+    readonly property var planeGate: {
+        for (const r of (drv.gates || [])) {
+            if (r && r.gate === "club3d.planeScatter" && r.evidence && r.evidence.code === "down") {
+                const w = TrustWords.words(r.gate)
+                return w ? { subject: r.subject, gate: r.gate, words: w } : null
+            }
+        }
+        return null
+    }
+    property string _trustOpen: ""                 // the reading open in place ("" = none)
+    onSwingDirChanged: _trustOpen = ""
+    function _why(subject) {
+        if (!TrustFocus.open(subject, root.swingDir))
+            root._trustOpen = root._trustOpen === subject ? "" : subject
+    }
+    PpTypeset { id: trustRoles }
+
     // The view background is a QML rectangle behind a transparent View3D: a clearColor is
     // tonemapped and never matches the surrounding UI. Flat and borderless — the stage's 3-D
     // SWING card is the frame — but opaque, and a step off the card's surface, because the
@@ -462,11 +485,20 @@ Item {
         }
         Chip {
             id: planeChip
+            objectName: "planeChip"
             // A face-on-only swing has no plane, and its own chip already says so.
             visible: drv.available && root.elemMode("plane") !== "off" && !root.faceOnOnly
             caveat: !drv.planeAvailable
+            readonly property bool gated: !drv.planeAvailable && !!root.planeGate
             label: drv.planeAvailable ? qsTr("downswing plane · club3d · %1°").arg(drv.planeInclDeg.toFixed(1))
-                                      : qsTr("no downswing plane on this shot")
+                   : gated ? qsTr("downswing plane: %1 ›").arg(root.planeGate.words)
+                           : qsTr("no downswing plane on this shot")
+            MouseArea {
+                anchors.fill: parent
+                enabled: planeChip.gated
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root._why(root.planeGate.subject)
+            }
         }
         // The P-position marks' legend, in words, while the marks are drawn.
         Item {
@@ -540,11 +572,54 @@ Item {
         }
     }
 
-    PpCardNote {
+    // The plane's reason, in place, above the chips (the Trust panel off).
+    Rectangle {
+        anchors { left: parent.left; bottom: chipRow.top; margins: Theme.gap(10) }
+        width: Math.min(parent.width - 2 * Theme.gap(10), Theme.sp(420))
+        height: planeWhy.height + 2 * Theme.gap(8)
+        visible: planeWhy.open
+        color: Theme.colorSurface
+        radius: Theme.sp(4)
+        PpTrustInlineFor {
+            id: planeWhy
+            x: Theme.gap(8); y: Theme.gap(8)
+            width: parent.width - 2 * Theme.gap(8)
+            roles: trustRoles
+            subject: root.planeGate && root._trustOpen === root.planeGate.subject ? root._trustOpen : ""
+            swingDir: root.swingDir
+            onClosed: root._trustOpen = ""
+        }
+    }
+
+    Column {
+        id: noSkeleton
+        objectName: "noSkeletonNote"
         anchors.centerIn: parent
         visible: !drv.available
         width: parent.width * 0.7
-        horizontalAlignment: Text.AlignHCenter
-        text: drv.loading ? qsTr("Loading the 3-D swing…") : drv.reason
+        spacing: Theme.gap(8)
+        // a refused skeleton says the gate's words, as a link to its reason
+        readonly property bool gated: !drv.loading && !!root.skeletonGate && !!root.skeletonGate.words
+        PpCardNote {
+            width: parent.width
+            horizontalAlignment: Text.AlignHCenter
+            textFormat: Text.StyledText
+            text: drv.loading ? qsTr("Loading the 3-D swing…")
+                  : !noSkeleton.gated ? drv.reason
+                  : qsTr("3-D skeleton") + " <font color='" + Theme.colorAccent + "'>" + root.skeletonGate.words + " ›</font>"
+            MouseArea {
+                anchors.fill: parent
+                enabled: noSkeleton.gated
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root._why(root.skeletonGate.subject)
+            }
+        }
+        PpTrustInlineFor {
+            width: parent.width
+            roles: trustRoles
+            subject: noSkeleton.gated && root._trustOpen === root.skeletonGate.subject ? root._trustOpen : ""
+            swingDir: root.swingDir
+            onClosed: root._trustOpen = ""
+        }
     }
 }

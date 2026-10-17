@@ -32,6 +32,8 @@ Column {
     property var sequence: null
     property bool atom: true
     readonly property var keyKinds: []
+    // a peak a gate refused (row.trust): the gate's words stand in the peak's place and open the reason
+    signal trustClicked(string subject)
     readonly property var rows: sequence && sequence.table ? sequence.table : []
     readonly property bool wide: roles ? roles.shows(2, width) : true
     readonly property real em: roles ? roles.em : 14
@@ -76,7 +78,13 @@ Column {
                 }
                 Row {
                     width: st.peakW; layoutDirection: Qt.RightToLeft; spacing: st.roles.u(4)
-                    Text { text: rw.modelData.peakText; font: st.roles.fFigS; color: st.roles.ink }
+                    Text { id: pkT
+                           readonly property bool why: !!rw.modelData.trust
+                           objectName: why ? "chSeqWhy:" + rw.modelData.trust : ""
+                           text: rw.modelData.peakText + (why ? " ›" : "")
+                           font: why ? st.roles.fSmall : st.roles.fFigS; color: why ? st.roles.link : st.roles.ink
+                           MouseArea { enabled: pkT.why; anchors.fill: parent; anchors.margins: -2; cursorShape: Qt.PointingHandCursor
+                                       onClicked: st.trustClicked(rw.modelData.trust) } }
                     Text { visible: rw.modelData.rising; text: "› rising"; font: st.roles.fSmall; color: st.roles.ink2 }
                 }
                 Text { visible: st.wide; width: st.speedW; horizontalAlignment: Text.AlignRight; text: rw.modelData.speedText; font: st.roles.fFigS; color: st.roles.ink }

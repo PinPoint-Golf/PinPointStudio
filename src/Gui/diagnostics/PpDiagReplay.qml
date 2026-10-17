@@ -79,6 +79,25 @@ Item {
     readonly property var notMeasured: conds.filter(c => c.stateKind === "notAssessable")
     readonly property int cleanN: shot && shot.partial ? shot.cleanCount : clean.length
     readonly property int notMeasuredN: shot && shot.partial ? shot.notAssessableCount : notMeasured.length
+    // NOT JUDGED, AND WHY (trust stage 6 session 2), as Analyse says it: the findings a gate kept from being
+    // judged, grouped by the reading it refused (a "Why ›" opens it); an engine rule's, which has no reading
+    // to open, grouped by its words. Counted apart from the plain "not measurable".
+    readonly property var notJudgedGroups: {
+        const out = [], at = {}
+        if (shot && shot.partial) return out
+        for (const c of notMeasured) {
+            if (!c.gated) continue
+            const key = c.trustSubject ? "s:" + c.trustSubject : "w:" + (c.gateWords || "")
+            if (at[key] === undefined) {
+                at[key] = out.length
+                out.push({ key: key, subject: c.trustSubject || "", swingDir: c.trustSwingDir || "",
+                           clause: c.trustSubject ? (c.reason || c.gateWords || "") : (c.gateWords || ""), names: [] })
+            }
+            out[at[key]].names.push(c.name)
+        }
+        return out
+    }
+    readonly property int notJudgedN: notJudgedGroups.reduce((n, g) => n + g.names.length, 0)
     readonly property int firedPatterns: fired.filter(c => c.tierTag === "pattern").length
     readonly property var watching: (source && source.watching) || []
     readonly property var watchingSorted: watching.slice().sort((a, b) => (ro.rate(b.recurrence) - ro.rate(a.recurrence)) || a.name.localeCompare(b.name))
@@ -320,6 +339,7 @@ Item {
                 // the trust fold's height counts against the plot's (closed it is one line; opened, the plot gives way)
                 readonly property real room: shotFlick.height - ro.u(16) - shotHead.height - foot.height - 2 * sc.spacing
                                              - (shotTrust.visible ? shotTrust.height + sc.spacing : 0)
+                                             - (njFoot.visible ? njFoot.height + sc.spacing : 0)
                 // rows that fit, measured by the plot itself (names may wrap once the tier folds)
                 readonly property int fit: rowsFitting(room)
                 availableHeight: room
@@ -350,8 +370,10 @@ Item {
                     objectName: "sdQuietCount"
                     visible: !ss.quiet
                     y: foot.side ? ruler.height - ro.u(13) + (ro.u(13) - foot.lineH) / 2 : 0
+                    readonly property int plainN: root.notMeasuredN - root.notJudgedN
                     text: (dp.shownClean > 0 ? (root.cleanN - dp.shownClean) + " more inside their corridor" : root.cleanN + " clean")
-                          + (root.notMeasuredN ? " · " + root.notMeasuredN + " not measurable" : "")
+                          + (plainN > 0 ? " · " + plainN + " not measurable" : "")
+                          + (root.notJudgedN > 0 ? " · " + root.notJudgedN + " not judged" : "")
                     font: ro.fSmall; color: ro.ink3
                 }
                 PpShotRuler {
@@ -362,6 +384,43 @@ Item {
                     availableWidth: foot.side ? foot.rulerNatural : foot.width
                     roles: ro; brush: br; readout: root.shot; interactive: root.interactive
                     onShotActivated: (d, s) => root.pickShot(d, s)
+                }
+            }
+            // the not-judged groups, one quiet line each: "Late hip turn, Sequence order: pelvis peak out of
+            // sight  Why ›" — the Trust panel when it is on, else in place under the line (TrustFocus, §7.0)
+            Column {
+                id: njFoot
+                objectName: "sdNotJudged"
+                visible: !!ss.shot && !ss.quiet && root.notJudgedGroups.length > 0
+                width: sc.width
+                spacing: ro.u(3)
+                property string openKey: ""
+                Repeater {
+                    model: njFoot.visible ? root.notJudgedGroups : []
+                    delegate: Column {
+                        id: njg
+                        required property var modelData
+                        objectName: "sdNotJudged:" + (modelData.subject || modelData.clause)
+                        readonly property bool canOpen: !!modelData.subject && root.interactive && !root.cast
+                        width: njFoot.width
+                        spacing: ro.u(3)
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap; textFormat: Text.StyledText
+                            text: ro.esc(njg.modelData.names.join(", ")) + ": " + ro.esc(njg.modelData.clause)
+                                  + (njg.canOpen ? "  <font color='" + ro.hex(ro.link) + "'>Why ›</font>" : "")
+                            font: ro.fSmall; color: ro.ink3
+                            MouseArea { enabled: njg.canOpen; visible: enabled; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                        onClicked: if (!TrustFocus.open(njg.modelData.subject, njg.modelData.swingDir))
+                                                       njFoot.openKey = njFoot.openKey === njg.modelData.key ? "" : njg.modelData.key }
+                        }
+                        PpTrustInlineFor {
+                            width: njg.width; roles: ro
+                            subject: njFoot.openKey === njg.modelData.key ? njg.modelData.subject : ""
+                            swingDir: njg.modelData.swingDir
+                            onClosed: njFoot.openKey = ""
+                        }
+                    }
                 }
             }
             ReviewFoot { width: sc.width }

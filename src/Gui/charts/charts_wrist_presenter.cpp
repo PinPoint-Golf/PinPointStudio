@@ -33,6 +33,7 @@
 #include "../../Export/swing_store.h"
 #include "../../Wrist/wrist_assessment_types.h"   // dofForMetricKey
 #include "../review/timeline_labels.h"
+#include "../../Metrics/gate_catalogue.h"   // the gate behind an empty wrist value (its words)
 
 #include <QCoreApplication>
 #include <QDate>
@@ -299,6 +300,9 @@ std::shared_ptr<ShotSeries> wristShotFromDetail(const QVariantMap &d, const QStr
     auto sh = std::make_shared<ShotSeries>();
     sh->swingDir = dir;
     sh->shotId = SessionSeriesModel::folderShotId(dir);
+    // the records, so an empty value can name the gate behind it (trust stage 6 session 2)
+    sh->gatesVersion = d.value(QStringLiteral("gatesVersion")).toInt();
+    sh->gates = d.value(QStringLiteral("gates")).toList();
     for (const QVariant &pv : d.value(QStringLiteral("phases")).toList()) {
         const QVariantMap p = pv.toMap();
         PhaseMark pm;
@@ -586,6 +590,57 @@ QVariantList positionsOf(const Ctx &c, const Profile &p)
     return out;
 }
 
+// THE GATE BEHIND AN EMPTY WRIST VALUE (trust stage 6 session 2): a refusing gate whose record names the
+// DOF's reading (its subject or a cascade's covers: the metric key, or any key that is this DOF), else the
+// mask whose stretch holds the checkpoint (wrist.cellRefused: the positions it could not read). Only ever
+// asked of a value that is missing — masks do not label values. Empty on an old swing (gatesVersion 0).
+struct WristGate { QString words, subject; };
+bool namesDof(const QString &k, const QString &dofId, const QString &key)
+{
+    if (k.isEmpty()) return false;
+    if (!key.isEmpty() && k == key) return true;
+    const auto d = pa::dofForMetricKey(k);
+    return d && QString::fromLatin1(pa::dofName(*d)) == dofId;
+}
+WristGate wristGate(const ShotSeries *s, const QString &dofId, const QString &key, double atMs = kNaN)
+{
+    WristGate mask;
+    if (!s || s->gatesVersion <= 0 || s->gates.isEmpty()) return mask;
+    for (const QVariant &rv : s->gates) {
+        const QVariantMap r = rv.toMap();
+        const QString subject = r.value(QStringLiteral("subject")).toString();
+        QStringList ks = r.value(QStringLiteral("covers")).toStringList();
+        ks.prepend(subject);
+        if (std::none_of(ks.cbegin(), ks.cend(), [&](const QString &k) { return namesDof(k, dofId, key); })) continue;
+        const gates::GateEntry *e = gates::gateEntry(r.value(QStringLiteral("gate")).toString());
+        if (!e) continue;
+        const QString eff = r.value(QStringLiteral("effect")).toString();
+        if (eff == QLatin1String("refused") || eff == QLatin1String("bounded")) return WristGate{ gates::claimWords(*e), subject };
+        if (eff == QLatin1String("masked") && mask.words.isEmpty() && std::isfinite(atMs)) {
+            const QVariantMap ev = r.value(QStringLiteral("evidence")).toMap();
+            if (!ev.contains(QStringLiteral("fromMs")) || !ev.contains(QStringLiteral("toMs"))) continue;
+            const double a = ev.value(QStringLiteral("fromMs")).toDouble(), b = ev.value(QStringLiteral("toMs")).toDouble();
+            if (atMs >= std::min(a, b) - 2.0 && atMs <= std::max(a, b) + 2.0) mask = WristGate{ e->shortText, subject };
+        }
+    }
+    return mask;
+}
+// A checkpoint's instant about impact (ms), NaN when the swing has no impact or no such checkpoint.
+double checkpointMs(const ShotSeries &s, const Profile &p, int i)
+{
+    const Checkpoint &k = p.cps[size_t(i)];
+    return k.available && k.tUs >= 0 && s.impactUs >= 0 ? double(k.tUs - s.impactUs) / 1000.0 : kNaN;
+}
+// An empty cell's "-" becomes the gate's words, with the reading its click opens.
+void gateCell(QVariantMap &m, const ShotSeries *s, const Profile &p, const QString &dofId, const QString &key, int i)
+{
+    if (m.value(QStringLiteral("available")).toBool() || !s) return;
+    const WristGate g = wristGate(s, dofId, key, checkpointMs(*s, p, i));
+    if (g.words.isEmpty()) return;
+    m.insert(QStringLiteral("valueText"), g.words);
+    m.insert(QStringLiteral("trust"), g.subject);
+}
+
 QVariantMap pointMap(const Dof &d, const Cell &c, bool shotScope)
 {
     const bool out = shotScope && c.out() && c.banded;
@@ -832,7 +887,10 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
                 const Cell &cell = d.cells[size_t(i)];
                 if (!first) st.append(QStringLiteral(", "));
                 first = false;
-                st.append(shortName(d.id) + QLatin1Char(' ')).figure(cell.available ? degText(cell.delta) : QStringLiteral("-"));
+                // an empty cell a gate left: its words, quiet (a "-" else)
+                const WristGate g = cell.available ? WristGate{} : wristGate(&s, d.id, d.key, checkpointMs(s, p, i));
+                if (!g.words.isEmpty()) st.append(shortName(d.id) + QLatin1Char(' ') + g.words);
+                else st.append(shortName(d.id) + QLatin1Char(' ')).figure(cell.available ? degText(cell.delta) : QStringLiteral("-"));
                 if (cell.out() && cell.banded)
                     st.append(QStringLiteral(" outside its band, ") + (cell.delta > cell.hi ? d.poleTop : d.poleBottom));
             }
@@ -841,7 +899,21 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
         R.standfirsts.append(st.toVariant());
     }
     out.insert(QStringLiteral("standfirsts"), R.standfirsts);
-    out.insert(QStringLiteral("score"), scoreMap(v, p));
+    {
+        // NO SCORE BECAUSE A GATE REFUSED THE WRIST (every condition unread): its words in the score's place
+        QVariantMap sm = scoreMap(v, p);
+        if (v.graded && sm.value(QStringLiteral("scoreText")).toString() == QLatin1String("-"))
+            for (const QString &id : dofOrder()) {
+                const Dof *d = p.dof(id);
+                const WristGate g = wristGate(&s, id, d ? d->key : QString());
+                if (g.words.isEmpty()) continue;
+                sm.insert(QStringLiteral("trust"), g.subject);
+                sm.insert(QStringLiteral("gateWords"), g.words);
+                sm.insert(QStringLiteral("line"), QStringLiteral("Wrist score: ") + g.words);
+                break;
+            }
+        out.insert(QStringLiteral("score"), sm);
+    }
     out.insert(QStringLiteral("style"), styleMap(p));
 
     // THE PROFILE
@@ -868,9 +940,13 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
         present << d.id;
         if (!d.hasStrip) {
             QVariantList cells;
-            for (const Cell &cell : d.cells)
-                cells.append(QVariantMap{ { QStringLiteral("available"), cell.available }, { QStringLiteral("value"), nv(cell.delta) },
-                                          { QStringLiteral("valueText"), cell.available ? degText(cell.delta) : QStringLiteral("-") } });
+            for (int i = 0; i < kP; ++i) {
+                const Cell &cell = d.cells[size_t(i)];
+                QVariantMap cm{ { QStringLiteral("available"), cell.available }, { QStringLiteral("value"), nv(cell.delta) },
+                                { QStringLiteral("valueText"), cell.available ? degText(cell.delta) : QStringLiteral("-") } };
+                gateCell(cm, &s, p, d.id, d.key, i);
+                cells.append(cm);
+            }
             rows.append(QVariantMap{ { QStringLiteral("numbersOnly"), true }, { QStringLiteral("dof"), d.id }, { QStringLiteral("key"), d.key },
                                      { QStringLiteral("name"), d.name }, { QStringLiteral("sub"), QStringLiteral("no corridor: the angle only") },
                                      { QStringLiteral("cells"), cells } });
@@ -879,8 +955,11 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
         Scale sc;
         QVariantList points;
         int outCount = 0;
-        for (const Cell &cell : d.cells) {
-            points.append(pointMap(d, cell, true));
+        for (int i = 0; i < kP; ++i) {
+            const Cell &cell = d.cells[size_t(i)];
+            QVariantMap pm = pointMap(d, cell, true);
+            gateCell(pm, &s, p, d.id, d.key, i);
+            points.append(pm);
             sc.add(cell.delta);
             if (cell.banded) { sc.add(cell.lo); sc.add(cell.hi); }
             if (cell.out()) ++outCount;
@@ -918,15 +997,23 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
     // absent, and that the rotation is monitored, not graded (rule 2), rather than "not measured".
     const bool forearmRotation = s.metric(QStringLiteral("hm.forearmRotation")) || s.metric(QStringLiteral("forearmRotation"));
     bool rollNote = false;
+    // each missing DOF a gate refused names the gate's words, and opens it (missingParts: the QML links them)
+    QStringList missingNamed;
+    QVariantList missingParts;
     for (const QString &id : dofOrder()) {
         if (present.contains(id)) continue;
         if (id == QLatin1String("leadForearmRot") && forearmRotation) { rollNote = true; continue; }
         missing << longName(id);
+        const WristGate g = wristGate(&s, id, QString());
+        missingNamed << (g.words.isEmpty() ? longName(id) : longName(id) + QStringLiteral(" (") + g.words + QLatin1Char(')'));
+        missingParts << QVariantMap{ { QStringLiteral("name"), longName(id) }, { QStringLiteral("words"), g.words },
+                                     { QStringLiteral("subject"), g.subject } };
     }
-    QString missingText = missing.isEmpty() ? QString() : QStringLiteral("Not measured on this swing: ") + missing.join(QStringLiteral(", ")) + QStringLiteral(".");
+    QString missingText = missing.isEmpty() ? QString() : QStringLiteral("Not measured on this swing: ") + missingNamed.join(QStringLiteral(", ")) + QStringLiteral(".");
+    const QString rollText = rollNote ? QStringLiteral("The lead forearm's roll (pronation) has no strip here; its rotation from address is shown beside your session, monitored, not graded.")
+                                      : QString();
     if (rollNote)
-        missingText += (missingText.isEmpty() ? QString() : QStringLiteral(" "))
-                     + QStringLiteral("The lead forearm's roll (pronation) has no strip here; its rotation from address is shown beside your session, monitored, not graded.");
+        missingText += (missingText.isEmpty() ? QString() : QStringLiteral(" ")) + rollText;
     QString sub = QStringLiteral("Δ from address, degrees");
     if (!ghostWord.isEmpty()) sub += QStringLiteral("  ·  dashed: ") + ghostWord;
     if (c.in.curvesBehind) sub += QStringLiteral("  ·  faint: the 40 ms curve, stretched between checkpoints");
@@ -937,6 +1024,8 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
                                                     "graded by how far (fault, watch). A finding's word is the session's: pattern, it keeps "
                                                     "firing across the session; watching, not yet.").arg(p.archetypeName) },
         { QStringLiteral("missing"), missing },
+        { QStringLiteral("missingParts"), missingParts },
+        { QStringLiteral("missingTail"), rollText },
         { QStringLiteral("missingText"), missingText } });
     out.insert(QStringLiteral("findings"), findings);
     out.insert(QStringLiteral("strengths"), strengths);
@@ -1080,11 +1169,15 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
             const BoxStats &b = a.box[size_t(p)];
             if (mine) {
                 const Cell &cell = mine->cells[size_t(p)];
-                points.append(pointMap(*mine, cell, false));
+                QVariantMap pm = pointMap(*mine, cell, false);
+                gateCell(pm, c.shot.get(), c.pick, a.id, mine->key, p);
+                points.append(pm);
                 if (cell.banded) { sc.add(cell.lo); sc.add(cell.hi); }
             } else {
-                points.append(QVariantMap{ { QStringLiteral("available"), false }, { QStringLiteral("banded"), false }, { QStringLiteral("value"), nullv() },
-                                           { QStringLiteral("valueText"), QStringLiteral("-") }, { QStringLiteral("out"), false } });
+                QVariantMap pm{ { QStringLiteral("available"), false }, { QStringLiteral("banded"), false }, { QStringLiteral("value"), nullv() },
+                                { QStringLiteral("valueText"), QStringLiteral("-") }, { QStringLiteral("out"), false } };
+                gateCell(pm, c.shot.get(), c.pick, a.id, QString(), p);
+                points.append(pm);
             }
             sc.add(b.min); sc.add(b.max);
             const double med = b.n >= 3 ? b.med : kNaN, wide = b.n >= 3 ? b.q3 - b.q1 : kNaN;

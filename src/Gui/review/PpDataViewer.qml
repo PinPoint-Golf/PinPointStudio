@@ -295,6 +295,59 @@ Item {
                     }
                 }
             }
+
+            // The region's lanes a gate kept out (trust stage 6 session 2): one quiet line under the
+            // chips, each reading in its gate's words; a click opens the reason in the Trust panel, or
+            // here, under the line (PpTrustInlineFor).
+            RowLayout {
+                id: notShownRow
+                objectName: "dataNotShown"
+                Layout.fillWidth: true; spacing: Theme.gap(8)
+                visible: src.notShown.length > 0
+                property string openSubject: ""
+                Connections { target: src; function onSwingDirChanged() { notShownRow.openSubject = "" } }
+                Item { Layout.preferredWidth: root.ctrlGutter; implicitHeight: 1 }
+                Column {
+                    Layout.fillWidth: true
+                    spacing: Theme.gap(4)
+                    Flow {
+                        width: parent.width; spacing: Theme.gap(10)
+                        Text {
+                            text: qsTr("Not shown:")
+                            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
+                            color: Theme.colorText3
+                        }
+                        Repeater {
+                            model: src.notShown
+                            delegate: Text {
+                                required property var modelData
+                                textFormat: Text.StyledText
+                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
+                                color: Theme.colorText3
+                                text: modelData.label + " — <font color='" + Theme.colorAccent + "'>"
+                                      + modelData.words + " ›</font>"
+                                MouseArea {
+                                    anchors.fill: parent; anchors.margins: -2
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (!TrustFocus.open(modelData.subject, root.swingDir))
+                                            notShownRow.openSubject = notShownRow.openSubject === modelData.subject
+                                                                      ? "" : modelData.subject
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    PpTrustInlineFor {
+                        width: parent.width
+                        roles: notShownRoles
+                        subject: notShownRow.openSubject
+                        swingDir: root.swingDir
+                        onClosed: notShownRow.openSubject = ""
+                    }
+                    PpTypeset { id: notShownRoles }
+                }
+            }
         }
 
         Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.colorBorder }

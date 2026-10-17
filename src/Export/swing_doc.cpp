@@ -1949,6 +1949,11 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
         if (an.contains(QStringLiteral("timings")))
             ps.analysisDetail.insert(QStringLiteral("timings"),
                                      an[QStringLiteral("timings")].toObject().toVariantMap());
+        // the gate records (trust_and_gates_design.md §6), as the replay source carries them
+        if (an.contains(QStringLiteral("gatesVersion"))) {
+            ps.analysisDetail.insert(QStringLiteral("gatesVersion"), an[QStringLiteral("gatesVersion")].toInt());
+            ps.analysisDetail.insert(QStringLiteral("gates"), an[QStringLiteral("gates")].toArray().toVariantList());
+        }
 
         // Flat metrics: each metric's value at Impact, in its own unit. Shared with the summary
         // sidecar so a row rebuilt either way shows identical chips.

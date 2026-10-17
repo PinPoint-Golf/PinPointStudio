@@ -567,10 +567,17 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
         float  gross = -1.f;
 
         std::vector<EvidenceCandidate> candidates;   // in c.detectedBy order — see pickEvidence()
+        // the first refusal met, stamped on the finding only if it ends Unavailable (Finding::refusal)
+        SignalRefusal firstRefusal = SignalRefusal::None;
 
         for (const QString &sid : c.detectedBy) {
             const Signal *sig = pack.signal(sid);
-            if (!sig) { anyUnavailable = true; f.missingMeasures << sid; continue; }
+            if (!sig) {
+                anyUnavailable = true;
+                f.missingMeasures << sid;
+                if (firstRefusal == SignalRefusal::None) firstRefusal = SignalRefusal::UnknownSignal;
+                continue;
+            }
 
             const SignalVerdict v = evaluate(*sig, source);
             if (!v.available) {
@@ -578,6 +585,7 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
                 // next one. Only when none can be read is the finding unavailable (below the loop).
                 if (c.detection != DetectionMode::First) anyUnavailable = true;
                 f.missingMeasures << v.missing;
+                if (firstRefusal == SignalRefusal::None) firstRefusal = v.refusal;
                 continue;
             }
             if (v.fired) {
@@ -635,6 +643,7 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
             } else if (anyUnavailable) {
                 f.state      = FindingState::Unavailable;
                 f.confidence = 0.0f;
+                f.refusal    = firstRefusal;
             } else {
                 f.state      = FindingState::Fired;
                 f.confidence = conf;
@@ -659,6 +668,7 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
         } else if (anyUnavailable) {
             f.state      = FindingState::Unavailable;
             f.confidence = 0.0f;
+            f.refusal    = firstRefusal;
             // NO evidence, even when a sibling signal did read a number. The finding's verdict is
             // "could not be assessed", and attaching a reading to it would invite a ledger row that
             // reads as an assessment. See MeasureEvidence.

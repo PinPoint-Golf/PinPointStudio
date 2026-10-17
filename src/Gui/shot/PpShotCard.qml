@@ -357,6 +357,20 @@ Rectangle {
         ToolTip.visible: warnHover.hovered
         ToolTip.delay:   400
         ToolTip.text:    card.dataWarningText
+
+        // A click opens the gate behind the warning in the Trust panel (trust stage 6 session 2). With
+        // the panel off there is no room for the reason on a card: the click opens the shot instead,
+        // whose swing panel carries the same reasons with their Why.
+        MouseArea {
+            objectName: "dataWarnBadgeClick"
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                const subj = DataWarningFormat.subject(card.dataWarningDetail)
+                if (subj === "" || !TrustFocus.open(subj, card.swingDir))
+                    card.tapped()
+            }
+        }
     }
 
     // Hover lives on a HoverHandler (not the click MouseArea) so the interactive

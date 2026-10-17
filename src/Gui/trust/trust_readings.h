@@ -69,6 +69,14 @@ QVariantMap trustSession(const charts::SessionSnapshot &session);
 QVariantMap trustSummary(const charts::ShotSeries &shot);
 QVariantMap trustSummary(const charts::SessionSnapshot &session);
 
+// THE GATE BEHIND ONE READING (stage 6 session 2): of a shot's records (analysis.gates, as a variant
+// list), the one a claim about `key` shows — a record naming the key, or a cascade covering it, the one
+// that did the most (gate_catalogue.h primaryRecord). Empty when no gate refused, bounded, withheld or
+// downgraded it. Every surface that would print a bare "-" asks this first.
+//   { subject (the record's — "track.club" for a cascade), gate, effect, words (the gate's short words for a
+//     claim: "out of sight", "drawn, not judged"), title, sentence (the evidence, filled) }
+QVariantMap gateFor(const QVariantList &gates, const QString &key);
+
 // A subject as the reader names the reading ("ks.pelvis" → "Pelvis peak").
 QString subjectLabel(const QString &subject);
 

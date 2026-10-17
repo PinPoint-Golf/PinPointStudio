@@ -97,7 +97,9 @@ Item {
             spacing: op.roles.u(30)
             Repeater {
                 model: op.roles && op.dsp ? [
-                    { n: op.dsp.currentNumber, l: "shot " + op.shotNo, warn: op.dh.thisShot === "fired" },
+                    // a "-" a gate or rule accounts for names it under the figure: "shot 4 · out of sight"
+                    { n: op.dsp.currentNumber, l: "shot " + op.shotNo + (op.dsp.currentGated && op.dsp.currentWords ? " · " + op.dsp.currentWords : ""),
+                      warn: op.dh.thisShot === "fired" },
                     { n: op.dsp.medianNumber, l: "session median", warn: false }
                 ] : []
                 delegate: Column {

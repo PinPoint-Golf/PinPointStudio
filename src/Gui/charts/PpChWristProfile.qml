@@ -41,6 +41,8 @@ Item {
     property string mode: "shot"                 // "shot" | "session"
     property bool interactive: true
     signal columnActivated(int index)
+    // an empty value a gate left (point.trust / cell.trust): the gate's words stand in it and open the reason
+    signal trustClicked(string subject)
 
     readonly property bool ok: !!roles
     readonly property bool sideLabel: ok && roles.atLeast(width, "medium")
@@ -237,10 +239,17 @@ Item {
                         readonly property var bc: pf.mode === "session" && rw.r.boxes ? rw.r.boxes[index] : null
                         x: pf.cx(index) - width / 2; y: rw.topY + pf.plotH + rw.ty.u(5); width: pf.colW - rw.ty.u(4)
                         Text {
+                            id: nv
+                            readonly property bool why: pf.mode !== "session" && !!modelData.trust
+                            objectName: why ? "chWristWhy:" + modelData.trust : ""
                             width: parent.width; horizontalAlignment: Text.AlignHCenter
-                            text: pf.mode === "session" ? (parent.bc ? parent.bc.medianText || "-" : "-") : (modelData.valueText || "-")
-                            font: rw.ty.fFigS
-                            color: parent.out ? rw.ty.warn : (modelData.available || pf.mode === "session" ? rw.ty.ink : rw.ty.ink3)
+                            wrapMode: why ? Text.WordWrap : Text.NoWrap
+                            text: pf.mode === "session" ? (parent.bc ? parent.bc.medianText || "-" : "-")
+                                  : why ? (modelData.valueText || "") + " ›" : (modelData.valueText || "-")
+                            font: why ? rw.ty.fSmall : rw.ty.fFigS
+                            color: why ? rw.ty.link : parent.out ? rw.ty.warn : (modelData.available || pf.mode === "session" ? rw.ty.ink : rw.ty.ink3)
+                            MouseArea { enabled: nv.why && pf.interactive; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                        onClicked: pf.trustClicked(nv.parent.modelData.trust) }
                             Rectangle { visible: parent.parent.out; anchors.horizontalCenter: parent.horizontalCenter; y: parent.height - 1; width: parent.contentWidth; height: 1; color: rw.ty.warn }
                         }
                         Text {
@@ -260,8 +269,15 @@ Item {
                     required property var modelData
                     required property int index
                     x: pf.cx(index) - width / 2; y: rw.topY + rw.ty.u(3); width: pf.colW - rw.ty.u(4); horizontalAlignment: Text.AlignHCenter
-                    text: modelData.valueText || "-"; font: rw.ty.fFigS
-                    color: modelData.available ? rw.ty.ink2 : rw.ty.ink3
+                    id: cv
+                    readonly property bool why: !!modelData.trust
+                    objectName: why ? "chWristWhy:" + modelData.trust : ""
+                    wrapMode: why ? Text.WordWrap : Text.NoWrap
+                    text: why ? (modelData.valueText || "") + " ›" : (modelData.valueText || "-")
+                    font: why ? rw.ty.fSmall : rw.ty.fFigS
+                    color: why ? rw.ty.link : modelData.available ? rw.ty.ink2 : rw.ty.ink3
+                    MouseArea { enabled: cv.why && pf.interactive; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: pf.trustClicked(cv.modelData.trust) }
                 }
             }
         }

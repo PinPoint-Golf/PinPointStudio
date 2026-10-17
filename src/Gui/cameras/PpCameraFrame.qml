@@ -79,6 +79,37 @@ Item {
         return null
     }
 
+    // THE GATE BEHIND A TRACK THE OVERLAY DOES NOT DRAW (trust stage 6 session 2). With the club (or the
+    // impact clip's) element on and the swing's records (analysis.gates) naming that track, a quiet chip
+    // in the corner says the gate's words — the club overlay draws nothing on a refused track, and the
+    // impact overlay nothing without a path — and opens the reason (TrustFocus, else in place). A
+    // downgrade (the clubhead's position assumed) is a caveat on a drawn path, so it shows only then.
+    // An old swing has no records: no chip, as before.
+    readonly property string _gateSwingDir: _isReplay ? (shotReplay.swingDir || "") : (SessionMode.focusedSwingDir || "")
+    readonly property var _overlayGate: {
+        var d = root._replayDetail
+        if (!d || !d.gates || !root._replayActive) return null
+        if (root._replayPerspective === CameraInstance.Impact) {
+            if (!root.showImpactOverlay) return null
+            var gi = TrustWords.gateFor(d.gates, "track.impact")
+            if (!gi || !gi.words) return null
+            var drawn = !!(d.impact && d.impact.valid && d.impact.samples && d.impact.samples.length)
+            if (gi.effect === "downgraded" && !drawn) return null
+            return gi
+        }
+        if (root._det === null || !root.showReplayOverlay || root._elemMode("shaft") === "off") return null
+        var c = root._det.club
+        if (c && c.valid) return null                   // the club is drawn: nothing to explain
+        var g = TrustWords.gateFor(d.gates, root._isDtl ? "track.clubDtl" : "track.club")
+        return (g && g.words) ? g : null
+    }
+    // The reason open in place (Trust panel off), keyed by swing and subject so another swing's chip
+    // never opens on its own.
+    property string _gateOpenKey: ""
+    readonly property string _gateKey: _overlayGate ? _gateSwingDir + "#" + _overlayGate.subject : ""
+    readonly property bool _gateOpen: _gateKey !== "" && _gateOpenKey === _gateKey
+    PpTypeset { id: gateRoles }
+
     // Swing-window gate — during replay, analysis overlays draw ONLY while the
     // playhead is between the Address (phase 0) and Finish (phase 7) timeline
     // positions; the pre-swing setup/waggle and the post-Finish settling carry no
@@ -878,6 +909,51 @@ Item {
                 color: Theme.dark ? Qt.tint(Theme.colorScrim, Qt.alpha(Theme.colorWarn, 0.16))
                                   : Qt.alpha(Theme.colorWarn, 0.9)
                 text:  Theme.caps(qsTr("Preview"))
+            }
+
+            // A track the overlay does not draw, in its gate's words (see _overlayGate).
+            PpChip {
+                id: gateChip
+                objectName: "overlayGateChip"
+                visible: root._overlayGate !== null
+                tinted: false
+                tone:   root._onScrim
+                color:  Theme.colorScrim
+                text:   root._overlayGate ? (root._overlayGate.effect === "downgraded"
+                                             ? qsTr("club: %1 ›") : qsTr("club %1 ›")).arg(root._overlayGate.words) : ""
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (!root._overlayGate) return
+                        if (!TrustFocus.open(root._overlayGate.subject, root._gateSwingDir))
+                            root._gateOpenKey = root._gateOpen ? "" : root._gateKey
+                    }
+                }
+            }
+        }
+
+        // The chip's reason in place, under the chips (the Trust panel off).
+        Rectangle {
+            visible: root._gateOpen && root._overlayGate !== null && root._gateSwingDir !== ""
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.topMargin: Theme.gap(8) + Theme.sp(18) + Theme.gap(6)
+            anchors.leftMargin: Theme.gap(8)
+            z: 25
+            width:  Math.min(parent.width - 2 * Theme.gap(8), Theme.sp(380))
+            height: Math.min(gateWhy.height + 2 * Theme.gap(8), parent.height - anchors.topMargin - Theme.gap(8))
+            clip: true
+            radius: Theme.radius - 1
+            color: Theme.colorSurface
+            PpTrustInlineFor {
+                id: gateWhy
+                x: Theme.gap(8); y: Theme.gap(8)
+                width: parent.width - 2 * Theme.gap(8)
+                roles: gateRoles
+                subject: root._gateOpen && root._overlayGate ? root._overlayGate.subject : ""
+                swingDir: root._gateSwingDir
+                onClosed: root._gateOpenKey = ""
             }
         }
 

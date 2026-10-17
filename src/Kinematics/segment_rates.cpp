@@ -435,6 +435,21 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
                                 { { QStringLiteral("route"), routeId },
                                   { QStringLiteral("tSigmaMs"), p.tSigmaMs },
                                   { QStringLiteral("maxPlaceSigmaMs"), cfg.maxPlaceSigmaMs } }, {}, {} });
+    } else {
+        // NO PEAK AT ALL: the curve has no usable samples in the stretch the sequence reads (transition
+        // to P8), so there is nothing to time — the node is kept, unplaced, and until now said nothing.
+        int inDomain = 0;
+        for (size_t i = 0; i < ns; ++i) {
+            const int64_t t = ch.series.t_us[i];
+            if (t < dom.fromUs || t > dom.toUs) continue;
+            if (sv.valid && !sv.valid[i]) continue;
+            ++inDomain;
+        }
+        n.gates.push_back({ PP_GATE("sequence.noPeak"), subject, GateEffect::Refused,
+                            { { QStringLiteral("route"), routeId },
+                              { QStringLiteral("samples"), inDomain },
+                              { QStringLiteral("fromMs"), rel(dom.fromUs) },
+                              { QStringLiteral("toMs"), rel(dom.toUs) } }, {}, {} });
     }
     nodes.push_back(n);
 }

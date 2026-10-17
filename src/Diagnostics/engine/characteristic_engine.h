@@ -261,12 +261,53 @@ struct MeasureEvidence {
     }
 };
 
+// ── One signal on its own (trunk_imu_sequence_grf_design.md §10.6, E4) ────────────────────
+//
+// WHY a signal could not be assessed. detect() folds this into "unavailable" plus the measures it
+// names, which is all a condition's verdict needs; a surface that lists the signals one by one (the
+// kinematic sequence checks) has to say WHICH refusal it was, because "the chest peak was never
+// placed" and "the two peaks came off two different scales" ask the golfer for different things.
+enum class SignalRefusal {
+    None,                    // it was assessed
+    UnknownSignal,           // no signal with this id in the pack
+    MeasureMissing,          // a measure it reads produced no value on this swing (`missing` names it)
+    Malformed,               // the signal reads the wrong number of measures for its test (a pack bug)
+    NoCorridor,              // a corridor test with no corridor to grade against
+    Implausible,             // a reading the norm does not believe — a capture fault, not a verdict
+    MixedScale,              // a ratio of two readings off two scales (§10.7 E3, sameScale())
+    NonPositiveDenominator,  // a ratio over zero, a negative or a NaN
+    PeakAfterImpact,         // the signal's requiresBeforeImpact time came at or after impact
+    Withheld,                // a reading its producer marked drawn-but-not-judged (`missing` names it)
+};
+
+// THE RULE BEHIND A REFUSAL (trust stage 6 session 2). Five refusals are decisions the engine makes on
+// every read — no gate record stands behind them, so each is catalogued as a RULE (Metrics/
+// gate_catalogue_rules.h, `rule.diag.*`) and a surface names it by this id. Null for the rest: a missing
+// or withheld measure speaks through the swing's gate records instead, and a malformed or unknown signal
+// is a pack bug, not a reading the golfer is owed words for.
+inline const char *signalRefusalRuleId(SignalRefusal r)
+{
+    switch (r) {
+    case SignalRefusal::NoCorridor:             return "rule.diag.noCorridor";
+    case SignalRefusal::Implausible:            return "rule.diag.implausible";
+    case SignalRefusal::MixedScale:             return "rule.diag.mixedScale";
+    case SignalRefusal::NonPositiveDenominator: return "rule.diag.nonPositiveDenominator";
+    case SignalRefusal::PeakAfterImpact:        return "rule.diag.peakAfterImpact";
+    default:                                    return nullptr;
+    }
+}
+
 struct Finding {
     QString      conditionId;
     FindingState state      = FindingState::Unavailable;
     float        confidence = 0.0f;
     QStringList  firedSignals;
     QStringList  missingMeasures;   // Unavailable: exactly which measures were absent, for the UI
+    // Unavailable: WHY the first signal that could not be read was refused (the one whose measure heads
+    // `missingMeasures`), so a refusal the engine made on a reading it HAD — no corridor, a reading not
+    // believed, two scales, no ratio, a peak after impact — is not reported as a measure that was never
+    // produced. None on every other state, and on a condition with no signals.
+    SignalRefusal refusal   = SignalRefusal::None;
     Direction    direction  = Direction::High;   // which tail; meaningful when Fired
 
     // Resolved from the condition's context bindings for the shot's context. RANKING ONLY: an
@@ -309,25 +350,6 @@ struct DetectionResult {
     const Finding *find(const QString &conditionId) const;
     QStringList    fired() const;
     QStringList    unavailable() const;
-};
-
-// ── One signal on its own (trunk_imu_sequence_grf_design.md §10.6, E4) ────────────────────
-//
-// WHY a signal could not be assessed. detect() folds this into "unavailable" plus the measures it
-// names, which is all a condition's verdict needs; a surface that lists the signals one by one (the
-// kinematic sequence checks) has to say WHICH refusal it was, because "the chest peak was never
-// placed" and "the two peaks came off two different scales" ask the golfer for different things.
-enum class SignalRefusal {
-    None,                    // it was assessed
-    UnknownSignal,           // no signal with this id in the pack
-    MeasureMissing,          // a measure it reads produced no value on this swing (`missing` names it)
-    Malformed,               // the signal reads the wrong number of measures for its test (a pack bug)
-    NoCorridor,              // a corridor test with no corridor to grade against
-    Implausible,             // a reading the norm does not believe — a capture fault, not a verdict
-    MixedScale,              // a ratio of two readings off two scales (§10.7 E3, sameScale())
-    NonPositiveDenominator,  // a ratio over zero, a negative or a NaN
-    PeakAfterImpact,         // the signal's requiresBeforeImpact time came at or after impact
-    Withheld,                // a reading its producer marked drawn-but-not-judged (`missing` names it)
 };
 
 // One signal's verdict, as detect() reaches it for a condition. pFire/quantified/grossRisk follow

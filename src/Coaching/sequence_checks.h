@@ -33,6 +33,7 @@
 // Meister 2011, never a closeness of any magnitude to a published mean, and never a session score.
 
 #include "diagnostic_ledger.h"
+#include "../Metrics/gate_catalogue.h"   // the words of the gate or rule behind a "—" (claimWords)
 
 #include <QString>
 #include <QStringList>
@@ -220,6 +221,11 @@ struct SequenceCheck {
     float              pFire      = -1.f;
     bool               quantified = false;
     QString            reason;    // "—" only: why
+    // "—" only: the gate record (`sequence.sightedBand`) or engine rule (`rule.diag.mixedScale`) behind
+    // it, off SignalRow::notJudgedGate, and the reading a record acted on (`ks.pelvis`; empty for a rule,
+    // which has no per-swing reading to open). Empty when nothing named it (an older ledger, a plain absence).
+    QString            gate;
+    QString            trustSubject;
 };
 
 struct SequenceChecks {
@@ -256,11 +262,17 @@ inline SequenceChecks sequenceChecksOf(const std::vector<SignalRow> &rows)
             c.pFire      = row->pFire;
             c.quantified = row->quantified;
             c.reason     = row->reason;
+            if (c.state == SequenceCheckState::NotAssessable) {
+                c.gate         = row->notJudgedGate;
+                c.trustSubject = row->notJudgedSubject;
+            }
             // Fell all the way to impact: the hips-before-impact check (I1) already asks exactly
             // that, so this row stands aside rather than count the same comparison twice.
             if (row->comparedWith == QLatin1String("impact") && c.state != SequenceCheckState::NotAssessable) {
                 c.state  = SequenceCheckState::NotAssessable;
                 c.reason = QStringLiteral("no later link placed; the impact check covers it");
+                c.gate.clear();
+                c.trustSubject.clear();
             }
             // Fell back down the chain: say which pair was compared, and why.
             if (const QString link = sequenceLinkName(row->comparedWith);
@@ -274,6 +286,8 @@ inline SequenceChecks sequenceChecksOf(const std::vector<SignalRow> &rows)
             ++out.notAssessable;
         } else {
             c.reason.clear();
+            c.gate.clear();
+            c.trustSubject.clear();
             const double p = row ? sequenceCheckFireProb(*row) : 0.0;
             ++out.assessable;
             if (c.state == SequenceCheckState::Pass) ++out.passed;
@@ -314,9 +328,18 @@ inline QString sequenceChecksGapNote(const SequenceChecks &s)
     return reasons[best];
 }
 
+// A gate's or rule's short words for a "—" cell ("out of sight", "mixed scales"); empty when unknown.
+inline QString sequenceGateWords(const QString &gateId)
+{
+    if (gateId.isEmpty()) return QString();
+    const gates::GateEntry *e = gates::gateEntry(gateId);
+    return e ? gates::claimWords(*e) : QString();
+}
+
 // The QML shape — PpSequenceStrip and PpChSeqTable bind it; empty map = nothing recorded.
 //   { line, whose, passed, assessable, notAssessable, gapNote,
-//     checks: [{ facet, signalId, label, question, state, mark, pFire, quantified, reason, detail }] }
+//     checks: [{ facet, signalId, label, question, state, mark, pFire, quantified, reason, gate, trustSubject,
+//                gateWords, detail }] }
 // expectedPassed / sumPFire / failedLikely ride along for ranking and the tests; no surface prints them.
 inline QVariantMap sequenceChecksToVariant(const SequenceChecks &s)
 {
@@ -332,6 +355,12 @@ inline QVariantMap sequenceChecksToVariant(const SequenceChecks &s)
                              { QStringLiteral("pFire"),      double(c.pFire) },
                              { QStringLiteral("quantified"), c.quantified },
                              { QStringLiteral("reason"),     c.reason },
+                             // the gate or rule behind a "—" and its short words ("out of sight",
+                             // "mixed scales"); trustSubject opens the reading in the Trust panel
+                             // (empty for a rule: words only, nothing to open)
+                             { QStringLiteral("gate"),         c.gate },
+                             { QStringLiteral("trustSubject"), c.trustSubject },
+                             { QStringLiteral("gateWords"),    sequenceGateWords(c.gate) },
                              // What the hover list prints after the label: why for "—", the
                              // doubt for "?", the question itself otherwise.
                              { QStringLiteral("detail"),

@@ -127,12 +127,12 @@ Item {
     function itemsFor(r, still) {
         if (!r) return []
         const hv = !still && isFinite(hoverMs) ? byKey(hover.rows, r.key) : null
-        if (hv) return [{ label: hover.when || "", text: hv.text, sub: hv.raw || "", warn: false, word: hv.grossWarn ? "⚠" : "" }]
+        if (hv) return [{ label: hover.when || "", text: hv.text, sub: hv.raw || "", warn: false, word: hv.grossWarn ? "⚠" : "", trust: hv.trust || "" }]
         const out = []
         if (figMode === "figures") for (const f of (r.figures || [])) out.push({ label: f.label, text: f.text, warn: f.warn === true, trust: f.trust || "" })
         const nw = byKey(nowRows, r.key)
         if (nw) {
-            out.push({ label: figMode === "now" ? "now" : "at playhead", text: nw.text, sub: nw.addrText || "" })
+            out.push({ label: figMode === "now" ? "now" : "at playhead", text: nw.text, sub: nw.addrText || "", trust: nw.trust || "" })
             if (refOn && (nw.refText || nw.gapText)) out.push({ label: "against", text: nw.refText || "-", sub: nw.gapText || "" })
         }
         return out
@@ -263,8 +263,8 @@ Item {
                     // (Mark, 16 Oct). One line per segment, stacked from the bottom.
                     Repeater {
                         model: rw.ov ? [].concat.apply([], tf.rows.map(function (q) {
-                                           return (q.blind || []).map(function (b) { return { b: b, key: q.key, who: q.sequence && q.sequence.word ? q.sequence.word : q.label, subject: q.trustSubject || "" } }) }))
-                                     : (rw.r.blind || []).map(function (b) { return { b: b, key: rw.key, who: "", subject: rw.r.trustSubject || "" } })
+                                           return (q.blind || []).map(function (b) { return { b: b, key: q.key, who: q.sequence && q.sequence.word ? q.sequence.word : q.label, subject: b.subject || q.trustSubject || "" } }) }))
+                                     : (rw.r.blind || []).map(function (b) { return { b: b, key: rw.key, who: "", subject: b.subject || rw.r.trustSubject || "" } })
                         delegate: Item {
                             id: bl
                             required property var modelData

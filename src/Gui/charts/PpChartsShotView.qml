@@ -321,7 +321,9 @@ Column {
                 visible: sv.replay && sv.available && (sv.ts.cards || []).length > 0
                 width: parent.width; roles: sv.roles; interactive: sv.interactive
                 rows: []; cards: sv.available ? (sv.ts.cards || []) : []
+                onTrustClicked: (subject) => sv.openTrust(subject, "summary")
             }
+            PpTrustInline { roles: sv.roles; readings: sv.replay ? sv.trustReadings("summary") : []; swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "summary") }
         }
     }
 
@@ -348,7 +350,9 @@ Column {
         visible: !sv.replay && sv.available && !(sv.body && sv.body.collapsed.summary === true)
         width: sv.width; roles: sv.roles; interactive: sv.interactive
         rows: sv.rows; cards: sv.available ? (sv.ts.cards || []) : []
+        onTrustClicked: (subject) => sv.openTrust(subject, "summary")
     }
+    PpTrustInline { roles: sv.roles; readings: sv.replay ? [] : sv.trustReadings("summary"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "summary") }
     PpChFoldHead {
         visible: !sv.replay && sv.hasSeq && (sv.ts.sequence.table || []).length > 0
         width: sv.width; roles: sv.roles; key: "sequence"; title: "The kinematic sequence"; sub: sv.hasSeq ? (sv.ts.sequence.verdictText || "") : ""
@@ -360,7 +364,9 @@ Column {
     PpChSeqTable {
         visible: !sv.replay && sv.hasSeq && !(sv.body && sv.body.collapsed.sequence === true)
         width: sv.width; roles: sv.roles; sequence: sv.hasSeq ? sv.ts.sequence : null
+        onTrustClicked: (subject) => sv.openTrust(subject, "seqTable")
     }
+    PpTrustInline { roles: sv.roles; readings: sv.trustReadings("seqTable"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "seqTable") }
     // Apart from the session (B): the readings past the session's whiskers lead
     Column {
         objectName: "chApart"
@@ -386,7 +392,9 @@ Column {
             playMs: sv.relPlayMs; playText: sv.body && sv.body.rPlayhead ? (sv.body.rPlayhead.openValueText || "") : ""
             onRowActivated: (id) => { if (sv.body) sv.body.openReading(id) }
             onShotActivated: (o) => { if (sv.body) sv.body.pickOrdinal(o) }
+            onTrustClicked: (subject) => sv.openTrust(subject, "apart")
         }
+        PpTrustInline { roles: sv.roles; readings: sv.trustReadings("apart"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "apart") }
         PpNotes { width: parent.width; roles: sv.roles; text: sv.rs ? sv.roles.esc(sv.rs.notes || "") : "" }
         // the fired conditions that read no reading on the profile, said once
         Flow {
@@ -442,9 +450,11 @@ Column {
                     playMs: sv.relPlayMs; playText: sv.body && sv.body.rPlayhead ? (sv.body.rPlayhead.openValueText || "") : ""
                     onRowActivated: (id) => { if (sv.body) sv.body.openReading(id) }
                     onShotActivated: (o) => { if (sv.body) sv.body.pickOrdinal(o) }
+                    onTrustClicked: (subject) => sv.openTrust(subject, "profile")
                 }
             }
         }
+        PpTrustInline { roles: sv.roles; readings: sv.trustReadings("profile"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "profile") }
     }
 
     // ── the playhead and the recording, from shotReplay (pixels only) ──

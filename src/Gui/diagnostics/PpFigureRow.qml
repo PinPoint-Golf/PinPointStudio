@@ -17,6 +17,7 @@
  */
 
 import QtQuick
+import PinPointStudio
 
 // FIGUREROW — C's chart-led detail figure: PpRunChart + PpBoxStrip | PpHistoryStrip on ONE value axis,
 // with the axis labels on the left, the zone labels once at the right of the last panel, and a caption
@@ -58,6 +59,13 @@ Item {
     signal shotActivated(string swingDir, int shotId)
     signal shotHovered(int shotId)
     signal sessionActivated(string sessionDir)
+    // THE PICKED SHOT'S GATE (trust stage 6 session 2): when a gate or rule refused this shot's reading,
+    // the run caption ("shot 4 · - · out of sight") ends in the link mark and opens the reading — in the
+    // Trust panel, else in place under the figure. A rule has no reading to open: words only.
+    readonly property var runGate: (!hoverReadout && s.currentGated && s.currentGate && s.currentGate.words) ? s.currentGate : null
+    readonly property bool runGateLink: !!runGate && !!runGate.subject && medium === "screen"
+    property bool runGateOpen: false
+    onRunGateChanged: runGateOpen = false
 
     readonly property var hdr: (detail && detail.header) || ({})
     readonly property var s: hdr.spread || ({})
@@ -219,8 +227,20 @@ Item {
                     required property var modelData
                     required property int index
                     objectName: modelData === "run" ? "sdDetailHoverReadout" : modelData === "hist" ? "sdHistoryCaption" : "sdBoxCaption"
+                    id: capT
+                    readonly property bool gateLink: modelData === "run" && fg.runGateLink
                     x: vr.xs[index] || 0; width: vr.capW(index)
-                    wrapMode: Text.WordWrap; font: fg.roles.fSmall; color: fg.roles.ink3; text: vr.caption(modelData)
+                    wrapMode: Text.WordWrap; font: fg.roles.fSmall; color: fg.roles.ink3
+                    textFormat: gateLink ? Text.StyledText : Text.PlainText
+                    text: gateLink ? fg.roles.esc(vr.caption(modelData)) + "<font color='" + fg.roles.hex(fg.roles.link) + "'> ›</font>"
+                                   : vr.caption(modelData)
+                    MouseArea {
+                        objectName: "sdRunGateLink"
+                        enabled: capT.gateLink && fg.interactive
+                        visible: enabled
+                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                        onClicked: if (!TrustFocus.open(fg.runGate.subject, fg.runGate.swingDir || "")) fg.runGateOpen = !fg.runGateOpen
+                    }
                 }
             }
         }
@@ -229,7 +249,8 @@ Item {
     // same number the box's rule marks), with a symbol unit only — "median 14", short enough for the column
     readonly property string boxCaption: {
         const n = s.medianNumber
-        if (n === undefined || n === null || n === "" || n === "-") return (s.dots || []).length ? "" : "no shot measured"
+        if (n === undefined || n === null || n === "" || n === "-")
+            return (s.dots || []).length ? "" : (s.notJudged > 0 && s.notJudged === s.notAssessable ? "no shot judged" : "no shot measured")
         return "median " + n + unitShort
     }
     // the zone labels' heights in the right gutter, which an examined box's reading keeps clear of; the
@@ -268,6 +289,15 @@ Item {
         ValueRow { width: fg.mainW
                    kinds: fg.form === "row" ? ["run", "box", "hist"] : ["run", "box"]
                    widths: fg.form === "row" ? [fg.p2, fg.bw, fg.p3] : fg.form === "pair" ? [fg.p2, fg.bw] : [fg.stackRunW, fg.bw] }
+        // the picked shot's refused reading, in place (the run caption's link, Trust panel off)
+        PpTrustInlineFor {
+            objectName: "sdRunGateInline"
+            width: fg.mainW
+            roles: fg.roles
+            subject: fg.runGateOpen && fg.runGateLink ? fg.runGate.subject : ""
+            swingDir: fg.runGate ? (fg.runGate.swingDir || "") : ""
+            onClosed: fg.runGateOpen = false
+        }
         ValueRow { visible: !fg.rowMode; height: visible ? implicitHeight : 0; showMeasure: false; width: fg.mainW; kinds: fg.rowMode ? [] : ["hist"]
                    widths: [fg.form === "stack" ? fg.stackW : fg.p2 + fg.bg + fg.bw] }
         // below ~290 px the zone labels leave the right gutter and stand under the figure as one key line

@@ -142,6 +142,11 @@ Item {
 
     // ═══ data: the model's map, read as it is published ═══
     readonly property var vals: (g && g.values) || ({})
+    // WHY A READING IS MISSING (trust stage 6 session 2): the gate that dropped each reading the headline shot
+    // lacks ({ subject, gate, words, … }, LmSessionModel), and the swing its reason opens on. A tile prints the
+    // words where it printed "-"; an old swing has none and keeps its "-".
+    readonly property string gateSwingDir: (g && g.gateSwingDir) || ""
+    function gateOf(key) { const m = g && g.gates; return (m && m[key] && m[key].words) ? m[key] : null }
     readonly property bool hasData: !!g && g.has === true
     // every shot in the session, in shot order, with its EFFECTIVE club (graphics.shots). Until the model
     // publishes graphics.shots, the recorded list stands in for the heading only (no per-shot values).
@@ -155,7 +160,7 @@ Item {
             const club = String(s.club || ""), raw = String(s.recordedClub !== undefined ? s.recordedClub : club)
             out.push({ shotId: s.id, ordinal: s.number, club: club, clubKey: club.toLowerCase(), rawClub: raw,
                        clubSource: s.clubSource || "recorded", relabelled: club.toLowerCase() !== raw.toLowerCase(),
-                       out: s.excluded === true, values: v, evidence: s.evidence || {},
+                       out: s.excluded === true, values: v, evidence: s.evidence || {}, gateWords: s.gateWords || {},
                        carry: fin(v["lm.carryDistance"]), offline: fin(v["lm.offline"]), total: fin(v["lm.totalDistance"]) })
         }
         out.sort((a, b) => a.ordinal - b.ordinal)
@@ -386,7 +391,8 @@ Item {
     // the glance also names closure rate (the also line); peak height and descent are written on the flight's side view
     readonly property var glanceExtra: ["lm.closureRate"].filter(k => has(k)).map(k => ({ key: k, label: label(k) }))
     function heroTile(d) { const p = dirParts(d.key, txt(d.key))
-                           return { key: d.key, tier: d.tier, label: d.label, value: p.num, dir: p.dir, unit: unitWord(unitOf(d.key)), footL: meanTxt(d.key) === "-" ? "-" : dirStr(d.key, meanTxt(d.key)), footR: sdTxt(d.key), out: isOut(d.key) } }
+                           return { key: d.key, tier: d.tier, label: d.label, value: p.num, dir: p.dir, unit: unitWord(unitOf(d.key)), footL: meanTxt(d.key) === "-" ? "-" : dirStr(d.key, meanTxt(d.key)), footR: sdTxt(d.key), out: isOut(d.key),
+                                    gate: has(d.key) ? null : gateOf(d.key) } }
     // Session: the scoped club's statistics — graphics.clubs[].stats (mean, sd, n, without the shots left
     // out, by the effective club). Until the model publishes them, the board's own scope (vals) stands for the
     // focused shot's club, and any other club has none ("-").
@@ -817,6 +823,9 @@ Item {
         property var h
         property var d: ({})
         readonly property bool out: d.out === true
+        // a reading a gate dropped: its words, quiet, where the figure would be (a click opens the reason)
+        readonly property bool gated: !!d.gate && !!d.gate.words
+        signal gateClicked(string subject)
         height: h.tileH + (d.strip ? h.stripRowH : 0)
         Rectangle {
             anchors.fill: parent
@@ -833,6 +842,7 @@ Item {
         // a small-caps qualifier on the figure's baseline ("0.2 DOWN")
         Row {
             id: tValRow
+            visible: !tl.gated
             anchors.top: tLab.bottom; anchors.topMargin: tl.h.ts.u(1)
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: tl.h.ts.u(5)
@@ -844,8 +854,26 @@ Item {
             anchors.top: tValRow.bottom; anchors.topMargin: 0
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: tl.h.ts.u(5)
-            Text { text: tl.d.unit || ""; font: tl.h.fTileLabel; color: tl.h.ts.ink3; visible: text.length > 0 }
+            Text { text: tl.d.unit || ""; font: tl.h.fTileLabel; color: tl.h.ts.ink3; visible: text.length > 0 && !tl.gated }
             Text { visible: tl.out; text: "outside"; font: tl.h.fTileLabel; color: tl.h.ts.warn }
+        }
+        Text {
+            objectName: "lmTileGate"
+            visible: tl.gated
+            anchors.top: tLab.bottom; anchors.topMargin: tl.h.ts.u(6)
+            x: tl.h.ts.u(6); width: parent.width - 2 * x
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight
+            textFormat: Text.StyledText
+            font: tl.h.ts.fFigLabel; color: tl.h.ts.ink3
+            text: !tl.gated ? "" : (tl.h.ts.isPrint || !tl.h.canAct) ? tl.d.gate.words
+                                 : "<font color='" + tl.h.ts.link + "'>" + tl.d.gate.words + " ›</font>"
+            MouseArea {
+                anchors.fill: parent; anchors.margins: -2
+                enabled: tl.gated && !tl.h.ts.isPrint && tl.h.canAct
+                cursorShape: Qt.PointingHandCursor
+                onClicked: tl.gateClicked(tl.d.gate.subject)
+            }
         }
         // Session (round 4, from B): every scoped shot on the tile's strip; clicking a tick focuses that shot
         StripTicks { visible: !!tl.d.strip; h: tl.h; strip: tl.d.strip || null
@@ -874,6 +902,7 @@ Item {
         property var folded: []
         property bool showAlso: false
         property var extra: []                       // readings added to the "also" line (the glance: closure, peak, descent)
+        property string inlineSubject: ""            // a gated tile's reason, open under the block (Trust panel off)
         readonly property var alsoList: folded.concat(extra)
         readonly property int n: defs.length
         readonly property int fit: h.ts.columns(width, h.lr.tileMinEm, h.tileGap)
@@ -894,17 +923,29 @@ Item {
                     y: Math.floor(index / tb.cols) * (parent.rowH + tb.h.tileGap)
                     width: tb.cw
                     d: modelData
+                    onGateClicked: (subject) => {
+                        if (!TrustFocus.open(subject, tb.h.gateSwingDir))
+                            tb.inlineSubject = tb.inlineSubject === subject ? "" : subject
+                    }
                 }
             }
         }
         Text {
             visible: tb.showAlso && tb.alsoList.length > 0
             width: parent.width; wrapMode: Text.WordWrap; textFormat: Text.RichText
-            text: tb.alsoList.map(d => tb.h.ts.esc(d.label).replace(/ /g, "&nbsp;") + "&nbsp;" + tb.h.ts.figHtml(tb.h.isDir(d.key) ? tb.h.dirParts(d.key, tb.h.txt(d.key), tb.h.unitOf(d.key) === "°" ? "°" : "").num : tb.h.figU(d.key), tb.h.isOut(d.key) ? tb.h.ts.warn : tb.h.ts.ink2)
+            text: tb.alsoList.map(d => (d.gate && d.gate.words) ? tb.h.ts.esc(d.label).replace(/ /g, "&nbsp;") + "&nbsp;" + tb.h.ts.esc(d.gate.words) :
+                                     tb.h.ts.esc(d.label).replace(/ /g, "&nbsp;") + "&nbsp;" + tb.h.ts.figHtml(tb.h.isDir(d.key) ? tb.h.dirParts(d.key, tb.h.txt(d.key), tb.h.unitOf(d.key) === "°" ? "°" : "").num : tb.h.figU(d.key), tb.h.isOut(d.key) ? tb.h.ts.warn : tb.h.ts.ink2)
                                      + (tb.h.unitOf(d.key) === "°" ? "" : "&nbsp;" + tb.h.unitWord(tb.h.unitOf(d.key)))
                                      + (tb.h.isDir(d.key) && tb.h.dirParts(d.key, tb.h.txt(d.key)).dir ? "&nbsp;" + tb.h.ts.esc(tb.h.dirParts(d.key, tb.h.txt(d.key)).dir) : "")
                                      + (tb.h.isOut(d.key) ? " " + tb.h.ts.toneHtml("outside", tb.h.ts.warn) : "")).join("&nbsp;&nbsp; · &nbsp;&nbsp;")
             font: tb.h.ts.fMicro; color: tb.h.ts.ink3
+        }
+        PpTrustInlineFor {
+            width: parent.width
+            roles: tb.h.ts
+            subject: tb.inlineSubject
+            swingDir: tb.h.gateSwingDir
+            onClosed: tb.inlineSubject = ""
         }
     }
 
@@ -1543,7 +1584,8 @@ Item {
         { key: "lm.launchAngle", head: "Launch", unit: "°" }, { key: "lm.spinRate", head: "Spin", unit: "rpm" },
         { key: "lm.spinAxis", head: "Axis", unit: "°" }, { key: "lm.peakHeight", head: "Peak", unit: "ft" }
     ]
-    function cellTxt(s, key) { const x = shotV(s, key); return isFinite(x) ? dirStr(key, fmtKey(key, x)) : "-" }
+    // a reading the shot lacks prints its gate's words (print: words only), else "-"
+    function cellTxt(s, key) { const x = shotV(s, key); return isFinite(x) ? dirStr(key, fmtKey(key, x)) : ((s && s.gateWords && s.gateWords[key]) || "-") }
     component ShotTable: Column {
         id: st
         property var h
@@ -1591,7 +1633,10 @@ Item {
                                 required property var modelData
                                 required property int index
                                 x: st.numW + (index + 1) * st.cellW - width; anchors.verticalCenter: parent.verticalCenter
-                                text: st.h.cellTxt(trw.modelData, modelData.key); font: st.h.ts.fFigLabel; color: trw.modelData.out ? st.h.ts.ink3 : st.h.ts.ink
+                                readonly property bool gated: !isFinite(st.h.shotV(trw.modelData, modelData.key)) && !!(trw.modelData.gateWords && trw.modelData.gateWords[modelData.key])
+                                width: gated ? st.cellW - st.h.ts.u(4) : implicitWidth; horizontalAlignment: Text.AlignRight; elide: Text.ElideRight
+                                text: st.h.cellTxt(trw.modelData, modelData.key); font: gated ? st.h.ts.fMicro : st.h.ts.fFigLabel
+                                color: trw.modelData.out || gated ? st.h.ts.ink3 : st.h.ts.ink
                             }
                         }
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: st.h.ts.hw; color: st.h.ts.hair }

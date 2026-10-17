@@ -96,3 +96,23 @@ the manifest on every write (`manifest_gates.h`); the launch monitor's from the 
 (`lm_gates.h`); a HackMotion lane that would not bind, from the loader. Masks share one "Partly drawn" line in
 the trust summary and stay out of the closed fold's words. Test sessions: 4 Jul Wrist_01 (15 shots) and
 18 Aug Wrist_02 (6) re-analysed; library sweep on the studio next, its firing table for Mark.
+
+## Session 2: show it everywhere (conventions)
+
+- **One question, one answer.** "Which gate is behind this reading on this swing?" is answered by
+  `trust::gateFor(gates, key)` (C++, `src/Gui/trust/trust_readings.h`) or `TrustWords.gateFor(gates, key)`
+  (QML singleton): `{ subject, gate, effect, words, title, sentence }`, empty when nothing refused,
+  bounded, withheld or downgraded it. `key` is the metric key ("lowPointAhead", "lm.spinRate"); a cascade
+  ("track.club") answers for every key it covers. No surface words a refusal itself.
+- **In the reading's own slot.** Where a surface printed a bare "-" (or dropped the reading), it prints the
+  gate's `words` in the quiet style, in the link colour with " ›" — `PpGateNote` in QML, or the surface's
+  existing link mark (PpChTraceFigure figures' `trust`, PpChKeyFigures' `trustSubject`). A click opens the
+  reading in the Trust panel (`TrustFocus.open(subject, swingDir)`), else expands it in place
+  (PpTrustInlineFor / the surface's PpTrustInline slot). No popovers.
+- **A refused reading keeps its place.** A card, row, tile or column that vanished because the reading was
+  refused comes back as a stub carrying the gate's words, so the reader sees that it was refused, not that it
+  never existed. One line at most; nothing new above the figures; the chart area gains nothing but a stub.
+- **Masks do not label values.** A reading only a mask touched stands; its value is printed as usual.
+- **Print**: words only, no link.
+- **Every register**: Analyse, Replay, Print (where the surface prints), Live where the surface shows a shot.
+- **Old swings** (`gatesVersion` 0): `gateFor` returns nothing; the surface keeps today's "-".

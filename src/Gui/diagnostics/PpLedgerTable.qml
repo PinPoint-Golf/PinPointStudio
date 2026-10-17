@@ -28,7 +28,11 @@ import PinPointStudio
 //   "session"  rows = cards                               → line 2 = B's direction sentence (+ xref in print)
 //   "watching" rows = source.watching (needs readout)     → values/strips from readout
 //   "path"     rows = detail.causes or detail.effects     → No. · typeset chain · links · Open
-// or pass `spec` + `getter(row, key, foldedKeys) → { t, c, f, rich, ticks }` for a custom table.
+// or pass `spec` + `getter(row, key, foldedKeys) → { t, c, f, rich, ticks, gate }` for a custom table.
+// A cell whose reading a gate or rule refused (`gate` = the model's gateNote { subject, gate, words,
+// swingDir }) prints the gate's words in place of "-", quiet; a record's words are a link (" ›") that
+// opens the reading in the Trust panel, else in place under the row (trust stage 6 session 2). A rule
+// has no reading to open: words only. Print: words only.
 Item {
     id: tb
     objectName: kind === "fired" ? "sdFiredTable" : kind === "session" ? "sdSessionTable" : kind === "watching" ? "sdWatchingTable" : "sdPathTable"
@@ -124,6 +128,23 @@ Item {
         return c.head
     }
     function rowId(r) { return kind === "path" ? "" : (r && r.id) || "" }
+    // the gated cell open in place (Trust panel off): its row, and the reading under it
+    property string gateOpenRow: ""
+    property string gateOpenSubject: ""
+    property string gateOpenSwingDir: ""
+    function gateCell(g) { return g && g.words ? { t: g.words, gate: g } : null }
+    function openGate(rid, g) {
+        if (!g || !g.subject) return
+        if (TrustFocus.open(g.subject, g.swingDir || "")) return
+        const same = gateOpenRow === rid && gateOpenSubject === g.subject
+        gateOpenRow = same ? "" : rid
+        gateOpenSubject = same ? "" : g.subject
+        gateOpenSwingDir = same ? "" : (g.swingDir || "")
+    }
+    function gateHtml(g) {
+        const w = roles.esc(g.words)
+        return (!g.subject || isPrint) ? w : w + "<font color='" + roles.hex(roles.link) + "'> ›</font>"
+    }
 
     // ── built-in getters ──
     function cond(id) { return roles.byId((readout && readout.conditions) || [], id) }
@@ -161,7 +182,8 @@ Item {
             switch (key) {
             case "name": return { t: r.name }
             case "tier": return { t: r.tierTag }
-            case "value": return { t: roles.fig(r.valueText), c: r.stateKind === "fired" ? roles.warn : r.stateKind === "notAssessable" ? roles.ink3 : roles.ink }
+            case "value": return gateCell(r.gated ? r.gateNote : null)
+                                 || { t: roles.fig(r.valueText), c: r.stateKind === "fired" ? roles.warn : r.stateKind === "notAssessable" ? roles.ink3 : roles.ink }
             case "unit": return { t: roles.unitOf(r.valueText) }
             case "corridor": return { t: roles.corridorShort(r.corridorText) }
             case "outby": return { t: r.stateKind === "fired" && r.strengthKnown ? (r.strengthSharp ? "sharp" : r.strengthExcess.toFixed(1) + "×") : "-" }
@@ -181,7 +203,9 @@ Item {
             case "trend": return { t: roles.trendWord(r), c: r.trend === "worsening" ? roles.ink : roles.ink2 }
             case "median": return { t: (sp.medianNumber || "-") + (unitFolded && folded.indexOf("median") >= 0 ? " " + (sp.unit || "") : "") }
             // an unmeasured shot is "-" in ink3, so it never reads as a clean value (D5, INVENTORY #47)
-            case "shot": { const t = sp.currentNumber || roles.fig(r.valueText)
+            case "shot": { const gc = gateCell(sp.currentGated ? sp.currentGate : (r.gated && r.thisShot === "notAssessable" ? r.gateNote : null))
+                           if (gc) return gc
+                           const t = sp.currentNumber || roles.fig(r.valueText)
                            return { t: t, c: r.thisShot === "fired" ? roles.warn : (t === "-" || r.thisShot === "notAssessable") ? roles.ink3 : roles.ink } }
             case "unit": return { t: unitFolded && folded.indexOf("median") >= 0 ? "" : (sp.unit || roles.unitOf(r.valueText)) }
             case "typical": return { t: bk ? bk.representativeShotId : "-", shot: bk ? bk.representativeShotId : -1 }
@@ -192,7 +216,8 @@ Item {
             const c = cond(r.id)
             switch (key) {
             case "name": return { t: r.name }
-            case "value": return { t: c ? roles.fig(c.valueText) : "-", c: c && c.stateKind === "fired" ? roles.warn : roles.ink2 }
+            case "value": return gateCell(c && c.gated ? c.gateNote : null)
+                                 || { t: c ? roles.fig(c.valueText) : "-", c: c && c.stateKind === "fired" ? roles.warn : roles.ink2 }
             case "unit": return { t: c ? roles.unitOf(c.valueText) : "" }
             case "strip": return { ticks: c ? c.ticks : [] }
             case "frac": return { t: roles.frac(r.recurrence) }
@@ -340,7 +365,8 @@ Item {
                 readonly property bool hot: tb.brush && rid !== "" && (tb.brush.hoveredCondition === rid)
                 readonly property bool open: tb.brush && rid !== "" && tb.brush.pickedCondition === rid
                 width: tb.width
-                height: padT + l1.height + (hasLine2 ? tb.roles.u(2) + l2.height : 0) + tb.roles.u(5)
+                height: padT + l1.height + (hasLine2 ? tb.roles.u(2) + l2.height : 0)
+                        + (gateInl.open ? tb.roles.u(4) + gateInl.height : 0) + tb.roles.u(5)
                 opacity: tb.brush && rid !== "" ? tb.brush.conditionOpacity(rid, tb.roles.dim) : 1
                 Behavior on opacity { NumberAnimation { duration: tb.roles.normal } }
 
@@ -386,20 +412,21 @@ Item {
                             height: modelData.kind === "strip" ? sl.y + sl.height : tx.y + tx.height
                             Text {
                                 id: tx
+                                readonly property bool gated: !!cl.v.gate
                                 visible: cl.modelData.kind !== "strip"
                                 width: parent.width
                                 y: tb.roles.fBody.pixelSize * 0.95 - baselineOffset
-                                text: cl.v.t !== undefined ? String(cl.v.t) : "-"
-                                textFormat: (cl.modelData.kind === "rich" || cl.v.rich) ? Text.RichText : Text.PlainText
-                                wrapMode: (cl.modelData.kind === "name" || cl.modelData.kind === "rich" || cl.modelData.kind === "small") ? Text.WordWrap : Text.NoWrap
+                                text: gated ? tb.gateHtml(cl.v.gate) : cl.v.t !== undefined ? String(cl.v.t) : "-"
+                                textFormat: gated ? Text.StyledText : (cl.modelData.kind === "rich" || cl.v.rich) ? Text.RichText : Text.PlainText
+                                wrapMode: (gated || cl.modelData.kind === "name" || cl.modelData.kind === "rich" || cl.modelData.kind === "small") ? Text.WordWrap : Text.NoWrap
                                 lineHeight: 1.08
                                 horizontalAlignment: cl.modelData.align === "r" ? Text.AlignRight : Text.AlignLeft
-                                font: cl.v.f || (cl.modelData.kind === "fig" ? tb.roles.fFig
+                                font: tx.gated ? tb.roles.fSmall : cl.v.f || (cl.modelData.kind === "fig" ? tb.roles.fFig
                                       : cl.modelData.kind === "figs" || cl.modelData.kind === "shot" ? tb.roles.fFigS
                                       : cl.modelData.kind === "small" ? tb.roles.fSmall
                                       : cl.modelData.kind === "link" ? tb.roles.fSmallL
                                       : rw.open ? tb.roles.fBodyM : tb.roles.fBody)
-                                color: cl.v.c || (cl.modelData.ink3 ? tb.roles.ink3
+                                color: tx.gated ? tb.roles.ink3 : cl.v.c || (cl.modelData.ink3 ? tb.roles.ink3
                                        : cl.modelData.kind === "figs" || cl.modelData.kind === "small" ? tb.roles.ink2
                                        : cl.modelData.kind === "link" || (cl.modelData.kind === "shot" && !tb.isPrint) ? tb.roles.link : tb.roles.ink)
                                 MouseArea {
@@ -409,6 +436,14 @@ Item {
                                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onContainsMouseChanged: if (tb.brush) tb.brush.hoverShot(cl.v.shot, containsMouse)
                                     onClicked: tb.shotActivated(tb.brush ? tb.brush.dirOf(cl.v.shot) : "", cl.v.shot)
+                                }
+                                MouseArea {
+                                    // a gate's words open the reading it refused (Trust panel, else in place)
+                                    objectName: "sdGateCell"
+                                    enabled: tb.interactive && tx.gated && !!cl.v.gate.subject
+                                    visible: enabled
+                                    anchors.fill: parent; anchors.margins: -2; cursorShape: Qt.PointingHandCursor
+                                    onClicked: tb.openGate(rw.rid, cl.v.gate)
                                 }
                             }
                             PpShotStrip {
@@ -498,6 +533,16 @@ Item {
                             }
                         }
                     }
+                }
+                // the gated cell's reading, in place under the row (Trust panel off)
+                PpTrustInlineFor {
+                    id: gateInl
+                    x: tb.xs[tb.nameIdx] || 0; width: tb.width - x
+                    y: rw.padT + l1.height + (rw.hasLine2 ? tb.roles.u(2) + l2.height : 0) + tb.roles.u(4)
+                    roles: tb.roles
+                    subject: !tb.isPrint && tb.gateOpenRow !== "" && tb.gateOpenRow === rw.rid ? tb.gateOpenSubject : ""
+                    swingDir: tb.gateOpenSwingDir
+                    onClosed: { tb.gateOpenRow = ""; tb.gateOpenSubject = "" }
                 }
                 Rectangle {
                     anchors.bottom: parent.bottom; width: parent.width

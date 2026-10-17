@@ -27,6 +27,22 @@ pragma Singleton
 import QtQuick
 
 QtObject {
+    // THE READINGS BEHIND THE ⚠ (trust stage 6 session 2): each fact the warning names is a gate the
+    // analysis records (Metrics/gate_catalogue_shot.h, _club.h), by the subject the Trust panel opens it
+    // on. In the warning's own order; the first is the one a click on the ⚠ opens.
+    //   [{ subject, gate }]
+    function reasons(detail) {
+        const d = detail || {}
+        const out = []
+        if (d.capture)         out.push({ subject: "shot",          gate: "shot.captureHoles" })
+        if (d.imu)             out.push({ subject: "shot",          gate: "shot.refusionParity" })
+        if (d.clubRefused)     out.push({ subject: "track.club",    gate: "club.trackRefused" })
+        if (d.dtlTopOutOfView) out.push({ subject: "track.clubDtl", gate: "clubDtl.topOutOfView" })
+        return out
+    }
+    // The subject a click on the ⚠ opens in the Trust panel, or "" when the warning names no gate.
+    function subject(detail) { const r = reasons(detail); return r.length ? r[0].subject : "" }
+
     function text(detail) {
         const d = detail || {}
         const parts = []

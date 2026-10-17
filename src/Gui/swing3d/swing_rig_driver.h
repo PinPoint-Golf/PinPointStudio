@@ -43,6 +43,7 @@
 #include <QQmlEngine>
 #include <QQuaternion>
 #include <QString>
+#include <QVariantList>
 #include <QVector3D>
 
 #include <array>
@@ -114,6 +115,10 @@ class SwingRigDriver : public QObject
     // No DTL, or no fused shaft plane: depth is the fit's guess, so the panel shows face-on only.
     Q_PROPERTY(bool    faceOnOnly    READ faceOnOnly    NOTIFY loadedChanged)
     Q_PROPERTY(bool    heldAtEnd     READ heldAtEnd     NOTIFY revisionChanged)   // the playhead is past P8
+    // The swing's gate records (analysis.gates, as the document stores them), read with the skeleton,
+    // so the panel can word a refused skeleton or plane in the gate's own words (TrustWords.gateFor;
+    // trust stage 6 session 2). Empty on a swing analysed before records existed.
+    Q_PROPERTY(QVariantList gates    READ gates         NOTIFY loadedChanged)
 
 public:
     explicit SwingRigDriver(QObject *parent = nullptr);
@@ -126,6 +131,7 @@ public:
     bool    loading() const { return m_loading; }
     bool    available() const;
     QString reason() const { return m_reason; }
+    QVariantList gates() const { return m_gates; }
     bool    twoViews() const;
     int     jointCount() const;
     double  clubLengthM() const;
@@ -200,12 +206,13 @@ private:
     void startLoad();
     void adopt(std::shared_ptr<const Prepared> p, quint64 generation);
     void evaluate();
-    static std::shared_ptr<const Prepared> prepare(const QString &dir, QString *reason);
+    static std::shared_ptr<const Prepared> prepare(const QString &dir, QString *reason, QVariantList *gates = nullptr);
 
     QString m_swingDir;
     qint64  m_positionUs = -1;     // < 0 = nothing playing: rest at address
     bool    m_loading = false;
     QString m_reason;
+    QVariantList m_gates;
     int     m_revision = 0;
     quint64 m_generation = 0;
     std::shared_ptr<const Prepared> m_track;

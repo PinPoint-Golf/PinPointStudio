@@ -28,6 +28,7 @@
 #include "../../Diagnostics/packs/screen_pack.h"
 #include "../../Export/swing_doc.h"
 #include "../../Coaching/sequence_checks.h"
+#include "../../Metrics/gate_catalogue.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -57,6 +58,12 @@ namespace {
 // screen answers, the session meta. They change on completely different schedules, and
 // sharing one number would force a bump on every consumer whenever a panel gained a field.
 constexpr int kEnvelopeVersion = 1;
+
+// WHAT A NOT-JUDGED ROW SAYS, versioned apart from the row shape: the shape did not change when the rows
+// began naming the engine rule behind a refusal and the capture gate behind an excluded shot (trust stage 6
+// session 2), but a ledger written before did not fill them. Hashed into the content stamp, so such a
+// ledger regrades once on activation.
+constexpr int kRowWordsVersion = 1;
 
 const QString kDiagnosticsFile = QStringLiteral("diagnostics.json");
 const QString kProfileFile     = QStringLiteral("fault_profile.json");
@@ -135,6 +142,117 @@ void addStrength(QVariantMap &m, const ConditionRow *r)
         st.known ? QStringLiteral("%1 of 5 · %2 · %3× the distance to the corridor edge")
                        .arg(level).arg(strengthPhrase(level), fmtNumber(st.excess))
                  : QString();
+}
+
+// ── THE GATE OR RULE BEHIND A NOT-JUDGED ROW (trust stage 6 session 2) ──────────────────────
+//
+// A NotAssessable row names what kept it from being judged in one of two ways, and every surface shows
+// the same words for it in the slot that would otherwise read "-" / "not measurable":
+//   • a GATE RECORD (`sequence.sightedBand`, `shot.captureHoles`) with the reading it acted on
+//     (notJudgedSubject "ks.pelvis", "shot") — the words in the link colour, a click opening that reading
+//     in the Trust panel (TrustFocus), else in place;
+//   • an ENGINE RULE (`rule.diag.noCorridor` …, Finding::refusal) with NO subject — a rule is decided on
+//     every read and leaves no per-swing record, so the Trust panel holds no reading for it: its words,
+//     quiet, and nothing to open.
+// A row with neither (a plain absence, a swing analysed before records existed) keeps today's text.
+struct RowGate {
+    bool    on = false;
+    bool    rule = false;
+    QString gate, subject, words;
+};
+
+RowGate rowGate(const ConditionRow *r)
+{
+    RowGate g;
+    if (!r || r->state != ShotState::NotAssessable || r->notJudgedGate.isEmpty()) return g;
+    const pinpoint::gates::GateEntry *e = pinpoint::gates::gateEntry(r->notJudgedGate);
+    if (!e) return g;
+    g.on      = true;
+    g.rule    = e->rule;
+    g.gate    = r->notJudgedGate;
+    g.subject = e->rule ? QString() : r->notJudgedSubject;
+    g.words   = pinpoint::gates::claimWords(*e);
+    return g;
+}
+
+// PpGateNote's shape: { subject, gate, words, swingDir } — empty map when nothing gated the row.
+QVariantMap gateNoteOf(const RowGate &g, const QString &swingDir)
+{
+    if (!g.on) return QVariantMap();
+    return { { QStringLiteral("subject"),  g.subject },
+             { QStringLiteral("gate"),     g.gate },
+             { QStringLiteral("words"),    g.words },
+             { QStringLiteral("swingDir"), swingDir } };
+}
+
+// A cell's gate fields: `gated`, `gateWords`, `gateNote` (above), and for a record `trustSubject` /
+// `trustSwingDir`, the pair the Analyse register's "Not judged … Why ›" groups key on.
+void addGate(QVariantMap &m, const ConditionRow *r, const QString &swingDir)
+{
+    const RowGate g = rowGate(r);
+    m[QStringLiteral("gated")] = g.on;
+    if (!g.on) return;
+    m[QStringLiteral("gateWords")] = g.words;
+    m[QStringLiteral("gateNote")]  = gateNoteOf(g, swingDir);
+    if (!g.subject.isEmpty()) {
+        m[QStringLiteral("trustSubject")]  = g.subject;
+        m[QStringLiteral("trustSwingDir")] = swingDir;
+    }
+}
+
+// The clause a count over shots names a gated row by: a record on one reading by its own clause
+// ("pelvis peak out of sight"); the whole shot or a rule by the short words ("frames missing", "no range").
+QString gatedClause(const ConditionRow &r, const RowGate &g)
+{
+    if (g.rule || g.subject == QLatin1String("shot") || r.notAssessableReason.isEmpty()) return g.words;
+    return r.notAssessableReason;
+}
+
+// The reason a row or a sequence check reads when the engine refused a reading it HAD (Finding::refusal)
+// — the sequence checks' existing sentences where they have one, else a mechanical one of the same kind.
+// Empty for a refusal that is not one of the engine's rules (signalRefusalRuleId).
+QString refusalReason(SignalRefusal k, const QString &measureId)
+{
+    switch (k) {
+    case SignalRefusal::NoCorridor:             return QStringLiteral("no range to judge it against on this shot");
+    case SignalRefusal::NonPositiveDenominator: return QStringLiteral("the ratio could not be formed on this swing");
+    case SignalRefusal::MixedScale:             return sequenceGapReason(SequenceGap::MixedScale, measureId);
+    case SignalRefusal::Implausible:            return sequenceGapReason(SequenceGap::Implausible, measureId);
+    case SignalRefusal::PeakAfterImpact:        return sequenceGapReason(SequenceGap::PeakAfterImpact, measureId);
+    default:                                    return QString();
+    }
+}
+
+// "4 measures not assessable on this capture", and of those, the ones a gate or rule accounts for, by
+// their words: "4 measures not assessable on this capture · 3 not judged: out of sight". `topWords` = the
+// words most of the gated ones share. Empty when `na` is 0.
+QString notAssessableNote(int na, int gated, const QString &topWords)
+{
+    if (na <= 0) return QString();
+    QString out = QStringLiteral("%1 %2 not assessable on this capture")
+                      .arg(na).arg(na == 1 ? QStringLiteral("measure") : QStringLiteral("measures"));
+    if (gated > 0)
+        out += topWords.isEmpty() ? QStringLiteral(" · %1 not judged").arg(gated)
+                                  : QStringLiteral(" · %1 not judged: %2").arg(gated).arg(topWords);
+    return out;
+}
+
+// A gate RECORD on one reading — not a rule (decided on every read, and common: most of the seed pack has
+// no corridor yet) and not the whole-shot exclusion (which withholds every condition the pack holds). Only
+// these widen what a shot's grid lists and keep a cell out of the folded "clean all session" tail; a rule
+// or the shot's gate still says its words in the cell, wherever the cell is.
+bool recordGated(const RowGate &g)
+{
+    return g.on && !g.rule && !g.subject.isEmpty() && g.subject != QLatin1String("shot");
+}
+
+// The words the most gated rows share, of a tally kept as they were met (first met wins a tie).
+QString topOf(const QStringList &order, const QHash<QString, int> &count)
+{
+    QString best;
+    for (const QString &w : order)
+        if (best.isEmpty() || count.value(w) > count.value(best)) best = w;
+    return best;
 }
 
 QString withUnit(const QString &s, const QString &unit)
@@ -558,6 +676,7 @@ QString SessionDiagnosticsModel::computeContentStamp() const
     h.addData(QJsonDocument(saveContextTree(m_norms->contexts())).toJson(QJsonDocument::Compact));
     // The row shape too: a row written before a field existed regrades to fill it.
     h.addData(QByteArray::number(kDiagSchemaVersion));
+    h.addData(QByteArrayLiteral("words") + QByteArray::number(kRowWordsVersion));
     return QString::fromLatin1(h.result().toHex().left(16));
 }
 
@@ -656,16 +775,28 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
                     r.notAssessableReason = w->withheld;
             if (r.notAssessableReason.isEmpty())
                 r.notAssessableReason = missingReasonText(MissingKind::MetricNotProduced);
-            // THE GATE THAT STOPPED IT (trust_and_gates_design.md §4.4): a missing or withheld measure
-            // standing on a sequence node a gate refused says which gate, in its words, and the row
-            // carries the gate and the reading so the Trust panel can list what each gate blocked.
-            for (const QString &mid : f.missingMeasures) {
-                const LiveMeasureSource::GateCause gc = src.gateCause(mid);
-                if (gc.gate.isEmpty()) continue;
-                r.notJudgedGate       = gc.gate;
-                r.notJudgedSubject    = gc.subject;
-                r.notAssessableReason = gc.clause;      // "pelvis peak out of sight"
-                break;
+            // A REFUSAL THE ENGINE MADE ON A READING IT HAD (trust stage 6 session 2): no range to judge
+            // against, a reading not believed, two scales, no ratio, a peak after impact. The measure
+            // read, so the absence reasons above say nothing true ("metric not produced") — the row says
+            // the refusal and carries the engine RULE behind it (rule.diag.*), with no subject: a rule
+            // leaves no per-swing record, so there is no Trust-panel reading to open, only its words.
+            // Re-derived on every read, so it holds on a swing analysed before records existed too.
+            if (const char *rule = signalRefusalRuleId(f.refusal)) {
+                r.notAssessableReason = refusalReason(f.refusal, f.missingMeasures.value(0));
+                r.notJudgedGate       = QString::fromLatin1(rule);
+                r.notJudgedSubject.clear();
+            } else {
+                // THE GATE THAT STOPPED IT (trust_and_gates_design.md §4.4): a missing or withheld measure
+                // standing on a sequence node a gate refused says which gate, in its words, and the row
+                // carries the gate and the reading so the Trust panel can list what each gate blocked.
+                for (const QString &mid : f.missingMeasures) {
+                    const LiveMeasureSource::GateCause gc = src.gateCause(mid);
+                    if (gc.gate.isEmpty()) continue;
+                    r.notJudgedGate       = gc.gate;
+                    r.notJudgedSubject    = gc.subject;
+                    r.notAssessableReason = gc.clause;      // "pelvis peak out of sight"
+                    break;
+                }
             }
             break;
         }
@@ -745,6 +876,16 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
                     g.reason           = gc.clause;
                     break;
                 }
+            // ...and the engine rule behind a refusal on a reading it had, as for the rows above: the
+            // sentence the gap already chose (or the rule's own where the gap had none), no subject
+            if (const char *rule = signalRefusalRuleId(o.refusal)) {
+                if (gap == SequenceGap::Unknown) {
+                    const QString why = refusalReason(o.refusal, first);
+                    if (!why.isEmpty()) g.reason = why;
+                }
+                g.notJudgedGate = QString::fromLatin1(rule);
+                g.notJudgedSubject.clear();
+            }
         }
         rec.signalRows.push_back(std::move(g));
     }
@@ -790,16 +931,25 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
     if (summary.dataWarning
         && (summary.dataWarningDetail.value(QStringLiteral("capture")).toBool()
             || summary.dataWarningDetail.value(QStringLiteral("imu")).toBool())) {
+        // THE GATE IS THE SHOT'S, NOT WHATEVER THE ROW NAMED BEFORE (trust stage 6 session 2): the
+        // integrity record on `shot` (frames missing, sensor recording inconsistent) replaces a gate or
+        // rule the detection left on the row, which no longer explains it. Empty on a swing analysed
+        // before records existed — the stale names are cleared, never kept.
+        const LiveMeasureSource::GateCause shotGate = src.gateForSubject(QStringLiteral("shot"));
         for (ConditionRow &r : rec.rows) {
             r.state               = ShotState::NotAssessable;
             r.direction           = 0;
             r.notAssessableReason = missingReasonText(MissingKind::CaptureDataIssue);
+            r.notJudgedGate       = shotGate.gate;
+            r.notJudgedSubject    = shotGate.subject;
         }
         for (SignalRow &g : rec.signalRows) {
-            g.state      = ShotState::NotAssessable;
-            g.pFire      = -1.f;
-            g.quantified = false;
-            g.reason     = missingReasonText(MissingKind::CaptureDataIssue);
+            g.state            = ShotState::NotAssessable;
+            g.pFire            = -1.f;
+            g.quantified       = false;
+            g.reason           = missingReasonText(MissingKind::CaptureDataIssue);
+            g.notJudgedGate    = shotGate.gate;
+            g.notJudgedSubject = shotGate.subject;
         }
         rec.peakTimes.clear();
     }
@@ -1853,13 +2003,17 @@ QVariantList SessionDiagnosticsModel::ticksFor(const ConditionLedger &l, int sel
 {
     QVariantList out;
     for (int i = 0; i < int(l.run.size()); ++i) {
-        out.append(QVariantMap{
+        QVariantMap t{
             { QStringLiteral("state"),  shotStateKind(l.run[size_t(i)]) },
             { QStringLiteral("shotId"), i < int(m_shots.size()) ? m_shots[size_t(i)].shotId : -1 },
             // The selected shot's tick is drawn wide and outlined (brief §6). Which tick that
             // is, is decided here rather than by the QML comparing ids in a delegate.
             { QStringLiteral("selected"), i == selectedIndex },
-        });
+        };
+        // a not-assessable tick a gate or rule accounts for: `gated`, its words, and the reading (§7.0)
+        if (i < int(m_shots.size()))
+            addGate(t, rowFor(m_shots[size_t(i)], l.id), m_swingDirs.value(m_shots[size_t(i)].shotId));
+        out.append(t);
     }
     return out;
 }
@@ -2037,9 +2191,12 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
     // untouched either way.
     std::vector<double> values(size_t(n), std::numeric_limits<double>::quiet_NaN());
     std::vector<QString> states(size_t(n), QStringLiteral("notAssessable"));
+    // the gate or rule behind each shot's missing reading, where one accounts for it (rowGate)
+    std::vector<RowGate> gatesOf(static_cast<size_t>(n));
     for (int i = 0; i < n; ++i) {
         const ConditionRow *r = rowFor(m_shots[size_t(i)], l.id);
         if (!r) continue;
+        gatesOf[size_t(i)] = rowGate(r);
         states[size_t(i)] = shotStateKind(r->state);
         if (r->state == ShotState::NotAssessable) continue;
         if (measureId.isEmpty()) {
@@ -2139,7 +2296,8 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
     auto readoutOf = [&](int i) -> QString {
         const double v = values[size_t(i)];
         if (!std::isfinite(v))
-            return QStringLiteral("shot %1 · - · not measured").arg(i + 1);
+            return QStringLiteral("shot %1 · - · %2").arg(i + 1)
+                .arg(gatesOf[size_t(i)].on ? gatesOf[size_t(i)].words : QStringLiteral("not measured"));
         const QString verdict = states[size_t(i)] == QLatin1String("fired") ? QStringLiteral("fired")
                               : states[size_t(i)] == QLatin1String("clean") ? QStringLiteral("clean")
                                                                             : QStringLiteral("-");
@@ -2163,6 +2321,13 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
         out[QStringLiteral("currentNumber")] = fmtSpread(cur, a.decimals);
         out[QStringLiteral("currentState")]  = (fi >= 0 && fi < n && std::isfinite(cur))
                                                ? states[size_t(fi)] : QStringLiteral("notAssessable");
+        // THE GATE BEHIND THIS SHOT'S "-": the figure stays "-" (a figure slot never holds words), and
+        // beside it the gate's words and the reading a click opens — empty when nothing gated it
+        const RowGate cg = (fi >= 0 && fi < n && !std::isfinite(cur)) ? gatesOf[size_t(fi)] : RowGate();
+        out[QStringLiteral("currentGated")] = cg.on;
+        out[QStringLiteral("currentWords")] = cg.words;
+        out[QStringLiteral("currentGate")]  =
+            gateNoteOf(cg, cg.on ? m_swingDirs.value(m_shots[size_t(fi)].shotId) : QString());
     }
 
     // ── which way is better, off the corridor's SHAPE ─────────────────────────────────
@@ -2214,6 +2379,10 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
             { QStringLiteral("selected"),   i == selectedTick },
             { QStringLiteral("valueText"),  ok ? fmtSpread(v, a.decimals, unit) : QStringLiteral("-") },
             { QStringLiteral("readout"),    readoutOf(i) },
+            // a missing reading a gate or rule accounts for: its words, and the reading a click opens
+            { QStringLiteral("gated"),      !ok && gatesOf[size_t(i)].on },
+            { QStringLiteral("gateWords"),  !ok ? gatesOf[size_t(i)].words : QString() },
+            { QStringLiteral("gateNote"),   !ok ? gateNoteOf(gatesOf[size_t(i)], m_swingDirs.value(shotId)) : QVariantMap() },
         });
         if (std::isfinite(medians[size_t(i)]))
             median.append(QVariantMap{
@@ -2260,9 +2429,13 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
         int gated = 0;
         for (int i = 0; i < n; ++i) {
             const ConditionRow *r = rowFor(m_shots[size_t(i)], l.id);
-            if (!r || r->state != ShotState::NotAssessable || r->notJudgedGate.isEmpty()) continue;
-            if (!byClause.contains(r->notAssessableReason)) clauses << r->notAssessableReason;
-            byClause[r->notAssessableReason] += 1;
+            const RowGate &g = gatesOf[size_t(i)];
+            if (!r || !g.on) continue;
+            // only shots off this ruler: a row of another measure's verdict is not this measure's gate
+            if (std::isfinite(values[size_t(i)])) continue;
+            const QString clause = gatedClause(*r, g);
+            if (!byClause.contains(clause)) clauses << clause;
+            byClause[clause] += 1;
             ++gated;
         }
         if (gated > 0) {
@@ -2666,6 +2839,9 @@ void SessionDiagnosticsModel::buildThisShot()
     const ShotRecord &shot = m_shots[size_t(fi)];
 
     int fired = 0, clean = 0, na = 0, firedPatterns = 0;
+    int naGated = 0;                         // of `na`, those a gate or rule accounts for
+    QStringList gatedOrder;
+    QHash<QString, int> gatedWords;
     QVariantList firedList, newPatterns;
     for (const ConditionRow &r : shot.rows) {
         const ConditionLedger *l = ledger(r.conditionId);
@@ -2691,9 +2867,19 @@ void SessionDiagnosticsModel::buildThisShot()
             break;
         }
         case ShotState::Clean:         ++clean; break;
-        case ShotState::NotAssessable: ++na;    break;
+        case ShotState::NotAssessable: {
+            ++na;
+            const RowGate g = rowGate(&r);
+            if (g.on) {
+                ++naGated;
+                if (!gatedWords.contains(g.words)) gatedOrder << g.words;
+                gatedWords[g.words] += 1;
+            }
+            break;
+        }
         }
     }
+    const QString naNote = notAssessableNote(na, naGated, topOf(gatedOrder, gatedWords));
 
     // An explicit CLEAN chip, never an empty strip. "Nothing fired" and "the panel has not
     // caught up" look identical on an empty row, and only one of them is good news.
@@ -2702,9 +2888,12 @@ void SessionDiagnosticsModel::buildThisShot()
                                        { QStringLiteral("name"), QStringLiteral("clean on every measurable condition") } });
     }
     if (na > 0) {
+        // those a gate or rule kept from being judged are said by its words, apart from the plain gaps
         m_thisShot.append(QVariantMap{
             { QStringLiteral("kind"), QStringLiteral("notAssessable") },
-            { QStringLiteral("name"), QStringLiteral("%1 not assessable on this capture").arg(na) },
+            { QStringLiteral("name"), QStringLiteral("%1 not assessable on this capture").arg(na)
+                                          + (naGated > 0 ? naNote.mid(naNote.indexOf(QStringLiteral(" · "))) : QString()) },
+            { QStringLiteral("notJudgedCount"), naGated },
         });
     }
 
@@ -2751,10 +2940,8 @@ void SessionDiagnosticsModel::buildThisShot()
         QStringLiteral("%1 of %2 conditions fired on this swing · %3 of them %4")
             .arg(fired).arg(fired + clean).arg(firedPatterns)
             .arg(firedPatterns == 1 ? QStringLiteral("pattern") : QStringLiteral("patterns"));
-    d[QStringLiteral("note")] =
-        na > 0 ? QStringLiteral("%1 %2 not assessable on this capture")
-                     .arg(na).arg(na == 1 ? QStringLiteral("measure") : QStringLiteral("measures"))
-               : QString();
+    d[QStringLiteral("notJudgedCount")]      = naGated;
+    d[QStringLiteral("note")]                = naNote;
 
     // Under a focus contract the focused node's marker is the headline of the moment (§B3).
     if (!m_focusConditionId.isEmpty()) {
@@ -2767,6 +2954,12 @@ void SessionDiagnosticsModel::buildThisShot()
                                           state == QLatin1String("fired")   ? QStringLiteral("fired here")
                                         : state == QLatin1String("clean")   ? QStringLiteral("clean here")
                                                                             : QStringLiteral("not measured here"));
+        // a focused condition a gate or rule kept from being judged says its words instead
+        const RowGate fg = rowGate(r);
+        if (fg.on) {
+            d[QStringLiteral("focusHeadline")] = QStringLiteral("%1 — %2 here").arg(conditionName(m_focusConditionId), fg.words);
+            d[QStringLiteral("focusGate")]     = gateNoteOf(fg, m_swingDirs.value(shot.shotId));
+        }
     }
 
     m_afterShotDelta = d;
@@ -2909,7 +3102,9 @@ void SessionDiagnosticsModel::buildCards()
             QString clause, subject;
             for (const ShotRecord &s : m_shots) {
                 const ConditionRow *r = rowFor(s, l.id);
-                if (!r || r->state != ShotState::NotAssessable || r->notJudgedGate.isEmpty()) continue;
+                // a gate RECORD only: an engine rule is not "a gate refused the reading" (rowGate)
+                const RowGate g = rowGate(r);
+                if (!g.on || g.rule) continue;
                 const int k = ++byClause[r->notAssessableReason];
                 if (clause.isEmpty() || k > byClause.value(clause)) { clause = r->notAssessableReason; subject = r->notJudgedSubject; }
             }
@@ -3080,14 +3275,17 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
         // on the condition detail of a live session with a swing picked (selectedTick >= 0; see
         // detailFocusIndex()). The live panel's own cards pass -1 and keep the present tense.
         const bool pickedTense = m_reviewing || m_closed || selectedTick >= 0;
+        // a shot a gate or rule kept this from being judged on says the gate's words, not NOT MEASURED
+        const RowGate hereGate = rowGate(here);
+        const QString unmeasuredPill = hereGate.on ? hereGate.words.toUpper() : QStringLiteral("NOT MEASURED");
         c[QStringLiteral("statePill")] =
             pickedTense
                 ? (hereState == QLatin1String("fired") ? QStringLiteral("FIRED HERE")
                  : hereState == QLatin1String("clean") ? QStringLiteral("CLEAN HERE")
-                                                       : QStringLiteral("NOT MEASURED"))
+                                                       : unmeasuredPill)
                 : (hereState == QLatin1String("fired") ? QStringLiteral("FIRED")
                  : hereState == QLatin1String("clean") ? QStringLiteral("CLEAN")
-                                                       : QStringLiteral("NOT MEASURED"));
+                                                       : unmeasuredPill);
         if (here && here->state != ShotState::NotAssessable) {
             c[QStringLiteral("valueText")]    = withUnit(fmtNumber(here->value), unit);
             // THE PASS BAND AND THE FAULT LINE — the two edges the strip under it draws — and not
@@ -3095,14 +3293,12 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
             // sat at 13. One sentence, from session_spread.h, for every surface that states it.
             c[QStringLiteral("corridorText")] = spreadCorridorWords(corridorForRow(*here), unit);
         } else {
-            c[QStringLiteral("valueText")]    = QStringLiteral("not measurable");
+            // the gate's or rule's words in the value slot where one accounts for it (§7.0), the reason
+            // in the corridor slot as before; a record's reading opens in the Trust panel (addGate)
+            c[QStringLiteral("valueText")]    = hereGate.on ? hereGate.words : QStringLiteral("not measurable");
             c[QStringLiteral("corridorText")] = here ? here->notAssessableReason : QString();
-            // the reading a gate kept out of this finding: its reason opens in the Trust panel (§7.0)
-            if (here && !here->notJudgedSubject.isEmpty()) {
-                c[QStringLiteral("trustSubject")]  = here->notJudgedSubject;
-                c[QStringLiteral("trustSwingDir")] = m_swingDirs.value(m_shots[size_t(fi)].shotId);
-            }
         }
+        addGate(c, here, fi >= 0 ? m_swingDirs.value(m_shots[size_t(fi)].shotId) : QString());
         // HOW FAR OUT, beside WHETHER it was out. The pill says fired or clean and the two
         // numbers above say what was read and what it was tested against; the meter is the
         // third question a golfer asks and the only one the card could not answer — marginal,
@@ -3386,16 +3582,20 @@ QVariantMap SessionDiagnosticsModel::nodeMap(const QString &id, const NodeSpec *
                                              : QString();
         const ConditionRow *here = (fi >= 0) ? rowFor(m_shots[size_t(fi)], id) : nullptr;
         const QString hs = here ? shotStateKind(here->state) : QStringLiteral("notAssessable");
+        // as the card: a gate's or rule's words where one kept this node from being judged here
+        const RowGate hereGate = rowGate(here);
+        const QString unmeasuredPill = hereGate.on ? hereGate.words.toUpper() : QStringLiteral("NOT MEASURED");
         n[QStringLiteral("state")] = hs;
         n[QStringLiteral("statePill")] =
             (m_reviewing || m_closed)
                 ? (hs == QLatin1String("fired") ? QStringLiteral("FIRED HERE")
                  : hs == QLatin1String("clean") ? QStringLiteral("CLEAN HERE")
-                                                : QStringLiteral("NOT MEASURED"))
+                                                : unmeasuredPill)
                 : (hs == QLatin1String("fired") ? QStringLiteral("FIRED")
                  : hs == QLatin1String("clean") ? QStringLiteral("CLEAN")
-                                                : QStringLiteral("NOT MEASURED"));
+                                                : unmeasuredPill);
         addStrength(n, here);
+        addGate(n, here, fi >= 0 ? m_swingDirs.value(m_shots[size_t(fi)].shotId) : QString());
 
         // WHAT HAPPENED TO THIS NODE AFTER THE SELECTED SWING. The question review asks is
         // whether the shot was typical, and typical is only defined against what came next — a
@@ -3692,10 +3892,14 @@ QVariantMap SessionDiagnosticsModel::shotReadout(int shotId) const
     // …AND A CONDITION A GATE KEPT FROM BEING JUDGED, even when it was judged on no shot at all
     // (trust_and_gates_design.md §4.4): "sequence order: not judged, pelvis peak out of sight" on all
     // six shots of a face-on session is not noise — it is the finding the golfer is owed.
-    const auto gatedHere = [&](const QString &id) {
-        const ConditionRow *r = rowFor(shot, id);
-        return r && r->state == ShotState::NotAssessable && !r->notJudgedGate.isEmpty();
-    };
+    // A RECORD on one reading only: a rule (no subject) and the whole-shot exclusion ("shot", which
+    // withholds every condition the pack holds) say why a measurable condition was not judged, but would
+    // flood the grid with conditions this session never measured if they widened the population too.
+    const auto gatedHere = [&](const QString &id) { return recordGated(rowGate(rowFor(shot, id))); };
+    int naGated = 0;
+    QStringList gatedOrder;
+    QHash<QString, int> gatedWords;
+    const QString shotDir = m_swingDirs.value(m_shots[size_t(idx)].shotId);
     QStringList ordered = m_displayOrder;
     for (const ConditionLedger &l : m_ledgers)
         if ((l.assessable >= 1 || gatedHere(l.id)) && !ordered.contains(l.id)) ordered.push_back(l.id);
@@ -3736,18 +3940,22 @@ QVariantMap SessionDiagnosticsModel::shotReadout(int shotId) const
             c[QStringLiteral("corridorText")] = spreadCorridorWords(corridorForRow(*r), unit);
             c[QStringLiteral("reason")] = QString();
         } else {
-            // Never a blank in either slot: the value reads "not measurable" and the corridor
-            // slot carries THE REASON. A blank there reads as a bug.
-            c[QStringLiteral("valueText")]    = QStringLiteral("not measurable");
+            // Never a blank in either slot: the value reads "not measurable" — or, where a gate or rule
+            // accounts for it, that gate's words (§7.0) — and the corridor slot carries THE REASON. A
+            // blank there reads as a bug.
+            const RowGate g = rowGate(r);
+            c[QStringLiteral("valueText")]    = g.on ? g.words : QStringLiteral("not measurable");
             c[QStringLiteral("corridorText")] = r ? r->notAssessableReason
                                                   : missingReasonText(MissingKind::MetricNotProduced);
             c[QStringLiteral("reason")]       = c[QStringLiteral("corridorText")];
-            // the reading a gate kept out of this finding: its reason opens in the Trust panel (§7.0)
-            if (r && !r->notJudgedSubject.isEmpty()) {
-                c[QStringLiteral("trustSubject")]  = r->notJudgedSubject;
-                c[QStringLiteral("trustSwingDir")] = m_swingDirs.value(m_shots[size_t(idx)].shotId);
+            if (g.on) {
+                ++naGated;
+                if (!gatedWords.contains(g.words)) gatedOrder << g.words;
+                gatedWords[g.words] += 1;
             }
         }
+        // the gate's words and, for a record, the reading a click opens in the Trust panel (§7.0)
+        addGate(c, r, shotDir);
         addStrength(c, r);
         c[QStringLiteral("tierTag")]      = tierTag(l->tier);
         c[QStringLiteral("recurrence")]   = l->recurrence;
@@ -3765,7 +3973,9 @@ QVariantMap SessionDiagnosticsModel::shotReadout(int shotId) const
         // condition that fired on other swings but not this one is exactly what review is for
         // — so it takes both to be tail.
         const bool silentAllSession = (l->tier != Tier::Pattern && l->tier != Tier::Watching);
-        const bool isTail = (st == ShotState::NotAssessable) && silentAllSession;
+        // ...and a cell a gate record on its reading kept from being judged is never folded into "clean
+        // all session": it was refused here, and keeps its own row with the gate's words (recordGated).
+        const bool isTail = (st == ShotState::NotAssessable) && silentAllSession && !recordGated(rowGate(r));
         c[QStringLiteral("tail")] = isTail;
 
         if (st == ShotState::Fired)      firedCells.append(c);
@@ -3803,9 +4013,10 @@ QVariantMap SessionDiagnosticsModel::shotReadout(int shotId) const
         QStringLiteral("%1 of %2 conditions fired on this swing · %3 of them %4")
             .arg(fired).arg(measurableSet).arg(firedPatterns)
             .arg(firedPatterns == 1 ? QStringLiteral("pattern") : QStringLiteral("patterns"));
-    out[QStringLiteral("note")] =
-        QStringLiteral("%1 %2 not assessable on this capture")
-            .arg(na).arg(na == 1 ? QStringLiteral("measure") : QStringLiteral("measures"));
+    // those a gate or rule kept from being judged said apart, by its words; the old sentence when none
+    out[QStringLiteral("notJudgedCount")] = naGated;
+    out[QStringLiteral("note")] = na > 0 ? notAssessableNote(na, naGated, topOf(gatedOrder, gatedWords))
+                                         : QStringLiteral("0 measures not assessable on this capture");
 
     // The tail's own line, in the model's words rather than the strip's, so an export and the
     // screen say the same thing about what was folded away. It names BOTH silences, because a

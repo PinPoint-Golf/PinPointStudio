@@ -50,6 +50,18 @@ Item {
     readonly property var fired: conds.filter(c => c.stateKind === "fired")
     readonly property var clean: conds.filter(c => c.stateKind === "clean").slice().sort((a, b) => String(a.name).localeCompare(String(b.name)))
     readonly property var notMeasured: conds.filter(c => c.stateKind === "notAssessable")
+    // those a gate or rule kept from being judged print apart, grouped by its words (trust stage 6 session 2)
+    readonly property var notMeasuredPlain: notMeasured.filter(c => !c.gated)
+    readonly property var notJudgedPrint: {
+        const out = [], at = {}
+        for (const c of notMeasured) {
+            if (!c.gated) continue
+            const w = c.trustSubject ? (c.reason || c.gateWords || "") : (c.gateWords || "")
+            if (at[w] === undefined) { at[w] = out.length; out.push({ words: w, names: [] }) }
+            out[at[w]].names.push(String(c.name).replace(/ not measurable$/, ""))
+        }
+        return out
+    }
     readonly property var watching: (source && source.watching) || []
     readonly property var allCards: cards || []
     readonly property var detailCard: detail && detail.id ? (ro.byId(allCards, detail.id) || detail.header || null) : null
@@ -256,9 +268,13 @@ Item {
                 }
             }
         }
-        PpNotes { keepPrev: true; width: pager.textW; roles: ro; medium: "print"; visible: root.notMeasured.length > 0
+        PpNotes { keepPrev: true; width: pager.textW; roles: ro; medium: "print"; visible: root.notMeasuredPlain.length > 0
                 text: "<i>Not measurable on this swing</i>, though clean all session: "
-                      + root.notMeasured.map(c => "<b>" + ro.esc(String(c.name).replace(/ not measurable$/, "")) + "</b>, " + ro.esc(c.reason)).join("; ") + "." }
+                      + root.notMeasuredPlain.map(c => "<b>" + ro.esc(String(c.name).replace(/ not measurable$/, "")) + "</b>, " + ro.esc(c.reason)).join("; ") + "." }
+        // a gate or rule kept these from being judged: said apart, by its words (print: words only, no link)
+        PpNotes { keepPrev: true; width: pager.textW; roles: ro; medium: "print"; visible: root.notJudgedPrint.length > 0
+                text: "<i>Not judged on this swing</i>: "
+                      + root.notJudgedPrint.map(g => g.names.map(n => "<b>" + ro.esc(n) + "</b>").join(", ") + ", " + ro.esc(g.words)).join("; ") + "." }
     }
 
     // computes the answers (never shown itself)

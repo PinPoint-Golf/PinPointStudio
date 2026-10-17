@@ -23,6 +23,7 @@
 #include "../../Metrics/gate_catalogue.h"
 
 #include <QHash>
+#include <QJsonArray>
 #include <QSet>
 #include <QStringList>
 
@@ -104,6 +105,29 @@ QVariantList gatesOf(const QVariantList &records, const QVariantMap &primary, co
 } // namespace
 
 QString subjectLabel(const QString &subject) { return gates::subjectLabel(subject); }
+
+QVariantMap gateFor(const QVariantList &gateList, const QString &key)
+{
+    if (key.isEmpty() || gateList.isEmpty()) return {};
+    const std::vector<analysis::GateRecord> recs = analysis::gateRecordsFromJson(QJsonArray::fromVariantList(gateList));
+    const analysis::GateRecord *r = gates::primaryRecord(recs, key);
+    if (!r) {
+        // a downgrade is not a refusal (primaryRecord leaves it out), but a claim still owes it a word
+        for (const analysis::GateRecord &x : recs)
+            if ((x.subject == key || x.covers.contains(key)) && x.effect == analysis::GateEffect::Downgraded) { r = &x; break; }
+    }
+    if (!r) return {};
+    const gates::GateEntry *e = gates::gateEntry(r->gate);
+    if (!e) return {};
+    return { { QStringLiteral("subject"), r->subject },
+             { QStringLiteral("gate"), r->gate },
+             { QStringLiteral("effect"), QString::fromLatin1(analysis::gateEffectKey(r->effect)) },
+             // a reading a cascade took down names the cascade ("club track refused"), not just its words
+             { QStringLiteral("words"), r->subject == key ? gates::claimWords(*e)
+                                                         : gates::subjectLabel(r->subject).toLower() + QLatin1Char(' ') + gates::claimWords(*e) },
+             { QStringLiteral("title"), e->title },
+             { QStringLiteral("sentence"), gates::evidenceText(*e, r->evidence) } };
+}
 
 namespace {
 // The readings the records' cascades took down, as the reader names them, without repeats.

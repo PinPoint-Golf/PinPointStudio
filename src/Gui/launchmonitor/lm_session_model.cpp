@@ -26,6 +26,7 @@
 #include "../../LaunchMonitor/lm_inferred_reads.h"
 #include "../../LaunchMonitor/lm_session_reductions.h"
 #include "../../Analysis/swing_analysis.h"
+#include "../trust/trust_readings.h"
 
 #include "../../Diagnostics/norms/context_tree.h"
 #include "../../Diagnostics/norms/metric_corridor.h"
@@ -236,6 +237,10 @@ struct LmShotRow {
     QString               kind;           // launchMonitor.kind, "" when no device measured it
     LmShotValues          values;         // the raw readings
     std::optional<double> optical;        // our own low point estimate — see opticalLowPointFor
+    // The gate behind each reading the shot lacks (lmGateMap), keyed by metric key: {} on a shot
+    // analysed before records existed, or one the monitor reported in full.
+    QVariantMap           gates;
+    QString               swingDir;       // where the records are (the Trust panel opens the reading there)
     // Resolved by resolveClubs():
     QString               club;           // the EFFECTIVE club — the one everything scopes by
     QString               source;         // "recorded" | "evidence" | "user"
@@ -246,6 +251,28 @@ struct LmShotRow {
 bool sameClub(const QString &a, const QString &b)
 {
     return a.trimmed().compare(b.trimmed(), Qt::CaseInsensitive) == 0;
+}
+
+// WHY A READING IS MISSING (trust stage 6 session 2; docs/design/trust_stage6_plan.md "Session 2"). Of one
+// shot's records (analysisDetail.gates), the gate behind each launch monitor field it lacks — the
+// import's drop list as lm_gates.h turned it into records ("not measured", "impossible value") — in
+// trust::gateFor's shape, keyed by metric key. A tile prints the words where it printed "-". Empty when
+// the shot carries no `lm.` record: an old swing, or a reading the monitor sent in full, keeps its "-".
+QVariantMap lmGateMap(const QVariantList &gates)
+{
+    QVariantMap out;
+    bool any = false;
+    for (const QVariant &v : gates)
+        if (v.toMap().value(QStringLiteral("gate")).toString().startsWith(QLatin1String("lm."))) { any = true; break; }
+    if (!any)
+        return out;
+    for (const pinpoint::lm::FieldDef &f : pinpoint::lm::fieldDefs()) {
+        const QString key = QString::fromLatin1(f.key);
+        const QVariantMap gm = pinpoint::trust::gateFor(gates, key);
+        if (!gm.isEmpty())
+            out.insert(key, gm);
+    }
+    return out;
 }
 
 std::optional<double> readingOf(const LmShotValues &v, const char *key)
@@ -388,6 +415,11 @@ QVariantMap sessionGraphics(const std::vector<LmShotRow> &rows, int focusRow,
         QVariantMap values;
         for (auto it = r->values.constBegin(); it != r->values.constEnd(); ++it)
             if (std::isfinite(it.value())) values.insert(it.key(), it.value());
+        // The gate's words for a reading this shot lacks (the print table prints them for "-").
+        QVariantMap gateWords;
+        for (auto it = r->gates.constBegin(); it != r->gates.constEnd(); ++it)
+            if (!values.contains(it.key()))
+                gateWords.insert(it.key(), it.value().toMap().value(QStringLiteral("words")));
         shots.append(QVariantMap{
             { QStringLiteral("id"),           r->id },
             { QStringLiteral("number"),       r->ordinal },
@@ -396,6 +428,7 @@ QVariantMap sessionGraphics(const std::vector<LmShotRow> &rows, int focusRow,
             { QStringLiteral("clubSource"),   r->source },
             { QStringLiteral("excluded"),     r->excluded },
             { QStringLiteral("values"),       values },
+            { QStringLiteral("gateWords"),    gateWords },
             { QStringLiteral("evidence"), QVariantMap{
                 // The club the readings point at when they contradict the recorded one — a
                 // club the session holds, or "an iron" / "a wood" — else "".
@@ -798,6 +831,8 @@ void LmSessionModel::rebuild()
         row.kind         = m_shots->data(ix, ShotListModel::LmDeviceKindRole).toString();
         row.values       = readingsFor(detail);
         row.optical      = opticalLowPointFor(detail);
+        row.gates        = lmGateMap(detail.value(QStringLiteral("gates")).toList());
+        row.swingDir     = m_shots->data(ix, ShotListModel::SwingDirRole).toString();
         // Session-wide, deliberately: it separates "the monitor has given us nothing"
         // from "this club has nothing yet", which are different sentences to read.
         if (!row.values.isEmpty())
@@ -829,6 +864,9 @@ void LmSessionModel::rebuild()
     std::vector<std::optional<double>> opticalLowPoint;
     opticalLowPoint.reserve(rows.size());
     int latestIndex = -1;
+    // `scoped` index → `rows` index, so the headline shot's records are found by the same latestIndex.
+    std::vector<int> scopedRow;
+    scopedRow.reserve(rows.size());
     // The devices that actually MEASURED the shots in scope, in the order they first
     // appear. Normally one; more than one is a session hit across a device change, and
     // naming both is the only honest caption for it.
@@ -852,6 +890,7 @@ void LmSessionModel::rebuild()
             latestIndex = int(scoped.size());
         scoped.push_back(row.values);
         opticalLowPoint.push_back(row.optical);
+        scopedRow.push_back(int(i));
     }
     m_shotCount = int(scoped.size());
 
@@ -930,6 +969,25 @@ void LmSessionModel::rebuild()
     const QVariantMap session = sessionGraphics(rows, focusedRow, m_deviceName, m_reviewing);
     for (auto it = session.constBegin(); it != session.constEnd(); ++it)
         m_graphics.insert(it.key(), it.value());
+
+    // THE HEADLINE SHOT'S GATES (trust stage 6 session 2): for each reading it lacks, the gate that
+    // dropped it ({ subject, gate, words, … }), and the swing the Trust panel opens it on. The tiles
+    // print the words in place of "-". Only for a reading the shot does not carry: a value stands.
+    {
+        const int hr = focusExcluded ? focusedRow
+                     : (latestIndex >= 0 && size_t(latestIndex) < scopedRow.size()) ? scopedRow[size_t(latestIndex)] : -1;
+        QVariantMap gates;
+        QString gateDir;
+        if (hr >= 0 && size_t(hr) < rows.size()) {
+            const LmShotRow &h = rows[size_t(hr)];
+            for (auto it = h.gates.constBegin(); it != h.gates.constEnd(); ++it)
+                if (!h.values.contains(it.key()))
+                    gates.insert(it.key(), it.value());
+            gateDir = h.swingDir;
+        }
+        m_graphics.insert(QStringLiteral("gates"), gates);
+        m_graphics.insert(QStringLiteral("gateSwingDir"), gateDir);
+    }
 
     endResetModel();
     emit headerChanged();

@@ -280,6 +280,17 @@ inline std::vector<GateEntry> buildCatalogue()
                   { QStringLiteral("ks.pelvis:pelvisImu"), QStringLiteral("ks.thorax:thoraxImu") },
                   ksDesign + QStringLiteral(" §5.2"), 1, prod, {} });
 
+    c.push_back({ QStringLiteral("sequence.noPeak"), seq,
+                  QStringLiteral("Nothing to time"), QStringLiteral("nothing to time"),
+                  QStringLiteral("A segment's peak is searched for between the transition and P8. When the route's curve "
+                                 "has no usable samples there — the view lost the segment for the whole downswing — "
+                                 "there is no peak to place and no bound to give."),
+                  QStringLiteral("{samples} usable samples from {fromMs:t} to {toMs:t}."),
+                  { GateEffect::Refused },
+                  {},
+                  { QStringLiteral("faceOn+dtl"), QStringLiteral("ks.pelvis:pelvisImu"), QStringLiteral("ks.thorax:thoraxImu") },
+                  ksDesign + QStringLiteral(" §3"), 2, prod, {} });
+
     c.push_back({ QStringLiteral("sequence.routeWithdrawn"), seq,
                   QStringLiteral("Route withdrew"), QStringLiteral("route withdrew"),
                   QStringLiteral("A two-camera route that could neither time the peak nor bound it would tell the reader "

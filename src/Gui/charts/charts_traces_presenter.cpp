@@ -67,6 +67,20 @@ struct ChartsTracesPresenter::NowRow {
     bool grossWarn = false;
     std::vector<double> refT, refV;      // Against, on the picked shot's clock
     std::vector<double> medT, medV;      // the session median, canonical axis
+    // THE GATE BEHIND A "-" at the playhead or the pointer (trust stage 6 session 2): the masks' stretches
+    // (ms about impact) with their words, and the refusing gate's words; each with the reading it opens
+    std::vector<double> maskFrom, maskTo;
+    QStringList maskWords, maskSubjects;
+    QString gateWords, gateSubject;
+    // the words for an instant with no value ("" = the "-" stands)
+    QString wordsAt(double shotMs, QString *subject) const
+    {
+        if (std::isfinite(shotMs))
+            for (size_t i = 0; i < maskFrom.size(); ++i)
+                if (shotMs >= maskFrom[i] - 2.0 && shotMs <= maskTo[i] + 2.0) { *subject = maskSubjects.value(int(i)); return maskWords.value(int(i)); }
+        *subject = gateSubject;
+        return gateWords;
+    }
 };
 
 struct ChartsTracesPresenter::NowCache {
@@ -514,6 +528,9 @@ struct Ctx {
     QStringList presetKeys;
     QStringList rowKeys;                 // drawn on This shot (on, drawsCurve, has a curve)
     QStringList sessionKeys;             // drawn in Session (on, drawsCurve, ≥ 3 shots have the curve)
+    // the preset's members a gate refused on the picked shot, in manifest order, offered or not: each comes
+    // back as a stub card carrying the gate's words (trust stage 6 session 2: a refused reading keeps its place)
+    QStringList refusedKeys;
     bool sequencePreset = false;
     // the window
     Win win;
@@ -654,6 +671,76 @@ QVariantMap tile(const QString &label, const QString &text, bool ok, const QStri
 
 QString shortUnitOf(const Ctx &c, const QString &u) { return c.w->cm->shortUnit(u); }
 
+// ── THE GATE BEHIND A "-" (trust stage 6 session 2; trust_stage6_plan.md "show it everywhere") ──────
+// The gate a claim about `key` shows on the picked shot (trust_readings.h gateFor), or {} — an old swing
+// (gatesVersion 0) keeps today's "-". `refusing` keeps only the gates that leave no value (refused,
+// bounded): a value that is missing for another reason is not a withheld or downgraded gate's doing.
+QVariantMap gateOf(const ShotSeries *shot, const QString &key, bool refusing)
+{
+    if (!shot || shot->gatesVersion <= 0 || key.isEmpty() || shot->gates.isEmpty()) return {};
+    const QVariantMap g = trust::gateFor(shot->gates, key);
+    if (g.isEmpty() || g.value(QStringLiteral("words")).toString().isEmpty()) return {};
+    if (refusing) {
+        const QString eff = g.value(QStringLiteral("effect")).toString();
+        if (eff != QLatin1String("refused") && eff != QLatin1String("bounded")) return {};
+    }
+    return g;
+}
+QVariantMap gateOf(const Ctx &c, const QString &key, bool refusing) { return gateOf(c.shot.get(), key, refusing); }
+
+// A MASK'S STRETCH on the picked shot: the summary record a frame-by-frame gate leaves (gate_record.h
+// maskEvidence: fromMs / toMs about impact) for `key` — by its subject or a cascade covering it. Masks do
+// not label values: these only word an instant that has no value, and draw the bar along the axis.
+struct MaskSpan { double fromMs = kNaN, toMs = kNaN; QString gate, words, subject; };
+std::vector<MaskSpan> maskSpansOf(const ShotSeries *shot, const QString &key)
+{
+    std::vector<MaskSpan> out;
+    if (!shot || shot->gatesVersion <= 0 || key.isEmpty()) return out;
+    for (const QVariant &rv : shot->gates) {
+        const QVariantMap r = rv.toMap();
+        const QString subject = r.value(QStringLiteral("subject")).toString();
+        if (subject != key && !r.value(QStringLiteral("covers")).toStringList().contains(key)) continue;
+        const QVariantMap ev = r.value(QStringLiteral("evidence")).toMap();
+        if (!ev.contains(QStringLiteral("fromMs")) || !ev.contains(QStringLiteral("toMs"))) continue;
+        const double a = ev.value(QStringLiteral("fromMs")).toDouble(), b = ev.value(QStringLiteral("toMs")).toDouble();
+        if (!std::isfinite(a) || !std::isfinite(b)) continue;
+        const QString gate = r.value(QStringLiteral("gate")).toString();
+        const gates::GateEntry *e = gates::gateEntry(gate);
+        if (!e || e->shortText.isEmpty()) continue;
+        out.push_back(MaskSpan{ std::min(a, b), std::max(a, b), gate, e->shortText, subject });
+    }
+    return out;
+}
+// The words for an instant with no value: the mask whose stretch holds it (within half a frame), else the
+// gate that refused the reading, else nothing (the "-" stands). Fills `subject` with the reading it opens.
+QString gateWordsAt(const ShotSeries *shot, const QString &key, double ms, QString *subject)
+{
+    if (std::isfinite(ms))
+        for (const MaskSpan &m : maskSpansOf(shot, key))
+            if (ms >= m.fromMs - 2.0 && ms <= m.toMs + 2.0) { if (subject) *subject = m.subject; return m.words; }
+    const QVariantMap g = gateOf(shot, key, true);
+    if (g.isEmpty()) return QString();
+    if (subject) *subject = g.value(QStringLiteral("subject")).toString();
+    return g.value(QStringLiteral("words")).toString();
+}
+// A "-" tile of `key` gets the gate's words and the reading its click opens (PpChSummary draws them as a
+// link); `ms` is the tile's instant about impact when it has one (a mask then speaks for it).
+void gateTile(const Ctx &c, QVariantMap &t, const QString &key, double ms = kNaN)
+{
+    if (t.value(QStringLiteral("text")).toString() != QLatin1String("-")) return;
+    QString subject;
+    const QString words = gateWordsAt(c.shot.get(), key, ms, &subject);
+    if (words.isEmpty()) return;
+    t.insert(QStringLiteral("text"), words);
+    t.insert(QStringLiteral("unit"), QString());
+    t.insert(QStringLiteral("sub"), QString());
+    t.insert(QStringLiteral("trust"), subject);
+}
+double msOfUs(const Ctx &c, qint64 us)
+{
+    return c.shot && c.shot->impactUs >= 0 && us >= 0 ? double(us - c.shot->impactUs) / 1000.0 : kNaN;
+}
+
 // A companion's tiles (MetricCardSpec::mergeInto): its readings and a fixed-span Δ, read off ITS series.
 QVariantList companionTiles(const Ctx &c, const SeriesCalc &host, const SeriesCalc &s)
 {
@@ -668,19 +755,23 @@ QVariantList companionTiles(const Ctx &c, const SeriesCalc &host, const SeriesCa
         const Reading r = readingOf(c, s, ph);
         const QString v = r.ok ? verdictOf(c.w->cm->bandAtNearest(s.phaseSamples, r.us)) : QString();
         const QString lab = ra.value(QStringLiteral("label")).toString();
-        out << tile(lab.isEmpty() ? nm + QLatin1Char(' ') + readLabel(c, ph, QString()) : asciiLower(lab),
-                    r.ok ? W::fig(r.val, s.dec) : QStringLiteral("-"), r.ok, v, QString(), r.ok ? unit : QString(),
-                    QString(), false);
+        QVariantMap t = tile(lab.isEmpty() ? nm + QLatin1Char(' ') + readLabel(c, ph, QString()) : asciiLower(lab),
+                             r.ok ? W::fig(r.val, s.dec) : QStringLiteral("-"), r.ok, v, QString(), r.ok ? unit : QString(),
+                             QString(), false);
+        gateTile(c, t, s.m->key, msOfUs(c, r.us >= 0 ? r.us : phaseUsOf(*c.shot, ph)));
+        out << t;
     }
     if (sp.value(QStringLiteral("delta")).toBool() && sp.value(QStringLiteral("deltaSpan")).toBool()) {
         const int a = sp.value(QStringLiteral("deltaFrom")).toInt(), b = sp.value(QStringLiteral("deltaTo")).toInt();
         const Reading ra = readingOf(c, s, a), rb = readingOf(c, s, b);
         const bool ok = ra.ok && rb.ok;
         const QString lab = sp.value(QStringLiteral("deltaLabel")).toString();
-        out << tile(lab.isEmpty() ? QStringLiteral("Δ ") + nm + QLatin1Char(' ') + c.tag(a) + QStringLiteral("→") + c.tag(b)
-                                  : asciiLower(lab),
-                    ok ? W::fig(rb.val - ra.val, s.dec) : QStringLiteral("-"), ok, QString(), QString(),
-                    ok ? unit : QString(), QString(), false);
+        QVariantMap t = tile(lab.isEmpty() ? QStringLiteral("Δ ") + nm + QLatin1Char(' ') + c.tag(a) + QStringLiteral("→") + c.tag(b)
+                                           : asciiLower(lab),
+                             ok ? W::fig(rb.val - ra.val, s.dec) : QStringLiteral("-"), ok, QString(), QString(),
+                             ok ? unit : QString(), QString(), false);
+        gateTile(c, t, s.m->key, !ra.ok ? msOfUs(c, phaseUsOf(*c.shot, a)) : msOfUs(c, phaseUsOf(*c.shot, b)));
+        out << t;
     }
     return out;
 }
@@ -748,6 +839,24 @@ QVariantMap cardOf(Ctx &c, const SeriesCalc &s, const std::vector<const SeriesCa
                           s.rateOk ? W::fig(std::abs(s.st.value(QStringLiteral("rate")).toDouble()), 0) : QStringLiteral("-"),
                           s.rateOk, QString(), s.rateOk ? W::pm(s.st.value(QStringLiteral("rateSigma")).toDouble(), 0) : QString(),
                           s.rateOk ? unit + QStringLiteral("/100 ms") : QString(), QString(), true);
+        }
+    }
+    // a "-" a gate left: its words, and the reading a click opens (the instant tiles let a mask speak)
+    {
+        std::vector<double> instMs;
+        if (!s.hasCurve) {
+            for (const PhaseSample &p : s.m->phaseSamples) instMs.push_back(msOfUs(c, p.tUs));
+        } else {
+            for (const QVariant &rv : sp.value(QStringLiteral("readAt")).toList()) {
+                const int ph = rv.toMap().value(QStringLiteral("phase")).toInt();
+                const Reading r = readingOf(c, s, ph);
+                instMs.push_back(msOfUs(c, r.us >= 0 ? r.us : phaseUsOf(*c.shot, ph)));
+            }
+        }
+        for (int i = 0; i < tiles.size(); ++i) {
+            QVariantMap t = tiles[i].toMap();
+            gateTile(c, t, s.m->key, size_t(i) < instMs.size() ? instMs[size_t(i)] : kNaN);
+            tiles[i] = t;
         }
     }
     for (const SeriesCalc *co : companions) tiles << companionTiles(c, s, *co);
@@ -884,6 +993,35 @@ void resolvePreset(Ctx &c)
         if (c.snap) for (const auto &s : c.snap->shots) if (const MetricSeries *m = s->metric(k)) n += m->hasCurve() ? 1 : 0;
         if (n >= 3) c.sessionKeys << k;
     }
+    // THE REFUSED MEMBERS: the metric keys a refusing gate names on the picked shot (its subject, or a
+    // cascade's covers), filed into the catalogue's groups as if offered, so a key no shot measured still
+    // comes back when the chosen preset names it. Only for the stub cards: the choices stay on the data.
+    if (c.shot && c.shot->gatesVersion > 0 && !c.shot->gates.isEmpty()) {
+        QStringList named;
+        for (const QVariant &rv : c.shot->gates) {
+            const QVariantMap r = rv.toMap();
+            const QString eff = r.value(QStringLiteral("effect")).toString();
+            if (eff != QLatin1String("refused") && eff != QLatin1String("bounded")) continue;
+            QStringList ks = r.value(QStringLiteral("covers")).toStringList();
+            ks.prepend(r.value(QStringLiteral("subject")).toString());
+            for (const QString &k : ks)
+                if (!k.isEmpty() && !k.startsWith(QLatin1String("ks.")) && !named.contains(k)) named << k;
+        }
+        QVariantList withRefused = series;
+        for (const QString &k : named)
+            if (!seen.contains(k))
+                withRefused << QVariantMap{ { QStringLiteral("key"), k }, { QStringLiteral("t_us"), QVariantList{} },
+                                            { QStringLiteral("phaseSamples"), QVariantList{ QVariantMap{ { QStringLiteral("phase"), int(phase::Impact) } } } } };
+        const QVariantList all = withRefused.size() == series.size() ? c.groups : c.w->cm->seriesGroups(withRefused);
+        for (const QVariant &g : all) {
+            const QVariantMap gm = g.toMap();
+            if (gm.value(QStringLiteral("group")).toString() != c.preset) continue;
+            for (const QVariant &kv : gm.value(QStringLiteral("keys")).toList()) {
+                const QString k = kv.toString();
+                if (named.contains(k) && !c.in->metricsOff.contains(k) && !c.refusedKeys.contains(k)) c.refusedKeys << k;
+            }
+        }
+    }
 }
 
 // ── the window (INVENTORY §2b: chips, Full recording, the data window, custom) ─────────────
@@ -1004,6 +1142,15 @@ QVariantMap sequenceBlock(Ctx &c)
         r.insert(QStringLiteral("late"), late);
         r.insert(QStringLiteral("lateWord"), late ? QStringLiteral("late") : QString());
         r.insert(QStringLiteral("rising"), seg >= 0 && seg < kSequenceSegments && q.segments[size_t(seg)].risingAtImpact);
+        // a segment with no peak because a gate refused it: the gate's words in the peak's place, opening the
+        // reading (the node's records); an old swing keeps the "—"
+        if (r.value(QStringLiteral("peakText")).toString() == QStringLiteral("—")) {
+            const QVariantMap g = gateOf(c, QStringLiteral("ks.") + r.value(QStringLiteral("segment")).toString(), true);
+            if (!g.isEmpty()) {
+                r.insert(QStringLiteral("peakText"), g.value(QStringLiteral("words")).toString());
+                r.insert(QStringLiteral("trust"), g.value(QStringLiteral("subject")).toString());
+            }
+        }
         rows << r;
     }
     // THE CHAIN: the placed peaks in the order they happened, the gap on each arrow, the late one worded.
@@ -1188,13 +1335,24 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
         figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("at") }, { QStringLiteral("text"), W::signedMs(tp) },
                                 { QStringLiteral("warn"), false } };
     } else {
-        figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak") }, { QStringLiteral("text"), QStringLiteral("-") },
-                                { QStringLiteral("warn"), false } };
+        // no peak: the gate that refused the reading says so in the slot, and opens its reason (a "-" else)
+        const QVariantMap g = gateOf(c, m.key, true);
+        figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak") },
+                                { QStringLiteral("text"), g.isEmpty() ? QStringLiteral("-") : g.value(QStringLiteral("words")).toString() },
+                                { QStringLiteral("warn"), false },
+                                { QStringLiteral("trust"), g.value(QStringLiteral("subject")).toString() } };
     }
     double atImpact = kNaN;
     for (const PhaseSample &p : m.phaseSamples) if (p.phase == phase::Impact) atImpact = p.value;
-    figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("at P7") }, { QStringLiteral("text"), W::figUnit(atImpact, m.unit) },
-                            { QStringLiteral("warn"), false } };
+    {
+        // no reading at impact: the mask over impact, or the gate that refused it, in the slot
+        QString atSubject;
+        const QString atWords = std::isfinite(atImpact) ? QString() : gateWordsAt(c.shot.get(), m.key, 0.0, &atSubject);
+        figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("at P7") },
+                                { QStringLiteral("text"), atWords.isEmpty() ? W::figUnit(atImpact, m.unit) : atWords },
+                                { QStringLiteral("warn"), false },
+                                { QStringLiteral("trust"), atWords.isEmpty() ? QString() : atSubject } };
+    }
 
     QVariantMap row = card;
     row.insert(QStringLiteral("unit"), shortUnitOf(c, m.unit));
@@ -1227,10 +1385,23 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
                               { QStringLiteral("gate"), p.blindGate },
                               { QStringLiteral("label"), e ? e->shortText : QString() } };
     }
+    // ANY OTHER CURVE a frame-by-frame gate thinned (a mask's summary record carries its stretch, fromMs /
+    // toMs about impact): the same quiet bar along the axis, with the gate's short words, opening the
+    // record's reading. The value it leaves is printed as usual: masks do not label values.
+    QString maskSubject;
+    if (seg < 0)
+        for (const MaskSpan &ms : maskSpansOf(c.shot.get(), m.key)) {
+            blind << QVariantMap{ { QStringLiteral("t0"), ms.fromMs },
+                                  { QStringLiteral("t1"), ms.toMs },
+                                  { QStringLiteral("gate"), ms.gate },
+                                  { QStringLiteral("label"), ms.words },
+                                  { QStringLiteral("subject"), ms.subject } };
+            if (maskSubject.isEmpty()) maskSubject = ms.subject;
+        }
     row.insert(QStringLiteral("blind"), blind);
     // the reading a click on this curve's marks opens (an out-of-sight bar, an unplaced ring)
     row.insert(QStringLiteral("trustSubject"), seg >= 0 && !c.seq.segments[size_t(seg)].records.isEmpty()
-                                                   ? QStringLiteral("ks.") + sequenceSegmentIds()[size_t(seg)] : QString());
+                                                   ? QStringLiteral("ks.") + sequenceSegmentIds()[size_t(seg)] : maskSubject);
     return row;
 }
 
@@ -1291,6 +1462,58 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
         if (drawn) rows << shotRow(c, s, card, dotKinds);
         else if (glanceIt == kReplayGlance.constEnd() || glanceIt->contains(k)) cards << card;
     }
+    // A REFUSED READING KEEPS ITS PLACE (trust stage 6 session 2): a member of the preset with nothing to show
+    // on this shot because a gate refused it comes back as a stub — its name, and the gate's words as its one
+    // tile, opening the reason. On its host's card when it rides on one; never a curve.
+    {
+        QStringList order = c.presetKeys;
+        for (const QString &k : c.refusedKeys) if (!order.contains(k)) order << k;
+        for (const QString &k : order) {
+            if (c.in->metricsOff.contains(k)) continue;
+            if (const MetricSeries *m = c.shot->metric(k))
+                if ((m->hasCurve() && m->value.size() == m->tUs.size()) || !m->phaseSamples.empty()) continue;   // it has a card
+            const QVariantMap g = gateOf(c, k, false);
+            if (g.isEmpty()) continue;
+            if (glanceIt != kReplayGlance.constEnd() && !glanceIt->contains(k)) continue;
+            const QString subject = g.value(QStringLiteral("subject")).toString();
+            const QString words = g.value(QStringLiteral("words")).toString();
+            QString nm = c.labelOf(k);
+            // a companion (MetricCardSpec::mergeInto) whose host is shown: the stub tile rides on the host's card
+            const QString host = c.w->specFor(k).value(QStringLiteral("mergeInto")).toString();
+            if (!host.isEmpty() && c.calcs.contains(host) && !c.in->metricsOff.contains(host)) {
+                QVariantMap t = tile(asciiLower(c.w->cm->shortLabel(k).isEmpty() ? nm : c.w->cm->shortLabel(k)), words, false,
+                                     QString(), QString(), QString(), QString(), false);
+                t.insert(QStringLiteral("trust"), subject);
+                bool placed = false;
+                for (QVariantList *list : { &rows, &cards })
+                    for (int i = 0; i < list->size() && !placed; ++i) {
+                        QVariantMap cm = (*list)[i].toMap();
+                        if (cm.value(QStringLiteral("key")).toString() != host) continue;
+                        QVariantList ts = cm.value(QStringLiteral("tiles")).toList();
+                        ts << t;
+                        cm.insert(QStringLiteral("tiles"), ts);
+                        (*list)[i] = cm;
+                        placed = true;
+                    }
+                if (placed) continue;
+            }
+            QVariantMap t = tile(QString(), words, false, QString(), QString(), QString(), QString(), false);
+            t.insert(QStringLiteral("trust"), subject);
+            cards << QVariantMap{ { QStringLiteral("key"), k },
+                                  { QStringLiteral("label"), nm },
+                                  { QStringLiteral("unit"), QString() },
+                                  { QStringLiteral("tiles"), QVariantList{ t } },
+                                  { QStringLiteral("partial"), false },
+                                  { QStringLiteral("partialWord"), QString() },
+                                  { QStringLiteral("sigmaText"), QString() },
+                                  { QStringLiteral("sigmaTip"), QString() },
+                                  { QStringLiteral("grossWarn"), false },
+                                  { QStringLiteral("grossWord"), QString() },
+                                  { QStringLiteral("grossTip"), QString() },
+                                  { QStringLiteral("stub"), true },
+                                  { QStringLiteral("trust"), subject } };
+        }
+    }
     out.insert(QStringLiteral("rows"), rows);
     out.insert(QStringLiteral("cards"), cards);
     // OVERLAY (F6, kept as an option beside the small multiples): one shared Y across the rows, and
@@ -1310,8 +1533,9 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
                                                            { QStringLiteral("sameUnit"), units.size() == 1 } });
     }
     W::Sentence noTraces;
+    const bool realCards = std::any_of(cards.begin(), cards.end(), [](const QVariant &cv) { return !cv.toMap().value(QStringLiteral("stub")).toBool(); });
     if (rows.isEmpty())
-        noTraces.append(cards.isEmpty() ? QStringLiteral("No metric traces for this swing.")
+        noTraces.append(!realCards ? QStringLiteral("No metric traces for this swing.")
                                         : QStringLiteral("This preset is read at instants only: there is no trace to draw."));
     out.insert(QStringLiteral("noTraces"), noTraces.toVariant());
     QVariantList dotKey;
@@ -1554,6 +1778,15 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
         nr.key = k; nr.label = c.labelOf(k); nr.unit = s.m->unit; nr.dec = s.dec;
         nr.tUs = s.m->tUs; nr.mean = s.mean; nr.raw = s.m->value; nr.measured = s.measured;
         nr.grossWarn = c.w->cm->sigmaInfo(s.seriesMap).value(QStringLiteral("warn")).toBool();
+        for (const MaskSpan &ms : maskSpansOf(c.shot.get(), k)) {
+            nr.maskFrom.push_back(ms.fromMs); nr.maskTo.push_back(ms.toMs);
+            nr.maskWords << ms.words; nr.maskSubjects << ms.subject;
+        }
+        {
+            const QVariantMap g = gateOf(c, k, true);
+            nr.gateWords = g.value(QStringLiteral("words")).toString();
+            nr.gateSubject = g.value(QStringLiteral("subject")).toString();
+        }
         // Δ from Address: the drawn value at the Address sample when it was measured there, else the
         // producer's own reading (PpMetricChart._addrValue); the first drawn value when there is none.
         nr.addr = s.mean.empty() ? kNaN : s.mean.front();
@@ -2806,7 +3039,11 @@ void ChartsTracesPresenter::updateNow(bool force)
         }
         const double typ = interpAt(r.medT, r.medV, canonMs);
         const double ref = interpAt(r.refT, r.refV, shotMs);
-        const QString text = W::figUnit(v, r.unit);
+        // no value here: the gate behind it says so, in the slot (an old swing keeps the "-")
+        QString trustSubj;
+        const QString gw = std::isfinite(v) ? QString() : r.wordsAt(shotMs, &trustSubj);
+        const QString text = gw.isEmpty() ? W::figUnit(v, r.unit) : gw;
+        if (gw.isEmpty()) trustSubj.clear();
         const QString addr = std::isfinite(v) && std::isfinite(r.addr) ? QStringLiteral("Δ ") + W::figSigned(v - r.addr, r.unit) : QString();
         const QString typT = W::figUnit(typ, r.unit), refT = r.refT.empty() ? QString() : W::figUnit(ref, r.unit);
         const QString gapT = std::isfinite(v) && std::isfinite(ref) ? W::figSigned(v - ref, r.unit) : (r.refT.empty() ? QString() : QStringLiteral("-"));
@@ -2814,7 +3051,8 @@ void ChartsTracesPresenter::updateNow(bool force)
         rows << QVariantMap{ { QStringLiteral("key"), r.key }, { QStringLiteral("value"), v }, { QStringLiteral("text"), text },
                              { QStringLiteral("measured"), measured }, { QStringLiteral("addrText"), addr },
                              { QStringLiteral("typical"), typ }, { QStringLiteral("typicalText"), r.medT.empty() ? QString() : typT },
-                             { QStringLiteral("refText"), refT }, { QStringLiteral("gapText"), gapT } };
+                             { QStringLiteral("refText"), refT }, { QStringLiteral("gapText"), gapT },
+                             { QStringLiteral("trust"), trustSubj } };
     }
     out = QVariantMap{ { QStringLiteral("valid"), true }, { QStringLiteral("us"), m_playheadUs }, { QStringLiteral("shotMs"), shotMs },
                        { QStringLiteral("canonMs"), canonMs }, { QStringLiteral("when"), W::signedMs(shotMs) },
@@ -2876,7 +3114,7 @@ QVariantMap ChartsTracesPresenter::hoverAt(double shotMs) const
     const qint64 us = (nc->impactUs >= 0 ? nc->impactUs : 0) + qint64(std::llround(shotMs * 1000.0));
     QVariantList rows;
     for (const NowRow &r : nc->rows) {
-        QString text = QStringLiteral("-"), raw;
+        QString text = QStringLiteral("-"), raw, trustSubj;
         bool measured = false;
         if (!r.tUs.empty()) {
             const size_t i = nearestIndex(r.tUs, us);
@@ -2886,8 +3124,15 @@ QVariantMap ChartsTracesPresenter::hoverAt(double shotMs) const
                 raw = QStringLiteral("raw ") + W::fig(r.raw[i], r.dec);
             }
         }
+        if (!measured) {
+            // no value under the pointer: the gate behind it, in the slot (an old swing keeps the "-")
+            const QString gw = r.wordsAt(shotMs, &trustSubj);
+            if (!gw.isEmpty()) text = gw;
+            else trustSubj.clear();
+        }
         rows << QVariantMap{ { QStringLiteral("key"), r.key }, { QStringLiteral("label"), r.label }, { QStringLiteral("text"), text },
-                             { QStringLiteral("raw"), raw }, { QStringLiteral("measured"), measured }, { QStringLiteral("grossWarn"), r.grossWarn } };
+                             { QStringLiteral("raw"), raw }, { QStringLiteral("measured"), measured }, { QStringLiteral("grossWarn"), r.grossWarn },
+                             { QStringLiteral("trust"), trustSubj } };
     }
     return { { QStringLiteral("valid"), true }, { QStringLiteral("shotMs"), shotMs },
              { QStringLiteral("when"), W::signedMs(shotMs) + QStringLiteral(" · impact") }, { QStringLiteral("rows"), rows } };

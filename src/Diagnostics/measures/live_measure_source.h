@@ -122,6 +122,10 @@ public:
     // — a swing analysed before records existed, or a measure no gate acts on.
     struct GateCause { QString gate, subject, clause; };
     GateCause gateCause(const QString &measureId) const;
+    // The same, for a subject named directly rather than through a measure: "shot", whose records
+    // (frames missing, a sensor recording that does not hang together) withhold the whole swing — the
+    // capture-integrity exclusion's gate. Empty on a swing analysed before records existed.
+    GateCause gateForSubject(const QString &subject) const;
 
     // ── Identity, for context resolution ────────────────────────────────────
     //

@@ -27,7 +27,10 @@ import PinPointStudio
 // Line 2 states what backs the row's ± (σ provenance, F36) and the ⚠ wrong-structure caveat (F37) inline —
 // never a tooltip. Hovering a row shows its tiles' own notes there instead ("Recorded sample there: raw 503").
 // Companion readings (shaft lie on shaft lean, F39) arrive as tiles on their card: drawn as given.
-// objectNames: chSummary; each row chSummaryRow (+ key).
+// A tile a gate left without a value carries the gate's words in its place and `trust` (the reading): the
+// words in the link colour with " ›", a click emits trustClicked (trust stage 6 session 2). A member a gate
+// refused outright arrives as a stub card: its name and that one tile.
+// objectNames: chSummary; each row chSummaryRow (+ key); a gated tile chSummaryWhy:<subject>.
 Column {
     id: sm
     objectName: "chSummary"
@@ -37,6 +40,8 @@ Column {
     property bool interactive: true
     property bool atom: false
     readonly property var keyKinds: []
+    // a tile a gate left without a value (tile.trust): its words open the reason
+    signal trustClicked(string subject)
     readonly property var all: (rows || []).concat(cards || [])
     readonly property real em: roles ? roles.em : 14
     readonly property bool side: roles ? roles.atLeast(width, "compact") : true
@@ -87,7 +92,14 @@ Column {
                         Text { text: modelData.label; font: sm.roles.fLabel; color: sm.roles.ink3 }
                         Row {
                             spacing: sm.roles.u(4)
-                            Text { id: tv; text: modelData.text; font: sm.roles.fFig; color: modelData.verdict === "warn" ? sm.roles.warn : modelData.ok === false ? sm.roles.ink3 : sm.roles.ink }
+                            Text { id: tv
+                                   readonly property bool why: !!modelData.trust
+                                   objectName: why ? "chSummaryWhy:" + modelData.trust : ""
+                                   text: modelData.text + (why ? " ›" : "")
+                                   font: why ? sm.roles.fSmall : sm.roles.fFig
+                                   color: why ? sm.roles.link : modelData.verdict === "warn" ? sm.roles.warn : modelData.ok === false ? sm.roles.ink3 : sm.roles.ink
+                                   MouseArea { enabled: tv.why && sm.interactive; anchors.fill: parent; anchors.margins: -2
+                                               cursorShape: Qt.PointingHandCursor; onClicked: sm.trustClicked(modelData.trust) } }
                             Text { id: tsub; visible: !!modelData.sub; anchors.baseline: tv.baseline; text: modelData.sub || ""; font: sm.roles.fFigLabel; color: sm.roles.ink3 }
                             Text { id: tu; visible: !!modelData.unit; anchors.baseline: tv.baseline; text: modelData.unit || ""; font: sm.roles.fSmall; color: sm.roles.ink3 }
                             Text { visible: !!modelData.verdictWord && modelData.verdict !== ""; anchors.baseline: tv.baseline; text: modelData.verdictWord || ""; font: sm.roles.fSmall

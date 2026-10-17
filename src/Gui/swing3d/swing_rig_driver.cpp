@@ -295,8 +295,10 @@ bool SwingRigDriver::loadNow(const QString &dir)
     m_swingDir = dir;
     ++m_generation;
     QString why;
-    auto p = prepare(dir, &why);
+    QVariantList gates;
+    auto p = prepare(dir, &why, &gates);
     m_reason = why;
+    m_gates = gates;
     adopt(p, m_generation);
     return available();
 }
@@ -307,6 +309,7 @@ void SwingRigDriver::startLoad()
     m_track.reset();
     m_loading = !m_swingDir.isEmpty();
     m_reason = m_swingDir.isEmpty() ? tr("no swing selected") : tr("loading…");
+    m_gates.clear();
     emit loadedChanged();
     ++m_revision;
     emit revisionChanged();
@@ -316,10 +319,13 @@ void SwingRigDriver::startLoad()
     const QString dir = m_swingDir;
     QThreadPool::globalInstance()->start([self, dir, gen]() {
         QString why;
-        auto p = prepare(dir, &why);
-        QMetaObject::invokeMethod(self, [self, p, gen, why]() {
+        QVariantList gates;
+        auto p = prepare(dir, &why, &gates);
+        QMetaObject::invokeMethod(self, [self, p, gen, why, gates]() {
             if (!self) return;
+            if (gen != self->m_generation) return;   // a newer swing was asked for meanwhile
             self->m_reason = why;
+            self->m_gates = gates;
             self->adopt(p, gen);
         }, Qt::QueuedConnection);
     });
@@ -338,7 +344,7 @@ void SwingRigDriver::adopt(std::shared_ptr<const Prepared> p, quint64 generation
     evaluate();
 }
 
-std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QString &dir, QString *reason)
+std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QString &dir, QString *reason, QVariantList *gates)
 {
     QString err;
     const QJsonObject root = pinpoint::SwingStore::load(dir, &err);
@@ -347,6 +353,9 @@ std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QS
         return {};
     }
     const QJsonObject an = root.value(QStringLiteral("analysis")).toObject();
+    // The records ride out whatever the skeleton's fate: a refused one is exactly what they explain.
+    if (gates && an.contains(QStringLiteral("gatesVersion")))
+        *gates = an.value(QStringLiteral("gates")).toArray().toVariantList();
     const qint64 t0 = qint64(root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble());
     const sk::Skeleton3DTrack trk = sk::skeleton3dFromJson(an.value(QStringLiteral("skeleton3d")).toObject(), t0);
     if (!trk.valid) {
