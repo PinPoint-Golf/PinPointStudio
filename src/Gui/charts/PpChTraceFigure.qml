@@ -165,7 +165,9 @@ Item {
         }
         Text {
             readonly property bool hov: isFinite(tf.hoverMs) && tf.showCursor
-            visible: (hov || tf.playText !== "") && tf.roles !== null
+            // the playhead's time only while it is over the plot: outside the window it has no line to label
+            readonly property bool playIn: isFinite(tf.playMs) && tf.playMs >= tf.x0 && tf.playMs <= tf.x1
+            visible: (hov || (tf.playText !== "" && playIn)) && tf.roles !== null
             readonly property real at: hov ? tf.hoverMs : tf.playMs
             x: isFinite(at) ? Math.max(0, Math.min(tf.areaW - width, tf.xOf(at) - width / 2)) : 0; y: 0
             text: hov ? (tf.hover.when || "") : tf.playText

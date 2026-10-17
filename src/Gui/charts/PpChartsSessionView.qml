@@ -21,17 +21,17 @@ import PinPointStudio
 
 // SESSION — "what do my curves usually look like, and where do they part?" (design §2.2, A; D2, D3, D6, D9).
 //   Analyse: the head built from the data (where the curves part, the facet, the fit's payoff), its
-//     standfirst, the alignment note (§4.1), the mixed-club note, the co-occurrence caveat; quiet controls
-//     (Metrics, Window, Show: middle half · every shot · group fit, Facet: none by default, D3); up to three
-//     questions answered in place (a facet or band set, the lit shots); the P-aligned figure; then the
-//     sequence across the session (order barcode and peak-time dot plot).
+//     standfirst, the alignment note (§4.1), the mixed-club note, the co-occurrence caveat; the P-aligned
+//     figure; "How far can I trust this?"; the Controls fold (Metrics, Window, Show: middle half · every shot ·
+//     group fit, Facet: none by default, D3); up to three questions answered in place (a facet or band set, the
+//     lit shots); then the sequence across the session (order barcode and peak-time dot plot), folded.
 //   Replay (D6: follows the playhead): the head, the figure with "now" against "typical" in its column, and
 //     the lead reading at the latest P-position the playhead has passed (PpChReplaySession).
 // A session the presenter refuses (n < 3, nothing aligned) says its own sentence (session.why).
 // Then, in Analyse, the wrist section ("Wrist", PpChWristSession) when some shot of the session carries a wrist
 // reading and a wrist metric is among the curves on show (body.wristSessionShown; Mark, 16 Oct: the standard
 // curves first, the domain read added where it means something). The glance never adds it.
-// objectName: chSessionView.
+// objectNames: chSessionView, chSessionHead, chSessionControls, chFacetPicker (Analyse), chFacetPickerGlance.
 Column {
     id: sv
     objectName: "chSessionView"
@@ -99,45 +99,13 @@ Column {
         PpChText { visible: present; roles: sv.roles; sentence: sv.se.clubNote; tone: sv.roles ? sv.roles.ink2 : "grey" }
         PpChText { visible: !sv.replay && present; roles: sv.roles; sentence: sv.se.caveat; tone: sv.roles ? sv.roles.ink2 : "grey" }
     }
+    // the glance keeps its one choice (Show) over the figure; Analyse folds its controls under the trust line
     PpChChoices {
-        visible: sv.available && !sv.cast
-        objectName: "chFacetPicker"
+        visible: sv.replay && sv.available && !sv.cast
+        objectName: "chFacetPickerGlance"
         width: sv.width; roles: sv.roles; interactive: sv.interactive
         sets: sv.sets
         onPicked: (set, opt) => sv.picked(set, opt)
-    }
-    PpInlinePicker {
-        visible: sv.pickerOpen === "preset"
-        open: visible; width: Math.min(sv.width, sv.roles ? sv.roles.u(360) : 360)
-        roles: sv.roles; interactive: sv.interactive
-        title: "Metrics to trace"
-        items: visible ? (sv.tc.presets || []).map(function (p) { return { id: p.id, label: p.label, note: String(p.count) } }) : []
-        current: sv.tc.preset || ""
-        clearLabel: "The default for this view"
-        itemObjectName: "chPresetOption"; clearObjectName: "chPresetDefault"
-        onPicked: (id) => { if (sv.body) sv.body.choose("preset", id); sv.pickerOpen = "" }
-    }
-    PpInlinePicker {
-        visible: sv.pickerOpen === "window"
-        open: visible; width: Math.min(sv.width, sv.roles ? sv.roles.u(360) : 360)
-        roles: sv.roles; interactive: sv.interactive
-        title: "The window, on the session's P-positions"
-        items: visible ? (sv.tc.windows || []).map(function (w) { return { id: w.key, label: w.label } }) : []
-        current: sv.tc.window || ""
-        clearLabel: "The default: around the data"
-        itemObjectName: "chWindowOption"; clearObjectName: "chWindowDefault"
-        onPicked: (id) => { if (sv.body) sv.body.choose("window", id === "" ? "auto" : id); sv.pickerOpen = "" }
-    }
-    PpInlinePicker {
-        visible: sv.pickerOpen === "facet"
-        open: visible; width: Math.min(sv.width, sv.roles ? sv.roles.u(420) : 420)
-        roles: sv.roles; interactive: sv.interactive
-        title: "Split the session by"
-        items: visible ? (sv.tc.facets || []).filter(function (f) { return f.id !== "" }).map(function (f) { return { id: f.id, label: f.label } }) : []
-        current: sv.body ? sv.body.facet : ""
-        clearLabel: "none"
-        itemObjectName: "chFacetOption"; clearObjectName: "chFacetNone"
-        onPicked: (id) => { if (sv.body) { sv.body.choose("facet", id); sv.body.clearAsk(sv.brush) } sv.pickerOpen = "" }
     }
     PpChSessionFigure {
         visible: sv.available
@@ -161,6 +129,62 @@ Column {
         width: sv.width; roles: sv.roles; scope: "session"
         topPadding: sv.roles ? sv.roles.u(6) : 6
         swingDir: pickedDir
+    }
+    // ═══ the controls, under the figure and its trust line, as on This shot (Mark, 17 Oct 2026) ═══
+    // Foldable to one line that still says what is chosen. The glance has none (its Show line sits over the figure).
+    readonly property bool controlsFolded: !!body && !!body.collapsed && body.collapsed.sessionControls === true
+    Column {
+        objectName: "chSessionControls"
+        visible: !sv.replay && sv.available && !sv.cast
+        width: sv.width
+        spacing: sv.roles ? sv.roles.u(8) : 8
+        PpChFoldHead {
+            width: parent.width; roles: sv.roles; key: "sessionControls"; title: "Controls"; interactive: sv.interactive
+            collapsed: sv.controlsFolded
+            state_: [sv.tc.presetTitle || "", sv.currentLabel(sv.tc.windows), sv.currentLabel(sv.tc.bands),
+                     sv.body && sv.body.facet ? sv.currentLabel(sv.tc.facets) : ""].filter(function (x) { return x !== "" }).join("  ·  ")
+            onToggled: if (sv.body) sv.body.toggleSection("sessionControls")
+        }
+        PpChChoices {
+            visible: !sv.controlsFolded
+            objectName: "chFacetPicker"
+            width: parent.width; roles: sv.roles; interactive: sv.interactive
+            sets: sv.sets
+            onPicked: (set, opt) => sv.picked(set, opt)
+        }
+        PpInlinePicker {
+            visible: !sv.controlsFolded && sv.pickerOpen === "preset"
+            open: visible; width: Math.min(parent.width, sv.roles ? sv.roles.u(360) : 360)
+            roles: sv.roles; interactive: sv.interactive
+            title: "Metrics to trace"
+            items: visible ? (sv.tc.presets || []).map(function (p) { return { id: p.id, label: p.label, note: String(p.count) } }) : []
+            current: sv.tc.preset || ""
+            clearLabel: "The default for this view"
+            itemObjectName: "chPresetOption"; clearObjectName: "chPresetDefault"
+            onPicked: (id) => { if (sv.body) sv.body.choose("preset", id); sv.pickerOpen = "" }
+        }
+        PpInlinePicker {
+            visible: !sv.controlsFolded && sv.pickerOpen === "window"
+            open: visible; width: Math.min(parent.width, sv.roles ? sv.roles.u(360) : 360)
+            roles: sv.roles; interactive: sv.interactive
+            title: "The window, on the session's P-positions"
+            items: visible ? (sv.tc.windows || []).map(function (w) { return { id: w.key, label: w.label } }) : []
+            current: sv.tc.window || ""
+            clearLabel: "The default: around the data"
+            itemObjectName: "chWindowOption"; clearObjectName: "chWindowDefault"
+            onPicked: (id) => { if (sv.body) sv.body.choose("window", id === "" ? "auto" : id); sv.pickerOpen = "" }
+        }
+        PpInlinePicker {
+            visible: !sv.controlsFolded && sv.pickerOpen === "facet"
+            open: visible; width: Math.min(parent.width, sv.roles ? sv.roles.u(420) : 420)
+            roles: sv.roles; interactive: sv.interactive
+            title: "Split the session by"
+            items: visible ? (sv.tc.facets || []).filter(function (f) { return f.id !== "" }).map(function (f) { return { id: f.id, label: f.label } }) : []
+            current: sv.body ? sv.body.facet : ""
+            clearLabel: "none"
+            itemObjectName: "chFacetOption"; clearObjectName: "chFacetNone"
+            onPicked: (id) => { if (sv.body) { sv.body.choose("facet", id); sv.body.clearAsk(sv.brush) } sv.pickerOpen = "" }
+        }
     }
     PpChQuestions {
         id: sessAsks
