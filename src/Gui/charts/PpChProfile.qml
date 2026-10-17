@@ -120,7 +120,7 @@ Column {
             readonly property string readingId: r ? r.readingId : ""
             readonly property bool open: pt.openId !== "" && pt.openId === readingId
             objectName: open ? "chApartRowOpen" : "chApartRow"
-            readonly property bool two: !pt.wideCols || (r && r.fired)
+            readonly property bool two: !pt.wideCols || (r && (r.fired || r.caution))
             readonly property real line1: Math.max(pt.roles.u(24), name.implicitHeight + pt.roles.u(8))
             readonly property real line2: two ? pt.roles.u(16) : 0
             readonly property bool hot: ma.containsMouse
@@ -172,6 +172,9 @@ Column {
                 Text { visible: !pt.wideCols && !!(row.r && row.r.place); text: row.r ? (row.r.place || "") : ""; font: pt.roles.fSmall; color: pt.roles.ink3 }
                 Text { visible: !!(row.r && row.r.fired); text: row.r ? (row.r.firedWord || "") : ""; font: pt.roles.fSmall; color: pt.roles.warn
                        Rectangle { anchors.top: parent.baseline; anchors.topMargin: 2; width: parent.width; height: 1; color: pt.roles.warn } }
+                // an estimate a gate refused: shown, with its health warning (why: the trust fold)
+                Text { objectName: "chProfileCaution"; visible: !!(row.r && row.r.caution); text: row.r ? (row.r.cautionText || "") : ""
+                       font: pt.roles.fSmall; color: pt.roles.ink2 }
             }
             Loader {
                 id: openL

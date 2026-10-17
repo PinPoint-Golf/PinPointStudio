@@ -94,6 +94,8 @@ struct SessionReading {
     bool    wrapped = false;            // unwrapped across ±180°
     bool    multi = false;              // the key is read at more than one P-position
     std::vector<uint8_t> fired;         // per shot: a condition linked to this reading fired
+    std::vector<uint8_t> refused;       // per shot: an estimate a gate refused, shown with a caution (Charts fills it)
+    std::vector<double>  refusedSigma;  // its ± per shot (NaN = not characterised)
     QStringList conditionIds;           // the linked conditions
 };
 

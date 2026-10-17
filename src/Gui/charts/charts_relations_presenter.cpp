@@ -28,6 +28,7 @@
 #include "../review/timeline_labels.h"
 #include "../trust/trust_readings.h"     // the gate behind a reading a shot has no value for (gateFor)
 #include "../../Core/pp_debug.h"
+#include "../../Metrics/gate_catalogue.h"   // a masked reading's gate words (cautionOfPicked)
 #include "../../Metrics/metric_catalogue.h"
 
 #include <QCoreApplication>
@@ -215,6 +216,56 @@ std::shared_ptr<ShotSeries> shotFromDetail(const QVariantMap &d, const QString &
     return s;
 }
 
+// THE TRUNK PEAKS A GATE REFUSED, AS READINGS (Mark, 17 Oct 2026: "present what we have, with a health
+// warning"). The sequence keeps an estimate for a pelvis or chest node it could not place (its peak, its
+// instant, their σ), but the producer writes readings only for placed nodes — so the KS chart drew the curve
+// while Readings had no row. Each shot lacking the reading gains the node's estimate; one the gate refused is
+// listed in `refused` ("swingDir|key" → σ) so its row carries a caution instead of passing as measured.
+std::shared_ptr<const SessionSnapshot> withTrunkEstimates(const std::shared_ptr<const SessionSnapshot> &snap,
+                                                          QHash<QString, double> *refused)
+{
+    struct Seg { const char *id, *timeKey, *speedKey; };
+    static const Seg segs[] = { { "pelvis", "pelvisPeakTime", "pelvisPeakSpeed" }, { "thorax", "thoraxPeakTime", "thoraxPeakSpeed" } };
+    std::shared_ptr<SessionSnapshot> copy;
+    for (size_t i = 0; i < snap->shots.size(); ++i) {
+        const ShotSeries &sh = *snap->shots[i];
+        const QVariantMap &ks = sh.kinematicSequence;
+        const qint64 ksImpact = ks.value(QStringLiteral("impactUs"), -1).toLongLong();
+        if (ksImpact < 0 || sh.impactUs < 0) continue;
+        std::shared_ptr<ShotSeries> mine;
+        for (const QVariant &nv : ks.value(QStringLiteral("nodes")).toList()) {
+            const QVariantMap n = nv.toMap();
+            const Seg *seg = nullptr;
+            for (const Seg &g : segs) if (n.value(QStringLiteral("segment")).toString() == QLatin1String(g.id)) seg = &g;
+            if (!seg || !n.contains(QStringLiteral("tPeakUs")) || !n.contains(QStringLiteral("peakDps"))) continue;
+            const bool placed = n.value(QStringLiteral("placed")).toBool();
+            const double sTime = n.value(QStringLiteral("tSigmaMs"), kNaN).toDouble();
+            const double sSpeed = n.value(QStringLiteral("peakSigmaDps"), kNaN).toDouble();
+            const struct { QString key; double value, sigma; } add[] = {
+                { QString::fromLatin1(seg->timeKey), double(n.value(QStringLiteral("tPeakUs")).toLongLong() - ksImpact) / 1000.0, sTime },
+                { QString::fromLatin1(seg->speedKey), std::fabs(n.value(QStringLiteral("peakDps")).toDouble()), sSpeed } };
+            for (const auto &a : add) {
+                if (sh.metric(a.key) || !fin(a.value)) continue;
+                const pa::MetricDescriptor *d = catalogue().descriptor(a.key);
+                if (!d) continue;
+                if (!mine) mine = std::make_shared<ShotSeries>(sh);
+                MetricSeries ms;
+                ms.key = a.key; ms.label = d->label; ms.unit = d->unit;
+                PhaseSample ps;
+                ps.phase = phase::Impact; ps.tUs = sh.impactUs; ps.value = a.value;
+                ms.phaseSamples.push_back(ps);
+                mine->metricOrder << a.key;
+                mine->metrics.insert(a.key, ms);
+                if (!placed && refused) refused->insert(cleanDir(sh.swingDir) + QLatin1Char('|') + a.key, a.sigma);
+            }
+        }
+        if (!mine) continue;
+        if (!copy) copy = std::make_shared<SessionSnapshot>(*snap);
+        copy->shots[i] = mine;
+    }
+    return copy ? std::shared_ptr<const SessionSnapshot>(copy) : snap;
+}
+
 // How a fired condition read its reading, said against the reading's instant (the pack's reducer kind,
 // ConditionInfo::reducer): At → "at P7"; Extremum → "peak before P7" (the peak is inside the window that
 // ENDS at P7, not at P7); Delta → "change to P7"; Rate → "rate of change to P7"; none → "".
@@ -398,6 +449,8 @@ void ensureSession(Cache &c, const std::shared_ptr<const SessionSnapshot> &base,
             copy->shots.push_back(s);
             c.snap = copy;
         }
+    QHash<QString, double> refusedEstimates;
+    c.snap = withTrunkEstimates(c.snap, &refusedEstimates);
     const SessionSnapshot &S = *c.snap;
 
     // Keys in manifest order, then the uncatalogued (sorted).
@@ -427,6 +480,18 @@ void ensureSession(Cache &c, const std::shared_ptr<const SessionSnapshot> &base,
         }
     }
     for (SessionReading &r : c.readings) r.unit = shortUnit(r.unit);
+    // the estimates a gate refused: per shot, by the shot the reading's values came from (solo: the one shot)
+    if (!refusedEstimates.isEmpty())
+        for (SessionReading &r : c.readings) {
+            r.refused.assign(r.values.size(), 0);
+            r.refusedSigma.assign(r.values.size(), kNaN);
+            for (size_t i = 0; i < r.values.size(); ++i) {
+                const auto &sh = c.solo ? S.shots.front() : S.shots[std::min(i, S.shots.size() - 1)];
+                const QString k = (c.solo ? soloDir : cleanDir(sh->swingDir)) + QLatin1Char('|') + r.key;
+                const auto it = refusedEstimates.constFind(k);
+                if (it != refusedEstimates.constEnd()) { r.refused[i] = 1; r.refusedSigma[i] = it.value(); }
+            }
+        }
     if (!c.solo) linkFired(S, c.readings, &c.firedBy, &c.firedElsewhere);
     for (size_t i = 0; i < c.readings.size(); ++i) {
         const SessionReading &r = c.readings[i];
@@ -509,6 +574,32 @@ QVariantMap gateOfPicked(const Ctx &x, const QString &key)
     return g;
 }
 
+// THE HEALTH WARNING ON A READING THAT HAS A VALUE (Mark, 17 Oct 2026: present what we have, with a health
+// warning, on every reading). A gate that refused, bounded or downgraded the picked shot's reading — or masked a
+// stretch holding the reading's own instant — while a value still stands: the gate's short words, under the value.
+QString cautionOfPicked(const Ctx &x, const SessionReading &r)
+{
+    if (x.pick < 0 || size_t(x.pick) >= x.S.shots.size() || r.key.isEmpty()) return {};
+    const ShotSeries &s = *x.S.shots[size_t(x.pick)];
+    if (s.gatesVersion <= 0 || s.gates.isEmpty()) return {};
+    const QVariantMap g = trust::gateFor(s.gates, r.key);
+    if (!g.value(QStringLiteral("words")).toString().isEmpty()) return g.value(QStringLiteral("words")).toString();
+    const qint64 at = phaseUsOf(s, r.phase);
+    if (at < 0 || s.impactUs < 0) return {};
+    const double atMs = double(at - s.impactUs) / 1000.0;
+    for (const QVariant &rv : s.gates) {
+        const QVariantMap rec = rv.toMap();
+        if (rec.value(QStringLiteral("effect")).toString() != QLatin1String("masked")) continue;
+        if (rec.value(QStringLiteral("subject")).toString() != r.key && !rec.value(QStringLiteral("covers")).toStringList().contains(r.key)) continue;
+        const QVariantMap ev = rec.value(QStringLiteral("evidence")).toMap();
+        if (!ev.contains(QStringLiteral("fromMs")) || !ev.contains(QStringLiteral("toMs"))) continue;
+        const double a = ev.value(QStringLiteral("fromMs")).toDouble(), b = ev.value(QStringLiteral("toMs")).toDouble();
+        if (atMs < std::min(a, b) - 2.0 || atMs > std::max(a, b) + 2.0) continue;
+        if (const gates::GateEntry *e = gates::gateEntry(rec.value(QStringLiteral("gate")).toString())) return gates::claimWords(*e);
+    }
+    return {};
+}
+
 QVariantList boolsOf(const std::vector<uint8_t> &f)
 {
     QVariantList out;
@@ -540,7 +631,17 @@ QVariantMap rowMap(const Ctx &x, int i)
     // (Mark, 17 Oct 2026). gateWords stays on the map for readers that name it (none on screen).
     const QVariantMap gate = x.pick >= 0 && !p.measured ? gateOfPicked(x, r.key) : QVariantMap{};
     const QString gateWords = gate.value(QStringLiteral("words")).toString();
+    // a value a gate refused, bounded, downgraded or masked: shown, with its health warning under it (Mark, 17 Oct
+    // 2026); a trunk peak the sequence could not place says how rough, the rest say their gate's words
+    const bool estimate = x.pick >= 0 && size_t(x.pick) < r.refused.size() && r.refused[size_t(x.pick)] && p.measured;
+    const double cSigma = estimate ? r.refusedSigma[size_t(x.pick)] : kNaN;
+    const QString gateCaution = p.measured && !estimate ? cautionOfPicked(x, r) : QString();
+    const QString cautionText = estimate ? (fin(cSigma) ? QStringLiteral("⚠ a rough estimate, ±%1 %2").arg(qRound(cSigma)).arg(r.unit)
+                                                        : QStringLiteral("⚠ a rough estimate"))
+                              : !gateCaution.isEmpty() ? QStringLiteral("⚠ ") + gateCaution : QString();
+    const bool caution = !cautionText.isEmpty();
     return {
+        { QStringLiteral("caution"), caution }, { QStringLiteral("cautionText"), cautionText },
         { QStringLiteral("trustSubject"), QString() },
         { QStringLiteral("gateWords"), gateWords },
         { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key }, { QStringLiteral("phase"), r.phase },
