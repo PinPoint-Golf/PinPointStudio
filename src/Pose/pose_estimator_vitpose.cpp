@@ -248,6 +248,10 @@ void PoseEstimatorViTPose::load()
             opts.SetLogSeverityLevel(ORT_LOGGING_LEVEL_INFO);
     };
 
+    // The file the session is built from: the resolved model, or (CoreML MLProgram)
+    // its shared copy in the compile cache.
+    QString sessionPath = path;
+
     // Execution provider cascade — identical to PoseEstimatorMoveNet with every
     // step-3 option off.
     auto appendProviders = [&](Ort::SessionOptions &opts, bool withTrt) {
@@ -269,6 +273,27 @@ void PoseEstimatorViTPose::load()
                 + QString::number(QFileInfo(path).size()) + QStringLiteral("-b")
                 + QString::number(lo.staticBatch);
             QDir().mkpath(cacheDir);
+            // Keyed on the path, every app bundle and build tree compiled its own
+            // 1.2 GB copy, orphaned when the bundle was deleted. The session is built
+            // from one copy of the model inside cacheDir instead, so every app shares
+            // one compile. Copied under a temporary name and renamed, so a concurrent
+            // swinglab_run never loads a partial file; on failure the per-path cache.
+            const QString shared = cacheDir + QLatin1Char('/') + QFileInfo(path).fileName();
+            if (QFileInfo(shared).size() != QFileInfo(path).size()) {
+                const QString part = shared + QStringLiteral(".part-")
+                                   + QString::number(QCoreApplication::applicationPid());
+                QFile::remove(part);
+                if (QFile::copy(path, part)) {
+                    QFile::remove(shared);   // a short copy from an interrupted run
+                    if (!QFile::rename(part, shared))
+                        QFile::remove(part);   // another process got there first
+                }
+            }
+            if (QFileInfo(shared).size() == QFileInfo(path).size())
+                sessionPath = shared;
+            else
+                ppWarn() << "[ViTPose] Could not copy the model to" << shared
+                         << "— CoreML compile cached per model path";
             try {
                 std::unordered_map<std::string, std::string> o{
                     { "ModelFormat", "MLProgram" },
@@ -390,10 +415,10 @@ void PoseEstimatorViTPose::load()
                                                      &pinpoint::pose::PoseTiming::sessionBuildMs);
 #ifdef Q_OS_WIN
         m_ort->session = std::make_unique<Ort::Session>(
-            m_ort->env, path.toStdWString().c_str(), m_ort->opts);
+            m_ort->env, sessionPath.toStdWString().c_str(), m_ort->opts);
 #else
         m_ort->session = std::make_unique<Ort::Session>(
-            m_ort->env, path.toUtf8().constData(), m_ort->opts);
+            m_ort->env, sessionPath.toUtf8().constData(), m_ort->opts);
 #endif
     };
     try {
