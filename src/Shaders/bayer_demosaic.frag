@@ -32,23 +32,37 @@ layout(std140, binding = 0) uniform UBO {
 
 layout(binding = 1) uniform sampler2D bayerTex;
 
-void main()
+// Every read is an exact sensor pixel: a texel centre through the NEAREST
+// sampler (texelFetch would do, but GLSL ES 1.0 has none). The mosaic must never
+// be filtered: a linear sample between two sites blends a red pixel into its green
+// neighbour before the demosaic sees either, which softened the live tile and
+// bled colour whenever it was not drawn 1:1 (KB-30, flir_image_clarity.md §3).
+
+ivec2 texSize() { return ivec2(int(texW), int(texH)); }
+
+// A neighbour off the edge is reflected about the edge pixel's neighbour, so it
+// lands on a site of the same colour (a clamp would hand back the wrong one).
+float site(ivec2 q)
 {
-    vec2 d = vec2(1.0 / texW, 1.0 / texH);
+    ivec2 last = texSize() - 1;
+    q = abs(q);
+    q = clamp(min(q, 2 * last - q), ivec2(0), last);   // the clamp only bites on a 1-px texture
+    return texture(bayerTex, (vec2(q) + 0.5) / vec2(texW, texH)).r;
+}
 
-    // Sample 3x3 neighbourhood in the R8 Bayer texture.
-    float tl = texture(bayerTex, v_uv + vec2(-d.x, -d.y)).r;
-    float tc = texture(bayerTex, v_uv + vec2(  0,  -d.y)).r;
-    float tr = texture(bayerTex, v_uv + vec2( d.x, -d.y)).r;
-    float ml = texture(bayerTex, v_uv + vec2(-d.x,   0 )).r;
-    float mc = texture(bayerTex, v_uv                   ).r;
-    float mr = texture(bayerTex, v_uv + vec2( d.x,   0 )).r;
-    float bl = texture(bayerTex, v_uv + vec2(-d.x,  d.y)).r;
-    float bc = texture(bayerTex, v_uv + vec2(  0,   d.y)).r;
-    float br = texture(bayerTex, v_uv + vec2( d.x,  d.y)).r;
+// The 4x4 sensor block around the fragment, read once: N(x, y) is the
+// pixel at base + (x - 1, y - 1). The four demosaics below share it. Flat,
+// because GLSL ES before 3.1 has no arrays of arrays.
+float n[16];
+float N(int x, int y) { return n[y * 4 + x]; }
 
-    // Integer pixel coordinate in the Bayer grid.
-    ivec2 pos = ivec2(v_uv * vec2(texW, texH));
+// Bilinear demosaic of block pixel (x, y), x and y in 1..2, which is the
+// sensor pixel pos.
+vec3 demosaicAt(int x, int y, ivec2 pos)
+{
+    float tl = N(x - 1, y - 1), tc = N(x, y - 1), tr = N(x + 1, y - 1);
+    float ml = N(x - 1, y),     mc = N(x, y),     mr = N(x + 1, y);
+    float bl = N(x - 1, y + 1), bc = N(x, y + 1), br = N(x + 1, y + 1);
 
     // Shift so the RGGB cell starts at (0,0) for all four pattern variants:
     //   RGGB (0): no shift
@@ -63,29 +77,32 @@ void main()
 
     ivec2 p = (pos + off) & 1; // (col%2, row%2) in RGGB space
 
-    float red, green, blue;
+    if (p.x == 0 && p.y == 0)      // R pixel: R=self, G=cross average, B=diagonal average
+        return vec3(mc, (ml + mr + tc + bc) * 0.25, (tl + tr + bl + br) * 0.25);
+    if (p.x == 1 && p.y == 0)      // Gr pixel (G on R-row): R=h-average, B=v-average
+        return vec3((ml + mr) * 0.5, mc, (tc + bc) * 0.5);
+    if (p.x == 0 && p.y == 1)      // Gb pixel (G on B-row): R=v-average, B=h-average
+        return vec3((tc + bc) * 0.5, mc, (ml + mr) * 0.5);
+    return vec3((tl + tr + bl + br) * 0.25, (ml + mr + tc + bc) * 0.25, mc);   // B pixel
+}
 
-    if (p.x == 0 && p.y == 0) {
-        // R pixel: R=self, G=cross average, B=diagonal average
-        red   = mc;
-        green = (ml + mr + tc + bc) * 0.25;
-        blue  = (tl + tr + bl + br) * 0.25;
-    } else if (p.x == 1 && p.y == 0) {
-        // Gr pixel (G on R-row): G=self, R=h-average, B=v-average
-        red   = (ml + mr) * 0.5;
-        green = mc;
-        blue  = (tc + bc) * 0.5;
-    } else if (p.x == 0 && p.y == 1) {
-        // Gb pixel (G on B-row): G=self, R=v-average, B=h-average
-        red   = (tc + bc) * 0.5;
-        green = mc;
-        blue  = (ml + mr) * 0.5;
-    } else {
-        // B pixel: B=self, G=cross average, R=diagonal average
-        red   = (tl + tr + bl + br) * 0.25;
-        green = (ml + mr + tc + bc) * 0.25;
-        blue  = mc;
-    }
+void main()
+{
+    // The tile is rarely drawn 1:1, so demosaic the four sensor pixels around
+    // this fragment and blend the COLOURS — resampling after the demosaic,
+    // never before it.
+    vec2  p    = v_uv * vec2(texW, texH) - 0.5;
+    ivec2 base = clamp(ivec2(floor(p)), ivec2(0), texSize() - 1);
+    vec2  f    = clamp(p - vec2(base), 0.0, 1.0);
 
-    fragColor = vec4(red, green, blue, opacity);
+    for (int y = 0; y < 4; ++y)
+        for (int x = 0; x < 4; ++x)
+            n[y * 4 + x] = site(base + ivec2(x - 1, y - 1));
+
+    vec3 c00 = demosaicAt(1, 1, base);
+    vec3 c10 = demosaicAt(2, 1, base + ivec2(1, 0));
+    vec3 c01 = demosaicAt(1, 2, base + ivec2(0, 1));
+    vec3 c11 = demosaicAt(2, 2, base + ivec2(1, 1));
+
+    fragColor = vec4(mix(mix(c00, c10, f.x), mix(c01, c11, f.x), f.y), opacity);
 }

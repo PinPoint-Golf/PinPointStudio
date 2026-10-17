@@ -203,7 +203,9 @@ void BayerVideoItemRenderer::initialize(QRhiCommandBuffer *cb)
     u->uploadTexture(m_tex, QRhiTextureUploadEntry(0, 0,
         QRhiTextureSubresourceUploadDescription(&black, 1)));
 
-    m_sampler = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear,
+    // Nearest: the shader reads exact sensor pixels with texelFetch and does
+    // its own resampling after the demosaic (KB-30).
+    m_sampler = rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest,
                                 QRhiSampler::None,
                                 QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
     if (!m_sampler->create()) { bail("sampler"); return; }
