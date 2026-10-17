@@ -58,7 +58,7 @@ Item {
     readonly property bool castHeadOnly: cast && !interactive
     // an unknown tab (a "wrist" saved by the retired Wrist tab) reads This shot (the body keeps the saved tab)
     readonly property string shown: replay && view === "kinds" ? "session"
-                                  : (["shot", "session", "relations", "kinds"].indexOf(view) >= 0 ? view : "shot")
+                                  : (["shot", "session", "readings", "relations", "kinds"].indexOf(view) >= 0 ? view : "shot")
 
     // ── demo: the register-level states (hover, an open picker); the body does the choice-level ones ──
     property real demoHoverMs: NaN
@@ -90,6 +90,7 @@ Item {
     readonly property var tabDefs: {
         const t = [{ key: "shot", label: "This shot", count: !replay && body && body.rShot && body.rShot.available ? body.rShot.apartCount : undefined },
                    { key: "session", label: "Session", count: !replay && body && body.tSession && body.tSession.available ? body.tSession.n : undefined },
+                   { key: "readings", label: "Readings" },
                    { key: "relations", label: "Relations" }]
         if (!replay) t.push({ key: "kinds", label: "Kinds" })
         return t
@@ -136,7 +137,7 @@ Item {
                    text: root.body && root.body.rStatus ? (root.body.rStatus.kicker || "") : ""; font: ro.fBody; color: ro.ink }
             Row {
                 anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; spacing: ro.u(8)
-                Text { text: root.shown === "shot" ? "This shot" : root.shown === "session" ? "Session" : "Relations"; font: ro.fSmall; color: ro.ink3 }
+                Text { text: root.shown === "shot" ? "This shot" : root.shown === "session" ? "Session" : root.shown === "readings" ? "Readings" : "Relations"; font: ro.fSmall; color: ro.ink3 }
                 Text { text: "·"; font: ro.fSmall; color: ro.ink3 }
                 Text { text: root.tc.presetTitle || ""; font: ro.fSmall; color: ro.ink3 }
             }
@@ -180,6 +181,7 @@ Item {
         }
         ViewFlick { id: shotFlick; objectName: "chShotFlick"; key: "shot"; view: shotC }
         ViewFlick { id: sessionFlick; objectName: "chSessionFlick"; key: "session"; view: sessionC }
+        ViewFlick { id: readingsFlick; objectName: "chReadingsFlick"; key: "readings"; view: readingsC }
         ViewFlick { id: relationsFlick; objectName: "chRelationsFlick"; key: "relations"; view: relationsC }
         ViewFlick { id: kindsFlick; objectName: "chKindsFlick"; key: "kinds"; view: kindsC }
     }
@@ -197,6 +199,9 @@ Item {
     Component { id: sessionC
         PpChartsSessionView { roles: ro; brush: br; body: root.body; reg: root.register; interactive: root.interactive; cast: root.cast
                               pageH: sessionFlick.height } }
+    Component { id: readingsC
+        PpChartsReadingsView { roles: ro; brush: br; body: root.body; reg: root.register; interactive: root.interactive; cast: root.cast
+                               pageH: readingsFlick.height } }
     Component { id: relationsC
         PpChartsRelationsView { roles: ro; brush: br; body: root.body; reg: root.register; interactive: root.interactive; cast: root.cast
                                 pageH: relationsFlick.height; openPicker: root.demoRelPicker } }

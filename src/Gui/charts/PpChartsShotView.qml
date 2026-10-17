@@ -57,6 +57,7 @@ Column {
     readonly property var tr: body ? body.tRef : ({})
     readonly property var tn: body ? body.tNow : ({})
     readonly property var rs: body ? body.rShot : ({})
+    readonly property bool apartFolded: !!body && body.collapsed.apart === true
     readonly property bool available: !!ts && ts.available === true
     readonly property var rows: available ? (ts.rows || []) : []
     readonly property bool hasSeq: available && !!ts.sequence && (ts.sequence.links || []).length > 0
@@ -158,6 +159,132 @@ Column {
         PpChKeyFigures { width: parent.width; roles: sv.roles; items: sv.available && sv.rs && sv.rs.keyFigures ? (sv.rs.keyFigures.items || []) : []
                          onTrustClicked: (subject) => sv.openTrust(subject, "figures") }
         PpTrustInline { roles: sv.roles; readings: sv.trustReadings("figures"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "figures") }
+        // THE READ OF THE SHOT IN TWO COLUMNS (Mark, 17 Oct 2026): the sequence strip on the left, the window and the
+        // P dots' key on the right, so the four short lines take two lines' height; one column when narrow
+        Flow {
+            id: findings
+            objectName: "chFindings"
+            width: parent.width
+            spacing: sv.roles ? sv.roles.u(28) : 28
+            readonly property bool two: !!sv.roles && sv.roles.atLeast(width, "medium") && sv.hasSeq
+            readonly property real colW: two ? Math.floor((width - spacing) / 2) : width
+            PpChSeqChain {
+                visible: sv.hasSeq
+                width: findings.colW; roles: sv.roles
+                sequence: sv.available ? sv.ts.sequence : null; lateNote: sv.available ? sv.ts.note : null
+                // the glance keeps the late-pelvis note (rule 5: wherever it is said late) and drops the order note
+                showOrderNote: !sv.replay
+                onTrustClicked: (subject) => sv.openTrust(subject, "strip")
+            }
+            Column {
+                width: findings.colW
+                spacing: sv.roles ? sv.roles.u(8) : 8
+                // the window header (F15): which span, how long, which P-positions (the metric count is the Summary fold's)
+                Flow {
+                    objectName: "chWindowHeader"
+                    visible: !sv.replay && sv.available && !!sv.ts.window && sv.rows.length > 0
+                    width: findings.colW; spacing: sv.roles ? sv.roles.u(10) : 10
+                    Text { text: sv.ts.window ? (sv.ts.window.header || "") : ""; font: sv.roles ? sv.roles.fSmallM : Qt.font({}); color: sv.roles ? sv.roles.ink2 : "grey" }
+                    Text { text: sv.ts.window ? (sv.ts.window.spanText || "") : ""; font: sv.roles ? sv.roles.fFigS : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
+                    Text { text: sv.ts.window ? (sv.ts.window.tagsText || "") : ""; font: sv.roles ? sv.roles.fFigS : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
+                }
+                // the P dots' key, in words (F23): only the kinds present
+                Flow {
+                    objectName: "chDotKey"
+                    visible: !sv.replay && sv.available && sv.rows.length > 0 && !!sv.body && sv.body.showDots && (sv.ts.dotKey || []).length > 0
+                    width: findings.colW; spacing: sv.roles ? sv.roles.u(14) : 14
+                    Text { text: "P dots"; font: sv.roles ? sv.roles.fLabel : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
+                    Repeater {
+                        model: sv.roles && sv.available ? (sv.ts.dotKey || []) : []
+                        delegate: Row {
+                            required property var modelData
+                            spacing: sv.roles.u(5)
+                            Item {
+                                width: sv.roles.u(10); height: sv.roles.u(10); anchors.verticalCenter: parent.verticalCenter
+                                readonly property string vd: modelData.verdict || ""
+                                readonly property real d: 2 * Math.round(sv.roles.u(vd === "" ? 4 : 6) / 2)
+                                Rectangle { anchors.centerIn: parent; width: parent.d; height: parent.d; radius: sv.roles.square ? 0 : parent.d / 2
+                                            color: parent.vd === "good" ? sv.roles.ink : parent.vd === "" ? sv.roles.ink3 : "transparent"
+                                            border.width: parent.vd === "attention" || parent.vd === "warn" ? 1.25 : 0
+                                            border.color: parent.vd === "warn" ? sv.roles.warn : sv.roles.ink }
+                                Rectangle { visible: parent.vd === "warn"; anchors.centerIn: parent; width: 3; height: 3; radius: 1.5; color: sv.roles.warn }
+                            }
+                            Text { text: modelData.word; font: sv.roles.fLabel; color: sv.roles.ink3; anchors.verticalCenter: parent.verticalCenter }
+                        }
+                    }
+                }
+            }
+        }
+        PpTrustInline { roles: sv.roles; readings: sv.trustReadings("strip"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "strip") }
+    }
+
+    // ═══ the page ═══
+    Item {
+        width: sv.width
+        height: sv.rail ? Math.max(railCol.height, mainCol.height) : mainCol.height
+        Column {
+            id: railCol; visible: sv.rail; width: sv.railW; spacing: sv.roles ? sv.roles.u(14) : 14
+            Column { id: railHead; width: parent.width }
+        }
+        Rectangle { visible: sv.rail; x: sv.railW + sv.gut - 1; width: sv.roles ? sv.roles.hw : 1; height: parent.height; color: sv.roles ? sv.roles.hair : "grey" }
+        Column {
+            id: mainCol
+            x: sv.rail ? sv.railW + 2 * sv.gut : 0
+            width: sv.mainW
+            spacing: sv.roles ? sv.roles.u(8) : 8
+            Column { id: headSlot; width: parent.width; visible: !sv.rail }
+            // Against: the largest gap said, or why the reference is refused
+            PpChText { objectName: "chAgainstHead"; visible: !sv.replay && present; roles: sv.roles; sentence: sv.tr && sv.tr.active ? sv.tr.head : null; tone: sv.roles ? sv.roles.ink : "black"; font: sv.roles ? sv.roles.fBody : Qt.font({}) }
+            PpChText { visible: !sv.replay && present; roles: sv.roles; sentence: sv.tr && sv.tr.refused ? sv.tr.why : null; tone: sv.roles ? sv.roles.ink3 : "grey" }
+            // a preset with no drawable curve (Club delivery, S6): its cards carry it
+            PpChText { objectName: "chNoTraces"; visible: present; roles: sv.roles; sentence: sv.available ? sv.ts.noTraces : null; font: sv.roles ? sv.roles.fBody : Qt.font({}) }
+            PpChTraceFigure {
+                visible: sv.available && sv.rows.length > 0
+                width: parent.width
+                roles: sv.roles; brush: sv.brush; interactive: sv.interactive
+                presenter: sv.body ? sv.body.tracesP : null
+                rows: sv.rows; ticks: sv.available ? (sv.ts.ticks || []) : []; msTicks: sv.available ? (sv.ts.msTicks || []) : []
+                x0: sv.ts.window ? sv.ts.window.t0Ms : -300; x1: sv.ts.window ? sv.ts.window.t1Ms : 100
+                overlay: !!sv.body && sv.body.overlay; overlayAxis: sv.available ? sv.ts.overlay : null
+                showDots: !sv.body || sv.body.showDots; showCursor: !sv.body || sv.body.showCursor
+                reference: sv.tr; nowRows: sv.tn && sv.tn.valid ? (sv.tn.rows || []) : []
+                playMs: sv.tn && sv.tn.valid ? sv.tn.shotMs : NaN
+                playText: sv.replay && sv.tn && sv.tn.valid ? (sv.tn.when || "") : ""
+                figMode: sv.replay ? "now" : "figures"
+                plotH: sv.plotH
+                demoHoverMs: sv.demoHoverMs
+                onTrustClicked: (subject) => sv.openTrust(subject, "chart")
+            }
+            PpTrustInline { roles: sv.roles; readings: sv.trustReadings("chart"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "chart") }
+            // Replay: the curve-less members of the preset, read at their instants, as one quiet ledger
+            PpChSummary {
+                visible: sv.replay && sv.available && (sv.ts.cards || []).length > 0
+                width: parent.width; roles: sv.roles; interactive: sv.interactive
+                rows: []; cards: sv.available ? (sv.ts.cards || []) : []
+                onTrustClicked: (subject) => sv.openTrust(subject, "summary")
+            }
+            PpTrustInline { roles: sv.roles; readings: sv.replay ? sv.trustReadings("summary") : []; swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "summary") }
+        }
+    }
+
+    // ═══ why a reading is missing or held back, said once, under the plot it explains (Mark, 17 Oct 2026) ═══
+    // The page shows a refused reading as a plain "-" and the headline names the story; the reasons, the bounds
+    // and what would lift them live here, closed by default, as in Session diagnostics (§7.4).
+    PpTrustSummaryFold {
+        visible: sv.available && sv._pickedDir !== "" && lines.length > 0 && !sv.cast
+        width: sv.width; roles: sv.roles; scope: "shot"
+        topPadding: sv.roles ? sv.roles.u(6) : 6
+        swingDir: sv._pickedDir
+    }
+
+    // ═══ the controls, under the figure (Mark, 17 Oct 2026) ═══
+    // The page reads from the answer down to the method: headline, plot, the knobs that change it, the summary,
+    // then the analysis. Which chart is shown stays in the card heading; what moves here is the fine-tuning.
+    Column {
+        objectName: "chControls"
+        visible: !sv.replay && sv.available
+        width: sv.width
+        spacing: sv.roles ? sv.roles.u(8) : 8
         // the controls (Analyse): foldable to one line that still says what is chosen
         PpChFoldHead {
             visible: !sv.replay && sv.available
@@ -172,6 +299,18 @@ Column {
             width: parent.width; roles: sv.roles; interactive: sv.interactive
             sets: sv.sets
             onPicked: (set, opt) => sv.picked(set, opt)
+        }
+        // THE RANGE SELECTOR IS A CONTROL (Mark, 17 Oct 2026): shown only with the Controls open, under the choices
+        PpChWindowBrush {
+            visible: !sv.replay && sv.available && sv.spanUs > 0 && sv.rows.length > 0
+                     && !(sv.body && sv.body.collapsed.controls === true)
+            width: parent.width; roles: sv.roles; interactive: sv.interactive
+            spanUs: sv.spanUs
+            winStartUs: sv.ts.window ? sv.ts.window.startUs : 0; winEndUs: sv.ts.window ? sv.ts.window.endUs : 0
+            ticks: sv.available ? (sv.ts.recordingTicks || []) : []
+            overview: sv.available ? (sv.ts.overview || []) : []
+            playUs: sv.playUs
+            onCustomRequested: (a, b) => { if (sv.body) sv.body.chooseCustom(a, b) }
         }
         PpInlinePicker {
             objectName: "chPresetList"
@@ -222,119 +361,6 @@ Column {
             MouseArea { anchors.fill: parent; enabled: sv.interactive; cursorShape: Qt.PointingHandCursor
                         onClicked: appSettings.wristReferenceSwingDir = parent.ref.isThisShot ? "" : (sv.ts.swingDir || "") }
         }
-        PpChSeqChain {
-            visible: sv.hasSeq
-            width: parent.width; roles: sv.roles
-            sequence: sv.available ? sv.ts.sequence : null; lateNote: sv.available ? sv.ts.note : null
-            // the glance keeps the late-pelvis note (rule 5: wherever it is said late) and drops the order note
-            showOrderNote: !sv.replay
-            onTrustClicked: (subject) => sv.openTrust(subject, "strip")
-        }
-        PpTrustInline { roles: sv.roles; readings: sv.trustReadings("strip"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "strip") }
-        // the window header (F15): which span, how long, how many metrics, which P-positions
-        Flow {
-            objectName: "chWindowHeader"
-            visible: !sv.replay && sv.available && !!sv.ts.window && sv.rows.length > 0
-            width: parent.width; spacing: sv.roles ? sv.roles.u(10) : 10
-            Text { text: sv.ts.window ? (sv.ts.window.header || "") : ""; font: sv.roles ? sv.roles.fSmallM : Qt.font({}); color: sv.roles ? sv.roles.ink2 : "grey" }
-            Text { text: sv.ts.window ? (sv.ts.window.spanText || "") : ""; font: sv.roles ? sv.roles.fFigS : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
-            Text { text: sv.ts.window ? (sv.ts.window.metricsText || "") : ""; font: sv.roles ? sv.roles.fFigS : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
-            Text { text: sv.ts.window ? (sv.ts.window.tagsText || "") : ""; font: sv.roles ? sv.roles.fFigS : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
-        }
-        // the P dots' key, in words (F23): only the kinds present
-        Flow {
-            objectName: "chDotKey"
-            visible: !sv.replay && sv.available && sv.rows.length > 0 && !!sv.body && sv.body.showDots && (sv.ts.dotKey || []).length > 0
-            width: parent.width; spacing: sv.roles ? sv.roles.u(14) : 14
-            Text { text: "P dots"; font: sv.roles ? sv.roles.fLabel : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
-            Repeater {
-                model: sv.roles && sv.available ? (sv.ts.dotKey || []) : []
-                delegate: Row {
-                    required property var modelData
-                    spacing: sv.roles.u(5)
-                    Item {
-                        width: sv.roles.u(10); height: sv.roles.u(10); anchors.verticalCenter: parent.verticalCenter
-                        readonly property string vd: modelData.verdict || ""
-                        readonly property real d: 2 * Math.round(sv.roles.u(vd === "" ? 4 : 6) / 2)
-                        Rectangle { anchors.centerIn: parent; width: parent.d; height: parent.d; radius: sv.roles.square ? 0 : parent.d / 2
-                                    color: parent.vd === "good" ? sv.roles.ink : parent.vd === "" ? sv.roles.ink3 : "transparent"
-                                    border.width: parent.vd === "attention" || parent.vd === "warn" ? 1.25 : 0
-                                    border.color: parent.vd === "warn" ? sv.roles.warn : sv.roles.ink }
-                        Rectangle { visible: parent.vd === "warn"; anchors.centerIn: parent; width: 3; height: 3; radius: 1.5; color: sv.roles.warn }
-                    }
-                    Text { text: modelData.word; font: sv.roles.fLabel; color: sv.roles.ink3; anchors.verticalCenter: parent.verticalCenter }
-                }
-            }
-        }
-    }
-
-    // ═══ the page ═══
-    Item {
-        width: sv.width
-        height: sv.rail ? Math.max(railCol.height, mainCol.height) : mainCol.height
-        Column {
-            id: railCol; visible: sv.rail; width: sv.railW; spacing: sv.roles ? sv.roles.u(14) : 14
-            Column { id: railHead; width: parent.width }
-        }
-        Rectangle { visible: sv.rail; x: sv.railW + sv.gut - 1; width: sv.roles ? sv.roles.hw : 1; height: parent.height; color: sv.roles ? sv.roles.hair : "grey" }
-        Column {
-            id: mainCol
-            x: sv.rail ? sv.railW + 2 * sv.gut : 0
-            width: sv.mainW
-            spacing: sv.roles ? sv.roles.u(8) : 8
-            Column { id: headSlot; width: parent.width; visible: !sv.rail }
-            PpChWindowBrush {
-                visible: !sv.replay && sv.available && sv.spanUs > 0 && sv.rows.length > 0
-                width: parent.width; roles: sv.roles; interactive: sv.interactive
-                spanUs: sv.spanUs
-                winStartUs: sv.ts.window ? sv.ts.window.startUs : 0; winEndUs: sv.ts.window ? sv.ts.window.endUs : 0
-                ticks: sv.available ? (sv.ts.recordingTicks || []) : []
-                overview: sv.available ? (sv.ts.overview || []) : []
-                playUs: sv.playUs
-                onCustomRequested: (a, b) => { if (sv.body) sv.body.chooseCustom(a, b) }
-            }
-            // Against: the largest gap said, or why the reference is refused
-            PpChText { objectName: "chAgainstHead"; visible: !sv.replay && present; roles: sv.roles; sentence: sv.tr && sv.tr.active ? sv.tr.head : null; tone: sv.roles ? sv.roles.ink : "black"; font: sv.roles ? sv.roles.fBody : Qt.font({}) }
-            PpChText { visible: !sv.replay && present; roles: sv.roles; sentence: sv.tr && sv.tr.refused ? sv.tr.why : null; tone: sv.roles ? sv.roles.ink3 : "grey" }
-            // a preset with no drawable curve (Club delivery, S6): its cards carry it
-            PpChText { objectName: "chNoTraces"; visible: present; roles: sv.roles; sentence: sv.available ? sv.ts.noTraces : null; font: sv.roles ? sv.roles.fBody : Qt.font({}) }
-            PpChTraceFigure {
-                visible: sv.available && sv.rows.length > 0
-                width: parent.width
-                roles: sv.roles; brush: sv.brush; interactive: sv.interactive
-                presenter: sv.body ? sv.body.tracesP : null
-                rows: sv.rows; ticks: sv.available ? (sv.ts.ticks || []) : []; msTicks: sv.available ? (sv.ts.msTicks || []) : []
-                x0: sv.ts.window ? sv.ts.window.t0Ms : -300; x1: sv.ts.window ? sv.ts.window.t1Ms : 100
-                overlay: !!sv.body && sv.body.overlay; overlayAxis: sv.available ? sv.ts.overlay : null
-                showDots: !sv.body || sv.body.showDots; showCursor: !sv.body || sv.body.showCursor
-                reference: sv.tr; nowRows: sv.tn && sv.tn.valid ? (sv.tn.rows || []) : []
-                playMs: sv.tn && sv.tn.valid ? sv.tn.shotMs : NaN
-                playText: sv.replay && sv.tn && sv.tn.valid ? (sv.tn.when || "") : ""
-                figMode: sv.replay ? "now" : "figures"
-                plotH: sv.plotH
-                demoHoverMs: sv.demoHoverMs
-                onTrustClicked: (subject) => sv.openTrust(subject, "chart")
-            }
-            PpTrustInline { roles: sv.roles; readings: sv.trustReadings("chart"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "chart") }
-            // Replay: the curve-less members of the preset, read at their instants, as one quiet ledger
-            PpChSummary {
-                visible: sv.replay && sv.available && (sv.ts.cards || []).length > 0
-                width: parent.width; roles: sv.roles; interactive: sv.interactive
-                rows: []; cards: sv.available ? (sv.ts.cards || []) : []
-                onTrustClicked: (subject) => sv.openTrust(subject, "summary")
-            }
-            PpTrustInline { roles: sv.roles; readings: sv.replay ? sv.trustReadings("summary") : []; swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "summary") }
-        }
-    }
-
-    // ═══ the wrist section, when it means something (a wrist reading AND a wrist curve on show) ═══
-    Loader {
-        objectName: "chWristShotSlot"
-        active: !!sv.body && sv.body.wristShotShown && !!sv.roles
-        visible: active
-        width: sv.width
-        sourceComponent: PpChWristShotSection { roles: sv.roles; brush: sv.brush; body: sv.body; reg: sv.reg
-                                                interactive: sv.interactive; cast: sv.cast }
     }
 
     // ═══ Analyse: the readings below the figure ═══
@@ -367,15 +393,34 @@ Column {
         onTrustClicked: (subject) => sv.openTrust(subject, "seqTable")
     }
     PpTrustInline { roles: sv.roles; readings: sv.trustReadings("seqTable"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "seqTable") }
+
+    // ═══ the wrist section, when it means something (a wrist reading AND a wrist curve on show) ═══
+    Loader {
+        objectName: "chWristShotSlot"
+        active: !!sv.body && sv.body.wristShotShown && !!sv.roles
+        visible: active
+        width: sv.width
+        sourceComponent: PpChWristShotSection { roles: sv.roles; brush: sv.brush; body: sv.body; reg: sv.reg
+                                                interactive: sv.interactive; cast: sv.cast }
+    }
+
     // Apart from the session (B): the readings past the session's whiskers lead
     Column {
         objectName: "chApart"
         visible: !sv.replay && !!sv.rs && sv.rs.available === true
         width: sv.width; spacing: sv.roles ? sv.roles.u(8) : 8
-        PpSectionHead { width: parent.width; roles: sv.roles; title: sv.rs && sv.rs.head ? (sv.rs.head.text || "") : "" }
-        PpChText { roles: sv.roles; sentence: sv.rs ? sv.rs.standfirst : null; font: sv.roles ? sv.roles.fBody : Qt.font({}) }
+        // every section after the Summary folds the same way (Mark, 17 Oct 2026)
+        PpChFoldHead {
+            width: parent.width; roles: sv.roles; key: "apart"; title: sv.rs && sv.rs.head ? (sv.rs.head.text || "") : ""
+            interactive: sv.interactive
+            collapsed: sv.apartFolded
+            state_: (sv.rs.apart || []).length > 0 ? (sv.rs.apart || []).length + ((sv.rs.apart || []).length === 1 ? " reading" : " readings") : ""
+            onToggled: if (sv.body) sv.body.toggleSection("apart")
+        }
+        PpChText { visible: !sv.apartFolded && present; roles: sv.roles; sentence: sv.rs ? sv.rs.standfirst : null; font: sv.roles ? sv.roles.fBody : Qt.font({}) }
         PpPageKey {
             id: chKey1
+            visible: !sv.apartFolded
             width: parent.width; roles: sv.roles; kinds: ["box", "ring", "clean", "fired"]
             // the Charts words for the marks (PpPageKey.extraWords, live from the final build; until then the
             // module's PpPageKey has no such property and keeps its own words)
@@ -383,7 +428,7 @@ Column {
         }
         PpChProfile {
             objectName: "chApartList"
-            visible: (sv.rs.apart || []).length > 0
+            visible: !sv.apartFolded && (sv.rs.apart || []).length > 0
             width: parent.width; roles: sv.roles; brush: sv.brush; interactive: sv.interactive
             presenter: sv.body ? sv.body.relationsP : null
             rows: sv.rs.apart || []
@@ -395,10 +440,10 @@ Column {
             onTrustClicked: (subject) => sv.openTrust(subject, "apart")
         }
         PpTrustInline { roles: sv.roles; readings: sv.trustReadings("apart"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "apart") }
-        PpNotes { width: parent.width; roles: sv.roles; text: sv.rs ? sv.roles.esc(sv.rs.notes || "") : "" }
+        PpNotes { visible: !sv.apartFolded; width: parent.width; roles: sv.roles; text: sv.rs ? sv.roles.esc(sv.rs.notes || "") : "" }
         // the fired conditions that read no reading on the profile, said once
         Flow {
-            visible: (sv.rs.firedElsewhere || []).length > 0
+            visible: !sv.apartFolded && (sv.rs.firedElsewhere || []).length > 0
             width: parent.width; spacing: sv.roles ? sv.roles.u(10) : 10
             Text { text: "Also fired on this shot"; font: sv.roles ? sv.roles.fLabel : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
             Repeater {
@@ -412,50 +457,14 @@ Column {
             }
         }
         PpChQuestions {
+            visible: !sv.apartFolded && (questions || []).length > 0
             width: parent.width; roles: sv.roles; interactive: sv.interactive
             questions: sv.rs.asks || []
             active: sv.body ? sv.body.askedId : ""
             onAsked: (q) => { if (sv.body) sv.body.ask(q, sv.brush) }
         }
     }
-    // Every reading against the session (D5): by family, two columns while each keeps its minimum
-    Column {
-        objectName: "chProfileAll"
-        visible: !sv.replay && !!sv.rs && sv.rs.available === true && (sv.rs.groups || []).length > 0
-        width: sv.width; spacing: sv.roles ? sv.roles.u(8) : 8
-        PpSectionHead { width: parent.width; roles: sv.roles; title: "Every reading against the session"; sub: "by family; a row opens its curve, or its run" }
-        Flow {
-            id: pf
-            width: parent.width; spacing: sv.roles ? sv.roles.u(28) : 28
-            readonly property bool two: !!sv.roles && sv.roles.sizeClass(width) === "wide"
-            readonly property real colW: two ? Math.floor((width - (sv.roles ? sv.roles.u(28) : 28)) / 2) : width
-            // two balanced columns, never splitting a family
-            readonly property var cols: {
-                const gs = sv.rs.groups || []
-                if (!two) return [gs]
-                let total = 0; for (const g of gs) total += (g.rows || []).length + 1
-                let acc = 0, cut = 0, bd = 1e9
-                for (let i = 0; i < gs.length; ++i) { acc += (gs[i].rows || []).length + 1; const d = Math.abs(acc - total / 2); if (d < bd) { bd = d; cut = i + 1 } }
-                return [gs.slice(0, cut), gs.slice(cut)]
-            }
-            Repeater {
-                model: pf.cols
-                delegate: PpChProfile {
-                    required property var modelData
-                    width: pf.colW; roles: sv.roles; brush: sv.brush; interactive: sv.interactive
-                    presenter: sv.body ? sv.body.relationsP : null
-                    groups: modelData
-                    shotLabel: sv.shotWord; countLabel: sv.countWord
-                    openId: sv.body ? sv.body.openId : ""; openRow: sv.body ? sv.body.rOpen : null
-                    playMs: sv.relPlayMs; playText: sv.body && sv.body.rPlayhead ? (sv.body.rPlayhead.openValueText || "") : ""
-                    onRowActivated: (id) => { if (sv.body) sv.body.openReading(id) }
-                    onShotActivated: (o) => { if (sv.body) sv.body.pickOrdinal(o) }
-                    onTrustClicked: (subject) => sv.openTrust(subject, "profile")
-                }
-            }
-        }
-        PpTrustInline { roles: sv.roles; readings: sv.trustReadings("profile"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "profile") }
-    }
+    // Every reading against the session moved to its own tab, Readings (Mark, 17 Oct 2026)
 
     // ── the playhead and the recording, from shotReplay (pixels only) ──
     readonly property real spanUs: body ? body.spanUs : 0

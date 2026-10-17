@@ -150,15 +150,15 @@ Item {
             compare(hn.body.register, "Analyse")
             // no shot of this feed carries a wrist profile (and no feed offers a Wrist tab: test_21)
             compare(hn.body.wristAvailable, false)
-            compare(tabKeys(), "shot,session,relations,kinds")
-            const views = { session: "chSessionView", relations: "chRelationsView", kinds: "chKindsView", shot: "chShotView" }
-            for (const k of ["session", "relations", "kinds", "shot"]) {
+            compare(tabKeys(), "shot,session,readings,relations,kinds")
+            const views = { session: "chSessionView", readings: "chReadingsView", relations: "chRelationsView", kinds: "chKindsView", shot: "chShotView" }
+            for (const k of ["session", "readings", "relations", "kinds", "shot"]) {
                 tabPress(k)
                 compare(hn.body.tab, k, "the press reached the body")
                 verify(oneShown(views[k]).height > 0, k + " draws")
             }
             useMode("Replay")
-            compare(tabKeys(), "shot,session,relations", "Replay has no Kinds form")
+            compare(tabKeys(), "shot,session,readings,relations", "Replay has no Kinds form")
             // a Kinds left on from Analyse reads Session in Replay
             hn.body.tab = "kinds"; settle()
             compare(hn.body.shownView, "session")
@@ -551,7 +551,7 @@ Item {
         function test_21_the_wrist_section_shows_when_a_wrist_metric_is_on_show() {
             fresh({ wrist: true }, 8)
             compare(hn.body.wristAvailable, true, "a shot carries a wrist reading")
-            compare(tabKeys(), "shot,session,relations,kinds", "no Wrist tab")
+            compare(tabKeys(), "shot,session,readings,relations,kinds", "no Wrist tab")
             // the sequence preset shows no wrist curve: no section
             compare(hn.body.wristOnShow, false)
             compare(shownAll("chWristSection").length, 0, "no wrist curve on show: no section")
@@ -602,7 +602,7 @@ Item {
             compare(hn.body.tab, "shot")
             compare(hn.body.shownView, "shot")
             verify(oneShown("chShotView"))
-            compare(tabKeys(), "shot,session,relations,kinds")
+            compare(tabKeys(), "shot,session,readings,relations,kinds")
         }
         function test_23_the_wrist_choices_persist_per_screen_and_mode() {
             fresh({ wrist: true }, 8)

@@ -287,6 +287,7 @@ set(PP_QML_FILES
     src/Gui/charts/PpChartsSessionView.qml
     src/Gui/charts/PpChartsRelationsView.qml
     src/Gui/charts/PpChartsKindsView.qml
+    src/Gui/charts/PpChartsReadingsView.qml
     src/Gui/charts/PpChRoles.qml
     src/Gui/charts/PpChText.qml
     src/Gui/charts/PpChChoices.qml

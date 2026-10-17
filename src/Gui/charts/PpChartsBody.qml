@@ -106,7 +106,7 @@ Item {
     property string demoState: ""                // renders only; always "" in the app
 
     // ── the reader's choices (restored and persisted by the panel) ──
-    property string tab: "shot"                  // "shot" | "session" | "relations" | "kinds"
+    property string tab: "shot"                  // "shot" | "session" | "readings" | "relations" | "kinds"
     property string preset: ""                   // "" = the register's default
     property var metricsOff: []                  // a preset's members switched off ("Custom", F4)
     property string window: "auto"
@@ -230,6 +230,8 @@ Item {
                 const pick = v === "curve" ? all.filter(function (r) { return r.opens === "trace" })[0]
                            : v === "run" ? all.filter(function (r) { return r.opens === "run" })[0] : ap[0]
                 openId = pick ? pick.readingId : ""
+                // every reading lives on the Readings tab now; This shot keeps only the ones apart
+                if (pick && ap.indexOf(pick) < 0) tab = "readings"
             }
             else if (k === "scrub") {
                 // a real seek through the presenter: the playhead 40 ms before impact (renders of "now")
@@ -275,7 +277,7 @@ Item {
     // the view actually drawn: Replay has no Kinds form and reads Session there; anything else unknown (a "wrist"
     // saved by the retired Wrist tab) reads This shot
     readonly property string shownView: register === "Replay" && view === "kinds" ? "session"
-                                      : ["shot", "session", "relations", "kinds"].indexOf(view) >= 0 ? view : "shot"
+                                      : ["shot", "session", "readings", "relations", "kinds"].indexOf(view) >= 0 ? view : "shot"
 
     // ── the frame: the stage owns it (PpModeStage switches `framed` off); on the cast the register draws a
     // running head; anywhere else a framed body draws the quiet card itself ──

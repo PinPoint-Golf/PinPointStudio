@@ -152,6 +152,16 @@ Column {
         plotH: sv.plotH
         onShotActivated: (o) => { if (sv.body) sv.body.pickOrdinal(o) }
     }
+    // why readings are missing or held back across the session, said once and closed by default, under the figure
+    // it explains (Mark, 17 Oct 2026; Session diagnostics carries the same fold, §7.4). The session is the picked
+    // shot's folder.
+    PpTrustSummaryFold {
+        readonly property string pickedDir: sv.body && sv.body.tShot ? (sv.body.tShot.swingDir || "") : ""
+        visible: sv.available && pickedDir !== "" && lines.length > 0 && !sv.cast
+        width: sv.width; roles: sv.roles; scope: "session"
+        topPadding: sv.roles ? sv.roles.u(6) : 6
+        swingDir: pickedDir
+    }
     PpChQuestions {
         id: sessAsks
         visible: !sv.replay && sv.available && (sv.se.questions || []).length > 0
@@ -169,12 +179,20 @@ Column {
         onShotActivated: (o) => { if (sv.body) sv.body.pickOrdinal(o) }
     }
     // Analyse: the sequence across the session
-    PpSectionHead {
+    // the sections after the figure fold, as on This shot (Mark, 17 Oct 2026); folded, each keeps its first clause
+    function firstClause(sentence) { const t = String(sentence && sentence.text ? sentence.text : ""); const m = t.match(/^[^;.]*/); return m ? m[0] : t }
+    readonly property bool seqFolded: !!body && !!body.collapsed && body.collapsed.seqSession === true
+    readonly property bool wristFolded: !!body && !!body.collapsed && body.collapsed.wristSession === true
+    PpChFoldHead {
         visible: !sv.replay && sv.available && !!sv.se.sequence && sv.se.sequence.present === true
-        width: sv.width; roles: sv.roles; title: "The sequence across the session"; sub: "kinematic sequence, every shot"
+        width: sv.width; roles: sv.roles; key: "seqSession"; title: "The sequence across the session"
+        sub: "kinematic sequence, every shot"; interactive: sv.interactive
+        collapsed: sv.seqFolded
+        state_: sv.available && sv.se.sequence ? sv.firstClause(sv.se.sequence.stand) : ""
+        onToggled: if (sv.body) sv.body.toggleSection("seqSession")
     }
     PpChSeqSession {
-        visible: !sv.replay && sv.available && !!sv.se.sequence && sv.se.sequence.present === true
+        visible: !sv.replay && sv.available && !!sv.se.sequence && sv.se.sequence.present === true && !sv.seqFolded
         width: sv.width; roles: sv.roles; brush: sv.brush; interactive: sv.interactive
         sequence: sv.available ? sv.se.sequence : null
         onShotActivated: (o) => { if (sv.body) sv.body.pickOrdinal(o) }
@@ -187,8 +205,11 @@ Column {
         width: sv.width
         sourceComponent: Column {
             spacing: sv.roles.u(14)
-            PpSectionHead { width: parent.width; roles: sv.roles; title: "Wrist"; rule: true }
-            PpChWristSession { width: parent.width; roles: sv.roles; brush: sv.brush; body: sv.body; interactive: sv.interactive }
+            PpChFoldHead { width: parent.width; roles: sv.roles; key: "wristSession"; title: "Wrist"; interactive: sv.interactive
+                           collapsed: sv.wristFolded
+                           state_: sv.body && sv.body.wSession ? sv.firstClause(sv.body.wSession.head) : ""
+                           onToggled: if (sv.body) sv.body.toggleSection("wristSession") }
+            PpChWristSession { visible: !sv.wristFolded; width: parent.width; roles: sv.roles; brush: sv.brush; body: sv.body; interactive: sv.interactive }
         }
     }
 }

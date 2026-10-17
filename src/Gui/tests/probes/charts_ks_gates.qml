@@ -45,6 +45,7 @@ Item {
     readonly property string png: arg("--probe-png", "")
     // --probe-trust on: the Trust panel beside Charts (else Camera + Charts, the in-place fallback)
     readonly property bool trustPanel: arg("--probe-trust", "off") === "on"
+    // --probe-preset <chart name> (default Kinematic sequence); --probe-tab shot|session|relations|kinds
     // --probe-click figures:<subject> | strip | chart:<subject> — the mark the probe clicks
     readonly property string click: arg("--probe-click", "")
 
@@ -106,11 +107,16 @@ Item {
                 if (!probe.body) { probe.log("no Charts body"); Qt.exit(1); return }
                 probe.log("window on first display: '" + probe.body.window + "'")
                 probe.body.customStartUs = 0; probe.body.customEndUs = 376000; probe.body.window = "custom"
-                probe.body.choose("preset", "Kinematic sequence")          // a chart change: must reset the window
+                probe.body.choose("preset", probe.arg("--probe-preset", "Kinematic sequence"))   // a chart change: must reset the window
                 probe.log("window after the chart change: '" + probe.body.window + "'")
                 const w = probe.arg("--probe-window", "auto")
                 if (w !== "auto") probe.body.window = w
-                probe.body.tab = "shot"
+                probe.body.tab = probe.arg("--probe-tab", "shot")   // shot | session | readings | relations | kinds
+                // --probe-fold-shut a,b: close those folds (the probe's settings are a copy)
+                const shut = probe.arg("--probe-fold-shut", "")
+                const c = {}
+                for (const k of (shut === "" ? [] : shut.split(","))) c[k] = true
+                probe.body.collapsed = c
             } else if (probe.step === 5) {
                 const b = probe.body
                 const chains = []; probe.walk(b, "chSeqChain", chains)
@@ -127,6 +133,12 @@ Item {
                 const figWhy = []; probe.walk(b, "chFigWhy:*", figWhy)
                 for (const f of figWhy) probe.log("figure-column link: " + f.objectName + " '" + String(f.text) + "'")
                 if (figWhy.length && probe.click === "figcol") { const fw = figWhy[0]; for (let p = fw; p; p = p.parent) if (p.trustClicked !== undefined) { p.trustClicked(fw.objectName.split(":")[1] + ":" + fw.objectName.split(":")[2]); probe.log("clicked the figure column"); break } }
+                // --probe-fold open: open the tail's "How far can I trust this?" fold before the grab
+                const folds = []; probe.walk(b, "trustSummaryFold", folds)
+                for (const f of folds) if (probe.shown(f, root)) {
+                    probe.log("trust fold: " + f.scope + " " + f.lines.length + " line(s)")
+                    if (probe.arg("--probe-fold", "") === "open") f.open = true
+                }
                 const rings = []; probe.walk(b, "chUnplaced:*", rings)
                 for (const r of rings) if (probe.shown(r, root)) probe.log("dashed ring: " + r.objectName)
                 const views = []; probe.walk(b, "chShotView*", views)

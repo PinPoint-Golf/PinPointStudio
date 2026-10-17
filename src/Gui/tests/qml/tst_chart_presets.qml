@@ -277,11 +277,11 @@ Item {
         }
 
         function test_013_the_picker_is_reachable_in_both_registers() {
-            // wide: in the left rail, beside the figure
+            // the controls sit under the figure (Mark, 17 Oct 2026: headline, plot, controls, summary)
             const picker = oneShown("chPresetPicker")
             const view = oneShown("chShotView")
-            const at = picker.mapToItem(view, 0, 0)
-            verify(at.x + picker.width < view.width / 2, "the controls sit in the rail at wide")
+            const figs = shownAll("chTraces")
+            if (figs.length) verify(picker.mapToItem(view, 0, 0).y > figs[0].mapToItem(view, 0, 0).y, "the controls sit under the figure")
             // folding Controls keeps the choice said on the fold's own line, and is remembered
             press(oneShown("chFold:controls"))
             compare(hn.body.collapsed.controls, true)

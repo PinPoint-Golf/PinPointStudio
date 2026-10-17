@@ -60,7 +60,9 @@ Item {
     property bool controlsOpen: false
     property string openId: ""
     readonly property string fid: openId !== "" ? openId : ((sh.findings || []).length ? sh.findings[0].id : "")
-    height: has ? secHead.height + ty.u(14) + (rail ? Math.max(mainCol.height, railCol.height) : mainCol.height) : 0
+    height: has ? secHead.height + (folded ? 0 : ty.u(14) + (rail ? Math.max(mainCol.height, railCol.height) : mainCol.height)) : 0
+    // folds like every section after the Charts' Summary (Mark, 17 Oct 2026), saved with the others
+    readonly property bool folded: !!body && !!body.collapsed && body.collapsed.wrist === true
 
     function seekTo(us) { if (us >= 0 && typeof shotReplay !== "undefined" && shotReplay) shotReplay.seekToUs(us) }
     // WHY, ON DEMAND (trust stage 6 session 2): a gate's words where a value is missing open its reading in the
@@ -107,10 +109,13 @@ Item {
     }
 
     // the section head across the whole page width, the main column and the rail under it
-    PpSectionHead { id: secHead; visible: ws.has; width: ws.width; roles: ws.ty; title: "Wrist"; rule: true }
+    PpChFoldHead { id: secHead; visible: ws.has; width: ws.width; roles: ws.ty; key: "wrist"; title: "Wrist"
+                   interactive: ws.interactive; collapsed: ws.folded
+                   state_: ws.folded && ws.score && ws.score.scoreText ? "score " + ws.score.scoreText : ""
+                   onToggled: if (ws.body) ws.body.toggleSection("wrist") }
     Column {
         id: mainCol
-        visible: ws.has
+        visible: ws.has && !ws.folded
         y: secHead.height + (ws.has ? ws.ty.u(14) : 0)
         width: ws.mainW
         spacing: ws.has ? ws.ty.u(14) : 0
@@ -232,7 +237,7 @@ Item {
     }
     Column {
         id: railCol
-        visible: ws.rail
+        visible: ws.rail && !ws.folded
         x: ws.mainW + (ws.has ? ws.ty.u(48) : 0)
         y: mainCol.y
         width: ws.railW

@@ -41,7 +41,7 @@
 //       wrist     wristAgainst · wristCurves · wristArchetype           (the Wrist sections; a saved wristScope is ignored)
 //       new       view · metricsOff · window · customStartUs · customEndUs · band · facet · against ·
 //                 difference · up · across · relFacet
-//       folds     controls · summary · sequence            (sectionCollapse)
+//       folds     controls · summary · sequence · apart · wrist · seqSession · wristSession   (sectionCollapse)
 //     A saved "Custom" from today's panel restores as its base preset with its switched-off series.
 //   • THE READER'S PLACE (transient, per session) is SessionMode.chartsNav: { sessionDir, openId, scroll }.
 //     The stage rebuilds its panels on every Capture↔Replay flip, so the place is saved as it changes and put
@@ -238,7 +238,9 @@ Item {
     }
     function _restoreFolds() {
         const m = appSettings.sectionCollapse || {}, b = _keyBase
-        body.collapsed = { controls: m[b + "controls"] === true, summary: m[b + "summary"] === true, sequence: m[b + "sequence"] === true }
+        body.collapsed = { controls: m[b + "controls"] === true, summary: m[b + "summary"] === true, sequence: m[b + "sequence"] === true,
+                           apart: m[b + "apart"] === true, wrist: m[b + "wrist"] === true,
+                           seqSession: m[b + "seqSession"] === true, wristSession: m[b + "wristSession"] === true }
     }
     function _persistFold(name, val) {
         if (root.sessionType < 0 || !root.remembersNav) return
