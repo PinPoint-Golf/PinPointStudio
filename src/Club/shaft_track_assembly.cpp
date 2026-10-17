@@ -699,6 +699,15 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.followThrough.minRateCapDps", c.followThrough.minRateCapDps);
     apply(ov, "shaft.followThrough.minShaftForearmDeg", c.followThrough.minShaftForearmDeg);
     apply(ov, "shaft.followThrough.peakWindowUs", c.followThrough.peakWindowUs);
+    // Impact-window plausibility (KB-18): "shaft.impactWindow.*" keys.
+    apply(ov, "shaft.impactWindow.enabled",             c.impactWindow.enabled);
+    apply(ov, "shaft.impactWindow.preUs",               c.impactWindow.preUs);
+    apply(ov, "shaft.impactWindow.postUs",              c.impactWindow.postUs);
+    apply(ov, "shaft.impactWindow.maxUs",               c.impactWindow.maxUs);
+    apply(ov, "shaft.impactWindow.floorFactor",         c.impactWindow.floorFactor);
+    apply(ov, "shaft.impactWindow.capFactor",           c.impactWindow.capFactor);
+    apply(ov, "shaft.impactWindow.tolDeg",              c.impactWindow.tolDeg);
+    apply(ov, "shaft.impactWindow.bridgeSigmaDegPerMs", c.impactWindow.bridgeSigmaDegPerMs);
     // Impact boundary: "shaft.impactBoundary.*" keys.
     apply(ov, "shaft.impactBoundary.enabled",      c.impactBoundary.enabled);
     apply(ov, "shaft.impactBoundary.windowUs",     c.impactBoundary.windowUs);
@@ -1921,6 +1930,35 @@ static void synthesizeLayerC(ShaftTrack2D& out, const std::vector<int64_t>& tUs,
                         }
                 out.synthPost  = post;
                 out.synthKappa = float(cfg.unc.synthKappa);
+
+                // KB-18 bridge σ (tuned::shaft::impactWindow::kBridgeSigmaDegPerMs): a tick inside a
+                // BRIDGE — two consecutive measured frames more than 1.5 frame periods apart, the
+                // span the impact-window pass leaves — carries σθ that grows with its distance d to
+                // the nearer of them, σ² += (k·d)². The posterior above grows only up to the P7
+                // anchor, which pins it however little the blur measured, and the kinematic
+                // sequence's rate σ and peak σ_t read this σ. Ticks between ordinary neighbours are
+                // untouched; impactWindow off ⇒ nothing here runs.
+                const double kBr = cfg.impactWindow.bridgeSigmaDegPerMs;
+                if (cfg.impactWindow.enabled && kBr > 0.0) {
+                    std::vector<int64_t> measT;
+                    for (int i = 0; i < nf; ++i) if (isMeas[size_t(i)]) measT.push_back(tUs[size_t(i)]);
+                    std::vector<int64_t> steps;
+                    for (int i = 1; i < nf; ++i) if (tUs[size_t(i)] > tUs[size_t(i - 1)]) steps.push_back(tUs[size_t(i)] - tUs[size_t(i - 1)]);
+                    if (measT.size() >= 2 && !steps.empty()) {
+                        std::nth_element(steps.begin(), steps.begin() + long(steps.size() / 2), steps.end());
+                        const double bridgeUs = 1.5 * double(steps[steps.size() / 2]);
+                        size_t m = 0;
+                        for (ShaftSample2D& s : out.synth) {
+                            if (s.sigmaThetaDeg < 0.f) continue;   // not assessed: nothing to grow
+                            while (m + 1 < measT.size() && measT[m + 1] <= s.t_us) ++m;
+                            if (m + 1 >= measT.size() || s.t_us < measT[m]) continue;
+                            if (double(measT[m + 1] - measT[m]) <= bridgeUs) continue;
+                            const double dMs = double(std::min(s.t_us - measT[m], measT[m + 1] - s.t_us)) / 1000.0;
+                            const double g   = kBr * dMs;
+                            s.sigmaThetaDeg  = float(std::sqrt(double(s.sigmaThetaDeg) * double(s.sigmaThetaDeg) + g * g));
+                        }
+                    }
+                }
             }
         }
 
@@ -1971,26 +2009,25 @@ static bool sampleIsMeasured(const ShaftSample2D& s)
     return (s.flags & (ShaftMeasured | ShaftWedge)) && !(s.flags & ShaftCoasted);
 }
 
-int demoteImplausibleFollowThrough(ShaftTrack2D& track, const std::vector<double>& forearmToElbowDeg,
-                                   int64_t impactUs, const ShaftV3Config& cfg)
+// The swing's own peak shaft rate (rad/s) over the samples whose time lies in [fromUs, toUs] —
+// the reference both plausibility passes judge against (the follow-through pass reads it over
+// [impact − peakWindowUs, impact + 5 ms], the impact-window pass over the same start up to its
+// window). The 90th percentile of consecutive-sample rates on samples that rest on a measurement:
+// a percentile rather than the max so one jittery pair cannot set it. Every pair that is not a
+// coast or a model prediction counts — the frames through the impact blur are mostly
+// wedge/bridged tiers, and a peak read from the few clean pairs there sat far below the club's
+// real rate and demoted a genuine follow-through. …and the tracker's own RTS-smoothed rate,
+// which survives the blur the pair rates do not: a full swing coasts through most of the last
+// 60 ms into impact, leaving two clean pairs at 1340 °/s beside a club doing 1800 after the
+// ball. The larger of the two is the peak.
+static double shaftPeakRateRadS(const std::vector<ShaftSample2D>& S, int64_t fromUs, int64_t toUs)
 {
-    const auto& ft = cfg.followThrough;
-    std::vector<ShaftSample2D>& S = track.samples;
-    if (!ft.enabled || impactUs < 0 || S.size() < 3) return 0;
-
-    // The swing's own peak rate into impact: the 90th percentile of consecutive-sample rates
-    // over the pre-impact window, on samples that rest on a measurement. A percentile rather
-    // than the max so one jittery pair cannot set the cap; a floor so a blurred impact (few
-    // measured pairs, low rates) cannot make a real follow-through look implausible.
-    // Every pair that is not a coast or a model prediction counts — the frames through the
-    // impact blur are mostly wedge/bridged tiers, and a peak read from the few clean pairs
-    // there sat far below the club's real rate and demoted a genuine follow-through.
     const auto notPredicted = [](const ShaftSample2D& s) {
         return !(s.flags & (ShaftCoasted | ShaftKinematicPredicted));
     };
     std::vector<double> rates;
     for (size_t i = 1; i < S.size(); ++i) {
-        if (S[i].t_us > impactUs + 5000 || S[i].t_us < impactUs - ft.peakWindowUs) continue;
+        if (S[i].t_us > toUs || S[i].t_us < fromUs) continue;
         if (!notPredicted(S[i]) || !notPredicted(S[i - 1])) continue;
         const double dt = double(S[i].t_us - S[i - 1].t_us) * 1e-6;
         if (dt <= 0.0) continue;
@@ -2001,15 +2038,159 @@ int demoteImplausibleFollowThrough(ShaftTrack2D& track, const std::vector<double
         std::sort(rates.begin(), rates.end());
         peak = rates[std::min(rates.size() - 1, size_t(0.9 * double(rates.size())))];
     }
-    // …and the tracker's own RTS-smoothed rate, which survives the blur the pair rates do
-    // not: a full swing coasts through most of the last 60 ms into impact, leaving two clean
-    // pairs at 1340 °/s beside a club doing 1800 after the ball. The larger of the two is the
-    // peak; the club past impact cannot exceed its own.
     for (const ShaftSample2D& s : S) {
-        if (s.t_us > impactUs + 5000 || s.t_us < impactUs - ft.peakWindowUs) continue;
+        if (s.t_us > toUs || s.t_us < fromUs) continue;
         if (!notPredicted(s)) continue;
         peak = std::max(peak, std::fabs(s.thetaDotRadS));
     }
+    return peak;
+}
+
+// Demote one sample to a coast — the one rule both plausibility passes apply.
+static void demoteToCoast(ShaftSample2D& s)
+{
+    s.flags = uint16_t((s.flags & ~uint16_t(ShaftMeasured | ShaftWedge | ShaftImuBridged))
+                       | ShaftCoasted | ShaftHeadProjected | ShaftImplausible);
+    s.conf  = std::min(s.conf, 0.30f);
+}
+
+int demoteImplausibleImpactWindow(ShaftTrack2D& track, int64_t impactUs, const ShaftV3Config& cfg)
+{
+    const auto& iw = cfg.impactWindow;
+    std::vector<ShaftSample2D>& S = track.samples;
+    if (!iw.enabled || impactUs < 0 || S.size() < 3) return 0;
+    const int64_t winStart = impactUs - iw.preUs, winEnd = impactUs + iw.postUs;
+    const int64_t hardEnd  = impactUs + std::max(iw.maxUs, iw.postUs);
+
+    // The reference rate: the follow-through pass's peak estimate, read over the downswing up to
+    // the window — never over the window it is about to judge, whose stalls and wrong branches
+    // would set their own reference (a backward jump's central difference reads ~8000 °/s).
+    const double rRef = shaftPeakRateRadS(S, impactUs - cfg.followThrough.peakWindowUs, winStart);
+    if (!(rRef > 0.0)) return 0;
+
+    // The downswing's sense: the net angle change over the trusted samples in
+    // [impact − 60 ms, window start], else the sign of the tracker's own rate there.
+    double sense = 0.0;
+    {
+        const int64_t senseFrom = impactUs - 60000, senseTo = winStart;
+        double net = 0.0, dotSum = 0.0;
+        int nMeas = 0;
+        const ShaftSample2D* prev = nullptr;
+        for (const ShaftSample2D& s : S) {
+            if (s.t_us < senseFrom || s.t_us > senseTo) continue;
+            if (!(s.flags & (ShaftCoasted | ShaftKinematicPredicted))) dotSum += s.thetaDotRadS;
+            if (!sampleIsMeasured(s)) continue;
+            if (prev) net += std::remainder(s.thetaRad - prev->thetaRad, 2.0 * kPi);
+            prev = &s;
+            ++nMeas;
+        }
+        if (nMeas >= 2 && net != 0.0) sense = net > 0.0 ? 1.0 : -1.0;
+        else if (dotSum != 0.0)       sense = dotSum > 0.0 ? 1.0 : -1.0;
+    }
+    if (sense == 0.0) return 0;
+
+    // The anchor: the last measured sample at or before the window start. Every test is the
+    // club's CUMULATIVE progress since this one trusted reading, never a frame-to-frame step:
+    // at 150 fps one frame of a 2000 °/s downswing at half speed is 6.7°, about the tolerance, so
+    // a stall at forearm speed (the 07-04 swing 1 stall moves 4–5° a frame) passes every local
+    // test, and a plausible stalled sample taken as the next anchor makes the genuine shaft
+    // after the jump look too fast. Measured from here, the stall falls behind the corridor
+    // [floor·r_ref·Δt − tol, cap·Δt + tol] within a few frames.
+    size_t anchor = 0;
+    bool haveAnchor = false;
+    for (size_t i = 0; i < S.size(); ++i) {
+        if (S[i].t_us > winStart) break;
+        if (sampleIsMeasured(S[i])) { anchor = i; haveAnchor = true; }
+    }
+    if (!haveAnchor) return 0;
+    const ShaftSample2D a0 = S[anchor];
+
+    const double tol     = std::max(0.0, iw.tolDeg) * kPi / 180.0;
+    const double floorR  = iw.floorFactor * rRef;
+    // The TOO FAST cap carries the follow-through pass's floor, for its reason: a blurred
+    // downswing (few measured pairs, low rates) must not make a real club look too fast.
+    const double capR    = std::max(iw.capFactor * rRef, cfg.followThrough.minRateCapDps * kPi / 180.0);
+    // Signed progress along the downswing from sample `from` to sample `to`.
+    const auto progress = [&](const ShaftSample2D& from, const ShaftSample2D& to) {
+        return sense * std::remainder(to.thetaRad - from.thetaRad, 2.0 * kPi);
+    };
+    std::vector<int64_t> demotedT;
+    size_t firstBad = S.size();
+    bool lastBad = false;
+    for (size_t i = anchor + 1; i < S.size(); ++i) {
+        ShaftSample2D& s = S[i];
+        if (s.t_us > hardEnd) break;
+        if (!sampleIsMeasured(s)) continue;                       // coasts are already predictions
+        if (s.t_us > winEnd && !lastBad) break;                   // past the window only a failing run goes on
+        const double dt = double(s.t_us - a0.t_us) * 1e-6;
+        if (!(dt > 0.0)) continue;
+        const double p = progress(a0, s);
+        const bool lag      = p < floorR * dt - tol;
+        const bool backward = p < -tol;
+        const bool tooFast  = p > capR * dt + tol;
+        lastBad = lag || backward || tooFast;
+        if (!lastBad) {
+            if (s.t_us > winEnd) break;                           // past the window: the run has ended
+            continue;
+        }
+        if (firstBad == S.size()) firstBad = i;
+        demoteToCoast(s);
+        demotedT.push_back(s.t_us);
+    }
+
+    // The stall's onset. A stall is caught only once it has fallen far enough behind; the kept
+    // samples just before the first demoted one that were ALREADY moving at under floor × r_ref
+    // against their measured predecessor are the same stall, so they go too — back to the first
+    // sample that was on pace (a genuine club through the ball never drops under half its speed).
+    if (firstBad < S.size()) {
+        size_t i = firstBad;
+        while (i > anchor + 1) {
+            size_t k = i - 1;
+            while (k > anchor && !sampleIsMeasured(S[k])) --k;       // the kept sample before i
+            if (k <= anchor) break;
+            size_t prev = k - 1;
+            while (prev > anchor && !sampleIsMeasured(S[prev])) --prev;
+            const double dt = double(S[k].t_us - S[prev].t_us) * 1e-6;
+            if (!(dt > 0.0) || progress(S[prev], S[k]) >= floorR * dt) break;
+            demoteToCoast(S[k]);
+            demotedT.push_back(S[k].t_us);
+            i = k;
+        }
+        std::sort(demotedT.begin(), demotedT.end());
+    }
+
+    // A demoted wedge frame's timed edges are the same blur read the same wrong way; left in,
+    // they would stay Layer C evidence (synthesizeLayerC fits a wedge frame by its edges, not its
+    // sample) and the synth would follow the stall the pass just removed. Each frame's edges are
+    // stored [Trail, Mid,] Lead, the Lead at the frame time.
+    if (!demotedT.empty() && !track.wedgeObs.empty()) {
+        std::vector<ShaftWedgeObs> kept;
+        kept.reserve(track.wedgeObs.size());
+        size_t groupStart = 0;
+        for (size_t j = 0; j < track.wedgeObs.size(); ++j) {
+            if (track.wedgeObs[j].kind != ShaftWedgeObsKind::Lead) continue;
+            const bool drop = std::binary_search(demotedT.begin(), demotedT.end(), track.wedgeObs[j].t_us);
+            if (!drop) kept.insert(kept.end(), track.wedgeObs.begin() + long(groupStart),
+                                   track.wedgeObs.begin() + long(j + 1));
+            groupStart = j + 1;
+        }
+        kept.insert(kept.end(), track.wedgeObs.begin() + long(groupStart), track.wedgeObs.end());
+        track.wedgeObs.swap(kept);
+    }
+    return int(demotedT.size());
+}
+
+int demoteImplausibleFollowThrough(ShaftTrack2D& track, const std::vector<double>& forearmToElbowDeg,
+                                   int64_t impactUs, const ShaftV3Config& cfg)
+{
+    const auto& ft = cfg.followThrough;
+    std::vector<ShaftSample2D>& S = track.samples;
+    if (!ft.enabled || impactUs < 0 || S.size() < 3) return 0;
+
+    // The swing's own peak rate into impact (shaftPeakRateRadS); a floor so a blurred impact
+    // (few measured pairs, low rates) cannot make a real follow-through look implausible. The
+    // club past impact cannot exceed its own peak.
+    const double peak   = shaftPeakRateRadS(S, impactUs - ft.peakWindowUs, impactUs + 5000);
     const double cap    = std::max(ft.rateFactor * peak, ft.minRateCapDps * kPi / 180.0);
     // The forearm test is OFF unless a threshold is set: in a face-on projection the folded
     // club at P9–P10 legitimately lines up with the hands→elbow direction (21–26° apart on a
@@ -2050,9 +2231,7 @@ int demoteImplausibleFollowThrough(ShaftTrack2D& track, const std::vector<double
             if (sep < minSep) bad = true;
         }
         if (!bad) { lastGood = i; continue; }
-        s.flags = uint16_t((s.flags & ~uint16_t(ShaftMeasured | ShaftWedge | ShaftImuBridged))
-                           | ShaftCoasted | ShaftHeadProjected | ShaftImplausible);
-        s.conf  = std::min(s.conf, 0.30f);
+        demoteToCoast(s);
         ++demoted;
     }
     return demoted;
@@ -3426,6 +3605,9 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             const double phi = phiRawIn[size_t(sampleFrame[k])];
             if (std::isfinite(phi)) forearm[k] = phi + 180.0;
         }
+        // The impact blur first (KB-18): its stalled and reversed readings would otherwise be
+        // the "last good" sample the follow-through pass judges the club after the ball from.
+        demoteImplausibleImpactWindow(out, tUs[size_t(impactFrame)], cfg);
         demoteImplausibleFollowThrough(out, forearm, tUs[size_t(impactFrame)], cfg);
     }
 

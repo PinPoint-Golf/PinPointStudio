@@ -1900,7 +1900,9 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
                 // The calibrated per-sample σθ where the uncertainty pass assessed one
                 // (shaft_uncertainty_propagation_design.md §6); else the old confidence-scaled
                 // constant. Feeds only the rate's σ and the node placement σ, never the rate.
-                a.sigmaRad[i] = (cfg.calibratedClubSigma && track[i].sigmaThetaDeg > 0.f)
+                // Judged mode (KB-18) reads it too: the bridge through the impact blur carries a σθ
+                // that grows across it, and the per-swing judgement below is only as honest as σ_t.
+                a.sigmaRad[i] = ((cfg.calibratedClubSigma || cfg.cameraClubJudged) && track[i].sigmaThetaDeg > 0.f)
                                     ? double(track[i].sigmaThetaDeg) * 3.14159265358979323846 / 180.0
                                     : cfg.shaftThetaSigmaRad / std::max(double(track[i].conf), 0.2);
             }
@@ -1940,10 +1942,29 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             // between: σ² + span²/12), and no verdict is drawn from it (Mark: "refuse to signal an
             // issue with the club speed peaking, but the measure and charting is fine so long as
             // sigma reflects the uncertainty").
+            //
+            // sequence.cameraClubJudged (KB-18, 17 Oct; OFF until the library gate): with the
+            // impact-window pass demoting the stalled and reversed readings, the rate through impact
+            // is a bridge whose σ grows across it, so the node is judged PER SWING — no span
+            // widening, and withheld (same reason, same gate) only when its own σ_t is wider than
+            // judgeMaxSigmaMs or fewer than judgeMinMeasured measured shaft samples lie within
+            // ±judgeWindowMs of impact (the camera saw too little of the club there to time it).
+            int measuredNearImpact = 0;
+            if (cfg.cameraClubJudged) {
+                const int64_t w = int64_t(std::llround(cfg.judgeWindowMs * 1000.0));
+                for (const ShaftSample2D &s : in.shaft->samples)
+                    if (s.t_us >= impactUs - w && s.t_us <= impactUs + w
+                        && (s.flags & (ShaftMeasured | ShaftWedge)) && !(s.flags & ShaftCoasted))
+                        ++measuredNearImpact;
+            }
             for (KsNode &cn : nodes) {
                 if (cn.segment != SeqSegment::Club || !cn.placed) continue;
-                const double spanMs = double(cn.tPeakUs - impactUs) / 1000.0;
-                cn.tSigmaMs = std::sqrt(cn.tSigmaMs * cn.tSigmaMs + spanMs * spanMs / 12.0);
+                if (cfg.cameraClubJudged) {
+                    if (cn.tSigmaMs <= cfg.judgeMaxSigmaMs && measuredNearImpact >= cfg.judgeMinMeasured) continue;
+                } else {
+                    const double spanMs = double(cn.tPeakUs - impactUs) / 1000.0;
+                    cn.tSigmaMs = std::sqrt(cn.tSigmaMs * cn.tSigmaMs + spanMs * spanMs / 12.0);
+                }
                 cn.withheld = QStringLiteral("the camera cannot follow the club's speed through impact");
                 cn.gates.push_back({ PP_GATE("sequence.clubWithheld"), QStringLiteral("ks.club"),
                                      GateEffect::Withheld,

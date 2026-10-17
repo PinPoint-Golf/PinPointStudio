@@ -478,6 +478,19 @@ struct ShaftV3Config {
         double  minShaftForearmDeg = tuned::shaft::followThrough::kMinShaftForearmDeg;
         int64_t peakWindowUs       = tuned::shaft::followThrough::kPeakWindowUs;
     } followThrough;
+    // Impact-window plausibility (demoteImplausibleImpactWindow, KB-18) — "shaft.impactWindow.*"
+    // keys. Runs just before the follow-through pass on both paths; the tuned namespace has the
+    // three tests and why. enabled=false ⇒ byte-identical to the pre-KB-18 track and synth.
+    struct ImpactWindowConfig {
+        bool    enabled             = tuned::shaft::impactWindow::kEnabled;
+        int64_t preUs               = tuned::shaft::impactWindow::kPreUs;
+        int64_t postUs              = tuned::shaft::impactWindow::kPostUs;
+        int64_t maxUs               = tuned::shaft::impactWindow::kMaxUs;
+        double  floorFactor         = tuned::shaft::impactWindow::kFloorFactor;
+        double  capFactor           = tuned::shaft::impactWindow::kCapFactor;
+        double  tolDeg              = tuned::shaft::impactWindow::kTolDeg;
+        double  bridgeSigmaDegPerMs = tuned::shaft::impactWindow::kBridgeSigmaDegPerMs;
+    } impactWindow;
     // Hand-axis θ prior (WB4) — "shaft.handAxisPrior.*" keys. DARK (enabled=false;
     // its corpus gate was never run); when on, the per-frame hand-axis direction penalises the DP
     // states far from it near the grip. fromOverrides populates it.
@@ -900,6 +913,18 @@ void resynthesizeLayerC(ShaftTrack2D& track, const ShaftV3Config& cfg);
 // Returns the number of samples demoted.
 int demoteImplausibleFollowThrough(ShaftTrack2D& track, const std::vector<double>& forearmToElbowDeg,
                                    int64_t impactUs, const ShaftV3Config& cfg);
+
+// Demote the measured samples through the impact blur that cannot be the club (KB-18,
+// 2026-10-17): in [impact − preUs, impact + postUs], and onward to impact + maxUs while they keep
+// failing, a measured sample whose signed progress along the downswing since the last measured
+// sample before the window LAGS floorFactor × the swing's own pre-window peak rate, points
+// BACKWARD past the tolerance, or runs FASTER than capFactor × that rate — plus a caught stall's
+// onset (tuned::shaft::impactWindow has the rules). Demoted exactly as demoteImplausibleFollowThrough demotes (Coasted|HeadProjected|
+// Implausible, conf ≤ 0.30), and a demoted wedge frame's timed edges (track.wedgeObs) go with it,
+// so Layer C bridges the span instead of fitting the blur. Run it immediately BEFORE the
+// follow-through pass, on the decide path and on a reused track alike. `impactUs` < 0 or
+// cfg.impactWindow.enabled false ⇒ nothing is touched. Returns the number of samples demoted.
+int demoteImplausibleImpactWindow(ShaftTrack2D& track, int64_t impactUs, const ShaftV3Config& cfg);
 
 // THE FACE-ON TRACK'S GATE RECORDS (trust stage 6, docs/design/trust_stage6_plan.md). Derived from
 // the finished track alone, so they read the same on a fresh track and on one reused from a swing

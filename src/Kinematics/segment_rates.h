@@ -144,6 +144,12 @@ struct SegmentRatesConfig {
     // shaftThetaSigmaRad / conf. A VALUE change, not a σ-only one: the wider σ un-places the club
     // node on some swings (the 1 Oct sigma sweep), so it has its own switch, off until Mark rules.
     bool    calibratedClubSigma = tuned::uncertainty::kSequenceSigma;  // uncertainty.sequenceSigma
+    // The camera club node judged per swing (KB-18) instead of the blanket withhold; judged mode
+    // reads the synth's per-tick σθ like calibratedClubSigma. tuned::sequence has the rule.
+    bool    cameraClubJudged    = tuned::sequence::kCameraClubJudged;  // sequence.cameraClubJudged
+    double  judgeMaxSigmaMs     = tuned::sequence::kJudgeMaxSigmaMs;   // sequence.cameraClubJudgeMaxSigmaMs
+    double  judgeWindowMs       = tuned::sequence::kJudgeWindowMs;     // sequence.cameraClubJudgeWindowMs
+    int     judgeMinMeasured    = tuned::sequence::kJudgeMinMeasured;  // sequence.cameraClubJudgeMinMeasured
 
     static SegmentRatesConfig fromOverrides(const QVariantMap &ov)
     {
@@ -166,6 +172,10 @@ struct SegmentRatesConfig {
         apply(ov, "sequence.gyroNoiseDps",      c.gyroNoiseDps);
         apply(ov, "sequence.faceOnTrunkPlacement", c.faceOnTrunkPlacement);
         apply(ov, "uncertainty.sequenceSigma",  c.calibratedClubSigma);
+        apply(ov, "sequence.cameraClubJudged",            c.cameraClubJudged);
+        apply(ov, "sequence.cameraClubJudgeMaxSigmaMs",   c.judgeMaxSigmaMs);
+        apply(ov, "sequence.cameraClubJudgeWindowMs",     c.judgeWindowMs);
+        apply(ov, "sequence.cameraClubJudgeMinMeasured",  c.judgeMinMeasured);
         apply(ov, "sequence.sightedTurnDeg",    c.sightedTurnDeg);
         apply(ov, "sequence.minAfterReversalMs", c.minAfterReversalMs);
         apply(ov, "sequence.minCredibleClubMph", c.minCredibleClubMph);

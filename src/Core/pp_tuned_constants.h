@@ -1029,6 +1029,18 @@ inline constexpr double       kMinCredibleClubMph   = 40.0;   // sequence.minCre
 //     peak may fall either side of impact and the curves stop at P8. Mark, 2026-10-02. false =
 //     the old Transition → Impact domain (and the club's P7-knot end).
 inline constexpr bool         kThroughP8            = true;   // sequence.throughP8
+//   kCameraClubJudged — the camera club node judged PER SWING (KB-18, 2026-10-17) instead of the
+//     blanket "the camera cannot follow the club's speed through impact" withhold (σ widened by
+//     span²/12 on every swing). With the impact-window plausibility pass demoting the stalled and
+//     reversed readings, the club rate through impact is a bridge whose σθ grows across it, so a
+//     node is withheld only when its own σ_t exceeds kJudgeMaxSigmaMs or fewer than
+//     kJudgeMinMeasured measured shaft samples lie within ±kJudgeWindowMs of impact. Judged mode
+//     reads the synth tier's per-tick σθ (as uncertainty.sequenceSigma does) so the bridge's σ
+//     reaches σ_t. OFF until the library gate passes; false = today's blanket withhold exactly.
+inline constexpr bool         kCameraClubJudged     = false;  // sequence.cameraClubJudged
+inline constexpr double       kJudgeMaxSigmaMs      = 20.0;   // sequence.cameraClubJudgeMaxSigmaMs
+inline constexpr double       kJudgeWindowMs        = 40.0;   // sequence.cameraClubJudgeWindowMs
+inline constexpr int          kJudgeMinMeasured     = 2;      // sequence.cameraClubJudgeMinMeasured
 
 // --- The PAIRED face-on + down-the-line trunk route (kinematic_sequence_design.md §5.2, and
 //     docs/research/data/kinematic_sequence/pair_span_turn_20260920.md, which measured it
@@ -1325,6 +1337,42 @@ inline constexpr double  kMinRateCapDps      = 1200.0;  // shaft.followThrough.m
 inline constexpr double  kMinShaftForearmDeg = 0.0;     // shaft.followThrough.minShaftForearmDeg — 0 = OFF (see below)
 inline constexpr int64_t kPeakWindowUs       = 150000;  // shaft.followThrough.peakWindowUs — pre-impact window the peak rate is read over
 } // namespace followThrough
+// --- Impact-window plausibility (demoteImplausibleImpactWindow; KB-18, 2026-10-17) ----
+// From about −20 to +25 ms the face-on shaft is a faint blur in front of the legs, and the
+// tracker's measured tiers either stall on the leg/trouser edges at 85–110° (forearm speed)
+// and jump once the club clears them, or read a wrong branch pointing back up the downswing
+// (docs/research/data/kb18/README.md: M1 on 6 of 11 judged swings, M2 on 3). The synth copies
+// them and the club rate collapses at impact (≥ 0.8 of its peak through ±8 ms on 31 of 140
+// library swings). A measured sample in [impact − kPreUs, impact + kPostUs] — and past it,
+// up to impact + kMaxUs, while the samples keep failing — is demoted to a coast when its signed
+// progress along the downswing, CUMULATIVE since the last measured sample before the window, is
+//   LAG       < kFloorFactor · r_ref · Δt − tol   (a club does not lose half its speed through the ball),
+//   BACKWARD  < −tol                              (pointing back up the downswing), or
+//   TOO FAST  > max(kCapFactor · r_ref, followThrough::kMinRateCapDps) · Δt + tol,
+// r_ref the swing's own pre-window peak rate (the follow-through pass's estimate, read over
+// [impact − followThrough::kPeakWindowUs, impact − kPreUs]). Cumulative, not frame to frame:
+// one 150 fps frame at half of 2000 °/s is 6.7°, about the tolerance, so a forearm-speed stall
+// passes every local test. Once a stall is caught, the kept samples just before it that were
+// already under kFloorFactor · r_ref against their predecessor (its onset) go too. tol = kTolDeg: one constant, not
+// the sample's σθ, because the decide path runs this before the σ table is applied (so a
+// recorded σ would make a reused track disagree with a fresh one) and the wedge/recon rows'
+// 10–17° would disarm the test on exactly the tiers that fail here. kTolDeg = 2 × 3°.
+// Layer C then bridges the demoted span (evidence fit + the soft P7 ball reading), and the
+// bridge ticks' σθ grows with distance from the nearest measured sample by kBridgeSigmaDegPerMs
+// in quadrature — an ASSUMPTION, not calibrated: 0.5 °/ms is a rate uncertainty of 500 °/s,
+// a quarter of a 2000 °/s downswing (no truth exists inside the blur). Keys "shaft.impactWindow.*".
+namespace impactWindow {
+// OFF (17 Oct 2026): the KB-18 library gate failed — the pass demotes the right samples, but where
+// nothing trustworthy is left through impact the synth flattens into the P7 anchor (docs/research/data/kb18).
+inline constexpr bool    kEnabled             = false;    // shaft.impactWindow.enabled — false ⇒ byte-identical to before KB-18
+inline constexpr int64_t kPreUs               = 25000;    // shaft.impactWindow.preUs — window start before impact
+inline constexpr int64_t kPostUs              = 35000;    // shaft.impactWindow.postUs — window end after impact
+inline constexpr int64_t kMaxUs               = 80000;    // shaft.impactWindow.maxUs — a failing run is followed no further
+inline constexpr double  kFloorFactor         = 0.5;      // shaft.impactWindow.floorFactor — LAG floor, × r_ref
+inline constexpr double  kCapFactor           = followThrough::kRateFactor;   // shaft.impactWindow.capFactor — TOO FAST cap, × r_ref
+inline constexpr double  kTolDeg              = 6.0;      // shaft.impactWindow.tolDeg — angle tolerance on every test
+inline constexpr double  kBridgeSigmaDegPerMs = 0.5;      // shaft.impactWindow.bridgeSigmaDegPerMs — 0 = no bridge σ growth
+} // namespace impactWindow
 } // namespace shaft
 
 // --- Late-pipeline timeline-event refinement (src/Timeline/event_refine.h) -----

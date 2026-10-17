@@ -84,6 +84,7 @@
 #include <QQuaternion>
 #include <QVector3D>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -620,6 +621,44 @@ int main()
               club && !club->withheld.isEmpty() && pel && pel->withheld.isEmpty() && arm && arm->withheld.isEmpty());
         CHECK("§2 face-on: …and its σ_t covers the span from its peak to impact (≥ span/√12)",
               club && club->tSigmaMs >= std::fabs(double(club->tPeakUs - kImpactUs)) / 1000.0 / std::sqrt(12.0) - 1e-9);
+        {
+            // KB-18 sequence.cameraClubJudged: OFF is today's blanket withhold; ON judges the node
+            // by its own σ_t and by whether the camera measured the shaft around impact.
+            const auto hasWithheldGate = [](const KsNode *n) {
+                return n && std::any_of(n->gates.begin(), n->gates.end(), [](const GateRecord &r) {
+                    return r.gate == QLatin1String("sequence.clubWithheld"); });
+            };
+            ShaftTrack2D measShaft = shaft;
+            for (ShaftSample2D &e : measShaft.samples) e.flags = ShaftMeasured;
+            SegmentRatesInputs jin = in;
+            jin.shaft = &measShaft;
+            const SegmentRatesResult r0 = buildSegmentRates(jin, cfg);
+            const KsNode *c0 = nodeOf(r0, SeqSegment::Club);
+            CHECK("§2 judged OFF (default): the camera club node is withheld as today",
+                  c0 && c0->placed && !c0->withheld.isEmpty() && hasWithheldGate(c0));
+            SegmentRatesConfig judged = cfg;
+            judged.cameraClubJudged = true;
+            const SegmentRatesResult r1 = buildSegmentRates(jin, judged);
+            const KsNode *c1 = nodeOf(r1, SeqSegment::Club);
+            CHECK("§2 judged ON: a well-measured club node with σ_t under the limit is judged (not withheld)",
+                  c1 && c1->placed && c1->withheld.isEmpty() && !hasWithheldGate(c1)
+                  && c1->tSigmaMs <= judged.judgeMaxSigmaMs);
+            CHECK("§2 judged ON: …and its σ_t is not widened by the span",
+                  c0 && c1 && c1->tSigmaMs <= c0->tSigmaMs + 1e-9);
+            if (c1) {
+                SegmentRatesConfig tight = judged;
+                tight.judgeMaxSigmaMs = 0.5 * c1->tSigmaMs;      // the same node, σ_t now over the limit
+                const SegmentRatesResult r2 = buildSegmentRates(jin, tight);
+                const KsNode *c2 = nodeOf(r2, SeqSegment::Club);
+                CHECK("§2 judged ON: a node whose σ_t exceeds the limit is withheld, with the gate record",
+                      c2 && c2->placed && !c2->withheld.isEmpty() && hasWithheldGate(c2));
+            }
+            // The original fixture's samples carry no Measured flag: nothing measured around impact.
+            const SegmentRatesResult r3 = buildSegmentRates(in, judged);
+            const KsNode *c3 = nodeOf(r3, SeqSegment::Club);
+            CHECK("§2 judged ON: fewer than 2 measured shaft samples within ±40 ms of impact ⇒ withheld",
+                  c3 && c3->placed && !c3->withheld.isEmpty() && hasWithheldGate(c3));
+        }
         {
             const std::vector<MetricSeries> cv = sequenceNodeSeries(faceOn);
             const auto withheldOf = [&](const char *k) {

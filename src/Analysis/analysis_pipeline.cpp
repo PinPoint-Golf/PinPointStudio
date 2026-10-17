@@ -818,6 +818,13 @@ struct ShaftStage : AnalysisStage {
                 const std::optional<int64_t> impactP = phaseTimeOpt(ctx.job.ladderPreloaded ? ctx.job.ladderPreloaded->events
                                                                                               : ctx.seg.events, Phase::Impact);
                 const int64_t impactUs = impactP ? *impactP : ctx.job.impactUs;
+                // KB-18 impact-window plausibility, before the follow-through pass as in decideTrack.
+                // A post-decide pass, re-applied on reuse — no shaft stage bump needed.
+                const int windowDemoted = demoteImplausibleImpactWindow(ctx.detail->shaft, impactUs, v3);
+                if (windowDemoted > 0)
+                    ppInfo() << "[WristAnalysis] shaft: impact-window plausibility demoted" << windowDemoted
+                             << "reused samples in [" << -double(v3.impactWindow.preUs) / 1000.0 << ","
+                             << double(v3.impactWindow.postUs) / 1000.0 << "] ms of impact";
                 const int demoted = demoteImplausibleFollowThrough(ctx.detail->shaft, forearm, impactUs, v3);
                 if (demoted > 0)
                     ppInfo() << "[WristAnalysis] shaft: follow-through plausibility demoted" << demoted << "reused samples";

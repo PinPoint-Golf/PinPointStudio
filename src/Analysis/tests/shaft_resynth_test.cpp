@@ -75,6 +75,9 @@ int main()
 {
     std::printf("shaft_resynth_test\n");
     ShaftV3Config cfg;
+    // The impact-window pass ships OFF (KB-18 library gate failed, 17 Oct 2026); its cases below
+    // test it switched on.
+    cfg.impactWindow.enabled = true;
     cfg.synth.enabled = true;
 
     {
@@ -262,7 +265,20 @@ int main()
         }
         ShaftV3Config cfg2 = cfg;
         cfg2.followThrough.minShaftForearmDeg = 35.0;   // the forearm test is opt-in (finish wrap)
+        const ShaftTrack2D pristine = t;
         const int demoted = demoteImplausibleFollowThrough(t, forearm, imp, cfg2);
+        {
+            // KB-18: the impact-window pass runs first on both paths. On this clean 1000 °/s track
+            // it takes nothing, and the follow-through pass then decides exactly what it did alone.
+            ShaftTrack2D tw = pristine;
+            const int iwDem = demoteImplausibleImpactWindow(tw, imp, cfg2);
+            const int ftDem = demoteImplausibleFollowThrough(tw, forearm, imp, cfg2);
+            bool same = tw.samples.size() == t.samples.size();
+            for (size_t i = 0; same && i < t.samples.size(); ++i)
+                same = tw.samples[i].flags == t.samples[i].flags && tw.samples[i].conf == t.samples[i].conf;
+            check(iwDem == 0 && ftDem == demoted && same,
+                  "impact-window pass first: nothing taken on a clean track, follow-through unchanged");
+        }
         int flipDemoted = 0, flipN = 0, preTouched = 0, armDemoted = 0, armN = 0;
         for (const ShaftSample2D &s : t.samples) {
             const double ms = double(s.t_us - imp) * 1e-3;
@@ -304,6 +320,151 @@ int main()
         for (const ShaftSample2D &s : v.samples) if (double(s.t_us - imp) * 1e-3 > 190.0 && !(s.flags & ShaftImplausible)) ++armLeft;
         std::printf("    default config: demoted %d, along-the-arm samples left measured %d\n", defDem, armLeft);
         check(defDem >= flipN, "default config still demotes the whole flip on rate");
+    }
+
+    // ═══ Impact-window plausibility (KB-18) ═══════════════════════════════════════════════
+    //
+    // 150 fps, a 2000 °/s downswing with θ falling (a right-hander face-on: 100° at impact). In
+    // the blur the tracker either stalls on the legs at forearm speed and jumps once the club
+    // clears them (M1), or reads a wrong branch pointing back up the downswing (M2). The pass
+    // demotes those and nothing else.
+    std::printf("=== impact-window plausibility pass ===\n");
+    {
+        const int64_t imp = 2'000'000;
+        const auto truth = [](double ms) { return 100.0 - 2.0 * ms; };          // deg, 2000 °/s
+        const auto build = [&](const auto &thetaDegAt) {
+            ShaftTrack2D t;
+            t.valid = true; t.frameWidth = 1280; t.frameHeight = 1024;
+            for (int k = -30; k <= 22; ++k) {
+                ShaftSample2D s;
+                s.t_us = imp + int64_t(std::llround(double(k) * 1e6 / 150.0));
+                const double ms = double(s.t_us - imp) * 1e-3;
+                s.gripPx = QPointF(600.0, 650.0); s.visibleLenPx = 300.0; s.conf = 0.6f; s.flags = ShaftMeasured;
+                s.thetaRad = std::remainder(thetaDegAt(ms) * kPi / 180.0, 2.0 * kPi);
+                s.headPx = QPointF(s.gripPx.x() + 300.0 * std::cos(s.thetaRad), s.gripPx.y() + 300.0 * std::sin(s.thetaRad));
+                t.samples.push_back(s);
+            }
+            for (size_t i = 0; i < t.samples.size(); ++i) {   // the tracker's central-difference θ̇
+                const size_t a = i ? i - 1 : i, b = i + 1 < t.samples.size() ? i + 1 : i;
+                const double dt = double(t.samples[b].t_us - t.samples[a].t_us) * 1e-6;
+                t.samples[i].thetaDotRadS = dt > 0.0 ? std::remainder(t.samples[b].thetaRad - t.samples[a].thetaRad, 2.0 * kPi) / dt : 0.0;
+            }
+            return t;
+        };
+        const auto msOf = [&](const ShaftSample2D &s) { return double(s.t_us - imp) * 1e-3; };
+        const auto demotedIn = [&](const ShaftTrack2D &t, double lo, double hi) {
+            int n = 0;
+            for (const ShaftSample2D &s : t.samples) if (msOf(s) >= lo && msOf(s) <= hi && (s.flags & ShaftImplausible)) ++n;
+            return n;
+        };
+        const auto countIn = [&](const ShaftTrack2D &t, double lo, double hi) {
+            int n = 0;
+            for (const ShaftSample2D &s : t.samples) if (msOf(s) >= lo && msOf(s) <= hi) ++n;
+            return n;
+        };
+
+        // (i) M1: from −20 ms the line sticks to the legs at 600 °/s; from +26.7 ms the club is back.
+        const auto m1 = [&](double ms) {
+            return (ms >= -20.5 && ms <= 20.5) ? truth(-20.0) - 0.6 * (ms + 20.0) : truth(ms);
+        };
+        ShaftTrack2D a = build(m1);
+        const int aDem = demoteImplausibleImpactWindow(a, imp, cfg);
+        std::printf("    M1: demoted %d (stall −13…+20 ms: %d of %d)\n", aDem, demotedIn(a, -14.0, 20.5), countIn(a, -14.0, 20.5));
+        check(demotedIn(a, -14.0, 20.5) == countIn(a, -14.0, 20.5), "M1: every stalled sample after the stall's first frame is demoted");
+        check(demotedIn(a, -1e9, -14.0) == 0 && demotedIn(a, 20.5, 1e9) == 0,
+              "M1: the clean samples before the stall and after the jump are kept");
+        check(aDem == demotedIn(a, -14.0, 20.5), "M1: the count returned is the samples demoted");
+        bool coastOk = true;
+        for (const ShaftSample2D &s : a.samples)
+            if ((s.flags & ShaftImplausible) && (!(s.flags & ShaftCoasted) || !(s.flags & ShaftHeadProjected)
+                                                 || (s.flags & ShaftMeasured) || s.conf > 0.30f)) coastOk = false;
+        check(coastOk, "M1: a demoted sample is a coast, projected, no longer Measured, conf ≤ 0.30");
+
+        // The bridge's σ (Layer C): ticks between the last kept frame before the stall and the
+        // first after it carry σθ grown with distance from them; every other tick is as before.
+        {
+            const auto at = [&](int p, int64_t ts) {
+                ShaftPosition q; size_t best = 0;
+                for (size_t i = 0; i < a.samples.size(); ++i) if (std::llabs(a.samples[i].t_us - ts) < std::llabs(a.samples[best].t_us - ts)) best = i;
+                const ShaftSample2D &s = a.samples[best];
+                q.p = p; q.t_us = s.t_us; q.gripPx = s.gripPx; q.headPx = s.headPx; q.thetaRad = s.thetaRad; q.lenPx = 300.0; q.conf = 0.6f;
+                return q;
+            };
+            a.positions = { at(6, imp - 60'000), at(7, imp), at(8, imp + 60'000) };
+            ShaftTrack2D on = a, off = a;
+            ShaftV3Config noGrow = cfg; noGrow.impactWindow.bridgeSigmaDegPerMs = 0.0;
+            resynthesizeLayerC(on, cfg);
+            resynthesizeLayerC(off, noGrow);
+            bool assessed = false, sameOutside = true, neverLess = true, grewMid = false;
+            const int64_t bLo = imp - 20'000, bHi = imp + int64_t(std::llround(4.0 * 1e6 / 150.0));   // −20, +26.7 ms
+            for (size_t j = 0; j < on.synth.size() && j < off.synth.size(); ++j) {
+                const ShaftSample2D &x = on.synth[j], &y = off.synth[j];
+                if (y.sigmaThetaDeg < 0.f) continue;
+                assessed = true;
+                const bool inBridge = x.t_us > bLo && x.t_us < bHi;
+                if (!inBridge && x.sigmaThetaDeg != y.sigmaThetaDeg) sameOutside = false;
+                if (x.sigmaThetaDeg + 1e-4f < y.sigmaThetaDeg) neverLess = false;
+                if (inBridge && std::llabs(x.t_us - (bLo + bHi) / 2) < 5000 && x.sigmaThetaDeg > y.sigmaThetaDeg + 1.0f) grewMid = true;
+            }
+            if (assessed) {
+                check(sameOutside && neverLess, "bridge σ: no tick outside the bridge changes, none inside shrinks");
+                check(grewMid, "bridge σ: mid-bridge ticks carry σθ grown with the distance to the measured frames");
+            } else {
+                std::printf("    (bridge σ: the synth posterior assessed no tick — skipped)\n");
+            }
+        }
+
+        // (ii) M2: after impact the reading points back up the downswing; one of them is a wedge
+        // frame whose timed edges must go with it (they would otherwise stay Layer C evidence).
+        const auto m2 = [&](double ms) {
+            if (ms > 5.0 && ms < 7.5)   return 150.0;
+            if (ms > 12.0 && ms < 14.5) return 155.0;
+            if (ms > 19.0 && ms < 21.0) return 160.0;
+            return truth(ms);
+        };
+        ShaftTrack2D b = build(m2);
+        int64_t wedgeT = -1, keptWedgeT = -1;
+        for (ShaftSample2D &s : b.samples) {
+            const double ms = msOf(s);
+            if (ms > 12.0 && ms < 14.5) { s.flags = ShaftWedge; wedgeT = s.t_us; }
+            if (ms > -41.0 && ms < -39.0) { s.flags = ShaftWedge; keptWedgeT = s.t_us; }
+        }
+        for (int64_t wt : { keptWedgeT, wedgeT }) {
+            b.wedgeObs.push_back({ wt - 2000, 1.0, ShaftWedgeObsKind::Trail, 3.f });
+            b.wedgeObs.push_back({ wt - 1000, 1.0, ShaftWedgeObsKind::Mid,   3.f });
+            b.wedgeObs.push_back({ wt,        1.0, ShaftWedgeObsKind::Lead,  3.f });
+        }
+        const int bDem = demoteImplausibleImpactWindow(b, imp, cfg);
+        std::printf("    M2: demoted %d, wedge edges left %zu\n", bDem, b.wedgeObs.size());
+        check(bDem == 3 && demotedIn(b, 5.0, 21.0) == 3, "M2: the three backward readings after impact are demoted, nothing else");
+        check(b.wedgeObs.size() == 3 && b.wedgeObs.back().t_us == keptWedgeT,
+              "M2: the demoted wedge frame's edges go with it; a kept wedge frame's stay");
+
+        // (iii) A genuine club decelerating through impact: 2000 °/s to 1200 (60 %) by +10 ms.
+        const auto slows = [&](double ms) {
+            if (ms <= -10.0) return truth(ms);
+            if (ms <= 10.0) { const double u = ms + 10.0; return 120.0 - (2.0 * u - 0.02 * u * u); }
+            return 88.0 - 1.2 * (ms - 10.0);
+        };
+        ShaftTrack2D c = build(slows);
+        check(demoteImplausibleImpactWindow(c, imp, cfg) == 0, "a genuine track slowing to 60 % through impact: nothing demoted");
+
+        // (iv) Disabled ⇒ nothing demoted and the track untouched.
+        ShaftTrack2D d = build(m1);
+        const ShaftTrack2D d0 = d;
+        ShaftV3Config off = cfg; off.impactWindow.enabled = false;
+        bool untouched = true;
+        check(demoteImplausibleImpactWindow(d, imp, off) == 0, "disabled ⇒ nothing demoted");
+        for (size_t i = 0; i < d.samples.size(); ++i)
+            if (d.samples[i].flags != d0.samples[i].flags || d.samples[i].conf != d0.samples[i].conf
+                || d.samples[i].thetaRad != d0.samples[i].thetaRad) untouched = false;
+        check(untouched, "disabled ⇒ the track is untouched");
+        check(demoteImplausibleImpactWindow(d, -1, cfg) == 0, "no impact ⇒ nothing demoted");
+        ShaftV3Config ovOff = ShaftV3Config::fromOverrides(QVariantMap{ { QStringLiteral("shaft.impactWindow.enabled"), false } });
+        ShaftV3Config ovOn = ShaftV3Config::fromOverrides(QVariantMap{ { QStringLiteral("shaft.impactWindow.enabled"), true } });
+        check(ovOn.impactWindow.enabled, "shaft.impactWindow.enabled=true switches it on");
+        check(!ovOff.impactWindow.enabled && !ShaftV3Config{}.impactWindow.enabled,
+              "shaft.impactWindow.enabled=false reaches the config; the default is OFF");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

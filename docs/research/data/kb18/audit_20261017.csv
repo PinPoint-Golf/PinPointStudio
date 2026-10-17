@@ -1,0 +1,13 @@
+swing,collapse,class,evidence
+2026-07-04/0001,0.23,M1 leg/forearm stall,"−20…+20 ms reads 114/109/105/101/99/92/86° while the tape bands are already down-right; jumps 24° at +26 ms"
+2026-07-04/0005,0.88,clean,"line on the tape bands every frame through impact"
+2026-09-09/0003,0.42,M1 leg stall,"±7 ms reads 92–96°, +13/+20 ms 87/83° while the faint club is right of the hands; jumps to 65° at +27 ms"
+2026-10-05/0013,1.26,M2 wrong branch + jitter,"wedge/recon: 113,121,109,114,137,84,159,70,91,94,109° — backward at −7 and +7 ms"
+2026-10-05/0024,0.33,M1 then M2,"wedge stuck 100–116° from −33 to −7 ms; recon 153–168° (pointing back) from +7 to +33 ms"
+2026-10-07/0015,0.06,M1 shin stall,"dark session, no bands; +13/+20 ms on the shin at 103/92° while the club is low right"
+2026-10-07/0022,0.29,M1 shin stall,"89–107° on the shins from −33 to +33 ms, the whole window"
+2026-10-07/0043,1.58,M1 + backward jitter,"−7 ms reads 137° (back); +13/+20/+33 ms on the shin at 101/104/107°"
+2026-10-08/0016,0.74,clean (mild lag),"bands followed; −13 ms a few degrees behind"
+2026-10-08/0020,0.43,M2 wrong branch,"jitter 92/124/88/136° before impact; recon 146–163° (pointing back) from +7 to +33 ms"
+2026-10-08/0024,1.10,clean,"146,142,128,116,102,82,72,68,62,54,46° — smooth"
+2026-10-08/0003,0.62,not judged,"video frame index does not map to sample index on this swing (frames show the top); excluded"
