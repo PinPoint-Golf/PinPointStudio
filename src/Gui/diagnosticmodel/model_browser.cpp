@@ -25,6 +25,7 @@
 #include "../../Diagnostics/measures/measure_sample.h"
 #include "../../Diagnostics/packs/reference_pack.h"
 #include "../../Diagnostics/packs/screen_pack.h"
+#include "../../Metrics/gate_catalogue.h"
 
 #include <QDateTime>
 #include <QFile>
@@ -58,6 +59,10 @@ const QString kReferences      = QStringLiteral("references");
 const QString kCorridors       = QStringLiteral("corridors");
 const QString kMetrics         = QStringLiteral("metrics");
 const QString kHealth          = QStringLiteral("health");
+// The gate catalogue (Metrics/gate_catalogue.h), READ-ONLY: a gate is part of the analysis and
+// changes only with it. Listed so its explanation, thresholds and lifts — and how often it fired on
+// this library — can be read in one place (trust_and_gates_design.md §7.5, "the Gates page").
+const QString kGates           = QStringLiteral("gates");
 // Not a content type: the shape of the flat result list that REPLACES the table while the search
 // field has something in it. It is a type key only so that columns() answers for it and the table
 // delegate needs no special case.
@@ -342,6 +347,11 @@ QVariantList dotLegendFor(const QString &type)
     if (type == kHealth)
         return { entry("fault", QObject::tr("Error")),
                  entry("watch", QObject::tr("Warning")) };
+    // Colour on this app means "outside its corridor" and nothing else (Mark, 11 Oct), so a gate that
+    // fires on every swing is not marked: its count says it ("147 of 147"), quietly.
+    if (type == kGates)
+        return { entry("good",  QObject::tr("Recorded on each swing")),
+                 entry("none",  QObject::tr("Decided when a screen is read")) };
     return {};
 }
 
@@ -519,6 +529,9 @@ static std::vector<TagFacetDef> tagFacetsFor(const QString &type)
         return { { "needsTags",    QT_TR_NOOP("Needs") },
                  { "improvesTags", QT_TR_NOOP("Improves with") },
                  { "stereoTags",   QT_TR_NOOP("A 2nd camera would") } };
+    // A gate can do several things to a reading (refuse it on one swing, bound it on another).
+    if (type == kGates)
+        return { { "effectTags", QT_TR_NOOP("What it does") } };
     return {};
 }
 
@@ -544,6 +557,10 @@ static QStringList tagFacetOrder(const QString &sortKey)
     }
     if (sortKey == QLatin1String("stereoTags"))
         return { QObject::tr("Unlock it"), QObject::tr("Improve it"), QObject::tr("Refine it") };
+    // Most to least taken away from the reader.
+    if (sortKey == QLatin1String("effectTags"))
+        return { QObject::tr("No reading"), QObject::tr("A range"), QObject::tr("Not judged"),
+                 QObject::tr("Fell back"), QObject::tr("Marked on the chart") };
     return {};
 }
 
@@ -611,7 +628,116 @@ QString typeLabelFor(const QString &type)
     if (type == kReferences)      return QObject::tr("Reference");
     if (type == kMetrics)         return QObject::tr("Metric");
     if (type == kHealth)          return QObject::tr("Health");
+    if (type == kGates)           return QObject::tr("Gate");
     return type;
+}
+
+// ── Gates ───────────────────────────────────────────────────────────────────
+//
+// Words for the gate catalogue's fields. The entry's own words (title, explain, evidence template,
+// liftText) come from Metrics/gate_catalogue.h unchanged; what is said here is only how a catalogue
+// page lists them.
+
+QString gateEffectWord(pinpoint::analysis::GateEffect e)
+{
+    using pinpoint::analysis::GateEffect;
+    switch (e) {
+    case GateEffect::Refused:    return QObject::tr("No reading");
+    case GateEffect::Bounded:    return QObject::tr("A range");
+    case GateEffect::Withheld:   return QObject::tr("Not judged");
+    case GateEffect::Downgraded: return QObject::tr("Fell back");
+    case GateEffect::Masked:     return QObject::tr("Marked on the chart");
+    }
+    return QString();
+}
+
+QStringList gateEffectWords(const pinpoint::gates::GateEntry &e)
+{
+    QStringList out;
+    for (pinpoint::analysis::GateEffect x : e.effects) {
+        const QString w = gateEffectWord(x);
+        if (!w.isEmpty() && !out.contains(w)) out << w;
+    }
+    return out;
+}
+
+// One tuned constant's value as the reader sees it: "20°", "47 ms", "0.3", "on".
+QString gateTuningValue(const pinpoint::gates::GateTuning &t)
+{
+    if (t.unit == QLatin1String("switch"))
+        return t.value != 0.0 ? QObject::tr("on") : QObject::tr("off");
+    const bool    whole = std::fabs(t.value - std::round(t.value)) < 1e-9;
+    const QString v     = pinpoint::gates::detail::minusSigned(t.value, whole ? 0 : 2, false);
+    if (t.unit.isEmpty()) return v;
+    if (t.unit == QStringLiteral("°")) return v + t.unit;
+    return v + QChar(0x00A0) + t.unit;
+}
+
+// The table's threshold cell: the numbers compared against, switches left to the inspector (a row of
+// "on, off, off" says nothing on its own).
+QString gateThresholdSummary(const pinpoint::gates::GateEntry &e)
+{
+    QStringList out;
+    for (const pinpoint::gates::GateTuning &t : e.tuning)
+        if (t.unit != QLatin1String("switch")) out << gateTuningValue(t);
+    return out.join(QStringLiteral(", "));
+}
+
+// An evidence template made readable without a record: each `{key:fmt}` becomes the quantity's name
+// in brackets with the unit the record would print ("‹span› px"), a `{…:code}` points at the reasons
+// listed below it, and the optional `[ … ]` marks are dropped (their words stay).
+QString gateReadableTemplate(const QString &tpl)
+{
+    static const QRegularExpression re(QStringLiteral("\\{([A-Za-z0-9_]+)(?::([a-z]+))?\\}"));
+    static const QStringList unitWords{ QStringLiteral("ms"), QStringLiteral("us"), QStringLiteral("px"),
+                                        QStringLiteral("deg"), QStringLiteral("mph"), QStringLiteral("cm"),
+                                        QStringLiteral("in"), QStringLiteral("pct") };
+    const auto words = [](const QString &key) {
+        QStringList w;
+        QString     cur;
+        for (const QChar ch : key) {
+            if (ch.isUpper() && !cur.isEmpty()) { w << cur; cur.clear(); }
+            cur += ch.toLower();
+        }
+        if (!cur.isEmpty()) w << cur;
+        return w;
+    };
+    QString   out;
+    qsizetype last = 0;
+    auto      it   = re.globalMatch(tpl);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        out += tpl.mid(last, m.capturedStart() - last);
+        last = m.capturedEnd();
+        const QString fmt = m.captured(2);
+        if (fmt == QLatin1String("code")) {
+            out += QObject::tr("‹one of the reasons below›");
+            continue;
+        }
+        QStringList w = words(m.captured(1));
+        if (w.size() > 1 && unitWords.contains(w.last())) w.removeLast();
+        QString unit;
+        if (fmt == QLatin1String("t") || fmt == QLatin1String("ms")) unit = QStringLiteral(" ms");
+        else if (fmt == QLatin1String("deg")) unit = QStringLiteral("°");
+        else if (fmt == QLatin1String("mph")) unit = QStringLiteral(" mph");
+        else if (fmt == QLatin1String("px"))  unit = QStringLiteral(" px");
+        else if (fmt == QLatin1String("pct")) unit = QStringLiteral("%");
+        else if (fmt == QLatin1String("cm"))  unit = QStringLiteral(" cm");
+        else if (fmt == QLatin1String("in"))  unit = QStringLiteral(" in");
+        out += QStringLiteral("‹") + w.join(QLatin1Char(' ')) + QStringLiteral("›") + unit;
+    }
+    out += tpl.mid(last);
+    out.remove(QLatin1Char('['));
+    out.remove(QLatin1Char(']'));
+    return out;
+}
+
+// The last count per library, for the life of the process — a reopened panel shows it at once and
+// re-walks behind it. GUI thread only: written by onGateScanFinished, read by the panel.
+QHash<QString, ModelGateCounts> &gateCountCache()
+{
+    static QHash<QString, ModelGateCounts> cache;
+    return cache;
 }
 
 } // namespace
@@ -626,11 +752,14 @@ ModelBrowser::ModelBrowser(QObject *parent)
     , m_policyName(QStringLiteral("standard"))
     , m_corridorWatcher(new QFutureWatcher<QVariantList>(this))
     , m_swingWatcher(new QFutureWatcher<SwingPhaseGrid>(this))
+    , m_gateWatcher(new QFutureWatcher<ModelGateCounts>(this))
 {
     connect(m_corridorWatcher, &QFutureWatcher<QVariantList>::finished,
             this, &ModelBrowser::onCorridorScanFinished);
     connect(m_swingWatcher, &QFutureWatcher<SwingPhaseGrid>::finished,
             this, &ModelBrowser::onSwingGridLoaded);
+    connect(m_gateWatcher, &QFutureWatcher<ModelGateCounts>::finished,
+            this, &ModelBrowser::onGateScanFinished);
 
     // The user's override file, read separately from the merged view — saving must write back the
     // user's own entries and never a flattened copy of the shipped pack.
@@ -689,6 +818,7 @@ ModelBrowser::~ModelBrowser()
     // joined before that future dies with us.
     if (m_corridorWatcher->isRunning()) m_corridorWatcher->waitForFinished();
     if (m_swingWatcher->isRunning())    m_swingWatcher->waitForFinished();
+    if (m_gateWatcher->isRunning())     m_gateWatcher->waitForFinished();
 }
 
 // ⚠ THIS INVALIDATES EVERY POINTER INTO THE ASSEMBLY. m_assembled, m_norms, m_screens and m_drills
@@ -951,6 +1081,7 @@ QVariantList ModelBrowser::types() const
         { kDrills,          tr("Drills"),          tr("what a golfer does about it") },
         { kReferences,      tr("References"),      tr("what the library rests on") },
         { kCorridors,       tr("Corridors"),       tr("what good looks like, per context") },
+        { kGates,           tr("Gates"),           tr("what keeps a reading from being judged") },
         { kHealth,          tr("Health"),          tr("what is wrong with this draft") },
     };
 
@@ -1142,6 +1273,16 @@ QVariantList ModelBrowser::columns(const QString &type) const
         c.append(column(QStringLiteral("connected"), tr("Connected to"), 300));
         c.append(column(QStringLiteral("links"), tr("Links"), 62, false, QStringLiteral("right"), true));
         c.append(column(QStringLiteral("status"), tr("Status"), 90));
+    } else if (type == kGates) {
+        c.append(column(QStringLiteral("name"), tr("Gate"), 220, /*flex*/ true));
+        c.append(column(QStringLiteral("area"), tr("Area"), 150));
+        c.append(column(QStringLiteral("kind"), tr("Kind"), 64));
+        c.append(column(QStringLiteral("effects"), tr("What it does"), 170));
+        c.append(column(QStringLiteral("threshold"), tr("Threshold"), 120));
+        // How often it fired on this library: n of the swings that carry records. Rules leave no
+        // per-swing record and read "—".
+        c.append(column(QStringLiteral("fired"), tr("Fired on"), 110, false, QStringLiteral("right"), true));
+        c.append(column(QStringLiteral("id"), tr("Id"), 200, false, QStringLiteral("left"), true));
     } else if (type == kHealth) {
         c.append(column(QStringLiteral("severity"), tr("Severity"), 90));
         c.append(column(QStringLiteral("code"), tr("Code"), 170, false, QStringLiteral("left"), true));
@@ -1862,6 +2003,71 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
                          .join(QLatin1Char(' ')));
             out.append(r);
         }
+    } else if (type == kGates) {
+        // READ-ONLY, like the metrics: every cell is inert. One row per catalogue entry, gates and
+        // rules alike, in catalogue order (by area).
+        namespace G = pinpoint::gates;
+        const bool counted = m_gateCounts.valid && m_gateCounts.root == m_libraryRoot;
+        int order = 0;
+        for (const G::GateEntry &e : G::gateCatalogue()) {
+            const QStringList effects    = gateEffectWords(e);
+            const QString     thresholds = gateThresholdSummary(e);
+
+            QString firedText = tr("—");
+            QString firedTone = QStringLiteral("dim");
+            double  firedKey  = -1.0;
+            if (!e.rule) {
+                if (counted) {
+                    const int m = m_gateCounts.recordedSince(e.since);
+                    const int n = m_gateCounts.fired.value(e.id);
+                    if (m == 0) {
+                        firedText = tr("not recorded");
+                    } else {
+                        firedText = tr("%1 of %2").arg(n).arg(m);
+                        firedTone = n == 0 ? QStringLiteral("dim") : QString();
+                        firedKey  = double(n) / double(m);
+                    }
+                } else if (m_gatesScanning) {
+                    firedText = tr("counting…");
+                }
+            }
+
+            QVariantList cells;
+            cells.append(cell(e.title));
+            cells.append(cell(e.area));
+            cells.append(cell(e.rule ? tr("Rule") : tr("Gate"), e.rule ? QStringLiteral("dim") : QString()));
+            cells.append(cell(effects.join(QStringLiteral(" · "))));
+            cells.append(cell(thresholds.isEmpty() ? tr("—") : thresholds,
+                              thresholds.isEmpty() ? QStringLiteral("dim") : QString()));
+            cells.append(cell(firedText, firedTone, true, QStringLiteral("right")));
+            cells.append(cell(e.id, QStringLiteral("dim"), true));
+
+            QVariantMap r;
+            r.insert(QStringLiteral("id"), e.id);
+            r.insert(QStringLiteral("type"), kGates);
+            r.insert(QStringLiteral("label"), e.title);
+            r.insert(QStringLiteral("dot"), e.rule ? QStringLiteral("none") : QStringLiteral("good"));
+            r.insert(QStringLiteral("cells"), cells);
+
+            QVariantMap keys;
+            keys.insert(QStringLiteral("order"), order++);
+            keys.insert(QStringLiteral("name"), e.title);
+            keys.insert(QStringLiteral("area"), e.area);
+            keys.insert(QStringLiteral("kind"), e.rule ? 1 : 0);
+            keys.insert(QStringLiteral("effects"), effects.join(QLatin1Char(' ')));
+            keys.insert(QStringLiteral("effectTags"), effects);
+            keys.insert(QStringLiteral("threshold"), thresholds);
+            keys.insert(QStringLiteral("fired"), firedKey);
+            keys.insert(QStringLiteral("id"), e.id);
+            r.insert(QStringLiteral("sortKeys"), keys);
+
+            QStringList haystack{ e.id, e.title, e.shortText, e.area, e.explain,
+                                  gateReadableTemplate(e.evidenceText) };
+            haystack << effects;
+            for (const G::GateTuning &t : e.tuning) haystack << t.key;
+            r.insert(QStringLiteral("searchText"), haystack.join(QLatin1Char(' ')));
+            out.append(r);
+        }
     } else if (type == kHealth) {
         // What is wrong with THE DRAFT, not with the file. That is the whole reason the working copy
         // is assembled: a validation strip that graded the saved pack would stay green through an
@@ -1916,7 +2122,8 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
     for (QVariant &v : out) {
         QVariantMap  r      = v.toMap();
         const QString id    = r.value(QStringLiteral("id")).toString();
-        const QString src   = sourceOf(id);
+        // A gate is part of the analysis: always shipped, and never in the pack sourceOf() reads.
+        const QString src   = type == kGates ? QStringLiteral("shipped") : sourceOf(id);
         r.insert(QStringLiteral("source"), src);
         r.insert(QStringLiteral("sourceLabel"),
                  src == QStringLiteral("yours")   ? tr("Yours")
@@ -2060,6 +2267,9 @@ QVariantList ModelBrowser::rows(const QString &type, const QVariantMap &filters)
         } else if (type == kMetrics) {
             // By group, the way the catalogue itself is organised.
             sortKey = QStringLiteral("group");
+        } else if (type == kGates) {
+            // Catalogue order, which is by area.
+            sortKey = QStringLiteral("order");
         } else if (type == kCorridors) {
             // By measure, so a measure's five contexts sit together — the comparison an author
             // actually makes is driver against iron against wedge, not one corridor in isolation.
@@ -2182,6 +2392,7 @@ QVariantList ModelBrowser::facets(const QString &type) const
     else if (type == kCorridors)   keys = { QStringLiteral("context"), QStringLiteral("source"),
                                             QStringLiteral("unit") };
     else if (type == kHealth)      keys = { QStringLiteral("severity"), QStringLiteral("code") };
+    else if (type == kGates)       keys = { QStringLiteral("area"), QStringLiteral("kind") };
     else return {};
 
     const QVariantList all  = rawRows(type);
@@ -2420,7 +2631,7 @@ QVariantList ModelBrowser::searchAll(const QString &query) const
     // drills together — that is the whole point, and it cannot be assembled in QML because no one
     // of these lists can see the others.
     const QStringList order = { kCharacteristics, kCauses, kMetrics, kMeasures, kSignals, kLinks,
-                                kScreens, kDrills, kReferences };
+                                kScreens, kDrills, kReferences, kGates };
 
     QVariantList out;
     QSet<QString> seen;   // a cause is also a characteristic; one object, one row
@@ -2717,6 +2928,13 @@ QVariantMap ModelBrowser::searchExtras(const QString &type, const QString &id) c
         out.insert(QStringLiteral("status"), d->planned() ? tr("Planned") : tr("Live"));
         out.insert(QStringLiteral("statusTone"), d->planned() ? QStringLiteral("watch")
                                                               : QStringLiteral("good"));
+    } else if (type == kGates) {
+        const pinpoint::gates::GateEntry *e = pinpoint::gates::gateEntry(id);
+        if (!e) return out;
+        out.insert(QStringLiteral("connected"), e->area);
+        out.insert(QStringLiteral("links"), QString());
+        out.insert(QStringLiteral("status"), e->rule ? tr("Rule") : tr("Gate"));
+        out.insert(QStringLiteral("statusTone"), e->rule ? QStringLiteral("dim") : QString());
     } else if (type == kReferences) {
         const Reference *ref = sharedReferenceSet().reference(id);
         if (!ref) return out;
@@ -3301,6 +3519,157 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
             uses.append(hubRow(QString(), QString(), u, QString(), QString(), false));
         if (!uses.isEmpty()) sections.append(section(tr("Used by"), uses));
 
+    } else if (type == kGates) {
+        namespace G = pinpoint::gates;
+        const G::GateEntry *e = G::gateEntry(id);
+        if (!e) return out;
+
+        out.insert(QStringLiteral("found"), true);
+        out.insert(QStringLiteral("label"), e->title);
+        out.insert(QStringLiteral("eyebrow"), e->rule ? tr("Rule") : tr("Gate"));
+        out.insert(QStringLiteral("subtitle"), QStringLiteral("%1 · %2").arg(e->id, e->area));
+
+        QVariantList badges;
+        badges.append(hubRow(QString(), QString(), e->area, QString(), QString(), false));
+        for (const QString &w : gateEffectWords(*e))
+            badges.append(hubRow(QString(), QString(), w, QString(), QString(), false));
+        if (!e->setupBound.isEmpty())
+            badges.append(hubRow(QString(), QString(), tr("Set by the setup"), QString(), QString(), false));
+        out.insert(QStringLiteral("badges"), badges);
+
+        sections.append(prose(tr("What it is"), e->explain));
+
+        // The sentence a record fills, with the numbers it would carry named in their place. A rule
+        // leaves no record, so it has none.
+        if (!e->evidenceText.isEmpty()) {
+            QVariantList quote;
+            quote.append(hubRow(QString(), QString(), gateReadableTemplate(e->evidenceText),
+                                QString(), QString(), false));
+            sections.append(section(tr("What a swing's record says"), quote,
+                                    tr("Each ‹…› is filled from the swing."), QStringLiteral("quote")));
+        }
+        if (!e->codes.isEmpty()) {
+            QStringList codes = e->codes.keys();
+            codes.sort();
+            QVariantList rows;
+            for (const QString &c : codes)
+                rows.append(hubRow(QString(), c, gateReadableTemplate(e->codes.value(c)),
+                                   QString(), QString(), false));
+            sections.append(section(tr("The reasons it gives"), rows, QString(), QStringLiteral("prose")));
+        }
+
+        QVariantList thresholds;
+        for (const G::GateTuning &t : e->tuning)
+            thresholds.append(hubRow(QString(), t.key, t.key, gateTuningValue(t), QString(), false));
+        sections.append(section(tr("Thresholds"), thresholds,
+                                thresholds.isEmpty() ? tr("None: it reads no tuned number.") : QString()));
+
+        // What lifts it: the routes that do not have this gate. A rule is lifted by more shots,
+        // not by kit, so it says nothing here.
+        if (!e->rule) {
+            const QString lift = G::liftText(*e);
+            sections.append(prose(tr("What lifts it"),
+                                  lift.isEmpty() ? tr("Nothing the setup can add.") : lift,
+                                  lift.isEmpty() ? QStringLiteral("dim") : QString()));
+        }
+        if (!e->setupBound.isEmpty()) {
+            QVariantList bound;
+            for (const QString &subj : e->setupBound)
+                bound.append(hubRow(QString(), subj, G::subjectLabel(subj), QString(), QString(), false));
+            sections.append(section(tr("Set by the setup"), bound,
+                                    tr("Without one of the routes above, it fires on every swing "
+                                       "for these readings.")));
+        }
+
+        // How often it fired here — the count §7.5 asks for, from the swings' own records.
+        if (e->rule) {
+            sections.append(prose(tr("In this library"),
+                                  tr("Decided when the screen is read, so no swing carries a record "
+                                     "of it and there is nothing to count."),
+                                  QStringLiteral("dim")));
+        } else if (m_libraryRoot.isEmpty()) {
+            sections.append(prose(tr("In this library"), tr("No swing library is set."),
+                                  QStringLiteral("dim")));
+        } else if (!(m_gateCounts.valid && m_gateCounts.root == m_libraryRoot)) {
+            sections.append(prose(tr("In this library"),
+                                  m_gatesScanning ? tr("Counting the library…")
+                                                  : tr("Not counted yet."),
+                                  QStringLiteral("dim")));
+        } else {
+            const ModelGateCounts &gc = m_gateCounts;
+            const int m = gc.recordedSince(e->since);
+            const int n = gc.fired.value(e->id);
+            int recorded = 0;
+            for (auto it = gc.byVersion.constBegin(); it != gc.byVersion.constEnd(); ++it)
+                recorded += it.value();
+
+            QVariantList rows;
+            if (m > 0) {
+                const QString pct = QStringLiteral("%1%").arg(qRound(100.0 * double(n) / double(m)));
+                rows.append(hubRow(QString(), QString(),
+                                   m == 1 ? tr("Fired on %1 of 1 swing").arg(n)
+                                          : tr("Fired on %1 of %2 swings").arg(n).arg(m),
+                                   pct, n == m ? QStringLiteral("warn") : QString(), false));
+                if (n == m)
+                    rows.append(hubRow(QString(), QString(),
+                                       tr("Every swing counted: right about this setup, or wrong about all of them"),
+                                       QString(), QStringLiteral("dim"), false));
+            } else {
+                rows.append(hubRow(QString(), QString(), tr("No swing here was analysed with this gate recorded"),
+                                   QString(), QStringLiteral("dim"), false));
+            }
+            if (recorded > m) {
+                const int older = recorded - m;
+                rows.append(hubRow(QString(), QString(),
+                                   older == 1 ? tr("1 swing analysed before this gate was recorded")
+                                              : tr("%1 swings analysed before this gate was recorded").arg(older),
+                                   QString(), QStringLiteral("dim"), false));
+            }
+            if (gc.notRecorded > 0)
+                rows.append(hubRow(QString(), QString(),
+                                   gc.notRecorded == 1 ? tr("1 swing analysed before reasons were recorded")
+                                                       : tr("%1 swings analysed before reasons were recorded")
+                                                             .arg(gc.notRecorded),
+                                   QString(), QStringLiteral("dim"), false));
+            if (gc.capped)
+                rows.append(hubRow(QString(), QString(), tr("Stopped after %1 swings").arg(gc.swings),
+                                   QString(), QStringLiteral("dim"), false));
+            sections.append(section(tr("In this library"), rows));
+
+            // The sessions it fired in, most first.
+            const QMap<QString, int> bySession = gc.sessions.value(e->id);
+            QList<QPair<QString, int>> sess;
+            for (auto it = bySession.constBegin(); it != bySession.constEnd(); ++it)
+                sess.append({ it.key(), it.value() });
+            std::stable_sort(sess.begin(), sess.end(), [](const QPair<QString, int> &a,
+                                                          const QPair<QString, int> &b) {
+                return a.second > b.second;
+            });
+            constexpr int kShown = 40;
+            QVariantList sRows;
+            for (int i = 0; i < sess.size() && i < kShown; ++i)
+                sRows.append(hubRow(QString(), sess.at(i).first, sess.at(i).first,
+                                    sess.at(i).second == 1 ? tr("1 swing")
+                                                           : tr("%1 swings").arg(sess.at(i).second),
+                                    QString(), false));
+            QString note;
+            if (sess.isEmpty())        note = tr("It has not fired on any swing here.");
+            else if (sess.size() > kShown) note = tr("and %1 more").arg(sess.size() - kShown);
+            sections.append(section(tr("Sessions it fired in"), sRows, note));
+        }
+
+        QVariantList where;
+        if (!e->producer.isEmpty())
+            where.append(hubRow(QString(), QString(), e->producer, tr("where it fires"), QString(), false));
+        if (!e->design.isEmpty())
+            where.append(hubRow(QString(), QString(), e->design, tr("why"), QString(), false));
+        if (!where.isEmpty()) sections.append(section(tr("In the code"), where));
+
+        sections.append(prose(tr("Why this is not editable"),
+                              tr("A gate is part of the analysis: its words and thresholds change "
+                                 "with the code that applies it, not here."),
+                              QStringLiteral("dim")));
+
     } else if (type == kSignals) {
         const Signal *s = p.signal(id);
         if (!s) return out;
@@ -3583,8 +3952,8 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
 
     // Whose content this is, and whether it is unsaved. Every inspector header shows it, because an
     // author has to know whose content they are changing BEFORE they change it.
-    out.insert(QStringLiteral("source"), sourceOf(id));
-    out.insert(QStringLiteral("dirty"), dirtyIds().contains(id));
+    out.insert(QStringLiteral("source"), type == kGates ? QStringLiteral("shipped") : sourceOf(id));
+    out.insert(QStringLiteral("dirty"), type == kGates ? false : dirtyIds().contains(id));
     if (!editableFields.isEmpty()) {
         QVariantList withFields;
         withFields.append(section(tr("Fields"), editableFields, QString(),
@@ -4444,6 +4813,8 @@ int ModelBrowser::validationWarningCount() const
 QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const QString &field,
                                    const QVariant &value)
 {
+    if (type == kGates)
+        return refuse(tr("Gates are read-only here: each is part of the analysis and changes with it."));
     const CharacteristicPack before        = m_working;
     const NormPack           normsBefore   = m_workingNorms;
     const ScreenSet          screensBefore = m_workingScreens;
@@ -4932,6 +5303,8 @@ QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const
 QVariantMap ModelBrowser::setFieldOnAll(const QString &type, const QStringList &ids,
                                         const QString &field, const QVariant &value)
 {
+    if (type == kGates)
+        return refuse(tr("Gates are read-only here: each is part of the analysis and changes with it."));
     if (ids.isEmpty()) return refuse(tr("Nothing selected."));
 
     // ONE command for the whole selection. Re-tiering twelve links has to undo as one action —
@@ -5352,6 +5725,8 @@ QVariantMap ModelBrowser::removeCause(const QStringList &edgeIds)
 
 QVariantMap ModelBrowser::removeObjects(const QString &type, const QStringList &ids)
 {
+    if (type == kGates)
+        return refuse(tr("Gates are read-only here: each is part of the analysis and changes with it."));
     if (ids.isEmpty()) return refuse(tr("Nothing selected."));
     if (type == kLinks) return removeCause(ids);
     if (ids.size() == 1) return removeObject(type, ids.first());
@@ -5600,6 +5975,8 @@ QString mintId(const QString &fromLabel, const QString &prefix, const QString &f
 
 QVariantMap ModelBrowser::duplicate(const QString &type, const QString &id)
 {
+    if (type == kGates)
+        return refuse(tr("Gates are read-only here: each is part of the analysis and changes with it."));
     const CharacteristicPack &p = pack();
 
     // Screens and drills duplicate the same way everything else does — the whole point of duplicate
@@ -5706,6 +6083,8 @@ QVariantMap ModelBrowser::duplicate(const QString &type, const QString &id)
 
 QVariantMap ModelBrowser::removeObject(const QString &type, const QString &id)
 {
+    if (type == kGates)
+        return refuse(tr("Gates are read-only here: each is part of the analysis and changes with it."));
     // A link is addressed by its composed row id everywhere else in the panel, so it is addressed
     // that way here too and unpacked once. Without this every caller had to know that links are
     // removed through a different function with three arguments — which the inspector's Delete
@@ -6568,6 +6947,8 @@ QVariantList ModelBrowser::phases() const
 
 QVariantMap ModelBrowser::createObject(const QString &type, const QString &name)
 {
+    if (type == kGates)
+        return refuse(tr("Gates are read-only here: each is part of the analysis and changes with it."));
     // An author who has already said what this is keeps their words, and the row lands named. The
     // fallback is the placeholder, and the message below still says "give it a name" only when
     // there is one to give.
@@ -6647,6 +7028,8 @@ QVariantMap ModelBrowser::createObject(const QString &type, const QString &name)
 QVariantMap ModelBrowser::createAndAttach(const QString &type, const QString &name,
                                           const QString &otherId, const QString &end)
 {
+    if (type == kGates)
+        return refuse(tr("Gates are read-only here: each is part of the analysis and changes with it."));
     if (!pack().condition(otherId))
         return refuse(tr("No characteristic with id %1.").arg(otherId));
     const bool isCondition = type == kCharacteristics || type == kCauses;
@@ -7159,6 +7542,84 @@ void ModelBrowser::setLibraryRoot(const QString &root)
     m_corridorValues.clear();
     m_corridorScanned.clear();
     emit corridorSamplesChanged();
+
+    // The gate count, likewise: whatever is in memory for the new library (nothing, if none), and a
+    // fresh walk if the Gates view has been opened.
+    m_gateCounts = gateCountCache().value(root);
+    emit gateCountsChanged();
+    if (m_gateScanWanted) scanGates();
+}
+
+void ModelBrowser::scanGates()
+{
+    m_gateScanWanted = true;
+
+    // What is already in memory for this library goes up at once; the walk below refreshes it.
+    if (!(m_gateCounts.valid && m_gateCounts.root == m_libraryRoot)) {
+        const auto hit = gateCountCache().constFind(m_libraryRoot);
+        if (hit != gateCountCache().constEnd()) {
+            m_gateCounts = hit.value();
+            emit gateCountsChanged();
+        }
+    }
+
+    // Once per panel per library: the view is opened and closed often, the library changes rarely.
+    if (m_gateWatcher->isRunning() || m_libraryRoot.isEmpty() || m_gateWalked == m_libraryRoot) return;
+
+    const QString root = m_libraryRoot;
+    m_gatesScanning = true;
+    emit gateCountsChanged();
+
+    // OFF THE GUI THREAD, through the same sidecar read the corridor scan uses. readPhaseGrid with
+    // `writeSidecar` true re-reads a swing whose sidecar is stale (a re-analysed swing), so the count
+    // is of the records the swing holds NOW; a fresh sidecar costs one small file read.
+    m_gateWatcher->setFuture(QtConcurrent::run([root]() -> ModelGateCounts {
+        constexpr int kMaxSwings = 20000;   // a cap, reported when it bites
+        ModelGateCounts c;
+        c.root = root;
+        const QDir rootDir(root);
+        for (const QString &athlete : rootDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+            const QDir aDir(rootDir.filePath(athlete));
+            for (const QString &session : aDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+                const QDir sDir(aDir.filePath(session));
+                for (const QString &swing : sDir.entryList({ QStringLiteral("swing_*") },
+                                                           QDir::Dirs, QDir::Name)) {
+                    if (c.swings >= kMaxSwings) {
+                        c.capped = true;
+                        c.valid  = true;
+                        return c;
+                    }
+                    const SwingPhaseGrid grid = readPhaseGrid(sDir.filePath(swing), /*writeSidecar*/ true);
+                    if (grid.swingDir.isEmpty()) continue;    // no readable analysis: not a swing
+                    ++c.swings;
+                    if (grid.gatesVersion <= 0) { ++c.notRecorded; continue; }
+                    c.byVersion[grid.gatesVersion] += 1;
+                    QSet<QString> once;                        // a swing counts once per gate
+                    for (const GateRecord &r : grid.gates) once.insert(r.gate);
+                    for (const QString &g : once) {
+                        c.fired[g] += 1;
+                        c.sessions[g][session] += 1;
+                    }
+                }
+            }
+        }
+        c.valid = true;
+        return c;
+    }));
+}
+
+void ModelBrowser::onGateScanFinished()
+{
+    const ModelGateCounts c = m_gateWatcher->future().result();
+    m_gatesScanning = false;
+    gateCountCache().insert(c.root, c);
+    if (c.root == m_libraryRoot) {
+        m_gateCounts = c;
+        m_gateWalked = c.root;
+    }
+    emit gateCountsChanged();
+    // The library moved while the walk ran: walk the one now set.
+    if (c.root != m_libraryRoot && m_gateScanWanted) scanGates();
 }
 
 void ModelBrowser::scanCorridor(const QString &measureId)
@@ -7648,6 +8109,9 @@ QVariantMap ModelBrowser::graphFocus(const QString &type, const QString &id) con
         }
     }
 
+    // A gate has no neighbourhood to draw; an empty focus keeps the graph chip and pane away.
+    if (type == kGates) focusId.clear();
+
     QVariantMap out;
     out.insert(QStringLiteral("type"), focusType);
     out.insert(QStringLiteral("id"), focusId);
@@ -7677,5 +8141,6 @@ QVariantMap ModelBrowser::graph(const QString &type, const QString &id,
     }
 
     if (type == kHealth) return {};   // a finding is not an object; it has no neighbourhood
+    if (type == kGates)  return {};   // a gate sits beside the model, not in its graph
     return neighbourhood(type, id, options);
 }

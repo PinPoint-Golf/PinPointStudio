@@ -26,7 +26,9 @@
 #include "../../Metrics/metric_catalogue.h"
 
 #include <QFutureWatcher>
+#include <QHash>
 #include <QJsonObject>
+#include <QMap>
 #include <QObject>
 #include <QSet>
 #include <QVariantList>
@@ -80,6 +82,30 @@ namespace pinpoint::analysis { struct DagLayout; }
 // with what control, and which of two values is "yours" — all decided here. QML is handed columns()
 // and rows() and renders them; it does not know what a Measure is. A rule written in a delegate is
 // a rule nothing can test.
+
+// HOW OFTEN EACH GATE FIRED ACROSS THE LIBRARY (trust_and_gates_design.md §7.5) — the Gates view's
+// count, gathered off the GUI thread from every swing's phase-grid sidecar (`gatesVersion` and
+// `gates`, measure_sample.cpp) and held in memory. A swing counts ONCE per gate however many records
+// that gate left on it. A swing whose analysis carries no `gatesVersion` was analysed before reasons
+// were recorded: it is counted apart, never as "no gate fired".
+struct ModelGateCounts {
+    QString                            root;          // the library this describes
+    bool                               valid = false; // a scan has completed for `root`
+    bool                               capped = false;
+    int                                swings = 0;     // swing folders looked at
+    int                                notRecorded = 0;// of those, analysed before records existed
+    QMap<int, int>                     byVersion;      // gatesVersion → swings stamped with it
+    QHash<QString, int>                fired;          // gate id → swings it fired on
+    QHash<QString, QMap<QString, int>> sessions;       // gate id → session dir → swings
+    // Swings stamped at `since` or later — the ones a gate introduced at `since` could have fired on.
+    int recordedSince(int since) const
+    {
+        int n = 0;
+        for (auto it = byVersion.constBegin(); it != byVersion.constEnd(); ++it)
+            if (it.key() >= since) n += it.value();
+        return n;
+    }
+};
 
 class ModelBrowser : public QObject
 {
@@ -198,6 +224,10 @@ class ModelBrowser : public QObject
     // rather than a column of dashes with no explanation.
     Q_PROPERTY(bool currentSwingHasValues READ currentSwingHasValues NOTIFY currentSwingChanged)
 
+    // ── The Gates view's library count ──────────────────────────────────────
+    // True while the library is being walked for gate records (scanGates()).
+    Q_PROPERTY(bool gatesScanning READ gatesScanning NOTIFY gateCountsChanged)
+
 public:
     explicit ModelBrowser(QObject *parent = nullptr);
     ~ModelBrowser() override;
@@ -238,6 +268,7 @@ public:
     QString currentSwingCohort() const;
     bool    currentSwingLoading() const { return m_swingLoading; }
     bool    currentSwingHasValues() const { return !m_swingGrid.isEmpty(); }
+    bool    gatesScanning() const { return m_gatesScanning; }
 
     // ── Reading ─────────────────────────────────────────────────────────────
 
@@ -516,6 +547,12 @@ public:
     // walks the whole library; the plot renders from whatever has been read so far and says so.
     Q_INVOKABLE void scanCorridor(const QString &measureId);
 
+    // Count, per gate, the swings in the library whose records name it. Asynchronous (the whole
+    // library is walked on a worker); the Gates rows say "counting" until gateCountsChanged. A count
+    // already in memory for this library is shown at once and refreshed by the walk. A walk in
+    // progress is not restarted.
+    Q_INVOKABLE void scanGates();
+
     // ── Context bindings — where a characteristic applies ───────────────────
     //
     // A binding is an EXCEPTION: a context with no row anywhere on its chain applies. Rows carry
@@ -601,6 +638,8 @@ signals:
     void modelChanged();
     void corridorSamplesChanged();
     void currentSwingChanged();
+    // The Gates view's library count landed (or a walk started). Rows refresh on it.
+    void gateCountsChanged();
     // A save landed. The rest of the app caches its providers, so whoever is listening has to
     // re-take theirs or the edit is on disk and invisible until relaunch.
     void libraryChanged();
@@ -829,6 +868,16 @@ private:
     bool                             m_swingLoading = false;
     QFutureWatcher<pinpoint::analysis::SwingPhaseGrid> *m_swingWatcher = nullptr;
     void onSwingGridLoaded();
+
+    // ── The Gates view's library count ──────────────────────────────────────
+    // This panel's copy of the count; the process keeps the last one per library (model_browser.cpp,
+    // gateCountCache) so a reopened panel shows numbers at once while it re-walks.
+    ModelGateCounts                  m_gateCounts;
+    bool                             m_gatesScanning = false;
+    bool                             m_gateScanWanted = false;  // the view has asked once
+    QString                          m_gateWalked;              // the library this panel has walked
+    QFutureWatcher<ModelGateCounts> *m_gateWatcher = nullptr;
+    void onGateScanFinished();
 
     // This swing's reading for one measure, already reduced. nullopt means the swing cannot produce
     // it — no such metric, or a phase the reducer needs was never segmented — which the column

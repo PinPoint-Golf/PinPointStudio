@@ -96,7 +96,20 @@ Item {
         function onLibraryChanged() { root._revision++ }
         // A reading landing has to redraw the picture without re-querying every table in the panel.
         function onCorridorSamplesChanged() { root._scanRevision++ }
+        // The Gates view's library count landed: its "Fired on" column and the inspector's count.
+        function onGateCountsChanged() { root._revision++ }
     }
+
+    // The Gates view counts the library on first sight (off the GUI thread; the rows say "counting…"
+    // until it lands). A gate reached from a search result asks the same way. A gate has no graph,
+    // so the table is where it is read.
+    on_TypeChanged: {
+        if (root._type === "gates") {
+            if (root._view === "graph") root._view = "table"
+            browser.scanGates()
+        }
+    }
+    on_SelectedTypeChanged: if (root._selectedType === "gates") browser.scanGates()
 
     // ── View state ────────────────────────────────────────────────────────────
     property string _type:       "characteristics"
@@ -1106,7 +1119,7 @@ Item {
                 Layout.fillWidth: false
                 Layout.preferredWidth: Theme.sp(140)
                 Layout.minimumWidth:   Theme.sp(120)
-                visible: root._type !== "health"
+                visible: root._type !== "health" && root._type !== "gates"
                 options: [ qsTr("Table"), qsTr("Graph") ]
                 selected: root._view === "table" ? qsTr("Table") : qsTr("Graph")
                 onActivated: (value) => root._view = (value === qsTr("Table") ? "table" : "graph")
@@ -1622,7 +1635,8 @@ Item {
                     onCollapseRequested: appSettings.diagnosticsInspectorCollapsed = true
                     detail:  root._inspectorDetail
                     corridorPlotSource: root._corridorPlotSource
-                    editable: root._typeEditable
+                    // A gate reached from a search result is read-only whatever list is behind it.
+                    editable: root._typeEditable && root._selectedType !== "gates"
                     onCorridorHandleCommitted: (handle, v) => root._report(
                         browser.setField("corridors", root._selectedId, handle, v))
                     // The text goes through verbatim: an empty one clears a plausibility bound,
@@ -1970,7 +1984,7 @@ Item {
         // Window-wide shortcuts outrank a focused text field, so an ungated "G" would make the
         // letter untypeable in the search box and in every inline editor. It is a view toggle, not
         // a text key, and it has to stand down while something is being typed into.
-        enabled: !searchField.activeFocus && !table.editing
+        enabled: !searchField.activeFocus && !table.editing && root._type !== "gates"
                  && !causePicker.opened && !measurePicker.opened && !settlesPicker.opened
         onActivated: root._view = root._view === "graph" ? "table" : "graph"
     }

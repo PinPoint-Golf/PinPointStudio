@@ -267,7 +267,7 @@ Item {
             // ABOUT an object rather than an object with a neighbourhood of its own.
             readonly property bool canGraph: {
                 var t = modelData.resultType || modelData.type || ""
-                return t !== "" && t !== "health"
+                return t !== "" && t !== "health" && t !== "gates"   // a gate sits outside the graph
             }
 
             Rectangle {

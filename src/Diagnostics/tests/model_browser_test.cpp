@@ -135,7 +135,7 @@ int main(int argc, char **argv)
     std::printf("=== the shipped content is reachable ===\n");
     {
         const QVariantList types = m.types();
-        check(types.size() == 11, "eleven content types on the rail");
+        check(types.size() == 12, "twelve content types on the rail (gates joined at trust stage 7)");
         check(typeCount(types, QStringLiteral("characteristics")) > 90,
               "the characteristics are loaded");
         check(typeCount(types, QStringLiteral("measures")) > 90, "the measures are loaded");
