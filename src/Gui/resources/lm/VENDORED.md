@@ -3,9 +3,9 @@
 Copied by `tools/lm_art/vendor.sh` from the PinPoint Golf **Resources** repository (MIT, see
 `LICENSE` here), and not edited by hand. Re-run the script to update; do not touch these files.
 
-- **Resources commit:** `b6c3457d58d6ef8f63fbc817417f5a9e6e3324b3` — Ball: a plain dimpled golf ball and its face-tape impact patch
-- **Vendored:** 2026-10-13
-- **Files:** 98 (13172 KB in all, of which PNG 13056 KB; budget 15 MB)
+- **Resources commit:** `93848160e46710945f624b8445a4b0d98b136eba` — Woods: piano-black pearl heads
+- **Vendored:** 2026-10-17
+- **Files:** 98 (12280 KB in all, of which PNG 12164 KB; budget 15 MB)
 - **PNG long side:** heads 1024 px, ball 768 px (sources are 2048 px). Anchor JSON is
   copied verbatim; `LmClubArt::anchors()` rescales its pixel fields to the vendored image size
   at run time, so the JSON and the PNG can never disagree.
@@ -32,11 +32,11 @@ So the screen asks for at most ~6 physical px/mm. The face view at 1024 px gives
 
 | head | image | px/mm at 2048 | px/mm vendored | body mm |
 |---|---|---|---|---|
-| driver | 2048×1715 → 1024×858 | 10.10 | 5.05 | 121.5 |
+| driver | 2048×1712 → 1024×856 | 10.09 | 5.04 | 121.8 |
 | fairway | 2048×1742 → 1024×871 | 11.49 | 5.75 | 102.9 |
 | hybrid | 2048×1855 → 1024×928 | 12.36 | 6.18 | 89.1 |
 | iron | 2048×1935 → 1024×968 | 12.70 | 6.35 | 97.8 |
-| wedge | 2048×1989 → 1024×994 | 11.80 | 5.90 | 99.4 |
+| wedge | 2048×1989 → 1024×994 | 11.80 | 5.90 | 98.2 |
 
 Every head is at or above what the screen draws (≥ 3 px/mm with room, and never upsampled on
 the This-shot figure). 768 px would put the hybrid (4.6) and the irons (4.8) below their screen

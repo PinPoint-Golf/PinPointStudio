@@ -82,7 +82,7 @@
  "body_bbox": [
   67.0,
   1536.0,
-  1239.6,
+  1226.2,
   1921.7
  ],
  "pivot": [
@@ -111,9 +111,9 @@
   1923
  ],
  "render_seconds": {
-  "light": 34.2,
-  "dark": 37.4,
-  "line-black": 3.1,
+  "light": 36.5,
+  "dark": 46.8,
+  "line-black": 3.6,
   "curv": 2.0,
   "zebra": 2.7
  }

@@ -81,7 +81,7 @@
  ],
  "body_bbox": [
   67.0,
-  808.4,
+  821.8,
   640.3,
   1981.0
  ],
@@ -96,8 +96,10 @@
   1982
  ],
  "render_seconds": {
-  "light": 34.5,
-  "dark": 36.4,
-  "line-black": 1.9
+  "light": 33.9,
+  "dark": 47.0,
+  "line-black": 2.1,
+  "zebra": 1.5,
+  "curv": 1.1
  }
 }
