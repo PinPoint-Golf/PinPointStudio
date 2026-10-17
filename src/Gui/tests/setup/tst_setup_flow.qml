@@ -60,6 +60,7 @@ Item {
             appSettings.cameraExcluded     = []
             appSettings.imuExcluded        = []
             appSettings.cameraFixedInPlace = ({})
+            appSettings.cameraBallRoi      = ({})
             imu     = imuComp.createObject(tc)
             cams    = camComp.createObject(tc)
             athlete = athleteComp.createObject(tc)
@@ -788,6 +789,16 @@ Item {
                 compare(c.ballInstance, inst); verify(!c.ballPresent)
                 c.ensureBallRoi()
                 compare(cams.countCalls("setBallRoi"), 1)
+                fuzzyCompare(inst.roi.x, 0.40, 1e-9)
+                // A saved box is the start, fixed in place or not (FO is not fixed here).
+                appSettings.cameraBallRoi = ({ FO: { x: 0.31, y: 0.62, w: 0.12, h: 0.18 } })
+                inst.roi = Qt.rect(0, 0, 0, 0)
+                c.ensureBallRoi()
+                compare(cams.countCalls("setBallRoi"), 2)
+                fuzzyCompare(inst.roi.x, 0.31, 1e-9); fuzzyCompare(inst.roi.y, 0.62, 1e-9)
+                fuzzyCompare(inst.roi.width, 0.12, 1e-9); fuzzyCompare(inst.roi.height, 0.18, 1e-9)
+                c.ensureBallRoi()
+                compare(cams.countCalls("setBallRoi"), 2, "a set box is left alone")
                 inst.ballPresent = true
                 verify(c.ballPresent)
                 c.setCameraEnabled("FO", false)

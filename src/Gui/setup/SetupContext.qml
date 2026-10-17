@@ -289,10 +289,17 @@ QtObject {
     }
     // Session-local, manager-owned (shared with the toolbar); disabling disconnects (l.1043).
     function setCameraEnabled(cameraKey, on) { cameraMgr.setSessionCameraEnabled(cameraKey, on) }
-    // The Ball step's default hitting area when none is set (l.1203–1207).
+    // The Ball step's hitting area when none is set: this camera's last saved box, fixed in place
+    // or not (the connect-time restore is gated on fixed; here the box is on screen to adjust),
+    // else the default (l.1203–1207).
     function ensureBallRoi() {
         var inst = ballInstance
-        if (inst && inst.roi.width <= 0)
+        if (!inst || inst.roi.width > 0)
+            return
+        var r = settings.cameraBallRoi[inst.cameraKey]
+        if (r && r.w > 0 && r.h > 0)
+            cameraMgr.setBallRoi(inst, Qt.rect(r.x, r.y, r.w, r.h))
+        else
             cameraMgr.setBallRoi(inst, Qt.rect(0.40, 0.55, 0.20, 0.30))
     }
     function relearnBallBaseline() { cameraMgr.relearnBallBaseline(ballInstance) }   // l.1245
