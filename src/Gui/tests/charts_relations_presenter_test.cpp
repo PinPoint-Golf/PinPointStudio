@@ -243,6 +243,49 @@ private slots:
                 for (const QVariant &f : r.toMap().value(QStringLiteral("firedShots")).toList()) QVERIFY(!f.toBool());
     }
 
+    void verdictSaysFaultOutsideOrInside()
+    {
+        // the Readings tab's filter (Mark, 17 Oct 2026): past the fault line (|z| beyond the policy's watchMaxZ /
+        // idealMaxZ, the ledger's z being in Ideal half-widths), out of its corridor, graded clean, or not graded
+        // sway fires on four of the fixture's shots, linked here to the hand-path loop at P4 (Top = 2)
+        auto s = withDirs(m_fx.session);
+        s->conditions[QStringLiteral("sway")].metricKey = QStringLiteral("handPathLoop");
+        s->conditions[QStringLiteral("sway")].phase = 2;
+        int firedShot = 0, cleanShot = 0, plainShot = 0;
+        for (const auto &sh : s->shots) {
+            const bool f = sh->diagnostics.fired.contains(QStringLiteral("sway"));
+            if (f && !firedShot) firedShot = sh->ordinal;
+            else if (!f && !cleanShot) cleanShot = sh->ordinal;
+            else if (!f && !plainShot) plainShot = sh->ordinal;
+        }
+        QVERIFY(firedShot && cleanShot && plainShot);
+        const auto setZ = [&](double z) {
+            auto c = std::make_shared<ShotSeries>(*s->shots[size_t(firedShot - 1)]);
+            c->diagnostics.values[QStringLiteral("sway")].z = z;
+            s->shots[size_t(firedShot - 1)] = c;
+        };
+        const auto row = [&](int shot, const QString &policy = QStringLiteral("standard")) {
+            auto p = make(s, shot);
+            p->setGradePolicy(policy);
+            return rowOf(p->thisShot(), QStringLiteral("handPathLoop@2"));
+        };
+        setZ(5.0);
+        QCOMPARE(row(firedShot).value(QStringLiteral("verdict")).toString(), QStringLiteral("fault"));
+        QCOMPARE(row(firedShot).value(QStringLiteral("firedWord")).toString(), QStringLiteral("past its fault line"));
+        setZ(-2.5);
+        QCOMPARE(row(firedShot).value(QStringLiteral("verdict")).toString(), QStringLiteral("outside"));
+        QCOMPARE(row(firedShot).value(QStringLiteral("firedWord")).toString(), QStringLiteral("out of its corridor"));
+        // Lenient puts the fault line at 3.5 / 1.5 Ideal half-widths
+        QCOMPARE(row(firedShot, QStringLiteral("lenient")).value(QStringLiteral("verdict")).toString(), QStringLiteral("fault"));
+        // graded clean through the row's own reading → inside; nothing graded it → no verdict
+        auto c = std::make_shared<ShotSeries>(*s->shots[size_t(cleanShot - 1)]);
+        c->diagnostics.clean << QStringLiteral("sway");
+        c->diagnostics.gradedBy.insert(QStringLiteral("sway"), ShotDiagnostics::Reading{ QStringLiteral("m_x"), QStringLiteral("handPathLoop"), 2 });
+        s->shots[size_t(cleanShot - 1)] = c;
+        QCOMPARE(row(cleanShot).value(QStringLiteral("verdict")).toString(), QStringLiteral("inside"));
+        QCOMPARE(row(plainShot).value(QStringLiteral("verdict")).toString(), QString());
+    }
+
     void firedConditionsSayHowTheyRead()
     {
         // the shipped pack's links on 4 July (build/charts-build/condition_links.md): early extension grades

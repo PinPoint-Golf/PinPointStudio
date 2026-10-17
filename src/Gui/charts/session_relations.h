@@ -96,6 +96,8 @@ struct SessionReading {
     std::vector<uint8_t> fired;         // per shot: a condition linked to this reading fired
     std::vector<uint8_t> refused;       // per shot: an estimate a gate refused, shown with a caution (Charts fills it)
     std::vector<double>  refusedSigma;  // its ± per shot (NaN = not characterised)
+    std::vector<uint8_t> clean;         // per shot: a linked condition graded it inside its corridor (Charts fills it)
+    std::vector<double>  firedZ;        // per shot: the largest |z| a fired link read, in the ledger's own unit (Charts)
     QStringList conditionIds;           // the linked conditions
 };
 

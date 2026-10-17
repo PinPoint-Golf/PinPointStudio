@@ -148,6 +148,7 @@ Item {
         facetId: body.relFacet
         openId: body.openId
         playheadUs: root._playUs
+        gradePolicy: appSettings.diagnosticsGradePolicy
     }
     // the Wrist sections (build/wrist-tab, CONTRACT I4): their findings and score are the wrist-domain diagnostics
     // conditions, read off the model's snapshot — no diagnostics object is an input (the model re-joins the

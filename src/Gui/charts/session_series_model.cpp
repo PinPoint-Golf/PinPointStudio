@@ -151,15 +151,14 @@ ShotDiagnostics diagnosticsOf(const pinpoint::analysis::ShotRecord &s,
         v.dir   = r.direction;
         v.confidence = std::isfinite(r.confidence) ? double(r.confidence) : kNaN;
         d.values.insert(r.conditionId, v);
-        if (r.state == ShotState::Fired) {
-            const pinpoint::analysis::ConditionReading cr = readingFor(pack, r.conditionId, r.drivingMeasureId);
-            ShotDiagnostics::Reading rd;
-            rd.measureId = r.drivingMeasureId;
-            rd.metricKey = cr.metricKey;
-            rd.phase     = cr.found ? cr.phase : -1;
-            rd.reducer   = cr.found ? int(cr.reducer) : -1;
-            d.drivenBy.insert(r.conditionId, rd);
-        }
+        const pinpoint::analysis::ConditionReading cr = readingFor(pack, r.conditionId, r.drivingMeasureId);
+        ShotDiagnostics::Reading rd;
+        rd.measureId = r.drivingMeasureId;
+        rd.metricKey = cr.metricKey;
+        rd.phase     = cr.found ? cr.phase : -1;
+        rd.reducer   = cr.found ? int(cr.reducer) : -1;
+        d.gradedBy.insert(r.conditionId, rd);
+        if (r.state == ShotState::Fired) d.drivenBy.insert(r.conditionId, rd);
     }
     d.fired.sort();
     d.clean.sort();

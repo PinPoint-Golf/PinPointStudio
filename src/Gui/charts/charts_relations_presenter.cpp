@@ -30,6 +30,7 @@
 #include "../../Core/pp_debug.h"
 #include "../../Metrics/gate_catalogue.h"   // a masked reading's gate words (cautionOfPicked)
 #include "../../Metrics/metric_catalogue.h"
+#include "../../Diagnostics/norms/norm.h"   // the grade policy: where a fired reading is past its fault line
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>
@@ -288,10 +289,11 @@ QString instantPhrase(const Vocab &v, int reducer, int ph)
 }
 // The warn word under a fired value: the value AT the reading's instant is what an At condition graded;
 // for a peak or a change it is not, so the word says what was out of its corridor.
-QString firedWordFor(const Vocab &v, const FiredLink &l)
+QString firedWordFor(const Vocab &v, const FiredLink &l, bool fault = false)
 {
-    if (l.reducer <= 0) return QStringLiteral("out of its corridor");
-    return QStringLiteral("the ") + instantPhrase(v, l.reducer, l.phase) + QStringLiteral(" out of its corridor");
+    const QString where = fault ? QStringLiteral("past its fault line") : QStringLiteral("out of its corridor");
+    if (l.reducer <= 0) return where;
+    return QStringLiteral("the ") + instantPhrase(v, l.reducer, l.phase) + QLatin1Char(' ') + where;
 }
 
 struct ReadingMeta {
@@ -386,6 +388,8 @@ void linkFired(const SessionSnapshot &s, std::vector<SessionReading> &rs, QHash<
     for (size_t i = 0; i < rs.size(); ++i) {
         byKey[rs[i].key].push_back(int(i));
         rs[i].fired.assign(size_t(N), 0);
+        rs[i].clean.assign(size_t(N), 0);
+        rs[i].firedZ.assign(size_t(N), kNaN);
         rs[i].conditionIds.clear();
     }
     const auto target = [&](const QString &key, int ph) {
@@ -419,8 +423,19 @@ void linkFired(const SessionSnapshot &s, std::vector<SessionReading> &rs, QHash<
             }
             SessionReading &r = rs[size_t(t)];
             r.fired[size_t(i)] = 1;
+            const double z = std::abs(d.values.value(c).z);
+            if (std::isfinite(z) && !(z <= r.firedZ[size_t(i)])) r.firedZ[size_t(i)] = z;
             if (!r.conditionIds.contains(c)) r.conditionIds << c;
             if (firedBy) (*firedBy)[qint64(t) * N + i] << FiredLink{ c, ph, red };
+        }
+        // graded inside its corridor: the clean row's own reading (gradedBy), the condition's link where it named none
+        for (const QString &c : d.clean) {
+            const auto gb = d.gradedBy.constFind(c);
+            const QString key = gb != d.gradedBy.constEnd() && !gb->metricKey.isEmpty() ? gb->metricKey : s.conditions.value(c).metricKey;
+            const int ph = gb != d.gradedBy.constEnd() && !gb->metricKey.isEmpty() ? gb->phase : s.conditions.value(c).phase;
+            if (key.isEmpty()) continue;
+            const int t = target(key, ph);
+            if (t >= 0) rs[size_t(t)].clean[size_t(i)] = 1;
         }
     }
     for (SessionReading &r : rs) r.conditionIds.sort();
@@ -537,6 +552,7 @@ struct Ctx {
     int pick = -1;          // shot index of the picked shot, −1 none
     int n = 0;
     int readAtGen = 0;
+    double faultZ = 3.0;    // where Action begins, in the ledger's z unit (the Ideal half-width): watchMaxZ / idealMaxZ
 
     // A shot's own ordinal from its 1-based position in S (identity in a session; not in a club's subset).
     int ord(int pos) const { return pos >= 1 && pos <= int(S.shots.size()) ? S.shots[size_t(pos - 1)]->ordinal : pos; }
@@ -613,6 +629,11 @@ QVariantMap rowMap(const Ctx &x, int i)
     const ReadingMeta &m = x.m(i);
     const ReadingPlace p = x.pick >= 0 ? placeOf(r, x.pick) : ReadingPlace{};
     const bool fired = x.pick >= 0 && size_t(x.pick) < r.fired.size() && r.fired[size_t(x.pick)];
+    // this shot's verdict on the reading (the Readings tab's filter): past the fault line (the grade's Action band),
+    // out of its corridor (Watch), graded inside it, or "" when no condition graded it on this shot
+    const bool fault = fired && size_t(x.pick) < r.firedZ.size() && r.firedZ[size_t(x.pick)] > x.faultZ;
+    const bool inside = !fired && x.pick >= 0 && size_t(x.pick) < r.clean.size() && r.clean[size_t(x.pick)];
+    const QString verdict = fault ? QStringLiteral("fault") : fired ? QStringLiteral("outside") : inside ? QStringLiteral("inside") : QString();
     QVariantList conds, links;
     QString firedWord;
     if (fired)
@@ -623,9 +644,9 @@ QVariantMap rowMap(const Ctx &x, int i)
             conds << text;
             links << QVariantMap{ { QStringLiteral("id"), l.id }, { QStringLiteral("name"), name }, { QStringLiteral("reducer"), l.reducer },
                                   { QStringLiteral("instant"), inst }, { QStringLiteral("text"), text } };
-            if (firedWord.isEmpty()) firedWord = firedWordFor(x.v, l);
+            if (firedWord.isEmpty()) firedWord = firedWordFor(x.v, l, fault);
         }
-    if (fired && firedWord.isEmpty()) firedWord = QStringLiteral("out of its corridor");
+    if (fired && firedWord.isEmpty()) firedWord = fault ? QStringLiteral("past its fault line") : QStringLiteral("out of its corridor");
     const bool curve = m.drawsCurve && x.pickedHasCurve(r.key);
     // no value on this shot because a gate refused it: a plain "-" in the row; why is said once, in the panel's tail
     // (Mark, 17 Oct 2026). gateWords stays on the map for readers that name it (none on screen).
@@ -656,7 +677,7 @@ QVariantMap rowMap(const Ctx &x, int i)
         { QStringLiteral("rz"), p.rz }, { QStringLiteral("side"), p.side }, { QStringLiteral("apart"), p.side != 0 },
         { QStringLiteral("box"), boxMap(r.box) }, { QStringLiteral("values"), nums(r.values) },
         { QStringLiteral("firedShots"), boolsOf(r.fired) }, { QStringLiteral("fired"), fired },
-        { QStringLiteral("firedWord"), firedWord },
+        { QStringLiteral("firedWord"), firedWord }, { QStringLiteral("verdict"), verdict },
         { QStringLiteral("conditions"), conds }, { QStringLiteral("firedConditions"), links },
         { QStringLiteral("wrapped"), r.wrapped }, { QStringLiteral("wrappedMark"), r.wrapped ? QStringLiteral("†") : QString() },
         { QStringLiteral("hasCurve"), curve }, { QStringLiteral("opens"), curve ? QStringLiteral("trace") : QStringLiteral("run") } };
@@ -2072,7 +2093,7 @@ static std::shared_ptr<ChartsRelationsPresenter::Output> computeRelations(const 
                                                                    const QString &reg, const QString &family, const QString &up,
                                                                    const QString &across, const QString &facet, const QString &open,
                                                                    const ChartsRelationsPresenter::ReadAt &readAt, int readAtGen,
-                                                                   ChartsRelationsPresenter::Cache &cache)
+                                                                   double faultZ, ChartsRelationsPresenter::Cache &cache)
 {
     QElapsedTimer timer;
     timer.start();
@@ -2085,6 +2106,7 @@ static std::shared_ptr<ChartsRelationsPresenter::Output> computeRelations(const 
     Ctx x{ cache, S, vocab };
     x.n = S.count();
     x.readAtGen = readAtGen;
+    x.faultZ = faultZ;
     for (int i = 0; i < x.n; ++i) if (!picked.isEmpty() && cleanDir(S.shots[size_t(i)]->swingDir) == picked) { x.pick = i; break; }
 
     int pickIdx = -1;
@@ -2195,6 +2217,7 @@ void ChartsRelationsPresenter::setUpId(const QString &id) { PP_SET(m_upId, id, u
 void ChartsRelationsPresenter::setAcrossId(const QString &id) { PP_SET(m_acrossId, id, acrossIdChanged, true); }
 void ChartsRelationsPresenter::setFacetId(const QString &id) { PP_SET(m_facetId, id, facetIdChanged, true); }
 void ChartsRelationsPresenter::setOpenId(const QString &id) { PP_SET(m_openId, id, openIdChanged, true); }
+void ChartsRelationsPresenter::setGradePolicy(const QString &p) { PP_SET(m_gradePolicy, p, gradePolicyChanged, true); }
 void ChartsRelationsPresenter::setPickedDetail(const QVariantMap &d)
 {
     if (m_pickedDetail == d) return;
@@ -2247,16 +2270,18 @@ void ChartsRelationsPresenter::start()
     const QVariantMap detail = m_pickedDetail;
     const ReadAt readAt = m_readAt;
     const int gen = m_generation;
+    const pa::GradePolicy gp = pa::gradePolicyByName(m_gradePolicy);
+    const double faultZ = gp.idealMaxZ > 0.0 ? gp.watchMaxZ / gp.idealMaxZ : 3.0;
     auto cache = m_cache;
     if (m_synchronous) {
         m_pool.waitForDone();
-        deliver(computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, *cache));
+        deliver(computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, *cache));
         return;
     }
     m_running = true;
     emit busyChanged();
-    m_pool.start([this, snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, cache]() {
-        auto out = computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, *cache);
+    m_pool.start([this, snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, cache]() {
+        auto out = computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, *cache);
         QMetaObject::invokeMethod(this, [this, out]() {
             m_running = false;
             deliver(out);

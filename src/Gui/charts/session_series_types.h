@@ -117,6 +117,9 @@ struct ShotDiagnostics {
         int     reducer = -1;   // ADDED: as ConditionInfo::reducer
     };
     QHash<QString, Reading> drivenBy;     // conditionId → reading; fired conditions only
+    // ADDED 17 Oct (additive): the reading behind EVERY graded row — fired and clean — resolved the
+    // same way, so a reading graded inside its corridor is known as such (the Readings tab's Inside).
+    QHash<QString, Reading> gradedBy;     // conditionId → reading; fired and clean conditions
 
     // ADDED 14 Oct (K4). The kinematic sequence checks, "Sequence checks: n of m", in the shape
     // Coaching/sequence_checks.h sequenceChecksToVariant() publishes — read off the ledger's own

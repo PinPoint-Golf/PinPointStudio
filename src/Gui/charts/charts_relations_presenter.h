@@ -81,7 +81,9 @@
 //         corridor", "the rate of change to P7 …" otherwise; "" when not fired), conditions: [texts that
 //         fired on this shot here, "Early extension, peak before P7"], firedConditions: [{ id, name,
 //         reducer (0 At 1 Delta 2 Rate 3 Extremum −1), instant ("at P7" | "peak before P7" | "change to P7" |
-//         "rate of change to P7" | ""), text }], wrapped (bool), wrappedMark
+//         "rate of change to P7" | ""), text }], verdict ("fault" past the fault line — "past its fault
+//         line" replaces "out of its corridor" in firedWord then — | "outside" | "inside" graded clean |
+//         "" not graded on this shot; the Readings tab's filter), wrapped (bool), wrappedMark
 //         ("†" | ""), hasCurve (this shot has the curve and the catalogue draws it), opens ("trace"|"run") }
 //   · A RUN (RunBox) = { readingId, key, label, tag, unit, unitText, caption (string),
 //       points: [{ ordinal, shotId, swingDir, value|null, measured, fired, picked }], box,
@@ -234,6 +236,8 @@ class ChartsRelationsPresenter : public QObject
     Q_PROPERTY(QString acrossId READ acrossId WRITE setAcrossId NOTIFY acrossIdChanged)
     Q_PROPERTY(QString facetId READ facetId WRITE setFacetId NOTIFY facetIdChanged)
     Q_PROPERTY(QString openId READ openId WRITE setOpenId NOTIFY openIdChanged)
+    // the Diagnostics grade policy's name (AppSettings.diagnosticsGradePolicy): where a fired reading is past its fault line
+    Q_PROPERTY(QString gradePolicy READ gradePolicy WRITE setGradePolicy NOTIFY gradePolicyChanged)
     Q_PROPERTY(qint64 playheadUs READ playheadUs WRITE setPlayheadUs NOTIFY playheadUsChanged)
     Q_PROPERTY(QVariantMap pickedDetail READ pickedDetail WRITE setPickedDetail NOTIFY pickedDetailChanged)
 
@@ -270,6 +274,8 @@ public:
     void     setFacetId(const QString &id);
     QString  openId() const { return m_openId; }
     void     setOpenId(const QString &id);
+    QString  gradePolicy() const { return m_gradePolicy; }
+    void     setGradePolicy(const QString &p);
     qint64   playheadUs() const { return m_playheadUs; }
     void     setPlayheadUs(qint64 us);
     QVariantMap pickedDetail() const { return m_pickedDetail; }
@@ -332,6 +338,7 @@ signals:
     void acrossIdChanged();
     void facetIdChanged();
     void openIdChanged();
+    void gradePolicyChanged();
     void playheadUsChanged();
     void pickedDetailChanged();
     void busyChanged();
@@ -358,6 +365,7 @@ private:
     QPointer<QObject> m_model;
     std::shared_ptr<const SessionSnapshot> m_directSnapshot;
     QString m_picked, m_register = QStringLiteral("analyse"), m_family, m_upId, m_acrossId, m_facetId, m_openId;
+    QString m_gradePolicy = QStringLiteral("standard");
     qint64  m_playheadUs = -1;
     QVariantMap m_pickedDetail;
     ReadAt  m_readAt;
