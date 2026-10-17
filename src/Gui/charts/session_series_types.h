@@ -121,7 +121,7 @@ struct ShotDiagnostics {
     // same way, so a reading graded inside its corridor is known as such (the Readings tab's Inside).
     QHash<QString, Reading> gradedBy;     // conditionId → reading; fired and clean conditions
 
-    // ADDED 14 Oct (K4). The kinematic sequence checks, "Sequence checks: n of m", in the shape
+    // ADDED 14 Oct (K4). The kinematic sequence checks (marks and reasons; no count), in the shape
     // Coaching/sequence_checks.h sequenceChecksToVariant() publishes — read off the ledger's own
     // per-signal verdicts (schema 5), never re-derived here. Empty when the row carries none.
     QVariantMap sequenceChecks;

@@ -61,7 +61,7 @@ Item {
     // no node, and the strip then simply is not there.
     property var  kinematicSequence: null
     // SessionDiagnosticsModel.sequenceChecks(shotId) for this swing — the sequence tile's
-    // "Sequence checks: n of m" line (§10.6 E4). null draws no line.
+    // sequence-checks line, the marks and their reasons (§10.6 E4). null draws no line.
     property var  sequenceChecks: null
     // The sequence as plot geometry (ChartMetrics.sequenceOverlay), under its own preset only —
     // the four curves it marks are the ones that preset strokes. Null elsewhere, so no plot draws it.

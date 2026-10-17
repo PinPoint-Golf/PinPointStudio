@@ -101,10 +101,11 @@ Column {
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: st.roles.hw; color: st.roles.hair }
         }
     }
-    // ── "Sequence checks: n of m" (trunk_imu_sequence_grf_design.md §10.6, E4) ───────────────────
-    // One quiet line: the count, a mark per check in facet order (✓ ✗ ? —), why the "—" are there, and
-    // whose count it is. Hover lists the checks; a tap pins the list open. Every string is the presenter's
-    // (sequence.checks, off the engine's own signal verdicts); this binds and picks the ink.
+    // ── Sequence checks (trunk_imu_sequence_grf_design.md §10.6, E4) ──────────────────────────────
+    // One quiet line: the label, a mark per check in facet order (✓ ✗ ? —) and why the "—" are there.
+    // NO "n of m" COUNT (17 Oct 2026): it mostly measured what the cameras could see, and §10.6 found no
+    // consistent relation to clubhead speed. Hover lists the checks; a tap pins the list open. Every
+    // string but the label is the presenter's (sequence.checks, off the engine's own signal verdicts).
     Item {
         id: chk
         objectName: "chSeqChecks"
@@ -144,7 +145,7 @@ Column {
                 Row {
                     id: lineRow
                     spacing: st.roles ? st.roles.u(10) : 10
-                    Text { id: line; objectName: "chSeqChecksLine"; text: chk.cs ? chk.cs.line : ""
+                    Text { id: line; objectName: "chSeqChecksLabel"; text: "Sequence checks"
                            font: st.roles ? st.roles.fBody : Qt.font({}); color: st.roles ? st.roles.ink : "black" }
                     // A Row places x only, so each child's y puts its baseline on the line's.
                     Row {
@@ -166,18 +167,11 @@ Column {
                         objectName: "chSeqChecksGap"
                         y: line.baselineOffset - baselineOffset
                         visible: text !== ""
-                        width: Math.max(0, Math.min(implicitWidth, chk.width - x - whose.implicitWidth - (st.roles ? st.roles.u(12) : 12)))
+                        width: Math.max(0, Math.min(implicitWidth, chk.width - x))
                         elide: Text.ElideRight
                         text: chk.cs ? (chk.cs.gapNote || "") : ""
                         font: st.roles ? st.roles.fSmall : Qt.font({}); color: st.roles ? st.roles.ink3 : "grey"
                     }
-                }
-                Text {
-                    id: whose
-                    anchors.right: parent.right; y: line.baselineOffset - baselineOffset
-                    visible: chk.width - gapText.x > implicitWidth + (st.roles ? st.roles.u(12) : 12)
-                    text: chk.cs ? chk.cs.whose : ""
-                    font: st.roles ? st.roles.fSmall : Qt.font({}); color: st.roles ? st.roles.ink3 : "grey"
                 }
             }
             Repeater {

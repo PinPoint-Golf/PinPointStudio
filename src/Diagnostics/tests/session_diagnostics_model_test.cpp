@@ -365,15 +365,16 @@ static void sequenceChecksSuite(const QTemporaryDir &tmp)
     check(std::fabs(sc.expectedPassed - 4.49) < 1e-5, "expected count Σ(1 − pFire) over the assessable = 4.49");
     check(std::fabs(sc.sumPFire - 3.51) < 1e-5 && sc.failedLikely == 3, "Σ pFire 3.51, three failed with pFire > 0.5");
     check(sc.checks[12].reason == QLatin1String("not measured on this swing"), "a — with no recorded reason still says why");
-    check(sequenceChecksLine(sc) == QLatin1String("Sequence checks: 4 of 8"), "the line: \"Sequence checks: 4 of 8\"");
     check(sequenceChecksGapNote(sc) == unplaced, "the gap note is the most common reason");
     const QVariantMap v = sequenceChecksToVariant(sc);
     const QVariantList vl = v.value(QStringLiteral("checks")).toList();
     QString marks;
     for (const QVariant &c : vl) marks += c.toMap().value(QStringLiteral("mark")).toString();
     check(marks == QStringLiteral("✗—✓✓—✓✗?——✓✗—"), "the marks, in order: ✗—✓✓—✓✗?——✓✗—");
-    check(v.value(QStringLiteral("whose")).toString() == QLatin1String("PinPoint's own count"),
-          "labelled PinPoint's own count");
+    // NO COUNT IS PUBLISHED (17 Oct 2026): no "n of m" line, no tag, no passed / assessable.
+    check(!v.contains(QStringLiteral("line")) && !v.contains(QStringLiteral("whose"))
+              && !v.contains(QStringLiteral("passed")) && !v.contains(QStringLiteral("assessable")),
+          "no \"Sequence checks: n of m\" count is published, only the marks and their reasons");
     check(vl.value(8).toMap().value(QStringLiteral("detail")).toString() == unplaced
               && vl.value(7).toMap().value(QStringLiteral("detail")).toString() == QLatin1String("too close to call on this swing")
               && vl.value(5).toMap().value(QStringLiteral("detail")).toString() == QLatin1String("Do the hips peak before the chest?"),
@@ -404,9 +405,8 @@ static void sequenceChecksSuite(const QTemporaryDir &tmp)
     for (const QString &sid : sequenceCheckSignalIds())
         allNa.push_back(seqRow(qPrintable(sid), ShotState::NotAssessable, -1.f, false, "chest peak not placed from these cameras"));
     const SequenceChecks na = sequenceChecksOf(allNa);
-    check(na.assessable == 0 && sequenceChecksLine(na) == QLatin1String("Sequence checks: none assessed")
-              && sequenceChecksGapNote(na) == unplaced,
-          "a tile full of — says so, and why");
+    check(na.assessable == 0 && na.checks.size() == 13 && sequenceChecksGapNote(na) == unplaced,
+          "a tile full of — still lists all thirteen, and says why");
 
     // The §10.6 ordering.
     const double nan = std::numeric_limits<double>::quiet_NaN();
@@ -589,8 +589,7 @@ static void sequenceChecksSuite(const QTemporaryDir &tmp)
                 reasons = false;
         }
         check(reasons, "…every — carries its reason");
-        std::printf("      %s · %s\n", qPrintable(c1.value(QStringLiteral("line")).toString()),
-                    qPrintable(c1.value(QStringLiteral("gapNote")).toString()));
+        std::printf("      gap: %s\n", qPrintable(c1.value(QStringLiteral("gapNote")).toString()));
         check(m->sequenceChecks(99).isEmpty(), "a shot not in the ledger: empty");
         const QJsonObject j = diagnosticsJsonOf(dir);
         const QJsonArray shots = j.value(QStringLiteral("ledger")).toObject().value(QStringLiteral("shots")).toArray();

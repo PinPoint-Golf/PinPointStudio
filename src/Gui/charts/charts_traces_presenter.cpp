@@ -1180,8 +1180,8 @@ QVariantMap sequenceBlock(Ctx &c)
                                                  ? QStringLiteral("Reasons not recorded for this shot; re-analyse it to see which gates fired.")
                                                  : QString() },
              { QStringLiteral("table"), rows },
-             // "Sequence checks: n of m" (§10.6 E4) — the engine's own verdicts, as the ledger row
-             // carries them (Coaching/sequence_checks.h). Empty when the shot has none recorded.
+             // The sequence checks (§10.6 E4): marks and reasons, no count — the engine's own verdicts,
+             // as the ledger row carries them (Coaching/sequence_checks.h). Empty when none recorded.
              { QStringLiteral("checks"), c.shot->diagnostics.sequenceChecks } };
 }
 

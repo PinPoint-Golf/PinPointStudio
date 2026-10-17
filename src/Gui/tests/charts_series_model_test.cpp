@@ -552,7 +552,7 @@ private slots:
         m.activateSession(m_session);
         const auto snap = m.snapshot();
         const QVariantMap c = snap->shots[0]->diagnostics.sequenceChecks;
-        QCOMPARE(c.value(QStringLiteral("line")).toString(), QStringLiteral("Sequence checks: 1 of 2"));
+        QVERIFY(!c.contains(QStringLiteral("line")));   // no "Sequence checks: n of m" count (17 Oct)
         QCOMPARE(c.value(QStringLiteral("checks")).toList().size(), 13);
         QCOMPARE(c.value(QStringLiteral("checks")).toList().value(8).toMap().value(QStringLiteral("reason")).toString(),
                  QStringLiteral("chest peak not placed from these cameras"));   // F4's —, and why

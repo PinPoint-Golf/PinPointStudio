@@ -362,9 +362,9 @@ public:
 
     // ── The kinematic sequence checks (trunk_imu_sequence_grf_design.md §10.6, E4) ──────
     //
-    // "Sequence checks: n of m" for one shot, read off the engine's own signal verdicts that
-    // detectShot() recorded (Coaching/sequence_checks.h has the shape). Empty map for a shot not
-    // in the ledger or one recorded before schema 5.
+    // The thirteen sequence checks for one shot (marks and reasons; no count), read off the
+    // engine's own signal verdicts that detectShot() recorded (Coaching/sequence_checks.h has the
+    // shape). Empty map for a shot not in the ledger or one recorded before schema 5.
     Q_INVOKABLE QVariantMap sequenceChecks(int shotId) const;
     // The session's swings best-sequenced first (§10.6: checks failed with pFire > 0.5, then
     // Σ pFire, then clubhead speed), as shot ids; swings with no check assessed are left out.

@@ -18,8 +18,8 @@
 
 #pragma once
 
-// THE KINEMATIC SEQUENCE CHECKS — "Sequence checks: n of m" (trunk_imu_sequence_grf_design.md
-// §10.3 facets F1–F7 and F9, the impact checks I1–I5, §10.6 the score, §10.8 E4).
+// THE KINEMATIC SEQUENCE CHECKS (trunk_imu_sequence_grf_design.md §10.3 facets F1–F7 and F9, the
+// impact checks I1–I5, §10.6 the ranking, §10.8 E4).
 //
 // ONE SOURCE OF TRUTH. Every check here is read off a SignalRow — the engine's own verdict for one
 // signal (evaluateSignal, on the same graded source detect() used), persisted on the shot's ledger
@@ -29,8 +29,10 @@
 // Header-only and Qt-Core-only, like diagnostic_ledger.h, so the session model, the Charts series
 // model and the tests all include it without a link-line change.
 //
-// The count is PINPOINT'S OWN (D22, NR-16): a count of order and hand-off checks in the manner of
-// Meister 2011, never a closeness of any magnitude to a published mean, and never a session score.
+// NO COUNT IS SHOWN (17 Oct 2026). Every surface draws the thirteen marks and their reasons, never
+// "n of m": the count mostly measured how many checks the cameras could make ("1 of 1" on 79 of 147
+// swings), and the §10.6 validation found no consistent relation to clubhead speed (ρ −0.07…+0.22).
+// passed / assessable stay on the struct for the ranking and the tests; they are not published.
 
 #include "diagnostic_ledger.h"
 #include "../Metrics/gate_catalogue.h"   // the words of the gate or rule behind a "—" (claimWords)
@@ -230,8 +232,8 @@ struct SequenceCheck {
 
 struct SequenceChecks {
     std::vector<SequenceCheck> checks;   // I1–I5, F1–F7, F9, always all thirteen once recorded
-    int    passed         = 0;           // n: ✓
-    int    assessable     = 0;           // m: ✓ + ✗ + ?
+    int    passed         = 0;           // ✓ — never displayed (no count on any surface)
+    int    assessable     = 0;           // ✓ + ✗ + ? — the ranking's "anything graded at all"
     int    notAssessable  = 0;           // "—"
     // For ranking, never displayed (§10.6). Over the assessable checks.
     double expectedPassed = 0.0;         // Σ (1 − pFire)
@@ -303,13 +305,6 @@ inline SequenceChecks sequenceChecksOf(const std::vector<SignalRow> &rows)
 
 inline SequenceChecks sequenceChecksOf(const ShotRecord &shot) { return sequenceChecksOf(shot.signalRows); }
 
-// The headline, as the tile prints it.
-inline QString sequenceChecksLine(const SequenceChecks &s)
-{
-    if (s.assessable == 0) return QStringLiteral("Sequence checks: none assessed");
-    return QStringLiteral("Sequence checks: %1 of %2").arg(s.passed).arg(s.assessable);
-}
-
 // Why the "—" are there, in one short phrase: the reason they share, else the most common one.
 // Empty when every check was assessed.
 inline QString sequenceChecksGapNote(const SequenceChecks &s)
@@ -337,10 +332,11 @@ inline QString sequenceGateWords(const QString &gateId)
 }
 
 // The QML shape — PpSequenceStrip and PpChSeqTable bind it; empty map = nothing recorded.
-//   { line, whose, passed, assessable, notAssessable, gapNote,
+//   { notAssessable, gapNote,
 //     checks: [{ facet, signalId, label, question, state, mark, pFire, quantified, reason, gate, trustSubject,
 //                gateWords, detail }] }
 // expectedPassed / sumPFire / failedLikely ride along for ranking and the tests; no surface prints them.
+// No "n of m" line and no passed / assessable: the count was removed from every surface (17 Oct).
 inline QVariantMap sequenceChecksToVariant(const SequenceChecks &s)
 {
     if (!s.recorded) return {};
@@ -368,11 +364,7 @@ inline QVariantMap sequenceChecksToVariant(const SequenceChecks &s)
                                : c.state == SequenceCheckState::Unsure ? QStringLiteral("too close to call on this swing")
                                                                        : c.question } };
     }
-    return { { QStringLiteral("line"),           sequenceChecksLine(s) },
-             { QStringLiteral("whose"),          QStringLiteral("PinPoint's own count") },
-             { QStringLiteral("passed"),         s.passed },
-             { QStringLiteral("assessable"),     s.assessable },
-             { QStringLiteral("notAssessable"),  s.notAssessable },
+    return { { QStringLiteral("notAssessable"),  s.notAssessable },
              { QStringLiteral("gapNote"),        sequenceChecksGapNote(s) },
              { QStringLiteral("expectedPassed"), s.expectedPassed },
              { QStringLiteral("sumPFire"),       s.sumPFire },

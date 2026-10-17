@@ -46,9 +46,10 @@ ColumnLayout {
     // The host owns the state (and persists it); the title line asks for the toggle.
     property bool collapsed: false
     signal toggled()
-    // "Sequence checks: n of m" (trunk_imu_sequence_grf_design.md §10.6, E4): the shape
+    // The sequence checks (trunk_imu_sequence_grf_design.md §10.6, E4): the shape
     // SessionDiagnosticsModel.sequenceChecks(shotId) publishes, read off the ENGINE's own signal
-    // verdicts — never re-derived from kinematicSequence. null / {} draws no line.
+    // verdicts — never re-derived from kinematicSequence. null / {} draws no line. The marks and
+    // their reasons only; no "n of m" count (removed 17 Oct 2026).
     property var  checks: null
 
     spacing: Theme.gap(6)
@@ -228,8 +229,8 @@ ColumnLayout {
                         Row {
                             id: chkRow
                             spacing: Theme.gap(10)
-                            CellText { id: chkLine; objectName: "sequenceChecksLine"
-                                       text: chk.cs ? chk.cs.line : ""
+                            CellText { id: chkLine; objectName: "sequenceChecksLabel"
+                                       text: "Sequence checks"
                                        font.family: Theme.fontBody; font.weight: Font.Medium }
                             // A Row places x only, so each child's y puts its baseline on the line's.
                             Row {
@@ -252,21 +253,12 @@ ColumnLayout {
                                 objectName: "sequenceChecksGap"
                                 y: chkLine.baselineOffset - baselineOffset
                                 visible: text !== ""
-                                width: Math.max(0, Math.min(implicitWidth, chk.width - x - chkWhose.implicitWidth - Theme.sp(12)))
+                                width: Math.max(0, Math.min(implicitWidth, chk.width - x))
                                 elide: Text.ElideRight
                                 text: chk.cs ? (chk.cs.gapNote || "") : ""
                                 font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
                                 color: Theme.colorText3
                             }
-                        }
-                        Text {
-                            id: chkWhose
-                            anchors.right: parent.right
-                            y: chkLine.baselineOffset - baselineOffset
-                            visible: chk.width - chkGap.x > implicitWidth + Theme.sp(12)
-                            text: chk.cs ? chk.cs.whose : ""
-                            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
-                            color: Theme.colorText3
                         }
                     }
                     Repeater {
