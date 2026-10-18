@@ -18,6 +18,7 @@
 
 #include "charts_relations_presenter.h"
 
+#include "box_map.h"
 #include "charts_words.h"
 #include "session_relations.h"
 #include "session_sequence.h"
@@ -141,14 +142,8 @@ struct Vocab {
     bool isP(int ph) const { return tl.hasPositionTag(ph); }
 };
 
-QVariantMap boxMap(const BoxStats &b)
-{
-    QVariantList out;
-    for (int i : b.outliers) out.append(i + 1);
-    return { { QStringLiteral("n"), b.n }, { QStringLiteral("min"), num(b.min) }, { QStringLiteral("max"), num(b.max) },
-             { QStringLiteral("q1"), num(b.q1) }, { QStringLiteral("med"), num(b.med) }, { QStringLiteral("q3"), num(b.q3) },
-             { QStringLiteral("lo"), num(b.lo) }, { QStringLiteral("hi"), num(b.hi) }, { QStringLiteral("outliers"), out } };
-}
+// boxMap is box_map.h's (the one serialisation); a box's value texts in a reading's own rounding:
+std::function<QString(double)> figOf(const QString &unit) { return [unit](double v) { return figBare(v, unit); }; }
 QVariantMap rangeMap(double lo, double hi) { return { { QStringLiteral("lo"), num(lo) }, { QStringLiteral("hi"), num(hi) } }; }
 QVariantMap paddedRange(const BoxStats &b, double frac)
 {
@@ -732,7 +727,7 @@ QVariantMap rowMap(const Ctx &x, int i)
         { QStringLiteral("medianText"), figBare(r.box.med, r.unit) },
         { QStringLiteral("place"), placeWords(p, r.box.n) }, { QStringLiteral("rankHi"), p.rankHi }, { QStringLiteral("rankLo"), p.rankLo },
         { QStringLiteral("rz"), p.rz }, { QStringLiteral("side"), p.side }, { QStringLiteral("apart"), p.side != 0 },
-        { QStringLiteral("box"), boxMap(r.box) }, { QStringLiteral("values"), nums(r.values) },
+        { QStringLiteral("box"), boxMap(r.box, figOf(r.unit)) }, { QStringLiteral("values"), nums(r.values) },
         { QStringLiteral("firedShots"), boolsOf(r.fired) }, { QStringLiteral("fired"), fired },
         { QStringLiteral("firedWord"), firedWord }, { QStringLiteral("verdict"), verdict },
         { QStringLiteral("conditions"), conds }, { QStringLiteral("firedConditions"), links },
@@ -771,7 +766,7 @@ QVariantMap runMap(const Ctx &x, const SessionReading &r)
         cap += QStringLiteral("  ·  drift r %1 (%2 to %3)").arg(r2(d.r), r2(d.lo), r2(d.hi)) + (d.clear ? QString() : QStringLiteral(", inside chance"));
     return { { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key }, { QStringLiteral("label"), r.label },
              { QStringLiteral("tag"), x.v.tag(r.phase) }, { QStringLiteral("unit"), r.unit }, { QStringLiteral("unitText"), unitText(r.unit) },
-             { QStringLiteral("caption"), cap }, { QStringLiteral("points"), pts }, { QStringLiteral("box"), boxMap(r.box) },
+             { QStringLiteral("caption"), cap }, { QStringLiteral("points"), pts }, { QStringLiteral("box"), boxMap(r.box, figOf(r.unit)) },
              { QStringLiteral("yRange"), paddedRange(r.box, 0.1) }, { QStringLiteral("drift"), driftMap(d, x.n) } };
 }
 
@@ -826,7 +821,7 @@ QVariantMap traceMap(const Ctx &x, const SessionReading &r, TraceCurve *keep)
         ylo = std::min(ylo, b.min); yhi = std::max(yhi, b.max);
         const double pv = vals[size_t(x.pick)];
         instants.append(QVariantMap{ { QStringLiteral("phase"), ph }, { QStringLiteral("tag"), x.v.tag(ph) },
-                                     { QStringLiteral("shotMs"), double(us - s.impactUs) / 1000.0 }, { QStringLiteral("box"), boxMap(b) },
+                                     { QStringLiteral("shotMs"), double(us - s.impactUs) / 1000.0 }, { QStringLiteral("box"), boxMap(b, figOf(r.unit)) },
                                      { QStringLiteral("values"), nums(vals) },
                                      { QStringLiteral("firedShots"), ph == r.phase ? boolsOf(r.fired) : QVariantList{} },
                                      { QStringLiteral("pickedValue"), num(pv) }, { QStringLiteral("pickedText"), figU(pv, r.unit) },
@@ -883,7 +878,7 @@ QVariantMap scatterMap(const Ctx &x, const SessionReading &rx, const SessionRead
              { QStringLiteral("xLabel"), axisName(x, rx) + QStringLiteral("  →") }, { QStringLiteral("yLabel"), QStringLiteral("↑  ") + axisName(x, ry) },
              { QStringLiteral("xUnit"), rx.unit }, { QStringLiteral("yUnit"), ry.unit },
              { QStringLiteral("xRange"), paddedRange(rx.box, 0.08) }, { QStringLiteral("yRange"), paddedRange(ry.box, 0.08) },
-             { QStringLiteral("xBox"), boxMap(boxStats(xa)) }, { QStringLiteral("yBox"), boxMap(boxStats(ya)) },
+             { QStringLiteral("xBox"), boxMap(boxStats(xa), figOf(rx.unit)) }, { QStringLiteral("yBox"), boxMap(boxStats(ya), figOf(ry.unit)) },
              { QStringLiteral("points"), pts }, { QStringLiteral("defined"), f.defined }, { QStringLiteral("r"), num(f.r) },
              { QStringLiteral("lo"), num(f.lo) }, { QStringLiteral("hi"), num(f.hi) }, { QStringLiteral("n"), f.n },
              { QStringLiteral("clear"), f.clear }, { QStringLiteral("rText"), r2(f.r) },
@@ -1261,7 +1256,7 @@ QVariantMap sequenceMap(const Ctx &x)
         rows.append(QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(s)] }, { QStringLiteral("label"), kSegLabels[s] },
                                  { QStringLiteral("valueText"), signedMsBare(v) }, { QStringLiteral("shotMs"), num(v) },
                                  { QStringLiteral("placed"), sm.placed }, { QStringLiteral("placedText"), QStringLiteral("%1 of %2").arg(sm.placed).arg(x.n) },
-                                 { QStringLiteral("box"), boxMap(boxStats(ms)) }, { QStringLiteral("values"), nums(ms) }, { QStringLiteral("lateShots"), lateShots },
+                                 { QStringLiteral("box"), boxMap(boxStats(ms), [](double v) { return signedMsBare(v); }) }, { QStringLiteral("values"), nums(ms) }, { QStringLiteral("lateShots"), lateShots },
                                  { QStringLiteral("hasBox"), sm.placed >= 3 },
                                  { QStringLiteral("notPlacedText"), sm.placed == 0 ? QStringLiteral("not placed on any shot")
                                                                     : sm.placed < 3 ? QStringLiteral("placed on too few shots for a box") : QString() } });
@@ -1779,7 +1774,7 @@ QVariantMap kindsCore(Ctx &x, const Cache::Family *fam)
                                  { QStringLiteral("d"), s.d }, { QStringLiteral("dText"), dText(s.d) }, { QStringLiteral("clear"), std::abs(s.d) >= k.dCritical },
                                  { QStringLiteral("medAText"), figBare(s.medA, r.unit) }, { QStringLiteral("medBText"), figBare(s.medB, r.unit) },
                                  { QStringLiteral("unitText"), unitText(r.unit) }, { QStringLiteral("scale"), paddedRange(r.box, 0.06) },
-                                 { QStringLiteral("boxA"), boxMap(boxStats(va)) }, { QStringLiteral("boxB"), boxMap(boxStats(vb)) },
+                                 { QStringLiteral("boxA"), boxMap(boxStats(va), figOf(r.unit)) }, { QStringLiteral("boxB"), boxMap(boxStats(vb), figOf(r.unit)) },
                                  { QStringLiteral("valuesA"), nums(va) }, { QStringLiteral("valuesB"), nums(vb) } });
     }
     m.insert(QStringLiteral("separation"), QVariantMap{

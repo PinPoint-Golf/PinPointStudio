@@ -28,11 +28,13 @@
 //   cmake --build build/analysis-tests --target session_diagnostics_model_test
 //   ctest --test-dir build/analysis-tests -R session_diagnostics_model --output-on-failure
 
+#include "../../Gui/typeset/box_stats.h"
 #include "../../Gui/diagnostics/session_diagnostics_model.h"
 #include "../../Coaching/sequence_checks.h"
 #include "../engine/characteristic_engine.h"
 
 #include <QCoreApplication>
+#include <QSet>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -2404,6 +2406,34 @@ int main(int argc, char **argv)
                   && sp.value(QStringLiteral("currentNumber")).toString() == QLatin1String("200")
                   && sp.value(QStringLiteral("currentState")).toString() == QLatin1String("fired"),
               "the card's two figures: the session MEDIAN and this shot, unit-less, with its state");
+        // THE BOX the Spread strip draws (PpBoxPlot) is the model's, from the one box implementation
+        // (typeset/box_stats.h) — until 18 Oct 2026 the QML worked it out again from the dots.
+        {
+            const QVariantMap bx = sp.value(QStringLiteral("box")).toMap();
+            const double fLo = bx.value(QStringLiteral("fLo")).toDouble(), fQ1 = bx.value(QStringLiteral("fQ1")).toDouble();
+            const double fMed = bx.value(QStringLiteral("fMed")).toDouble(), fQ3 = bx.value(QStringLiteral("fQ3")).toDouble();
+            const double fHi = bx.value(QStringLiteral("fHi")).toDouble();
+            check(bx.value(QStringLiteral("n")).toInt() == 9, "the spread publishes its box over the 9 placed shots");
+            check(fLo <= fQ1 && fQ1 <= fMed && fMed <= fQ3 && fQ3 <= fHi, "…its edges in order, as axis fractions");
+            check(bx.value(QStringLiteral("texts")).toMap().value(QStringLiteral("med")).toString()
+                      == sp.value(QStringLiteral("medianNumber")).toString(),
+                  "…and its median label is the session median the card prints");
+            QSet<int> dotIds;
+            for (const QVariant &d : sp.value(QStringLiteral("dots")).toList()) dotIds.insert(d.toMap().value(QStringLiteral("shotId")).toInt());
+            bool idsOk = bx.value(QStringLiteral("outlierCount")).toInt() == bx.value(QStringLiteral("outliers")).toList().size();
+            for (const QVariant &o : bx.value(QStringLiteral("outliers")).toList()) idsOk = idsOk && dotIds.contains(o.toInt());
+            check(idsOk, "…its outliers named by shot id, each one a placed shot");
+        }
+        {
+            // the box rules on their own (the QML suite checked these until the strips stopped computing them):
+            // type-7 quartiles, a whisker to the furthest value inside the fence and never inside the box
+            const pinpoint::box::BoxStats b = pinpoint::box::boxStats({ 0.45, std::nan(""), 0.2, 0.5, 1.0 });
+            check(b.n == 4 && std::fabs(b.q1 - 0.3875) < 1e-12 && std::fabs(b.med - 0.475) < 1e-12 && std::fabs(b.q3 - 0.625) < 1e-12,
+                  "boxStats: Q1 0.3875, median 0.475, Q3 0.625 over 0.2 0.45 0.5 1.0 (the NaN skipped)");
+            check(std::fabs(b.lo - 0.2) < 1e-12 && std::fabs(b.hi - 0.625) < 1e-12,
+                  "…the low whisker to the lowest value inside the fence; no upper whisker (0.5 is inside the box)");
+            check(b.outliers.size() == 1 && b.outliers[0] == 4, "…and 1.0 past the fence, by its index in the input");
+        }
         check(sp.value(QStringLiteral("dirLeft")).toString() == QStringLiteral("← better")
                   && sp.value(QStringLiteral("dirRight")).toString() == QStringLiteral("worse →")
                   && sp.value(QStringLiteral("dirCentre")).toString().isEmpty(),
@@ -2440,6 +2470,11 @@ int main(int argc, char **argv)
                       && std::fabs(cols[2].toMap().value(QStringLiteral("median")).toDouble() - 12.0) < 1e-9
                       && cols[1].toMap().value(QStringLiteral("n")).toInt() == 3,
                   "…each column's median over its own assessable readings (22, 19, 12)");
+            const QVariantMap b1 = cols[1].toMap().value(QStringLiteral("box")).toMap();
+            check(b1.value(QStringLiteral("n")).toInt() == 3
+                      && std::fabs(b1.value(QStringLiteral("fMed")).toDouble() - cols[1].toMap().value(QStringLiteral("fMedian")).toDouble()) < 1e-12
+                      && b1.value(QStringLiteral("texts")).toMap().value(QStringLiteral("med")).toString() == QLatin1String("19"),
+                  "…and each column's box, from the same implementation, agrees with its median");
         }
         std::printf("      history caption: \"%s\"\n", qPrintable(hist.value(QStringLiteral("caption")).toString()));
         check(hist.value(QStringLiteral("missing")).toInt() == 1,

@@ -19,6 +19,7 @@
 #include "charts_wrist_presenter.h"
 
 #include "charts_relations_presenter.h"     // movesWith(): the Relations ledger, asked our own question
+#include "box_map.h"
 #include "charts_words.h"
 #include "session_curves.h"
 #include "session_relations.h"              // boxStats, pearson
@@ -180,6 +181,7 @@ namespace {
 QVariant nv(double v) { return std::isfinite(v) ? QVariant(v) : QVariant::fromValue(nullptr); }
 QVariant nullv() { return QVariant::fromValue(nullptr); }
 QString degText(double v) { return W::figSigned(v, QStringLiteral("°")); }      // "+19°", "−19°", "-"
+QString scoreText(double v) { return W::fig(v, 0); }                                 // the wrist score's box: whole points
 QString degBare(double v) { return W::figUnit(v, QStringLiteral("°")); }        // "19°"
 QString pips(double c)
 {
@@ -212,14 +214,6 @@ QString longName(const QString &id)
     return shortName(id);
 }
 
-QVariantMap boxMap(const BoxStats &b)
-{
-    QVariantList out;
-    for (int i : b.outliers) out.append(i + 1);             // values are per shot: index + 1 = ordinal
-    return { { QStringLiteral("n"), b.n }, { QStringLiteral("min"), nv(b.min) }, { QStringLiteral("max"), nv(b.max) },
-             { QStringLiteral("q1"), nv(b.q1) }, { QStringLiteral("med"), nv(b.med) }, { QStringLiteral("q3"), nv(b.q3) },
-             { QStringLiteral("lo"), nv(b.lo) }, { QStringLiteral("hi"), nv(b.hi) }, { QStringLiteral("outliers"), out } };
-}
 
 QVariantList numList(const std::vector<double> &v)
 {
@@ -1175,7 +1169,7 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
             }
             sc.add(b.min); sc.add(b.max);
             const double med = b.n >= 3 ? b.med : kNaN, wide = b.n >= 3 ? b.q3 - b.q1 : kNaN;
-            boxes.append(QVariantMap{ { QStringLiteral("box"), boxMap(b) }, { QStringLiteral("values"), numList(a.values[size_t(p)]) },
+            boxes.append(QVariantMap{ { QStringLiteral("box"), boxMap(b, degText) }, { QStringLiteral("values"), numList(a.values[size_t(p)]) },
                                       { QStringLiteral("n"), b.n }, { QStringLiteral("median"), nv(med) },
                                       { QStringLiteral("medianText"), b.n >= 3 ? degText(med) : QStringLiteral("-") },
                                       { QStringLiteral("wide"), nv(wide) },
@@ -1216,13 +1210,13 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
         xs.push_back(double(i + 1));
         ys.push_back(v);
     }
-    out.insert(QStringLiteral("scoreBox"), boxMap(sb));
+    out.insert(QStringLiteral("scoreBox"), boxMap(sb, scoreText));
     out.insert(QStringLiteral("scoreRun"), QVariantMap{
         { QStringLiteral("readingId"), QStringLiteral("wristScore") }, { QStringLiteral("key"), QString() },
         { QStringLiteral("label"), QStringLiteral("Wrist score") }, { QStringLiteral("tag"), QString() },
         { QStringLiteral("unit"), QString() }, { QStringLiteral("unitText"), QString() },
         { QStringLiteral("caption"), QStringLiteral("Wrist score, shot by shot (0–100)") }, { QStringLiteral("points"), pts },
-        { QStringLiteral("box"), boxMap(sb) },
+        { QStringLiteral("box"), boxMap(sb, scoreText) },
         { QStringLiteral("yRange"), QVariantMap{ { QStringLiteral("lo"), 0 }, { QStringLiteral("hi"), 100 } } },
         { QStringLiteral("drift"), driftMap(pearson(xs, ys), c.n) } });
 

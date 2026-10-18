@@ -28,7 +28,10 @@ import QtQuick
 // and the other columns' resting median labels that it would cross step aside. The hover is a passive
 // HoverHandler per column: the click that opens a session still works. Print / not interactive: rest only.
 // PUBLIC API (stable; internals belong to the fault-forward figure work):
-//   history    detail.history  (columns[{label, values[{f, stack}], fQ1, fQ3, fMedian, medianText, current}])
+//   history    detail.history  (columns[{label, values[{f, stack}], fQ1, fQ3, fMedian, medianText, current,
+//              box{n, fLo, fQ1, fMed, fQ3, fHi, outlierCount, texts}}]) — each column's box drawn by PpBoxPlot
+//              (typeset/), THE box plot, from the model's numbers (typeset/box_stats.h); until 18 Oct 2026 the
+//              whiskers were worked out again here
 //   scale      a PpFigureScale shared with the other panels of its PpFigureRow (required)
 //   unit       a symbol unit (°) to set on the median labels; "" for a worded unit
 //   decimals   the axis's precision, for the examined reading
@@ -54,6 +57,9 @@ Item {
     property real gutterX: 1e6           // where the zone-label gutter starts, in this strip's x; and its labels' heights
     property var gutterYs: []
     property int hoverColumn: -1
+    // the examined column's reading extent, for the resting labels it would cross (set by that column)
+    property real examX0: 0
+    property real examX1: 0
     readonly property int examIdx: {
         if (medium === "print") return -1
         const i = examinedColumn >= 0 ? examinedColumn : (interactive ? hoverColumn : -1)
@@ -82,14 +88,6 @@ Item {
     // EVERY median label, or only this session's: each must end clear of the next column's marks
     // (the last may reach into the gutter before the zone labels)
     TextMetrics { id: labelM; font: hs.roles.fFigLabel; text: { let w = ""; for (let i = 0; i < hs.cols.length; ++i) { const l = hs.medianLabel(hs.cols[i]); if (l.length > w.length) w = l } return w } }
-    // the whisker ends off a column's own shots, by the box's 1.5 × IQR rule
-    function whiskersOf(c) {
-        const fs = (c.values || []).map(v => v.f).filter(f => isFinite(f)).sort((a, b) => a - b)
-        const iqr = c.fQ3 - c.fQ1
-        const lo = fs.filter(f => f >= c.fQ1 - 1.5 * iqr - 1e-9), hi = fs.filter(f => f <= c.fQ3 + 1.5 * iqr + 1e-9)
-        return { lo: lo.length ? Math.min(lo[0], c.fQ1) : c.fQ1, hi: hi.length ? Math.max(hi[hi.length - 1], c.fQ3) : c.fQ3,
-                 n: fs.length, out: fs.length - fs.filter(f => f >= c.fQ1 - 1.5 * iqr - 1e-9 && f <= c.fQ3 + 1.5 * iqr + 1e-9).length }
-    }
     function restX(i) { return (i + 0.5) * colW + boxL + boxW + roles.u(3) }
     readonly property bool allLabels: {
         const right = boxL + boxW + roles.u(3) + labelM.advanceWidth
@@ -115,9 +113,7 @@ Item {
             readonly property real cx: (index + 0.5) * hs.colW
             readonly property real stackPitch: hs.pitchOf(modelData)
             readonly property bool measured: (modelData.values || []).length > 0
-            readonly property var wk: hs.whiskersOf(modelData)
-            readonly property real fLoW: wk.lo
-            readonly property real fHiW: wk.hi
+            readonly property var box: modelData.box || ({})
             readonly property real bx: cx + hs.boxL
             readonly property real bc: Math.round(bx + hs.boxW / 2)
             function py(f) { return Math.round(hs.scale.y(f) * 2) / 2 }
@@ -129,20 +125,37 @@ Item {
                     cx: Math.round((hc.cx - hs.roles.u(4) - (modelData.stack || 0) * hc.stackPitch) * 2) / 2; cy: Math.round(hs.scale.y(modelData.f) * 2) / 2
                 }
             }
+            // THE box (typeset/PpBoxPlot), stood up just right of the column's centre; EXAMINED, its reading
+            PpBoxPlot {
+                id: plot
+                width: hs.width; height: hs.height
+                visible: hc.measured
+                roles: hs.roles
+                vertical: true
+                map: function (f) { return hs.scale ? hs.scale.y(f) : 0 }
+                cross: hc.bc
+                stats: hc.measured && hc.box.n > 0 ? { lo: hc.box.fLo, q1: hc.box.fQ1, med: hc.box.fMed, q3: hc.box.fQ3, hi: hc.box.fHi } : null
+                bodyW: hs.boxW; capW: hs.roles.u(4); medianOver: hs.roles.u(1)
+                lw: hs.lw; medW: hs.medium === "print" ? 1 : 1.5
+                ink: hs.roles.ink2; medianInk: hs.roles.ink; fill: Qt.alpha(hs.roles.ink3, 0.10)
+                texts: hc.box.texts || null
+                examined: hc.index === hs.examIdx
+                footer: !hc.measured ? "" : (hc.box.n || 0) + (hc.box.n === 1 ? " shot" : " shots")
+                        + (hc.box.outlierCount ? " · " + hc.box.outlierCount + (hc.box.outlierCount === 1 ? " outlier" : " outliers") : "")
+                readingRoomLeft: 0; readingRoomRight: hs.width + hs.rightRoom
+                readingGutterX: hs.gutterX; readingGutterYs: hs.gutterYs
+                readingBottom: hs.scale ? hs.scale.plotTop + hs.scale.plotHeight + hs.roles.u(22) : 1e6
+                namePrefix: "sdHistory"
+            }
+            Binding { target: hs; property: "examX0"; value: plot.reading.x0; when: hc.index === hs.examIdx }
+            Binding { target: hs; property: "examX1"; value: plot.reading.x1; when: hc.index === hs.examIdx }
             Item {
                 visible: hc.measured
-                Rectangle { objectName: "sdHistoryWhisker"; x: hc.bc - hs.lw / 2; width: hs.lw; y: hc.py(hc.fHiW); height: Math.max(0, hc.py(hc.modelData.fQ3) - hc.py(hc.fHiW)); color: hs.roles.ink2 }
-                Rectangle { x: hc.bc - hs.lw / 2; width: hs.lw; y: hc.py(hc.modelData.fQ1); height: Math.max(0, hc.py(hc.fLoW) - hc.py(hc.modelData.fQ1)); color: hs.roles.ink2 }
-                Rectangle { x: hc.bc - hs.roles.u(2); width: hs.roles.u(4); height: hs.lw; y: hc.py(hc.fHiW) - hs.lw / 2; color: hs.roles.ink2 }
-                Rectangle { x: hc.bc - hs.roles.u(2); width: hs.roles.u(4); height: hs.lw; y: hc.py(hc.fLoW) - hs.lw / 2; color: hs.roles.ink2 }
-                Rectangle { objectName: "sdHistoryBox"; x: hc.bx; width: hs.boxW; y: hc.py(hc.modelData.fQ3); height: Math.max(hs.lw, hc.py(hc.modelData.fQ1) - hc.py(hc.modelData.fQ3))
-                            color: Qt.alpha(hs.roles.ink3, 0.10); border.width: hs.lw; border.color: hs.roles.ink2 }
-                Rectangle { objectName: "sdHistoryMedian"; x: hc.bx - hs.roles.u(1); width: hs.boxW + 2 * hs.roles.u(1); y: Math.round(hs.scale.y(hc.modelData.fMedian)) - 0.75; height: hs.medium === "print" ? 1 : 1.5; color: hs.roles.ink }
                 Text {
                     objectName: "sdHistoryMedianLabel"
                     // examined, the reading states it; a resting label the reading would cross steps aside
                     visible: (hc.current || hs.allLabels) && hc.index !== hs.examIdx
-                             && !(hs.examining && hs.restX(hc.index) < reading.x1 && hs.restX(hc.index) + width > reading.x0)
+                             && !(hs.examining && hs.restX(hc.index) < hs.examX1 && hs.restX(hc.index) + width > hs.examX0)
                     text: hs.medianLabel(hc.modelData); font: hs.roles.fFigLabel; color: hc.current ? hs.roles.ink : hs.roles.ink3
                     x: hc.bx + hs.boxW + hs.roles.u(3); y: Math.round(hs.scale.y(hc.modelData.fMedian)) - height / 2
                 }
@@ -162,19 +175,6 @@ Item {
                 onClicked: hs.sessionActivated(hc.modelData.sessionDir || "")
             }
         }
-    }
-    // the examined session's full reading, over every column
-    PpBoxReading {
-        id: reading
-        anchors.fill: parent
-        readonly property var c: hs.examining ? hs.cols[hs.examIdx] : null
-        readonly property var wk: c ? hs.whiskersOf(c) : null
-        visible: !!c && ok && placed.length > 0
-        roles: hs.roles; scale: hs.scale; decimals: hs.decimals; unit: hs.unit
-        edgeL: c ? (hs.examIdx + 0.5) * hs.colW + hs.boxL : 0; edgeR: edgeL + hs.boxW
-        roomLeft: 0; roomRight: hs.width + hs.rightRoom; gutterX: hs.gutterX; gutterYs: hs.gutterYs
-        items: c ? [{ f: wk.hi }, { f: c.fQ3 }, { f: c.fMedian, strong: true }, { f: c.fQ1 }, { f: wk.lo }] : []
-        footer: !c ? "" : wk.n + (wk.n === 1 ? " shot" : " shots") + (wk.out ? " · " + wk.out + (wk.out === 1 ? " outlier" : " outliers") : "")
     }
     // the hover that examines a column: passive, so the column's click (open that session) still works
     Repeater {

@@ -26,24 +26,26 @@ import QtQuick
 // nudged apart as a group centred on their true heights, and each tick bends to its label from the
 // TRUE height, so nothing points at a value it does not hold. A paper backing keeps the numbers legible
 // over whatever they cross (the next column's shots, the zone labels).
-// Used by PpBoxStrip (the run's Spread box) and PpHistoryStrip (each session's mini box).
+// Drawn by PpBoxPlot (the one box plot) for a VERTICAL box: Session diagnostics' Spread box and across-sessions
+// strip, and the Charts boxes stood up at the P-positions of an opened reading.
 // PUBLIC API:
-//   scale              the figure's PpFigureScale (y(f), valueOf(f))
-//   items              [{ f, strong }] top to bottom or any order; strong = the median, set in ink
+//   items              [{ y, text, strong, f }] in any order: each value's TRUE height in this item's coordinates and
+//                      its label, formatted by whoever owns the numbers; strong = the median, set in ink; f, the
+//                      caller's own value, rides along on the label
+//   footLimit          how far down the reading may reach before its count line goes above it instead
 //   footer             the count line ("15 shots · 1 outlier")
 //   edgeL, edgeR       the box's left and right edges, in this item's coordinates
 //   roomLeft, roomRight   how far the reading may reach on each side (x limits, this item's coordinates)
 //   gutterX, gutterYs  where the zone-label gutter starts and the heights of its labels, to keep clear of
 //   forceSide          "" (decide) | "right" | "left"; readonly side
-//   decimals, unit     the axis's number formatting; unit is a symbol unit (°) or ""
 //   readonly blockW    the reading's width from the box edge, for the caller's choice of side
 //   readonly x0, x1    the reading's extent, in this item's coordinates
 Item {
     id: rd
     objectName: "sdBoxReading"
     property QtObject roles: null
-    property var scale: null
     property var items: []
+    property real footLimit: 1e6
     property string footer: ""
     property real edgeL: 0
     property real edgeR: 0
@@ -52,20 +54,9 @@ Item {
     property real roomRight: 1e6
     property real gutterX: 1e6
     property var gutterYs: []
-    property int decimals: 0
-    property string unit: ""
     property color paper: roles ? roles.paper : "white"
-    readonly property bool ok: !!roles && !!scale
-
-    function fmt(f) {
-        const v = scale ? scale.valueOf(f) : NaN
-        if (!isFinite(v)) return "-"
-        const k = Math.pow(10, Math.max(0, decimals))
-        let r = Math.round(v * k) / k
-        if (r === 0) r = 0
-        return (r < 0 ? "−" : "") + Math.abs(r).toFixed(Math.max(0, decimals)) + unit
-    }
-    readonly property var texts: (items || []).map(it => fmt(it.f))
+    readonly property bool ok: !!roles
+    readonly property var texts: (items || []).map(it => it.text || "")
     TextMetrics { id: numM; font: rd.roles ? rd.roles.fFigLabel : Qt.font({}); text: { let w = ""; for (const t of rd.texts) if (t.length > w.length) w = t; return w } }
     TextMetrics { id: footM; font: rd.roles ? rd.roles.fLabel : Qt.font({}); text: rd.footer }
     readonly property real lineH: ok ? Math.ceil(numM.height) + roles.u(1) : 12
@@ -86,7 +77,7 @@ Item {
     // the labels' heights: groups that would overlap merge, each group centred on its members' true heights
     readonly property var placed: {
         if (!ok) return []
-        const its = (items || []).map((it, i) => ({ i: i, f: it.f, strong: !!it.strong, text: texts[i], y: scale.y(it.f) }))
+        const its = (items || []).map((it, i) => ({ i: i, f: it.f, strong: !!it.strong, text: texts[i], y: it.y }))
                                  .filter(q => isFinite(q.y)).sort((a, b) => a.y - b.y)
         const h = lineH
         let cl = its.map(q => ({ m: [q], top: q.y - h / 2 }))
@@ -110,7 +101,7 @@ Item {
     readonly property real topY: placed.length ? placed[0].ly - lineH / 2 : 0
     readonly property real botY: placed.length ? placed[placed.length - 1].ly + lineH / 2 : 0
     // the count line goes under the labels, or over them when that would leave the plot
-    readonly property bool footAbove: ok && botY + lineH + roles.u(2) > scale.plotTop + scale.plotHeight + roles.u(22)
+    readonly property bool footAbove: ok && botY + lineH + roles.u(2) > footLimit
     readonly property real footY: footAbove ? topY - lineH - roles.u(2) : botY + roles.u(2)
 
     visible: ok && placed.length > 0
@@ -145,7 +136,7 @@ Item {
         delegate: Text {
             required property var modelData
             objectName: "sdBoxReadingLabel"
-            readonly property real f: modelData.f
+            readonly property var f: modelData.f        // the caller's own value for this label, carried for its checks
             text: modelData.text || ""; font: rd.roles.fFigLabel
             color: modelData.strong ? rd.roles.ink : rd.roles.ink2
             x: rd.onRight ? rd.edgeR + rd.gap : rd.edgeL - rd.gap - width

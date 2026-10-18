@@ -30,12 +30,13 @@ import QtQuick
 // marks keep their clicks and the run's shot-hover brush is untouched. Print / not interactive: rest only.
 // Replaced PpSpreadStrip (a beeswarm + the norm's density curve) on 12 Oct 2026: the corridor bands
 // drawn by PpZonePlot already carry the norm's judgement.
-// The quartiles are worked out here from the published per-shot positions (spread.dots[].f: the axis
-// is linear in f, and scale.y(f) handles the compressed bands) with the convention of the C++
-// spreadQuantile (session_spread.h, type 7: linear between order statistics), so the box's median is
-// the published session median (spread.medianNumber).
+// The box is drawn by PpBoxPlot (typeset/), THE box plot, and its numbers are the model's: spread.box, from
+// the one C++ box implementation (typeset/box_stats.h) — edges as axis fractions for scale.y(f), the
+// outliers as shot ids, the examined reading's labels at the axis's precision. Until 18 Oct 2026 this file
+// worked the quartiles and whiskers out again from the dots.
 // PUBLIC API (stable; internals belong to the fault-forward figure work):
-//   spread     card.spread / detail.header.spread  (dots[{shotId, swingDir, f, state, current}])
+//   spread     card.spread / detail.header.spread  (dots[{shotId, swingDir, f, state, current}],
+//              box{n, fLo, fQ1, fMed, fQ3, fHi, outliers[shotId], outlierCount, texts})
 //   scale      a PpFigureScale shared with the other panels of its PpFigureRow (required)
 //   title      panel title ("Spread")
 //   unit, decimals   the axis's number formatting for the labels (unit: a symbol unit, else "")
@@ -69,31 +70,20 @@ Item {
     readonly property var s: spread || ({})
     implicitHeight: scale ? scale.plotTop + scale.plotHeight + roles.u(26) : 0
 
-    // ── the numbers ──
+    // ── the numbers: the model's box ──
     readonly property var dots: (s.dots || []).filter(d => d && d.f !== undefined && d.f !== null && isFinite(d.f))
-    readonly property var sorted: dots.map(d => d.f).sort((a, b) => a - b)
-    // spreadQuantile: h = (n − 1)·q, linear between the order statistics either side of it
-    function quantile(q) {
-        const v = sorted, n = v.length
-        if (!n) return NaN
-        const h = (n - 1) * Math.max(0, Math.min(1, q))
-        const lo = Math.floor(h), hi = Math.min(n - 1, lo + 1)
-        return v[lo] + (h - lo) * (v[hi] - v[lo])
-    }
-    readonly property real fQ1: quantile(0.25)
-    readonly property real fMedian: quantile(0.5)
-    readonly property real fQ3: quantile(0.75)
-    readonly property real iqr: isFinite(fQ1) ? fQ3 - fQ1 : 0
-    readonly property real loFence: fQ1 - 1.5 * iqr
-    readonly property real hiFence: fQ3 + 1.5 * iqr
-    // a whisker never stops inside the box: with interpolated quartiles the nearest shot inside the fence
-    // can lie between Q3 and the median, and then there is no upper whisker (the same on the low side)
-    readonly property real fLoWhisker: { const v = sorted.filter(f => f >= loFence - 1e-9); return v.length ? Math.min(v[0], fQ1) : NaN }
-    readonly property real fHiWhisker: { const v = sorted.filter(f => f <= hiFence + 1e-9); return v.length ? Math.max(v[v.length - 1], fQ3) : NaN }
+    readonly property var box: s.box || ({})
+    function num(v) { return v === undefined || v === null ? NaN : v }
+    readonly property real fQ1: num(box.fQ1)
+    readonly property real fMedian: num(box.fMed)
+    readonly property real fQ3: num(box.fQ3)
+    readonly property real fLoWhisker: num(box.fLo)
+    readonly property real fHiWhisker: num(box.fHi)
     // the shots past the whiskers, each with a side-step where two would print on one spot
     readonly property var outliers: {
         if (!scale) return []
-        const out = dots.filter(d => d.f < loFence - 1e-9 || d.f > hiFence + 1e-9).slice().sort((a, b) => a.f - b.f)
+        const ids = box.outliers || []
+        const out = dots.filter(d => ids.indexOf(d.shotId) >= 0).slice().sort((a, b) => a.f - b.f)
         const near = roles.markFired + 1
         let prevY = NaN, run = 0
         for (let i = 0; i < out.length; ++i) {
@@ -120,7 +110,7 @@ Item {
     readonly property string medianLabel: {
         const n = s.medianNumber
         if (n !== undefined && n !== null && n !== "" && n !== "-") return n + unit
-        return hasBox ? reading.fmt(fMedian) : ""
+        return hasBox && box.texts ? box.texts.med : ""
     }
     TextMetrics { id: medM; font: bx.roles.fFigLabel; text: bx.medianLabel }
     // centred, unless the median label would then reach the zone labels (they start u(10) past the edge)
@@ -129,36 +119,10 @@ Item {
     readonly property real lw: medium === "print" ? roles.hw : 1            // the box's outline and the whiskers
     readonly property real medW: medium === "print" ? 1 : 1.5               // the median rule
     function py(f) { return Math.round(scale.y(f) * 2) / 2 }
-    readonly property bool hasBox: !!scale && sorted.length > 0
+    readonly property bool hasBox: !!scale && dots.length > 0 && isFinite(fQ1) && isFinite(fQ3) && isFinite(fMedian)
 
     Text { text: bx.title; font: bx.roles.fSmall; color: bx.roles.ink }
     PpZonePlot { anchors.fill: parent; roles: bx.roles; scale: bx.scale }
-
-    Item {
-        visible: bx.hasBox
-        anchors.fill: parent
-        // the whiskers: a hairline from each box edge to the furthest shot inside the fence, capped
-        Rectangle { objectName: "sdBoxWhiskerHi"; x: bx.cx - bx.lw / 2; width: bx.lw
-                    y: bx.hasBox ? bx.py(bx.fHiWhisker) : 0; height: bx.hasBox ? Math.max(0, bx.py(bx.fQ3) - bx.py(bx.fHiWhisker)) : 0; color: bx.roles.ink2 }
-        Rectangle { x: bx.cx - bx.capW / 2; width: bx.capW; height: bx.lw; y: bx.hasBox ? bx.py(bx.fHiWhisker) - bx.lw / 2 : 0; color: bx.roles.ink2 }
-        Rectangle { objectName: "sdBoxWhiskerLo"; x: bx.cx - bx.lw / 2; width: bx.lw
-                    y: bx.hasBox ? bx.py(bx.fQ1) : 0; height: bx.hasBox ? Math.max(0, bx.py(bx.fLoWhisker) - bx.py(bx.fQ1)) : 0; color: bx.roles.ink2 }
-        Rectangle { x: bx.cx - bx.capW / 2; width: bx.capW; height: bx.lw; y: bx.hasBox ? bx.py(bx.fLoWhisker) - bx.lw / 2 : 0; color: bx.roles.ink2 }
-        // the box: the middle half, outlined, a faint fill so the corridor wash still reads through it
-        Rectangle {
-            objectName: "sdBoxBody"
-            x: bx.cx - bx.boxW / 2; width: bx.boxW
-            y: bx.hasBox ? bx.py(bx.fQ3) : 0; height: bx.hasBox ? Math.max(bx.lw, bx.py(bx.fQ1) - bx.py(bx.fQ3)) : 0
-            color: Qt.alpha(bx.roles.ink3, 0.10)
-            border.width: bx.lw; border.color: bx.roles.ink2
-        }
-        Rectangle {
-            objectName: "sdBoxMedian"
-            readonly property real f: bx.fMedian
-            x: bx.cx - bx.boxW / 2 - bx.roles.u(2); width: bx.boxW + 2 * bx.roles.u(2)
-            y: bx.hasBox ? bx.py(bx.fMedian) - bx.medW / 2 : 0; height: bx.medW; color: bx.roles.ink
-        }
-    }
 
     Text {
         objectName: "sdBoxMedianLabel"
@@ -167,44 +131,47 @@ Item {
         x: bx.cx + bx.boxW / 2 + bx.roles.u(3); y: bx.hasBox ? Math.round(bx.scale.y(bx.fMedian) - height / 2) : 0
     }
 
-    // a shot as a mark on the centre line (fired or clean as its dot), clickable and hover-linked
-    component BoxMark: PpMark {
-        property var dot: null
-        property real step: 0
-        property bool emitsHover: true
-        objectName: "sdBoxMark"
-        visible: !!dot && !!bx.scale
-        roles: bx.roles; brush: bx.brush; interactive: bx.interactive && visible
-        shotId: dot ? dot.shotId : -1; fired: !!dot && dot.state === "fired"
-        ringed: !!dot && (bx.brush ? bx.brush.isPicked(shotId) : !!dot.current)
-        cx: bx.cx + step * bx.roles.u(7); cy: dot && bx.scale ? bx.py(dot.f) : 0
-        onActivated: if (dot) bx.shotActivated(dot.swingDir || "", shotId)
-        onHoveredChanged: if (emitsHover) bx.shotHovered(hovered ? shotId : -1)
+    // the shots on the centre line (fired or clean as their dots): the outliers, side-stepped where two would
+    // print on one spot, and the picked shot ringed — a list the hover never rebuilds — and on its own the
+    // hovered one's echo (lit while the pointer is on that shot elsewhere; never under the pointer itself, so it
+    // takes no hover of its own)
+    readonly property var marks: {
+        const out = []
+        const ringedOf = d => bx.brush ? bx.brush.isPicked(d.shotId) : !!d.current
+        for (const d of outliers)
+            out.push({ at: d.f, shotId: d.shotId, swingDir: d.swingDir || "", fired: d.state === "fired", role: "outlier",
+                       step: d.step || 0, ringed: ringedOf(d), interactive: bx.interactive })
+        if (picked && !isOutlier(picked.shotId))
+            out.push({ at: picked.f, shotId: picked.shotId, swingDir: picked.swingDir || "", fired: picked.state === "fired",
+                       role: "picked", ringed: ringedOf(picked), interactive: bx.interactive })
+        return out
     }
-    Repeater {
-        model: bx.roles ? bx.outliers : []
-        delegate: BoxMark {
-            required property var modelData
-            readonly property string role: "outlier"
-            dot: modelData; step: modelData.step || 0
-        }
-    }
-    BoxMark { readonly property string role: "picked"; dot: bx.picked && !bx.isOutlier(bx.picked.shotId) ? bx.picked : null }
-    // the hovered shot's echo: lit while the pointer is on that shot elsewhere; never under the pointer
-    // itself, so it takes no hover of its own
-    BoxMark { readonly property string role: "hovered"; dot: bx.hovered; interactive: false; emitsHover: false }
-
-    // EXAMINED: the full reading, right of the box unless the room there is short and the left has more
-    PpBoxReading {
-        id: reading
+    readonly property var echo: !hovered ? null
+        : { at: hovered.f, shotId: hovered.shotId, swingDir: hovered.swingDir || "", fired: hovered.state === "fired",
+            role: "hovered", ringed: bx.brush ? bx.brush.isPicked(hovered.shotId) : !!hovered.current, interactive: false, emitsHover: false }
+    // THE box (typeset/PpBoxPlot), stood up; EXAMINED, its reading right of the box unless the room there is
+    // short and the left has more
+    PpBoxPlot {
+        id: plot
         anchors.fill: parent
-        visible: bx.examining && ok && placed.length > 0
-        roles: bx.roles; scale: bx.scale; decimals: bx.decimals; unit: bx.unit
-        edgeL: bx.cx - bx.boxW / 2; edgeR: bx.cx + bx.boxW / 2
-        roomRight: bx.width + bx.rightRoom; gutterX: bx.gutterX; gutterYs: bx.gutterYs
-        items: bx.hasBox ? [{ f: bx.fHiWhisker }, { f: bx.fQ3 }, { f: bx.fMedian, strong: true }, { f: bx.fQ1 }, { f: bx.fLoWhisker }] : []
-        footer: !bx.hasBox ? "" : bx.sorted.length + (bx.sorted.length === 1 ? " shot" : " shots")
+        roles: bx.roles; brush: bx.brush
+        vertical: true
+        map: function (f) { return bx.scale ? bx.scale.y(f) : 0 }
+        cross: bx.cx
+        stats: bx.hasBox ? { lo: bx.fLoWhisker, q1: bx.fQ1, med: bx.fMedian, q3: bx.fQ3, hi: bx.fHiWhisker } : null
+        bodyW: bx.boxW; capW: bx.capW; medianOver: bx.roles.u(2)
+        lw: bx.lw; medW: bx.medW
+        ink: bx.roles.ink2; medianInk: bx.roles.ink; fill: Qt.alpha(bx.roles.ink3, 0.10)
+        marks: bx.marks; echo: bx.echo
+        texts: bx.box.texts || null
+        examined: bx.examining
+        footer: !bx.hasBox ? "" : bx.dots.length + (bx.dots.length === 1 ? " shot" : " shots")
                 + (bx.outliers.length ? " · " + bx.outliers.length + (bx.outliers.length === 1 ? " outlier" : " outliers") : "")
+        readingRoomRight: bx.width + bx.rightRoom; readingGutterX: bx.gutterX; readingGutterYs: bx.gutterYs
+        readingBottom: bx.scale ? bx.scale.plotTop + bx.scale.plotHeight + bx.roles.u(22) : 1e6
+        namePrefix: "sdBox"
+        onMarkActivated: (m) => bx.shotActivated(m.swingDir || "", m.shotId)
+        onMarkHovered: (m, on) => bx.shotHovered(on ? m.shotId : -1)
     }
     HoverHandler { id: hover; enabled: bx.interactive && bx.medium !== "print" }
 }

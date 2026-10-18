@@ -594,6 +594,10 @@ Item {
                 { index: 4, shotId: 5, swingDir: "/lib/a/s/swing_0005", f: 1.0,  clipped: 1, stack: 0, state: "fired", current: false, recent: true, valueText: "200 % hand rise" }
             ],
             stackMax: 0, clipHiCount: 1, clipHiText: "200 % hand rise", clipLoCount: 0, clipLoText: "",
+            // the model's box (SessionDiagnosticsModel boxOf, from typeset/box_stats.h): f 0.2 0.45 0.5 1.0 →
+            // Q1 0.3875, median 0.475, Q3 0.625; no upper whisker (0.5 sits inside the box, 1.0 is past the fence)
+            box: { n: 4, fLo: 0.2, fQ1: 0.3875, fMed: 0.475, fQ3: 0.625, fHi: 0.625, outliers: [5], outlierCount: 1,
+                   texts: { lo: "4", q1: "10", med: "13", q3: "18", hi: "18" } },
             run: run,
             median: [{ index: 2, fx: 0.5, fy: 0.42, value: 13 }, { index: 3, fx: 0.7, fy: 0.45, value: 14 },
                      { index: 4, fx: 0.9, fy: 0.47, value: 14 }],
@@ -611,10 +615,15 @@ Item {
     }
     function historyFixture() {
         const sp = spreadFixture()
+        function txt(f) { return String(Math.round(-2 + 32 * f)) }   // the axis −2…30, whole units
         function col(label, cur, fs, med) {
             return { label: label, current: cur, n: fs.length, sessionDir: "/lib/a/" + label,
                      values: fs.map(function (f, i) { return { f: f, clipped: 0, stack: i % 3, value: 0 } }),
                      stackMax: 2, fQ1: med - 0.05, fQ3: med + 0.05, fMedian: med, median: 0,
+                     box: fs.length ? { n: fs.length, fLo: med - 0.05, fQ1: med - 0.05, fMed: med, fQ3: med + 0.05, fHi: med + 0.05,
+                                        outliers: [], outlierCount: 0,
+                                        texts: { lo: txt(med - 0.05), q1: txt(med - 0.05), med: txt(med), q3: txt(med + 0.05), hi: txt(med + 0.05) } }
+                                    : { n: 0 },
                      medianText: label === "4 Jul" ? "22" : (cur ? "13" : "19") }
         }
         return { axisLo: sp.axisLo, axisHi: sp.axisHi, bands: sp.bands, faultLines: sp.faultLines,
@@ -2032,7 +2041,7 @@ Item {
             const meds = findAll(hist, "sdHistoryMedian")
             verify(meds[0].y < meds[2].y, "an older, higher median is drawn higher")
             compare(oneShown(fr, "sdHistoryCaption").text, "7 Oct · median 13", "'median' said once, so nobody reads a mean")
-            compare(findAll(hist, "sdHistoryBox").length, 3, "each session a small box plot")
+            compare(findAll(hist, "sdHistoryBody").length, 3, "each session a small box plot")
             const labs = findAll(hist, "sdHistoryMedianLabel")
             compare(labs.map(function (l) { return l.text }).join(" "), "22 19 13", "each labelled with its median")
             verify(shown(labs[2]), "this session's median is always labelled")
@@ -2070,7 +2079,7 @@ Item {
             const midY = hist.scale.plotTop + hist.scale.plotHeight / 2
             fuzzyCompare(dash[0].y + dash[0].height / 2, midY, 1, "at mid-plot")
             fuzzyCompare(dash[0].x + dash[0].width / 2, hist.width / 2, 1, "centred in its column")
-            compare(shownAll(cols[1], "sdHistoryBox").length, 0, "and no box")
+            compare(shownAll(cols[1], "sdHistoryBody").length, 0, "and no box")
             compare(shownAll(cols[0], "sdHistoryNoReading").length + shownAll(cols[2], "sdHistoryNoReading").length, 0,
                     "a measured session has no dash")
             compare(oneShown(fr, "sdHistoryCaption").text, "7 Oct · median 13 · 5 Oct not measured", "the caption says so")
@@ -2234,8 +2243,9 @@ Item {
             const host = Qt.createQmlObject('import QtQuick; import PinPointStudio; Item { width: 300; height: 230; '
                 + 'property alias rd: r; property alias sc: s; '
                 + 'PpFigureScale { id: s; plotTop: 10; plotHeight: 200; axisLo: 0; axisHi: 100 } '
-                + 'PpBoxReading { id: r; anchors.fill: parent; roles: PpDiagRoles {} scale: s; edgeL: 100; edgeR: 110; '
-                + 'items: [{ f: 0.9 }, { f: 0.75 }, { f: 0.5, strong: true }, { f: 0.49 }, { f: 0.1 }]; footer: "5 shots" } }', body)
+                + 'PpBoxReading { id: r; anchors.fill: parent; roles: PpDiagRoles {} edgeL: 100; edgeR: 110; '
+                + 'items: [0.9, 0.75, 0.5, 0.49, 0.1].map(function (f) { return { y: s.y(f), text: String(Math.round(s.valueOf(f))), f: f, strong: f === 0.5 } }); '
+                + 'footer: "5 shots" } }', body)
             const rd = host.rd, sc = host.sc
             wait(0)
             compare(rd.side, "right", "right of the box by default")
@@ -2325,6 +2335,9 @@ Item {
                 sp.dots.push({ index: 5, shotId: 6, swingDir: "/lib/a/s/swing_0006", f: 0.15, clipped: 0, stack: 1,
                                state: "clean", current: false, recent: true, valueText: "3 % hand rise" })
                 s.detail.header.ticks = ticksOf(["fired", "notAssessable", "clean", "fired", "fired", "clean"])
+                // and the model republishes its box: f 0.15 0.2 0.45 0.5 1.0 → Q1 0.2, median 0.45, Q3 0.5, 1.0 past the fence
+                sp.box = { n: 5, fLo: 0.15, fQ1: 0.2, fMed: 0.45, fQ3: 0.5, fHi: 0.5, outliers: [5], outlierCount: 1,
+                           texts: { lo: "3", q1: "4", med: "12", q3: "14", hi: "14" } }
             }
             for (let i = 0; i < sp.run.length; ++i) { sp.run[i].current = i === idx; sp.run[i].selected = i === idx }
             for (let i = 0; i < sp.dots.length; ++i) sp.dots[i].current = sp.dots[i].index === idx

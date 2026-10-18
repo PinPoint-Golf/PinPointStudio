@@ -69,13 +69,9 @@ namespace pinpoint::charts {
 
 // ── box statistics ──────────────────────────────────────────────────────────────────────────
 
-struct BoxStats {
-    int    n = 0;                       // finite values
-    double min = kNaN, max = kNaN, q1 = kNaN, med = kNaN, q3 = kNaN, iqr = kNaN;
-    double lo = kNaN, hi = kNaN;        // the whiskers' ends
-    std::vector<int> outliers;          // INDICES into the values (shot index = ordinal − 1)
-};
-BoxStats boxStats(const std::vector<double> &values);
+// The one implementation, shared with Session diagnostics' strips: ../typeset/box_stats.h
+using pinpoint::box::BoxStats;
+using pinpoint::box::boxStats;
 
 // ── readings ────────────────────────────────────────────────────────────────────────────────
 

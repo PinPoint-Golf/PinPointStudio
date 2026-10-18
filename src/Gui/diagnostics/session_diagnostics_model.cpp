@@ -277,6 +277,34 @@ QString fmtSpread(double v, int decimals, const QString &unit = QString())
     return n + QLatin1Char(' ') + unit;
 }
 
+// THE BOX A PpBoxPlot DRAWS, from the one box implementation (typeset/box_stats.h): its edges as axis
+// fractions (the strip's scale maps those, compressed bands and all), the outliers as shot ids, and the
+// numbers its examined reading labels, at the axis's precision with a symbol unit (°, %) set tight and a
+// worded one left off (PpFigureRow's unitShort rule). Until 18 Oct 2026 the Spread box and the
+// across-sessions strip each worked these out again in QML.
+QVariantMap boxOf(const std::vector<double> &values, const std::vector<int> &shotIds, const SpreadAxis &a,
+                  const QString &unit)
+{
+    const pinpoint::box::BoxStats b = pinpoint::box::boxStats(values);
+    QVariantMap m;
+    m[QStringLiteral("n")] = b.n;
+    if (!b.n) return m;
+    const bool sym = !unit.isEmpty() && unit.size() <= 2
+                     && std::none_of(unit.begin(), unit.end(), [](QChar ch) { return ch.isLetter(); });
+    const auto text = [&](double v) { return fmtSpread(v, a.decimals) + (sym ? unit : QString()); };
+    m[QStringLiteral("fLo")] = a.fraction(b.lo);   m[QStringLiteral("fHi")]  = a.fraction(b.hi);
+    m[QStringLiteral("fQ1")] = a.fraction(b.q1);   m[QStringLiteral("fQ3")]  = a.fraction(b.q3);
+    m[QStringLiteral("fMed")] = a.fraction(b.med);
+    QVariantList out;
+    for (int i : b.outliers) out << (size_t(i) < shotIds.size() ? shotIds[size_t(i)] : i);
+    m[QStringLiteral("outliers")]     = out;
+    m[QStringLiteral("outlierCount")] = int(b.outliers.size());
+    m[QStringLiteral("texts")] = QVariantMap{ { QStringLiteral("lo"), text(b.lo) }, { QStringLiteral("q1"), text(b.q1) },
+                                              { QStringLiteral("med"), text(b.med) }, { QStringLiteral("q3"), text(b.q3) },
+                                              { QStringLiteral("hi"), text(b.hi) } };
+    return m;
+}
+
 // The same, for a list of numbers sharing one unit: "22 → 19 → 13 % hand rise".
 QString fmtSpreadRun(const QStringList &numbers, const QString &unit)
 {
@@ -2263,6 +2291,11 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
     }
     out[QStringLiteral("dots")]     = dots;
     out[QStringLiteral("stackMax")] = stackMax;
+    {
+        std::vector<int> ids;
+        for (int i : placedIdx) ids.push_back(m_shots[size_t(i)].shotId);
+        out[QStringLiteral("box")] = boxOf(placed, ids, a, unit);
+    }
 
     // THE EDGE MARKERS' WORDS. A pinned dot says "further than this", and the marker beside it
     // says how much further: the most extreme reading on that side, and how many share the edge.
@@ -2698,6 +2731,7 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
             { QStringLiteral("fMedian"),    any ? a.fraction(md) : -1.0 },
             { QStringLiteral("fQ1"),        any ? a.fraction(q1) : -1.0 },
             { QStringLiteral("fQ3"),        any ? a.fraction(q3) : -1.0 },
+            { QStringLiteral("box"),        boxOf(col.v, {}, a, unit) },
             { QStringLiteral("medianText"), fmtSpread(any ? md : std::numeric_limits<double>::quiet_NaN(),
                                                       a.decimals, unit) },
         });

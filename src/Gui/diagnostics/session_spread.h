@@ -20,6 +20,7 @@
 
 #include "../../Coaching/diagnostic_ledger.h"
 #include "../../Diagnostics/norms/norm.h"
+#include "../typeset/box_stats.h"
 
 #include <algorithm>
 #include <cmath>
@@ -178,16 +179,11 @@ inline SpreadCorridor spreadCorridorFromRow(const ConditionRow &r, const GradePo
     return c;
 }
 
-// A sorted sample's quantile, linear between order statistics (type 7, R's default). Empty → NaN.
-// PpBoxStrip.qml restates this convention for the detail's box plot, so its median is this median.
+// A sample's quantile, linear between order statistics (type 7, R's default). Empty → NaN. The box
+// plots' quartiles come from the same function (box_stats.h), so the box's median is this median.
 inline double spreadQuantile(std::vector<double> sorted, double q)
 {
-    if (sorted.empty()) return std::numeric_limits<double>::quiet_NaN();
-    std::sort(sorted.begin(), sorted.end());
-    const double h  = (double(sorted.size()) - 1.0) * std::clamp(q, 0.0, 1.0);
-    const size_t lo = size_t(std::floor(h));
-    const size_t hi = std::min(sorted.size() - 1, lo + 1);
-    return sorted[lo] + (h - double(lo)) * (sorted[hi] - sorted[lo]);
+    return pinpoint::box::quantile7(std::move(sorted), q);   // the one implementation (box_stats.h)
 }
 
 // One graded region along the axis. `grade` is the band's word — ideal | good | watch | action, or

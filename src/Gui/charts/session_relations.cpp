@@ -157,28 +157,6 @@ std::vector<int> toOrdinals(std::vector<int> idx)
 
 // ── box ─────────────────────────────────────────────────────────────────────────────────────
 
-BoxStats boxStats(const std::vector<double> &values)
-{
-    BoxStats b;
-    std::vector<int> idx; std::vector<double> v;
-    for (size_t i = 0; i < values.size(); ++i) if (isFinite(values[i])) { idx.push_back(int(i)); v.push_back(values[i]); }
-    std::vector<double> s = v;
-    std::sort(s.begin(), s.end());
-    b.n = int(s.size());
-    if (!b.n) return b;
-    b.q1 = quantile7(s, 0.25); b.med = quantile7(s, 0.5); b.q3 = quantile7(s, 0.75);
-    b.iqr = b.q3 - b.q1;
-    b.min = s.front(); b.max = s.back();
-    const double lf = b.q1 - 1.5 * b.iqr, hf = b.q3 + 1.5 * b.iqr;
-    std::vector<double> inn;
-    for (double x : s) if (x >= lf - 1e-9 && x <= hf + 1e-9) inn.push_back(x);
-    b.lo = inn.empty() ? b.q1 : std::min(inn.front(), b.q1);
-    b.hi = inn.empty() ? b.q3 : std::max(inn.back(), b.q3);
-    for (size_t j = 0; j < idx.size(); ++j)
-        if (v[j] < lf - 1e-9 || v[j] > hf + 1e-9) b.outliers.push_back(idx[j]);
-    return b;
-}
-
 // ── readings ────────────────────────────────────────────────────────────────────────────────
 
 std::vector<SessionReading> sessionReadings(const SessionSnapshot &s, const ReadAtPhases &readAt, const QStringList &keyOrder)

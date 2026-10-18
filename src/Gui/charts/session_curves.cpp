@@ -108,17 +108,4 @@ std::vector<double> sessionGrid(double t0, double t1)
     return timeGrid(t0, t1, std::max(2.0, (t1 - t0) / 220.0));
 }
 
-double quantile7(std::vector<double> values, double q)
-{
-    values.erase(std::remove_if(values.begin(), values.end(), [](double x) { return !std::isfinite(x); }),
-                 values.end());
-    if (values.empty())
-        return kNaN;
-    std::sort(values.begin(), values.end());
-    const double h  = double(values.size() - 1) * std::clamp(q, 0.0, 1.0);
-    const size_t lo = size_t(std::floor(h));
-    const size_t hi = size_t(std::ceil(h));
-    return values[lo] + (values[hi] - values[lo]) * (h - double(lo));
-}
-
 } // namespace pinpoint::charts
