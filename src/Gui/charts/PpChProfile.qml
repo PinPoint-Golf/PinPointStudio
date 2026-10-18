@@ -127,6 +127,8 @@ Column {
             readonly property bool hot: ma.containsMouse
             width: pt.width
             height: line1 + line2 + (open ? openL.height + pt.roles.u(10) : 0) + pt.roles.u(2)
+            // the hovered plot's values overhang the rows either side: lift its row over them
+            Binding { target: row.parent; property: "z"; value: cell.showingValues ? 2 : 0 }
             Rectangle { anchors.fill: parent; visible: row.hot && pt.interactive; color: pt.roles.rowHover }
             Row {
                 id: line1Row
@@ -160,6 +162,8 @@ Column {
                     roles: pt.roles; brush: pt.brush; interactive: pt.interactive
                     box: row.r ? row.r.box : null; values: row.r ? row.r.values : []; fired: row.r ? row.r.firedShots : []
                     corridor: pt.showCorridor && row.r ? row.r.corridor : null
+                    texts: row.r ? row.r.boxText : null
+                    valuesOnHover: pt.interactive
                     color: row.r ? pt.roles.hue(row.r.key) : "grey"
                     muted: !(row.r && row.r.apart) && !row.hot && !row.open
                     onShotActivated: (o) => pt.shotActivated(o)
@@ -179,24 +183,6 @@ Column {
                 // an estimate a gate refused: shown, with its health warning (why: the trust fold)
                 Text { objectName: "chProfileCaution"; visible: !!(row.r && row.r.caution); text: row.r ? (row.r.cautionText || "") : ""
                        font: pt.roles.fSmall; color: pt.roles.ink2 }
-            }
-            // the hover readout (Mark, 18 Oct: "we see the whiskers but I have no idea what values they represent"):
-            // what the box, the median and the lines are, in the row's own numbers, and the corridor when it is drawn.
-            // Above the row so it never moves the rows under it; the presenter's words (boxReadout, corridorReadout).
-            Rectangle {
-                id: readout
-                objectName: "chBoxReadout"
-                readonly property string txt: !row.r ? "" : [row.r.boxReadout || "", pt.showCorridor ? (row.r.corridorReadout || "") : ""]
-                                                              .filter(function (s) { return s !== "" }).join(" ")
-                visible: row.hot && pt.interactive && txt !== ""
-                z: 10
-                width: Math.min(pt.roles.u(420), pt.width)
-                height: rtxt.implicitHeight + pt.roles.u(12)
-                x: Math.max(0, Math.min(pt.width - width, line1Row.x + cell.x + cell.width - width))
-                y: -height - pt.roles.u(2)
-                color: pt.roles.paper; border.width: pt.roles.hw; border.color: pt.roles.rule; radius: pt.roles.square ? 0 : pt.roles.u(3)
-                Text { id: rtxt; x: pt.roles.u(8); y: pt.roles.u(6); width: parent.width - pt.roles.u(16); wrapMode: Text.WordWrap
-                       text: readout.txt; font: pt.roles.fSmall; color: pt.roles.ink2 }
             }
             Loader {
                 id: openL

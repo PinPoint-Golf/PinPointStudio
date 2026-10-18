@@ -662,33 +662,21 @@ QVariantMap corridorOf(const Ctx &x, const SessionReading &r)
     return { { QStringLiteral("known"), false } };
 }
 
-// What a row's box plot stands for, in words, for the hover readout (Mark, 18 Oct: "we see the whiskers but I
-// have no idea what values they represent"). In the row's own rounding and unit; no statistician's terms.
-QString boxReadout(const SessionReading &r)
+// The box plot's own numbers, in the row's rounding, for the values a hover lays on the plot (Mark, 18 Oct: "all the
+// values you would see on a box plot"): the whiskers' ends, the quartiles, the median, and the corridor's edges and
+// fault lines where one is drawn. QML only places them.
+QVariantMap boxTexts(const SessionReading &r, const QVariantMap &c)
 {
     const BoxStats &b = r.box;
-    if (b.n < 3) return {};
-    const int beyond = int(b.outliers.size());
-    return QStringLiteral("The box is the middle half of the session's %1 shots, %2 to %3; the line in it is the median, %4. "
-                          "The lines reach %5 and %6%7.")
-        .arg(b.n).arg(figBare(b.q1, r.unit), figU(b.q3, r.unit), figU(b.med, r.unit), figBare(b.lo, r.unit), figU(b.hi, r.unit))
-        .arg(beyond == 0 ? QString()
-             : QStringLiteral("; %1 beyond them %2 apart from the session").arg(words::word(beyond),
-                                                                               beyond == 1 ? QStringLiteral("is") : QStringLiteral("are")));
-}
-
-// The corridor in words, beside its wash and fault tick (#10): where the condition does not fire, and the fault line.
-QString corridorReadout(const SessionReading &r, const QVariantMap &c)
-{
-    if (!c.value(QStringLiteral("known")).toBool()) return {};
-    const bool lo = !c.value(QStringLiteral("lowOpen")).toBool(), hi = !c.value(QStringLiteral("highOpen")).toBool();
-    const auto f = [&](const char *k) { return figU(c.value(QLatin1String(k)).toDouble(), r.unit); };
-    const auto b = [&](const char *k) { return figBare(c.value(QLatin1String(k)).toDouble(), r.unit); };
-    if (lo && hi)
-        return QStringLiteral("The shaded corridor runs from %1 to %2; below %3 or above %4 is past its fault line.")
-            .arg(b("signalLo"), f("signalHi"), b("faultLo"), f("faultHi"));
-    if (hi) return QStringLiteral("The shaded corridor runs up to %1; above %2 is past its fault line.").arg(f("signalHi"), f("faultHi"));
-    return QStringLiteral("The shaded corridor starts at %1; below %2 is past its fault line.").arg(f("signalLo"), f("faultLo"));
+    QVariantMap m;
+    if (b.n < 3) return m;
+    m.insert(QStringLiteral("lo"), figBare(b.lo, r.unit));   m.insert(QStringLiteral("hi"), figBare(b.hi, r.unit));
+    m.insert(QStringLiteral("q1"), figBare(b.q1, r.unit));   m.insert(QStringLiteral("q3"), figBare(b.q3, r.unit));
+    m.insert(QStringLiteral("med"), figBare(b.med, r.unit));
+    if (c.value(QStringLiteral("known")).toBool())
+        for (const char *k : { "signalLo", "signalHi", "faultLo", "faultHi" })
+            m.insert(QLatin1String(k), figBare(c.value(QLatin1String(k)).toDouble(), r.unit));
+    return m;
 }
 
 QVariantMap rowMap(const Ctx &x, int i)
@@ -748,8 +736,7 @@ QVariantMap rowMap(const Ctx &x, int i)
         { QStringLiteral("firedShots"), boolsOf(r.fired) }, { QStringLiteral("fired"), fired },
         { QStringLiteral("firedWord"), firedWord }, { QStringLiteral("verdict"), verdict },
         { QStringLiteral("conditions"), conds }, { QStringLiteral("firedConditions"), links },
-        { QStringLiteral("corridor"), corr }, { QStringLiteral("corridorReadout"), corridorReadout(r, corr) },
-        { QStringLiteral("boxReadout"), boxReadout(r) },
+        { QStringLiteral("corridor"), corr }, { QStringLiteral("boxText"), boxTexts(r, corr) },
         { QStringLiteral("hasCurve"), curve }, { QStringLiteral("opens"), curve ? QStringLiteral("trace") : QStringLiteral("run") } };
 }
 

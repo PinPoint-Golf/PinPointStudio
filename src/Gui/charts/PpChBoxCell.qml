@@ -33,6 +33,10 @@ import PinPointStudio
 // typeset's own corridor marks, as Session diagnostics draws them: roles.wash where the condition does not fire,
 // a short roles.fault tick at each fault line. The scale widens to
 // take in the corridor's graded edges, so a session that sits wholly outside it still shows where it is.
+// `valuesOnHover` (the profile rows): while the pointer is over the plot its numbers are laid on it as text (Mark,
+// 18 Oct: "all the values you would see on a box plot") — the median and the whiskers' ends above, the quartiles
+// below, and with a corridor its edges below and its fault lines above in the fault colour. `texts` is the
+// presenter's boxText; a label that would collide with a more important one in its lane is left out.
 Item {
     id: bc
     property QtObject roles: null
@@ -48,6 +52,10 @@ Item {
     property bool interactive: false
     property real markScale: 1
     property var corridor: null
+    property var texts: null                     // the presenter's boxText: the plot's numbers, formatted
+    property bool valuesOnHover: false
+    property bool showValues: false              // the values without a hover (a probe; print, should it want them)
+    readonly property bool showingValues: (showValues || (valuesOnHover && hh.hovered)) && ok && !vertical && !!texts
     property bool showPicked: true
     signal shotActivated(int ordinal)
     readonly property bool ok: !!roles && !!box && box.n > 0 && box.q1 !== null && box.q1 !== undefined
@@ -72,6 +80,30 @@ Item {
     function valueOf(ord) { const v = (values || [])[ord - 1]; return v === null || v === undefined ? NaN : v }
     implicitHeight: roles ? roles.u(roles.ch.boxRow) : 16
 
+    HoverHandler { id: hh; enabled: bc.valuesOnHover }
+    FontMetrics { id: fm; font: bc.roles ? bc.roles.fFigLabel : Qt.font({}) }
+    // the labels to draw: [{ x, w, lane (0 above, 1 below), t, tone }], most important first, none overlapping in a lane
+    readonly property var valueLabels: {
+        if (!showingValues) return []
+        const t = texts, L = []
+        function add(v, s, lane, pri, tone) { if (s !== undefined && s !== "" && isFinite(v) && v >= dLo && v <= dHi) L.push({ v: v, t: s, lane: lane, pri: pri, tone: tone }) }
+        add(b.med, t.med, 0, 0, "ink"); add(b.lo, t.lo, 0, 1, "ink"); add(b.hi, t.hi, 0, 1, "ink")
+        add(b.q1, t.q1, 1, 0, "ink"); add(b.q3, t.q3, 1, 0, "ink")
+        if (cOk) {
+            if (!corridor.lowOpen)  { add(corridor.faultLo, t.faultLo, 0, 2, "fault"); add(corridor.signalLo, t.signalLo, 1, 1, "edge") }
+            if (!corridor.highOpen) { add(corridor.faultHi, t.faultHi, 0, 2, "fault"); add(corridor.signalHi, t.signalHi, 1, 1, "edge") }
+        }
+        L.sort(function (a, c) { return a.pri - c.pri })
+        const placed = [[], []], out = []
+        for (const l of L) {
+            const w = fm.advanceWidth(l.t) + 6
+            const x = Math.max(0, Math.min(len - w, pos(l.v) - w / 2))
+            if (placed[l.lane].every(function (p) { return x + w + 2 <= p.x || x >= p.x + p.w + 2 })) {
+                placed[l.lane].push({ x: x, w: w }); out.push({ x: x, w: w, lane: l.lane, t: l.t, tone: l.tone })
+            }
+        }
+        return out
+    }
     // the corridor, under everything: where the condition does not fire, and its fault lines
     Item {
         objectName: "chBoxCorridor"
@@ -152,5 +184,20 @@ Item {
         shotId: bc.hoverNo; fired: !!(bc.fired || [])[bc.hoverNo - 1]; ringed: false
         size: bc.roles ? (fired ? bc.roles.markFired : bc.roles.markClean) * bc.markScale : 0
         cx: visible ? (bc.vertical ? bc.mid : bc.pos(v)) : 0; cy: visible ? (bc.vertical ? bc.pos(v) : bc.mid) : 0
+    }
+    Repeater {
+        model: bc.valueLabels
+        delegate: Rectangle {
+            required property var modelData
+            objectName: "chBoxValue"
+            x: modelData.x; width: modelData.w; height: fm.height
+            y: modelData.lane === 0 ? bc.mid - bc.bw / 2 - 2 - height : bc.mid + bc.bw / 2 + 2
+            color: bc.roles ? (bc.roles.knock !== undefined ? bc.roles.knock : bc.roles.paper) : "transparent"
+            Text {
+                anchors.centerIn: parent
+                text: parent.modelData.t; font: fm.font
+                color: !bc.roles ? "grey" : parent.modelData.tone === "fault" ? bc.roles.warn : parent.modelData.tone === "edge" ? bc.roles.ink3 : bc.roles.ink
+            }
+        }
     }
 }

@@ -85,7 +85,8 @@
 //         line" replaces "out of its corridor" in firedWord then — | "outside" | "inside" graded clean |
 //         "" not graded on this shot; the Readings tab's filter), corridor ({ known, lowOpen, highOpen,
 //         signalLo, signalHi, faultLo, faultHi } — the norm's bands under the grade policy, as Session
-//         diagnostics draws them; known false when no condition grades the reading), hasCurve (this shot
+//         diagnostics draws them; known false when no condition grades the reading), boxText ({ lo, q1, med, q3, hi
+//         [, signalLo, signalHi, faultLo, faultHi] } — the plot's numbers as text, for the hover labels), hasCurve (this shot
 //         has the curve and the catalogue draws it), opens ("trace"|"run") }
 //   · A RUN (RunBox) = { readingId, key, label, tag, unit, unitText, caption (string),
 //       points: [{ ordinal, shotId, swingDir, value|null, measured, fired, picked }], box,
