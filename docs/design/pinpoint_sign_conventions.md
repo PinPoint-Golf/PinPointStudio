@@ -72,9 +72,10 @@ frame handedness-free. The right-handed *glosses* — in-to-out, open, draw — 
 > reports "not produced" until that lands.
 
 `toeLineAngle` is the one row here that is **not** comparable with an outside number: it is the
-apparent stance line as one camera sees it, not a measured aim, and its sign flips for a mirrored
-camera (see the body-line note below). It keeps closed-positive because that is what a coach reading
-"open / square / closed" expects, but never place it beside a device number and expect agreement.
+apparent stance line as one camera sees it, not a measured aim. It is a body-line tilt (see the
+body-line note below): the trail toe higher in the face-on image is the trail foot further from the
+camera, a closed stance, so closed-positive holds whichever way the camera points. Never place it
+beside a device number and expect agreement.
 
 **Ball position along the stance** — **`0 %` at the LEAD heel, `100 %` at the trail heel**, so a
 high value means the ball is further BACK. This is the scale other golf software uses. Unclamped:
@@ -266,8 +267,9 @@ tilt of a line between a lead point and its trail partner, and all four mean the
 They are computed against the **absolute** horizontal separation — `atan2(leadY − trailY, |Δx|)` —
 which is what makes the sign independent of which image side the lead is on. The alternative, a raw
 `atan2` of the lead→trail vector, inverts for a left-handed golfer or a mirrored camera while
-describing the same posture. `toeLineAngle` is that alternative and predates the rule; it is the
-one line metric that does flip, which is half the reason `feetAlignment` exists beside it.
+describing the same posture. `toeLineAngle` used that alternative until 18 Oct 2026, when it sat at
+±180° for every right-handed golfer face-on (GitHub #8); it is now the same tilt of the big-toe line,
+and the sign defect was half the reason `feetAlignment` exists beside it.
 
 ### The two that deliberately break the lead-positive default
 

@@ -453,9 +453,9 @@ int main()
     // Both arrived with the face-on producer batch. feetAlignment is the ANKLE line, and it exists
     // beside foot_metrics' toeLineAngle for two reasons: the ankles are far less affected by foot
     // flare than the toes, and the impact read has no counterpart in an address-only scalar. It
-    // also uses the ABSOLUTE-denominator line form, so — unlike toeLineAngle, which is a raw atan2
-    // of the lead→trail vector — its sign describes the same posture whichever way the camera was
-    // pointed. That is the property asserted here.
+    // also uses the ABSOLUTE-denominator line form (as toeLineAngle has since 18 Oct 2026), so its
+    // sign describes the same posture whichever way the camera was pointed. That is the property
+    // asserted here.
     {
         std::printf("=== 6b) feet alignment + balance ===\n");
         std::vector<PoseFrame2D> frames;

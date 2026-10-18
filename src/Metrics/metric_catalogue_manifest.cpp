@@ -2650,7 +2650,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "target-line alignment, which a down-the-line or overhead view would resolve more "
             "directly. Needs a face-on whole-body camera."),
         .signPositive = QStringLiteral("a closed stance line as the camera sees it"),
-        .signNegative = QStringLiteral("an open stance line — and this one line metric FLIPS for a mirrored camera"),
+        .signNegative = QStringLiteral("an open stance line"),
         .phases = { P::Address },
         .card = { .readAt = { { P::Address, {} } } },
         .routes = {

@@ -67,8 +67,8 @@
 // module) share ONE convention: POSITIVE MEANS THE TRAIL END SITS ABOVE THE LEAD END,
 // computed against the ABSOLUTE horizontal separation so the answer does not flip for
 // a left-handed golfer or a mirrored camera. A raw atan2 of the lead→trail vector
-// does flip, which is why `toeLineAngle` — which uses one — is NOT the model here and
-// why `feetAlignment` was added as its sign-stable replacement.
+// does flip, which is why `toeLineAngle` — which used one until 18 Oct 2026 — was NOT
+// the model here and why `feetAlignment` was added as its sign-stable replacement.
 //
 // `secondaryAxisTilt` is POSITIVE AWAY FROM THE TARGET (trail-side lean), matching
 // its descriptor and `m_axisTiltImpact`'s `highMeans`. It is therefore the one

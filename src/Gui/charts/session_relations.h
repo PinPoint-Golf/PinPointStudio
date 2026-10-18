@@ -38,7 +38,8 @@
 //     inside it), outliers past them. `side` ±1 = past a whisker: "apart from the session".
 //   · Angles that wrap: a degree reading with values above +120° AND below −120° (toeLineAngle: 176.6
 //     beside −179.5) has its negatives moved up by 360° and is flagged `wrapped`, so the spread is the
-//     real one and the panel can mark the row.
+//     real one and the panel can mark the row. The producer no longer wraps (toeLineAngle is a line
+//     tilt since 18 Oct 2026, GitHub #8); the guard stays for swings analysed before that and not since.
 //   · r: Pearson over the shots both readings have, n ≥ 5; undefined (not NaN, not a crash) when either
 //     reading is constant. The 95 % interval is Fisher's z ± 1.96/√(n−3); `clear` = it excludes 0.
 //     rCritical(n) = tanh(1.96/√(n−3)) is the |r| chance reaches — ".51 at n = 15". chanceCount(m) =

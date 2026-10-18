@@ -214,6 +214,35 @@ int main()
         CHECK("toe-line ~ 0 deg (both bigtoes level)", near(res.setup.toeLineDeg, 0.0, 0.3));
     }
 
+    // ── 2b) Toe line is a body-line tilt: closed-positive, mirror-safe, never near ±180° ──
+    // A right-handed golfer face-on has the lead (left) foot on the IMAGE RIGHT. The raw lead→trail
+    // atan2 this used to be read ±180° there and split the 4 July session across the wrap (GitHub #8).
+    // Trail toe 20 px higher over a 200 px stance = the trail foot further from the camera = closed.
+    {
+        std::printf("=== 2b) toe line: lead on the image right, and mirrored ===\n");
+        const int W = 1000, H = 1000;
+        const int64_t dt = 10000;
+        const double expected = std::atan2(20.0, 200.0) * 180.0 / kPi;   // +5.71°
+        const auto toeLine = [&](double leadX, double trailX) {
+            const QPointF lHeel(leadX, 0.62), lToe(leadX, 0.60);           // golfer's left = lead
+            const QPointF rHeel(trailX, 0.60), rToe(trailX, 0.58);         // trail toe 20 px higher
+            std::vector<PoseFrame2D> frames;
+            for (int k = 0; k < 6; ++k)
+                frames.push_back(makeFeet(k * dt, lHeel, lToe, rHeel, rToe, 0.9f, 0.9f));
+            PoseTrack2D pose;
+            pose.frames = frames;
+            return trackFeet(pose, W, H, /*leadIsLeft=*/true, 2 * dt, {});
+        };
+        const FootMetricsResult faceOn = toeLine(0.70, 0.50);   // lead on the image right
+        const FootMetricsResult mirror = toeLine(0.30, 0.50);   // the same stance, mirrored camera
+        CHECK("toe-line resolved (lead on the image right)", faceOn.setup.toeLineValid);
+        CHECK("toe-line closed stance reads positive (~ +5.7 deg)",
+              near(faceOn.setup.toeLineDeg, expected, 0.05));
+        CHECK("toe-line reads the same through a mirrored camera",
+              near(mirror.setup.toeLineDeg, faceOn.setup.toeLineDeg, 1e-9));
+        CHECK("toe-line is nowhere near +-180 deg", std::abs(faceOn.setup.toeLineDeg) < 90.0);
+    }
+
     // ── 3) Lead-heel-lift ramp recovery (1920×1080) ─────────────────────────
     // Still address hold (6 frames) then the lead heel rises (toe fixed) while
     // the trail foot stays low-confidence throughout (never contributes).

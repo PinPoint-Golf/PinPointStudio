@@ -144,7 +144,7 @@ struct FootSetup {
     bool   trailFlareValid = false;
     double trailFlareDeg = 0.0;        // trail heel→bigtoe vs image +x axis, degrees
     bool   toeLineValid = false;
-    double toeLineDeg = 0.0;           // lead-bigtoe→trail-bigtoe vs image +x axis, degrees
+    double toeLineDeg = 0.0;           // big-toe line tilt, degrees, + = trail toe above lead toe (closed)
 };
 
 struct FootMetricsResult {

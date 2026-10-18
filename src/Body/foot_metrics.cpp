@@ -48,6 +48,19 @@ double angleDeg(const QPointF &a, const QPointF &b)
     return std::atan2(b.y() - a.y(), b.x() - a.x()) * 57.29577951308232;
 }
 
+// Signed tilt (deg) of a body line, POSITIVE WHEN THE TRAIL END SITS ABOVE THE LEAD END — the
+// convention of the hip, shoulder, elbow and ankle lines (lower_body_metrics.cpp, spelled the same
+// way). The denominator is the ABSOLUTE horizontal separation, so the answer is the same for a
+// left-handed golfer or a mirrored camera, and it never nears ±180°. The toe line used a raw atan2
+// of the lead→trail vector until 18 Oct 2026, which sat at ±180° whenever the lead foot was on the
+// image right — a right-handed golfer, face-on — and split one session across the wrap (GitHub #8).
+double lineTiltDeg(const QPointF &lead, const QPointF &trail)
+{
+    const double dx = std::abs(trail.x() - lead.x());
+    if (dx <= 1e-9) return 0.0;                 // toes vertically stacked — no line to measure
+    return std::atan2(lead.y() - trail.y(), dx) * 57.29577951308232;
+}
+
 double medianOf(std::vector<double> v)
 {
     if (v.empty()) return 0.0;
@@ -202,7 +215,7 @@ FootMetricsResult trackFeet(const PoseTrack2D &pose, int frameW, int frameH, boo
         // stanceWidth / toeLine need BOTH feet valid on this reference frame.
         if (s->leadValid && s->trailValid) {
             widths.push_back(distPx(s->leadHeelPx, s->trailHeelPx));
-            toeLines.push_back(angleDeg(s->leadToePx, s->trailToePx));
+            toeLines.push_back(lineTiltDeg(s->leadToePx, s->trailToePx));
             // The heel pair itself, from the SAME frames as `widths` — so
             // anything projected onto this line shares stanceWidth's denominator.
             leadHeelX.push_back(s->leadHeelPx.x());

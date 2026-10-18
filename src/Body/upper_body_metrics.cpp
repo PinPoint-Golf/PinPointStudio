@@ -96,8 +96,8 @@ double sigOf(const PoseKpAux *aux, AnatomyRole r, bool leadIsLeft)
 // Image y grows downward, so "trail higher" is trailY < leadY and the numerator is leadY − trailY.
 // The denominator is the ABSOLUTE horizontal separation, which is what makes the sign independent
 // of which image side the lead is on. The alternative — a raw atan2 of the lead→trail vector, which
-// is what `toeLineAngle` uses — flips its answer for a left-handed golfer or a mirrored camera
-// while describing the same posture. This is the same function `hipLineTilt` is built on, spelled
+// is what `toeLineAngle` used until 18 Oct 2026 — flips its answer for a left-handed golfer or a
+// mirrored camera while describing the same posture. This is the same function `hipLineTilt` is built on, spelled
 // the same way on purpose: the hip line, the shoulder line and the elbow line are one convention.
 double lineTiltDeg(const QPointF &lead, const QPointF &trail)
 {

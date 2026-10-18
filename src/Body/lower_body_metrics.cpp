@@ -80,8 +80,8 @@ double sigAt(const PoseKpAux *aux, int idx)
 // The denominator is the ABSOLUTE horizontal separation, which is what makes the sign independent
 // of which image side the lead is on — the alternative (a raw atan2 of the lead→trail vector)
 // flips its answer for a left-handed golfer, or for a mirrored camera, while describing the same
-// posture. `toeLineAngle` in foot_metrics IS that alternative, which is one of the two reasons
-// `feetAlignment` exists beside it (see the header).
+// posture. `toeLineAngle` in foot_metrics used that alternative until 18 Oct 2026 and now uses this
+// form too; the sign defect was one of the two reasons `feetAlignment` exists beside it (see the header).
 //
 // Shared by the hip line and the ankle line here, and by the shoulder and elbow lines in
 // upper_body_metrics.cpp — one convention for every body line in the product.

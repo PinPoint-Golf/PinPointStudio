@@ -46,10 +46,10 @@
 // and the impact read — how the trail foot has rolled and the ankles re-oriented
 // as the player pushes off — has no counterpart in an address-only scalar.
 //
-// It also fixes a sign defect by construction. `toeLineAngle` is a RAW atan2 of
-// the lead→trail vector, which inverts for a left-handed golfer or a mirrored
-// camera; `feetAlignment` uses the same absolute-denominator form as the hip line
-// below, so it describes the same posture whichever way the camera was pointed.
+// It also fixed a sign defect by construction. `toeLineAngle` was a RAW atan2 of
+// the lead→trail vector until 18 Oct 2026, which inverts for a left-handed golfer
+// or a mirrored camera; `feetAlignment` uses the same absolute-denominator form as
+// the hip line below, and `toeLineAngle` now does too.
 //
 // ── comOverLeadFoot is a PROXY, and says so ────────────────────────────────
 //
