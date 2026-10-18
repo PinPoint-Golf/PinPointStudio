@@ -31,6 +31,8 @@
 #include "../../Metrics/gate_catalogue.h"   // a masked reading's gate words (cautionOfPicked)
 #include "../../Metrics/metric_catalogue.h"
 #include "../../Diagnostics/norms/norm.h"   // the grade policy: where a fired reading is past its fault line
+#include "../../Diagnostics/norms/norm_provider.h"   // the Readings rows' corridor: the norm the reading grades against
+#include "../diagnostics/session_spread.h"           // …turned into bands exactly as Session diagnostics draws them
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>
@@ -553,6 +555,9 @@ struct Ctx {
     int n = 0;
     int readAtGen = 0;
     double faultZ = 3.0;    // where Action begins, in the ledger's z unit (the Ideal half-width): watchMaxZ / idealMaxZ
+    // #10: the norms and the grade policy the Readings rows' corridors are drawn from; null = no corridors
+    const pinpoint::analysis::INormProvider *norms = nullptr;
+    pinpoint::analysis::GradePolicy policy;
 
     // A shot's own ordinal from its 1-based position in S (identity in a session; not in a club's subset).
     int ord(int pos) const { return pos >= 1 && pos <= int(S.shots.size()) ? S.shots[size_t(pos - 1)]->ordinal : pos; }
@@ -623,6 +628,69 @@ QVariantList boolsOf(const std::vector<uint8_t> &f)
     return out;
 }
 
+// #10: the corridor a diagnostics condition grades this reading against — the norm for the measure that graded
+// it, resolved for that shot's context and turned into bands by the same function Session diagnostics draws
+// with (corridorForRow), so the two screens agree. The ledger row's own corridorLo/Hi are only its stored Ideal
+// band and are not used. The picked shot's grading first, else the first shot that graded the reading;
+// { known: false } when no condition graded it or no norm resolves.
+// ONLY a measure in the reading's own quantity draws (Reading::sameQuantity): the value AT the P-position or its
+// unanchored peak over the window ending there. A change, a rate or a peak deviation from address is another
+// quantity — hip stall grades pelvisRotationSigned@P7 by its P6→P7 rate in °/s, and drawn on the reading in °
+// its corridor would be nonsense.
+QVariantMap corridorOf(const Ctx &x, const SessionReading &r)
+{
+    if (!x.norms) return { { QStringLiteral("known"), false } };
+    const int N = x.n;
+    for (int k = -1; k < N; ++k) {
+        const int idx = k < 0 ? x.pick : k;
+        if (idx < 0 || idx >= N || (k >= 0 && idx == x.pick)) continue;
+        const ShotDiagnostics &d = x.S.shots[size_t(idx)]->diagnostics;
+        for (auto it = d.gradedBy.constBegin(); it != d.gradedBy.constEnd(); ++it) {
+            const ShotDiagnostics::Reading &g = it.value();
+            if (g.measureId.isEmpty() || g.metricKey != r.key || g.phase != r.phase) continue;
+            if (!g.sameQuantity) continue;
+            const pinpoint::analysis::NormResolution res = x.norms->resolve(g.measureId, g.contextId);
+            if (!res.found()) continue;
+            const auto shape = g.shape >= 0 ? pinpoint::analysis::Shape(g.shape) : pinpoint::analysis::Shape::Target;
+            const pinpoint::analysis::SpreadCorridor c = pinpoint::analysis::spreadCorridorFromNorm(*res.norm, shape, x.policy);
+            if (!c.known) continue;
+            return { { QStringLiteral("known"), true }, { QStringLiteral("lowOpen"), c.lowOpen }, { QStringLiteral("highOpen"), c.highOpen },
+                     { QStringLiteral("signalLo"), c.signalLo }, { QStringLiteral("signalHi"), c.signalHi },
+                     { QStringLiteral("faultLo"), c.faultLo }, { QStringLiteral("faultHi"), c.faultHi } };
+        }
+    }
+    return { { QStringLiteral("known"), false } };
+}
+
+// What a row's box plot stands for, in words, for the hover readout (Mark, 18 Oct: "we see the whiskers but I
+// have no idea what values they represent"). In the row's own rounding and unit; no statistician's terms.
+QString boxReadout(const SessionReading &r)
+{
+    const BoxStats &b = r.box;
+    if (b.n < 3) return {};
+    const int beyond = int(b.outliers.size());
+    return QStringLiteral("The box is the middle half of the session's %1 shots, %2 to %3; the line in it is the median, %4. "
+                          "The lines reach %5 and %6%7.")
+        .arg(b.n).arg(figBare(b.q1, r.unit), figU(b.q3, r.unit), figU(b.med, r.unit), figBare(b.lo, r.unit), figU(b.hi, r.unit))
+        .arg(beyond == 0 ? QString()
+             : QStringLiteral("; %1 beyond them %2 apart from the session").arg(words::word(beyond),
+                                                                               beyond == 1 ? QStringLiteral("is") : QStringLiteral("are")));
+}
+
+// The corridor in words, beside its wash and fault tick (#10): where the condition does not fire, and the fault line.
+QString corridorReadout(const SessionReading &r, const QVariantMap &c)
+{
+    if (!c.value(QStringLiteral("known")).toBool()) return {};
+    const bool lo = !c.value(QStringLiteral("lowOpen")).toBool(), hi = !c.value(QStringLiteral("highOpen")).toBool();
+    const auto f = [&](const char *k) { return figU(c.value(QLatin1String(k)).toDouble(), r.unit); };
+    const auto b = [&](const char *k) { return figBare(c.value(QLatin1String(k)).toDouble(), r.unit); };
+    if (lo && hi)
+        return QStringLiteral("The shaded corridor runs from %1 to %2; below %3 or above %4 is past its fault line.")
+            .arg(b("signalLo"), f("signalHi"), b("faultLo"), f("faultHi"));
+    if (hi) return QStringLiteral("The shaded corridor runs up to %1; above %2 is past its fault line.").arg(f("signalHi"), f("faultHi"));
+    return QStringLiteral("The shaded corridor starts at %1; below %2 is past its fault line.").arg(f("signalLo"), f("faultLo"));
+}
+
 QVariantMap rowMap(const Ctx &x, int i)
 {
     const SessionReading &r = x.r(i);
@@ -648,6 +716,7 @@ QVariantMap rowMap(const Ctx &x, int i)
         }
     if (fired && firedWord.isEmpty()) firedWord = fault ? QStringLiteral("past its fault line") : QStringLiteral("out of its corridor");
     const bool curve = m.drawsCurve && x.pickedHasCurve(r.key);
+    const QVariantMap corr = corridorOf(x, r);
     // no value on this shot because a gate refused it: a plain "-" in the row; why is said once, in the panel's tail
     // (Mark, 17 Oct 2026). gateWords stays on the map for readers that name it (none on screen).
     const QVariantMap gate = x.pick >= 0 && !p.measured ? gateOfPicked(x, r.key) : QVariantMap{};
@@ -679,6 +748,8 @@ QVariantMap rowMap(const Ctx &x, int i)
         { QStringLiteral("firedShots"), boolsOf(r.fired) }, { QStringLiteral("fired"), fired },
         { QStringLiteral("firedWord"), firedWord }, { QStringLiteral("verdict"), verdict },
         { QStringLiteral("conditions"), conds }, { QStringLiteral("firedConditions"), links },
+        { QStringLiteral("corridor"), corr }, { QStringLiteral("corridorReadout"), corridorReadout(r, corr) },
+        { QStringLiteral("boxReadout"), boxReadout(r) },
         { QStringLiteral("hasCurve"), curve }, { QStringLiteral("opens"), curve ? QStringLiteral("trace") : QStringLiteral("run") } };
 }
 
@@ -2087,7 +2158,9 @@ static std::shared_ptr<ChartsRelationsPresenter::Output> computeRelations(const 
                                                                    const QString &reg, const QString &family, const QString &up,
                                                                    const QString &across, const QString &facet, const QString &open,
                                                                    const ChartsRelationsPresenter::ReadAt &readAt, int readAtGen,
-                                                                   double faultZ, ChartsRelationsPresenter::Cache &cache)
+                                                                   double faultZ, const pinpoint::analysis::GradePolicy &policy,
+                                                                   const std::shared_ptr<const pinpoint::analysis::INormProvider> &norms,
+                                                                   ChartsRelationsPresenter::Cache &cache)
 {
     QElapsedTimer timer;
     timer.start();
@@ -2101,6 +2174,8 @@ static std::shared_ptr<ChartsRelationsPresenter::Output> computeRelations(const 
     x.n = S.count();
     x.readAtGen = readAtGen;
     x.faultZ = faultZ;
+    x.norms = norms.get();
+    x.policy = policy;
     for (int i = 0; i < x.n; ++i) if (!picked.isEmpty() && cleanDir(S.shots[size_t(i)]->swingDir) == picked) { x.pick = i; break; }
 
     int pickIdx = -1;
@@ -2266,16 +2341,17 @@ void ChartsRelationsPresenter::start()
     const int gen = m_generation;
     const pa::GradePolicy gp = pa::gradePolicyByName(m_gradePolicy);
     const double faultZ = gp.idealMaxZ > 0.0 ? gp.watchMaxZ / gp.idealMaxZ : 3.0;
+    const auto norms = pinpoint::analysis::sharedNormProvider();
     auto cache = m_cache;
     if (m_synchronous) {
         m_pool.waitForDone();
-        deliver(computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, *cache));
+        deliver(computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, *cache));
         return;
     }
     m_running = true;
     emit busyChanged();
-    m_pool.start([this, snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, cache]() {
-        auto out = computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, *cache);
+    m_pool.start([this, snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, cache]() {
+        auto out = computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, *cache);
         QMetaObject::invokeMethod(this, [this, out]() {
             m_running = false;
             deliver(out);

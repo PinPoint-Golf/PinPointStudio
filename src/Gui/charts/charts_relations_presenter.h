@@ -83,8 +83,10 @@
 //         reducer (0 At 1 Delta 2 Rate 3 Extremum −1), instant ("at P7" | "peak before P7" | "change to P7" |
 //         "rate of change to P7" | ""), text }], verdict ("fault" past the fault line — "past its fault
 //         line" replaces "out of its corridor" in firedWord then — | "outside" | "inside" graded clean |
-//         "" not graded on this shot; the Readings tab's filter), hasCurve (this shot has the curve
-//         and the catalogue draws it), opens ("trace"|"run") }
+//         "" not graded on this shot; the Readings tab's filter), corridor ({ known, lowOpen, highOpen,
+//         signalLo, signalHi, faultLo, faultHi } — the norm's bands under the grade policy, as Session
+//         diagnostics draws them; known false when no condition grades the reading), hasCurve (this shot
+//         has the curve and the catalogue draws it), opens ("trace"|"run") }
 //   · A RUN (RunBox) = { readingId, key, label, tag, unit, unitText, caption (string),
 //       points: [{ ordinal, shotId, swingDir, value|null, measured, fired, picked }], box,
 //       yRange { lo, hi }, drift { defined, r, lo, hi, clear, rText, ciText, slope, intercept,

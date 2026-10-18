@@ -28,6 +28,11 @@ import PinPointStudio
 // ordinal − 1, null where unmeasured); QML maps them to pixels.
 // Colour (§15.4 item 1, D5): a box stands for a METRIC, so it is drawn in the metric's hue (`color`), muted
 // to ink3 at rest when `muted` (a profile of 68 coloured boxes is busy) and coloured on hover or when apart.
+// `corridor` (#10, the Readings rows only): the presenter's { known, lowOpen, highOpen, signalLo/Hi, faultLo/Hi }.
+// Drawn UNDER the box and kept quiet (Mark, 18 Oct: "so long as the corridor and fault line are subtle") in the
+// typeset's own corridor marks, as Session diagnostics draws them: roles.wash where the condition does not fire,
+// a short roles.fault tick at each fault line. The scale widens to
+// take in the corridor's graded edges, so a session that sits wholly outside it still shows where it is.
 Item {
     id: bc
     property QtObject roles: null
@@ -42,14 +47,20 @@ Item {
     property bool vertical: false
     property bool interactive: false
     property real markScale: 1
+    property var corridor: null
     property bool showPicked: true
     signal shotActivated(int ordinal)
     readonly property bool ok: !!roles && !!box && box.n > 0 && box.q1 !== null && box.q1 !== undefined
     // the box to draw: the presenter's, or an empty one while there is none (bindings never read a null)
     readonly property var b: ok ? box : ({ n: 0, min: 0, max: 0, q1: 0, med: 0, q3: 0, lo: 0, hi: 0, outliers: [] })
-    readonly property real pad: ok ? 0.06 * Math.max(1e-6, box.max - box.min) : 0
-    readonly property real dLo: isFinite(lo) ? lo : (ok ? box.min - pad : 0)
-    readonly property real dHi: isFinite(hi) ? hi : (ok ? box.max + pad : 1)
+    readonly property bool cOk: ok && !!corridor && corridor.known === true
+    // the corridor's graded edges (a ceiling has only its high one, a floor only its low one), wherever they fall
+    readonly property var cEdges: !cOk ? [] : (corridor.lowOpen ? [] : [corridor.signalLo]).concat(corridor.highOpen ? [] : [corridor.signalHi])
+    readonly property real sLo: !ok ? 0 : Math.min.apply(null, [box.min].concat(cEdges))
+    readonly property real sHi: !ok ? 1 : Math.max.apply(null, [box.max].concat(cEdges))
+    readonly property real pad: ok ? 0.06 * Math.max(1e-6, sHi - sLo) : 0
+    readonly property real dLo: isFinite(lo) ? lo : (ok ? sLo - pad : 0)
+    readonly property real dHi: isFinite(hi) ? hi : (ok ? sHi + pad : 1)
     readonly property real len: vertical ? height : width
     function pos(v) { const f = (v - dLo) / Math.max(1e-9, dHi - dLo); return vertical ? Math.round((1 - f) * len * 2) / 2 : Math.round(f * len * 2) / 2 }
     readonly property real mid: Math.round((vertical ? width : height) / 2)
@@ -61,6 +72,26 @@ Item {
     function valueOf(ord) { const v = (values || [])[ord - 1]; return v === null || v === undefined ? NaN : v }
     implicitHeight: roles ? roles.u(roles.ch.boxRow) : 16
 
+    // the corridor, under everything: where the condition does not fire, and its fault lines
+    Item {
+        objectName: "chBoxCorridor"
+        visible: bc.cOk && !bc.vertical
+        anchors.fill: parent
+        readonly property real a: visible ? (bc.corridor.lowOpen ? 0 : bc.pos(Math.max(bc.dLo, bc.corridor.signalLo))) : 0
+        readonly property real b: visible ? (bc.corridor.highOpen ? bc.len : bc.pos(Math.min(bc.dHi, bc.corridor.signalHi))) : 0
+        Rectangle { x: parent.a; width: Math.max(0, parent.b - parent.a); y: bc.mid - bc.bw / 2 - 2; height: bc.bw + 4
+                    color: bc.roles ? bc.roles.wash : "transparent" }
+        Repeater {
+            model: bc.cOk && !bc.vertical ? [bc.corridor.lowOpen ? NaN : bc.corridor.faultLo, bc.corridor.highOpen ? NaN : bc.corridor.faultHi] : []
+            delegate: Rectangle {
+                required property var modelData
+                visible: isFinite(modelData) && modelData >= bc.dLo && modelData <= bc.dHi
+                x: visible ? bc.pos(modelData) - width / 2 : 0; width: bc.lw
+                y: bc.mid - bc.bw / 2 - 2; height: bc.bw + 4
+                color: bc.roles ? bc.roles.fault : "transparent"
+            }
+        }
+    }
     Item {
         visible: bc.ok
         anchors.fill: parent

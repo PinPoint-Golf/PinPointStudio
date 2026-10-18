@@ -188,6 +188,7 @@ Column {
                 required property var modelData
                 width: pf.colW; roles: rv.roles; brush: rv.brush; interactive: rv.interactive
                 presenter: rv.body ? rv.body.relationsP : null
+                showCorridor: true
                 groups: modelData
                 shotLabel: rv.body && rv.body.rStatus ? (rv.body.rStatus.shotLabel || "") : ""
                 countLabel: !rv.body || !rv.body.rStatus ? "" : rv.roles && !rv.roles.atLeast(pf.colW, "compact") ? (rv.body.rStatus.countLabelShort || "") : (rv.body.rStatus.countLabel || "")

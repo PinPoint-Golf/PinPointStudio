@@ -157,6 +157,15 @@ ShotDiagnostics diagnosticsOf(const pinpoint::analysis::ShotRecord &s,
         rd.metricKey = cr.metricKey;
         rd.phase     = cr.found ? cr.phase : -1;
         rd.reducer   = cr.found ? int(cr.reducer) : -1;
+        rd.contextId = r.contextId;
+        if (pack && !r.drivingMeasureId.isEmpty())
+            if (const pinpoint::analysis::Measure *ms = pack->measure(r.drivingMeasureId)) {
+                using pinpoint::analysis::ReducerKind;
+                rd.shape        = int(ms->shape);
+                rd.sameQuantity = ms->kind != pinpoint::analysis::MeasureKind::Composed
+                               && (ms->reducer.kind == ReducerKind::At
+                                   || (ms->reducer.kind == ReducerKind::Extremum && !ms->reducer.anchor));
+            }
         d.gradedBy.insert(r.conditionId, rd);
         if (r.state == ShotState::Fired) d.drivenBy.insert(r.conditionId, rd);
     }

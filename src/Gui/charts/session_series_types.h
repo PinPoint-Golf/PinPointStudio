@@ -115,6 +115,16 @@ struct ShotDiagnostics {
         QString metricKey;
         int     phase = -1;
         int     reducer = -1;   // ADDED: as ConditionInfo::reducer
+        // ADDED 18 Oct (additive, #10): the row's context (the club the norm is resolved for) and the
+        // measure's shape from the pack (pinpoint::analysis::Shape, −1 when the pack has no such
+        // measure), so the Readings rows can draw the corridor the norm grades — the row's own
+        // corridorLo/Hi above are only its stored Ideal band.
+        QString contextId;
+        int     shape = -1;
+        // true when the measure reads THIS reading's own quantity — its value at the P-position, or its
+        // unanchored peak over the window ending there — so its corridor can be drawn on the reading. A
+        // change, a rate, a peak deviation from an anchor or a composed measure is another quantity.
+        bool    sameQuantity = false;
     };
     QHash<QString, Reading> drivenBy;     // conditionId → reading; fired conditions only
     // ADDED 17 Oct (additive): the reading behind EVERY graded row — fired and clean — resolved the

@@ -998,6 +998,47 @@ private slots:
         measureReal(dir, 25);
     }
 
+    // #10: a graded reading carries the corridor its norm grades it against (as Session diagnostics draws it), an
+    // ungraded one none; the edges are ordered and the fault lines sit outside the corridor.
+    void realCorridorFromTheNorm()
+    {
+        const QString dir = QStringLiteral("/mnt/swingdata/Mark-Liversedge/2026-07-04_Mark-Liversedge_Wrist_01");
+        if (!QFileInfo(dir).isDir()) QSKIP("session not reachable (is /mnt/swingdata mounted?)");
+        if (qEnvironmentVariableIsEmpty("PINPOINT_CORE_PACK")) QSKIP("no shipped pack in this environment");
+        SessionSeriesModel model;           // reads only; never writes
+        model.setSynchronous(true);
+        model.activateSession(dir);
+        const auto snap = model.snapshot();
+        QVERIFY(snap && snap->count() >= 8);
+        ChartsRelationsPresenter p;
+        p.setSynchronous(true);
+        p.setPickedSwingDir(snap->shots[7]->swingDir);
+        p.setModel(&model);
+        QVERIFY(p.waitForIdle(120000));
+        int known = 0, graded = 0;
+        for (const QVariant &g : p.thisShot().value(QStringLiteral("groups")).toList())
+            for (const QVariant &rv : g.toMap().value(QStringLiteral("rows")).toList()) {
+                const QVariantMap r = rv.toMap();
+                const QVariantMap c = r.value(QStringLiteral("corridor")).toMap();
+                QVERIFY2(c.contains(QStringLiteral("known")), qPrintable(r.value(QStringLiteral("readingId")).toString()));
+                if (!r.value(QStringLiteral("verdict")).toString().isEmpty()) ++graded;
+                if (!c.value(QStringLiteral("known")).toBool()) continue;
+                ++known;
+                const bool lo = !c.value(QStringLiteral("lowOpen")).toBool(), hi = !c.value(QStringLiteral("highOpen")).toBool();
+                QVERIFY(lo || hi);
+                const double sLo = c.value(QStringLiteral("signalLo")).toDouble(), sHi = c.value(QStringLiteral("signalHi")).toDouble();
+                const double fLo = c.value(QStringLiteral("faultLo")).toDouble(), fHi = c.value(QStringLiteral("faultHi")).toDouble();
+                if (lo) QVERIFY(fLo <= sLo);
+                if (hi) QVERIFY(fHi >= sHi);
+                if (lo && hi) QVERIFY(sLo < sHi);
+            }
+        qInfo().noquote() << "  4 July shot 8:" << known << "readings carry a corridor," << graded << "graded on this shot";
+        QVERIFY(known >= 5);
+        const QVariantMap club = rowOf(p.thisShot(), QStringLiteral("clubheadSpeed@5"));
+        if (!club.isEmpty() && club.value(QStringLiteral("verdict")).toString().isEmpty() && club.value(QStringLiteral("conditions")).toList().isEmpty())
+            QVERIFY(!club.value(QStringLiteral("corridor")).toMap().value(QStringLiteral("known")).toBool());
+    }
+
 private:
     void measureReal(const QString &dir, int pickOrdinal)
     {
