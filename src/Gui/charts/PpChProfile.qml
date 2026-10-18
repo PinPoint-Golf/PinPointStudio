@@ -133,7 +133,7 @@ Column {
                 Text {
                     id: name; width: pt.nameW; wrapMode: Text.WordWrap
                     leftPadding: pt.roles.u(pt.roles.ch.swatch) + pt.roles.u(5)
-                    text: row.r ? row.r.label + (row.r.wrappedMark ? " " + row.r.wrappedMark : "") : ""
+                    text: row.r ? row.r.label : ""
                     font: row.open ? pt.roles.fBodyM : pt.roles.fBody; color: pt.roles.ink
                     Rectangle { y: Math.round(name.baselineOffset - height - name.font.pixelSize * 0.18); width: pt.roles.u(pt.roles.ch.swatch); height: width
                                 radius: pt.roles.square ? 0 : width / 2; color: row.r ? pt.roles.hue(row.r.key) : "transparent" }

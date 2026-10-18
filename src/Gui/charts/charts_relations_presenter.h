@@ -83,8 +83,8 @@
 //         reducer (0 At 1 Delta 2 Rate 3 Extremum −1), instant ("at P7" | "peak before P7" | "change to P7" |
 //         "rate of change to P7" | ""), text }], verdict ("fault" past the fault line — "past its fault
 //         line" replaces "out of its corridor" in firedWord then — | "outside" | "inside" graded clean |
-//         "" not graded on this shot; the Readings tab's filter), wrapped (bool), wrappedMark
-//         ("†" | ""), hasCurve (this shot has the curve and the catalogue draws it), opens ("trace"|"run") }
+//         "" not graded on this shot; the Readings tab's filter), hasCurve (this shot has the curve
+//         and the catalogue draws it), opens ("trace"|"run") }
 //   · A RUN (RunBox) = { readingId, key, label, tag, unit, unitText, caption (string),
 //       points: [{ ordinal, shotId, swingDir, value|null, measured, fired, picked }], box,
 //       yRange { lo, hi }, drift { defined, r, lo, hi, clear, rText, ciText, slope, intercept,
@@ -124,7 +124,7 @@
 //   familyRows: [READING ROW]                      — the family's other readings (Replay)
 //   apart: [READING ROW]                           — past a whisker, most extreme first
 //   groups: [{ name, rows: [READING ROW] }]         — EVERY reading by family (D5)
-//   notes (string; the apart definition and the † note when a row is wrapped), wrappedNote,
+//   notes (string; the apart definition),
 //   firedElsewhere: [{ condition, name, metricKey, phase }],
 //   asks: [{ id, text, answer, lit: [ordinal], go ("" | "relations" | "kinds"), upId }] }
 // openRow: {} or { readingId, opens: "trace" | "run", trace: TRACE | null, run: RUN }

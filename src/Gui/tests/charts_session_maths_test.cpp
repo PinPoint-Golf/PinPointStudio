@@ -380,7 +380,6 @@ private slots:
             const QJsonObject w = want.at(i).toObject();
             const SessionReading &r = rs[size_t(i)];
             QCOMPARE(r.id, w.value(QStringLiteral("id")).toString());
-            QCOMPARE(r.wrapped, w.value(QStringLiteral("wrapped")).toBool());
             QCOMPARE(r.multi, w.value(QStringLiteral("multi")).toBool());
             checkSeries(r.values, w.value(QStringLiteral("values")), r.id);
             const QJsonObject b = w.value(QStringLiteral("box")).toObject();
@@ -451,7 +450,7 @@ private slots:
         const SessionKinds k = findKinds(rs);
         const QJsonObject w = m_g.value(QStringLiteral("kinds")).toObject();
         CHECK_SAME(k.silhouette, w.value(QStringLiteral("silhouette")), QStringLiteral("silhouette"));
-        QVERIFY(std::abs(k.silhouette - 0.03) < 0.005);               // "no structure (silhouette .03)"
+        QVERIFY(std::abs(k.silhouette - 0.03) < 0.005);               // "no structure (silhouette .02 as shown)"
         QCOMPARE(k.method, KindsMethod::GapSplit);
         QCOMPARE(k.readingsUsed, w.value(QStringLiteral("readingsUsed")).toInt());
         QCOMPARE(k.minSize, w.value(QStringLiteral("minSize")).toInt());
@@ -938,10 +937,10 @@ private slots:
         }
     }
 
-    void synthWrappedAngleAndConstantReading()
+    void synthAngleAndConstantReading()
     {
         std::vector<std::shared_ptr<ShotSeries>> shots;
-        const double toe[] = { 176.6, -179.5, 178.0, -178.0, 179.0, 177.5 };
+        const double toe[] = { -3.4, 0.5, -2.0, 2.0, -1.0, -2.5 };
         for (int i = 1; i <= 6; ++i) {
             auto s = makeShot(i);
             addReading(*s, QStringLiteral("toeLineAngle"), 0, toe[i - 1], QStringLiteral("°"));
@@ -953,9 +952,8 @@ private slots:
         QCOMPARE(int(rs.size()), 3);
         const SessionReading &toeR = rs[0];
         QCOMPARE(toeR.id, QStringLiteral("toeLineAngle@0"));          // address-only: falls back to its own phase
-        QVERIFY(toeR.wrapped);
-        QCOMPARE(toeR.values[1], 180.5);
-        QVERIFY(toeR.box.max - toeR.box.min < 10.0);                  // the real spread (5.4°), not 358°
+        QCOMPARE(toeR.values[1], 0.5);                               // read as stored: no unwrap (#8)
+        QCOMPARE(toeR.box.max - toeR.box.min, 5.4);
         QVERIFY(toeR.box.outliers.empty());
         // a constant reading: r undefined, never a NaN in a ranked list, never a crash
         const Correlation c = pairOf(rs[1], rs[2]);

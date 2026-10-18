@@ -679,7 +679,6 @@ QVariantMap rowMap(const Ctx &x, int i)
         { QStringLiteral("firedShots"), boolsOf(r.fired) }, { QStringLiteral("fired"), fired },
         { QStringLiteral("firedWord"), firedWord }, { QStringLiteral("verdict"), verdict },
         { QStringLiteral("conditions"), conds }, { QStringLiteral("firedConditions"), links },
-        { QStringLiteral("wrapped"), r.wrapped }, { QStringLiteral("wrappedMark"), r.wrapped ? QStringLiteral("†") : QString() },
         { QStringLiteral("hasCurve"), curve }, { QStringLiteral("opens"), curve ? QStringLiteral("trace") : QStringLiteral("run") } };
 }
 
@@ -764,7 +763,6 @@ QVariantMap traceMap(const Ctx &x, const SessionReading &r, TraceCurve *keep)
         if (us < 0) continue;
         std::vector<double> vals;
         for (const auto &sh : x.S.shots) vals.push_back(valueAtPhaseOf(*sh, r.key, ph));
-        if (r.wrapped) for (double &v : vals) if (fin(v) && v < 0) v += 360.0;
         const BoxStats b = boxStats(vals);
         if (b.n < 3) continue;
         ylo = std::min(ylo, b.min); yhi = std::max(yhi, b.max);
@@ -1081,20 +1079,16 @@ QVariantMap thisShotMap(const Ctx &x, const Cache::Family *fam, Output *out)
 
     // every reading by family (D5)
     QVariantList groups;
-    bool anyWrapped = false;
     for (const QString &g : x.c.groupOrder) {
         QVariantList rows;
         for (size_t i = 0; i < x.c.readings.size(); ++i)
-            if (x.c.meta[i].group == g) { rows.append(rowMap(x, int(i))); anyWrapped = anyWrapped || x.c.readings[i].wrapped; }
+            if (x.c.meta[i].group == g) rows.append(rowMap(x, int(i)));
         if (!rows.isEmpty()) groups.append(QVariantMap{ { QStringLiteral("name"), g }, { QStringLiteral("rows"), rows } });
     }
     m.insert(QStringLiteral("groups"), groups);
-    const QString wrappedNote = anyWrapped ? QStringLiteral("† An angle the producer reads across ±180°; shown unwrapped.") : QString();
-    m.insert(QStringLiteral("wrappedNote"), wrappedNote);
     m.insert(QStringLiteral("notes"), QStringLiteral("Apart: past a whisker, which reaches 1.5 times the middle half beyond its quartiles. "
                                                      "Each row has its own scale, the session's lowest to highest. A fired mark is a reading a "
-                                                     "diagnostics condition graded and found outside its corridor.")
-                                      + (anyWrapped ? QStringLiteral("  ") + wrappedNote : QString()));
+                                                     "diagnostics condition graded and found outside its corridor."));
     m.insert(QStringLiteral("firedElsewhere"), x.c.firedElsewhere.value(x.pick));
 
     // the family: the lead reading's trace and the other rows (Replay)

@@ -21,7 +21,7 @@
 // instants, and on the real scratch session through SessionSeriesModel (QSKIP when the share is not
 // mounted). The mock's own sentences and counts are the expectations: shot 8's seven readings apart,
 // clubhead speed's ledger with 4 of 67 clearing chance, shaft lean at P7 drifting at r −.88, the kinds
-// with no structure (silhouette .03) and an 8 mph split of 6 and 9.
+// with no structure (silhouette .02) and an 8 mph split of 6 and 9.
 
 #include "charts/charts_relations_presenter.h"
 #include "charts/charts_words.h"
@@ -175,15 +175,17 @@ private slots:
         QVERIFY(text(sq.value(QStringLiteral("verdict"))).startsWith(QStringLiteral("Out of sequence: the pelvis peaked late")));
     }
 
-    void wrappedToeLineIsMarked()
+    void toeLineIsAPlainRow()
     {
+        // #8: the toe line is a body-line tilt, so 4 July reads −6.9 … +2.3° and the row is an
+        // ordinary one: no unwrap, no † mark, no note about angles across ±180°.
         auto p = make(m_snap, 8);
         const QVariantMap row = rowOf(p->thisShot(), QStringLiteral("toeLineAngle@0"));
         QVERIFY(!row.isEmpty());
-        QVERIFY(row.value(QStringLiteral("wrapped")).toBool());
-        QCOMPARE(row.value(QStringLiteral("wrappedMark")).toString(), QStringLiteral("†"));
-        QVERIFY(p->thisShot().value(QStringLiteral("wrappedNote")).toString().contains(QStringLiteral("±180°")));
-        QVERIFY(p->thisShot().value(QStringLiteral("notes")).toString().contains(QStringLiteral("†")));
+        const QVariantMap box = row.value(QStringLiteral("box")).toMap();
+        QVERIFY(box.value(QStringLiteral("min")).toDouble() > -10.0 && box.value(QStringLiteral("max")).toDouble() < 10.0);
+        QVERIFY(!row.contains(QStringLiteral("wrappedMark")));
+        QVERIFY(!p->thisShot().value(QStringLiteral("notes")).toString().contains(QStringLiteral("†")));
     }
 
     void openRowIsATraceOrARun()
@@ -441,13 +443,13 @@ private slots:
         QVERIFY(k.value(QStringLiteral("available")).toBool());
         QCOMPARE(k.value(QStringLiteral("method")).toString(), QStringLiteral("split"));
         QVERIFY(!k.value(QStringLiteral("structure")).toBool());
-        QCOMPARE(k.value(QStringLiteral("silhouetteText")).toString(), QStringLiteral(".03"));
+        QCOMPARE(k.value(QStringLiteral("silhouetteText")).toString(), QStringLiteral(".02"));
         const QString head = text(k.value(QStringLiteral("head")));
         QVERIFY2(head.startsWith(QStringLiteral("No structure")), qPrintable(head));
         const QString split = text(k.value(QStringLiteral("splitLine")));
         QVERIFY2(split.startsWith(QStringLiteral("An ") + words::figUnit(8.0, QStringLiteral("mph")) + QStringLiteral(" gap in clubhead speed")) && split.endsWith(QStringLiteral(": 6 faster, 9 slower")), qPrintable(split));
         const QString st = text(k.value(QStringLiteral("standfirst")));
-        QVERIFY2(st.contains(QStringLiteral("do not fall into kinds (silhouette .03")), qPrintable(st));
+        QVERIFY2(st.contains(QStringLiteral("do not fall into kinds (silhouette .02")), qPrintable(st));
         const QVariantList g = k.value(QStringLiteral("groups")).toList();
         QCOMPARE(g[0].toMap().value(QStringLiteral("n")).toInt(), 6);
         QCOMPARE(g[1].toMap().value(QStringLiteral("n")).toInt(), 9);

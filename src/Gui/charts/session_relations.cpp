@@ -220,14 +220,6 @@ std::vector<SessionReading> sessionReadings(const SessionSnapshot &s, const Read
             r.multi = phs.size() > 1;
             r.values.resize(N, kNaN);
             for (size_t i = 0; i < N; ++i) r.values[i] = valueAtPhase(s.shots[i]->metric(key), ph);
-            if (r.unit == QStringLiteral("°")) {
-                bool hiSide = false, loSide = false;
-                for (double v : r.values) { if (v > 120) hiSide = true; if (v < -120) loSide = true; }
-                if (hiSide && loSide) {
-                    for (double &v : r.values) if (isFinite(v) && v < 0) v += 360.0;
-                    r.wrapped = true;
-                }
-            }
             r.box = boxStats(r.values);
             // gate rule: PP_GATE("rule.charts.boxMin")
             if (r.box.n < 3) continue;

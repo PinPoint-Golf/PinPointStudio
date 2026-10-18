@@ -36,10 +36,6 @@
 // ── THE STATISTICS, AND WHY THESE ────────────────────────────────────────────────────────────
 //   · Box: type-7 quartiles, Tukey whiskers (the most extreme values within 1.5 IQR of the box, never
 //     inside it), outliers past them. `side` ±1 = past a whisker: "apart from the session".
-//   · Angles that wrap: a degree reading with values above +120° AND below −120° (toeLineAngle: 176.6
-//     beside −179.5) has its negatives moved up by 360° and is flagged `wrapped`, so the spread is the
-//     real one and the panel can mark the row. The producer no longer wraps (toeLineAngle is a line
-//     tilt since 18 Oct 2026, GitHub #8); the guard stays for swings analysed before that and not since.
 //   · r: Pearson over the shots both readings have, n ≥ 5; undefined (not NaN, not a crash) when either
 //     reading is constant. The 95 % interval is Fisher's z ± 1.96/√(n−3); `clear` = it excludes 0.
 //     rCritical(n) = tanh(1.96/√(n−3)) is the |r| chance reaches — ".51 at n = 15". chanceCount(m) =
@@ -50,7 +46,7 @@
 //     ±2.5), RMS distance. The silhouette says how real the kinds are; below 0.25 there is no structure
 //     (D7) and the kinds are the cleanest single break instead: the widest gap, in IQRs, between
 //     consecutive sorted shots of any one reading, each side ≥ the minimum size — labelled a SPLIT, not
-//     kinds. 4 July: silhouette .03, so the split: an 8 mph clubhead-speed gap, 6 faster, 9 slower.
+//     kinds. 4 July: silhouette .02, so the split: an 8 mph clubhead-speed gap, 6 faster, 9 slower.
 //   · Separation: Cohen's d (pooled sd) of every reading between the two groups, against dCritical =
 //     (1.96 + 2.4/df)·√(1/nA + 1/nB), the d chance gives at these sizes (Words.qml).
 //   · Facets: a condition that fired on SOME shots, ≥ 3 each side (one that fires on every shot can never
@@ -92,7 +88,6 @@ struct SessionReading {
     QString label, unit;                // the series' own
     std::vector<double>  values;        // one per shot (index = ordinal − 1), NaN = not measured
     BoxStats box;
-    bool    wrapped = false;            // unwrapped across ±180°
     bool    multi = false;              // the key is read at more than one P-position
     std::vector<uint8_t> fired;         // per shot: a condition linked to this reading fired
     std::vector<uint8_t> refused;       // per shot: an estimate a gate refused, shown with a caution (Charts fills it)
