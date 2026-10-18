@@ -282,7 +282,10 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:over_set"),
                     // casting's preferred route since 15 Oct 2026: the hinge at P6, the wrist
                     // engine's cast rule (m_leadWristRadUln_p6, sig_castingHinge).
-                    QStringLiteral("characteristic:casting") },
+                    QStringLiteral("characteristic:casting"),
+                    // ...and its low end, the same preference for holding the angle too long
+                    // (sig_excessiveLagHinge, 18 Oct 2026).
+                    QStringLiteral("characteristic:excessive_lag") },
     });
 
     cat.addDescriptor({
@@ -511,7 +514,10 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:over_set"),
                     // casting's preferred route since 15 Oct 2026: the hinge at P6, the wrist
                     // engine's cast rule (m_leadWristRadUln_p6, sig_castingHinge).
-                    QStringLiteral("characteristic:casting") },
+                    QStringLiteral("characteristic:casting"),
+                    // ...and its low end, the same preference for holding the angle too long
+                    // (sig_excessiveLagHinge, 18 Oct 2026).
+                    QStringLiteral("characteristic:excessive_lag") },
     });
 
     cat.addDescriptor({

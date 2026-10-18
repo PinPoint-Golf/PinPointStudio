@@ -445,6 +445,9 @@ static const Expect kExpected[] = {
       "by P6 is LESS negative, the high end — the engine's `above(RU, P6)`; m_leadWristRadUln_p6 "
       "highMeans 'more ulnar (less cocked) than at address'. sig_casting reads the same release as "
       "the LOW end of lag angle" },
+    { "sig_excessiveLagHinge",      Direction::Low,
+      "…a set still held by P6 is MORE negative, the low end, where sig_castingHinge takes the high; "
+      "sig_excessiveLag reads the same hold as the HIGH end of lag angle" },
     { "sig_hipsUnderRotatedTop",    Direction::Low,
       "m_pelvisRotP4 highMeans 'a deeper hip turn at the top'; not getting round is the low end. "
       "The high end of THIS axis is deliberately unclaimed — turning too far at the top is a chest "

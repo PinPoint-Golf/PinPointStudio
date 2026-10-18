@@ -3851,6 +3851,14 @@
       "direction": "high"
     },
     {
+      "id": "sig_excessiveLagHinge",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_leadWristRadUln_p6"
+      ],
+      "direction": "low"
+    },
+    {
       "id": "sig_overSet",
       "test": "outsideCorridor",
       "measures": [
@@ -7709,10 +7717,12 @@
       "observability": "observable",
       "confirmedBy": "measured",
       "detectedBy": [
+        "sig_excessiveLagHinge",
         "sig_excessiveLag"
       ],
+      "detection": "first",
       "state": "active",
-      "consequence": "An angle held past the point where it can still be released leaves the clubface open and the shaft leaning forward more than the loft can afford. The ball goes right and low, and the speed that was being saved never arrives.",
+      "consequence": "An angle held past the point where it can still be released leaves the clubface open and the shaft leaning forward more than the loft can afford. The ball goes right and low, and the speed that was being saved never arrives. Read two ways, preferring the wrist's own instrument, as casting is: where the swing carries a lead-wrist sensor, the hinge just before impact (m_leadWristRadUln_p6, the set still held toward radial past its corridor, the low end where casting takes the high) decides; everywhere else the lag angle between the lead arm and the shaft does.",
       "provenance": {
         "tier": "practice",
         "searchedOn": "2026-07-28",

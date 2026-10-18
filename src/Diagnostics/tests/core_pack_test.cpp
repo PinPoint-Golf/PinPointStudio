@@ -1285,6 +1285,11 @@ int main()
                   && casting->detectedBy == QStringList({ QStringLiteral("sig_castingHinge"),
                                                           QStringLiteral("sig_casting") }),
               "casting reads the hinge where a wrist sensor is worn, the lag angle everywhere else");
+        const Condition *held = p.condition(QStringLiteral("excessive_lag"));
+        check(held && held->detection == DetectionMode::First
+                  && held->detectedBy == QStringList({ QStringLiteral("sig_excessiveLagHinge"),
+                                                       QStringLiteral("sig_excessiveLag") }),
+              "…and so does excessive_lag, the other end of the same hinge (#12)");
     }
 
     // ── Forearm rotation is MONITORED, never graded ─────────────────────────────
