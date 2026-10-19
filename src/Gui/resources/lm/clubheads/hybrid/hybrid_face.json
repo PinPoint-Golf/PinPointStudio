@@ -4,21 +4,21 @@
  "view": "face",
  "image": {
   "width": 2048,
-  "height": 1855
+  "height": 1780
  },
- "mm_per_px": 0.080903,
+ "mm_per_px": 0.077283,
  "world_to_px": [
   [
    0.0,
-   12.360426,
+   12.939482,
    0.0,
-   708.49
+   738.523
   ],
   [
    -0.0,
    -0.0,
-   -12.360426,
-   1787.819
+   -12.939482,
+   1712.986
   ]
  ],
  "world_note": "world mm: +X target, +Y toward golfer (heel), +Z up, ground z=0; px = M @ [x,y,z,1], y down",
@@ -26,31 +26,31 @@
  "lie_deg": 60.0,
  "offset_mm": null,
  "face_centre": [
-  584.89,
-  1589.08
+  609.13,
+  1504.94
  ],
  "leading_edge": {
   "heel": [
-   876.88,
-   1701.7
+   974.93,
+   1634.66
   ],
   "toe": [
-   317.22,
-   1701.87
+   325.32,
+   1634.66
   ],
   "mid": [
-   572.77,
-   1737.1
+   588.68,
+   1673.47
   ]
  },
  "face_plane": [
   [
-   214.07,
-   1589.08
+   220.94,
+   1504.94
   ],
   [
-   955.7,
-   1589.08
+   997.31,
+   1504.94
   ]
  ],
  "face_normal": [
@@ -60,60 +60,60 @@
  "face_normal_toward_viewer": true,
  "shaft_axis": [
   [
-   953.9,
-   1787.82
+   995.43,
+   1712.99
   ],
   [
-   1955.42,
-   53.14
+   1954.22,
+   52.31
   ]
  ],
- "ground_y": 1787.82,
+ "ground_y": 1712.99,
  "sole_contact": [
-  642.88,
-  1787.5
+  669.84,
+  1712.65
  ],
  "head_bbox": [
   67.0,
-  1190.4,
-  1345.7,
-  1787.8
+  1242.9,
+  1316.0,
+  1713.0
  ],
  "body_bbox": [
   67.0,
-  1385.0,
-  1163.5,
-  1787.8
+  1291.3,
+  1207.0,
+  1713.0
  ],
  "pivot": [
-  584.89,
-  1589.08
+  609.13,
+  1504.94
  ],
  "face_frame": {
   "origin": [
-   584.89,
-   1589.08
+   609.13,
+   1504.94
   ],
   "x_px_per_mm": [
-   -12.36043,
+   -12.93948,
    -0.0
   ],
   "y_px_per_mm": [
    0.0,
-   -11.46039
+   -11.99728
   ],
   "note": "impact point px = origin + x_mm*x_px_per_mm + y_mm*y_px_per_mm; +x toward toe, +y up the face plane (foreshortened by cos(loft) in this horizontal view)"
  },
  "alpha_bbox": [
   66,
-  84,
-  1968,
-  1789
+  86,
+  1967,
+  1714
  ],
  "render_seconds": {
-  "light": 33.3,
-  "dark": 36.3,
-  "line-black": 3.3,
+  "light": 33.5,
+  "dark": 34.2,
+  "line-black": 3.2,
   "curv": 2.3,
   "zebra": 2.9
  }

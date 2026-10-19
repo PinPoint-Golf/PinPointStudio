@@ -96,9 +96,9 @@
   1982
  ],
  "render_seconds": {
-  "light": 41.2,
-  "dark": 43.6,
-  "line-black": 3.0,
+  "light": 41.7,
+  "dark": 43.0,
+  "line-black": 2.9,
   "curv": 1.8,
   "zebra": 2.3
  }
