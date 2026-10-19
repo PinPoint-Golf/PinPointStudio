@@ -375,6 +375,17 @@ std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
         return out;
 
     const QString deg = QStringLiteral("°");
+    // A PHASE THE FRAMES DO NOT REACH HAS NO READING. The triangulated grid is the skeleton's own
+    // frames, which since skeleton3d v16 stop at P8 (+25 ms): the Finish would otherwise snap to
+    // the last frame and be labelled the Finish 100+ ms early. A sample further from its phase than
+    // the route's gap budget is dropped.
+    const auto dropFarPhases = [&](MetricSeries &m) {
+        if (res.triGapUs < 0) return;
+        m.phaseSamples.erase(std::remove_if(m.phaseSamples.begin(), m.phaseSamples.end(), [&](const PhaseSample &ps) {
+            const std::optional<int64_t> t = phaseTimeOpt(phases, ps.phase);
+            return t && std::llabs(*t - ps.t_us) > res.triGapUs;
+        }), m.phaseSamples.end());
+    };
 
     const auto emitRotation = [&](const RotationChannel &ch, const char *key, const char *label) {
         // The triangulated route masks its gaps — a frame whose bearing was unusable is bridged,
@@ -385,6 +396,7 @@ std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
                                             defaultPhaseSamples(), tri ? res.triGapUs : -1);
         if (m.key.isEmpty())
             return;
+        if (tri) dropFarPhases(m);
         // Carry the propagated uncertainty ONLY where one was actually computed. The field's
         // contract is explicit that absent means "not characterised" rather than "zero error", so
         // the IMU tier — which has no error budget through this path — leaves it unset rather than
@@ -416,6 +428,7 @@ std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
         MetricSeries m = buildChannelSeries(res.grid, ch, QString::fromLatin1(key), QString::fromUtf8(label),
                                             deg, phases, defaultPhaseSamples(), triPair ? res.triGapUs : -1);
         if (m.key.isEmpty()) return;
+        if (triPair) dropFarPhases(m);
         if (triPair) {
             m.sigma     = std::hypot(res.pelvis.sigmaDeg, res.thorax.sigmaDeg);
             m.sigmaKind = uint8_t(SigmaKind::Propagated);

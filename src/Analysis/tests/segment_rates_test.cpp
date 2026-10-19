@@ -1467,7 +1467,11 @@ int main()
         in.pose = &pose; in.frameW = kW; in.frameH = kH; in.leadIsLeft = true;
         in.shaft = &shaft; in.phases = &ph; in.impactUs = kImpactUs;
         in.skelArm = &sk;
-        const SegmentRatesResult r = buildSegmentRates(in, cfg);
+        // Since 19 Oct the face-on arm outranks the skeleton (Mark trusts the face-on camera more,
+        // P4 → P8); this section tests the skeleton rung itself, so it puts it first.
+        SegmentRatesConfig first = cfg;
+        first.skel3dLeadArmFirst = true;
+        const SegmentRatesResult r = buildSegmentRates(in, first);
         const KsNode *a = nodeOf(r, SeqSegment::LeadArm);
         CHECK("§11 skeleton arm: the lead arm reads faceOn+dtl3d, Estimated",
               r.leadArm.routeId == QLatin1String("faceOn+dtl3d") && !r.leadArm.direct
@@ -1490,7 +1494,7 @@ int main()
         CHECK("§11 skeleton arm: pelvis, thorax and club identical to §2", othersSame);
         // The assumed camera is a GAIN: the peak's σ grows by scaleFrac·|peak|, its instant's does not.
         in.skelArm = &skCal;
-        const SegmentRatesResult rc = buildSegmentRates(in, cfg);
+        const SegmentRatesResult rc = buildSegmentRates(in, first);
         const KsNode *ac = nodeOf(rc, SeqSegment::LeadArm);
         CHECK("§11 skeleton arm: the camera-scale term widens peakSigmaDps (10 % assumed vs 3 % calibrated)",
               a && ac && a->peakSigmaDps > ac->peakSigmaDps
@@ -1502,21 +1506,31 @@ int main()
             return x.leadArm.routeId == QLatin1String("faceOn")
                 && x.leadArm.series.value == faceOn.leadArm.series.value;
         };
-        SegmentRatesConfig off = cfg;
+        SegmentRatesConfig off = first;
         off.skel3dLeadArm = false;
         in.skelArm = &sk;
         CHECK("§11 sequence.skel3d.leadArm=false: the face-on arm, exactly as §2", sameAsFaceOn(buildSegmentRates(in, off)));
         const SkeletonLeadArm sparse = makeSkelArm(false, 0.5);
         in.skelArm = &sparse;
         CHECK("§11 half the frames unusable (below minUsableFrac 0.8): steps aside to the face-on arm",
-              sameAsFaceOn(buildSegmentRates(in, cfg)));
-        SegmentRatesConfig strict = cfg;
+              sameAsFaceOn(buildSegmentRates(in, first)));
+        SegmentRatesConfig strict = first;
         strict.maxPlaceSigmaMs = 0.0;          // nothing placeable, and no band to bound against
         in.skelArm = &sk;
         const SegmentRatesResult rs = buildSegmentRates(in, strict);
         CHECK("§11 neither placed nor bounded: the rung withdraws and the face-on arm runs",
               rs.leadArm.routeId == QLatin1String("faceOn") && nodeOf(rs, SeqSegment::LeadArm)
               && nodeOf(rs, SeqSegment::LeadArm)->routeId == QLatin1String("faceOn"));
+        // The default order: the face-on arm, with the skeleton present and usable.
+        in.skelArm = &sk;
+        CHECK("§11 by default the face-on arm outranks the skeleton (Mark, 19 Oct)", sameAsFaceOn(buildSegmentRates(in, cfg)));
+        // …and the skeleton fills in where there is no face-on pose.
+        {
+            SegmentRatesInputs np = in;
+            np.pose = nullptr;
+            CHECK("§11 no face-on pose: the skeleton's lead arm fills in",
+                  buildSegmentRates(np, cfg).leadArm.routeId == QLatin1String("faceOn+dtl3d"));
+        }
         in.skelArm = nullptr;
         CHECK("§11 no skeleton: the face-on arm, exactly as §2", sameAsFaceOn(buildSegmentRates(in, cfg)));
         // An IMU-measured arm is never displaced by a camera.

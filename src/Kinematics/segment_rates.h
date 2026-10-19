@@ -131,6 +131,7 @@ struct SegmentRatesConfig {
     // The two-camera skeleton's lead-arm rung, and the camera-scale fraction its peak σ carries
     // (the rotation route's constant: one assumed camera, one assumed error).
     bool    skel3dLeadArm       = tuned::sequence::kSkel3dLeadArm;       // sequence.skel3d.leadArm
+    bool    skel3dLeadArmFirst  = false;   // sequence.skel3d.leadArmFirst — the skeleton above the face-on arm (pre-19 Oct)
     double  skel3dMinUsableFrac = tuned::sequence::kSkel3dMinUsableFrac; // sequence.skel3d.minUsableFrac
     double  skel3dScaleFrac     = tuned::bodyRotation::kTriScaleFrac;    // sequence.skel3d.scaleFrac
     double  skel3dScaleFracCalibrated = tuned::bodyRotation::kTriScaleFracCalibrated;
@@ -190,6 +191,7 @@ struct SegmentRatesConfig {
         apply(ov, "pose.dtlLocalGap",             c.pairDtlLocalGap);
         apply(ov, "sequence.pairTrunk.thoraxPlacement", c.pairTrunkThoraxPlacement);
         apply(ov, "sequence.skel3d.leadArm",       c.skel3dLeadArm);
+        apply(ov, "sequence.skel3d.leadArmFirst",  c.skel3dLeadArmFirst);
         apply(ov, "sequence.skel3d.minUsableFrac", c.skel3dMinUsableFrac);
         apply(ov, "sequence.skel3d.scaleFrac",     c.skel3dScaleFrac);
         apply(ov, "sequence.skel3d.trunk",           c.skel3dTrunk);

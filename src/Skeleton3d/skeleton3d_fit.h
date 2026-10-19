@@ -78,6 +78,13 @@ struct FitConfig {
     // the DTL view (reason "noDtl"), and when it drops the DTL view (no DTL hips at address,
     // "dtlDropped"). false = the old face-on-only fit (the solver tests keep it).
     bool   requireDtl   = true;
+    // CUT AT P8 (2026-10-19, skeleton3d v16; Mark: past P8 "the follow through muddies the water" —
+    // the skeleton there is interesting but unreliable for now). The stage keeps the result up to
+    // P8 + this much and drops the rest: the margin is the kinematic sequence's rate window
+    // (sequence.derivWindowMs, 25 ms), so the speeds at P8 are worked out exactly as before. The
+    // Finish rotation readings (two-camera pelvis/chest turn, X-factor), which came from the
+    // skeleton after P8, are then not measured. < 0 = keep everything (the old behaviour).
+    double keepAfterP8Ms = 25.0;
     bool   useLimits    = true;
     bool   useContact   = true;
     bool   useShaft     = true;
@@ -508,6 +515,17 @@ inline void trimResultBefore(FitResult &r, int64_t fromUs)
     while (k < r.t_us.size() && r.t_us[k] < fromUs) ++k;
     if (k == 0 || k >= r.t_us.size()) return;
     auto cut = [k](auto &v) { if (v.size() > k) v.erase(v.begin(), v.begin() + long(k)); };
+    cut(r.t_us); cut(r.theta); cut(r.joints); cut(r.tier); cut(r.sigmaM); cut(r.flags);
+    cut(r.grip); cut(r.shaftDir); cut(r.shaftTier);
+}
+
+// Drop every frame after `toUs` (the P8 cut — FitConfig::keepAfterP8Ms).
+inline void trimResultAfter(FitResult &r, int64_t toUs)
+{
+    size_t k = 0;
+    while (k < r.t_us.size() && r.t_us[k] <= toUs) ++k;
+    if (k == 0 || k >= r.t_us.size()) return;
+    auto cut = [k](auto &v) { if (v.size() > k) v.erase(v.begin() + long(k), v.end()); };
     cut(r.t_us); cut(r.theta); cut(r.joints); cut(r.tier); cut(r.sigmaM); cut(r.flags);
     cut(r.grip); cut(r.shaftDir); cut(r.shaftTier);
 }

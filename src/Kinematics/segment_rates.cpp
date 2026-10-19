@@ -1647,10 +1647,12 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             trunk(res.thorax, SeqSegment::Thorax, sk.thoraxBearing, sk.thoraxSigma, QStringLiteral("Thorax angular speed"));
     };
 
-    // ── The two-camera skeleton's lead arm, for an arm the IMUs did not cover ─────────────────
-    // Above the face-on arm and below the IMU. It steps aside — channel and node — when too little
-    // of the domain is usable, or when it could neither place the node nor bound it, so the face-on
-    // arm below runs exactly as it did before this rung existed.
+    // ── The two-camera skeleton's lead arm, for an arm the IMUs and the face-on camera did not cover ─
+    // BELOW THE FACE-ON ARM since 2026-10-19 (Mark: "the lead arm speed should be confident from
+    // P4-P8 from a face on camera — in fact I trust that more than from a fused model"); it was
+    // above it. sequence.skel3d.leadArmFirst puts it back above. It steps aside — channel and node —
+    // when too little of the domain is usable, or when it could neither place the node nor bound it.
+    const auto skeletonLeadArm = [&] {
     if (!res.leadArm.produced() && cfg.skel3dLeadArm && in.skelArm) {
         AngleTrack at = skeletonArmTrack(*in.skelArm, dom, cfg);
         if (!at.t.empty()) {
@@ -1678,6 +1680,8 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             }
         }
     }
+    };
+    if (cfg.skel3dLeadArmFirst) skeletonLeadArm();
 
     // ── Face-on routes, for whatever the IMUs did not cover ────────────────────────────────────
     const bool havePose = in.pose && in.frameW > 0 && in.frameH > 0
@@ -1890,6 +1894,8 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
 
     // No face-on pose, so no pair and no span: the skeleton's trunk on its own.
     if (!havePose) skeletonTrunk();
+    // The skeleton's lead arm, where the face-on arm produced nothing.
+    if (!cfg.skel3dLeadArmFirst) skeletonLeadArm();
 
     if (!res.club.produced() && in.shaft && in.shaft->valid) {
         const std::vector<ShaftSample2D> &track =

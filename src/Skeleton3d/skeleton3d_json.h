@@ -61,6 +61,7 @@ inline FitConfig fitConfigFromOverrides(const QVariantMap &ov)
     apply(ov, "skeleton3d.fitCameras",     c.fitCameras);
     apply(ov, "skeleton3d.fitDtlRoll",     c.fitDtlRoll);
     apply(ov, "skeleton3d.requireDtl",     c.requireDtl);
+    apply(ov, "skeleton3d.keepAfterP8Ms",  c.keepAfterP8Ms);
     apply(ov, "skeleton3d.fitLengths",     c.fitLengths);
     apply(ov, "skeleton3d.labelSwap",      c.labelSwap);
     apply(ov, "skeleton3d.leanRig",        c.leanRig);

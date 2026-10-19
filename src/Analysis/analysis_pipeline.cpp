@@ -3191,6 +3191,18 @@ struct Skeleton3DStage : AnalysisStage {
                      << ctx.detail->skeleton3d.gripLockMaxMm << "mm from its locked place (p90"
                      << ctx.detail->skeleton3d.gripLockP90Mm << "mm)";
         pinpoint::skeleton3d::trimResultBefore(ctx.detail->skeleton3d, in.addressUs - 150000);
+        // …and cut at P8 (+ the rate window): past it the follow-through muddies the fit. P8 from
+        // the ladder, else the club track's own P8 knot — the kinematic sequence's own order; with
+        // neither, nothing is cut.
+        if (in.cfg.keepAfterP8Ms >= 0.0) {
+            int64_t p8Us = -1;
+            if (const PhaseEvent *p8 = ctx.seg.eventFor(Phase::ShaftParallelThrough)) p8Us = p8->t_us;
+            else if (ctx.detail->shaft.valid)
+                for (const ShaftPosition &p : ctx.detail->shaft.positions)
+                    if (p.p == 8) { p8Us = p.t_us; break; }
+            if (p8Us > in.impactUs)
+                pinpoint::skeleton3d::trimResultAfter(ctx.detail->skeleton3d, p8Us + int64_t(in.cfg.keepAfterP8Ms * 1000.0));
+        }
         ctx.detail->versions.skeleton3d = kSkeleton3DStageVersion;
         const pinpoint::skeleton3d::FitResult &r = ctx.detail->skeleton3d;
         // A DTL camera the fit was handed but could not use takes the two-camera rotation route
