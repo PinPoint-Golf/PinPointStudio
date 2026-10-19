@@ -12,9 +12,9 @@ Sources: four read-only review agents, one per cluster, 81 findings in all — [
 - **Business rules are copied between QML and C++, and between QML files** (theme 8) — including one place where the copy may already be wrong (below).
 - **What is *not* duplicated is also on record**: the one-box-plot rule holds (C6), the card family is correctly layered (B25), several same-named local components are deliberately different (D15, A16) — see §19.
 
-## ⚠ One suspected bug (unverified)
+## ⚠ One bug found: D1 — confirmed by probe, issue #50
 
-**D1** — `_imuCalibratedOk(inst)` is copied verbatim into `imu/PpImuPanel.qml:50` and `session/PpSessionToolbar.qml:97` and tests `inst.mountDeviationDeg <= 15.0 && inst.mountGravityErrorDeg <= 25.0`. `ImuInstance` (Witmotion) has `mountDeviationDeg`; reading `imu/hm_instance.h` and `imu_device.h`, **`HmInstance` (HackMotion) declares no such property**, so for it `undefined <= 15` is `false`, and a connected, calibrated HackMotion would be reported "needs calibration" (toolbar IMU pill and panel). The C++ already has `ImuInstance::fullyCalibrated` (`imu_instance.h:96`) whose comment says not to re-derive it. I confirmed the property is absent by grep; I did **not** run it, and do not know whether the HackMotion path is reached in practice (e.g. whether `anatCalibrated` is also false there). It needs a `--probe-qml` check before anyone calls it a bug.
+**D1** — `_imuCalibratedOk(inst)` is copied verbatim into `imu/PpImuPanel.qml:50` and `session/PpSessionToolbar.qml:97` and tests `inst.mountDeviationDeg <= 15.0 && inst.mountGravityErrorDeg <= 25.0`. `ImuInstance` (Witmotion) has `mountDeviationDeg`; reading `imu/hm_instance.h` and `imu_device.h`, **`HmInstance` (HackMotion) declares no such property**, so for it `undefined <= 15` is `false`, and a connected, calibrated HackMotion would be reported "needs calibration" (toolbar IMU pill and panel). The C++ already has `ImuInstance::fullyCalibrated` (`imu_instance.h:96`) whose comment says not to re-derive it. `HmInstance` has no `anatCalibrated` either (only its two `HmUnit`s do), so it fails at the first test. **Confirmed 19 Oct** with a `--probe-qml` run that called the real `_imuCalibratedOk` of both files: a Witmotion-shaped object passes in range and fails at 40°; an `HmInstance`-shaped object fails even with `anatCalibrated` true. The two copies also disagree on a missing sensor (panel returns `false`, toolbar `undefined`). Not yet seen on a real wG3 (none attached; the HackMotion object in the probe was a stand-in with the properties the class declares, read from its generated metadata). Filed as GitHub issue #50.
 
 ---
 
@@ -219,7 +219,7 @@ Code (functions, formulas, small blocks) that exists in several places. Each has
 **Gaps the typeset system has not answered yet** (these are where the old-vocabulary duplicates will otherwise keep reappearing): a switch, a button, a text/search field, a popup/dialog surface, a notice, a device row/card, and the settings-row layout. The design system lists "one quiet selection control" and Vector's selection style as proposed-not-done (§15.11). Until those exist, new screens will keep re-rolling the old pieces.
 
 **Revised order**
-1. Probe D1 (the one possible live bug).
+1. ~~Probe D1~~ — done, confirmed, issue #50.
 2. Consolidate inside the typeset area (the C-series and panel base) — the reference everything else is ported from.
 3. Look-neutral structure and logic merges, dead-file deletion, `Qt.alpha`.
 4. Pure collapses of look-bearing copies (`PpSwitch` etc.), no new variants.
@@ -245,7 +245,7 @@ Code (functions, formulas, small blocks) that exists in several places. Each has
 
 ## Suggested order (first draft — superseded by §20's "Revised order")
 
-1. **Check D1 with a probe** before anything else — it is the only finding that may be a live defect.
+1. **D1 is confirmed (issue #50)** — fix it with the shared health rule; check on a real wG3.
 2. **Cheap, mechanical, low-visual-risk:** `PpSwitch` (2), `ScopedAction` → shared (A5/B21), `Qt.alpha` sweep (12), `Theme.toneColor()` + `Theme.colorOnAccent` (D8, D14), `clubModel` (D7), delete the verified-dead files (§ above, after Mark agrees).
 3. **Highest line-count win:** `SettingsPanelBase` then `SettingsRow` (1) — ≈1,500 lines — and the monitor's in-file clean-up (6).
 4. **Needs a visual decision from Mark first:** popup chrome (B7), knob colour, hover-fill dialects (B12), unifying updater wording (D5).
