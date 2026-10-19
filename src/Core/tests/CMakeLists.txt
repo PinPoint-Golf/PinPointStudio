@@ -60,6 +60,11 @@ pp_add_test(pp_stats_log_test
     SOURCES pp_stats_log_test.cpp ${CORE}/PpStatsLog.cpp
     INCLUDE ${CORE}  LINK Threads::Threads
     DEFINES PINPOINT_PROFILE_BASELINE=1 PINPOINT_PROFILE=1  GTEST)
+# The standard club table (club_standards.h) — header-only, Qt Core for QString.
+pp_add_test(club_standards_test
+    SOURCES club_standards_test.cpp
+    INCLUDE ${CORE}  LINK Qt6::Core
+    GTEST)
 pp_add_test(pp_profiler_concurrency_test
     SOURCES pp_profiler_concurrency_test.cpp ${PROFILER_CORE}
     INCLUDE ${CORE}  LINK Threads::Threads
