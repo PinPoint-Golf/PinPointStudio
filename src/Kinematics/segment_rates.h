@@ -99,6 +99,13 @@ struct SegmentRatesConfig {
     double  maxPlaceSigmaMs  = tuned::sequence::kMaxPlaceSigmaMs;   // sequence.maxPlaceSigmaMs — wider ⇒ unresolved
     double  sigmaK           = tuned::sequence::kSigmaK;            // sequence.sigmaK — gap must exceed k·σ to order
     double  confMin          = tuned::sequence::kConfMin;           // sequence.confMin — keypoint admission
+    // THE FACE-ON ARM IS NOT READ WHILE IT IS FOLDED OR HIDDEN (2026-10-19). In the follow-through the
+    // lead arm folds across the body: its image length falls to 40–65 % of impact's and the wrist
+    // half-hides, the de-projected angle stops meaning anything, and the rate ran to 1,250–2,600 °/s
+    // on the 22 library swings whose "peak" landed after impact. A sample is unseen when either
+    // keypoint is below minConf, or the arm is shorter than minLengthFrac of its length at impact.
+    double  faceOnArmMinConf       = 0.5;    // sequence.faceOnArm.minConf
+    double  faceOnArmMinLengthFrac = 0.75;   // sequence.faceOnArm.minLengthFrac (0 = off)
     int     addrMinFrames    = tuned::sequence::kAddrMinFrames;     // sequence.addrMinFrames
     int64_t addrWindowUs     = tuned::sequence::kAddrWindowUs;      // sequence.addrWindowUs
     double  spanNoisePx      = tuned::sequence::kSpanNoisePx;       // sequence.spanNoisePx — 1σ of a span
@@ -161,6 +168,8 @@ struct SegmentRatesConfig {
         apply(ov, "sequence.maxPlaceSigmaMs",   c.maxPlaceSigmaMs);
         apply(ov, "sequence.sigmaK",            c.sigmaK);
         apply(ov, "sequence.confMin",           c.confMin);
+        apply(ov, "sequence.faceOnArm.minConf",        c.faceOnArmMinConf);
+        apply(ov, "sequence.faceOnArm.minLengthFrac",  c.faceOnArmMinLengthFrac);
         apply(ov, "sequence.addrMinFrames",     c.addrMinFrames);
         apply(ov, "sequence.addrWindowUs",      c.addrWindowUs);
         apply(ov, "sequence.spanNoisePx",       c.spanNoisePx);

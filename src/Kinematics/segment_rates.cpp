@@ -1865,11 +1865,30 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             const size_t n = pv.frames->size();
             AngleTrack a;
             a.t.resize(n); a.angleRad.assign(n, 0.0); a.sigmaRad.assign(n, 0.0); a.valid.assign(n, 0u);
+            // The arm's image length at impact (median over the last 60 ms before it, +10 ms): the
+            // reference a folded arm is measured against.
+            const double armConf = std::max(cfg.confMin, cfg.faceOnArmMinConf);
+            double refLen = 0.0;
+            if (cfg.faceOnArmMinLengthFrac > 0.0) {
+                std::vector<double> ls;
+                for (size_t i = 0; i < n; ++i) {
+                    const int64_t t = (*pv.frames)[i].t_us;
+                    if (t < impactUs - 60000 || t > impactUs + 10000) continue;
+                    if (pv.conf(i, sh) < armConf || pv.conf(i, wr) < armConf) continue;
+                    const QPointF d = pv.px(i, wr) - pv.px(i, sh);
+                    ls.push_back(std::hypot(d.x(), d.y()));
+                }
+                if (ls.size() >= 3) {
+                    std::nth_element(ls.begin(), ls.begin() + long(ls.size() / 2), ls.end());
+                    refLen = ls[ls.size() / 2];
+                }
+            }
             for (size_t i = 0; i < n; ++i) {
                 a.t[i] = (*pv.frames)[i].t_us;
-                if (pv.conf(i, sh) < cfg.confMin || pv.conf(i, wr) < cfg.confMin) continue;
+                if (pv.conf(i, sh) < armConf || pv.conf(i, wr) < armConf) continue;
                 const QPointF d = pv.px(i, wr) - pv.px(i, sh);
                 const double L  = std::hypot(d.x(), d.y());
+                if (refLen > 0.0 && L < cfg.faceOnArmMinLengthFrac * refLen) continue;   // folded
                 if (!(L > 1.0)) continue;
                 a.angleRad[i] = std::atan2(d.y(), d.x());
                 const double ss = pv.sigmaPx(i, sh, cfg.kpSigmaPx), sw = pv.sigmaPx(i, wr, cfg.kpSigmaPx);
@@ -1886,9 +1905,15 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
                 for (size_t i = 0; i < n; ++i) if (a.valid[i]) a.angleRad[i] = adm[j++];
             }
             deprojectTrack(a, plane, cfg);
+            // The unseen stretches (folded, hidden) are holes the peak search does not read, and a
+            // peak on the edge of one is not claimed — the skeleton route's machinery.
+            std::vector<uint8_t> seen;
+            PlacementGate gate;
+            gate.bandIsHole = true;
+            validityBand(a, dom.fromUs, dom.toUs, seen, gate);
             finishChannel(res.leadArm, differentiate(a, windowUs, 1.0, /*magnitude*/ true),
                           SeqSegment::LeadArm, QStringLiteral("Lead arm angular speed"),
-                          QStringLiteral("faceOn"), false, dom, phases, cfg, nodes);
+                          QStringLiteral("faceOn"), false, dom, phases, cfg, nodes, gate);
         }
     }
 

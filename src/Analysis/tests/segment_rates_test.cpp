@@ -1542,6 +1542,42 @@ int main()
                         a->placed ? "placed  " : "UNPLACED", a->beforeImpactMs, a->tSigmaMs, a->peakDps, a->peakSigmaDps);
     }
 
+    // ── §11b THE FACE-ON ARM FOLDING (2026-10-19). After impact the lead arm folds across the body:
+    //    its image shortens to 45 % and its image angle whips round at 3000 °/s — the 22 library
+    //    swings whose face-on arm "peaked" 90–250 ms after the ball. Unseen while folded, the true
+    //    downswing peak stands. P8 on the ladder 140 ms after impact, so the domain covers the fold.
+    {
+        PoseTrack2D pose = makePose(true);
+        std::vector<PhaseEvent> ph8 = ph;
+        ph8.push_back({ Phase::ShaftParallelThrough, kImpactUs + 140000, 1.f });
+        const int64_t foldUs = kImpactUs + 50000;
+        double psiFold = 0.0;
+        for (PoseFrame2D &f : pose.frames) {
+            const QPointF d((f.kp[kLWr].x() - f.kp[kLSh].x()) * kW, (f.kp[kLWr].y() - f.kp[kLSh].y()) * kH);
+            if (f.t_us <= foldUs) { psiFold = std::atan2(d.y(), d.x()); continue; }
+            const double psi = psiFold + 3000.0 * kD2R * double(f.t_us - foldUs) * 1e-6;
+            f.kp[kLWr] = QPointF(f.kp[kLSh].x() + 0.45 * 600.0 * std::cos(psi) / kW,
+                                 f.kp[kLSh].y() + 0.45 * 600.0 * std::sin(psi) / kH);
+        }
+        const ShaftTrack2D shaft = makeShaft();
+        SegmentRatesInputs in;
+        in.pose = &pose; in.frameW = kW; in.frameH = kH; in.leadIsLeft = true;
+        in.shaft = &shaft; in.phases = &ph8; in.impactUs = kImpactUs;
+        SegmentRatesConfig open = cfg;
+        open.faceOnArmMinLengthFrac = 0.0;
+        const SegmentRatesResult rb = buildSegmentRates(in, open);
+        const KsNode *bad = nodeOf(rb, SeqSegment::LeadArm);
+        if (bad) std::printf("    §11b fold read: arm t=%+.1f ms  peak %.0f °/s  placed %d; series max %.0f\n",
+                             double(bad->tPeakUs - kImpactUs) / 1000.0, bad->peakDps, int(bad->placed),
+                             rb.leadArm.series.value.empty() ? 0.0 : *std::max_element(rb.leadArm.series.value.begin(), rb.leadArm.series.value.end()));
+        CHECK("§11b the fixture bites: with the fold read, the arm's \"peak\" lands after impact",
+              bad && bad->tPeakUs > kImpactUs);
+        const SegmentRatesResult r = buildSegmentRates(in, cfg);
+        const KsNode *a = nodeOf(r, SeqSegment::LeadArm);
+        CHECK("§11b folded arm unseen: the node is the downswing peak, within 6 ms of the truth",
+              a && a->placed && a->routeId == QLatin1String("faceOn") && msFromTruth(a, kArm) <= 6.0);
+    }
+
     // ── §12 the two-camera skeleton's trunk (faceOn+dtl3d, below the pair, above the span) ──
     {
         const PoseTrack2D pose = makePose(true);
