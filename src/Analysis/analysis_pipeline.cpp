@@ -3026,9 +3026,9 @@ struct Skeleton3DStage : AnalysisStage {
         bool impactInserted = false;
         if (in.t_us.size() >= 2 && impactUs > in.t_us.front() && impactUs < in.t_us.back()) {
             auto it = std::lower_bound(in.t_us.begin(), in.t_us.end(), impactUs);
-            const bool near = (it != in.t_us.end() && *it - impactUs <= 500)
-                              || (it != in.t_us.begin() && impactUs - *(it - 1) <= 500);
-            if (!near) { in.t_us.insert(it, impactUs); impactInserted = true; }
+            const bool onGrid = (it != in.t_us.end() && *it - impactUs <= 500)
+                                || (it != in.t_us.begin() && impactUs - *(it - 1) <= 500);
+            if (!onGrid) { in.t_us.insert(it, impactUs); impactInserted = true; }
         }
         if (in.t_us.size() < 10) {
             ppInfo() << "[WristAnalysis] skeleton3d: refused — fewer than 10 face-on pose frames in the window";
