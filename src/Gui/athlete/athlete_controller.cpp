@@ -20,6 +20,7 @@
 
 #include "pp_settings.h"
 #include "club_vocabulary.h"
+#include "club_standards.h"
 #include "../../Diagnostics/norms/norm_pack.h" // Cohort, cohortFor(), cohortToMap()
 #include <QDate>
 #include <QUuid>
@@ -49,7 +50,22 @@ static constexpr auto kSessionCount  = "sessionCount";
 static constexpr auto kClubs         = "clubs";
 
 // Defined below clubsFor(): factory per-club defaults + the standard seeded bag.
-static QVariantMap defaultClubRecordFor(const QString &clubId);
+static QVariantMap defaultClubRecordFor(const QString &clubId, pinpoint::ClubSet set = pinpoint::ClubSet::Men,
+                                        double heightM = 0.0);
+// The standard set an athlete's clubs default to (club_standards.h): a junior (under 18 today) by
+// height, else women's for "female", else men's.
+static pinpoint::ClubSet clubSetOf(const QString &sex, const QString &dobIso)
+{
+    const QDate dob = QDate::fromString(dobIso, Qt::ISODate);
+    bool junior = false;
+    if (dob.isValid()) {
+        const QDate today = QDate::currentDate();
+        int age = today.year() - dob.year();
+        if (today < dob.addYears(age)) --age;
+        junior = age < 18;
+    }
+    return pinpoint::clubSetFor(sex, junior);
+}
 static const QStringList &defaultBag();
 
 // Map a stored primaryClub token to the canonical vocabulary (club_vocabulary.h).
@@ -135,8 +151,11 @@ void AthleteController::reload()
             // (driver, 5-9 iron, GW, SW, putter) with factory defaults.
             // Written once — an intentionally emptied bag stays empty.
             QVariantMap bag;
+            const pinpoint::ClubSet set = clubSetOf(m.value(QStringLiteral("sex")).toString(),
+                                                    m.value(QStringLiteral("dob")).toString());
+            const double heightM = m.value(QStringLiteral("heightValue")).toDouble() * 0.3048;
             for (const QString &id : defaultBag())
-                bag.insert(id, defaultClubRecordFor(id));
+                bag.insert(id, defaultClubRecordFor(id, set, heightM));
             s.setValue(kClubs, bag);
         }
         m[QStringLiteral("clubs")]         = s.value(kClubs,        QVariantMap{}).toMap();
@@ -356,7 +375,7 @@ bool AthleteController::updateAthlete(const QString &uuid, const QString &fieldN
 // Factory defaults per vocabulary club — lofts/lengths guided by Titleist
 // T100 irons, Vokey wedges (52/56/60 stock) and stock Titleist metals; club
 // length converted to mm (1" = 25.4 mm). Bands default to untaped.
-static QVariantMap defaultClubRecordFor(const QString &clubId)
+static QVariantMap defaultClubRecordFor(const QString &clubId, pinpoint::ClubSet set, double heightM)
 {
     struct Spec { const char *id; double loft; int lengthMm; const char *shaft; };
     static const Spec kSpecs[] = {
@@ -394,6 +413,7 @@ static QVariantMap defaultClubRecordFor(const QString &clubId)
     rec[QStringLiteral("headPatch")]       = false;
     rec[QStringLiteral("tapedOn")]         = QString();
     rec[QStringLiteral("notes")]           = QString();
+    rec[QStringLiteral("lieDeg")]          = 0.0;
     for (const Spec &sp : kSpecs) {
         if (clubId == QLatin1String(sp.id)) {
             rec[QStringLiteral("loftDeg")]   = sp.loft;
@@ -401,6 +421,13 @@ static QVariantMap defaultClubRecordFor(const QString &clubId)
             rec[QStringLiteral("shaftType")] = QLatin1String(sp.shaft);
             break;
         }
+    }
+    // Length and lie: the standard for this athlete's set (club_standards.h) — the men's lengths
+    // are the ones above; a women's or a junior's differ.
+    const pinpoint::ClubStandard st = pinpoint::standardClub(clubId, set, heightM);
+    if (st.valid) {
+        rec[QStringLiteral("lengthMm")] = st.lengthMm;
+        rec[QStringLiteral("lieDeg")]   = st.lieDeg;
     }
     return rec;
 }
@@ -422,7 +449,8 @@ static const QStringList &defaultBag()
 
 QVariantMap AthleteController::defaultClubRecord(const QString &clubId) const
 {
-    return defaultClubRecordFor(clubId);
+    return defaultClubRecordFor(clubId, clubSetOf(currentSex(), currentDob()),
+                                currentHeightM());
 }
 
 QVariantMap AthleteController::clubsFor(const QString &uuid) const
