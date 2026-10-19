@@ -111,9 +111,9 @@
   1923
  ],
  "render_seconds": {
-  "light": 41.6,
-  "dark": 37.1,
-  "line-black": 3.0,
+  "light": 36.1,
+  "dark": 52.0,
+  "line-black": 5.0,
   "zebra": 2.7,
   "curv": 1.7
  }
