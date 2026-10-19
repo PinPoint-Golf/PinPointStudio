@@ -1052,3 +1052,65 @@ Holding the length costs the fit nothing it can see (reprojection to 0.01 px, co
   the length there, with or without the grounded head, lifted the hands to 82–95 cm instead: with
   one camera the club's depth is a prior's, and that is what has to be fixed first.
 
+
+## 15. The lead foot that sat toes-up (19 October 2026) — skeleton3d v9, issue #27
+
+**The fault.** On 07-04 s8 the 3-D figure's lead foot sat toes-up at address: +12.5° of flat
+(ankle → toe end against the floor; the rest pose reads −17.1°) on the pinned corpus pose, +5.4° on
+the library's own pose. The trail foot was flat (−0.8°). The shod foot (v5, K0 §13) fixed the trail
+foot and left this one.
+
+**The cause.** The lead foot's big- and small-toe keypoints land MID-SHOE in both views. The foot
+is flared toward the target, which foreshortens it to both cameras, and to the DTL it is the far
+foot, half hidden behind the trail leg. Reprojected, the fitted lead toes sat 30 px toward the ball
+and 25 px high of their DTL keypoints. The smoother hands those keypoints to the fit at σ 1.5–2 px,
+the planted foot's anchors are free 3-D points, and nothing related the lead foot to the trail foot.
+So the fit tipped the lead foot up to reach them.
+
+**What was tried, on s8 (one swing, pinned pose, A/B on the Mac).**
+
+| s8, pinned pose | lead / trail toes-up | face-on pitch | DTL reproj | cost |
+|---|---|---|---|---|
+| v8 | +12.5° / −0.8° | 0.81° | 3.68 px | 80 779 |
+| each foot's anchors flat, σ 1 mm (once per swing) | +8.7° / −2.5° | — | 3.69 px | 81 152 |
+| each foot flat to the world, per frame, σ 2 mm | +0.4° / −0.8° | −2.14° | 3.93 px | 82 382 |
+| lead pitch = trail pitch, σ 1° | +1.5° / +0.5° | −0.46° | 3.70 px | 81 432 |
+| lead toe keypoints removed from the pose files | +5.5° / −0.5° | 1.83° | 2.98 px | 66 662 |
+| **v9: the match, and the lead toes not fitted** | **+0.4° / −0.3°** | 0.17° | 3.35 px | 75 657 |
+
+- **The anchors alone are outvoted.** About 150 frames of keypoints pull the foot through the
+  contact's 1 cm slack.
+- **"Flat to the world" works, and pays with the world.** A planted foot's flatness is a claim
+  about the floor's level. The fit met it by moving the floor 10 cm and the face-on pitch 3°. On the
+  synthetic suite the world tilted 2.5°, and the (b), (L) and (G) gates failed.
+- **A pitch MATCH between the feet** asks only that both soles rest on one floor. A tilt of the
+  world turns both feet alike.
+- **The toe keypoints are the root.** Removing them alone lowered the cost by 14 000 and moved the
+  world 1° toward the 2 Oct session pool's 1.3–1.5°. It did not lay the foot flat, because nothing
+  says the foot is flat. The two together do both.
+
+**v9.** While all six foot markers are planted, up to 150 ms before impact:
+- the lead foot's pitch is the trail foot's (σ 1° per frame, `plantedFeetPitchSigmaDeg`);
+- the lead foot's big- and small-toe keypoints are not fitted (`fitPlantedLeadToes` false).
+
+The window ends before impact because the trail heel really does come up through the last of the
+downswing. Holding the lead toes out for the whole of the lead foot's contact instead did not move
+the world back, and it tipped a face-on-only fit's world from 9° to 15°.
+
+**The library copy of s8** (written back for review; the backup is `scratch/issue27/backup/`):
+- lead +5.4° → **−1.4°**, trail −1.8° → −2.0°;
+- cost 77 683 → 71 125, DTL reprojection 4.16 → 3.87 px;
+- the same 66 metrics;
+- pelvis, thorax and X-factor within 3° at every phase; lead-arm peak speed +9 °/s.
+
+**Costs, said plainly.**
+- **The world still moves some.** Face-on pitch 0.81° → 0.17° on the pinned pose, and −0.15° →
+  −1.50° on the library pose (floor 4.4 cm higher). The two poses' own fits of this one swing
+  differ by 0.9° before any change.
+- **A face-on-only fit is better but not right.** Both feet sit about 8.5° toes-up (the lead was
+  +17.0°, the trail +8.7°). That is the face-on-only world's own tilt (pitch 5.7°, was 8.8°), not
+  this fault.
+- **The synthetic suite's (L) gate was loosened.** Its lead-forearm roll gate went from 30° to 32°.
+  On that clean truth, setting the lead toes aside moved the unseen roll 27.1° → 30.2°.
+- **Not measured.** The other 14 swings of 07-04, and any other golfer. The K0 15-swing median
+  (+15° on the lead foot) is the scope check, and it belongs on the studio.

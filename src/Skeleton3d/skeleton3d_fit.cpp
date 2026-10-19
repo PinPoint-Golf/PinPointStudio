@@ -451,6 +451,19 @@ void dirDerivs(const Problem &P, const Pose &pose, int joint, const V3 &d, Mat3X
 // The foot marker lift (m, at unit scale): toes 17, 18, 20, 21; heels 19, 22.
 double footLift(const FitConfig &c, int m) { return (m == 19 || m == 22) ? c.footHeelLiftM : c.footToeLiftM; }
 
+// While the planted-feet pitch match holds (all six foot markers planted, up to
+// plantedFeetBeforeImpactUs before impact), the LEAD foot's big- and small-toe keypoints are not
+// fitted unless FitConfig::fitPlantedLeadToes: its pitch is the trail foot's there.
+bool leadToeHeld(const Problem &P, int t, int m)
+{
+    if (P.cfg.fitPlantedLeadToes || P.cfg.plantedFeetPitchSigmaDeg <= 0 || !P.cfg.useContact) return false;
+    const int base = P.in.leadIsLeft ? 17 : 20;
+    if ((m != base && m != base + 1) || t >= int(P.in.footContact.size())
+        || P.in.t_us[size_t(t)] > P.in.impactUs - P.cfg.plantedFeetBeforeImpactUs) return false;
+    const auto &fc = P.in.footContact[size_t(t)];
+    return std::all_of(fc.begin(), fc.end(), [](uint8_t c) { return c != 0; });
+}
+
 V3 markerOffset(const Problem &P, const VectorXd &sv, int m)
 {
     const Marker &M = P.rig.markers[size_t(m)];
@@ -538,7 +551,7 @@ double frameResiduals(const Problem &P, const State &S, int t, Rows *rows)
             const CamFrame cf = camFrame(cam, view, W, H);
             for (int m = 0; m < kMarkerCount; ++m) {
                 const KpObs &o = ob.kp[size_t(m)];
-                if (o.sigma <= 0) continue;
+                if (o.sigma <= 0 || leadToeHeld(P, t, m)) continue;
                 const Marker &M = R.markers[size_t(m)];
                 const V3 off = markerOffset(P, sv, m);
                 if (rows) {
@@ -854,6 +867,37 @@ double frameResiduals(const Problem &P, const State &S, int t, Rows *rows)
                     rows->Js.row(row) = pj.ds.row(a) / s;
                     const int col = P.L.iAnchor + 3 * f + a;
                     rows->Js(row, col) -= 1.0 / s;
+                }
+            }
+            // Both planted soles rest on ONE floor (FitConfig::plantedFeetPitchSigmaDeg): while all six
+            // foot markers are planted, up to plantedFeetBeforeImpactUs before impact, the lead
+            // foot's pitch (heel → toe against the world's horizontal) is the trail foot's. A tilt
+            // of the world turns both feet alike, so the term asserts no level of its own —
+            // "each foot flat to the world" did, and moved 07-04 s8's floor 10 cm and its face-on
+            // pitch 3° to make the feet true. The lead toe keypoints it would fight are set aside
+            // over the same frames (leadToeHeld).
+            if (P.cfg.plantedFeetPitchSigmaDeg > 0 && P.in.t_us[size_t(t)] <= P.in.impactUs - P.cfg.plantedFeetBeforeImpactUs) {
+                const auto &fc = P.in.footContact[size_t(t)];
+                if (std::all_of(fc.begin(), fc.end(), [](uint8_t c) { return c != 0; })) {
+                    const double s = P.cfg.plantedFeetPitchSigmaDeg * kDeg;
+                    double pitch[2];
+                    Mat3X dd[2];
+                    for (int ft = 0; ft < 2; ++ft) {
+                        const int joint = R.markers[size_t(17 + 3 * ft)].joint;
+                        const V3 d = pose.rot[joint].rotate(R.footFwdLocal[size_t(ft)]);
+                        pitch[ft] = std::asin(std::clamp(d.z, -1.0, 1.0));
+                        if (rows) {
+                            dirDerivs(P, pose, joint, d, dd[ft]);
+                            dd[ft] /= std::max(1e-6, std::cos(pitch[ft]));
+                        }
+                    }
+                    const double r = (pitch[0] - pitch[1]) / s;
+                    cost += r * r;
+                    if (rows) {
+                        const int row = rows->add();
+                        rows->r[row] = r;
+                        rows->Jf.row(row) = (dd[0].row(2) - dd[1].row(2)) / s;
+                    }
                 }
             }
         }
@@ -1886,7 +1930,7 @@ FitResult fitSkeleton(const FitInput &in)
         for (int m = 0; m < kMarkerCount; ++m) {
             const KpObs &o = P.fo[size_t(t)].kp[size_t(m)];
             P.tgtSig[size_t(t)][size_t(m)] = { -1, -1, -1 };
-            if (o.sigma <= 0) continue;
+            if (o.sigma <= 0 || leadToeHeld(P, t, m)) continue;
             double X, Z;
             foXZ(o.u, o.v, X, Z);
             double Y = Yh0 + (markerWorld(tmplPose, R.markers[size_t(m)].joint, R.markers[size_t(m)].offsetPrior).y - tmplHip.y);
@@ -2658,7 +2702,7 @@ FitResult fitSkeleton(const FitInput &in)
             const CamFrame cf = camFrame(cm, view, view == 0 ? in.foW : in.dtlW, view == 0 ? in.foH : in.dtlH);
             for (int m = 0; m < kMarkerCount; ++m) {
                 const KpObs &o = V[size_t(t)].kp[size_t(m)];
-                if (o.sigma <= 0) continue;
+                if (o.sigma <= 0 || leadToeHeld(P, t, m)) continue;
                 double u, v;
                 if (!project(cf, markerWorld(pz, R.markers[size_t(m)].joint, markerOffset(P, S.sv, m)), u, v, nullptr)) continue;
                 (view == 0 ? errF : errD).push_back(std::hypot(u - o.u, v - o.v));

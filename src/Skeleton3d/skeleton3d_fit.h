@@ -170,6 +170,28 @@ struct FitConfig {
     // onto its toes after impact (skeleton_rate_k0_20261002.md §13).
     double footToeLiftM        = 0.06;
     double footHeelLiftM       = 0.03;
+    // BOTH PLANTED SOLES REST ON ONE FLOOR (σ degrees per frame; 0 = off): while all six foot
+    // markers are planted, up to plantedFeetBeforeImpactUs before impact, the lead foot's pitch
+    // (heel → toe against the horizontal) is the trail foot's, and the lead foot's big- and
+    // small-toe keypoints are not fitted (fitPlantedLeadToes = false). ON since 2026-10-19
+    // (skeleton3d v9, issue #27). On 07-04 s8 the lead toe keypoints land mid-shoe in BOTH views
+    // (the foot is flared toward the target and, to the DTL, half hidden behind the trail leg),
+    // are handed to the fit at σ 1.5–2 px, and with nothing relating the lead foot to the well-seen
+    // trail foot the fit tipped it ~12° toes-up at address to reach them. With both: +12.5° →
+    // +0.4°, the cost 80.8k → 75.7k, the DTL reprojection 3.7 → 3.3 px; the library copy +5.4° →
+    // −1.4°. Each alone falls short: the match alone pays for the toes with the world (face-on
+    // pitch 0.8° → −0.5°); setting the toes aside alone leaves the foot +5.5° (nothing says it is
+    // flat). WHY A MATCH, not "each foot flat to the world": that also laid the foot flat, but it
+    // is a claim about the floor's level and the fit paid for it with the world (floor 10 cm
+    // higher, face-on pitch 0.8° → −2.1°; the synthetic suite's world tilted 2.5°). The world still
+    // moves some with the match: face-on pitch 0.8° → 0.2° (pinned pose), −0.15° → −1.5° (the
+    // library's own pose), about the gap between those two poses' own fits of this swing (0.9°).
+    // The window ends before impact because the trail heel really does come up through the last
+    // of the downswing; holding the lead toes out to the end of the lead foot's contact instead
+    // did not move the world back and tipped a face-on-only fit's world 9° → 15°.
+    double plantedFeetPitchSigmaDeg = 1.0;
+    int64_t plantedFeetBeforeImpactUs = 150000;
+    bool fitPlantedLeadToes = false;
     // THE CLUB IS GROUNDED AT ADDRESS (σ m, Cauchy; 0 = off). Over address − 200 ms … + 30 ms the
     // fitted clubhead sits groundedClubLiftM above the floor the planted feet give. ON since
     // 2026-10-02 (skeleton3d v6). It is the one thing in the swing that touches the floor half a

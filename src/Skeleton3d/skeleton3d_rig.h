@@ -194,6 +194,9 @@ struct Rig {
     // Hand-local directions of the palm normal and the thumb (T-pose: palm down, thumb
     // forward), [0] = left hand, [1] = right hand — the grip priors are authored in them.
     std::array<V3, 2> palmLocal {}, thumbLocal {};
+    // Foot-local heel → toe direction, level with the foot flat (rest pose), [0] = left, [1] = right
+    // — a planted foot's pitch is this direction's angle to the world's horizontal.
+    std::array<V3, 2> footFwdLocal {};
 
     int dofCount() const { return int(dofs.size()); }
 };
@@ -448,6 +451,7 @@ inline Rig buildRig()
             // shod foot's keypoint markers along (only sym-group markers had one before).
             M.upLocal = neutW[ft].conj().rotate({ 0, 1, 0 });
         }
+        rig.footFwdLocal[size_t(side)] = neutW[ft].conj().rotate({ 0, 0, 1 });
     }
     rig.restEyeY = restP[Head].y + 0.085;
     for (int side = 0; side < 2; ++side) {

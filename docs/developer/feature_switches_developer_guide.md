@@ -297,6 +297,7 @@ All from b82de8a3 (2026-10-01); gate in `dtl_precalibration_20261003.md`.
 | `pool{Club,Scale,Sym,Grip}` | `skeleton3d_pool.h:59–62` | **DARK** | Hold the golfer's pooled values fixed. |
 | `pelvisYawAccRad` | `skeleton3d_fit.h` (FitConfig) | LIVE (200) | The pelvis yaw's own acceleration σ, rad/s², never loosened through the downswing (0 = the general σ). |
 | `footToeLiftM` / `footHeelLiftM` | `skeleton3d_fit.h` (FitConfig) | LIVE (0.06 / 0.03) | The shod foot: the toe and heel keypoint markers lifted along the foot's up axis (0 = bare-sole priors). |
+| `plantedFeetPitchSigmaDeg` / `plantedFeetBeforeImpactUs` / `fitPlantedLeadToes` | `skeleton3d_fit.h` (FitConfig) | LIVE (1.0 / 150000 / false) | Both planted soles rest on one floor: while all six foot markers are planted, up to 150 ms before impact, the lead foot's pitch is the trail foot's and the lead foot's toe keypoints are not fitted (v9, issue #27; σ 0 = off, and the toes are fitted again). `swing_3d_viz_design.md` §15. |
 | `groundedClubSigmaM` / `groundedClubLiftM` | `skeleton3d_fit.h` (FitConfig) | LIVE (0.02 / 0), two cameras only | The club grounded at address: the fitted head rests on the feet's floor, which levels the world about the target line (σ 0 = off). |
 | `clubLengthSigmaKnownM` | `skeleton3d_fit.h` (FitConfig) | LIVE (0.005), two cameras only | A RECORDED club's length is held to the tape (was 0.08, then 0.03 in v6). `clubLengthSigmaM` > 0 overrides it and the unrecorded 0.15. |
 

@@ -84,6 +84,9 @@ inline FitConfig fitConfigFromOverrides(const QVariantMap &ov)
     apply(ov, "skeleton3d.pelvisYawAccRad",    c.pelvisYawAccRad);
     apply(ov, "skeleton3d.footToeLiftM",       c.footToeLiftM);
     apply(ov, "skeleton3d.footHeelLiftM",      c.footHeelLiftM);
+    apply(ov, "skeleton3d.plantedFeetPitchSigmaDeg", c.plantedFeetPitchSigmaDeg);
+    apply(ov, "skeleton3d.plantedFeetBeforeImpactUs", c.plantedFeetBeforeImpactUs);
+    apply(ov, "skeleton3d.fitPlantedLeadToes", c.fitPlantedLeadToes);
     apply(ov, "skeleton3d.groundedClubSigmaM", c.groundedClubSigmaM);
     apply(ov, "skeleton3d.groundedClubLiftM",  c.groundedClubLiftM);
     apply(ov, "skeleton3d.clubLengthSigmaM",   c.clubLengthSigmaM);
