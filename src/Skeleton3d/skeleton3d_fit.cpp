@@ -972,6 +972,35 @@ double frameResiduals(const Problem &P, const State &S, int t, Rows *rows)
             }
         }
 
+        // ── the arms in front of the back (FitConfig::handsFrontSigmaM) ──
+        // r = min(0, (wrist or elbow − upper spine)·chest-forward + margin) / σ, per wrist and elbow.
+        if (P.cfg.handsFrontSigmaM > 0) {
+            const double s = P.cfg.handsFrontSigmaM;
+            const V3 fw = pose.rot[ybot::Spine2].rotate(R.chestFwdLocal);
+            PJ c;
+            if (rows) markerPJ(P, pose, sv, ybot::Spine2, {}, -1, c);
+            else c.p = markerWorld(pose, ybot::Spine2, {});
+            Mat3X dfw;
+            if (rows) dirDerivs(P, pose, ybot::Spine2, fw, dfw);
+            for (int hand : { int(ybot::LeftHand), int(ybot::RightHand), int(ybot::LeftForeArm), int(ybot::RightForeArm) }) {
+                const bool elbow = hand == ybot::LeftForeArm || hand == ybot::RightForeArm;
+                PJ h;
+                if (rows) markerPJ(P, pose, sv, hand, {}, -1, h);
+                else h.p = markerWorld(pose, hand, {});
+                const V3 v = h.p - c.p;
+                const double dd = v.dot(fw) + (elbow ? P.cfg.elbowsBehindMarginM : P.cfg.handsBehindMarginM) * P.s0;
+                if (dd >= 0) continue;
+                const double r = dd / s;
+                cost += r * r;
+                if (!rows) continue;
+                const Eigen::RowVectorXd fT = E(fw).transpose(), vT = E(v).transpose();
+                const int row = rows->add();
+                rows->r[row] = r;
+                rows->Jf.row(row) = (fT * (h.dth - c.dth) + vT * dfw) / s;
+                rows->Js.row(row) = (fT * (h.ds - c.ds)) / s;
+            }
+        }
+
         // ── planted feet ──
         if (P.cfg.useContact && t < int(P.in.footContact.size())) {
             for (int f = 0; f < 6; ++f) {
@@ -2843,16 +2872,28 @@ FitResult fitSkeleton(const FitInput &in)
             const double along = qg.dot(d);
             return qg - d * (std::isfinite(spacing) ? spacing : along);
         };
+        // …and the trail wrist and elbow kept in front of the back while the arm is moved
+        // (handsFrontSigmaM): their misses behind the margins, weighted as the lock is.
+        const int trailElbow = in.leadIsLeft ? ybot::RightForeArm : ybot::LeftForeArm;
+        auto behindMiss = [&](const Pose &pz) {
+            if (in.cfg.handsFrontSigmaM <= 0) return 0.0;
+            const V3 fw = pz.rot[ybot::Spine2].rotate(R.chestFwdLocal);
+            const V3 c = markerWorld(pz, ybot::Spine2, {});
+            const double dh = (markerWorld(pz, trailH, {}) - c).dot(fw) + in.cfg.handsBehindMarginM * s0;
+            const double de = (markerWorld(pz, trailElbow, {}) - c).dot(fw) + in.cfg.elbowsBehindMarginM * s0;
+            return std::min(0.0, dh) + std::min(0.0, de);
+        };
         for (int t = 0; t < T; ++t) {
             VectorXd &th = thOut[size_t(t)];
             Pose pz;
             forwardKinematics(R, th.data(), sc.data(), pz);
             V3 e = miss(pz);
+            double eb = behindMiss(pz);
             if (in.t_us[size_t(t)] >= in.addressUs - 150000) gripLock.push_back(1000.0 * e.norm());
             if (!in.cfg.gripLockExact || armDofs.empty()) continue;
-            for (int it = 0; it < 30 && e.norm() > 1e-4; ++it) {
+            for (int it = 0; it < 30 && (e.norm() > 1e-4 || eb < -1e-4); ++it) {
                 const int n = int(armDofs.size());
-                MatrixXd Jm(3, n);
+                MatrixXd Jm(4, n);
                 for (int c = 0; c < n; ++c) {
                     VectorXd tp = th;
                     tp[armDofs[size_t(c)]] += 1e-6;
@@ -2860,8 +2901,9 @@ FitResult fitSkeleton(const FitInput &in)
                     forwardKinematics(R, tp.data(), sc.data(), pp);
                     const V3 e1 = miss(pp);
                     for (int a = 0; a < 3; ++a) Jm(a, c) = (e1[a] - e[a]) / 1e-6;
+                    Jm(3, c) = eb < 0 ? (behindMiss(pp) - eb) / 1e-6 : 0.0;
                 }
-                const Eigen::Vector3d r = E(e);
+                const Eigen::Vector4d r { e.x, e.y, e.z, eb };
                 const MatrixXd A = Jm.transpose() * Jm + 1e-6 * MatrixXd::Identity(n, n);
                 const VectorXd dx = A.ldlt().solve(-Jm.transpose() * r);
                 for (int c = 0; c < n; ++c) {
@@ -2872,6 +2914,7 @@ FitResult fitSkeleton(const FitInput &in)
                 }
                 forwardKinematics(R, th.data(), sc.data(), pz);
                 e = miss(pz);
+                eb = behindMiss(pz);
             }
             poses[size_t(t)] = pz;
         }

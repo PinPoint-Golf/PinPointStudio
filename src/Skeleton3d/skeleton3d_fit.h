@@ -140,6 +140,16 @@ struct FitConfig {
     // than this means something is wrong"); at 0.005 a synthetic golfer whose trail hand truly slid
     // 30 cm pulled it 18.5 mm off.
     double gripSigmaM      = 0.001;
+    // THE ARMS IN FRONT OF THE BACK (σ m, one-sided; 0 = off): each wrist no further than
+    // handsBehindMarginM, and each elbow no further than elbowsBehindMarginM, behind the upper spine
+    // joint along the chest's forward direction. ON since 2026-10-19 (skeleton3d v14): one camera
+    // cannot tell an arm in front of the body from one behind it, and 48 of 57 face-on-only library
+    // fits put a wrist behind the back somewhere (worst 42 cm in the spine's frame) and an elbow
+    // 15–25 cm behind it (Mark: "utterly ludicrous"). Two-camera fits (07-04 s3, s8) never put a
+    // wrist more than 3 cm behind the spine joint, nor an elbow behind it at all.
+    double handsFrontSigmaM    = 0.01;
+    double handsBehindMarginM  = 0.04;
+    double elbowsBehindMarginM = 0.0;
     bool   gripThroughSwing = true;     // the whole swing (was address − 50 ms … impact + 60 ms)
     // THE HANDS KEEP THEIR SPACING ON THE GRIP (σ m per frame; 0 = off): the trail grip point sits a
     // fixed distance down the shaft from the lead one for the whole swing — one value per swing,

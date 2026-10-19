@@ -197,6 +197,8 @@ struct Rig {
     // Foot-local heel → toe direction, level with the foot flat (rest pose), [0] = left, [1] = right
     // — a planted foot's pitch is this direction's angle to the world's horizontal.
     std::array<V3, 2> footFwdLocal {};
+    // The chest's forward direction, Spine2-local (rest pose: the way the golfer faces).
+    V3 chestFwdLocal;
 
     int dofCount() const { return int(dofs.size()); }
 };
@@ -453,6 +455,7 @@ inline Rig buildRig()
         }
         rig.footFwdLocal[size_t(side)] = neutW[ft].conj().rotate({ 0, 0, 1 });
     }
+    rig.chestFwdLocal = neutW[Spine2].conj().rotate({ 0, 0, 1 });
     rig.restEyeY = restP[Head].y + 0.085;
     for (int side = 0; side < 2; ++side) {
         const int hd = side == 0 ? LeftHand : RightHand;
