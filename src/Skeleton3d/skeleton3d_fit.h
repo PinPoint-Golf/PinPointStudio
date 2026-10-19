@@ -101,6 +101,13 @@ struct FitConfig {
     bool   splineBasis  = true;
     double knotFastMs   = 10.0;
     double knotSlowMs   = 40.0;
+    // The fast knots run on to impact + this (ms), not just + 60 ms (v12, 2026-10-19): with both
+    // hands locked on the grip, 40 ms knots could not follow the arms through the follow-through and
+    // the lock broke from + 350 to + 630 ms (07-04 s2 81 mm, 07-05 s9 91 mm, 08-18 s5 22 mm); with
+    // them, 10 mm or less. The fit takes about twice as long (Mac 1.4 → 2.7–3.5 s). 20 ms knots
+    // everywhere instead kept the time but broke 08-18 s5 at the top (32 mm). Knots only — the
+    // smoothness window is unchanged.
+    double knotFastAfterImpactMs = 700.0;
     bool   leanRig      = true;
     bool   leanClavicles = false;  // with leanRig: false keeps the clavicles free (the spine alone is lean, 42 angles)
     double clavElevGain = 0.10;

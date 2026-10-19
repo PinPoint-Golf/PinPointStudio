@@ -1837,7 +1837,8 @@ FitResult fitSkeleton(const FitInput &in)
         // Breakpoints: every knotFastMs inside the fast window, every knotSlowMs outside it, a slow
         // step clipped to the window's start so the dense stretch begins where the swing speeds up.
         const double t0 = in.t_us.front() * 1e-6, t1 = in.t_us.back() * 1e-6;
-        const double f0 = P.fastFrom * 1e-6, f1 = P.fastTo * 1e-6;
+        const double f0 = P.fastFrom * 1e-6,
+                     f1 = std::max(P.fastTo, in.impactUs + int64_t(in.cfg.knotFastAfterImpactMs * 1000.0)) * 1e-6;
         std::vector<double> br { t0 };
         for (double x = t0;;) {
             const bool fast = x >= f0 - 1e-9 && x < f1;
@@ -2873,6 +2874,9 @@ FitResult fitSkeleton(const FitInput &in)
             const V3 off = qg - dd * along;
             const double da = in.cfg.gripSpacingSigmaM > 0 ? along - S.sv[L.iGripSpace] : 0.0;
             gripLock.push_back(1000.0 * std::sqrt(off.dot(off) + da * da));
+            if (gripLock.back() > 10.0 && std::getenv("PINPOINT_SKEL_GRIPLOCK"))    // DEBUG ONLY: where the lock breaks
+                std::fprintf(stderr, "[skeleton3d] grip lock %.1f mm at t %lld (impact %+.0f ms, address %+.0f ms)\n", gripLock.back(),
+                             (long long)in.t_us[size_t(t)], (in.t_us[size_t(t)] - in.impactUs) / 1000.0, (in.t_us[size_t(t)] - in.addressUs) / 1000.0);
         }
         int nv = std::isfinite(P.fo[size_t(t)].shaftTheta) ? 1 : 0;
         if (P.hasDtl && std::isfinite(P.dtl[size_t(t)].shaftTheta)) ++nv;
