@@ -310,7 +310,7 @@ bool project(const CamFrame &cf, const V3 &p, double &u, double &v, Eigen::Matri
 
 // ── shared parameter layout ──────────────────────────────────────────────────
 struct Layout {
-    int iScale = 0, iOff = 0, iSym = 0, iCam = 0, iZg = 0, iGrip = 0, iClub = 0, iAnchor = 0, iImu = 0, iHm = 0, iBall = 0, n = 0;
+    int iScale = 0, iOff = 0, iSym = 0, iCam = 0, iZg = 0, iGrip = 0, iClub = 0, iAnchor = 0, iImu = 0, iHm = 0, iBall = 0, iGripSpace = 0, n = 0;
     std::array<int, kMarkerCount> offSlot {};
     int nImu = 0;
 };
@@ -906,7 +906,10 @@ double frameResiduals(const Problem &P, const State &S, int t, Rows *rows)
 
         const int64_t tus = P.in.t_us[size_t(t)];
         // ── both hands on one club ──
-        if (P.cfg.useGrip && tus >= P.in.addressUs - 50000 && tus <= P.in.impactUs + 60000) {
+        // LOCKED (Mark, 19 Oct): both hands stay on the grip at the butt for the whole swing —
+        // anything else means the fit is wrong. FitConfig::gripThroughSwing (the window used to end
+        // at impact + 60 ms, and the follow-through hands drifted 30 cm apart).
+        if (P.cfg.useGrip && (P.cfg.gripThroughSwing || (tus >= P.in.addressUs - 50000 && tus <= P.in.impactUs + 60000))) {
             const int lead = P.in.leadIsLeft ? ybot::LeftHand : ybot::RightHand;
             const int trail = P.in.leadIsLeft ? ybot::RightHand : ybot::LeftHand;
             const V3 gOff { sv[P.L.iGrip + 3], sv[P.L.iGrip + 4], sv[P.L.iGrip + 5] };
@@ -923,6 +926,29 @@ double frameResiduals(const Problem &P, const State &S, int t, Rows *rows)
             const V3 e = qg - d * along;
             const double s = P.cfg.gripSigmaM;
             for (int a = 0; a < 3; ++a) cost += (e[a] / s) * (e[a] / s);
+            // …and a FIXED spacing along it (FitConfig::gripSpacingSigmaM): hands do not slide on
+            // the grip. The off-axis rows alone left the trail hand free along the shaft's line, and
+            // with one camera it slid 22 cm up and 25 cm down it (09-09 s4).
+            const bool spacing = P.cfg.gripSpacingSigmaM > 0;
+            const double ss = P.cfg.gripSpacingSigmaM;
+            const double rAlong = spacing ? (along - sv[P.L.iGripSpace]) / ss : 0.0;
+            cost += rAlong * rAlong;
+            if (rows && spacing) {
+                Mat3X dd;
+                dirDerivs(P, pose, lead, d, dd);
+                Eigen::Matrix3d Rh;
+                for (int c = 0; c < 3; ++c)
+                    Rh.col(c) = E(pose.rot[lead].rotate(V3 { c == 0 ? 1.0 : 0, c == 1 ? 1.0 : 0, c == 2 ? 1.0 : 0 }));
+                const Eigen::Vector3d aE = E(ah);
+                const Eigen::Matrix3d dA = Rh * (Eigen::Matrix3d::Identity() - aE * aE.transpose()) / an;
+                const Eigen::RowVectorXd dT = E(d).transpose(), qT = E(qg).transpose();
+                const int row = rows->add();
+                rows->r[row] = rAlong;
+                rows->Jf.row(row) = (dT * (q.dth - g.dth) + qT * dd) / ss;
+                rows->Js.row(row) = (dT * (q.ds - g.ds)) / ss;
+                rows->Js.row(row).segment(P.L.iGrip, 3) += (qT * dA) / ss;
+                rows->Js(row, P.L.iGripSpace) -= 1.0 / ss;
+            }
             if (rows) {
                 const Eigen::Vector3d dE = E(d);
                 const Eigen::Matrix3d Pm = Eigen::Matrix3d::Identity() - dE * dE.transpose();
@@ -1887,13 +1913,17 @@ FitResult fitSkeleton(const FitInput &in)
             }
         }
     }
-    // The ball (FitConfig::ballPxSigma): the face-on pixel mirrored with the keypoints. Its own
-    // rows ride on the frame nearest address.
-    if (in.cfg.ballPxSigma > 0 && in.ballU >= 0 && in.ballV >= 0 && in.ballU < in.foW && in.ballV < in.foH) {
+    // The ball (FitConfig::ballPxSigma): the face-on pixel mirrored with the keypoints, and the DTL's;
+    // either view alone is enough. Its own rows ride on the frame nearest address.
+    const bool foBall = in.ballU >= 0 && in.ballV >= 0 && in.ballU < in.foW && in.ballV < in.foH;
+    const bool dtlBall = P.hasDtl && in.dtlBallU >= 0 && in.dtlBallV >= 0 && in.dtlBallU < in.dtlW && in.dtlBallV < in.dtlH;
+    if (in.cfg.ballPxSigma > 0 && (foBall || dtlBall)) {
         P.hasBall = true;
-        P.ballPx[0][0] = res.foMirrored ? in.foW - in.ballU : in.ballU;
-        P.ballPx[0][1] = in.ballV;
-        if (P.hasDtl && in.dtlBallU >= 0 && in.dtlBallV >= 0 && in.dtlBallU < in.dtlW && in.dtlBallV < in.dtlH) {
+        if (foBall) {
+            P.ballPx[0][0] = res.foMirrored ? in.foW - in.ballU : in.ballU;
+            P.ballPx[0][1] = in.ballV;
+        }
+        if (dtlBall) {
             P.ballPx[1][0] = in.dtlBallU;
             P.ballPx[1][1] = in.dtlBallV;
         }
@@ -2109,6 +2139,7 @@ FitResult fitSkeleton(const FitInput &in)
     L.iImu = n; n += 4 * int(in.imu.size());
     L.iHm = n; n += 2;
     L.iBall = n; n += 3;
+    L.iGripSpace = n; n += 1;
     L.n = n;
 
     State S;
@@ -2184,7 +2215,8 @@ FitResult fitSkeleton(const FitInput &in)
         for (int c = 0; c < 9; ++c) {
             S.sv[L.iGrip + c] = P.svPrior[L.iGrip + c] = pri[c];
             P.svSigma[L.iGrip + c] = c < 3 ? 0.35 : in.cfg.gripOffsetSigmaM * s0;
-            P.svFree[size_t(L.iGrip + c)] = in.cfg.useShaft || in.cfg.useGrip;
+            // The palm points are FIXED unless gripOffsetSigmaM > 0 (the hands are locked on them).
+            P.svFree[size_t(L.iGrip + c)] = (in.cfg.useShaft || in.cfg.useGrip) && (c < 3 || in.cfg.gripOffsetSigmaM > 0);
         }
     }
     // Grip → clubhead distance: a shared unknown with the club record as its prior. The
@@ -2199,6 +2231,10 @@ FitResult fitSkeleton(const FitInput &in)
     P.svFree[size_t(L.iClub)] = in.cfg.useClubhead;
     for (int c = 0; c < 18; ++c) P.svFree[size_t(L.iAnchor + c)] = in.cfg.useContact;
     for (int c = 0; c < 3; ++c) P.svFree[size_t(L.iBall + c)] = P.hasBall;
+    // The hands' spacing along the grip (FitConfig::gripSpacingSigmaM): one value for the swing.
+    S.sv[L.iGripSpace] = P.svPrior[L.iGripSpace] = in.cfg.gripSpacingPriorM * s0;
+    P.svSigma[L.iGripSpace] = in.cfg.gripSpacingPriorSigmaM * s0;
+    P.svFree[size_t(L.iGripSpace)] = in.cfg.useGrip && in.cfg.gripSpacingSigmaM > 0;
     for (int i = 0; i < int(in.imu.size()); ++i)
         for (int c = 0; c < 4; ++c) P.svFree[size_t(L.iImu + 4 * i + c)] = in.cfg.useImu;
     for (int c = 0; c < 2; ++c) {
@@ -2269,13 +2305,14 @@ FitResult fitSkeleton(const FitInput &in)
             S.sv[L.iAnchor + 3 * f + 1] = p.y;
             S.sv[L.iAnchor + 3 * f + 2] = p.z;
         }
-        // The ball starts where the face-on ray meets the floor the anchors give.
+        // The ball starts where a view's ray (face-on, else DTL) meets the floor the anchors give.
         if (P.hasBall) {
             std::vector<double> z;
             for (int f = 0; f < 6; ++f) z.push_back(S.sv[L.iAnchor + 3 * f + 2] - (R.markers[size_t(17 + f)].floorHeight + footLift(in.cfg, 17 + f)) * s0);
             const double zb = median(z) + in.cfg.ballRadiusM;
-            const CamFrame cf = camFrame(camFromSv(S.sv, L), 0, in.foW, in.foH);
-            const V3 ray = (cf.fwd + cf.right * ((P.ballPx[0][0] - cf.cx) / cf.f) + cf.down * ((P.ballPx[0][1] - cf.cy) / cf.f)).unit();
+            const int bv = P.ballPx[0][0] >= 0 ? 0 : 1;
+            const CamFrame cf = camFrame(camFromSv(S.sv, L), bv, bv == 0 ? in.foW : in.dtlW, bv == 0 ? in.foH : in.dtlH);
+            const V3 ray = (cf.fwd + cf.right * ((P.ballPx[bv][0] - cf.cx) / cf.f) + cf.down * ((P.ballPx[bv][1] - cf.cy) / cf.f)).unit();
             const double s = std::fabs(ray.z) > 1e-6 ? (zb - cf.c.z) / ray.z : -1;
             const V3 b = s > 0 ? cf.c + ray * s : cf.c + ray * 2.0;
             S.sv[L.iBall] = b.x; S.sv[L.iBall + 1] = b.y; S.sv[L.iBall + 2] = b.z;
@@ -2747,7 +2784,7 @@ FitResult fitSkeleton(const FitInput &in)
     Lin lin;
     evaluate(P, S, &lin);
     const int leadHand = in.leadIsLeft ? ybot::LeftHand : ybot::RightHand;
-    std::vector<double> errF, errD, slip;
+    std::vector<double> errF, errD, slip, gripLock;
     const Cameras cm = res.cam;
     // Joint → the markers that witness it.
     auto witnesses = [&](int j) -> std::vector<int> {
@@ -2828,6 +2865,15 @@ FitResult fitSkeleton(const FitInput &in)
         const V3 ga { res.gripAxisLocal[0], res.gripAxisLocal[1], res.gripAxisLocal[2] };
         res.grip[size_t(t)] = markerWorld(pz, leadHand, gOff);
         res.shaftDir[size_t(t)] = pz.rot[leadHand].rotate(ga).unit();
+        if (in.cfg.useGrip) {
+            const V3 tOff { res.trailGripOffsetLocal[0], res.trailGripOffsetLocal[1], res.trailGripOffsetLocal[2] };
+            const V3 qg = markerWorld(pz, in.leadIsLeft ? ybot::RightHand : ybot::LeftHand, tOff) - res.grip[size_t(t)];
+            const V3 dd = res.shaftDir[size_t(t)];
+            const double along = qg.dot(dd);
+            const V3 off = qg - dd * along;
+            const double da = in.cfg.gripSpacingSigmaM > 0 ? along - S.sv[L.iGripSpace] : 0.0;
+            gripLock.push_back(1000.0 * std::sqrt(off.dot(off) + da * da));
+        }
         int nv = std::isfinite(P.fo[size_t(t)].shaftTheta) ? 1 : 0;
         if (P.hasDtl && std::isfinite(P.dtl[size_t(t)].shaftTheta)) ++nv;
         res.shaftTier[size_t(t)] = uint8_t(nv == 2 ? 3 : nv == 1 ? 2 : 1);
@@ -2853,6 +2899,10 @@ FitResult fitSkeleton(const FitInput &in)
     res.reprojMedPxFo = median(errF);
     res.reprojMedPxDtl = median(errD);
     res.footSlipP90Mm = percentile(slip, 0.9);
+    if (!gripLock.empty()) {
+        res.gripLockP90Mm = percentile(gripLock, 0.9);
+        res.gripLockMaxMm = *std::max_element(gripLock.begin(), gripLock.end());
+    }
 
     // γ and r at the golfer.
     if (P.hasDtl) {

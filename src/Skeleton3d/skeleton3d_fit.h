@@ -122,7 +122,22 @@ struct FitConfig {
     double limitSigmaDeg   = 2.0;
     double shaftSigmaDegFo = 3.0;
     double shaftSigmaDegDtl = 4.0;
-    double gripSigmaM      = 0.02;
+    // Both hands on one club: the trail grip point on the shaft's line (σ m per axis). 0.001 since
+    // 2026-10-19 (was 0.02) — the hands are LOCKED to the grip, not near it (Mark: "anything other
+    // than this means something is wrong"); at 0.005 a synthetic golfer whose trail hand truly slid
+    // 30 cm pulled it 18.5 mm off.
+    double gripSigmaM      = 0.001;
+    bool   gripThroughSwing = true;     // the whole swing (was address − 50 ms … impact + 60 ms)
+    // THE HANDS KEEP THEIR SPACING ON THE GRIP (σ m per frame; 0 = off): the trail grip point sits a
+    // fixed distance down the shaft from the lead one for the whole swing — one value per swing,
+    // a shared unknown with a prior (gripSpacingPriorM ± gripSpacingPriorSigmaM, unit scale). ON
+    // since 2026-10-19 (skeleton3d v11): gripSigmaM held the trail hand ON the shaft's line but not
+    // WHERE on it, and a face-on-only fit slid it 22 cm up and 25 cm down the club (09-09 s4) — the
+    // hands drifted apart through the swing. Two cameras hold the trail wrist 7–8 cm down the
+    // shaft from the lead (07-04 s3, s8: p10–p90 5–10 cm).
+    double gripSpacingSigmaM      = 0.001;
+    double gripSpacingPriorM      = 0.08;
+    double gripSpacingPriorSigmaM = 0.03;
     // THE CLUB IS IN THE HANDS (σ m × body scale, per axis): the grip point against the palm's
     // centre. The images hold the shaft's DIRECTION, not where along it the hands are, so this
     // prior is all that keeps the club in the hands — and at 0.03 it did not. The face-on pitch
@@ -132,7 +147,12 @@ struct FitConfig {
     // (a gap wedge at 47° to the ground at address), 8–10 cm on 07-04. At 0.01 on 5 Oct s13:
     // 20 → 12 cm, the address shaft 47° → 52°, reprojection unchanged and the total cost DOWN
     // (74826 → 74719); 07-04 s8 9 → 7 cm, cost +0.03 %.
-    double gripOffsetSigmaM = 0.01;
+    // 0 = FIXED at the palm since 2026-10-19 (skeleton3d v11). With the hands LOCKED on the grip the
+    // per-frame lock outvotes any prior on these points: a face-on-only fit met the lock by moving
+    // the trail grip point out along the hand, past the fingertips — 15 cm at σ 1 cm, 12.9 cm at
+    // 5 mm (09-09 s4) — so the POINT was on the club and the hand 15 cm off it. The grip point is
+    // anatomy (the middle of the palm) and is not fitted. > 0 restores the fitted offset.
+    double gripOffsetSigmaM = 0.0;
     double contactSigmaM   = 0.01;
     double imuSigmaDeg     = 4.0;
     double hmSigmaDeg      = 4.0;
@@ -248,8 +268,9 @@ struct FitConfig {
     // A STANDARD length (the declared club's, club_standards.h — no record had one), both camera
     // tiers: held nearly as firmly as a record's. Real clubs spread about an inch about the standard,
     // but the fit's own evidence of a length is worse than that (see clubLengthSigmaKnownM) — at
-    // σ 2.5 cm 07-04 s8 still came out 0.887 m against a 0.940 m 7 iron.
-    double clubLengthSigmaStandardM = 0.01;
+    // σ 2.5 cm 07-04 s8 still came out 0.887 m against a 0.940 m 7 iron, and at 1 cm 0.899 once the
+    // hands were locked (v11). Held as a record is (Mark: the standard lengths are the defaults).
+    double clubLengthSigmaStandardM = 0.005;
     double clubLengthSigmaM    = 0.0;
     double wristSigmaDeg       = 30.0;
     double pronationSigmaDeg   = 45.0;
@@ -419,6 +440,10 @@ struct FitResult {
     std::array<double, GroupCount> rawLengthCv {};   // the unconstrained triangulation's length CV
     int    nSwapFo = 0, nSwapDtl = 0, nLimitHeld = 0;
     double footSlipP90Mm = kNaN;
+    // THE HANDS' LOCK (Mark, 19 Oct: both hands are locked together on the grip — anything else means
+    // the fit is wrong): over every frame, how far the trail grip point sits from its locked place
+    // (on the shaft's line, the swing's spacing down it), p90 and worst, mm. NaN = no grip term.
+    double gripLockP90Mm = kNaN, gripLockMaxMm = kNaN;
     double debugJacobianErr = kNaN;          // max |analytic − numeric| / (1 + |numeric|)
     std::string debugJacobianWorst;
     // The depth branch (skeleton3d_shaft_branch_design.md): the planes used (address → top, top →

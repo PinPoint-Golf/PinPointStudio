@@ -99,6 +99,10 @@ inline FitConfig fitConfigFromOverrides(const QVariantMap &ov)
     apply(ov, "skeleton3d.clubLengthSigmaM",   c.clubLengthSigmaM);
     apply(ov, "skeleton3d.clubLengthSigmaKnownM", c.clubLengthSigmaKnownM);
     apply(ov, "skeleton3d.clubLengthSigmaStandardM", c.clubLengthSigmaStandardM);
+    apply(ov, "skeleton3d.gripSpacingSigmaM",      c.gripSpacingSigmaM);
+    apply(ov, "skeleton3d.gripThroughSwing",       c.gripThroughSwing);
+    apply(ov, "skeleton3d.gripSpacingPriorM",      c.gripSpacingPriorM);
+    apply(ov, "skeleton3d.gripSpacingPriorSigmaM", c.gripSpacingPriorSigmaM);
     apply(ov, "skeleton3d.spineFlexSigmaDeg",  c.spineFlexSigmaDeg);
     apply(ov, "skeleton3d.hmRadSign",      c.hmRadSign);
     // The prior widths, for the knob audit (swing_3d_viz_design.md §13.2 (D)).
@@ -225,6 +229,7 @@ inline QJsonObject skeleton3dToJson(const FitResult &r, int64_t t0Us, int stageV
               { "rawLengthCv", rawCv },
               { "nSwapFo", r.nSwapFo }, { "nSwapDtl", r.nSwapDtl }, { "nLimitHeld", r.nLimitHeld },
               { "footSlipP90Mm", num(r.footSlipP90Mm) },
+              { "gripLockP90Mm", num(r.gripLockP90Mm) }, { "gripLockMaxMm", num(r.gripLockMaxMm) },
               { "nUnknowns", r.nUnknowns },
               { "plane", QJsonObject {
                     { "back", planeJson(r.planeBack) }, { "down", planeJson(r.planeDown) },

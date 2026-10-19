@@ -3183,6 +3183,13 @@ struct Skeleton3DStage : AnalysisStage {
         }
 
         ctx.detail->skeleton3d = pinpoint::skeleton3d::fitSkeleton(in);
+        // The hands are locked together on the grip (Mark, 19 Oct): a fit that could not keep them
+        // there is wrong somewhere, and says so.
+        if (ctx.detail->skeleton3d.valid && std::isfinite(ctx.detail->skeleton3d.gripLockMaxMm)
+            && ctx.detail->skeleton3d.gripLockMaxMm > 10.0)
+            ppWarn() << "[WristAnalysis] skeleton3d: the hands came off the grip — trail grip point up to"
+                     << ctx.detail->skeleton3d.gripLockMaxMm << "mm from its locked place (p90"
+                     << ctx.detail->skeleton3d.gripLockP90Mm << "mm)";
         pinpoint::skeleton3d::trimResultBefore(ctx.detail->skeleton3d, in.addressUs - 150000);
         ctx.detail->versions.skeleton3d = kSkeleton3DStageVersion;
         const pinpoint::skeleton3d::FitResult &r = ctx.detail->skeleton3d;
