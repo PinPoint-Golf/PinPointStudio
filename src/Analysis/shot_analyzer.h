@@ -65,6 +65,10 @@ struct ShotAnalysisJob {
     // --club-length-mm) rather than the 1.12 m default above. The uncertainty budgets read it:
     // a defaulted length carries σ 0.12 m into every speed (shaft uncertainty design Q1).
     bool   clubLengthKnown = false;
+    // The STANDARD length (m) of the swing's declared club (club_standards.h) when no record had a
+    // length, else 0. Only the 3-D skeleton reads it, as a looser hold than a record's: clubLengthM
+    // keeps its driver default for the shaft tracker and the speeds, which were graded on it.
+    double standardClubLengthM = 0.0;
     // The athlete's standing height (m), 0 = unknown. The skeleton3d fit's scale prior: bone
     // lengths start at the Y-bot's proportions × height / Y-bot height. Filled from the athlete
     // profile on the LIVE path and from the recorded athlete block on RE-ANALYSIS.

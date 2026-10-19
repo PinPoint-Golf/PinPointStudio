@@ -1114,3 +1114,69 @@ the world back, and it tipped a face-on-only fit's world from 9° to 15°.
   On that clean truth, setting the lead toes aside moved the unseen roll 27.1° → 30.2°.
 - **Not measured.** The other 14 swings of 07-04, and any other golfer. The K0 15-swing median
   (+15° on the lead foot) is the scope check, and it belongs on the studio.
+
+## 16. The ball, the head at it at impact, and the club's length (19 October 2026) — skeleton3d v10, issues #28 and #29
+
+**The faults.**
+- **#28, the head misses the ball.** At impact the 3-D head sat 2–13 cm above the floor and
+  11–30 cm from the ball on the 4 July swings (s8: 23 cm). No tracker measures the head through
+  impact, so the fit carried it across on smoothness alone.
+- **#29, the club's length wanders.** Holding a recorded length (§14) applied to two-camera fits
+  only. A library survey found it wandering both ways on every face-on-only session (0.56–1.27 m
+  against a recorded 0.940 / 0.953 m). It also wandered on the three oldest two-camera sessions,
+  which record no length at all (11 June, 3 July, 4 July: 0.64–1.14 m). Those swings were held at
+  the tape only while the session pool existed (removed 7 Oct).
+
+**What was found on the way.**
+- **The cameras disagree about the ball.** On s8 the two cameras' ball rays met 6.6–8.2 cm above
+  the floor and 4 cm apart. The view drew the ball where the FACE-ON ray met the floor, 10–12 cm
+  from where both cameras see it, so a head at the true ball would still have looked wrong.
+- **Holding the length on one camera alone is worse.** 07-05 s9 at 0.938 m put the head 64 cm off
+  the ball at impact and 13 cm under the floor. With one camera the club's depth is free, and a
+  long club just tilts toward the lens.
+- **The robust loss lets go of anchors that start far off.** At impact (30 px off) and through
+  address alike. Both anchors are quadratic.
+
+**v10.**
+- **The ball is solved.** Its 3-D point is a shared unknown. It projects onto the ball pixel in each
+  view that found it (face-on: the tracker's address ball; DTL: `shaftDtl.ball`; 2.5 px, Cauchy),
+  and it sits one radius above the planted feet's floor (1 cm). The view draws this point.
+- **The head is at the ball at impact.** The pipeline adds a frame at the exact impact instant
+  (keypoints interpolated, no borrowed shaft or head sample). There the head lifted one ball radius
+  is the ball's point (1.5 cm, quadratic).
+- **Length.** A recorded length is held on face-on-only fits too (5 mm). With no record, the swing's
+  DECLARED club takes its standard length (`src/Core/club_standards.h`; men / women / junior by
+  height), held to 1 cm on both tiers. Only the skeleton reads it: the shaft tracker and the speeds
+  keep the driver default they were graded on.
+- **The grounded club also applies to face-on-only fits.** With the ball giving the head depth, it
+  is what puts a held length on the floor.
+- **Address (face-on-only).** The same head-at-the-ball anchor through address is in the code and
+  OFF (`addressBallSigmaM` 0). On 07-05 s9 it dragged the fit into a basin with the hands 17 cm
+  behind the toes.
+
+**Results (one swing at a time, Mac, A/B against v9).**
+
+| swing | club (record) | head from the ball at impact | other |
+|---|---|---|---|
+| 07-04 s8 pinned, two cameras | 0.936 → 0.934 (0.940) | 21.1 → 3.4 cm | cost +0.03 %, reprojection unchanged |
+| 07-04 s8 library, two cameras | 0.873 → 0.915 (standard 0.940) | 23.3 → 3.4 cm | face-on pitch −1.5° → −3.1° |
+| 07-05 s9 face-on only | 0.878 → 0.931 (0.940) | 5.2 → 0.1 cm | hands over the toes (were 29 cm behind) |
+| 07-08 s7 face-on only | 0.834 → 0.934 (0.940) | 18.0 → 1.3 cm | face-on pitch 5.6° → 11.7° |
+| 09-09 s4 face-on only | 0.440 → 0.956 (0.953) | 40.2 → 4.7 cm | head at address 52 → 0.5 cm above the floor |
+
+Synthetic suite, `(BALL)`, with no head measured through impact: head error at impact 3.0 → 1.8 cm,
+the solved ball 1.7 cm from the truth, the body unchanged.
+
+**Costs and what is still wrong.**
+- **The world's level moves.** Every term here that disagrees with the keypoints is paid for in the
+  world's level, the softest-held thing in the fit: 0.9–1.6° on the two-camera s8, and 6–9° of
+  face-on pitch on face-on-only fits.
+- **No reported metric changes on a face-on-only swing.** The skeleton feeds none there. On s8,
+  lead-arm angular speed at impact −39 °/s (−8 %); rotations within 2°.
+- **A face-on-only fit's club is still not right in depth.** At impact it has the right length and
+  reaches the ball, but seen side-on it stands near vertical. At address the head is 22–64 cm from
+  the ball. One camera does not see the club's direction in depth, and nothing in the fit supplies
+  it yet.
+- **The solved ball is a compromise.** It sits 3.9–4.2 cm above the floor on s8, not 2.1, because
+  the two cameras' rays still miss each other by 4 cm.
+- **Not measured.** The other swings of each session (multi-swing runs belong on the studio).

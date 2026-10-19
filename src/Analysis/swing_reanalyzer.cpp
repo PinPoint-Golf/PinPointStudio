@@ -25,7 +25,10 @@
 #include "mp4_frame_reader.h"
 #include "analysis_tuning.h"
 #include "../Core/pp_tuned_constants.h"
+#include "../Core/club_standards.h"
+#include "../Core/club_vocabulary.h"
 
+#include <QDate>
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
@@ -802,6 +805,27 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
                 job.priorClubLenN     = n;
             }
         }
+    }
+
+    // No recorded length (every camera swing before capture.club was persisted): the STANDARD
+    // length of the club the swing declares (review.club, else capture.club.name) — for the 3-D
+    // skeleton only (ShotAnalysisJob::standardClubLengthM) — for the athlete
+    // the document records — a junior (under 18 on the swing's day) by height, else women's for
+    // "female", else men's. A swing that declares no club stays on the driver default, unknown.
+    if (!job.clubLengthKnown) {
+        const QJsonObject ath = root[QStringLiteral("athlete")].toObject();
+        const QDate dob = QDate::fromString(ath[QStringLiteral("dob")].toString(), Qt::ISODate);
+        const QDate on = QDate::fromString(root[QStringLiteral("session")].toObject()[QStringLiteral("dir")].toString().left(10), Qt::ISODate);
+        bool junior = false;
+        if (dob.isValid() && on.isValid()) {
+            int age = on.year() - dob.year();
+            if (on < dob.addYears(age)) --age;
+            junior = age < 18;
+        }
+        const pinpoint::ClubStandard st = pinpoint::standardClub(
+            pinpoint::swingDocDeclaredClub(root),
+            pinpoint::clubSetFor(ath[QStringLiteral("sex")].toString(), junior), job.athleteHeightM);
+        if (st.valid) job.standardClubLengthM = st.lengthMm / 1000.0;
     }
 
     // IMU → segment bindings: the persisted session A/M calibration, serial-keyed.

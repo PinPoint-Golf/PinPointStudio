@@ -2998,6 +2998,10 @@ struct Skeleton3DStage : AnalysisStage {
         in.heightM = ctx.job.athleteHeightM;
         in.clubLengthM = ctx.job.clubLengthM;
         in.clubLengthKnown = ctx.job.clubLengthKnown;
+        if (!in.clubLengthKnown && ctx.job.standardClubLengthM > 0.5) {
+            in.clubLengthM = ctx.job.standardClubLengthM;
+            in.clubLengthStandard = true;
+        }
         if (ctx.job.skeletonCalib) in.fixedCalib = &*ctx.job.skeletonCalib;   // a session pool (§13.2 (C))
         const int64_t impactUs = ctx.seg.eventFor(Phase::Impact)->t_us;
         const PhaseEvent *addr = ctx.seg.eventFor(Phase::Address);
@@ -3015,6 +3019,17 @@ struct Skeleton3DStage : AnalysisStage {
             if (f.t_us >= in.addressUs - 450000 && f.t_us <= impactUs + 700000) grid.push_back(f.t_us);
         const size_t stride = std::max<size_t>(1, (grid.size() + 599) / 600);
         for (size_t i = 0; i < grid.size(); i += stride) in.t_us.push_back(grid[i]);
+        // THE IMPACT INSTANT, a frame of its own (skeleton3d v10, issues #28 / #29): the head-at-the-
+        // ball term holds the clubhead on the ball THERE, and at 150 fps the nearest pose instant can
+        // be 3 ms — a dozen centimetres of head travel — away. Its keypoints are interpolated like a
+        // DTL frame's; it borrows no shaft or head sample from another instant.
+        bool impactInserted = false;
+        if (in.t_us.size() >= 2 && impactUs > in.t_us.front() && impactUs < in.t_us.back()) {
+            auto it = std::lower_bound(in.t_us.begin(), in.t_us.end(), impactUs);
+            const bool near = (it != in.t_us.end() && *it - impactUs <= 500)
+                              || (it != in.t_us.begin() && impactUs - *(it - 1) <= 500);
+            if (!near) { in.t_us.insert(it, impactUs); impactInserted = true; }
+        }
         if (in.t_us.size() < 10) {
             ppInfo() << "[WristAnalysis] skeleton3d: refused — fewer than 10 face-on pose frames in the window";
             return;
@@ -3113,7 +3128,8 @@ struct Skeleton3DStage : AnalysisStage {
         for (int64_t t : in.t_us) {
             pinpoint::skeleton3d::ViewObs vf, vd;
             observePose(fo, in.foW, in.foH, t, vf);
-            if (const ShaftSample2D *s = nearestFo(t)) {
+            const bool ownSamples = !(impactInserted && t == impactUs);
+            if (const ShaftSample2D *s = ownSamples ? nearestFo(t) : nullptr) {
                 vf.shaftTheta = s->thetaRad;
                 vf.shaftSigma = 2.5 * pinpoint::skeleton3d::kDeg;
                 if (s->headConf >= 0.5f && s->headSigmaPx >= 0.f && s->headPx.x() > 0)
@@ -3122,7 +3138,7 @@ struct Skeleton3DStage : AnalysisStage {
             in.fo.push_back(vf);
             if (haveDtl) {
                 observePose(dt, in.dtlW, in.dtlH, t, vd, dtlRule);
-                if (const DtlSample *s = nearestDtl(t)) {
+                if (const DtlSample *s = ownSamples ? nearestDtl(t) : nullptr) {
                     vd.shaftTheta = s->thetaRad;
                     vd.shaftSigma = 3.5 * pinpoint::skeleton3d::kDeg;
                     if ((s->tier == DtlTier::Seg || s->tier == DtlTier::Band) && s->headPx.x() > 0)
@@ -3158,6 +3174,12 @@ struct Skeleton3DStage : AnalysisStage {
         } else if (bp.addressBallPx.x() > 0 && bp.addressBallPx.y() > 0) {
             in.ballU = bp.addressBallPx.x();
             in.ballV = bp.addressBallPx.y();
+        }
+        // The DTL ball (its centre), for the head-at-the-ball term.
+        if (haveDtl && ctx.detail->shaftDtl.valid && ctx.detail->shaftDtl.ball.found
+            && std::isfinite(ctx.detail->shaftDtl.ball.x) && std::isfinite(ctx.detail->shaftDtl.ball.y)) {
+            in.dtlBallU = ctx.detail->shaftDtl.ball.x;
+            in.dtlBallV = ctx.detail->shaftDtl.ball.y;
         }
 
         ctx.detail->skeleton3d = pinpoint::skeleton3d::fitSkeleton(in);

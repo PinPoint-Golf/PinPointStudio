@@ -208,6 +208,35 @@ struct FitConfig {
     // the fitted head is the club's end and rests ON the floor. At 2 cm it cost the club 2.4 cm.
     double groundedClubSigmaM  = 0.02;
     double groundedClubLiftM   = 0.0;
+    // THE BALL, SOLVED (issues #28, #29). Its 3-D point is a shared unknown: it projects onto the
+    // ball's pixel in each view that found it (ballPxSigma px, Cauchy) and rests one ballRadiusM
+    // above the floor the planted feet give (ballFloorSigmaM). On 07-04 s8 the two cameras' ball
+    // rays met 6.6–8.2 cm above the floor and 4 cm apart, and the 3-D view drew the ball where the
+    // FACE-ON ray met the floor — 10–12 cm from where both cameras see it; nothing tied the ball
+    // to the floor in both views. The view now draws this point.
+    // THE HEAD AT THE BALL AT IMPACT (impactBallSigmaM; 0 = off): at the impact instant (a frame of
+    // its own — the pipeline adds it to the grid) the clubhead point lifted one ball radius is the
+    // ball's point. No tracker measures the head through impact; on 07-04 the fit carried it across
+    // on smoothness alone, 2–13 cm high and 11–30 cm from the ball. With ONE camera it is also the
+    // club's depth evidence: a held length is otherwise met by tilting the club toward or away
+    // from the lens (07-05 s9 at 0.938 m: the head 64 cm off the ball at impact, 13 cm under the
+    // floor). Quadratic: the robust loss let go of an anchor that starts ~30 px off.
+    // addressBallSigmaM — the same through ADDRESS on a face-on-only fit — is OFF (0): on 07-05 s9
+    // it dragged the fit into a basin with the hands 17 cm behind the toes and the head 14 cm under
+    // the floor; without it the hands sit over the toes, as two cameras put them. A face-on-only
+    // ADDRESS club is still not pinned (the head 13–44 cm off the floor as the grounded σ moves).
+    double ballPxSigma         = 2.5;
+    double ballFloorSigmaM     = 0.01;
+    double impactBallSigmaM    = 0.015;
+    double addressBallSigmaM   = 0.0;
+    double ballRadiusM         = 0.02135;
+    // A RECORDED club's length is held (clubLengthSigmaKnownM) on a face-on-only fit too — with the
+    // head at the ball to give it depth (#29). false = one camera keeps the loose 0.08.
+    bool   clubLengthHeldFaceOnly = true;
+    // The grounded club on a face-on-only fit too. It was off (it moved 09-16 s2 to another basin)
+    // while the head had no depth evidence; with the ball solved and the head at it, it is what
+    // puts a held length on the floor (07-05 s9: head at impact 18 → 0.6 cm from the ball).
+    bool   groundedClubFaceOnly = true;
     // A RECORDED CLUB IS NOT FITTED (v7): its length is the tape's, and σ 5 mm holds it there. It
     // was 0.08, which let the fit shorten a 0.94 m club to 0.73, and then 0.03 (v6), which still
     // gave 0.90: the fit has almost nothing to measure a length WITH — a clubhead is handed to it
@@ -216,6 +245,11 @@ struct FitConfig {
     // and the total cost up 0.02 %, the hands 2–3 cm higher. An unrecorded club keeps its loose
     // 0.15 (a driver default must not roll the forearms to fit). `clubLengthSigmaM` > 0 overrides both.
     double clubLengthSigmaKnownM = 0.005;
+    // A STANDARD length (the declared club's, club_standards.h — no record had one), both camera
+    // tiers: held nearly as firmly as a record's. Real clubs spread about an inch about the standard,
+    // but the fit's own evidence of a length is worse than that (see clubLengthSigmaKnownM) — at
+    // σ 2.5 cm 07-04 s8 still came out 0.887 m against a 0.940 m 7 iron.
+    double clubLengthSigmaStandardM = 0.01;
     double clubLengthSigmaM    = 0.0;
     double wristSigmaDeg       = 30.0;
     double pronationSigmaDeg   = 45.0;
@@ -303,12 +337,15 @@ struct FitInput {
     double heightM = 0;                      // 0 = unknown
     double clubLengthM = 0;                  // for drawing / reporting; 0 = unknown
     bool   clubLengthKnown = false;          // clubLengthM is the club record's (tape), not a default
+    bool   clubLengthStandard = false;       // …or the declared club's standard length (club_standards.h)
     // Per frame, per foot marker (17..22): planted on the floor.
     std::vector<std::array<uint8_t, 6>> footContact;
     std::vector<ImuTrack> imu;
     std::vector<double> hmFlexDeg, hmRadDeg; // lead wrist, per frame; NaN = none
     // Face-on ball at address (px), for the display origin; < 0 = none.
     double ballU = -1, ballV = -1;
+    // The down-the-line ball (px, its centre), for the head-at-the-ball term; < 0 = none.
+    double dtlBallU = -1, dtlBallV = -1;
     FitConfig cfg;
     // Test hook: start stage 2 from these DoFs (one vector per frame) instead of stage 1.
     const std::vector<std::vector<double>> *debugInitTheta = nullptr;

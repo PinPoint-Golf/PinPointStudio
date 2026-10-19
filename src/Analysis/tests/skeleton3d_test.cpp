@@ -1200,6 +1200,57 @@ int main()
         check(std::fabs(rOn.cam.zG - Tg.cam.zG) < 0.02, "(G) …and the floor within 2 cm");
     }
 
+    // ── (BALL) the ball solved, and the head at it at impact (issues #28, #29) ─────────────────────
+    // On 07-04 the fit carried the head across impact on smoothness alone, 2–13 cm high and 11–30 cm
+    // from the ball, and drew the ball where the face-on ray met the floor. Here the ball is put at
+    // the true head at impact and handed to both views as a pixel; the fit solves its point and holds
+    // the head on it there. Same observations with the ball and without.
+    std::printf("(BALL) the ball solved, and the head at it at impact\n");
+    {
+        size_t ii = 0;
+        for (size_t i = 0; i < T.t.size(); ++i)
+            if (std::llabs(T.t[i] - T.impactUs) < std::llabs(T.t[ii] - T.impactUs)) ii = i;
+        const FitConfig dc;
+        auto trueHead = [&](size_t i) {
+            Pose p;
+            forwardKinematics(rig(), T.th[i].data(), T.scale.data(), p);
+            return markerWorld(p, ybot::LeftHand, T.gripOff) + p.rot[ybot::LeftHand].rotate(T.gripAxis) * (0.95 - 0.04);
+        };
+        const V3 head = trueHead(ii);
+        const V3 ball = head + V3 { 0, 0, dc.ballRadiusM };
+        FitInput on = observe(T, 2.0, 0.02, true, 11, false);
+        // The synthetic head does not touch the floor at impact (the keyframed swing is not grounded),
+        // so the ball's floor term — which places it one radius above the feet's floor — stays out.
+        on.cfg.ballFloorSigmaM = 0;
+        // …and, as on 07-04, no tracker measures the head through impact.
+        for (size_t i = 0; i < T.t.size(); ++i)
+            if (std::llabs(T.t[i] - T.impactUs) <= 60000) {
+                on.fo[i].headSigma = 0;
+                if (i < on.dtl.size()) on.dtl[i].headSigma = 0;
+            }
+        double u, v;
+        if (projectPoint(T.cam, 0, T.foW, T.foH, ball, u, v)) on.ballU = u, on.ballV = v;
+        if (projectPoint(T.cam, 1, T.dtlW, T.dtlH, ball, u, v)) on.dtlBallU = u, on.dtlBallV = v;
+        FitInput off = on;
+        off.cfg.ballPxSigma = 0;
+        const FitResult rOff = fitSkeleton(off), rOn = fitSkeleton(on);
+        auto headErr = [&](const FitResult &r) {
+            const V3 h = r.grip[ii] + r.shaftDir[ii] * (r.clubLengthM - 0.04);
+            return (h - head).norm() * 100;
+        };
+        const double eOff = headErr(rOff), eOn = headErr(rOn);
+        const double eBall = rOn.ballValid ? (rOn.ballWorld - ball).norm() * 100 : 1e9;
+        const Score sOff = score(T, rOff, false), sOn = score(T, rOn, false);
+        std::printf("      truth head %.1f cm above the floor at impact; head error at impact: off %.1f cm, on %.1f cm;"
+                    " solved ball %.1f cm from the truth; body direction p90 %.2f° → %.2f°\n",
+                    (head.z - T.cam.zG) * 100, eOff, eOn, eBall, sOff.dirBodyP90, sOn.dirBodyP90);
+        check(rOff.valid && rOn.valid, "(BALL) both fits converged");
+        check(eOn <= 3.0, "(BALL) with it the head is within 3 cm of the truth at impact");
+        check(eOn < eOff, "(BALL) …closer than without it");
+        check(eBall <= 3.0, "(BALL) …and the solved ball within 3 cm of the true ball");
+        check(sOn.dirBodyP90 <= sOff.dirBodyP90 + 0.5, "(BALL) the body is no worse for it (bone direction +0.5°)");
+    }
+
     // ── (F) a planted foot rests flat (issue #27) ──────────────────────────────────────────────
     // On 07-04 s8 the pose model put the lead foot's toe keypoints mid-shoe in BOTH views, and the
     // fit tipped the planted foot ~12° toes-up to reach them. The same here: the lead big and small

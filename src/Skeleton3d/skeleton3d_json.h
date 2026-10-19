@@ -89,8 +89,16 @@ inline FitConfig fitConfigFromOverrides(const QVariantMap &ov)
     apply(ov, "skeleton3d.fitPlantedLeadToes", c.fitPlantedLeadToes);
     apply(ov, "skeleton3d.groundedClubSigmaM", c.groundedClubSigmaM);
     apply(ov, "skeleton3d.groundedClubLiftM",  c.groundedClubLiftM);
+    apply(ov, "skeleton3d.ballPxSigma",        c.ballPxSigma);
+    apply(ov, "skeleton3d.ballFloorSigmaM",    c.ballFloorSigmaM);
+    apply(ov, "skeleton3d.impactBallSigmaM",   c.impactBallSigmaM);
+    apply(ov, "skeleton3d.addressBallSigmaM",  c.addressBallSigmaM);
+    apply(ov, "skeleton3d.ballRadiusM",        c.ballRadiusM);
+    apply(ov, "skeleton3d.clubLengthHeldFaceOnly", c.clubLengthHeldFaceOnly);
+    apply(ov, "skeleton3d.groundedClubFaceOnly", c.groundedClubFaceOnly);
     apply(ov, "skeleton3d.clubLengthSigmaM",   c.clubLengthSigmaM);
     apply(ov, "skeleton3d.clubLengthSigmaKnownM", c.clubLengthSigmaKnownM);
+    apply(ov, "skeleton3d.clubLengthSigmaStandardM", c.clubLengthSigmaStandardM);
     apply(ov, "skeleton3d.spineFlexSigmaDeg",  c.spineFlexSigmaDeg);
     apply(ov, "skeleton3d.hmRadSign",      c.hmRadSign);
     // The prior widths, for the knob audit (swing_3d_viz_design.md §13.2 (D)).

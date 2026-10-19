@@ -310,7 +310,7 @@ bool project(const CamFrame &cf, const V3 &p, double &u, double &v, Eigen::Matri
 
 // ── shared parameter layout ──────────────────────────────────────────────────
 struct Layout {
-    int iScale = 0, iOff = 0, iSym = 0, iCam = 0, iZg = 0, iGrip = 0, iClub = 0, iAnchor = 0, iImu = 0, iHm = 0, n = 0;
+    int iScale = 0, iOff = 0, iSym = 0, iCam = 0, iZg = 0, iGrip = 0, iClub = 0, iAnchor = 0, iImu = 0, iHm = 0, iBall = 0, n = 0;
     std::array<int, kMarkerCount> offSlot {};
     int nImu = 0;
 };
@@ -351,6 +351,11 @@ struct Problem {
     // Priors.
     VectorXd svPrior, svSigma;              // svSigma ≤ 0 ⇒ no prior
     std::vector<uint8_t> svFree;            // per shared index: in the solve
+    // The ball (FitConfig::ballPxSigma): its pixel per view (face-on mirrored with the keypoints;
+    // < 0 = not found), and the frame its own rows ride on (nearest address).
+    bool hasBall = false;
+    double ballPx[2][2] = { { -1, -1 }, { -1, -1 } };
+    int ballFrame = -1;
     bool stage1 = true;
     // HackMotion / IMU frame data present.
     bool hasHm = false;
@@ -692,12 +697,112 @@ double frameResiduals(const Problem &P, const State &S, int t, Rows *rows)
             }
         }
 
+        // ── the ball, and the head at it ──
+        if (P.hasBall && !P.stage1) {
+            const V3 B { sv[P.L.iBall], sv[P.L.iBall + 1], sv[P.L.iBall + 2] };
+            // The ball's own rows, once (on the frame nearest address): its pixel in each view, and
+            // one radius above the floor this frame's planted anchors give.
+            if (t == P.ballFrame) {
+                const double sg = P.cfg.ballPxSigma;
+                for (int view = 0; view < nViews; ++view) {
+                    const double bu = P.ballPx[view][0], bv = P.ballPx[view][1];
+                    if (bu < 0 || bv < 0) continue;
+                    const int W = view == 0 ? P.in.foW : P.in.dtlW, H = view == 0 ? P.in.foH : P.in.dtlH;
+                    const CamFrame cf = camFrame(cam, view, W, H);
+                    double u, v;
+                    Eigen::Matrix<double, 2, 3> Jp;
+                    if (!project(cf, B, u, v, &Jp)) continue;
+                    const double ru = (u - bu) / sg, rv = (v - bv) / sg;
+                    const double s2 = ru * ru + rv * rv;
+                    cost += c2 * std::log1p(s2 / c2);
+                    if (!rows) continue;
+                    const double w = std::sqrt(1.0 / (1.0 + s2 / c2));
+                    for (int a = 0; a < 2; ++a) {
+                        const int row = rows->add();
+                        rows->r[row] = w * (a == 0 ? ru : rv);
+                        rows->Js.row(row).segment(P.L.iBall, 3) = w / sg * Jp.row(a);
+                        addCamNumeric(row, view, [&](const CamFrame &c) {
+                            double uu, vv;
+                            if (!project(c, B, uu, vv, nullptr)) return kNaN;
+                            return a == 0 ? uu : vv;
+                        }, w / sg);
+                    }
+                }
+                if (P.cfg.useContact && P.cfg.ballFloorSigmaM > 0 && t < int(P.in.footContact.size())) {
+                    int nf = 0;
+                    double zf = 0;
+                    for (int f = 0; f < 6; ++f)
+                        if (P.in.footContact[size_t(t)][size_t(f)]) {
+                            zf += sv[P.L.iAnchor + 3 * f + 2] - (R.markers[size_t(17 + f)].floorHeight + footLift(P.cfg, 17 + f)) * P.s0;
+                            ++nf;
+                        }
+                    if (nf > 0) {
+                        const double sg2 = P.cfg.ballFloorSigmaM;
+                        const double r = (B.z - zf / nf - P.cfg.ballRadiusM) / sg2;
+                        cost += r * r;
+                        if (rows) {
+                            const int row = rows->add();
+                            rows->r[row] = r;
+                            rows->Js(row, P.L.iBall + 2) = 1.0 / sg2;
+                            for (int f = 0; f < 6; ++f)
+                                if (P.in.footContact[size_t(t)][size_t(f)])
+                                    rows->Js(row, P.L.iAnchor + 3 * f + 2) -= 1.0 / (sg2 * nf);
+                        }
+                    }
+                }
+            }
+            // The head at the ball: at the impact instant, and (looser) through address on a
+            // face-on-only fit — it sits behind the ball there, not on it. Quadratic, both: these are
+            // trusted anchors that start tens of centimetres off, and the robust loss let go of them.
+            const int64_t tus = P.in.t_us[size_t(t)];
+            const bool atImpact = P.cfg.useClubhead && P.cfg.impactBallSigmaM > 0 && std::llabs(tus - P.in.impactUs) <= 500;
+            const bool atAddress = P.cfg.useClubhead && P.cfg.addressBallSigmaM > 0 && !P.hasDtl
+                                   && tus >= P.in.addressUs - 200000 && tus <= P.in.addressUs + 30000;
+            if (atImpact || atAddress) {
+                const double sg = atImpact ? P.cfg.impactBallSigmaM : P.cfg.addressBallSigmaM;
+                const int hand = P.in.leadIsLeft ? ybot::LeftHand : ybot::RightHand;
+                const V3 gOff { sv[P.L.iGrip + 3], sv[P.L.iGrip + 4], sv[P.L.iGrip + 5] };
+                const V3 aRaw { sv[P.L.iGrip + 0], sv[P.L.iGrip + 1], sv[P.L.iGrip + 2] };
+                const double an = std::max(1e-6, aRaw.norm());
+                const V3 ah = aRaw * (1.0 / an);
+                const double Lh = sv[P.L.iClub];
+                PJ g;
+                markerPJ(P, pose, sv, hand, gOff, P.L.iGrip + 3, g);
+                const V3 d = pose.rot[hand].rotate(ah);
+                const V3 e = g.p + d * Lh + V3 { 0, 0, P.cfg.ballRadiusM } - B;
+                double s2 = 0;
+                for (int a = 0; a < 3; ++a) s2 += (e[a] / sg) * (e[a] / sg);
+                cost += s2;
+                if (rows) {
+                    const double w = 1.0;
+                    Mat3X dd;
+                    dirDerivs(P, pose, hand, d, dd);
+                    Eigen::Matrix3d Rh;
+                    for (int c = 0; c < 3; ++c)
+                        Rh.col(c) = E(pose.rot[hand].rotate(V3 { c == 0 ? 1.0 : 0, c == 1 ? 1.0 : 0, c == 2 ? 1.0 : 0 }));
+                    const Eigen::Vector3d aE = E(ah);
+                    const Eigen::Matrix3d dA = Rh * (Eigen::Matrix3d::Identity() - aE * aE.transpose()) / an;
+                    const Mat3X dth = g.dth + Lh * dd;
+                    Mat3X ds = g.ds;
+                    ds.middleCols(P.L.iGrip, 3) += Lh * dA;
+                    for (int a = 0; a < 3; ++a) {
+                        const int row = rows->add();
+                        rows->r[row] = w * e[a] / sg;
+                        rows->Jf.row(row) = w / sg * dth.row(a);
+                        rows->Js.row(row) = w / sg * ds.row(a);
+                        rows->Js(row, P.L.iClub) += w / sg * d[a];
+                        rows->Js(row, P.L.iBall + a) -= w / sg;
+                    }
+                }
+            }
+        }
+
         // ── the club grounded at address ──
         // r = (head.z − floor − lift)/σ, Cauchy. The floor is the mean of this frame's planted
         // markers' anchors less their flat-foot heights — the same floor the outputs read.
         // TWO CAMERAS ONLY: with one, the head's depth is a prior's, and the term moved a face-on-only
         // fit to another basin without grounding anything (09-16 s2: 10 cm → 20 cm above the floor).
-        if (P.cfg.groundedClubSigmaM > 0 && P.hasDtl && P.cfg.useContact && P.cfg.useClubhead && !P.stage1
+        if (P.cfg.groundedClubSigmaM > 0 && (P.hasDtl || P.cfg.groundedClubFaceOnly) && P.cfg.useContact && P.cfg.useClubhead && !P.stage1
             && t < int(P.in.footContact.size())
             && P.in.t_us[size_t(t)] >= P.in.addressUs - 200000 && P.in.t_us[size_t(t)] <= P.in.addressUs + 30000) {
             int nf = 0;
@@ -1782,6 +1887,21 @@ FitResult fitSkeleton(const FitInput &in)
             }
         }
     }
+    // The ball (FitConfig::ballPxSigma): the face-on pixel mirrored with the keypoints. Its own
+    // rows ride on the frame nearest address.
+    if (in.cfg.ballPxSigma > 0 && in.ballU >= 0 && in.ballV >= 0 && in.ballU < in.foW && in.ballV < in.foH) {
+        P.hasBall = true;
+        P.ballPx[0][0] = res.foMirrored ? in.foW - in.ballU : in.ballU;
+        P.ballPx[0][1] = in.ballV;
+        if (P.hasDtl && in.dtlBallU >= 0 && in.dtlBallV >= 0 && in.dtlBallU < in.dtlW && in.dtlBallV < in.dtlH) {
+            P.ballPx[1][0] = in.dtlBallU;
+            P.ballPx[1][1] = in.dtlBallV;
+        }
+        int best = 0;
+        for (int t = 1; t < P.T; ++t)
+            if (std::llabs(in.t_us[size_t(t)] - in.addressUs) < std::llabs(in.t_us[size_t(best)] - in.addressUs)) best = t;
+        P.ballFrame = best;
+    }
 
     // ── scale ──
     const double s0 = in.heightM > 0.5 ? in.heightM / (R.restHeadTopY + 0.02) : 1.0;
@@ -1988,6 +2108,7 @@ FitResult fitSkeleton(const FitInput &in)
     L.iAnchor = n; n += 18;
     L.iImu = n; n += 4 * int(in.imu.size());
     L.iHm = n; n += 2;
+    L.iBall = n; n += 3;
     L.n = n;
 
     State S;
@@ -2071,10 +2192,13 @@ FitResult fitSkeleton(const FitInput &in)
     // driver default (job.clubLengthM) must not be allowed to roll the forearms to fit it.
     S.sv[L.iClub] = P.svPrior[L.iClub] = P.clubToHeadM;
     P.svSigma[L.iClub] = in.cfg.clubLengthSigmaM > 0 ? in.cfg.clubLengthSigmaM
-                       : (P.hasDtl && in.clubLengthKnown && in.clubLengthM > 0.5 && in.cfg.clubLengthSigmaKnownM > 0) ? in.cfg.clubLengthSigmaKnownM
+                       : ((P.hasDtl || in.cfg.clubLengthHeldFaceOnly) && in.clubLengthKnown && in.clubLengthM > 0.5
+                          && in.cfg.clubLengthSigmaKnownM > 0) ? in.cfg.clubLengthSigmaKnownM
+                       : (in.clubLengthStandard && in.clubLengthM > 0.5 && in.cfg.clubLengthSigmaStandardM > 0) ? in.cfg.clubLengthSigmaStandardM
                        : in.clubLengthM > 0.5 ? 0.08 : 0.15;
     P.svFree[size_t(L.iClub)] = in.cfg.useClubhead;
     for (int c = 0; c < 18; ++c) P.svFree[size_t(L.iAnchor + c)] = in.cfg.useContact;
+    for (int c = 0; c < 3; ++c) P.svFree[size_t(L.iBall + c)] = P.hasBall;
     for (int i = 0; i < int(in.imu.size()); ++i)
         for (int c = 0; c < 4; ++c) P.svFree[size_t(L.iImu + 4 * i + c)] = in.cfg.useImu;
     for (int c = 0; c < 2; ++c) {
@@ -2144,6 +2268,17 @@ FitResult fitSkeleton(const FitInput &in)
             S.sv[L.iAnchor + 3 * f] = p.x;
             S.sv[L.iAnchor + 3 * f + 1] = p.y;
             S.sv[L.iAnchor + 3 * f + 2] = p.z;
+        }
+        // The ball starts where the face-on ray meets the floor the anchors give.
+        if (P.hasBall) {
+            std::vector<double> z;
+            for (int f = 0; f < 6; ++f) z.push_back(S.sv[L.iAnchor + 3 * f + 2] - (R.markers[size_t(17 + f)].floorHeight + footLift(in.cfg, 17 + f)) * s0);
+            const double zb = median(z) + in.cfg.ballRadiusM;
+            const CamFrame cf = camFrame(camFromSv(S.sv, L), 0, in.foW, in.foH);
+            const V3 ray = (cf.fwd + cf.right * ((P.ballPx[0][0] - cf.cx) / cf.f) + cf.down * ((P.ballPx[0][1] - cf.cy) / cf.f)).unit();
+            const double s = std::fabs(ray.z) > 1e-6 ? (zb - cf.c.z) / ray.z : -1;
+            const V3 b = s > 0 ? cf.c + ray * s : cf.c + ray * 2.0;
+            S.sv[L.iBall] = b.x; S.sv[L.iBall + 1] = b.y; S.sv[L.iBall + 2] = b.z;
         }
         for (int i = 0; i < int(in.imu.size()); ++i) {
             const ImuTrack &it = in.imu[size_t(i)];
@@ -2738,7 +2873,12 @@ FitResult fitSkeleton(const FitInput &in)
         const V3 ax = leadHeel - trailHeel;
         res.stanceYawRad = std::atan2(ax.y, ax.x);
         res.displayOrigin = (lh + rh) * 0.5;
-        if (in.ballU >= 0 && in.ballV >= 0) {
+        if (P.hasBall) {
+            // The solved ball (FitConfig::ballPxSigma).
+            res.ballWorld = { S.sv[L.iBall], S.sv[L.iBall + 1], S.sv[L.iBall + 2] };
+            res.ballValid = true;
+            res.displayOrigin = { res.ballWorld.x, res.ballWorld.y, cm.zG };
+        } else if (in.ballU >= 0 && in.ballV >= 0) {
             const CamFrame cf = camFrame(cm, 0, in.foW, in.foH);
             double bu = in.ballU;
             if (res.foMirrored) bu = in.foW - bu;
