@@ -170,12 +170,13 @@ struct WristGrip {
     bool   ok = false;
 };
 
-WristGrip wristGrip(const PoseTrack2D &pose, const std::vector<ShaftSample2D> &track, int frameW, int frameH)
+WristGrip wristGrip(const PoseTrack2D &pose, const std::vector<ShaftSample2D> &track, int frameW, int frameH,
+                    double minConf)
 {
     WristGrip g;
     const std::vector<PoseFrame2D> &F = pose.smoothed.empty() ? pose.frames : pose.smoothed;
     if (F.size() < 3 || track.empty() || frameW <= 0 || frameH <= 0) return g;
-    constexpr float kConf = 0.15f;
+    const float kConf = float(minConf);
     std::vector<int64_t> t;
     std::vector<double>  x, y;
     for (const PoseFrame2D &f : F) {
@@ -665,7 +666,7 @@ std::vector<MetricSeries> buildKinematicSeries(const KinematicSeriesInputs &in)
     // The grip's velocity off the pose wrists (wristVelocity), when the pose carries them.
     WristGrip wristG;
     if (in.wristVelocity && in.pose)
-        wristG = wristGrip(*in.pose, track, shaft.frameWidth, shaft.frameHeight);
+        wristG = wristGrip(*in.pose, track, shaft.frameWidth, shaft.frameHeight, in.wristMinConf);
     const WristGrip *wg = wristG.ok ? &wristG : nullptr;
     out.push_back(makeSpeedSeries(QStringLiteral("clubheadSpeed"), QStringLiteral("Clubhead speed"),
                                   t, in.composed ? composedHeadSpeedMph(track, shaft, mPerPx, wg)

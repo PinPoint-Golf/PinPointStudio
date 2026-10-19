@@ -59,6 +59,11 @@ struct KinematicSeriesConfig {
     bool enabled  = tuned::kinematics::kEnabled;    // kinematics.enabled — master gate (ON since 2026-07-18)
     bool composed = tuned::kinematics::kComposed;   // kinematics.composed — see KinematicSeriesInputs (ON 2026-09-06)
     bool wristVelocity = tuned::kinematics::kWristVelocity;   // kinematics.wristVelocity — see KinematicSeriesInputs (ON 2026-10-03)
+    // The wrists are read only where both are seen with this confidence (kinematics.wristMinConf) —
+    // the face-on lead arm's rule (sequence.faceOnArm.minConf, 2026-10-19). Below it a frame is
+    // bridged from its neighbours (up to three frames), else the grip anchor's own difference
+    // stands in. It was 0.15.
+    double wristMinConf = 0.5;
 
     static KinematicSeriesConfig fromOverrides(const QVariantMap &ov)
     {
@@ -67,6 +72,7 @@ struct KinematicSeriesConfig {
         apply(ov, "kinematics.enabled",  c.enabled);
         apply(ov, "kinematics.composed", c.composed);
         apply(ov, "kinematics.wristVelocity", c.wristVelocity);
+        apply(ov, "kinematics.wristMinConf",  c.wristMinConf);
         return c;
     }
 };
@@ -100,6 +106,7 @@ struct KinematicSeriesInputs {
     // difference — tuned::kinematics::kWristVelocity. Clubhead and hand speed both; composed only
     // for the clubhead (the differentiated head path has no grip term to replace).
     bool    wristVelocity = false;
+    double  wristMinConf  = 0.5;     // KinematicSeriesConfig::wristMinConf
 
     // Phase timeline (ctx.seg.events) so the curves carry Address/Top/Impact phase dots
     // matching the other detail series. Empty ⇒ only an Impact dot (from impactUs).

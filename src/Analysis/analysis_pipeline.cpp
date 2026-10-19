@@ -1611,6 +1611,7 @@ struct KinematicsStage : AnalysisStage {
         const KinematicSeriesConfig kcfg = KinematicSeriesConfig::fromOverrides(ctx.job.tuningOverrides);
         in.composed      = kcfg.composed;
         in.wristVelocity = kcfg.wristVelocity;
+        in.wristMinConf  = kcfg.wristMinConf;
         in.gripDownM   = ShaftV3Config::fromOverrides(ctx.job.tuningOverrides).lenGripDownM;
         const UncertaintyConfig unc = UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides);
         in.unc             = &unc;
