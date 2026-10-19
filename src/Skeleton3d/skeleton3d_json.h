@@ -68,6 +68,7 @@ inline FitConfig fitConfigFromOverrides(const QVariantMap &ov)
     apply(ov, "skeleton3d.knotFastMs",     c.knotFastMs);
     apply(ov, "skeleton3d.knotSlowMs",     c.knotSlowMs);
     apply(ov, "skeleton3d.knotFastAfterImpactMs", c.knotFastAfterImpactMs);
+    apply(ov, "skeleton3d.gripLockExact",  c.gripLockExact);
     apply(ov, "skeleton3d.clavElevGain",   c.clavElevGain);
     apply(ov, "skeleton3d.clavProtGain",   c.clavProtGain);
     apply(ov, "skeleton3d.faceOnDistanceM", c.faceOnDistanceM);

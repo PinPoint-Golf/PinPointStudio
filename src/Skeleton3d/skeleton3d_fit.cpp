@@ -2814,10 +2814,72 @@ FitResult fitSkeleton(const FitInput &in)
         for (int m : wit[size_t(j)]) if (V[size_t(t)].kp[size_t(m)].sigma > 0) return true;
         return false;
     };
+    // ── the hands locked exactly (FitConfig::gripLockExact) ──
+    // Per frame: the fit's own miss is recorded (frames the view shows), then the trail arm's angles
+    // are moved the least it takes — Gauss–Newton, damped, inside the joint limits — to put the trail
+    // grip point on its locked place. The lead hand, and so the club, is untouched.
+    std::vector<VectorXd> thOut(static_cast<size_t>(T));
+    for (int t = 0; t < T; ++t) thOut[size_t(t)] = P.theta(S.th[size_t(t)]);
+    if (in.cfg.useGrip) {
+        const int leadH = in.leadIsLeft ? ybot::LeftHand : ybot::RightHand;
+        const int trailH = in.leadIsLeft ? ybot::RightHand : ybot::LeftHand;
+        const char *pre = in.leadIsLeft ? "r" : "l";
+        std::vector<int> armDofs;
+        for (const char *n : { "Arm.flex", "Arm.abd", "Arm.rot", "Elbow.flex", "Forearm.pron", "Wrist.flex", "Wrist.rad" })
+            for (int k = 0; k < P.nth; ++k)
+                if (std::string(R.dofs[size_t(k)].name) == std::string(pre) + n) armDofs.push_back(k);
+        const V3 gOffL { S.sv[L.iGrip + 3], S.sv[L.iGrip + 4], S.sv[L.iGrip + 5] };
+        const V3 tOffL { S.sv[L.iGrip + 6], S.sv[L.iGrip + 7], S.sv[L.iGrip + 8] };
+        const V3 aRaw { S.sv[L.iGrip + 0], S.sv[L.iGrip + 1], S.sv[L.iGrip + 2] };
+        const V3 ah = aRaw * (1.0 / std::max(1e-6, aRaw.norm()));
+        const double spacing = in.cfg.gripSpacingSigmaM > 0 ? S.sv[L.iGripSpace] : kNaN;
+        std::array<double, GroupCount> sc {};
+        for (int g = 0; g < GroupCount; ++g) sc[size_t(g)] = S.sv[L.iScale + g];
+        // The trail grip point's miss from its locked place: on the shaft's line, at the spacing.
+        auto miss = [&](const Pose &pz) {
+            const V3 g = markerWorld(pz, leadH, gOffL);
+            const V3 d = pz.rot[leadH].rotate(ah);
+            const V3 qg = markerWorld(pz, trailH, tOffL) - g;
+            const double along = qg.dot(d);
+            return qg - d * (std::isfinite(spacing) ? spacing : along);
+        };
+        for (int t = 0; t < T; ++t) {
+            VectorXd &th = thOut[size_t(t)];
+            Pose pz;
+            forwardKinematics(R, th.data(), sc.data(), pz);
+            V3 e = miss(pz);
+            if (in.t_us[size_t(t)] >= in.addressUs - 150000) gripLock.push_back(1000.0 * e.norm());
+            if (!in.cfg.gripLockExact || armDofs.empty()) continue;
+            for (int it = 0; it < 30 && e.norm() > 1e-4; ++it) {
+                const int n = int(armDofs.size());
+                MatrixXd Jm(3, n);
+                for (int c = 0; c < n; ++c) {
+                    VectorXd tp = th;
+                    tp[armDofs[size_t(c)]] += 1e-6;
+                    Pose pp;
+                    forwardKinematics(R, tp.data(), sc.data(), pp);
+                    const V3 e1 = miss(pp);
+                    for (int a = 0; a < 3; ++a) Jm(a, c) = (e1[a] - e[a]) / 1e-6;
+                }
+                const Eigen::Vector3d r = E(e);
+                const MatrixXd A = Jm.transpose() * Jm + 1e-6 * MatrixXd::Identity(n, n);
+                const VectorXd dx = A.ldlt().solve(-Jm.transpose() * r);
+                for (int c = 0; c < n; ++c) {
+                    const Dof &df = R.dofs[size_t(armDofs[size_t(c)])];
+                    double &v = th[armDofs[size_t(c)]];
+                    v += dx[c];
+                    if (df.lo < df.hi) v = std::clamp(v, df.lo, df.hi);
+                }
+                forwardKinematics(R, th.data(), sc.data(), pz);
+                e = miss(pz);
+            }
+            poses[size_t(t)] = pz;
+        }
+    }
     for (int t = 0; t < T; ++t) {
         const Pose &pz = poses[size_t(t)];
         // Written as the RIG's angles (θ = M·q): the documents, the viewer and the tests keep all 48.
-        const VectorXd thT = P.theta(S.th[size_t(t)]);
+        const VectorXd &thT = thOut[size_t(t)];
         res.theta[size_t(t)].assign(thT.data(), thT.data() + P.nth);
         MatrixXd Dt = lin.Dframe.empty() ? lin.D[size_t(t)] : lin.Dframe[size_t(t)];
         for (int k = 0; k < P.nd; ++k) Dt(k, k) += 1e-9;
@@ -2866,18 +2928,6 @@ FitResult fitSkeleton(const FitInput &in)
         const V3 ga { res.gripAxisLocal[0], res.gripAxisLocal[1], res.gripAxisLocal[2] };
         res.grip[size_t(t)] = markerWorld(pz, leadHand, gOff);
         res.shaftDir[size_t(t)] = pz.rot[leadHand].rotate(ga).unit();
-        if (in.cfg.useGrip) {
-            const V3 tOff { res.trailGripOffsetLocal[0], res.trailGripOffsetLocal[1], res.trailGripOffsetLocal[2] };
-            const V3 qg = markerWorld(pz, in.leadIsLeft ? ybot::RightHand : ybot::LeftHand, tOff) - res.grip[size_t(t)];
-            const V3 dd = res.shaftDir[size_t(t)];
-            const double along = qg.dot(dd);
-            const V3 off = qg - dd * along;
-            const double da = in.cfg.gripSpacingSigmaM > 0 ? along - S.sv[L.iGripSpace] : 0.0;
-            gripLock.push_back(1000.0 * std::sqrt(off.dot(off) + da * da));
-            if (gripLock.back() > 10.0 && std::getenv("PINPOINT_SKEL_GRIPLOCK"))    // DEBUG ONLY: where the lock breaks
-                std::fprintf(stderr, "[skeleton3d] grip lock %.1f mm at t %lld (impact %+.0f ms, address %+.0f ms)\n", gripLock.back(),
-                             (long long)in.t_us[size_t(t)], (in.t_us[size_t(t)] - in.impactUs) / 1000.0, (in.t_us[size_t(t)] - in.addressUs) / 1000.0);
-        }
         int nv = std::isfinite(P.fo[size_t(t)].shaftTheta) ? 1 : 0;
         if (P.hasDtl && std::isfinite(P.dtl[size_t(t)].shaftTheta)) ++nv;
         res.shaftTier[size_t(t)] = uint8_t(nv == 2 ? 3 : nv == 1 ? 2 : 1);

@@ -454,7 +454,7 @@ struct Obs {
 // (on the shaft's line, to impact + 60 ms). (H) checks the lock on a locked truth.
 static FitInput leanGrip(FitInput x)
 {
-    x.cfg.gripSigmaM = 0.02; x.cfg.gripThroughSwing = false; x.cfg.gripSpacingSigmaM = 0;
+    x.cfg.gripSigmaM = 0.02; x.cfg.gripThroughSwing = false; x.cfg.gripSpacingSigmaM = 0; x.cfg.gripLockExact = false;
     return x;
 }
 
@@ -1176,15 +1176,13 @@ int main()
         std::printf("      lean, per frame:\n");
         const Score sN = score(TL, rN, true);
         std::printf("      unknowns: lean + spline %d, lean per-frame %d\n", rS.nUnknowns, rN.nUnknowns);
-        // ≤ 55 %, was half (2026-10-19): the fast knots now run on through the follow-through (v12) so
-        // the locked hands hold there — 4557 of 8927.
-        check(rS.nUnknowns < 0.55 * rN.nUnknowns, "(S) splines cut the unknowns to 55 % or less");
+        check(rS.nUnknowns < rN.nUnknowns / 2, "(S) splines at least halve the unknowns");
         check(sS.dirBodyP90 <= sN.dirBodyP90 + 0.5, "(S) body bone direction no worse than per-frame (+0.5°)");
         // +3° and +0.4 cm, were +2° and +0.3 cm (2026-10-19): the synthetic golfer's arms are now solved
         // to keep both hands locked on the grip through impact, which splines follow a little less
         // closely than the keyframed arms (roll 12.9° vs 10.0°, position 1.15 vs 0.76 cm).
         check(sS.rollP90 <= sN.rollP90 + 3.0, "(S) roll no worse than per-frame (+3°)");
-        check(sS.posP90Cm <= sN.posP90Cm + 0.6, "(S) joint position no worse than per-frame (+0.6 cm)");   // v12: 1.31 vs 0.76
+        check(sS.posP90Cm <= sN.posP90Cm + 0.4, "(S) joint position no worse than per-frame (+0.4 cm)");
         const double pkT = clubPeak(truthDirs), pkS = clubPeak(rS.shaftDir), pkN = clubPeak(rN.shaftDir);
         std::printf("      club peak angular speed through impact: truth %.1f rad/s, spline %.1f (%.0f%%), per-frame %.1f (%.0f%%)\n",
                     pkT, pkS, 100 * pkS / pkT, pkN, 100 * pkN / pkT);

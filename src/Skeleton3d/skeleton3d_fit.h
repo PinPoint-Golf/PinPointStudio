@@ -101,13 +101,19 @@ struct FitConfig {
     bool   splineBasis  = true;
     double knotFastMs   = 10.0;
     double knotSlowMs   = 40.0;
-    // The fast knots run on to impact + this (ms), not just + 60 ms (v12, 2026-10-19): with both
-    // hands locked on the grip, 40 ms knots could not follow the arms through the follow-through and
-    // the lock broke from + 350 to + 630 ms (07-04 s2 81 mm, 07-05 s9 91 mm, 08-18 s5 22 mm); with
-    // them, 10 mm or less. The fit takes about twice as long (Mac 1.4 → 2.7–3.5 s). 20 ms knots
-    // everywhere instead kept the time but broke 08-18 s5 at the top (32 mm). Knots only — the
-    // smoothness window is unchanged.
-    double knotFastAfterImpactMs = 700.0;
+    // The fast knots run on to impact + this (ms); 60 = the fast window's own end. Tried at 700 (v12):
+    // it held the locked hands through the follow-through on three swings, at twice the fit time,
+    // but on the library it moved the breaks elsewhere (37 of 57 face-on-only swings) — the exact
+    // lock (gripLockExact) replaced it.
+    double knotFastAfterImpactMs = 60.0;
+    // THE HANDS LOCKED EXACTLY (v13, 2026-10-19; Mark: "the hands are locked together with the butt
+    // of the club — anything other than this means something is wrong"): after the solve, each
+    // frame's trail arm (shoulder, elbow, forearm, wrist) is moved the least it takes to put the
+    // trail grip point exactly on its locked place. The spline's knots cannot hold a per-frame lock
+    // everywhere (it broke in the backswing, the follow-through and the lead-in by up to 13 cm);
+    // this holds it on every frame. gripLockP90Mm / gripLockMaxMm report the FIT's own miss before
+    // the move, over the frames the view shows — the measure of how wrong the fit was.
+    bool   gripLockExact = true;
     bool   leanRig      = true;
     bool   leanClavicles = false;  // with leanRig: false keeps the clavicles free (the spine alone is lean, 42 angles)
     double clavElevGain = 0.10;
@@ -448,8 +454,10 @@ struct FitResult {
     int    nSwapFo = 0, nSwapDtl = 0, nLimitHeld = 0;
     double footSlipP90Mm = kNaN;
     // THE HANDS' LOCK (Mark, 19 Oct: both hands are locked together on the grip — anything else means
-    // the fit is wrong): over every frame, how far the trail grip point sits from its locked place
-    // (on the shaft's line, the swing's spacing down it), p90 and worst, mm. NaN = no grip term.
+    // the fit is wrong): how far the FIT left the trail grip point from its locked place (on the
+    // shaft's line, the swing's spacing down it), p90 and worst, mm, over the frames the view shows
+    // (address − 150 ms on) — before FitConfig::gripLockExact moves the trail arm onto it. NaN = no
+    // grip term.
     double gripLockP90Mm = kNaN, gripLockMaxMm = kNaN;
     double debugJacobianErr = kNaN;          // max |analytic − numeric| / (1 + |numeric|)
     std::string debugJacobianWorst;
