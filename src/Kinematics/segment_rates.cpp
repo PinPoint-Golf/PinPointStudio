@@ -168,6 +168,12 @@ struct PlacementGate {
     // placement switch by default; the club's credible-speed floor sets its own id and evidence.
     QString                     mayGate      = PP_GATE("sequence.routePlacement");
     QVariantMap                 mayEvidence;
+    // RISING INTO THE BAND COUNTS ONLY NEAR THE PEAK (0 = always, the trunk's rule). The face-on
+    // arm folds after impact and its rate creeps up into the fold — 450 → 496 °/s on 07-04 s2
+    // against a 689 °/s downswing peak — which, read as "the peak may be hidden", bounded 38
+    // library swings. With this set, the rise must already be within this fraction of the found
+    // peak: a hidden peak would otherwise have to climb the rest of the way unseen.
+    double                      risingIntoMinFrac = 0.0;
 };
 
 void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const QString &label,
@@ -303,7 +309,8 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
                 if (t >= gate.blindFromUs - windowUs) { sumL += ch.series.value[i]; ++nL; }
                 else                                   { sumE += ch.series.value[i]; ++nE; }
             }
-            if (nL > 0 && nE > 0 && sumL / nL > sumE / nE) { atEntry = true; risingIntoRec = true; }
+            if (nL > 0 && nE > 0 && sumL / nL > sumE / nE
+                && sumL / nL >= gate.risingIntoMinFrac * p.peak) { atEntry = true; risingIntoRec = true; }
         }
         // A PEAK ON THE HEELS OF A REVERSAL IS A SPIKE. A body segment that has just changed
         // direction (the rate through zero at the transition) cannot be at its peak rate one
@@ -1888,7 +1895,10 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
                 if (pv.conf(i, sh) < armConf || pv.conf(i, wr) < armConf) continue;
                 const QPointF d = pv.px(i, wr) - pv.px(i, sh);
                 const double L  = std::hypot(d.x(), d.y());
-                if (refLen > 0.0 && L < cfg.faceOnArmMinLengthFrac * refLen) continue;   // folded
+                // Folded: only AFTER impact. Before it a short image arm is foreshortening — on 07-04
+                // s2 the arm is 43 % of its impact length 150 ms out, confidently seen — which the
+                // plane de-projection is there for; cutting it bounded the peak on 38 swings.
+                if (refLen > 0.0 && a.t[i] > impactUs && L < cfg.faceOnArmMinLengthFrac * refLen) continue;
                 if (!(L > 1.0)) continue;
                 a.angleRad[i] = std::atan2(d.y(), d.x());
                 const double ss = pv.sigmaPx(i, sh, cfg.kpSigmaPx), sw = pv.sigmaPx(i, wr, cfg.kpSigmaPx);
@@ -1910,6 +1920,7 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             std::vector<uint8_t> seen;
             PlacementGate gate;
             gate.bandIsHole = true;
+            gate.risingIntoMinFrac = cfg.faceOnArmRisingIntoMinFrac;
             validityBand(a, dom.fromUs, dom.toUs, seen, gate);
             finishChannel(res.leadArm, differentiate(a, windowUs, 1.0, /*magnitude*/ true),
                           SeqSegment::LeadArm, QStringLiteral("Lead arm angular speed"),
