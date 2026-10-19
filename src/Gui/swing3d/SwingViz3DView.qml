@@ -223,9 +223,10 @@ Item {
             }
         }
 
-        // ── floor: a grid (0.5 m) and the stance line ──
+        // ── floor: a grid (0.5 m) and the stance line — only under a figure (a refused fit draws nothing) ──
         Node {
             id: floor
+            visible: drv.available
             Repeater3D {
                 model: 13
                 Model {

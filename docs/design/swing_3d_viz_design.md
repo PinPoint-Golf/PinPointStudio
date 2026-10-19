@@ -1180,3 +1180,45 @@ the solved ball 1.7 cm from the truth, the body unchanged.
 - **The solved ball is a compromise.** It sits 3.9–4.2 cm above the floor on s8, not 2.1, because
   the two cameras' rays still miss each other by 4 cm.
 - **Not measured.** The other swings of each session (multi-swing runs belong on the studio).
+
+## 17. Hands on the club, arms in front, and two cameras or no skeleton (19 October 2026) — skeleton3d v11–v15
+
+Three defects found after §16, in Mark's review of the 3-D view, and how they were settled. The
+commit messages carry the full measurements.
+
+**The hands came apart (v11–v13).** The grip term let each hand slide along the shaft, stopped at
+impact + 60 ms, and let the fitted palm offsets wander up to 15 cm. Mark's rule: the hands are locked
+together on the butt of the club, and anything else means something is wrong.
+- v11: the palm points are fixed (`gripOffsetSigmaM` 0), the spacing between the hands is held
+  (`gripSpacingSigmaM`, prior 8 cm), and the grip holds for the whole swing (`gripThroughSwing`).
+- v12 tried denser knots after impact. That helped three swings but made the library worse, and v13
+  replaced it.
+- v13 adds `gripLockExact`. After the fit, the trail arm is solved by damped Gauss–Newton onto its
+  locked place on every frame. `gripLockP90Mm` and `gripLockMaxMm` record how far the fit itself
+  missed, and a miss over 10 mm is logged as a warning.
+
+**Arms behind the back (v14).** The fit could match the face-on keypoints while putting the hands
+behind the chest. With one camera, depth is free. `handsFrontSigmaM` adds a one-sided term: the hands
+and forearms stay in front of Spine2, in its own frame, with a margin of `handsBehindMarginM`. The
+exact-lock projection carries the same rule for the trail wrist and elbow. Inside the window the 3-D
+view plays, swings showing it fell from 32 of 90 to 1.
+
+**Two cameras or no skeleton (v15, Mark's decision).** The cost of v11–v14 was measured by
+projecting the skeleton's joints back through each fit's own cameras onto the confident pose
+keypoints:
+- On two-camera swings, nothing moved.
+- On face-on-only swings, the 90th-percentile error grew from 2.6 to 5.9 px at the wrists and from
+  7.7 to 12.7 px at the elbows.
+
+The morning's 0.7 px face-on agreement had coexisted with arms behind the back, so with one camera,
+agreement in the image says nothing about depth. A face-on-only fit also fed no reading: every
+consumer (the kinematic sequence's skeleton routes, two-camera body rotation, the DTL club anchors)
+takes the two-camera fit only. So `requireDtl` (default on) refuses the fit:
+- `noDtl`: there is no DTL view.
+- `dtlDropped`: the DTL view is lost at address.
+
+The 3-D panel then shows only "3-D skeleton not fitted ›" with the reason behind it: no figure,
+floor, stance line or angle buttons. Library pass: 33 two-camera swings fitted, 57 refused (one of
+them `dtlDropped`, 07-03 s2), and every metric value and kinematic sequence identical to v14. The
+solver tests keep exercising face-on-only fits with `requireDtl` off, and `(2C)` checks the refusal.
+Issues #47 and #48 (face-on-only depth and tilt) closed as no longer applying.
