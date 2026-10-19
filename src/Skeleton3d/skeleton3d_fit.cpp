@@ -1835,6 +1835,12 @@ FitResult fitSkeleton(const FitInput &in)
         return res;
     }
     P.hasDtl = in.cfg.useDtl && int(in.dtl.size()) == P.T && in.dtlW > 0 && in.dtlH > 0;
+    if (in.cfg.requireDtl && !P.hasDtl) {
+        res.reason = "the 3-D skeleton needs the down-the-line camera; this swing has the face-on view only";
+        res.gateId = PP_GATE("skeleton.refused");
+        res.reasonCode = "noDtl";
+        return res;
+    }
     P.fo = in.fo;
     if (P.hasDtl) P.dtl = in.dtl;
     // The grade's dropout (a test hook): the DTL's shaft angle and clubhead hidden from impact + this
@@ -2077,6 +2083,12 @@ FitResult fitSkeleton(const FitInput &in)
                       + " address reference frames (no DTL frame paired with them, or no confident hips)"
                 : "no DTL leg or height scale at the " + std::to_string(ref.size()) + " address reference frames";
             P.hasDtl = false;
+            if (in.cfg.requireDtl) {
+                res.reason = "the down-the-line camera could not be used (" + res.dtlDropReason + "), and the 3-D skeleton needs it";
+                res.gateId = PP_GATE("skeleton.refused");
+                res.reasonCode = "dtlDropped";
+                return res;
+            }
         } else {
             sD = sD0;
             uD0 = median(du); vD0 = median(dv);

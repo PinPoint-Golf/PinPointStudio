@@ -510,6 +510,8 @@ static FitInput observe(const Truth &T, double sigmaPx, double dropout, bool wit
     // The suite's guards were set on the per-frame 48-angle fit; the lean (L) and spline (S) sections
     // switch those on themselves. Pinned so the production defaults (§13.5–13.6) leave them where they were.
     in.cfg.leanRig = false; in.cfg.leanClavicles = true; in.cfg.splineBasis = false;
+    // The suite exercises the solver, face-on-only fits included; production refuses those (v15).
+    in.cfg.requireDtl = false;
     std::mt19937 rng(seed);
     std::normal_distribution<double> nz(0, 1);
     std::uniform_real_distribution<double> u01(0, 1);
@@ -1279,6 +1281,19 @@ int main()
         check(eOn < eOff, "(BALL) …closer than without it");
         check(eBall <= 3.0, "(BALL) …and the solved ball within 3 cm of the true ball");
         check(sOn.dirBodyP90 <= sOff.dirBodyP90 + 0.5, "(BALL) the body is no worse for it (bone direction +0.5°)");
+    }
+
+    // ── (2C) two cameras or no skeleton (v15) ──────────────────────────────────────────────────
+    std::printf("(2C) the 3-D skeleton needs both cameras\n");
+    {
+        FitInput fo = observe(T, 2.0, 0.02, false, 11, false);
+        fo.cfg.requireDtl = FitConfig().requireDtl;
+        const FitResult r = fitSkeleton(fo);
+        std::printf("      face-on only: valid %d, code \"%s\"\n", int(r.valid), r.reasonCode.c_str());
+        check(!r.valid && r.reasonCode == "noDtl", "(2C) a face-on-only swing is refused, and says why");
+        FitInput both = observe(T, 2.0, 0.02, true, 11, false);
+        both.cfg.requireDtl = FitConfig().requireDtl;
+        check(fitSkeleton(both).valid, "(2C) a two-camera swing is fitted");
     }
 
     // ── (H) the hands are locked on the grip (Mark, 19 Oct) ─────────────────────────────────────

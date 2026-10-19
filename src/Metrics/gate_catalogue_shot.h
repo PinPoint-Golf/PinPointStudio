@@ -62,17 +62,20 @@ inline void appendShotGates(std::vector<GateEntry> &c)
     {
         GateEntry &e = add(c, "skeleton.refused", skel,
             "No 3-D skeleton", "not fitted",
-            QStringLiteral("The 3-D skeleton is fitted to the golfer as the camera saw them, sized from the legs or "
-                           "body height at address and placed from the hips. Without enough frames, or without "
-                           "those landmarks, or when the fit cannot settle, there is no skeleton, and the readings "
-                           "that come from it are not taken."),
+            QStringLiteral("The 3-D skeleton is fitted to the golfer as both cameras saw them, sized from the legs or "
+                           "body height at address and placed from the hips. It needs the down-the-line camera as "
+                           "well as the face-on one: one camera cannot see depth. Without the second camera, or "
+                           "enough frames, or those landmarks, or when the fit cannot settle, there is no skeleton, "
+                           "and the readings that come from it are not taken."),
             "{code:code}.",
             { GateEffect::Refused }, "src/Skeleton3d/skeleton3d_fit.cpp", "docs/design/swing_3d_viz_design.md §3");
         e.tuning = { tune("skeleton3d.minFaceOnFrames", 10.0, "frames") };
         e.codes = { { QStringLiteral("fewFrames"),  QStringLiteral("Only {frames} face-on frames; {minFrames} are needed") },
                     { QStringLiteral("noScale"),    QStringLiteral("The face-on view showed neither the legs nor the body's height at address, so the golfer could not be sized") },
                     { QStringLiteral("noHips"),     QStringLiteral("The face-on view showed no hips at address") },
-                    { QStringLiteral("noConverge"), QStringLiteral("The fit did not settle on an answer") } };
+                    { QStringLiteral("noConverge"), QStringLiteral("The fit did not settle on an answer") },
+                    { QStringLiteral("noDtl"),      QStringLiteral("This swing has the face-on camera only; the 3-D skeleton needs the down-the-line camera too") },
+                    { QStringLiteral("dtlDropped"), QStringLiteral("The down-the-line camera could not be used at address, and the 3-D skeleton needs it") } };
     }
 
     // ── Tempo (tempo_metrics.cpp) ──

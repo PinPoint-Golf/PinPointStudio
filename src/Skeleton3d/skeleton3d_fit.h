@@ -70,6 +70,14 @@ struct ImuTrack {
 struct FitConfig {
     bool   enabled      = true;
     bool   useDtl       = true;
+    // TWO CAMERAS OR NO SKELETON (2026-10-19, skeleton3d v15; Mark: "stop trying to fit a 3d skeleton
+    // from a single camera view"). One camera cannot see depth: face-on-only fits put arms behind
+    // the back (48 of 57 library swings), hands off the club, the world tipped 5–12° — and fed no
+    // reading at all (every consumer takes the two-camera fit only; a face-on-only swing's metrics,
+    // gates and kinematic sequence are identical with or without it). So the fit refuses without
+    // the DTL view (reason "noDtl"), and when it drops the DTL view (no DTL hips at address,
+    // "dtlDropped"). false = the old face-on-only fit (the solver tests keep it).
+    bool   requireDtl   = true;
     bool   useLimits    = true;
     bool   useContact   = true;
     bool   useShaft     = true;
@@ -422,7 +430,7 @@ struct FitResult {
     bool valid = false;
     std::string reason;
     // THE GATE BEHIND A REFUSAL (trust stage 6): the catalogue id and a short code per reason
-    // ("fewFrames", "noScale", "noHips", "noConverge"), set where the fit refuses — empty when it
+    // ("fewFrames", "noScale", "noHips", "noConverge", "noDtl", "dtlDropped"), set where the fit refuses — empty when it
     // did not, or when it was switched off (a switch is not a gate). Plain strings: the solver
     // builds without Qt; Skeleton3DStage turns them into the swing's gate record.
     std::string gateId;

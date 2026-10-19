@@ -455,6 +455,7 @@ Item {
         id: presets
         anchors { top: parent.top; left: parent.left; right: parent.right; margins: Theme.gap(10) }
         solid: false
+        visible: drv.available          // no figure (a refused fit): no angles to choose between
         // The match chips only when this swing's fitted camera (and its image size) is on file.
         readonly property bool camFo: drv.available && drv.cameraAvailable(0)
         readonly property bool camDtl: drv.available && drv.cameraAvailable(1)
