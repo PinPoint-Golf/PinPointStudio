@@ -704,5 +704,23 @@ Item {
             compare(drv.tingsSince(m3, "panel"), 0)
             verify(drv.done(), "the completed calibration did not survive the round trip")
         }
+
+        // CH14 (#54) — the toolbar's Calibrate with a wG3 holding the arm that the scan has not
+        // found: the key says HackMotion, so the HackMotion routine runs and says the sensor is
+        // not connected. It used to read the vendor from the device list only, find nothing,
+        // and run the Witmotion routine.
+        function test_CH14_absentWg3StillHackMotion() {
+            drv.hostToolbar("none", { scale: scaled })
+            appSettings.imuRoles = ({ "HM-1#lowerArm": "leadForearm", "HM-1#palm": "leadHand" })
+            drv.openToolbar()
+            drv.panel.mode = "calibrate"
+            verify(drv.flow.active, "the panel flow is not active in calibrate mode")
+            verify(drv.flow.isHackMotion, "a wG3-keyed forearm was not taken for a HackMotion")
+            tryVerify(function() { return drv.stage() === "hmStopped" }, sp.hmStart + 2000,
+                      "never stopped (stage " + drv.stage() + ")")
+            compare(drv.message(), "The wrist sensor is not connected. Connect it on the IMUs "
+                    + "step, then tap Recalibrate.")
+            compare(drv.messageKind(), "error")
+        }
     }
 }

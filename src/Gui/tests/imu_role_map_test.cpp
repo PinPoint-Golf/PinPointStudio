@@ -217,6 +217,72 @@ static void testMigration()
     }
 }
 
+// ── 2b. A connected wG3 with no mount takes the arm (#54, #55) ───────────────────
+
+static void testHackMotionArmClaim()
+{
+    // The office Mac on 20 Oct 2026: two Witmotions, switched off for sessions and not found,
+    // still claim the arm; the wG3 is found, switched on, and holds nothing.
+    const QVariantMap stale{ { "W1", "leadForearm" }, { "W2", "leadUpperArm" } };
+    {
+        const DeviceFactsFn f = Table().hackmotion(kHm).fn();
+        const HmArmClaim c = claimArmForUnassignedHackMotion(stale, kHm, f);
+        check(QStringLiteral("H1 unassigned wG3 claims the arm"), c.outcome == HmArmClaim::Claimed);
+        checkMap(QStringLiteral("H1 both unit keys added, the stale claims kept"), c.roles,
+                 { { "W1", "leadForearm" }, { "W2", "leadUpperArm" },
+                   { kHmL, "leadForearm" }, { kHmP, "leadHand" } });
+        checkStr(QStringLiteral("H1 the wG3 now holds the forearm"),
+                 roleHolder(c.roles, QStringLiteral("leadForearm"), f), kHm);
+        checkStr(QStringLiteral("H1 ... and the hand"),
+                 roleHolder(c.roles, QStringLiteral("leadHand"), f), kHm);
+        const RoleResolution r = resolveRole(c.roles, QStringLiteral("leadForearm"), f);
+        checkStr(QStringLiteral("H1 the ladder resolves the forearm to the lower-arm unit"), r.key, kHmL);
+        const HmArmClaim again = claimArmForUnassignedHackMotion(c.roles, kHm, f);
+        check(QStringLiteral("H2 claiming twice is a no-op"),
+              again.outcome == HmArmClaim::NoChange && again.roles == c.roles);
+    }
+    // A live Witmotion on the forearm or hand keeps it: one instrument per arm.
+    {
+        const DeviceFactsFn f = Table().hackmotion(kHm).witmotion("W1").fn();
+        const HmArmClaim c = claimArmForUnassignedHackMotion({ { "W1", "leadForearm" } }, kHm, f);
+        check(QStringLiteral("H3 a live forearm holder blocks the claim"),
+              c.outcome == HmArmClaim::Held && c.holderId == "W1" && c.roles.size() == 1);
+        const HmArmClaim h = claimArmForUnassignedHackMotion({ { "W1", "leadHand" } }, kHm, f);
+        check(QStringLiteral("H4 a live hand holder blocks the claim"),
+              h.outcome == HmArmClaim::Held && h.holderId == "W1");
+    }
+    // A PARKED Witmotion (present, switched off) does not block — the ladder puts the wG3 first.
+    {
+        const DeviceFactsFn f = Table().hackmotion(kHm).witmotion("W1", false).fn();
+        const HmArmClaim c = claimArmForUnassignedHackMotion({ { "W1", "leadForearm" } }, kHm, f);
+        check(QStringLiteral("H5 a parked holder does not block"), c.outcome == HmArmClaim::Claimed);
+        checkStr(QStringLiteral("H5 the wG3 wins the forearm"),
+                 roleHolder(c.roles, QStringLiteral("leadForearm"), f), kHm);
+    }
+    // The wG3 itself must be present, switched on, and a HackMotion.
+    {
+        check(QStringLiteral("H6 an absent wG3 claims nothing"),
+              claimArmForUnassignedHackMotion({}, kHm, Table().fn()).outcome == HmArmClaim::NoChange);
+        check(QStringLiteral("H7 a wG3 switched off for the session claims nothing"),
+              claimArmForUnassignedHackMotion({}, kHm, Table().hackmotion(kHm, false).fn()).outcome
+                  == HmArmClaim::NoChange);
+        check(QStringLiteral("H8 a Witmotion never claims through this"),
+              claimArmForUnassignedHackMotion({}, "W1", Table().witmotion("W1").fn()).outcome
+                  == HmArmClaim::NoChange);
+    }
+    // A placement already given is left exactly as it is.
+    {
+        const DeviceFactsFn f = Table().hackmotion(kHm).fn();
+        const QVariantMap own{ { kHmL, "leadForearm" }, { kHmP, "leadHand" } };
+        check(QStringLiteral("H9 an assigned wG3 is untouched"),
+              claimArmForUnassignedHackMotion(own, kHm, f).outcome == HmArmClaim::NoChange);
+        const QVariantMap bare{ { kHm, "leadHand" } };
+        const HmArmClaim c = claimArmForUnassignedHackMotion(bare, kHm, f);
+        check(QStringLiteral("H10 an unmappable bare pin is not overwritten"),
+              c.outcome == HmArmClaim::NoChange && c.roles == bare);
+    }
+}
+
 // ── 3. The derived legacy view ───────────────────────────────────────────────────
 
 static void testDerivedView()
@@ -483,6 +549,7 @@ int main(int argc, char **argv)
     std::printf("imu_role_map_test — role-keyed placement (design §4.13)\n");
     testNames();
     testMigration();
+    testHackMotionArmClaim();
     testDerivedView();
     testDisplayNames();
     testLadder();

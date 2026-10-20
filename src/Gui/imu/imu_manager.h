@@ -328,6 +328,12 @@ private:
     // correct. See the call sites in the constructor.
     void migrateHackMotionPlacement(const Device &device);
 
+    // A present, session-enabled wG3 with no mount takes the lead forearm + hand when no
+    // live sensor holds them (imu_roles::claimArmForUnassignedHackMotion). Run when the wG3
+    // becomes known, when it is switched back on for the session, and when it connects —
+    // each is a moment a coach means to use it. Idempotent; logs what it did.
+    void claimArmForHackMotion(const QString &deviceId);
+
     // The resolver's view of a device id: enumerated, enabled this session, HackMotion.
     // Handed to every imu_roles function so the pure logic never touches the enumerator.
     pinpoint::imu_roles::DeviceFacts deviceFacts(const QString &deviceId) const;

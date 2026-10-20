@@ -184,6 +184,7 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
         // slot A filled and slot B empty — the exact misreading Phase C removes.
         // Alias seeding above is here for the same reason and has the same shape.
         migrateHackMotionPlacement(dev);
+        claimArmForHackMotion(dev.id);
         // A newly enumerated device is newly PRESENT, which can put its role in session.
         refreshRolesInSession();
         emit imuListChanged();
@@ -362,6 +363,9 @@ void ImuManager::setSessionImuEnabled(const QString &deviceId, bool on)
         for (int i = 0; i < devs.size(); ++i)
             if (devs[i].id == deviceId) { setSelected(i, false); break; }
     }
+
+    // Switched back on with no mount: a wG3 takes the arm if nothing live holds it.
+    if (on) claimArmForHackMotion(deviceId);
 
     emit sessionImuExcludedChanged();
     emit imuDeviceListChanged();
@@ -858,7 +862,11 @@ ImuDeviceBase *ImuManager::createInstance(const Device &device)
                 this, &ImuManager::logEntryAdded);
 
         // Re-emit imuListChanged when connection state changes so chip colours update.
-        connect(inst, &ImuDeviceBase::imuConnectedChanged, this, [this]() {
+        // A wG3 connected with no mount takes the arm here (#54/#55: it connected fine and
+        // the arm was still empty, so Calibrate picked the Witmotion routine).
+        const QString id = device.id;
+        connect(inst, &ImuDeviceBase::imuConnectedChanged, this, [this, inst, id]() {
+            if (inst->imuConnected()) claimArmForHackMotion(id);
             emit imuListChanged();
             emit instancesChanged(); // instanceFor() rebinds in QML
             emit batteryChanged();   // connect/disconnect changes the aggregate min
@@ -977,6 +985,28 @@ void ImuManager::migrateHackMotionPlacement(const Device &device)
         ppInfo() << "[ImuManager]" << device.id
                  << "— migrated HackMotion placement to unit keys: lower arm → leadForearm,"
                     " palm → leadHand";
+        return;
+    }
+}
+
+void ImuManager::claimArmForHackMotion(const QString &deviceId)
+{
+    using pinpoint::imu_roles::HmArmClaim;
+    const HmArmClaim c =
+        pinpoint::imu_roles::claimArmForUnassignedHackMotion(currentRoles(), deviceId, factsFn());
+    switch (c.outcome) {
+    case HmArmClaim::NoChange:
+        return;
+    case HmArmClaim::Held:
+        ppInfo() << "[ImuManager]" << deviceId
+                 << "— HackMotion has no mount and the lead arm is held by" << c.holderId
+                 << "; it sits out. Assign it in Settings → IMUs to use it instead.";
+        return;
+    case HmArmClaim::Claimed:
+        writeRoles(c.roles);
+        ppInfo() << "[ImuManager]" << deviceId
+                 << "— HackMotion had no mount and nothing live held the lead arm: lower arm →"
+                    " leadForearm, palm → leadHand";
         return;
     }
 }

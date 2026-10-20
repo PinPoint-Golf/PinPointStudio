@@ -268,4 +268,35 @@ HmMigration migrateBareHackMotion(const QVariantMap &roles, const QString &devic
     return m;
 }
 
+HmArmClaim claimArmForUnassignedHackMotion(const QVariantMap &roles, const QString &deviceId,
+                                           const DeviceFactsFn &facts)
+{
+    HmArmClaim c;
+    c.roles = roles;
+    if (deviceId.isEmpty() || !facts) return c;
+
+    const DeviceFacts f = facts(deviceId);
+    if (!f.present || !f.sessionEnabled || !f.hackMotion) return c;
+
+    // Any key of its own — unit keys, or a bare pin the migration could not map — means the
+    // wG3 has been given a placement already, and that is left exactly as it is.
+    const QString lower = lowerArmKey(deviceId);
+    const QString palm  = palmKey(deviceId);
+    if (roles.contains(lower) || roles.contains(palm) || roles.contains(deviceId)) return c;
+
+    for (const QString &role : { leadForearm(), leadHand() }) {
+        const QString holder = roleHolder(roles, role, facts);
+        if (!holder.isEmpty() && holder != deviceId) {
+            c.outcome  = HmArmClaim::Held;
+            c.holderId = holder;
+            return c;
+        }
+    }
+
+    c.roles.insert(lower, leadForearm());
+    c.roles.insert(palm,  leadHand());
+    c.outcome = HmArmClaim::Claimed;
+    return c;
+}
+
 }   // namespace pinpoint::imu_roles

@@ -281,4 +281,26 @@ struct HmMigration {
 HmMigration migrateBareHackMotion(const QVariantMap &roles, const QString &deviceId,
                                   const DeviceFactsFn &facts);
 
+// A wG3 that is present and session-enabled but holds NO mount takes the arm: lower arm →
+// leadForearm, palm → leadHand. A wG3 can be worn nowhere else, so "found, switched on and
+// unassigned" otherwise means a connected sensor that sits out silently — setup drops the
+// arm steps and the in-session Calibrate finds no HackMotion on the forearm (#54, #55).
+//
+//   not a present, enabled wG3, or it already owns a key     NoChange
+//   leadForearm or leadHand has a present, enabled holder    Held (`holderId`) — one
+//                                                            instrument per arm
+//   otherwise                                                Claimed
+//
+// Every other claim STANDS: a parked or absent Witmotion's leadForearm stays in the map, and
+// the ladder's present-and-enabled rung is what puts the wG3 ahead of it. Nothing is deleted,
+// so flipping back to the Witmotions costs no re-assignment. Idempotent.
+struct HmArmClaim {
+    enum Outcome { NoChange, Held, Claimed };
+    Outcome     outcome = NoChange;
+    QVariantMap roles;
+    QString     holderId;   // for Held
+};
+HmArmClaim claimArmForUnassignedHackMotion(const QVariantMap &roles, const QString &deviceId,
+                                           const DeviceFactsFn &facts);
+
 }   // namespace pinpoint::imu_roles

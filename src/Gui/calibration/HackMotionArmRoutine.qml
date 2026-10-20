@@ -384,9 +384,10 @@ QtObject {
     // missing when it is not. Do NOT queue a begin for later and do NOT retry.
     function _hmBegin() {
         var dev = leadDevice
-        if (!dev) return
-        // ⚠ DEVICE, not unit: imuConnected and streaming live on the peripheral.
-        if (!dev.imuConnected) {
+        // ⚠ DEVICE, not unit: imuConnected and streaming live on the peripheral. No device at
+        // all (a wG3 holds the forearm but the scan has not found it) is the same plain case —
+        // returning silently left the step waiting on nothing.
+        if (!dev || !dev.imuConnected) {
             _hmStop("error", qsTr("The wrist sensor is not connected. Connect it on the IMUs "
                                   + "step, then tap Recalibrate."))
             return

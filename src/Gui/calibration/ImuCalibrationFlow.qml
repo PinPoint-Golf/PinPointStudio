@@ -104,7 +104,7 @@ Item {
     // against a device that has none of its methods.
     readonly property bool isHackMotion: {
         var _dep = flow._roleDeps
-        return _vendorOf(imuManager.deviceIdForRole("leadForearm")) === "hackmotion"
+        return _isHackMotionRole("leadForearm")
     }
 
     // ── Signals ─────────────────────────────────────────────────────────────
@@ -210,6 +210,14 @@ Item {
             if (list[i].id === id) return list[i].vendor
         return ""
     }
+    // A role held by a wG3. ⚠ The KEY says so before the device list does: a unit key
+    // ("<id>#lowerArm") can only be a wG3's, and the list holds only what the scan has found,
+    // so a wG3 not (yet) enumerated has no vendor there and used to fall to the Witmotion
+    // routine (#54). The HackMotion routine then says plainly that it is not connected.
+    function _isHackMotionRole(role) {
+        return imuManager.unitLabelForRole(role) !== ""
+            || _vendorOf(imuManager.deviceIdForRole(role)) === "hackmotion"
+    }
 
     readonly property int  _calCalibrated: 2   // WR_CAL_CALIBRATED (HackMotionArmRoutine.calCalibrated)
     readonly property bool _outcomeValid: !isHackMotion
@@ -233,13 +241,12 @@ Item {
     //               an HmUnit has no imuConnected and none of the calibration methods.
     readonly property var _segments: {
         var _dep = flow._roleDeps
-        if (_vendorOf(imuManager.deviceIdForRole("leadForearm")) === "hackmotion")
+        if (_isHackMotionRole("leadForearm"))
             return { device:   imuManager.deviceForRole("leadForearm"),
                      lowerArm: imuManager.instanceForRole("leadForearm"),
                      palm:     imuManager.instanceForRole("leadHand") }
         var wt = function(role) {
-            return _vendorOf(imuManager.deviceIdForRole(role)) === "hackmotion"
-                   ? null : imuManager.instanceForRole(role)
+            return _isHackMotionRole(role) ? null : imuManager.instanceForRole(role)
         }
         return { a: wt("leadForearm"), b: wt("leadHand"), c: wt("leadUpperArm") }
     }
