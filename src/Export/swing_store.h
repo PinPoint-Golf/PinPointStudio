@@ -63,7 +63,12 @@ QJsonObject load(const QString &swingDir, QString *error = nullptr);
 
 // Only the `summary` block, read from the root chunk of a swing.ppsw without decoding the rest.
 // Empty for a JSON document, a .ppsw written without one, or a read failure.
-QJsonObject loadSummaryBlock(const QString &swingDir);
+//
+// heads, when given, receives what swingDeviceTokens() reads, out of the same root chunk:
+// { streams: [ {kind, alias, file, setup, instrument} … ], launchMonitor: { kind } } — each stream
+// trimmed to those keys BEFORE conversion, so its frame stamps and IMU samples are never copied.
+// For a summary block written before it carried `devices` (swing_doc.cpp readSwingSummary).
+QJsonObject loadSummaryBlock(const QString &swingDir, QJsonObject *heads = nullptr);
 
 // THE DOCUMENT WITHOUT ITS PER-FRAME TRACKS — everything a reader of the swing's ANALYSIS needs
 // (clock, capture, review, streams, analysis.metrics/phases/kinematicSequence and the rest of the

@@ -24,6 +24,7 @@
 #include <QStringList>
 #include <QVector>
 #include <algorithm>
+#include <iterator>
 
 // Pure session-metadata aggregation — no Qt-GUI / QML deps, so the unit test in
 // src/Analysis/tests compiles it standalone. SessionReviewController feeds it
@@ -39,6 +40,7 @@ struct ShotSummaryInput {
     qint64  wallclockMs  = 0;     // absolute instant (epoch ms); 0 = unknown
     QString club;                 // equipment used (stub "DRIVER" until detection lands)
     QString thumbnailPath;        // absolute path; empty if none extracted
+    QStringList devices;          // swingDeviceTokens() of the shot ("faceOn", "hackmotion", "lm:gcquad")
 };
 
 struct SessionSummary {
@@ -49,7 +51,41 @@ struct SessionSummary {
     QString     dayLabel;         // "Today" / "Yesterday" / "Mon 8 Jun"
     QString     timeLabel;        // "hh:mm" of the earliest shot
     QStringList previewThumbs;    // up to maxThumbs absolute thumbnail paths
+    QStringList devices;          // every device any shot used, in sortDeviceTokens order
 };
+
+// The fixed order device tokens are shown in: cameras, then the wrist and body sensors, then the
+// launch monitor(s) — so a row's tags and the filter chips line up from session to session.
+inline int deviceTokenRank(const QString &token)
+{
+    static const char *const kOrder[] = { "faceOn", "dtl", "impact", "camera", "hackmotion", "imu" };
+    for (int i = 0; i < int(std::size(kOrder)); ++i)
+        if (token == QLatin1String(kOrder[i])) return i;
+    return int(std::size(kOrder));                       // "lm:<kind>" and anything newer
+}
+
+inline void sortDeviceTokens(QStringList &tokens)
+{
+    std::stable_sort(tokens.begin(), tokens.end(), [](const QString &a, const QString &b) {
+        const int ra = deviceTokenRank(a), rb = deviceTokenRank(b);
+        return ra != rb ? ra < rb : a < b;
+    });
+}
+
+// The short name a device token is shown by — a tag on a session row and a filter chip.
+inline QString deviceLabel(const QString &token)
+{
+    if (token == QLatin1String("faceOn"))     return QStringLiteral("Face-on");
+    if (token == QLatin1String("dtl"))        return QStringLiteral("DTL");
+    if (token == QLatin1String("impact"))     return QStringLiteral("Impact cam");
+    if (token == QLatin1String("camera"))     return QStringLiteral("Camera");
+    if (token == QLatin1String("hackmotion")) return QStringLiteral("HackMotion");
+    if (token == QLatin1String("imu"))        return QStringLiteral("IMU");
+    if (token == QLatin1String("lm:gcquad"))  return QStringLiteral("GC Quad");
+    if (token == QLatin1String("lm:gspro"))   return QStringLiteral("GSPro");
+    if (token.startsWith(QLatin1String("lm:"))) return QStringLiteral("Launch monitor");
+    return token;
+}
 
 // "42 min" under an hour, "1 h 12 m" above; empty for a non-positive span.
 inline QString formatSessionLength(qint64 spanMs)
@@ -113,7 +149,11 @@ inline SessionSummary summarizeSession(const QVector<ShotSummaryInput> &shots,
             clubs.append(c);
         if (!in.thumbnailPath.isEmpty() && s.previewThumbs.size() < maxThumbs)
             s.previewThumbs.append(in.thumbnailPath);
+        for (const QString &d : in.devices)
+            if (!s.devices.contains(d))
+                s.devices.append(d);
     }
+    sortDeviceTokens(s.devices);
 
     // Rounded mean over every shot (failed/IMU-only shots score 0 and count).
     s.avgQuality = int((scoreSum + shots.size() / 2) / shots.size());

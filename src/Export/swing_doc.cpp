@@ -1008,6 +1008,7 @@ SwingSummary summaryFromRoot(const QJsonObject &root, const QString &swingDir)
     // Which device measured it, for the row's caption.
     s.lmDeviceKind = root[QStringLiteral("launchMonitor")].toObject()
                          [QStringLiteral("kind")].toString();
+    s.devices      = swingDeviceTokens(root);
 
     s.ok = true;
     return s;
@@ -1061,6 +1062,7 @@ SwingSummary summaryFromShot(const PersistedShot &ps)
     s.rating            = ps.rating;
     s.note              = ps.note;
     s.lmDeviceKind      = ps.lmDeviceKind;
+    s.devices           = ps.devices;
     s.dataWarningDetail = ps.dataWarningDetail;
     s.excluded          = ps.excluded;
     s.clubOverride      = ps.clubOverride;
@@ -1131,6 +1133,9 @@ QJsonObject summaryJson(const SwingSummary &s)
         // SwingSummary::excluded for why this is not a schema bump).
         { QStringLiteral("excluded"),         s.excluded },
         { QStringLiteral("clubOverride"),     s.clubOverride },
+        // Additive to /4 as well, but an older block lacking it is NOT right — see
+        // SwingSummary::devices for how each reader makes up for that.
+        { QStringLiteral("devices"),          QJsonArray::fromStringList(s.devices) },
     };
 }
 
@@ -1163,6 +1168,8 @@ void summaryFromJson(const QJsonObject &root, const QString &swingDir, SwingSumm
     // Additive to /4: a summary written before these existed lacks them, and is right to.
     s.excluded          = root[QStringLiteral("excluded")].toBool(false);
     s.clubOverride      = root[QStringLiteral("clubOverride")].toString();
+    for (const QJsonValue &d : root[QStringLiteral("devices")].toArray())
+        s.devices.append(d.toString());
     s.fromSidecar    = true;
     s.ok             = true;
 }
@@ -1871,12 +1878,12 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
     ps.athleteUuid    = athlete[QStringLiteral("uuid")].toString();
     ps.athleteName    = athlete[QStringLiteral("name")].toString();
 
-    // The kind alone out of the raw block, for the same reason as the athlete above and
-    // NOT into SwingSummary: the picker names sessions, not devices. Everything else in
-    // that block (deviceShotId, sourcePath, the raw columns) is provenance for tooling
-    // and has no reader here — the readings are already in the metrics.
+    // The kind alone out of the raw block, for the same reason as the athlete above.
+    // Everything else in that block (deviceShotId, sourcePath, the raw columns) is
+    // provenance for tooling and has no reader here — the readings are already in the metrics.
     ps.lmDeviceKind   = root[QStringLiteral("launchMonitor")].toObject()
                             .value(QStringLiteral("kind")).toString();
+    ps.devices        = swingDeviceTokens(root);
 
     // Only video presence is reconstructed here. imu / pose streams and the raw
     // sidecar are not parsed on reload yet — see the "Reload & replay consumer
@@ -2006,6 +2013,41 @@ QJsonObject SwingDocWriter::takeJustWritten(const QString &swingDir)
     return root;
 }
 
+QStringList swingDeviceTokens(const QJsonObject &root)
+{
+    bool faceOn = false, dtl = false, impact = false, camera = false, hackmotion = false, imu = false;
+    for (const QJsonValue &v : root[QStringLiteral("streams")].toArray()) {
+        const QJsonObject el   = v.toObject();
+        const QString     kind = el[QStringLiteral("kind")].toString();
+        if (kind == QLatin1String("video")) {
+            if (el[QStringLiteral("file")].toString().isEmpty()) continue;   // owed, not recorded
+            const QString p = el[QStringLiteral("setup")].toObject()
+                                [QStringLiteral("perspectiveName")].toString();
+            if      (p == QLatin1String("FaceOn"))      faceOn = true;
+            else if (p == QLatin1String("DownTheLine")) dtl    = true;
+            else if (p == QLatin1String("Impact"))      impact = true;
+            else                                        camera = true;
+        } else if (kind == QLatin1String("imu")) {
+            if (el[QStringLiteral("instrument")].toString() == QLatin1String("hackmotion"))
+                hackmotion = true;
+            else
+                imu = true;
+        }
+    }
+    QStringList out;
+    if (faceOn)     out << QStringLiteral("faceOn");
+    if (dtl)        out << QStringLiteral("dtl");
+    if (impact)     out << QStringLiteral("impact");
+    if (camera)     out << QStringLiteral("camera");
+    if (hackmotion) out << QStringLiteral("hackmotion");
+    if (imu)        out << QStringLiteral("imu");
+    const QString lm = root[QStringLiteral("launchMonitor")].toObject()
+                           [QStringLiteral("kind")].toString();
+    if (!lm.isEmpty())
+        out << QStringLiteral("lm:") + lm;
+    return out;
+}
+
 bool SwingDocReader::writeSwingSummary(const PersistedShot &shot, QString *error)
 {
     // A swing.ppsw carries its summary inside, written with the document — there is nothing to
@@ -2026,9 +2068,14 @@ SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writ
 
     if (doc.format == SwingStore::Format::Ppsw) {
         // Fast path: the document's own summary block, from its root chunk alone.
-        const QJsonObject block = SwingStore::loadSummaryBlock(swingDir);
+        QJsonObject heads;
+        const QJsonObject block = SwingStore::loadSummaryBlock(swingDir, &heads);
         if (block[QStringLiteral("schema")].toString() == QLatin1String(kSummarySchema)) {
             summaryFromJson(block, swingDir, s);
+            // A block written before `devices` existed: the stream heads came out of the same root
+            // chunk read, so derive them here rather than send the whole library to a fat parse.
+            if (!block.contains(QStringLiteral("devices")))
+                s.devices = swingDeviceTokens(heads);
             return s;
         }
         // Missing or an older schema: derive it from the document. Not written back — a list read
@@ -2052,6 +2099,8 @@ SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writ
         const bool fresh =
             pe.error == QJsonParseError::NoError
             && root[QStringLiteral("schema")].toString() == QLatin1String(kSummarySchema)
+            // A sidecar from before `devices` cannot say what recorded the swing — stale.
+            && root.contains(QStringLiteral("devices"))
             && qint64(srcObj[QStringLiteral("size")].toDouble())     == src.size()
             && qint64(srcObj[QStringLiteral("mtime_ms")].toDouble()) == src.lastModified().toMSecsSinceEpoch();
         if (fresh) {

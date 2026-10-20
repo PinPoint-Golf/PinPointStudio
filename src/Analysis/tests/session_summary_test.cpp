@@ -123,6 +123,26 @@ int main()
         check(s.previewThumbs.size() == 4, "previewThumbs capped at 4");
     }
 
+    // 7. Devices: the union over every shot, in the fixed display order whatever order the
+    //    shots arrived in — cameras, then wrist/body sensors, then launch monitors.
+    {
+        QVector<ShotSummaryInput> shots = {
+            { 70, true, ms(2026, 6, 9, 14, 0), QStringLiteral("7i"), QString(),
+              { QStringLiteral("lm:gcquad"), QStringLiteral("hackmotion"), QStringLiteral("faceOn") } },
+            { 70, true, ms(2026, 6, 9, 14, 1), QStringLiteral("7i"), QString(),
+              { QStringLiteral("dtl"), QStringLiteral("faceOn") } },
+            { 70, true, ms(2026, 6, 9, 14, 2), QStringLiteral("7i"), QString(), {} },
+        };
+        const SessionSummary s = summarizeSession(shots, now);
+        checkEq(s.devices.join(QLatin1Char(',')),
+                QStringLiteral("faceOn,dtl,hackmotion,lm:gcquad"), "devices: union, display order");
+        checkEq(deviceLabel(QStringLiteral("dtl")), QStringLiteral("DTL"), "deviceLabel dtl");
+        checkEq(deviceLabel(QStringLiteral("lm:gcquad")), QStringLiteral("GC Quad"), "deviceLabel gcquad");
+        checkEq(deviceLabel(QStringLiteral("lm:somethingnew")), QStringLiteral("Launch monitor"),
+                "deviceLabel unknown launch monitor");
+        check(summarizeSession({}, now).devices.isEmpty(), "no shots → no devices");
+    }
+
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);
     return g_fail ? 1 : 0;
 }

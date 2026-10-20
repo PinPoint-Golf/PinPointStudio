@@ -114,6 +114,11 @@ SessionListModel::Row SessionReviewController::buildLiveRow(qint64 nowMs) const
                 QStringLiteral("hh:mm:ss"));
             if (t.isValid())
                 in.wallclockMs = QDateTime(today, t).toMSecsSinceEpoch();
+            // What recorded it — the live model does not hold this, but the swing is on disk with
+            // its summary block by now (a cheap root-chunk read; never a fat parse here).
+            const QString sd = m_liveModel->data(idx, ShotListModel::SwingDirRole).toString();
+            if (!sd.isEmpty())
+                in.devices = pinpoint::SwingDocReader::readSwingSummary(sd, /*writeSidecar=*/false).devices;
             ins.append(in);
         }
     }
@@ -129,6 +134,7 @@ SessionListModel::Row SessionReviewController::buildLiveRow(qint64 nowMs) const
     row.lengthLabel   = sum.lengthLabel;
     row.avgQuality    = sum.avgQuality;
     row.previewThumbs = toThumbUrls(sum.previewThumbs);
+    row.devices       = sum.devices;
     return row;
 }
 
@@ -147,12 +153,13 @@ SessionListModel::Row SessionReviewController::buildDiskRow(const QString &sessi
         const pinpoint::SwingSummary s =
             pinpoint::SwingDocReader::readSwingSummary(sd, /*writeSidecar=*/false);
         if (!s.ok) { indexed = false; continue; }
-        ins.append({ s.score, s.hasVideo, s.wallclockMs, s.club, s.thumbnailPath });
+        ins.append({ s.score, s.hasVideo, s.wallclockMs, s.club, s.thumbnailPath, s.devices });
     }
     const pinpoint::SessionSummary sum = pinpoint::summarizeSession(ins, nowMs);
 
     SessionListModel::Row row;
     row.sessionId     = QFileInfo(sessionDir).absoluteFilePath();
+    row.devices       = sum.devices;    // of the indexed shots — a partly indexed session may list fewer
     row.isLive        = false;
     row.indexed       = indexed;
     row.dayLabel      = sum.dayLabel;
@@ -232,7 +239,7 @@ void SessionReviewController::loadSession(const QString &sessionId)
             ps.thumbnailPath.isEmpty() ? QUrl() : QUrl::fromLocalFile(ps.thumbnailPath),
             ps.score, ps.rating, ps.note, ps.metrics, ps.analysisDetail, ps.dataWarning,
             ps.lmDeviceKind, ps.dataWarningDetail, ps.excluded, ps.clubOverride);
-        ins.append({ ps.score, ps.hasVideo, ps.wallclockMs, ps.club, ps.thumbnailPath });
+        ins.append({ ps.score, ps.hasVideo, ps.wallclockMs, ps.club, ps.thumbnailPath, ps.devices });
     }
 
     const pinpoint::SessionSummary sum = pinpoint::summarizeSession(ins, nowMs);

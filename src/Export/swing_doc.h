@@ -346,6 +346,9 @@ struct PersistedShot {
     // `lm.` series; this is the only place their provenance survives a reload, and without
     // it a reviewed session could only be captioned with whatever is plugged in today.
     QString     lmDeviceKind;
+    // WHAT RECORDED IT — the swingDeviceTokens() of the document (cameras by perspective,
+    // HackMotion, other IMUs, the launch monitor). The session picker shows and filters on these.
+    QStringList devices;
     // THE LAUNCH MONITOR BOARD'S TWO USER ANNOTATIONS, from the "review" block (review.excluded,
     // review.clubOverride). Both are the golfer's own decisions made on the panel's pinned card —
     // "Leave out" and "Club" — and both are OPTIONAL keys: absent means not left out and no
@@ -365,6 +368,17 @@ struct PersistedShot {
 // view of PersistedShot: that struct carries analysisDetail (incl. the multi-MB pose2d
 // keypoint track needed for replay overlays), and the whole point here is to summarise a
 // session WITHOUT touching it.
+// The devices that recorded a swing, as stable tokens in a fixed order, from the document's
+// `streams` and `launchMonitor` blocks (only kind/alias/file/setup/instrument of a stream are read,
+// so a root with its per-frame columns trimmed answers the same):
+//   "faceOn" / "dtl" / "impact" / "camera"  a video stream WITH a file, by setup.perspectiveName
+//                                           ("camera" = any other or no perspective)
+//   "hackmotion"                            an imu stream with instrument "hackmotion"
+//   "imu"                                   any other imu stream (Witmotion)
+//   "lm:<kind>"                             launchMonitor.kind ("lm:gcquad")
+// A video stream without a file is a clip still owed (see hasVideo) — not recorded, so not listed.
+QStringList swingDeviceTokens(const QJsonObject &root);
+
 struct SwingSummary {
     bool    ok = false;
     QString swingDir;
@@ -392,6 +406,11 @@ struct SwingSummary {
     int         rating = 0;         // 0–5 user stars, from the "review" block
     QString     note;               // free-text user note, same block
     QString     lmDeviceKind;       // launchMonitor.kind token, empty when no device block
+    // What recorded the swing (swingDeviceTokens), for the session picker's device tags and filter.
+    // Additive to /4 like `excluded` below — but an older block lacking it is NOT right as it stands,
+    // so the swing.ppsw read derives it from the root chunk's streams it has already decoded, and a
+    // JSON-era sidecar without it is treated as stale.
+    QStringList devices;
     QVariantMap dataWarningDetail;  // the facts behind dataWarning (empty when there is none)
     // The launch monitor board's annotations (PersistedShot::excluded / clubOverride), so a
     // session loaded through the cheap path keeps them. ADDITIVE in the /4 summary rather than a

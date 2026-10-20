@@ -849,6 +849,45 @@ int main()
         check(lean.lmDeviceKind == fat.lmDeviceKind,           "parity lmDeviceKind");
         check(lean.dataWarning == fat.dataWarning,             "parity dataWarning");
         check(lean.dataWarningDetail == fat.dataWarningDetail, "parity dataWarningDetail");
+        check(lean.devices == fat.devices,                     "parity devices");
+        // The fixture: a face-on clip with its file, and a Witmotion lane (no instrument tag).
+        check(fat.devices == QStringList({ QStringLiteral("faceOn"), QStringLiteral("imu") }),
+              "devices = faceOn + imu");
+    }
+
+    std::printf("\n=== summary block: one written before `devices` still answers it ===\n");
+    {
+        // Every swing in a library predates the key. Its devices come from the stream heads of the
+        // root chunk the block was read from — never a fat parse, and never a silent "none".
+        QJsonObject doc = SwingStore::load(dir);
+        QJsonObject blk = doc[QStringLiteral("summary")].toObject();
+        check(blk.contains(QStringLiteral("devices")), "a fresh block carries devices");
+        blk.remove(QStringLiteral("devices"));
+        doc[QStringLiteral("summary")] = blk;
+        check(SwingStore::save(dir, doc), "store write of a pre-devices block");
+        const SwingSummary s = SwingDocReader::readSwingSummary(dir, /*writeSidecar=*/false);
+        check(s.ok && s.fromSidecar, "…still the cheap path");
+        check(s.devices == QStringList({ QStringLiteral("faceOn"), QStringLiteral("imu") }),
+              "…and its devices derived from the stream heads");
+        QJsonObject heads;
+        SwingStore::loadSummaryBlock(dir, &heads);
+        const QJsonObject st0 = heads[QStringLiteral("streams")].toArray().at(0).toObject();
+        check(st0.contains(QStringLiteral("kind")) && !st0.contains(QStringLiteral("device"))
+                  && !heads[QStringLiteral("streams")].toArray().at(1).toObject()
+                          .contains(QStringLiteral("device")),
+              "…from heads trimmed to the keys it reads");
+        // An owed clip (a video element with no file) is not a recording.
+        QJsonArray streams = doc[QStringLiteral("streams")].toArray();
+        QJsonObject v = streams.at(0).toObject();
+        v.remove(QStringLiteral("file"));
+        streams[0] = v;
+        QJsonObject owed = doc;
+        owed[QStringLiteral("streams")] = streams;
+        check(swingDeviceTokens(owed) == QStringList({ QStringLiteral("imu") }),
+              "a video stream with no file is not a device that recorded");
+        check(SwingDocWriter::updateReview(dir, 3, QStringLiteral("after-index"),
+                                           QStringLiteral("5 WOOD"), nullptr),
+              "a real write restores the block");
     }
 
     std::printf("\n=== summary block: review write-through keeps it fresh ===\n");
@@ -940,6 +979,7 @@ int main()
         check(lean.lmDeviceKind == fat.lmDeviceKind,           "parity lmDeviceKind");
         check(lean.dataWarning == fat.dataWarning,             "parity dataWarning");
         check(lean.dataWarningDetail == fat.dataWarningDetail, "parity dataWarningDetail");
+        check(lean.devices == fat.devices,                     "parity devices");
 
         // Delete it: the fallback must produce identical values AND self-heal.
         QFile::remove(sumPath);

@@ -36,6 +36,65 @@ namespace pinpoint::SwingStore {
 
 namespace {
 
+// The stream keys swingDeviceTokens() reads. Everything else a stream carries (frame stamps, IMU
+// samples, capture settings) is dropped before conversion — that is the whole point of the read.
+constexpr const char *kHeadKeys[] = { "kind", "alias", "file", "setup", "instrument" };
+
+bool isHeadKey(const std::string &k)
+{
+    for (const char *h : kHeadKeys)
+        if (k == h) return true;
+    return false;
+}
+
+ppsw::Value trimmedStream(const ppsw::Value &el)
+{
+    if (el.kind() != ppsw::Value::Kind::Object) return {};
+    ppsw::Object o;
+    for (const auto &m : el.asObject().members)
+        if (isHeadKey(m.first)) o.add(m.first, m.second);
+    return ppsw::Value(std::move(o));
+}
+
+// { streams: [...trimmed...], launchMonitor: { kind } } out of a decoded root (see loadSummaryBlock).
+QJsonObject deviceHeads(const ppsw::Reader &r, const ppsw::Value &root)
+{
+    QJsonObject out;
+    if (root.kind() != ppsw::Value::Kind::Object) return out;
+
+    ppsw::Value streams;
+    if (const ppsw::Value *st = root.get("streams")) {
+        // A writer may split a large streams array into its own chunk; follow it rather than
+        // report a swing as having no devices. Rare, and only ever the pre-`devices` swings.
+        const ppsw::Value v = st->kind() == ppsw::Value::Kind::Ref ? r.chunk(st->asRef().name) : *st;
+        if (v.kind() == ppsw::Value::Kind::Table) {
+            // Columnar: keep the head columns (and their presence bitmaps), drop the rest.
+            const ppsw::Table &t = v.asTable();
+            ppsw::Table k;
+            k.rows     = t.rows;
+            k.rownulls = t.rownulls;
+            for (size_t i = 0; i < t.keys.size(); ++i) {
+                if (!isHeadKey(t.keys[i])) continue;
+                k.keys.push_back(t.keys[i]);
+                k.columns.push_back(t.columns[i]);
+                k.present.push_back(t.present[i]);
+            }
+            streams = ppsw::Value(std::move(k));
+        } else if (v.kind() == ppsw::Value::Kind::Array) {
+            ppsw::Array a;
+            for (const ppsw::Value &el : v.asArray()) a.push_back(trimmedStream(el));
+            streams = ppsw::Value(std::move(a));
+        }
+    }
+    out.insert(QStringLiteral("streams"), ppswqt::toQt(streams));
+
+    if (const ppsw::Value *lm = root.get("launchMonitor"); lm && lm->kind() == ppsw::Value::Kind::Object)
+        if (const ppsw::Value *kind = lm->get("kind"); kind && kind->kind() == ppsw::Value::Kind::String)
+            out.insert(QStringLiteral("launchMonitor"),
+                       QJsonObject{ { QStringLiteral("kind"), QString::fromStdString(kind->asString()) } });
+    return out;
+}
+
 constexpr auto kSummaryKey = "summary";
 
 // libppswing takes UTF-8 paths. On Windows it opens them through the wide API (file.cpp), so
@@ -152,13 +211,15 @@ QJsonObject load(const QString &swingDir, QString *error)
     return {};
 }
 
-QJsonObject loadSummaryBlock(const QString &swingDir)
+QJsonObject loadSummaryBlock(const QString &swingDir, QJsonObject *heads)
 {
     const QString path = ppswPath(swingDir);
     if (!QFileInfo::exists(path)) return {};
     try {
         const ppsw::Reader r = ppsw::Reader::open(nativePath(path));
         const ppsw::Value root = r.root();
+        if (heads)
+            *heads = deviceHeads(r, root);
         const ppsw::Value *s = root.get(kSummaryKey);
         if (!s) return {};
         // A summary is a few KB and always lands in the root chunk, but a chunk boundary is the

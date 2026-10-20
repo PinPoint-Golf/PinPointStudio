@@ -23,6 +23,11 @@
 // (loadSession) or returns to live (resumeLive); the host popup closes on the
 // emitted closeRequested(). Hosted as a Popup contentItem, so it reports its
 // natural size through implicitHeight and the popup clamps it below the toolbar.
+//
+// Each row names the devices its swings were recorded with (cameras by view,
+// HackMotion, IMU, launch monitor), and the chips under the header filter the
+// saved sessions to those that used EVERY chosen device. The filter is the
+// model's (SessionListModel::deviceFilter), so it outlives the drawer closing.
 
 import QtQuick
 import QtQuick.Controls.Basic
@@ -50,7 +55,13 @@ Item {
     // of the view's own height, so there is no binding loop with the popup.
     implicitWidth:  Theme.sp(440)
     implicitHeight: headerRow.implicitHeight + Theme.sp(26)
+                    + (deviceBar.visible ? deviceBar.implicitHeight + Theme.sp(10) : 0)
                     + Math.max(list.contentHeight, Theme.sp(52))
+                    // Room for the empty-list note below the live row, which it would otherwise sit on.
+                    + (emptyNote.visible ? emptyNote.implicitHeight + Theme.gap(40) : 0)
+
+    readonly property var  _sessions:     sessionReviewController.sessionsModel
+    readonly property bool _filterActive: _sessions.deviceFilter.length > 0
 
     ColumnLayout {
         anchors.fill: parent
@@ -67,6 +78,13 @@ Item {
 
             PpMicro { text: Theme.caps(qsTr("Choose a session")) }
             Item { Layout.fillWidth: true }
+            Text {   // how much of the library the device filter is showing
+                visible: drawer._filterActive
+                text: qsTr("%1 of %2").arg(drawer._sessions.shownSavedCount)
+                                      .arg(drawer._sessions.savedCount)
+                font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
+                color: Theme.colorText3
+            }
             Item {   // ✕ close (padded hit area)
                 Layout.preferredWidth:  Theme.sp(20)
                 Layout.preferredHeight: Theme.sp(20)
@@ -83,6 +101,81 @@ Item {
                 }
             }
         }
+        // ── Device filter — one chip per device any saved session used ──────
+        //    Multi-select, AND: two chips on = sessions that had both. Each chip's
+        //    count is what adding it would leave. Tap again to drop one; Clear
+        //    drops them all.
+        Flow {
+            id: deviceBar
+            objectName: "deviceFilterBar"
+            visible: drawer._sessions.availableDevices.length > 0
+            Layout.fillWidth: true
+            Layout.leftMargin:   Theme.gap(18)
+            Layout.rightMargin:  Theme.gap(16)
+            Layout.bottomMargin: Theme.gap(10)
+            spacing: Theme.gap(6)
+
+            PpMicro {
+                height: Theme.sp(22)
+                verticalAlignment: Text.AlignVCenter
+                text: Theme.caps(qsTr("Recorded with"))
+            }
+
+            Repeater {
+                model: drawer._sessions.availableDevices
+
+                Rectangle {
+                    id: devChip
+                    required property var modelData
+                    readonly property bool _on: drawer._sessions.deviceFilter.indexOf(modelData.id) >= 0
+
+                    objectName: "deviceChip_" + modelData.id
+                    // Nothing would be left if this were added — quietened, still tappable.
+                    opacity: !_on && modelData.count === 0 ? 0.45 : 1.0
+                    width:  devRow.implicitWidth + Theme.sp(16)
+                    height: Theme.sp(22)
+                    radius: height / 2
+                    color:  _on ? Theme.colorAccentLight
+                          : devMa.containsMouse ? Theme.colorBg2
+                          : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    border.width: 1
+                    border.color: _on || devMa.containsMouse ? Theme.colorAccent : Theme.colorBorderMid
+
+                    Row {
+                        id: devRow
+                        anchors.centerIn: parent
+                        spacing: Theme.gap(5)
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: devChip.modelData.label
+                            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
+                            color: devChip._on ? Theme.colorAccent : Theme.colorText2
+                        }
+                        Text {   // sessions left if this chip were on too (AND)
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: devChip.modelData.count
+                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                            color: Theme.colorText3
+                        }
+                    }
+                    PpPressable {
+                        id: devMa
+                        onClicked: drawer._sessions.toggleDevice(devChip.modelData.id)
+                    }
+                }
+            }
+
+            PpLink {
+                visible: drawer._filterActive
+                height: Theme.sp(22)
+                verticalAlignment: Text.AlignVCenter
+                text: qsTr("Clear")
+                pressMargin: Theme.sp(4)
+                onClicked: drawer._sessions.clearDeviceFilter()
+            }
+        }
+
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 1; color: Theme.colorBorder
@@ -94,7 +187,7 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
-            model: sessionReviewController.sessionsModel
+            model: drawer._sessions
             boundsBehavior: Flickable.StopAtBounds
             topMargin:    Theme.gap(6)
             bottomMargin: Theme.gap(6)
@@ -104,12 +197,15 @@ Item {
 
             // Quiet invitation when there is no saved history yet — the live row
             // is always present (count 1), so "no saved sessions" means count ≤ 1.
+            // With the device filter on, the same space says nothing matched.
             PpCardNote {
+                id: emptyNote
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: Theme.gap(16)
                 visible: list.count <= 1
-                text: qsTr("No saved sessions yet")
+                text: drawer._filterActive ? qsTr("No saved sessions used all of those")
+                                           : qsTr("No saved sessions yet")
             }
         }
     }
@@ -132,10 +228,14 @@ Item {
             required property bool   isLive
             required property var    previewThumbs
             required property bool   indexed
+            required property var    devices
+            required property var    deviceLabels
 
             width:  ListView.view.width - Theme.sp(16)
             x:      Theme.sp(8)
-            height: Theme.sp(58)
+            // A third line for the device tags when there are any to show.
+            height: deviceLabels.length > 0 ? Theme.sp(76) : Theme.sp(58)
+            readonly property real _mainH: deviceLabels.length > 0 ? Theme.sp(54) : height
             radius: Theme.radius
             color:  isLive ? Theme.colorAccentLight
                   : (rowMa.containsMouse || kebabMa.containsMouse || rowMenu.opened)
@@ -157,7 +257,9 @@ Item {
             }
 
             RowLayout {
-                anchors.fill: parent
+                id: rowMain
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                height: rowBg._mainH
                 anchors.leftMargin:  Theme.gap(12)
                 anchors.rightMargin: Theme.gap(12)
                 spacing: Theme.gap(12)
@@ -199,6 +301,7 @@ Item {
                 // Title + club mix — both elide so a long label never clips the
                 // stats at the narrow (~⅓) drawer width.
                 Column {
+                    id: titleCol
                     Layout.fillWidth: true
                     spacing: Theme.gap(3)
                     Row {
@@ -374,6 +477,30 @@ Item {
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            // What recorded it — grey outlines, the ones the filter asked for in the
+            // accent. Its own line under the title, running to the row's right edge
+            // (under the stats) so the tags are not squeezed into the title column.
+            Row {
+                objectName: "deviceTags"
+                visible: rowBg.deviceLabels.length > 0
+                x: rowMain.x + titleCol.x
+                y: rowBg._mainH - Theme.sp(4)
+                width: rowBg.width - x - Theme.gap(12)
+                height: Theme.sp(18)
+                clip: true
+                spacing: Theme.gap(4)
+                Repeater {
+                    model: rowBg.deviceLabels
+                    PpChip {
+                        required property string modelData
+                        required property int    index
+                        text:   modelData
+                        tinted: drawer._sessions.deviceFilter.indexOf(rowBg.devices[index]) >= 0
+                        tone:   tinted ? Theme.colorAccent : Theme.colorText2
                     }
                 }
             }

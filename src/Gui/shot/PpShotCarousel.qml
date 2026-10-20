@@ -121,9 +121,11 @@ Item {
                                                   : shotModel
 
     // Shared popup width for the sessions drawer (~⅓ of the carousel width,
-    // clamped) — wide enough that its content doesn't wrap.
+    // clamped) — wide enough that its content doesn't wrap. The floor keeps a
+    // row's "Tue 18 Aug · 19:46" whole beside its stats; the device tags run on
+    // their own line, so they set no width of their own.
     readonly property real drawerWidth:
-        Math.round(Math.max(Theme.sp(420), Math.min(width / 3, Theme.sp(560))))
+        Math.round(Math.max(Theme.sp(560), Math.min(width / 3, Theme.sp(640))))
 
     // When the host injects a transport and it is showing, it sits centered in the top strip
     // — an overlay over the chips row (so it centers on the full dock width, not the space
