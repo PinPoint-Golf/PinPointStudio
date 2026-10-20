@@ -737,6 +737,46 @@ private slots:
         QDir(m_other + QStringLiteral("/swing_0001")).removeRecursively();
     }
 
+    // #56: a swing moved to the trash leaves the snapshot — counted shot or skipped one — and a
+    // closed session accepts it; one of another session is ignored.
+    void aTrashedSwingLeavesTheSession()
+    {
+        stage();
+        SessionSeriesModel m;
+        m.setSynchronous(true);
+        m.activateSession(m_session);
+        const auto before = m.snapshot();
+        QCOMPARE(before->count(), 3);
+        QCOMPARE(m.skippedCount(), 1);                               // swing 3 has no analysis
+
+        QVERIFY(QDir(m_session + QStringLiteral("/swing_0002")).removeRecursively());
+        QSignalSpy changed(&m, &SessionSeriesModel::snapshotChanged);
+        m.forgetShot(m_session + QStringLiteral("/swing_0002"));
+        QCOMPARE(changed.count(), 1);
+        auto snap = m.snapshot();
+        QCOMPARE(snap->count(), 2);
+        QList<int> ids;
+        for (const auto &s : snap->shots) ids << s->shotId;
+        QCOMPARE(ids, (QList<int>{ 1, 4 }));
+        QCOMPARE(snap->shots[1]->ordinal, 2);                         // swing 4 is the second shot now
+        QCOMPARE(snap->shots[0], before->shots[0]);
+
+        m.forgetShot(m_other + QStringLiteral("/swing_0001"));       // another session's: ignored
+        m.forgetShot(m_session + QStringLiteral("/swing_0002"));     // already gone: ignored
+        QCOMPARE(m.snapshot(), snap);
+
+        m.closeSession();
+        QVERIFY(QDir(m_session + QStringLiteral("/swing_0003")).removeRecursively());
+        m.forgetShot(m_session + QStringLiteral("/swing_0003"));
+        QCOMPARE(m.skippedCount(), 0);                               // a skipped swing goes too
+        QCOMPARE(m.shotCount(), 2);
+
+        // Re-activating reads the folder, which agrees.
+        m.activateSession(m_session);
+        QCOMPARE(m.shotCount(), 2);
+        QCOMPARE(m.skippedCount(), 0);
+    }
+
     void refreshDiagnosticsRejoinsOnlyWhatMoved()
     {
         stage();

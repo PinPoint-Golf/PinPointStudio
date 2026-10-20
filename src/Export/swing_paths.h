@@ -59,6 +59,9 @@ public:
 
     // Allocates (and creates) the next swing directory.  libraryRoot may be
     // empty — falls back to <AppDataLocation>/swings with a warning.
+    // A number is never reissued within a session, even after the swing that
+    // had it is deleted: the session folder records the highest one issued
+    // (`.pinpoint-last-swing`) and the next swing is one past it.
     // namingPattern is the AppSettings sessionNamingPattern key
     // ("date-name-type" | "date-type-name" | "name-date-type" | "date-only");
     // sessionTypeLabel is a human label ("Swing"/"Wrist"/...), empty when none.

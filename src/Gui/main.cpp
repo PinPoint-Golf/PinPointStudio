@@ -412,6 +412,27 @@ int main(int argc, char *argv[])
     // whichever model is active (live or review). Owns no live shot state.
     ReanalysisController      reanalysisController;
 
+    // DELETE LETS GO OF THE SWING FIRST (#56). The replay holds the swing's videos
+    // open — the focused one, and in a live session with a cast screen the newest
+    // one too — and Windows will not move a folder with a file open in it. Both
+    // carousel models (live, and the session under review) ask before moving one:
+    // the replay stops if it is playing that folder, and a swing the re-analysis
+    // queue still owes a write is refused with the reason.
+    for (ShotListModel *m : { &shotModel, qobject_cast<ShotListModel *>(sessionReviewController.shots()) }) {
+        if (!m) continue;
+        m->setFolderReleaser([&shotReplay](const QString &dir) {
+            if (shotReplay.active() && QDir::cleanPath(shotReplay.swingDir()) == QDir::cleanPath(dir)) {
+                ppInfo() << "[ShotListModel] stopping the replay to release" << dir;
+                shotReplay.stop();
+            }
+        });
+        m->setFolderBusyCheck([&reanalysisController](const QString &dir) {
+            return reanalysisController.holds(dir)
+                       ? QCoreApplication::translate("ShotListModel", "is being re-analysed — try again when it finishes")
+                       : QString();
+        });
+    }
+
     // Markup Lab — in-app ground-truth labelling of recorded swings; reads its own
     // swing.json/MP4 from disk (no buffer/SessionMode coupling), writes a
     // SwingLab-compatible truth.json sibling. The image provider is owned by the

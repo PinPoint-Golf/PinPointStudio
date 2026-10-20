@@ -175,6 +175,11 @@ Item {
         target: reanalysisController
         function onReanalysed(swingDir) { seriesModel.regradeShot(swingDir) }
     }
+    // a swing moved to the trash leaves the session (#56); the model ignores one of another session
+    Connections {
+        target: SessionMode
+        function onSwingTrashed(swingDir) { seriesModel.forgetShot(swingDir) }
+    }
     // the diagnostics ledger was written: the model re-joins its rows (it posts the read itself)
     Connections {
         target: SessionMode.sessionDiagnostics

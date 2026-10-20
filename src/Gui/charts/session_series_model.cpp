@@ -491,6 +491,14 @@ void SessionSeriesModel::regradeShot(const QString &swingDir)
     queue(Job{ JobKind::Regrade, m_generation, dir, -1 });
 }
 
+void SessionSeriesModel::forgetShot(const QString &swingDir)
+{
+    if (swingDir.isEmpty() || m_sessionDir.isEmpty()) return;
+    const QString dir = cleanDir(swingDir);
+    if (parentDir(dir) != m_sessionDir) return;
+    queue(Job{ JobKind::Forget, m_generation, dir, -1 });
+}
+
 void SessionSeriesModel::refreshDiagnostics()
 {
     if (m_sessionDir.isEmpty()) return;
@@ -642,6 +650,19 @@ SessionSeriesModel::Result SessionSeriesModel::runJob(const Job &job)
             m_callerIds.insert(job.dir, job.callerShotId);
         ensureShot(job.dir, job.kind == JobKind::Regrade);
         readLedgerIfChanged();
+        return buildSnapshot(job.generation, false);
+    }
+    case JobKind::Forget: {
+        if (m_wSessionDir.isEmpty() || !m_wDirs.contains(job.dir))
+            return Result{ job.generation, false, m_wLast, m_wLastSkipped };
+        // Out of the order, and out of both caches: a later swing of the same number is a
+        // different swing, and must be read, never served this one's curves.
+        m_wDirs.removeAll(job.dir);
+        m_callerIds.remove(job.dir);
+        m_own.remove(job.dir);
+        shared().entries.remove(job.dir);
+        // The ledger drops the swing's row too and rewrites the file; refreshDiagnostics()
+        // re-joins it when it has. Until then the row is simply unused — no shot carries it.
         return buildSnapshot(job.generation, false);
     }
     case JobKind::RefreshLedger:

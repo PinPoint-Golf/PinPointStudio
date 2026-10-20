@@ -43,6 +43,7 @@
 #include <QJsonObject>
 #include <QSet>
 #include <QSignalSpy>
+#include <QTimer>
 #include <QUrl>
 
 #include <cstdio>
@@ -591,6 +592,165 @@ static void testActiveCountSignal()
              spy.count(), before);
 }
 
+// ---------------------------------------------------------------------------
+// D — deleting a swing whose videos are open (#56)
+// ---------------------------------------------------------------------------
+//
+// Selecting a swing opens its MP4s in the replay, and in a live session with a
+// cast screen the newest swing is open too. Windows will not move a folder with
+// a file open in it, so "select, then delete" failed on the cabin PC every
+// time. The contract under test: the model asks its releaser to let go of the
+// folder BEFORE the move, and retries while the player closes its files (they
+// close a moment after it is told to). The real case is a file genuinely held
+// open and a genuine rename, which is the refusal on Windows and passes
+// trivially elsewhere; the retry is also driven through a trash function that
+// refuses while a lock is held, so it is exercised on every platform.
+
+// A swing folder holding a swing.json and a video file, as the exporter leaves one.
+static QString makeSwing(const QString &sessionDir, int index)
+{
+    const QString dir = sessionDir + QStringLiteral("/swing_%1").arg(index, 4, 10, QLatin1Char('0'));
+    if (!writeSwingDoc(dir, index, QStringLiteral("7-iron"), true, QDateTime::currentDateTime()))
+        return {};
+    QFile video(dir + QStringLiteral("/dtl.mp4"));
+    if (!video.open(QIODevice::WriteOnly) || video.write(QByteArray(4096, '\x5a')) < 0)
+        return {};
+    return dir;
+}
+
+// The move as the share's fallback makes it: a rename on the same volume.
+static bool renameAway(const QString &dir)
+{
+    return QDir().rename(dir, dir + QStringLiteral("-trashed"));
+}
+
+static void testTrashOpenSwing()
+{
+    std::printf("\nD — a swing open in replay can be deleted\n");
+
+    TempLibrary lib;
+    if (!lib.valid()) { check(QStringLiteral("D0 temp dir"), false); return; }
+    const QString session = lib.makeSession(QStringLiteral("Mark-Liversedge"),
+                                            QStringLiteral("2026-10-20_Mark-Liversedge_Swing_01"));
+
+    // D1–D6: a real file held open, released by the releaser, a real move.
+    {
+        const QString dir = makeSwing(session, 1);
+        ShotListModel m;
+        const int id = m.addShot(dir, QStringLiteral("13:00"), QStringLiteral("7-iron"),
+                                 true, QUrl(), {}, 70, {});
+        auto *video = new QFile(dir + QStringLiteral("/dtl.mp4"));
+        check(QStringLiteral("D1 the swing's video is open, as the replay holds it"),
+              video->open(QIODevice::ReadOnly));
+#ifdef Q_OS_WIN
+        // The bug, reproduced: with the video open the folder will not move.
+        const bool movedOpen = renameAway(dir);
+        if (movedOpen) QDir().rename(dir + QStringLiteral("-trashed"), dir);   // put it back for D2
+        check(QStringLiteral("D1w Windows refuses to move a folder with a file open in it"), !movedOpen);
+#endif
+        QStringList order;
+        m.setFolderReleaser([&](const QString &d) {
+            order << QStringLiteral("release");
+            if (d == dir && video) {
+                // The player lets go a moment later, not at once.
+                // Owned by the model's lifetime, so a timer that outlives this block never fires.
+                QTimer::singleShot(250, &m, [&video] { delete video; video = nullptr; });
+            }
+        });
+        m.setTrashFunction([&](const QString &d) { order << QStringLiteral("move"); return renameAway(d); });
+        m.setTrashRetry(50, 4000);
+        QSignalSpy trashed(&m, &ShotListModel::shotTrashed);
+        QSignalSpy finished(&m, &ShotListModel::trashFinished);
+        m.trashShots({ id });
+        if (finished.isEmpty()) finished.wait(5000);
+        check(QStringLiteral("D2 the releaser is asked before the first move (%1)").arg(order.join(QLatin1Char(','))),
+              !order.isEmpty() && order.first() == QStringLiteral("release"));
+        checkInt(QStringLiteral("D3 the request finishes once"), finished.count(), 1);
+        if (!finished.isEmpty()) {
+            checkInt(QStringLiteral("D4 and reports the swing moved"), finished.first().at(1).toInt(), 1);
+            checkStr(QStringLiteral("D4b with no reason"), finished.first().at(2).toString(), QString());
+        }
+        check(QStringLiteral("D5 the folder has left the session"),
+              !QFileInfo::exists(dir) && QFileInfo::exists(dir + QStringLiteral("-trashed")));
+        checkInt(QStringLiteral("D6 its row is gone, announced with its folder"), m.activeCount(), 0);
+        if (!trashed.isEmpty())
+            checkStr(QStringLiteral("D6b shotTrashed names the folder"), trashed.first().at(1).toString(), dir);
+        delete video;
+    }
+
+    // D7–D9: the retry, on every platform — a move refused while the "file" is held.
+    {
+        const QString dir = makeSwing(session, 2);
+        ShotListModel m;
+        const int id = m.addShot(dir, QStringLiteral("13:01"), QStringLiteral("7-iron"),
+                                 true, QUrl(), {}, 70, {});
+        bool held = true;
+        int attempts = 0;
+        m.setFolderReleaser([&](const QString &) { QTimer::singleShot(300, &m, [&held] { held = false; }); });
+        m.setTrashFunction([&](const QString &d) { ++attempts; return !held && renameAway(d); });
+        m.setTrashRetry(40, 4000);
+        QSignalSpy finished(&m, &ShotListModel::trashFinished);
+        m.trashShots({ id });
+        checkInt(QStringLiteral("D7 the row stays while its folder is refused"), m.activeCount(), 1);
+        if (finished.isEmpty()) finished.wait(5000);
+        check(QStringLiteral("D8 the move is tried again until the files are let go (%1 attempts)").arg(attempts),
+              attempts > 1 && !finished.isEmpty() && finished.first().at(1).toInt() == 1);
+        checkInt(QStringLiteral("D9 and then the row goes"), m.activeCount(), 0);
+    }
+
+    // D10–D12: never let go — it gives up, says why, and keeps the row.
+    {
+        const QString dir = makeSwing(session, 3);
+        ShotListModel m;
+        const int id = m.addShot(dir, QStringLiteral("13:02"), QStringLiteral("7-iron"),
+                                 true, QUrl(), {}, 70, {});
+        m.setTrashFunction([](const QString &) { return false; });
+        m.setTrashRetry(20, 200);
+        QSignalSpy finished(&m, &ShotListModel::trashFinished);
+        m.trashShots({ id });
+        if (finished.isEmpty()) finished.wait(3000);
+        check(QStringLiteral("D10 a folder that never comes free is given up on"),
+              finished.count() == 1 && finished.first().at(1).toInt() == 0);
+        if (!finished.isEmpty())
+            check(QStringLiteral("D11 with the reason (\"%1\")").arg(finished.first().at(2).toString()),
+                  finished.first().at(2).toString().contains(QStringLiteral("#3"))
+                      && finished.first().at(2).toString().contains(QStringLiteral("in use")));
+        check(QStringLiteral("D12 and the row and its files stay"), m.activeCount() == 1 && QFileInfo::exists(dir));
+    }
+
+    // D13–D17: one request, three kinds of shot — a swing being re-analysed (refused, with
+    // the reason, and not released), a swing that moves, and a row with no folder.
+    {
+        const QString busy = makeSwing(session, 4);
+        const QString free = makeSwing(session, 5);
+        ShotListModel m;
+        const int a = m.addShot(busy, QStringLiteral("13:03"), QStringLiteral("7-iron"), true, QUrl(), {}, 70, {});
+        const int b = m.addShot(free, QStringLiteral("13:04"), QStringLiteral("7-iron"), true, QUrl(), {}, 70, {});
+        const int c = m.addShot(QString(), QStringLiteral("13:05"), QStringLiteral("7-iron"), false, QUrl(), {}, 0, {});
+        QStringList released;
+        m.setFolderReleaser([&](const QString &d) { released << d; });
+        m.setFolderBusyCheck([&](const QString &d) {
+            return d == busy ? QStringLiteral("is being re-analysed") : QString();
+        });
+        m.setTrashFunction(renameAway);
+        QSignalSpy trashed(&m, &ShotListModel::shotTrashed);
+        QSignalSpy finished(&m, &ShotListModel::trashFinished);
+        m.trashShots({ a, b, c });
+        if (finished.isEmpty()) finished.wait(3000);
+        check(QStringLiteral("D13 one report for the request: 2 of 3 moved"),
+              finished.count() == 1 && finished.first().at(0).toInt() == 3
+                  && finished.first().at(1).toInt() == 2);
+        if (!finished.isEmpty())
+            checkStr(QStringLiteral("D14 the reason names the refused swing"),
+                     finished.first().at(2).toString(), QStringLiteral("Swing #4 is being re-analysed"));
+        check(QStringLiteral("D15 the refused swing is not released, and stays"),
+              !released.contains(busy) && QFileInfo::exists(busy) && m.ordinalForId(a) == 4);
+        check(QStringLiteral("D16 the others are gone"), m.ordinalForId(b) == 0 && m.ordinalForId(c) == 0
+                                                          && !QFileInfo::exists(free));
+        checkInt(QStringLiteral("D17 each row that left was announced"), trashed.count(), 2);
+    }
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -603,6 +763,7 @@ int main(int argc, char **argv)
     testPreviousAnalysisDetail();
     testAttachSwingDir();
     testActiveCountSignal();
+    testTrashOpenSwing();
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);
     return g_fail == 0 ? 0 : 1;
 }

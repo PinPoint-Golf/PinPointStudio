@@ -75,6 +75,12 @@ QtObject {
     // return itself is wired in Main.qml (shotReplay.onPlaybackEnded).
     property bool   autoReturnToCapture: false
 
+    // A swing's folder went to the trash (the carousel's delete, #56). The session panels forget
+    // it on this — the coaching ledger and the charts — so neither goes on counting a swing that
+    // is not there. A signal here rather than on the carousel's model because the panels are not
+    // the carousel's to reach, and this singleton is in every screen and every harness.
+    signal swingTrashed(string swingDir)
+
     // Capture IS the live current session: it shows live tiles, never the disk
     // replay. Returning to Capture exits any loaded past session (resumeLive is
     // idempotent) and drops that session's focused swing; the live-capture record
@@ -128,6 +134,17 @@ QtObject {
         focusedShotId   = -1
         focusedSwingDir = ""
         shotReplay.stop()
+    }
+
+    // Hand the stage to another swing WITHOUT changing the view — the focused swing is being
+    // deleted and this is its neighbour (#56). Replay and Analyse load it as a carousel pick does
+    // (so it plays only with "Auto-replay after select" on); Capture just remembers it, as
+    // Capture always does with the focused swing.
+    function moveFocus(shotId, swingDir) {
+        autoReturnToCapture = false
+        focusedShotId   = shotId
+        focusedSwingDir = swingDir
+        if (mode !== capture) _loadFocused()
     }
 
     // A past session was just loaded (data-source → Loaded): show it in Replay,

@@ -317,6 +317,86 @@ static void testAllocateSwingDir()
 }
 
 // ---------------------------------------------------------------------------
+// R — a swing number is never reissued in a session (#56)
+// ---------------------------------------------------------------------------
+//
+// The next swing was numbered "count of swing folders + 1", so deleting the
+// newest swing handed its number to the next shot, and deleting 3 and 4 of 1–5
+// made the next one 4 again. The number is the swing's identity downstream —
+// the coaching ledger keys its rows on it and skipped the new shot as "already
+// counted" — so the oracle is simply: never a number this session has issued.
+
+static void testNumberingAfterDelete()
+{
+    std::printf("\nR — numbers are never reissued\n");
+    const QString pat = QStringLiteral("date-name-type");
+
+    {
+        TempLibrary lib;
+        if (!lib.valid()) { skip(QStringLiteral("R1"), QStringLiteral("no temp dir")); return; }
+        SwingPaths paths;
+        paths.beginSession(lib.root(), kName, kUuid, pat, kType, false);
+        SwingPaths::Allocation a;
+        for (int i = 0; i < 3; ++i) a = paths.allocateSwingDir(lib.root(), kName, kUuid, pat, kType);
+        QDir(a.swingDir).removeRecursively();                        // the newest, deleted by hand
+        const SwingPaths::Allocation next = paths.allocateSwingDir(lib.root(), kName, kUuid, pat, kType);
+        checkEq(QStringLiteral("R1 deleting the newest swing does not hand its number on"),
+                next.swingId, QStringLiteral("swing_0004"));
+    }
+    {
+        TempLibrary lib;
+        if (!lib.valid()) { skip(QStringLiteral("R2"), QStringLiteral("no temp dir")); return; }
+        SwingPaths paths;
+        paths.beginSession(lib.root(), kName, kUuid, pat, kType, false);
+        QStringList dirs;
+        for (int i = 0; i < 5; ++i)
+            dirs << paths.allocateSwingDir(lib.root(), kName, kUuid, pat, kType).swingDir;
+        QDir(dirs[2]).removeRecursively();
+        QDir(dirs[3]).removeRecursively();
+        const SwingPaths::Allocation next = paths.allocateSwingDir(lib.root(), kName, kUuid, pat, kType);
+        checkEq(QStringLiteral("R2 deleting 3 and 4 of 1-5: the next is 6, not 4"),
+                next.swingId, QStringLiteral("swing_0006"));
+        checkEqInt(QStringLiteral("R3 and its index says the same"), next.swingIndex, 6);
+    }
+    // Across a restart: the session is extended by a new SwingPaths, which has
+    // no memory of what the last one issued — the folder has to.
+    {
+        TempLibrary lib;
+        if (!lib.valid()) { skip(QStringLiteral("R4"), QStringLiteral("no temp dir")); return; }
+        QString newest;
+        {
+            SwingPaths paths;
+            paths.beginSession(lib.root(), kName, kUuid, pat, kType, false);
+            for (int i = 0; i < 2; ++i)
+                newest = paths.allocateSwingDir(lib.root(), kName, kUuid, pat, kType).swingDir;
+            paths.endSession(false);
+        }
+        QDir(newest).removeRecursively();
+        SwingPaths again;
+        again.beginSession(lib.root(), kName, kUuid, pat, kType, /*extendExisting=*/true);
+        const SwingPaths::Allocation next = again.allocateSwingDir(lib.root(), kName, kUuid, pat, kType);
+        checkEq(QStringLiteral("R4 an extended session after a restart does not reuse it either"),
+                next.swingId, QStringLiteral("swing_0003"));
+    }
+    // A session from before the record existed: the swing that goes to the
+    // trash is what records the number.
+    {
+        TempLibrary lib;
+        if (!lib.valid()) { skip(QStringLiteral("R5"), QStringLiteral("no temp dir")); return; }
+        const QString session = lib.makeSession(kToken, baseDefault() + QStringLiteral("_01"), 3);
+        if (!SwingPaths::trashPath(session + QStringLiteral("/swing_0003"))) {
+            skip(QStringLiteral("R5"), QStringLiteral("the temp volume refused the move"));
+        } else {
+            SwingPaths paths;
+            paths.beginSession(lib.root(), kName, kUuid, pat, kType, /*extendExisting=*/true);
+            const SwingPaths::Allocation next = paths.allocateSwingDir(lib.root(), kName, kUuid, pat, kType);
+            checkEq(QStringLiteral("R5 an older session's trashed newest swing keeps its number"),
+                    next.swingId, QStringLiteral("swing_0004"));
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // B — beginSession() / findTodaySessionDir(): extend today, or start fresh
 // ---------------------------------------------------------------------------
 
@@ -620,6 +700,7 @@ int main(int argc, char **argv)
     testSanitise();
     testNamingPatterns();
     testAllocateSwingDir();
+    testNumberingAfterDelete();
     testBeginSession();
     testEndSession();
     testTrashPath();

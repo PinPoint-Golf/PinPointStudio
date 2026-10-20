@@ -20,19 +20,27 @@
 #include "qml_payload.h"
 
 #include <QAbstractListModel>
+#include <QElapsedTimer>
+#include <QTimer>
 #include <QUrl>
 #include <QVariantList>
 #include <QVariantMap>
 #include <QVector>
+
+#include <functional>
 
 // ShotListModel — the session-global list of captured shots, shared by every
 // mode screen's PpShotCarousel.  Exposed in main.cpp as the QML context
 // property `shotModel`.  All shot mutation (rating, note, trash) goes
 // through the Q_INVOKABLEs below — QML holds no business logic.
 //
-// Trash: moveToTrash() moves the shot's swing_NNNN/ folder to the operating
-// system trash (QFile::moveToTrash — cross-platform, recoverable there) and
-// removes the row.  There is no in-app undo: recovery is the OS trash's job.
+// Trash: trashShots() moves each shot's swing_NNNN/ folder to the trash
+// (SwingPaths::trashPath — the OS trash, or the library's own on a volume with
+// none) and removes its row.  There is no in-app undo: recovery is the trash's
+// job.  ⚠ A FOLDER WHOSE VIDEOS ARE OPEN CANNOT BE MOVED ON WINDOWS (#56), and
+// selecting a swing opens them, so the move first asks main.cpp's releaser to
+// let go of the folder and then retries for a few seconds while the player
+// closes its files.
 //
 // Shots arrive via ShotProcessor::maybeJoin() → addShot() at the
 // analysis+export join of each detected shot.
@@ -148,13 +156,46 @@ public:
     //                      anything else is refused, for the reason setClub refuses it
     Q_INVOKABLE void setLmExcluded(int id, bool excluded);
     Q_INVOKABLE void setLmClubOverride(int id, const QString &club);
-    // Move the shot's swing_NNNN/ folder to the OS trash and remove its row.
-    // Returns false (and keeps the row) if the move fails — e.g. no trash is
-    // available — so a shot is never lost from view while its files remain.
-    // An analysis-only shot (empty swingDir) just drops from the model.
+    // Move the shot's swing_NNNN/ folder to the trash and remove its row, in ONE
+    // attempt, now. Returns false (and keeps the row) if the move fails, so a
+    // shot is never lost from view while its files remain. An analysis-only
+    // shot (empty swingDir) just drops from the model. The carousel uses
+    // trashShots() below; this is the synchronous form for callers that can
+    // take a refusal.
     Q_INVOKABLE bool moveToTrash(int id);
-    // Trash each id; returns the number actually moved to the OS trash.
+    // Trash each id with moveToTrash(); returns the number actually moved.
     Q_INVOKABLE int  moveAllToTrash(const QVariantList &ids);
+
+    // THE CAROUSEL'S DELETE: any set of shots, by id, focused or not.
+    //   1. A shot the busy check refuses (it is being re-analysed) stays, with
+    //      the reason.
+    //   2. The releaser is asked to let go of every other folder (the replay
+    //      stops if it is playing one).
+    //   3. Each folder is moved now; one that is refused is tried again on a
+    //      back-off for a few seconds, because a player closes its files a
+    //      moment after it is told to and Windows will not move a folder with
+    //      a file open in it.
+    // Each row leaves as its folder does (shotTrashed); trashFinished reports
+    // the whole request once nothing is left to try. A call while one is still
+    // retrying joins it, and is reported with it.
+    Q_INVOKABLE void trashShots(const QVariantList &ids);
+    bool trashPending() const { return !m_trashPending.isEmpty(); }
+
+    // The hooks trashShots() runs through, set in main.cpp (and by the tests).
+    //   releaser   — told each folder about to be moved; lets go of it.
+    //   busyCheck  — "" when the folder may go now, else why not ("is being
+    //                re-analysed"), which the request reports as the reason.
+    //   trashFn    — the move itself; SwingPaths::trashPath by default.
+    using FolderFn  = std::function<void(const QString &swingDir)>;
+    using ReasonFn  = std::function<QString(const QString &swingDir)>;
+    using TrashFn   = std::function<bool(const QString &swingDir)>;
+    void setFolderReleaser(FolderFn fn) { m_releaser = std::move(fn); }
+    void setFolderBusyCheck(ReasonFn fn) { m_busyCheck = std::move(fn); }
+    void setTrashFunction(TrashFn fn)    { m_trashFn = std::move(fn); }
+    // The retry's first interval (it doubles) and how long a refused folder is
+    // tried for in all. Tests shorten them.
+    void setTrashRetry(int firstIntervalMs, int giveUpMs)
+    { m_trashFirstRetryMs = firstIntervalMs; m_trashGiveUpMs = giveUpMs; }
 
     // Resolve a list of shot ids (e.g. ShotFilterProxyModel::visibleShotIds()) to
     // their absolute swing_NNNN directories, skipping analysis-only shots with no
@@ -186,6 +227,12 @@ public:
 
 signals:
     void activeCountChanged();
+    // A shot's row left because its folder went to the trash (swingDir is ""
+    // for a shot that had none). The session panels forget the swing on this.
+    void shotTrashed(int id, const QString &swingDir);
+    // A trashShots() request is done: `moved` of `requested` shots went, and
+    // `reason` says why the rest did not ("" when they all went).
+    void trashFinished(int requested, int moved, const QString &reason);
 
 private:
     struct Shot {
@@ -223,6 +270,25 @@ private:
     int  rowForId(int id) const;
     void persistReview(int row);   // write-through rating/note/club to swing.json
     void persistLmAnnotations(int row);   // write-through excluded/clubOverride
+    bool trashFolder(const QString &dir) const;   // m_trashFn, or SwingPaths::trashPath
+    void removeTrashedRow(int id, const QString &dir);
+    void attemptPendingTrash();
+    void finishTrash();
+
+    // trashShots() state: the folders still to move, and the request's tally.
+    struct PendingTrash { int id = 0; int ordinal = 0; QString dir; int attempts = 0; };
+    QVector<PendingTrash> m_trashPending;
+    int           m_trashRequested = 0;
+    int           m_trashMoved     = 0;
+    QStringList   m_trashReasons;
+    QTimer        m_trashTimer;
+    QElapsedTimer m_trashClock;
+    int           m_trashNextRetryMs  = 0;
+    int           m_trashFirstRetryMs = 150;
+    int           m_trashGiveUpMs     = 6000;
+    FolderFn      m_releaser;
+    ReasonFn      m_busyCheck;
+    TrashFn       m_trashFn;
 
     QVector<Shot> m_shots;
     int           m_nextId = 1;

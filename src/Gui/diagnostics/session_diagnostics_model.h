@@ -313,6 +313,15 @@ public:
     // A dir outside the loaded session is ignored; a shot the ledger has never seen is ingested.
     Q_INVOKABLE void regradeShot(const QString &swingDir);
 
+    // The swing at `swingDir` was moved to the trash: its row leaves the ledger, the session
+    // is reduced again without it and diagnostics.json is rewritten (#56). Before this nothing
+    // ever removed a row, so a deleted swing went on being counted for the life of the session.
+    // A closed session accepts it too — the summary must not count a swing that is not there —
+    // but the athlete's fault profile is not re-folded (it counted the session once, at close).
+    // A dir outside the loaded session, or one the ledger never held, is ignored. An ingest of
+    // that swing still in flight is dropped when it lands.
+    Q_INVOKABLE void forgetShot(const QString &swingDir);
+
     // End the session: freeze at Closing, write the final diagnostics.json, and fold this
     // session's patterns into the athlete's fault profile. One-way — sessionStage() will not
     // un-close it, and neither will another shot.
@@ -527,6 +536,9 @@ private:
 
     // The worker hand-off both ingestShot() and regradeShot() go through.
     void queueDetect(int shotId, const QString &swingDir, bool regrade);
+    // Remove one shot from every per-shot structure, keeping the focus split on the same
+    // swing. True when there was a row to remove. Does not reduce or persist.
+    bool dropShot(int shotId);
 
     // The content every row is graded against — pack, norms and contexts — as one short hash.
     // The grade policy is deliberately NOT in it: setGradePolicy() does not rewrite history.

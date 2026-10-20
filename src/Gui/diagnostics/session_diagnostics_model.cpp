@@ -29,6 +29,7 @@
 #include "../../Export/swing_doc.h"
 #include "../../Coaching/sequence_checks.h"
 #include "../../Metrics/gate_catalogue.h"
+#include "../../Core/pp_debug.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -670,6 +671,38 @@ void SessionDiagnosticsModel::regradeShot(const QString &swingDir)
     queueDetect(id, swingDir, true);
 }
 
+bool SessionDiagnosticsModel::dropShot(int shotId)
+{
+    const int at = indexOfShot(shotId);
+    if (at >= 0) {
+        m_shots.erase(m_shots.begin() + at);
+        // The focus split is a row count — "the shots before this are baseline" — so a baseline
+        // row leaving moves it down one, and the swing it named is still the first intervention.
+        if (m_focusFromShot > at) --m_focusFromShot;
+    }
+    const bool held = at >= 0 || m_ingested.contains(shotId);
+    m_ingested.remove(shotId);
+    m_lmShots.remove(shotId);
+    m_gradedFrom.remove(shotId);
+    m_swingDirs.remove(shotId);
+    if (m_owedAfterShot == shotId) m_owedAfterShot = -1;
+    return held;
+}
+
+void SessionDiagnosticsModel::forgetShot(const QString &swingDir)
+{
+    if (m_sessionDir.isEmpty() || swingDir.isEmpty()) return;
+    const QFileInfo fi(swingDir);
+    if (QDir::cleanPath(fi.absolutePath()) != QDir::cleanPath(QFileInfo(m_sessionDir).absoluteFilePath()))
+        return;
+    const int id = folderShotId(swingDir);
+    if (id < 0 || !dropShot(id)) return;
+    resolveSelectedSwingDir();
+    // Reduced and written as any arrival is — at once, or with the batch still landing.
+    m_owedRebuild = true;
+    settleBatch();
+}
+
 void SessionDiagnosticsModel::queueDetect(int shotId, const QString &swingDir, bool regrade)
 {
     if (m_synchronous) {
@@ -1014,6 +1047,12 @@ void SessionDiagnosticsModel::applyIngested(const Ingested &in)
         settleBatch();
         return;
     }
+    // A swing trashed while it was being read (forgetShot): its row would count a swing that
+    // has gone. Every ingest and regrade in flight is in m_ingested until forgetShot takes it out.
+    if (!m_ingested.contains(in.record.shotId)) {
+        settleBatch();
+        return;
+    }
 
     // Shots are held in the order they were struck. The pool is single-threaded so arrivals
     // are already ordered, but a back-fill can interleave with a live shot, and the tick run
@@ -1218,11 +1257,36 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     // session's, and ingestShot() below emits busyChanged — a direct listener reading the model
     // then would see this session's rows against that session's ledgers. Synchronously it is
     // also the state the back-fill's per-shot reductions ratchet from (stage, card order).
-    rebuild();
-
     const QDir dir(sessionDir);
     QStringList swings = dir.entryList(QStringList{ QStringLiteral("swing_*") },
                                        QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+
+    // The other half of the reconcile (#56): a row whose swing has LEFT the folder — moved to
+    // the trash, here or in another copy of the app — is not a shot of this session any more.
+    // Without this the file kept counting it on every load. Three guards, each against dropping
+    // a row that is still a shot:
+    //   · only when the session folder is there to ask — an unreachable share answers "no
+    //     swings", which is not the same thing;
+    //   · only a row FILED UNDER a swing folder (swingDirs) — a ledger written by a tool, or
+    //     before rows carried their folder, names none, and is kept;
+    //   · the folder is looked for BY NUMBER IN THIS SESSION, never at the path it was filed
+    //     under: a session recorded on the cabin PC and opened here carries that machine's paths.
+    if (dir.exists()) {
+        QSet<int> onDisk;
+        for (const QString &name : std::as_const(swings))
+            if (const int id = folderShotId(dir.filePath(name)); id >= 0) onDisk.insert(id);
+        int dropped = 0;
+        for (const int id : QSet<int>(m_ingested))
+            if (m_swingDirs.contains(id) && !onDisk.contains(id) && dropShot(id)) ++dropped;
+        if (dropped > 0) {
+            ppInfo() << "[Diagnostics]" << dropped << "row(s) left the ledger: their swings are no"
+                     << "longer in" << sessionDir;
+            m_owedRebuild = true;            // written once the reconcile below has settled
+        }
+    }
+
+    rebuild();
+
     for (const QString &name : swings) {
         bool ok = false;
         const int id = name.mid(name.lastIndexOf(QLatin1Char('_')) + 1).toInt(&ok);
@@ -1257,6 +1321,9 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     emit intentChanged();
     resolveSelectedSwingDir();
     rebuild();
+    // Rows the reconcile dropped are written now when nothing was queued behind them; with a
+    // batch still landing, its own settle writes them.
+    settleBatch();
 }
 
 void SessionDiagnosticsModel::closeSession()

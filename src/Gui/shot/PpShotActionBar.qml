@@ -27,6 +27,9 @@
 //   1. focus + filter — identity left; this-shot actions; "all N shown ▾" control
 //   2. focus, no filter — identity left; this-shot actions only
 //   3. no focus, filter — set descriptor left; the actions act on the SET
+// ...and a fourth OVERRIDES them while the carousel has swings picked (#56):
+//   4. selection — "N selected" left; Move N to trash · Clear. The picked swings are the
+//      scope, whatever is on the stage or filtered, so nothing else is offered beside them.
 //
 // Re-analyse appears both as the focused-shot button (reanalyseShot) and, in the
 // "all shown" menu, as a set-scope action (reanalyseShown) for bulk corpus re-runs.
@@ -51,6 +54,8 @@ Item {
     property int    sourceCount:  0
     // Human filter descriptor (e.g. "50–100 · 4★"), "" if none.
     property string filterLabel:  ""
+    // Swings picked on the cards (the carousel's selection); 0 = none, and states 1–3 apply.
+    property int    markedCount:  0
 
     // Focused-shot actions.
     signal exportShot()
@@ -62,9 +67,13 @@ Item {
     signal exportShown()
     signal reanalyseShown()
     signal trashShown()
+    // Selection actions (state 4).
+    signal trashMarked()
+    signal clearMarks()
 
     // ── Derived scope state (pure bindings) ─────────────────────────────────
-    readonly property bool _hasFocus:  root.summary && root.summary.valid === true
+    readonly property bool _selecting: root.markedCount > 0
+    readonly property bool _hasFocus:  !root._selecting && root.summary && root.summary.valid === true
     readonly property bool _hasFilter: root.filterActive
     readonly property bool _showAllCtl: root._hasFocus && root._hasFilter
 
@@ -172,11 +181,46 @@ Item {
             }
         }
 
+        // ── LEFT · selection descriptor  (N selected) — state 4 ─────────────
+        Row {
+            id: markRow
+            objectName: "markRow"
+            Layout.alignment: Qt.AlignVCenter
+            Layout.leftMargin: Theme.gap(8)
+            visible: root._selecting
+            spacing: Theme.gap(7)
+
+            PpMicro {
+                anchors.verticalCenter: parent.verticalCenter
+                text:  Theme.caps(qsTr("Selected"))
+                color: Theme.colorAccent
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text:           root.markedCount === 1 ? qsTr("1 swing") : qsTr("%1 swings").arg(root.markedCount)
+                font.family:    Theme.fontData
+                font.pixelSize: Theme.fontSzBody2
+                color:          Theme.colorText
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "·"; font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                color: Theme.colorText3
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text:           qsTr("click swings to add or remove")
+                font.family:    Theme.fontData
+                font.pixelSize: Theme.fontSzBody2
+                color:          Theme.colorText3
+            }
+        }
+
         // ── LEFT · set descriptor  (N of M shown · filter) ──────────────────
         Row {
             id: setRow
             Layout.alignment: Qt.AlignVCenter
-            visible: !root._hasFocus
+            visible: !root._hasFocus && !root._selecting
             spacing: Theme.gap(7)
 
             PpMicro {
@@ -209,9 +253,30 @@ Item {
         Item { Layout.fillWidth: true }   // grow — pushes the actions to the right cap
 
         // ── RIGHT · actions ─────────────────────────────────────────────────
+        // State 4: the picked swings, and only them.
+        PpButton {
+            objectName: "trashMarkedButton"
+            Layout.alignment: Qt.AlignVCenter
+            visible: root._selecting
+            destructive: true
+            label: root.markedCount === 1 ? qsTr("Move to trash")
+                                          : qsTr("Move %1 to trash").arg(root.markedCount)
+            glyph: "🗑"
+            onClicked: root.trashMarked()
+        }
+        PpButton {
+            objectName: "clearMarksButton"
+            Layout.alignment: Qt.AlignVCenter
+            visible: root._selecting
+            label: qsTr("Clear")
+            glyph: "✕"
+            onClicked: root.clearMarks()
+        }
+
         // Export acts on the focused shot (state 1/2) or the whole set (state 3).
         PpButton {
             Layout.alignment: Qt.AlignVCenter
+            visible: !root._selecting
             label: qsTr("Export")
             glyph: "⤓"
             onClicked: root._hasFocus ? root.exportShot() : root.exportShown()
@@ -227,6 +292,7 @@ Item {
         // Destructive — "Move to trash" (this shot) / "Move all shown to trash" (set).
         PpButton {
             Layout.alignment: Qt.AlignVCenter
+            visible: !root._selecting
             destructive: true
             label: root._hasFocus ? qsTr("Move to trash") : qsTr("Move all shown to trash")
             glyph: "🗑"

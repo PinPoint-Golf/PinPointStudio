@@ -23,12 +23,18 @@
 #include "../Core/pp_debug.h"
 
 #include <QFile>
+#include <QFileInfo>
 #include "../../Export/swing_paths.h"
 #include <QStringList>
+
+#include <algorithm>
+#include <utility>
 
 ShotListModel::ShotListModel(QObject *parent)
     : QAbstractListModel(parent)
 {
+    m_trashTimer.setSingleShot(true);
+    connect(&m_trashTimer, &QTimer::timeout, this, &ShotListModel::attemptPendingTrash);
 }
 
 int ShotListModel::rowCount(const QModelIndex &parent) const
@@ -433,25 +439,132 @@ QStringList ShotListModel::clubOptions()
     return pinpoint::clubVocabulary();
 }
 
+// ⚠ SwingPaths::trashPath, not QFile::moveToTrash: the SwingData share has no OS
+// trash, and every delete there failed silently until 2 Sept 2026.
+bool ShotListModel::trashFolder(const QString &dir) const
+{
+    return m_trashFn ? m_trashFn(dir) : pinpoint::SwingPaths::trashPath(dir);
+}
+
+void ShotListModel::removeTrashedRow(int id, const QString &dir)
+{
+    // The row may already be gone: the model was re-pointed at another session
+    // while its folder was still being retried. The folder went all the same.
+    const int row = rowForId(id);
+    if (row >= 0) {
+        beginRemoveRows(QModelIndex(), row, row);
+        m_shots.removeAt(row);
+        endRemoveRows();
+        emit activeCountChanged();
+    }
+    emit shotTrashed(id, dir);
+}
+
 bool ShotListModel::moveToTrash(int id)
 {
     const int row = rowForId(id);
     if (row < 0)
         return false;
-    // Move the on-disk folder to the OS trash (recoverable there). An
+    // Move the on-disk folder to the trash (recoverable there). An
     // analysis-only shot has no folder and simply drops from the model.
-    // ⚠ SwingPaths::trashPath, not QFile::moveToTrash: the SwingData share has
-    // no OS trash, and every delete there failed silently until 2 Sept 2026.
     const QString dir = m_shots.at(row).swingDir;
-    if (!dir.isEmpty() && !pinpoint::SwingPaths::trashPath(dir)) {
-        ppWarn() << "[ShotListModel] could not move to trash:" << dir;
-        return false;                 // keep the row — its files are still here
+    if (!dir.isEmpty()) {
+        if (m_releaser)
+            m_releaser(dir);
+        if (!trashFolder(dir)) {
+            ppWarn() << "[ShotListModel] could not move to trash:" << dir;
+            return false;             // keep the row — its files are still here
+        }
     }
-    beginRemoveRows(QModelIndex(), row, row);
-    m_shots.removeAt(row);
-    endRemoveRows();
-    emit activeCountChanged();
+    removeTrashedRow(id, dir);
     return true;
+}
+
+void ShotListModel::trashShots(const QVariantList &ids)
+{
+    for (const QVariant &v : ids) {
+        const int id  = v.toInt();
+        const int row = rowForId(id);
+        if (row < 0)
+            continue;
+        if (std::any_of(m_trashPending.cbegin(), m_trashPending.cend(),
+                        [id](const PendingTrash &p) { return p.id == id; }))
+            continue;                 // already on its way
+        ++m_trashRequested;
+        const Shot &s = m_shots.at(row);
+        if (s.swingDir.isEmpty()) {   // nothing on disk: the row is all there is
+            ++m_trashMoved;
+            removeTrashedRow(id, QString());
+            continue;
+        }
+        if (m_busyCheck) {
+            const QString why = m_busyCheck(s.swingDir);
+            if (!why.isEmpty()) {
+                m_trashReasons << tr("Swing #%1 %2").arg(s.ordinal).arg(why);
+                continue;
+            }
+        }
+        if (m_releaser)
+            m_releaser(s.swingDir);
+        m_trashPending.append(PendingTrash{ id, s.ordinal, s.swingDir, 0 });
+    }
+
+    if (m_trashTimer.isActive())
+        return;                       // a retry is already due; the new folders go with it
+    if (!m_trashClock.isValid()) {
+        m_trashClock.start();
+        m_trashNextRetryMs = m_trashFirstRetryMs;
+    }
+    attemptPendingTrash();
+}
+
+void ShotListModel::attemptPendingTrash()
+{
+    for (int i = 0; i < m_trashPending.size(); ) {
+        PendingTrash &p = m_trashPending[i];
+        ++p.attempts;
+        // Gone already counts as gone: someone else moved it while we waited.
+        if (trashFolder(p.dir) || !QFileInfo::exists(p.dir)) {
+            if (p.attempts > 1)
+                ppInfo() << "[ShotListModel] moved to trash on attempt" << p.attempts
+                         << "after" << m_trashClock.elapsed() << "ms:" << p.dir;
+            const PendingTrash done = p;
+            m_trashPending.removeAt(i);
+            ++m_trashMoved;
+            removeTrashedRow(done.id, done.dir);
+            continue;
+        }
+        ++i;
+    }
+
+    if (m_trashPending.isEmpty()) {
+        finishTrash();
+        return;
+    }
+    if (m_trashClock.elapsed() + m_trashNextRetryMs > m_trashGiveUpMs) {
+        for (const PendingTrash &p : std::as_const(m_trashPending)) {
+            ppWarn() << "[ShotListModel] could not move to trash after" << p.attempts
+                     << "attempts over" << m_trashClock.elapsed() << "ms — a file in it is"
+                     << "probably still open:" << p.dir;
+            m_trashReasons << tr("Swing #%1: its files are still in use").arg(p.ordinal);
+        }
+        m_trashPending.clear();
+        finishTrash();
+        return;
+    }
+    m_trashTimer.start(m_trashNextRetryMs);
+    m_trashNextRetryMs *= 2;
+}
+
+void ShotListModel::finishTrash()
+{
+    const int requested = std::exchange(m_trashRequested, 0);
+    const int moved     = std::exchange(m_trashMoved, 0);
+    const QStringList reasons = std::exchange(m_trashReasons, {});
+    m_trashClock.invalidate();
+    if (requested == 0)
+        return;                       // nothing asked for was in this model
+    emit trashFinished(requested, moved, reasons.join(QStringLiteral("; ")));
 }
 
 int ShotListModel::moveAllToTrash(const QVariantList &ids)

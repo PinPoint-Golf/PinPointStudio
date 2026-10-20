@@ -178,6 +178,11 @@ public:
     // not seen is ingested; one outside the loaded session is ignored.
     Q_INVOKABLE void regradeShot(const QString &swingDir);
 
+    // The swing was moved to the trash: its shot leaves the snapshot, and its cached reading goes
+    // (#56). Accepted after closeSession() — the panel must not draw a swing that is not there.
+    // One outside the loaded session is ignored.
+    Q_INVOKABLE void forgetShot(const QString &swingDir);
+
     // Re-read the session's diagnostics ledger (diagnostics.json) if it has changed, and re-join
     // its rows to the shots. Call it when SessionDiagnosticsModel has written the file — its
     // busyChanged to false precedes the write by a few statements on the same thread, so the read
@@ -258,7 +263,7 @@ private:
         std::shared_ptr<ShotSeries> fresh;        // read, not yet published (completed in place)
         QString skipReason;
     };
-    enum class JobKind { Activate, Ingest, Regrade, RefreshLedger, Rearchetype };
+    enum class JobKind { Activate, Ingest, Regrade, Forget, RefreshLedger, Rearchetype };
     struct Job {
         JobKind kind = JobKind::Activate;
         int     generation = 0;

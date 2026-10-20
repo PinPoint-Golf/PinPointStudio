@@ -342,6 +342,14 @@ Item {
         }
     }
 
+    // A swing moved to the trash leaves the ledger (#56); the model ignores a swing of a session it
+    // is not holding. With no panel up, the next activateSession() drops the row instead, because
+    // the swing is no longer on disk.
+    Connections {
+        target: SessionMode
+        function onSwingTrashed(swingDir) { diagModel.forgetShot(swingDir) }
+    }
+
     // shotReadout() IS AN INVOKABLE, SO IT CANNOT BE BOUND — somebody has to call it, and
     // this is the only file with the model's signals in front of it. Re-fetched on all three
     // things that can change the answer: which shot is selected, whether the panel is in

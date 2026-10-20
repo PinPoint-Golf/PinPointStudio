@@ -1422,6 +1422,66 @@ int main(int argc, char **argv)
         check(ledgerBytesOf(dir) == sparse, "regradeShot ignores a swing from another session");
     }
 
+    // ── 4c′. A trashed swing leaves the ledger (#56) ─────────────────────────────────
+    //
+    // Nothing used to remove a row: delete a swing from the carousel and the session went on
+    // counting it, in the panel and in diagnostics.json, for good. Two doors out — forgetShot()
+    // while the panel is up, and the reconcile on activation for a swing that went while it was
+    // not — and both must land where a session that never had the swing lands.
+    std::printf("\nforget a trashed swing\n");
+    {
+        // The reference: shots 1 and 3 only, graded fresh.
+        const QString refDir = makeSession(tmp, "athlete_t", "session_trash_ref");
+        check(stageShot(refDir, 1, "rich_7iron") && stageShot(refDir, 3, "sparse_noclub"),
+              "a reference session holding swings 1 and 3");
+        auto r = freshModel();
+        r->activateSession(refDir);
+        const QByteArray without2 = ledgerBytesOf(refDir);
+
+        const QString dir = makeSession(tmp, "athlete_t", "session_trash");
+        check(stageShot(dir, 1, "rich_7iron") && stageShot(dir, 2, "rich_7iron")
+                  && stageShot(dir, 3, "sparse_noclub"),
+              "a session of three swings");
+        auto m = freshModel();
+        m->activateSession(dir);
+        check(m->shotCount() == 3, "…all three in the ledger");
+
+        // While the panel is up: the carousel trashes swing 2 and says so.
+        check(QDir(swingDirFor(dir, 2)).removeRecursively(), "swing 2 goes to the trash");
+        m->forgetShot(swingDirFor(dir, 2));
+        check(m->shotCount() == 2, "forgetShot takes its row out");
+        check(m->shotIdForSwingDir(swingDirFor(dir, 2)) < 0, "…and the ledger no longer knows the swing");
+        check(ledgerBytesOf(dir) == without2,
+              "…and diagnostics.json reads exactly what a session without it reads");
+        check(!diagnosticsJsonOf(dir).value(QStringLiteral("session")).toObject()
+                   .value(QStringLiteral("swingDirs")).toObject().contains(QStringLiteral("2")),
+              "…with no folder left filed under its number");
+
+        m->forgetShot(swingDirFor(dir, 2));
+        m->forgetShot(swingDirFor(refDir, 1));
+        check(m->shotCount() == 2 && ledgerBytesOf(dir) == without2,
+              "forgetting it again, or a swing of another session, changes nothing");
+
+        // In a closed session the summary must not count it either.
+        m->closeSession();
+        check(QDir(swingDirFor(dir, 3)).removeRecursively(), "swing 3 goes after the session closed");
+        m->forgetShot(swingDirFor(dir, 3));
+        check(m->shotCount() == 1, "a closed session forgets it too");
+        check(m->stage() == QLatin1String("closing"), "…without re-opening");
+
+        // With no panel up: the swing leaves the folder and the next activation notices.
+        const QString cold = makeSession(tmp, "athlete_t", "session_trash_cold");
+        check(stageShot(cold, 1, "rich_7iron") && stageShot(cold, 2, "rich_7iron")
+                  && stageShot(cold, 3, "sparse_noclub"),
+              "another session of three swings");
+        { auto a = freshModel(); a->activateSession(cold); check(a->shotCount() == 3, "…graded"); }
+        check(QDir(swingDirFor(cold, 2)).removeRecursively(), "swing 2 is trashed with no panel up");
+        auto b = freshModel();
+        b->activateSession(cold);
+        check(b->shotCount() == 2, "activation drops the row of a swing no longer on disk");
+        check(ledgerBytesOf(cold) == without2, "…and writes the ledger without it");
+    }
+
     // ── 4d. A batch is reduced and written ONCE ──────────────────────────────────────
     //
     // The startup freeze: a pack edit stales every row of every session, the work-ons catch-up

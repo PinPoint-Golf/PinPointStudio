@@ -38,6 +38,42 @@ static int countSwingDirs(const QString& sessionDir)
         .size();
 }
 
+// The highest swing number a session has ever issued, as recorded in its
+// kSwingHighWaterFile (0 when the file is missing or unreadable).
+static const QString kSwingHighWaterFile = QStringLiteral(".pinpoint-last-swing");
+
+static int recordedSwingHighWater(const QString& sessionDir)
+{
+    QFile f(sessionDir + QLatin1Char('/') + kSwingHighWaterFile);
+    if (!f.open(QIODevice::ReadOnly))
+        return 0;
+    bool ok = false;
+    const int n = QString::fromLatin1(f.read(32)).trimmed().toInt(&ok);
+    return ok && n > 0 ? n : 0;
+}
+
+// Raise the session's recorded high-water to n (never lowers it). Best effort:
+// a failed write costs only the guarantee below, and is logged.
+static void noteSwingHighWater(const QString& sessionDir, int n)
+{
+    if (n <= recordedSwingHighWater(sessionDir))
+        return;
+    QFile f(sessionDir + QLatin1Char('/') + kSwingHighWaterFile);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)
+        || f.write(QByteArray::number(n)) < 0)
+        ppWarn() << "[SwingExport] could not record the last swing number in" << sessionDir;
+}
+
+// The number in a "swing_NNNN" folder name, or 0 when it carries none.
+static int swingNumber(const QString& name)
+{
+    if (!name.startsWith(QStringLiteral("swing_")))
+        return 0;
+    bool ok = false;
+    const int n = name.mid(6).toInt(&ok);
+    return ok && n > 0 ? n : 0;
+}
+
 // Highest "_NN" index among "<base>_(\d+)" session folders under athleteDir
 // (0 when none exist).
 static int maxSessionIndex(const QString& athleteDir, const QString& base)
@@ -175,11 +211,21 @@ SwingPaths::Allocation SwingPaths::allocateSwingDir(const QString& libraryRoot,
         ppInfo() << "[SwingExport] session folder:" << m_cachedSessionDir;
     }
 
-    // Swing folder: count existing swing_* dirs, then probe upward in case of
-    // gaps or collisions until an unused name is found.
+    // Swing folder: one past the HIGHEST number this session has ever issued —
+    // the highest folder still here, or the recorded high-water if a later one
+    // has since been deleted — then probe upward in case of a collision.
+    //
+    // ⚠ NOT "COUNT THE FOLDERS + 1", which it was (#56). Delete the newest swing
+    // and the count drops by one, so the next shot was handed the deleted
+    // swing's number; delete 3 and 4 of 1–5 and the next was 4 again. A number
+    // is a swing's identity — the coaching ledger keys its rows on it and
+    // skipped the new shot as "already counted" — so it is never reissued.
     QDir sessionDir(m_cachedSessionDir);
-    int index = sessionDir.entryList({QStringLiteral("swing_*")},
-                                     QDir::Dirs | QDir::NoDotAndDotDot).size() + 1;
+    int highest = recordedSwingHighWater(m_cachedSessionDir);
+    for (const QString& name : sessionDir.entryList({QStringLiteral("swing_*")},
+                                                    QDir::Dirs | QDir::NoDotAndDotDot))
+        highest = std::max(highest, swingNumber(name));
+    int index = highest + 1;
     QString swingId  = QStringLiteral("swing_%1").arg(index, 4, 10, QLatin1Char('0'));
     while (sessionDir.exists(swingId)) {
         ++index;
@@ -191,6 +237,7 @@ SwingPaths::Allocation SwingPaths::allocateSwingDir(const QString& libraryRoot,
         ppError() << "[SwingExport] failed to create" << swingDir;
         return out;   // swingDir empty signals failure
     }
+    noteSwingHighWater(m_cachedSessionDir, index);
 
     out.swingDir   = swingDir;
     out.sessionId  = m_cachedSessionId;
@@ -298,6 +345,16 @@ bool SwingPaths::trashPath(const QString& path, QString* where)
 {
     if (path.isEmpty() || !QFileInfo::exists(path))
         return false;
+    const QFileInfo fi(path);
+    const QString   name    = fi.fileName();
+    const bool      isSwing = name.startsWith(QStringLiteral("swing_"));
+    const QString   parent  = QDir::cleanPath(fi.absolutePath());
+    // A swing leaving its session takes its number with it, never back into
+    // circulation (allocateSwingDir). A session recorded before the high-water
+    // existed has none, so the swing that leaves is what records it — whichever
+    // trash it goes to.
+    if (isSwing)
+        noteSwingHighWater(parent, swingNumber(name));
     if (QFile::moveToTrash(path)) {
         if (where) *where = QStringLiteral("the system trash");
         return true;
@@ -306,10 +363,6 @@ bool SwingPaths::trashPath(const QString& path, QString* where)
     // rename: `<root>/.pinpoint-trash/<athlete>/<stamp>_[<session>_]<name>`.
     // A swing folder sits in a session which sits in an athlete folder; a
     // session sits in an athlete folder.
-    const QFileInfo fi(path);
-    const QString   name    = fi.fileName();
-    const bool      isSwing = name.startsWith(QStringLiteral("swing_"));
-    const QString   parent  = QDir::cleanPath(fi.absolutePath());
     const QString   athleteDir = isSwing ? QDir::cleanPath(parent + QStringLiteral("/.."))
                                          : parent;
     const QString   root       = QDir::cleanPath(athleteDir + QStringLiteral("/.."));

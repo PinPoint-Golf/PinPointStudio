@@ -30,6 +30,12 @@
 // beside it: the row is that swing's whole diagnostic read at a glance, so a reader picks the
 // shot they want to open instead of stepping through them. It costs a null check when no
 // panel is up — see the Loader below.
+//
+// ...and two hover actions beside the ordinal (#56): a tick that picks the swing for the
+// carousel's bulk actions, and a trash can that deletes it — both WITHOUT putting the swing on
+// the stage, because the swing most often deleted is one that should never have been a swing (a
+// loud noise, somebody else's ball). Ctrl/⌘-click picks it too. While the carousel has a
+// selection going, every card shows its tick and a plain click picks rather than opens.
 
 import QtQuick
 import QtQuick.Controls
@@ -87,9 +93,16 @@ Rectangle {
 
     property bool selected: false
     property bool hovered:  hover.hovered
+    // Picked for a bulk action (the carousel's selection) — not the same thing as `selected`,
+    // which is the swing on the stage.
+    property bool marked:    false
+    // The carousel has a selection going: every card shows its tick, so the rest can be picked.
+    property bool selecting: false
 
     signal tapped()
     signal rated(int newValue)
+    signal markToggled()      // the tick, or Ctrl/⌘-click
+    signal trashRequested()   // the trash can
 
     // Overlays sit on imagery, so the scrim is always dark with light content
     // regardless of theme — the same reasoning as the "#FFFFFF" pill-text
@@ -196,7 +209,15 @@ Rectangle {
     }
 
     // ── Overlays ─────────────────────────────────────────────────────────────
+    Rectangle {   // a picked card wears the accent over its media, under every overlay
+        anchors.fill: parent
+        visible: card.marked
+        color:   Theme.colorAccent
+        opacity: 0.22
+    }
+
     Rectangle {   // ordinal chip, top-left
+        id: ordinalChip
         anchors { left: parent.left; top: parent.top; margins: Theme.gap(6) }
         width:  ordinalText.implicitWidth + Theme.sp(10)
         height: ordinalText.implicitHeight + Theme.sp(3)
@@ -381,6 +402,73 @@ Rectangle {
         id: clickArea
         anchors.fill: parent
         cursorShape:  Qt.PointingHandCursor
-        onClicked:    card.tapped()
+        // Ctrl/⌘-click picks the swing for a bulk action and leaves the stage alone. (Qt names
+        // ⌘ ControlModifier on macOS; MetaModifier is the Ctrl key there.)
+        onClicked: (mouse) => (mouse.modifiers & (Qt.ControlModifier | Qt.MetaModifier))
+                              ? card.markToggled() : card.tapped()
+    }
+
+    // ── Hover actions — pick / trash, beside the ordinal (above the click area) ──
+    Row {
+        id: hoverActions
+        objectName: "hoverActions"
+        anchors { left: ordinalChip.right; leftMargin: Theme.gap(4)
+                  verticalCenter: ordinalChip.verticalCenter }
+        spacing: Theme.gap(3)
+        z: 3
+        visible: card.hovered || card.marked || card.selecting
+
+        Rectangle {
+            id: markButton
+            objectName: "markButton"
+            width: Theme.sp(17); height: width; radius: width / 2
+            color: card.marked ? Theme.colorAccent
+                 : markMa.containsMouse ? Qt.rgba(0.08, 0.06, 0.04, 0.8) : card.scrimColor
+            border.width: card.marked ? 0 : 1
+            border.color: Qt.rgba(1, 1, 1, markMa.containsMouse ? 0.9 : 0.6)
+            Text {
+                anchors.centerIn: parent
+                text:           "✓"
+                font.family:    Theme.fontSymbol
+                font.pixelSize: Theme.sp(11)
+                color:          "#FFFFFF"
+                opacity:        card.marked || markMa.containsMouse ? 1.0 : 0.55
+            }
+            MouseArea {
+                id: markMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape:  Qt.PointingHandCursor
+                onClicked:    card.markToggled()
+                ToolTip.visible: containsMouse
+                ToolTip.delay:   400
+                ToolTip.text:    card.marked ? qsTr("Deselect this swing") : qsTr("Select this swing")
+            }
+        }
+
+        Rectangle {
+            id: trashButton
+            objectName: "trashButton"
+            visible: card.hovered
+            width: Theme.sp(17); height: width; radius: width / 2
+            color: trashMa.containsMouse ? Theme.colorError : card.scrimColor
+            Text {
+                anchors.centerIn: parent
+                text:           "🗑"
+                font.family:    Theme.fontSymbol
+                font.pixelSize: Math.round(Theme.sp(10) * Theme.symbolScale("🗑"))
+                color:          "#FFFFFF"
+            }
+            MouseArea {
+                id: trashMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape:  Qt.PointingHandCursor
+                onClicked:    card.trashRequested()
+                ToolTip.visible: containsMouse
+                ToolTip.delay:   400
+                ToolTip.text:    qsTr("Move this swing to the trash")
+            }
+        }
     }
 }

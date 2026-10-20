@@ -112,6 +112,11 @@ Item {
     property int  selectedShotId: -1
     property Item selectedCard:   null   // live delegate; nulled by QML when it is destroyed
 
+    // Swings PICKED on the cards for a bulk action (the tick, or Ctrl/⌘-click) — ids in the
+    // active model. Not the focused swing: picking leaves the stage alone, which is the point
+    // (#56). While any are picked a plain click picks too, and the action bar acts on them.
+    property var markedIds: []
+
     // The carousel shows the live shotModel normally, or a loaded past session's
     // private model while reviewing. Both are ShotListModel (identical roles +
     // mutation invokables), so the filter proxy, cards and panel work unchanged;
@@ -119,6 +124,8 @@ Item {
     readonly property bool reviewing: sessionReviewController.reviewActive
     readonly property var  activeModel: reviewing ? sessionReviewController.shots
                                                   : shotModel
+    // Picks are ids in ONE model; another model's ids name other swings.
+    onActiveModelChanged: root.markedIds = []
 
     // Shared popup width for the sessions drawer (~⅓ of the carousel width,
     // clamped) — wide enough that its content doesn't wrap. The floor keeps a
@@ -165,6 +172,7 @@ Item {
     // summary's validity (not the raw focused id) means a just-trashed focused
     // shot hides the bar cleanly rather than leaving a stale identity.
     readonly property bool _barShown: (_focusSummary.valid === true) || filterProxy.filterActive
+                                      || root.markedIds.length > 0
     readonly property real _barBandHeight: Theme.sp(36)
 
     // Grow for the transport band (chips overlay) AND the action-bar band — same
@@ -197,6 +205,53 @@ Item {
             root.selectedCard   = card || null
             SessionMode.enterReplay(shotId, swingDir)
         }
+    }
+
+    function _toggleMark(shotId) {
+        const m = root.markedIds.slice()
+        const at = m.indexOf(shotId)
+        if (at >= 0) m.splice(at, 1)
+        else         m.push(shotId)
+        root.markedIds = m
+    }
+
+    // THE ONE DELETE (#56) — a card's trash can, the picked swings, the focused swing or every
+    // swing shown all come here, by id, and none of them puts a swing on the stage first.
+    //
+    // ⚠ THE SWING ON THE STAGE GOES LAST TO KNOW. If it is one of them, the stage is handed to a
+    // neighbour BEFORE the move: its videos are open in the replay, Windows will not move a
+    // folder with a file open in it, and the stage must never show a swing that has gone. The
+    // model then asks main.cpp to release anything else still holding a folder (the cast
+    // screen's replay of the newest swing), and retries while the player lets go.
+    function _trash(ids) {
+        if (!ids || ids.length === 0) {
+            root._notify("🗑", qsTr("No shots to trash"), "info")
+            return
+        }
+        if (ids.indexOf(SessionMode.focusedShotId) >= 0)
+            root._refocusAway(ids)
+        root.markedIds = root.markedIds.filter(function (id) { return ids.indexOf(id) < 0 })
+        root.activeModel.trashShots(ids)
+    }
+
+    // The focused swing is leaving: focus the next older swing shown, else the next newer, else
+    // none — skipping every swing going with it. The view (Replay / Analyse) stays as it is.
+    function _refocusAway(ids) {
+        const order = filterProxy.visibleShotIds()       // as the strip shows them, newest first
+        const at = order.indexOf(SessionMode.focusedShotId)
+        let next = -1
+        for (let i = at + 1; i < order.length && next < 0; ++i)
+            if (ids.indexOf(order[i]) < 0) next = order[i]
+        for (let j = at - 1; j >= 0 && next < 0; --j)
+            if (ids.indexOf(order[j]) < 0) next = order[j]
+        root.selectedCard = null
+        if (next < 0) {
+            root.selectedShotId = -1
+            SessionMode.clearFocus()
+            return
+        }
+        root.selectedShotId = next
+        SessionMode.moveFocus(next, root.activeModel.shotSummary(next).swingDir)
     }
 
     // Every notice goes through here. The toast is shared by export, trash and re-analysis,
@@ -261,6 +316,7 @@ Item {
             visibleCount: filterProxy.visibleCount
             sourceCount:  filterProxy.sourceCount
             filterLabel:  filterProxy.filterActive ? filterProxy.filterSummary : ""
+            markedCount:  root.markedIds.length
 
             // Clicking the focused identity chip opens the swing-edit popover.
             onEditRequested: editPopup.open()
@@ -272,20 +328,10 @@ Item {
                               root.activeModel.swingDirsForIds(filterProxy.visibleShotIds()),
                               qsTr("No saved shots to export"))
 
-            onTrashShot: {
-                const ok = root.activeModel.moveToTrash(SessionMode.focusedShotId)
-                root._notify("🗑", ok ? qsTr("Shot moved to trash")
-                                     : qsTr("Could not move shot to trash"),
-                             ok ? "info" : "error")
-            }
-            onTrashShown: {
-                const ids = filterProxy.visibleShotIds()
-                const n = root.activeModel.moveAllToTrash(ids)
-                root._notify("🗑", ids.length === 0 ? qsTr("No shots to trash")
-                                 : n === ids.length ? qsTr("%1 shots moved to trash").arg(n)
-                                 : qsTr("Moved %1 of %2 shots to trash").arg(n).arg(ids.length),
-                             n === ids.length ? "info" : n === 0 ? "error" : "warn")
-            }
+            onTrashShot:   root._trash([SessionMode.focusedShotId])
+            onTrashShown:  root._trash(filterProxy.visibleShotIds())
+            onTrashMarked: root._trash(root.markedIds.slice())
+            onClearMarks:  root.markedIds = []
 
             // Re-analyse: focused shot, or every shot in the filtered set ("all
             // shown"). Resolve swing dirs from the ACTIVE model (live or the loaded
@@ -444,7 +490,13 @@ Item {
                 // the already-focused card again deselects it and resets the
                 // Replay/Analyse stage to its empty state.
                 selected: shotId === SessionMode.focusedShotId
-                onTapped:  root._toggleShot(shotId, swingDir, cardDelegate)
+                marked:    root.markedIds.indexOf(shotId) >= 0
+                selecting: root.markedIds.length > 0
+                // While swings are picked a plain click picks too — the selection is being built.
+                onTapped:  root.markedIds.length > 0 ? root._toggleMark(shotId)
+                                                     : root._toggleShot(shotId, swingDir, cardDelegate)
+                onMarkToggled:    root._toggleMark(shotId)
+                onTrashRequested: root._trash([shotId])
                 onRated: (n) => root.activeModel.setRating(shotId, n)
             }
         }
@@ -632,6 +684,33 @@ Item {
         y: -height - Theme.sp(10)
         onConfirmed: (selectedVideoFiles, includeJson) =>
             swingExporter.exportShots(exportSheet.swingDirs, selectedVideoFiles, includeJson)
+    }
+
+    // The delete's outcome, from whichever model is showing. A row leaves as its folder does;
+    // the panels forget the swing through SessionMode; the notice comes once, for the request.
+    Connections {
+        target: root.activeModel
+        function onShotTrashed(shotId, swingDir) {
+            if (root.markedIds.indexOf(shotId) >= 0)
+                root.markedIds = root.markedIds.filter(function (id) { return id !== shotId })
+            // Belt and braces: _trash hands the stage on first, but nothing focused may be gone.
+            if (shotId === SessionMode.focusedShotId) {
+                root.selectedShotId = -1
+                root.selectedCard   = null
+                SessionMode.clearFocus()
+            }
+            if (swingDir !== "")
+                SessionMode.swingTrashed(swingDir)
+        }
+        function onTrashFinished(requested, moved, reason) {
+            const all = moved === requested
+            const msg = requested === 1
+                ? (all ? qsTr("Shot moved to trash")
+                       : qsTr("Could not move shot to trash: %1").arg(reason))
+                : (all ? qsTr("%1 shots moved to trash").arg(moved)
+                       : qsTr("Moved %1 of %2 shots to trash: %3").arg(moved).arg(requested).arg(reason))
+            root._notify("🗑", msg, all ? "info" : moved === 0 ? "error" : "warn")
+        }
     }
 
     // Completion notice for the bulk export — the copy icon copies the zip path.

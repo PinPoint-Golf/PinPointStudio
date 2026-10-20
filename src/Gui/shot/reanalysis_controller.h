@@ -66,6 +66,12 @@ public:
     // only the next is deferred.
     Q_INVOKABLE void setLiveBusy(bool busy);
 
+    // Is this swing being re-analysed, or waiting its turn? The carousel's delete
+    // refuses such a swing and says why (ShotListModel::setFolderBusyCheck): the
+    // worker would write its fresh analysis into a folder that had gone.
+    bool holds(const QString &swingDir) const
+    { return swingDir == m_current || m_queue.contains(swingDir); }
+
 signals:
     void reanalysingChanged();
     // Emitted once per accepted reanalyse() with the number of swings queued — the
