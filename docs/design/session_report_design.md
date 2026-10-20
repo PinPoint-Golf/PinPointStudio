@@ -11,8 +11,8 @@ so it has to be good enough for a professional to put their name to.
 | | |
 |---|---|
 | **This document** | What the report says, in what order and why; where every word and number comes from; the rules that keep it honest; how it is generated; the build plan. |
-| **The mock** | `build/run-me/session-report/session-report-mock.pdf`: 10 pages of A4 from a real session (Nick Henn, 20 October, session 3, 10 swings with a 7 iron, two cameras, GC Quad). It is printed through the app's own PDF path (`PpPdfPrinter` → `PdfDocumentWriter`) at 300 dpi. To reproduce it: `build/run-me/session-report/render-mock.sh`. |
-| **The mock's data contract** | `build/run-me/session-report/kit/mock/assemble.py` produces `report.json`, the single map the report binds to. It is a prototype of the C++ `SessionReportModel` (§11). Every sentence in the mock comes from a template over model and pack fields, except the coach's note, which the coach types. Content that the pack does not hold yet is marked **PROPOSED** in `assemble.py` (§5). |
+| **The mock** | Rendered to `/mnt/swingdata/scratch/session-report/out/<name>/` by `tools/session-report-mock/render-session.sh` (README there); first made as `build/run-me/session-report/session-report-mock.pdf`: 10 pages of A4 from a real session (Nick Henn, 20 October, session 3, 10 swings with a 7 iron, two cameras, GC Quad). It is printed through the app's own PDF path (`PpPdfPrinter` → `PdfDocumentWriter`) at 300 dpi. To reproduce it: `build/run-me/session-report/render-mock.sh`. |
+| **The mock's data contract** | `tools/session-report-mock/assemble.py` produces `report.json`, the single map the report binds to. It is a prototype of the C++ `SessionReportModel` (§11). Every sentence in the mock comes from a template over model and pack fields, except the coach's note, which the coach types. Content that the pack does not hold yet is marked **PROPOSED** in `assemble.py` (§5). |
 
 **Done means:** Mark has judged the mock. The decisions in §14 have answers. The build (§13) then
 runs phase by phase, each phase judged in the app before it is committed.
@@ -656,7 +656,7 @@ text is clipped, or any page is less than a quarter full, except a section's las
 | A junior without photo approval (no stills anywhere) | fixture |
 | The longest studio name, golfer name and coach's note allowed | fixture |
 
-The overflow check already used on the mock (`build/run-me/session-report/kit/overflow_check.py`)
+The overflow check already used on the mock (`tools/session-report-mock/overflow_check.py`)
 becomes the probe's first test. The visual review for Mark uses annotated sheets of the stress
 cases, not just the happy one ([feedback_annotated_review_sheets]).
 
@@ -667,9 +667,9 @@ The mock's assembler was generalised so that nothing in it names Nick, and run o
 going back, stance too wide, reverse spine at the top, and sequence not repeatable. Reproduce
 with:
 
-`build/run-me/session-report/render-session.sh jess /mnt/swingdata/Jess-Ratcliffe/2026-10-20_Jess-Ratcliffe_Wrist_03 kit/probe/jess03.json`
+`tools/session-report-mock/render-session.sh jess /mnt/swingdata/Jess-Ratcliffe/2026-10-20_Jess-Ratcliffe_Wrist_03 /mnt/swingdata/scratch/session-report/dumps/jess03.json`
 
-Output: `build/run-me/session-report/jess/session-report-jess.pdf`. Nick's report was re-rendered
+Output: `/mnt/swingdata/scratch/session-report/out/jess/session-report-jess.pdf`. Nick's report was re-rendered
 from the same code as the regression check (`nick/`). Both now pass the folio check on every
 page. What the test found:
 
@@ -794,8 +794,17 @@ app's own fonts, roles and PDF writer. It is not the build:
 ## 13. Build plan (when the mock is approved)
 
 Each phase is judged in the app before it is committed ([feedback_results_before_commit]), with
-at most 2 to 3 builds per phase.
+at most 2 to 3 builds per phase. One phase per agent run.
 
+**The tooling to start from** is in `tools/session-report-mock/` (README there). `assemble.py` is the
+prototype of `SessionReportModel`; `render-session.sh` renders any session and runs the overflow
+check; `dump-session.sh` dumps the diagnostics model for a session. The dumps for Nick's and Jess's
+sessions are in `/mnt/swingdata/scratch/session-report/dumps/`.
+
+0. **Before building: the open decisions in §14**, chiefly the ordering rule (§4.3, and Jess's
+   case in §9.3), the technical appendix, who writes the content, and the club path question.
+   Also check whether chicken wing measured after impact from face-on can be trusted (§9.3, item
+   2), because a suspect reading must not headline a client report.
 1. **Content.** Add the pack fields, grow thin cause lists (§3.3), then author goal, cue, check, picture and golfer text for
    every listable condition, and drills to cover them. Add the `core_pack_test` gate. Mark reviews
    the wording as a table before it lands.
@@ -803,8 +812,9 @@ at most 2 to 3 builds per phase.
    with tests.
 3. **Model.** `SessionReportModel` builds the map for any session folder. A probe dumps it for
    the library; its output is diffed against the mock's `report.json` for Nick's session.
-4. **Stills.** Frame source, overlays, crop. Judged on Nick, Jess and Mark sessions, with
-   annotated sheets ([feedback_annotated_review_sheets]).
+4. **Stills.** Frame source, overlays, crop to the golfer (pose `cropRect`; no bystanders), and
+   exposure lifted on the golfer's crop (Jess's face-on frames are very dark, §9.3). Judged on
+   Nick, Jess and Mark sessions, with annotated sheets ([feedback_annotated_review_sheets]).
 5. **Register.** `PpSessionReport` on `PpPager` under the §9 layout contract, every variant in §3.1,
    plus `tst_session_report` printing the whole §9.2 stress set. Mark judges annotated sheets of
    the stress cases, not only Nick's.
@@ -817,6 +827,10 @@ at most 2 to 3 builds per phase.
 8. **Sending:** the hand-off on macOS first, then on Windows (Outlook and the Windows Mail app)
    on the cabin PC; the send log; the "remade since sent" warning.
 9. **Windows build** on the cabin PC before anything is pushed.
+
+Alongside, not blocking: **issue #58** (the "Sequence not repeatable" card counts the half of its
+test that was not assessed). The report's session-level page reads the model's consistency fields
+directly, so it does not depend on the fix, but the panel does.
 
 ## 14. Decisions for Mark
 
