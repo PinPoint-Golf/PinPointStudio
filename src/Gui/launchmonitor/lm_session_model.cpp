@@ -26,6 +26,7 @@
 #include "../../LaunchMonitor/lm_inferred_reads.h"
 #include "../../LaunchMonitor/lm_session_reductions.h"
 #include "../../Analysis/swing_analysis.h"
+#include "../../Export/swing_doc.h"            // readLaunchMonitorDetail — a cheap-loaded row's readings
 #include "../trust/trust_readings.h"
 
 #include "../../Diagnostics/norms/context_tree.h"
@@ -36,6 +37,7 @@
 #include <QPointF>
 #include <QRegularExpression>
 #include <QStringList>
+#include <QTimer>
 #include <QVariantMap>
 
 #include <algorithm>
@@ -621,6 +623,7 @@ void LmSessionModel::setShotModel(ShotListModel *m)
     if (m_shots)
         m_shots->disconnect(this);
     m_shots = m;
+    m_diskDetail.clear();
     connectShotModel();
     emit shotModelChanged();
     rebuild();
@@ -633,11 +636,21 @@ void LmSessionModel::connectShotModel()
     // Everything that can change what the board says, and nothing that cannot. A club
     // edit writes through as dataChanged on the row, a reading arriving does the same
     // via refreshShot, and loadSessionDir is a model reset.
-    connect(m_shots, &QAbstractItemModel::rowsInserted,   this, &LmSessionModel::rebuild);
-    connect(m_shots, &QAbstractItemModel::rowsRemoved,    this, &LmSessionModel::rebuild);
-    connect(m_shots, &QAbstractItemModel::modelReset,     this, &LmSessionModel::rebuild);
+    connect(m_shots, &QAbstractItemModel::rowsInserted,   this, &LmSessionModel::scheduleRebuild);
+    connect(m_shots, &QAbstractItemModel::rowsRemoved,    this, &LmSessionModel::scheduleRebuild);
+    connect(m_shots, &QAbstractItemModel::modelReset, this, [this]() {
+        m_diskDetail.clear();                     // a reload is a fresh read of the disk
+        scheduleRebuild();
+    });
     connect(m_shots, &QAbstractItemModel::dataChanged, this,
-            [this](const QModelIndex &, const QModelIndex &, const QVector<int> &roles) {
+            [this](const QModelIndex &topLeft, const QModelIndex &bottomRight, const QVector<int> &roles) {
+                // A reading folded in (refreshShot) or a re-analysis: the cached slice is stale.
+                if (roles.isEmpty()
+                    || roles.contains(int(ShotListModel::AnalysisDetailRole))
+                    || roles.contains(int(ShotListModel::LmDeviceKindRole)))
+                    for (int r = topLeft.row(); r <= bottomRight.row(); ++r)
+                        m_diskDetail.remove(m_shots->data(m_shots->index(r),
+                                                          ShotListModel::SwingDirRole).toString());
                 if (m_batching)
                     return;                       // undoMismatch() rebuilds once at the end
                 if (roles.isEmpty()
@@ -650,6 +663,18 @@ void LmSessionModel::connectShotModel()
                     rebuild();
             });
     connect(m_shots, &QObject::destroyed, this, [this]() { rebuild(); });
+}
+
+void LmSessionModel::scheduleRebuild()
+{
+    if (m_rebuildPending)
+        return;
+    m_rebuildPending = true;
+    // `this` as the context: a board destroyed before the queue drains drops the call.
+    QTimer::singleShot(0, this, [this]() {
+        m_rebuildPending = false;
+        rebuild();
+    });
 }
 
 void LmSessionModel::setFocusedShotId(int id)
@@ -818,9 +843,22 @@ void LmSessionModel::rebuild()
     // averaged as a drive because Driver was left selected on the device.
     std::vector<LmShotRow> rows;
     rows.reserve(size_t(nrows));
+    QHash<QString, QVariantMap> diskDetail;       // becomes m_diskDetail: the rows used, no more
     for (int r = 0; r < nrows; ++r) {
         const QModelIndex ix = m_shots->index(r);
-        const QVariantMap detail = m_shots->data(ix, ShotListModel::AnalysisDetailRole).toMap();
+        QVariantMap detail = m_shots->data(ix, ShotListModel::AnalysisDetailRole).toMap();
+        // A cheap-loaded row (loadSessionDir) has no detail. Only one a device measured is read:
+        // a shot with no monitor has no readings to find, and the reload must stay cheap for it.
+        if (detail.isEmpty()) {
+            const QString dir = m_shots->data(ix, ShotListModel::SwingDirRole).toString();
+            if (!dir.isEmpty()
+                && !m_shots->data(ix, ShotListModel::LmDeviceKindRole).toString().isEmpty()) {
+                const auto hit = m_diskDetail.constFind(dir);
+                detail = hit != m_diskDetail.constEnd()
+                             ? *hit : pinpoint::SwingDocReader::readLaunchMonitorDetail(dir);
+                diskDetail.insert(dir, detail);
+            }
+        }
         LmShotRow row;
         row.row          = r;
         row.id           = m_shots->data(ix, ShotListModel::ShotIdRole).toInt();
@@ -839,6 +877,7 @@ void LmSessionModel::rebuild()
             m_anyReadings = true;
         rows.push_back(std::move(row));
     }
+    m_diskDetail = std::move(diskDetail);
     resolveClubs(rows);
 
     // The focused row, and the club that scopes everything — its EFFECTIVE club. Rows are

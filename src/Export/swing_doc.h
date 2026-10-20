@@ -432,6 +432,14 @@ class SwingDocReader {
 public:
     static PersistedShot readSwingJson(const QString &swingDir);
 
+    // The launch monitor's slice of readSwingJson()'s analysisDetail, in the same shape: `series`
+    // holding only the `lm.` entries and our own `lowPointAhead`, and `gates`/`gatesVersion` when the
+    // document has them. For a row ShotListModel::loadSessionDir() seeded from the summary, which
+    // carries no analysisDetail at all — the summary's readings are display strings ("9401rpm"),
+    // and the board needs the doubles. Read through SwingStore::loadAnalysis(), so it costs the root
+    // chunk and the metrics, never a per-frame track (6–9 ms a swing). Empty on no document.
+    static QVariantMap readLaunchMonitorDetail(const QString &swingDir);
+
     // The `origin` of one `streams[]` element, by alias. Empty when the swing has
     // no such stream, or when that stream carries no origin — which is every
     // stream from a directly attached camera, and correctly so: a USB camera's

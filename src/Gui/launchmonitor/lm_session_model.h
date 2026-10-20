@@ -72,6 +72,13 @@ using LmShotValues = QHash<QString, double>;
 // path for a live shot (updateLaunchMonitor → refreshShot) and a reloaded one
 // (readSwingJson), so there is one source here and not two.
 //
+// EXCEPT THAT A CHEAP-LOADED ROW HAS NO analysisDetail. ShotListModel::loadSessionDir — End
+// Session, app start, an athlete change, entering the Wrist screen — seeds rows from the
+// summary and leaves it empty, and the board then said "no readings" over a session full of
+// them (#52). Such a row, if a device measured it, is read from its document with
+// SwingDocReader::readLaunchMonitorDetail: the same entries in the same shape, so it is still
+// one source, reached by a cheaper read. Cached per swing folder — see m_diskDetail.
+//
 // AND THE ONE JUDGEMENT IT DOES MAKE: whether the focused shot's reading sits outside its
 // corridor. Every tile and every annotation carries a `grade` — "ideal" | "good" | "watch"
 // | "action", or empty — resolved through the norm set at the scope's own club context.
@@ -230,6 +237,12 @@ private:
     // will ever find, so there are no running sums to keep correct across an edit —
     // a club change or a re-read simply rebuilds.
     void rebuild();
+    // ONE rebuild on the next turn of the event loop, however many times it is asked for before
+    // then. For rows arriving and leaving: a reload (loadSessionDir) is a reset and then one insert
+    // per row, and the arithmetic is cheap but the panel's redraw is not — ~80 ms a rebuild in a
+    // debug build once the rows carry readings, so a 19-shot session took a second to reload at
+    // End Session (#52). An edit to a row still rebuilds at once.
+    void scheduleRebuild();
     void connectShotModel();
     // The graphics-mode projection of the SAME statistics rebuild() banded for the
     // tiles. Takes them as an argument rather than recomputing, which is what keeps the
@@ -262,9 +275,16 @@ private:
     };
 
     QPointer<ShotListModel> m_shots;
+    // The launch monitor slice of each cheap-loaded row (readLaunchMonitorDetail), keyed by swing
+    // folder. A reload inserts its rows one at a time and every insert rebuilds, so without this a
+    // session's documents would be read once per row. Holds exactly the rows the last rebuild used,
+    // so a row that left takes its entry with it; emptied on a reset (a reload re-reads the disk)
+    // and per row when its readings change underneath it.
+    QHash<QString, QVariantMap> m_diskDetail;
     // Set while undoMismatch() writes several shots: each write emits dataChanged, and one
     // rebuild at the end is the same answer as eight in a row.
     bool                    m_batching = false;
+    bool                    m_rebuildPending = false;   // scheduleRebuild() has one queued
     int                     m_focusedShotId = -1;
     bool                    m_connected = false;
     bool                    m_reviewing = false;

@@ -1848,6 +1848,32 @@ bool SwingDocWriter::writeDeviceOnlySwing(const QString &swingDir,
 
 // ── reader ──────────────────────────────────────────────────────────────────
 
+QVariantMap SwingDocReader::readLaunchMonitorDetail(const QString &swingDir)
+{
+    const QJsonObject an = SwingStore::loadAnalysis(swingDir)
+                               .value(QStringLiteral("analysis")).toObject();
+    if (an.isEmpty())
+        return {};
+    // The entries verbatim, as readSwingJson() converts them, so the board reads one shape
+    // whichever read filled the row. Converting only these is the saving: the other metric
+    // curves are most of the analysis and the board never looks at them.
+    QVariantList series;
+    for (const QJsonValue &v : an[QStringLiteral("metrics")].toArray()) {
+        const QJsonObject m = v.toObject();
+        const QString key = m.value(QStringLiteral("key")).toString();
+        if (key.startsWith(QLatin1String("lm.")) || key == QLatin1String("lowPointAhead"))
+            series.append(m.toVariantMap());
+    }
+    QVariantMap detail{ { QStringLiteral("series"), series } };
+    // All of them, not just the `lm.` ones: they are a few records, and trust::gateFor decides
+    // which apply to a reading exactly as it does for a fully read row.
+    if (an.contains(QStringLiteral("gatesVersion"))) {
+        detail.insert(QStringLiteral("gatesVersion"), an[QStringLiteral("gatesVersion")].toInt());
+        detail.insert(QStringLiteral("gates"), an[QStringLiteral("gates")].toArray().toVariantList());
+    }
+    return detail;
+}
+
 PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
 {
     PersistedShot ps;

@@ -35,6 +35,8 @@
 #include "swing_paths.h"
 #include "temp_library.h"
 #include "swing_store.h"
+#include "Analysis/swing_analysis.h"
+#include "launch_monitor_reading.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -46,7 +48,9 @@
 #include <QTimer>
 #include <QUrl>
 
+#include <cmath>
 #include <cstdio>
+#include <utility>
 
 using namespace pinpoint;
 using namespace pinpoint::test;
@@ -487,6 +491,131 @@ static void testLmAnnotationsWriteThrough()
 }
 
 // ---------------------------------------------------------------------------
+// R — the launch monitor's readings after the cheap reload (#52)
+// ---------------------------------------------------------------------------
+//
+// loadSessionDir seeds rows from the summary and leaves analysisDetail empty, so the board
+// (LmSessionModel), which reads the raw doubles out of it, said "no readings" after End Session
+// over a session full of them. It now reads such a row's slice with readLaunchMonitorDetail().
+// The oracle is agreement with the full read: the board must see the same entries whichever
+// read filled the row.
+
+static QVariantList lmEntries(const QVariantMap &detail)
+{
+    QVariantList out;
+    for (const QVariant &v : detail.value(QStringLiteral("series")).toList())
+        if (v.toMap().value(QStringLiteral("key")).toString().startsWith(QLatin1String("lm.")))
+            out.append(v);
+    return out;
+}
+
+static double impactValue(const QVariantMap &detail, const QString &key)
+{
+    for (const QVariant &v : detail.value(QStringLiteral("series")).toList()) {
+        const QVariantMap m = v.toMap();
+        if (m.value(QStringLiteral("key")).toString() != key)
+            continue;
+        for (const QVariant &p : m.value(QStringLiteral("phaseSamples")).toList())
+            if (p.toMap().value(QStringLiteral("phase")).toInt() == int(analysis::Phase::Impact))
+                return p.toMap().value(QStringLiteral("value")).toDouble();
+    }
+    return std::nan("");
+}
+
+static void testLmReadingsAfterCheapReload()
+{
+    std::printf("\nR — a cheap-loaded row still has its launch monitor readings (#52)\n");
+
+    TempLibrary lib;
+    if (!lib.valid()) { check(QStringLiteral("R skipped — no temp dir"), false); return; }
+    const QString session = lib.makeSession(QStringLiteral("Mark-Liversedge"),
+                                            QStringLiteral("2026-10-20_session_01"));
+
+    // Two analysed swings, as the capture pipeline writes them: our own clubhead speed and optical
+    // low point on both. The second then has a monitor's reading folded in late, the 20 Oct way.
+    auto writeAnalysed = [](const QString &dir, int index) {
+        QDir().mkpath(dir);
+        QJsonObject root;
+        root[QStringLiteral("swing")] = QJsonObject{ { QStringLiteral("index"), index } };
+        root[QStringLiteral("clock")] = QJsonObject{
+            { QStringLiteral("t0_us"), 0 }, { QStringLiteral("unit"), QStringLiteral("us") },
+            { QStringLiteral("wallclock"), QDateTime::currentDateTime().toString(Qt::ISODateWithMs) } };
+        root[QStringLiteral("capture")] = QJsonObject{ { QStringLiteral("impactUs"), 1234567 } };
+        analysis::SwingAnalysis an;
+        an.tier = int(analysis::ReconstructionTier::Angles2D);
+        an.gatesVersion = 1;    // analysed after gate records existed, so the monitor's can land
+        for (const auto &[key, v] : { std::pair{ QStringLiteral("clubheadSpeed"), 84.0 },
+                                      std::pair{ QStringLiteral("lowPointAhead"), 2.5 } }) {
+            analysis::MetricSeries s;
+            s.key = key;
+            s.phaseSamples.push_back({ analysis::Phase::Impact, 1234567, v, QString() });
+            an.series.push_back(s);
+        }
+        QString err;
+        return SwingDocWriter::writeSwingJson(dir, root, &an, &err, QStringLiteral("7 IRON"));
+    };
+    const QString plain = session + QStringLiteral("/swing_0001");
+    const QString withLm = session + QStringLiteral("/swing_0002");
+    check(QStringLiteral("R0 two analysed swings written"),
+          writeAnalysed(plain, 1) && writeAnalysed(withLm, 2));
+
+    lm::LaunchMonitorReading reading;
+    reading.deviceKind    = QStringLiteral("gcquad");
+    reading.deviceShotId  = QStringLiteral("283");
+    reading.ballSpeed     = 79.4;
+    reading.spinRate      = 9401.0;
+    reading.attackAngle   = -5.0;
+    reading.clubheadSpeed = 61.2;
+    // A field the import dropped, so the slice has a gate record to carry (the tile's words for "-").
+    lm::DroppedField face;
+    face.key  = QStringLiteral("lm.faceAngle");
+    face.code = QStringLiteral("noData");
+    reading.dropped.push_back(face);
+    QString lerr;
+    check(QStringLiteral("R1 the reading folds into the second swing"),
+          SwingDocWriter::updateLaunchMonitor(withLm, reading, &lerr));
+
+    // The precondition the bug lived in: the cheap reload knows a device measured the shot, and
+    // holds none of what it measured.
+    ShotListModel m;
+    m.loadSessionDir(session);
+    checkInt(QStringLiteral("R2 both swings reloaded"), m.rowCount(), 2);
+    const QModelIndex lmRow = m.index(0), plainRow = m.index(1);   // newest first
+    checkStr(QStringLiteral("R3 the cheap row knows its device"),
+             m.data(lmRow, ShotListModel::LmDeviceKindRole).toString(), QStringLiteral("gcquad"));
+    check(QStringLiteral("R4 …and carries no analysisDetail (the summary read)"),
+          m.data(lmRow, ShotListModel::AnalysisDetailRole).toMap().isEmpty());
+    checkStr(QStringLiteral("R5 the shot no device measured has no device"),
+             m.data(plainRow, ShotListModel::LmDeviceKindRole).toString(), QString());
+
+    // The slice against the full read the sessions drawer does.
+    const QVariantMap slice = SwingDocReader::readLaunchMonitorDetail(withLm);
+    const pinpoint::PersistedShot full = SwingDocReader::readSwingJson(withLm);
+    const QVariantList sliceLm = lmEntries(slice), fullLm = lmEntries(full.analysisDetail);
+    check(QStringLiteral("R6 the slice holds lm. entries (%1)").arg(sliceLm.size()), !sliceLm.isEmpty());
+    check(QStringLiteral("R7 …exactly the full read's, entry for entry"), sliceLm == fullLm);
+    check(QStringLiteral("R8 ball speed at Impact is the raw double (got %1)")
+              .arg(impactValue(slice, QStringLiteral("lm.ballSpeed"))),
+          impactValue(slice, QStringLiteral("lm.ballSpeed")) == 79.4);
+    check(QStringLiteral("R9 our optical low point rides with it, as the full read has it"),
+          impactValue(slice, QStringLiteral("lowPointAhead")) == 2.5
+              && impactValue(full.analysisDetail, QStringLiteral("lowPointAhead")) == 2.5);
+    check(QStringLiteral("R10 our own bare curves are not converted"),
+          std::isnan(impactValue(slice, QStringLiteral("clubheadSpeed")))
+              && impactValue(full.analysisDetail, QStringLiteral("clubheadSpeed")) == 84.0);
+    check(QStringLiteral("R11 the gate records match the full read's (%1)")
+              .arg(slice.value(QStringLiteral("gates")).toList().size()),
+          !slice.value(QStringLiteral("gates")).toList().isEmpty()
+              && slice.value(QStringLiteral("gates")) == full.analysisDetail.value(QStringLiteral("gates"))
+              && slice.value(QStringLiteral("gatesVersion")) == full.analysisDetail.value(QStringLiteral("gatesVersion")));
+
+    check(QStringLiteral("R12 a swing no device measured has no lm. entries"),
+          lmEntries(SwingDocReader::readLaunchMonitorDetail(plain)).isEmpty());
+    check(QStringLiteral("R13 no document: empty"),
+          SwingDocReader::readLaunchMonitorDetail(session + QStringLiteral("/swing_0099")).isEmpty());
+}
+
+// ---------------------------------------------------------------------------
 // P — previousAnalysisDetail: the "compare to previous" ghost
 // ---------------------------------------------------------------------------
 
@@ -760,6 +889,7 @@ int main(int argc, char **argv)
     testLoadSessionDir();
     testReviewWriteThrough();
     testLmAnnotationsWriteThrough();
+    testLmReadingsAfterCheapReload();
     testPreviousAnalysisDetail();
     testAttachSwingDir();
     testActiveCountSignal();
