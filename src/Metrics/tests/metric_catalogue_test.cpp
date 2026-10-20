@@ -576,6 +576,24 @@ int main()
                   "…and fires on a two-camera shot");
             check(cat.resolve(QStringLiteral("leadArmAngularSpeed"), wristShot({}, true)).routeId == QStringLiteral("faceOn"),
                   "…and not on a face-on-only shot");
+            // The club's two-camera rung (#21): segment_rates.cpp emits `faceOn+dtl` whenever the
+            // fusion offers a downswing plane, so it is live — and Estimated, as the analysis marks
+            // it. It sat here as a planned Direct rung, which hid it from the setup forecast.
+            ShotContext clubPair = wristShot({}, /*faceOn*/ true, /*club*/ true);
+            clubPair.hasDtl = true;
+            for (const char *k : { "clubAngularSpeed", "clubPeakTime", "clubPeakSpeed" }) {
+                const QString key = QString::fromLatin1(k);
+                const MetricRoute *club = nullptr;
+                for (const MetricRoute &r : cat.descriptor(key)->routes)
+                    if (r.id == QStringLiteral("faceOn+dtl")) club = &r;
+                check(club && !club->planned && club->quality == RouteQuality::Estimated,
+                      qPrintable(key + QStringLiteral("'s faceOn+dtl rung is live and Estimated")));
+                const MetricAvailability ca = cat.resolve(key, clubPair);
+                check(ca.routeId == QStringLiteral("faceOn+dtl") && ca.state == MetricAvailability::Bridged,
+                      "…and fires, Bridged, on a two-camera shot with a club track");
+                check(cat.resolve(key, wristShot({}, true, true)).routeId == QStringLiteral("faceOnClub"),
+                      "…and not on a face-on-only shot");
+            }
         }
 
         // And the reason a golfer sees for one names the camera, not the tier.

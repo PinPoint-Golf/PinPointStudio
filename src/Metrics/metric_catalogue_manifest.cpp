@@ -2075,7 +2075,8 @@ void installMetricManifest(MetricCatalogue &cat)
             "of the kinematic sequence and the one the ball feels: a club still accelerating at "
             "impact has taken the whole chain's speed, and one that peaked early gave some of it "
             "back. From the face-on club track it is the shaft's image angle de-projected through "
-            "the plane ellipse; a club sensor measures it directly."),
+            "the swing plane — the plane the two cameras measured where there are two, else the "
+            "one the face-on track implies; a club sensor measures it directly."),
         .howToRead = QStringLiteral(
             "Professionals peak around 2250 °/s AT impact, more than double the arm — the biggest "
             "gain in the chain. A peak tens of milliseconds early is the club racing the arm, which "
@@ -2087,9 +2088,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("clubSensorFused", RM::Fused, Direct, { .imuRoles = { R::Club }, .clubTrack = true },
                 QStringLiteral("the club sensor's gyro across the shaft, on the track's timeline")),
-            via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true,
-                                                         .clubTrack = true },
-                QStringLiteral("the triangulated shaft vector's angular speed"), PLANNED),
+            // LIVE since 2026-09-21 (segment_rates.cpp, kinematic_sequence_design.md §14): the
+            // face-on shaft angle de-projected through the downswing plane the two-camera shaft
+            // fusion MEASURED, where it offered one. ESTIMATED: the rate is still the face-on
+            // angle's, and the plane rests on an uncalibrated second camera. Was stated as a
+            // planned Direct rate off the 3-D shaft vector, which nothing computes (#21).
+            via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true,
+                                                            .clubTrack = true },
+                QStringLiteral("the tracker's shaft angle rate de-projected through the swing "
+                               "plane the two cameras measured (uncalibrated)")),
             via("faceOnClub", RM::Projected, Estimated, { .faceOnCamera = true, .clubTrack = true },
                 QStringLiteral("the tracker's shaft angle rate de-projected through the "
                                "swing-plane ellipse")) },
@@ -2215,9 +2222,9 @@ void installMetricManifest(MetricCatalogue &cat)
         return {
             via("clubSensorFused", RM::Fused, Direct, { .imuRoles = { R::Club }, .clubTrack = true },
                 w + QStringLiteral(" the club sensor's gyro across the shaft")),
-            via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true,
-                                                         .clubTrack = true },
-                w + QStringLiteral(" the triangulated shaft vector's angular speed"), PLANNED),
+            via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true,
+                                                            .clubTrack = true },
+                w + QStringLiteral(" the tracker's shaft angle rate through the two-camera swing plane (uncalibrated)")),
             via("faceOnClub", RM::Projected, Estimated, { .faceOnCamera = true, .clubTrack = true },
                 w + QStringLiteral(" the tracker's de-projected shaft angle rate")) };
     };
