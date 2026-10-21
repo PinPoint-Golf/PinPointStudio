@@ -30,6 +30,14 @@
 //
 // Any change here moves studioProfile.stamp, which puts already-made reports out of date (§8.2) —
 // except the email subject and message, which are not in the PDF.
+//
+// SENDING REPORTS (§8.3, "Changed (Mark, 21 October)") is the one section that is not the profile: it edits
+// the coach's own mail account on THIS computer through ReportMailer (context property `reportMailer`) —
+// provider (presets fill the server), login, and the password, which goes to the system's secure store
+// (Keychain, Windows Credential Manager) and is never shown again, only "Saved in …". Until it is set up,
+// a session row's Email hands the PDF to the mail program as before; once it is, Email sends it itself.
+// Changing the login or the server forgets the saved password (the C++ does it), and the password row
+// follows `hasPassword`, so it asks again.
 
 import QtQuick
 import QtQuick.Layouts
@@ -40,6 +48,9 @@ Item {
     id: root
 
     readonly property bool hasProfile: typeof studioProfile !== "undefined" && studioProfile !== null
+    readonly property bool hasMailer:  typeof reportMailer !== "undefined" && reportMailer !== null
+    // Sending reports is set up: a session row's Email sends the report itself.
+    readonly property bool sendReady:  root.hasMailer && reportMailer.sendConfigured
 
     // ── Search-scroll contract (ScreenSettings → SettingsIndex) ───────────────
 
@@ -59,6 +70,8 @@ Item {
         if (!itemId) return true
         var target = findChild(contentCol, itemId)
         if (!target) return false
+        // The login, password and test rows show only once a provider is chosen: land on the provider.
+        if (!target.visible) target = findChild(contentCol, "setting_sendProvider") || target
         var mapped = target.mapToItem(contentCol, 0, 0)
         scrollView.contentItem.contentY = Math.max(0, Math.min(
             mapped.y - Theme.sp(24),
@@ -111,7 +124,69 @@ Item {
         }
     }
 
+    // ── Sending reports: the words and the test ──────────────────────────────
+    readonly property var providerKeys:   ["gmail", "icloud", "microsoft", "other"]
+    readonly property var providerLabels: [qsTr("Gmail"), qsTr("iCloud"), qsTr("Microsoft 365"), qsTr("Other")]
+    readonly property string provider: root.hasMailer ? reportMailer.provider : ""
+    readonly property var securityKeys:   ["starttls", "tls", "none"]
+    readonly property var securityLabels: [qsTr("STARTTLS"), qsTr("SSL/TLS"), qsTr("None")]
+    // Where the password is kept, in the words the coach knows it by.
+    readonly property string passwordStore: Qt.platform.os === "osx"     ? qsTr("Keychain")
+                                          : Qt.platform.os === "windows" ? qsTr("Windows Credential Manager")
+                                          :                                qsTr("the app's settings file")
+    // The address the test goes to (and reports come from): the login when it is one, else the coach's.
+    readonly property string sendFrom: !root.hasMailer ? ""
+                                     : reportMailer.username.indexOf("@") >= 0 ? reportMailer.username
+                                     : (root.hasProfile ? studioProfile.coachEmail : "")
+
+    // The test email: "" | "running" | "ok" | "failed", its time and its words. Any change to the set-up
+    // makes an old result meaningless, so it goes.
+    property string testState: ""
+    property real   testAtMs:  0
+    property string testError: ""
+    function sendTestNow() {
+        if (!root.hasMailer) return
+        const fromName = root.hasProfile ? (studioProfile.coachName || studioProfile.studioName || "") : ""
+        const relayFrom = reportMailer.username.indexOf("@") >= 0 ? "" : (root.hasProfile ? studioProfile.coachEmail : "")
+        const res = reportMailer.sendTest(fromName, relayFrom)
+        if (!res || !res.ok) { root.testState = "failed"; root.testError = (res && res.error) || qsTr("The test could not be sent."); return }
+        root.testState = "running"
+        root.testError = ""
+    }
+    Connections {
+        target: root.hasMailer ? reportMailer : null
+        function onTestFinished(ok, error, atMs) {
+            if (root.testState !== "running") return
+            root.testState = ok ? "ok" : "failed"
+            root.testError = error
+            root.testAtMs  = atMs
+        }
+        // A changed set-up makes the last test's result, and a password refusal about the old login, stale.
+        function onSendingSettingsChanged() {
+            if (root.testState !== "running") root.testState = ""
+            passwordRow.error = ""
+        }
+    }
+
     // ── row furniture, as ArchivingPanel draws it ─────────────────────────────
+
+    component TogglePill: Rectangle {
+        id: pill
+        property bool checked: false
+        signal toggled(bool value)
+        width:  Theme.sp(34)
+        height: Theme.sp(18)
+        radius: Theme.sp(9)
+        color:  pill.checked ? Theme.colorAccent : Theme.colorBg3
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+        Rectangle {
+            width: Theme.sp(12); height: Theme.sp(12); radius: Theme.sp(6); color: "white"
+            anchors.verticalCenter: parent.verticalCenter
+            x: pill.checked ? parent.width - width - Theme.sp(3) : Theme.sp(3)
+            Behavior on x { NumberAnimation { duration: 120 } }
+        }
+        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: pill.toggled(!pill.checked) }
+    }
 
     component SectionHead: Text {
         font.family:         Theme.fontBody
@@ -578,7 +653,9 @@ Item {
                     Layout.fillWidth: true
                     RowTitle {
                         title: qsTr("Message")
-                        subtitle: qsTr("The coach's note is in the PDF, so it is not repeated here. Your mail program opens the message for you to read before it is sent.")
+                        subtitle: root.sendReady
+                                  ? qsTr("The coach's note is in the PDF, so it is not repeated here. Reports are sent from the app, so the message goes exactly as written here, with no chance to read it first.")
+                                  : qsTr("The coach's note is in the PDF, so it is not repeated here. Your mail program opens the message for you to read before it is sent.")
                     }
                     PpLink {
                         objectName: "studioEmailReset"
@@ -593,6 +670,258 @@ Item {
                     Layout.preferredHeight: Math.max(implicitHeight, Theme.sp(150))
                     value: root.hasProfile ? studioProfile.emailBody : ""
                     onCommit: (t) => studioProfile.emailBody = t
+                }
+            }
+
+            PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
+
+            // ── Sending reports ──────────────────────────────────────────────
+            SectionHead { objectName: "studioSendingHead"; text: Theme.caps(qsTr("Sending reports")) }
+            Text {
+                objectName: "studioSendingStatus"
+                text: root.provider === ""
+                      ? qsTr("Not set up. Email opens your mail program with the report attached, for you to send.")
+                      : root.sendReady
+                        ? (reportMailer.username !== ""
+                           ? qsTr("Reports are sent from %1 by %2.").arg(reportMailer.username).arg(reportMailer.host)
+                           : qsTr("Reports are sent by %1.").arg(reportMailer.host))
+                        : (reportMailer.security === "none" && reportMailer.username !== "")
+                          // The C++ never sends a login in the clear, so say why None with a login is not enough.
+                          ? qsTr("Not finished. A login is only sent over a secure connection: choose STARTTLS or SSL/TLS, or leave the login empty if your mail server needs none.")
+                          : qsTr("Not finished. Until the login and password are saved, Email opens your mail program with the report attached, for you to send.")
+                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; font.weight: Theme.fontBodyWeight
+                color: Theme.colorText2; wrapMode: Text.WordWrap; Layout.fillWidth: true
+            }
+
+            // The provider: a preset fills the server; Other asks for it.
+            SettingRow {
+                objectName: "setting_sendProvider"
+                spacing: Theme.gap(10)
+                RowTitle {
+                    title: qsTr("Send from")
+                    subtitle: qsTr("Your own mail account, set up once on this computer. Email on a session then sends the report itself.")
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.gap(16)
+                    PpSegmentedControl {
+                        objectName: "studioSendProviderControl"
+                        Layout.preferredWidth: Theme.sp(440)
+                        options:  root.providerLabels
+                        selected: root.providerKeys.indexOf(root.provider) >= 0
+                                  ? root.providerLabels[root.providerKeys.indexOf(root.provider)] : ""
+                        onActivated: (v) => {
+                            const k = root.providerKeys[root.providerLabels.indexOf(v)]
+                            if (k && k !== root.provider) reportMailer.setProvider(k)
+                        }
+                    }
+                    Item { Layout.fillWidth: true }
+                    PpLink {
+                        objectName: "studioSendStop"
+                        visible: root.provider !== ""
+                        text: qsTr("Stop sending from the app")
+                        color: hovered ? Theme.colorText2 : Theme.colorText3
+                        onClicked: { passwordRow.changing = false; passwordRow.error = ""; reportMailer.forgetSending() }
+                    }
+                }
+                Text {
+                    objectName: "studioSendHelp"
+                    visible: text.length > 0
+                    text: root.provider === "gmail"
+                          ? qsTr("Gmail needs an app password, not your normal password. Turn on 2-Step Verification, then make one at myaccount.google.com/\u2060apppasswords and paste it below. If that page says the setting isn't available, your account only uses security keys or Advanced Protection, and Gmail won't allow it.")
+                          : root.provider === "icloud"
+                            ? qsTr("iCloud needs an app-specific password: account.apple.com → Sign-In and Security → App-Specific Passwords. Your login is your iCloud email address.")
+                            : root.provider === "microsoft"
+                              ? qsTr("Works while your organisation allows SMTP sign-in for this mailbox. Microsoft is switching it off for many accounts from the end of 2026; if sending fails, ask whoever runs your email.")
+                              : ""
+                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; font.weight: Theme.fontBodyWeight
+                    color: Theme.colorText2; wrapMode: Text.WordWrap; Layout.fillWidth: true
+                }
+            }
+
+            // Other: the server, its port and how the connection is secured, committed together.
+            SettingRow {
+                id: serverRow
+                objectName: "studioSendServer"
+                visible: root.provider === "other"
+                spacing: Theme.gap(8)
+                function commit(security) {
+                    const host = hostField.text.trim()
+                    const port = parseInt(portField.text, 10) || 0
+                    const sec  = security || reportMailer.security
+                    if (host !== reportMailer.host || port !== reportMailer.port || sec !== reportMailer.security)
+                        reportMailer.setServer(host, port, sec)
+                    hostField.text = Qt.binding(function () { return reportMailer.host })
+                    portField.text = Qt.binding(function () { return reportMailer.port > 0 ? String(reportMailer.port) : "" })
+                }
+                RowTitle {
+                    title: qsTr("Mail server")
+                    subtitle: qsTr("The outgoing (SMTP) server, its port, and how the connection is secured. Your mail provider's help pages give all three.")
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.gap(8)
+                    PpTextField {
+                        id: hostField
+                        objectName: "studioSendHostField"
+                        Layout.fillWidth: true
+                        text: root.hasMailer ? reportMailer.host : ""
+                        placeholderText: qsTr("e.g. smtp.example.com")
+                        onEditingFinished: serverRow.commit("")
+                    }
+                    PpTextField {
+                        id: portField
+                        objectName: "studioSendPortField"
+                        Layout.preferredWidth: Theme.sp(80)
+                        text: root.hasMailer && reportMailer.port > 0 ? String(reportMailer.port) : ""
+                        placeholderText: "587"
+                        validator: IntValidator { bottom: 1; top: 65535 }
+                        onEditingFinished: serverRow.commit("")
+                    }
+                    Item { width: Theme.gap(8); height: 1 }
+                    PpChipGroup {
+                        objectName: "studioSendSecurity"
+                        options: root.securityLabels
+                        selected: root.hasMailer && root.securityKeys.indexOf(reportMailer.security) >= 0
+                                  ? root.securityLabels[root.securityKeys.indexOf(reportMailer.security)] : ""
+                        onSelectionChanged: (v) => {
+                            const sec = root.securityKeys[root.securityLabels.indexOf(v)]
+                            // The usual port goes with the usual security, unless the coach typed another.
+                            if (sec === "tls" && portField.text === "587") portField.text = "465"
+                            else if (sec === "starttls" && portField.text === "465") portField.text = "587"
+                            serverRow.commit(sec)
+                        }
+                    }
+                }
+            }
+
+            FieldRow {
+                objectName: "setting_sendLogin"
+                visible: root.provider !== ""
+                title: qsTr("Login")
+                subtitle: root.provider === "other"
+                          ? qsTr("Usually your email address. Leave the login empty only if your internet provider gives you a mail server that needs none.")
+                          : qsTr("Your email address. Reports are sent from it, and replies go to the coach's email above.")
+                placeholder: root.provider === "gmail" ? qsTr("e.g. alex.morgan@gmail.com")
+                           : root.provider === "icloud" ? qsTr("e.g. alex.morgan@icloud.com")
+                           : qsTr("e.g. alex@northfieldgolf.co.uk")
+                value: root.hasMailer ? reportMailer.username : ""
+                onCommit: (t) => { if (t.trim() !== reportMailer.username) reportMailer.setUsername(t) }
+            }
+
+            // The password goes to the system's store and is never shown again: "Saved in Keychain", or the
+            // field. A change of login or server forgets it (hasPassword goes false), so the field comes back.
+            SettingRow {
+                id: passwordRow
+                objectName: "setting_sendPassword"
+                visible: root.provider !== "" && !(root.provider === "other" && root.hasMailer && reportMailer.username === "")
+                spacing: Theme.gap(8)
+                property bool   changing: false
+                property string error: ""
+                readonly property bool saved: root.hasMailer && reportMailer.hasPassword
+                function commit() {
+                    const t = pwField.text
+                    if (t.length === 0) { if (passwordRow.saved) passwordRow.changing = false; return }
+                    const res = reportMailer.setPassword(t)
+                    pwField.text = ""
+                    if (res && res.ok) { passwordRow.error = ""; passwordRow.changing = false }
+                    else passwordRow.error = (res && res.error) || qsTr("The password could not be saved.")
+                }
+                RowTitle {
+                    title: root.provider === "gmail" ? qsTr("App password")
+                         : root.provider === "icloud" ? qsTr("App-specific password")
+                         : qsTr("Password")
+                    subtitle: qsTr("Kept in %1 on this computer, never in the settings file.").arg(root.passwordStore)
+                }
+                RowLayout {
+                    objectName: "studioPasswordSaved"
+                    visible: passwordRow.saved && !passwordRow.changing
+                    spacing: Theme.gap(12)
+                    Text {
+                        text: qsTr("Saved in %1").arg(root.passwordStore)
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody; font.weight: Theme.fontBodyWeight
+                        color: Theme.colorText2
+                    }
+                    PpLink {
+                        objectName: "studioPasswordChange"
+                        text: qsTr("Change")
+                        onClicked: { passwordRow.changing = true; passwordRow.error = ""; pwField.forceActiveFocus() }
+                    }
+                }
+                PpTextField {
+                    id: pwField
+                    objectName: "studioPasswordField"
+                    visible: !passwordRow.saved || passwordRow.changing
+                    Layout.fillWidth: true
+                    echoMode: TextInput.Password
+                    hasError: passwordRow.error !== ""
+                    placeholderText: root.provider === "gmail" ? qsTr("Paste the app password from Google")
+                                   : root.provider === "icloud" ? qsTr("Paste the app-specific password from Apple")
+                                   : qsTr("The password for this login")
+                    onEditingFinished: passwordRow.commit()
+                }
+                Text {
+                    objectName: "studioPasswordError"
+                    visible: passwordRow.error !== ""
+                    text: passwordRow.error
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorWarn
+                    wrapMode: Text.WordWrap; Layout.fillWidth: true
+                }
+            }
+
+            SettingRow {
+                objectName: "setting_sendCopy"
+                visible: root.provider !== ""
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.gap(16)
+                    RowTitle {
+                        title: qsTr("Send me a copy of every report")
+                        subtitle: qsTr("A blind copy to you, because most mail servers keep nothing in Sent when an app sends for you.")
+                    }
+                    TogglePill {
+                        objectName: "studioSendCopyToggle"
+                        Layout.alignment: Qt.AlignVCenter
+                        checked: root.hasMailer && reportMailer.copyToSelf
+                        onToggled: (v) => reportMailer.setCopyToSelf(v)
+                    }
+                }
+            }
+
+            // The test: a short message with no attachment to the address reports come from.
+            SettingRow {
+                objectName: "setting_sendTest"
+                visible: root.provider !== ""
+                spacing: Theme.gap(4)
+                RowLayout {
+                    spacing: Theme.gap(14)
+                    PpLink {
+                        objectName: "studioSendTest"
+                        readonly property bool active: root.sendReady && !reportMailer.sending
+                        text: qsTr("Send a test email")
+                        interactive: active
+                        color: active ? (hovered ? Qt.lighter(Theme.colorAccent, 1.15) : Theme.colorAccent) : Theme.colorText3
+                        onClicked: root.sendTestNow()
+                    }
+                    Text {
+                        objectName: "studioSendTestResult"
+                        visible: text.length > 0
+                        text: root.testState === "running" ? qsTr("Sending…")
+                            : root.testState === "ok" ? qsTr("Sent to %1 at %2. Check your inbox.").arg(root.sendFrom)
+                                                          .arg(Qt.formatTime(new Date(root.testAtMs), "HH:mm"))
+                            : !root.sendReady && root.hasMailer ? (reportMailer.host === "" ? qsTr("Fill in the mail server first.")
+                                                                           : qsTr("Fill in the login and password first."))
+                            : ""
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                        color: Theme.colorText3
+                    }
+                }
+                Text {
+                    objectName: "studioSendTestError"
+                    visible: root.testState === "failed" && text.length > 0
+                    text: root.testError
+                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; color: Theme.colorWarn
+                    wrapMode: Text.WordWrap; Layout.fillWidth: true
                 }
             }
             Item { Layout.preferredHeight: Theme.sp(8) }

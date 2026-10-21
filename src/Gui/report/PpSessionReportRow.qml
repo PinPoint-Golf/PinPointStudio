@@ -30,8 +30,15 @@
 //                  beside it
 //   Email to Nick  hands the PDF to the coach's mail app. Shown INACTIVE, with the reason in place as a
 //                  link to where it is fixed, when there is no PDF ("make the report first", which makes
-//                  it and then hands it off) or no address ("add Nick's email", the golfer page)
+//                  it and then hands it off) or no address ("add Nick's email", the golfer page). Once
+//                  sending is set up in Settings → Studio it opens the confirm line below instead, and
+//                  waits (inactive) while any report is being sent
 //   Copy address / Show in Finder   option C, always beside it, quiet (§8.3)
+//
+// THE CONFIRM (sending set up, §8.3): one line under the links, in place —
+//   Send to nick@example.com · 7.4 MB    Send    Cancel
+// then "Sending to Nick… 45%" while it goes. A refusal is the error line, with "Open Settings → Studio"
+// under it when the words send the coach there (a login, password or server to fix).
 //
 // THE STATE WORDS are plain text in ink3 — never a badge, never colour alone. While this session's
 // report is being made they read "Making report…" with the page count.
@@ -72,6 +79,13 @@ Item {
     // A hand-off that failed, in plain words, shown under the links until the next press.
     property string error: ""
 
+    // ── Sending it from the app (the list's) ─────────────────────────────────
+    property bool   confirming:   false     // Email pressed, sending set up: the confirm line shows
+    property string confirmTo:    ""        // every address, joined with ", "
+    property bool   sendBusy:     false     // a report is going from some row: Email waits
+    property bool   sendingHere:  false     // …and it is this one
+    property real   sendProgress: 0         // 0..1 of the upload
+
     signal openSessionRequested()
     signal openReportRequested()          // the current PDF
     signal openOldReportRequested()       // the out-of-date one, still there
@@ -80,6 +94,9 @@ Item {
     signal golferDetailsRequested()
     signal copyAddressRequested()
     signal revealRequested()
+    signal sendConfirmed()
+    signal sendCancelled()
+    signal studioSettingsRequested()
 
     readonly property bool _reportable: row.canReport && !row.isLive
     readonly property bool _hasPdf:     row.pdfPath !== "" && (row.reportState === "current" || row.reportState === "stale")
@@ -87,6 +104,8 @@ Item {
     readonly property string _revealWords: Qt.platform.os === "osx"     ? qsTr("Show in Finder")
                                          : Qt.platform.os === "windows" ? qsTr("Show in Explorer")
                                          :                                qsTr("Show folder")
+    // The refusal sends the coach to the set-up (a login, password or server): offer the way there.
+    readonly property bool _errorNeedsSettings: row.error.indexOf(qsTr("Settings → Studio")) >= 0
 
     function sizeWords(b) {
         if (!(b > 0)) return ""
@@ -241,7 +260,7 @@ Item {
             Row {
                 visible: row._reportable
                 spacing: Theme.gap(6)
-                readonly property bool active: row._hasPdf && row.email !== "" && !row.making
+                readonly property bool active: row._hasPdf && row.email !== "" && !row.making && !row.sendBusy
                 PpLink {
                     id: emailLink
                     objectName: "linkEmail"
@@ -254,7 +273,7 @@ Item {
                 }
                 PpLink {
                     objectName: "linkEmailReason"
-                    visible: !parent.active && !row.making
+                    visible: !parent.active && !row.making && !row.sendBusy
                     anchors.baseline: emailLink.baseline
                     // The address first: making a PDF that cannot then be sent is a step the coach did not ask for.
                     text: row.email === "" ? qsTr("— add %1's email").arg(row._who)
@@ -286,6 +305,50 @@ Item {
             }
         }
 
+        // ── The confirm, in place, then the send going ──────────────────────
+        Row {
+            objectName: "sessionRowConfirm"
+            visible: row.confirming && !row.sendingHere
+            spacing: Theme.gap(18)
+            Text {
+                id: confirmWords
+                objectName: "sessionRowConfirmWords"
+                width: Math.min(implicitWidth, body.width - sendLink.implicitWidth - cancelLink.implicitWidth - Theme.gap(18) * 2)
+                elide: Text.ElideMiddle
+                text: qsTr("Send to %1").arg(row.confirmTo)
+                      + (row.sizeBytes > 0 ? " · " + row.sizeWords(row.sizeBytes) : "")
+                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                font.weight: Theme.fontBodyWeight
+                color: Theme.colorText
+            }
+            PpLink {
+                id: sendLink
+                objectName: "linkSend"
+                anchors.baseline: confirmWords.baseline
+                text: qsTr("Send")
+                interactive: !row.sendBusy
+                pressMargin: Theme.sp(3)
+                onClicked: row.sendConfirmed()
+            }
+            PpLink {
+                id: cancelLink
+                objectName: "linkSendCancel"
+                anchors.baseline: confirmWords.baseline
+                text: qsTr("Cancel")
+                color: hovered ? Theme.colorText2 : Theme.colorText3
+                pressMargin: Theme.sp(3)
+                onClicked: row.sendCancelled()
+            }
+        }
+        Text {
+            objectName: "sessionRowSending"
+            visible: row.sendingHere
+            text: qsTr("Sending to %1… %2%").arg(row._who).arg(Math.round(row.sendProgress * 100))
+            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+            font.weight: Theme.fontBodyWeight
+            color: Theme.colorText2
+        }
+
         Text {
             objectName: "sessionRowError"
             visible: row.error !== ""
@@ -294,6 +357,13 @@ Item {
             wrapMode: Text.WordWrap
             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
             color: Theme.colorWarn
+        }
+        PpLink {
+            objectName: "linkErrorSettings"
+            visible: row.error !== "" && row._errorNeedsSettings
+            text: qsTr("Open Settings → Studio")
+            pressMargin: Theme.sp(3)
+            onClicked: row.studioSettingsRequested()
         }
     }
 }

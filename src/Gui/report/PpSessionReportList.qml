@@ -28,6 +28,14 @@
 //     (sessionReport.recordSend, with the method that really happened: "mail-app", or "dry-run" under
 //     PINPOINT_MAIL_DRYRUN so a probe's sends never read "Opened in Mail")
 //   · "Email" on a session with no PDF yet: the sheet makes it, and the hand-off follows on made()
+//   · SENDING IT ITSELF (§8.3, "Changed (Mark, 21 October)"), once Settings → Studio → Sending reports is
+//     set up (reportMailer.sendConfigured): Email opens a one-line confirm under that row's links ("Send to
+//     nick@… · 7.4 MB  Send  Cancel" — in place, never a popup); Send hands the same subject and message to
+//     reportMailer.send(); the row reads "Sending to Nick… 45%" while it goes, and every row's Email waits;
+//     sendFinished records the send (method "smtp", so the row then says "Sent 21 Oct 18:40") or puts the
+//     reason in the row's error line, with a link to Settings → Studio when the reason is the set-up. A
+//     session with no PDF is made first and then shows the confirm — it is never sent unasked. Until sending
+//     is set up, everything is the mail-app hand-off above, unchanged.
 // The golfer's greeting and address are read once for every row (athleteController.reportDetails) and
 // never stored here; the address goes to the mail app and nowhere else.
 //
@@ -94,6 +102,13 @@ Column {
     // The session whose Email asked for a PDF first: handed off when it is made.
     property string _emailAfterMake: ""
 
+    // Sending it from the app: set up, the session whose confirm is open, and the one this list is sending
+    // (a list sends one at a time; the other list — Home or the golfer page — leaves its result alone).
+    readonly property bool sendReady: !!(root.mailer && root.mailer.sendConfigured)
+    readonly property bool sendBusy:  !!(root.mailer && root.mailer.sending)
+    property string _confirmDir: ""
+    property string _sendingDir: ""
+
     // ── The hand-off ─────────────────────────────────────────────────────────
     function fill(template, words) {
         return String(template).replace(/\{(first|date|coach|studio)\}/g, (m, k) => words[k] !== undefined ? words[k] : m)
@@ -136,6 +151,36 @@ Column {
         if (root.reports) root.reports.recordSend(dir, res.method)
         return res
     }
+    // Email pressed: the confirm once sending is set up, else the mail-app hand-off as ever.
+    function emailPressed(dir, pdfPath, sessionMs) {
+        if (!root.sendReady) return root.sendEmail(dir, pdfPath, sessionMs)
+        root._setError(dir, "")
+        root._confirmDir = root._confirmDir === dir ? "" : dir
+        return null
+    }
+    // The confirm's Send: the same words the hand-off uses, straight to the coach's mail server.
+    function sendReport(dir, pdfPath, sessionMs) {
+        root._setError(dir, "")
+        root._confirmDir = ""
+        if (!root.mailer) { root._setError(dir, qsTr("Sending is not available in this build.")); return null }
+        const w = root.composeWords(sessionMs || 0, Date.now())
+        const replyTo  = root.studio ? (root.studio.coachEmail || "") : ""
+        const fromName = root.studio ? (root.studio.coachName || root.studio.studioName || "") : ""
+        const res = root.mailer.send(dir, root.addresses, replyTo, fromName, w.subject, w.body, pdfPath)
+        if (!res || !res.ok) { root._setError(dir, (res && res.error) || qsTr("The report could not be sent.")); return res }
+        root._sendingDir = dir
+        return res
+    }
+    Connections {
+        target: root.mailer
+        ignoreUnknownSignals: true
+        function onSendFinished(dir, ok, method, error) {
+            if (dir === "" || dir !== root._sendingDir) return
+            root._sendingDir = ""
+            if (ok) { if (root.reports) root.reports.recordSend(dir, method) }
+            else root._setError(dir, error || qsTr("The report could not be sent."))
+        }
+    }
     function openPdf(path) {
         if (path) Qt.openUrlExternally("file://" + (path.startsWith("/") ? "" : "/") + path)
     }
@@ -151,7 +196,9 @@ Column {
             if (dir !== root._emailAfterMake) return
             root._emailAfterMake = ""
             if (!ok) return
-            const r = root.model ? root.model.rowFor(dir) : ({})
+            // Set up to send: the confirm, never a send the coach did not press.
+            if (root.sendReady) { root._setError(dir, ""); root._confirmDir = dir; return }
+            const r = (root.model && typeof root.model.rowFor === "function") ? root.model.rowFor(dir) : ({})
             root.sendEmail(dir, path, (r && r.sessionMs) || 0)
         }
     }
@@ -208,12 +255,20 @@ Column {
             progressPage:  root.reports ? root.reports.progressPage : 0
             progressPages: root.reports ? root.reports.progressPages : 0
             error: root._errors[model.dir] || ""
+            confirming:   root.sendReady && root._confirmDir === model.dir && model.dir !== ""
+            confirmTo:    root.addresses.join(", ")
+            sendBusy:     root.sendBusy
+            sendingHere:  root.sendBusy && root._sendingDir === model.dir && model.dir !== ""
+            sendProgress: root.mailer ? (root.mailer.sendProgress || 0) : 0
 
             onOpenSessionRequested:   root.reviewSessionRequested(model.isLive ? "" : model.dir)
             onOpenReportRequested:    root.openPdf(model.pdfPath)
             onOpenOldReportRequested: root.openPdf(model.pdfPath)
             onMakeReportRequested: function(thenEmail) { root.openSheet(model.dir, thenEmail) }
-            onEmailRequested:         root.sendEmail(model.dir, model.pdfPath, model.sessionMs)
+            onEmailRequested:         root.emailPressed(model.dir, model.pdfPath, model.sessionMs)
+            onSendConfirmed:          root.sendReport(model.dir, model.pdfPath, model.sessionMs)
+            onSendCancelled:          root._confirmDir = ""
+            onStudioSettingsRequested: root.studioSettingsRequested()
             onGolferDetailsRequested: root.golferDetailsRequested()
             onCopyAddressRequested:   { if (root.mailer) root.mailer.copyText(root.email) }
             onRevealRequested:        { if (root.mailer) root.mailer.reveal(model.pdfPath) }

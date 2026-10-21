@@ -474,6 +474,22 @@ QtObject {
         { panelIndex: 11, panelLabel: qsTr("Studio"), groupLabel: qsTr("Email"),
           label: qsTr("Report email subject and message"), subtitle: qsTr("The email that carries the report, with {first} {date} {coach} {studio}"),
           actions: "email subject message body template mail send report",
-          itemId: "setting_studioEmailSubject" }
+          itemId: "setting_studioEmailSubject" },
+        { panelIndex: 11, panelLabel: qsTr("Studio"), groupLabel: qsTr("Sending reports"),
+          label: qsTr("Send from"),                        subtitle: qsTr("Gmail, iCloud, Microsoft 365 or your own mail server, so Email sends the report itself"),
+          actions: "smtp gmail icloud microsoft 365 outlook office server send email mail provider account report",
+          itemId: "setting_sendProvider" },
+        { panelIndex: 11, panelLabel: qsTr("Studio"), groupLabel: qsTr("Sending reports"),
+          label: qsTr("Login"),                            subtitle: qsTr("The email address reports are sent from"),
+          actions: "smtp login user name username email address account send mail",
+          itemId: "setting_sendLogin" },
+        { panelIndex: 11, panelLabel: qsTr("Studio"), groupLabel: qsTr("Sending reports"),
+          label: qsTr("Password for sending"),             subtitle: qsTr("An app password for Gmail and iCloud, kept in the system's secure store"),
+          actions: "smtp gmail app password app-specific password keychain credential send email",
+          itemId: "setting_sendPassword" },
+        { panelIndex: 11, panelLabel: qsTr("Studio"), groupLabel: qsTr("Sending reports"),
+          label: qsTr("Send a test email"),                subtitle: qsTr("Check that reports can be sent from this computer"),
+          actions: "smtp test email send check mail server copy bcc",
+          itemId: "setting_sendTest" }
     ]
 }
