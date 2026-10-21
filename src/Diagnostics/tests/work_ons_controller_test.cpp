@@ -449,9 +449,10 @@ int main(int argc, char **argv)
           "the subtitle counts every swing and session read: 'From 20 swings over 2 sessions'");
     {
         // One needs-work fault — the reverse spine angle, on every swing of both sessions (the ball
-        // position is a setup condition and the pull an outcome: neither is a fault). It has no
-        // drill, so the focus is the fault on its own: titled by its ideal, nothing to practise,
-        // and nothing left for next.
+        // position is a setup condition and the pull an outcome: neither is a fault). Since the
+        // session report's content (2026-10-20) every listable fault carries a drill — this one
+        // "Club across the chest" — so the focus is titled by that drill, aims for the fault's ideal,
+        // and names what to practise, with nothing left for next.
         const QVariantMap focus = c.focusItem();
         const QVariantList rightNow = focus.value(QStringLiteral("rightNow")).toList();
         const QVariantMap spine = rightNow.value(0).toMap();
@@ -459,11 +460,11 @@ int main(int argc, char **argv)
               && spine.value(QStringLiteral("sessions")).toList() == QVariantList{ true, true }
               && spine.value(QStringLiteral("frequency")).toString() == QStringLiteral("every swing"),
               "the fault on every swing of both sessions is the focus: 'every swing', a filled pip for each");
-        check(focus.value(QStringLiteral("practise")).toString().isEmpty()
-              && focus.value(QStringLiteral("practiseLabel")).toString().isEmpty()
-              && !focus.value(QStringLiteral("title")).toString().isEmpty()
-              && focus.value(QStringLiteral("aimFor")).toList().value(0).toString() == focus.value(QStringLiteral("title")).toString(),
-              "…a fault with no drill: titled by its ideal, which is also what to aim for, and nothing to practise");
+        check(!focus.value(QStringLiteral("practise")).toString().isEmpty()
+              && focus.value(QStringLiteral("practiseLabel")).toString() == QStringLiteral("Club across the chest")
+              && focus.value(QStringLiteral("title")).toString() == QStringLiteral("Club across the chest")
+              && !focus.value(QStringLiteral("aimFor")).toList().value(0).toString().isEmpty(),
+              "…a fault with its drill: titled by the drill, its ideal as what to aim for, the drill to practise");
     }
     checkSummaryShape(c, themesFile(golfer), "two small sessions");
 

@@ -8358,11 +8358,11 @@
  ],
  "conditionFocus": {
   "abbreviated_finish": {
-   "drill": "",
+   "drill": "drill.holdTheFinish",
    "when": 10
   },
   "across_the_line": {
-   "drill": "",
+   "drill": "drill.trayAtTop",
    "when": 4
   },
   "aim_bias_closed": {
@@ -8374,47 +8374,47 @@
    "when": 0
   },
   "alignment_closed": {
-   "drill": "",
+   "drill": "drill.alignmentSticks",
    "when": 1
   },
   "alignment_open": {
-   "drill": "",
+   "drill": "drill.alignmentSticks",
    "when": 1
   },
   "arms_before_chest": {
-   "drill": "",
+   "drill": "drill.towelUnderArms",
    "when": 7
   },
   "arms_over_connected": {
-   "drill": "",
+   "drill": "drill.softArms",
    "when": 3
   },
   "arms_peak_after_impact": {
-   "drill": "",
+   "drill": "drill.splitHandsRelease",
    "when": 7
   },
   "arms_ride_the_turn": {
-   "drill": "",
+   "drill": "drill.feetTogether",
    "when": 7
   },
   "attack_too_shallow": {
-   "drill": "",
+   "drill": "drill.lowPointDivot",
    "when": 7
   },
   "attack_too_steep": {
-   "drill": "",
+   "drill": "drill.brushTheGrass",
    "when": 7
   },
   "backing_off_the_ball": {
-   "drill": "",
+   "drill": "drill.hipsToWall",
    "when": 7
   },
   "ball_back": {
-   "drill": "",
+   "drill": "drill.stanceGuide",
    "when": 1
   },
   "ball_forward": {
-   "drill": "",
+   "drill": "drill.stanceGuide",
    "when": 1
   },
   "ball_speed_deficit": {
@@ -8426,19 +8426,19 @@
    "when": 1
   },
   "ball_too_far": {
-   "drill": "",
+   "drill": "drill.armsHangSetup",
    "when": 1
   },
   "bent_lead_arm": {
-   "drill": "",
+   "drill": "drill.wideTop",
    "when": 4
   },
   "bowed_at_top": {
-   "drill": "",
+   "drill": "drill.flatLeadWrist",
    "when": 4
   },
   "bowed_lead_wrist": {
-   "drill": "",
+   "drill": "drill.flatLeadWrist",
    "when": 7
   },
   "c_posture": {
@@ -8454,15 +8454,15 @@
    "when": 6
   },
   "chest_not_faster_than_hips": {
-   "drill": "",
+   "drill": "drill.pelvicSeparation",
    "when": 7
   },
   "chest_peak_after_impact": {
-   "drill": "",
+   "drill": "drill.pauseAtTop",
    "when": 7
   },
   "chicken_wing": {
-   "drill": "",
+   "drill": "drill.armsLongThrough",
    "when": 8
   },
   "chunk": {
@@ -8470,27 +8470,27 @@
    "when": 7
   },
   "closed_face_to_path": {
-   "drill": "",
+   "drill": "drill.toeUpToToeUp",
    "when": 7
   },
   "club_before_arms": {
-   "drill": "",
+   "drill": "drill.pumpToDelivery",
    "when": 7
   },
   "club_not_released": {
-   "drill": "",
+   "drill": "drill.splitHandsRelease",
    "when": 7
   },
   "club_peak_after_impact": {
-   "drill": "",
+   "drill": "drill.whooshAtTheBall",
    "when": 7
   },
   "club_peak_early": {
-   "drill": "",
+   "drill": "drill.whooshAtTheBall",
    "when": 7
   },
   "club_short_of_parallel": {
-   "drill": "",
+   "drill": "drill.backToTarget",
    "when": 4
   },
   "club_too_short": {
@@ -8502,11 +8502,11 @@
    "when": 7
   },
   "cupped_at_top": {
-   "drill": "",
+   "drill": "drill.flatLeadWrist",
    "when": 4
   },
   "deceleration": {
-   "drill": "",
+   "drill": "drill.whooshAtTheBall",
    "when": 7
   },
   "disconnection": {
@@ -8514,7 +8514,7 @@
    "when": 3
   },
   "diving": {
-   "drill": "",
+   "drill": "drill.postureRod",
    "when": 6
   },
   "early_extension": {
@@ -8522,83 +8522,83 @@
    "when": 7
   },
   "early_face_roll": {
-   "drill": "",
+   "drill": "drill.takeawayFace",
    "when": 2
   },
   "excessive_axis_tilt_impact": {
-   "drill": "",
+   "drill": "drill.impactHold",
    "when": 7
   },
   "excessive_axis_tilt_top": {
-   "drill": "",
+   "drill": "drill.topTilt",
    "when": 4
   },
   "excessive_head_sway": {
-   "drill": "",
+   "drill": "drill.headOnWall",
    "when": 4
   },
   "excessive_heel_lift": {
-   "drill": "",
+   "drill": "drill.leadHeelDown",
    "when": 4
   },
   "excessive_knee_flex": {
-   "drill": "",
+   "drill": "drill.armsHangSetup",
    "when": 1
   },
   "excessive_lag": {
-   "drill": "",
+   "drill": "drill.splitHandsRelease",
    "when": 6
   },
   "excessive_separation_stretch": {
-   "drill": "",
+   "drill": "drill.pauseAtTop",
    "when": 5
   },
   "excessive_shaft_lean": {
-   "drill": "",
+   "drill": "drill.impactHold",
    "when": 7
   },
   "face_held_open_impact": {
-   "drill": "",
+   "drill": "drill.splitHandsRelease",
    "when": 7
   },
   "face_held_shut_takeaway": {
-   "drill": "",
+   "drill": "drill.takeawayFace",
    "when": 2
   },
   "feet_alignment_closed": {
-   "drill": "",
+   "drill": "drill.alignmentSticks",
    "when": 1
   },
   "feet_alignment_open": {
-   "drill": "",
+   "drill": "drill.alignmentSticks",
    "when": 1
   },
   "flat_backswing_plane": {
-   "drill": "",
+   "drill": "drill.buttToTheLine",
    "when": 3
   },
   "flat_lumbar_spine": {
-   "drill": "",
+   "drill": "drill.postureRod",
    "when": 1
   },
   "flat_shoulder_plane": {
-   "drill": "",
+   "drill": "drill.shoulderPlaneClub",
    "when": 4
   },
   "flat_thoracic_spine": {
-   "drill": "",
+   "drill": "drill.postureRod",
    "when": 1
   },
   "flipping": {
-   "drill": "",
+   "drill": "drill.turnToTarget",
    "when": 7
   },
   "flying_elbow": {
-   "drill": "",
+   "drill": "drill.trayAtTop",
    "when": 4
   },
   "forward_lunge": {
-   "drill": "",
+   "drill": "drill.pauseAtTop",
    "when": 5
   },
   "grip_strong": {
@@ -8618,47 +8618,47 @@
    "when": 5
   },
   "head_drift_lead_backswing": {
-   "drill": "",
+   "drill": "drill.headOnWall",
    "when": 4
   },
   "head_drop_backswing": {
-   "drill": "",
+   "drill": "drill.headOnWall",
    "when": 4
   },
   "head_rise_backswing": {
-   "drill": "",
+   "drill": "drill.headOnWall",
    "when": 4
   },
   "hip_alignment_closed": {
-   "drill": "",
+   "drill": "drill.alignmentSticks",
    "when": 1
   },
   "hip_alignment_open": {
-   "drill": "",
+   "drill": "drill.alignmentSticks",
    "when": 1
   },
   "hip_spin_out": {
-   "drill": "",
+   "drill": "drill.pressureShiftStep",
    "when": 5
   },
   "hip_stall": {
-   "drill": "",
+   "drill": "drill.turnToTarget",
    "when": 7
   },
   "hips_closed_at_impact": {
-   "drill": "",
+   "drill": "drill.impactHold",
    "when": 7
   },
   "hips_peak_after_impact": {
-   "drill": "",
+   "drill": "drill.pressureShiftStep",
    "when": 7
   },
   "hips_too_open_at_impact": {
-   "drill": "",
+   "drill": "drill.impactHold",
    "when": 7
   },
   "hips_under_rotated_at_top": {
-   "drill": "",
+   "drill": "drill.trailHipLoad",
    "when": 4
   },
   "hook": {
@@ -8666,23 +8666,23 @@
    "when": 7
   },
   "in_to_out_path": {
-   "drill": "",
+   "drill": "drill.gateForPath",
    "when": 7
   },
   "inconsistent_sequence": {
-   "drill": "",
+   "drill": "drill.pauseAtTop",
    "when": 7
   },
   "inside_takeaway": {
-   "drill": "",
+   "drill": "drill.takeawayStick",
    "when": 2
   },
   "insufficient_knee_flex": {
-   "drill": "",
+   "drill": "drill.armsHangSetup",
    "when": 1
   },
   "insufficient_set": {
-   "drill": "",
+   "drill": "drill.hingeThenTurn",
    "when": 4
   },
   "insufficient_shaft_lean": {
@@ -8690,15 +8690,15 @@
    "when": 7
   },
   "laid_off": {
-   "drill": "",
+   "drill": "drill.trayAtTop",
    "when": 4
   },
   "late_buckle": {
-   "drill": "",
+   "drill": "drill.leadLegBrace",
    "when": 8
   },
   "late_pelvis_rotation": {
-   "drill": "",
+   "drill": "drill.pressureShiftStep",
    "when": 5
   },
   "launch_high": {
@@ -8710,11 +8710,11 @@
    "when": 7
   },
   "lead_knee_drifts_in_at_top": {
-   "drill": "",
+   "drill": "drill.trailHipLoad",
    "when": 4
   },
   "lead_knee_valgus_impact": {
-   "drill": "",
+   "drill": "drill.leadLegBrace",
    "when": 7
   },
   "lie_flat_at_impact": {
@@ -8770,7 +8770,7 @@
    "when": 0
   },
   "locked_lead_arm": {
-   "drill": "",
+   "drill": "drill.softArms",
    "when": 4
   },
   "loss_of_width": {
@@ -8782,11 +8782,11 @@
    "when": 7
   },
   "low_point_too_far_ahead": {
-   "drill": "",
+   "drill": "drill.brushTheGrass",
    "when": 7
   },
   "no_pelvis_braking": {
-   "drill": "",
+   "drill": "drill.leadLegBrace",
    "when": 7
   },
   "off_balance_finish": {
@@ -8794,27 +8794,27 @@
    "when": 10
   },
   "open_face_to_path": {
-   "drill": "",
+   "drill": "drill.toeUpToToeUp",
    "when": 7
   },
   "open_face_top": {
-   "drill": "",
+   "drill": "drill.takeawayFace",
    "when": 4
   },
   "out_to_in_path": {
-   "drill": "",
+   "drill": "drill.gateForPath",
    "when": 7
   },
   "outside_takeaway": {
-   "drill": "",
+   "drill": "drill.takeawayStick",
    "when": 2
   },
   "over_rotation_at_top": {
-   "drill": "",
+   "drill": "drill.postureRod",
    "when": 4
   },
   "over_set": {
-   "drill": "",
+   "drill": "drill.firmTop",
    "when": 4
   },
   "over_the_top": {
@@ -8822,23 +8822,23 @@
    "when": 4
   },
   "overswing": {
-   "drill": "",
+   "drill": "drill.mirrorTop",
    "when": 4
   },
   "pelvis_drift_lead_backswing": {
-   "drill": "",
+   "drill": "drill.trailHipLoad",
    "when": 4
   },
   "pelvis_rise_backswing": {
-   "drill": "",
+   "drill": "drill.beltLine",
    "when": 4
   },
   "pelvis_sink_backswing": {
-   "drill": "",
+   "drill": "drill.beltLine",
    "when": 4
   },
   "pelvis_thrust_backswing": {
-   "drill": "",
+   "drill": "drill.hipsToWall",
    "when": 4
   },
   "poor_core_stability": {
@@ -8862,11 +8862,11 @@
    "when": 0
   },
   "posture_too_bent": {
-   "drill": "",
+   "drill": "drill.armsHangSetup",
    "when": 1
   },
   "posture_too_upright": {
-   "drill": "",
+   "drill": "drill.armsHangSetup",
    "when": 1
   },
   "pull": {
@@ -8890,15 +8890,15 @@
    "when": 4
   },
   "reverse_spine_p4": {
-   "drill": "",
+   "drill": "drill.topTilt",
    "when": 4
   },
   "reverse_spine_p7": {
-   "drill": "",
+   "drill": "drill.impactHold",
    "when": 7
   },
   "s_posture": {
-   "drill": "",
+   "drill": "drill.postureRod",
    "when": 1
   },
   "scooping": {
@@ -8906,11 +8906,11 @@
    "when": 7
   },
   "sequence_order": {
-   "drill": "",
+   "drill": "drill.pressureShiftStep",
    "when": 7
   },
   "shallowing": {
-   "drill": "",
+   "drill": "drill.pumpToDelivery",
    "when": 4
   },
   "shank": {
@@ -8918,11 +8918,11 @@
    "when": 7
   },
   "short_backswing": {
-   "drill": "",
+   "drill": "drill.backToTarget",
    "when": 4
   },
   "shut_face_top": {
-   "drill": "",
+   "drill": "drill.takeawayFace",
    "when": 4
   },
   "sky": {
@@ -8934,7 +8934,7 @@
    "when": 7
   },
   "slide": {
-   "drill": "",
+   "drill": "drill.leadHipStick",
    "when": 7
   },
   "smash_deficit": {
@@ -8954,15 +8954,15 @@
    "when": 0
   },
   "stance_narrow": {
-   "drill": "",
+   "drill": "drill.stanceGuide",
    "when": 1
   },
   "stance_wide": {
-   "drill": "",
+   "drill": "drill.stanceGuide",
    "when": 1
   },
   "steep_backswing_plane": {
-   "drill": "",
+   "drill": "drill.buttToTheLine",
    "when": 3
   },
   "steep_downswing_shaft": {
@@ -8970,7 +8970,7 @@
    "when": 6
   },
   "steep_shoulder_plane": {
-   "drill": "",
+   "drill": "drill.shoulderPlaneClub",
    "when": 4
   },
   "strike_heel": {
@@ -9002,11 +9002,11 @@
    "when": 7
   },
   "trail_elbow_deep": {
-   "drill": "",
+   "drill": "drill.trayAtTop",
    "when": 4
   },
   "trail_hip_hike": {
-   "drill": "",
+   "drill": "drill.beltLine",
    "when": 4
   },
   "trail_knee_straighten": {
@@ -9030,7 +9030,7 @@
    "when": 6
   },
   "upper_body_starts_down": {
-   "drill": "",
+   "drill": "drill.pauseAtTop",
    "when": 7
   },
   "weight_back_at_finish": {
@@ -9038,7 +9038,7 @@
    "when": 0
   },
   "weight_in_heels_address": {
-   "drill": "",
+   "drill": "drill.armsHangSetup",
    "when": 1
   },
   "weight_trail_at_address": {
@@ -9046,7 +9046,7 @@
    "when": 0
   },
   "xfactor_deficit": {
-   "drill": "",
+   "drill": "drill.pelvicSeparation",
    "when": 5
   }
  },
@@ -9061,19 +9061,19 @@
    ]
   },
   {
+   "key": "drill.topTilt",
+   "drill": "drill.topTilt",
+   "when": 4,
+   "conditionIds": [
+    "reverse_spine_p4"
+   ]
+  },
+  {
    "key": "drill.gateForPath",
    "drill": "drill.gateForPath",
    "when": 4,
    "conditionIds": [
     "over_the_top"
-   ]
-  },
-  {
-   "key": "solo:reverse_spine_p4",
-   "drill": "",
-   "when": 4,
-   "conditionIds": [
-    "reverse_spine_p4"
    ]
   },
   {
@@ -9085,8 +9085,8 @@
    ]
   },
   {
-   "key": "solo:hips_closed_at_impact",
-   "drill": "",
+   "key": "drill.impactHold",
+   "drill": "drill.impactHold",
    "when": 7,
    "conditionIds": [
     "hips_closed_at_impact"
@@ -9276,8 +9276,8 @@
   },
   "next": [
    {
-    "text": "Your hands come over the top coming down",
-    "share": 0.9545064039408867,
+    "text": "You lean toward the target at the top",
+    "share": 0.9597635467980296,
     "frequency": "almost every swing",
     "trend": 0,
     "pips": [
@@ -9288,8 +9288,8 @@
     ]
    },
    {
-    "text": "You lean toward the target at the top",
-    "share": 0.9597635467980296,
+    "text": "Your hands come over the top coming down",
+    "share": 0.9545064039408867,
     "frequency": "almost every swing",
     "trend": 0,
     "pips": [

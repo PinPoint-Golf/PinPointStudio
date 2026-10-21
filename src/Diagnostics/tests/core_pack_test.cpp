@@ -24,6 +24,8 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <functional>
+#include <iterator>
 #include <map>
 
 using namespace pinpoint::analysis;
@@ -181,7 +183,11 @@ int main()
         // 15 -> 17 with the kinematic-sequence checks (2026-10-14, design §10.5): a pelvis that will
         // not turn apart from the chest leaves the chest nothing to overtake, and lets the shoulders
         // start the downswing.
-        check(coverage("poor_pelvic_disassociation") == 17, "poor pelvic disassociation explains 17");
+        // 17 -> 21 with the session report's content (2026-10-20, session_report_design.md §3.3):
+        // thin cause lists were grown so "we checked every cause we know of" means something, and the
+        // physical-limit causes a coach would screen first were wired to the habits they plainly allow.
+        // Practice tier, weak or moderate, no citations — coaching reasoning, reviewed by Mark.
+        check(coverage("poor_pelvic_disassociation") == 21, "poor pelvic disassociation explains 21");
         // 15 and 9, up from 13 and 8. The face-on producer batch made six authored conditions
         // gradeable for the first time, and the "everything that can fire has a cause" check below
         // caught that they had nothing behind them. Two of the six route to a thoracic-rotation
@@ -195,11 +201,19 @@ int main()
         // it, and a golfer with the same restriction can shorten the backswing instead.
         // 16 -> 18 with the kinematic-sequence checks (2026-10-14): a chest that cannot turn cannot
         // speed up past the hips, and the arms run ahead of it coming down.
-        check(coverage("limited_thoracic_rotation") == 18, "limited thoracic rotation explains 18");
+        // 18 -> 24 with the session report's content (2026-10-20, session_report_design.md §3.3):
+        // thin cause lists were grown so "we checked every cause we know of" means something, and the
+        // physical-limit causes a coach would screen first were wired to the habits they plainly allow.
+        // Practice tier, weak or moderate, no citations — coaching reasoning, reviewed by Mark.
+        check(coverage("limited_thoracic_rotation") == 24, "limited thoracic rotation explains 24");
         // 9 -> 10 with the lead-side audit: the hip that cannot internally rotate cannot accept the
         // load and turn over it, so the rotation stops rather than being slow to start — which is
         // late_pelvis_rotation, a fault it already explained and a different one.
-        check(coverage("limited_lead_hip_ir") == 10, "limited lead-hip internal rotation explains 10");
+        // 10 -> 18 with the session report's content (2026-10-20, session_report_design.md §3.3):
+        // thin cause lists were grown so "we checked every cause we know of" means something, and the
+        // physical-limit causes a coach would screen first were wired to the habits they plainly allow.
+        // Practice tier, weak or moderate, no citations — coaching reasoning, reviewed by Mark.
+        check(coverage("limited_lead_hip_ir") == 18, "limited lead-hip internal rotation explains 18");
         // 10 -> 11 when the trail hip was given its route to over-the-top: a pelvis that cannot
         // finish turning away leaves the downswing no room to rotate into, and the arms take it
         // over the top. Updated deliberately, per the note below on the pelvis-sway count — these
@@ -222,13 +236,21 @@ int main()
         // 14 -> 15 with reverse_pivot, and this is the Strong one. The trail hip is the joint the
         // backswing loads INTO; if it cannot internally rotate there is nowhere for the load to go,
         // and the mass stays on the lead side because it was never invited across.
-        check(coverage("limited_trail_hip_ir") == 15, "limited trail-hip internal rotation explains 15");
+        // 15 -> 19 with the session report's content (2026-10-20, session_report_design.md §3.3):
+        // thin cause lists were grown so "we checked every cause we know of" means something, and the
+        // physical-limit causes a coach would screen first were wired to the habits they plainly allow.
+        // Practice tier, weak or moderate, no citations — coaching reasoning, reviewed by Mark.
+        check(coverage("limited_trail_hip_ir") == 19, "limited trail-hip internal rotation explains 19");
         // 11 -> 12 on 2026-09-23: crouching (excessive_knee_flex). Without a stable middle the golfer
         // sinks into the knees rather than hinging, and that one setup then explains standing too
         // upright, crowding the ball, the trail knee straightening, the pelvis thrusting toward the
         // ball going back and the weight sitting in the heels — a single Strong edge here reaches
         // all five through it, rather than five edges that would hide the mechanism.
-        check(coverage("poor_core_stability") == 12, "poor core stability explains 12");
+        // 12 -> 16 with the session report's content (2026-10-20, session_report_design.md §3.3):
+        // thin cause lists were grown so "we checked every cause we know of" means something, and the
+        // physical-limit causes a coach would screen first were wired to the habits they plainly allow.
+        // Practice tier, weak or moderate, no citations — coaching reasoning, reviewed by Mark.
+        check(coverage("poor_core_stability") == 16, "poor core stability explains 16");
 
         const int topFive = coverage("poor_pelvic_disassociation") + coverage("limited_thoracic_rotation")
                           + coverage("limited_lead_hip_ir") + coverage("limited_trail_hip_ir")
@@ -493,8 +515,14 @@ int main()
                        && e.provenance.tier == ProvenanceTier::Indirect
                        && e.provenance.citation == QLatin1String("9780978873417");
         check(edge, "…and casting causes it: moderate, indirect, on Cheetham et al. 2008");
-        check(causesOf(p, QStringLiteral("club_before_arms")) == QStringList{ QStringLiteral("casting") },
-              "…its only cause");
+        // Casting was its only cause until the session report's content (2026-10-20, design §3.3) added
+        // the two timing causes a coach would name for a club that races ahead: a rushed transition and
+        // hips that stop turning. Practice tier; casting keeps its sourced, moderate edge above.
+        QStringList clubCauses = causesOf(p, QStringLiteral("club_before_arms"));
+        clubCauses.sort();
+        check(clubCauses == QStringList({ QStringLiteral("casting"), QStringLiteral("hip_stall"),
+                                          QStringLiteral("transition_rush") }),
+              "…its causes: casting, a rushed transition, hips that stall");
     }
 
     // ── No brand names anywhere in the content ──────────────────────────────────
@@ -928,6 +956,411 @@ int main()
         check(c && c->golferWhy == QStringLiteral("A narrow swing also has less room to build speed, so it costs you distance.")
                   && a && a->golferWhy.isEmpty(),
               "golferWhy survives a save and reload, and stays absent where it was");
+    }
+
+    // ── The session report's words are held to their own lint ────────────────────
+    //
+    // docs/design/session_report_design.md §5. `goal` is the work-on page's title, `cue` the feel,
+    // `check` how to see it without the studio, and a measure's `golferName` the number in the
+    // golfer's words. Each way of being wrong on its own row, so one firing cannot hide another,
+    // and the mock's own wording as the clean row that must stay silent.
+    {
+        const QByteArray json = R"({
+          "id": "report_words_lint", "version": "1", "schemaVersion": 1,
+          "measures": [
+            { "id": "m_capital", "kind": "provided", "metricKey": "a", "status": "planned",
+              "reducer": { "kind": "at", "anchor": "p1" },
+              "golferName": "Trail-knee bend lost by the top" },
+            { "id": "m_pnum", "kind": "provided", "metricKey": "b", "status": "planned",
+              "reducer": { "kind": "at", "anchor": "p1" },
+              "golferName": "trail-knee bend lost by p4" },
+            { "id": "m_clean", "kind": "provided", "metricKey": "c", "status": "planned",
+              "reducer": { "kind": "at", "anchor": "p1" },
+              "golferName": "trail-knee bend lost by the top", "golferSign": -1 } ],
+          "conditions": [
+            { "id": "w_title", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "goal": "Keep The Flex In Your Trail Knee" },
+            { "id": "w_stop", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "goal": "Keep the flex in your trail knee." },
+            { "id": "w_long", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "goal": "Keep the flex in your trail knee from address all the way up to the top" },
+            { "id": "w_never", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "goal": "Never straighten your trail knee" },
+            { "id": "w_dont", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "goal": "Don’t straighten your trail knee" },
+            { "id": "w_pnum", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "goal": "Keep your trail knee flexed at P4" },
+            { "id": "w_digit", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "goal": "Keep 2 knuckles showing" },
+            { "id": "w_lower", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "goal": "keep the flex in your trail knee" },
+            { "id": "w_promise", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "cue": "Keep your backside on the wall and this will fix your slice." },
+            { "id": "w_cures", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "cue": "A quiet head cures the thin strike." },
+            { "id": "w_cueStop", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "cue": "Feel your backside on an imaginary wall" },
+            { "id": "w_cuePnum", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "cue": "Feel the knee stay bent at P4." },
+            { "id": "w_checkPct", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "check": "Film from down the line. Your knee should keep 90% of its bend." },
+            { "id": "w_checkLower", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "check": "film from down the line and look at the knee." },
+            { "id": "w_clean", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "goal": "Keep the flex in your trail knee",
+              "cue": "Keep your backside on an imaginary wall behind you all the way to impact.",
+              "check": "Film from down the line. At the top, your trail knee should look about as bent as it did at address." } ]
+        })";
+        const PackLoadResult lint = loadPack(json, QStringLiteral("report_words_lint"));
+        auto flagged = [&](const char *subject) {
+            for (const ValidationIssue &i : lint.report.withCode(QStringLiteral("golferPhraseWording")))
+                if (i.subject == QLatin1String(subject)) return true;
+            return false;
+        };
+        check(lint.loaded, "a pack with badly worded report sentences still loads (the lint is a warning)");
+        check(flagged("w_title") && flagged("w_stop") && flagged("w_long") && flagged("w_lower"),
+              "goal: Title Case, a full stop, over 60 characters and a lower-case start each fire");
+        check(flagged("w_never") && flagged("w_dont") && flagged("w_pnum") && flagged("w_digit"),
+              "goal: never, don't (curly), a P-position and a digit each fire");
+        check(flagged("w_promise") && flagged("w_cures"),
+              "cue: a promise fires — \"will fix\" and \"cures\"");
+        check(flagged("w_cueStop") && flagged("w_cuePnum"),
+              "cue: no full stop, and a P-position, each fire");
+        check(flagged("w_checkPct") && flagged("w_checkLower"),
+              "check: a percentage, and no capital, each fire");
+        check(flagged("m_capital") && flagged("m_pnum"),
+              "golferName: a capital, and a P-position, each fire");
+        check(!flagged("w_clean") && !flagged("m_clean"),
+              "silent on the mock's own goal, cue, check and golferName");
+    }
+
+    // ── …the report fields' closed vocabularies are load ERRORS ──────────────────
+    //
+    // The still is drawn from these words by a renderer that cannot guess, a golferSign other than
+    // ±1 rescales the printed number, and a hold with no reason is a habit that silently vanishes —
+    // none of them is a wording question, so each refuses the pack the way a misspelt `kind` does.
+    {
+        auto loadOne = [](const char *condition, const char *measure = nullptr) {
+            QByteArray json = R"({ "id": "report_schema", "version": "1", "schemaVersion": 1, "measures": [)";
+            if (measure) json += measure;
+            json += R"(], "conditions": [)";
+            json += condition;
+            json += "] }";
+            return loadPack(json, QStringLiteral("report_schema"));
+        };
+        auto refusedWith = [](const PackLoadResult &r, const char *code) {
+            return !r.loaded && !r.report.withCode(QString::fromLatin1(code)).empty();
+        };
+        const char *okMeasure = R"({ "id": "m_x", "kind": "provided", "metricKey": "x",
+                                     "status": "planned", "reducer": { "kind": "at", "anchor": "p1" } })";
+
+        check(refusedWith(loadOne(R"({ "id": "c", "label": "c", "picture": { "kind": "drawing" } })"),
+                          "unknownPictureKind"), "picture kind 'drawing' is refused");
+        check(refusedWith(loadOne(R"({ "id": "c", "label": "c", "picture": { "kind": "change",
+                   "camera": "side", "phase": "P4", "line": "trailThigh" } })"), "unknownPictureCamera"),
+              "picture camera 'side' is refused");
+        check(refusedWith(loadOne(R"({ "id": "c", "label": "c", "picture": { "kind": "change",
+                   "camera": "dtl", "phase": "p4", "line": "trailThigh" } })"), "unknownPicturePhase")
+                  && refusedWith(loadOne(R"({ "id": "c", "label": "c", "picture": { "kind": "pair",
+                   "camera": "dtl", "phase": "P11", "line": "trailThigh" } })"), "unknownPicturePhase"),
+              "picture phase 'p4' (the measure spelling) and 'P11' are refused");
+        check(refusedWith(loadOne(R"({ "id": "c", "label": "c", "picture": { "kind": "change",
+                   "camera": "dtl", "phase": "P4", "line": "knee" } })"), "unknownPictureLine"),
+              "picture line 'knee' (the mock's old word) is refused — it is trailThigh or trailShin");
+        check(refusedWith(loadOne(R"({ "id": "c", "label": "c", "picture": { "kind": "typical",
+                   "camera": "faceOn", "phase": "P7" } })"), "pictureIncomplete"),
+              "a 'typical' picture with no line is refused as incomplete");
+        const PackLoadResult none = loadOne(R"({ "id": "c", "label": "c", "picture": { "kind": "none" } })");
+        check(none.loaded && none.pack.condition(QStringLiteral("c"))
+                  && none.pack.condition(QStringLiteral("c"))->picture.kind == QStringLiteral("none"),
+              "…while kind 'none' needs nothing else and loads");
+
+        check(refusedWith(loadOne(R"({ "id": "c", "label": "c" })",
+                                  R"({ "id": "m_x", "kind": "provided", "metricKey": "x", "status": "planned",
+                                       "reducer": { "kind": "at", "anchor": "p1" }, "golferSign": 2 })"),
+                          "badGolferSign")
+                  && refusedWith(loadOne(R"({ "id": "c", "label": "c" })",
+                                  R"({ "id": "m_x", "kind": "provided", "metricKey": "x", "status": "planned",
+                                       "reducer": { "kind": "at", "anchor": "p1" }, "golferSign": "minus" })"),
+                          "badGolferSign"),
+              "golferSign 2, and a string, are refused");
+        const PackLoadResult neg = loadOne(R"({ "id": "c", "label": "c" })",
+                                           R"({ "id": "m_x", "kind": "provided", "metricKey": "x", "status": "planned",
+                                                "reducer": { "kind": "at", "anchor": "p1" }, "golferSign": -1 })");
+        const PackLoadResult dflt = loadOne(R"({ "id": "c", "label": "c" })", okMeasure);
+        check(neg.loaded && neg.pack.measure(QStringLiteral("m_x"))->golferSign == -1
+                  && dflt.loaded && dflt.pack.measure(QStringLiteral("m_x"))->golferSign == 1,
+              "golferSign -1 loads as -1, and an absent one is +1");
+
+        check(refusedWith(loadOne(R"({ "id": "c", "label": "c", "reportHold": { "reason": "  " } })"),
+                          "reportHoldNoReason")
+                  && refusedWith(loadOne(R"({ "id": "c", "label": "c", "reportHold": "not trusted" })"),
+                                 "reportHoldNoReason"),
+              "a reportHold with a blank reason, or written as a bare string, is refused");
+        const PackLoadResult held = loadOne(
+            R"({ "id": "c", "label": "c", "reportHold": { "reason": "The camera cannot see your lead elbow clearly enough yet." } })");
+        check(held.loaded && held.pack.condition(QStringLiteral("c"))->reportHold
+                                 == QStringLiteral("The camera cannot see your lead elbow clearly enough yet."),
+              "…and {\"reason\": …} loads as the reason string");
+    }
+
+    // ── …and every report field survives a save and reload ───────────────────────
+    //
+    // savePack() is the one writer — the file provider, the model browser's dirty diff and the
+    // session model's content stamp all go through it — so a field it dropped would be lost on the
+    // first edit of a user pack, and would leave the content stamp blind to a wording change.
+    {
+        const QByteArray json = R"({
+          "id": "report_roundtrip", "version": "1", "schemaVersion": 1,
+          "measures": [
+            { "id": "m_signed", "kind": "provided", "metricKey": "a", "status": "planned",
+              "reducer": { "kind": "at", "anchor": "p1" },
+              "golferName": "trail-knee bend lost by the top", "golferSign": -1 },
+            { "id": "m_plain", "kind": "provided", "metricKey": "b", "status": "planned",
+              "reducer": { "kind": "at", "anchor": "p1" } } ],
+          "conditions": [
+            { "id": "c_full", "label": "c", "goal": "Keep the flex in your trail knee",
+              "cue": "Keep your backside on an imaginary wall behind you all the way to impact.",
+              "check": "Film from down the line. At the top, your trail knee should look about as bent as it did at address.",
+              "picture": { "kind": "change", "camera": "dtl", "phase": "P4", "line": "trailThigh" },
+              "reportHold": { "reason": "Not reliable enough to headline a report yet." } },
+            { "id": "c_bare", "label": "c" } ]
+        })";
+        const PackLoadResult first = loadPack(json, QStringLiteral("report_roundtrip"));
+        const QJsonObject    saved = savePack(first.pack);
+        const PackLoadResult back  = loadPack(saved, QStringLiteral("report_roundtrip2"));
+        const Condition *c = back.pack.condition(QStringLiteral("c_full"));
+        const Condition *b = back.pack.condition(QStringLiteral("c_bare"));
+        const Measure   *ms = back.pack.measure(QStringLiteral("m_signed"));
+        const Measure   *mp = back.pack.measure(QStringLiteral("m_plain"));
+        check(first.loaded && back.loaded, "the report round-trip pack loads, and reloads");
+        check(c && c->goal == QStringLiteral("Keep the flex in your trail knee")
+                  && c->cue.startsWith(QStringLiteral("Keep your backside"))
+                  && c->check.startsWith(QStringLiteral("Film from down the line."))
+                  && c->picture.kind == QStringLiteral("change") && c->picture.camera == QStringLiteral("dtl")
+                  && c->picture.phase == QStringLiteral("P4") && c->picture.line == QStringLiteral("trailThigh")
+                  && c->reportHold == QStringLiteral("Not reliable enough to headline a report yet."),
+              "goal, cue, check, picture and reportHold survive a save and reload");
+        check(ms && ms->golferName == QStringLiteral("trail-knee bend lost by the top") && ms->golferSign == -1
+                  && mp && mp->golferSign == 1,
+              "golferName and golferSign survive a save and reload");
+        const auto rowOf = [&saved](const char *array, const char *id) {
+            for (const QJsonValue &v : saved.value(QLatin1String(array)).toArray())
+                if (v.toObject().value(QStringLiteral("id")).toString() == QLatin1String(id))
+                    return v.toObject();
+            return QJsonObject();
+        };
+        const QJsonObject bareRow  = rowOf("conditions", "c_bare");
+        const QJsonObject plainRow = rowOf("measures", "m_plain");
+        check(b && !bareRow.contains(QStringLiteral("picture")) && !bareRow.contains(QStringLiteral("goal"))
+                  && !bareRow.contains(QStringLiteral("reportHold"))
+                  && !plainRow.contains(QStringLiteral("golferSign"))
+                  && !plainRow.contains(QStringLiteral("golferName")),
+              "…and an unauthored field, or golferSign at its +1 default, is not written at all");
+    }
+
+    // ── THE REPORT GATE (session_report_design.md §5; CONTRACTS §1) ─────────────
+    //
+    // Every condition the work-on rule can list — set-up, fault or delivery, detectable, not retired
+    // or superseded; drafts INCLUDED — must be able to fill a work-on page: golfer, golferWell,
+    // golferWhy, goal, cue, check, a picture and at least one drill that exists. Every measure such a
+    // condition reads must name its number for the golfer, and every capacity must have a golfer
+    // name for "could be behind it". [model-completeness-is-the-point]: the report never prints
+    // "no drill yet", so the content has to be there before the report can be.
+    //
+    // First the gate itself, on synthetic packs: one that passes, then one per kind of gap, each of
+    // which must produce exactly that gap and no other — a gate that reports the wrong field is a
+    // gate an author cannot act on.
+    {
+        const QByteArray passJson = R"({
+          "id": "report_gate", "version": "1", "schemaVersion": 1,
+          "measures": [
+            { "id": "m_bend", "kind": "provided", "metricKey": "bend", "status": "planned",
+              "reducer": { "kind": "at", "anchor": "p4" },
+              "golferName": "trail-knee bend lost by the top", "golferSign": -1 },
+            { "id": "m_hips", "kind": "provided", "metricKey": "hipsT", "status": "planned",
+              "reducer": { "kind": "at", "anchor": "p7" }, "golferName": "when your hips turn" },
+            { "id": "m_chest", "kind": "provided", "metricKey": "chestT", "status": "planned",
+              "reducer": { "kind": "at", "anchor": "p7" }, "golferName": "when your chest turns" },
+            { "id": "m_arms", "kind": "provided", "metricKey": "armsT", "status": "planned",
+              "reducer": { "kind": "at", "anchor": "p7" }, "golferName": "when your arms swing through" },
+            { "id": "m_unread", "kind": "provided", "metricKey": "unread", "status": "planned",
+              "reducer": { "kind": "at", "anchor": "p1" } } ],
+          "signals": [
+            { "id": "s_bend", "test": "outsideCorridor", "measures": ["m_bend"], "direction": "low" },
+            { "id": "s_seq", "test": "order", "measures": ["m_hips", "m_chest"],
+              "fallback": ["m_arms", "impact"] },
+            { "id": "s_unread", "test": "outsideCorridor", "measures": ["m_unread"], "direction": "high" } ],
+          "conditions": [
+            { "id": "g_knee", "label": "c", "kind": "fault", "state": "draft", "detectedBy": ["s_bend"],
+              "golfer": "your trail knee straightens going back",
+              "golferWell": "you keep the flex in your trail knee going back",
+              "golferWhy": "A straight trail leg lets your hips slide instead of turn, so you lose power.",
+              "goal": "Keep the flex in your trail knee",
+              "cue": "Keep your backside on an imaginary wall behind you all the way to impact.",
+              "check": "Film from down the line. At the top, your trail knee should look about as bent as it did at address.",
+              "picture": { "kind": "change", "camera": "dtl", "phase": "P4", "line": "trailThigh" },
+              "drills": ["drill.wall"] },
+            { "id": "g_seq", "label": "c", "kind": "delivery", "detectedBy": ["s_seq"],
+              "golfer": "your arms start down before your hips",
+              "golferWell": "your hips lead the way down",
+              "golferWhy": "Starting with the arms throws the club outside, so the strike is weaker.",
+              "goal": "Let your hips start the way down",
+              "cue": "Feel your lead hip turn away before your hands move.",
+              "check": "Film face on. Your belt buckle should turn before your hands drop.",
+              "picture": { "kind": "none" }, "drills": ["drill.wall", "drill.notInTheRegistry"] },
+            { "id": "g_retired", "label": "c", "kind": "fault", "state": "retired", "detectedBy": ["s_unread"] },
+            { "id": "g_outcome", "label": "c", "kind": "outcome", "group": "ballFlight", "detectedBy": ["s_unread"] },
+            { "id": "g_cap", "label": "c", "kind": "capacity", "confirmedBy": "screened",
+              "observability": "latent", "golfer": "Trail-hip mobility" } ]
+        })";
+        const QSet<QString> drillIds{ QStringLiteral("drill.wall") };
+        const PackLoadResult pass = loadPack(passJson, QStringLiteral("report_gate"));
+        if (!pass.loaded)
+            for (const ValidationIssue &i : pass.report.withSeverity(IssueSeverity::Error))
+                std::printf("        error: %s\n", qPrintable(i.message));
+        const std::vector<ReportContentGap> none = reportContentGaps(pass.pack, drillIds);
+        for (const ReportContentGap &g : none) std::printf("        unexpected: %s\n", qPrintable(g.why));
+        check(pass.loaded && none.empty(),
+              "gate: a complete pack passes — a draft is judged, a retired row and an outcome are "
+              "not, a measure no listable row reads needs no golferName, and one resolving drill is enough");
+        check(isWorkOnListable(*pass.pack.condition(QStringLiteral("g_knee")))
+                  && isWorkOnListable(*pass.pack.condition(QStringLiteral("g_seq")))
+                  && !isWorkOnListable(*pass.pack.condition(QStringLiteral("g_retired")))
+                  && !isWorkOnListable(*pass.pack.condition(QStringLiteral("g_outcome")))
+                  && !isWorkOnListable(*pass.pack.condition(QStringLiteral("g_cap"))),
+              "gate: listable = set-up / fault / delivery, detectable, not retired or superseded");
+
+        // One gap at a time: knock one field out of the passing pack and expect exactly it back.
+        const QJsonObject passRoot = QJsonDocument::fromJson(passJson).object();
+        auto withEdit = [&passRoot](const char *array, const char *id,
+                                    const std::function<void(QJsonObject &)> &edit) {
+            QJsonObject root = passRoot;
+            QJsonArray  rows = root.value(QLatin1String(array)).toArray();
+            for (qsizetype i = 0; i < rows.size(); ++i) {
+                QJsonObject o = rows.at(i).toObject();
+                if (o.value(QStringLiteral("id")).toString() != QLatin1String(id)) continue;
+                edit(o);
+                rows.replace(i, o);
+            }
+            root.insert(QLatin1String(array), rows);
+            return loadPack(root, QStringLiteral("report_gate_gap")).pack;
+        };
+        auto exactlyOne = [&drillIds](const CharacteristicPack &pk, const char *entity, const char *field) {
+            const std::vector<ReportContentGap> gaps = reportContentGaps(pk, drillIds);
+            const bool ok = gaps.size() == 1 && gaps.front().entity == QLatin1String(entity)
+                            && gaps.front().field == QLatin1String(field);
+            if (!ok)
+                for (const ReportContentGap &g : gaps)
+                    std::printf("        got %s.%s: %s\n", qPrintable(g.entity), qPrintable(g.field),
+                                qPrintable(g.why));
+            return ok;
+        };
+        for (const char *field : { "golfer", "golferWell", "golferWhy", "goal", "cue", "check",
+                                   "picture", "drills" }) {
+            const CharacteristicPack pk = withEdit("conditions", "g_knee", [field](QJsonObject &o) {
+                o.remove(QLatin1String(field));
+            });
+            const QByteArray label = QByteArray("gate: a listable draft with no ") + field
+                                     + " is exactly one gap, naming that field";
+            check(exactlyOne(pk, "g_knee", field), label.constData());
+        }
+        check(exactlyOne(withEdit("conditions", "g_knee",
+                                  [](QJsonObject &o) {
+                                      o.insert(QStringLiteral("drills"),
+                                               QJsonArray{ QStringLiteral("drill.notInTheRegistry") });
+                                  }),
+                         "g_knee", "drills"),
+              "gate: a drill id that does not resolve in drills.json is no drill at all");
+        check(exactlyOne(withEdit("measures", "m_bend",
+                                  [](QJsonObject &o) { o.remove(QStringLiteral("golferName")); }),
+                         "m_bend", "golferName"),
+              "gate: a measure a listable fault reads, with no golferName");
+        check(exactlyOne(withEdit("measures", "m_arms",
+                                  [](QJsonObject &o) { o.remove(QStringLiteral("golferName")); }),
+                         "m_arms", "golferName"),
+              "gate: …including a measure read only as an order signal's fallback link");
+        check(exactlyOne(withEdit("conditions", "g_cap",
+                                  [](QJsonObject &o) { o.remove(QStringLiteral("golfer")); }),
+                         "g_cap", "golfer"),
+              "gate: a capacity with no golfer name");
+        check(reportContentGaps(withEdit("conditions", "g_knee",
+                                         [](QJsonObject &o) {
+                                             o.insert(QStringLiteral("state"), QStringLiteral("superseded"));
+                                             o.insert(QStringLiteral("supersededBy"), QStringLiteral("g_seq"));
+                                             o.remove(QStringLiteral("goal"));
+                                         }),
+                                drillIds).empty(),
+              "gate: a superseded row is not listable, so neither its missing goal nor its measure is a gap");
+    }
+
+    // ── …and the SHIPPED pack, against the shipped drills ─────────────────────────
+    //
+    // EXPECTED RED until the content of the session-report build is merged (CONTRACTS §2): this is
+    // the requirement, not a measurement of progress, and it is not to be weakened to go green. The
+    // failure prints every gap, grouped by field, so the list IS the authoring queue.
+    {
+        QSet<QString> drillIds;
+        {
+            QFile df(QFileInfo(QStringLiteral(PP_CORE_PACK_PATH)).dir().filePath(QStringLiteral("drills.json")));
+            check(df.open(QIODevice::ReadOnly), "gate: the shipped drills.json is readable beside core.json");
+            for (const QJsonValue &v : QJsonDocument::fromJson(df.readAll()).object()
+                                           .value(QStringLiteral("drills")).toArray())
+                drillIds.insert(v.toObject().value(QStringLiteral("id")).toString());
+        }
+        int listable = 0;
+        for (const Condition &c : p.conditions) listable += int(isWorkOnListable(c));
+
+        const std::vector<ReportContentGap> gaps = reportContentGaps(p, drillIds);
+        std::map<QString, int> byField;
+        for (const ReportContentGap &g : gaps) ++byField[g.field];
+        std::printf("        report gate: %d listable conditions, %d drills; %d gaps\n",
+                    listable, int(drillIds.size()), int(gaps.size()));
+        for (const auto &kv : byField)
+            std::printf("          %-11s %d\n", qPrintable(kv.first), kv.second);
+        for (const ReportContentGap &g : gaps)
+            std::printf("        gap %s.%s — %s\n", qPrintable(g.entity), qPrintable(g.field), qPrintable(g.why));
+        check(gaps.empty(),
+              "REPORT GATE: every listable habit can fill a work-on page, every measure it reads has "
+              "golferName, every capacity has golfer");
+    }
+
+    // ── The launch monitor is the primary source for what it measures ─────────────
+    //
+    // Mark, 20 Oct 2026: "LM is always the primary source for the metrics it delivers — our
+    // estimates will never be better." Done with the EXISTING Measure::preferKeys ladder, so the
+    // five bare measures that have a device twin read the device first and our estimate only where
+    // no monitor answered. Pinned, because this decides which instrument a diagnosis rests on, and a
+    // rung quietly falling off would put the path conditions back to never being judged on a shot
+    // whose monitor measured path outright.
+    //
+    // STATUS follows the ladder, not the bare key: a measure with a live rung HAS a producer today,
+    // so it is live — or held, where it produces and is deliberately not graded (ball speed has no
+    // corridor). Planned would grey a condition the engine is judging, on the panel's DAG, and say
+    // "a producer is planned" beside a value.
+    {
+        const struct { const char *id; const char *lm; MeasureStatus status; } rows[] = {
+            { "m_clubPathAtImpact",   "lm.clubPath",        MeasureStatus::Live },
+            { "m_ballSpeed",          "lm.ballSpeed",       MeasureStatus::Held },
+            { "m_launchAngle",        "lm.launchAngle",     MeasureStatus::Live },
+            { "m_launchDirection",    "lm.launchDirection", MeasureStatus::Live },
+            { "m_clubheadSpeedImpact","lm.clubheadSpeed",   MeasureStatus::Live },
+        };
+        int ok = 0;
+        for (const auto &row : rows) {
+            const Measure *m = p.measure(QString::fromLatin1(row.id));
+            const bool good = m && m->preferKeys == QStringList{ QString::fromLatin1(row.lm) }
+                              && m->status == row.status;
+            if (!good)
+                std::printf("        %s: preferKeys [%s], status %s\n", row.id,
+                            m ? qPrintable(m->preferKeys.join(QStringLiteral(", "))) : "(missing)",
+                            m ? qPrintable(measureStatusName(m->status)) : "-");
+            ok += int(good);
+        }
+        check(ok == int(std::size(rows)),
+              "the five measures with a launch-monitor twin read the monitor first, with a status that says so");
+        const Measure *bs = p.measure(QStringLiteral("m_ballSpeed"));
+        check(bs && !bs->gapReason.isEmpty(), "…and held ball speed says why it is not graded");
     }
 
     // ── No LIVE corridor signal is left without a norm ─────────────────────────

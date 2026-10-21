@@ -283,6 +283,101 @@ QString golferWhyProblem(const QString &sentence)
     return QString();
 }
 
+// ── The session report's words ──────────────────────────────────────────────
+//
+// A client report reads these as print, page by page, to a golfer who was not in the studio for
+// the explanation. They are a different register from the home screen's fragments, so each has its
+// own small rule set; what the four share is that a P-position never reaches the page (a golfer
+// reads "at the top", not "P4"), and that an instruction says what to DO.
+
+const QRegularExpression &pPositionPattern()
+{
+    static const QRegularExpression p(QStringLiteral(R"(\bP\d+\b)"),
+                                      QRegularExpression::CaseInsensitiveOption);
+    return p;
+}
+
+// `goal` is the work-on page's TITLE: golferWell turned into an instruction, "Keep the flex in
+// your trail knee". A title in sentence case (Title Case Reads As A Product Name), no full stop,
+// short enough to sit on one line of the page heading — 60 characters is that line at the report's
+// title size. No number: a target in a title is a promise of a measurement the next session may
+// not repeat. No don't or never, for golferWell's reason: an instruction names the thing to keep
+// doing, and "Don't straighten your trail knee" puts the fault back in the golfer's head as the
+// last thing they read. Returns what is wrong, or empty when the title is clean (empty passes —
+// the gate checks presence).
+QString goalProblem(const QString &goal)
+{
+    const QString s = goal.trimmed();
+    if (s.isEmpty()) return QString();
+    if (s.size() > 60) return QStringLiteral("more than 60 characters");
+    if (!s.front().isUpper()) return QStringLiteral("no capital first letter");
+    if (s.endsWith(QLatin1Char('.'))) return QStringLiteral("a full stop at the end");
+    const QRegularExpressionMatch pm = pPositionPattern().match(s);
+    if (pm.hasMatch()) return pm.captured(0);
+    static const QRegularExpression digit(QStringLiteral(R"(\d)"));
+    const QRegularExpressionMatch dm = digit.match(s);
+    if (dm.hasMatch()) return dm.captured(0);
+    static const QRegularExpression negation(
+        QStringLiteral(R"(\b(?:don['’]t|never)\b)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::UseUnicodePropertiesOption);
+    const QRegularExpressionMatch nm = negation.match(s);
+    if (nm.hasMatch()) return nm.captured(0);
+    // Sentence case: no word after the first starts with a capital. "I" is the one exception a
+    // sentence can carry; a proper noun cannot be told from Title Case here, and a work-on title
+    // has no business naming one.
+    const QStringList words = s.split(QRegularExpression(QStringLiteral(R"(\s+)")),
+                                      Qt::SkipEmptyParts);
+    for (qsizetype i = 1; i < words.size(); ++i) {
+        QString w = words.at(i);
+        while (!w.isEmpty() && !w.front().isLetterOrNumber()) w.remove(0, 1);
+        if (!w.isEmpty() && w.front().isUpper() && w != QLatin1String("I"))
+            return QStringLiteral("'%1' in Title Case").arg(words.at(i));
+    }
+    return QString();
+}
+
+// `cue` and `check` are SENTENCES the page prints whole — a capital, a full stop — with no
+// P-position and no percentage (a percentage is a claim of precision about something the golfer
+// will judge by eye). A cue is a FEEL, so it also never promises: "this will fix your slice" is a
+// claim no swing thought can make and the report has no evidence for. Returns what is wrong, or
+// empty when the sentence is clean.
+QString reportSentenceProblem(const QString &sentence, bool isCue)
+{
+    const QString s = sentence.trimmed();
+    if (s.isEmpty()) return QString();
+    if (!s.front().isUpper()) return QStringLiteral("no capital first letter");
+    if (!s.endsWith(QLatin1Char('.'))) return QStringLiteral("no full stop at the end");
+    const QRegularExpressionMatch pm = pPositionPattern().match(s);
+    if (pm.hasMatch()) return pm.captured(0);
+    static const QRegularExpression percent(QStringLiteral(R"(%|\bper\s?cent\b)"),
+                                            QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch cm = percent.match(s);
+    if (cm.hasMatch()) return cm.captured(0);
+    if (isCue) {
+        static const QRegularExpression promise(
+            QStringLiteral(R"(\b(?:will\s+(?:fix|cure|stop|solve|eliminate)|guarantee[sd]?)"
+                           R"(|cures?|cured|fixes)\b)"),
+            QRegularExpression::CaseInsensitiveOption);
+        const QRegularExpressionMatch m = promise.match(s);
+        if (m.hasMatch()) return m.captured(0);
+    }
+    return QString();
+}
+
+// A measure's `golferName` is a noun phrase the report builds into its own sentences ("your
+// trail-knee bend lost by the top was …"), so it is lower case throughout — a capital in the
+// middle of a sentence reads as a label pasted in — and it carries no P-position.
+QString golferNameProblem(const QString &name)
+{
+    const QString s = name.trimmed();
+    if (s.isEmpty()) return QString();
+    const QRegularExpressionMatch pm = pPositionPattern().match(s);
+    if (pm.hasMatch()) return pm.captured(0);
+    for (const QChar ch : s)
+        if (ch.isUpper()) return QStringLiteral("a capital '%1'").arg(ch);
+    return QString();
+}
+
 } // namespace
 
 // ── The name a measure renders under ────────────────────────────────────────
@@ -298,6 +393,112 @@ QString measureDisplayLabel(const Measure &m)
         if (!canonical.isEmpty()) return canonical;
     }
     return m.id;
+}
+
+// ── The session report's content ────────────────────────────────────────────
+
+const QStringList &reportPictureKinds()
+{
+    static const QStringList k{ QStringLiteral("change"), QStringLiteral("pair"),
+                                QStringLiteral("typical"), QStringLiteral("none") };
+    return k;
+}
+
+const QStringList &reportPictureCameras()
+{
+    static const QStringList k{ QStringLiteral("faceOn"), QStringLiteral("dtl") };
+    return k;
+}
+
+// The segments the still renderer draws from the 133-point WholeBody pose's COCO body keypoints,
+// lead and trail resolved by handedness. In the order a body is read top to bottom.
+const QStringList &reportPictureLines()
+{
+    static const QStringList k{
+        QStringLiteral("head"),         QStringLiteral("shoulders"),    QStringLiteral("spine"),
+        QStringLiteral("hips"),         QStringLiteral("leadArm"),      QStringLiteral("leadUpperArm"),
+        QStringLiteral("leadForearm"),  QStringLiteral("trailArm"),     QStringLiteral("leadThigh"),
+        QStringLiteral("trailThigh"),   QStringLiteral("leadShin"),     QStringLiteral("trailShin"),
+        QStringLiteral("stance"),       QStringLiteral("shaft"),
+    };
+    return k;
+}
+
+bool isReportPicturePhase(const QString &token)
+{
+    static const QRegularExpression p(QStringLiteral(R"(^P(?:[1-9]|10)$)"));
+    return p.match(token).hasMatch();
+}
+
+bool isWorkOnListable(const Condition &c)
+{
+    const bool kind = c.kind == ConditionKind::Setup || c.kind == ConditionKind::Fault
+                      || c.kind == ConditionKind::Delivery;
+    return kind && !c.detectedBy.isEmpty() && c.state != ConditionState::Retired
+           && c.state != ConditionState::Superseded;
+}
+
+std::vector<ReportContentGap> reportContentGaps(const CharacteristicPack &pack,
+                                                const QSet<QString>      &drillIds)
+{
+    std::vector<ReportContentGap> out;
+    const auto gap = [&out](const QString &entity, const char *field, const QString &why) {
+        out.push_back({ entity, QString::fromLatin1(field), why });
+    };
+
+    // Measures are collected over every listable row first and reported once each, in pack order,
+    // so a measure read by three habits is one gap and not three.
+    QSet<QString> readByListable;
+    for (const Condition &c : pack.conditions) {
+        if (c.kind == ConditionKind::Capacity && c.golfer.trimmed().isEmpty())
+            gap(c.id, "golfer",
+                QStringLiteral("'%1' is a capacity the report can name under \"could be behind "
+                               "it\", and has no golfer name for it.").arg(c.id));
+        if (!isWorkOnListable(c)) continue;
+
+        const struct { const char *field; const QString &value; const char *forWhat; } words[] = {
+            { "golfer",     c.golfer,     "the habit's name in the golfer's words" },
+            { "golferWell", c.golferWell, "what the golfer does when they are clear of it" },
+            { "golferWhy",  c.golferWhy,  "what it costs the shot" },
+            { "goal",       c.goal,       "the work-on page's title" },
+            { "cue",        c.cue,        "the feel to practise" },
+            { "check",      c.check,      "how to see it without the studio" },
+        };
+        for (const auto &w : words)
+            if (w.value.trimmed().isEmpty())
+                gap(c.id, w.field, QStringLiteral("'%1' can be a work-on and has no %2 (%3).")
+                                       .arg(c.id, QString::fromLatin1(w.field),
+                                            QString::fromLatin1(w.forWhat)));
+
+        if (c.picture.kind.isEmpty())
+            gap(c.id, "picture",
+                QStringLiteral("'%1' can be a work-on and does not say which still its page shows "
+                               "(kind none is an answer).").arg(c.id));
+
+        bool resolves = false;
+        for (const QString &d : c.drills) resolves = resolves || drillIds.contains(d);
+        if (!resolves)
+            gap(c.id, "drills",
+                c.drills.isEmpty()
+                    ? QStringLiteral("'%1' can be a work-on and names no drill.").arg(c.id)
+                    : QStringLiteral("'%1' can be a work-on and none of its drills (%2) is in "
+                                     "drills.json.").arg(c.id, c.drills.join(QStringLiteral(", "))));
+
+        for (const QString &sid : c.detectedBy) {
+            const Signal *s = pack.signal(sid);
+            if (!s) continue;
+            for (const QString &mid : s->measures) readByListable.insert(mid);
+            for (const QString &mid : s->fallback)
+                if (mid != QLatin1String(kImpactLink)) readByListable.insert(mid);
+        }
+    }
+
+    for (const Measure &m : pack.measures)
+        if (readByListable.contains(m.id) && m.golferName.trimmed().isEmpty())
+            gap(m.id, "golferName",
+                QStringLiteral("Measure '%1' is read by a habit that can be a work-on and has no "
+                               "golferName for the number the report prints.").arg(m.id));
+    return out;
 }
 
 // ── Graph helpers ───────────────────────────────────────────────────────────
@@ -1202,6 +1403,32 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
                                 "plain words: no causes (\"so\" is fine), no anatomy or planes of "
                                 "motion, no P-positions, no numbers or units.")
                      .arg(c.id, c.golferWhy, whyProblem));
+
+        // The session report's three sentences. Wording only — whether a listable row HAS them is
+        // the report gate's question (reportContentGaps), which core_pack_test asks of the shipped
+        // pack; here a user's pack that never authored a report keeps loading clean.
+        const QString goalWord = goalProblem(c.goal);
+        if (!goalWord.isEmpty())
+            warn(r, QStringLiteral("golferPhraseWording"), c.id,
+                 QStringLiteral("'%1' goal \"%2\" has %3. A goal is the work-on page's title: an "
+                                "instruction in sentence case, at most 60 characters, no full stop, "
+                                "no numbers or P-positions, and no don't or never — say what to "
+                                "do: \"Keep the flex in your trail knee\".")
+                     .arg(c.id, c.goal, goalWord));
+        const QString cueWord = reportSentenceProblem(c.cue, /*isCue*/ true);
+        if (!cueWord.isEmpty())
+            warn(r, QStringLiteral("golferPhraseWording"), c.id,
+                 QStringLiteral("'%1' cue \"%2\" has %3. A cue is one feel, written as sentences "
+                                "with a capital and a full stop, no P-positions or percentages, and "
+                                "never a promise (will fix, guarantees, cures).")
+                     .arg(c.id, c.cue, cueWord));
+        const QString checkWord = reportSentenceProblem(c.check, /*isCue*/ false);
+        if (!checkWord.isEmpty())
+            warn(r, QStringLiteral("golferPhraseWording"), c.id,
+                 QStringLiteral("'%1' check \"%2\" has %3. A check says how to see it without the "
+                                "studio, in sentences with a capital and a full stop, and no "
+                                "P-positions or percentages.")
+                     .arg(c.id, c.check, checkWord));
     }
 
     for (const Measure &m : pack.measures) {
@@ -1226,6 +1453,13 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
                                     "planes of motion, no P-positions, no numbers or units.")
                          .arg(m.id, phrase, word));
         }
+        const QString nameWord = golferNameProblem(m.golferName);
+        if (!nameWord.isEmpty())
+            warn(r, QStringLiteral("golferPhraseWording"), m.id,
+                 QStringLiteral("Measure '%1' golferName \"%2\" has %3. It names the number in the "
+                                "report's own sentences, so it is lower case throughout with no "
+                                "P-positions: \"trail-knee bend lost by the top\".")
+                     .arg(m.id, m.golferName, nameWord));
     }
 
     return r;
@@ -1297,6 +1531,22 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
         m.highMeans = o.value(QStringLiteral("highMeans")).toString();
         m.golferHigh = o.value(QStringLiteral("golferHigh")).toString();
         m.golferLow  = o.value(QStringLiteral("golferLow")).toString();
+        m.golferName = o.value(QStringLiteral("golferName")).toString();
+        // Absent => +1. Anything but ±1 is refused rather than clamped: the golfer-facing value is
+        // raw × golferSign, so a 2 or a 0.5 would RESCALE the number on the page, and a string
+        // that read as 0 would print every reading as zero.
+        if (o.contains(QStringLiteral("golferSign"))) {
+            const QJsonValue sv = o.value(QStringLiteral("golferSign"));
+            const double     s  = sv.isDouble() ? sv.toDouble() : 0.0;
+            if (s == 1.0 || s == -1.0)
+                m.golferSign = int(s);
+            else
+                err(r, QStringLiteral("badGolferSign"), m.id,
+                    QStringLiteral("Measure '%1' declares golferSign %2; it is 1, or -1 where the "
+                                   "golferName's words already carry the sign.")
+                        .arg(m.id, sv.isDouble() ? QString::number(sv.toDouble())
+                                                 : QStringLiteral("'%1'").arg(sv.toVariant().toString())));
+        }
 
         m.unwatchedReason = o.value(QStringLiteral("unwatchedReason")).toString();
 
@@ -1426,6 +1676,58 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
         c.golfer     = o.value(QStringLiteral("golfer")).toString();
         c.golferWell = o.value(QStringLiteral("golferWell")).toString();
         c.golferWhy  = o.value(QStringLiteral("golferWhy")).toString();
+        c.goal       = o.value(QStringLiteral("goal")).toString();
+        c.cue        = o.value(QStringLiteral("cue")).toString();
+        c.check      = o.value(QStringLiteral("check")).toString();
+
+        // The report's still, in four closed vocabularies. Absent => no picture authored (the gate
+        // asks for one on every listable row; `none` is the explicit "no still"). A token outside a
+        // vocabulary is an error in the regime every closed token here follows: the renderer draws
+        // from these words and cannot guess, so "trailThight" would be a page with an empty frame.
+        if (o.contains(QStringLiteral("picture"))) {
+            const QJsonObject po = o.value(QStringLiteral("picture")).toObject();
+            c.picture.kind   = po.value(QStringLiteral("kind")).toString();
+            c.picture.camera = po.value(QStringLiteral("camera")).toString();
+            c.picture.phase  = po.value(QStringLiteral("phase")).toString();
+            c.picture.line   = po.value(QStringLiteral("line")).toString();
+            if (!reportPictureKinds().contains(c.picture.kind))
+                err(r, QStringLiteral("unknownPictureKind"), c.id,
+                    QStringLiteral("Condition '%1' declares picture kind '%2'; the kinds are %3.")
+                        .arg(c.id, c.picture.kind, reportPictureKinds().join(QStringLiteral(", "))));
+            if (!c.picture.camera.isEmpty() && !reportPictureCameras().contains(c.picture.camera))
+                err(r, QStringLiteral("unknownPictureCamera"), c.id,
+                    QStringLiteral("Condition '%1' declares picture camera '%2'; the cameras are %3.")
+                        .arg(c.id, c.picture.camera,
+                             reportPictureCameras().join(QStringLiteral(", "))));
+            if (!c.picture.phase.isEmpty() && !isReportPicturePhase(c.picture.phase))
+                err(r, QStringLiteral("unknownPicturePhase"), c.id,
+                    QStringLiteral("Condition '%1' declares picture phase '%2'; the phases are P1 "
+                                   "to P10.").arg(c.id, c.picture.phase));
+            if (!c.picture.line.isEmpty() && !reportPictureLines().contains(c.picture.line))
+                err(r, QStringLiteral("unknownPictureLine"), c.id,
+                    QStringLiteral("Condition '%1' declares picture line '%2'; the lines are %3.")
+                        .arg(c.id, c.picture.line, reportPictureLines().join(QStringLiteral(", "))));
+            if (c.picture.kind != QLatin1String("none") && reportPictureKinds().contains(c.picture.kind)
+                && (c.picture.camera.isEmpty() || c.picture.phase.isEmpty() || c.picture.line.isEmpty()))
+                err(r, QStringLiteral("pictureIncomplete"), c.id,
+                    QStringLiteral("Condition '%1' asks for a '%2' picture without saying which "
+                                   "camera, phase and line it draws; a still needs all three "
+                                   "(kind none needs none).").arg(c.id, c.picture.kind));
+        }
+
+        // {"reason": "…"} → the reason. A hold with no reason is refused: the reason is the only
+        // thing the report says about a held habit, so an empty one is a habit that vanished.
+        if (o.contains(QStringLiteral("reportHold"))) {
+            const QJsonValue hv = o.value(QStringLiteral("reportHold"));
+            c.reportHold = hv.toObject().value(QStringLiteral("reason")).toString().trimmed();
+            if (!hv.isObject() || c.reportHold.isEmpty())
+                err(r, QStringLiteral("reportHoldNoReason"), c.id,
+                    QStringLiteral("Condition '%1' is held off the work-on lists without a reason. "
+                                   "Write it as {\"reason\": \"…\"}, in the golfer's words — the "
+                                   "report prints it as why this could not be measured reliably.")
+                        .arg(c.id));
+        }
+
         c.sharp      = o.value(QStringLiteral("sharp")).toBool(false);
         c.aliases   = readStringList(o.value(QStringLiteral("aliases")));
         c.axis       = o.value(QStringLiteral("axis")).toString();
@@ -1660,6 +1962,10 @@ QJsonObject savePack(const CharacteristicPack &pack)
         if (!m.highMeans.isEmpty()) o.insert(QStringLiteral("highMeans"), m.highMeans);
         if (!m.golferHigh.isEmpty()) o.insert(QStringLiteral("golferHigh"), m.golferHigh);
         if (!m.golferLow.isEmpty())  o.insert(QStringLiteral("golferLow"), m.golferLow);
+        if (!m.golferName.isEmpty()) o.insert(QStringLiteral("golferName"), m.golferName);
+        // Omitted at +1, the default, for `shape`'s reason: the key appears only where somebody
+        // said the words carry the sign.
+        if (m.golferSign != 1) o.insert(QStringLiteral("golferSign"), m.golferSign);
         o.insert(QStringLiteral("viewNeeded"), viewNeededName(m.viewNeeded));
         o.insert(QStringLiteral("status"), measureStatusName(m.status));
         // Omitted when Target, so 105 of 106 shipped measures round-trip byte-identically and the
@@ -1697,6 +2003,20 @@ QJsonObject savePack(const CharacteristicPack &pack)
         if (!c.golfer.isEmpty()) o.insert(QStringLiteral("golfer"), c.golfer);
         if (!c.golferWell.isEmpty()) o.insert(QStringLiteral("golferWell"), c.golferWell);
         if (!c.golferWhy.isEmpty()) o.insert(QStringLiteral("golferWhy"), c.golferWhy);
+        if (!c.goal.isEmpty())  o.insert(QStringLiteral("goal"), c.goal);
+        if (!c.cue.isEmpty())   o.insert(QStringLiteral("cue"), c.cue);
+        if (!c.check.isEmpty()) o.insert(QStringLiteral("check"), c.check);
+        if (!c.picture.kind.isEmpty()) {
+            QJsonObject po;
+            po.insert(QStringLiteral("kind"), c.picture.kind);
+            if (!c.picture.camera.isEmpty()) po.insert(QStringLiteral("camera"), c.picture.camera);
+            if (!c.picture.phase.isEmpty())  po.insert(QStringLiteral("phase"), c.picture.phase);
+            if (!c.picture.line.isEmpty())   po.insert(QStringLiteral("line"), c.picture.line);
+            o.insert(QStringLiteral("picture"), po);
+        }
+        if (!c.reportHold.isEmpty())
+            o.insert(QStringLiteral("reportHold"),
+                     QJsonObject{ { QStringLiteral("reason"), c.reportHold } });
         if (c.sharp) o.insert(QStringLiteral("sharp"), true);
         if (!c.axis.isEmpty()) o.insert(QStringLiteral("axis"), c.axis);
         if (!c.domain.isEmpty()) o.insert(QStringLiteral("domain"), c.domain);

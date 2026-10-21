@@ -3689,9 +3689,11 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("launchMonitor", RM::Device, Direct, { .launchMonitor = true },
                 QStringLiteral("read from a launch monitor")) },
-        // NO usedBy: ball_speed_deficit reads the bare `ballSpeed` measure, which is where
-        // the pack has always pointed it. Claiming it here too would have two metrics
-        // answering for one characteristic.
+        // ball_speed_deficit reads m_ballSpeed, which since 2026-10-20 prefers this key over our
+        // planned `ballSpeed` (the launch monitor is the primary source for what it measures), so
+        // both keys answer for it: this one first, the bare one where no monitor reported. Every
+        // rung of a ladder is a use (diagnostics_catalogue_integrity_test).
+        .usedBy = { QStringLiteral("characteristic:ball_speed_deficit") },
     });
 
     cat.addDescriptor({
@@ -3774,6 +3776,10 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("launchMonitor", RM::Device, Direct, { .launchMonitor = true },
                 QStringLiteral("the horizontal club path at impact, read from a launch monitor")) },
+        // m_clubPathAtImpact prefers this key over our planned `clubPath` since 2026-10-20, so the
+        // two path conditions are judged from the monitor whenever one reported the shot.
+        .usedBy = { QStringLiteral("characteristic:in_to_out_path"),
+                    QStringLiteral("characteristic:out_to_in_path") },
     });
 
     cat.addDescriptor({

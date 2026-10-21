@@ -109,6 +109,248 @@
       "targets": "To keep the distance between the body and the ball the same at impact as it was at address.",
       "equipment": ["a headcover"],
       "note": "The standard first answer to a hosel strike, and it works because it addresses the standoff rather than the fear."
+    },
+    {
+      "id": "drill.alignmentSticks",
+      "label": "Two sticks for aim",
+      "instruction": "Lay one alignment stick on the ground pointing at your target, just beyond the ball, and a second parallel to it along your toes. Set up to the second stick, then hold a club across your hips and then across your shoulders: each should lie parallel to the sticks. Hit a few shots, stepping away and back in each time.",
+      "targets": "To set your feet, hips and shoulders parallel to the target line, and to learn what square feels like for you.",
+      "equipment": ["two alignment sticks, or two clubs"],
+      "note": "If square feels badly aimed, that feeling is the habit, and it is worth trusting the sticks for a while. If the ball still starts off line from a square setup, the answer lies further on in the swing."
+    },
+{
+      "id": "drill.stanceGuide",
+      "label": "Stance and ball-position sticks",
+      "instruction": "Lay one stick along your toe line and a second across it, pointing at the ball. Let a club hang from each shoulder to see where your heels should sit, then set up so the crossing stick sits where this club's ball belongs: just inside your lead heel for the driver, moving toward the middle of your stance as the clubs get shorter.",
+      "targets": "To make stance width and ball position the same every time, so that a change in strike comes from the swing and not from the setup.",
+      "equipment": ["two alignment sticks"],
+      "note": "The right width and position vary a little from golfer to golfer. If a narrower or wider stance is the only way you can turn or keep your balance, that is a question for your coach, not something to force."
+    },
+{
+      "id": "drill.armsHangSetup",
+      "label": "Hinge and let the arms hang",
+      "instruction": "Stand tall holding the club out in front of you at chest height. Push your hips back and tip your chest forward until the club touches the ground, then let your knees soften. Let your arms hang straight down from your shoulders, and step in or out until the club sits behind the ball with about a hand's width between your hands and your thighs. Rehearse it five times before each practice session.",
+      "targets": "To set your posture, knee flex, balance and distance from the ball in one repeatable routine, rather than finding them by feel each time.",
+      "equipment": ["a mirror or a phone on a stand, optional"],
+      "note": "If you cannot hinge from the hips without your knees bending a lot or your back rounding, tight hamstrings may be setting the limit, and that is worth a physical check before more repetitions."
+    },
+{
+      "id": "drill.headOnWall",
+      "label": "Head against the wall",
+      "instruction": "Take your posture facing a wall, with your forehead resting lightly against a cushion or folded towel on it. With your arms crossed on your chest, make slow backswing turns. Your head should stay touching the cushion, without pressing into it, sliding along it or lifting off it.",
+      "targets": "To feel your chest and hips turn while your head stays at its height and in its place.",
+      "equipment": [
+        "a wall",
+        "a cushion or a folded towel"
+      ],
+      "note": "A little head movement is normal in a good swing, and this drill exaggerates stillness on purpose. If your body will only turn when your head moves, ask your coach to check how freely your upper back and hips turn."
+    },
+{
+      "id": "drill.hipsToWall",
+      "label": "Backside on the wall",
+      "instruction": "Stand with your back to a wall and set up so that your backside just touches it, with a club held across your chest. Turn slowly to the top and back down to where impact would be. Your trail back pocket should stay on the wall going back, and your lead back pocket should find it as you turn through, without pushing hard into it or coming away from it.",
+      "targets": "To feel your hips turn while keeping their distance from the ball, so your arms keep the room they had at address.",
+      "equipment": ["a wall, or the back of a chair"],
+      "note": "If your hips can only turn by moving toward the ball, the limit may be in how far your hips can turn, and a physical check comes before more practice."
+    },
+{
+      "id": "drill.leadHipStick",
+      "label": "Stick outside the lead hip",
+      "instruction": "Push an alignment stick into the ground just outside your lead hip at address, or stand a golf bag there. Make slow half swings, letting your hips move a little toward the stick as you start down and then turn away from it, so the lead hip brushes it at most.",
+      "targets": "To feel a small shift toward the target followed by a turn, rather than a long slide.",
+      "equipment": ["an alignment stick, or a golf bag"],
+      "note": "Some shift toward the target is right; the stick is there to stop the slide, not the shift. If your hips will not turn once they arrive, lead-hip mobility may be the limit, and it is worth checking first."
+    },
+{
+      "id": "drill.pauseAtTop",
+      "label": "Pause at the top",
+      "instruction": "Make swings with a one-second pause at the top. From the pause, start down with your lower body, letting your weight move toward your lead foot while your chest stays behind the ball for a moment. Start with half swings and short irons.",
+      "targets": "To give your lower body time to start the downswing, so your upper body is not rushed toward the ball.",
+      "note": "The pause is a rehearsal, not a new swing. Once the order feels natural, let the pause shrink until it has gone."
+    },
+{
+      "id": "drill.leadLegBrace",
+      "label": "Lead-leg brace hold",
+      "instruction": "Make slow half swings and stop at impact. Check in a mirror or on a phone that your lead knee sits over your lead foot, with your lead leg starting to straighten as your hips turn. Hold for two seconds, then finish the swing. Build up to three-quarter swings.",
+      "targets": "To feel your lead leg firming up underneath you through impact, giving your hips something to turn against.",
+      "equipment": ["a mirror or a phone on a stand"],
+      "note": "If your knee falls inward when you squat on one leg, strength and control around the hip come first, and this drill comes after."
+    },
+{
+      "id": "drill.leadHeelDown",
+      "label": "Lead heel planted turns",
+      "instruction": "Make three-quarter backswings keeping your lead heel planted, turning only as far as you comfortably can. Then hit a few shots, letting the heel come up only as much as it needs to.",
+      "targets": "To find out how much turn you have without the heel, and to keep any heel lift small and repeatable.",
+      "note": "Many good players lift the lead heel, and a small lift is fine. If your turn becomes very short with the heel down, the lift is giving you turn your hips or upper back cannot, so check those before cutting it out."
+    },
+{
+      "id": "drill.shoulderPlaneClub",
+      "label": "Club across the shoulders",
+      "instruction": "Take your posture with a club held across the front of your shoulders. Turn to the top and look at where the end of the club nearest your lead shoulder points: it should point at the ball or just beyond it. Make ten slow turns, checking each one, then hit a few shots.",
+      "targets": "To feel your shoulders turn on a tilt that matches your posture, neither flat across nor tipping straight up and down.",
+      "equipment": ["a club or an alignment stick"],
+      "note": "If the club will not reach the ball line without your back bending, the limit may be how far your upper back turns, and that is worth a physical check first."
+    },
+{
+      "id": "drill.topTilt",
+      "label": "Club across the chest",
+      "instruction": "Without a ball, hold a club across your chest. Turn to the top and check in a mirror, or on a phone face-on, that your head and chest sit a little behind the ball, with your upper body tilted slightly away from the target. Make ten slow turns.",
+      "targets": "To feel your upper body staying behind the ball as it turns, rather than tipping toward the target or hanging too far back.",
+      "equipment": ["a mirror, or a phone on a stand"],
+      "note": "A short turn often hides inside this one: if the shoulders cannot turn further, the body tips instead, and a physical check of your upper back comes first."
+    },
+{
+      "id": "drill.takeawayStick",
+      "label": "Takeaway along the stick",
+      "instruction": "Lay an alignment stick on the ground along the target line, just beyond the ball. Take the club back slowly to hip height and stop: the shaft should sit parallel to the stick, with the clubhead roughly in line with your hands. Return and repeat five times, then hit the shot.",
+      "targets": "To start the club back along the line, so the rest of the backswing does not have to correct it.",
+      "equipment": ["an alignment stick"],
+      "note": "The takeaway follows the body. If your shoulders or feet are aimed off line, the club will follow them, so check your setup first."
+    },
+{
+      "id": "drill.beltLine",
+      "label": "Belt line in the mirror",
+      "instruction": "Stand face-on to a mirror, or a phone on a stand, and put a strip of tape across it at the height of your belt at address. Make slow backswing turns and check at the top that your belt is still level with the tape, and close to level from side to side.",
+      "targets": "To feel your hips turn at the height they started, without lifting or sinking.",
+      "equipment": [
+        "a mirror or a phone on a stand",
+        "a strip of tape"
+      ],
+      "note": "Your belt will tilt a little as your hips turn, which is normal. If your hips can only turn by lifting, ask your coach to check how freely your trail hip turns."
+    },
+{
+      "id": "drill.trayAtTop",
+      "label": "Tray at the top",
+      "instruction": "Without a club, take your posture and turn to the top with your trail palm facing the sky as if carrying a tray of drinks, your trail elbow pointing at the ground below your hands. Then add a club and make slow backswings into the same shape, holding the top for two seconds each time.",
+      "targets": "To feel the trail elbow staying below the hands and in front of the body at the top.",
+      "note": "If your trail arm cannot turn into this shape without the elbow lifting or tucking behind you, check trail-shoulder mobility before practising it: the elbow often moves because the shoulder cannot turn out."
+    },
+{
+      "id": "drill.armsLongThrough",
+      "label": "Both arms long through the ball",
+      "instruction": "Make half swings and stop when the shaft is level with the ground after impact. Check that both arms are straight, the toe of the club points up and your chest has turned toward the target with your arms. Five slow ones, then hit balls with the same finish.",
+      "targets": "To feel the arms extending through the ball while the chest keeps turning, instead of the lead elbow folding away.",
+      "note": "If your chest stops turning, the arms have nowhere to go and the elbow folds anyway. A body that stalls through the ball, or a lead hip that cannot turn, needs looking at first."
+    },
+{
+      "id": "drill.impactHold",
+      "label": "Impact hold",
+      "instruction": "Make slow swings to impact and stop there. Check three things: your belt buckle points between the ball and the target, your trail heel is just off the ground, and your hands are level with your lead thigh with the shaft leaning a little toward the target. Hold for two seconds, then finish the swing slowly.",
+      "targets": "To feel where your body and hands need to be when the club reaches the ball.",
+      "equipment": ["a mirror or a phone on a stand"],
+      "note": "A held position is not a swing: use it to learn what impact feels like, then hit gentle shots trying to pass through it. If your hips will not open without your shoulders opening too, that is a mobility question before it is a practice one."
+    },
+{
+      "id": "drill.flatLeadWrist",
+      "label": "Card on the lead wrist",
+      "instruction": "Slide a playing card or a folded scorecard under your glove strap or watch strap, flat against the back of your lead wrist. Make slow swings to the top and to impact, keeping the card lying flat: if it digs into your wrist, the wrist has cupped; if its end lifts away from your hand, the wrist has bowed.",
+      "targets": "To feel what a flat lead wrist is like at the top and into impact.",
+      "equipment": ["a playing card or a folded scorecard"],
+      "note": "The grip comes first: a grip turned well to one side sets the wrist cupped or bowed before the swing starts, and no wrist drill outlasts it. If the wrist cannot reach flat in slow motion, screen its mobility before repeating this."
+    },
+{
+      "id": "drill.takeawayFace",
+      "label": "Leading edge at halfway back",
+      "instruction": "Stand side-on to a mirror, or film from down the line. Make slow takeaways to where the shaft is level with the ground and stop. Check that the leading edge of the club leans forward at about the angle of your spine. Ten slow rehearsals, then hit half shots keeping the same picture.",
+      "targets": "To feel the clubface turning with the body going back, neither rolled open nor held shut.",
+      "equipment": ["a mirror or a phone on a stand"],
+      "note": "If the face only looks right with the grip changed, the grip is the answer rather than the takeaway. This checks the start of the swing; it is the wrong drill when the face only goes wrong later, at the top."
+    },
+{
+      "id": "drill.buttToTheLine",
+      "label": "Butt end to the line",
+      "instruction": "Lay an alignment stick on the ground along the ball-to-target line. Make slow backswings and stop when your lead arm is level with the ground: the butt of the club should point at the stick. Then swing down to the same place, check it again, and hit the shot.",
+      "targets": "To feel the club going back and coming down on the plane it started on, with a reference you can see.",
+      "equipment": ["an alignment stick"],
+      "note": "It shows where the club is, not why: if your arms lift because your chest has stopped turning, the turn is the thing to work on."
+    },
+{
+      "id": "drill.backToTarget",
+      "label": "Back to the target",
+      "instruction": "Cross your arms over your chest, take your golf posture and turn back slowly until your back faces the target, keeping your trail knee flexed and your head steady. Hold for two seconds, turn through to a full finish, and repeat ten times. Then hit shots with the same turn.",
+      "targets": "To feel a full turn of the chest and shoulders going back, made by the body rather than by the arms.",
+      "note": "If your back will not face the target without your trail knee straightening or your spine tipping, the limit is upper-back mobility. Screen it before forcing the turn, because forcing it moves something else instead."
+    },
+{
+      "id": "drill.wideTop",
+      "label": "Push the club wide",
+      "instruction": "Make slow backswings feeling your trail hand push the club away from your trail shoulder, so your hands stay as far from your head as they comfortably go. Stop at the top and check that your lead arm is straight but not rigid. Five rehearsals, then hit three-quarter shots.",
+      "targets": "To feel a wide arc at the top, with the lead arm long and the hands away from the body.",
+      "note": "If your lead arm will not stay straight without your shoulders lifting, check shoulder mobility first. Width comes from the turn as well as the arms: a short turn narrows the arc whatever the arms do."
+    },
+{
+      "id": "drill.softArms",
+      "label": "Soft arms, light grip",
+      "instruction": "Grip the club as if it were an open tube of toothpaste you must not squeeze, about four on a scale of ten. Let your arms hang from your shoulders and make slow half swings, keeping that pressure the same all the way to the top and back.",
+      "targets": "To feel arms that are straight but relaxed, moved by the turn rather than held in place by tension.",
+      "note": "Light is not loose: the club should stay under control. If your arms tighten as soon as the swing gets longer, shorten it until they stay soft."
+    },
+{
+      "id": "drill.toeUpToToeUp",
+      "label": "Toe up to toe up",
+      "instruction": "Make swings from hip height to hip height. Going back, stop with the shaft level with the ground and the toe of the club pointing at the sky; through the ball, stop at the same height with the toe pointing at the sky again. Slow and small first, then hit balls with the same swing.",
+      "targets": "To feel the clubface turning with the arms and body through the ball: a face looking at the sky after impact has been held open, and one looking at the ground has turned over too fast.",
+      "note": "If the ball keeps curving the same way however the face feels, check the grip and the path before the release: a face that is only wrong compared with the path will not be fixed by the hands alone."
+    },
+{
+      "id": "drill.brushTheGrass",
+      "label": "Brush the grass",
+      "instruction": "Without a ball, make half swings that brush the grass for the length of a scorecard, starting where the ball would be, without taking a deep divot. Once the brush is long and shallow, put a ball down and keep the same feel.",
+      "targets": "To feel a shallower path into the bottom of the swing, with the club travelling along the ground rather than digging into it.",
+      "note": "On a mat it is easy to bounce the club and think it brushed: use grass, or a towel laid on the mat, to see it honestly. If your hands are pushed far ahead at impact, work on that first."
+    },
+{
+      "id": "drill.mirrorTop",
+      "label": "Hold the top in the mirror",
+      "instruction": "Stand side-on to a mirror, or film from down the line. Swing slowly to the top and hold it for three seconds while you check the one thing your work-on names: the clubface, the lead wrist, where the shaft points or how far it has gone. Move into the position you want, feel it, then swing on from there and hit a gentle shot.",
+      "targets": "To learn what the position you want at the top feels like, by matching it to a picture of it.",
+      "equipment": ["a mirror or a phone on a stand"],
+      "note": "A position held still is easier than one passed through at speed: once it feels normal held, test it in half swings before full ones. If you cannot reach the position even slowly, that is a mobility question before it is a practice one."
+    },
+{
+      "id": "drill.feetTogether",
+      "label": "Feet-together swings",
+      "instruction": "Stand with your feet together and hit easy half to three-quarter shots off a low tee. Let your arms swing and your body turn only as fast as you can stay balanced, and hold the finish each time.",
+      "targets": "To feel the arms, body and club working together at a speed your balance can support, rather than the body lunging or the arms going on their own.",
+      "equipment": ["a low tee, optional"],
+      "note": "Short shots only. If you cannot stay balanced even at half speed, balance on one leg is worth checking before anything else."
+    },
+{
+      "id": "drill.whooshAtTheBall",
+      "label": "Whoosh at the ball",
+      "instruction": "Turn a club upside down and hold it just below the head. Make full swings without a ball and listen for the swish. Try to make it loudest right where the ball would sit, or just past it. Five swings, then hit a ball with the same feel.",
+      "targets": "To hear where the club is moving fastest, and to move that moment to the ball.",
+      "equipment": ["any club, held upside down"],
+      "note": "It tells you where your speed is, not how to move. If the swish stays early however you try, the wrists are letting go too soon: start with that, with your coach."
+    },
+{
+      "id": "drill.splitHandsRelease",
+      "label": "Split-hands release",
+      "instruction": "Grip the club with your hands a few inches apart and make slow half swings. Through the ball, let your trail hand pass over your lead hand so the toe of the club turns up past your hands. Stop at hip height and check the toe points up.",
+      "targets": "To feel the club releasing past the hands and the face turning over through impact, rather than being held off.",
+      "note": "This is for a club that is being held back. If your shots already start off line and hook further, it is the wrong answer: the face is closing too fast, not too slowly."
+    },
+{
+      "id": "drill.turnToTarget",
+      "label": "Turn to the target",
+      "instruction": "Make slow half swings and keep your chest and belt buckle turning after the ball until both face the target. Stop with the club at waist height, your arms in front of your chest and the back of your lead hand facing the target. Hold for a second, then go again.",
+      "targets": "To feel the body carrying the club through the ball, so the hands have no need to take over.",
+      "note": "If your hips will not turn through without your lead knee buckling or your lower back complaining, have your lead hip checked before repeating this one."
+    },
+{
+      "id": "drill.hingeThenTurn",
+      "label": "Hinge, then turn",
+      "instruction": "At address, hinge your wrists until the club points up in front of you, without moving your arms. Then turn to the top keeping that hinge. Do it five times slowly, then make normal swings looking for the same set at the top.",
+      "targets": "To feel how much the wrists can set, and to let that set arrive by the top without forcing it.",
+      "note": "If your wrists cannot hinge that far even standing still, that is a wrist mobility question before it is a practice one: get it checked first."
+    },
+{
+      "id": "drill.firmTop",
+      "label": "Firm wrists at the top",
+      "instruction": "Swing slowly to the top and stop. Check in a mirror that the club rests on your lead thumb, that the clubhead is not drooping down behind you, and that all your fingers are still on the grip. Hold for two seconds, then swing on through. Ten slow ones.",
+      "targets": "To feel a top that is set by the turn and held by a steady grip, rather than by the wrists folding further.",
+      "equipment": ["a mirror, or a phone on a stand"],
+      "note": "If the club only droops when your lead arm bends, the arm is the place to start, not the wrists."
     }
   ]
 }

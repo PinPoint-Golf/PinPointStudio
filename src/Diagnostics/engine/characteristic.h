@@ -266,6 +266,28 @@ struct Condition {
     // screen has no evidence for. Never another fault as the reason. Required on the same rows as
     // `golferWell`.
     QString                     golferWhy;
+    // THE SESSION REPORT'S WORDS (docs/design/session_report_design.md §5). A client report is only
+    // useful if it can say what to DO, so a condition the work-on rule can list carries, besides the
+    // three phrases above: `goal`, golferWell as an instruction (the work-on page's title — "Keep the
+    // flex in your trail knee"); `cue`, one feel or swing thought, written as a feel and never as a
+    // promise; `check`, how the golfer can see it without the studio (camera angle, position, what to
+    // look for); and `picture`, which still the page shows. core_pack_test's report gate requires all
+    // four, and a drill, on every listable row.
+    QString                     goal;
+    QString                     cue;
+    QString                     check;
+    struct ReportPicture {
+        QString kind;       // "change" (address vs the position), "pair" (closest vs furthest), "typical", "none"
+        QString camera;     // "faceOn" | "dtl"
+        QString phase;      // "P1" … "P10"
+        QString line;       // the body segment drawn (report_stills.h's vocabulary)
+    };
+    ReportPicture               picture;
+    // HELD BACK FROM EVERY WORK-ON LIST, with the reason (empty: not held). For a reading found not
+    // to be trustworthy enough to headline a client report — the measurement is untouched and the
+    // row still grades; it just never becomes a work-on, on the home screen or in the report, so
+    // "work-on 1" means one habit everywhere. The report names it once, as could-not-be-measured.
+    QString                     reportHold;
     QString                     axis;                // joins the two tails of one measure; may be empty
     // The DOMAIN a condition is judged in, beside the whole-swing library — "wrist" today, and
     // empty (the overwhelming case) for none. Orthogonal to `group`, which is where in the swing:

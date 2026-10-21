@@ -184,6 +184,14 @@ int main()
     // A measure marked `live` on a metric the catalogue calls planned would tell the user a value
     // is available when nothing can produce it — the single most damaging kind of disagreement
     // between these two registries.
+    //
+    // ASKED OF THE WHOLE LADDER, not of `metricKey` alone (2026-10-20). The launch monitor became the
+    // primary source for every quantity it measures, so m_clubPathAtImpact reads `lm.clubPath` first
+    // and our planned `clubPath` only where no monitor answered. A measure has a producer when ANY
+    // rung has one: asked of the bare key, the check called that measure an over-claim while the
+    // engine judged in_to_out_path off it on every monitor shot — and the only status that passed,
+    // `planned`, greyed the condition on the DAG beside a value. The same question settles the other
+    // direction: a `planned` measure whose preferred rung is live is the understatement below.
     {
         int overclaimed = 0, understated = 0;
         for (const Measure &m : p.measures) {
@@ -191,19 +199,29 @@ int main()
             const MetricDescriptor *d = cat.descriptor(m.metricKey);
             if (!d) continue;
 
-            if ((m.status == MeasureStatus::Live || m.status == MeasureStatus::Held)
-                && d->planned()) {
+            bool produced = !d->planned();
+            QString producedBy = produced ? m.metricKey : QString();
+            for (const QString &k : m.preferKeys) {
+                const MetricDescriptor *rung = cat.descriptor(k);
+                if (rung && !rung->planned()) {
+                    if (!produced) producedBy = k;
+                    produced = true;
+                }
+            }
+
+            if ((m.status == MeasureStatus::Live || m.status == MeasureStatus::Held) && !produced) {
                 ++overclaimed;
-                std::printf("        measure '%s' claims a producer, but metric '%s' is planned\n",
+                std::printf("        measure '%s' claims a producer, but metric '%s' is planned "
+                            "and no rung of its ladder is produced\n",
                             qPrintable(m.id), qPrintable(m.metricKey));
             }
-            if (m.status == MeasureStatus::Planned && !d->planned()) {
+            if (m.status == MeasureStatus::Planned && produced) {
                 // Understating used to be a note, and eight DTL/foot measures sat in the
                 // diagnostics list as "Planned" with values beside them after their producers
                 // shipped. A measure with a producer that is deliberately not graded is `held`.
                 ++understated;
                 std::printf("        measure '%s' says planned, but metric '%s' has a producer\n",
-                            qPrintable(m.id), qPrintable(m.metricKey));
+                            qPrintable(m.id), qPrintable(producedBy));
             }
         }
         check(overclaimed == 0, "no measure claims a producer the catalogue does not have");

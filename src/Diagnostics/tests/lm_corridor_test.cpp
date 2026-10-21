@@ -151,7 +151,7 @@ int main()
     const QStringList want{
         QStringLiteral("lm.attackAngle"),
         QStringLiteral("lm.carryDistance"),   QStringLiteral("lm.clubPath"),
-        QStringLiteral("lm.faceToPath"),      QStringLiteral("lm.launchAngle"),
+        QStringLiteral("lm.clubheadSpeed"),   QStringLiteral("lm.faceToPath"),      QStringLiteral("lm.launchAngle"),
         QStringLiteral("lm.launchDirection"), QStringLiteral("lm.smashFactor"),
         QStringLiteral("lm.spinAxis"),        QStringLiteral("lm.spinRate"),
         QStringLiteral("lm.strikeLocation"),
@@ -172,8 +172,18 @@ int main()
     // along. It also means a norm edit can never leave the two instruments grading differently,
     // which is exactly the drift the mirrored launchAngle rows above have to be kept in step by hand
     // to avoid.
+    //
+    // lm.clubheadSpeed joined 2026-10-20 by the attack-angle route, and it is the one this header
+    // warns about, so it is said out loud: the launch monitor became the primary source for every
+    // quantity it measures (Mark's decision, for the session report), and m_clubheadSpeedImpact
+    // now prefers `lm.clubheadSpeed`. That measure carries the per-club, per-cohort FLOOR the
+    // speed rows were set by rule (Ideal from 5% under mu, Action from 10% under), so the board now
+    // colours a slow measured clubhead the way the charts already coloured a slow estimated one. One
+    // quantity, one corridor. Ball speed did NOT join: m_ballSpeed prefers `lm.ballSpeed` too, but
+    // it has no norm in any context, so the tile stays uncoloured. If clubhead speed should stay
+    // silent on this board, the fix is in the panel (skip capability readings), not in the ladder.
     check(gradable == want,
-          "exactly the ten authored readings resolve a corridor; the rest stay silent");
+          "exactly the eleven authored readings resolve a corridor; the rest stay silent");
     if (gradable != want)
         std::printf("       got: %s\n", gradable.join(QStringLiteral(", ")).toUtf8().constData());
 

@@ -64,6 +64,7 @@
 #include <QStringList>
 #include <QFile>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
 
@@ -533,7 +534,12 @@ int main(int argc, char **argv)
         // route's pelvisRotationSigned. This fixture is a single-camera capture, so it still
         // produces nothing for it — which the next check (no value from a non-live measure) and the
         // live measure's own absence here both stay honest about.
-        check(planned == 14, "14 shipped measures are not live yet");   // 16 -> 14 on 2026-10-14: m_ksOrderShare, m_ksTimingSpread went live on the session reducer (scope: session — still no per-swing value, which `wrong` below confirms)
+        // 14 -> 11 on 2026-10-20: the launch monitor became the primary source for what it
+        // measures (Mark's decision for the session report). m_clubPathAtImpact, m_launchAngle and
+        // m_launchDirection now prefer their lm.* twins, so each has a live rung and is live;
+        // m_ballSpeed did the same but is HELD — it produces on a monitor shot and has no corridor,
+        // so nothing grades it. Still not live, and still silent here: this fixture has no monitor.
+        check(planned == 11, "11 shipped measures are not live yet");   // 16 -> 14 on 2026-10-14: m_ksOrderShare, m_ksTimingSpread went live on the session reducer (scope: session — still no per-swing value, which `wrong` below confirms)
         check(wrong == 0, "…and not one of them produced a value");
     }
 
@@ -663,8 +669,16 @@ int main(int argc, char **argv)
     // and `attack_too_steep` and `attack_too_shallow` were therefore unanswerable on a swing whose
     // launch monitor had reported the attack angle outright, -2.73°, sitting in the document read
     // by nothing. Those two conditions plus `top` and `sky` are the four.
-    check(cLm.assessable   == 21, "lm_7iron: 21 of 173 conditions assessable (observed)");
-    check(cLm.measures     == 26, "lm_7iron: 26 live measures resolved (observed)");
+    //
+    // 21 -> 23 and 26 -> 30 on 2026-10-20, the launch monitor first (Measure::preferKeys on the five
+    // bare measures with an lm.* twin). The two conditions are in_to_out_path and out_to_in_path:
+    // they read m_clubPathAtImpact, whose own `clubPath` producer is planned, so on a swing whose
+    // monitor reported path outright (-0.49°) they were unanswerable — the attack-angle story of
+    // 2026-08-12 again. The four measures are m_clubPathAtImpact, m_launchAngle, m_launchDirection
+    // and m_clubheadSpeedImpact, each now reading its monitor rung. m_ballSpeed resolves too but is
+    // held, so it is not counted, and ball_speed_deficit stays Unavailable: no norm to judge it by.
+    check(cLm.assessable   == 23, "lm_7iron: 23 of 173 conditions assessable (observed)");
+    check(cLm.measures     == 30, "lm_7iron: 30 live measures resolved (observed)");
     check(cSparse.assessable == 2, "sparse_noclub: 2 of 158 conditions assessable (observed)");
     check(cSparse.measures   == 1, "sparse_noclub: 1 live measure resolved (observed)");
     check(cRich.assessable > cSparse.assessable,
@@ -751,6 +765,100 @@ int main(int argc, char **argv)
               "a smash of 1.389 against an iron floor of 1.38 does NOT fire smash_deficit");
         check(smash && smash->evidence.hasCorridor && smash->evidence.highOpen,
               "…and the evidence reports the open high tail rather than a fabricated upper edge");
+    }
+
+    // ── The launch monitor is the primary source for what it measures ─────────────────────
+    //
+    // Mark, 20 Oct 2026: "LM is always the primary source for the metrics it delivers — our
+    // estimates will never be better." The two path conditions read m_clubPathAtImpact, which
+    // until then read only our own `clubPath` — a planned producer — so in_to_out_path and
+    // out_to_in_path were NEVER judged, even on a session where the monitor measured path on every
+    // swing (session_report_design.md §14.6). The measure now prefers `lm.clubPath`
+    // (Measure::preferKeys), and the three cases below are the whole contract of that ladder, on
+    // the real device-only capture and two copies of it edited to carry the other instrument:
+    //
+    //   the monitor only    → judged, from the monitor        (lm_7iron as recorded)
+    //   both instruments    → judged, from the MONITOR, never ours, even when ours would fire
+    //   our estimate only   → still judged, from ours          (the fallback a monitor-less golfer has)
+    //
+    // The estimate is +6° in both edited copies: past the ±4° fault line, so "it fired" and "it
+    // did not" tell the two instruments apart, which a value inside the corridor could not.
+    std::printf("\nthe launch monitor first: club path\n");
+    {
+        const QString lmPathKey = QStringLiteral("lm.clubPath");
+        // Copy lm_7iron with its metrics array edited, into its own swing directory.
+        auto variant = [&](const char *name, bool keepMonitor, bool addOurs) {
+            QFile in(QDir(lm).filePath(QStringLiteral("swing.json")));
+            if (!in.open(QIODevice::ReadOnly)) return QString();
+            QJsonObject doc      = QJsonDocument::fromJson(in.readAll()).object();
+            QJsonObject analysis = doc.value(QStringLiteral("analysis")).toObject();
+            QJsonArray  metrics  = analysis.value(QStringLiteral("metrics")).toArray();
+            QJsonArray  out;
+            QJsonObject monitorRow;
+            for (const QJsonValue &v : metrics) {
+                const QJsonObject o = v.toObject();
+                if (o.value(QStringLiteral("key")).toString() == lmPathKey) {
+                    monitorRow = o;
+                    if (!keepMonitor) continue;
+                }
+                out.append(o);
+            }
+            if (addOurs && !monitorRow.isEmpty()) {
+                // Our estimate in the monitor's own shape — one sample at impact — so the only
+                // thing that differs between the two rows is the key and the number.
+                QJsonObject ours = monitorRow;
+                ours.insert(QStringLiteral("key"), QStringLiteral("clubPath"));
+                ours.insert(QStringLiteral("label"), QStringLiteral("Club path"));
+                QJsonArray  samples = ours.value(QStringLiteral("phaseSamples")).toArray();
+                QJsonObject s0      = samples.at(0).toObject();
+                s0.insert(QStringLiteral("value"), 6.0);
+                samples.replace(0, s0);
+                ours.insert(QStringLiteral("phaseSamples"), samples);
+                out.append(ours);
+            }
+            analysis.insert(QStringLiteral("metrics"), out);
+            doc.insert(QStringLiteral("analysis"), analysis);
+            const QString dst = QDir(tmp.path()).filePath(QLatin1String("live_swings/") + QLatin1String(name));
+            QDir().mkpath(dst);
+            QFile f(QDir(dst).filePath(QStringLiteral("swing.json")));
+            if (!f.open(QIODevice::WriteOnly)) return QString();
+            f.write(QJsonDocument(doc).toJson());
+            return dst;
+        };
+        const QString both = variant("lm_path_both", /*keepMonitor*/ true,  /*addOurs*/ true);
+        const QString ours = variant("lm_path_ours", /*keepMonitor*/ false, /*addOurs*/ true);
+        check(!both.isEmpty() && !ours.isEmpty(), "the two edited copies of lm_7iron staged");
+
+        struct Case { const char *label; QString dir; double value; FindingState inToOut; };
+        const Case cases[] = {
+            { "monitor only", lm,   -0.494054, FindingState::NotFired },
+            { "both",         both, -0.494054, FindingState::NotFired },
+            { "ours only",    ours,  6.0,      FindingState::Fired },
+        };
+        const auto stateWord = [](const Finding *f) {
+            if (!f) return "(none)";
+            switch (f->state) {
+            case FindingState::Fired:    return "fired";
+            case FindingState::NotFired: return "not fired";
+            default:                     return "unavailable";
+            }
+        };
+        for (const Case &k : cases) {
+            const LiveMeasureSource src(k.dir, pack);
+            const std::optional<IMeasureValueSource::Value> v =
+                src.value(QStringLiteral("m_clubPathAtImpact"));
+            const LiveDetection d   = detectForSwing(src, pack, norms);
+            const Finding      *in  = d.result.find(QStringLiteral("in_to_out_path"));
+            const Finding      *out = d.result.find(QStringLiteral("out_to_in_path"));
+            const bool readOk = v && near(v->value, k.value, 1e-6);
+            const bool judged = in && out && in->state == k.inToOut && out->state == FindingState::NotFired
+                                && in->evidence.hasEvidence && near(in->evidence.value, k.value, 1e-6);
+            std::printf("  [%s] %-12s m_clubPathAtImpact = %s, in_to_out_path %s, out_to_in_path %s\n",
+                        readOk && judged ? "PASS" : "FAIL", k.label,
+                        v ? qPrintable(QString::number(v->value)) : "(none)",
+                        stateWord(in), stateWord(out));
+            if (!(readOk && judged)) ++g_fail;
+        }
     }
 
     // ── The route a reading came from (trunk_imu_sequence_grf_design.md §10.7, E3) ──────────

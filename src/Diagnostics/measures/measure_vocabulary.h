@@ -210,6 +210,13 @@ struct Measure {
     QString       golferHigh;
     QString       golferLow;
 
+    // The NUMBER in a golfer's words, for the session report (docs/design/session_report_design.md
+    // §5): "trail-knee bend lost by the top". Lower case. `golferSign` is +1 or −1: the value the
+    // golfer is shown is raw × golferSign, −1 where the words already carry the sign ("lost"), so the
+    // value and its chart read as a magnitude in the direction the words name.
+    QString       golferName;
+    int           golferSign = 1;
+
     // A tail that GRADES and is deliberately not watched, with the reason it is not.
     //
     // Same contract as `gapReason` for NotCapturable: the field says something is intentional, the

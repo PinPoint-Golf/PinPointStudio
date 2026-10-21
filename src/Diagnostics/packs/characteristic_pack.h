@@ -69,6 +69,19 @@ inline constexpr int kPackSchemaVersion = 1;
 //   unknownDomain        a condition declares a domain that is not in conditionDomains() ("wrist").
 //                        A misspelt domain would silently drop the row out of the domain surface's
 //                        findings and score, which reads as the fault having gone away
+//   unknownPictureKind · unknownPictureCamera · unknownPicturePhase · unknownPictureLine
+//                        a condition's report `picture` names a token outside its closed
+//                        vocabulary (reportPictureKinds / Cameras / Lines below; phase is P1…P10).
+//                        The still is drawn from these words by a renderer that cannot guess, so a
+//                        misspelt line is a work-on page with no picture on it
+//   pictureIncomplete    a `picture` other than `none` that leaves camera, phase or line out. A
+//                        still needs all three; `none` is the one kind that needs nothing
+//   badGolferSign        a measure's `golferSign` is not +1 or −1. Anything else would scale the
+//                        number a golfer is shown, not merely say which way it reads
+//   reportHoldNoReason   a condition held off the work-on lists (`reportHold`) without a reason,
+//                        or with one not written as {"reason": "…"}. The report prints the reason
+//                        as the only thing it says about the habit, so a hold without one is a
+//                        habit that silently vanished
 //   unknownGroup · unknownObservability · unknownConfirmedBy · unknownState · unknownViewNeeded ·
 //   unknownStatus        the same rule for the six fields that used to fall back silently. Each
 //                        decides something invisible — which section a condition appears in, which
@@ -146,8 +159,14 @@ inline constexpr int kPackSchemaVersion = 1;
 //                        P-position, any digit, °, %, mph, degrees. In `golferWell` also don't,
 //                        doesn't, not, never, no: that phrase says what the golfer DOES. A
 //                        `golferWhy` is one sentence, so it must also start with a capital and end
-//                        with a full stop ("so" is allowed there: it is the cost to the shot)
-//   faultNotObservable   a Fault that cannot be seen in the swing. Then it is not a swing fault; it
+//                        with a full stop ("so" is allowed there: it is the cost to the shot).
+//                        The session report's words are held to their own rules under the same
+//                        code: `goal` is a sentence-case instruction of at most 60 characters with
+//                        no full stop, digit, P-position, don't or never; `cue` and `check` are
+//                        sentences with no P-position or percentage, and a cue never promises
+//                        (will fix, guarantees, cures); a measure's `golferName` is lower case
+//                        with no P-position
+//   faultNotObservable  a Fault that cannot be seen in the swing. Then it is not a swing fault; it
 //                        is a Capacity or an Intent. THIS IS THE CHECK THAT WOULD HAVE CAUGHT
 //                        `over_the_top`, which shipped Latent because nobody had written it a measure
 //   kindReachMismatch    a Capacity not reached by a screen, or an Intent not reached by asking. One
@@ -225,6 +244,40 @@ QJsonObject savePack(const CharacteristicPack &pack);
 //                      a Provided measure with no label has no facets to generate one from, and a
 //                      nameless row is worse than an ugly one
 QString measureDisplayLabel(const Measure &m);
+
+// ── The session report's content (docs/design/session_report_design.md §5) ──
+//
+// The closed vocabularies of Condition::picture. ONE list each, here, because three readers spell
+// them — the loader that refuses a misspelling, the gate that requires one, and the still renderer
+// (report_stills.h) that draws the named body segment — and a fourth spelling anywhere is a work-on
+// page with no picture on it and nothing to say why.
+const QStringList &reportPictureKinds();     // change, pair, typical, none
+const QStringList &reportPictureCameras();   // faceOn, dtl
+const QStringList &reportPictureLines();     // trailThigh … stance — COCO body segments, lead/trail
+bool               isReportPicturePhase(const QString &token);   // "P1" … "P10", exactly
+
+// Can the work-on rule list this condition? A set-up, fault or delivery habit that something can
+// detect, in any state but retired or superseded — DRAFT ROWS ARE LISTED (Nick's first work-on,
+// trail_knee_straighten, is one), so a draft is held to everything an active row is. `reportHold`
+// does not take a row out of this set: a held habit is still named in the report, once, as could
+// not be measured reliably, and the golfer words it is named in are the same ones.
+bool isWorkOnListable(const Condition &c);
+
+// What a client report would be missing, row by row. The gate core_pack_test holds the shipped pack
+// to: every listable condition has golfer, golferWell, golferWhy, goal, cue, check, a picture and
+// at least one drill that RESOLVES in `drillIds` (a dangling id is a drill card the report cannot
+// print); every measure such a condition's signals read — the order chain's fallbacks included —
+// has golferName; every capacity condition has golfer (it is named under "could be behind it").
+//
+// Presence only. Whether the words are well formed is golferPhraseWording's job in validatePack,
+// so a row that is present and badly worded is reported once, by the lint, and not twice.
+struct ReportContentGap {
+    QString entity;   // condition or measure id
+    QString field;    // "golfer", "goal", "picture", "drills", "golferName", …
+    QString why;      // one line, naming the row and what it is for
+};
+std::vector<ReportContentGap> reportContentGaps(const CharacteristicPack &pack,
+                                                const QSet<QString>      &drillIds);
 
 // ── Graph helpers (shared by the validator, the resolver and the UI) ────────
 // `Causes` edges only. Direction follows Edge's contract: `from` causes `to`.
