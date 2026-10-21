@@ -1602,3 +1602,7 @@ pp_add_test(forward_backward_test
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)
 pp_add_test(plane_bootstrap_test SOURCES plane_bootstrap_test.cpp NO_QT)
+
+# The session report's pure reductions (src/Coaching/session_report.h, header-only, beside work_ons.h).
+# At the end of the file so every path variable above (DIAG, DIAGRES, NORM_INC…) is in scope.
+include(${CMAKE_CURRENT_LIST_DIR}/session_report_tests.cmake)
