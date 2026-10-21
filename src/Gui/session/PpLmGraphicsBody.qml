@@ -65,6 +65,16 @@ Item {
     property string surface: "panel"           // "panel" | "cast"
     property string printOrientation: ""
     property int printPage: 0
+    // A DOCUMENT'S OWN LOOK (the session report's launch monitor appendix): an aesthetic name ("folio") makes the
+    // print draw in that aesthetic's LIGHT inks, type and chart palette whatever the app shows (PpTypeset.fixedAesthetic).
+    property string printAesthetic: ""
+    // EMBEDDED IN ANOTHER DOCUMENT: print blocks named here are drawn alone, at the body's width from y 0, with no
+    // paper, running head or folio — the host lays out and pages them. `embedHeight` is their height. `figNo`
+    // numbers the block's figure head (0: the panel's own numbering).
+    property var embedBlocks: []
+    property int figNo: 0
+    readonly property bool embedded: medium === "print" && embedBlocks.length > 0
+    readonly property real embedHeight: printCol.height
     readonly property int printPageCount: medium === "print" ? printPlan.length : 1
     readonly property string register: medium === "print" ? "Print"
                                       : (surface === "cast" || SessionMode.mode !== SessionMode.analyse) ? "Replay" : "Analyse"
@@ -82,7 +92,7 @@ Item {
     // THE ROLE TABLE is Theme's: Theme.typeset.lm (defaults in _typesetDefault.lm, a theme's overrides merged
     // over them). Sizes are design units (through ts.u()); ems are the body role. `centreMark` names a colour
     // role ("accent" | "series:N" | "ink"), resolved in roleColor().
-    readonly property var lr: Theme.typeset.lm || ({})
+    readonly property var lr: ts.r.lm || ({})
 
     // ═══ interaction state (the panel's only; what persists is the model's) ═══
     property string scopeKey: ""                      // the Session scope picked in the club key ("" = the focused shot's club)
@@ -190,17 +200,27 @@ Item {
             return m[k]
         }
         for (const c of gc) { const e = ensure(c.club); e.head = c.head || ""; e.n = c.n || 0; e.stats = c.stats || null; e.ellipses = c.ellipses || {} }
-        for (const s of shots) { const e = ensure(s.club); e.shots.push(s); if (!s.out) e.inc.push(s) }
+        // a shot the device never read (no values) is in no club's count: it is not a shot of this board, and counting
+        // it read "19 shots" over tiles of 7 (the model's statistics leave it out too)
+        for (const s of shots) {
+            if (root.hasShots && Object.keys(s.values || {}).length === 0) continue
+            const e = ensure(s.club); e.shots.push(s); if (!s.out) e.inc.push(s)
+        }
         order.sort((a, b) => bagRank(a.key) - bagRank(b.key))
         const ser = lr.clubSeries
         order.forEach((c, i) => {
-            c.hue = Theme.chartSeriesColor(ser[i % ser.length])
+            c.hue = root.seriesColor(ser[i % ser.length])
             const d = c.ellipses ? c.ellipses.dispersion : null
             c.ell = ellOk(d) ? { mx: d.cx, my: d.cy, rx: d.a, ry: d.b, rot: (d.angleDeg || 0) * Math.PI / 180,
                                  n: d.n > 0 ? d.n : c.inc.filter(s => isFinite(s.carry) && isFinite(s.offline)).length } : null
         })
         order.sort((a, b) => (a.key === root.focusKey ? -1 : b.key === root.focusKey ? 1 : 0))
         return order
+    }
+    // the chart palette: the fixed aesthetic's (a report's) light series, else the app theme's
+    function seriesColor(i) {
+        const pal = ts._fm && ts._fm.chartSeries ? ts._fm.chartSeries : null
+        return pal ? pal[((i % pal.length) + pal.length) % pal.length] : Theme.chartSeriesColor(i)
     }
     // an ellipse the model published: { cx, cy, a, b, angleDeg }; absent under three shots
     function ellOk(e) { return !!e && isFinite(e.cx) && isFinite(e.cy) && e.a > 0 && e.b >= 0 }
@@ -272,7 +292,9 @@ Item {
     // the model hands raw doubles for the per-shot and per-club figures, and this only sets them in type.
     function decimalsOf(key) {
         const v = vOf(key)
-        if (v && v.text !== undefined) { const m = String(v.text).match(/\.(\d+)/); return m ? m[1].length : 0 }
+        // the focused shot's text sets the precision; a shot without this reading ("—") falls back to the mean's
+        const t = v ? (/\d/.test(String(v.text)) ? v.text : /\d/.test(String(v.mean)) ? v.mean : undefined) : undefined
+        if (t !== undefined) { const m = String(t).match(/\.(\d+)/); return m ? m[1].length : 0 }
         const u = v ? String(v.unit) : ""
         return u === "ratio" ? 2 : (u === "rpm" || u === "mm" || u === "ft") ? 0 : 1
     }
@@ -349,7 +371,8 @@ Item {
     readonly property string lowPointLine: lowPt.has === true
         ? "Low point " + lowPt.text + " " + (lowPt.unit || "in") + (lowPt.source === "inferred" ? " · PPS est." : "") + "."
         : "Low point: not measured."
-    readonly property string focusHead: focusShot ? headOf(focusShot.club) : ""
+    // the head drawn under the impact map: the focused shot's club, else (nothing focused: a report) the scoped club's
+    readonly property string focusHead: focusShot ? headOf(focusShot.club) : focusClub ? (focusClub.head || headOf(focusClub.club)) : ""
     readonly property bool focusIron: focusHead === "iron" || focusHead === "wedge"
     readonly property string patchShort: !art ? "" : "Face: this strike, a " + patchMm(focusHead) + " mm patch" + (patchMm(focusHead) === 20 ? " (est.)" : "")
         + (markerKind ? "; dots: " + deviceName + " markers." : ".")
@@ -456,14 +479,14 @@ Item {
         if (statsFor("lm.lowPointAhead")) t.push(sesTile("lm.lowPointAhead", "Low point"))
         return t
     }
-    readonly property string statKey: "Footers: shots · ±1 SD under an average; shortest · longest, or furthest left · right, under a range. Strips: every shot on ±3 SD, the band ±1 SD, the dark tick shot " + shotNo + "."
-    readonly property string clubKeyText: "Footers: shots · ±1 SD. Strips: every shot, the dark tick shot " + shotNo + "." + (statsFor("lm.lowPointAhead") ? "" : " Low point: not measured by the device, so no spread.")
+    readonly property string statKey: "Footers: shots · ±1 SD under an average; shortest · longest, or furthest left · right, under a range. Strips: every shot on ±3 SD, the band ±1 SD" + (focusShot ? ", the dark tick shot " + shotNo : "") + "."
+    readonly property string clubKeyText: "Footers: shots · ±1 SD. Strips: every shot" + (focusShot ? ", the dark tick shot " + shotNo : "") + "." + (statsFor("lm.lowPointAhead") ? "" : " Low point: not measured by the device, so no spread.")
     readonly property var strikeEll: { const e = focusClub && focusClub.ellipses ? focusClub.ellipses.strike : null; return ellOk(e) ? e : null }
     readonly property string mapCaption: {
         const n = scopedShots.filter(s => isFinite(shotV(s, "lm.strikeLocation")) && isFinite(shotV(s, "lm.strikeHeight"))).length
         return "Impact: the " + n + " " + (focusClub ? focusClub.name : "") + " strikes the device located, from "
              + (focusIron ? "Foresight's centre (between score lines 6 and 7)" : "the face centre")
-             + (strikeEll ? "; ellipse: all " + n : "") + "; ring: shot " + shotNo + "." + (markerKind ? " Dots: the " + deviceName + "'s club markers." : "")
+             + (strikeEll ? "; ellipse: all " + n : "") + (focusShot ? "; ring: shot " + shotNo : "") + "." + (markerKind ? " Dots: the " + deviceName + "'s club markers." : "")
              + " Path × face: one dot per shot; the diagonal is face to path 0."
     }
 
@@ -633,21 +656,24 @@ Item {
         id: paper
         visible: root.medium === "print"
         anchors.fill: parent
-        readonly property real mx: ts.p.marginX
+        // embedded: a hair's inset, so a tile's hairline on the host's text edge is not clipped by its content window
+        readonly property real mx: root.embedded ? 1 : ts.p.marginX
         readonly property real textW: width - 2 * mx
-        readonly property var blocks: root.printPlan[Math.min(root.printPage, root.printPlan.length - 1)] || []
+        readonly property var blocks: root.embedded ? root.embedBlocks : (root.printPlan[Math.min(root.printPage, root.printPlan.length - 1)] || [])
         function on(b) { return blocks.indexOf(b) >= 0 }
         readonly property var readout: root.focusShot ? { shotIndex: root.shotNo - 1, shotCount: root.shots.length, club: root.clubName(root.focusShot.club) } : null
         readonly property var source: root.focusShot ? { sessionDir: root.swingDirOf(root.focusShot.shotId) } : null
         readonly property real half: (textW - ts.gutter(textW) * 1.5) / 2
-        Rectangle { anchors.fill: parent; color: "#FFFFFF" }
+        Rectangle { visible: !root.embedded; anchors.fill: parent; color: "#FFFFFF" }
         PpRunningHead {
+            visible: !root.embedded
             x: paper.mx; y: ts.p.headY; width: paper.textW
             roles: ts; source: paper.source; readout: paper.readout
             title: "PinPoint Studio  ·  Launch monitor"
         }
         Column {
-            x: paper.mx; y: ts.p.top; width: paper.textW
+            id: printCol
+            x: paper.mx; y: root.embedded ? 0 : ts.p.top; width: paper.textW
             spacing: ts.u(14)
             // ── This shot ──
             Column {
@@ -703,12 +729,12 @@ Item {
             // round 2: the Session's two halves, as figures 4 (ball) and 5 (club)
             Column {
                 visible: paper.on("ballHalf"); width: parent.width; spacing: ts.u(5)
-                FigHead { width: parent.width; h: root; n: 4; title: "Ball"; sub: "dispersion, launch × spin and consistency · " + (root.focusClub ? root.focusClub.name + ", " + root.scopeN + " shots" : "") }
+                FigHead { width: parent.width; h: root; n: root.figNo > 0 ? root.figNo : 4; title: "Ball"; sub: "dispersion, launch × spin and consistency · " + (root.focusClub ? root.focusClub.name + ", " + root.scopeN + " shots" : "") }
                 BallHalf { width: parent.width; figH: ts.u(190); bare: true; h: root }
             }
             Column {
                 visible: paper.on("clubHalf"); width: parent.width; spacing: ts.u(5)
-                FigHead { width: parent.width; h: root; n: 5; title: "Club"; sub: "impact, path × face and consistency · " + (root.focusClub ? root.focusClub.name + ", " + root.scopeN + " shots" : "") }
+                FigHead { width: parent.width; h: root; n: root.figNo > 0 ? root.figNo : 5; title: "Club"; sub: "impact, path × face and consistency · " + (root.focusClub ? root.focusClub.name + ", " + root.scopeN + " shots" : "") }
                 ClubHalf { width: parent.width; figH: ts.u(210); bare: true; h: root }
             }
             Row {
@@ -774,6 +800,7 @@ Item {
             PpNotes { visible: paper.on("shotnotes"); width: parent.width; roles: ts; text: root.shotNotes }
         }
         PpFolio {
+            visible: !root.embedded
             x: paper.mx; width: paper.textW
             y: paper.height - ts.u(14) - height
             roles: ts; readout: paper.readout
@@ -977,6 +1004,7 @@ Item {
             }
         }
         Row {
+            visible: !!ck.h.focusShot
             spacing: ck.h.ts.u(6)
             Item { width: ck.h.ts.ringD; height: kt2.height
                    Rectangle { anchors.centerIn: parent; width: ck.h.ts.ringD; height: width; radius: width / 2; color: "transparent"; border.width: 1; border.color: ck.h.ts.ink } }
@@ -2042,14 +2070,14 @@ Item {
     // theme tones: "light" and "dark" ink, from the theme in both modes
     function toneColor(t) {
         if (t === "light") return ts.isPrint ? ts.paper : Theme.dark ? Theme.colorText : Theme.colorSurface
-        return ts.isPrint || !Theme.dark ? Theme.colorText : Theme.colorBg
+        return ts.isPrint ? ts.ink : !Theme.dark ? Theme.colorText : Theme.colorBg
     }
     // a role token → a theme colour: "accent", "series:N" (Theme.chartSeries), "ink"
     function roleColor(tok) {
         const t = String(tok || "")
-        if (t.indexOf("series:") === 0) return Theme.chartSeriesColor(parseInt(t.slice(7)))
+        if (t.indexOf("series:") === 0) return seriesColor(parseInt(t.slice(7)))
         if (t === "ink") return ts.ink
-        return Theme.colorAccent
+        return ts.accent
     }
     // a strike in mm (+x toe, +y up, from the Foresight centre) → item coordinates
     function strikeAt(pl, H, V) { return headFacePt(pl, H, V + faceRef(pl.model).sc) }
@@ -2225,7 +2253,8 @@ Item {
         return false
     }
     function clubGeom(kind, w, h) {
-        if (!hasData || !focusShot || !(w > 0) || !(h > 0)) return null
+        // the Session impact map needs no focused shot (it draws every scoped strike); the shot cells do
+        if (!hasData || !(w > 0) || !(h > 0) || (!focusShot && kind !== "map")) return null
         const hand = g.leftHanded ? -1 : 1, G = lr.angleGain
         const model = focusHead, look = headLookA()
         // without the art (LmClubArt not in the build, or no anchors for this head) Path and Loft still draw
@@ -2648,5 +2677,5 @@ Item {
     }
 
     // declared last (children are destroyed in creation order); never the id `roles`
-    PpTypeset { id: tsx; medium: root.medium }
+    PpTypeset { id: tsx; medium: root.medium; fixedAesthetic: root.printAesthetic }
 }
