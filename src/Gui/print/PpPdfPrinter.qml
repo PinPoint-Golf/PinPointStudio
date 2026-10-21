@@ -33,6 +33,16 @@ import PinPointStudio
 // printPage is put back as it was at the end, whatever the outcome. No dialogs: the caller
 // chooses the path and reads the result from `finished`.
 //
+// `encoding` is the writer's: "lossless" (the default, every page Flate RGB) or "auto" (a palette
+// page, photographs as JPEG — a third of the size; see pdf_document_writer.h). For "auto" a target
+// that draws photographs says so per page with `readonly property bool printPageHasPhoto`, read
+// once the page has settled; a target without it is taken to have none.
+//
+// A target may also set its own resolution page by page with `readonly property int printPageDpi`
+// (0 or absent = `dpi`): the session report grabs its client pages at 300 dpi and its technical
+// appendix at 200 (half the bytes; the appendix is read on screen). The sheet is A4 either way —
+// the writer fits every page image to the whole sheet whatever its pixel size.
+//
 // Not wired to any control yet — print is the last thing on the plan.
 QtObject {
     id: root
@@ -42,6 +52,8 @@ QtObject {
     property int settleMs: 150
     property string title: ""
     property string author: ""
+    property string subject: ""
+    property string encoding: "lossless"
     readonly property bool busy: _target !== null
 
     signal pageWritten(int index, int count)
@@ -68,6 +80,8 @@ QtObject {
             return false
         }
         const wide = (landscape === undefined) ? target.width > target.height : !!landscape
+        _writer.encoding = encoding
+        _writer.subject = subject
         if (!_writer.begin(path, wide, dpi, title, author)) {
             finished(false, path, 0, _writer.errorString)
             return false
@@ -116,19 +130,23 @@ QtObject {
             return
         const target = _target
         const page = _page
-        const scale = dpi / 96
+        // Read now, while this page is the one laid out.
+        const pageDpi = (target.printPageDpi !== undefined && target.printPageDpi > 0) ? target.printPageDpi : dpi
+        const scale = pageDpi / 96
+        const photo = target.printPageHasPhoto !== undefined && !!target.printPageHasPhoto
+        const requested = Qt.size(Math.round(target.width * scale), Math.round(target.height * scale))
         const started = target.grabToImage(function (result) {
             // A cancel (or a new run) between the request and the picture: drop it.
             if (root._target !== target || root._page !== page)
                 return
-            if (!root._writer.addPage(result.image)) {
+            if (!root._writer.addPage(result.image, photo, requested)) {
                 root._fail(root._writer.errorString)
                 return
             }
             root.pageWritten(page, root._count)
             root._page = page + 1
             root._step()
-        }, Qt.size(Math.round(target.width * scale), Math.round(target.height * scale)))
+        }, requested)
         if (!started)
             _fail("Page " + (page + 1) + " could not be grabbed: the item must be visible in a window.")
     }
