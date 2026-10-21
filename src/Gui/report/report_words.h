@@ -953,6 +953,58 @@ inline QString numbersNote(bool leftHanded, int workOnsPerSwing, int swings, boo
 // "4 of 5" — how many of the swing-by-swing work-ons showed on this swing.
 inline QString habitsCell(int fired, int of) { return gridCount(fired, of); }
 
+// ── The launch monitor appendix ──
+// The standfirst: "Every reading the GC Quad took, on 18 of 20 swings: 7 iron and driver."
+inline QString lmAppendixStandfirst(const QString &device, int measured, int swings, const QStringList &clubs)
+{
+    const QString by = device.isEmpty() ? QStringLiteral("the launch monitor") : QStringLiteral("the ") + device;
+    const QString on = measured >= swings ? QStringLiteral("on every swing") : QStringLiteral("on %1").arg(countOf(measured, swings));
+    const QString cl = clubsWords(clubs);
+    return QStringLiteral("Every reading %1 took, %2").arg(by, on) + (cl.isEmpty() ? QString() : QStringLiteral(": ") + cl) + QStringLiteral(".");
+}
+// A club's headline over its figures: "152 yd average carry, 18 yd from shortest to longest, 18 shots".
+inline QString lmClubHeadline(const QString &carry, const QString &spread, int shots)
+{
+    QStringList parts;
+    if (!carry.isEmpty()) parts << carry + QStringLiteral(" yd average carry");
+    if (!spread.isEmpty()) parts << spread + QStringLiteral(" yd from shortest to longest");
+    parts << (shots == 1 ? QStringLiteral("1 shot") : QStringLiteral("%1 shots").arg(shots));
+    return parts.join(QStringLiteral(", "));
+}
+// Under the two shot tables: the sign convention for the golfer's hand, then what the marks mean.
+inline QString lmTablesNote(bool leftHanded, bool anyOut, bool anyRelabelled, const QString &noReading)
+{
+    QString s = QStringLiteral("As the device reported them. Signed readings: plus is right of the target line (start, side spin, "
+                               "spin axis, offline, path, face), up (attack, and lie, toe up), %1 (face to path), toward the toe "
+                               "(strike location) and high (strike height); minus the other way.")
+                    .arg(leftHanded ? QStringLiteral("closed") : QStringLiteral("open"));
+    if (anyOut) s += QStringLiteral(" Out: left out on the launch monitor panel, and in none of the averages.");
+    if (anyRelabelled) s += QStringLiteral(" *: listed under the club its readings point to, not the one recorded.");
+    if (!noReading.isEmpty()) s += QStringLiteral(" ") + noReading;
+    return s;
+}
+// "No reading on swing 4." / "No reading on swings 4 and 9." / "No reading on swings 1–12 and 15." (runs of three or
+// more as a range). `swings` in ascending order.
+inline QString lmNoReading(const QList<int> &swings)
+{
+    if (swings.isEmpty()) return QString();
+    QStringList parts;
+    for (int i = 0; i < swings.size();) {
+        int j = i;
+        while (j + 1 < swings.size() && swings[j + 1] == swings[j] + 1) ++j;
+        if (j - i >= 2) parts << QString::number(swings[i]) + QChar(0x2013) + QString::number(swings[j]);
+        else for (int k = i; k <= j; ++k) parts << QString::number(swings[k]);
+        i = j + 1;
+    }
+    return (swings.size() == 1 ? QStringLiteral("No reading on swing ") : QStringLiteral("No reading on swings ")) + andList(parts) + QStringLiteral(".");
+}
+inline QString lmStatsNote(bool anyOut)
+{
+    return QStringLiteral("Over each club's shots") + (anyOut ? QStringLiteral(" not left out") : QString())
+         + QStringLiteral(". SD is the standard deviation (n − 1): about two in three shots fall within one SD of the average. "
+                          "It needs three shots; below that it shows -. Signs as in the shot tables.");
+}
+
 // ── About this report ───────────────────────────────────────────────────────────────────────────
 
 // "Down-the-line and face-on cameras" / "Face-on camera".

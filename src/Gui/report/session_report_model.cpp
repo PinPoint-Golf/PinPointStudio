@@ -24,6 +24,8 @@
 
 #include "../athlete/athlete_controller.h"
 #include "../diagnostics/session_diagnostics_model.h"
+#include "../launchmonitor/lm_session_model.h"
+#include "../shot/shot_list_model.h"
 #include "../../Coaching/report_gate_words.h"
 #include "../../Coaching/session_report.h"
 #include "../../Coaching/work_ons.h"
@@ -34,6 +36,8 @@
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Export/swing_paths.h"
 #include "../../Export/swing_store.h"
+#include "../../LaunchMonitor/launch_monitor_reading.h"
+#include "../../LaunchMonitor/lm_session_reductions.h"
 
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -50,6 +54,7 @@
 #include <QtConcurrent>
 
 #include <algorithm>
+#include <iterator>
 #include <cmath>
 #include <limits>
 
@@ -848,6 +853,179 @@ QVariant numbersOf(const Ctx &x, const QStringList &perSwingWorkOns, bool habits
                                                                  habits && !perSwingWorkOns.isEmpty(), several) } };
 }
 
+
+// ── The launch monitor appendix (§3, appendix A) ──
+// From the launch monitor panel's own model (LmSessionModel over the session's shots), so the figures, the shot
+// tables and the summary agree with the panel: the same effective club per shot, the same shots left out, the same
+// per-club statistics (lmSessionStats: the n−1 SD, the extremes). The register draws the figures from `graphics`
+// and sets the tables from the strings here.
+const pinpoint::lm::FieldDef *lmDef(const QString &key)
+{
+    for (const pinpoint::lm::FieldDef &d : pinpoint::lm::fieldDefs()) if (key == QLatin1String(d.key)) return &d;
+    return nullptr;
+}
+QString lmCell(double v, const QString &unit)
+{
+    return lmFig(v, lmDecimals(unit), unit == QStringLiteral("rpm") || unit == QStringLiteral("°/s"));
+}
+bool lmSameClub(const QString &a, const QString &b) { return a.compare(b, Qt::CaseInsensitive) == 0; }
+
+QVariant lmAppendixOf(const Ctx &x, const QVariantMap &g, const QHash<int, int> &swingNoOfShot)
+{
+    if (!x.hasLm) return kNull;
+    const QVariantList shots = g.value(QStringLiteral("shots")).toList();
+    const QVariantList clubs = g.value(QStringLiteral("clubs")).toList();
+    if (shots.isEmpty() || clubs.isEmpty()) return kNull;
+
+    // The two tables' columns, in the order a coach reads them (an editorial list, like the panel's headline):
+    // the ball as it launched, spun and flew; the club as it was delivered and where it struck.
+    static const char *kBall[] = { "lm.ballSpeed", "lm.launchAngle", "lm.launchDirection", "lm.spinRate", "lm.backSpin",
+                                   "lm.sideSpin", "lm.spinAxis", "lm.carryDistance", "lm.totalDistance", "lm.offline",
+                                   "lm.peakHeight", "lm.descentAngle", "lm.distanceToPin" };
+    static const char *kClub[] = { "lm.clubheadSpeed", "lm.smashFactor", "lm.attackAngle", "lm.clubPath", "lm.faceAngle",
+                                   "lm.faceToPath", "lm.dynamicLoft", "lm.spinLoft", "lm.lieAngle", "lm.closureRate",
+                                   "lm.lowPointAhead", "lm.strikeLocation", "lm.strikeHeight" };
+    auto valueOf = [](const QVariantMap &shot, const QString &key) {
+        const QVariant v = shot.value(QStringLiteral("values")).toMap().value(key);
+        return v.isValid() ? v.toDouble() : std::numeric_limits<double>::quiet_NaN();
+    };
+    auto keysPresent = [&](const char *const *keys, int n) {
+        QStringList out;
+        for (int i = 0; i < n; ++i) {
+            const QString k = QString::fromLatin1(keys[i]);
+            if (!lmDef(k)) continue;
+            for (const QVariant &s : shots) if (std::isfinite(valueOf(s.toMap(), k))) { out << k; break; }
+        }
+        return out;
+    };
+    const QStringList ballKeys = keysPresent(kBall, int(std::size(kBall)));
+    const QStringList clubKeys = keysPresent(kClub, int(std::size(kClub)));
+    auto unitOf = [](const QString &key) { const pinpoint::lm::FieldDef *d = lmDef(key); return d ? QString::fromUtf8(d->unit) : QString(); };
+    auto shownUnit = [&](const QString &key) { const QString u = unitOf(key); return u == QLatin1String("ratio") ? QString() : u; };
+    auto labelOf = [](const QString &key) {
+        const pinpoint::lm::FieldDef *d = lmDef(key);
+        return d ? QString::fromUtf8(d->label).remove(QStringLiteral(" (measured)")) : key;
+    };
+
+    // the clubs, in the panel's (bag) order; then any club whose shots were all left out
+    QStringList groupClubs;
+    for (const QVariant &c : clubs) groupClubs << c.toMap().value(QStringLiteral("club")).toString();
+    for (const QVariant &v : shots) {
+        const QString c = v.toMap().value(QStringLiteral("club")).toString();
+        if (std::none_of(groupClubs.cbegin(), groupClubs.cend(), [&](const QString &k) { return lmSameClub(k, c); })) groupClubs << c;
+    }
+    auto clubName = [](const QString &c) { return c.isEmpty() ? QStringLiteral("Club not recorded") : W::cap1(W::clubWord(c)); };
+    auto swingNo = [&](const QVariantMap &s) {
+        const int id = s.value(QStringLiteral("id")).toInt();
+        return swingNoOfShot.value(id, s.value(QStringLiteral("number")).toInt());
+    };
+
+    bool anyOut = false, anyRelabelled = false;
+    QList<int> noReading;
+    for (const QVariant &v : shots) {
+        const QVariantMap s = v.toMap();
+        if (s.value(QStringLiteral("values")).toMap().isEmpty()) noReading << swingNo(s);
+    }
+    std::sort(noReading.begin(), noReading.end());
+    auto table = [&](const QString &id, const QStringList &keys) -> QVariant {
+        if (keys.isEmpty()) return kNull;
+        QVariantList cols;
+        for (const QString &k : keys) {
+            const pinpoint::lm::FieldDef *d = lmDef(k);
+            cols << QVariantMap{ { QStringLiteral("key"), k }, { QStringLiteral("head"), QString::fromUtf8(d->abbrev) },
+                                 { QStringLiteral("unit"), shownUnit(k) } };
+        }
+        QVariantList groups;
+        for (const QString &club : std::as_const(groupClubs)) {
+            QVariantList rows;
+            for (const QVariant &v : shots) {
+                const QVariantMap s = v.toMap();
+                if (!lmSameClub(s.value(QStringLiteral("club")).toString(), club)) continue;
+                QStringList cells;
+                bool any = false;
+                for (const QString &k : keys) {
+                    const double d = valueOf(s, k);
+                    any = any || std::isfinite(d);
+                    cells << lmCell(d, unitOf(k));
+                }
+                if (!any) continue;
+                const bool out = s.value(QStringLiteral("excluded")).toBool();
+                const bool relab = !lmSameClub(s.value(QStringLiteral("recordedClub")).toString(), club);
+                anyOut = anyOut || out;
+                anyRelabelled = anyRelabelled || relab;
+                rows << QVariantMap{ { QStringLiteral("swing"), QString::number(swingNo(s)) + (relab ? QStringLiteral("*") : QString()) },
+                                     { QStringLiteral("out"), out }, { QStringLiteral("cells"), cells } };
+            }
+            if (rows.isEmpty()) continue;
+            groups << QVariantMap{ { QStringLiteral("club"), clubName(club) },
+                                   { QStringLiteral("count"), rows.size() == 1 ? QStringLiteral("1 shot") : QStringLiteral("%1 shots").arg(rows.size()) },
+                                   { QStringLiteral("rows"), rows } };
+        }
+        if (groups.isEmpty()) return kNull;
+        return QVariantMap{ { QStringLiteral("id"), id }, { QStringLiteral("cols"), cols }, { QStringLiteral("groups"), groups } };
+    };
+    const QVariant ball = table(QStringLiteral("ball"), ballKeys);
+    const QVariant club = table(QStringLiteral("club"), clubKeys);
+
+    // the summary: per club, every reading the club's included shots carried
+    QVariantList statGroups, figures;
+    for (const QVariant &cv : clubs) {
+        const QVariantMap c = cv.toMap();
+        const QString cl = c.value(QStringLiteral("club")).toString();
+        const QVariantMap stats = c.value(QStringLiteral("stats")).toMap();
+        QVariantList rows;
+        auto addRows = [&](const QString &sub, const QStringList &keys) {
+            QVariantList part;
+            for (const QString &k : keys) {
+                const QVariantMap st = stats.value(k).toMap();
+                const int n = st.value(QStringLiteral("n")).toInt();
+                if (n <= 0) continue;
+                const QString u = unitOf(k);
+                const double lo = st.value(QStringLiteral("min")).toDouble(), hi = st.value(QStringLiteral("max")).toDouble();
+                part << QVariantMap{ { QStringLiteral("label"), labelOf(k) }, { QStringLiteral("unit"), shownUnit(k) },
+                                     { QStringLiteral("cells"), QStringList{
+                                           QString::number(n),
+                                           lmCell(st.value(QStringLiteral("mean")).toDouble(), u),
+                                           st.value(QStringLiteral("hasSpread")).toBool() ? lmCell(st.value(QStringLiteral("sd")).toDouble(), u) : kNA,
+                                           lmCell(lo, u), lmCell(hi, u),
+                                           n >= 2 ? lmCell(hi - lo, u) : kNA } } };
+            }
+            if (part.isEmpty()) return;
+            rows << QVariantMap{ { QStringLiteral("sub"), sub } };
+            rows << part;
+        };
+        addRows(QStringLiteral("Ball"), ballKeys);
+        addRows(QStringLiteral("Club"), clubKeys);
+        const int n = c.value(QStringLiteral("n")).toInt();
+        if (!rows.isEmpty())
+            statGroups << QVariantMap{ { QStringLiteral("club"), clubName(cl) },
+                                       { QStringLiteral("count"), n == 1 ? QStringLiteral("1 shot") : QStringLiteral("%1 shots").arg(n) },
+                                       { QStringLiteral("rows"), rows } };
+        const QVariantMap carry = stats.value(QStringLiteral("lm.carryDistance")).toMap();
+        const int cn = carry.value(QStringLiteral("n")).toInt();
+        figures << QVariantMap{
+            { QStringLiteral("key"), cl.toLower() },
+            { QStringLiteral("name"), clubName(cl) },
+            { QStringLiteral("headline"), W::lmClubHeadline(
+                  cn > 0 ? lmFig(carry.value(QStringLiteral("mean")).toDouble(), 0) : QString(),
+                  cn >= 2 ? lmFig(carry.value(QStringLiteral("max")).toDouble() - carry.value(QStringLiteral("min")).toDouble(), 0) : QString(), n) } };
+    }
+    QStringList clubWords;
+    for (const QString &c : std::as_const(groupClubs)) if (!c.isEmpty()) clubWords << c;
+
+    return QVariantMap{
+        { QStringLiteral("kicker"), QStringLiteral("Appendix") },
+        { QStringLiteral("title"), QStringLiteral("Launch monitor") },
+        { QStringLiteral("standfirst"), W::lmAppendixStandfirst(x.lmDevice, x.lmSwings, x.N, clubWords) },
+        { QStringLiteral("graphics"), g },
+        { QStringLiteral("figures"), figures },
+        { QStringLiteral("ball"), ball },
+        { QStringLiteral("club"), club },
+        { QStringLiteral("tablesNote"), W::lmTablesNote(x.leftHanded, anyOut, anyRelabelled, W::lmNoReading(noReading)) },
+        { QStringLiteral("stats"), statGroups.isEmpty() ? kNull : QVariant(QVariantMap{ { QStringLiteral("groups"), statGroups } }) },
+        { QStringLiteral("statsNote"), W::lmStatsNote(anyOut) } };
+}
+
 } // namespace
 
 void SessionReportModel::build()
@@ -1590,6 +1768,32 @@ void SessionReportModel::build()
         }
         map[QStringLiteral("practice")] = practice;
         map[QStringLiteral("numbers")] = numbersOf(x, perSwingIds, isReport);
+
+        // The launch monitor appendix: the panel's model over the session's own shots (a private shot list,
+        // the cheap load — the readings come off each swing's launch-monitor block, as the panel reads them).
+        {
+            QVariantMap lmGraphics;
+            QHash<int, int> swingNoOfShot;
+            if (x.hasLm) {
+                ShotListModel lmShots;
+                lmShots.loadSessionDir(job.dir);
+                LmSessionModel lmModel;
+                lmModel.setReviewing(true);
+                lmModel.setLeftHanded(x.leftHanded);
+                lmModel.setGradePolicy(gradePolicyName());
+                lmModel.setDeviceName(x.lmDevice);
+                lmModel.setShotModel(&lmShots);          // rebuilds now
+                lmGraphics = lmModel.graphics();
+                for (int r = 0; r < lmShots.rowCount(); ++r) {
+                    const QModelIndex ix = lmShots.index(r);
+                    const QString dir = QDir::cleanPath(lmShots.data(ix, ShotListModel::SwingDirRole).toString());
+                    for (int k = 0; k < x.N; ++k)
+                        if (x.swings[size_t(k)].dir == dir) { swingNoOfShot.insert(lmShots.data(ix, ShotListModel::ShotIdRole).toInt(), k + 1); break; }
+                }
+                lmModel.setShotModel(nullptr);
+            }
+            map[QStringLiteral("lmAppendix")] = lmAppendixOf(x, lmGraphics, swingNoOfShot);
+        }
 
         if (isNote) {
             map[QStringLiteral("about")] = kNull;

@@ -393,6 +393,26 @@ int main(int argc, char **argv)
     eq(notListedName(QStringLiteral("Thin"), 6, 10), QStringLiteral("Thin (6 of 10)"), "not listed: name carries its count");
     check(notListedResult(QStringLiteral("Early extension"), 3).contains(QLatin1String("early extension (work-on 3)")), "a result linked to a work-on");
 
+    std::printf("the launch monitor appendix\n");
+    eq(lmAppendixStandfirst(QStringLiteral("GC Quad"), 10, 10, { QStringLiteral("7 IRON") }),
+       QStringLiteral("Every reading the GC Quad took, on every swing: 7 iron."), "appendix standfirst, every swing");
+    eq(lmAppendixStandfirst(QString(), 7, 19, { QStringLiteral("DRIVER"), QStringLiteral("7 IRON") }),
+       QStringLiteral("Every reading the launch monitor took, on 7 of 19 swings: driver and 7 iron."), "appendix standfirst, some swings, no device");
+    eq(lmClubHeadline(QStringLiteral("146"), QStringLiteral("22"), 10),
+       QStringLiteral("146 yd average carry, 22 yd from shortest to longest, 10 shots"), "a club's headline");
+    eq(lmClubHeadline(QStringLiteral("146"), QString(), 1), QStringLiteral("146 yd average carry, 1 shot"), "one shot: no spread");
+    eq(lmNoReading({}), QString(), "no missing readings, no sentence");
+    eq(lmNoReading({ 4 }), QStringLiteral("No reading on swing 4."), "one missing reading");
+    eq(lmNoReading({ 4, 9 }), QStringLiteral("No reading on swings 4 and 9."), "two missing readings");
+    eq(lmNoReading({ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 }), QStringLiteral("No reading on swings 1–12."), "a run becomes a range");
+    eq(lmNoReading({ 1, 2, 5, 6, 7, 9 }), QStringLiteral("No reading on swings 1, 2, 5–7 and 9."), "runs of three or more only");
+    check(lmTablesNote(false, false, false, QString()).contains(QLatin1String("open (face to path)")), "tables note, right-handed: plus is open");
+    check(lmTablesNote(true, false, false, QString()).contains(QLatin1String("closed (face to path)")), "tables note, left-handed: plus is closed");
+    check(lmTablesNote(false, true, true, QString()).contains(QLatin1String("Out:")) && lmTablesNote(false, true, true, QString()).contains(QLatin1String("*:")),
+          "tables note names the marks it uses");
+    check(!lmTablesNote(false, false, false, QString()).contains(QLatin1String("Out:")), "tables note leaves out marks it does not use");
+    check(lmStatsNote(true).contains(QLatin1String("not left out")) && !lmStatsNote(false).contains(QLatin1String("left out")), "stats note, left-out shots");
+
     std::printf("gate words (§9.3 item 5: golfer words, lower case, no digits)\n");
     {
         const QStringList ids{ QStringLiteral("sequence.sightedBand"), QStringLiteral("shot.captureHoles"), QStringLiteral("club3d.planeScatter"),
@@ -412,7 +432,8 @@ int main(int argc, char **argv)
     check(noDoubledNoun(sawLead(QStringLiteral("x"), swingsOn(6, 6), QString())) && noDoubledNoun(countOf(6, 6))
               && noDoubledNoun(cameWithShown(QStringLiteral("x"), 6, 6)) && noDoubledNoun(causesSpottedItem(QStringLiteral("x"), 6, 6, 1))
               && noDoubledNoun(notMeasuredClause(2, 6, QString())) && noDoubledNoun(todayEarlierHabit(QStringLiteral("x"), 2, 6))
-              && noDoubledNoun(ballByline(QStringLiteral("x"), 5, 6)),
+              && noDoubledNoun(ballByline(QStringLiteral("x"), 5, 6))
+              && noDoubledNoun(lmAppendixStandfirst(QStringLiteral("x"), 5, 6, {})),
           "no 'swings swings'");
 
     std::printf("%s (%d failed)\n", g_fail ? "FAILED" : "OK", g_fail);

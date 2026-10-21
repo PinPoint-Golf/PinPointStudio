@@ -20,7 +20,8 @@ import QtQuick
 import PinPointStudio
 
 // THE SESSION REPORT REGISTER (docs/design/session_report_design.md §3, §9; the map it binds is specified in
-// build/report-build/REPORT_MAP.md). A PDF a coach sends a golfer: the client pages, then the technical appendix.
+// build/report-build/REPORT_MAP.md). A PDF a coach sends a golfer: the client pages, the launch monitor appendix
+// (PpLmAppendix, when the session has readings; it is part of the galley), then the technical appendix.
 //
 // ONE GALLEY, CUT BY THE LIBRARY PAGER (§9.1 rule 1). Every block below is laid out once at the text width and
 // PpPager cuts it into A4 pages between atoms. Nothing has a fixed height but the page, with ONE exception, the
@@ -165,6 +166,11 @@ Item {
             visible: root.kind !== "note" && !!root.rep.about
             ro: rr; rep: root.rep; photos: root.photosIncluded
         }
+        PpLmAppendix {
+            width: pager.textW
+            visible: !!root.rep.lmAppendix
+            ro: rr; lm: root.rep.lmAppendix || null
+        }
     }
 
     // ═══════════════════════ furniture: paper over the pager's, then the report's own ═══════════════════════
@@ -254,7 +260,8 @@ Item {
             }
         }
     }
-    // the cover folio's table of contents: fixed section names and their pages (absent sections are left out)
+    // the cover folio's table of contents: fixed section names and their pages (absent sections are left out). The
+    // appendices are not listed: the line shares the folio with the studio's contact, which it would push into an ellipsis
     readonly property string insideLine: {
         const parts = []
         const add = (label, name) => { const n = sectionPage(name); if (n > 1) parts.push(label + " p. " + n) }

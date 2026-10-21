@@ -56,7 +56,8 @@ Item {
         readonly property var expectedPages: ({
             "nick": 11, "jess": 10, "clean": 4, "one-work-on": 6, "five-work-ons-longest-text": 16,
             "causes-at-caps": 13, "sixty-swings-three-clubs": 14, "junior-no-photos": 11,
-            "longest-names-and-note": 11, "note": 1, "no-launch-monitor": 10
+            "longest-names-and-note": 11, "note": 1, "no-launch-monitor": 10,
+            "launch-monitor-appendix": 15       // nick + the launch monitor appendix (Nick Henn's 20 Oct session 3 readings)
         })
 
         function signature() { return JSON.stringify(reg.pageInfo().map(p => [Math.round(p.from), Math.round(p.to)])) }
@@ -189,6 +190,17 @@ Item {
             verify(shown("reportHeld"), "a held habit is named on the back page")
             for (let p = 0; p < reg.printPageCount; ++p) { reg.printPage = p; verify(!reg.printPageHasPhoto, "junior p" + (p + 1) + " has no photograph") }
 
+            load("nick")
+            verify(!shown("reportLaunchMonitor") && !shown("reportLaunchMonitorShots") && !shown("reportLaunchMonitorStats"),
+                   "no lmAppendix in the map: no launch monitor appendix")
+            load("launch-monitor-appendix")
+            verify(shown("reportLaunchMonitor") && shown("reportLaunchMonitorShots") && shown("reportLaunchMonitorStats"),
+                   "the launch monitor appendix: figures, every shot, the summary")
+            compare(reg.insideLine.indexOf("launch monitor"), -1, "the appendices stay off the cover's contents (the studio's contact keeps its room)")
+            verify(reg.sectionPage("reportLaunchMonitorShots") > reg.sectionPage("reportLaunchMonitor")
+                   && reg.sectionPage("reportLaunchMonitorStats") > reg.sectionPage("reportLaunchMonitorShots"),
+                   "figures, then the shot tables, then the summary, each from its own page")
+
             load("note")
             compare(reg.printPageCount, 1, "the note is one page")
             verify(!shown("reportGrid") && !shown("reportAbout") && !shown("reportWorkOn1"))
@@ -245,6 +257,26 @@ Item {
             verify(a.length > 100, "the walk found the page")
             compare(b.length, a.length)
             for (let i = 0; i < a.length; ++i) compare(b[i], a[i], "item " + i + " changed with the app theme")
+        }
+        // the appendix too: its tables (Folio light from the register) and the launch monitor panel's own figures,
+        // embedded with their fixed aesthetic, on every appendix page
+        function test_05_theLaunchMonitorAppendixIgnoresTheAppTheme() {
+            const start = Theme.themeIndex
+            Theme.themeIndex = 12                       // Folio light
+            load("launch-monitor-appendix")
+            const first = reg.sectionPage("reportLaunchMonitor") - 1
+            verify(first > 0, "the appendix has a page")
+            const a = [], b = []
+            for (let p = first; p < reg.clientPageCount; ++p) { reg.printPage = p; wait(30); a.push(appearance()) }
+            Theme.themeIndex = 7                        // Vector dark
+            wait(300)
+            for (let p = first; p < reg.clientPageCount; ++p) { reg.printPage = p; wait(30); b.push(appearance()) }
+            Theme.themeIndex = start
+            compare(b.length, a.length)
+            for (let p = 0; p < a.length; ++p) {
+                compare(b[p].length, a[p].length, "appendix page " + (first + p + 1) + ": items")
+                for (let i = 0; i < a[p].length; ++i) compare(b[p][i], a[p][i], "appendix page " + (first + p + 1) + " item " + i + " changed with the app theme")
+            }
         }
     }
 }

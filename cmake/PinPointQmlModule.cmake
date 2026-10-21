@@ -386,6 +386,7 @@ set(PP_QML_FILES
     src/Gui/report/PpStill.qml
     src/Gui/report/PpBallTiles.qml
     src/Gui/report/PpNumbersTable.qml
+    src/Gui/report/PpLmAppendix.qml
     src/Gui/report/PpReportAbout.qml
     src/Gui/report/PpReportPrintHost.qml
     src/Gui/report/PpSessionReportRow.qml
