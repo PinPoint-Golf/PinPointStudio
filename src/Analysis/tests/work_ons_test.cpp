@@ -106,6 +106,16 @@ static SessionWorkOns reduce(const std::vector<Plan> &plans, const QHash<QString
     return s;
 }
 
+// The same with each condition's position in the swing (rule v4's swingPosOf).
+static SessionWorkOns reduceAt(const std::vector<Plan> &plans, const QHash<QString, WorkOnClass> &cls,
+                               const WorkOnCauses &causes, const QHash<QString, double> &pos)
+{
+    const std::vector<ShotRecord> shots = sessionOf(plans);
+    SessionWorkOns s = reduceSessionWorkOns(shots, conditionLedgers(shots, flatOpts()), cls, causes, pos);
+    s.sessionId = QStringLiteral("s");
+    return s;
+}
+
 static QStringList idsOf(const SessionWorkOns &s)
 {
     QStringList out;
@@ -244,6 +254,144 @@ int main()
         stale[QStringLiteral("ruleVersion")] = kWorkOnRuleVersion + 1;
         sessionWorkOnsFromJson(stale, &ok);
         check(!ok, "a file written under another rule is refused, not aggregated");
+
+        // A v3 record (magnitude before swing order) is refused, so the catch-up re-derives it.
+        QJsonObject v3 = toJson(s);
+        v3[QStringLiteral("ruleVersion")]   = 3;
+        v3[QStringLiteral("schemaVersion")] = 1;
+        sessionWorkOnsFromJson(v3, &ok);
+        check(kWorkOnRuleVersion == 4 && !ok, "a rule-3 record is stale under rule 4");
+
+        // Reasons and linksTestable round-trip, the 2x2 included.
+        const QHash<QString, WorkOnClass> cls2{ { "cause", M }, { "symptom", M }, { "other", M } };
+        std::vector<int> together = rep(1, 10);
+        for (int i = 0; i < 3; ++i) together.push_back(0);
+        const SessionWorkOns r = reduceAt({ plan("symptom", together, 6.0), plan("cause", together, 2.5),
+                                            plan("other", rep(1, 13), 1.5) },
+                                          cls2, { { "cause", "symptom" }, { "other", "cause" } },
+                                          { { "cause", 4.0 }, { "symptom", 7.0 }, { "other", 4.5 } });
+        const SessionWorkOns rb = sessionWorkOnsFromJson(toJson(r), &ok);
+        bool same = ok && rb.linksTestable == r.linksTestable && rb.entries.size() == r.entries.size();
+        for (size_t i = 0; same && i < r.entries.size(); ++i) {
+            const WorkOnReasons &x = r.entries[i].reasons, &y = rb.entries[i].reasons;
+            same = x.resolving == y.resolving && x.behind == y.behind && x.mayFollow == y.mayFollow
+                && near(x.excess, y.excess, 1e-12) && near(x.swingPos, y.swingPos, 1e-12)
+                && x.rootBecause.size() == y.rootBecause.size();
+            for (int k = 0; same && k < x.rootBecause.size(); ++k)
+                same = x.rootBecause[k].id == y.rootBecause[k].id && x.rootBecause[k].a == y.rootBecause[k].a
+                    && x.rootBecause[k].b == y.rootBecause[k].b && x.rootBecause[k].c == y.rootBecause[k].c
+                    && x.rootBecause[k].d == y.rootBecause[k].d;
+        }
+        check(r.linksTestable && r.entry("cause")->reasons.rootBecause.size() == 1
+                  && r.entry("cause")->reasons.mayFollow == QStringList{ "other" }
+                  && r.entry("symptom")->reasons.behind == QStringLiteral("cause"),
+              "the round-trip fixture has every kind of reason in it");
+        check(same, "reasons and linksTestable round-trip");
+        check(!rb.entry("symptom")->root && rb.entry("symptom")->causedBy == QStringList{ "cause" },
+              "…beside the v3 fields they explain");
+    }
+
+    // ── Rule v4: swing order when no link can be tested ─────────────────────────
+    {
+        check(near(workOnSwingPosOfPhase("P1"), 1.0, 1e-12) && near(workOnSwingPosOfPhase("P4"), 4.0, 1e-12)
+              && near(workOnSwingPosOfPhase("p9"), 9.0, 1e-12) && near(workOnSwingPosOfPhase("finish"), 10.0, 1e-12)
+              && near(workOnSwingPosOfPhase("transition"), 4.5, 1e-12) && near(workOnSwingPosOfPhase("takeaway"), 1.5, 1e-12)
+              && near(workOnSwingPosOfPhase("downswing"), 5.5, 1e-12) && near(workOnSwingPosOfPhase("release"), 7.5, 1e-12)
+              && near(workOnSwingPosOfPhase("max speed"), 6.5, 1e-12),
+              "phase labels map onto the swing's P-scale, the between-positions between them");
+        check(near(workOnSwingPosOfPhase(""), kWorkOnSwingPosSession, 1e-12)
+              && near(workOnSwingPosOfPhase("?"), kWorkOnSwingPosSession, 1e-12)
+              && kWorkOnSwingPosSession > workOnSwingPosOfPhase("finish"),
+              "no position (a session-level habit, or unknown) sorts after the finish");
+
+        // Jess, 20 Oct, in miniature: every habit on every swing, so nothing can be tested. v3 put the
+        // follow-through habit first on size; v4 starts at the set-up.
+        const QHash<QString, WorkOnClass> cls{ { "wing", M }, { "stance", M }, { "dip", M }, { "spine", M },
+                                               { "seq", M }, { "held", X } };
+        const QHash<QString, double> pos{ { "wing", 8.0 }, { "stance", 1.0 }, { "dip", 4.0 }, { "spine", 4.0 },
+                                          { "seq", kWorkOnSwingPosSession }, { "held", 1.0 } };
+        const WorkOnCauses causes{ { "stance", "wing" } };          // authored, and untestable here
+        const std::vector<Plan> jess{ plan("wing", rep(1, 10), 8.0), plan("stance", rep(1, 10), 2.5),
+                                      plan("dip", rep(1, 10), 3.0), plan("spine", rep(1, 10), 4.0),
+                                      plan("seq", rep(1, 10), 9.0), plan("held", rep(1, 10), 20.0) };
+        const SessionWorkOns v4 = reduceAt(jess, cls, causes, pos);
+        check(!v4.linksTestable, "every authored cause on every swing: no link is testable");
+        check(idsOf(v4) == (QStringList{ "stance", "spine", "dip", "wing", "seq" }),
+              "swing order: set-up, the top (two there, the bigger miss first), follow-through, then the session-level habit");
+        check(!v4.entry("held"), "a held (Excluded) condition is never listed, however early or large");
+
+        // SHARP findings lead under v4 too: on Mark's 07-04 and 10-08 sessions swing order alone
+        // pushed the out-of-order sequence and the hips peaking after impact off a five-item list.
+        {
+            const QHash<QString, WorkOnClass> c6{ { "a", M }, { "b", M }, { "c", M }, { "d", M }, { "e", M },
+                                                  { "seqOrder", M }, { "hipsLate", M } };
+            const QHash<QString, double> p6{ { "a", 1.0 }, { "b", 2.0 }, { "c", 3.0 }, { "d", 4.0 }, { "e", 5.0 },
+                                             { "seqOrder", 7.0 }, { "hipsLate", 7.5 } };
+            const SessionWorkOns s6 = reduceAt({ plan("a", rep(1, 10)), plan("b", rep(1, 10)), plan("c", rep(1, 10)),
+                                                 plan("d", rep(1, 10)), plan("e", rep(1, 10)),
+                                                 sharpPlan("seqOrder", rep(1, 10)), sharpPlan("hipsLate", rep(1, 10)) },
+                                               c6, {}, p6);
+            check(!s6.linksTestable && idsOf(s6) == (QStringList{ "seqOrder", "hipsLate", "a", "b", "c" }),
+                  "v4: sharp findings first (in swing order between themselves), then the rest in swing order");
+        }
+        const WorkOnEntry *wing = v4.entry("wing"), *stance = v4.entry("stance"), *spine = v4.entry("spine");
+        check(wing && stance && spine && near(wing->reasons.swingPos, 8.0, 1e-12) && near(stance->reasons.swingPos, 1.0, 1e-12)
+                  && near(v4.entry("seq")->reasons.swingPos, kWorkOnSwingPosSession, 1e-12),
+              "each entry carries the position it was ordered by");
+        check(wing && wing->reasons.mayFollow == QStringList{ "stance" } && wing->reasons.behind.isEmpty()
+                  && wing->root && stance->reasons.rootBecause.isEmpty(),
+              "the untestable link is named on the effect (mayFollow) and supports nothing");
+        check(wing && near(wing->reasons.excess, wing->excess, 1e-12) && wing->reasons.excess > spine->reasons.excess
+                  && !wing->reasons.resolving,
+              "reasons carry the magnitude the page draws, and v4 put the biggest miss fourth");
+
+        // The same session with no positions supplied is v3's order: magnitude.
+        const SessionWorkOns v3 = reduce(jess, cls, causes);
+        check(idsOf(v3) == (QStringList{ "seq", "wing", "spine", "dip", "stance" }),
+              "a caller passing no positions gets v3's order unchanged");
+
+        // Too few swings to pair: a cause that does NOT fire on every swing is still untestable on
+        // seven, so the order is the swing's.
+        const SessionWorkOns few = reduceAt({ plan("wing", rep(1, 7), 8.0), plan("stance", { 1, 1, 1, 1, 1, 1, 0 }, 2.5) },
+                                            cls, causes, pos);
+        check(!few.linksTestable && idsOf(few) == (QStringList{ "stance", "wing" }),
+              "seven swings are too few to test a link: swing order");
+    }
+
+    // ── Rule v4: a testable link leaves v3's order alone ────────────────────────
+    {
+        const QHash<QString, WorkOnClass> cls{ { "cause", M }, { "symptom", M }, { "early", M }, { "fixed", M } };
+        // Positions that would reverse everything if swing order were consulted.
+        const QHash<QString, double> pos{ { "cause", 7.0 }, { "symptom", 1.0 }, { "early", 1.0 }, { "fixed", 1.0 } };
+        const WorkOnCauses causes{ { "cause", "symptom" } };
+        std::vector<int> together = rep(1, 10);
+        for (int i = 0; i < 3; ++i) together.push_back(0);
+        std::vector<int> fixed = rep(1, 8);
+        for (int i = 0; i < 5; ++i) fixed.push_back(0);
+        const SessionWorkOns s = reduceAt({ plan("symptom", together, 6.0), plan("cause", together, 2.5),
+                                            plan("early", rep(1, 13), 2.0), plan("fixed", fixed, 9.0) },
+                                          cls, causes, pos);
+        check(s.linksTestable, "a cause that is not on every swing, paired on thirteen: testable");
+        check(idsOf(s) == (QStringList{ "cause", "early", "symptom", "fixed" }),
+              "testable links: roots first, then magnitude — position is not consulted; resolving still last");
+        const WorkOnEntry *cause = s.entry("cause"), *symptom = s.entry("symptom"), *fx = s.entry("fixed");
+        check(cause && cause->reasons.rootBecause.size() == 1 && cause->reasons.rootBecause[0].id == QStringLiteral("symptom")
+                  && cause->reasons.rootBecause[0].a == 10 && cause->reasons.rootBecause[0].b == 0
+                  && cause->reasons.rootBecause[0].c == 0 && cause->reasons.rootBecause[0].d == 3,
+              "the cause names the effect it leads, with the session's 2x2 (10 together, 3 neither)");
+        check(symptom && symptom->reasons.behind == QStringLiteral("cause") && symptom->reasons.mayFollow.isEmpty()
+                  && !symptom->root, "the effect names the supported cause it waits behind");
+        check(fx && fx->reasons.resolving && fx->reasons.behind.isEmpty(), "resolving is a reason too");
+
+        // Testable but NOT supported: the cause fires on the first half, the symptom on the second.
+        // There is something to compare, the comparison fails — v3's magnitude order, no demotion.
+        const SessionWorkOns apart = reduceAt({ plan("symptom", { 0,0,0,0,0,1,1,1,1,1,1,1 }, 6.0),
+                                                plan("cause",   { 1,1,1,1,1,1,1,0,0,0,0,1 }, 2.5) },
+                                              cls, causes, pos);
+        const WorkOnEntry *sym = apart.entry("symptom");
+        check(apart.linksTestable && sym && sym->root && sym->reasons.mayFollow == QStringList{ "cause" }
+                  && idsOf(apart) == (QStringList{ "symptom", "cause" }),
+              "a testable link the swings do not support is named, demotes nothing, and keeps magnitude order");
     }
 
     // ── Rule 3 and the aggregate ────────────────────────────────────────────────

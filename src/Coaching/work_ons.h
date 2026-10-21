@@ -57,6 +57,7 @@
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QVector>
 #include <QSet>
 #include <QString>
 #include <QStringList>
@@ -70,11 +71,15 @@ namespace pinpoint::analysis {
 
 // work_ons.json's shape, and the selection rule that filled it. Two numbers because they
 // change for different reasons: a new field is a new schema, a new ordering is a new rule.
-inline constexpr int kWorkOnSchemaVersion = 1;
+// 2: every entry carries `reasons` (which rule placed it) and the record says `linksTestable`.
+inline constexpr int kWorkOnSchemaVersion = 2;
 // 2: a symptom goes behind its cause only when the session's swings SUPPORT the link (see
 // linkSupported); an authored link they cannot test is named (mayFollow) but does not demote.
 // 3: the golfer's list puts SHARP work-ons first (WorkOnSummary::sharp), as every session's does.
-inline constexpr int kWorkOnRuleVersion   = 3;
+// 4: when the session can test none of its authored links (linksTestable false), SWING ORDER
+// decides before magnitude — setup, backswing, top, transition, downswing, impact, follow-through
+// (docs/design/session_report_design.md §4.3, option A, Mark 20 Oct 2026). See WorkOnReasons.
+inline constexpr int kWorkOnRuleVersion   = 4;
 
 // "The top 3–5". Five is a cap; three is how far Delivery conditions may fill a session that
 // measured fewer movement faults than that. Neither is a quota — a session with two patterns
@@ -173,6 +178,86 @@ inline SessionEvidence sessionEvidence(const ConditionLedger &l, const WorkOnOpt
     return SessionEvidence::Inconclusive;
 }
 
+// ── Where in the swing (rule v4) ────────────────────────────────────────────────
+//
+// THE SWING'S ORDER IS A FACT, NOT AN INFERENCE. When a session cannot test any of its authored
+// links (every cause fired on every swing, or too few swings to pair), rule 2 has nothing to say,
+// and v3 fell straight through to "the biggest miss first" — which put Jess's follow-through habit
+// (chicken wing, P8) at the head of her list on 20 Oct, ahead of the stance she set up with. v4
+// orders such a session by WHERE each habit is read, setup first: it is how coaches sequence work,
+// and the pack's own edges mostly run that way.
+//
+// WHERE A HABIT IS READ is where its measure's reduction LANDS — the anchor of an `at`, the end of
+// a delta, a rate or an extremum's window. That is condition_reading.h's measureReading() rule, the
+// one the card's phase chip and the charts' condition → reading link already use, so the order and
+// the "P4" printed beside the habit cannot disagree. The caller (SessionDiagnosticsModel::
+// sessionWorkOns) reads it off the ledger's driving measure and passes it in as `swingPosOf`, keyed
+// by condition id, on this scale:
+//
+//   P1 … P10                      1 … 10      (phaseLabel's spelling: "P1" … "P9"; Finish is P10)
+//   takeaway                      1.5         between address and P2
+//   transition                    4.5         between the top and P5
+//   downswing                     5.5         between P5 and P6
+//   max speed                     6.5         the hands' peak speed, before the ball
+//   release                       7.5         just after the ball
+//   a session-level habit         11          MeasureScope::Session — read over the session's
+//                                             swings, never at a point in one; after every swing
+//                                             position (kWorkOnSwingPosSession)
+//   unknown / not supplied        11          the same: a caller that passes no positions gets
+//                                             every habit tied, and so v3's order unchanged
+//
+// Two habits read at one position (knee flex lost by the top and reverse spine at the top are both
+// P4) are ordered by magnitude between themselves, as v3 ordered everything.
+inline constexpr double kWorkOnSwingPosSession = 11.0;
+
+inline double workOnSwingPosOfPhase(const QString &label)
+{
+    const QString l = label.trimmed().toLower();
+    if (l.isEmpty()) return kWorkOnSwingPosSession;
+    if (l.startsWith(QLatin1Char('p'))) {
+        bool ok = false;
+        const int n = l.mid(1).toInt(&ok);
+        if (ok && n >= 1 && n <= 10) return double(n);
+    }
+    if (l == QLatin1String("takeaway"))   return 1.5;
+    if (l == QLatin1String("transition")) return 4.5;
+    if (l == QLatin1String("downswing"))  return 5.5;
+    if (l == QLatin1String("max speed") || l == QLatin1String("maxspeed")) return 6.5;
+    if (l == QLatin1String("release"))    return 7.5;
+    if (l == QLatin1String("finish"))     return 10.0;
+    return kWorkOnSwingPosSession;
+}
+
+// One supported cause → effect link, as the session's 2×2 over the shots on which both could be
+// judged: a = both fired, b = the cause alone, c = the effect alone, d = neither. `id` is the OTHER
+// end — the effect, on the cause's entry.
+struct RootBecause {
+    QString id;
+    int a = 0, b = 0, c = 0, d = 0;
+};
+
+// WHICH RULE PUT AN ENTRY WHERE IT IS (session_report_design.md §4.2). The report's "Why this
+// order" page prints each rule with a "Today" line generated from these, and nothing else, so the
+// explanation is of the rule that actually ran, not a nicer-sounding one.
+//
+//   resolving    rule 1 — it stopped during the session, so it went to the back
+//   rootBecause  rule 2 — the listed patterns it is a SUPPORTED cause of, each with its 2×2
+//   behind       rule 2 — the supported cause it waits behind (the first of causedBy); empty = root
+//   mayFollow    rule 2 — authored causes among the session's patterns these swings cannot test
+//   swingPos     rule v4 — where in the swing it is read (the scale above); decides only when the
+//                record's linksTestable is false
+//   excess       rule 3 — ConditionLedger::firingExcess, how far out when it goes. The sort's score
+//                adds 0.10 × the Wilson bound and the pack's demotions; this is the quantity the
+//                page draws as bars.
+struct WorkOnReasons {
+    bool                  resolving = false;
+    QVector<RootBecause>  rootBecause;
+    QString               behind;
+    QStringList           mayFollow;
+    double                excess   = 0.0;
+    double                swingPos = kWorkOnSwingPosSession;
+};
+
 // One fault a session says to work on.
 struct WorkOnEntry {
     QString     id;
@@ -200,6 +285,8 @@ struct WorkOnEntry {
     double  corridorLo   = 0.0;
     double  corridorHi   = 0.0;
     CorridorShape corridorShape = CorridorShape::Unknown;
+
+    WorkOnReasons reasons;       // which rule placed it (rule v4; §4.2)
 };
 
 struct WorkOnEvidence {
@@ -216,6 +303,16 @@ struct SessionWorkOns {
     int         shotCount = 0;
     QStringList clubs;
     std::vector<WorkOnEntry>    entries;     // in rank order
+    // COULD THIS SESSION TEST ANY AUTHORED LINK AMONG ITS PATTERNS — rule 2's precondition, and the
+    // switch for v4's swing order. True when at least one authored cause → effect edge has both
+    // ends a Pattern here, the effect a listable one (Movement or Delivery — the entries rule 2 can
+    // reorder), and the pair TESTABLE (linkTestable below): the cause is not range-restricted (it
+    // did not fire on every swing it was judged on, so there is something to compare) and the two
+    // were judged together on at least LedgerOptions::minPairsForDependence swings. Testable is not
+    // supported: a testable link whose Fisher test fails leaves this true and the order v3's.
+    // False — no authored edge among the patterns, every authored cause on every swing, or too few
+    // swings — and the list is in swing order before magnitude.
+    bool                        linksTestable = false;
     // Every condition the session assessed at all. The aggregate needs this for rule 3: it has
     // to tell a session that was quiet on a fault from one that never looked.
     std::vector<WorkOnEvidence> evidence;
@@ -253,20 +350,36 @@ using WorkOnCauses = std::vector<std::pair<QString, QString>>;
 // alone pushed early extension — the fault on all 31 swings of a session — off every list behind
 // over the top, which also fired on all 31. The "moved together" grade needs a declared focus,
 // which a session record does not carry, so it is not consulted here.
-inline bool linkSupported(const ConditionLedger &cause, const ConditionLedger &effect,
-                          const LedgerOptions &opt = LedgerOptions())
+//
+// Split in three so the report can quote what the test saw: linkPairs() is the paired 2×2,
+// linkTestable() whether there is anything to test at all, linkSupported() the verdict.
+inline RootBecause linkPairs(const ConditionLedger &cause, const ConditionLedger &effect)
 {
-    if (cause.rangeRestricted) return false;
-    int a = 0, b = 0, c = 0, d = 0;
+    RootBecause t;
+    t.id = effect.id;
     const size_t n = std::min(cause.run.size(), effect.run.size());
     for (size_t i = 0; i < n; ++i) {
         const ShotState u = cause.run[i], v = effect.run[i];
         if (u == ShotState::NotAssessable || v == ShotState::NotAssessable) continue;
         const bool uf = u == ShotState::Fired, vf = v == ShotState::Fired;
-        if (uf && vf) ++a; else if (uf) ++b; else if (vf) ++c; else ++d;
+        if (uf && vf) ++t.a; else if (uf) ++t.b; else if (vf) ++t.c; else ++t.d;
     }
-    if (a + b + c + d < opt.minPairsForDependence) return false;
-    return fisherExactOneSided(a, b, c, d) <= opt.fisherAlpha;
+    return t;
+}
+
+inline bool linkTestable(const ConditionLedger &cause, const RootBecause &pairs,
+                         const LedgerOptions &opt = LedgerOptions())
+{
+    return !cause.rangeRestricted
+        && pairs.a + pairs.b + pairs.c + pairs.d >= opt.minPairsForDependence;
+}
+
+inline bool linkSupported(const ConditionLedger &cause, const ConditionLedger &effect,
+                          const LedgerOptions &opt = LedgerOptions())
+{
+    const RootBecause t = linkPairs(cause, effect);
+    if (!linkTestable(cause, t, opt)) return false;
+    return fisherExactOneSided(t.a, t.b, t.c, t.d) <= opt.fisherAlpha;
 }
 
 // ── One session ─────────────────────────────────────────────────────────────────
@@ -274,10 +387,21 @@ inline bool linkSupported(const ConditionLedger &cause, const ConditionLedger &e
 // `ledgers` is conditionLedgers(shots) — passed rather than recomputed so the list and the
 // panel beside it are reductions of the SAME ledger. `classOf` answers for every condition id;
 // an id it does not hold is Excluded (a condition the pack no longer authors is not coached).
+// `swingPosOf` is where each condition is read in the swing (the scale above workOnSwingPosOfPhase);
+// an id it does not hold sorts as kWorkOnSwingPosSession, so a caller passing none gets v3's order.
+//
+// THE ORDER (rule v4), each key consulted only when every earlier one ties:
+//   1. still happening first — a pattern that stopped inside the session (`resolving`) goes last;
+//   2. a root before what it causes — behind its cause only where this session SUPPORTS the link;
+//   3. when the session could test none of its links (!linksTestable): earlier in the swing first;
+//   4. the bigger miss first: firingExcess + 0.10 × the Wilson bound, less the pack's demotions;
+//   5. the id, so the order is total.
+// Movements fill the list to the cap; Delivery numbers only fill it to three, behind them.
 inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
                                            const std::vector<ConditionLedger> &ledgers,
                                            const QHash<QString, WorkOnClass> &classOf,
                                            const WorkOnCauses &causes,
+                                           const QHash<QString, double> &swingPosOf,
                                            const WorkOnOptions &opt = WorkOnOptions())
 {
     SessionWorkOns out;
@@ -300,6 +424,8 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
 
     struct Candidate { WorkOnEntry e; double score = 0.0; };
     std::vector<Candidate> movement, delivery;
+    // Every supported link, cause id -> the effect with its 2×2, for the causes' rootBecause.
+    QHash<QString, QVector<RootBecause>> supported;
 
     for (const ConditionLedger &l : ledgers) {
         if (l.tier != Tier::Pattern) continue;
@@ -322,10 +448,23 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
                 continue;
             const ConditionLedger *from = nullptr;
             for (const ConditionLedger &k : ledgers) if (k.id == edge.first) { from = &k; break; }
-            if (from && linkSupported(*from, l)) c.e.causedBy.append(edge.first);
-            else                                 c.e.mayFollow.append(edge.first);
+            const RootBecause pairs = from ? linkPairs(*from, l) : RootBecause{};
+            if (from && linkTestable(*from, pairs)) out.linksTestable = true;
+            if (from && linkSupported(*from, l)) {
+                c.e.causedBy.append(edge.first);
+                RootBecause t = pairs;
+                t.id = l.id;                                  // the effect, quoted on the cause
+                supported[edge.first].append(t);
+            } else {
+                c.e.mayFollow.append(edge.first);
+            }
         }
         c.e.root = c.e.causedBy.isEmpty();
+        c.e.reasons.resolving = l.resolving;
+        c.e.reasons.behind    = c.e.causedBy.isEmpty() ? QString() : c.e.causedBy.first();
+        c.e.reasons.mayFollow = c.e.mayFollow;
+        c.e.reasons.excess    = l.firingExcess;
+        c.e.reasons.swingPos  = swingPosOf.value(l.id, kWorkOnSwingPosSession);
 
         // The typical reading, under the one-corridor rule above.
         std::vector<double> values;
@@ -367,10 +506,20 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
     }
 
     // A fault the golfer already fixed inside the session goes behind the ones still firing, and
-    // a symptom behind its cause. Then magnitude.
-    const auto before = [](const Candidate &x, const Candidate &y) {
+    // a symptom behind its cause. Then SHARP findings ahead of the rest (Mark, 15 Oct: out of order
+    // and peaking after impact "are both really bad"): under v3 they led through their excess,
+    // kDiagSharpExcess, but v4 puts swing position before magnitude, and on 07-04 and 10-08 that
+    // pushed both off the list altogether — so sharpness is its own key, above position. Then —
+    // when no link could be tested, so rule 2 had nothing to say — the swing's own order. Then
+    // magnitude.
+    const bool swingOrder = !out.linksTestable;
+    const auto before = [swingOrder](const Candidate &x, const Candidate &y) {
         if (x.e.resolving != y.e.resolving) return !x.e.resolving;
         if (x.e.root != y.e.root)           return x.e.root;
+        const bool xs = x.e.excess >= kDiagSharpExcess, ys = y.e.excess >= kDiagSharpExcess;
+        if (xs != ys)                       return xs;
+        if (swingOrder && x.e.reasons.swingPos != y.e.reasons.swingPos)
+            return x.e.reasons.swingPos < y.e.reasons.swingPos;
         if (x.score != y.score)             return x.score > y.score;
         return x.e.id < y.e.id;
     };
@@ -387,7 +536,28 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
         out.entries.push_back(std::move(c.e));
     }
     for (size_t i = 0; i < out.entries.size(); ++i) out.entries[i].rank = int(i) + 1;
+
+    // rootBecause: the LISTED entries each one is a supported cause of, in list order — what the
+    // report can point at ("it went away on the swings where X did"), so never an effect that
+    // missed the cap.
+    for (WorkOnEntry &cause : out.entries) {
+        const QVector<RootBecause> mine = supported.value(cause.id);
+        for (const WorkOnEntry &effect : out.entries)
+            for (const RootBecause &t : mine)
+                if (t.id == effect.id) cause.reasons.rootBecause.append(t);
+    }
     return out;
+}
+
+// Without positions: every habit ties on rule v4's key, so the order is v3's. The callers that
+// predate swing order (and the tests that pin v3's behaviour) keep this form.
+inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
+                                           const std::vector<ConditionLedger> &ledgers,
+                                           const QHash<QString, WorkOnClass> &classOf,
+                                           const WorkOnCauses &causes,
+                                           const WorkOnOptions &opt = WorkOnOptions())
+{
+    return reduceSessionWorkOns(shots, ledgers, classOf, causes, QHash<QString, double>(), opt);
 }
 
 // ── One golfer ──────────────────────────────────────────────────────────────────
@@ -598,6 +768,19 @@ inline QJsonObject toJson(const SessionWorkOns &s)
             o[QStringLiteral("corridorHi")]    = e.corridorHi;
             o[QStringLiteral("corridorShape")] = corridorShapeToString(e.corridorShape);
         }
+        QJsonObject why;
+        why[QStringLiteral("resolving")] = e.reasons.resolving;
+        QJsonArray roots;
+        for (const RootBecause &r : e.reasons.rootBecause)
+            roots.append(QJsonObject{ { QStringLiteral("id"), r.id }, { QStringLiteral("a"), r.a },
+                                      { QStringLiteral("b"), r.b }, { QStringLiteral("c"), r.c },
+                                      { QStringLiteral("d"), r.d } });
+        why[QStringLiteral("rootBecause")] = roots;
+        why[QStringLiteral("behind")]      = e.reasons.behind;
+        why[QStringLiteral("mayFollow")]   = QJsonArray::fromStringList(e.reasons.mayFollow);
+        why[QStringLiteral("excess")]      = e.reasons.excess;
+        why[QStringLiteral("swingPos")]    = e.reasons.swingPos;
+        o[QStringLiteral("reasons")] = why;
         entries.append(o);
     }
 
@@ -620,6 +803,7 @@ inline QJsonObject toJson(const SessionWorkOns &s)
     root[QStringLiteral("endMs")]         = double(s.endMs);
     root[QStringLiteral("shotCount")]     = s.shotCount;
     root[QStringLiteral("clubs")]         = QJsonArray::fromStringList(s.clubs);
+    root[QStringLiteral("linksTestable")] = s.linksTestable;
     root[QStringLiteral("workOns")]       = entries;
     root[QStringLiteral("evidence")]      = evidence;
     return root;
@@ -640,6 +824,7 @@ inline SessionWorkOns sessionWorkOnsFromJson(const QJsonObject &root, bool *ok =
     s.endMs     = qint64(root.value(QStringLiteral("endMs")).toDouble());
     s.shotCount = root.value(QStringLiteral("shotCount")).toInt();
     for (const QJsonValue &v : root.value(QStringLiteral("clubs")).toArray()) s.clubs.append(v.toString());
+    s.linksTestable = root.value(QStringLiteral("linksTestable")).toBool();
 
     for (const QJsonValue &v : root.value(QStringLiteral("workOns")).toArray()) {
         const QJsonObject o = v.toObject();
@@ -665,6 +850,20 @@ inline SessionWorkOns sessionWorkOnsFromJson(const QJsonObject &root, bool *ok =
             e.corridorHi    = o.value(QStringLiteral("corridorHi")).toDouble();
             e.corridorShape = corridorShapeFromString(o.value(QStringLiteral("corridorShape")).toString());
         }
+        const QJsonObject why = o.value(QStringLiteral("reasons")).toObject();
+        e.reasons.resolving = why.value(QStringLiteral("resolving")).toBool();
+        for (const QJsonValue &r : why.value(QStringLiteral("rootBecause")).toArray()) {
+            const QJsonObject t = r.toObject();
+            e.reasons.rootBecause.append(RootBecause{ t.value(QStringLiteral("id")).toString(),
+                                                      t.value(QStringLiteral("a")).toInt(),
+                                                      t.value(QStringLiteral("b")).toInt(),
+                                                      t.value(QStringLiteral("c")).toInt(),
+                                                      t.value(QStringLiteral("d")).toInt() });
+        }
+        e.reasons.behind = why.value(QStringLiteral("behind")).toString();
+        for (const QJsonValue &c : why.value(QStringLiteral("mayFollow")).toArray()) e.reasons.mayFollow.append(c.toString());
+        e.reasons.excess   = why.value(QStringLiteral("excess")).toDouble();
+        e.reasons.swingPos = why.value(QStringLiteral("swingPos")).toDouble(kWorkOnSwingPosSession);
         s.entries.push_back(std::move(e));
     }
 

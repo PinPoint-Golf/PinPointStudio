@@ -239,6 +239,12 @@ public:
     void    setGradePolicy(const QString &name);
     bool    reviewing() const { return m_reviewing; }
     void    setReviewing(bool on);
+    // A READER that must never write the session: off, persist() is a no-op, so diagnostics.json is
+    // left exactly as it was however stale its rows, and the ledger lives only in memory. The session
+    // report reads a session this way (session_report_design.md §8.1: "the report reads; it never
+    // writes diagnostics.json"). On by default — the panel and the work-ons catch-up own the file.
+    bool    persistEnabled() const { return m_persistEnabled; }
+    void    setPersistEnabled(bool on) { m_persistEnabled = on; }
     int     selectedShotId() const { return m_selectedShotId; }
     void    setSelectedShotId(int id);
     QString selectedSwingDir() const { return m_selectedSwingDir; }
@@ -484,6 +490,14 @@ public:
     // What the rows are graded against, so a holder of this model can tell when a record it
     // derived earlier has gone stale. The same stamp gradedFrom carries.
     QString contentStamp() const { return computeContentStamp(); }
+    // The corridor a condition's run of readings is drawn against (spreadCorridorOf, at the focus
+    // shot), for a holder that builds its own figures from ledgerRows() — the session report does.
+    // `measureId` empty = the driving measure. An empty corridor when the condition has no ledger.
+    pinpoint::analysis::SpreadCorridor corridorOf(const QString &conditionId, const QString &measureId = QString()) const
+    {
+        const pinpoint::analysis::ConditionLedger *l = ledger(conditionId);
+        return l ? spreadCorridorOf(*l, focusIndex(), nullptr, measureId) : pinpoint::analysis::SpreadCorridor{};
+    }
     // Spin the caller's event loop until every in-flight ingest has landed. Returns false on
     // timeout. A no-op in synchronous mode.
     Q_INVOKABLE bool waitForIdle(int msTimeout = 60000);
@@ -720,6 +734,7 @@ private:
     bool    m_reachedEstablished = false;
     bool    m_closed = false;
     bool    m_reviewing = false;
+    bool    m_persistEnabled = true;    // setPersistEnabled: off = never write diagnostics.json
     int     m_selectedShotId = -1;
     QString m_selectedSwingDir;
     // Re-points m_selectedShotId at m_selectedSwingDir without a rebuild of its own — for the
