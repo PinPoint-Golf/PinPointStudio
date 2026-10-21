@@ -159,6 +159,37 @@ versus data; not fitted to you). What we could not check today, from `notJudged`
 words, ending with "Nothing in this report depends on them" only when that is true. A short
 glossary. Then the studio sign-off box.
 
+**Launch monitor appendix** (added 21 October, Mark: "an appendix which a) reproduces the figures
+as a headline then b) lists out every shot's LM data across ball and club then c) provides
+summary statistics for the set, including SD"). Drawn whenever the session has launch monitor
+readings, after About and before the technical appendix, as part of the client galley
+(`PpLmAppendix`), so it flows and repeats its table heads. Like the technical appendix it is not on the
+cover's contents line, which shares the folio with the studio's contact and would push it into an ellipsis.
+Three parts, each from a fresh page:
+
+1. **The figures.** For each club, in bag order: a heading ("146 yd average carry, 22 yd from
+   shortest to longest, 10 shots"), then the launch monitor panel's own Session figures, embedded
+   in the panel's print layout in Folio light. Those are the ball figure (dispersion,
+   launch × spin, six consistency tiles) and the club figure (the impact map with every strike,
+   path × face, eight delivery tiles). No shot is singled out, so the panel's "this shot" ring
+   and tick are not drawn and the captions do not mention one.
+2. **Every shot.** A Ball table (launch, spin, flight: up to 13 readings) and a Club table
+   (delivery and strike: up to 13), one row per swing, grouped by club. A column appears only if
+   some swing in the session has that reading. Values are as the device reported them, signed.
+   The note gives the sign convention for the golfer's hand, and only the marks the table uses
+   ("out", "*"). Swings with no reading are named ("No reading on swings 1–12.").
+3. **The summary.** Per club: shots, average, SD (n − 1, from three shots, else "-"), lowest,
+   highest and range, for every reading, under Ball and Club sub-heads. Average and SD are in
+   bold.
+
+It reads the panel's own model. `SessionReportModel` builds a private `LmSessionModel` over a
+private `ShotListModel` of the session, and the figures (the map's `lmAppendix.graphics`) and the
+tables come from that one model. So the appendix agrees with the panel on everything: each
+shot's effective club (a shot the readings put under another club is listed there, marked *),
+the shots left out (shown as "out", in none of the statistics) and every number (`lmSessionStats`).
+That is also where it differs from "Your numbers" on the client pages, which groups by the
+recorded club and quotes the median.
+
 **Technical appendix** (optional, off by default, §8): the existing `PpDiagPrint` pages, from a
 fresh page, for the coach's own file or for a golfer who wants everything.
 
