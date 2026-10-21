@@ -28,7 +28,7 @@ import PinPointStudio
 //   2  Displays       8  Storage
 //   3  Cameras        9  Archiving
 //   4  IMUs          10  Diagnostic Model (the whole content set)
-//   5  Phones
+//   5  Phones        11  Studio (drawn in General; appended, so 0–10 kept their numbers)
 //
 // ⚠ THESE INDICES ARE POSITIONAL IN FOUR PLACES and Phones was inserted into
 // the middle of them rather than appended: this map, ScreenSettings' nav model,
@@ -439,6 +439,41 @@ QtObject {
         { panelIndex: 9,  panelLabel: qsTr("Archiving"), groupLabel: qsTr("Automatic"),
           label: qsTr("Empty deleted sessions and swings after"), subtitle: qsTr("The library's own trash"),
           actions: "trash deleted empty recycle retention days",
-          itemId: "setting_trashRetention" }
+          itemId: "setting_trashRetention" },
+
+        // ── Studio (panelIndex: 11) — the session report's studio and coach ──
+
+        { panelIndex: 11, panelLabel: qsTr("Studio"), groupLabel: qsTr("The studio"),
+          label: qsTr("Studio name"),                      subtitle: qsTr("The masthead, running head and sign-off of every report"),
+          actions: "studio name business brand report masthead",
+          itemId: "setting_studioName" },
+        { panelIndex: 11, panelLabel: qsTr("Studio"), groupLabel: qsTr("The studio"),
+          label: qsTr("Logo"),                             subtitle: qsTr("PNG, JPEG or SVG; a monogram is made without one"),
+          actions: "logo image brand monogram picture report",
+          itemId: "setting_studioLogo" },
+        { panelIndex: 11, panelLabel: qsTr("Studio"), groupLabel: qsTr("The studio"),
+          label: qsTr("Accent colour"),                    subtitle: qsTr("The report's one brand colour"),
+          actions: "accent colour color brand hex swatch report",
+          itemId: "setting_studioAccent" },
+        { panelIndex: 11, panelLabel: qsTr("Studio"), groupLabel: qsTr("Contact"),
+          label: qsTr("Address, phone, email, website"),   subtitle: qsTr("The report's footer and sign-off box"),
+          actions: "address phone email website contact footer",
+          itemId: "setting_studioAddress" },
+        { panelIndex: 11, panelLabel: qsTr("Studio"), groupLabel: qsTr("Contact"),
+          label: qsTr("Booking"),                          subtitle: qsTr("How the golfer books the next session"),
+          actions: "booking book next session link sign-off",
+          itemId: "setting_studioBooking" },
+        { panelIndex: 11, panelLabel: qsTr("Studio"), groupLabel: qsTr("The coach"),
+          label: qsTr("Coach"),                            subtitle: qsTr("Name, title, email for replies, phone and photo"),
+          actions: "coach name title email reply-to phone photo",
+          itemId: "setting_studioCoachName" },
+        { panelIndex: 11, panelLabel: qsTr("Studio"), groupLabel: qsTr("Report"),
+          label: qsTr("How to practise a change"),         subtitle: qsTr("The four steps on page 8 of every report"),
+          actions: "practise practice steps drills page 8 report text",
+          itemId: "setting_studioPractice" },
+        { panelIndex: 11, panelLabel: qsTr("Studio"), groupLabel: qsTr("Email"),
+          label: qsTr("Report email subject and message"), subtitle: qsTr("The email that carries the report, with {first} {date} {coach} {studio}"),
+          actions: "email subject message body template mail send report",
+          itemId: "setting_studioEmailSubject" }
     ]
 }

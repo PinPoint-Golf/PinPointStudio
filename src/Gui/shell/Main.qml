@@ -698,6 +698,23 @@ ApplicationWindow {
                         swingDiagnosticsScreen.toTop()
                         navController.navigate(root.screenSwingDiagnostics)
                     }
+                    // The Sessions section (session report §8.0): the same load the work-ons' review link
+                    // uses, then the screen that draws a loaded session; "Show all" is the golfer page's
+                    // Sessions tab; a missing studio detail opens Settings → Studio.
+                    onReviewSessionRequested: function(sessionDir) {
+                        sessionReviewController.loadSession(sessionDir)
+                        navController.navigate(root.screenWrist)
+                    }
+                    onAthleteSessionsRequested: {
+                        athleteFormScreen.editUuid = athleteController.currentUuid
+                        athleteFormScreen.initialTab = "sessions"
+                        athleteFormScreen.loadForEdit()
+                        navController.navigate(root.screenNewAthlete)
+                    }
+                    onStudioSettingsRequested: {
+                        settingsScreen.openStudio()
+                        navController.navigate(root.screenSettings)
+                    }
                 }
                 ScreenPlaceholder { iconText: "◑"; titleText: qsTr("Swing"); ambientBackground: true }      // screenSwing — coming soon
                 ScreenWrist {}                                             // screenWrist — Wrist Motion (sessionType 1)
@@ -721,6 +738,14 @@ ApplicationWindow {
                         else         navController.navigate(root.screenAthletes)
                     }
                     onSavedAndStarted: { athleteFormScreen.editUuid = ""; navController.navigate(root.screenAthletes) }
+                    onReviewSessionRequested: function(sessionDir) {
+                        sessionReviewController.loadSession(sessionDir)
+                        navController.navigate(root.screenWrist)
+                    }
+                    onStudioSettingsRequested: {
+                        settingsScreen.openStudio()
+                        navController.navigate(root.screenSettings)
+                    }
                 }
                 ScreenAthletePicker {                                      // screenAthletes — athlete picker
                     onAthleteSelected:     navController.navigate(root.screenHome)
@@ -871,6 +896,11 @@ ApplicationWindow {
     // Never destroy the window's LAST View3D: Qt 6.11.0's debug Quick 3D frees the window's 3-D
     // renderer state under the render thread when it goes (View3DKeepAlive.qml has the evidence).
     View3DKeepAlive { }
+
+    // The session report's printer (docs/design/session_report_design.md §8.1): it answers
+    // sessionReport.printRequested by laying the register out on an A4 sheet nobody sees and printing
+    // it through PpPdfPrinter. Draws nothing until a report is being made.
+    PpReportPrintHost { anchors.fill: parent }
 
     // ── The probe hook — the standing verify-by-probing tool, dark by default ────────────────
     //

@@ -37,7 +37,25 @@ QtObject {
     readonly property bool isPrint: medium === "print"
 
     // ── the data: Theme's merged typeset table, and the print block ──
-    readonly property var r: Theme.typeset
+    // FIXED AESTHETIC (session report, 20 Oct 2026): a document that leaves the studio has one look whatever the app
+    // shows, so a register may name an aesthetic ("folio") and draw in its LIGHT inks and its type, read from
+    // Theme's theme TABLE (data), never from the live tokens, and without touching Theme.themeIndex. "" (every
+    // panel, and every register that does not set it) follows the app exactly as before.
+    property string fixedAesthetic: ""
+    readonly property var _fa: fixedAesthetic !== "" ? (Theme._themes[fixedAesthetic] || null) : null
+    readonly property var _fm: _fa ? _fa.light : null
+    readonly property var _fixedTypeset: {
+        if (!_fa) return null
+        const own = _fa.typeset || {}
+        const t = Object.assign({}, Theme._typesetDefault, {
+            textFamily: _fa.fontBody, figureFamily: _fa.fontData, displayFamily: _fa.fontDisplay,
+            standFamily: _fa.fontBody, labelFamily: _fa.fontBody, inlineFigureFamily: _fa.fontData }, own)
+        t.lm = Object.assign({}, Theme._typesetDefault.lm, own.lm || {})
+        t.ch = Object.assign({}, Theme._typesetDefault.ch, own.ch || {})
+        return t
+    }
+    function _fv(key, dflt) { const v = _fm ? _fm[key] : undefined; if (v !== undefined) return v; const w = _fa ? _fa[key] : undefined; return w !== undefined ? w : dflt }
+    readonly property var r: _fa ? _fixedTypeset : Theme.typeset
     readonly property var p: Theme.typesetPrint
 
     // ── a subclass's vocabulary, merged over the generic tables below ──
@@ -98,27 +116,28 @@ QtObject {
     function marginFolds(w) { return !shows("margin", w) }
 
     // ── ink ────────────────────────────────────────────────────────────────────────────────────
-    readonly property color ink: Theme.colorText
-    readonly property color ink2: Theme.colorText2
-    readonly property color ink3: Theme.colorText3
-    readonly property color warn: Theme.colorWarn            // "outside its corridor", and nothing else
-    readonly property color accent: Theme.colorAccent
-    readonly property color paper: isPrint ? "#FFFFFF" : Theme.colorBg
-    readonly property color link: r.linkAccent ? Theme.colorAccent : Theme.colorText2
-    readonly property color rule: Qt.alpha(Theme.colorText, r.ruleAlpha)
-    readonly property color hair: Qt.alpha(Theme.colorText, r.hairAlpha)
+    readonly property color ink: _fm ? _fm.colorText : Theme.colorText
+    readonly property color ink2: _fm ? _fm.colorText2 : Theme.colorText2
+    readonly property color ink3: _fm ? _fm.colorText3 : Theme.colorText3
+    readonly property color warn: _fm ? _fm.colorWarn : Theme.colorWarn            // "outside its corridor", and nothing else
+    readonly property color accent: _fm ? _fm.colorAccent : Theme.colorAccent
+    readonly property bool _dark: _fm ? false : Theme.dark
+    readonly property color paper: isPrint ? "#FFFFFF" : (_fm ? _fm.colorBg : Theme.colorBg)
+    readonly property color link: r.linkAccent ? accent : ink2
+    readonly property color rule: Qt.alpha(ink, r.ruleAlpha)
+    readonly property color hair: Qt.alpha(ink, r.hairAlpha)
     readonly property real hw: isPrint ? p.hair : 1                           // hairline width
     readonly property real tintK: isPrint ? p.tintScale : 1
-    readonly property color grid: Theme.gridColor(Qt.alpha(Theme.colorText3, 0.28))
-    readonly property real gridOpacity: Theme.gridOpacity(1.0)
-    readonly property color baseline: Theme.baselineColor(Qt.alpha(Theme.colorText3, 0.6))
-    readonly property real baselineOpacity: Theme.baselineOpacity(1.0)
-    readonly property color wash: Qt.alpha(Theme.colorText, r.zoneTint * tintK)   // THE chart wash: the corridor
-    readonly property color fault: Qt.alpha(Theme.colorWarn, r.faultAlpha)        // the fault line
-    readonly property color passEdge: Qt.alpha(Theme.colorText3, r.passAlpha)     // the pass edge (dashed)
-    readonly property color pickWash: Qt.alpha(Theme.colorText, Theme.dark ? 0.10 : 0.07)   // the picked shot, as a column
-    readonly property color hoverWash: Qt.alpha(Theme.colorText, Theme.dark ? 0.065 : 0.045)  // a hovered shot: lighter than the pick
-    readonly property color rowHover: Qt.alpha(Theme.colorText, Theme.dark ? 0.05 : 0.03)
+    readonly property color grid: _fm ? _fv("chartGrid", Qt.alpha(ink3, 0.28)) : Theme.gridColor(Qt.alpha(Theme.colorText3, 0.28))
+    readonly property real gridOpacity: _fm ? _fv("chartGridOpacity", 1.0) : Theme.gridOpacity(1.0)
+    readonly property color baseline: _fm ? _fv("chartBaseline", Qt.alpha(ink3, 0.6)) : Theme.baselineColor(Qt.alpha(Theme.colorText3, 0.6))
+    readonly property real baselineOpacity: _fm ? _fv("chartBaselineOpacity", 1.0) : Theme.baselineOpacity(1.0)
+    readonly property color wash: Qt.alpha(ink, r.zoneTint * tintK)   // THE chart wash: the corridor
+    readonly property color fault: Qt.alpha(warn, r.faultAlpha)        // the fault line
+    readonly property color passEdge: Qt.alpha(ink3, r.passAlpha)     // the pass edge (dashed)
+    readonly property color pickWash: Qt.alpha(ink, _dark ? 0.10 : 0.07)   // the picked shot, as a column
+    readonly property color hoverWash: Qt.alpha(ink, _dark ? 0.065 : 0.045)  // a hovered shot: lighter than the pick
+    readonly property color rowHover: Qt.alpha(ink, _dark ? 0.05 : 0.03)
     readonly property real dim: 0.28                                         // what recedes under a highlight
     readonly property int fast: Theme.durationFast
     readonly property int normal: Theme.durationNormal

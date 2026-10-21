@@ -732,6 +732,16 @@ qt_add_executable(PinPointStudio
     src/Gui/media/tts_controller.h           src/Gui/media/tts_controller.cpp
     src/Gui/media/film_controller.h          src/Gui/media/film_controller.cpp
     src/Gui/athlete/athlete_controller.h     src/Gui/athlete/athlete_controller.cpp
+    # The session report (docs/design/session_report_design.md §11): the studio and its coach, the
+    # model that builds the report map and prints it, its stills, its record, the session list with
+    # report state, and the hand-off to the coach's mail app (platform halves below).
+    src/Core/studio_profile.h                src/Core/studio_profile.cpp
+    src/Coaching/session_report.h
+    src/Gui/report/session_report_model.h    src/Gui/report/session_report_model.cpp
+    src/Gui/report/report_stills.h           src/Gui/report/report_stills.cpp
+    src/Gui/report/report_meta.h
+    src/Gui/report/session_report_list_model.h src/Gui/report/session_report_list_model.cpp
+    src/Gui/report/report_mailer.h           src/Gui/report/report_mailer.cpp
     src/Gui/shell/navigation_controller.h    src/Gui/shell/navigation_controller.cpp
     src/Gui/monitor/resource_monitor_controller.h src/Gui/monitor/resource_monitor_controller.cpp
     src/Gui/monitor/profiler_controller.h         src/Gui/monitor/profiler_controller.cpp
@@ -3007,9 +3017,13 @@ if(APPLE)
         src/Video/VideoInputApple.h
         src/Video/VideoInputApple.mm
         src/Core/pp_gpu_metrics_mac.mm
+        src/Gui/report/report_mailer_mac.mm
     )
     # ARC manages the MTLDevice returned by MTLCreateSystemDefaultDevice().
     set_source_files_properties(src/Core/pp_gpu_metrics_mac.mm
+        PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    # ARC manages the NSSharingService and the compose items handed to it.
+    set_source_files_properties(src/Gui/report/report_mailer_mac.mm
         PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     add_custom_command(TARGET PinPointStudio POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
@@ -3073,7 +3087,14 @@ if(APPLE)
         "-framework CoreGraphics"  # pp_colorspace_pin.cpp — CGColorSpace lifetime
         "-framework Metal"        # pp_gpu_metrics_mac.mm — MTLDevice memory query
         "-framework Foundation"
+        "-framework AppKit"       # report_mailer_mac.mm — NSSharingService (compose email)
     )
+endif()
+# The session report's mail hand-off, Windows (Simple MAPI, loaded at run time) and Linux (xdg-email).
+if(WIN32)
+    target_sources(PinPointStudio PRIVATE src/Gui/report/report_mailer_win.cpp)
+elseif(UNIX AND NOT APPLE)
+    target_sources(PinPointStudio PRIVATE src/Gui/report/report_mailer_linux.cpp)
 endif()
 
 if(UNIX AND NOT APPLE)

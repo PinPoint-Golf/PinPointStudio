@@ -1,0 +1,4983 @@
+{
+ "kind": "report",
+ "brand": {
+  "studio": "Northfield Golf Studio",
+  "monogram": "NG",
+  "logo": "",
+  "accent": "#1F5A4C",
+  "coach": "Alex Morgan",
+  "coachTitle": "Head coach",
+  "coachLine": "Alex Morgan  ·  Head coach",
+  "contact": "alex@northfieldgolf.example  ·  01234 567890",
+  "web": "northfieldgolf.example",
+  "footLine": "Alex Morgan, Northfield Golf Studio  ·  alex@northfieldgolf.example  ·  01234 567890",
+  "signoff": "Book your next session at northfieldgolf.example or reply to this email.",
+  "coachPhoto": ""
+ },
+ "meta": {
+  "golfer": "Nick Henn",
+  "first": "Nick",
+  "date": "Tuesday 20 October 2026",
+  "dateShort": "20 Oct 2026",
+  "prepared": "20 October 2026",
+  "preparedShort": "20 Oct 2026",
+  "pdfTitle": "Session report — Nick Henn — session of 20 Oct 2026",
+  "fileName": "2026-10-20_Nick-Henn_session-report.pdf",
+  "emailSubject": "Your session report — 20 October 2026",
+  "club": "7 iron, 5 iron and driver",
+  "swings": 60,
+  "sessionOfDay": "Session 3 of 3 today",
+  "hand": "right-handed",
+  "devices": "Down-the-line and face-on cameras · GC Quad launch monitor",
+  "mastheadDate": "Prepared 20 October 2026",
+  "folioDate": "Prepared 20 Oct 2026",
+  "kicker": "Session of Tuesday 20 October 2026  ·  7 iron, 5 iron and driver  ·  60 swings  ·  Session 3 of 3 today",
+  "runningHead": "Nick Henn  ·  session of 20 Oct 2026  ·  3 clubs"
+ },
+ "headline": "Five habits showed on almost every swing. We start with your backswing: keep the flex in your trail knee.",
+ "coachNote": "Good work today, Nick.",
+ "photos": {
+  "included": true,
+  "reason": ""
+ },
+ "held": [],
+ "appendix": true,
+ "strengths": [
+  {
+   "text": "No slices.",
+   "count": "0 of 10 swings"
+  },
+  {
+   "text": "Your hips turn in place going back.",
+   "count": "all 10 swings"
+  },
+  {
+   "text": "Your head stays level going back.",
+   "count": "all 10 swings"
+  }
+ ],
+ "found": [
+  {
+   "name": "Trail knee straightens",
+   "golfer": "Your trail leg straightens going back",
+   "count": "10 of 10 swings"
+  },
+  {
+   "name": "Hips under-rotated at impact",
+   "golfer": "Your hips haven't turned enough by impact",
+   "count": "10 of 10 swings"
+  },
+  {
+   "name": "Early extension",
+   "golfer": "You stand up through the ball",
+   "count": "10 of 10 swings"
+  },
+  {
+   "name": "Over the top",
+   "golfer": "Your hands come over the top coming down",
+   "count": "10 of 10 swings"
+  },
+  {
+   "name": "Reverse spine angle at P4",
+   "golfer": "You lean toward the target at the top",
+   "count": "9 of 10 swings"
+  }
+ ],
+ "watching": [],
+ "workOnsBrief": [
+  {
+   "rank": 1,
+   "goal": "Keep the flex in your trail knee",
+   "drill": "Trail hip load and hold"
+  },
+  {
+   "rank": 2,
+   "goal": "Have your hips open at impact",
+   "drill": "Impact hold"
+  },
+  {
+   "rank": 3,
+   "goal": "Stay in your posture through the ball",
+   "drill": "Rod along the spine"
+  },
+  {
+   "rank": 4,
+   "goal": "Bring your hands down inside the path they went up",
+   "drill": "Gate drill"
+  },
+  {
+   "rank": 5,
+   "goal": "Lean slightly away from the target at the top",
+   "drill": "Club across the chest"
+  }
+ ],
+ "ball": {
+  "device": "GC Quad",
+  "byline": "measured on every swing by GC Quad",
+  "note": "Typical value (the middle of that club's swings) in large type; the range from lowest to highest beneath.",
+  "groups": [
+   {
+    "club": "7 iron",
+    "tiles": [
+     {
+      "label": "Carry",
+      "value": "148",
+      "unit": "yd",
+      "range": "133–155"
+     },
+     {
+      "label": "Ball speed",
+      "value": "105",
+      "unit": "mph",
+      "range": "98–109"
+     },
+     {
+      "label": "Club speed",
+      "value": "79",
+      "unit": "mph",
+      "range": "76–83"
+     },
+     {
+      "label": "Smash",
+      "value": "1.33",
+      "unit": "",
+      "range": "1.21–1.35"
+     },
+     {
+      "label": "Launch",
+      "value": "22°",
+      "unit": "",
+      "range": "19–23"
+     },
+     {
+      "label": "Spin",
+      "value": "5,009",
+      "unit": "rpm",
+      "range": "4,659–5,624"
+     },
+     {
+      "label": "Club path",
+      "value": "1°",
+      "unit": "in-to-out",
+      "range": "−0.2 to +4.2"
+     },
+     {
+      "label": "Offline",
+      "value": "8",
+      "unit": "yd",
+      "range": "widest, either side"
+     }
+    ]
+   },
+   {
+    "club": "5 iron",
+    "tiles": [
+     {
+      "label": "Carry",
+      "value": "166",
+      "unit": "yd",
+      "range": "133–155"
+     },
+     {
+      "label": "Ball speed",
+      "value": "105",
+      "unit": "mph",
+      "range": "98–109"
+     },
+     {
+      "label": "Club speed",
+      "value": "79",
+      "unit": "mph",
+      "range": "76–83"
+     },
+     {
+      "label": "Smash",
+      "value": "1.33",
+      "unit": "",
+      "range": "1.21–1.35"
+     },
+     {
+      "label": "Launch",
+      "value": "22°",
+      "unit": "",
+      "range": "19–23"
+     },
+     {
+      "label": "Spin",
+      "value": "5,009",
+      "unit": "rpm",
+      "range": "4,659–5,624"
+     },
+     {
+      "label": "Club path",
+      "value": "1°",
+      "unit": "in-to-out",
+      "range": "−0.2 to +4.2"
+     },
+     {
+      "label": "Offline",
+      "value": "8",
+      "unit": "yd",
+      "range": "widest, either side"
+     }
+    ]
+   },
+   {
+    "club": "Driver",
+    "tiles": [
+     {
+      "label": "Carry",
+      "value": "233",
+      "unit": "yd",
+      "range": "133–155"
+     },
+     {
+      "label": "Ball speed",
+      "value": "105",
+      "unit": "mph",
+      "range": "98–109"
+     },
+     {
+      "label": "Club speed",
+      "value": "79",
+      "unit": "mph",
+      "range": "76–83"
+     },
+     {
+      "label": "Smash",
+      "value": "1.33",
+      "unit": "",
+      "range": "1.21–1.35"
+     },
+     {
+      "label": "Launch",
+      "value": "22°",
+      "unit": "",
+      "range": "19–23"
+     },
+     {
+      "label": "Spin",
+      "value": "5,009",
+      "unit": "rpm",
+      "range": "4,659–5,624"
+     },
+     {
+      "label": "Club path",
+      "value": "1°",
+      "unit": "in-to-out",
+      "range": "−0.2 to +4.2"
+     },
+     {
+      "label": "Offline",
+      "value": "8",
+      "unit": "yd",
+      "range": "widest, either side"
+     }
+    ]
+   }
+  ],
+  "more": ""
+ },
+ "grid": {
+  "title": "Your habits, swing by swing",
+  "standfirst": "Each row is one thing we measured; each column is one of your sixty swings, in the order you hit them. A filled dot means it showed on that swing.",
+  "sessionNote": "",
+  "swings": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16,
+   17,
+   18,
+   19,
+   20,
+   21,
+   22,
+   23,
+   24,
+   25,
+   26,
+   27,
+   28,
+   29,
+   30,
+   31,
+   32,
+   33,
+   34,
+   35,
+   36,
+   37,
+   38,
+   39,
+   40,
+   41,
+   42,
+   43,
+   44,
+   45,
+   46,
+   47,
+   48,
+   49,
+   50,
+   51,
+   52,
+   53,
+   54,
+   55,
+   56,
+   57,
+   58,
+   59,
+   60
+  ],
+  "rows": [
+   {
+    "group": "habit",
+    "name": "Trail knee straightens",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "60 of 60"
+   },
+   {
+    "group": "habit",
+    "name": "Hips under-rotated at impact",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "60 of 60"
+   },
+   {
+    "group": "habit",
+    "name": "Early extension",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "60 of 60"
+   },
+   {
+    "group": "habit",
+    "name": "Over the top",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "60 of 60"
+   },
+   {
+    "group": "habit",
+    "name": "Reverse spine angle at P4",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired"
+    ],
+    "count": "54 of 60"
+   },
+   {
+    "group": "seen",
+    "name": "Head sways off the ball",
+    "marks": [
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "clean"
+    ],
+    "count": "24 of 60"
+   },
+   {
+    "group": "seen",
+    "name": "Separation stretched past control",
+    "marks": [
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean"
+    ],
+    "count": "24 of 60"
+   },
+   {
+    "group": "seen",
+    "name": "Hips move toward the ball going back",
+    "marks": [
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "fired"
+    ],
+    "count": "24 of 60"
+   },
+   {
+    "group": "ball",
+    "name": "Club returns toe-up at impact",
+    "marks": [
+     "notAssessable",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired",
+     "notAssessable",
+     "fired",
+     "notAssessable",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired",
+     "notAssessable",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "notAssessable",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "notAssessable",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired",
+     "notAssessable",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired"
+    ],
+    "count": "42 of 42"
+   },
+   {
+    "group": "ball",
+    "name": "Thin",
+    "marks": [
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "clean"
+    ],
+    "count": "36 of 60"
+   },
+   {
+    "group": "ball",
+    "name": "Face closed to the path",
+    "marks": [
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "30 of 60"
+   }
+  ],
+  "carry": [
+   133,
+   147,
+   148,
+   147,
+   147,
+   150,
+   133,
+   153,
+   149,
+   155,
+   133,
+   147,
+   148,
+   147,
+   147,
+   150,
+   133,
+   153,
+   149,
+   155,
+   151,
+   165,
+   166,
+   165,
+   165,
+   168,
+   151,
+   171,
+   167,
+   173,
+   151,
+   165,
+   166,
+   165,
+   165,
+   168,
+   151,
+   171,
+   167,
+   173,
+   218,
+   232,
+   233,
+   232,
+   232,
+   235,
+   218,
+   238,
+   234,
+   240,
+   218,
+   232,
+   233,
+   232,
+   232,
+   235,
+   218,
+   238,
+   234,
+   240
+  ],
+  "best": 23,
+  "bestText": "Swing 23 came closest to your targets: a 171 yard carry with your 5 iron at 118 mph ball speed.",
+  "bestStills": [
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P1.jpg",
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P4.jpg",
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P7.jpg",
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P10.jpg"
+  ],
+  "bestLabels": [
+   "Address",
+   "Top",
+   "Impact",
+   "Finish"
+  ],
+  "groups": [
+   {
+    "key": "habit",
+    "title": "Your habits — the five work-ons"
+   },
+   {
+    "key": "seen",
+    "title": "Seen, not yet habits"
+   },
+   {
+    "key": "ball",
+    "title": "What the ball did"
+   }
+  ],
+  "more": {},
+  "carryLabel": "Carry, yards"
+ },
+ "today": {
+  "sessions": [
+   "Session 1 · 8 swings",
+   "Session 2 · 8 swings",
+   "Session 3 · 60 swings"
+  ],
+  "rows": [
+   {
+    "name": "Trail knee straightens",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 10/10"
+     }
+    ]
+   },
+   {
+    "name": "Hips under-rotated at impact",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 10/10"
+     }
+    ]
+   },
+   {
+    "name": "Early extension",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 10/10"
+     }
+    ]
+   },
+   {
+    "name": "Over the top",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 10/10"
+     }
+    ]
+   },
+   {
+    "name": "Reverse spine angle at P4",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 9/10"
+     }
+    ]
+   },
+   {
+    "name": "Out-of-order sequence",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 4/4"
+     },
+     {
+      "state": "inconclusive",
+      "text": "1/2"
+     },
+     {
+      "state": "quiet",
+      "text": "2/2"
+     }
+    ]
+   },
+   {
+    "name": "Hips move toward the ball going back",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "quiet",
+      "text": "4/10"
+     }
+    ]
+   }
+  ],
+  "note": "Five of today's habits were already there in your first session. Out-of-order sequence was a habit earlier today; this session could only judge it on two swings, too few to say. Hips move toward the ball going back was a habit earlier today and came down to 4 of 10 here.",
+  "more": ""
+ },
+ "order": {
+  "intro": "Your list is ordered by three rules, applied in turn. Here is each rule and what it did today.",
+  "rules": [
+   {
+    "title": "What is still happening comes first",
+    "body": "A habit you started fixing during the session goes to the back of the list.",
+    "today": "None of the five eased during the session, so this rule changed nothing today."
+   },
+   {
+    "title": "Causes before the things they cause",
+    "body": "When one habit sets up another, working on the first often fixes the second for free. We only put one behind another when your swings show it: the second goes away on the swings where the first does.",
+    "today": "It could not be tested today. All five showed on every swing (or all but one), so there is no swing without one to compare against."
+   },
+   {
+    "title": "Then the biggest miss first",
+    "body": "Each habit is measured against a target range. The one that missed by most, for its range, comes first.",
+    "today": "This is what set today's order. The bars below show how far each one missed."
+   }
+  ],
+  "items": [
+   {
+    "rank": 1,
+    "name": "Trail knee straightens",
+    "goal": "Keep the flex in your trail knee",
+    "phase": "P4",
+    "share": 1.0,
+    "count": "10 of 10 swings"
+   },
+   {
+    "rank": 2,
+    "name": "Hips under-rotated at impact",
+    "goal": "Have your hips open at impact",
+    "phase": "P7",
+    "share": 0.963,
+    "count": "10 of 10 swings"
+   },
+   {
+    "rank": 3,
+    "name": "Early extension",
+    "goal": "Stay in your posture through the ball",
+    "phase": "P7",
+    "share": 0.727,
+    "count": "10 of 10 swings"
+   },
+   {
+    "rank": 4,
+    "name": "Over the top",
+    "goal": "Bring your hands down inside the path they went up",
+    "phase": "P6",
+    "share": 0.7,
+    "count": "10 of 10 swings"
+   },
+   {
+    "rank": 5,
+    "name": "Reverse spine angle at P4",
+    "goal": "Lean slightly away from the target at the top",
+    "phase": "P4",
+    "share": 0.658,
+    "count": "9 of 10 swings"
+   }
+  ],
+  "links": [
+   {
+    "from": "Over the top",
+    "to": "Early extension",
+    "words": "Linked in the coaching model. This session cannot test it, because both happened on every swing."
+   }
+  ],
+  "notListed": [
+   {
+    "name": "Club returns toe-up at impact (7 of 7)",
+    "why": "A result, not a movement to practise: the coaching model links it to early extension (work-on 3). Fix that, and it should follow."
+   },
+   {
+    "name": "Thin (6 of 10)",
+    "why": "Something the ball did, not a movement to practise. It is on the watch list until it repeats often enough to call a habit."
+   }
+  ],
+  "timeline": [
+   {
+    "rank": 1,
+    "pos": 1.6
+   },
+   {
+    "rank": 2,
+    "pos": 4
+   },
+   {
+    "rank": 3,
+    "pos": 4.3
+   },
+   {
+    "rank": 4,
+    "pos": 3
+   },
+   {
+    "rank": 5,
+    "pos": 2
+   }
+  ],
+  "timelineNote": "Your first work-on is also the earliest in the swing. Habits early in the swing tend to set up the ones after them, which is one more reason to start there.",
+  "barsNote": "Bar: how far outside its target range each habit went, compared with the range’s own width. The longest bar goes first."
+ },
+ "checks": [
+  {
+   "title": "A quick physical test would tell. Each could sit behind two or more of your work-ons:",
+   "body": "Lead-hip mobility (3, 4) · Upper-back mobility (4, 5) · Trail-hip mobility (3, 5) · Core stability (3, 5) · Turning your hips without your chest (3, 4)"
+  },
+  {
+   "title": "Your coach can look; the cameras can't see these yet:",
+   "body": "Across the line at the top (4) · Flat lower back at address (5) · Flat shoulder plane (4) · Club taken inside (4) · Club taken outside (4)"
+  }
+ ],
+ "workOns": [
+  {
+   "rank": 1,
+   "id": "trail_knee_straighten",
+   "name": "Trail knee straightens",
+   "goal": "Keep the flex in your trail knee",
+   "phase": "P4",
+   "phaseWords": "at the top",
+   "also": "“standing up on it going back”",
+   "count": "10 of 10 swings",
+   "saw": "Your trail leg straightens going back — on all 60 swings, steady from first swing to last. Typical trail-knee bend lost by the top: 22°, against a target of less than 12°.",
+   "why": "A straight trail leg lets your hips slide instead of turn, so you lose power.",
+   "cameWith": "It often drags other habits in with it. Not today — on every swing, your head stays level going back, your hips turn in place going back and your hips hold their height going back.",
+   "causes": {
+    "lead": "We checked every cause we know of for this one, and each was fine — so it may come from something we can't yet put a name to. Worth talking through with your coach.",
+    "rows": [
+     {
+      "kind": "ruledOut",
+      "title": "Ruled out — measured, and fine",
+      "items": [
+       "You squat too much at address"
+      ],
+      "more": "",
+      "note": ""
+     }
+    ]
+   },
+   "drills": [
+    {
+     "label": "Trail hip load and hold",
+     "instruction": "Take your address position, make a slow backswing turn, and stop at the top. Feel the pressure in the trail hip socket rather than on the outside of the trail foot. Hold for three seconds, then return.",
+     "targets": "To feel the trail hip accepting the turn instead of the pelvis sliding away from the target.",
+     "note": "The stick is a feedback aid, not the drill. If the hip cannot rotate internally, the slide is the body finding the only route it has.",
+     "equipment": "an alignment stick outside the trail hip, optional"
+    }
+   ],
+   "cue": "As you turn back, feel your trail knee stay soft and pointing at the ball while your trail pocket turns behind you.",
+   "check": "Film from down the line. At the top, your trail knee should look about as bent as it did at address.",
+   "target": "Trail-knee bend lost by the top: less than 12°, on most swings. Today: 22°.",
+   "figure": {
+    "unit": "°",
+    "decimals": 0,
+    "bands": [
+     {
+      "grade": "action",
+      "lo": 18,
+      "hi": 24.735678004898478
+     },
+     {
+      "grade": "watch",
+      "lo": 12,
+      "hi": 18
+     },
+     {
+      "grade": "good",
+      "lo": 6,
+      "hi": 12
+     },
+     {
+      "grade": "ideal",
+      "lo": 0,
+      "hi": 6
+     },
+     {
+      "grade": "open",
+      "lo": -0.9513722309576338,
+      "hi": 0
+     }
+    ],
+    "points": [
+     {
+      "swing": 1,
+      "value": 18.90800117629965,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 2,
+      "value": 18.3683461418682,
+      "state": "fired",
+      "text": "−18°"
+     },
+     {
+      "swing": 3,
+      "value": 21.648525745997347,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 4,
+      "value": 23.646459089322207,
+      "state": "fired",
+      "text": "−24°"
+     },
+     {
+      "swing": 5,
+      "value": 16.295295999644708,
+      "state": "fired",
+      "text": "−16°"
+     },
+     {
+      "swing": 6,
+      "value": 22.004755547254035,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 7,
+      "value": 19.20507656020476,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 8,
+      "value": 23.784305773940844,
+      "state": "fired",
+      "text": "−24°"
+     },
+     {
+      "swing": 9,
+      "value": 21.4706759174352,
+      "state": "fired",
+      "text": "−21°"
+     },
+     {
+      "swing": 10,
+      "value": 21.605083543492242,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 11,
+      "value": 18.90800117629965,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 12,
+      "value": 18.3683461418682,
+      "state": "fired",
+      "text": "−18°"
+     },
+     {
+      "swing": 13,
+      "value": 21.648525745997347,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 14,
+      "value": 23.646459089322207,
+      "state": "fired",
+      "text": "−24°"
+     },
+     {
+      "swing": 15,
+      "value": 16.295295999644708,
+      "state": "fired",
+      "text": "−16°"
+     },
+     {
+      "swing": 16,
+      "value": 22.004755547254035,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 17,
+      "value": 19.20507656020476,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 18,
+      "value": 23.784305773940844,
+      "state": "fired",
+      "text": "−24°"
+     },
+     {
+      "swing": 19,
+      "value": 21.4706759174352,
+      "state": "fired",
+      "text": "−21°"
+     },
+     {
+      "swing": 20,
+      "value": 21.605083543492242,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 21,
+      "value": 18.90800117629965,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 22,
+      "value": 18.3683461418682,
+      "state": "fired",
+      "text": "−18°"
+     },
+     {
+      "swing": 23,
+      "value": 21.648525745997347,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 24,
+      "value": 23.646459089322207,
+      "state": "fired",
+      "text": "−24°"
+     },
+     {
+      "swing": 25,
+      "value": 16.295295999644708,
+      "state": "fired",
+      "text": "−16°"
+     },
+     {
+      "swing": 26,
+      "value": 22.004755547254035,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 27,
+      "value": 19.20507656020476,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 28,
+      "value": 23.784305773940844,
+      "state": "fired",
+      "text": "−24°"
+     },
+     {
+      "swing": 29,
+      "value": 21.4706759174352,
+      "state": "fired",
+      "text": "−21°"
+     },
+     {
+      "swing": 30,
+      "value": 21.605083543492242,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 31,
+      "value": 18.90800117629965,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 32,
+      "value": 18.3683461418682,
+      "state": "fired",
+      "text": "−18°"
+     },
+     {
+      "swing": 33,
+      "value": 21.648525745997347,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 34,
+      "value": 23.646459089322207,
+      "state": "fired",
+      "text": "−24°"
+     },
+     {
+      "swing": 35,
+      "value": 16.295295999644708,
+      "state": "fired",
+      "text": "−16°"
+     },
+     {
+      "swing": 36,
+      "value": 22.004755547254035,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 37,
+      "value": 19.20507656020476,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 38,
+      "value": 23.784305773940844,
+      "state": "fired",
+      "text": "−24°"
+     },
+     {
+      "swing": 39,
+      "value": 21.4706759174352,
+      "state": "fired",
+      "text": "−21°"
+     },
+     {
+      "swing": 40,
+      "value": 21.605083543492242,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 41,
+      "value": 18.90800117629965,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 42,
+      "value": 18.3683461418682,
+      "state": "fired",
+      "text": "−18°"
+     },
+     {
+      "swing": 43,
+      "value": 21.648525745997347,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 44,
+      "value": 23.646459089322207,
+      "state": "fired",
+      "text": "−24°"
+     },
+     {
+      "swing": 45,
+      "value": 16.295295999644708,
+      "state": "fired",
+      "text": "−16°"
+     },
+     {
+      "swing": 46,
+      "value": 22.004755547254035,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 47,
+      "value": 19.20507656020476,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 48,
+      "value": 23.784305773940844,
+      "state": "fired",
+      "text": "−24°"
+     },
+     {
+      "swing": 49,
+      "value": 21.4706759174352,
+      "state": "fired",
+      "text": "−21°"
+     },
+     {
+      "swing": 50,
+      "value": 21.605083543492242,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 51,
+      "value": 18.90800117629965,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 52,
+      "value": 18.3683461418682,
+      "state": "fired",
+      "text": "−18°"
+     },
+     {
+      "swing": 53,
+      "value": 21.648525745997347,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 54,
+      "value": 23.646459089322207,
+      "state": "fired",
+      "text": "−24°"
+     },
+     {
+      "swing": 55,
+      "value": 16.295295999644708,
+      "state": "fired",
+      "text": "−16°"
+     },
+     {
+      "swing": 56,
+      "value": 22.004755547254035,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 57,
+      "value": 19.20507656020476,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 58,
+      "value": 23.784305773940844,
+      "state": "fired",
+      "text": "−24°"
+     },
+     {
+      "swing": 59,
+      "value": 21.4706759174352,
+      "state": "fired",
+      "text": "−21°"
+     },
+     {
+      "swing": 60,
+      "value": 21.605083543492242,
+      "state": "fired",
+      "text": "−22°"
+     }
+    ],
+    "medianText": "−22°"
+   },
+   "figureLabel": "Each dot is one swing: trail-knee bend lost by the top, in degrees.",
+   "stills": [
+    {
+     "src": "file:///mnt/swingdata/scratch/session-report/out/nick/stills/o0005_DTL_P1_knee.jpg",
+     "caption": "Address, swing 5",
+     "value": "",
+     "note": "Your typical swing (swing 5). The line is your trail leg, hip to knee to ankle."
+    },
+    {
+     "src": "file:///mnt/swingdata/scratch/session-report/out/nick/stills/o0005_DTL_P4_knee.jpg",
+     "caption": "Top",
+     "value": "21° lost",
+     "note": ""
+    }
+   ],
+   "kicker": "Work-on 1 of 5  ·  P4, at the top  ·  60 of 60 swings",
+   "coachTerm": "Coaches call the habit <i>Trail knee straightens</i>, or “standing up on it going back”."
+  },
+  {
+   "rank": 2,
+   "id": "hips_closed_at_impact",
+   "name": "Hips under-rotated at impact",
+   "goal": "Have your hips open at impact",
+   "phase": "P7",
+   "phaseWords": "at impact",
+   "also": "“hips not clearing”, “blocked”",
+   "count": "10 of 10 swings",
+   "saw": "Your hips haven't turned enough by impact — on all 60 swings, steady from first swing to last. Typical hip turn at impact: 3°, against a target of 18° to 58°.",
+   "why": "Hips that haven't turned enough get in your arms' way, so your hands take over and the strike varies.",
+   "cameWith": "",
+   "causes": {
+    "lead": "We checked every cause we know of for this one, and each was fine — so it may come from something we can't yet put a name to. Worth talking through with your coach.",
+    "rows": [
+     {
+      "kind": "ruledOut",
+      "title": "Ruled out — measured, and fine",
+      "items": [
+       "Your hips are slow to start turning coming down"
+      ],
+      "more": "",
+      "note": ""
+     }
+    ]
+   },
+   "drills": [
+    {
+     "label": "Impact hold",
+     "instruction": "Make slow swings to impact and stop there. Check three things: your belt buckle points between the ball and the target, your trail heel is just off the ground, and your hands are level with your lead thigh. Hold for two seconds, then finish the swing slowly.",
+     "targets": "To feel where your hips need to be when the club reaches the ball, so the turn has somewhere to go.",
+     "note": "If your hips will not open without your shoulders opening too, that is a mobility question before it is a practice one.",
+     "equipment": "a mirror or a phone on a stand"
+    }
+   ],
+   "cue": "Through the ball, feel your belt buckle already facing between the ball and the target.",
+   "check": "Film face-on. At impact you should see the front of your lead hip, with your belt turned toward the target.",
+   "target": "Hip turn at impact: 18° to 58°, on most swings. Today: 3°.",
+   "figure": {
+    "unit": "°",
+    "decimals": 0,
+    "bands": [
+     {
+      "grade": "action",
+      "lo": -2.5,
+      "hi": 8
+     },
+     {
+      "grade": "watch",
+      "lo": 8,
+      "hi": 18
+     },
+     {
+      "grade": "good",
+      "lo": 18,
+      "hi": 28
+     },
+     {
+      "grade": "ideal",
+      "lo": 28,
+      "hi": 48
+     },
+     {
+      "grade": "good",
+      "lo": 48,
+      "hi": 58
+     },
+     {
+      "grade": "watch",
+      "lo": 58,
+      "hi": 68
+     },
+     {
+      "grade": "action",
+      "lo": 68,
+      "hi": 78.5
+     }
+    ],
+    "points": [
+     {
+      "swing": 1,
+      "value": 5.643165512159556,
+      "state": "fired",
+      "text": "6°"
+     },
+     {
+      "swing": 2,
+      "value": 7.264444372865225,
+      "state": "fired",
+      "text": "7°"
+     },
+     {
+      "swing": 3,
+      "value": 2.3132859657624736,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 4,
+      "value": 8.25071784010312,
+      "state": "fired",
+      "text": "8°"
+     },
+     {
+      "swing": 5,
+      "value": 1.1750320341462086,
+      "state": "fired",
+      "text": "1°"
+     },
+     {
+      "swing": 6,
+      "value": 2.2841212478748707,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 7,
+      "value": 3.013295350331602,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 8,
+      "value": 3.3949052704382883,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 9,
+      "value": 3.4958727938955305,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 10,
+      "value": 3.8476774523983472,
+      "state": "fired",
+      "text": "4°"
+     },
+     {
+      "swing": 11,
+      "value": 5.643165512159556,
+      "state": "fired",
+      "text": "6°"
+     },
+     {
+      "swing": 12,
+      "value": 7.264444372865225,
+      "state": "fired",
+      "text": "7°"
+     },
+     {
+      "swing": 13,
+      "value": 2.3132859657624736,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 14,
+      "value": 8.25071784010312,
+      "state": "fired",
+      "text": "8°"
+     },
+     {
+      "swing": 15,
+      "value": 1.1750320341462086,
+      "state": "fired",
+      "text": "1°"
+     },
+     {
+      "swing": 16,
+      "value": 2.2841212478748707,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 17,
+      "value": 3.013295350331602,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 18,
+      "value": 3.3949052704382883,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 19,
+      "value": 3.4958727938955305,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 20,
+      "value": 3.8476774523983472,
+      "state": "fired",
+      "text": "4°"
+     },
+     {
+      "swing": 21,
+      "value": 5.643165512159556,
+      "state": "fired",
+      "text": "6°"
+     },
+     {
+      "swing": 22,
+      "value": 7.264444372865225,
+      "state": "fired",
+      "text": "7°"
+     },
+     {
+      "swing": 23,
+      "value": 2.3132859657624736,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 24,
+      "value": 8.25071784010312,
+      "state": "fired",
+      "text": "8°"
+     },
+     {
+      "swing": 25,
+      "value": 1.1750320341462086,
+      "state": "fired",
+      "text": "1°"
+     },
+     {
+      "swing": 26,
+      "value": 2.2841212478748707,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 27,
+      "value": 3.013295350331602,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 28,
+      "value": 3.3949052704382883,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 29,
+      "value": 3.4958727938955305,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 30,
+      "value": 3.8476774523983472,
+      "state": "fired",
+      "text": "4°"
+     },
+     {
+      "swing": 31,
+      "value": 5.643165512159556,
+      "state": "fired",
+      "text": "6°"
+     },
+     {
+      "swing": 32,
+      "value": 7.264444372865225,
+      "state": "fired",
+      "text": "7°"
+     },
+     {
+      "swing": 33,
+      "value": 2.3132859657624736,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 34,
+      "value": 8.25071784010312,
+      "state": "fired",
+      "text": "8°"
+     },
+     {
+      "swing": 35,
+      "value": 1.1750320341462086,
+      "state": "fired",
+      "text": "1°"
+     },
+     {
+      "swing": 36,
+      "value": 2.2841212478748707,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 37,
+      "value": 3.013295350331602,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 38,
+      "value": 3.3949052704382883,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 39,
+      "value": 3.4958727938955305,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 40,
+      "value": 3.8476774523983472,
+      "state": "fired",
+      "text": "4°"
+     },
+     {
+      "swing": 41,
+      "value": 5.643165512159556,
+      "state": "fired",
+      "text": "6°"
+     },
+     {
+      "swing": 42,
+      "value": 7.264444372865225,
+      "state": "fired",
+      "text": "7°"
+     },
+     {
+      "swing": 43,
+      "value": 2.3132859657624736,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 44,
+      "value": 8.25071784010312,
+      "state": "fired",
+      "text": "8°"
+     },
+     {
+      "swing": 45,
+      "value": 1.1750320341462086,
+      "state": "fired",
+      "text": "1°"
+     },
+     {
+      "swing": 46,
+      "value": 2.2841212478748707,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 47,
+      "value": 3.013295350331602,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 48,
+      "value": 3.3949052704382883,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 49,
+      "value": 3.4958727938955305,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 50,
+      "value": 3.8476774523983472,
+      "state": "fired",
+      "text": "4°"
+     },
+     {
+      "swing": 51,
+      "value": 5.643165512159556,
+      "state": "fired",
+      "text": "6°"
+     },
+     {
+      "swing": 52,
+      "value": 7.264444372865225,
+      "state": "fired",
+      "text": "7°"
+     },
+     {
+      "swing": 53,
+      "value": 2.3132859657624736,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 54,
+      "value": 8.25071784010312,
+      "state": "fired",
+      "text": "8°"
+     },
+     {
+      "swing": 55,
+      "value": 1.1750320341462086,
+      "state": "fired",
+      "text": "1°"
+     },
+     {
+      "swing": 56,
+      "value": 2.2841212478748707,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 57,
+      "value": 3.013295350331602,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 58,
+      "value": 3.3949052704382883,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 59,
+      "value": 3.4958727938955305,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 60,
+      "value": 3.8476774523983472,
+      "state": "fired",
+      "text": "4°"
+     }
+    ],
+    "medianText": "3°"
+   },
+   "figureLabel": "Each dot is one swing: hip turn at impact, in degrees.",
+   "stills": [
+    {
+     "src": "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0005_Face-On_P7.jpg",
+     "caption": "Typical, swing 5",
+     "value": "3°",
+     "note": "Every swing looked much like this one."
+    }
+   ],
+   "kicker": "Work-on 2 of 5  ·  P7, at impact  ·  60 of 60 swings",
+   "coachTerm": "Coaches call the habit <i>Hips under-rotated at impact</i>, or “hips not clearing”, “blocked”."
+  },
+  {
+   "rank": 3,
+   "id": "early_extension",
+   "name": "Early extension",
+   "goal": "Stay in your posture through the ball",
+   "phase": "P7",
+   "phaseWords": "at impact",
+   "also": "“standing up”, “hip thrust toward the ball”",
+   "count": "10 of 10 swings",
+   "saw": "You stand up through the ball — on all 60 swings, steady from first swing to last. Typical posture lost by impact: 12.9°, against a target of less than 5°.",
+   "why": "Standing up takes away the room your arms need, so your hands have to rescue the strike.",
+   "cameWith": "It came with club returns toe-up at impact (7 of the 7 swings we could see). That fits the coaching model, though showing up together is not proof that one causes the other. And on every swing, you lean slightly away from the target at impact.",
+   "causes": {
+    "lead": "One possible cause showed up on the same swings. Because both happened on every swing, we can't prove one drives the other — so here is what we spotted, what we couldn't check, and what we've ruled out.",
+    "rows": [
+     {
+      "kind": "seen",
+      "title": "What we spotted",
+      "items": [
+       "Your hands come over the top coming down — on 10 of 10 swings, work-on 4"
+      ],
+      "more": "",
+      "note": "it fits, but isn't proof"
+     },
+     {
+      "kind": "possible",
+      "title": "Could be behind it — we couldn't check",
+      "items": [
+       "<i>A quick physical test would tell:</i> Lead-hip mobility · Turning your hips without your chest · Trail-hip mobility · Core stability · Glute strength · Lead-ankle mobility"
+      ],
+      "more": "4 more, less likely",
+      "note": ""
+     },
+     {
+      "kind": "ruledOut",
+      "title": "Ruled out — measured, and fine",
+      "items": [
+       "You stand too close to the ball",
+       "You bend over too much at address",
+       "You throw the club out early from the top",
+       "You hang back on your trail side through impact"
+      ],
+      "more": "3 more",
+      "note": ""
+     }
+    ]
+   },
+   "drills": [
+    {
+     "label": "Rod along the spine",
+     "instruction": "Hold an alignment stick along your spine, touching the back of your head, your upper back and your tailbone. Rehearse your address position and your backswing turn keeping all three in contact.",
+     "targets": "To feel the spine angle you set at address being kept through the turn.",
+     "note": "A fixed upper-back curve will stop all three touching. That is information, not a failure.",
+     "equipment": "an alignment stick"
+    },
+    {
+     "label": "Standoff check",
+     "instruction": "Set up with a headcover just outside the toe of the club and make swings without hitting it.",
+     "targets": "To keep the distance between the body and the ball the same at impact as it was at address.",
+     "note": "The standard first answer to a hosel strike, and it works because it addresses the standoff rather than the fear.",
+     "equipment": "a headcover"
+    }
+   ],
+   "cue": "Keep your backside on an imaginary wall behind you all the way to impact.",
+   "check": "Film from down the line with a line drawn down the back of your hips at address. At impact your hips should still be touching it.",
+   "target": "Posture lost by impact: less than 5°, on most swings. Today: 12.9°.",
+   "figure": {
+    "unit": "°",
+    "decimals": 1,
+    "bands": [
+     {
+      "grade": "action",
+      "lo": 7.5,
+      "hi": 14.740173170296494
+     },
+     {
+      "grade": "watch",
+      "lo": 5,
+      "hi": 7.5
+     },
+     {
+      "grade": "good",
+      "lo": 2.5,
+      "hi": 5
+     },
+     {
+      "grade": "ideal",
+      "lo": 0,
+      "hi": 2.5
+     },
+     {
+      "grade": "open",
+      "lo": -0.5669297373190959,
+      "hi": 0
+     }
+    ],
+    "points": [
+     {
+      "swing": 1,
+      "value": 12.442305502810818,
+      "state": "fired",
+      "text": "−12.4°"
+     },
+     {
+      "swing": 2,
+      "value": 12.044436452745792,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 3,
+      "value": 13.590841053280808,
+      "state": "fired",
+      "text": "−13.6°"
+     },
+     {
+      "swing": 4,
+      "value": 13.60816461254042,
+      "state": "fired",
+      "text": "−13.6°"
+     },
+     {
+      "swing": 5,
+      "value": 12.697438970241876,
+      "state": "fired",
+      "text": "−12.7°"
+     },
+     {
+      "swing": 6,
+      "value": 13.144672951788703,
+      "state": "fired",
+      "text": "−13.1°"
+     },
+     {
+      "swing": 7,
+      "value": 12.318447566238913,
+      "state": "fired",
+      "text": "−12.3°"
+     },
+     {
+      "swing": 8,
+      "value": 14.173243432977397,
+      "state": "fired",
+      "text": "−14.2°"
+     },
+     {
+      "swing": 9,
+      "value": 11.9699143059011,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 10,
+      "value": 13.70055185593013,
+      "state": "fired",
+      "text": "−13.7°"
+     },
+     {
+      "swing": 11,
+      "value": 12.442305502810818,
+      "state": "fired",
+      "text": "−12.4°"
+     },
+     {
+      "swing": 12,
+      "value": 12.044436452745792,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 13,
+      "value": 13.590841053280808,
+      "state": "fired",
+      "text": "−13.6°"
+     },
+     {
+      "swing": 14,
+      "value": 13.60816461254042,
+      "state": "fired",
+      "text": "−13.6°"
+     },
+     {
+      "swing": 15,
+      "value": 12.697438970241876,
+      "state": "fired",
+      "text": "−12.7°"
+     },
+     {
+      "swing": 16,
+      "value": 13.144672951788703,
+      "state": "fired",
+      "text": "−13.1°"
+     },
+     {
+      "swing": 17,
+      "value": 12.318447566238913,
+      "state": "fired",
+      "text": "−12.3°"
+     },
+     {
+      "swing": 18,
+      "value": 14.173243432977397,
+      "state": "fired",
+      "text": "−14.2°"
+     },
+     {
+      "swing": 19,
+      "value": 11.9699143059011,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 20,
+      "value": 13.70055185593013,
+      "state": "fired",
+      "text": "−13.7°"
+     },
+     {
+      "swing": 21,
+      "value": 12.442305502810818,
+      "state": "fired",
+      "text": "−12.4°"
+     },
+     {
+      "swing": 22,
+      "value": 12.044436452745792,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 23,
+      "value": 13.590841053280808,
+      "state": "fired",
+      "text": "−13.6°"
+     },
+     {
+      "swing": 24,
+      "value": 13.60816461254042,
+      "state": "fired",
+      "text": "−13.6°"
+     },
+     {
+      "swing": 25,
+      "value": 12.697438970241876,
+      "state": "fired",
+      "text": "−12.7°"
+     },
+     {
+      "swing": 26,
+      "value": 13.144672951788703,
+      "state": "fired",
+      "text": "−13.1°"
+     },
+     {
+      "swing": 27,
+      "value": 12.318447566238913,
+      "state": "fired",
+      "text": "−12.3°"
+     },
+     {
+      "swing": 28,
+      "value": 14.173243432977397,
+      "state": "fired",
+      "text": "−14.2°"
+     },
+     {
+      "swing": 29,
+      "value": 11.9699143059011,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 30,
+      "value": 13.70055185593013,
+      "state": "fired",
+      "text": "−13.7°"
+     },
+     {
+      "swing": 31,
+      "value": 12.442305502810818,
+      "state": "fired",
+      "text": "−12.4°"
+     },
+     {
+      "swing": 32,
+      "value": 12.044436452745792,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 33,
+      "value": 13.590841053280808,
+      "state": "fired",
+      "text": "−13.6°"
+     },
+     {
+      "swing": 34,
+      "value": 13.60816461254042,
+      "state": "fired",
+      "text": "−13.6°"
+     },
+     {
+      "swing": 35,
+      "value": 12.697438970241876,
+      "state": "fired",
+      "text": "−12.7°"
+     },
+     {
+      "swing": 36,
+      "value": 13.144672951788703,
+      "state": "fired",
+      "text": "−13.1°"
+     },
+     {
+      "swing": 37,
+      "value": 12.318447566238913,
+      "state": "fired",
+      "text": "−12.3°"
+     },
+     {
+      "swing": 38,
+      "value": 14.173243432977397,
+      "state": "fired",
+      "text": "−14.2°"
+     },
+     {
+      "swing": 39,
+      "value": 11.9699143059011,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 40,
+      "value": 13.70055185593013,
+      "state": "fired",
+      "text": "−13.7°"
+     },
+     {
+      "swing": 41,
+      "value": 12.442305502810818,
+      "state": "fired",
+      "text": "−12.4°"
+     },
+     {
+      "swing": 42,
+      "value": 12.044436452745792,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 43,
+      "value": 13.590841053280808,
+      "state": "fired",
+      "text": "−13.6°"
+     },
+     {
+      "swing": 44,
+      "value": 13.60816461254042,
+      "state": "fired",
+      "text": "−13.6°"
+     },
+     {
+      "swing": 45,
+      "value": 12.697438970241876,
+      "state": "fired",
+      "text": "−12.7°"
+     },
+     {
+      "swing": 46,
+      "value": 13.144672951788703,
+      "state": "fired",
+      "text": "−13.1°"
+     },
+     {
+      "swing": 47,
+      "value": 12.318447566238913,
+      "state": "fired",
+      "text": "−12.3°"
+     },
+     {
+      "swing": 48,
+      "value": 14.173243432977397,
+      "state": "fired",
+      "text": "−14.2°"
+     },
+     {
+      "swing": 49,
+      "value": 11.9699143059011,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 50,
+      "value": 13.70055185593013,
+      "state": "fired",
+      "text": "−13.7°"
+     },
+     {
+      "swing": 51,
+      "value": 12.442305502810818,
+      "state": "fired",
+      "text": "−12.4°"
+     },
+     {
+      "swing": 52,
+      "value": 12.044436452745792,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 53,
+      "value": 13.590841053280808,
+      "state": "fired",
+      "text": "−13.6°"
+     },
+     {
+      "swing": 54,
+      "value": 13.60816461254042,
+      "state": "fired",
+      "text": "−13.6°"
+     },
+     {
+      "swing": 55,
+      "value": 12.697438970241876,
+      "state": "fired",
+      "text": "−12.7°"
+     },
+     {
+      "swing": 56,
+      "value": 13.144672951788703,
+      "state": "fired",
+      "text": "−13.1°"
+     },
+     {
+      "swing": 57,
+      "value": 12.318447566238913,
+      "state": "fired",
+      "text": "−12.3°"
+     },
+     {
+      "swing": 58,
+      "value": 14.173243432977397,
+      "state": "fired",
+      "text": "−14.2°"
+     },
+     {
+      "swing": 59,
+      "value": 11.9699143059011,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 60,
+      "value": 13.70055185593013,
+      "state": "fired",
+      "text": "−13.7°"
+     }
+    ],
+    "medianText": "−12.9°"
+   },
+   "figureLabel": "Each dot is one swing: posture lost by impact, in degrees.",
+   "stills": [
+    {
+     "src": "file:///mnt/swingdata/scratch/session-report/out/nick/stills/o0003_DTL_P7_spine_g.jpg",
+     "caption": "At impact, swing 3",
+     "value": "12.7° lost",
+     "note": "Orange: your spine at impact. White dashes: the same swing at address. Every swing looked much like this one."
+    }
+   ],
+   "kicker": "Work-on 3 of 5  ·  P7, at impact  ·  60 of 60 swings",
+   "coachTerm": "Coaches call the habit <i>Early extension</i>, or “standing up”, “hip thrust toward the ball”."
+  },
+  {
+   "rank": 4,
+   "id": "over_the_top",
+   "name": "Over the top",
+   "goal": "Bring your hands down inside the path they went up",
+   "phase": "P6",
+   "phaseWords": "coming down",
+   "also": "“coming over it”, “OTT”",
+   "count": "10 of 10 swings",
+   "saw": "Your hands come over the top coming down — on all 60 swings, steady from first swing to last. Typical hand rise coming down: 11% hand rise, against a target of 9% hand rise or less.",
+   "why": "When the club comes over the top it cuts across the ball, so shots start left or curve right.",
+   "cameWith": "It often drags other habits in with it. Not today — on every swing, you keep your arms wide at the top.",
+   "causes": {
+    "lead": "We couldn't pin down what drives this one today. Here are the possible causes: the ones we couldn't check, and the ones we've ruled out.",
+    "rows": [
+     {
+      "kind": "possible",
+      "title": "Could be behind it — we couldn't check",
+      "items": [
+       "<i>A quick physical test would tell:</i> Turning your hips without your chest · Lead-hip mobility · Upper-back mobility<br><i>Hidden on today's swings:</i> Your shoulders start down before your hips<br><i>Your coach can look:</i> Your shoulders turn too flat going back · You take the club back too far outside"
+      ],
+      "more": "3 more, less likely",
+      "note": ""
+     },
+     {
+      "kind": "ruledOut",
+      "title": "Ruled out — measured, and fine",
+      "items": [
+       "Your hips are slow to start turning coming down",
+       "Your hips don't turn enough going back",
+       "You hang back on your trail side through impact",
+       "You rush from the top"
+      ],
+      "more": "4 more",
+      "note": ""
+     }
+    ]
+   },
+   "drills": [
+    {
+     "label": "Gate drill",
+     "instruction": "Place two tees, or a headcover just outside the ball, so the club has to travel through a gate to reach it. Start with slow half swings.",
+     "targets": "To feel the club approaching from a different direction, with immediate feedback when it does not.",
+     "note": "Set the gate for the path you want, not against the one you have — a gate that punishes the current swing without offering another produces a flinch, not a change.",
+     "equipment": "two tees, or a headcover"
+    },
+    {
+     "label": "Pump to delivery",
+     "instruction": "Swing to the top, then move down to about waist height and stop, checking that the shaft is on the plane it started on and your hands still have their angle. Return to the top and repeat three times, then hit the shot.",
+     "targets": "To rehearse the delivery position rather than to arrive at it by accident.",
+     "note": "Rehearsal, not a swing thought. Trying to do this consciously at full speed produces a different, slower swing.",
+     "equipment": ""
+    }
+   ],
+   "cue": "Start down by letting your trail elbow drop toward your trail hip pocket.",
+   "check": "Film from down the line. Coming down, your hands should drop below the line they went up on.",
+   "target": "Hand rise coming down: 9% hand rise or less, on most swings. Today: 11% hand rise.",
+   "figure": {
+    "unit": "% hand rise",
+    "decimals": 0,
+    "bands": [
+     {
+      "grade": "open",
+      "lo": -0.65,
+      "hi": 0
+     },
+     {
+      "grade": "ideal",
+      "lo": 0,
+      "hi": 4.333333333333333
+     },
+     {
+      "grade": "good",
+      "lo": 4.333333333333333,
+      "hi": 8.666666666666666
+     },
+     {
+      "grade": "watch",
+      "lo": 8.666666666666666,
+      "hi": 13
+     },
+     {
+      "grade": "action",
+      "lo": 13,
+      "hi": 16.9
+     }
+    ],
+    "points": [
+     {
+      "swing": 1,
+      "value": 9.692341146566523,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 2,
+      "value": 13.43778823315169,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 3,
+      "value": 12.031664623528101,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 4,
+      "value": 9.385290628423501,
+      "state": "fired",
+      "text": "9 % hand rise"
+     },
+     {
+      "swing": 5,
+      "value": 10.8745939821342,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 6,
+      "value": 10.897191498778867,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 7,
+      "value": 9.844215356286153,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 8,
+      "value": 11.77449346335929,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 9,
+      "value": 13.001370791932228,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 10,
+      "value": 9.567104609120884,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 11,
+      "value": 9.692341146566523,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 12,
+      "value": 13.43778823315169,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 13,
+      "value": 12.031664623528101,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 14,
+      "value": 9.385290628423501,
+      "state": "fired",
+      "text": "9 % hand rise"
+     },
+     {
+      "swing": 15,
+      "value": 10.8745939821342,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 16,
+      "value": 10.897191498778867,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 17,
+      "value": 9.844215356286153,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 18,
+      "value": 11.77449346335929,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 19,
+      "value": 13.001370791932228,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 20,
+      "value": 9.567104609120884,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 21,
+      "value": 9.692341146566523,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 22,
+      "value": 13.43778823315169,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 23,
+      "value": 12.031664623528101,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 24,
+      "value": 9.385290628423501,
+      "state": "fired",
+      "text": "9 % hand rise"
+     },
+     {
+      "swing": 25,
+      "value": 10.8745939821342,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 26,
+      "value": 10.897191498778867,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 27,
+      "value": 9.844215356286153,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 28,
+      "value": 11.77449346335929,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 29,
+      "value": 13.001370791932228,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 30,
+      "value": 9.567104609120884,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 31,
+      "value": 9.692341146566523,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 32,
+      "value": 13.43778823315169,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 33,
+      "value": 12.031664623528101,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 34,
+      "value": 9.385290628423501,
+      "state": "fired",
+      "text": "9 % hand rise"
+     },
+     {
+      "swing": 35,
+      "value": 10.8745939821342,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 36,
+      "value": 10.897191498778867,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 37,
+      "value": 9.844215356286153,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 38,
+      "value": 11.77449346335929,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 39,
+      "value": 13.001370791932228,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 40,
+      "value": 9.567104609120884,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 41,
+      "value": 9.692341146566523,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 42,
+      "value": 13.43778823315169,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 43,
+      "value": 12.031664623528101,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 44,
+      "value": 9.385290628423501,
+      "state": "fired",
+      "text": "9 % hand rise"
+     },
+     {
+      "swing": 45,
+      "value": 10.8745939821342,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 46,
+      "value": 10.897191498778867,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 47,
+      "value": 9.844215356286153,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 48,
+      "value": 11.77449346335929,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 49,
+      "value": 13.001370791932228,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 50,
+      "value": 9.567104609120884,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 51,
+      "value": 9.692341146566523,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 52,
+      "value": 13.43778823315169,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 53,
+      "value": 12.031664623528101,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 54,
+      "value": 9.385290628423501,
+      "state": "fired",
+      "text": "9 % hand rise"
+     },
+     {
+      "swing": 55,
+      "value": 10.8745939821342,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 56,
+      "value": 10.897191498778867,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 57,
+      "value": 9.844215356286153,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 58,
+      "value": 11.77449346335929,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 59,
+      "value": 13.001370791932228,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 60,
+      "value": 9.567104609120884,
+      "state": "fired",
+      "text": "10 % hand rise"
+     }
+    ],
+    "medianText": "11 % hand rise"
+   },
+   "figureLabel": "Each dot is one swing: hand rise coming down, in percent of hand rise.",
+   "stills": [],
+   "kicker": "Work-on 4 of 5  ·  P6, coming down  ·  60 of 60 swings",
+   "coachTerm": "Coaches call the habit <i>Over the top</i>, or “coming over it”, “OTT”."
+  },
+  {
+   "rank": 5,
+   "id": "reverse_spine_p4",
+   "name": "Reverse spine angle at P4",
+   "goal": "Lean slightly away from the target at the top",
+   "phase": "P4",
+   "phaseWords": "at the top",
+   "also": "“leaning left at the top”, “forward spine angle at the top”",
+   "count": "9 of 10 swings",
+   "saw": "You lean toward the target at the top — on 9 of 10 swings, steady from first swing to last. Typical lean away from the target at the top: −1°, against a target of 0° to 24°; this is a small miss: just outside the range, never far.",
+   "why": "Leaning toward the target at the top strains your lower back and makes it hard to start down smoothly.",
+   "cameWith": "",
+   "causes": {
+    "lead": "We couldn't pin down what drives this one today. Here are the possible causes: the ones we couldn't check, and the ones we've ruled out.",
+    "rows": [
+     {
+      "kind": "possible",
+      "title": "Could be behind it — we couldn't check",
+      "items": [
+       "<i>Your coach can look:</i> Your lower back arches too much at address · Your lower back is too flat at address<br><i>A quick physical test would tell:</i> Upper-back mobility · Trail-hip mobility · Core stability"
+      ],
+      "more": "",
+      "note": ""
+     }
+    ]
+   },
+   "drills": [
+    {
+     "label": "Club across the chest",
+     "instruction": "Without a ball, hold a club across your chest. Turn to the top and check in a mirror that the shaft tilts down toward the target and your chest sits behind the ball. Ten slow turns.",
+     "targets": "To feel the upper body staying behind the ball as it turns, rather than tipping toward the target.",
+     "note": "A short turn often hides inside this one: if the shoulders cannot turn further, the body tips instead.",
+     "equipment": "a mirror"
+    }
+   ],
+   "cue": "At the top, feel your sternum stay over your trail thigh.",
+   "check": "Film face-on. At the top your head and chest should sit a little behind the ball, never toward the target.",
+   "target": "Lean away from the target at the top: 0° to 24°, on most swings. Today: −1°.",
+   "figure": {
+    "unit": "°",
+    "decimals": 0,
+    "bands": [
+     {
+      "grade": "action",
+      "lo": -12.3,
+      "hi": -6
+     },
+     {
+      "grade": "watch",
+      "lo": -6,
+      "hi": 0
+     },
+     {
+      "grade": "good",
+      "lo": 0,
+      "hi": 6
+     },
+     {
+      "grade": "ideal",
+      "lo": 6,
+      "hi": 18
+     },
+     {
+      "grade": "good",
+      "lo": 18,
+      "hi": 24
+     },
+     {
+      "grade": "watch",
+      "lo": 24,
+      "hi": 30
+     },
+     {
+      "grade": "action",
+      "lo": 30,
+      "hi": 36.3
+     }
+    ],
+    "points": [
+     {
+      "swing": 1,
+      "value": -3.1959136765123306,
+      "state": "fired",
+      "text": "−3°"
+     },
+     {
+      "swing": 2,
+      "value": -0.33362644329840835,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 3,
+      "value": -0.05067115942497291,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 4,
+      "value": -2.163588246602049,
+      "state": "fired",
+      "text": "−2°"
+     },
+     {
+      "swing": 5,
+      "value": -0.6367275643476862,
+      "state": "fired",
+      "text": "−1°"
+     },
+     {
+      "swing": 6,
+      "value": -0.28241793786008496,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 7,
+      "value": -4.209195539487604,
+      "state": "fired",
+      "text": "−4°"
+     },
+     {
+      "swing": 8,
+      "value": 2.3513036085066616,
+      "state": "clean",
+      "text": "2°"
+     },
+     {
+      "swing": 9,
+      "value": -5.555546877463192,
+      "state": "fired",
+      "text": "−6°"
+     },
+     {
+      "swing": 10,
+      "value": -5.450541411172689,
+      "state": "fired",
+      "text": "−5°"
+     },
+     {
+      "swing": 11,
+      "value": -3.1959136765123306,
+      "state": "fired",
+      "text": "−3°"
+     },
+     {
+      "swing": 12,
+      "value": -0.33362644329840835,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 13,
+      "value": -0.05067115942497291,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 14,
+      "value": -2.163588246602049,
+      "state": "fired",
+      "text": "−2°"
+     },
+     {
+      "swing": 15,
+      "value": -0.6367275643476862,
+      "state": "fired",
+      "text": "−1°"
+     },
+     {
+      "swing": 16,
+      "value": -0.28241793786008496,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 17,
+      "value": -4.209195539487604,
+      "state": "fired",
+      "text": "−4°"
+     },
+     {
+      "swing": 18,
+      "value": 2.3513036085066616,
+      "state": "clean",
+      "text": "2°"
+     },
+     {
+      "swing": 19,
+      "value": -5.555546877463192,
+      "state": "fired",
+      "text": "−6°"
+     },
+     {
+      "swing": 20,
+      "value": -5.450541411172689,
+      "state": "fired",
+      "text": "−5°"
+     },
+     {
+      "swing": 21,
+      "value": -3.1959136765123306,
+      "state": "fired",
+      "text": "−3°"
+     },
+     {
+      "swing": 22,
+      "value": -0.33362644329840835,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 23,
+      "value": -0.05067115942497291,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 24,
+      "value": -2.163588246602049,
+      "state": "fired",
+      "text": "−2°"
+     },
+     {
+      "swing": 25,
+      "value": -0.6367275643476862,
+      "state": "fired",
+      "text": "−1°"
+     },
+     {
+      "swing": 26,
+      "value": -0.28241793786008496,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 27,
+      "value": -4.209195539487604,
+      "state": "fired",
+      "text": "−4°"
+     },
+     {
+      "swing": 28,
+      "value": 2.3513036085066616,
+      "state": "clean",
+      "text": "2°"
+     },
+     {
+      "swing": 29,
+      "value": -5.555546877463192,
+      "state": "fired",
+      "text": "−6°"
+     },
+     {
+      "swing": 30,
+      "value": -5.450541411172689,
+      "state": "fired",
+      "text": "−5°"
+     },
+     {
+      "swing": 31,
+      "value": -3.1959136765123306,
+      "state": "fired",
+      "text": "−3°"
+     },
+     {
+      "swing": 32,
+      "value": -0.33362644329840835,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 33,
+      "value": -0.05067115942497291,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 34,
+      "value": -2.163588246602049,
+      "state": "fired",
+      "text": "−2°"
+     },
+     {
+      "swing": 35,
+      "value": -0.6367275643476862,
+      "state": "fired",
+      "text": "−1°"
+     },
+     {
+      "swing": 36,
+      "value": -0.28241793786008496,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 37,
+      "value": -4.209195539487604,
+      "state": "fired",
+      "text": "−4°"
+     },
+     {
+      "swing": 38,
+      "value": 2.3513036085066616,
+      "state": "clean",
+      "text": "2°"
+     },
+     {
+      "swing": 39,
+      "value": -5.555546877463192,
+      "state": "fired",
+      "text": "−6°"
+     },
+     {
+      "swing": 40,
+      "value": -5.450541411172689,
+      "state": "fired",
+      "text": "−5°"
+     },
+     {
+      "swing": 41,
+      "value": -3.1959136765123306,
+      "state": "fired",
+      "text": "−3°"
+     },
+     {
+      "swing": 42,
+      "value": -0.33362644329840835,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 43,
+      "value": -0.05067115942497291,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 44,
+      "value": -2.163588246602049,
+      "state": "fired",
+      "text": "−2°"
+     },
+     {
+      "swing": 45,
+      "value": -0.6367275643476862,
+      "state": "fired",
+      "text": "−1°"
+     },
+     {
+      "swing": 46,
+      "value": -0.28241793786008496,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 47,
+      "value": -4.209195539487604,
+      "state": "fired",
+      "text": "−4°"
+     },
+     {
+      "swing": 48,
+      "value": 2.3513036085066616,
+      "state": "clean",
+      "text": "2°"
+     },
+     {
+      "swing": 49,
+      "value": -5.555546877463192,
+      "state": "fired",
+      "text": "−6°"
+     },
+     {
+      "swing": 50,
+      "value": -5.450541411172689,
+      "state": "fired",
+      "text": "−5°"
+     },
+     {
+      "swing": 51,
+      "value": -3.1959136765123306,
+      "state": "fired",
+      "text": "−3°"
+     },
+     {
+      "swing": 52,
+      "value": -0.33362644329840835,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 53,
+      "value": -0.05067115942497291,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 54,
+      "value": -2.163588246602049,
+      "state": "fired",
+      "text": "−2°"
+     },
+     {
+      "swing": 55,
+      "value": -0.6367275643476862,
+      "state": "fired",
+      "text": "−1°"
+     },
+     {
+      "swing": 56,
+      "value": -0.28241793786008496,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 57,
+      "value": -4.209195539487604,
+      "state": "fired",
+      "text": "−4°"
+     },
+     {
+      "swing": 58,
+      "value": 2.3513036085066616,
+      "state": "clean",
+      "text": "2°"
+     },
+     {
+      "swing": 59,
+      "value": -5.555546877463192,
+      "state": "fired",
+      "text": "−6°"
+     },
+     {
+      "swing": 60,
+      "value": -5.450541411172689,
+      "state": "fired",
+      "text": "−5°"
+     }
+    ],
+    "medianText": "−1°"
+   },
+   "figureLabel": "Each dot is one swing: lean away from the target at the top, in degrees.",
+   "stills": [],
+   "kicker": "Work-on 5 of 5  ·  P4, at the top  ·  9 of 10 swings",
+   "coachTerm": "Coaches call the habit <i>Reverse spine angle at P4</i>, or “leaning left at the top”, “forward spine angle at the top”."
+  }
+ ],
+ "practice": {
+  "title": "How to practise a change",
+  "steps": [
+   {
+    "head": "Rehearse without a ball",
+    "body": "Slow swings, ten at a time, feeling the change. This is where the new move is learned."
+   },
+   {
+    "head": "Small swings with a ball",
+    "body": "Half swings at half speed. Keep the feel; ignore where the ball goes."
+   },
+   {
+    "head": "Mix it in",
+    "body": "Full swings: one with the feel, then two normal ones. Film every fifth swing."
+   },
+   {
+    "head": "One thing at a time",
+    "body": "Stay with work-on 1 until your next session. The rest of the list waits."
+   }
+  ]
+ },
+ "numbers": {
+  "cols": [
+   "Swing",
+   "Club",
+   "Carry",
+   "Total",
+   "Ball",
+   "Club",
+   "Smash",
+   "Launch",
+   "Spin",
+   "Path",
+   "Face",
+   "Face to path",
+   "Attack",
+   "Offline"
+  ],
+  "units": [
+   "",
+   "",
+   "yd",
+   "yd",
+   "mph",
+   "mph",
+   "",
+   "°",
+   "rpm",
+   "°",
+   "°",
+   "°",
+   "°",
+   "yd"
+  ],
+  "rows": [
+   {
+    "cells": [
+     "1",
+     "7 iron",
+     "133",
+     "145",
+     "99",
+     "76",
+     "1.29",
+     "19",
+     "5,624",
+     "-0.2",
+     "-1.1",
+     "-0.8",
+     "-3.1",
+     "-2"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "2",
+     "7 iron",
+     "147",
+     "158",
+     "104",
+     "78",
+     "1.34",
+     "23",
+     "4,894",
+     "3.7",
+     "0.6",
+     "-3.1",
+     "-0.7",
+     "-2"
+    ],
+    "habitsText": "4 of 5"
+   },
+   {
+    "cells": [
+     "3",
+     "7 iron",
+     "148",
+     "159",
+     "105",
+     "78",
+     "1.34",
+     "23",
+     "5,059",
+     "0.7",
+     "-2.5",
+     "-3.2",
+     "-1.1",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "4",
+     "7 iron",
+     "147",
+     "158",
+     "104",
+     "77",
+     "1.35",
+     "22",
+     "4,959",
+     "-0.1",
+     "-1.6",
+     "-1.5",
+     "-1.8",
+     "6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "5",
+     "7 iron",
+     "147",
+     "159",
+     "104",
+     "79",
+     "1.33",
+     "21",
+     "4,824",
+     "0.8",
+     "-2.7",
+     "-3.5",
+     "-2.0",
+     "-6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "6",
+     "7 iron",
+     "150",
+     "162",
+     "106",
+     "79",
+     "1.34",
+     "22",
+     "4,659",
+     "2.9",
+     "-1.0",
+     "-3.8",
+     "-1.0",
+     "3"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "7",
+     "7 iron",
+     "133",
+     "146",
+     "98",
+     "81",
+     "1.21",
+     "19",
+     "5,258",
+     "1.4",
+     "1.5",
+     "0.1",
+     "-1.7",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "8",
+     "7 iron",
+     "153",
+     "164",
+     "108",
+     "81",
+     "1.34",
+     "20",
+     "5,319",
+     "1.3",
+     "-1.5",
+     "-2.8",
+     "-2.0",
+     "-8"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "9",
+     "7 iron",
+     "149",
+     "161",
+     "105",
+     "80",
+     "1.32",
+     "22",
+     "4,879",
+     "2.5",
+     "-2.1",
+     "-4.5",
+     "-1.8",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "10",
+     "7 iron",
+     "155",
+     "166",
+     "109",
+     "83",
+     "1.32",
+     "22",
+     "5,074",
+     "4.2",
+     "5.3",
+     "1.1",
+     "-1.2",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "11",
+     "7 iron",
+     "133",
+     "145",
+     "99",
+     "76",
+     "1.29",
+     "19",
+     "5,624",
+     "-0.2",
+     "-1.1",
+     "-0.8",
+     "-3.1",
+     "-2"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "12",
+     "7 iron",
+     "147",
+     "158",
+     "104",
+     "78",
+     "1.34",
+     "23",
+     "4,894",
+     "3.7",
+     "0.6",
+     "-3.1",
+     "-0.7",
+     "-2"
+    ],
+    "habitsText": "4 of 5"
+   },
+   {
+    "cells": [
+     "13",
+     "7 iron",
+     "148",
+     "159",
+     "105",
+     "78",
+     "1.34",
+     "23",
+     "5,059",
+     "0.7",
+     "-2.5",
+     "-3.2",
+     "-1.1",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "14",
+     "7 iron",
+     "147",
+     "158",
+     "104",
+     "77",
+     "1.35",
+     "22",
+     "4,959",
+     "-0.1",
+     "-1.6",
+     "-1.5",
+     "-1.8",
+     "6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "15",
+     "7 iron",
+     "147",
+     "159",
+     "104",
+     "79",
+     "1.33",
+     "21",
+     "4,824",
+     "0.8",
+     "-2.7",
+     "-3.5",
+     "-2.0",
+     "-6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "16",
+     "7 iron",
+     "150",
+     "162",
+     "106",
+     "79",
+     "1.34",
+     "22",
+     "4,659",
+     "2.9",
+     "-1.0",
+     "-3.8",
+     "-1.0",
+     "3"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "17",
+     "7 iron",
+     "133",
+     "146",
+     "98",
+     "81",
+     "1.21",
+     "19",
+     "5,258",
+     "1.4",
+     "1.5",
+     "0.1",
+     "-1.7",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "18",
+     "7 iron",
+     "153",
+     "164",
+     "108",
+     "81",
+     "1.34",
+     "20",
+     "5,319",
+     "1.3",
+     "-1.5",
+     "-2.8",
+     "-2.0",
+     "-8"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "19",
+     "7 iron",
+     "149",
+     "161",
+     "105",
+     "80",
+     "1.32",
+     "22",
+     "4,879",
+     "2.5",
+     "-2.1",
+     "-4.5",
+     "-1.8",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "20",
+     "7 iron",
+     "155",
+     "166",
+     "109",
+     "83",
+     "1.32",
+     "22",
+     "5,074",
+     "4.2",
+     "5.3",
+     "1.1",
+     "-1.2",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "21",
+     "5 iron",
+     "151",
+     "145",
+     "99",
+     "76",
+     "1.29",
+     "19",
+     "5,624",
+     "-0.2",
+     "-1.1",
+     "-0.8",
+     "-3.1",
+     "-2"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "22",
+     "5 iron",
+     "165",
+     "158",
+     "104",
+     "78",
+     "1.34",
+     "23",
+     "4,894",
+     "3.7",
+     "0.6",
+     "-3.1",
+     "-0.7",
+     "-2"
+    ],
+    "habitsText": "4 of 5"
+   },
+   {
+    "cells": [
+     "23",
+     "5 iron",
+     "166",
+     "159",
+     "105",
+     "78",
+     "1.34",
+     "23",
+     "5,059",
+     "0.7",
+     "-2.5",
+     "-3.2",
+     "-1.1",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "24",
+     "5 iron",
+     "165",
+     "158",
+     "104",
+     "77",
+     "1.35",
+     "22",
+     "4,959",
+     "-0.1",
+     "-1.6",
+     "-1.5",
+     "-1.8",
+     "6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "25",
+     "5 iron",
+     "165",
+     "159",
+     "104",
+     "79",
+     "1.33",
+     "21",
+     "4,824",
+     "0.8",
+     "-2.7",
+     "-3.5",
+     "-2.0",
+     "-6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "26",
+     "5 iron",
+     "168",
+     "162",
+     "106",
+     "79",
+     "1.34",
+     "22",
+     "4,659",
+     "2.9",
+     "-1.0",
+     "-3.8",
+     "-1.0",
+     "3"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "27",
+     "5 iron",
+     "151",
+     "146",
+     "98",
+     "81",
+     "1.21",
+     "19",
+     "5,258",
+     "1.4",
+     "1.5",
+     "0.1",
+     "-1.7",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "28",
+     "5 iron",
+     "171",
+     "164",
+     "108",
+     "81",
+     "1.34",
+     "20",
+     "5,319",
+     "1.3",
+     "-1.5",
+     "-2.8",
+     "-2.0",
+     "-8"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "29",
+     "5 iron",
+     "167",
+     "161",
+     "105",
+     "80",
+     "1.32",
+     "22",
+     "4,879",
+     "2.5",
+     "-2.1",
+     "-4.5",
+     "-1.8",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "30",
+     "5 iron",
+     "173",
+     "166",
+     "109",
+     "83",
+     "1.32",
+     "22",
+     "5,074",
+     "4.2",
+     "5.3",
+     "1.1",
+     "-1.2",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "31",
+     "5 iron",
+     "151",
+     "145",
+     "99",
+     "76",
+     "1.29",
+     "19",
+     "5,624",
+     "-0.2",
+     "-1.1",
+     "-0.8",
+     "-3.1",
+     "-2"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "32",
+     "5 iron",
+     "165",
+     "158",
+     "104",
+     "78",
+     "1.34",
+     "23",
+     "4,894",
+     "3.7",
+     "0.6",
+     "-3.1",
+     "-0.7",
+     "-2"
+    ],
+    "habitsText": "4 of 5"
+   },
+   {
+    "cells": [
+     "33",
+     "5 iron",
+     "166",
+     "159",
+     "105",
+     "78",
+     "1.34",
+     "23",
+     "5,059",
+     "0.7",
+     "-2.5",
+     "-3.2",
+     "-1.1",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "34",
+     "5 iron",
+     "165",
+     "158",
+     "104",
+     "77",
+     "1.35",
+     "22",
+     "4,959",
+     "-0.1",
+     "-1.6",
+     "-1.5",
+     "-1.8",
+     "6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "35",
+     "5 iron",
+     "165",
+     "159",
+     "104",
+     "79",
+     "1.33",
+     "21",
+     "4,824",
+     "0.8",
+     "-2.7",
+     "-3.5",
+     "-2.0",
+     "-6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "36",
+     "5 iron",
+     "168",
+     "162",
+     "106",
+     "79",
+     "1.34",
+     "22",
+     "4,659",
+     "2.9",
+     "-1.0",
+     "-3.8",
+     "-1.0",
+     "3"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "37",
+     "5 iron",
+     "151",
+     "146",
+     "98",
+     "81",
+     "1.21",
+     "19",
+     "5,258",
+     "1.4",
+     "1.5",
+     "0.1",
+     "-1.7",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "38",
+     "5 iron",
+     "171",
+     "164",
+     "108",
+     "81",
+     "1.34",
+     "20",
+     "5,319",
+     "1.3",
+     "-1.5",
+     "-2.8",
+     "-2.0",
+     "-8"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "39",
+     "5 iron",
+     "167",
+     "161",
+     "105",
+     "80",
+     "1.32",
+     "22",
+     "4,879",
+     "2.5",
+     "-2.1",
+     "-4.5",
+     "-1.8",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "40",
+     "5 iron",
+     "173",
+     "166",
+     "109",
+     "83",
+     "1.32",
+     "22",
+     "5,074",
+     "4.2",
+     "5.3",
+     "1.1",
+     "-1.2",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "41",
+     "Driver",
+     "218",
+     "145",
+     "99",
+     "76",
+     "1.29",
+     "19",
+     "5,624",
+     "-0.2",
+     "-1.1",
+     "-0.8",
+     "-3.1",
+     "-2"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "42",
+     "Driver",
+     "232",
+     "158",
+     "104",
+     "78",
+     "1.34",
+     "23",
+     "4,894",
+     "3.7",
+     "0.6",
+     "-3.1",
+     "-0.7",
+     "-2"
+    ],
+    "habitsText": "4 of 5"
+   },
+   {
+    "cells": [
+     "43",
+     "Driver",
+     "233",
+     "159",
+     "105",
+     "78",
+     "1.34",
+     "23",
+     "5,059",
+     "0.7",
+     "-2.5",
+     "-3.2",
+     "-1.1",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "44",
+     "Driver",
+     "232",
+     "158",
+     "104",
+     "77",
+     "1.35",
+     "22",
+     "4,959",
+     "-0.1",
+     "-1.6",
+     "-1.5",
+     "-1.8",
+     "6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "45",
+     "Driver",
+     "232",
+     "159",
+     "104",
+     "79",
+     "1.33",
+     "21",
+     "4,824",
+     "0.8",
+     "-2.7",
+     "-3.5",
+     "-2.0",
+     "-6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "46",
+     "Driver",
+     "235",
+     "162",
+     "106",
+     "79",
+     "1.34",
+     "22",
+     "4,659",
+     "2.9",
+     "-1.0",
+     "-3.8",
+     "-1.0",
+     "3"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "47",
+     "Driver",
+     "218",
+     "146",
+     "98",
+     "81",
+     "1.21",
+     "19",
+     "5,258",
+     "1.4",
+     "1.5",
+     "0.1",
+     "-1.7",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "48",
+     "Driver",
+     "238",
+     "164",
+     "108",
+     "81",
+     "1.34",
+     "20",
+     "5,319",
+     "1.3",
+     "-1.5",
+     "-2.8",
+     "-2.0",
+     "-8"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "49",
+     "Driver",
+     "234",
+     "161",
+     "105",
+     "80",
+     "1.32",
+     "22",
+     "4,879",
+     "2.5",
+     "-2.1",
+     "-4.5",
+     "-1.8",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "50",
+     "Driver",
+     "240",
+     "166",
+     "109",
+     "83",
+     "1.32",
+     "22",
+     "5,074",
+     "4.2",
+     "5.3",
+     "1.1",
+     "-1.2",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "51",
+     "Driver",
+     "218",
+     "145",
+     "99",
+     "76",
+     "1.29",
+     "19",
+     "5,624",
+     "-0.2",
+     "-1.1",
+     "-0.8",
+     "-3.1",
+     "-2"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "52",
+     "Driver",
+     "232",
+     "158",
+     "104",
+     "78",
+     "1.34",
+     "23",
+     "4,894",
+     "3.7",
+     "0.6",
+     "-3.1",
+     "-0.7",
+     "-2"
+    ],
+    "habitsText": "4 of 5"
+   },
+   {
+    "cells": [
+     "53",
+     "Driver",
+     "233",
+     "159",
+     "105",
+     "78",
+     "1.34",
+     "23",
+     "5,059",
+     "0.7",
+     "-2.5",
+     "-3.2",
+     "-1.1",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "54",
+     "Driver",
+     "232",
+     "158",
+     "104",
+     "77",
+     "1.35",
+     "22",
+     "4,959",
+     "-0.1",
+     "-1.6",
+     "-1.5",
+     "-1.8",
+     "6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "55",
+     "Driver",
+     "232",
+     "159",
+     "104",
+     "79",
+     "1.33",
+     "21",
+     "4,824",
+     "0.8",
+     "-2.7",
+     "-3.5",
+     "-2.0",
+     "-6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "56",
+     "Driver",
+     "235",
+     "162",
+     "106",
+     "79",
+     "1.34",
+     "22",
+     "4,659",
+     "2.9",
+     "-1.0",
+     "-3.8",
+     "-1.0",
+     "3"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "57",
+     "Driver",
+     "218",
+     "146",
+     "98",
+     "81",
+     "1.21",
+     "19",
+     "5,258",
+     "1.4",
+     "1.5",
+     "0.1",
+     "-1.7",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "58",
+     "Driver",
+     "238",
+     "164",
+     "108",
+     "81",
+     "1.34",
+     "20",
+     "5,319",
+     "1.3",
+     "-1.5",
+     "-2.8",
+     "-2.0",
+     "-8"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "59",
+     "Driver",
+     "234",
+     "161",
+     "105",
+     "80",
+     "1.32",
+     "22",
+     "4,879",
+     "2.5",
+     "-2.1",
+     "-4.5",
+     "-1.8",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "60",
+     "Driver",
+     "240",
+     "166",
+     "109",
+     "83",
+     "1.32",
+     "22",
+     "5,074",
+     "4.2",
+     "5.3",
+     "1.1",
+     "-1.2",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   }
+  ],
+  "typical": [
+   {
+    "cells": [
+     "Typical",
+     "7 iron",
+     "148",
+     "159",
+     "105",
+     "79",
+     "1.33",
+     "22",
+     "5,009",
+     "1.4",
+     "-1.3",
+     "-2.9",
+     "-1.7",
+     "-2"
+    ]
+   },
+   {
+    "cells": [
+     "Typical",
+     "5 iron",
+     "148",
+     "159",
+     "105",
+     "79",
+     "1.33",
+     "22",
+     "5,009",
+     "1.4",
+     "-1.3",
+     "-2.9",
+     "-1.7",
+     "-2"
+    ]
+   },
+   {
+    "cells": [
+     "Typical",
+     "Driver",
+     "148",
+     "159",
+     "105",
+     "79",
+     "1.33",
+     "22",
+     "5,009",
+     "1.4",
+     "-1.3",
+     "-2.9",
+     "-1.7",
+     "-2"
+    ]
+   }
+  ],
+  "habitsHead": "Habits",
+  "note": "Path, face and offline: positive is right of target, negative left (right-handed golfer). Habits: how many of your five work-ons showed on that swing. Typical: the middle value of your swings with that club."
+ },
+ "about": {
+  "dates": "This report covers your session on Tuesday 20 October 2026 and was prepared on 20 October 2026. If a session is re-analysed, the report is prepared again and carries the new date.",
+  "measured": "60 swings with three clubs, filmed down-the-line and face-on at high frame rate, with every ball measured by a GC Quad. Your body positions are read from the video by pose tracking; the club and ball numbers come from the launch monitor.",
+  "ranges": "Each habit is judged against a target range. Most ranges are coaching judgement, set from what good ball-strikers do; a few come from published measurements. They are not fitted to you. A swing outside the range is not a mistake in itself — it is where the evidence points.",
+  "notChecked": "Some things could not be checked on every swing: pelvis peak a spike (10 of 10); chest peak out of sight (10 of 10); club peak drawn, not judged (10 of 10). Nothing in this report depends on them.",
+  "words": [
+   [
+    "Habit",
+    "something that showed on most swings — at least 3, and often enough that it is not chance"
+   ],
+   [
+    "Target range",
+    "where a good ball-striker's swing usually is at that point"
+   ],
+   [
+    "Work-on",
+    "a habit you can practise your way out of, in the order to work on it"
+   ],
+   [
+    "P1 … P10",
+    "the ten positions of the swing, from address (P1) through the top (P4) and impact (P7) to the finish (P10)"
+   ]
+  ],
+  "footnote": "Measured and prepared with PinPoint Studio. Swing images show only the golfer; video stays in the studio."
+ }
+}

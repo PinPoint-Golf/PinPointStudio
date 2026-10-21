@@ -44,6 +44,15 @@ class AthleteController : public QObject
     // birth changes these without changing WHICH athlete is current.
     Q_PROPERTY(QString      currentDob        READ currentDob        NOTIFY athletesChanged)
     Q_PROPERTY(QString      currentSex        READ currentSex        NOTIFY athletesChanged)
+    // The session report's details for the CURRENT athlete (docs/design/session_report_design.md §7.3).
+    // currentReportGreeting is what the email and page 1 call them: the stored greeting, else the first
+    // word of the name. currentIsJunior is under 18 TODAY — a preview for the form; a report asks
+    // isJuniorOn() with its own session's date.
+    Q_PROPERTY(QString      currentReportEmail      READ currentReportEmail      NOTIFY athletesChanged)
+    Q_PROPERTY(QString      currentReportGreeting   READ currentReportGreeting   NOTIFY athletesChanged)
+    Q_PROPERTY(bool         currentIsJunior         READ currentIsJunior         NOTIFY athletesChanged)
+    Q_PROPERTY(bool         currentPhotosApproved   READ currentPhotosApproved   NOTIFY athletesChanged)
+    Q_PROPERTY(QString      currentPhotosApprovedOn READ currentPhotosApprovedOn NOTIFY athletesChanged)
     Q_PROPERTY(QVariantList athletes          READ athletes          NOTIFY athletesChanged)
     Q_PROPERTY(QVariantList recentSessions   READ recentSessions    NOTIFY athletesChanged)
 
@@ -61,6 +70,11 @@ public:
     double       currentHeightM()    const { return currentField(QStringLiteral("heightValue")).toDouble() * 0.3048; }
     QVariantList athletes()          const { return m_athletes; }
     QVariantList recentSessions()    const { return {}; }
+    QString      currentReportEmail()      const { return currentField(QStringLiteral("reportEmail")); }
+    QString      currentReportGreeting()   const;
+    bool         currentIsJunior()         const;
+    bool         currentPhotosApproved()   const { return currentField(QStringLiteral("reportPhotosApproved")) == QLatin1String("true"); }
+    QString      currentPhotosApprovedOn() const { return currentField(QStringLiteral("reportPhotosApprovedOn")); }
 
     // Upsert: empty uuid creates a new athlete (returns its new uuid); a non-empty,
     // existing uuid updates in place (returns that uuid). Returns "" on failure
@@ -135,6 +149,32 @@ public:
     //     tapedOn: "YYYY-MM-DD", notes: string }
     // Consumers: shaft-tracker search radius (lengthMm) and the
     // instrumented-club pipeline (docs/validation/instrumented_club_protocol.md).
+    // ── The session report's details (design §7.3) ──────────────────────────
+    //
+    // Four more fields on the record, written through updateAthlete like dob and sex:
+    //   reportEmail             one address or several, comma-separated (a junior's parent or guardian)
+    //   reportGreeting          what the email and page 1 call them; empty = the first word of the name
+    //   reportPhotosApproved    a junior's parent or guardian approved swing photos (bool)
+    //   reportPhotosApprovedOn  the ISO date the box was ticked; cleared when it is unticked
+    // They stay in the app INI beside the rest of the record — never in a swing document, a session
+    // folder or the share — and deleteAthlete removes them with the group.
+    //
+    // reportDetails: { uuid, name, email, greeting, dob, photosApproved, photosApprovedOn } for an
+    // athlete found by uuid, else by name (case-insensitive) — the report map names its golfer, and a
+    // session folder knows only the name. Empty map when there is no such athlete.
+    Q_INVOKABLE QVariantMap reportDetails(const QString &uuidOrName) const;
+    // Under 18 on the day `sessionMs` (ms since the epoch, local date) falls on. Age is taken on the
+    // SESSION's date, so an old session's report does not change when the golfer turns 18. An empty
+    // or unparseable dob is NOT a junior (design §7.3: no date of birth is treated as an adult). A
+    // sessionMs of 0 or less means "today", for the form's live preview.
+    Q_INVOKABLE bool isJuniorOn(const QString &dobIsoDate, qint64 sessionMs) const;
+    // One address or several, comma-separated, each shaped something@something.tld. A shape check,
+    // never a verification. Empty is false — whether a blank is allowed is the caller's decision.
+    Q_INVOKABLE bool validReportEmail(const QString &text) const;
+    // Tick or untick the photo approval. Ticking stamps today's date unless it was already approved
+    // (the date records when consent was GIVEN, not when the box was last pressed); unticking clears it.
+    Q_INVOKABLE void setPhotosApproved(const QString &uuid, bool approved);
+
     Q_INVOKABLE QVariantMap clubsFor(const QString &uuid) const;
     Q_INVOKABLE QVariantMap defaultClubRecord(const QString &clubId) const;  // factory spec defaults (loft/length/shaft)
     Q_INVOKABLE QStringList clubOptions() const;   // canonical vocabulary (club_vocabulary.h)

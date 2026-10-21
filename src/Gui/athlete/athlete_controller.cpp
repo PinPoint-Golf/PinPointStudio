@@ -25,6 +25,7 @@
 #include <QDate>
 #include <QUuid>
 #include <QDateTime>
+#include <QRegularExpression>
 #include <algorithm>
 
 static constexpr auto kGroup         = "athletes";
@@ -44,6 +45,11 @@ static constexpr auto kNotes         = "notes";
 // not recognise degrades to "unknown" rather than to a wrong answer.
 static constexpr auto kDob           = "dob";
 static constexpr auto kSex           = "sex";
+// The session report's details (design §7.3). Absent on every record written before the report.
+static constexpr auto kReportEmail        = "reportEmail";
+static constexpr auto kReportGreeting     = "reportGreeting";
+static constexpr auto kReportPhotosOk     = "reportPhotosApproved";
+static constexpr auto kReportPhotosOkOn   = "reportPhotosApprovedOn";
 static constexpr auto kCreatedAt     = "createdAt";
 static constexpr auto kLastSessionAt = "lastSessionAt";
 static constexpr auto kSessionCount  = "sessionCount";
@@ -143,6 +149,12 @@ void AthleteController::reload()
         m[QStringLiteral("notes")]         = s.value(kNotes,        QString()).toString();
         m[QStringLiteral("dob")]           = s.value(kDob,          QString()).toString();
         m[QStringLiteral("sex")]           = s.value(kSex,          QString()).toString();
+        // Without these four here they would be written and never read back: reload() builds each
+        // record from this fixed list, not from whatever keys the group holds.
+        m[QStringLiteral("reportEmail")]            = s.value(kReportEmail,      QString()).toString();
+        m[QStringLiteral("reportGreeting")]         = s.value(kReportGreeting,   QString()).toString();
+        m[QStringLiteral("reportPhotosApproved")]   = s.value(kReportPhotosOk,   false).toBool();
+        m[QStringLiteral("reportPhotosApprovedOn")] = s.value(kReportPhotosOkOn, QString()).toString();
         m[QStringLiteral("createdAt")]     = s.value(kCreatedAt,    0LL).toLongLong();
         m[QStringLiteral("lastSessionAt")] = s.value(kLastSessionAt,0LL).toLongLong();
         m[QStringLiteral("sessionCount")]  = s.value(kSessionCount, 0).toInt();
@@ -370,6 +382,117 @@ bool AthleteController::updateAthlete(const QString &uuid, const QString &fieldN
 
     reload();
     return true;
+}
+
+// ── The session report's details ────────────────────────────────────────────
+
+// The first word of the name, as the greeting falls back to it: "Nick" for "Nick Henn".
+static QString firstWordOf(const QString &name)
+{
+    const QStringList words = name.trimmed().split(u' ', Qt::SkipEmptyParts);
+    return words.isEmpty() ? QString() : words.first();
+}
+
+static bool juniorOn(const QDate &dob, const QDate &on)
+{
+    if (!dob.isValid() || !on.isValid()) return false;
+    int age = on.year() - dob.year();
+    if (on < dob.addYears(age)) --age;
+    return age < 18;
+}
+
+QString AthleteController::currentReportGreeting() const
+{
+    const QString g = currentField(QStringLiteral("reportGreeting")).trimmed();
+    return g.isEmpty() ? firstWordOf(m_currentName) : g;
+}
+
+bool AthleteController::currentIsJunior() const
+{
+    return juniorOn(QDate::fromString(currentDob(), Qt::ISODate), QDate::currentDate());
+}
+
+QVariantMap AthleteController::reportDetails(const QString &uuidOrName) const
+{
+    const QString key = uuidOrName.trimmed();
+    if (key.isEmpty()) return {};
+    QVariantMap found;
+    for (const QVariant &v : m_athletes) {                 // uuid first: a name can repeat
+        const QVariantMap a = v.toMap();
+        if (a.value(QStringLiteral("uuid")).toString() == key) { found = a; break; }
+    }
+    if (found.isEmpty()) {
+        for (const QVariant &v : m_athletes) {
+            const QVariantMap a = v.toMap();
+            if (a.value(QStringLiteral("name")).toString().trimmed().compare(key, Qt::CaseInsensitive) == 0) { found = a; break; }
+        }
+    }
+    if (found.isEmpty()) return {};
+
+    const QString name     = found.value(QStringLiteral("name")).toString();
+    const QString greeting = found.value(QStringLiteral("reportGreeting")).toString().trimmed();
+    QVariantMap out;
+    out.insert(QStringLiteral("uuid"),             found.value(QStringLiteral("uuid")));
+    out.insert(QStringLiteral("name"),             name);
+    out.insert(QStringLiteral("email"),            found.value(QStringLiteral("reportEmail")).toString().trimmed());
+    out.insert(QStringLiteral("greeting"),         greeting.isEmpty() ? firstWordOf(name) : greeting);
+    out.insert(QStringLiteral("dob"),              found.value(QStringLiteral("dob")).toString());
+    out.insert(QStringLiteral("photosApproved"),   found.value(QStringLiteral("reportPhotosApproved")).toBool());
+    out.insert(QStringLiteral("photosApprovedOn"), found.value(QStringLiteral("reportPhotosApprovedOn")).toString());
+    return out;
+}
+
+bool AthleteController::isJuniorOn(const QString &dobIsoDate, qint64 sessionMs) const
+{
+    const QDate on = sessionMs > 0 ? QDateTime::fromMSecsSinceEpoch(sessionMs).date() : QDate::currentDate();
+    return juniorOn(QDate::fromString(dobIsoDate.trimmed(), Qt::ISODate), on);
+}
+
+bool AthleteController::validReportEmail(const QString &text) const
+{
+    // something@something.tld: no spaces, one @, a dot in the domain with something either side, and
+    // a top-level part of two letters or more. Deliberately loose — a shape check catches the typo
+    // ("nick@gmail", "nick gmail.com"), and the mail program is the real judge.
+    static const QRegularExpression shape(
+        QStringLiteral("^[^\\s@,;]+@[^\\s@,;.]+(\\.[^\\s@,;.]+)*\\.[A-Za-z]{2,}$"));
+    const QStringList parts = text.split(u',');
+    int addresses = 0;
+    for (const QString &p : parts) {
+        const QString a = p.trimmed();
+        if (a.isEmpty()) {
+            // "a@b.com, " while typing the next one is not an error yet; ", ," or a leading comma is.
+            if (&p == &parts.last() && addresses > 0) continue;
+            return false;
+        }
+        if (!shape.match(a).hasMatch()) return false;
+        ++addresses;
+    }
+    return addresses > 0;
+}
+
+void AthleteController::setPhotosApproved(const QString &uuid, bool approved)
+{
+    QSettings s = ppSettings();
+    s.beginGroup(kGroup);
+    const bool exists = s.childGroups().contains(uuid);
+    s.endGroup();
+    if (!exists) return;
+
+    s.beginGroup(kGroup);
+    s.beginGroup(uuid);
+    const bool was = s.value(kReportPhotosOk, false).toBool();
+    if (approved) {
+        s.setValue(kReportPhotosOk, true);
+        if (!was || s.value(kReportPhotosOkOn).toString().isEmpty())
+            s.setValue(kReportPhotosOkOn, QDate::currentDate().toString(Qt::ISODate));
+    } else {
+        s.setValue(kReportPhotosOk, false);
+        s.remove(kReportPhotosOkOn);
+    }
+    s.endGroup();
+    s.endGroup();
+    s.sync();
+    reload();
 }
 
 // Factory defaults per vocabulary club — lofts/lengths guided by Titleist

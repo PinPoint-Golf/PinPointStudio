@@ -44,6 +44,9 @@ Item {
     property var body: null
     property string demoState: ""
     property string surface: "panel"
+    // "" prints in the app's theme (as before); the session report's appendix sets "folio" so it prints in Folio light
+    // like the client pages, whatever the app shows (PpTypeset.fixedAesthetic)
+    property string printAesthetic: ""
 
     // ── data ──
     readonly property var conds: (readout && readout.conditions) || []
@@ -281,7 +284,7 @@ Item {
     PpQuestions { id: qx; visible: false; roles: ro; brush: null; applyToBrush: false }
 
     // ── the two shared objects, declared last ──
-    PpDiagRoles { id: ro; medium: "print" }
+    PpDiagRoles { id: ro; medium: "print"; fixedAesthetic: root.printAesthetic }
     PpBrush {
         id: br
         cards: root.allCards

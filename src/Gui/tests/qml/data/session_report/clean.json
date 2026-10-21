@@ -1,0 +1,594 @@
+{
+ "kind": "clean",
+ "brand": {
+  "studio": "Northfield Golf Studio",
+  "monogram": "NG",
+  "logo": "",
+  "accent": "#1F5A4C",
+  "coach": "Alex Morgan",
+  "coachTitle": "Head coach",
+  "coachLine": "Alex Morgan  ·  Head coach",
+  "contact": "alex@northfieldgolf.example  ·  01234 567890",
+  "web": "northfieldgolf.example",
+  "footLine": "Alex Morgan, Northfield Golf Studio  ·  alex@northfieldgolf.example  ·  01234 567890",
+  "signoff": "Book your next session at northfieldgolf.example or reply to this email.",
+  "coachPhoto": ""
+ },
+ "meta": {
+  "golfer": "Nick Henn",
+  "first": "Nick",
+  "date": "Tuesday 20 October 2026",
+  "dateShort": "20 Oct 2026",
+  "prepared": "20 October 2026",
+  "preparedShort": "20 Oct 2026",
+  "pdfTitle": "Session report — Nick Henn — session of 20 Oct 2026",
+  "fileName": "2026-10-20_Nick-Henn_session-report.pdf",
+  "emailSubject": "Your session report — 20 October 2026",
+  "club": "7 iron",
+  "swings": 10,
+  "sessionOfDay": "Session 3 of 3 today",
+  "hand": "right-handed",
+  "devices": "Down-the-line and face-on cameras · GC Quad launch monitor",
+  "mastheadDate": "Prepared 20 October 2026",
+  "folioDate": "Prepared 20 Oct 2026",
+  "kicker": "Session of Tuesday 20 October 2026  ·  7 iron  ·  10 swings  ·  Session 3 of 3 today",
+  "runningHead": "Nick Henn  ·  session of 20 Oct 2026  ·  7 iron"
+ },
+ "headline": "Nothing repeated often enough to call a habit. Your swings were consistent, and the list below is what to keep an eye on.",
+ "coachNote": "Good work today, Nick.",
+ "photos": {
+  "included": true,
+  "reason": ""
+ },
+ "held": [],
+ "appendix": true,
+ "strengths": [
+  {
+   "text": "No slices.",
+   "count": "0 of 10 swings"
+  },
+  {
+   "text": "Your hips turn in place going back.",
+   "count": "all 10 swings"
+  },
+  {
+   "text": "Your head stays level going back.",
+   "count": "all 10 swings"
+  }
+ ],
+ "found": [],
+ "watching": [
+  {
+   "golfer": "Head sways off the ball",
+   "count": "4 of 10 swings"
+  },
+  {
+   "golfer": "Separation stretched past control",
+   "count": "4 of 10 swings"
+  },
+  {
+   "golfer": "Hips move toward the ball going back",
+   "count": "4 of 10 swings"
+  }
+ ],
+ "workOnsBrief": [],
+ "ball": {
+  "device": "GC Quad",
+  "byline": "measured on every swing by GC Quad",
+  "note": "Typical value (the middle of your 10 swings) in large type; the range from lowest to highest beneath.",
+  "groups": [
+   {
+    "club": "",
+    "tiles": [
+     {
+      "label": "Carry",
+      "value": "148",
+      "unit": "yd",
+      "range": "133–155"
+     },
+     {
+      "label": "Ball speed",
+      "value": "105",
+      "unit": "mph",
+      "range": "98–109"
+     },
+     {
+      "label": "Club speed",
+      "value": "79",
+      "unit": "mph",
+      "range": "76–83"
+     },
+     {
+      "label": "Smash",
+      "value": "1.33",
+      "unit": "",
+      "range": "1.21–1.35"
+     },
+     {
+      "label": "Launch",
+      "value": "22°",
+      "unit": "",
+      "range": "19–23"
+     },
+     {
+      "label": "Spin",
+      "value": "5,009",
+      "unit": "rpm",
+      "range": "4,659–5,624"
+     },
+     {
+      "label": "Club path",
+      "value": "1°",
+      "unit": "in-to-out",
+      "range": "−0.2 to +4.2"
+     },
+     {
+      "label": "Offline",
+      "value": "8",
+      "unit": "yd",
+      "range": "widest, either side"
+     }
+    ]
+   }
+  ],
+  "more": ""
+ },
+ "grid": {
+  "title": "What we measured, swing by swing",
+  "standfirst": "Each row is one thing we measured; each column is one of your ten swings, in the order you hit them. A filled dot means it showed on that swing.",
+  "sessionNote": "",
+  "swings": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10
+  ],
+  "rows": [
+   {
+    "group": "seen",
+    "name": "Head sways off the ball",
+    "marks": [
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean"
+    ],
+    "count": "4 of 10"
+   },
+   {
+    "group": "seen",
+    "name": "Separation stretched past control",
+    "marks": [
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired"
+    ],
+    "count": "4 of 10"
+   },
+   {
+    "group": "seen",
+    "name": "Hips move toward the ball going back",
+    "marks": [
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "4 of 10"
+   },
+   {
+    "group": "ball",
+    "name": "Club returns toe-up at impact",
+    "marks": [
+     "notAssessable",
+     "fired",
+     "fired",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "notAssessable"
+    ],
+    "count": "7 of 7"
+   },
+   {
+    "group": "ball",
+    "name": "Thin",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired"
+    ],
+    "count": "6 of 10"
+   },
+   {
+    "group": "ball",
+    "name": "Face closed to the path",
+    "marks": [
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean"
+    ],
+    "count": "5 of 10"
+   }
+  ],
+  "carry": [
+   133,
+   147,
+   148,
+   147,
+   147,
+   150,
+   133,
+   153,
+   149,
+   155
+  ],
+  "best": 3,
+  "bestText": "Swing 3 came closest to your targets: a 148 yard carry at 105 mph ball speed.",
+  "bestStills": [
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P1.jpg",
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P4.jpg",
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P7.jpg",
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P10.jpg"
+  ],
+  "bestLabels": [
+   "Address",
+   "Top",
+   "Impact",
+   "Finish"
+  ],
+  "groups": [
+   {
+    "key": "seen",
+    "title": "Seen, not yet habits"
+   },
+   {
+    "key": "ball",
+    "title": "What the ball did"
+   }
+  ],
+  "more": {},
+  "carryLabel": "Carry, yards"
+ },
+ "today": {
+  "sessions": [
+   "Session 1 · 8 swings",
+   "Session 2 · 8 swings",
+   "Session 3 · 10 swings"
+  ],
+  "rows": [
+   {
+    "name": "Out-of-order sequence",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 4/4"
+     },
+     {
+      "state": "inconclusive",
+      "text": "1/2"
+     },
+     {
+      "state": "quiet",
+      "text": "2/2"
+     }
+    ]
+   },
+   {
+    "name": "Hips move toward the ball going back",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "quiet",
+      "text": "4/10"
+     }
+    ]
+   }
+  ],
+  "note": "Two habits from earlier today did not repeat in this session.",
+  "more": ""
+ },
+ "order": null,
+ "checks": [],
+ "workOns": [],
+ "practice": null,
+ "numbers": {
+  "cols": [
+   "Swing",
+   "Carry",
+   "Total",
+   "Ball",
+   "Club",
+   "Smash",
+   "Launch",
+   "Spin",
+   "Path",
+   "Face",
+   "Face to path",
+   "Attack",
+   "Offline"
+  ],
+  "units": [
+   "",
+   "yd",
+   "yd",
+   "mph",
+   "mph",
+   "",
+   "°",
+   "rpm",
+   "°",
+   "°",
+   "°",
+   "°",
+   "yd"
+  ],
+  "rows": [
+   {
+    "cells": [
+     "1",
+     "133",
+     "145",
+     "99",
+     "76",
+     "1.29",
+     "19",
+     "5,624",
+     "-0.2",
+     "-1.1",
+     "-0.8",
+     "-3.1",
+     "-2"
+    ]
+   },
+   {
+    "cells": [
+     "2",
+     "147",
+     "158",
+     "104",
+     "78",
+     "1.34",
+     "23",
+     "4,894",
+     "3.7",
+     "0.6",
+     "-3.1",
+     "-0.7",
+     "-2"
+    ]
+   },
+   {
+    "cells": [
+     "3",
+     "148",
+     "159",
+     "105",
+     "78",
+     "1.34",
+     "23",
+     "5,059",
+     "0.7",
+     "-2.5",
+     "-3.2",
+     "-1.1",
+     "-4"
+    ]
+   },
+   {
+    "cells": [
+     "4",
+     "147",
+     "158",
+     "104",
+     "77",
+     "1.35",
+     "22",
+     "4,959",
+     "-0.1",
+     "-1.6",
+     "-1.5",
+     "-1.8",
+     "6"
+    ]
+   },
+   {
+    "cells": [
+     "5",
+     "147",
+     "159",
+     "104",
+     "79",
+     "1.33",
+     "21",
+     "4,824",
+     "0.8",
+     "-2.7",
+     "-3.5",
+     "-2.0",
+     "-6"
+    ]
+   },
+   {
+    "cells": [
+     "6",
+     "150",
+     "162",
+     "106",
+     "79",
+     "1.34",
+     "22",
+     "4,659",
+     "2.9",
+     "-1.0",
+     "-3.8",
+     "-1.0",
+     "3"
+    ]
+   },
+   {
+    "cells": [
+     "7",
+     "133",
+     "146",
+     "98",
+     "81",
+     "1.21",
+     "19",
+     "5,258",
+     "1.4",
+     "1.5",
+     "0.1",
+     "-1.7",
+     "5"
+    ]
+   },
+   {
+    "cells": [
+     "8",
+     "153",
+     "164",
+     "108",
+     "81",
+     "1.34",
+     "20",
+     "5,319",
+     "1.3",
+     "-1.5",
+     "-2.8",
+     "-2.0",
+     "-8"
+    ]
+   },
+   {
+    "cells": [
+     "9",
+     "149",
+     "161",
+     "105",
+     "80",
+     "1.32",
+     "22",
+     "4,879",
+     "2.5",
+     "-2.1",
+     "-4.5",
+     "-1.8",
+     "5"
+    ]
+   },
+   {
+    "cells": [
+     "10",
+     "155",
+     "166",
+     "109",
+     "83",
+     "1.32",
+     "22",
+     "5,074",
+     "4.2",
+     "5.3",
+     "1.1",
+     "-1.2",
+     "-4"
+    ]
+   }
+  ],
+  "typical": [
+   {
+    "cells": [
+     "Typical",
+     "148",
+     "159",
+     "105",
+     "79",
+     "1.33",
+     "22",
+     "5,009",
+     "1.4",
+     "-1.3",
+     "-2.9",
+     "-1.7",
+     "-2"
+    ]
+   }
+  ],
+  "habitsHead": "",
+  "note": "Path, face and offline: positive is right of target, negative left (right-handed golfer). Typical: the middle value of your ten swings."
+ },
+ "about": {
+  "dates": "This report covers your session on Tuesday 20 October 2026 and was prepared on 20 October 2026. If a session is re-analysed, the report is prepared again and carries the new date.",
+  "measured": "10 swings with a 7 iron, filmed down-the-line and face-on at high frame rate, with every ball measured by a GC Quad. Your body positions are read from the video by pose tracking; the club and ball numbers come from the launch monitor.",
+  "ranges": "Each habit is judged against a target range. Most ranges are coaching judgement, set from what good ball-strikers do; a few come from published measurements. They are not fitted to you. A swing outside the range is not a mistake in itself — it is where the evidence points.",
+  "notChecked": "Some things could not be checked on every swing: pelvis peak a spike (10 of 10); chest peak out of sight (10 of 10); club peak drawn, not judged (10 of 10). Nothing in this report depends on them.",
+  "words": [
+   [
+    "Habit",
+    "something that showed on most swings — at least 3, and often enough that it is not chance"
+   ],
+   [
+    "Target range",
+    "where a good ball-striker's swing usually is at that point"
+   ],
+   [
+    "Work-on",
+    "a habit you can practise your way out of, in the order to work on it"
+   ],
+   [
+    "P1 … P10",
+    "the ten positions of the swing, from address (P1) through the top (P4) and impact (P7) to the finish (P10)"
+   ]
+  ],
+  "footnote": "Measured and prepared with PinPoint Studio. Swing images show only the golfer; video stays in the studio."
+ }
+}

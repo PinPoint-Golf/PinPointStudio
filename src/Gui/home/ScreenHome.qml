@@ -33,6 +33,12 @@ Item {
     // YOUR SWING's "Swing diagnostics →" row: open the technical layer (ScreenSwingDiagnostics),
     // where the faults and what goes together now live.
     signal swingDiagnosticsRequested()
+    // The Sessions section (session report, docs/design/session_report_design.md §8.0): a row's "Open
+    // session"; "Show all N sessions" (the golfer page's Sessions tab); a missing detail's link to where it
+    // is entered — Settings → Studio, or the golfer's own page.
+    signal reviewSessionRequested(string sessionDir)
+    signal athleteSessionsRequested()
+    signal studioSettingsRequested()
 
     property int    selectedType: 1   // default to Wrist — the only startable type today
     // Session types not yet implemented: badged "coming soon" tiles that open
@@ -772,6 +778,45 @@ Item {
                     id: warnNotice
                     anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                     message: resourceMonitor.warnings.length > 0 ? resourceMonitor.warnings[0] : ""
+                }
+            }
+
+            // ── Section 5: Sessions ──────────────────────────────────────────
+            //
+            // The current golfer's sessions, newest ten, each with its report: Open session, Report
+            // (or Make / Remake report), Email to the golfer (docs/design/session_report_design.md
+            // §8.0). The live session sits at the top with Open session only. "Show all N sessions"
+            // is the golfer page's Sessions tab. Last on the screen: it is the archive, read after
+            // the work of today is set up.
+            Column {
+                objectName: "homeSessionsSection"
+                visible: athleteController.hasCurrentAthlete
+                height:  visible ? implicitHeight : 0
+                width:   parent.width
+                spacing: 0
+
+                Item { width: 1; height: Theme.sp(44) }
+                Item {
+                    width:  parent.width
+                    height: Theme.sp(34)
+                    Text {
+                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                        text:               Theme.caps(qsTr("Sessions"))
+                        font.family:        Theme.fontData
+                        font.pixelSize:     Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingMicro
+                        color:              Theme.colorText3
+                    }
+                }
+                PpSessionReportList {
+                    objectName: "homeSessionList"
+                    width: parent.width
+                    limit: 10
+                    onShowAll:                 root.athleteSessionsRequested()
+                    onReviewSessionRequested:  (dir) => root.reviewSessionRequested(dir)
+                    onStudioSettingsRequested: root.studioSettingsRequested()
+                    // The golfer's details live on their own page (the address, the photo approval).
+                    onGolferDetailsRequested:  root.editCurrentAthleteRequested()
                 }
             }
 

@@ -77,6 +77,11 @@
 #include "session_controller.h"
 #include "session_review_controller.h"
 #include "work_ons_controller.h"
+#include "studio_profile.h"
+#include "report/session_report_model.h"
+#include "report/session_report_list_model.h"
+#include "report/report_mailer.h"
+#include "../Diagnostics/packs/pack_provider.h"
 #include "shot_controller.h"
 #include "shot_list_model.h"
 #include "../Export/swing_doc.h"
@@ -334,6 +339,54 @@ int main(int argc, char *argv[])
                          [&workOns, &sessionController] { workOns.setPaused(sessionController.activeSessionType() >= 0); },
                          Qt::QueuedConnection);
         QTimer::singleShot(3'000, &workOns, repoint);
+    }
+
+    // THE SESSION REPORT (docs/design/session_report_design.md) — the studio and its one coach, the
+    // model that makes a session's report, the golfer's session list with each report's state, and the
+    // hand-off to the coach's mail app. The list follows the current athlete exactly as the work-ons do
+    // (and honours the same PINPOINT_WORKONS_DIR dev seam), and refreshes when a work-on record lands.
+    StudioProfile          studioProfile;
+    SessionReportModel     sessionReport;
+    SessionReportListModel sessionReportList;
+    ReportMailer           reportMailer;
+    sessionReport.setStudioProfile(&studioProfile);
+    sessionReport.setAthleteController(&athleteController);
+    sessionReportList.setReportModel(&sessionReport);
+    {
+        const auto athleteDir = [&appSettings, &athleteController]() -> QString {
+            const QString forced = qEnvironmentVariable("PINPOINT_WORKONS_DIR");
+            if (!forced.isEmpty()) return forced;
+            const QString root = appSettings.athleteLibraryPath();
+            const QString name = athleteController.currentName();
+            if (root.isEmpty() || name.isEmpty()) return {};
+            return root + QStringLiteral("/") + pinpoint::SwingPaths::sanitise(name);
+        };
+        const auto repoint = [&sessionReportList, athleteDir] { sessionReportList.setAthleteDir(athleteDir()); };
+        QObject::connect(&athleteController, &AthleteController::currentAthleteChanged, &sessionReportList, repoint);
+        QObject::connect(&appSettings, &AppSettings::athleteLibraryPathChanged, &sessionReportList, repoint);
+        // setReportModel already follows stateChanged(dir) for that one row; a work-on record landing
+        // re-scans (work-on 1 and the swing count can both have moved). The live session's row offers
+        // Open session only, and work-on 1 is quoted as the pack's goal, from the pack itself.
+        // "Live" means a session is RUNNING, as the work-ons pause reads it — not merely that the
+        // carousel holds a session's shots: at launch the carousel restores the golfer's latest
+        // session, and that session must still offer its report.
+        const auto followLive = [&sessionReportList, &sessionReviewController, &sessionController] {
+            sessionReportList.setLiveSessionDir(sessionController.activeSessionType() >= 0
+                                                    ? sessionReviewController.liveSessionDir() : QString());
+        };
+        QObject::connect(&sessionReviewController, &SessionReviewController::liveSessionDirChanged,
+                         &sessionReportList, followLive);
+        QObject::connect(&sessionController, &SessionController::activeSessionTypeChanged,
+                         &sessionReportList, followLive);
+        followLive();
+        sessionReportList.setGoalResolver(
+            [pack = std::shared_ptr<pinpoint::analysis::ICharacteristicPackProvider>()](const QString &id) mutable {
+                if (!pack) pack = pinpoint::analysis::makeCharacteristicPackProvider();
+                const pinpoint::analysis::Condition *c = pack->pack().condition(id);
+                return c ? c->goal : QString();
+            });
+        QObject::connect(&workOns, &WorkOnsController::itemsChanged, &sessionReportList, &SessionReportListModel::refresh);
+        QTimer::singleShot(3'500, &sessionReportList, repoint);
     }
 
     // The startup housekeeping pass (trash retention, archive by age / below a floor), every part
@@ -1118,6 +1171,16 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("motionCaptureProbe"), &motionCaptureProbe);
     engine.rootContext()->setContextProperty(QStringLiteral("sessionReviewController"), &sessionReviewController);
     engine.rootContext()->setContextProperty(QStringLiteral("workOns"),           &workOns);
+    // These four live on main()'s stack. Mark them C++-owned explicitly: the QML engine otherwise came to
+    // treat the report model as its own and its garbage collector deleteLater()'d it a few seconds into a
+    // windowed launch ("pointer being freed was not allocated" in ~SessionReportModel, 21 Oct 2026).
+    for (QObject *o : { static_cast<QObject *>(&studioProfile), static_cast<QObject *>(&sessionReport),
+                        static_cast<QObject *>(&sessionReportList), static_cast<QObject *>(&reportMailer) })
+        QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
+    engine.rootContext()->setContextProperty(QStringLiteral("studioProfile"),     &studioProfile);
+    engine.rootContext()->setContextProperty(QStringLiteral("sessionReport"),     &sessionReport);
+    engine.rootContext()->setContextProperty(QStringLiteral("sessionReportList"), &sessionReportList);
+    engine.rootContext()->setContextProperty(QStringLiteral("reportMailer"),      &reportMailer);
     engine.rootContext()->setContextProperty(QStringLiteral("shotController"),    &shotController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotProcessor"),     &shotProcessor);
     engine.rootContext()->setContextProperty(QStringLiteral("shotReplay"),        &shotReplay);

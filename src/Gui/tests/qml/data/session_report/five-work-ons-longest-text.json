@@ -1,0 +1,1749 @@
+{
+ "kind": "report",
+ "brand": {
+  "studio": "Northfield Golf Studio",
+  "monogram": "NG",
+  "logo": "",
+  "accent": "#1F5A4C",
+  "coach": "Alex Morgan",
+  "coachTitle": "Head coach",
+  "coachLine": "Alex Morgan  ·  Head coach",
+  "contact": "alex@northfieldgolf.example  ·  01234 567890",
+  "web": "northfieldgolf.example",
+  "footLine": "Alex Morgan, Northfield Golf Studio  ·  alex@northfieldgolf.example  ·  01234 567890",
+  "signoff": "Book your next session at northfieldgolf.example or reply to this email.",
+  "coachPhoto": ""
+ },
+ "meta": {
+  "golfer": "Nick Henn",
+  "first": "Nick",
+  "date": "Tuesday 20 October 2026",
+  "dateShort": "20 Oct 2026",
+  "prepared": "20 October 2026",
+  "preparedShort": "20 Oct 2026",
+  "pdfTitle": "Session report — Nick Henn — session of 20 Oct 2026",
+  "fileName": "2026-10-20_Nick-Henn_session-report.pdf",
+  "emailSubject": "Your session report — 20 October 2026",
+  "club": "7 iron",
+  "swings": 10,
+  "sessionOfDay": "Session 3 of 3 today",
+  "hand": "right-handed",
+  "devices": "Down-the-line and face-on cameras · GC Quad launch monitor",
+  "mastheadDate": "Prepared 20 October 2026",
+  "folioDate": "Prepared 20 Oct 2026",
+  "kicker": "Session of Tuesday 20 October 2026  ·  7 iron  ·  10 swings  ·  Session 3 of 3 today",
+  "runningHead": "Nick Henn  ·  session of 20 Oct 2026  ·  7 iron"
+ },
+ "headline": "Five habits showed on almost every swing. We start with your backswing: keep your lead arm connected to your chest until past impact.",
+ "coachNote": "Good work today, Nick.",
+ "photos": {
+  "included": true,
+  "reason": ""
+ },
+ "held": [],
+ "appendix": true,
+ "strengths": [
+  {
+   "text": "No slices.",
+   "count": "0 of 10 swings"
+  },
+  {
+   "text": "Your hips turn in place going back.",
+   "count": "all 10 swings"
+  },
+  {
+   "text": "Your head stays level going back.",
+   "count": "all 10 swings"
+  }
+ ],
+ "found": [
+  {
+   "name": "Trail knee straightens",
+   "golfer": "Your trail leg straightens going back",
+   "count": "10 of 10 swings"
+  },
+  {
+   "name": "Hips under-rotated at impact",
+   "golfer": "Your hips haven't turned enough by impact",
+   "count": "10 of 10 swings"
+  },
+  {
+   "name": "Early extension",
+   "golfer": "You stand up through the ball",
+   "count": "10 of 10 swings"
+  },
+  {
+   "name": "Over the top",
+   "golfer": "Your hands come over the top coming down",
+   "count": "10 of 10 swings"
+  },
+  {
+   "name": "Reverse spine angle at P4",
+   "golfer": "You lean toward the target at the top",
+   "count": "9 of 10 swings"
+  }
+ ],
+ "watching": [],
+ "workOnsBrief": [
+  {
+   "rank": 1,
+   "goal": "Keep your lead arm connected to your chest until past impact",
+   "drill": "Hinge and let the arms hang"
+  },
+  {
+   "rank": 2,
+   "goal": "Your arms hang freely at address, with room between your han",
+   "drill": "Backside on the wall"
+  },
+  {
+   "rank": 3,
+   "goal": "Keep your lead arm connected to your chest until past impact",
+   "drill": "Stance and ball-position sticks"
+  },
+  {
+   "rank": 4,
+   "goal": "The club comes into the ball at the right angle for the club",
+   "drill": "Hold the top in the mirror"
+  },
+  {
+   "rank": 5,
+   "goal": "Keep your lead arm connected to your chest until past impact",
+   "drill": "Two sticks for aim"
+  }
+ ],
+ "ball": {
+  "device": "GC Quad",
+  "byline": "measured on every swing by GC Quad",
+  "note": "Typical value (the middle of your 10 swings) in large type; the range from lowest to highest beneath.",
+  "groups": [
+   {
+    "club": "",
+    "tiles": [
+     {
+      "label": "Carry",
+      "value": "148",
+      "unit": "yd",
+      "range": "133–155"
+     },
+     {
+      "label": "Ball speed",
+      "value": "105",
+      "unit": "mph",
+      "range": "98–109"
+     },
+     {
+      "label": "Club speed",
+      "value": "79",
+      "unit": "mph",
+      "range": "76–83"
+     },
+     {
+      "label": "Smash",
+      "value": "1.33",
+      "unit": "",
+      "range": "1.21–1.35"
+     },
+     {
+      "label": "Launch",
+      "value": "22°",
+      "unit": "",
+      "range": "19–23"
+     },
+     {
+      "label": "Spin",
+      "value": "5,009",
+      "unit": "rpm",
+      "range": "4,659–5,624"
+     },
+     {
+      "label": "Club path",
+      "value": "1°",
+      "unit": "in-to-out",
+      "range": "−0.2 to +4.2"
+     },
+     {
+      "label": "Offline",
+      "value": "8",
+      "unit": "yd",
+      "range": "widest, either side"
+     }
+    ]
+   }
+  ],
+  "more": ""
+ },
+ "grid": {
+  "title": "Your habits, swing by swing",
+  "standfirst": "Each row is one thing we measured; each column is one of your ten swings, in the order you hit them. A filled dot means it showed on that swing.",
+  "sessionNote": "",
+  "swings": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10
+  ],
+  "rows": [
+   {
+    "group": "habit",
+    "name": "Trail knee straightens",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "10 of 10"
+   },
+   {
+    "group": "habit",
+    "name": "Hips under-rotated at impact",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "10 of 10"
+   },
+   {
+    "group": "habit",
+    "name": "Early extension",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "10 of 10"
+   },
+   {
+    "group": "habit",
+    "name": "Over the top",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "10 of 10"
+   },
+   {
+    "group": "habit",
+    "name": "Reverse spine angle at P4",
+    "marks": [
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "9 of 10"
+   },
+   {
+    "group": "seen",
+    "name": "Head sways off the ball",
+    "marks": [
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean"
+    ],
+    "count": "4 of 10"
+   },
+   {
+    "group": "seen",
+    "name": "Separation stretched past control",
+    "marks": [
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired"
+    ],
+    "count": "4 of 10"
+   },
+   {
+    "group": "seen",
+    "name": "Hips move toward the ball going back",
+    "marks": [
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "4 of 10"
+   },
+   {
+    "group": "ball",
+    "name": "Club returns toe-up at impact",
+    "marks": [
+     "notAssessable",
+     "fired",
+     "fired",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "notAssessable"
+    ],
+    "count": "7 of 7"
+   },
+   {
+    "group": "ball",
+    "name": "Thin",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired"
+    ],
+    "count": "6 of 10"
+   },
+   {
+    "group": "ball",
+    "name": "Face closed to the path",
+    "marks": [
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean"
+    ],
+    "count": "5 of 10"
+   }
+  ],
+  "carry": [
+   133,
+   147,
+   148,
+   147,
+   147,
+   150,
+   133,
+   153,
+   149,
+   155
+  ],
+  "best": 3,
+  "bestText": "Swing 3 came closest to your targets: a 148 yard carry at 105 mph ball speed.",
+  "bestStills": [
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P1.jpg",
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P4.jpg",
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P7.jpg",
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P10.jpg"
+  ],
+  "bestLabels": [
+   "Address",
+   "Top",
+   "Impact",
+   "Finish"
+  ],
+  "groups": [
+   {
+    "key": "habit",
+    "title": "Your habits — the five work-ons"
+   },
+   {
+    "key": "seen",
+    "title": "Seen, not yet habits"
+   },
+   {
+    "key": "ball",
+    "title": "What the ball did"
+   }
+  ],
+  "more": {},
+  "carryLabel": "Carry, yards"
+ },
+ "today": {
+  "sessions": [
+   "Session 1 · 8 swings",
+   "Session 2 · 8 swings",
+   "Session 3 · 10 swings"
+  ],
+  "rows": [
+   {
+    "name": "Trail knee straightens",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 10/10"
+     }
+    ]
+   },
+   {
+    "name": "Hips under-rotated at impact",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 10/10"
+     }
+    ]
+   },
+   {
+    "name": "Early extension",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 10/10"
+     }
+    ]
+   },
+   {
+    "name": "Over the top",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 10/10"
+     }
+    ]
+   },
+   {
+    "name": "Reverse spine angle at P4",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 9/10"
+     }
+    ]
+   },
+   {
+    "name": "Out-of-order sequence",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 4/4"
+     },
+     {
+      "state": "inconclusive",
+      "text": "1/2"
+     },
+     {
+      "state": "quiet",
+      "text": "2/2"
+     }
+    ]
+   },
+   {
+    "name": "Hips move toward the ball going back",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "quiet",
+      "text": "4/10"
+     }
+    ]
+   }
+  ],
+  "note": "Five of today's habits were already there in your first session. Out-of-order sequence was a habit earlier today; this session could only judge it on two swings, too few to say. Hips move toward the ball going back was a habit earlier today and came down to 4 of 10 here.",
+  "more": ""
+ },
+ "order": {
+  "intro": "Your list is ordered by three rules, applied in turn. Here is each rule and what it did today.",
+  "rules": [
+   {
+    "title": "What is still happening comes first",
+    "body": "A habit you started fixing during the session goes to the back of the list.",
+    "today": "None of the five eased during the session, so this rule changed nothing today."
+   },
+   {
+    "title": "Causes before the things they cause",
+    "body": "When one habit sets up another, working on the first often fixes the second for free. We only put one behind another when your swings show it: the second goes away on the swings where the first does.",
+    "today": "It could not be tested today. All five showed on every swing (or all but one), so there is no swing without one to compare against."
+   },
+   {
+    "title": "Then the biggest miss first",
+    "body": "Each habit is measured against a target range. The one that missed by most, for its range, comes first.",
+    "today": "This is what set today's order. The bars below show how far each one missed."
+   }
+  ],
+  "items": [
+   {
+    "rank": 1,
+    "name": "Trail knee straightens",
+    "goal": "Keep your lead arm connected to your chest until past impact",
+    "phase": "P4",
+    "share": 1.0,
+    "count": "10 of 10 swings"
+   },
+   {
+    "rank": 2,
+    "name": "Hips under-rotated at impact",
+    "goal": "Your arms hang freely at address, with room between your han",
+    "phase": "P7",
+    "share": 0.963,
+    "count": "10 of 10 swings"
+   },
+   {
+    "rank": 3,
+    "name": "Early extension",
+    "goal": "Keep your lead arm connected to your chest until past impact",
+    "phase": "P7",
+    "share": 0.727,
+    "count": "10 of 10 swings"
+   },
+   {
+    "rank": 4,
+    "name": "Over the top",
+    "goal": "The club comes into the ball at the right angle for the club",
+    "phase": "P6",
+    "share": 0.7,
+    "count": "10 of 10 swings"
+   },
+   {
+    "rank": 5,
+    "name": "Reverse spine angle at P4",
+    "goal": "Keep your lead arm connected to your chest until past impact",
+    "phase": "P4",
+    "share": 0.658,
+    "count": "9 of 10 swings"
+   }
+  ],
+  "links": [
+   {
+    "from": "Over the top",
+    "to": "Early extension",
+    "words": "Linked in the coaching model. This session cannot test it, because both happened on every swing."
+   }
+  ],
+  "notListed": [
+   {
+    "name": "Club returns toe-up at impact (7 of 7)",
+    "why": "A result, not a movement to practise: the coaching model links it to early extension (work-on 3). Fix that, and it should follow."
+   },
+   {
+    "name": "Thin (6 of 10)",
+    "why": "Something the ball did, not a movement to practise. It is on the watch list until it repeats often enough to call a habit."
+   }
+  ],
+  "timeline": [
+   {
+    "rank": 1,
+    "pos": 1.6
+   },
+   {
+    "rank": 2,
+    "pos": 4
+   },
+   {
+    "rank": 3,
+    "pos": 4.3
+   },
+   {
+    "rank": 4,
+    "pos": 3
+   },
+   {
+    "rank": 5,
+    "pos": 2
+   }
+  ],
+  "timelineNote": "Your first work-on is also the earliest in the swing. Habits early in the swing tend to set up the ones after them, which is one more reason to start there.",
+  "barsNote": "Bar: how far outside its target range each habit went, compared with the range’s own width. The longest bar goes first."
+ },
+ "checks": [
+  {
+   "title": "A quick physical test would tell. Each could sit behind two or more of your work-ons:",
+   "body": "Lead-hip mobility (3, 4) · Upper-back mobility (4, 5) · Trail-hip mobility (3, 5) · Core stability (3, 5) · Turning your hips without your chest (3, 4)"
+  },
+  {
+   "title": "Your coach can look; the cameras can't see these yet:",
+   "body": "Across the line at the top (4) · Flat lower back at address (5) · Flat shoulder plane (4) · Club taken inside (4) · Club taken outside (4)"
+  }
+ ],
+ "workOns": [
+  {
+   "rank": 1,
+   "id": "trail_knee_straighten",
+   "name": "Trail knee straightens",
+   "goal": "Keep your lead arm connected to your chest until past impact",
+   "phase": "P4",
+   "phaseWords": "at the top",
+   "also": "“standing up on it going back”",
+   "count": "10 of 10 swings",
+   "saw": "Your trail leg straightens going back — on all 10 swings, steady from first swing to last. Typical trail-knee bend lost by the top: 22°, against a target of less than 12°. It was there from your first swing to your last, and it did not ease as the session went on.",
+   "why": "When the club moves only a little faster than your arms, the last and biggest jump in speed in the chain is small, so the club arrives with less of the speed your body made.",
+   "cameWith": "It came with club returns toe-up at impact (7 of the 7 swings we could see) and with a thin strike (6 of 10). That fits the coaching model, though showing up together is not proof that one causes the other. And on every swing, your head stayed level going back and your hips turned in place.",
+   "causes": {
+    "lead": "We checked every cause we know of for this one, and each was fine — so it may come from something we can't yet put a name to. Worth talking through with your coach.",
+    "rows": [
+     {
+      "kind": "ruledOut",
+      "title": "Ruled out — measured, and fine",
+      "items": [
+       "You squat too much at address"
+      ],
+      "more": "",
+      "note": ""
+     }
+    ]
+   },
+   "drills": [
+    {
+     "label": "Hinge and let the arms hang",
+     "instruction": "Stand tall holding the club out in front of you at chest height. Push your hips back and tip your chest forward until the club touches the ground, then let your knees soften. Let your arms hang straight down from your shoulders, and step in or out until the club sits behind the ball with about a hand's width between your hands and your thighs. Rehearse it five times before each practice session.",
+     "targets": "To feel the clubface turning with the arms and body through the ball: a face looking at the sky after impact has been held open, and one looking at the ground has turned over too fast.",
+     "note": "A held position is not a swing: use it to learn what impact feels like, then hit gentle shots trying to pass through it. If your hips will not open without your shoulders opening too, that is a mobility question before it is a practice one.",
+     "equipment": "an alignment stick and a mirror or a phone on a stand"
+    },
+    {
+     "label": "Impact hold",
+     "instruction": "Make slow swings to impact and stop there. Check three things: your belt buckle points between the ball and the target, your trail heel is just off the ground, and your hands are level with your lead thigh with the shaft leaning a little toward the target. Hold for two seconds, then finish the swing slowly.",
+     "targets": "To feel where your body and hands need to be when the club reaches the ball.",
+     "note": "A held position is not a swing: use it to learn what impact feels like, then hit gentle shots trying to pass through it. If your hips will not open without your shoulders opening too, that is a mobility question before it is a practice one.",
+     "equipment": ""
+    }
+   ],
+   "cue": "Feel your trail knee stay soft and flexed, pointing at the ball, while your trail pocket turns behind you and your weight settles into the inside of your trail foot. Let the turn happen above the knee, never through it.",
+   "check": "Film from down the line with the phone at hip height, level, pointing at your hands. Pause at the top: your trail knee should be about as bent as it was at address, and still over the ball of your foot, not behind it.",
+   "target": "Trail-knee bend lost by the top: less than 12°, on most swings. Today: 22°. Keep it there for most of a session before you move on to the next work-on.",
+   "figure": {
+    "unit": "°",
+    "decimals": 0,
+    "bands": [
+     {
+      "grade": "action",
+      "lo": 18,
+      "hi": 24.735678004898478
+     },
+     {
+      "grade": "watch",
+      "lo": 12,
+      "hi": 18
+     },
+     {
+      "grade": "good",
+      "lo": 6,
+      "hi": 12
+     },
+     {
+      "grade": "ideal",
+      "lo": 0,
+      "hi": 6
+     },
+     {
+      "grade": "open",
+      "lo": -0.9513722309576338,
+      "hi": 0
+     }
+    ],
+    "points": [
+     {
+      "swing": 1,
+      "value": 18.90800117629965,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 2,
+      "value": 23.784305773940844,
+      "state": "fired",
+      "text": "−24°"
+     },
+     {
+      "swing": 3,
+      "value": 16.295295999644708,
+      "state": "fired",
+      "text": "−16°"
+     },
+     {
+      "swing": 4,
+      "value": 18.3683461418682,
+      "state": "fired",
+      "text": "−18°"
+     },
+     {
+      "swing": 5,
+      "value": 21.4706759174352,
+      "state": "fired",
+      "text": "−21°"
+     },
+     {
+      "swing": 6,
+      "value": 22.004755547254035,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 7,
+      "value": 21.648525745997347,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 8,
+      "value": 21.605083543492242,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 9,
+      "value": 19.20507656020476,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 10,
+      "value": 23.646459089322207,
+      "state": "fired",
+      "text": "−24°"
+     }
+    ],
+    "medianText": "−22°"
+   },
+   "figureLabel": "Each dot is one swing: trail-knee bend lost by the top, in degrees.",
+   "stills": [
+    {
+     "src": "file:///mnt/swingdata/scratch/session-report/out/nick/stills/o0005_DTL_P1_knee.jpg",
+     "caption": "Address, swing 5",
+     "value": "",
+     "note": "Your typical swing (swing 5). The line is your trail leg, hip to knee to ankle."
+    },
+    {
+     "src": "file:///mnt/swingdata/scratch/session-report/out/nick/stills/o0005_DTL_P4_knee.jpg",
+     "caption": "Top",
+     "value": "21° lost",
+     "note": ""
+    }
+   ],
+   "kicker": "Work-on 1 of 5  ·  P4, at the top  ·  10 of 10 swings",
+   "coachTerm": "Coaches call the habit <i>Trail knee straightens</i>, or “standing up on it going back”."
+  },
+  {
+   "rank": 2,
+   "id": "hips_closed_at_impact",
+   "name": "Hips under-rotated at impact",
+   "goal": "Your arms hang freely at address, with room between your han",
+   "phase": "P7",
+   "phaseWords": "at impact",
+   "also": "“hips not clearing”, “blocked”",
+   "count": "10 of 10 swings",
+   "saw": "Your hips haven't turned enough by impact — on all 10 swings, steady from first swing to last. Typical hip turn at impact: 3°, against a target of 18° to 58°. It was there from your first swing to your last, and it did not ease as the session went on.",
+   "why": "When the club reaches full speed before your arms have, your arms can no longer add to it, and the club is already past its best by the time it reaches the ball.",
+   "cameWith": "It came with club returns toe-up at impact (7 of the 7 swings we could see) and with a thin strike (6 of 10). That fits the coaching model, though showing up together is not proof that one causes the other. And on every swing, your head stayed level going back and your hips turned in place.",
+   "causes": {
+    "lead": "We checked every cause we know of for this one, and each was fine — so it may come from something we can't yet put a name to. Worth talking through with your coach.",
+    "rows": [
+     {
+      "kind": "ruledOut",
+      "title": "Ruled out — measured, and fine",
+      "items": [
+       "Your hips are slow to start turning coming down"
+      ],
+      "more": "",
+      "note": ""
+     }
+    ]
+   },
+   "drills": [
+    {
+     "label": "Backside on the wall",
+     "instruction": "Stand with your back to a wall and set up so that your backside just touches it, with a club held across your chest. Turn slowly to the top and back down to where impact would be. Your trail back pocket should stay on the wall going back, and your lead back pocket should find it as you turn through, without pushing hard into it or coming away from it.",
+     "targets": "To feel the arms, body and club working together at a speed your balance can support, rather than the body lunging or the arms going on their own.",
+     "note": "A position held still is easier than one passed through at speed: once it feels normal held, test it in half swings before full ones. If you cannot reach the position even slowly, that is a mobility question before it is a practice one.",
+     "equipment": "an alignment stick and a mirror or a phone on a stand"
+    },
+    {
+     "label": "Card on the lead wrist",
+     "instruction": "Slide a playing card or a folded scorecard under your glove strap or watch strap, flat against the back of your lead wrist. Make slow swings to the top and to impact, keeping the card lying flat: if it digs into your wrist, the wrist has cupped; if its end lifts away from your hand, the wrist has bowed.",
+     "targets": "To feel what a flat lead wrist is like at the top and into impact.",
+     "note": "The grip comes first: a grip turned well to one side sets the wrist cupped or bowed before the swing starts, and no wrist drill outlasts it. If the wrist cannot reach flat in slow motion, screen its mobility before repeating this.",
+     "equipment": ""
+    }
+   ],
+   "cue": "Feel your trail knee stay soft and flexed, pointing at the ball, while your trail pocket turns behind you and your weight settles into the inside of your trail foot. Let the turn happen above the knee, never through it.",
+   "check": "Film from down the line with the phone at hip height, level, pointing at your hands. Pause at the top: your trail knee should be about as bent as it was at address, and still over the ball of your foot, not behind it.",
+   "target": "Hip turn at impact: 18° to 58°, on most swings. Today: 3°. Keep it there for most of a session before you move on to the next work-on.",
+   "figure": {
+    "unit": "°",
+    "decimals": 0,
+    "bands": [
+     {
+      "grade": "action",
+      "lo": -2.5,
+      "hi": 8
+     },
+     {
+      "grade": "watch",
+      "lo": 8,
+      "hi": 18
+     },
+     {
+      "grade": "good",
+      "lo": 18,
+      "hi": 28
+     },
+     {
+      "grade": "ideal",
+      "lo": 28,
+      "hi": 48
+     },
+     {
+      "grade": "good",
+      "lo": 48,
+      "hi": 58
+     },
+     {
+      "grade": "watch",
+      "lo": 58,
+      "hi": 68
+     },
+     {
+      "grade": "action",
+      "lo": 68,
+      "hi": 78.5
+     }
+    ],
+    "points": [
+     {
+      "swing": 1,
+      "value": 5.643165512159556,
+      "state": "fired",
+      "text": "6°"
+     },
+     {
+      "swing": 2,
+      "value": 3.3949052704382883,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 3,
+      "value": 1.1750320341462086,
+      "state": "fired",
+      "text": "1°"
+     },
+     {
+      "swing": 4,
+      "value": 7.264444372865225,
+      "state": "fired",
+      "text": "7°"
+     },
+     {
+      "swing": 5,
+      "value": 3.4958727938955305,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 6,
+      "value": 2.2841212478748707,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 7,
+      "value": 2.3132859657624736,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 8,
+      "value": 3.8476774523983472,
+      "state": "fired",
+      "text": "4°"
+     },
+     {
+      "swing": 9,
+      "value": 3.013295350331602,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 10,
+      "value": 8.25071784010312,
+      "state": "fired",
+      "text": "8°"
+     }
+    ],
+    "medianText": "3°"
+   },
+   "figureLabel": "Each dot is one swing: hip turn at impact, in degrees.",
+   "stills": [
+    {
+     "src": "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0005_Face-On_P7.jpg",
+     "caption": "Typical, swing 5",
+     "value": "3°",
+     "note": "Every swing looked much like this one."
+    }
+   ],
+   "kicker": "Work-on 2 of 5  ·  P7, at impact  ·  10 of 10 swings",
+   "coachTerm": "Coaches call the habit <i>Hips under-rotated at impact</i>, or “hips not clearing”, “blocked”."
+  },
+  {
+   "rank": 3,
+   "id": "early_extension",
+   "name": "Early extension",
+   "goal": "Keep your lead arm connected to your chest until past impact",
+   "phase": "P7",
+   "phaseWords": "at impact",
+   "also": "“standing up”, “hip thrust toward the ball”",
+   "count": "10 of 10 swings",
+   "saw": "You stand up through the ball — on all 10 swings, steady from first swing to last. Typical posture lost by impact: 12.9°, against a target of less than 5°. It was there from your first swing to your last, and it did not ease as the session went on.",
+   "why": "Hips still turning flat out at the ball keep your chest and arms from overtaking them, so the speed stays in your body instead of reaching the club.",
+   "cameWith": "It came with club returns toe-up at impact (7 of the 7 swings we could see) and with a thin strike (6 of 10). That fits the coaching model, though showing up together is not proof that one causes the other. And on every swing, your head stayed level going back and your hips turned in place.",
+   "causes": {
+    "lead": "One possible cause showed up on the same swings. Because both happened on every swing, we can't prove one drives the other — so here is what we spotted, what we couldn't check, and what we've ruled out.",
+    "rows": [
+     {
+      "kind": "seen",
+      "title": "What we spotted",
+      "items": [
+       "Your hands come over the top coming down — on 10 of 10 swings, work-on 4"
+      ],
+      "more": "",
+      "note": "it fits, but isn't proof"
+     },
+     {
+      "kind": "possible",
+      "title": "Could be behind it — we couldn't check",
+      "items": [
+       "<i>A quick physical test would tell:</i> Lead-hip mobility · Turning your hips without your chest · Trail-hip mobility · Core stability · Glute strength · Lead-ankle mobility"
+      ],
+      "more": "4 more, less likely",
+      "note": ""
+     },
+     {
+      "kind": "ruledOut",
+      "title": "Ruled out — measured, and fine",
+      "items": [
+       "You stand too close to the ball",
+       "You bend over too much at address",
+       "You throw the club out early from the top",
+       "You hang back on your trail side through impact"
+      ],
+      "more": "3 more",
+      "note": ""
+     }
+    ]
+   },
+   "drills": [
+    {
+     "label": "Stance and ball-position sticks",
+     "instruction": "Lay one stick along your toe line and a second across it, pointing at the ball. Let a club hang from each shoulder to see where your heels should sit, then set up so the crossing stick sits where this club's ball belongs: just inside your lead heel for the driver, moving toward the middle of your stance as the clubs get shorter.",
+     "targets": "To set your posture, knee flex, balance and distance from the ball in one repeatable routine, rather than finding them by feel each time.",
+     "note": "The grip comes first: a grip turned well to one side sets the wrist cupped or bowed before the swing starts, and no wrist drill outlasts it. If the wrist cannot reach flat in slow motion, screen its mobility before repeating this.",
+     "equipment": "an alignment stick and a mirror or a phone on a stand"
+    },
+    {
+     "label": "Tray at the top",
+     "instruction": "Without a club, take your posture and turn to the top with your trail palm facing the sky as if carrying a tray of drinks, your trail elbow pointing at the ground below your hands. Then add a club and make slow backswings into the same shape, holding the top for two seconds each time.",
+     "targets": "To feel the trail elbow staying below the hands and in front of the body at the top.",
+     "note": "If your trail arm cannot turn into this shape without the elbow lifting or tucking behind you, check trail-shoulder mobility before practising it: the elbow often moves because the shoulder cannot turn out.",
+     "equipment": ""
+    }
+   ],
+   "cue": "Feel your trail knee stay soft and flexed, pointing at the ball, while your trail pocket turns behind you and your weight settles into the inside of your trail foot. Let the turn happen above the knee, never through it.",
+   "check": "Film from down the line with the phone at hip height, level, pointing at your hands. Pause at the top: your trail knee should be about as bent as it was at address, and still over the ball of your foot, not behind it.",
+   "target": "Posture lost by impact: less than 5°, on most swings. Today: 12.9°. Keep it there for most of a session before you move on to the next work-on.",
+   "figure": {
+    "unit": "°",
+    "decimals": 1,
+    "bands": [
+     {
+      "grade": "action",
+      "lo": 7.5,
+      "hi": 14.740173170296494
+     },
+     {
+      "grade": "watch",
+      "lo": 5,
+      "hi": 7.5
+     },
+     {
+      "grade": "good",
+      "lo": 2.5,
+      "hi": 5
+     },
+     {
+      "grade": "ideal",
+      "lo": 0,
+      "hi": 2.5
+     },
+     {
+      "grade": "open",
+      "lo": -0.5669297373190959,
+      "hi": 0
+     }
+    ],
+    "points": [
+     {
+      "swing": 1,
+      "value": 12.442305502810818,
+      "state": "fired",
+      "text": "−12.4°"
+     },
+     {
+      "swing": 2,
+      "value": 14.173243432977397,
+      "state": "fired",
+      "text": "−14.2°"
+     },
+     {
+      "swing": 3,
+      "value": 12.697438970241876,
+      "state": "fired",
+      "text": "−12.7°"
+     },
+     {
+      "swing": 4,
+      "value": 12.044436452745792,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 5,
+      "value": 11.9699143059011,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 6,
+      "value": 13.144672951788703,
+      "state": "fired",
+      "text": "−13.1°"
+     },
+     {
+      "swing": 7,
+      "value": 13.590841053280808,
+      "state": "fired",
+      "text": "−13.6°"
+     },
+     {
+      "swing": 8,
+      "value": 13.70055185593013,
+      "state": "fired",
+      "text": "−13.7°"
+     },
+     {
+      "swing": 9,
+      "value": 12.318447566238913,
+      "state": "fired",
+      "text": "−12.3°"
+     },
+     {
+      "swing": 10,
+      "value": 13.60816461254042,
+      "state": "fired",
+      "text": "−13.6°"
+     }
+    ],
+    "medianText": "−12.9°"
+   },
+   "figureLabel": "Each dot is one swing: posture lost by impact, in degrees.",
+   "stills": [
+    {
+     "src": "file:///mnt/swingdata/scratch/session-report/out/nick/stills/o0003_DTL_P7_spine_g.jpg",
+     "caption": "At impact, swing 3",
+     "value": "12.7° lost",
+     "note": "Orange: your spine at impact. White dashes: the same swing at address. Every swing looked much like this one."
+    }
+   ],
+   "kicker": "Work-on 3 of 5  ·  P7, at impact  ·  10 of 10 swings",
+   "coachTerm": "Coaches call the habit <i>Early extension</i>, or “standing up”, “hip thrust toward the ball”."
+  },
+  {
+   "rank": 4,
+   "id": "over_the_top",
+   "name": "Over the top",
+   "goal": "The club comes into the ball at the right angle for the club",
+   "phase": "P6",
+   "phaseWords": "coming down",
+   "also": "“coming over it”, “OTT”",
+   "count": "10 of 10 swings",
+   "saw": "Your hands come over the top coming down — on all 10 swings, steady from first swing to last. Typical hand rise coming down: 11% hand rise, against a target of 9% hand rise or less. It was there from your first swing to your last, and it did not ease as the session went on.",
+   "why": "A pull-hook starts off line and curves further away, so it finishes a long way from the target and is the hardest miss to play your next shot from.",
+   "cameWith": "It came with club returns toe-up at impact (7 of the 7 swings we could see) and with a thin strike (6 of 10). That fits the coaching model, though showing up together is not proof that one causes the other. And on every swing, your head stayed level going back and your hips turned in place.",
+   "causes": {
+    "lead": "We couldn't pin down what drives this one today. Here are the possible causes: the ones we couldn't check, and the ones we've ruled out.",
+    "rows": [
+     {
+      "kind": "possible",
+      "title": "Could be behind it — we couldn't check",
+      "items": [
+       "<i>A quick physical test would tell:</i> Turning your hips without your chest · Lead-hip mobility · Upper-back mobility<br><i>Hidden on today's swings:</i> Your shoulders start down before your hips<br><i>Your coach can look:</i> Your shoulders turn too flat going back · You take the club back too far outside"
+      ],
+      "more": "3 more, less likely",
+      "note": ""
+     },
+     {
+      "kind": "ruledOut",
+      "title": "Ruled out — measured, and fine",
+      "items": [
+       "Your hips are slow to start turning coming down",
+       "Your hips don't turn enough going back",
+       "You hang back on your trail side through impact",
+       "You rush from the top"
+      ],
+      "more": "4 more",
+      "note": ""
+     }
+    ]
+   },
+   "drills": [
+    {
+     "label": "Hold the top in the mirror",
+     "instruction": "Stand side-on to a mirror, or film from down the line. Swing slowly to the top and hold it for three seconds while you check the one thing your work-on names: the clubface, the lead wrist, where the shaft points or how far it has gone. Move into the position you want, feel it, then swing on from there and hit a gentle shot.",
+     "targets": "To make stance width and ball position the same every time, so that a change in strike comes from the swing and not from the setup.",
+     "note": "If your back will not face the target without your trail knee straightening or your spine tipping, the limit is upper-back mobility. Screen it before forcing the turn, because forcing it moves something else instead.",
+     "equipment": "an alignment stick and a mirror or a phone on a stand"
+    },
+    {
+     "label": "Leading edge at halfway back",
+     "instruction": "Stand side-on to a mirror, or film from down the line. Make slow takeaways to where the shaft is level with the ground and stop. Check that the leading edge of the club leans forward at about the angle of your spine. Ten slow rehearsals, then hit half shots keeping the same picture.",
+     "targets": "To feel the clubface turning with the body going back, neither rolled open nor held shut.",
+     "note": "If the face only looks right with the grip changed, the grip is the answer rather than the takeaway. This checks the start of the swing; it is the wrong drill when the face only goes wrong later, at the top.",
+     "equipment": ""
+    }
+   ],
+   "cue": "Feel your trail knee stay soft and flexed, pointing at the ball, while your trail pocket turns behind you and your weight settles into the inside of your trail foot. Let the turn happen above the knee, never through it.",
+   "check": "Film from down the line with the phone at hip height, level, pointing at your hands. Pause at the top: your trail knee should be about as bent as it was at address, and still over the ball of your foot, not behind it.",
+   "target": "Hand rise coming down: 9% hand rise or less, on most swings. Today: 11% hand rise. Keep it there for most of a session before you move on to the next work-on.",
+   "figure": {
+    "unit": "% hand rise",
+    "decimals": 0,
+    "bands": [
+     {
+      "grade": "open",
+      "lo": -0.65,
+      "hi": 0
+     },
+     {
+      "grade": "ideal",
+      "lo": 0,
+      "hi": 4.333333333333333
+     },
+     {
+      "grade": "good",
+      "lo": 4.333333333333333,
+      "hi": 8.666666666666666
+     },
+     {
+      "grade": "watch",
+      "lo": 8.666666666666666,
+      "hi": 13
+     },
+     {
+      "grade": "action",
+      "lo": 13,
+      "hi": 16.9
+     }
+    ],
+    "points": [
+     {
+      "swing": 1,
+      "value": 9.692341146566523,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 2,
+      "value": 11.77449346335929,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 3,
+      "value": 10.8745939821342,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 4,
+      "value": 13.43778823315169,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 5,
+      "value": 13.001370791932228,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 6,
+      "value": 10.897191498778867,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 7,
+      "value": 12.031664623528101,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 8,
+      "value": 9.567104609120884,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 9,
+      "value": 9.844215356286153,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 10,
+      "value": 9.385290628423501,
+      "state": "fired",
+      "text": "9 % hand rise"
+     }
+    ],
+    "medianText": "11 % hand rise"
+   },
+   "figureLabel": "Each dot is one swing: hand rise coming down, in percent of hand rise.",
+   "stills": [],
+   "kicker": "Work-on 4 of 5  ·  P6, coming down  ·  10 of 10 swings",
+   "coachTerm": "Coaches call the habit <i>Over the top</i>, or “coming over it”, “OTT”."
+  },
+  {
+   "rank": 5,
+   "id": "reverse_spine_p4",
+   "name": "Reverse spine angle at P4",
+   "goal": "Keep your lead arm connected to your chest until past impact",
+   "phase": "P4",
+   "phaseWords": "at the top",
+   "also": "“leaning left at the top”, “forward spine angle at the top”",
+   "count": "9 of 10 swings",
+   "saw": "You lean toward the target at the top — on 9 of 10 swings, steady from first swing to last. Typical lean away from the target at the top: −1°, against a target of 0° to 24°; this is a small miss: just outside the range, never far. It was there from your first swing to your last, and it did not ease as the session went on.",
+   "why": "A path swinging too far out from the inside starts the ball off line, so you tend to push it or hook it and strikes drift toward the heel.",
+   "cameWith": "It came with club returns toe-up at impact (7 of the 7 swings we could see) and with a thin strike (6 of 10). That fits the coaching model, though showing up together is not proof that one causes the other. And on every swing, your head stayed level going back and your hips turned in place.",
+   "causes": {
+    "lead": "We couldn't pin down what drives this one today. Here are the possible causes: the ones we couldn't check, and the ones we've ruled out.",
+    "rows": [
+     {
+      "kind": "possible",
+      "title": "Could be behind it — we couldn't check",
+      "items": [
+       "<i>Your coach can look:</i> Your lower back arches too much at address · Your lower back is too flat at address<br><i>A quick physical test would tell:</i> Upper-back mobility · Trail-hip mobility · Core stability"
+      ],
+      "more": "",
+      "note": ""
+     }
+    ]
+   },
+   "drills": [
+    {
+     "label": "Two sticks for aim",
+     "instruction": "Lay one alignment stick on the ground pointing at your target, just beyond the ball, and a second parallel to it along your toes. Set up to the second stick, then hold a club across your hips and then across your shoulders: each should lie parallel to the sticks. Hit a few shots, stepping away and back in each time.",
+     "targets": "To feel a shallower path into the bottom of the swing, with the club travelling along the ground rather than digging into it.",
+     "note": "A little head movement is normal in a good swing, and this drill exaggerates stillness on purpose. If your body will only turn when your head moves, ask your coach to check how freely your upper back and hips turn.",
+     "equipment": "an alignment stick and a mirror or a phone on a stand"
+    },
+    {
+     "label": "Toe up to toe up",
+     "instruction": "Make swings from hip height to hip height. Going back, stop with the shaft level with the ground and the toe of the club pointing at the sky; through the ball, stop at the same height with the toe pointing at the sky again. Slow and small first, then hit balls with the same swing.",
+     "targets": "To feel the clubface turning with the arms and body through the ball: a face looking at the sky after impact has been held open, and one looking at the ground has turned over too fast.",
+     "note": "If the ball keeps curving the same way however the face feels, check the grip and the path before the release: a face that is only wrong compared with the path will not be fixed by the hands alone.",
+     "equipment": ""
+    }
+   ],
+   "cue": "Feel your trail knee stay soft and flexed, pointing at the ball, while your trail pocket turns behind you and your weight settles into the inside of your trail foot. Let the turn happen above the knee, never through it.",
+   "check": "Film from down the line with the phone at hip height, level, pointing at your hands. Pause at the top: your trail knee should be about as bent as it was at address, and still over the ball of your foot, not behind it.",
+   "target": "Lean away from the target at the top: 0° to 24°, on most swings. Today: −1°. Keep it there for most of a session before you move on to the next work-on.",
+   "figure": {
+    "unit": "°",
+    "decimals": 0,
+    "bands": [
+     {
+      "grade": "action",
+      "lo": -12.3,
+      "hi": -6
+     },
+     {
+      "grade": "watch",
+      "lo": -6,
+      "hi": 0
+     },
+     {
+      "grade": "good",
+      "lo": 0,
+      "hi": 6
+     },
+     {
+      "grade": "ideal",
+      "lo": 6,
+      "hi": 18
+     },
+     {
+      "grade": "good",
+      "lo": 18,
+      "hi": 24
+     },
+     {
+      "grade": "watch",
+      "lo": 24,
+      "hi": 30
+     },
+     {
+      "grade": "action",
+      "lo": 30,
+      "hi": 36.3
+     }
+    ],
+    "points": [
+     {
+      "swing": 1,
+      "value": -3.1959136765123306,
+      "state": "fired",
+      "text": "−3°"
+     },
+     {
+      "swing": 2,
+      "value": 2.3513036085066616,
+      "state": "clean",
+      "text": "2°"
+     },
+     {
+      "swing": 3,
+      "value": -0.6367275643476862,
+      "state": "fired",
+      "text": "−1°"
+     },
+     {
+      "swing": 4,
+      "value": -0.33362644329840835,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 5,
+      "value": -5.555546877463192,
+      "state": "fired",
+      "text": "−6°"
+     },
+     {
+      "swing": 6,
+      "value": -0.28241793786008496,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 7,
+      "value": -0.05067115942497291,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 8,
+      "value": -5.450541411172689,
+      "state": "fired",
+      "text": "−5°"
+     },
+     {
+      "swing": 9,
+      "value": -4.209195539487604,
+      "state": "fired",
+      "text": "−4°"
+     },
+     {
+      "swing": 10,
+      "value": -2.163588246602049,
+      "state": "fired",
+      "text": "−2°"
+     }
+    ],
+    "medianText": "−1°"
+   },
+   "figureLabel": "Each dot is one swing: lean away from the target at the top, in degrees.",
+   "stills": [],
+   "kicker": "Work-on 5 of 5  ·  P4, at the top  ·  9 of 10 swings",
+   "coachTerm": "Coaches call the habit <i>Reverse spine angle at P4</i>, or “leaning left at the top”, “forward spine angle at the top”."
+  }
+ ],
+ "practice": {
+  "title": "How to practise a change",
+  "steps": [
+   {
+    "head": "Rehearse without a ball",
+    "body": "Slow swings, ten at a time, feeling the change. This is where the new move is learned."
+   },
+   {
+    "head": "Small swings with a ball",
+    "body": "Half swings at half speed. Keep the feel; ignore where the ball goes."
+   },
+   {
+    "head": "Mix it in",
+    "body": "Full swings: one with the feel, then two normal ones. Film every fifth swing."
+   },
+   {
+    "head": "One thing at a time",
+    "body": "Stay with work-on 1 until your next session. The rest of the list waits."
+   }
+  ]
+ },
+ "numbers": {
+  "cols": [
+   "Swing",
+   "Carry",
+   "Total",
+   "Ball",
+   "Club",
+   "Smash",
+   "Launch",
+   "Spin",
+   "Path",
+   "Face",
+   "Face to path",
+   "Attack",
+   "Offline"
+  ],
+  "units": [
+   "",
+   "yd",
+   "yd",
+   "mph",
+   "mph",
+   "",
+   "°",
+   "rpm",
+   "°",
+   "°",
+   "°",
+   "°",
+   "yd"
+  ],
+  "rows": [
+   {
+    "cells": [
+     "1",
+     "133",
+     "145",
+     "99",
+     "76",
+     "1.29",
+     "19",
+     "5,624",
+     "-0.2",
+     "-1.1",
+     "-0.8",
+     "-3.1",
+     "-2"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "2",
+     "147",
+     "158",
+     "104",
+     "78",
+     "1.34",
+     "23",
+     "4,894",
+     "3.7",
+     "0.6",
+     "-3.1",
+     "-0.7",
+     "-2"
+    ],
+    "habitsText": "4 of 5"
+   },
+   {
+    "cells": [
+     "3",
+     "148",
+     "159",
+     "105",
+     "78",
+     "1.34",
+     "23",
+     "5,059",
+     "0.7",
+     "-2.5",
+     "-3.2",
+     "-1.1",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "4",
+     "147",
+     "158",
+     "104",
+     "77",
+     "1.35",
+     "22",
+     "4,959",
+     "-0.1",
+     "-1.6",
+     "-1.5",
+     "-1.8",
+     "6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "5",
+     "147",
+     "159",
+     "104",
+     "79",
+     "1.33",
+     "21",
+     "4,824",
+     "0.8",
+     "-2.7",
+     "-3.5",
+     "-2.0",
+     "-6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "6",
+     "150",
+     "162",
+     "106",
+     "79",
+     "1.34",
+     "22",
+     "4,659",
+     "2.9",
+     "-1.0",
+     "-3.8",
+     "-1.0",
+     "3"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "7",
+     "133",
+     "146",
+     "98",
+     "81",
+     "1.21",
+     "19",
+     "5,258",
+     "1.4",
+     "1.5",
+     "0.1",
+     "-1.7",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "8",
+     "153",
+     "164",
+     "108",
+     "81",
+     "1.34",
+     "20",
+     "5,319",
+     "1.3",
+     "-1.5",
+     "-2.8",
+     "-2.0",
+     "-8"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "9",
+     "149",
+     "161",
+     "105",
+     "80",
+     "1.32",
+     "22",
+     "4,879",
+     "2.5",
+     "-2.1",
+     "-4.5",
+     "-1.8",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "10",
+     "155",
+     "166",
+     "109",
+     "83",
+     "1.32",
+     "22",
+     "5,074",
+     "4.2",
+     "5.3",
+     "1.1",
+     "-1.2",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   }
+  ],
+  "typical": [
+   {
+    "cells": [
+     "Typical",
+     "148",
+     "159",
+     "105",
+     "79",
+     "1.33",
+     "22",
+     "5,009",
+     "1.4",
+     "-1.3",
+     "-2.9",
+     "-1.7",
+     "-2"
+    ]
+   }
+  ],
+  "habitsHead": "Habits",
+  "note": "Path, face and offline: positive is right of target, negative left (right-handed golfer). Habits: how many of your five work-ons showed on that swing. Typical: the middle value of your ten swings."
+ },
+ "about": {
+  "dates": "This report covers your session on Tuesday 20 October 2026 and was prepared on 20 October 2026. If a session is re-analysed, the report is prepared again and carries the new date.",
+  "measured": "10 swings with a 7 iron, filmed down-the-line and face-on at high frame rate, with every ball measured by a GC Quad. Your body positions are read from the video by pose tracking; the club and ball numbers come from the launch monitor.",
+  "ranges": "Each habit is judged against a target range. Most ranges are coaching judgement, set from what good ball-strikers do; a few come from published measurements. They are not fitted to you. A swing outside the range is not a mistake in itself — it is where the evidence points.",
+  "notChecked": "Some things could not be checked on every swing: pelvis peak a spike (10 of 10); chest peak out of sight (10 of 10); club peak drawn, not judged (10 of 10). Nothing in this report depends on them.",
+  "words": [
+   [
+    "Habit",
+    "something that showed on most swings — at least 3, and often enough that it is not chance"
+   ],
+   [
+    "Target range",
+    "where a good ball-striker's swing usually is at that point"
+   ],
+   [
+    "Work-on",
+    "a habit you can practise your way out of, in the order to work on it"
+   ],
+   [
+    "P1 … P10",
+    "the ten positions of the swing, from address (P1) through the top (P4) and impact (P7) to the finish (P10)"
+   ]
+  ],
+  "footnote": "Measured and prepared with PinPoint Studio. Swing images show only the golfer; video stays in the studio."
+ }
+}

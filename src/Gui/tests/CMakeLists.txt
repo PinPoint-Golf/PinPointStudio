@@ -240,6 +240,20 @@ pp_add_test(pdf_document_writer_test
     COMPILE_OPTIONS -DPP_PRINT_QML_DIR="${GUI}/print")
 set_tests_properties(pdf_document_writer_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# The session report's record (report/report_meta.h, header-only): the JSON round trip, the file name,
+# the fingerprint moving with exactly its inputs, the three states and their words, and the send log.
+# Links pinpoint_swingstore (pp_add_test does) for SwingStore::info.
+pp_add_test(report_meta_test
+    SOURCES report_meta_test.cpp
+    INCLUDE ${GUI} ${SRC})
+
+# The rest of the session report's C++ tests, one fragment per part of the build so the parts can be
+# registered independently: the stills, the model, the session list and mail hand-off, the studio.
+include(${CMAKE_CURRENT_LIST_DIR}/report_stills_tests.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/report_model_tests.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/report_list_tests.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/report_studio_tests.cmake)
+
 # No binding may subscribe to a dependency it does not USE.
 #
 # A revision counter named on a line of its own is an expression statement whose value is discarded;

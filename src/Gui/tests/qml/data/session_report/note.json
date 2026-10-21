@@ -1,0 +1,188 @@
+{
+ "kind": "note",
+ "brand": {
+  "studio": "Northfield Golf Studio",
+  "monogram": "NG",
+  "logo": "",
+  "accent": "#1F5A4C",
+  "coach": "Alex Morgan",
+  "coachTitle": "Head coach",
+  "coachLine": "Alex Morgan  ·  Head coach",
+  "contact": "alex@northfieldgolf.example  ·  01234 567890",
+  "web": "northfieldgolf.example",
+  "footLine": "Alex Morgan, Northfield Golf Studio  ·  alex@northfieldgolf.example  ·  01234 567890",
+  "signoff": "Book your next session at northfieldgolf.example or reply to this email.",
+  "coachPhoto": ""
+ },
+ "meta": {
+  "golfer": "Nick Henn",
+  "first": "Nick",
+  "date": "Tuesday 20 October 2026",
+  "dateShort": "20 Oct 2026",
+  "prepared": "20 October 2026",
+  "preparedShort": "20 Oct 2026",
+  "pdfTitle": "Session report — Nick Henn — session of 20 Oct 2026",
+  "fileName": "2026-10-20_Nick-Henn_session-report.pdf",
+  "emailSubject": "Your session report — 20 October 2026",
+  "club": "7 iron",
+  "swings": 2,
+  "sessionOfDay": "",
+  "hand": "right-handed",
+  "devices": "Down-the-line and face-on cameras · GC Quad launch monitor",
+  "mastheadDate": "Prepared 20 October 2026",
+  "folioDate": "Prepared 20 Oct 2026",
+  "kicker": "Session of Tuesday 20 October 2026  ·  7 iron  ·  2 swings",
+  "runningHead": "Nick Henn  ·  session of 20 Oct 2026  ·  7 iron"
+ },
+ "headline": "Two swings is too few to call a habit, so this is a short note rather than a full report: here is what the ball did.",
+ "coachNote": "",
+ "photos": {
+  "included": true,
+  "reason": ""
+ },
+ "held": [],
+ "appendix": false,
+ "strengths": [],
+ "found": [],
+ "watching": [],
+ "workOnsBrief": [],
+ "ball": {
+  "device": "GC Quad",
+  "byline": "measured on every swing by GC Quad",
+  "note": "Middle of your two swings in large type; the lower and higher beneath.",
+  "groups": [
+   {
+    "club": "",
+    "tiles": [
+     {
+      "label": "Carry",
+      "value": "140",
+      "unit": "yd",
+      "range": "133–147"
+     },
+     {
+      "label": "Ball speed",
+      "value": "102",
+      "unit": "mph",
+      "range": "99–104"
+     },
+     {
+      "label": "Club speed",
+      "value": "77",
+      "unit": "mph",
+      "range": "76–78"
+     },
+     {
+      "label": "Smash",
+      "value": "1.32",
+      "unit": "",
+      "range": "1.29–1.34"
+     },
+     {
+      "label": "Launch",
+      "value": "21°",
+      "unit": "",
+      "range": "19–23"
+     },
+     {
+      "label": "Spin",
+      "value": "5,259",
+      "unit": "rpm",
+      "range": "4,894–5,624"
+     },
+     {
+      "label": "Club path",
+      "value": "2°",
+      "unit": "in-to-out",
+      "range": "−0.2 to +3.7"
+     },
+     {
+      "label": "Offline",
+      "value": "2",
+      "unit": "yd",
+      "range": "widest, either side"
+     }
+    ]
+   }
+  ],
+  "more": ""
+ },
+ "grid": null,
+ "today": null,
+ "order": null,
+ "checks": [],
+ "workOns": [],
+ "practice": null,
+ "numbers": {
+  "cols": [
+   "Swing",
+   "Carry",
+   "Total",
+   "Ball",
+   "Club",
+   "Smash",
+   "Launch",
+   "Spin",
+   "Path",
+   "Face",
+   "Face to path",
+   "Attack",
+   "Offline"
+  ],
+  "units": [
+   "",
+   "yd",
+   "yd",
+   "mph",
+   "mph",
+   "",
+   "°",
+   "rpm",
+   "°",
+   "°",
+   "°",
+   "°",
+   "yd"
+  ],
+  "rows": [
+   {
+    "cells": [
+     "1",
+     "133",
+     "145",
+     "99",
+     "76",
+     "1.29",
+     "19",
+     "5,624",
+     "-0.2",
+     "-1.1",
+     "-0.8",
+     "-3.1",
+     "-2"
+    ]
+   },
+   {
+    "cells": [
+     "2",
+     "147",
+     "158",
+     "104",
+     "78",
+     "1.34",
+     "23",
+     "4,894",
+     "3.7",
+     "0.6",
+     "-3.1",
+     "-0.7",
+     "-2"
+    ]
+   }
+  ],
+  "typical": [],
+  "habitsHead": "",
+  "note": "Path, face and offline: positive is right of target, negative left (right-handed golfer)."
+ },
+ "about": null
+}

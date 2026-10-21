@@ -53,6 +53,11 @@ Item {
     property bool showKeys: true
     property real minFill: 0.62
     property int minWidow: 3                    // a list never leaves fewer than this many atoms for the next page
+    // NO STRANDED TAIL (opt-in; the session report sets 0.25): when the cut would leave a SECTION'S LAST page (the
+    // atoms up to the next breakBefore) less than this share of a page, the cut moves back to an earlier clean joint
+    // so that page carries at least that share — as long as the page being cut keeps at least half its room and the
+    // tail still fits one page. 0 (the default) is the pager exactly as before.
+    property real minTail: 0
     property real blockGap: roles.u(18)
     default property alias content: galley.data
     readonly property int pageCount: Math.max(1, pages.length)
@@ -126,6 +131,30 @@ Item {
                 const hiG = headOf[grp]
                 while (left < pg.minWidow && leftH < 0.25 * H && best - 1 > Math.max(i0, hiG)) {
                     best--; left++; leftH = atoms[last].bottom - atoms[best + 1].top
+                }
+            }
+            // no stranded tail: a section's last page at least minTail of a page (see minTail)
+            if (pg.minTail > 0 && best >= i0 && best + 1 < atoms.length && !atoms[best + 1].breakBefore) {
+                let end = best + 1
+                while (end + 1 < atoms.length && !atoms[end + 1].breakBefore) end++
+                let tailBottom = 0
+                for (let j = best + 1; j <= end; ++j) tailBottom = Math.max(tailBottom, atoms[j].bottom)
+                const g0 = atoms[best + 1].group, h0 = g0 ? headOf[g0] : undefined
+                const want = pg.minTail * H, fits = H - (h0 !== undefined ? atoms[h0].bottom - atoms[h0].top + roles.u(8) : 0)
+                if (tailBottom - atoms[best + 1].top < want && tailBottom - atoms[best + 1].top <= fits) {
+                    // the clean joints before the cut, latest first: j's bottom clears everything above it
+                    let cand = -1
+                    for (let j = best - 1; j > i0; --j) {
+                        let mb = 0
+                        for (let k = i0; k <= j; ++k) mb = Math.max(mb, atoms[k].bottom)
+                        const nx = atoms[j + 1]
+                        if (nx.top < mb - 0.5 || atoms[j].keepNext || nx.keepPrev || atoms[j].head) continue
+                        if (mb - from < 0.5 * room) break                         // the page being cut keeps half its room
+                        if (tailBottom - nx.top > fits) break                     // the tail must still fit one page
+                        cand = j
+                        if (tailBottom - nx.top >= want) break
+                    }
+                    if (cand >= 0) best = cand
                 }
             }
             if (best < 0) {

@@ -35,6 +35,13 @@ Item {
     // Emitted by the pinned bottom action; Main.qml jumps to the System Info
     // screen (its own screen — back returns here).
     signal resourceMonitorRequested()
+    // Settings → Studio (session report §7.1), for the report sheet's "add it in Settings → Studio" links.
+    // Found by panel, not by number, for the reason _stackIndexOf gives.
+    function openStudio() {
+        searchInput.text = ""
+        root.searchQuery = ""
+        root.activeNavIndex = root._stackIndexOf(studioPanel)
+    }
 
     // The Settings screen is actually on screen. `visible` alone is not enough: Main.qml's
     // StackLayout creates every screen visible and hides the non-current ones only once it lays
@@ -68,7 +75,8 @@ Item {
             var panels = [
                 generalPanel, appearancePanel, displaysPanel,
                 camerasPanel, imusPanel, phonesPanel, microphonesPanel,
-                launchMonitorPanel, storagePanel, archivingPanel, diagnosticModelPanel
+                launchMonitorPanel, storagePanel, archivingPanel, diagnosticModelPanel,
+                studioPanel
             ]
             var panel = panels[entry.panelIndex]
             if (panel) scrollWithRetry(panel, entry.itemId, 0)
@@ -252,6 +260,13 @@ Item {
                                 { navIdx: 0, icon: "⊞", label: qsTr("General"),       sectionHead: qsTr("General"),  hasBadge: false },
                                 { navIdx: 1, icon: "◐", label: qsTr("Appearance"),     sectionHead: "",               hasBadge: false },
                                 { navIdx: 2, icon: "▭", label: qsTr("Displays"),       sectionHead: "",               hasBadge: false },
+                                // Studio is drawn here, in General, but its index is the LAST panel's
+                                // (11): it was APPENDED to the StackLayout, the `panels` lookup and
+                                // SettingsIndex rather than inserted, so every index already written
+                                // down elsewhere (Main.qml's Storage = 8, the probes' Cameras = 3 and
+                                // IMUs = 4, ScreenResourceMonitor's deep links) still means what it
+                                // did. Draw order is this list's order; navIdx is only the stack slot.
+                                { navIdx: 11, icon: "✎", label: qsTr("Studio"),        sectionHead: "",               hasBadge: false },
                                 { navIdx: 3, icon: "⊙", label: qsTr("Cameras"),        sectionHead: qsTr("Hardware"), hasBadge: true  },
                                 { navIdx: 4, icon: "⌖", label: qsTr("IMUs"),           sectionHead: "",               hasBadge: true  },
                                 // Phones sits in Hardware and not at the end, so the
@@ -275,8 +290,9 @@ Item {
                                 // Not a panel: emits resourceMonitorRequested() (its own screen)
                                 // rather than switching activeNavIndex. It is an ACTION row, so its
                                 // navIdx never indexes the StackLayout — but it must not collide
-                                // with a panel index either, which is why it sits one past the last.
-                                { navIdx: 11, icon: "◈", label: qsTr("System"),        sectionHead: "",               hasBadge: false, action: "system" }
+                                // with a panel index either, which is why it sits one past the last
+                                // (12 since Studio took 11).
+                                { navIdx: 12, icon: "◈", label: qsTr("System"),        sectionHead: "",               hasBadge: false, action: "system" }
                             ]
 
                             delegate: Column {
@@ -585,6 +601,7 @@ Item {
                 StoragePanel {    id: storagePanel;    Layout.fillWidth: true; Layout.fillHeight: true }  // 8
                 ArchivingPanel {  id: archivingPanel;  Layout.fillWidth: true; Layout.fillHeight: true }  // 9
                 DiagnosticModel { id: diagnosticModelPanel; Layout.fillWidth: true; Layout.fillHeight: true }       // 10
+                StudioPanel {     id: studioPanel;     Layout.fillWidth: true; Layout.fillHeight: true }  // 11 (drawn in General)
             }
         }
     }

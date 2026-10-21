@@ -374,6 +374,26 @@ set(PP_QML_FILES
     # Print is to PDF: steps a paged register's printPage and feeds PdfDocumentWriter (below).
     # No control opens it yet.
     src/Gui/print/PpPdfPrinter.qml
+    # The session report (docs/design/session_report_design.md): the register and its blocks, laid out
+    # on PpPager; the print host that lays it on a hidden A4 sheet; the session list with its report
+    # links, and the sheet a report is made from.
+    src/Gui/report/PpSessionReport.qml
+    src/Gui/report/PpReportCover.qml
+    src/Gui/report/PpSwingGrid.qml
+    src/Gui/report/PpOrderPage.qml
+    src/Gui/report/PpWorkOnPage.qml
+    src/Gui/report/PpDrillCard.qml
+    src/Gui/report/PpStill.qml
+    src/Gui/report/PpBallTiles.qml
+    src/Gui/report/PpNumbersTable.qml
+    src/Gui/report/PpReportAbout.qml
+    src/Gui/report/PpReportPrintHost.qml
+    src/Gui/report/PpSessionReportRow.qml
+    src/Gui/report/PpSessionReportList.qml
+    src/Gui/report/PpReportSheet.qml
+    # Settings → Studio (the studio and its one coach) and the in-app file picker it chooses a logo with.
+    src/Gui/settings/StudioPanel.qml
+    src/Gui/components/PpFilePicker.qml
 )
 
 # The C++ types the module registers (QML_ELEMENT). Headers are listed alongside their .cpp
