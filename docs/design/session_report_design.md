@@ -1,6 +1,6 @@
 # Session report — design
 
-*20 October 2026. Status: designed and mocked with real data. Not built yet: it waits on Mark's review.*
+*20 October 2026. Status: designed and mocked with real data. Built 20–21 October (uncommitted, awaiting Mark's review).*
 
 A **session report** is a PDF that a coach sends to a golfer at the end of a session. It is made
 on demand from the session list, from that session's diagnostics. It carries the studio's brand,
@@ -834,15 +834,14 @@ directly, so it does not depend on the fix, but the panel does.
 
 ## 14. Decisions for Mark
 
-1. **The order** (§4.3): option A, rule v4 (swing order when links cannot be tested), or option
-   B (keep v3 and explain it).
+1. ~~The order~~ **Decided 20 Oct: rule v4** (§4.3), swing order when links cannot be tested. Built with sharp
+   findings kept ahead of swing position (without that, v4 dropped Mark's sharp sequence faults off the list).
 2. **The mock's look:** the page plan, the length (10 pages for a 10-swing session), the cover's
    three columns, and the stills.
-3. **The technical appendix:** append `PpDiagPrint` optionally (proposed), always, or never.
-4. **Brand:** is a single accent colour plus a logo or monogram enough, or does the coach also
-   choose fonts? (Proposed: no; Folio only.)
-5. **The PROPOSED wording** in `assemble.py`: the cues, checks and the two new drills (impact
-   hold, club across the chest) need a coach's eye. Who authors the rest of the content?
+3. ~~The technical appendix~~ **Decided 20 Oct: always** appended, from a fresh page, printed at 200 dpi.
+4. **Brand:** built as proposed (one accent colour, logo or monogram, Folio light only); still Mark's call.
+5. ~~Who writes the content~~ **Decided 20 Oct:** drafted for every listable condition in the build, reviewed by
+   Mark as a wording table before it is committed.
 6. **Club path:** `in_to_out_path` and `out_to_in_path` read `m_clubPathAtImpact` (the camera's
    own estimate, planned, no producer). So they are never judged, even when the GC Quad measured
    path on every swing (`m_lmClubPath` is live). `ball_speed_deficit` is the same, against
@@ -850,6 +849,8 @@ directly, so it does not depend on the fix, but the panel does.
    deliberate. But `closed_face_to_path` does read the LM's `lm.faceToPath`. Should the path
    conditions fall back to the LM reading when ours is absent? (On Nick's page 5 this is why the
    hips page has no "what came with it", though path ran in-to-out.)
+   **Decided 20 Oct (Mark): "LM is always the primary source for the metrics it delivers — our estimates will
+   never be better."** Every measure with an `m_lm*` twin reads the LM first (`preferKeys`); ours is the fallback.
 7. ~~Sending~~ **Decided 20 Oct:** hand off to the coach's mail app (option A, §8.3). Option B is
    not built.
 8. ~~Juniors' photos~~ **Decided 20 Oct:** off for under-18s unless the golfer details page records
