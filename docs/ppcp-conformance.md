@@ -53,9 +53,9 @@ Nothing in `src/Ppcp/` carries a protocol constant. The only numbers in the tran
 Everything below runs on loopback with no device, no pairing code and no network:
 
 ```
-cmake -S src/Ppcp/tests -B build/ppcp-tests -G Ninja
-cmake --build build/ppcp-tests -j3
-ctest --test-dir build/ppcp-tests --output-on-failure
+cmake -S tests -B build/tests -G Ninja
+cmake --build build/tests -j3
+ctest --test-dir build/tests/Ppcp --output-on-failure
 ```
 
 ⚠ **`ppcp_bundle_import_test` deliberately links neither OpenSSL nor the socket
@@ -84,18 +84,18 @@ Row format is that of [`matrix.md` §5](../../libppcp/docs/conformance/matrix.md
 | Test | Method | Asserts | Work packages | `libppcp` | PinPointStudio | PinPointCapture |
 |---|---|---|---|---|---|---|
 | RT-4 | injected | strongest mode negotiated, never plaintext, outcome surfaced | H1, D1 | n/a | `impl` | — |
-| RT-5 | paired | a second handshake with a `mu: 1` code is refused | H6, D1 | n/a | `pass — ctest --test-dir build/ppcp-tests -R ppcp_rendezvous_test` | — |
+| RT-5 | paired | a second handshake with a `mu: 1` code is refused | H6, D1 | n/a | `pass — ctest --test-dir build/tests/Ppcp -R ppcp_rendezvous_test` | — |
 | RT-6 | injected | an expired code is reported as expired, no connection attempted | H6, D1 | n/a | `n/a — this host PUBLISHES codes and does not scan them` | — |
-| RT-7 | paired | TXT carries no `Peer.id`, device name or session count | H6, D1 | n/a | `pass (browser half) — ctest --test-dir build/ppcp-tests -R ppcp_rendezvous_test` | — |
-| RT-8 | paired | `rid` changes across re-registration, resolves under one `K_id` only | L12, H6 | — | `pass — ctest --test-dir build/ppcp-tests -R ppcp_rendezvous_test` | — |
-| RT-9 | paired | a diagnostic export right after a pairing carries no secret and no payload | H6 | n/a | `pass — ctest --test-dir build/ppcp-tests -R ppcp_rendezvous_test` | — |
+| RT-7 | paired | TXT carries no `Peer.id`, device name or session count | H6, D1 | n/a | `pass (browser half) — ctest --test-dir build/tests/Ppcp -R ppcp_rendezvous_test` | — |
+| RT-8 | paired | `rid` changes across re-registration, resolves under one `K_id` only | L12, H6 | — | `pass — ctest --test-dir build/tests/Ppcp -R ppcp_rendezvous_test` | — |
+| RT-9 | paired | a diagnostic export right after a pairing carries no secret and no payload | H6 | n/a | `pass — ctest --test-dir build/tests/Ppcp -R ppcp_rendezvous_test` | — |
 | RT-10 | injected | `session_resume` refused without a completed handshake | H1, D1 | n/a | `impl` | — |
-| RT-11 | injected | unknown identity and wrong key indistinguishable | H1 | n/a | `pass — ctest --test-dir build/ppcp-tests -R ppcp_transport_test` | n/a |
+| RT-11 | injected | unknown identity and wrong key indistinguishable | H1 | n/a | `pass — ctest --test-dir build/tests/Ppcp -R ppcp_transport_test` | n/a |
 | RT-12 | **review** | secrets from a platform CSPRNG at full width, erased (**storage dropped by erratum E56** — `RV` 7.2c is a SHOULD) | H6 | n/a | `maintainer-accepted — 25 August 2026`. Read: `csprngBytes()` in `src/Ppcp/ppcp_rendezvous.cpp` (`getentropy` on POSIX, `BCryptGenRandom` on Windows, **no fallback on either path** — a failure aborts the operation) and its four call sites; `psk` drawn at `PPCP_RV_PSK_MAX` = **32 bytes against a 16-byte floor**, fresh per code with `sid` and handle, all wiped if any draw fails; erasure via `OPENSSL_cleanse` (not `memset`, which the optimiser may elide) in `src/Ppcp/ppcp_bootstrap.cpp`, on every exit path including the failure ones. ⚠ One considered exception: a failed `rn` draw **skips a rotation** rather than aborting, keeping the previous `rn` — conformant for up to 3.4a's fifteen minutes and better than publishing a nonce from a degraded source. ⛔ **`maintainer-accepted`, NOT `pass`** — an author cannot discharge this row and the maintainer is not a cryptographic reviewer; this records an owner accepting a risk. ⚠ Accepted limit, unfixable in application code: removing a row from the settings file does not shred the superseded disk blocks, so a revoked pairing may be recoverable by disk forensics | — |
 | RT-13 | **review** | a network join obtains consent for the specific network | — | n/a | `n/a — this host publishes no wifi block and joins no network` | — |
-| RT-14 | static | §10.2 PSK identity; differs per connection; empty hint at TLS 1.2 | L12, H1, D1 | — | `pass — ctest --test-dir build/ppcp-tests -R ppcp_transport_test` (wire half) | — |
-| RT-15 | paired | a publisher refuses a handshake past `exp`; a bad clock attempts | H6, D1 | n/a | `pass (publisher half) — ctest --test-dir build/ppcp-tests -R ppcp_rendezvous_test` | — |
-| RT-16 | **review** | no `PRK` from a `mu > 1` code is persisted | H6 | n/a | `pass — ctest --test-dir build/ppcp-tests -R ppcp_rendezvous_test` (raised from `review`; see below) | — |
+| RT-14 | static | §10.2 PSK identity; differs per connection; empty hint at TLS 1.2 | L12, H1, D1 | — | `pass — ctest --test-dir build/tests/Ppcp -R ppcp_transport_test` (wire half) | — |
+| RT-15 | paired | a publisher refuses a handshake past `exp`; a bad clock attempts | H6, D1 | n/a | `pass (publisher half) — ctest --test-dir build/tests/Ppcp -R ppcp_rendezvous_test` | — |
+| RT-16 | **review** | no `PRK` from a `mu > 1` code is persisted | H6 | n/a | `pass — ctest --test-dir build/tests/Ppcp -R ppcp_rendezvous_test` (raised from `review`; see below) | — |
 | RT-17 | **review** | every key-exchange mode and ciphersuite the platform exposes is offered, from a runtime capability query rather than a constant (5.2b1, 5.4f) | H1, D1 | n/a | `maintainer-accepted — 25 August 2026`. Read: `queryTlsCapabilities()` in `src/Ppcp/ppcp_transport.cpp` and the two lines that apply it. It probes OpenSSL for each suite rather than asserting it, **verifies the suite really landed in the resulting list** (`set_cipher_list` succeeds if any token matched, so the naive check would over-claim), orders forward-secret suites first, and sets a TLS 1.2 **minimum with no maximum** so a build that can reach 1.3 must be allowed to. SHA-384 suites are excluded correctly rather than withheld: 5.2c binds the PSK hash to SHA-256, so they could not complete a handshake with this key. ⛔ **Accepted gap, noted rather than fixed.** The candidate list is a **constant**: what is queried is the *availability* of a known set, not the set itself. It is complete against every PSK suite the RFCs define today (8442, 5489, 5487), so there is no live defect — but an OpenSSL that gained a stronger PSK suite absent from the list would leave this peer offering less than its platform supports, which 5.2b1 forbids. ⚠ **Judged proportionate by the maintainer, and that is the basis of the acceptance**: *even if a new capability arrives later, the current code is robust enough given the data at risk.* The payload is golf capture on a home or coaching-studio network — the same judgement `RV` §5.4.3 already made when it accepted the absence of forward secrecy outright, on the sensitivity of what is carried rather than on the mechanism being inconvenient. A future suite arriving unoffered would cost this deployment a forward-secrecy improvement it does not have today and has already accepted doing without; it would not expose anything that is protected now. ⚠ Worth a glance at the candidate list on an OpenSSL upgrade, as hygiene rather than an obligation. The known fix, if the list ever falls behind, is a true enumeration — `set_cipher_list(probe, "PSK")` then read back `SSL_CTX_get_ciphers()`. ⛔ **`maintainer-accepted`, NOT `pass`** — an author cannot discharge this row and the maintainer is not a cryptographic reviewer | — |
 
 ### What H6 landed, and where the halves fall
@@ -153,7 +153,7 @@ Row 3 earned itself immediately: reserving the format-information area was
 blanking two timing modules, which no scanner would have read and no eye would
 have seen.
 
-`ctest --test-dir build/ppcp-tests -R ppcp_qr_test`
+`ctest --test-dir build/tests/Ppcp -R ppcp_qr_test`
 
 ### Why RT-4 is `impl` and not `pass`
 
@@ -183,15 +183,15 @@ Row format is that of [`matrix.md` §1](../../libppcp/docs/conformance/matrix.md
 
 | Test | Invariant | Method | Work packages | PinPointStudio | Command |
 |---|---|---|---|---|---|
-| CT-I12 | I12 | fixture | H3 | `pass` | `ctest --test-dir build/ppcp-tests -R ppcp_bundle_import_test` |
-| CT-I14 | I14 | static | H2 | `pass` | `ctest --test-dir build/ppcp-tests -R ppcp_host_peer_test` |
-| CT-I15 | I15 | fixture | H3 | `impl` | `ctest --test-dir build/ppcp-tests -R ppcp_bundle_import_test` |
-| CT-I16 | I16 | paired | H3 | `impl` | `ctest --test-dir build/ppcp-tests -R ppcp_bundle_import_test` |
-| CT-I19 | I19 | static | H2 | `pass` | `ctest --test-dir build/ppcp-tests -R ppcp_source_declaration_test` |
-| CT-I34 | I34 | fixture | H3 | `pass` | `ctest --test-dir build/ppcp-tests -R ppcp_bundle_import_test` |
-| CT-I36a | I36 | paired | H4 | `pass` (consumer half) | `ctest --test-dir build/ppcp-tests -R ppcp_video_input_test` |
-| CT-S1 | I17, I22 | injected | H4 | `impl` | `ctest --test-dir build/ppcp-tests -R ppcp_video_input_test` |
-| CT-S3 | — | static | H2 | `pass` | `ctest --test-dir build/ppcp-tests -R ppcp_source_declaration_test` |
+| CT-I12 | I12 | fixture | H3 | `pass` | `ctest --test-dir build/tests/Ppcp -R ppcp_bundle_import_test` |
+| CT-I14 | I14 | static | H2 | `pass` | `ctest --test-dir build/tests/Ppcp -R ppcp_host_peer_test` |
+| CT-I15 | I15 | fixture | H3 | `impl` | `ctest --test-dir build/tests/Ppcp -R ppcp_bundle_import_test` |
+| CT-I16 | I16 | paired | H3 | `impl` | `ctest --test-dir build/tests/Ppcp -R ppcp_bundle_import_test` |
+| CT-I19 | I19 | static | H2 | `pass` | `ctest --test-dir build/tests/Ppcp -R ppcp_source_declaration_test` |
+| CT-I34 | I34 | fixture | H3 | `pass` | `ctest --test-dir build/tests/Ppcp -R ppcp_bundle_import_test` |
+| CT-I36a | I36 | paired | H4 | `pass` (consumer half) | `ctest --test-dir build/tests/Ppcp -R ppcp_video_input_test` |
+| CT-S1 | I17, I22 | injected | H4 | `impl` | `ctest --test-dir build/tests/Ppcp -R ppcp_video_input_test` |
+| CT-S3 | — | static | H2 | `pass` | `ctest --test-dir build/tests/Ppcp -R ppcp_source_declaration_test` |
 
 **CT-I12** — `AnySubsetOfStreamsLoadsIncludingNone`. A video-only bundle, an IMU-only bundle and a Session with no Streams at all each load, produce a Session record, and yield the Captures the bundle announced. The bundles are written through `ppcp_bundle_writer`, not by hand.
 
@@ -319,8 +319,8 @@ were never stated over a UI.
 Everything below is reproduced by one command:
 
 ```
-cmake --build build/ppcp-tests -j3
-ctest --test-dir build/ppcp-tests --output-on-failure
+cmake --build build/tests -j3
+ctest --test-dir build/tests/Ppcp --output-on-failure
 ```
 
 10 suites, 10 passing.
@@ -329,16 +329,16 @@ ctest --test-dir build/ppcp-tests --output-on-failure
 
 | Test | Invariant | Method | Work packages | PinPointStudio | Command |
 |---|---|---|---|---|---|
-| CT-I7 | I7 | paired | H5 | `pass` | `ctest --test-dir build/ppcp-tests -R ppcp_arbitration_test` |
-| CT-I8 | I8 | paired | H5 | `pass` | `ctest --test-dir build/ppcp-tests -R ppcp_arbitration_test` |
-| CT-I18 | I18 | static + injected | H5 | `pass` (negative half) | `ctest --test-dir build/ppcp-tests -R ppcp_live_session_test` |
-| CT-I20 | I20 | static | H5 | `pass` | `ctest --test-dir build/ppcp-tests -R ppcp_arbitration_test` |
-| CT-I21 | I21 | static | H5 | `pass` | `ctest --test-dir build/ppcp-tests -R ppcp_live_session_test` |
-| CT-I35 | I35 | paired | H5 | `impl` | `ctest --test-dir build/ppcp-tests -R ppcp_arbitration_test` |
-| CT-I37 | I37 | static (API surface) | H7 | `pass` | `ctest --test-dir build/ppcp-tests -R ppcp_annotation_test` |
-| CT-S5 | — | paired | H5 | `impl` | `ctest --test-dir build/ppcp-tests -R ppcp_live_session_test` |
-| CT-S1 | I17, I22 | injected | H4, H5 | `impl` | `ctest --test-dir build/ppcp-tests -R ppcp_video_input_test` |
-| CT-I36a | I36 | paired | H4 | `pass` (consumer half) | `ctest --test-dir build/ppcp-tests -R ppcp_video_input_test` |
+| CT-I7 | I7 | paired | H5 | `pass` | `ctest --test-dir build/tests/Ppcp -R ppcp_arbitration_test` |
+| CT-I8 | I8 | paired | H5 | `pass` | `ctest --test-dir build/tests/Ppcp -R ppcp_arbitration_test` |
+| CT-I18 | I18 | static + injected | H5 | `pass` (negative half) | `ctest --test-dir build/tests/Ppcp -R ppcp_live_session_test` |
+| CT-I20 | I20 | static | H5 | `pass` | `ctest --test-dir build/tests/Ppcp -R ppcp_arbitration_test` |
+| CT-I21 | I21 | static | H5 | `pass` | `ctest --test-dir build/tests/Ppcp -R ppcp_live_session_test` |
+| CT-I35 | I35 | paired | H5 | `impl` | `ctest --test-dir build/tests/Ppcp -R ppcp_arbitration_test` |
+| CT-I37 | I37 | static (API surface) | H7 | `pass` | `ctest --test-dir build/tests/Ppcp -R ppcp_annotation_test` |
+| CT-S5 | — | paired | H5 | `impl` | `ctest --test-dir build/tests/Ppcp -R ppcp_live_session_test` |
+| CT-S1 | I17, I22 | injected | H4, H5 | `impl` | `ctest --test-dir build/tests/Ppcp -R ppcp_video_input_test` |
+| CT-I36a | I36 | paired | H4 | `pass` (consumer half) | `ctest --test-dir build/tests/Ppcp -R ppcp_video_input_test` |
 
 **⚠ Every row above is evidence from two `ppcp_peer`s in ONE PROCESS.** `tools/ppcp-sim`
 (`libppcp` L13) now exists at `libppcp/build/dev/tools/ppcp-sim`, and this agent could not
@@ -548,7 +548,7 @@ counterpart. Nothing in it was asserted by a test in this repository, and no row
 | | |
 |---|---|
 | Instrument | `ppcp-conform`, libppcp `e52647e` (`ppcp-sim` the same) |
-| Peer under test | `build/ppcp-tests/ppcp_conform_host` — the real `PpcpHostPeer`, headless |
+| Peer under test | `build/tests/Ppcp/ppcp_conform_host` — the real `PpcpHostPeer`, headless |
 | Role | `host` |
 | Profiles claimed | `core capture detect arbitrate live offline markup` (Mint withheld) |
 | Result | **11 of 12 applicable rows pass.** One row — CT-I6 — cannot be run against a host and is a finding against the instrument, not against this host |
@@ -557,16 +557,16 @@ counterpart. Nothing in it was asserted by a test in this repository, and no row
 ### 10.1 Reproducing it
 
 ```sh
-cmake -S src/Ppcp/tests -B build/ppcp-tests -G Ninja
-cmake --build build/ppcp-tests -j3
-ctest --test-dir build/ppcp-tests -R ppcp_conformance --output-on-failure
+cmake -S tests -B build/tests -G Ninja
+cmake --build build/tests -j3
+ctest --test-dir build/tests/Ppcp -R ppcp_conformance --output-on-failure
 ```
 
 `ctest` drives `src/Ppcp/tests/run-conform.sh`, which is two commands:
 
 ```sh
 # 1. the peer under test, headless, on an ephemeral port it writes to a file
-build/ppcp-tests/ppcp_conform_host --port 0 --port-file $WORK/conform-host.port --run-ms 240000
+build/tests/Ppcp/ppcp_conform_host --port 0 --port-file $WORK/conform-host.port --run-ms 240000
 
 # 2. the instrument, from libppcp's own build tree
 ../libppcp/build/dev/tools/ppcp-conform/ppcp-conform \
@@ -795,9 +795,9 @@ first counterpart that was not us produced four of these on its first row.
 
 | Row | Command |
 |---|---|
-| RT-5, RT-7 (browser), RT-8, RT-9, RT-15 (publisher), RT-16 | `ctest --test-dir build/ppcp-tests -R ppcp_rendezvous_test` |
-| The QR encoder behind RV 4.1d | `ctest --test-dir build/ppcp-tests -R ppcp_qr_test` |
-| Every app-side PPCP translation unit still compiles | `ctest --test-dir build/ppcp-tests -R ppcp_app_tu_syntax` |
+| RT-5, RT-7 (browser), RT-8, RT-9, RT-15 (publisher), RT-16 | `ctest --test-dir build/tests/Ppcp -R ppcp_rendezvous_test` |
+| The QR encoder behind RV 4.1d | `ctest --test-dir build/tests/Ppcp -R ppcp_qr_test` |
+| Every app-side PPCP translation unit still compiles | `ctest --test-dir build/tests/Ppcp -R ppcp_app_tu_syntax` |
 
 **Every refusal in the rendezvous suite is a real TLS handshake on loopback**, dialled by a
 scanner built out of nothing but `ppcp_rv_uri_decode()`, `ppcp_rv_derive()` and
@@ -972,7 +972,7 @@ real TLS — is §11.4.
 
 ### 11.1 The rows
 
-`ctest --test-dir build/ppcp-tests -R ppcp_interop` runs all eight. Each is
+`ctest --test-dir build/tests/Ppcp -R ppcp_interop` runs all eight. Each is
 `src/Ppcp/tests/run-interop.sh ROW <ppcp_conform_host> <ppcp-sim> <scenarios> <workdir> [device-bundles] [fixtures]`,
 and each asserts **on both ends**: the counterpart's view as `ppcp-sim --expect` (its exit code),
 and this host's own view as the JSON summary `--summary` writes. A row that read only the
@@ -993,12 +993,12 @@ read only ours would pass for a host talking to itself.
 
 Measured 23 Aug 2026 against `libppcp` at **`4d0e04a`** — revision 9 plus **errata E1–E29**, all
 normative — with `ppcp-conform` and `ppcp-sim` rebuilt from that revision.
-`ctest --test-dir build/ppcp-tests` is **23/23**. §11.6 is what adopting E7, E9, E21, E25, E28 and
+`ctest --test-dir build/tests/Ppcp` is **23/23**. §11.6 is what adopting E7, E9, E21, E25, E28 and
 E29 changed in this repository, and what it caught.
 
 ### 11.2 What each row actually asserted, and the numbers it got
 
-Every number below is from the row's own `--summary` JSON in `build/ppcp-tests/interop/`.
+Every number below is from the row's own `--summary` JSON in `build/tests/Ppcp/interop/`.
 
 - **IOP-4 — I24.** `declares_rx 1`, `candidates_rx 0`, `shots_rx 0`, `issued 0`, `heartbeat_acks 6`,
   `errors_fatal 0`. The observer originated nothing past `hello`, `declare` and its acks; this host
