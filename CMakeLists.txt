@@ -734,7 +734,8 @@ qt_add_executable(PinPointStudio
     src/Gui/athlete/athlete_controller.h     src/Gui/athlete/athlete_controller.cpp
     # The session report (docs/design/session_report_design.md §11): the studio and its coach, the
     # model that builds the report map and prints it, its stills, its record, the session list with
-    # report state, and the hand-off to the coach's mail app (platform halves below).
+    # report state, the hand-off to the coach's mail app, and sending it over SMTP from the coach's own
+    # account with the password in the system's secure store (platform halves below).
     src/Core/studio_profile.h                src/Core/studio_profile.cpp
     src/Coaching/session_report.h
     src/Gui/report/session_report_model.h    src/Gui/report/session_report_model.cpp
@@ -742,6 +743,9 @@ qt_add_executable(PinPointStudio
     src/Gui/report/report_meta.h
     src/Gui/report/session_report_list_model.h src/Gui/report/session_report_list_model.cpp
     src/Gui/report/report_mailer.h           src/Gui/report/report_mailer.cpp
+    src/Gui/report/smtp_message.h            src/Gui/report/smtp_message.cpp
+    src/Gui/report/smtp_client.h             src/Gui/report/smtp_client.cpp
+    src/Gui/report/mail_credentials.h        src/Gui/report/mail_credentials.cpp
     src/Gui/shell/navigation_controller.h    src/Gui/shell/navigation_controller.cpp
     src/Gui/monitor/resource_monitor_controller.h src/Gui/monitor/resource_monitor_controller.cpp
     src/Gui/monitor/profiler_controller.h         src/Gui/monitor/profiler_controller.cpp
@@ -3018,6 +3022,7 @@ if(APPLE)
         src/Video/VideoInputApple.mm
         src/Core/pp_gpu_metrics_mac.mm
         src/Gui/report/report_mailer_mac.mm
+        src/Gui/report/mail_credentials_mac.mm
     )
     # ARC manages the MTLDevice returned by MTLCreateSystemDefaultDevice().
     set_source_files_properties(src/Core/pp_gpu_metrics_mac.mm
@@ -3088,13 +3093,19 @@ if(APPLE)
         "-framework Metal"        # pp_gpu_metrics_mac.mm — MTLDevice memory query
         "-framework Foundation"
         "-framework AppKit"       # report_mailer_mac.mm — NSSharingService (compose email)
+        "-framework Security"     # mail_credentials_mac.mm — the report-sending password, login keychain
     )
 endif()
-# The session report's mail hand-off, Windows (Simple MAPI, loaded at run time) and Linux (xdg-email).
+# The session report's mail hand-off, Windows (Simple MAPI, loaded at run time) and Linux (xdg-email),
+# and the report-sending password's store: Credential Manager (advapi32) on Windows, the settings file on
+# Linux (mail_credentials_linux.cpp says why).
 if(WIN32)
-    target_sources(PinPointStudio PRIVATE src/Gui/report/report_mailer_win.cpp)
+    target_sources(PinPointStudio PRIVATE src/Gui/report/report_mailer_win.cpp
+                                          src/Gui/report/mail_credentials_win.cpp)
+    target_link_libraries(PinPointStudio PRIVATE advapi32)
 elseif(UNIX AND NOT APPLE)
-    target_sources(PinPointStudio PRIVATE src/Gui/report/report_mailer_linux.cpp)
+    target_sources(PinPointStudio PRIVATE src/Gui/report/report_mailer_linux.cpp
+                                          src/Gui/report/mail_credentials_linux.cpp)
 endif()
 
 if(UNIX AND NOT APPLE)
@@ -3606,7 +3617,9 @@ if(PP_OPENSSL_FOUND AND TARGET ppcp)
     # ⚠ Security.framework and CoreFoundation were linked here for the macOS
     # keychain pairing store.  RV 7.2c became a SHOULD (libppcp erratum E56,
     # 25 August 2026) and the PRK moved into the application's own settings on
-    # every platform, so nothing reaches Security.framework any more.
+    # every platform, so PPCP no longer reaches Security.framework. (The
+    # report-sending password does, from mail_credentials_mac.mm; it is linked
+    # with AppKit in the macOS block above.)
     if(WIN32)
         # ppcp_rendezvous.cpp's Windows branch: GetAdaptersAddresses (RV 4.3d's
         # endpoint enumeration) needs iphlpapi, BCryptGenRandom (RV 7.2a's

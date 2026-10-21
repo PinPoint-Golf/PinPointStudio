@@ -248,11 +248,13 @@ pp_add_test(report_meta_test
     INCLUDE ${GUI} ${SRC})
 
 # The rest of the session report's C++ tests, one fragment per part of the build so the parts can be
-# registered independently: the stills, the model, the session list and mail hand-off, the studio.
+# registered independently: the stills, the model, the session list and mail hand-off, the studio,
+# sending over SMTP.
 include(${CMAKE_CURRENT_LIST_DIR}/report_stills_tests.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/report_model_tests.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/report_list_tests.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/report_studio_tests.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/report_smtp_tests.cmake)
 
 # No binding may subscribe to a dependency it does not USE.
 #

@@ -33,7 +33,9 @@
 // sentence in the report.
 //
 // THE SEND LOG says what really happened. With the mail-app hand-off the app cannot know the coach
-// pressed Send, so an entry is "Opened in Mail", never "Sent" (§8.3). Each entry carries the SHA-256 of
+// pressed Send, so an entry is "Opened in Mail", never "Sent" (§8.3). Sent by the app itself over SMTP
+// (method "smtp", option B) it says "Sent" — and that means the coach's mail server ACCEPTED it, not
+// that it was delivered; a bounce comes back to the coach's inbox. Each entry carries the SHA-256 of
 // the PDF that went, so a remake after a send can say the new PDF differs from the one sent.
 //
 // Pure apart from the file system; header-only; report_meta_test.
@@ -64,7 +66,7 @@ inline constexpr int kReportMetaSchema = 1;
 
 struct ReportSend {
     qint64  ms = 0;
-    QString method;          // "mail-app" | "copied" | "revealed" — never an address
+    QString method;          // "smtp" | "mail-app" | "copied" | "revealed" — never an address
     QString sha256;          // of the PDF that went
 };
 
@@ -219,7 +221,8 @@ inline bool sentDiffers(const ReportMeta &m)
 }
 
 // The row's state words (§8.0), plain text, never a badge: "No report" · "Report prepared 20 Oct" ·
-// "Opened in Mail 20 Oct 18:40" · "Out of date — remake". Dates in the C locale's English month names.
+// "Sent 21 Oct 18:40" (the server accepted it) · "Opened in Mail 20 Oct 18:40" · "Out of date — remake".
+// Dates in the C locale's English month names.
 inline QString reportStateWords(ReportState state, const std::optional<ReportMeta> &m)
 {
     const QLocale c = QLocale::c();
@@ -231,9 +234,11 @@ inline QString reportStateWords(ReportState state, const std::optional<ReportMet
     case ReportState::Current:
         break;
     }
-    if (m && !m->sends.isEmpty() && m->sends.last().sha256 == m->sha256 && m->sends.last().method == QLatin1String("mail-app")) {
-        const QDateTime t = QDateTime::fromMSecsSinceEpoch(m->sends.last().ms);
-        return QStringLiteral("Opened in Mail ") + c.toString(t, QStringLiteral("d MMM HH:mm"));
+    if (m && !m->sends.isEmpty() && m->sends.last().sha256 == m->sha256) {
+        const ReportSend &last = m->sends.last();
+        const QString when = c.toString(QDateTime::fromMSecsSinceEpoch(last.ms), QStringLiteral("d MMM HH:mm"));
+        if (last.method == QLatin1String("smtp"))     return QStringLiteral("Sent ") + when;
+        if (last.method == QLatin1String("mail-app")) return QStringLiteral("Opened in Mail ") + when;
     }
     const QDateTime t = QDateTime::fromMSecsSinceEpoch(m ? m->preparedMs : 0);
     return QStringLiteral("Report prepared ") + c.toString(t.date(), QStringLiteral("d MMM"));

@@ -109,6 +109,25 @@ int main(int argc, char **argv)
     check(reportStateWords(ReportState::Current, sent) == QLatin1String("Report prepared 20 Oct"),
           "remade copy is not described as opened in Mail");
 
+    // Sent by the app over SMTP: "Sent", the server's acceptance — and only for the PDF that went.
+    sent.sends.append({ QDateTime(QDate(2026, 10, 21), QTime(18, 40)).toMSecsSinceEpoch(), QStringLiteral("smtp"), sent.sha256 });
+    check(!sentDiffers(sent), "smtp: the sent copy is the one on disk");
+    check(reportStateWords(ReportState::Current, sent) == QLatin1String("Sent 21 Oct 18:40"), "words: sent over SMTP");
+    {
+        const std::optional<ReportMeta> rt = reportMetaFromJson(toJson(sent));
+        check(rt && rt->sends.size() == sent.sends.size() && rt->sends.last().method == QLatin1String("smtp"),
+              "smtp send round-trips in the record");
+    }
+    touch(reportPdfPath(session, sent), "%PDF-1.4 remade again");
+    sent.sha256 = fileSha256(reportPdfPath(session, sent));
+    check(sentDiffers(sent), "remade after an SMTP send: differs from the one sent");
+    check(reportStateWords(ReportState::Current, sent) == QLatin1String("Report prepared 20 Oct"),
+          "remade copy is not described as sent");
+    ReportMeta other2 = sent;
+    other2.sends.append({ QDateTime(QDate(2026, 10, 21), QTime(19, 0)).toMSecsSinceEpoch(), QStringLiteral("copied"), sent.sha256 });
+    check(reportStateWords(ReportState::Current, other2) == QLatin1String("Report prepared 20 Oct"),
+          "a copied address is not a send");
+
     // The record never holds an address.
     const QByteArray raw = QJsonDocument(toJson(sent)).toJson();
     check(!raw.contains('@'), "no email address in the record");

@@ -1,0 +1,4 @@
+TEST ONLY. A throwaway CA (ca.pem; its key was discarded after signing) and a server certificate and key
+(server.pem, server.key) for 127.0.0.1 / localhost, valid to 2126, used by report_smtp_test's in-process fake
+SMTP server and trusted only through SmtpConfig::extraCaCertificates. Never install or ship them.
+Made with: openssl req -x509 (CA, rsa:2048, 36500 days) + openssl x509 -req (SAN IP:127.0.0.1,DNS:localhost, serverAuth).

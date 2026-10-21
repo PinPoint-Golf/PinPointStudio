@@ -30,6 +30,7 @@
 
 #include "report/session_report_list_model.h"
 #include "report/report_mailer.h"
+#include "report/mail_credentials.h"
 #include "report/report_meta.h"
 #include "../../Coaching/work_ons.h"
 #include "../../Export/swing_doc.h"
@@ -65,6 +66,12 @@ QString platformCompose(const QStringList &to, const QString &, const QString &,
     g_platformFile = filePath;
     return {};
 }
+// The password store's platform half is the test's too, and refuses: nothing here may reach the keychain
+// (PINPOINT_MAIL_CREDENTIALS=memory is set in main, so these are never called).
+bool    platformStoreMailPassword(const QString &, const QString &, QString *e) { if (e) *e = QStringLiteral("test"); return false; }
+QString platformReadMailPassword(const QString &) { return {}; }
+bool    platformHasMailPassword(const QString &) { return false; }
+bool    platformForgetMailPassword(const QString &) { return true; }
 }
 
 static void touch(const QString &path, const QByteArray &bytes)
@@ -150,6 +157,7 @@ static QVariant role(const SessionReportListModel &m, int row, int role) { retur
 int main(int argc, char **argv)
 {
     qputenv("PINPOINT_MAIL_DRYRUN", "0");
+    qputenv("PINPOINT_MAIL_CREDENTIALS", "memory");
     QGuiApplication app(argc, argv);
     QTemporaryDir tmp;
     const QString golfer = tmp.filePath(QStringLiteral("G"));
