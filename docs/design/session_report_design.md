@@ -535,6 +535,30 @@ A `mailto:` link cannot carry an attachment, so sending needs more than that. Th
 
 **Decided (Mark, 20 October): A, with C always shown beside it.** B stays designed but unbuilt.
 
+**Changed (Mark, 21 October): B is built, A becomes the fallback.** "The function to email the report
+to the golfer should just do it." Set up once per machine in Settings → Studio → Sending reports:
+provider (Gmail, iCloud, Microsoft 365, Other; presets fill the server, port and security), the login,
+and its password (an app password for Gmail and iCloud) kept in the system's secure store (Keychain,
+Windows Credential Manager), never in the INI. The row's Email then opens a one-line confirm in
+place, "Send to nick@… · 7.4 MB · Send", and sends straight from the app. Until sending is set up,
+Email hands off to the mail app exactly as before.
+
+- **No login, no send.** An ISP's open relay is allowed only as "Other" with the login left empty;
+  delivering straight to the golfer's MX is not offered (port 25 is blocked on most broadband,
+  broadband IPs are on block lists, and the coach's domain would fail SPF/DMARC).
+- **Never in the clear.** A login is never sent without TLS (STARTTLS on 587, or TLS on 465);
+  certificates are always verified.
+- **From is the login**, because a server sending as anyone else fails DMARC; Reply-To is the coach's
+  address when it differs. A copy goes to the coach as Bcc (on by default), since SMTP leaves nothing
+  in Sent except on Gmail.
+- **The send log says "Sent 21 Oct 18:40"**, meaning the coach's server accepted it, not that it was
+  delivered. A bounce goes to the coach's inbox.
+- **Microsoft 365** is on the preset list but password sign-in for SMTP is being switched off
+  (default-off for existing tenants from the end of 2026, per Microsoft's MC786329); OAuth is not
+  built until a studio needs it.
+- **Size:** a 7–8 MB PDF is ~10–11 MB once base64-encoded. Gmail (25 MB) and Microsoft 365 take
+  it; some hosts cap at 10 MB. The server's advertised SIZE is checked before anything is uploaded.
+
 The message defaults, which the coach edits in Settings → Studio:
 - **Subject:** *Your session report — {date}*
 - **Message:**
@@ -851,8 +875,8 @@ directly, so it does not depend on the fix, but the panel does.
    hips page has no "what came with it", though path ran in-to-out.)
    **Decided 20 Oct (Mark): "LM is always the primary source for the metrics it delivers — our estimates will
    never be better."** Every measure with an `m_lm*` twin reads the LM first (`preferKeys`); ours is the fallback.
-7. ~~Sending~~ **Decided 20 Oct:** hand off to the coach's mail app (option A, §8.3). Option B is
-   not built.
+7. ~~Sending~~ **Decided 20 Oct:** hand off to the coach's mail app (option A, §8.3).
+   **Changed 21 Oct:** send directly over SMTP (option B), with the hand-off as the fallback (§8.3).
 8. ~~Juniors' photos~~ **Decided 20 Oct:** off for under-18s unless the golfer details page records
    parent or guardian approval (§7.3).
 9. ~~Coaches~~ **Decided 20 Oct:** one coach per studio (§7.2).
