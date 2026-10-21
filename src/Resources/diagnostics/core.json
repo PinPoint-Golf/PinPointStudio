@@ -2310,7 +2310,8 @@
       "kind": "provided",
       "metricKey": "lowPointAhead",
       "preferKeys": [
-        "lm.lowPointAhead"
+        "lm.lowPointAhead",
+        "lowPointFromAttack"
       ],
       "reducer": {
         "kind": "at",

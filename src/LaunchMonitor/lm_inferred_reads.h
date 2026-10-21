@@ -461,4 +461,45 @@ inline LmStrikeRead lmStrikeQuality(const std::optional<double> &locationMm,
     return out;
 }
 
+// ── Low point from the launch monitor's attack angle (issue #92) ─────────────────────────────────
+//
+// A GC Quad reports the attack angle but not the low point, and the two are one geometry: near the
+// bottom the clubhead travels a circle of radius R about the swing centre, so a head still
+// descending at α below horizontal as it reaches the ball bottoms out R·sin(−α) further on. Stated
+// in INCHES, POSITIVE AHEAD OF THE BALL — the same convention as `lowPointAhead`, whose preferred
+// rung this becomes (m_lowPointAhead's preferKeys), since the launch monitor is primary.
+//
+// R is the club's standard length plus an arm term (kArcArmM), chosen so a men's 7-iron (37 in)
+// gives 1.46 m — the radius behind the familiar "about an inch of low point per degree of attack
+// angle" for a mid-iron. That is an ASSUMPTION, not a measurement of this golfer, and the σ says so:
+// the device's attack angle at an assumed ±0.5° and the radius at ±10 %, in quadrature. The camera
+// arc fits cannot set R — their radii scatter far more by club than the clubs do (issue #92).
+struct LmLowPoint {
+    bool   has   = false;
+    double value = 0.0;   // in · + = the arc bottomed out AHEAD of the ball
+    double sigma = 0.0;   // in · 1σ, from the assumed inputs above
+};
+
+inline constexpr double kArcArmM             = 0.52;   // R = club length + this (7-iron ⇒ 1.46 m)
+inline constexpr double kArcRadiusDefaultM   = 1.46;   // a club the standards table does not know
+inline constexpr double kArcRadiusRelSigma   = 0.10;
+inline constexpr double kLmAttackSigmaDeg    = 0.5;
+
+inline LmLowPoint lmLowPointFromAttack(const std::optional<double> &attackDeg, double arcRadiusM)
+{
+    LmLowPoint out;
+    if (!attackDeg || !std::isfinite(*attackDeg) || !(arcRadiusM > 0.0) || std::abs(*attackDeg) >= 45.0)
+        return out;
+    constexpr double kInPerM = 1.0 / 0.0254;
+    constexpr double kDegToRad = 3.14159265358979323846 / 180.0;
+    const double a = *attackDeg * kDegToRad;
+    out.value = -arcRadiusM * std::sin(a) * kInPerM;
+    const double dValueDa = arcRadiusM * std::cos(a) * kInPerM;              // in per radian
+    const double sA = dValueDa * kLmAttackSigmaDeg * kDegToRad;
+    const double sR = std::abs(out.value) * kArcRadiusRelSigma;
+    out.sigma = std::sqrt(sA * sA + sR * sR);
+    out.has = true;
+    return out;
+}
+
 } // namespace pinpoint::analysis

@@ -87,7 +87,7 @@ int main()
         // sequence is read from (pelvis / thorax / leadArm / club — segment_rates.h); the
         // Sequence itself went from planned to live the same day.
         // 104 -> 105 on 2026-09-23 with handPathLoop, the down-the-line hand loop over the top reads.
-        checkEqI(static_cast<int>(cat.all().size()), 119, "descriptor count == 119");   // +ksOrderShare, +ksTimingSpread (2026-10-14: the session sequence-consistency readings, planned)   // +8 sequence node readings (2026-10-14: arm/club peak times, four peak speeds, two reversals)   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
+        checkEqI(static_cast<int>(cat.all().size()), 120, "descriptor count == 120");   // +lowPointFromAttack (2026-10-21, issue #92: the low point the monitor's attack angle implies)   // +ksOrderShare, +ksTimingSpread (2026-10-14: the session sequence-consistency readings, planned)   // +8 sequence node readings (2026-10-14: arm/club peak times, four peak speeds, two reversals)   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
                                "clubheadPeakLead",
@@ -136,7 +136,7 @@ int main()
         // was firing on the wrong quantity: `shoulderLineYaw` (aim is a bearing, and the tilt one
         // camera reads is set by the grip) and `clubheadPeakLead` (the fault is the CLUBHEAD peaking
         // early; hand speed falls into impact on every good release).
-        checkEqI(countType(cat, MetricType::PointInTime), 58, "PointInTime count");   // +8 sequence node readings (2026-10-14)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02)   // +17: a monitor reports one number per shot; +transitionPlaneDelta, +compoundMiss, +shoulderLineYaw, +clubheadPeakLead, +handPathLoop
+        checkEqI(countType(cat, MetricType::PointInTime), 59, "PointInTime count");   // +lowPointFromAttack (2026-10-21)   // +8 sequence node readings (2026-10-14)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02)   // +17: a monitor reports one number per shot; +transitionPlaneDelta, +compoundMiss, +shoulderLineYaw, +clubheadPeakLead, +handPathLoop
         checkEqI(countType(cat, MetricType::Summary),      7, "Summary count");   // +ksOrderShare, +ksTimingSpread
         checkEqI(countType(cat, MetricType::Sequence),     1, "Sequence count (kinematicSequence)");
 

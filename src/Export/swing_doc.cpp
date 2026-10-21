@@ -45,6 +45,7 @@
 #include "../Skeleton3d/skeleton3d_json.h" // skeleton3dToJson — analysis.skeleton3d
 #include "../Club/dtl_shaft_json.h"                // dtlShaftTrackToJson — analysis.clubDtl == club_dtl.json
 #include "../Body/address_marks_json.h"            // addressMarksToJson — analysis.addressMarks
+#include "../Core/club_standards.h"            // lmArcRadiusM — the club's standard length
 #include "../Core/club_vocabulary.h"
 
 namespace pinpoint {
@@ -838,21 +839,34 @@ QJsonObject lmRawBlock(const lm::LaunchMonitorReading &reading)
 // One entry per reading: an EMPTY CURVE carrying a single phaseSample at Impact — the
 // representation club_delivery already uses for its scalars. A launch monitor reports
 // one number per shot; inventing a curve for it would be a lie the charts would draw.
+//
+// `sigma` > 0 is a stated 1σ for a DERIVED entry, carried as an assumed-input σ (SigmaKind) because it
+// comes from the derivation's stated assumptions rather than from the device; a device reading
+// carries none (the device states no uncertainty, and absent is "not characterised").
 QJsonObject lmMetricEntry(const QString &key, const QString &label, const QString &unit,
-                          double value, qint64 impactUs)
+                          double value, qint64 impactUs, double sigma = 0.0)
 {
-    return QJsonObject{
+    QJsonObject ps{
+        { QStringLiteral("phase"), int(analysis::Phase::Impact) },
+        { QStringLiteral("t_us"),  impactUs },
+        { QStringLiteral("value"), value },
+        { QStringLiteral("band"),  QString() } };
+    QJsonObject m{
         { QStringLiteral("key"),   key },
         { QStringLiteral("label"), label },
         { QStringLiteral("unit"),  unit },
         { QStringLiteral("t_us"),  QJsonArray{} },
         { QStringLiteral("value"), QJsonArray{} },
-        { QStringLiteral("phaseSamples"), QJsonArray{ QJsonObject{
-              { QStringLiteral("phase"), int(analysis::Phase::Impact) },
-              { QStringLiteral("t_us"),  impactUs },
-              { QStringLiteral("value"), value },
-              { QStringLiteral("band"),  QString() } } } },
     };
+    if (sigma > 0.0) {
+        const int kind = int(analysis::SigmaKind::AssumedInput);
+        ps.insert(QStringLiteral("sigma"), sigma);
+        ps.insert(QStringLiteral("sigmaKind"), kind);
+        m.insert(QStringLiteral("sigma"), sigma);
+        m.insert(QStringLiteral("sigmaKind"), kind);
+    }
+    m.insert(QStringLiteral("phaseSamples"), QJsonArray{ ps });
+    return m;
 }
 
 // The keys we DERIVE from a reading rather than read off it, and the reason they are listed
@@ -868,23 +882,43 @@ QJsonObject lmMetricEntry(const QString &key, const QString &label, const QStrin
 // pairing would have appended a second copy — silently, and only on shots a device was re-read for.
 const QStringList &lmDerivedKeys()
 {
-    static const QStringList keys = { QStringLiteral("compoundMiss") };
+    static const QStringList keys = { QStringLiteral("compoundMiss"),
+                                      QStringLiteral("lowPointFromAttack") };
     return keys;
 }
 
-QJsonArray lmMetricEntries(const lm::LaunchMonitorReading &reading, qint64 impactUs)
+// The radius the club's head swings through near the bottom, for lmLowPointFromAttack: the standard
+// length of the club this document declares, for the golfer's set, plus the arm term. A club the
+// table does not know — or none — takes the mid-iron default. A junior is read from the men's or
+// women's set: their own lengths need a height this document may not carry, and the σ on R (±10 %)
+// is wider than the difference at the lengths juniors play.
+double lmArcRadiusM(const QJsonObject &root)
+{
+    const QString club = swingDocDeclaredClub(root);
+    const QString sex  = root.value(QStringLiteral("athlete")).toObject()
+                             .value(QStringLiteral("sex")).toString();
+    const pinpoint::ClubStandard st = pinpoint::standardClub(club, pinpoint::clubSetFor(sex, /*junior*/ false));
+    return st.valid ? st.lengthMm / 1000.0 + analysis::kArcArmM : analysis::kArcRadiusDefaultM;
+}
+
+// The reading back out of the raw `launchMonitor` block (lmRawBlock writes every field under its
+// rawName), so a re-analysis can DERIVE again rather than carry a derived row it cannot re-check.
+lm::LaunchMonitorReading lmReadingFromRaw(const QJsonObject &raw)
+{
+    lm::LaunchMonitorReading r;
+    for (const lm::FieldDef &f : lm::fieldDefs()) {
+        const QJsonValue v = raw.value(QString::fromLatin1(f.rawName));
+        if (v.isDouble())
+            r.*(f.member) = v.toDouble();
+    }
+    return r;
+}
+
+// What WE compute from a reading — bare keys, listed in lmDerivedKeys().
+QJsonArray lmDerivedEntries(const lm::LaunchMonitorReading &reading, qint64 impactUs, double arcRadiusM)
 {
     QJsonArray metrics;
-    for (const lm::FieldDef &f : lm::fieldDefs()) {
-        const auto &val = reading.*(f.member);
-        if (!val)
-            continue;
-        metrics.append(lmMetricEntry(QString::fromLatin1(f.key), QString::fromUtf8(f.label),
-                                     QString::fromUtf8(f.unit), *val, impactUs));
-    }
 
-    // ── derived ─────────────────────────────────────────────────────────────
-    //
     // Produced HERE, beside the readings, rather than in an analysis stage — and that is a fact
     // about when a launch monitor speaks, not a shortcut. A reading is paired to a swing by
     // shot_pairing AFTER the stages have run, and often after the document is already on disk, so
@@ -898,6 +932,29 @@ QJsonArray lmMetricEntries(const lm::LaunchMonitorReading &reading, qint64 impac
                                      QStringLiteral("Compound miss"), QStringLiteral("ratio"),
                                      cm.value, impactUs));
 
+    // The low point the device's attack angle implies (issue #92): a GC Quad does not report one,
+    // and the diagnostic measure prefers this to the camera's arc fit.
+    const analysis::LmLowPoint lp = analysis::lmLowPointFromAttack(reading.attackAngle, arcRadiusM);
+    if (lp.has)
+        metrics.append(lmMetricEntry(QStringLiteral("lowPointFromAttack"),
+                                     QStringLiteral("Low point (from attack angle)"),
+                                     QStringLiteral("in"), lp.value, impactUs, lp.sigma));
+
+    return metrics;
+}
+
+QJsonArray lmMetricEntries(const lm::LaunchMonitorReading &reading, qint64 impactUs, double arcRadiusM)
+{
+    QJsonArray metrics;
+    for (const lm::FieldDef &f : lm::fieldDefs()) {
+        const auto &val = reading.*(f.member);
+        if (!val)
+            continue;
+        metrics.append(lmMetricEntry(QString::fromLatin1(f.key), QString::fromUtf8(f.label),
+                                     QString::fromUtf8(f.unit), *val, impactUs));
+    }
+    for (const QJsonValue &v : lmDerivedEntries(reading, impactUs, arcRadiusM))
+        metrics.append(v);
     return metrics;
 }
 
@@ -1456,17 +1513,32 @@ bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &
             for (const QJsonValue &v : metrics)
                 computed.insert(v.toObject().value(QStringLiteral("key")).toString());
 
+            // THE DERIVED ROWS ARE DERIVED AGAIN, from the raw block, when there is one: a derivation
+            // that changes (or is new — lowPointFromAttack, issue #92) must reach swings paired before
+            // it, and carrying the old row would freeze it. With no raw block they are carried as before.
+            const QJsonObject lmRaw = rawManifest.value(QStringLiteral("launchMonitor")).toObject();
+            const bool rederive = !lmRaw.isEmpty();
             for (const QJsonValue &v : prior) {
                 const QString key = v.toObject().value(QStringLiteral("key")).toString();
-                if (!key.startsWith(QStringLiteral("lm.")) && !lmDerivedKeys().contains(key))
+                const bool derived = lmDerivedKeys().contains(key);
+                if (!key.startsWith(QStringLiteral("lm.")) && !derived)
                     continue;
-                if (computed.contains(key))
+                if (computed.contains(key) || (derived && rederive))
                     continue;
                 // Verbatim, phaseSample timestamp included. updateLaunchMonitor() anchored it at
                 // capture.impactUs, which re-analysis does not rewrite, so re-stamping would
                 // reproduce the value already there — and a reading is located by its phase tag
                 // rather than its timestamp in any case.
                 metrics.append(v);
+            }
+            if (rederive) {
+                const qint64 impactUs =
+                    qMax<qint64>(0, qint64(rawManifest.value(QStringLiteral("capture")).toObject()
+                                               .value(QStringLiteral("impactUs")).toDouble(-1)));
+                for (const QJsonValue &v : lmDerivedEntries(lmReadingFromRaw(lmRaw), impactUs,
+                                                            lmArcRadiusM(rawManifest)))
+                    if (!computed.contains(v.toObject().value(QStringLiteral("key")).toString()))
+                        metrics.append(v);
             }
             an[QStringLiteral("metrics")] = metrics;
         }
@@ -1716,7 +1788,7 @@ bool SwingDocWriter::updateLaunchMonitor(const QString &swingDir,
             metrics.append(v);
         }
 
-        for (const QJsonValue &v : lmMetricEntries(reading, impactUs))
+        for (const QJsonValue &v : lmMetricEntries(reading, impactUs, lmArcRadiusM(root)))
             metrics.append(v);
 
         an[QStringLiteral("metrics")] = metrics;
@@ -1816,7 +1888,7 @@ bool SwingDocWriter::writeDeviceOnlySwing(const QString &swingDir,
     QJsonObject an;
     an[QStringLiteral("schema")]  = QStringLiteral("pinpoint.analysis/3");
     an[QStringLiteral("tier")]    = int(analysis::ReconstructionTier::Angles2D);
-    an[QStringLiteral("metrics")] = lmMetricEntries(reading, /*impactUs*/ 0);
+    an[QStringLiteral("metrics")] = lmMetricEntries(reading, /*impactUs*/ 0, lmArcRadiusM(root));
     an[QStringLiteral("phases")]  = QJsonArray{ QJsonObject{
         { QStringLiteral("phase"),   int(analysis::Phase::Impact) },
         { QStringLiteral("t_us"),    0 },

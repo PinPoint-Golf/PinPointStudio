@@ -1181,8 +1181,17 @@ inline constexpr int          kSessionMinSwings     = 5;      // sequence.sessio
 // few frames of span buys a usable angle at the cost of a little time resolution.
 namespace clubDelivery {
 inline constexpr int          kVelHalfSpan        = 2;        // clubDelivery.velHalfSpan (samples)
-inline constexpr std::int64_t kLowPointWinUs      = 60000;    // clubDelivery.lowPointWinUs — ±60 ms about Impact
+// The low point's arc fit (issue #92): the circle through the synthesized arc's last kLowPointWinUs
+// BEFORE impact. 80 ms was the best of 25/40/60/80/100/130 against the launch monitor on the 41
+// swings of Mark's library that have both (sd 5.5 in, median |error| 2.2 in); shorter spans are too little
+// arc to place a centre, longer ones reach back past where the arc is still near-circular and pull
+// the answer behind the ball (−3.3 in at 100 ms, −5.8 at 130).
+inline constexpr std::int64_t kLowPointWinUs      = 80000;    // clubDelivery.lowPointWinUs — 80 ms before Impact
 inline constexpr int          kLowPointMinSamples = 5;        // clubDelivery.lowPointMinSamples
+// A fitted radius outside these is not a swing's: a near-straight run fits any circle and its centre
+// is noise. The library's fits run 0.85–1.81 m interquartile (7-iron median 1.31 m).
+inline constexpr double       kLowPointMinRadiusM = 0.3;      // clubDelivery.lowPointMinRadiusM
+inline constexpr double       kLowPointMaxRadiusM = 8.0;      // clubDelivery.lowPointMaxRadiusM
 inline constexpr double       kHeadConfMin        = 0.30;     // clubDelivery.headConfMin
 // attackAngle read off the SYNTHESIZED ARC when it covers impact (2026-09-23, swing_storage_impl.md
 // Phase 2 stage 5): at least kAttackSynthMinSamples synth samples within ±kAttackSynthWinUs of it.
@@ -1197,20 +1206,17 @@ inline constexpr double       kAttackSynthMaxStepRatio = 3.0;  // clubDelivery.a
 
 // THE PUBLISHED 1σ ON lowPointAhead, IN INCHES — the health warning, as a number.
 //
-// MEASURED, not assumed, and the measurement is thin: one session (2026-08-18
-// Wrist_02, six 7-iron swings) with a launch monitor present. The arc's attack
-// angle at impact was compared against the device's, giving a bias of +0.02° and
-// a spread of 3.26°; over the arc radii that session fitted (33–42 in, mean 36)
-// that is 36 · tan(3.26°) ≈ 2.0 in of low point. The bias being ~0 is what makes
-// the number publishable at all — the estimator is unbiased and noisy, not skewed.
-//
-// SIX SWINGS FROM ONE GOLFER ON ONE SESSION IS NOT AN ERROR BUDGET, it is the
-// first evidence we have. It is a frozen constant rather than a per-swing
-// propagation deliberately: a σ computed per swing from a 6-sample calibration
-// would dress up the same one number as if it tracked the swing. Re-seat it the
-// day a multi-session corpus with launch-monitor truth exists, and scale it by
-// the fitted arc radius at the same time.
-inline constexpr double       kLowPointSigmaIn    = 2.0;      // clubDelivery.lowPointSigmaIn
+// MEASURED against the launch monitor (issue #92, 21 Oct 2026): the arc fit compared with the low
+// point the device's own attack angle implies (lmLowPointFromAttack) on the 74 swings of the three
+// athlete libraries that carry both — five sessions, three golfers, 7-iron, 8-iron and gap wedge,
+// re-analysed on the cabin PC. Median |error| 4.0 in, p68 6.0 in, p90 9.7 in; and THE BIAS IS NOT ONE
+// NUMBER — per session it ran from −5.5 in to +7.5 in, so a camera-only session average can be off
+// by as much as a single swing. 6.0 in is the model term that puts 69 % of those swings inside ±1σ
+// once addClubDeliverySigma has added the synth draws, the ball and the ruler in quadrature (those
+// alone covered 45 %). With uncertainty off it is the whole σ. On the 37 swings the old search also
+// read, the fit was no worse (median |error| 3.3 vs 3.2 in, sd 4.5 vs 6.5 in); the extra error is the
+// harder swings only the fit can read. Re-seat it when more launch-monitor sessions exist.
+inline constexpr double       kLowPointSigmaIn    = 6.0;      // clubDelivery.lowPointSigmaIn
 } // namespace clubDelivery
 
 // --- Tempo metrics (src/Timeline/tempo_metrics.h) -----------------------------

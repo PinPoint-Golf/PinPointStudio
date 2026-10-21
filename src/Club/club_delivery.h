@@ -68,9 +68,12 @@
 //
 // So the low point is read off `ShaftTrack2D::synth` — the kinematically-synthesized arc
 // (`shaft_synthesis.h`) Hermite-interpolated between the located P-anchors at a dense fixed
-// cadence. On the same corpus that yields a value on every swing with the vertex landing within a
-// few ms of impact, and its attack angle at impact is UNBIASED against a launch monitor (+0.02°)
-// where the measured-head channel was out by tens of degrees.
+// cadence — and since 21 Oct 2026 (issue #92) it is FITTED rather than searched: a circle through
+// the arc's last 80 ms BEFORE impact, whose centre sits directly above the bottom of the swing. The
+// search it replaced (the lowest point inside ±60 ms of impact, refused unless it was seen to turn
+// over) dropped out on 65 of 160 library swings: the arc stops at impact whenever P8 is not
+// measured (synth.measuredEndAfterImpact), and where it does carry on it often keeps falling along
+// something that is not the club. The fit reads nothing after impact, so neither reaches it.
 //
 // ⚠ THIS READS THE SYNTHESIZED TIER, and it is not the only metric that does — `shaft_synthesis.h`
 // lists them (the speeds, lag, attack angle, the kinematic sequence's club rate, the conic plane's
@@ -83,14 +86,14 @@
 // `lowPointAhead` with it. (The speeds survive — they fall back to `samples`; the low point does
 // not, because falling back is precisely what produced the vertices tens of ms past the ball.)
 //
-// ⚠ AND IT IS AN ESTIMATE, published as one. The arc through impact is an interpolation between
-// P6, P7 and P8 rather than an observation, so its vertex is pinned near the P7 anchor and what the
-// metric really reports is where that anchor puts the head relative to the ball. Measured against a
-// launch monitor the spread is ±2.0 in (tuned::clubDelivery::kLowPointSigmaIn) against a corridor
-// only 3.2 in wide. That number ships WITH the metric as `MetricSeries::sigma`, and the catalogue
-// route is RouteQuality::Estimated so the reading resolves as Bridged rather than Measured. It
-// averages well — six swings of one session recovered the device's own session mean to 0.02° — so
-// read it as a session tendency and distrust any single swing.
+// ⚠ AND IT IS AN ESTIMATE, published as one. Against the launch monitor's attack angle (turned into
+// a low point through the club's arc radius — lm_inferred_reads.h lmLowPointFromAttack) the fit
+// scatters by about ±6 in on one swing, against a corridor only 3.2 in wide, and its bias moves from
+// session to session: see tuned::clubDelivery::kLowPointSigmaIn for the numbers. That σ ships WITH the
+// metric as `MetricSeries::sigma`, and the catalogue route is RouteQuality::Estimated so the reading
+// resolves as Bridged rather than Measured. Where a launch monitor gave an attack angle, the
+// diagnostic measure prefers its low point (`lowPointFromAttack`) to this one. Without one, treat even
+// a session's average as a rough indication.
 //
 // ── Units, and the ruler ────────────────────────────────────────────────────
 //
@@ -124,12 +127,16 @@ struct ClubDeliveryConfig {
     // either side of a ~9 px head at 240 fps is mostly quantisation noise; a few frames of span
     // trades a little time resolution for an attack angle that is not dominated by it.
     int     velHalfSpan   = tuned::clubDelivery::kVelHalfSpan;   // clubDelivery.velHalfSpan
-    // Search half-window about Impact for the arc vertex, in microseconds.
+    // How far BEFORE Impact the arc is fitted over for the low point, in microseconds.
     int64_t lowPointWinUs = tuned::clubDelivery::kLowPointWinUs; // clubDelivery.lowPointWinUs
-    // Minimum SYNTHESIZED-ARC samples inside that window before a low point is reported. At the
-    // 240 Hz synthesis cadence ±60 ms is ~29 samples, so this is not a coverage bar the way it was
+    // Minimum SYNTHESIZED-ARC samples inside that span before a low point is reported. At the
+    // 240 Hz synthesis cadence 80 ms is ~19 samples, so this is not a coverage bar the way it was
     // for measured heads — it is a floor that refuses a truncated or barely-populated arc.
     int     lowPointMinSamples = tuned::clubDelivery::kLowPointMinSamples; // clubDelivery.lowPointMinSamples
+    // The radii, in metres, a fitted arc may have and still be a swing's. Outside them the fit is a
+    // near-straight run (any radius fits it, and its centre is noise) or a knot.
+    double  lowPointMinRadiusM = tuned::clubDelivery::kLowPointMinRadiusM; // clubDelivery.lowPointMinRadiusM
+    double  lowPointMaxRadiusM = tuned::clubDelivery::kLowPointMaxRadiusM; // clubDelivery.lowPointMaxRadiusM
     // Published 1σ on lowPointAhead, in inches. See the constant for its provenance.
     double  lowPointSigmaIn = tuned::clubDelivery::kLowPointSigmaIn; // clubDelivery.lowPointSigmaIn
     // Head-confidence gate. −1 in the sample means the Stage-2 pass never ran, which is a harder
@@ -150,6 +157,8 @@ struct ClubDeliveryConfig {
         apply(ov, "clubDelivery.lowPointWinUs",      c.lowPointWinUs);
         apply(ov, "clubDelivery.lowPointMinSamples", c.lowPointMinSamples);
         apply(ov, "clubDelivery.lowPointSigmaIn",    c.lowPointSigmaIn);
+        apply(ov, "clubDelivery.lowPointMinRadiusM", c.lowPointMinRadiusM);
+        apply(ov, "clubDelivery.lowPointMaxRadiusM", c.lowPointMaxRadiusM);
         apply(ov, "clubDelivery.headConfMin",        c.headConfMin);
         apply(ov, "clubDelivery.attackSynthWinUs",      c.attackSynthWinUs);
         apply(ov, "clubDelivery.attackSynthMinSamples", c.attackSynthMinSamples);

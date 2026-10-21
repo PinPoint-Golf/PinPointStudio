@@ -239,7 +239,7 @@ std::vector<QString> LaunchMonitorDerivedProvider::provides() const
     // Bare keys, on purpose — see the class comment and the manifest block above `compoundMiss`.
     // Produced in swing_doc.cpp beside the readings rather than in an analysis stage, because a
     // reading is paired to a swing after the stages have run.
-    return { QStringLiteral("compoundMiss") };
+    return { QStringLiteral("compoundMiss"), QStringLiteral("lowPointFromAttack") };
 }
 
 } // namespace pinpoint::analysis

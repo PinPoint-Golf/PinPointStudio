@@ -43,6 +43,7 @@
 
 #include "../../Club/club_delivery.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -128,14 +129,18 @@ static std::vector<ShaftSample2D> arc(double xVertex, double dir, int64_t impact
     return out;
 }
 
-// The SYNTHESIZED arc — the series lowPointAhead is actually read from. Same parabola as `arc()`,
-// but flagged ShaftSynthesized and parked in ShaftTrack2D::synth, which is where club_delivery
-// looks for a low point and deliberately NOT where the two angles look. In production this is the
+// The SYNTHESIZED arc — the series lowPointAhead is actually read from. A true CIRCLE of the same
+// curvature at its bottom as `arc()` (radius 250 px, lowest point y = 800 at xVertex), sampled at
+// the same x and t, flagged ShaftSynthesized and parked in ShaftTrack2D::synth — where club_delivery
+// fits the low point and deliberately NOT where the two angles look. In production this is the
 // Hermite interpolation between the located P-anchors that the club overlay draws.
 static std::vector<ShaftSample2D> synthArc(double xVertex, double dir, int64_t impactUs, int n = 11)
 {
+    constexpr double kR = 250.0;
     std::vector<ShaftSample2D> out = arc(xVertex, dir, impactUs, n);
     for (ShaftSample2D &s : out) {
+        const double dx = s.headPx.x() - xVertex;
+        s.headPx.setY(800.0 - kR + std::sqrt(kR * kR - dx * dx));
         s.flags    = ShaftSynthesized;
         s.headConf = -1.f;                  // a synthesized head is not a measurement, and says so
     }
@@ -249,17 +254,18 @@ int main()
         CHECK("a mirrored camera still reads UP as positive", aa > 5.0);
     }
 
-    // ── 3. lowPointAhead, including the sub-frame vertex ───────────────────────────────────────
+    // ── 3. lowPointAhead: the centre of the arc before impact ──────────────────────────────────
     {
-        // Ball at x = 900. Vertex deliberately at 910 — 10 px, i.e. BETWEEN samples spaced 20 px.
+        // Ball at x = 900. Bottom deliberately at 910 — 10 px, i.e. BETWEEN samples spaced 20 px,
+        // and AFTER the last sample the fit reads (impact is at x = 900).
         const auto t = trackOf(arc(910.0, +1.0, kImpact), synthArc(910.0, +1.0, kImpact));
         auto s = buildClubDeliverySeries(
             trackClubDelivery(t, ladder(10000, kImpact), QPointF(900, 800), true, kMmPerPx),
             ladder(10000, kImpact));
         double lp = 0.0;
         CHECK("lowPointAhead emitted", scalarOf(s, "lowPointAhead", lp));
-        // 10 px × 2 mm/px ÷ 25.4 = 0.787 in. Frame-quantised it would read 0 or 1.57.
-        CHECK("the vertex is found BETWEEN samples", near(lp, 0.787, 0.15));
+        // 10 px × 2 mm/px ÷ 25.4 = 0.787 in, from samples that all lie before it.
+        CHECK("the bottom is found from the arc BEFORE it", near(lp, 0.787, 0.05));
         CHECK("a low point past the ball is POSITIVE", lp > 0.0);
 
         // THE HEALTH WARNING IS PART OF THE READING. The arc is an interpolation, not an
@@ -267,7 +273,7 @@ int main()
         // measurement, which is the one thing it is not.
         const MetricSeries *lpS = find(s, "lowPointAhead");
         CHECK("lowPointAhead publishes a sigma", lpS != nullptr && lpS->sigma.has_value());
-        CHECK("and it is the tuned ±2 in",
+        CHECK("and it is the tuned model σ",
               lpS != nullptr && lpS->sigma.has_value()
                   && near(*lpS->sigma, pinpoint::tuned::clubDelivery::kLowPointSigmaIn, 1e-9));
         // The two angles are measured, not estimated, and must NOT borrow the arc's uncertainty.
@@ -347,8 +353,8 @@ int main()
               !trackClubDelivery(invalid, ladder(10000, kImpact), QPointF(900, 800), true,
                                  kMmPerPx).valid);
 
-        // Too few ARC samples around impact to trust a vertex. (In production ±60 ms of a 240 Hz
-        // synthesis is ~29 samples, so this floor catches a truncated arc rather than a sparse one.)
+        // Too few ARC samples before impact to fit. (In production 80 ms of a 240 Hz synthesis is
+        // ~19 samples, so this floor catches a truncated arc rather than a sparse one.)
         const auto sparse = trackOf(arc(910.0, +1.0, kImpact),
                                     synthArc(910.0, +1.0, kImpact, 3));
         s = buildClubDeliverySeries(
@@ -375,7 +381,7 @@ int main()
         double lp = 0.0;
         CHECK("no measured head anywhere ⇒ lowPointAhead STILL lands",
               scalarOf(s, "lowPointAhead", lp));
-        CHECK("and it is the same vertex the measured fixture found", near(lp, 0.787, 0.15));
+        CHECK("and it is the same bottom the measured fixture found", near(lp, 0.787, 0.05));
         double aaArc = 0.0;
         CHECK("attackAngle is read off the arc", scalarOf(s, "attackAngle", aaArc));
         CHECK("shaftAngleVsHorizontal stays silent", find(s, "shaftAngleVsHorizontal") == nullptr);
@@ -390,17 +396,59 @@ int main()
                                                && find(s, "shaftAngleVsHorizontal") != nullptr);
     }
 
-    // ── 8. An arc that never turns over inside the window is refused ───────────────────────────
-    // The head is still sinking at the last sample, so the lowest point in the window is its final
-    // one. Reporting that would be a confident statement about a bottom nothing saw — and it is
-    // exactly what a swing whose next P-anchor lands hundreds of ms away produces.
+    // ── 8. What the arc does AFTER impact cannot take the low point away (issue #92) ──────────
+    // The search this replaced refused whenever the lowest point inside ±60 ms sat on an end of the
+    // window — on 65 of 160 library swings, because the synthesized arc either stops at impact (no
+    // measured P8 to bridge to) or keeps falling after it along something that is not the club.
     {
-        const auto s = buildClubDeliverySeries(
+        const auto t = trackOf(arc(910.0, +1.0, kImpact), synthArc(910.0, +1.0, kImpact));
+        double clean = 0.0;
+        scalarOf(buildClubDeliverySeries(
+                     trackClubDelivery(t, ladder(10000, kImpact), QPointF(900, 800), true, kMmPerPx),
+                     ladder(10000, kImpact)), "lowPointAhead", clean);
+
+        // The arc ENDS at impact.
+        std::vector<ShaftSample2D> ends = synthArc(910.0, +1.0, kImpact);
+        ends.erase(std::remove_if(ends.begin(), ends.end(),
+                                  [](const ShaftSample2D &x) { return x.t_us > kImpact; }), ends.end());
+        double lp = 0.0;
+        CHECK("an arc that stops at impact still gives a low point",
+              scalarOf(buildClubDeliverySeries(
+                           trackClubDelivery(trackOf(arc(910.0, +1.0, kImpact), ends),
+                                             ladder(10000, kImpact), QPointF(900, 800), true, kMmPerPx),
+                           ladder(10000, kImpact)), "lowPointAhead", lp));
+        CHECK("…the same one", near(lp, clean, 1e-9));
+
+        // The arc keeps FALLING after impact.
+        std::vector<ShaftSample2D> falls = synthArc(910.0, +1.0, kImpact);
+        for (ShaftSample2D &x : falls)
+            if (x.t_us > kImpact) x.headPx.setY(820.0 + double(x.t_us - kImpact) / 400.0);
+        CHECK("an arc that keeps falling after impact still gives a low point",
+              scalarOf(buildClubDeliverySeries(
+                           trackClubDelivery(trackOf(arc(910.0, +1.0, kImpact), falls),
+                                             ladder(10000, kImpact), QPointF(900, 800), true, kMmPerPx),
+                           ladder(10000, kImpact)), "lowPointAhead", lp));
+        CHECK("…the same one", near(lp, clean, 1e-9));
+    }
+
+    // ── 8b. An arc with no bottom to fit is refused ────────────────────────────────────────────
+    {
+        // A straight run: any circle fits it, so its centre says nothing.
+        auto s = buildClubDeliverySeries(
             trackClubDelivery(trackOf(arc(910.0, +1.0, kImpact), fallingArc(kImpact)),
                               ladder(10000, kImpact), QPointF(900, 800), true, kMmPerPx),
             ladder(10000, kImpact));
-        CHECK("an arc with no turning point ⇒ no low point", find(s, "lowPointAhead") == nullptr);
+        CHECK("a straight run ⇒ no low point", find(s, "lowPointAhead") == nullptr);
         CHECK("and the angles are still unaffected", find(s, "attackAngle") != nullptr);
+
+        // Curving the wrong way: the centre is BELOW the arc, so there is no bottom.
+        std::vector<ShaftSample2D> upside = synthArc(910.0, +1.0, kImpact);
+        for (ShaftSample2D &x : upside) x.headPx.setY(1600.0 - x.headPx.y());
+        s = buildClubDeliverySeries(
+            trackClubDelivery(trackOf(arc(910.0, +1.0, kImpact), upside),
+                              ladder(10000, kImpact), QPointF(900, 800), true, kMmPerPx),
+            ladder(10000, kImpact));
+        CHECK("an arc curving the wrong way ⇒ no low point", find(s, "lowPointAhead") == nullptr);
     }
 
     // ── 9. A JUMP in the arc near impact is not motion ─────────────────────────────────────────

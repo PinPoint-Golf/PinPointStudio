@@ -2865,7 +2865,8 @@ int main(int argc, char **argv)
 
         // ── the instrument ladder ────────────────────────────────────────────
         // m_lowPointAhead since 2026-09-14: m_attackAngle no longer carries a ladder — its camera
-        // fallback was cut, so it reads the launch monitor only.
+        // fallback was cut, so it reads the launch monitor only. Three rungs since 2026-10-21
+        // (issue #92): the low point the monitor's attack angle implies sits between the two.
         const QString aa = QStringLiteral("m_lowPointAhead");
         if (!rowFor(m.rows(QStringLiteral("measures")), aa).isEmpty()) {
             const QVariantMap row = rowFor(m.rows(QStringLiteral("measures")), aa);
@@ -2873,7 +2874,7 @@ int main(int argc, char **argv)
             bool showsLadder = false;
             for (const QVariant &cv : cells)
                 if (cv.toMap().value(QStringLiteral("text")).toString()
-                        .contains(QStringLiteral("lm.lowPointAhead → lowPointAhead")))
+                        .contains(QStringLiteral("lm.lowPointAhead → lowPointFromAttack → lowPointAhead")))
                     showsLadder = true;
             check(showsLadder, "the measures table shows the whole ladder, preferred rung first");
 

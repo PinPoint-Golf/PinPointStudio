@@ -44,55 +44,65 @@ bool headMeasured(const ShaftSample2D &s, double headConfMin)
     return double(s.headConf) >= headConfMin;
 }
 
-// The arc's turning point inside `win`, in image x, refined below the sample spacing.
+// Where the arc bottoms out, in image x: the CENTRE of the circle through the arc's last stretch
+// before impact.
 //
-// The lowest point in the image is the LARGEST y. Find it, then refine with a three-point parabola
-// through its neighbours in (x, y): the arc near its vertex is locally quadratic, and the true
-// bottom almost never falls exactly on a sampled instant. Without the refinement the answer
-// quantises to the sample spacing, which at impact speeds is inches.
+// A clubhead near the bottom of the swing travels a near-circular arc about the swing centre, and
+// the bottom of a circle lies directly below its centre — so the low point is the centre's x, and
+// finding it does not need the arc to have been seen turning over. That is the point of fitting
+// rather than searching: the old reading took the LARGEST y inside ±60 ms of impact and refused when
+// it sat on an end of the window, and on 65 of 160 library swings it did (issue #92) — either the
+// synthesized arc stops at impact (no measured P8 to bridge to, synth.measuredEndAfterImpact) or it
+// carries on falling after impact along something that is not the club. Only the arc BEFORE impact
+// is used here, so neither can reach the answer.
 //
-// REFUSES A VERTEX THAT SITS ON EITHER END of the window. An interior minimum means the arc was
-// seen to turn over; an endpoint one means it never did inside the window, and the "low point" is
-// then just the last sample before the data ran out. That is exactly what a truncated arc looks
-// like — a swing whose next P-anchor lands hundreds of ms away has no bottom in ±60 ms — and
-// reporting one is a confident statement about a part of the swing nothing observed.
-bool arcVertexX(const std::vector<const ShaftSample2D *> &win, double &lowX, int64_t &lowTUs)
+// Algebraic (Kåsa) least-squares fit in coordinates centred on the samples' mean, for conditioning.
+// Refused (false) when the samples are collinear or the fit is degenerate, when the radius is not a
+// swing's (outside [minRadiusPx, maxRadiusPx]: a near-straight run fits a circle of any size, and its
+// centre is noise), or when the centre is BELOW the arc in the image — an arc curving the wrong way
+// has no bottom to report.
+bool arcCircleX(const std::vector<const ShaftSample2D *> &win, double minRadiusPx, double maxRadiusPx,
+                double &lowX)
 {
     if (win.size() < 3)
         return false;
+    double mx = 0.0, my = 0.0;
+    for (const ShaftSample2D *s : win) { mx += s->headPx.x(); my += s->headPx.y(); }
+    mx /= double(win.size());
+    my /= double(win.size());
 
-    size_t lo = 0;
-    for (size_t i = 1; i < win.size(); ++i)
-        if (win[i]->headPx.y() > win[lo]->headPx.y())
-            lo = i;
-    if (lo == 0 || lo + 1 >= win.size())
-        return false;                                   // never turned over inside the window
-
-    lowX   = win[lo]->headPx.x();
-    lowTUs = win[lo]->t_us;
-
-    const double x0 = win[lo - 1]->headPx.x(), y0 = win[lo - 1]->headPx.y();
-    const double x1 = win[lo]->headPx.x(),     y1 = win[lo]->headPx.y();
-    const double x2 = win[lo + 1]->headPx.x(), y2 = win[lo + 1]->headPx.y();
-    const double d0 = (x0 - x1) * (x0 - x2);
-    const double d1 = (x1 - x0) * (x1 - x2);
-    const double d2 = (x2 - x0) * (x2 - x1);
-    if (std::abs(d0) <= kEps || std::abs(d1) <= kEps || std::abs(d2) <= kEps)
-        return true;                                    // coincident x — keep the sampled vertex
-
-    // Vertex of the Lagrange quadratic through the three points.
-    const double A = y0 / d0 + y1 / d1 + y2 / d2;
-    const double B = -(y0 * (x1 + x2) / d0 + y1 * (x0 + x2) / d1 + y2 * (x0 + x1) / d2);
-    if (std::abs(A) <= kEps)
-        return true;
-
-    const double vx = -B / (2.0 * A);
-    // Only accept a vertex that lies inside the bracket it was fitted through. Outside it the
-    // quadratic is extrapolating, and an extrapolated low point is a confident statement about
-    // instants that were never sampled.
-    const double xlo = std::min({ x0, x1, x2 }), xhi = std::max({ x0, x1, x2 });
-    if (vx >= xlo && vx <= xhi)
-        lowX = vx;
+    // Normal equations of  u² + v² = 2·a·u + 2·b·v + c  over the centred points (u, v).
+    double suu = 0, suv = 0, svv = 0, su = 0, sv = 0, n = 0, szu = 0, szv = 0, sz = 0;
+    for (const ShaftSample2D *s : win) {
+        const double u = s->headPx.x() - mx, v = s->headPx.y() - my, z = u * u + v * v;
+        suu += u * u; suv += u * v; svv += v * v; su += u; sv += v; n += 1.0;
+        szu += z * u; szv += z * v; sz += z;
+    }
+    // [4suu 4suv 2su; 4suv 4svv 2sv; 2su 2sv n] · [a b c]ᵀ = [2szu 2szv sz]ᵀ, solved by Cramer.
+    const double M[3][3] = { { 4 * suu, 4 * suv, 2 * su }, { 4 * suv, 4 * svv, 2 * sv }, { 2 * su, 2 * sv, n } };
+    const double r[3]    = { 2 * szu, 2 * szv, sz };
+    const auto det3 = [](const double m[3][3]) {
+        return m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+             - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+             + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+    };
+    const double D = det3(M);
+    if (!std::isfinite(D) || std::abs(D) <= kEps)
+        return false;
+    double Ma[3][3], Mb[3][3], Mc[3][3];
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j) { Ma[i][j] = M[i][j]; Mb[i][j] = M[i][j]; Mc[i][j] = M[i][j]; }
+    for (int i = 0; i < 3; ++i) { Ma[i][0] = r[i]; Mb[i][1] = r[i]; Mc[i][2] = r[i]; }
+    const double ca = det3(Ma) / D, cb = det3(Mb) / D, cc = det3(Mc) / D;
+    const double R2 = cc + ca * ca + cb * cb;
+    if (!std::isfinite(ca) || !std::isfinite(cb) || !(R2 > 0.0))
+        return false;
+    const double R = std::sqrt(R2);
+    if (R < minRadiusPx || R > maxRadiusPx)
+        return false;
+    if (!(cb < 0.0))                                    // image y grows DOWN: the centre must sit above
+        return false;
+    lowX = mx + ca;
     return true;
 }
 
@@ -258,18 +268,21 @@ ClubDeliveryResult trackClubDelivery(const ShaftTrack2D &shaft, const std::vecto
     // READ OFF THE SYNTHESIZED ARC, not the measured heads — `shaft.synth`, the dense Hermite
     // interpolation between the located P-anchors that the club overlay draws. The header carries
     // the corpus evidence for why; the short version is that the head detector does not hold a lock
-    // through impact on real swings, and the rare vertex it did produce sat tens of ms past the
-    // ball. Reading the same series the overlay draws also means the number and the picture cannot
-    // disagree.
+    // through impact on real swings.
+    //
+    // FITTED, NOT SEARCHED (issue #92): the circle through the arc's last lowPointWinUs BEFORE
+    // impact, whose centre is above the bottom of the swing (arcCircleX). Nothing after impact is
+    // read, so the arc stopping at impact or wandering after it cannot take the reading away.
     //
     // Needs the ball (the reference the answer is stated against) and the ruler (the unit it is
     // stated in). Missing either suppresses THIS metric only — the two angles above are scale-free
     // and are unaffected.
     const int64_t impactUs = phaseTime(phases, Phase::Impact, -1);
     // THE LOW POINT'S REFUSALS (trust stage 6), each with its code: no ball or no ruler to state it
-    // against (`noBall`), too few arc samples about impact (`fewSamples`), the arc never turning
-    // over inside the window (`edge`), no sweep to give the target direction (`noSweep`). Only with
-    // an Impact on the ladder: without one there is no window to ask about.
+    // against (`noBall`), too few arc samples before impact (`fewSamples`), no circle a swing could
+    // make through them — straight, the wrong way up, or an implausible radius (`badArc`), no sweep to
+    // give the target direction (`noSweep`). Only with an Impact on the ladder: without one there is
+    // no window to ask about.
     const auto refuseLowPoint = [&](const char *code, int samples) {
         gates.fire(PP_GATE("club.lowPoint"), QStringLiteral("lowPointAhead"), GateEffect::Refused,
                    QVariantMap{ { QStringLiteral("code"), QString::fromLatin1(code) },
@@ -284,28 +297,29 @@ ClubDeliveryResult trackClubDelivery(const ShaftTrack2D &shaft, const std::vecto
     if (ballValid && mmPerPx > 0.0 && impactUs >= 0 && !shaft.synth.empty()) {
         std::vector<const ShaftSample2D *> win;
         for (const ShaftSample2D &s : shaft.synth)
-            if (std::llabs(s.t_us - impactUs) <= cfg.lowPointWinUs)
+            if (s.t_us <= impactUs && impactUs - s.t_us <= cfg.lowPointWinUs)
                 win.push_back(&s);
 
-        double  lowX   = 0.0;
-        int64_t lowTUs = 0;
+        double lowX = 0.0;
         const bool enough = int(win.size()) >= cfg.lowPointMinSamples;
-        const bool turned = enough && arcVertexX(win, lowX, lowTUs);
-        if (!enough || (!turned && win.size() < 3))
+        const bool fitted = enough
+            && arcCircleX(win, cfg.lowPointMinRadiusM * 1000.0 / mmPerPx,
+                          cfg.lowPointMaxRadiusM * 1000.0 / mmPerPx, lowX);
+        if (!enough)
             refuseLowPoint("fewSamples", int(win.size()));
-        else if (!turned)
-            refuseLowPoint("edge", int(win.size()));
-        if (turned) {
-            // Which image direction the target is. Taken from the CLUBHEAD ITSELF — at impact the
-            // head is travelling toward the target, so the sign of its horizontal displacement
-            // across the window IS the target direction. Deliberately not taken from pose
-            // handedness: this module never sees a skeleton, and the head's own motion is both
+        else if (!fitted)
+            refuseLowPoint("badArc", int(win.size()));
+        if (fitted) {
+            // Which image direction the target is. Taken from the CLUBHEAD ITSELF — approaching
+            // impact the head is travelling toward the target, so the sign of its horizontal
+            // displacement across the window IS the target direction. Deliberately not taken from
+            // pose handedness: this module never sees a skeleton, and the head's own motion is both
             // more direct and immune to a mirrored camera.
             const double sweep = win.back()->headPx.x() - win.front()->headPx.x();
             if (std::abs(sweep) > kEps) {
                 const double targetSign = sweep > 0.0 ? 1.0 : -1.0;
                 res.lowPointIn      = targetSign * (lowX - addressBallPx.x()) * mmPerPx / kMmPerIn;
-                res.lowPointTUs     = lowTUs;
+                res.lowPointTUs     = impactUs;
                 res.lowPointSigmaIn = cfg.lowPointSigmaIn;
                 res.lowPointValid   = true;
             } else {
@@ -359,7 +373,7 @@ std::vector<MetricSeries> buildClubDeliverySeries(const ClubDeliveryResult &res,
         pushScalar(true, QStringLiteral("attackAngle"), QStringLiteral("Attack angle"), deg, aa,
                    impactUs);
     }
-    // The health warning rides WITH the number: an estimate off an interpolated arc, ±2 in.
+    // The health warning rides WITH the number: an estimate off a fitted arc, ±lowPointSigmaIn.
     pushScalar(res.lowPointValid, QStringLiteral("lowPointAhead"), QStringLiteral("Low point"),
                QStringLiteral("in"), res.lowPointIn, res.lowPointTUs, res.lowPointSigmaIn);
     return out;
@@ -440,11 +454,17 @@ void addClubDeliverySigma(std::vector<MetricSeries> &series, const ShaftTrack2D 
             ps.grossRisk = float(1.0 - double(aa.size()) / n);
             m.sigma = ps.sigma; m.sigmaKind = ps.sigmaKind;
         } else if (m.key == QStringLiteral("lowPointAhead")) {
-            const double sd = robustSdCd(lp);
-            if (!std::isfinite(sd)) continue;
+            // No usable draws still leaves the model term, which is most of the budget.
+            double sd = robustSdCd(lp);
+            if (!std::isfinite(sd)) sd = 0.0;
             const double sBall  = ballSigmaPx * mmPerPx / kMmPerIn;
             const double sRuler = std::abs(ps.value) * tuned::uncertainty::kRulerRelSigma;
-            ps.sigma     = shaftsigma::quad(sd, sBall, sRuler) * tuned::uncertainty::kInflateLowPoint;
+            // The model term is the spread the fit shows against a launch monitor (kLowPointSigmaIn's
+            // note): the draws only say how far the synthesized arc itself could move, and on its
+            // own that understated the error several-fold.
+            ps.sigma     = std::sqrt(sd * sd + sBall * sBall + sRuler * sRuler
+                                     + cfg.lowPointSigmaIn * cfg.lowPointSigmaIn)
+                         * tuned::uncertainty::kInflateLowPoint;
             ps.sigmaKind = shaftsigma::kindOf(tuned::uncertainty::kCalLowPoint);
             ps.grossRisk = float(1.0 - double(lp.size()) / n);
             m.sigma = ps.sigma; m.sigmaKind = ps.sigmaKind;

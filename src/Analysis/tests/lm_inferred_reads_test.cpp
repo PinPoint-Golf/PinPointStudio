@@ -447,6 +447,26 @@ int main()
               "nothing that speaks to the curve, no read");
     }
 
+    // ── Low point from the attack angle (issue #92) ──────────────────────────────────────
+    {
+        // A descending blow bottoms out AHEAD of the ball: −3° through a 7-iron's 1.46 m arc is
+        // 1.46 · sin 3° = 0.0764 m = 3.01 in, positive.
+        const LmLowPoint lp = lmLowPointFromAttack(-3.0, 1.46);
+        check(lp.has, "an attack angle gives a low point");
+        check(std::abs(lp.value - 3.008) < 0.01, "−3° on a 1.46 m arc is 3.0 in ahead");
+        // About an inch per degree for a mid-iron — the rule the arm term was set to.
+        check(std::abs(lmLowPointFromAttack(-1.0, 1.46).value - 1.003) < 0.01, "about an inch per degree");
+        // An ascending blow (a teed driver) bottoms out BEHIND the ball.
+        check(lmLowPointFromAttack(+3.0, 1.75).value < 0.0, "an upward strike reads behind the ball");
+        check(std::abs(lmLowPointFromAttack(0.0, 1.46).value) < 1e-9, "level is at the ball");
+        // The σ is the stated inputs': ±0.5° is ~0.5 in at 1.46 m, and ±10 % of 3 in is 0.3 in.
+        check(lp.sigma > 0.5 && lp.sigma < 0.7, "σ ≈ 0.6 in from the assumed ±0.5° and ±10 % radius");
+        // No angle, no radius, or an angle no club makes: no read.
+        check(!lmLowPointFromAttack(std::optional<double>{}, 1.46).has, "no attack angle, no read");
+        check(!lmLowPointFromAttack(-3.0, 0.0).has, "no radius, no read");
+        check(!lmLowPointFromAttack(-60.0, 1.46).has, "an impossible angle, no read");
+    }
+
     std::printf("%s\n", g_fail == 0 ? "OK" : "FAILURES");
     return g_fail == 0 ? 0 : 1;
 }

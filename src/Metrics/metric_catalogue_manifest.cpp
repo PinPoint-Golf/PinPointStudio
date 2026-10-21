@@ -1729,26 +1729,26 @@ void installMetricManifest(MetricCatalogue &cat)
             "Where the bottom of the swing arc is relative to the ball, as a signed distance along "
             "the target line — positive when the low point is ahead of (target-side of) the ball. "
             "It is the single best 2D summary of ball-then-turf contact and the one club-delivery "
-            "number a lone face-on camera can estimate — emphasis on ESTIMATE: it comes off the "
-            "synthesized club arc, carries a published ±2 in, and is meant to be read across a "
-            "handful of swings rather than one."),
+            "number a lone face-on camera can estimate — emphasis on ESTIMATE: it is fitted to the "
+            "synthesized club arc before impact and carries a published ±6 in, so on its own it is "
+            "a rough indication. With a launch monitor, the low point its attack angle implies "
+            "(`lowPointFromAttack`) is preferred."),
         .howToRead = QStringLiteral(
             "Read near impact; a positive value (low point ahead of the ball) is the descending, "
             "ball-first strike you want with irons, while the driver is normally struck with the "
             "low point behind the ball. A low point behind the ball on an iron is the fat/thin "
-            "signature. ⚠ READ IT AS A SESSION TENDENCY, NOT AS A SINGLE SWING. It is taken off "
-            "the synthesized club arc — the interpolation between the located P-positions that the "
-            "club overlay draws — because the clubhead detector does not hold a lock through "
-            "impact, where the club is fastest and most blurred. That arc is an estimate of the "
-            "path rather than an observation of it, and against a launch monitor it carries about "
-            "±2 inches of spread on one swing, which is most of the width of the corridor it is "
-            "graded in. It is UNBIASED, so several swings average to something trustworthy while "
-            "any one of them can be out by more than the finding it drives. The arc vertex is "
-            "refined below sample spacing by a local parabola, and is refused outright unless the "
-            "arc is seen to turn over inside the window. The target direction comes from the "
-            "head's own travel across impact rather than from handedness, so a mirrored camera "
-            "cannot invert the sign. Needs a face-on camera, the club track and the ball (which "
-            "supplies both the reference the answer is stated against and, through its diameter, "
+            "signature. ⚠ A ROUGH INDICATION, NOT A MEASUREMENT. The camera does "
+            "not see the clubhead through impact, where it is fastest and most blurred, so the "
+            "reading is FITTED: a circle through the synthesized club arc over the 80 ms before "
+            "impact, whose centre sits above the bottom of the swing. Nothing after impact is "
+            "read. Against a launch monitor it scatters by about ±6 inches on one swing — about "
+            "twice the width of the corridor it is graded in — and its bias moves by several "
+            "inches from one session to the next, so even a session's average can mislead. When "
+            "a launch monitor gave an attack angle, read `Low point (from "
+            "attack angle)` instead. The target direction comes from the head's own travel "
+            "toward impact rather than from handedness, so a mirrored camera cannot invert the "
+            "sign. Needs a face-on camera, the club track and the ball (which supplies both the "
+            "reference the answer is stated against and, through its diameter, "
             "the inches it is stated in)."),
         .signPositive = QStringLiteral("the arc bottoming out AHEAD of the ball, on the target side"),
         .signNegative = QStringLiteral("bottoming out behind the ball"),
@@ -1760,14 +1760,14 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("faceOnClubBall", RM::Projected, Estimated,
                 { .faceOnCamera = true, .clubTrack = true, .ballTrack = true },
-                QStringLiteral("estimated from the synthesized club arc's low point against the "
-                               "ball, in the face-on image and in the ball's own ruler — about "
-                               "±2 in on a single swing, so read it across several")) },
+                QStringLiteral("estimated by fitting the synthesized club arc before impact and "
+                               "stating its bottom against the ball, in the ball's own ruler — "
+                               "about ±6 in on a single swing, a rough indication only")) },
         .usedBy = { QStringLiteral("characteristic:low_point_behind_ball"),
                     QStringLiteral("characteristic:low_point_too_far_ahead"),
                     // …and the two outcomes those become when a strike height and an attack angle
-                    // agree with them. Same note as attackAngle: `lm.lowPointAhead` is preferred
-                    // over this key and carries the same names.
+                    // agree with them. Same note as attackAngle: `lm.lowPointAhead`, then
+                    // `lowPointFromAttack`, are preferred over this key and carry the same names.
                     QStringLiteral("characteristic:top"),
                     QStringLiteral("characteristic:sky") },
     });
@@ -4369,6 +4369,41 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("start direction against measured curvature, from a launch monitor")) },
         .usedBy = { QStringLiteral("characteristic:pull_hook"),
                     QStringLiteral("characteristic:push_slice") },
+    });
+
+    // `lowPointFromAttack` — the low point a launch monitor's ATTACK ANGLE implies (issue #92). A GC
+    // Quad reports the angle and not the low point; the two are one geometry once the radius of the
+    // head's arc is known (lm_inferred_reads.h lmLowPointFromAttack). Bare, like compoundMiss: the
+    // device did not say it, we derived it from what it did say. It ships its own σ (the assumed
+    // ±0.5° on the angle and ±10 % on the radius) and is the diagnostic measure's second rung, after a
+    // device that reports a low point itself and before the camera's arc fit.
+    cat.addDescriptor({
+        .key = QStringLiteral("lowPointFromAttack"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Low point (from attack angle)"),
+        .shortLabel = QStringLiteral("Low pt (AoA)"),
+        .unit = QStringLiteral("in"),
+        .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("teal"),
+        .description = QStringLiteral(
+            "Where the bottom of the swing arc was relative to the ball, worked out from the "
+            "launch monitor's attack angle and the radius of the club's arc. The same quantity and "
+            "sign as `lowPointAhead`, which the camera estimates far less precisely."),
+        .howToRead = QStringLiteral(
+            "Read at Impact. POSITIVE IS AHEAD OF THE BALL, on the target side. Each degree of "
+            "descending attack angle puts the low point about an inch further ahead with a "
+            "mid-iron. The radius is the club's standard length plus an arm allowance, not a "
+            "measurement of this golfer, which is most of the ± it carries."),
+        .signPositive = QStringLiteral("the arc bottoming out AHEAD of the ball, on the target side"),
+        .signNegative = QStringLiteral("bottoming out behind the ball"),
+        .phases = { P::Impact },
+        .routes = {
+            via("lowPointFromAttack", RM::Derived, Estimated, { .launchMonitor = true },
+                QStringLiteral("the launch monitor's attack angle through the club's arc radius")) },
+        .usedBy = { QStringLiteral("characteristic:low_point_behind_ball"),
+                    QStringLiteral("characteristic:low_point_too_far_ahead"),
+                    QStringLiteral("characteristic:top"),
+                    QStringLiteral("characteristic:sky") },
     });
 }
 
