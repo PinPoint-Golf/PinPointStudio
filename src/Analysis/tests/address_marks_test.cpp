@@ -7,6 +7,7 @@
 
 #include "../../Body/address_marks.h"
 
+#include <cmath>
 #include <cstdio>
 #include <opencv2/imgproc.hpp>
 
@@ -114,6 +115,62 @@ int main()
               "§6 face-on: the hip row, the outline including the arm");
         ViewMarks dtlRow = measureView(m7, W, H, 1, 355, 300, 365, 300, 440, true, 360.0, 420.0);
         check(dtlRow.rowSource == 0 && near(dtlRow.rowY * H, 300, 0.5), "§6 down the line: the hip row");
+    }
+    {
+        // §7 TPI's spine angle line (measureBackLine): a trunk tilted 45° forward, as at address
+        // down the line, with a neck beyond the shoulders. The rear points are read at a RIGHT
+        // ANGLE to the trunk axis on the rear side, not along an image row.
+        const double r2 = std::sqrt(0.5);
+        const cv::Point2d hip(200, 350), u(r2, -r2), nRear(-r2, -r2);   // up-right axis; rear = up-left
+        const double L = 170, halfW = 50, neckHalfW = 20, neckLen = 60;
+        const cv::Point2d sh = hip + u * L, ear = sh + u * neckLen;
+        auto quad = [&](cv::Mat &m, cv::Point2d a, cv::Point2d b, double hw) {
+            const cv::Point2d n(-u.y, u.x);
+            std::vector<cv::Point> q { a + n * hw, b + n * hw, b - n * hw, a - n * hw };
+            cv::fillConvexPoly(m, q, cv::Scalar(1));
+        };
+        cv::Mat body(H, W, CV_32F, cv::Scalar(0));
+        quad(body, hip - u * 40, sh, halfW);           // the trunk, from below the hips to the shoulders
+        quad(body, sh - u * 5, ear + u * 30, neckHalfW); // the neck and head, narrower
+        ViewMarks v; v.found = true; v.side = -1;      // the hands on the right: the rear is image-left
+        measureBackLine(body, W, H, v, hip.x, hip.y, sh.x, sh.y, ear.x, ear.y, 200);
+        const cv::Point2d tb = hip + nRear * halfW;                 // behind the hip-joint midpoint
+        const cv::Point2d nk = sh + u * (0.5 * neckLen) + nRear * neckHalfW;   // behind halfway to the ears
+        check(std::isfinite(v.tailboneX) && near(v.tailboneX * W, tb.x, 1.5) && near(v.tailboneY * H, tb.y, 1.5),
+              "§7 the tailbone: the rear outline at a right angle behind the hip-joint midpoint");
+        check(std::isfinite(v.neckX) && near(v.neckX * W, nk.x, 1.5) && near(v.neckY * H, nk.y, 1.5),
+              "§7 the back of the neck: the rear outline behind the point halfway from the shoulders to the ears");
+        check(v.backWalks == 11, "§7 all eleven walks of each point contributed");
+        // A row read at the neck's height would have met the trunk's upper back far behind the neck.
+        int rowRear = -1;
+        for (int x = 0; x < W && rowRear < 0; ++x) if (body.at<float>(int(std::lround(nk.y)), x) > 0.5f) rowRear = x;
+        check(rowRear >= 0 && rowRear < nk.x - 15, "§7 (a horizontal row at that height reads the upper back instead)");
+
+        // The rear on the other side: hands on the left, the same body mirrored.
+        cv::Mat flipped; cv::flip(body, flipped, 1);
+        ViewMarks w; w.found = true; w.side = +1;
+        measureBackLine(flipped, W, H, w, W - 1 - hip.x, hip.y, W - 1 - sh.x, sh.y, W - 1 - ear.x, ear.y, 200);
+        check(std::isfinite(w.neckX) && near(w.neckX * W, W - 1 - nk.x, 1.5) && near(w.tailboneY * H, tb.y, 1.5),
+              "§7 side +1: the rear is image-right, mirrored");
+
+        // Refusals: no rear side, a missing ear, a body clipped at the frame's edge.
+        ViewMarks n0; n0.found = true; n0.side = 0;
+        measureBackLine(body, W, H, n0, hip.x, hip.y, sh.x, sh.y, ear.x, ear.y, 200);
+        check(!std::isfinite(n0.tailboneX) && !std::isfinite(n0.neckX), "§7 no rear side (no hands) ⇒ no spine points");
+        ViewMarks ne; ne.found = true; ne.side = -1;
+        measureBackLine(body, W, H, ne, hip.x, hip.y, sh.x, sh.y, kNan, kNan, 200);
+        check(!std::isfinite(ne.neckX) && !std::isfinite(ne.tailboneX), "§7 no ears ⇒ no spine points (never half a line)");
+        cv::Mat clipped = body.clone();
+        cv::rectangle(clipped, cv::Rect(0, 0, W, 150), cv::Scalar(1), cv::FILLED);   // the body runs off the top edge
+        ViewMarks nc; nc.found = true; nc.side = -1;
+        measureBackLine(clipped, W, H, nc, hip.x, hip.y, sh.x, sh.y, ear.x, ear.y, 400);
+        check(!std::isfinite(nc.neckX), "§7 a walk that reaches the frame's edge finds no edge: the neck is not measured");
+        // A 3 px hole in the mask on the walk is crossed (the farthest person pixel is the edge).
+        cv::Mat holed = body.clone();
+        cv::circle(holed, cv::Point(int(hip.x + nRear.x * 25), int(hip.y + nRear.y * 25)), 2, cv::Scalar(0), cv::FILLED);
+        ViewMarks nh; nh.found = true; nh.side = -1;
+        measureBackLine(holed, W, H, nh, hip.x, hip.y, sh.x, sh.y, ear.x, ear.y, 200);
+        check(near(nh.tailboneX * W, tb.x, 1.5), "§7 a hole inside the back is crossed");
     }
     std::printf(g_fail ? "FAILED (%d)\n" : "ALL PASS\n", g_fail);
     return g_fail ? 1 : 0;

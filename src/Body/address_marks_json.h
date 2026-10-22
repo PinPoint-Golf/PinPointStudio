@@ -19,7 +19,8 @@
 #pragma once
 
 // `analysis.addressMarks` (pinpoint.addressMarks/1) — the body's outer edges at hip height on
-// each camera's address frame (address_marks.h). ONE builder for swing.ppsw and the replay
+// each camera's address frame (address_marks.h), and on the DTL view TPI's spine angle line
+// (tailbone, back of the neck; stage version 2 — absent keys on older records read as NaN). ONE builder for swing.ppsw and the replay
 // payload: the document holds the whole block; the tile reads one view's object
 // (`addressMarks` for face-on, `dtl.addressMarks` for down the line). Times relative to `t0Us`,
 // as every analysis block's are. A NaN is written as null, never as a number.
@@ -54,6 +55,12 @@ inline QJsonObject viewMarksToJson(const addressmarks::ViewMarks &v, int64_t t0U
     o["side"]      = v.side;
     o["rows"]      = v.rows;
     o["rowSource"] = v.rowSource == 1 ? QStringLiteral("wrists") : QStringLiteral("hips");
+    // TPI's spine angle line (DTL, stage version 2): null when not measured
+    o["tailboneX"] = num(v.tailboneX);
+    o["tailboneY"] = num(v.tailboneY);
+    o["neckX"]     = num(v.neckX);
+    o["neckY"]     = num(v.neckY);
+    o["backWalks"] = v.backWalks;
     return o;
 }
 
@@ -76,10 +83,12 @@ inline QVariantMap viewMarksPayload(const QJsonObject &v, Retime retime)
     QVariantMap out { { QStringLiteral("found"), v.value(QStringLiteral("found")).toBool(false) } };
     if (!out.value(QStringLiteral("found")).toBool()) return out;
     out.insert(QStringLiteral("t_us"),      retime(v.value(QStringLiteral("t_us"))));
-    for (const char *k : { "rowY", "hipLeftX", "hipRightX", "leftX", "rightX", "buttX" })
+    for (const char *k : { "rowY", "hipLeftX", "hipRightX", "leftX", "rightX", "buttX",
+                           "tailboneX", "tailboneY", "neckX", "neckY" })
         out.insert(QString::fromLatin1(k), numOr(v.value(QLatin1String(k)), std::numeric_limits<double>::quiet_NaN()));
     out.insert(QStringLiteral("side"), v.value(QStringLiteral("side")).toInt(0));
     out.insert(QStringLiteral("rows"), v.value(QStringLiteral("rows")).toInt(0));
+    out.insert(QStringLiteral("backWalks"), v.value(QStringLiteral("backWalks")).toInt(0));
     out.insert(QStringLiteral("rowSource"), v.value(QStringLiteral("rowSource")).toString(QStringLiteral("hips")));
     return out;
 }

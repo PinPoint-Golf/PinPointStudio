@@ -69,6 +69,17 @@ struct ViewMarks {
     // small error on the outside; the glove is a large one on the inside. 1 is kept for the
     // record's sake and never produced.
     int     rowSource = 0;
+    // DTL only: TPI's spine angle line, "from the base of the tailbone to the back of the neck"
+    // (auto_annotations_design.md §1b), two points on the REAR outline of the silhouette, each
+    // read by walking at a right angle to the trunk axis (hip-joint midpoint → shoulder-joint
+    // midpoint) toward the rear (`side`) — not along an image row: with the trunk tilted ~40°
+    // forward at address a row at neck height reads the upper back, 70 px behind the neck
+    // (Nick Henn, 20 Oct). The tailbone: behind the hip-joint midpoint. The back of the neck:
+    // behind the point halfway from the shoulder-joint midpoint to the ears. Normalised; NaN when
+    // not measured (no rear side, a trunk or ear keypoint missing, too few walks).
+    double  tailboneX = kNan, tailboneY = kNan;
+    double  neckX     = kNan, neckY     = kNan;
+    int     backWalks = 0;         // walks behind the lower of the two counts
 };
 
 struct AddressMarks {
@@ -182,6 +193,93 @@ inline ViewMarks measureView(const cv::Mat &mask, int W, int H, int64_t frameTUs
         v.buttX = (v.side < 0 ? l : r) / W;
     }
     return v;
+}
+
+// The rear outline behind a point: `walks` parallel walks along the unit direction (nx, ny),
+// their seeds spread ±`halfSpanPx` along the unit axis (ux, uy) around (sx, sy), each keeping
+// the farthest person pixel within `reachPx` (across any gap, as outerExtents does). A walk
+// whose seed has no person pixel within `seedReachPx` along ±n, or that reaches the frame's
+// edge before its reach, contributes nothing — the edge is not in the picture (a clipped body
+// is not measured, the butt line's rule). The per-walk distances are medianed and the edge is
+// the CENTRE seed plus that distance along n; fewer than `minWalks` is not a measurement.
+inline bool rearEdgeAlong(const cv::Mat &mask, double sx, double sy, double ux, double uy,
+                          double nx, double ny, double halfSpanPx, int walks, double reachPx,
+                          double &ex, double &ey, int &used,
+                          double thr = 0.5, int seedReachPx = 12, int minWalks = 3)
+{
+    ex = ey = kNan;
+    used = 0;
+    if (mask.empty() || !(mask.type() == CV_32F || mask.type() == CV_8U) || walks < 1) return false;
+    const int W = mask.cols, H = mask.rows;
+    auto inside = [&](double x, double y) {
+        const int ix = int(std::lround(x)), iy = int(std::lround(y));
+        return ix >= 0 && ix < W && iy >= 0 && iy < H;
+    };
+    auto person = [&](double x, double y) {
+        const int ix = int(std::lround(x)), iy = int(std::lround(y));
+        if (ix < 0 || ix >= W || iy < 0 || iy >= H) return false;
+        return mask.type() == CV_32F ? mask.at<float>(iy, ix) > float(thr)
+                                     : double(mask.at<uint8_t>(iy, ix)) > thr;
+    };
+    std::vector<double> D;
+    for (int i = 0; i < walks; ++i) {
+        const double o = walks == 1 ? 0.0 : -halfSpanPx + 2.0 * halfSpanPx * i / (walks - 1);
+        const double x0 = sx + ux * o, y0 = sy + uy * o;
+        bool seeded = false;
+        for (int d = 0; d <= seedReachPx && !seeded; ++d)
+            seeded = person(x0 + nx * d, y0 + ny * d) || person(x0 - nx * d, y0 - ny * d);
+        if (!seeded) continue;
+        double last = -1.0;
+        bool clipped = false;
+        for (int t = 0; t <= int(std::lround(reachPx)); ++t) {
+            const double x = x0 + nx * t, y = y0 + ny * t;
+            if (!inside(x, y)) { clipped = true; break; }
+            if (person(x, y)) last = double(t);
+        }
+        if (clipped || last < 0) continue;
+        D.push_back(last);
+    }
+    if (int(D.size()) < minWalks) return false;
+    std::sort(D.begin(), D.end());
+    const size_t n = D.size();
+    const double med = n % 2 ? D[n / 2] : 0.5 * (D[n / 2 - 1] + D[n / 2]);
+    ex = sx + nx * med;
+    ey = sy + ny * med;
+    used = int(n);
+    return true;
+}
+
+// TPI's spine angle line on the DTL address frame: fills `v.tailbone*` / `v.neck*` (normalised)
+// when `v.side` names the rear. Pixel inputs: the hip-joint and shoulder-joint midpoints and the
+// ears' midpoint (any NaN ⇒ nothing). The trunk axis u = hip → shoulder (length L); the rear
+// direction n ⊥ u on the `side` half. Tailbone: behind the hip-joint midpoint (`tailboneFrac` 0
+// of the way up the axis); back of the neck: behind the point `neckFrac` 0.5 of the way from the
+// shoulder midpoint to the ears. Each read with 11 walks over ±`spanFrac` 0.05 L, reach `reachPx`.
+// Chosen on Nick Henn's 20 Oct swing 1 address frame (auto_annotations_design.md §1b): behind
+// the hip joints is the top of the seat at the waistband; halfway to the ears is the collar —
+// the base of the neck — where 0.75 and 1.0 climb onto the back of the head's hairline.
+inline void measureBackLine(const cv::Mat &mask, int W, int H, ViewMarks &v,
+                            double hipX, double hipY, double shX, double shY, double earX, double earY,
+                            double reachPx, double tailboneFrac = 0.0, double neckFrac = 0.5,
+                            double spanFrac = 0.05, int walks = 11)
+{
+    v.tailboneX = v.tailboneY = v.neckX = v.neckY = kNan;
+    v.backWalks = 0;
+    if (mask.empty() || W <= 0 || H <= 0 || v.side == 0) return;
+    for (double q : { hipX, hipY, shX, shY, earX, earY }) if (!std::isfinite(q)) return;
+    const double ax = shX - hipX, ay = shY - hipY, L = std::hypot(ax, ay);
+    if (!(L > 1.0)) return;
+    const double ux = ax / L, uy = ay / L;
+    double nx = -uy, ny = ux;                            // ⊥ u, then onto the rear half
+    if ((nx < 0) != (v.side < 0)) { nx = -nx; ny = -ny; }
+    double tx, ty, kx, ky; int tw, kw;
+    if (!rearEdgeAlong(mask, hipX + tailboneFrac * ax, hipY + tailboneFrac * ay, ux, uy, nx, ny,
+                       spanFrac * L, walks, reachPx, tx, ty, tw)) return;
+    if (!rearEdgeAlong(mask, shX + neckFrac * (earX - shX), shY + neckFrac * (earY - shY), ux, uy, nx, ny,
+                       spanFrac * L, walks, reachPx, kx, ky, kw)) return;
+    v.tailboneX = tx / W; v.tailboneY = ty / H;
+    v.neckX     = kx / W; v.neckY     = ky / H;
+    v.backWalks = std::min(tw, kw);
 }
 
 #endif // HAVE_OPENCV

@@ -3538,6 +3538,20 @@ struct AddressMarksStage : AnalysisStage {
             pf->kp[11].x() * W, pf->kp[11].y() * H, pf->kp[12].x() * W, pf->kp[12].y() * H,
             pf->handConf > 0.3f ? hx : addressmarks::kNan, dtl, wristY, kneeY);
         if (!v.found) why = QStringLiteral("no person mask on the hip rows");
+        // DTL: TPI's spine angle line — the tailbone and the back of the neck on the rear
+        // outline (address_marks.h measureBackLine). Both shoulders and both hips confident and
+        // at least one ear, else no points (the tile then draws no spine line).
+        if (dtl && v.found && v.side != 0 && pf->conf[5] > 0.3f && pf->conf[6] > 0.3f
+            && (pf->conf[3] > 0.3f || pf->conf[4] > 0.3f)) {
+            double ex = 0, ey = 0; int ne = 0;
+            for (int j : { 3, 4 })
+                if (pf->conf[size_t(j)] > 0.3f) { ex += pf->kp[size_t(j)].x() * W; ey += pf->kp[size_t(j)].y() * H; ++ne; }
+            const double reach = std::max(1.5 * std::fabs(pf->kp[12].x() - pf->kp[11].x()) * W, 0.20 * W);
+            addressmarks::measureBackLine(mask, W, H, v,
+                0.5 * (pf->kp[11].x() + pf->kp[12].x()) * W, 0.5 * (pf->kp[11].y() + pf->kp[12].y()) * H,
+                0.5 * (pf->kp[5].x() + pf->kp[6].x()) * W, 0.5 * (pf->kp[5].y() + pf->kp[6].y()) * H,
+                ex / ne, ey / ne, reach);
+        }
         return v;
     }
 #endif
@@ -3580,10 +3594,12 @@ struct AddressMarksStage : AnalysisStage {
                                           .arg(m.faceOn.rowSource == 1 ? QStringLiteral("wrists") : QStringLiteral("hips"))
                                     : QStringLiteral("none (%1)").arg(whyF))
                  << "; DTL"
-                 << (m.dtl.found ? QStringLiteral("hips %1..%2 → edges %3..%4, butt %5 (side %6, %7 rows)")
+                 << (m.dtl.found ? QStringLiteral("hips %1..%2 → edges %3..%4, butt %5 (side %6, %7 rows); tailbone %8,%9 → neck %10,%11 (%12 walks)")
                                        .arg(m.dtl.hipLeftX, 0, 'f', 3).arg(m.dtl.hipRightX, 0, 'f', 3)
                                        .arg(m.dtl.leftX, 0, 'f', 3).arg(m.dtl.rightX, 0, 'f', 3)
                                        .arg(m.dtl.buttX, 0, 'f', 3).arg(m.dtl.side).arg(m.dtl.rows)
+                                       .arg(m.dtl.tailboneX, 0, 'f', 3).arg(m.dtl.tailboneY, 0, 'f', 3)
+                                       .arg(m.dtl.neckX, 0, 'f', 3).arg(m.dtl.neckY, 0, 'f', 3).arg(m.dtl.backWalks)
                                  : QStringLiteral("none (%1)").arg(whyD))
                  << "," << qlonglong(wall.elapsed()) << "ms (session" << (sessionCache ? "cached" : "private")
                  << loadMs << "ms; face-on frame" << fetchF << "ms, u2netp" << segF << "ms; DTL frame" << fetchD

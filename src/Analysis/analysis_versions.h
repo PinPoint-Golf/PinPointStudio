@@ -101,7 +101,7 @@ constexpr int kShaftFusionStageVersion = 6;   // 2: the address plane and delive
 // addressMarks — kAddressMarksStageVersion: the body's outer edges at hip height on each camera's
 //           address frame, from the person mask (AddressMarksStage, address_marks.h;
 //           auto_annotations_design.md). Stamped; never reused — two frames and a mask, cheap.
-constexpr int kAddressMarksStageVersion = 1;
+constexpr int kAddressMarksStageVersion = 2;  // 2: DTL tailbone + back of the neck, TPI's spine angle line (2026-10-22)
 
 constexpr int kSkeleton3DStageVersion = 16;  // 16: cut at P8 + 25 ms (2026-10-19); 15: two cameras or no skeleton — the face-on-only fit refused (2026-10-19); 14: the wrists and elbows kept in front of the back (2026-10-19); 13: the hands locked exactly — each frame's trail arm moved onto its locked grip after the solve; knots back to v11 (2026-10-19); 12: fast spline knots on through the follow-through (2026-10-19); 11: the hands keep one spacing along the grip (2026-10-19, #29 follow-up); 10: the head at the ball at impact (its own frame) and through address; a recorded length held on one camera too (2026-10-19, issues #28 / #29); 9: both planted soles rest on one floor — the lead foot's pitch is the trail foot's, and its toe keypoints are not fitted, until 150 ms before impact (2026-10-19, issue #27); 8: the club is held in the hands — grip-offset prior σ 3 cm → 1 cm (2026-10-05); 7: a recorded club's length is held (σ 5 mm), and the grounded head rests ON the floor (lift 0) (2026-10-02)
                                              // 6: the club grounded at address levels the world; a recorded club's length held to ±3 cm; session pools stamped (2026-10-02)
