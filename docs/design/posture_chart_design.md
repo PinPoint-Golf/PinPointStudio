@@ -921,7 +921,7 @@ called done, and closed with a windowed run. Two to three app builds per stage.
 
 | Stage | What | Done when |
 |---|---|---|
-| **0. Per-position data, committed** | Extract the per-position change table (Appendix A) for the three golfers into `docs/research/data/posture/posture_positions_<date>.csv`, from the run root's phase grids, before those copies are deleted. Add the script to `tools/diagnostics/`. | The CSV is in the repo, §2.1 reproduces from it, and the run tree's deletion is no longer blocked by this design |
+| **0. Per-position data, committed** (DONE 22 Oct) | Extract the per-position change table (Appendix A) for the three golfers into `docs/research/data/posture/posture_positions_<date>.csv`, from the run root's phase grids, before those copies are deleted. Add the script to `tools/diagnostics/`. | The CSV is in the repo, §2.1 reproduces from it, and the run tree's deletion is no longer blocked by this design |
 | **1. Measures and bands** | The per-position measures of §7.3. The two context nodes. The §7.1 rows, with sources. The `rigSensitive` flag (parsed, validated, written). | `core_pack_test` and `diagnostics_health` clean; a `measure_dump` of the three golfers shows every row at every position; no grade in Session diagnostics changes (regrade the three golfers: an identical firing table) |
 | **2. The presenter (C++)** | `ChartsPosturePresenter` beside `ChartsWristPresenter`, with nothing computed in QML. It produces: per shot and per session the profile with bands; the pattern match (§4.4) with the close-call rule; the first exits named by departure; the "what moved" lines; the trust lines; the trail-knee style. The session-series model carries the phase-grid rows. | Unit tests on fixtures of the three golfers' medians give the §4.5 table exactly; a face-on-only and a DTL-only fixture match on their own rows and say so; a ⚠ reading is excluded from matching and still drawn |
 | **3. The Posture section (QML)** | This shot, Session and the Replay glance (§5), using the Wrist section's profile and ledger forms; Print. | Review sheets of the three golfers in Analyse, Replay and Print, light and dark, approved by Mark; `qml_ui` probes for the section's objectNames |
@@ -940,8 +940,11 @@ The per-position numbers in §2.1 were read from the phase grids of tonight's re
 share (run root `/mnt/swingdata/scratch/posture-20261021/copies/`). These are the copies that
 `posture_composites_2026-10-22.md` describes. Phases: P1 = 0 (Address), P2 = 12, P3 = 8, P4 = 2,
 P5 = 13, P6 = 9, P7 = 5, P8 = 14 (`src/Analysis/swing_analysis.h`). Run it with
-`/opt/homebrew/bin/python3`. Stage 0 commits the output as a CSV, because the run tree is due to be
-deleted.
+`/opt/homebrew/bin/python3`. **Stage 0 done 22 Oct 2026:** the readings are committed as
+`docs/research/data/posture/posture_positions_2026-10-22.csv` (one row per swing, reading and
+position), written by `tools/diagnostics/posture_positions_extract.py`; its `medians` mode reproduces
+§2.1 exactly. The run tree has been deleted, so the script below is kept as the record of how the
+table was first read.
 
 ```python
 import json, glob, collections, statistics as st
