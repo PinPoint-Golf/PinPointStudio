@@ -71,13 +71,15 @@ struct CompositePart {
 
 // An authored part this swing did NOT read, and why — the trust fold's "read from 3 of 4 parts".
 // `reason` is a token, not copy: `notMeasured` (no value), `noCorridor`, `implausible`, `withheld`,
-// or `nested` (a part naming a composite, which validation refuses and the engine skips). The reason
-// is the LAST alternative's — the rung that was this capture's real chance, the rule
-// LiveMeasureSource's ladder blame already follows.
+// `notLive` (the measure's status is not live — held, planned, … — so nothing grades on it; `status`
+// names which, in measureStatusName's spelling), or `nested` (a part naming a composite, which
+// validation refuses and the engine skips). The reason is the LAST alternative's — the rung that was
+// this capture's real chance, the rule LiveMeasureSource's ladder blame already follows.
 struct CompositeUnread {
     QString name;
     QString measureId;
     QString reason;
+    QString status;     // `notLive` only: "held", "planned", …; empty otherwise
 };
 
 // One measure's value for one swing, plus the corridor to grade it against.

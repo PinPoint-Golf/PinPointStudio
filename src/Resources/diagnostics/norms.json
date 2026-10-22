@@ -1520,7 +1520,7 @@
       "sigmaLo": 7.0,
       "unit": "°",
       "source": "heuristic",
-      "citation": "PROVISIONAL 2026-10-22, to be replaced by the V3 measurement (posture_metrics_design.md §9). Authored as 22 ± 7° for the LEAD knee; the measure reads the TRAIL knee since 2026-10-22 (§3.1). Carried over unchanged because at address the two knees are within a few degrees of each other (17° trail against 20° lead on one golfer, 07-04). No coaching source gives a number."
+      "citation": "CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 127, mean +20.1 SD 2.3 (z of the mean -0.3); Nick n 28, mean +28.4 SD 4.2 (z of the mean +0.9); Jess n 23, mean +13.9 SD 1.0 (z of the mean -1.2). Authored as 22 ± 7° for the LEAD knee; the measure reads the TRAIL knee since 2026-10-22 (§3.1). Carried over unchanged because at address the two knees are within a few degrees of each other (17° trail against 20° lead on one golfer, 07-04). No coaching source gives a number. docs/research/data/posture/posture_composites_2026-10-22.md"
     },
     {
       "measure": "m_trailKneeFlex",
@@ -2117,7 +2117,7 @@
       "sigmaHi": 5.0,
       "unit": "°",
       "source": "heuristic",
-      "citation": "PROVISIONAL 2026-10-22, to be replaced by the V3 measurement (posture_metrics_design.md §9). Seated from the existing forward-bend rows, not from data on this measure. The loss side (sigmaLo 2.5°) is m_spineBendLossDown's: Mark's line of 5° of bend lost (2026-10-08), so 2 sigma is 5° stood up at impact. The gain side (sigmaHi 5°) is m_spineBendDive's estimate for gaining bend. Centre 0, the address bend held. One golfer's data for scale: 9-11° lost by impact (2026-10-05/07/08), so this row is NOT centred on that golfer and will read his swings far down the loss side."
+      "citation": "CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 127, mean -10.1 SD 1.6 (z of the mean -4.0); Nick n 28, mean -13.2 SD 2.0 (z of the mean -5.3); Jess n 23, mean -2.4 SD 1.5 (z of the mean -0.9). Seated from the existing forward-bend rows, not from data on this measure. The loss side (sigmaLo 2.5°) is m_spineBendLossDown's: Mark's line of 5° of bend lost (2026-10-08), so 2 sigma is 5° stood up at impact. The gain side (sigmaHi 5°) is m_spineBendDive's estimate for gaining bend. Centre 0, the address bend held. One golfer's data for scale: 9-11° lost by impact (2026-10-05/07/08), so this row is NOT centred on that golfer and will read his swings far down the loss side. docs/research/data/posture/posture_composites_2026-10-22.md"
     },
     {
       "measure": "m_pelvisThrustImpact",
@@ -2126,7 +2126,7 @@
       "sigmaLo": 2.5,
       "unit": "cm",
       "source": "heuristic",
-      "citation": "PROVISIONAL 2026-10-22, to be replaced by the V3 measurement (posture_metrics_design.md §9). Copied from m_pelvisThrustDown (0 ± 2.5 cm, Mark's 5 cm line of 2026-10-08), the same series at its peak P5-P7 rather than at P7 itself; both tails as there, since that row's low tail is backing_off_the_ball. One golfer's data: 5-10 cm toward the ball by impact."
+      "citation": "CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 108, mean +7.5 SD 1.8 (z of the mean +3.0); Nick n 27, mean +6.7 SD 1.3 (z of the mean +2.7); Jess n 7, mean +1.2 SD 1.8 (z of the mean +0.5). Copied from m_pelvisThrustDown (0 ± 2.5 cm, Mark's 5 cm line of 2026-10-08), the same series at its peak P5-P7 rather than at P7 itself; both tails as there, since that row's low tail is backing_off_the_ball. One golfer's data: 5-10 cm toward the ball by impact. docs/research/data/posture/posture_composites_2026-10-22.md"
     },
     {
       "measure": "m_headLiftImpact",
@@ -2135,7 +2135,7 @@
       "sigmaLo": 3.0,
       "unit": "cm",
       "source": "heuristic",
-      "citation": "PROVISIONAL 2026-10-22, to be replaced by the V3 measurement (posture_metrics_design.md §9). Copied from m_headLiftDown (0 ± 3 cm, itself an estimate copied from m_headLiftBack), the same series at its highest P5-P7 rather than at P7 itself. No golfer's data behind it."
+      "citation": "CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 165, mean +2.0 SD 3.3 (z of the mean +0.7); Nick n 28, mean -0.6 SD 3.1 (z of the mean -0.2); Jess n 23, mean -5.6 SD 2.5 (z of the mean -1.9). Copied from m_headLiftDown (0 ± 3 cm, itself an estimate copied from m_headLiftBack), the same series at its highest P5-P7 rather than at P7 itself. No golfer's data behind it. docs/research/data/posture/posture_composites_2026-10-22.md"
     },
     {
       "measure": "m_pelvisLiftImpact",
@@ -2144,7 +2144,7 @@
       "sigmaLo": 6.2,
       "unit": "% stance width",
       "source": "heuristic",
-      "citation": "PROVISIONAL 2026-10-22, to be replaced by the V3 measurement (posture_metrics_design.md §9). Copied from m_pelvisLiftTop (0 ± 6.2 % of stance, a centimetre heuristic re-expressed at about 2.5 % per cm), the same series read at P7 instead of P4. A push off the ground raises the pelvis in good swings too, which is why the part weighs 0.4. No golfer's data behind it."
+      "citation": "CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 163, mean -3.7 SD 4.2 (z of the mean -0.6); Nick n 27, mean +5.2 SD 1.9 (z of the mean +0.8); Jess n 23, mean -3.0 SD 4.5 (z of the mean -0.5). Copied from m_pelvisLiftTop (0 ± 6.2 % of stance, a centimetre heuristic re-expressed at about 2.5 % per cm), the same series read at P7 instead of P4. A push off the ground raises the pelvis in good swings too, which is why the part weighs 0.4. No golfer's data behind it. docs/research/data/posture/posture_composites_2026-10-22.md"
     },
     {
       "measure": "m_trunkRiseImpact",
@@ -2154,7 +2154,7 @@
       "sigmaHi": 3.0,
       "unit": "%",
       "source": "heuristic",
-      "citation": "PROVISIONAL 2026-10-22, to be replaced by the V3 measurement (posture_metrics_design.md §9). Derived from the forward-bend row m_spineBendChangeImpact through the face-on geometry of §3.2: about +1.2 % per degree of bend lost near a 34° address bend. The loss side here is HIGH (trunk rise grows as bend is lost): sigmaHi 3.0 % = 2.5° x 1.2; the gain side sigmaLo 6.0 % = 5° x 1.2. A pelvis thrust toward the ball also reads here, about +0.33 % per cm at 3 m, so 8 cm of thrust adds about 2.7 %; the row does not correct for it. Live only if V1 passes (Spearman >= 0.7 against DTL bend change on every two-camera golfer)."
+      "citation": "CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 162, mean +7.8 SD 3.1 (z of the mean +2.6); Nick n 27, mean +6.0 SD 2.0 (z of the mean +2.0); Jess n 23, mean +2.0 SD 3.4 (z of the mean +0.7). Derived from the forward-bend row m_spineBendChangeImpact through the face-on geometry of §3.2: about +1.2 % per degree of bend lost near a 34° address bend. The loss side here is HIGH (trunk rise grows as bend is lost): sigmaHi 3.0 % = 2.5° x 1.2; the gain side sigmaLo 6.0 % = 5° x 1.2. A pelvis thrust toward the ball also reads here, about +0.33 % per cm at 3 m, so 8 cm of thrust adds about 2.7 %; the row does not correct for it. Live only if V1 passes (Spearman >= 0.7 against DTL bend change on every two-camera golfer). docs/research/data/posture/posture_composites_2026-10-22.md"
     },
     {
       "measure": "m_spineBendChangeTop",
@@ -2163,16 +2163,16 @@
       "sigmaLo": 2.5,
       "unit": "°",
       "source": "heuristic",
-      "citation": "PROVISIONAL 2026-10-22, to be replaced by the V3 measurement (posture_metrics_design.md §9). No backswing forward-bend row exists to seat it from; carried from m_spineBendLossDown's 2.5° (Mark's 5° line for bend lost on the way down) to the top, both sides. Unchecked whether the down-the-line bend reading changes at the top on a good swing merely because the shoulder midpoint moves as the shoulders turn, which would put the centre off 0. No golfer's data behind it."
+      "citation": "CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 127, mean -7.3 SD 1.8 (z of the mean -2.9); Nick n 28, mean -8.2 SD 2.2 (z of the mean -3.3); Jess n 23, mean +2.0 SD 1.7 (z of the mean +0.8). No backswing forward-bend row exists to seat it from; carried from m_spineBendLossDown's 2.5° (Mark's 5° line for bend lost on the way down) to the top, both sides. Unchecked whether the down-the-line bend reading changes at the top on a good swing merely because the shoulder midpoint moves as the shoulders turn, which would put the centre off 0. No golfer's data behind it. docs/research/data/posture/posture_composites_2026-10-22.md"
     },
     {
       "measure": "m_axisTiltAddress",
       "context": "any",
-      "mu": 6.0,
+      "mu": -2.0,
       "sigmaLo": 3.0,
       "unit": "°",
       "source": "heuristic",
-      "citation": "PROVISIONAL 2026-10-22, to be replaced by the V3 measurement (posture_metrics_design.md §9). Centre 6° from §2 of the design (axis tilt about 6° at address). sigma 3° is authored so that the reverse-tilt line, 2 sigma below the centre, falls at 0°: any lean toward the target at address. Narrower than the 6° the top and impact rows carry, because at address the tilt is set by the grip and is not swinging. Coaching practice says the upper body tilts slightly away from the target at address; no number is cited. No golfer's data behind it."
+      "citation": "RE-SEATED 2026-10-22 FOR THE 2-D FACE-ON PRODUCER (V3). The design's 'about 6° at address' was the 3-D figure; the face-on projection reads near zero, slightly toward the target, on two of three golfers: Mark n 163, mean -1.7 SD 1.6 (z of the mean +0.1); Nick n 27, mean -1.7 SD 1.1 (z of the mean +0.1); Jess n 23, mean -6.1 SD 2.0 (z of the mean -1.4). Centre -2° from Mark and Nick; sigma 3° authored, so reverse_tilt_at_address fires past -8°. Jess's whole tilt curve sits about 8° below Mark's at every position (camera roll or her body, not separable without a level reference), so absolute face-on tilt is camera-sensitive. Heuristic. docs/research/data/posture/posture_composites_2026-10-22.md"
     },
     {
       "measure": "m_armHangAddress",
@@ -2181,7 +2181,7 @@
       "sigmaLo": 5.0,
       "unit": "°",
       "source": "heuristic",
-      "citation": "PROVISIONAL 2026-10-22, to be replaced by the V3 measurement (posture_metrics_design.md §9). Centre 0°, the arms hanging straight down from the shoulders: the coaching check this measure is named for (\"let the arms hang\", the drill and the posture_too_upright check). sigma 5° is authored, putting the reaching line at 10° of the hands out toward the ball. The producer reads shoulder-joint to wrist keypoints, whose true centre on a good setup has never been measured. No golfer's data behind it."
+      "citation": "CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 127, mean +4.9 SD 1.8 (z of the mean +1.0); Nick n 27, mean -1.7 SD 1.0 (z of the mean -0.3); Jess n 22, mean +3.8 SD 1.3 (z of the mean +0.8). Centre 0°, the arms hanging straight down from the shoulders: the coaching check this measure is named for (\"let the arms hang\", the drill and the posture_too_upright check). sigma 5° is authored, putting the reaching line at 10° of the hands out toward the ball. The producer reads shoulder-joint to wrist keypoints, whose true centre on a good setup has never been measured. No golfer's data behind it. docs/research/data/posture/posture_composites_2026-10-22.md"
     },
     {
       "measure": "m_headPitchAddress",
@@ -2190,7 +2190,7 @@
       "sigmaLo": 8.0,
       "unit": "°",
       "source": "heuristic",
-      "citation": "PROVISIONAL 2026-10-22, to be replaced by the V3 measurement (posture_metrics_design.md §9). Centre 26°, about what the producer reads on Mark's address swings (one golfer; the ear-to-nose line carries an anatomical offset, so 0 is not the ideal). sigma 8° is authored. The measure is HELD (V5), so this row grades nothing until the repeatability gate passes."
+      "citation": "CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 127, mean +22.9 SD 6.4 (z of the mean -0.4); Nick n 28, mean +24.8 SD 3.4 (z of the mean -0.2); Jess n 23, mean +32.9 SD 5.0 (z of the mean +0.9). Centre 26°, about what the producer reads on Mark's address swings (one golfer; the ear-to-nose line carries an anatomical offset, so 0 is not the ideal). sigma 8° is authored. The measure is HELD (V5), so this row grades nothing until the repeatability gate passes. docs/research/data/posture/posture_composites_2026-10-22.md"
     },
     {
       "measure": "m_balanceHeelToeAddress",
@@ -2199,7 +2199,7 @@
       "sigmaLo": 6.0,
       "unit": "% foot length",
       "source": "heuristic",
-      "citation": "PROVISIONAL 2026-10-22, to be replaced by the V3 measurement (posture_metrics_design.md §9). Mark's down-the-line readings: 53 ± 6 % of foot length on the 7-iron (and 64 ± 4 % on the wedge, the wedge row). One golfer, his swing-to-swing spread taken as sigma, so the two lines sit at 41 % (heels) and 65 % (toes). The proxy's weights are geometric and its absolute value has NEVER been checked against a pressure plate: it may read a balanced golfer anywhere along the foot, and the norm is only as good as that assumption."
+      "citation": "CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 127, mean +56.8 SD 7.6 (z of the mean +0.6); Nick n 28, mean +61.9 SD 1.9 (z of the mean +1.5); Jess n 23, mean +77.7 SD 7.2 (z of the mean +4.1). Mark's down-the-line readings: 53 ± 6 % of foot length on the 7-iron (and 64 ± 4 % on the wedge, the wedge row). One golfer, his swing-to-swing spread taken as sigma, so the two lines sit at 41 % (heels) and 65 % (toes). The proxy's weights are geometric and its absolute value has NEVER been checked against a pressure plate: it may read a balanced golfer anywhere along the foot, and the norm is only as good as that assumption. docs/research/data/posture/posture_composites_2026-10-22.md"
     },
     {
       "measure": "m_balanceHeelToeAddress",
@@ -2217,9 +2217,10 @@
       "sigmaLo": 1.0,
       "sigmaHi": 1.0,
       "unit": "z",
-      "rho": 0.3,
-      "source": "heuristic",
-      "citation": "PROVISIONAL 2026-10-22, to be replaced by the V3 measurement (posture_metrics_design.md §9). A composite's norm is mu 0, sigma 1 in z by construction (§6.2); only rho is a number. rho = 0.3 is the middle of the three values the null calibration was run at (Appendix A: trip rates 2.23 % coherent, 2.43 % distance at rho 0.3), authored, not measured. For the coherent mode rho is the mean pairwise correlation of the LOSS-SIGNED part z-scores; for the distance mode, of the part z-scores. The V2 measurement replaces it with the library value, floored at 0, with n and the golfers it rests on. Rests on no golfers today."
+      "rho": 0.17,
+      "source": "measured",
+      "citation": "MEASURED 2026-10-22 (posture_metrics_design.md §9 V2). mu 0, sigma 1 in z by construction; rho 0.17 is the mean pairwise correlation of the parts' z-scores (loss-signed), each golfer centred on their own mean so only swing-to-swing co-movement counts, floored at 0 (measured +0.17). Three golfers: Mark (library, 127-163 shots), Nick Henn (28), Jess Ratcliffe (23); smallest pair n 142. Between golfers as well the mean r is +0.28, which three golfer means cannot estimate; it is reported, not used. Within-golfer variation is not the population's. Run root /mnt/swingdata/scratch/posture-20261021/dump1, command in docs/research/data/posture/posture_composites_2026-10-22.md.",
+      "n": 142
     },
     {
       "measure": "m_postureHeldTop",
@@ -2228,9 +2229,10 @@
       "sigmaLo": 1.0,
       "sigmaHi": 1.0,
       "unit": "z",
-      "rho": 0.3,
-      "source": "heuristic",
-      "citation": "PROVISIONAL 2026-10-22, to be replaced by the V3 measurement (posture_metrics_design.md §9). A composite's norm is mu 0, sigma 1 in z by construction (§6.2); only rho is a number. rho = 0.3 is the middle of the three values the null calibration was run at (Appendix A: trip rates 2.23 % coherent, 2.43 % distance at rho 0.3), authored, not measured. For the coherent mode rho is the mean pairwise correlation of the LOSS-SIGNED part z-scores; for the distance mode, of the part z-scores. The V2 measurement replaces it with the library value, floored at 0, with n and the golfers it rests on. Rests on no golfers today."
+      "rho": 0.11,
+      "source": "measured",
+      "citation": "MEASURED 2026-10-22 (posture_metrics_design.md §9 V2). mu 0, sigma 1 in z by construction; rho 0.11 is the mean pairwise correlation of the parts' z-scores (loss-signed), each golfer centred on their own mean so only swing-to-swing co-movement counts, floored at 0 (measured +0.11). Three golfers: Mark (library, 127-163 shots), Nick Henn (28), Jess Ratcliffe (23); smallest pair n 142. Between golfers as well the mean r is +0.55, which three golfer means cannot estimate; it is reported, not used. Within-golfer variation is not the population's. Run root /mnt/swingdata/scratch/posture-20261021/dump1, command in docs/research/data/posture/posture_composites_2026-10-22.md.",
+      "n": 142
     },
     {
       "measure": "m_setupPosture",
@@ -2239,9 +2241,10 @@
       "sigmaLo": 1.0,
       "sigmaHi": 1.0,
       "unit": "z",
-      "rho": 0.3,
-      "source": "heuristic",
-      "citation": "PROVISIONAL 2026-10-22, to be replaced by the V3 measurement (posture_metrics_design.md §9). A composite's norm is mu 0, sigma 1 in z by construction (§6.2); only rho is a number. rho = 0.3 is the middle of the three values the null calibration was run at (Appendix A: trip rates 2.23 % coherent, 2.43 % distance at rho 0.3), authored, not measured. For the coherent mode rho is the mean pairwise correlation of the LOSS-SIGNED part z-scores; for the distance mode, of the part z-scores. The V2 measurement replaces it with the library value, floored at 0, with n and the golfers it rests on. Rests on no golfers today. Distance mode: Satterthwaite's approximation is slightly generous as rho rises, by up to 0.2 points of trip rate (§5.2)."
+      "rho": 0.0,
+      "source": "measured",
+      "citation": "MEASURED 2026-10-22 (posture_metrics_design.md §9 V2). mu 0, sigma 1 in z by construction; rho 0.00 is the mean pairwise correlation of the parts' z-scores, each golfer centred on their own mean so only swing-to-swing co-movement counts, floored at 0 (measured -0.02). Three golfers: Mark (library, 127-163 shots), Nick Henn (28), Jess Ratcliffe (23); smallest pair n 176. Between golfers as well the mean r is -0.06, which three golfer means cannot estimate; it is reported, not used. Within-golfer variation is not the population's. Run root /mnt/swingdata/scratch/posture-20261021/dump1, command in docs/research/data/posture/posture_composites_2026-10-22.md.",
+      "n": 176
     }
   ]
 }

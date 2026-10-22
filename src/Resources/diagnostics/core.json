@@ -2990,7 +2990,7 @@
           "p7"
         ]
       },
-      "status": "live",
+      "status": "held",
       "label": "Trunk rise seen face-on, change P1 to P7",
       "unit": "%",
       "highMeans": "the trunk imaging longer face-on at impact than at address, which is the trunk more upright: forward bend lost, seen from the front",
@@ -2998,7 +2998,8 @@
       "golferLow": "your upper body is more bent over at impact, seen from the front",
       "golferSign": 1,
       "golferName": "how much taller your upper body stands at impact, seen from the front",
-      "viewNeeded": "faceOn"
+      "viewNeeded": "faceOn",
+      "gapReason": "Held: it failed validation V1 on 2026-10-22. Against the down-the-line forward-bend change on the same two-camera swings it ranked with Spearman 0.12 (Mark, 126 swings), 0.15 (Nick, 27) and 0.23 (Jess, 23), where 0.7 on every golfer was the bar; swing-to-swing face-on noise (SD 2-3 %) is larger than the change it has to see. So a face-on-only shot cannot assess the posture held into impact. docs/research/data/posture/posture_composites_2026-10-22.md"
     },
     {
       "id": "m_spineBendChangeTop",
@@ -3169,11 +3170,9 @@
           {
             "name": "pelvisHeight",
             "measures": [
-              "m_pelvisSinkTop",
-              "m_pelvisLiftTop"
+              "m_pelvisSinkTop"
             ],
             "signs": [
-              1,
               1
             ],
             "weight": 0.6

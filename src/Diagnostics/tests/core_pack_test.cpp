@@ -1797,7 +1797,9 @@ int main()
             { "posture_sinks_backswing", "loss_of_posture" },
             { "diving", "posture_sinks_impact" },
             { "trail_knee_straighten", "loss_of_posture_backswing" },
-            { "pelvis_rise_backswing", "loss_of_posture_backswing" },
+            // pelvis_rise_backswing -> loss_of_posture_backswing is † in the design but NOT stamped since
+            // 2026-10-22: the V3 measurement took the hip-joint pelvis lift (keypoint migration reads it
+            // 18-37 % low at the top) out of m_postureHeldTop, so the two ends no longer read one series.
             { "head_rise_backswing", "loss_of_posture_backswing" },
             { "head_drop_backswing", "posture_sinks_backswing" },
             { "pelvis_sink_backswing", "posture_sinks_backswing" },

@@ -472,7 +472,8 @@ struct CompositePartRow {
 struct CompositeUnreadRow {
     QString name;
     QString measureId;      // the last alternative tried
-    QString reason;         // notMeasured · noCorridor · implausible · withheld · nested
+    QString reason;         // notMeasured · noCorridor · implausible · withheld · notLive · nested
+    QString status;         // notLive only: the measure's status ("held", "planned", …); else empty
 };
 
 // Everything a surface needs to draw a composite finding without the composite's own number:
@@ -1959,10 +1960,13 @@ inline QJsonObject compositeToJson(const CompositeRowEvidence &c)
     co[QStringLiteral("parts")] = pa;
     if (!c.unread.empty()) {
         QJsonArray ua;
-        for (const CompositeUnreadRow &u : c.unread)
-            ua.append(QJsonObject{ { QStringLiteral("name"), u.name },
-                                   { QStringLiteral("measureId"), u.measureId },
-                                   { QStringLiteral("reason"), u.reason } });
+        for (const CompositeUnreadRow &u : c.unread) {
+            QJsonObject uo{ { QStringLiteral("name"), u.name },
+                            { QStringLiteral("measureId"), u.measureId },
+                            { QStringLiteral("reason"), u.reason } };
+            if (!u.status.isEmpty()) uo[QStringLiteral("status")] = u.status;   // absent ⇒ none
+            ua.append(uo);
+        }
         co[QStringLiteral("unread")] = ua;
     }
     return co;
@@ -1996,7 +2000,8 @@ inline CompositeRowEvidence compositeFromJson(const QJsonObject &co)
         const QJsonObject uo = uv.toObject();
         c.unread.push_back({ uo.value(QStringLiteral("name")).toString(),
                              uo.value(QStringLiteral("measureId")).toString(),
-                             uo.value(QStringLiteral("reason")).toString() });
+                             uo.value(QStringLiteral("reason")).toString(),
+                             uo.value(QStringLiteral("status")).toString() });
     }
     return c;
 }

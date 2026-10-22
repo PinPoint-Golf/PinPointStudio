@@ -203,6 +203,16 @@ private:
         out.partsWeightTotal = 0.0;
         out.partsWeightRead  = 0.0;
 
+        // A COMPOSITE THAT IS NOT LIVE is not graded, the rule every non-live status carries
+        // (measure_vocabulary.h: Held is "treated exactly as Planned by everything that grades"). It
+        // is not composed at all: no number, no corridor, no parts — the engine reports it like any
+        // other measure with nothing to judge it against.
+        if (m.status != MeasureStatus::Live) {
+            out.value = std::numeric_limits<double>::quiet_NaN();
+            for (const CompositePartSpec &p : spec.parts) out.partsWeightTotal += p.weight;
+            return out;
+        }
+
         std::vector<CompositeTerm> terms;
         bool        requiredMissing = false;
         bool        anyInferred     = false;
@@ -213,13 +223,25 @@ private:
             out.partsWeightTotal += p.weight;
 
             bool    read = false;
-            QString lastId, lastWhy;
+            QString lastId, lastWhy, lastStatus;
             for (int k = 0; k < p.measures.size() && !read; ++k) {
                 const QString &alt = p.measures.at(k);
                 lastId = alt;
+                lastStatus.clear();
 
                 const Measure *am = m_pack ? m_pack->measure(alt) : nullptr;
                 if (am && am->kind == MeasureKind::Composite) { lastWhy = QStringLiteral("nested"); continue; }
+                // A NON-LIVE ALTERNATIVE IS NOT READ, whatever its producer emitted. Held, planned and
+                // the rest are "treated exactly as Planned by everything that grades", and a composite
+                // grades its parts: a held face-on trunk rise (failed its V1 gate) must not stand in
+                // for the DTL bend and carry a face-on-only swing past the coverage line. The ladder
+                // moves on; if nothing else answers, the part is unread as `notLive` with the status,
+                // so the trust fold can say "trunk rise is held".
+                if (am && am->status != MeasureStatus::Live) {
+                    lastWhy    = QStringLiteral("notLive");
+                    lastStatus = measureStatusName(am->status);
+                    continue;
+                }
 
                 const Norm                *norm = nullptr;
                 IMeasureValueSource::Value raw;
@@ -264,8 +286,9 @@ private:
                 read = true;
             }
             if (!read) {
-                out.partsUnread.push_back({ p.name, lastId, lastWhy.isEmpty() ? QStringLiteral("notMeasured")
-                                                                               : lastWhy });
+                out.partsUnread.push_back({ p.name, lastId,
+                                            lastWhy.isEmpty() ? QStringLiteral("notMeasured") : lastWhy,
+                                            lastStatus });
                 if (p.required) requiredMissing = true;
             }
         }

@@ -681,6 +681,54 @@ int main()
               "poor setup fires");
     }
 
+    std::printf("=== composite: a part that is not live is not read ===\n");
+    {
+        const auto withStatus = [&](const char *id, MeasureStatus st) {
+            CharacteristicPack k = cpack;
+            for (Measure &m : k.measures) if (m.id == QLatin1String(id)) m.status = st;
+            return k;
+        };
+        // A held FIRST alternative is skipped and the ladder moves on.
+        const CharacteristicPack heldBend = withStatus("m_bend", MeasureStatus::Held);
+        FakeValues v;
+        lossAll(v);
+        v.set(QStringLiteral("m_trunkRise"), 3.75);
+        const NormMeasureSource s1(v, cnorms, FS, GradePolicy{}, &heldBend);
+        const auto r1 = s1.read(QStringLiteral("m_held"));
+        check(r1 && r1->parts.size() == 4 && r1->parts[0].measureId == QLatin1String("m_trunkRise"),
+              "a held first alternative is skipped, and the next rung answers for the part");
+
+        // The face-on-only case of the V1 failure: trunk rise held, no DTL bend. The part is unread,
+        // as notLive with the status, and the composite is refused at 1.0 of 2.7, not read at 1.9.
+        const CharacteristicPack heldRise = withStatus("m_trunkRise", MeasureStatus::Held);
+        FakeValues faceOn;
+        faceOn.set(QStringLiteral("m_trunkRise"), 3.75);
+        faceOn.set(QStringLiteral("m_head"), 2.25);
+        faceOn.set(QStringLiteral("m_pelvisLift"), 1.5);
+        const NormMeasureSource s2(faceOn, cnorms, FS, GradePolicy{}, &heldRise);
+        const auto r2 = s2.read(QStringLiteral("m_held"));
+        const CompositeUnread *trunk = nullptr;
+        if (r2) for (const CompositeUnread &u : r2->partsUnread) if (u.name == QLatin1String("trunk")) trunk = &u;
+        check(trunk && trunk->reason == QLatin1String("notLive") && trunk->status == QLatin1String("held")
+                  && trunk->measureId == QLatin1String("m_trunkRise"),
+              "a held sole remaining alternative leaves the part unread: notLive, status held, naming it");
+        check(r2 && r2->compositeShort && std::fabs(r2->partsWeightRead - 1.0) < 1e-12,
+              "…so coverage refuses the composite at 1.0 of 2.7 — the held reading never carried it");
+        const DetectionResult d2 = detect(heldRise, s2);
+        const Finding *f2 = d2.find(QStringLiteral("loss_of_posture"));
+        check(f2 && f2->state == FindingState::Unavailable && f2->refusal == SignalRefusal::CompositeCoverage,
+              "…and the family is unavailable for too few parts");
+
+        // A composite that is itself not live is not graded at all.
+        const CharacteristicPack heldComposite = withStatus("m_held", MeasureStatus::Held);
+        FakeValues all;
+        lossAll(all);
+        const NormMeasureSource s3(all, cnorms, FS, GradePolicy{}, &heldComposite);
+        const auto r3 = s3.read(QStringLiteral("m_held"));
+        check(r3 && !r3->hasCorridor && !r3->compositeShort && std::isnan(r3->value) && r3->parts.empty(),
+              "a held composite is not composed: no number, no corridor, never a grade");
+    }
+
     std::printf("=== composite: no calibration, no corridor ===\n");
     {
         auto noRho = std::make_shared<FakeNorms>();

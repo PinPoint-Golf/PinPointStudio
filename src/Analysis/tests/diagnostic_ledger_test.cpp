@@ -1668,7 +1668,9 @@ int main()
         row.composite.unread.push_back({ QStringLiteral("head"), QStringLiteral("m_headLiftImpact"),
                                          QStringLiteral("notMeasured") });
         row.composite.unread.push_back({ QStringLiteral("pelvisHeight"), QStringLiteral("m_pelvisLiftImpact"),
-                                         QStringLiteral("noCorridor") });
+                                         QStringLiteral("noCorridor"), QString() });
+        row.composite.unread.push_back({ QStringLiteral("trunk"), QStringLiteral("m_trunkRiseImpact"),
+                                         QStringLiteral("notLive"), QStringLiteral("held") });
         MeasureRow mr;
         mr.measureId = row.drivingMeasureId;
         mr.signalId  = QStringLiteral("sig_lossOfPosture");
@@ -1690,7 +1692,7 @@ int main()
         const auto        back  = fromJsonDocument(QJsonDocument::fromJson(bytes));
         check(obj.value(QStringLiteral("schemaVersion")).toInt() == 9, "a composite row writes schema 9");
         const ConditionRow *b = back.empty() ? nullptr : rowFor(back[0], QStringLiteral("loss_of_posture"));
-        check(b && b->composite.present() && b->composite.parts.size() == 2 && b->composite.unread.size() == 2,
+        check(b && b->composite.present() && b->composite.parts.size() == 2 && b->composite.unread.size() == 3,
               "schema9_composite_roundtrip: the parts and the unread parts come back");
         check(b && near(b->composite.weightRead, 1.7, 1e-12) && near(b->composite.weightTotal, 2.7, 1e-12),
               "…with the coverage");
@@ -1705,6 +1707,9 @@ int main()
         check(b && b->composite.unread[1].reason == QLatin1String("noCorridor")
                   && b->composite.unread[0].measureId == QLatin1String("m_headLiftImpact"),
               "…and each unread part keeps its reason");
+        check(b && b->composite.unread[2].reason == QLatin1String("notLive")
+                  && b->composite.unread[2].status == QLatin1String("held") && b->composite.unread[1].status.isEmpty(),
+              "…a notLive part keeps its status (held), and the others carry none");
         check(b && b->readings.size() == 2 && b->readings[0].composite.parts.size() == 2
                   && !b->readings[1].composite.present(),
               "a reading row carries its own composite, and a plain one none");

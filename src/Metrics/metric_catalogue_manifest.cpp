@@ -1174,9 +1174,7 @@ void installMetricManifest(MetricCatalogue &cat)
                                "the ground plane")) },
         .usedBy = { QStringLiteral("characteristic:pelvis_rise_backswing"),
                     QStringLiteral("characteristic:loss_of_posture"),
-                    QStringLiteral("characteristic:posture_sinks_impact"),
-                    QStringLiteral("characteristic:loss_of_posture_backswing"),
-                    QStringLiteral("characteristic:posture_sinks_backswing") },
+                    QStringLiteral("characteristic:posture_sinks_impact") },
     });
 
     // The belt line's height — what `pelvis_sink_backswing` actually asks for. The hip keypoints

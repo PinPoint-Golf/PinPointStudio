@@ -209,6 +209,7 @@ QString unreadText(const QString &token)
     if (token == QLatin1String("implausible")) return QStringLiteral("reading outside what its norm believes");
     if (token == QLatin1String("withheld"))    return QStringLiteral("drawn but not judged by its producer");
     if (token == QLatin1String("nested"))      return QStringLiteral("a part naming a composite");
+    if (token == QLatin1String("notLive"))     return QStringLiteral("not graded: the measure is not live (held or planned)");
     return QString();
 }
 
