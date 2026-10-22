@@ -253,8 +253,16 @@ MEMBERS = {   # the family's members: the †-edge single faults of §7.3
 
 
 def load_ledgers(root):
-    """{pop: [{condition: state}]} from the regraded diagnostics.json under <root>/<library>/<session>/."""
+    """{pop: [{condition: state}]} from the regraded diagnostics.json under <root>/<library>/<session>/,
+    or from the committed extract posture_firing_*.csv when <root> holds one."""
     import glob, json, os
+    fc = sorted(glob.glob(os.path.join(root, "posture_firing_*.csv")))
+    if fc:
+        out = {p: collections.OrderedDict() for p in GOLFERS}
+        with open(fc[-1], newline="", encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                out[r["golfer"]].setdefault((r["session"], r["shot"]), {})[r["condition"]] = r["state"]
+        return {p: list(v.values()) for p, v in out.items()}
     pops = {"mark": "Mark-Liversedge", "nick": "Nick-Henn", "jess": "Jess-Ratcliffe"}
     out = {}
     for pop, lib in pops.items():
@@ -330,14 +338,25 @@ def sec_v5(data):
     print()
 
 
+def csv_path(d, pop):
+    """<d>/<pop>.csv (measure_dump's own output) or the committed extract posture_dump_<pop>_*.csv."""
+    import glob, os
+    own = os.path.join(d, f"{pop}.csv")
+    if os.path.exists(own):
+        return own
+    return sorted(glob.glob(os.path.join(d, f"posture_dump_{pop}_*.csv")))[-1]
+
+
 def main():
     d = sys.argv[1]
-    want = sys.argv[2:] or ["pop", "v1"]
-    if want == ["v4"]:
-        return sec_v4(d)
-    data = collections.OrderedDict((p, load(f"{d}/{p}.csv", p)) for p in GOLFERS)
+    want = sys.argv[2:] or ["pop", "v1", "dist", "v2", "v4", "v5"]
+    if "v4" in want:
+        sec_v4(d); want = [w for w in want if w != "v4"]
+        if not want:
+            return
+    data = collections.OrderedDict((p, load(csv_path(d, p), p)) for p in GOLFERS)
     if "v5" in want:
-        data["corpus"] = load(f"{d}/corpus.csv", "corpus")
+        data["corpus"] = load(csv_path(d, "corpus"), "corpus")
     for w in want:
         globals()["sec_" + w](data)
 
