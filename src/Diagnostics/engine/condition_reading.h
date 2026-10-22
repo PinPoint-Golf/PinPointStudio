@@ -48,6 +48,12 @@
 // from facets names no key at all: nothing in a swing produces it, there is no curve to draw, and
 // the result says so (`composed`, empty `metricKey`) rather than guessing. A composed measure that
 // does name a key (some are composed and resolved through one) is read from that key like any other.
+//
+// A COMPOSITE (posture_metrics_design.md §6) is the third case, and it follows the composed
+// precedent: it has no curve of its own — its number is never drawn — so it names no key
+// (`composite`, empty `metricKey` and ladder). It still has an instant: its parts are read at one
+// (§4.4), so its phase and reducer are its parts' (landingMeasureOf) — P7 for the impact family, P4
+// for the backswing, P1 for the setup — and a card, a work-on and a theme place it like any other.
 
 namespace pinpoint::analysis {
 
@@ -59,6 +65,7 @@ struct ConditionReading {
     int         phase = -1;         // Phase as its enum value; -1 ⇒ the measure is not in the pack
     ReducerKind reducer = ReducerKind::At;
     bool        composed = false;   // MeasureKind::Composed
+    bool        composite = false;  // MeasureKind::Composite: no key; phase and reducer are its parts'
     bool        found = false;      // the measure exists in the pack
 
     bool hasKey() const { return !metricKey.isEmpty(); }
@@ -73,12 +80,13 @@ inline ConditionReading measureReading(const CharacteristicPack &pack, const QSt
     if (!m) return r;
     r.found     = true;
     r.composed  = m->kind == MeasureKind::Composed;
+    r.composite = m->kind == MeasureKind::Composite;
     r.keyLadder = measureKeyLadder(*m);
     r.metricKey = !m->metricKey.isEmpty() ? m->metricKey
                 : !m->preferKeys.isEmpty() ? m->preferKeys.first() : QString();
-    r.reducer   = m->reducer.kind;
-    r.phase     = (m->reducer.kind == ReducerKind::At && m->reducer.anchor)
-                ? int(*m->reducer.anchor) : int(m->reducer.window.second);
+    const Reducer &red = landingMeasureOf(pack, *m)->reducer;   // a composite lands where its parts do
+    r.reducer   = red.kind;
+    r.phase     = (red.kind == ReducerKind::At && red.anchor) ? int(*red.anchor) : int(red.window.second);
     return r;
 }
 

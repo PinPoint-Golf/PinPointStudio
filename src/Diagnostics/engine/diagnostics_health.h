@@ -90,7 +90,9 @@
 //                          there is still nothing to name. Do NOT reach for the first by default —
 //                          a shape is a deletion of false grading rather than an addition to the
 //                          model. Not scoped to Live, for signalOnOpenTail's reason: a producer
-//                          landing would make this WORSE, not better.
+//                          landing would make this WORSE, not better. A measure that is a PART of a
+//                          composite counts as watched on both tails: the composite consumes its
+//                          reading either side of the norm (posture_metrics_design.md §6.4).
 //   personalNormNoSample   A corridor of YOUR OWN, seated on nothing (n = 0). Fine as a starting
 //                          figure; worth knowing you typed it rather than measured it. Scoped to
 //                          the personal layer through the provider's own override tracking, so the

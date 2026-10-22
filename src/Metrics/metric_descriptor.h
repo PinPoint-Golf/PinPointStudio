@@ -328,6 +328,14 @@ struct MetricCardSpec {
     // that. Empty ⇒ its own card, as every metric had.
     QString mergeInto;
 
+    // DRAW THE CURVE ANYWAY. A card of fixed instants draws no trace (drawsCurve below), which is
+    // right for shaft lean and lie; but forward bend and trail-knee bend are read at fixed instants
+    // AND are the posture angles changing, which the Posture preset exists to show together, from
+    // address (posture_metrics_design.md §8: "the angles changing, which is what Mark asked to see").
+    // True keeps the card exactly as written and puts the trace on the chart beside it. Last in the
+    // struct so every designated initializer above stays valid.
+    bool    curve = false;
+
     int tileCount() const
     {
         return int(readAt.size()) + (peak ? 1 : 0) + (delta ? 1 : 0) + (rate ? 1 : 0);
@@ -343,7 +351,7 @@ struct MetricCardSpec {
     // this: a metric opts into or out of a curve by how its card is written, and a PEAK over a
     // fixed span (lead knee flexion over impact → P8) keeps the curve because the reduction needs
     // it. metric_catalogue_test ledgers which metrics are instant-only.
-    bool drawsCurve() const { return peak || rate || (delta && !hasDeltaSpan); }
+    bool drawsCurve() const { return curve || peak || rate || (delta && !hasDeltaSpan); }
 };
 
 // P-position ladder order for every Phase value: Address = P1 … Finish = P10, with the five

@@ -119,6 +119,11 @@ inline void appendRules(std::vector<GateEntry> &c)
          QStringLiteral("A ratio of two readings is only meaningful when both come from the same kind of "
                         "measurement. Dividing a camera reading by a sensor reading mixes two scales, so the check "
                         "is not made."), engine, "docs/design/trunk_imu_sequence_grf_design.md §10.7");
+    rule(c, "rule.diag.compositeCoverage", diag, "Too few parts read", "too few parts",
+         QStringLiteral("A finding about the posture as a whole is read from several readings together. When the "
+                        "cameras saw too few of them — less than half of what the finding weighs, or not the one "
+                        "it cannot do without — the check is not made. A part that was not seen is never counted "
+                        "as fine."), engine, "docs/design/posture_metrics_design.md §4.6");
     rule(c, "rule.diag.inferredContext", diag, "Club assumed", "club assumed",
          QStringLiteral("When a shot has no club set, its readings are judged against the default club's range and "
                         "trusted less, so a finding is kept but marked: the deviation is real, the range it was "

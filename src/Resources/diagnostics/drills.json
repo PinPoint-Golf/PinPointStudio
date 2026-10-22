@@ -351,6 +351,14 @@
       "targets": "To feel a top that is set by the turn and held by a steady grip, rather than by the wrists folding further.",
       "equipment": ["a mirror, or a phone on a stand"],
       "note": "If the club only droops when your lead arm bends, the arm is the place to start, not the wrists."
+    },
+    {
+      "id": "drill.setupTilt",
+      "label": "Shoulder tilt at address",
+      "instruction": "Set up face-on to a mirror, or a phone on a stand, and hold a club across the front of your shoulders. Check that it slopes down a little toward your trail side, the way your trail hand sits lower on the grip, with your head just behind the ball. Then let your hands go back to the grip without moving your shoulders. Rehearse it five times before you hit.",
+      "targets": "To set your upper body tilted slightly away from the target before the swing starts, so the backswing does not begin from a lean toward the target.",
+      "equipment": ["a mirror or a phone on a stand", "a club"],
+      "note": "A little tilt is all that is wanted, and a lot is a fault of its own. If you can only tilt by sliding your hips toward the target, ask your coach to check how your hips sit at address."
     }
   ]
 }

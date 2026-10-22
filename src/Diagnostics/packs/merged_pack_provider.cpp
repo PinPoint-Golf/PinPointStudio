@@ -52,6 +52,11 @@ public:
             mergeOne(up->pack(), up->origin());
         }
 
+        // Edge::sharedEvidence is a property of the ASSEMBLY, not of any layer: a user edge into a
+        // core condition, or a user measure replacing a core one, changes what the two ends read. Each
+        // layer stamped its own edges against its own measures; restamp them against the library.
+        stampSharedEvidence(m_pack);
+
         // Re-validate the assembled library: cross-pack edges can create cycles that neither pack
         // contained on its own, and that is exactly the case a per-pack check cannot see.
         //

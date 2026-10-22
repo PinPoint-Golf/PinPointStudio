@@ -51,8 +51,22 @@ def measure_meta(pack: dict) -> dict:
     """label, unit, metricKey, view, swing position (latest phase the reducer reads), conditions."""
     signals = {s["id"]: s for s in pack["signals"]}
     meta = {}
+    byid = {m["id"]: m for m in pack["measures"]}
+
+    def landing(m):
+        # A composite reduces nothing; its parts are read at one instant, so the first part measure
+        # the pack holds places it (landingMeasureOf, characteristic_pack.h).
+        if m.get("kind") != "composite":
+            return m
+        for part in (m.get("composite") or {}).get("parts", []):
+            for mid in part.get("measures", []):
+                pm = byid.get(mid)
+                if pm and pm.get("kind") != "composite":
+                    return pm
+        return m
+
     for m in pack["measures"]:
-        r = m.get("reducer") or {}
+        r = landing(m).get("reducer") or {}
         phases = [p for p in ([r.get("anchor")] + list(r.get("window") or [])) if p]
         when = max((PHASE_ORDER.get(p, 0) for p in phases), default=0)
         meta[m["id"]] = {

@@ -43,6 +43,43 @@
 
 namespace pinpoint::analysis {
 
+// ── A composite's evidence (posture_metrics_design.md §6.3 step 5, §8) ─────────
+//
+// THE PARTS ARE WHAT A GOLFER IS SHOWN. The composite's own number never reaches a surface
+// (session diagnostics principle 5); the detail page draws one row per part, in the part's own unit:
+// "forward bend −9°, hips 8 cm closer to the ball, head 3 cm higher". So the reading carries each
+// part's value, its z against its own norm, its weight and its share of the result, and — where the
+// part is a change read between two instants — the series value at each end ("address 34° → impact
+// 24°"). NaN wherever a number does not exist; never a zero standing in for one.
+struct CompositePart {
+    QString name;                                               // the part's name in the composite
+    QString measureId;                                          // the alternative that answered
+    double  value  = std::numeric_limits<double>::quiet_NaN();  // in the part measure's own unit
+    QString unit;
+    double  z      = std::numeric_limits<double>::quiet_NaN();  // against its own norm, side σ
+    double  weight = 0.0;                                       // as authored
+    // Coherent: wᵢsᵢzᵢ / Σwⱼsⱼzⱼ (negative = working against the finding). Distance: wᵢzᵢ² / Q.
+    // NaN when the composite's sum is exactly zero.
+    double  share  = std::numeric_limits<double>::quiet_NaN();
+    int     sign   = 0;                                         // ±1 coherent; 0 distance
+    // A delta or anchored-extremum part's series value at its anchor and at its end instant (the
+    // extremum's own peak, for an extremum). NaN for a value read AT one instant, or when the value
+    // source does not say (IMeasureValueSource::Value::atStart).
+    double  atStart = std::numeric_limits<double>::quiet_NaN();
+    double  atEnd   = std::numeric_limits<double>::quiet_NaN();
+};
+
+// An authored part this swing did NOT read, and why — the trust fold's "read from 3 of 4 parts".
+// `reason` is a token, not copy: `notMeasured` (no value), `noCorridor`, `implausible`, `withheld`,
+// or `nested` (a part naming a composite, which validation refuses and the engine skips). The reason
+// is the LAST alternative's — the rung that was this capture's real chance, the rule
+// LiveMeasureSource's ladder blame already follows.
+struct CompositeUnread {
+    QString name;
+    QString measureId;
+    QString reason;
+};
+
 // One measure's value for one swing, plus the corridor to grade it against.
 struct MeasureReading {
     double value       = 0.0;
@@ -116,6 +153,23 @@ struct MeasureReading {
     // (MetricSeries::withheld; the camera club peak, KB-18). Every signal that reads it is
     // unavailable (SignalRefusal::Withheld), and an order test's chain skips it as if unplaced.
     QString withheld;
+
+    // ── A composite measure (posture_metrics_design.md §6.3) ────────────────────
+    //
+    // TOO FEW PARTS READ: the parts this swing could read carry less than the composite's
+    // `minWeight` of its authored weight, or a `required` part is missing. Every signal reading it is
+    // unavailable (SignalRefusal::CompositeCoverage → rule.diag.compositeCoverage), exactly as a
+    // withheld reading is: missing parts are never counted as z = 0, which would turn "not seen"
+    // into "fine". `value` is meaningless when this is set and `hasCorridor` is false.
+    bool compositeShort = false;
+    // The parts that were read, in authored order, and the ones that were not. Empty on every other
+    // kind of measure.
+    std::vector<CompositePart>   parts;
+    std::vector<CompositeUnread> partsUnread;
+    // The authored weight the read parts carry, and the composite's whole authored weight — the
+    // coverage the trust fold states once. NaN on every other kind of measure.
+    double partsWeightRead  = std::numeric_limits<double>::quiet_NaN();
+    double partsWeightTotal = std::numeric_limits<double>::quiet_NaN();
 
     // Build a graded reading from a bare corridor, for producers that have a band but no Norm.
     //
@@ -235,6 +289,13 @@ struct MeasureEvidence {
     // own verdict; the driving evidence's state is the finding's.
     bool    fired = false;
 
+    // A composite measure's parts and coverage, as MeasureReading carried them — the receipt behind
+    // a composite finding is its parts, since its own z is never shown. Empty / NaN otherwise.
+    std::vector<CompositePart>   parts;
+    std::vector<CompositeUnread> partsUnread;
+    double partsWeightRead  = std::numeric_limits<double>::quiet_NaN();
+    double partsWeightTotal = std::numeric_limits<double>::quiet_NaN();
+
     static MeasureEvidence fromReading(const QString &signalId, const QString &measureId,
                                        const MeasureReading &r)
     {
@@ -244,6 +305,10 @@ struct MeasureEvidence {
         e.drivingMeasureId = measureId;
         e.value            = r.value;
         e.hasCorridor      = r.hasCorridor;
+        e.parts            = r.parts;
+        e.partsUnread      = r.partsUnread;
+        e.partsWeightRead  = r.partsWeightRead;
+        e.partsWeightTotal = r.partsWeightTotal;
         if (!r.hasCorridor) return e;
 
         e.corridorLo = r.greenLo;
@@ -278,9 +343,11 @@ enum class SignalRefusal {
     NonPositiveDenominator,  // a ratio over zero, a negative or a NaN
     PeakAfterImpact,         // the signal's requiresBeforeImpact time came at or after impact
     Withheld,                // a reading its producer marked drawn-but-not-judged (`missing` names it)
+    CompositeCoverage,       // a composite whose parts read carry too little of its weight, or miss a
+                             // required one (MeasureReading::compositeShort; `missing` names it)
 };
 
-// THE RULE BEHIND A REFUSAL (trust stage 6 session 2). Five refusals are decisions the engine makes on
+// THE RULE BEHIND A REFUSAL (trust stage 6 session 2). Six refusals are decisions the engine makes on
 // every read — no gate record stands behind them, so each is catalogued as a RULE (Metrics/
 // gate_catalogue_rules.h, `rule.diag.*`) and a surface names it by this id. Null for the rest: a missing
 // or withheld measure speaks through the swing's gate records instead, and a malformed or unknown signal
@@ -293,6 +360,7 @@ inline const char *signalRefusalRuleId(SignalRefusal r)
     case SignalRefusal::MixedScale:             return "rule.diag.mixedScale";
     case SignalRefusal::NonPositiveDenominator: return "rule.diag.nonPositiveDenominator";
     case SignalRefusal::PeakAfterImpact:        return "rule.diag.peakAfterImpact";
+    case SignalRefusal::CompositeCoverage:      return "rule.diag.compositeCoverage";
     default:                                    return nullptr;
     }
 }

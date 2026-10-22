@@ -82,7 +82,7 @@ int main()
                             qPrintable(r.keyLadder.join(QLatin1Char(','))));
             }
             if (anyKey) ++keyed;
-            else if (!rs.empty() && !rs.front().composed)
+            else if (!rs.empty() && !rs.front().composed && !rs.front().composite)
                 std::printf("      %s reads no key and is not composed\n", qPrintable(c.id));
         }
         std::printf("      (%d conditions: %d keyed, %d latent; %d readings, %d composed with no key)\n",
@@ -94,22 +94,35 @@ int main()
         for (const Condition &c : p.conditions) {
             if (c.detectedBy.isEmpty()) continue;
             bool ok = false;
-            for (const ConditionReading &r : conditionReadings(p, c.id)) ok = ok || r.hasKey() || r.composed;
+            for (const ConditionReading &r : conditionReadings(p, c.id)) ok = ok || r.hasKey() || r.composed || r.composite;
             if (!ok) ++bad;
         }
-        check(bad == 0, "no detectable condition is left with neither a key nor 'composed'");
+        check(bad == 0, "no detectable condition is left with neither a key nor 'composed' / 'composite'");
     }
 
     // ── The rule: an `at` lands on its anchor, everything else on its window's end ─────────────
     {
         int wrong = 0;
+        int composites = 0;
         for (const Measure &m : p.measures) {
             const ConditionReading r = measureReading(p, m.id);
-            const Phase want = (m.reducer.kind == ReducerKind::At && m.reducer.anchor) ? *m.reducer.anchor
-                                                                                      : m.reducer.window.second;
+            // A composite reduces nothing: it lands where its parts do (landingMeasureOf).
+            const Reducer &red = landingMeasureOf(p, m)->reducer;
+            if (m.kind == MeasureKind::Composite) {
+                ++composites;
+                if (!r.composite || r.hasKey() || landingMeasureOf(p, m) == &m) ++wrong;
+            }
+            const Phase want = (red.kind == ReducerKind::At && red.anchor) ? *red.anchor : red.window.second;
             if (!r.found || r.phase != int(want)) ++wrong;
         }
-        check(wrong == 0, "every measure's phase is its `at` anchor, else its window's end");
+        check(wrong == 0, "every measure's phase is its `at` anchor, else its window's end — a composite's its parts'");
+        const ConditionReading held = measureReading(p, QStringLiteral("m_postureHeldImpact"));
+        const ConditionReading top  = measureReading(p, QStringLiteral("m_postureHeldTop"));
+        const ConditionReading set  = measureReading(p, QStringLiteral("m_setupPosture"));
+        check(composites == 0
+                  || (held.composite && held.phase == int(Phase::Impact) && top.phase == int(Phase::Top)
+                      && set.phase == int(Phase::Address)),
+              "the posture composites land at P7, P4 and P1 — where their parts are read");
         check(!measureReading(p, QString()).found && measureReading(p, QString()).phase == -1,
               "an empty measure id is not found, phase -1");
         check(!measureReading(p, QStringLiteral("m_noSuchMeasure")).found, "an unknown measure id is not found");

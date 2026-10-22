@@ -64,6 +64,11 @@ enum class NormSource {
     Seated,       // fitted from a set of swings the user marked as well-positioned
     Literature,   // published figures; `citation` carries the DOI/PMID
     Imported,     // adopted from another norm pack
+    // MEASURED FROM THE LIBRARY by a named run (a composite's ρ, posture_metrics_design.md §6.2): a
+    // number nobody seated a corridor from, read off swings by a command written in the provenance.
+    // Appended, not inserted — the enum's int is not persisted, but appending keeps every existing
+    // switch reading the same.
+    Measured,
 };
 
 // The grade bands, best first. `NotMeasured` is not a band — it means no norm resolved, or the
@@ -312,6 +317,20 @@ struct Norm {
     // infinity.
     std::optional<double> plausibleLo;
     std::optional<double> plausibleHi;
+
+    // COMPOSITE MEASURES ONLY (posture_metrics_design.md §4.3, §5.2, §6.2): the mean correlation
+    // between the parts' loss-signed z-scores (sᵢzᵢ — for a distance composite, which carries no
+    // signs, simply zᵢ), floored at 0. It sets the composite's denominator (coherent) or its
+    // moments (distance), so it decides what the family MEANS: near 0, thin losses spread across
+    // the parts sum to a finding; near 1, the parts are one movement read four times and only that
+    // movement past its line fires.
+    //
+    // ON THE NORM, NOT THE MEASURE, because it is a number measured from data and norms are where
+    // this pack keeps those — and a future row keyed to a club or a cohort can carry its own. A
+    // composite row without one is refused (`compositeNorm`, validateNormsAgainst) and, should one
+    // load anyway, its reading carries no corridor rather than a calibration nobody measured. Absent
+    // on every other row; a ρ on a non-composite row is refused by the same check.
+    std::optional<double> rho;
 
     int        n      = 0;                        // sample size behind it; 0 for a heuristic
     NormSource source = NormSource::Heuristic;

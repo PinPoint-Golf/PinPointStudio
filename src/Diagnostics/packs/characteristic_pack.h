@@ -54,7 +54,7 @@ inline constexpr int kPackSchemaVersion = 1;
 //                        outright rather than partially read — see the constant above
 //   noPackId             a pack with no id at all. Nothing can namespace it, nothing can layer it,
 //                        and every issue it raises would be attributed to the empty string
-//   unknownKind          a MEASURE declares a kind that is not composed or provided
+//   unknownKind          a MEASURE declares a kind that is not composed, provided or composite
 //   unknownSignalTest    a signal declares a test that is not one of the four
 //   unknownDetection     a condition declares a signal-combining mode that is not any, all or first.
 //                        An ERROR rather than a fall back to `any`, because "all" misread as "any"
@@ -175,6 +175,28 @@ inline constexpr int kPackSchemaVersion = 1;
 //                        otherwise-orthogonal axes; if it ever fires legitimately, delete the rule
 //   outcomeHasEffect     an Outcome that causes something. What the ball did cannot cause the swing
 //                        that produced it, so this is an edge written back to front
+//
+// COMPOSITE MEASURES (posture_metrics_design.md §6.4) — all ERRORS, because each one is a composite
+// that would grade a golfer on arithmetic its calibration does not cover:
+//   compositeNested      a part names another composite. A composite's z is calibrated over graded
+//                        readings; a composite of composites would square its own calibration
+//   compositeWeight      a part weight not strictly inside 0 and 1, or a `minWeight` not in (0, 1]
+//   compositeSign        a coherent part whose signs are not ±1, one per alternative; or a distance
+//                        part carrying signs (it squares, so a sign means nothing there)
+//   compositeUnknownPart a part names a measure that does not exist, or names none, or the composite
+//                        has no parts. REFERENTIAL, so a layer drops it and the assembly reports it
+//   compositeScope       a part (or the composite itself) is read over the SESSION. A composite is
+//                        read off one swing, and a session measure has no per-swing value
+//   compositeShape       a distance-mode composite that is not `ceiling`. Its z is near zero for a
+//                        good setup and only the high tail is a fault; graded as a Target, a clean
+//                        setup would read past the LOW fault line
+//   compositeKind        a `composite` block on a measure that is not kind composite — dropped
+//                        silently it would be content lost on the next save
+//   unknownCombine       a composite's `combine` is not coherent or distance
+//   sharedEvidenceAuthored  an edge carrying `sharedEvidence` in JSON. The flag is computed at load
+//                        (stampSharedEvidence) and never authored, so it can never be stale
+// The composite's NORM (μ 0, σ 1, "z", ρ) is checked where norms meet measures — `compositeNorm` in
+// validateNormsAgainst (norm_pack.h).
 //
 // DELIBERATELY NOT A CHECK: "this condition has no prominence". It cannot be written here at all.
 // Prominence has five legitimate values and no sentinel, so a row nobody authored and a row somebody
@@ -374,5 +396,41 @@ const Measure *measureForMetricAtPhase(const CharacteristicPack &pack,
 bool isSessionScopeCondition(const CharacteristicPack &pack, const QString &conditionId);
 
 bool measureIsDeltaFromAddress(const Measure &m);
+
+// ── Shared evidence (posture_metrics_design.md §6.5) ─────────────────────────
+//
+// Every measure a condition's signals read, with each composite among them expanded into its parts
+// (every alternative — a part answered by trunk rise on one swing and by DTL bend on the next is
+// measured from both). The composite's own id stays in the set, so two conditions reading one
+// composite share it as well.
+QSet<QString> conditionEvidenceMeasures(const CharacteristicPack &pack, const QString &conditionId);
+
+// THE CURVES BEHIND THE SET ABOVE, for an edge into or out of a composite: the measures turned into
+// the curves they are read from — every
+// catalogue key on each measure's ladder (measureKeyLadder: preferKeys, then metricKey), a composed
+// measure with no key by its facet series, and every measure by its own id. Two measures of ONE
+// series at different instants are one reading for this purpose: `early_extension` reads the
+// forward bend's P5–P7 extreme and `loss_of_posture` its P1→P7 change, and the design's own words
+// are "both read the forward bend" (posture_metrics_design.md §6.5). Matching on measure ids alone
+// missed exactly the edges the flag exists for, because a composite reads its parts AT ONE INSTANT
+// through measures of their own (§4.4). Tokens are prefixed ("key:", "series:", "measure:") so the
+// three spaces cannot collide.
+QSet<QString> conditionEvidenceKeys(const CharacteristicPack &pack, const QString &conditionId);
+
+// True when the two ends of this edge share evidence: a common MEASURE (the set above) on any edge,
+// or a common KEY (conditionEvidenceKeys) on an edge with a composite-read condition at either end.
+// The key match is deliberately NOT applied pack-wide — see sharesEvidence() in the .cpp for the
+// measurement behind that decision.
+bool edgeSharesEvidence(const CharacteristicPack &pack, const Edge &edge);
+
+// WHERE A MEASURE'S READING LANDS IN THE SWING. Itself, for every measure that reduces a curve; for a
+// composite, which reduces nothing, the first of its parts' alternatives the pack holds — the parts
+// are read at one instant by design (§4.4), so any of them places it (P7, P4, P1). The one rule
+// condition_reading.h (the card phase, charts) and swing_themes_pack.h (themes' `when`) both use.
+const Measure *landingMeasureOf(const CharacteristicPack &pack, const Measure &m);
+
+// Sets Edge::sharedEvidence on every edge (and clears it where it no longer holds), by the rule above. Run at the end of
+// loadPack() and again on the merged library, whose edges can join conditions from two layers.
+void stampSharedEvidence(CharacteristicPack &pack);
 
 } // namespace pinpoint::analysis

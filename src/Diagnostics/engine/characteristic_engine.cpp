@@ -123,10 +123,15 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
     // absent — so an order chain walks past it like an unplaced link — and if nothing stands in for
     // it the refusal names it as withheld, not missing: the value exists, it just cannot carry a verdict.
     QStringList withheld;
+    // A composite read from too few of its parts (MeasureReading::compositeShort) is absent in the
+    // same way, and says so in its own words: the parts it could read are real, there were just not
+    // enough of them to stand for the whole.
+    QStringList shortComposite;
     for (const QString &mid : sig.measures) {
         const auto r = src.read(mid);
-        if (!r || !r->withheld.isEmpty()) {
-            if (r) withheld << mid;
+        if (!r || !r->withheld.isEmpty() || r->compositeShort) {
+            if (r && r->compositeShort) shortComposite << mid;
+            else if (r)                 withheld << mid;
             v.missing << mid;
             continue;
         }
@@ -151,7 +156,7 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
                 v.missing.clear();
                 break;
             }
-            if (const auto r = src.read(fid); r && r->withheld.isEmpty()) {
+            if (const auto r = src.read(fid); r && r->withheld.isEmpty() && !r->compositeShort) {
                 readings.push_back(*r);
                 v.comparedWith = fid;
                 v.missing.clear();
@@ -160,9 +165,14 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
         }
     }
     if (!v.missing.isEmpty()) {   // stays unavailable
-        v.refusal = std::any_of(v.missing.cbegin(), v.missing.cend(),
-                                [&](const QString &m) { return withheld.contains(m); })
-                        ? SignalRefusal::Withheld : SignalRefusal::MeasureMissing;
+        const auto any = [&](const QStringList &which) {
+            return std::any_of(v.missing.cbegin(), v.missing.cend(),
+                               [&](const QString &m) { return which.contains(m); });
+        };
+        // gate rule: PP_GATE("rule.diag.compositeCoverage")
+        v.refusal = any(withheld)       ? SignalRefusal::Withheld
+                  : any(shortComposite) ? SignalRefusal::CompositeCoverage
+                                        : SignalRefusal::MeasureMissing;
         return v;
     }
 

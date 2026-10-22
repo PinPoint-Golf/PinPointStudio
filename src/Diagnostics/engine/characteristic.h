@@ -390,6 +390,18 @@ struct Edge {
     // string with no tier, so an uncited edge and a cited one drew identically and `strength`
     // (which ranks which cause a coach is shown first) looked equally authoritative either way.
     Provenance provenance;
+
+    // THE TWO ENDS ARE MEASURED FROM THE SAME READINGS (posture_metrics_design.md §6.5): some measure
+    // is read by a signal at each end, directly or through a composite's parts, alternatives
+    // included — or, where either end is read by a composite, some CURVE (a catalogue key, at
+    // whatever instant: conditionEvidenceKeys). edgeSharesEvidence() states the rule. `early_extension → loss_of_posture` is one: both read the forward bend. Two numbers
+    // taken from one reading always move together, so their co-movement is not evidence that one
+    // causes the other, and the session link grade caps at Coherent without running the 2×2.
+    //
+    // COMPUTED, NEVER AUTHORED (stampSharedEvidence, characteristic_pack.h). An author cannot forget
+    // it and a later edit to a measure cannot leave it stale; the loader refuses the key in JSON
+    // (`sharedEvidenceAuthored`) and the writer never emits it.
+    bool       sharedEvidence = false;
 };
 
 // ── Pack ────────────────────────────────────────────────────────────────────

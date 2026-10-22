@@ -209,7 +209,7 @@
    "sign": 1,
    "twoSided": true,
    "when": 1,
-   "metricKey": "leadKneeFlexion"
+   "metricKey": "trailKneeFlexion"
   },
   "m_lagAngleDown": {
    "sign": 1,
@@ -8393,6 +8393,10 @@
    "drill": "drill.splitHandsRelease",
    "when": 7
   },
+  "arms_reaching_at_address": {
+   "drill": "drill.armsHangSetup",
+   "when": 1
+  },
   "arms_ride_the_turn": {
    "drill": "drill.feetTogether",
    "when": 7
@@ -8773,6 +8777,14 @@
    "drill": "drill.softArms",
    "when": 4
   },
+  "loss_of_posture": {
+   "drill": "drill.hipsToWall",
+   "when": 7
+  },
+  "loss_of_posture_backswing": {
+   "drill": "drill.postureRod",
+   "when": 4
+  },
   "loss_of_width": {
    "drill": "drill.towelUnderArms",
    "when": 4
@@ -8857,9 +8869,21 @@
    "drill": "drill.pelvicSeparation",
    "when": 0
   },
+  "poor_setup_posture": {
+   "drill": "drill.armsHangSetup",
+   "when": 1
+  },
   "poor_single_leg_balance": {
    "drill": "",
    "when": 0
+  },
+  "posture_sinks_backswing": {
+   "drill": "drill.beltLine",
+   "when": 4
+  },
+  "posture_sinks_impact": {
+   "drill": "drill.postureRod",
+   "when": 7
   },
   "posture_too_bent": {
    "drill": "drill.armsHangSetup",
@@ -8896,6 +8920,10 @@
   "reverse_spine_p7": {
    "drill": "drill.impactHold",
    "when": 7
+  },
+  "reverse_tilt_at_address": {
+   "drill": "drill.setupTilt",
+   "when": 1
   },
   "s_posture": {
    "drill": "drill.postureRod",
@@ -9038,6 +9066,10 @@
    "when": 0
   },
   "weight_in_heels_address": {
+   "drill": "drill.armsHangSetup",
+   "when": 1
+  },
+  "weight_on_toes_address": {
    "drill": "drill.armsHangSetup",
    "when": 1
   },

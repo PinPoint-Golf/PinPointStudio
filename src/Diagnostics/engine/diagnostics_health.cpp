@@ -237,11 +237,25 @@ std::vector<ValidationIssue> diagnosticsHealth(const CharacteristicPack &pack,
     // thought about the far side. An empty direction set is left to `unusedMeasure` — a measure
     // nothing watches at all is a different row about a different omission, and reporting both would
     // rank one gap twice.
+    //
+    // A COMPOSITE'S PARTS WATCH BOTH TAILS (posture_metrics_design.md §6.4). A coherent sum consumes
+    // a part's reading on either side of its norm — the good side lowers the composite, the bad side
+    // raises it — and a distance composite squares it, so a part graded inside a composite is
+    // explained on both tails by the composite's own conditions. That is what lets m_trunkRiseImpact
+    // and the other parts exist without a condition of their own on each side.
+    QSet<QString> inAComposite;
+    for (const Measure &m : pack.measures)
+        for (const QString &part : compositePartMeasures(m)) inAComposite.insert(part);
+
     for (const Measure &m : pack.measures) {
         if (m.shape != Shape::Target) continue;
         if (!measuresWithNorms.contains(m.id)) continue;
 
         QSet<int> dirs;
+        if (inAComposite.contains(m.id)) {
+            dirs.insert(static_cast<int>(Direction::High));
+            dirs.insert(static_cast<int>(Direction::Low));
+        }
         for (const Signal &s : pack.signalDefs) {
             if (s.test != SignalTest::OutsideCorridor || !s.direction.has_value()) continue;
             if (s.measures.contains(m.id)) dirs.insert(static_cast<int>(*s.direction));

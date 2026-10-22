@@ -47,7 +47,8 @@
 //
 // SWING POSITION is the latest P-position the reducer reads (its anchor, and its window when the
 // kind has one), P1..P9 → 1..9. A reducer that names no P-position at all falls back to its named
-// checkpoints, transition → 4 and finish → 10; anything else is 0, "not placed".
+// checkpoints, transition → 4 and finish → 10; anything else is 0, "not placed". A COMPOSITE reduces
+// nothing and is placed by its parts' reducer (landingMeasureOf) — theme_data.measure_meta does the same.
 
 #include "../engine/characteristic.h"
 #include "characteristic_pack.h"
@@ -118,7 +119,7 @@ inline QHash<QString, ThemeMeasureInfo> themeMeasureInfo(const CharacteristicPac
         ThemeMeasureInfo info;
         info.id        = m.id;
         info.metricKey = m.metricKey;
-        info.when      = themes::whenOf(m.reducer);
+        info.when      = themes::whenOf(landingMeasureOf(pack, m)->reducer);   // a composite: its parts
         info.twoSided  = false;
         const QSet<int> dirs = watched.value(m.id);
         if (m.shape == Shape::Ceiling)                                     info.sign = 1.0;
@@ -143,7 +144,7 @@ inline QHash<QString, ThemeConditionInfo> themeConditionInfo(const Characteristi
     for (const Measure &m : pack.measures) {
         const QString root = themeFamilyRoot(m.metricKey);
         family.insert(m.id, root.isEmpty() ? m.id : root);
-        when.insert(m.id, themes::whenOf(m.reducer));
+        when.insert(m.id, themes::whenOf(landingMeasureOf(pack, m)->reducer));
     }
     QSet<QString> drillIds;
     for (const Drill &d : drills.drills) drillIds.insert(d.id);

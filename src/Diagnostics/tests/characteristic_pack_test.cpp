@@ -17,6 +17,7 @@
 #include <QJsonDocument>
 
 #include <algorithm>
+#include <functional>
 #include <cstdio>
 
 using namespace pinpoint::analysis;
@@ -116,6 +117,94 @@ static CharacteristicPack goodPack()
         e.strength = Strength::Moderate;
         p.edges.push_back(e);
     }
+    return p;
+}
+
+// ── Fixture: goodPack() plus a COMPOSITE (posture_metrics_design.md §6) ─────────────
+// Three provided part measures, one coherent composite over them — the trunk part an alternative
+// ladder with opposite signs, as §6.1's example — and three conditions: two single-reading faults
+// that read a part, and the family condition that reads the composite. Edges from both faults and
+// from an unrelated condition into the family.
+static Measure providedMeasure(const char *id, const char *key, const char *unit)
+{
+    Measure m;
+    m.id             = QLatin1String(id);
+    m.kind           = MeasureKind::Provided;
+    m.metricKey      = QLatin1String(key);
+    m.unit           = QLatin1String(unit);
+    m.status         = MeasureStatus::Live;
+    m.reducer.kind   = ReducerKind::At;
+    m.reducer.anchor = Phase::Impact;
+    return m;
+}
+
+static CharacteristicPack compositePack()
+{
+    CharacteristicPack p = goodPack();
+    p.measures.push_back(providedMeasure("m_bend", "spineForwardBend", "deg"));
+    p.measures.push_back(providedMeasure("m_trunkRise", "trunkRise", "%"));
+    p.measures.push_back(providedMeasure("m_thrust", "pelvisThrust", "cm"));
+
+    Measure c;
+    c.id     = QStringLiteral("m_held");
+    c.kind   = MeasureKind::Composite;
+    c.unit   = QStringLiteral("z");
+    c.status = MeasureStatus::Live;
+    c.composite.combine   = CompositeCombine::Coherent;
+    c.composite.minWeight = 0.5;
+    c.composite.parts.push_back({ QStringLiteral("trunk"),
+                                  { QStringLiteral("m_bend"), QStringLiteral("m_trunkRise") },
+                                  { -1.0, 1.0 }, 0.9, false });
+    c.composite.parts.push_back({ QStringLiteral("pelvisDepth"), { QStringLiteral("m_thrust") },
+                                  { 1.0 }, 0.8, false });
+    p.measures.push_back(c);
+
+    const auto sig = [&](const char *id, const char *measure, Direction d) {
+        Signal s;
+        s.id        = QLatin1String(id);
+        s.test      = SignalTest::OutsideCorridor;
+        s.measures  = { QLatin1String(measure) };
+        s.direction = d;
+        p.signalDefs.push_back(s);
+    };
+    sig("sigExt",      "m_thrust",    Direction::High);
+    sig("sigBendLoss", "m_bend",      Direction::Low);
+    sig("sigLoss",     "m_held",      Direction::High);
+    sig("sigSinks",    "m_held",      Direction::Low);
+    sig("sigRise",     "m_trunkRise", Direction::High);
+
+    const auto cond = [&](const char *id, const char *axis, const char *signal) {
+        Condition k;
+        k.id                  = QLatin1String(id);
+        k.label               = k.id;
+        k.axis                = QLatin1String(axis);
+        k.group               = ConditionGroup::Posture;
+        k.kind                = ConditionKind::Setup;
+        k.observability       = Observability::Observable;
+        k.confirmedBy         = ConfirmedBy::Measured;
+        k.state               = ConditionState::Active;
+        k.provenance.citation = QStringLiteral("10.0000/example");
+        k.provenance.tier     = ProvenanceTier::Supported;
+        k.detectedBy          = { QLatin1String(signal) };
+        k.consequence.byLocale.insert(QStringLiteral("en"), QStringLiteral("It costs contact."));
+        p.conditions.push_back(k);
+    };
+    cond("earlyExt",   "thrust",   "sigExt");
+    cond("bendLoss",   "bend",     "sigBendLoss");
+    cond("lossOfPost", "held",     "sigLoss");
+    cond("sinks",      "held",     "sigSinks");
+    cond("riseOnly",   "rise",     "sigRise");
+
+    const auto edge = [&](const char *from, const char *to) {
+        Edge e;
+        e.from = QLatin1String(from);
+        e.to   = QLatin1String(to);
+        p.edges.push_back(e);
+    };
+    edge("earlyExt", "lossOfPost");     // shares m_thrust, through the composite's part
+    edge("bendLoss", "lossOfPost");     // shares m_bend, the trunk part's FIRST alternative
+    edge("riseOnly", "sinks");          // shares m_trunkRise, the trunk part's SECOND alternative
+    edge("stanceWide", "lossOfPost");   // reads stanceWidth, which the composite does not
     return p;
 }
 
@@ -1355,6 +1444,205 @@ int main()
         composed.measures.front().scope = MeasureScope::Session;
         check(hasError(validatePack(composed), "sessionScopeNotProvided"),
               "a composed (per-swing facet) measure cannot be read over the session");
+    }
+
+    // ── Composite measures (posture_metrics_design.md §6.1, §6.4, §6.5) ────────────
+    std::printf("=== composite: the fixture, the round trip, the validators, shared evidence ===\n");
+    {
+        const CharacteristicPack cp = compositePack();
+        const ValidationReport   r  = validatePack(cp);
+        for (const ValidationIssue &i : r.withSeverity(IssueSeverity::Error))
+            std::printf("        unexpected error: %s\n", qPrintable(i.message));
+        check(r.ok(), "composite fixture validates with no errors");
+
+        // A part read only through a composite is USED — no unusedMeasure row for it.
+        CharacteristicPack noRise = cp;
+        noRise.signalDefs.erase(std::remove_if(noRise.signalDefs.begin(), noRise.signalDefs.end(),
+                                               [](const Signal &s) { return s.id == QLatin1String("sigRise"); }),
+                                noRise.signalDefs.end());
+        noRise.conditions.erase(std::remove_if(noRise.conditions.begin(), noRise.conditions.end(),
+                                               [](const Condition &c) { return c.id == QLatin1String("riseOnly"); }),
+                                noRise.conditions.end());
+        noRise.edges.erase(std::remove_if(noRise.edges.begin(), noRise.edges.end(),
+                                          [](const Edge &e) { return e.from == QLatin1String("riseOnly"); }),
+                           noRise.edges.end());
+        bool riseUnused = false;
+        for (const ValidationIssue &i : validatePack(noRise).issues)
+            if (i.code == QLatin1String("unusedMeasure") && i.subject == QLatin1String("m_trunkRise")) riseUnused = true;
+        check(!riseUnused, "a measure read only as a composite's part is not an unusedMeasure");
+
+        // Round trip: lossless, and byte-identical on the second save.
+        const QJsonObject     saved = savePack(cp);
+        const PackLoadResult  back  = loadPack(saved, QStringLiteral("composite round trip"));
+        const Measure        *held  = back.pack.measure(QStringLiteral("m_held"));
+        check(back.loaded && held && held->kind == MeasureKind::Composite, "a composite loads back as a composite");
+        check(held && held->composite.combine == CompositeCombine::Coherent
+                  && held->composite.minWeight == 0.5 && held->composite.parts.size() == 2,
+              "combine, minWeight and the part count survive");
+        check(held && held->composite.parts[0].name == QLatin1String("trunk")
+                  && held->composite.parts[0].measures == QStringList({ QStringLiteral("m_bend"), QStringLiteral("m_trunkRise") })
+                  && held->composite.parts[0].signs == std::vector<double>({ -1.0, 1.0 })
+                  && held->composite.parts[0].weight == 0.9 && !held->composite.parts[0].required,
+              "a part's name, alternatives, per-alternative signs and weight survive");
+        // The loader DERIVES fields on the fixture's composed measure (its canonical label), so the
+        // first save of a hand-built pack is not the fixed point; the composite block is, from the
+        // start, and the whole file is from the first reload on.
+        const QJsonObject resaved = savePack(back.pack);
+        check(saved.value(QStringLiteral("measures")).toArray().last()
+                  == resaved.value(QStringLiteral("measures")).toArray().last(),
+              "a composite measure round-trips byte-identically");
+        check(resaved == savePack(loadPack(resaved).pack), "…and the whole pack is a fixed point after one load");
+        check(!saved.value(QStringLiteral("measures")).toArray().last().toObject().contains(QStringLiteral("reducer")),
+              "a composite writes no reducer — it reduces nothing");
+
+        const QJsonObject compositeJson =
+            saved.value(QStringLiteral("measures")).toArray().last().toObject();
+        check(compositeJson.value(QStringLiteral("kind")).toString() == QLatin1String("composite")
+                  && compositeJson.value(QStringLiteral("composite")).toObject()
+                         .value(QStringLiteral("combine")).toString() == QLatin1String("coherent"),
+              "the JSON spelling is kind \"composite\" with a \"composite\" block");
+
+        // A distance part with `required` round-trips too.
+        CharacteristicPack dist = cp;
+        for (Measure &m : dist.measures)
+            if (m.id == QLatin1String("m_held")) {
+                m.composite.combine = CompositeCombine::Distance;
+                m.shape             = Shape::Ceiling;
+                for (CompositePartSpec &pp : m.composite.parts) pp.signs.clear();
+                m.composite.parts[0].required = true;
+            }
+        for (Signal &sg : dist.signalDefs)
+            if (sg.id == QLatin1String("sigSinks")) sg.measures = { QStringLiteral("m_thrust") };
+        const PackLoadResult dback = loadPack(savePack(dist), QStringLiteral("distance round trip"));
+        const Measure *dh = dback.pack.measure(QStringLiteral("m_held"));
+        check(dh && dh->composite.combine == CompositeCombine::Distance && dh->composite.parts[0].required
+                  && dh->composite.parts[0].signs.empty() && !hasError(dback.report, "compositeSign")
+                  && !hasError(dback.report, "compositeShape"),
+              "a distance composite (ceiling, no signs, a required part) round-trips and validates");
+
+        // ── each validator, by one perturbation ──
+        const auto perturbed = [&](const std::function<void(Measure &)> &f) {
+            CharacteristicPack x = cp;
+            for (Measure &m : x.measures) if (m.id == QLatin1String("m_held")) f(m);
+            return validatePack(x);
+        };
+        check(hasError(perturbed([](Measure &m) { m.composite.parts[1].measures = { QStringLiteral("m_held") }; }),
+                       "compositeNested"),
+              "compositeNested: a part naming a composite is refused");
+        check(hasError(perturbed([](Measure &m) { m.composite.parts[1].weight = 1.0; }), "compositeWeight")
+                  && hasError(perturbed([](Measure &m) { m.composite.parts[1].weight = 0.0; }), "compositeWeight")
+                  && hasError(perturbed([](Measure &m) { m.composite.minWeight = 1.5; }), "compositeWeight"),
+              "compositeWeight: a weight of 1 or 0, or a coverage share past 1, is refused");
+        check(hasError(perturbed([](Measure &m) { m.composite.parts[0].signs = { -1.0, 2.0 }; }), "compositeSign")
+                  && hasError(perturbed([](Measure &m) { m.composite.parts[0].signs = { -1.0 }; }), "compositeSign"),
+              "compositeSign: a coherent sign that is not ±1, or one missing for an alternative, is refused");
+        check(hasError(perturbed([](Measure &m) {
+                           m.composite.combine = CompositeCombine::Distance;
+                           m.shape             = Shape::Ceiling;
+                       }), "compositeSign"),
+              "compositeSign: a sign on a distance part is refused");
+        check(hasError(perturbed([](Measure &m) { m.composite.parts[1].measures = { QStringLiteral("m_nope") }; }),
+                       "compositeUnknownPart")
+                  && hasError(perturbed([](Measure &m) { m.composite.parts.clear(); }), "compositeUnknownPart"),
+              "compositeUnknownPart: an unknown part measure, or no parts, is refused");
+        {
+            CharacteristicPack x = cp;
+            for (Measure &m : x.measures) if (m.id == QLatin1String("m_thrust")) m.scope = MeasureScope::Session;
+            check(hasError(validatePack(x), "compositeScope"),
+                  "compositeScope: a part read over the session is refused");
+        }
+        check(hasError(perturbed([](Measure &m) {
+                           m.composite.combine = CompositeCombine::Distance;
+                           for (CompositePartSpec &pp : m.composite.parts) pp.signs.clear();
+                       }), "compositeShape"),
+              "compositeShape: a distance composite that is not a ceiling is refused");
+
+        // The closed vocabulary and the two keys that must not be written, from JSON.
+        QJsonObject bad = saved;
+        QJsonArray  ms  = bad.value(QStringLiteral("measures")).toArray();
+        QJsonObject last = ms.last().toObject();
+        QJsonObject blk  = last.value(QStringLiteral("composite")).toObject();
+        blk.insert(QStringLiteral("combine"), QStringLiteral("coherant"));
+        last.insert(QStringLiteral("composite"), blk);
+        ms.replace(ms.size() - 1, last);
+        bad.insert(QStringLiteral("measures"), ms);
+        check(hasError(loadPack(bad).report, "unknownCombine"), "unknownCombine: a misspelt combine is refused");
+
+        QJsonObject kindBad = saved;
+        QJsonArray  ms2     = kindBad.value(QStringLiteral("measures")).toArray();
+        QJsonObject first   = ms2.at(0).toObject();
+        first.insert(QStringLiteral("composite"), blk);
+        ms2.replace(0, first);
+        kindBad.insert(QStringLiteral("measures"), ms2);
+        check(hasError(loadPack(kindBad).report, "compositeKind"),
+              "compositeKind: a composite block on a composed measure is refused, not dropped");
+
+        QJsonObject edgeBad = saved;
+        QJsonArray  es      = edgeBad.value(QStringLiteral("edges")).toArray();
+        QJsonObject e0      = es.at(0).toObject();
+        e0.insert(QStringLiteral("sharedEvidence"), true);
+        es.replace(0, e0);
+        edgeBad.insert(QStringLiteral("edges"), es);
+        check(hasError(loadPack(edgeBad).report, "sharedEvidenceAuthored"),
+              "sharedEvidenceAuthored: the flag is computed, so authoring it is refused");
+        check(!saved.value(QStringLiteral("edges")).toArray().at(0).toObject().contains(QStringLiteral("sharedEvidence")),
+              "…and the writer never emits it");
+
+        // ── shared evidence, stamped at load ──
+        const auto flagOf = [&](const CharacteristicPack &pk, const char *from, const char *to) {
+            for (const Edge &e : pk.edges)
+                if (e.from == QLatin1String(from) && e.to == QLatin1String(to)) return int(e.sharedEvidence);
+            return -1;
+        };
+        check(flagOf(back.pack, "earlyExt", "lossOfPost") == 1,
+              "sharedEvidence: a fault reading a composite's part shares evidence with the family");
+        check(flagOf(back.pack, "bendLoss", "lossOfPost") == 1,
+              "sharedEvidence: …through the part's first alternative");
+        check(flagOf(back.pack, "riseOnly", "sinks") == 1,
+              "sharedEvidence: …and through its second (alternatives are followed)");
+        check(flagOf(back.pack, "stanceWide", "lossOfPost") == 0,
+              "sharedEvidence: an edge whose ends read nothing in common is not marked");
+        check(flagOf(back.pack, "limitedHipIr", "stanceWide") == 0,
+              "sharedEvidence: a latent cause with no signals shares nothing");
+        check(flagOf(cp, "earlyExt", "lossOfPost") == 0 && edgeSharesEvidence(cp, cp.edges.back()) == false
+                  && edgeSharesEvidence(cp, Edge{ QStringLiteral("earlyExt"), QStringLiteral("lossOfPost") }),
+              "edgeSharesEvidence answers on an unstamped pack; the stamp is what loadPack() adds");
+        // ONE CURVE, TWO MEASURES: a fault reading the forward bend's P5–P7 extreme shares evidence
+        // with the family reading its P1→P7 change through a part — the design's "both read the
+        // forward bend" — though no measure id is common to the two.
+        {
+            CharacteristicPack k = cp;
+            Measure loss = providedMeasure("m_bendLossDown", "spineForwardBend", "deg");
+            loss.reducer.kind   = ReducerKind::Extremum;
+            loss.reducer.anchor = Phase::Address;
+            loss.reducer.window = { Phase::ArmParallelDown, Phase::Impact };
+            loss.reducer.sense  = ExtremumSense::Min;
+            k.measures.push_back(loss);
+            Signal sg;
+            sg.id = QStringLiteral("sigLossDown"); sg.test = SignalTest::OutsideCorridor;
+            sg.measures = { QStringLiteral("m_bendLossDown") }; sg.direction = Direction::Low;
+            k.signalDefs.push_back(sg);
+            Condition c = *k.condition(QStringLiteral("bendLoss"));
+            c.id = QStringLiteral("standsUp"); c.label = c.id; c.axis = QStringLiteral("bendDown");
+            c.detectedBy = { QStringLiteral("sigLossDown") };
+            k.conditions.push_back(c);
+            k.edges.push_back(Edge{ QStringLiteral("standsUp"), QStringLiteral("lossOfPost") });
+            k.edges.push_back(Edge{ QStringLiteral("standsUp"), QStringLiteral("bendLoss") });
+            const PackLoadResult kb = loadPack(savePack(k), QStringLiteral("shared by key"));
+            check(flagOf(kb.pack, "standsUp", "lossOfPost") == 1,
+                  "sharedEvidence: a fault and a composite family reading ONE catalogue key share evidence, whatever instant each reads");
+            check(flagOf(kb.pack, "standsUp", "bendLoss") == 0,
+                  "…but ONLY into or out of a composite: two single faults on one key at two instants are not marked");
+            check(conditionEvidenceKeys(kb.pack, QStringLiteral("standsUp")).contains(QStringLiteral("key:spineForwardBend")),
+                  "…the evidence tokens name the key");
+            check(conditionEvidenceKeys(kb.pack, QStringLiteral("stanceWide"))
+                      .contains(QStringLiteral("series:") + canonicalSeriesId(cp.measures.front().series)),
+                  "…and a keyless composed measure by its facet series");
+        }
+        const QSet<QString> lossSet = conditionEvidenceMeasures(cp, QStringLiteral("lossOfPost"));
+        check(lossSet.contains(QStringLiteral("m_held")) && lossSet.contains(QStringLiteral("m_bend"))
+                  && lossSet.contains(QStringLiteral("m_trunkRise")) && lossSet.contains(QStringLiteral("m_thrust")),
+              "a composite condition's evidence is the composite and every alternative of every part");
     }
 
     std::printf("%s (%d failure%s)\n", g_fail ? "FAILED" : "OK", g_fail, g_fail == 1 ? "" : "s");

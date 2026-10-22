@@ -1148,12 +1148,18 @@ int main()
                 if (!d->card.drawsCurve()) { ++instantOnly; who << d->key; }
             }
             std::printf("    instant-only time series: %s\n", qPrintable(who.join(QStringLiteral(", "))));
-            checkEqI(instantOnly, 18, "18 time-series metrics are instant-only — a card, no curve (2026-10-08)");   // +trailForearmAngle   // 19 → 17: the two forearm rotations keep their curve with a PEAK over P1→P2
+            checkEqI(instantOnly, 16, "16 time-series metrics are instant-only — a card, no curve (2026-10-22)");   // 18 → 16: forward bend and trail-knee bend draw for the Posture preset (card.curve)   // +trailForearmAngle   // 19 → 17: the two forearm rotations keep their curve with a PEAK over P1→P2
             for (const char *k : { "leadKneeFlexion", "leadUpperArmToChest", "plumbBobDistance", "lagAngle",
                                    "clubheadSpeed", "pelvisSway", "headSway", "leadWristFlexExt",
                                    "forearmRotation", "hm.forearmRotation" })
                 check(cat.descriptor(QString::fromLatin1(k)) && cat.descriptor(QString::fromLatin1(k))->card.drawsCurve(),
                       "a card with a PEAK or a rate keeps its curve");
+            // The Posture preset's two angles read at fixed instants and still draw (card.curve).
+            for (const char *k : { "spineForwardBend", "trailKneeFlexion" }) {
+                const MetricDescriptor *d = cat.descriptor(QString::fromLatin1(k));
+                check(d && d->card.curve && d->card.drawsCurve() && d->card.hasDeltaSpan && !d->card.peak && !d->card.rate,
+                      "a Posture angle keeps its fixed-instant card AND draws its curve (card.curve)");
+            }
         }
 
         // A card that SQUEEZES onto another's (card.mergeInto) names a metric that exists, is not

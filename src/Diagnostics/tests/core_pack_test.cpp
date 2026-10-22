@@ -205,7 +205,10 @@ int main()
         // thin cause lists were grown so "we checked every cause we know of" means something, and the
         // physical-limit causes a coach would screen first were wired to the habits they plainly allow.
         // Practice tier, weak or moderate, no citations — coaching reasoning, reviewed by Mark.
-        check(coverage("limited_thoracic_rotation") == 24, "limited thoracic rotation explains 24");
+        // 24 -> 26 with the posture composites (2026-10-22, posture_metrics_design.md §7.3): a chest that cannot turn stands the
+        // golfer up, at impact and at the top (loss_of_posture, loss_of_posture_backswing).
+        // Practice tier, from the design's edge tables, reviewed by Mark with the design.
+        check(coverage("limited_thoracic_rotation") == 26, "limited thoracic rotation explains 26");
         // 9 -> 10 with the lead-side audit: the hip that cannot internally rotate cannot accept the
         // load and turn over it, so the rotation stops rather than being slow to start — which is
         // late_pelvis_rotation, a fault it already explained and a different one.
@@ -213,7 +216,10 @@ int main()
         // thin cause lists were grown so "we checked every cause we know of" means something, and the
         // physical-limit causes a coach would screen first were wired to the habits they plainly allow.
         // Practice tier, weak or moderate, no citations — coaching reasoning, reviewed by Mark.
-        check(coverage("limited_lead_hip_ir") == 18, "limited lead-hip internal rotation explains 18");
+        // 18 -> 19 with the posture composites (2026-10-22, posture_metrics_design.md §7.3): a lead hip that cannot rotate
+        // internally leaves the turn through nowhere to go but up (loss_of_posture).
+        // Practice tier, from the design's edge tables, reviewed by Mark with the design.
+        check(coverage("limited_lead_hip_ir") == 19, "limited lead-hip internal rotation explains 19");
         // 10 -> 11 when the trail hip was given its route to over-the-top: a pelvis that cannot
         // finish turning away leaves the downswing no room to rotate into, and the arms take it
         // over the top. Updated deliberately, per the note below on the pelvis-sway count — these
@@ -240,7 +246,10 @@ int main()
         // thin cause lists were grown so "we checked every cause we know of" means something, and the
         // physical-limit causes a coach would screen first were wired to the habits they plainly allow.
         // Practice tier, weak or moderate, no citations — coaching reasoning, reviewed by Mark.
-        check(coverage("limited_trail_hip_ir") == 19, "limited trail-hip internal rotation explains 19");
+        // 19 -> 20 with the posture composites (2026-10-22, posture_metrics_design.md §7.3): a trail hip that cannot load
+        // stands the golfer up going back (loss_of_posture_backswing).
+        // Practice tier, from the design's edge tables, reviewed by Mark with the design.
+        check(coverage("limited_trail_hip_ir") == 20, "limited trail-hip internal rotation explains 20");
         // 11 -> 12 on 2026-09-23: crouching (excessive_knee_flex). Without a stable middle the golfer
         // sinks into the knees rather than hinging, and that one setup then explains standing too
         // upright, crowding the ball, the trail knee straightening, the pelvis thrusting toward the
@@ -250,7 +259,11 @@ int main()
         // thin cause lists were grown so "we checked every cause we know of" means something, and the
         // physical-limit causes a coach would screen first were wired to the habits they plainly allow.
         // Practice tier, weak or moderate, no citations — coaching reasoning, reviewed by Mark.
-        check(coverage("poor_core_stability") == 16, "poor core stability explains 16");
+        // 16 -> 19 with the posture composites (2026-10-22, posture_metrics_design.md §7.3): a middle that cannot hold a shape
+        // loses it either way through impact (loss_of_posture, posture_sinks_impact) and cannot hold a
+        // good one at address (poor_setup_posture).
+        // Practice tier, from the design's edge tables, reviewed by Mark with the design.
+        check(coverage("poor_core_stability") == 19, "poor core stability explains 19");
 
         const int topFive = coverage("poor_pelvic_disassociation") + coverage("limited_thoracic_rotation")
                           + coverage("limited_lead_hip_ir") + coverage("limited_trail_hip_ir")
@@ -1759,6 +1772,69 @@ int main()
         }
         check(rows == 3, "all three rotation measures carry a norm row");
         check(reachable == 0, "no grade policy brings a rotation corridor within 250 deg of address");
+    }
+
+    // ── Shared evidence on the shipped graph (posture_metrics_design.md §6.5, §7.3 †) ────────────
+    //
+    // Every † edge of §7.3 is stamped at load, because its two ends read one curve — the forward
+    // bend read as a P5–P7 extreme by `early_extension` and as a P1→P7 change inside the impact
+    // composite are one reading. pelvis_sink_backswing → posture_sinks_backswing is stamped
+    // through the composite's pelvis-height part, whose first alternative is the belt-line measure
+    // that condition reads. The key match runs ONLY on edges with a composite-read end, so one curve
+    // read at two instants along an ordinary chain (sway → slide) is not stamped — the series-wide
+    // rule was measured and declined (characteristic_pack.cpp, sharesEvidence()). The full list of
+    // stamped edges is printed so a review can see everything the rule marks.
+    std::printf("=== shared evidence on the shipped graph ===\n");
+    {
+        const auto stamped = [&](const char *from, const char *to) {
+            for (const Edge &e : p.edges)
+                if (e.from == QLatin1String(from) && e.to == QLatin1String(to)) return e.sharedEvidence ? 1 : 0;
+            return -1;   // no such edge
+        };
+        const char *dagger[][2] = {
+            { "early_extension", "loss_of_posture" },
+            { "loss_of_posture_backswing", "loss_of_posture" },
+            { "posture_sinks_backswing", "loss_of_posture" },
+            { "diving", "posture_sinks_impact" },
+            { "trail_knee_straighten", "loss_of_posture_backswing" },
+            { "pelvis_rise_backswing", "loss_of_posture_backswing" },
+            { "head_rise_backswing", "loss_of_posture_backswing" },
+            { "head_drop_backswing", "posture_sinks_backswing" },
+            { "pelvis_sink_backswing", "posture_sinks_backswing" },
+            { "posture_too_upright", "poor_setup_posture" },
+            { "posture_too_bent", "poor_setup_posture" },
+            { "excessive_knee_flex", "poor_setup_posture" },
+            { "c_posture", "poor_setup_posture" },
+            { "s_posture", "poor_setup_posture" },
+            { "insufficient_knee_flex", "poor_setup_posture" },
+            { "weight_in_heels_address", "poor_setup_posture" },
+            { "weight_on_toes_address", "poor_setup_posture" },
+            { "arms_reaching_at_address", "poor_setup_posture" },
+            { "reverse_tilt_at_address", "poor_setup_posture" },
+        };
+        int missing = 0;
+        for (const auto &d : dagger)
+            if (stamped(d[0], d[1]) != 1) {
+                ++missing;
+                std::printf("      † %s -> %s is %s\n", d[0], d[1],
+                            stamped(d[0], d[1]) < 0 ? "not an edge" : "NOT stamped");
+            }
+        check(missing == 0, "every † edge of §7.3 that shares a reading is stamped sharedEvidence");
+        check(stamped("sway", "slide") == 0 && stamped("early_face_roll", "flipping") == 0
+                  && stamped("hip_spin_out", "hips_too_open_at_impact") == 0
+                  && stamped("excessive_axis_tilt_top", "excessive_axis_tilt_impact") == 0,
+              "one curve at two instants on an ordinary chain is NOT stamped — the key match is the composites' only");
+        check(stamped("ball_too_close", "poor_setup_posture") == 0 && stamped("poor_core_stability", "loss_of_posture") == 0
+                  && stamped("loss_of_posture", "thin") == 0,
+              "placement, capacity and outcome edges into and out of the family are not stamped");
+        int n = 0;
+        for (const Edge &e : p.edges)
+            if (e.sharedEvidence) {
+                ++n;
+                std::printf("      SHARED %s %s -> %s\n", qPrintable(edgeTypeName(e.type)),
+                            qPrintable(e.from), qPrintable(e.to));
+            }
+        std::printf("      (%d of %d edges share evidence)\n", n, int(p.edges.size()));
     }
 
     std::printf("%s (%d failure%s)\n", g_fail ? "FAILED" : "OK", g_fail, g_fail == 1 ? "" : "s");

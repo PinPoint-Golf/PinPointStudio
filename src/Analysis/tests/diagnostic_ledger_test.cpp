@@ -548,6 +548,34 @@ int main()
             check(!ev.fisherTested, "the 2×2 is not even attempted");
         }
 
+        // SHARED EVIDENCE (posture_metrics_design.md §6.5): the range restriction's sibling. The same
+        // session that grades Conditionally dependent above caps at Coherent when the two ends are
+        // measured from one reading, and nothing is counted — co-firing there is arithmetic.
+        {
+            const auto ls = conditionLedgers(sessionOf({
+                plan("up",   { 1,1,1,1,1,1,1, 0,0,0,0,0 }),
+                plan("down", { 1,1,1,1,1,1,0, 0,0,0,0,1 }) }), O);
+            EdgeSpec shared = e;
+            shared.sharedEvidence = true;
+            const LinkEvidence ev = gradeLink(shared, early, late,
+                                              ledgerFor(ls, QStringLiteral("up")),
+                                              ledgerFor(ls, QStringLiteral("down")),
+                                              FocusSplit(), O);
+            check(ev.grade == LinkGrade::Coherent && ev.sharedEvidence && !ev.rangeRestricted,
+                  "sharedEvidence caps a dependent-looking link at Coherent, flagged as its own cap");
+            check(!ev.fisherTested && ev.pairs == 0, "…the 2×2 is not run, nor its pairs counted");
+            FocusSplit focus;
+            focus.declared    = true;
+            focus.baselineEnd = 6;
+            check(gradeLink(shared, early, late, ledgerFor(ls, QStringLiteral("up")),
+                            ledgerFor(ls, QStringLiteral("down")), focus, O).grade == LinkGrade::Coherent,
+                  "…and a declared focus does not lift it to Moved together either");
+            check(gradeLink(e, early, late, ledgerFor(ls, QStringLiteral("up")),
+                            ledgerFor(ls, QStringLiteral("down")), FocusSplit(), O).grade
+                      == LinkGrade::ConditionallyDependent,
+                  "the same session without the flag still grades Conditionally dependent");
+        }
+
         // Present together: both present, but the edge runs backwards through the swing.
         {
             const auto ls = conditionLedgers(sessionOf({
@@ -1557,7 +1585,7 @@ int main()
         r.peakTimes.push_back({ QStringLiteral("m_leadArmPeakTime"), -21.0,
                                 std::numeric_limits<double>::quiet_NaN() });
         const QJsonObject obj = toJson({ r });
-        check(obj.value(QStringLiteral("schemaVersion")).toInt() == 8, "the ledger is schema 8");
+        check(obj.value(QStringLiteral("schemaVersion")).toInt() == 9, "the ledger is schema 9");
         const QByteArray bytes = QJsonDocument(obj).toJson(QJsonDocument::Compact);
         const auto back = fromJsonDocument(QJsonDocument::fromJson(bytes));
         check(back.size() == 1 && back[0].peakTimes.size() == 2
@@ -1620,6 +1648,101 @@ int main()
         check(!toJson({ none }).value(QStringLiteral("shots")).toArray().at(0).toObject()
                    .contains(QStringLiteral("peakTimes")),
               "a shot with no placed peak writes no peakTimes key");
+    }
+
+    // ── Schema 9: a composite's parts (posture_metrics_design.md §6.3, §8) ─────────────────────
+    std::printf("\nschema 9 composite parts\n");
+    {
+        const double nan = std::numeric_limits<double>::quiet_NaN();
+        ConditionRow row;
+        row.conditionId      = QStringLiteral("loss_of_posture");
+        row.state            = ShotState::Fired;
+        row.drivingMeasureId = QStringLiteral("m_postureHeldImpact");
+        row.value            = 2.4;
+        row.composite.weightRead  = 1.7;
+        row.composite.weightTotal = 2.7;
+        row.composite.parts.push_back({ QStringLiteral("trunk"), QStringLiteral("m_spineBendChangeImpact"),
+                                        -9.3, QStringLiteral("deg"), -2.1, 0.9, 0.62, -1, 33.7, 24.4 });
+        row.composite.parts.push_back({ QStringLiteral("pelvisDepth"), QStringLiteral("m_pelvisThrustImpact"),
+                                        8.0, QStringLiteral("cm"), 1.4, 0.8, 0.38, 1, nan, nan });
+        row.composite.unread.push_back({ QStringLiteral("head"), QStringLiteral("m_headLiftImpact"),
+                                         QStringLiteral("notMeasured") });
+        row.composite.unread.push_back({ QStringLiteral("pelvisHeight"), QStringLiteral("m_pelvisLiftImpact"),
+                                         QStringLiteral("noCorridor") });
+        MeasureRow mr;
+        mr.measureId = row.drivingMeasureId;
+        mr.signalId  = QStringLiteral("sig_lossOfPosture");
+        mr.composite = row.composite;
+        MeasureRow other;
+        other.measureId = QStringLiteral("m_pelvisThrustDown");
+        row.readings = { mr, other };
+
+        ShotRecord shot;
+        shot.shotId = 7;
+        shot.rows.push_back(row);
+        ConditionRow plainRow;
+        plainRow.conditionId = QStringLiteral("flipping");
+        plainRow.state       = ShotState::Clean;
+        shot.rows.push_back(plainRow);
+
+        const QJsonObject obj   = toJson({ shot });
+        const QByteArray  bytes = QJsonDocument(obj).toJson(QJsonDocument::Compact);
+        const auto        back  = fromJsonDocument(QJsonDocument::fromJson(bytes));
+        check(obj.value(QStringLiteral("schemaVersion")).toInt() == 9, "a composite row writes schema 9");
+        const ConditionRow *b = back.empty() ? nullptr : rowFor(back[0], QStringLiteral("loss_of_posture"));
+        check(b && b->composite.present() && b->composite.parts.size() == 2 && b->composite.unread.size() == 2,
+              "schema9_composite_roundtrip: the parts and the unread parts come back");
+        check(b && near(b->composite.weightRead, 1.7, 1e-12) && near(b->composite.weightTotal, 2.7, 1e-12),
+              "…with the coverage");
+        const CompositePartRow *p0 = b ? &b->composite.parts[0] : nullptr;
+        check(p0 && p0->name == QLatin1String("trunk") && p0->measureId == QLatin1String("m_spineBendChangeImpact")
+                  && near(p0->value, -9.3, 1e-12) && p0->unit == QLatin1String("deg") && near(p0->z, -2.1, 1e-12)
+                  && near(p0->weight, 0.9, 1e-12) && near(p0->share, 0.62, 1e-12) && p0->sign == -1
+                  && near(p0->atStart, 33.7, 1e-12) && near(p0->atEnd, 24.4, 1e-12),
+              "…every field of a part, including both ends of the change (address 33.7° → impact 24.4°)");
+        check(b && std::isnan(b->composite.parts[1].atStart) && std::isnan(b->composite.parts[1].atEnd),
+              "…and a part with no ends comes back with none, never a zero");
+        check(b && b->composite.unread[1].reason == QLatin1String("noCorridor")
+                  && b->composite.unread[0].measureId == QLatin1String("m_headLiftImpact"),
+              "…and each unread part keeps its reason");
+        check(b && b->readings.size() == 2 && b->readings[0].composite.parts.size() == 2
+                  && !b->readings[1].composite.present(),
+              "a reading row carries its own composite, and a plain one none");
+        const QJsonObject p1 = obj.value(QStringLiteral("shots")).toArray().at(0).toObject()
+                                   .value(QStringLiteral("rows")).toArray().at(0).toObject()
+                                   .value(QStringLiteral("composite")).toObject()
+                                   .value(QStringLiteral("parts")).toArray().at(1).toObject();
+        check(!p1.contains(QStringLiteral("atStart")) && !p1.contains(QStringLiteral("atEnd")),
+              "a NaN end is omitted from the JSON, not written as null or zero");
+        const ConditionRow *pl = back.empty() ? nullptr : rowFor(back[0], QStringLiteral("flipping"));
+        check(pl && !pl->composite.present()
+                  && !obj.value(QStringLiteral("shots")).toArray().at(0).toObject()
+                          .value(QStringLiteral("rows")).toArray().at(1).toObject().contains(QStringLiteral("composite")),
+              "a row that is not a composite's writes no composite key and reads back with none");
+        // rowReadings() synthesises the driving reading on a single-signal row — with its parts.
+        ConditionRow single = row;
+        single.readings.clear();
+        const auto rs = rowReadings(single);
+        check(rs.size() == 1 && rs[0].composite.parts.size() == 2,
+              "rowReadings() carries the driving composite's parts on a single-signal row");
+
+        // An older file — schema 8, no composite key anywhere — loads, with no composite.
+        QJsonObject old = obj;
+        old.insert(QStringLiteral("schemaVersion"), 8);
+        QJsonArray shotsArr = old.value(QStringLiteral("shots")).toArray();
+        QJsonObject s0 = shotsArr.at(0).toObject();
+        QJsonArray rowsArr = s0.value(QStringLiteral("rows")).toArray();
+        QJsonObject r0 = rowsArr.at(0).toObject();
+        r0.remove(QStringLiteral("composite"));
+        r0.remove(QStringLiteral("readings"));
+        rowsArr.replace(0, r0);
+        s0.insert(QStringLiteral("rows"), rowsArr);
+        shotsArr.replace(0, s0);
+        old.insert(QStringLiteral("shots"), shotsArr);
+        const auto oldBack = fromJson(old);
+        check(oldBack.size() == 1 && oldBack[0].rows.size() == 2 && !oldBack[0].rows[0].composite.present()
+                  && oldBack[0].rows[0].state == ShotState::Fired,
+              "a schema-8 file still loads, every row without a composite");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

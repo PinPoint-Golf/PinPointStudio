@@ -37,7 +37,70 @@ namespace pinpoint::analysis {
 enum class MeasureKind {
     Composed,   // built from facets: a Series sampled by a Reducer
     Provided,   // a first-class metric we ship with a producer (tempo ratio, X-factor, sequence)
+    Composite,  // several GRADED measures read as one z (posture_metrics_design.md §6.1) — no series,
+                // no metric key, no reducer: it names its parts, and NormMeasureSource combines them
 };
+
+// ── Composite: several graded measures read together ────────────────────────
+//
+// THE ONE MEASURE THAT JUDGES A SHAPE RATHER THAN A NUMBER. Every other signal tests one measure
+// against one corridor, and "you lost your posture" is not a statement about one reading: a golfer
+// who loses 4° of bend, moves 4 cm toward the ball and rises 3 cm has lost it with no single reading
+// past its line. A composite reads each part through its OWN norm (so each part keeps its context,
+// its cohort, and every refusal that reading would have met on its own), turns each into a z, and
+// combines the z's into one number that is calibrated to trip a clean swing exactly as often as one
+// reading trips its own fault line. After that it is an ordinary measure: μ 0, σ 1, a corridor, two
+// tails, the ledger. See docs/design/posture_metrics_design.md §4.3, §5.2 and §6.
+//
+// The number itself is never shown to a golfer (session diagnostics principle 5). What a surface
+// draws is the parts, in their own units — which is why the reading carries them (MeasureReading::parts).
+enum class CompositeCombine {
+    // Σ wᵢsᵢzᵢ / √(ΣᵢΣⱼ wᵢwⱼρᵢⱼ): the parts moving together IN ONE DIRECTION (loss of posture).
+    // One part alone does not carry it, and a compensation cancels — both by design (§4.3).
+    Coherent,
+    // Σ wᵢzᵢ², turned into an equivalent z through Satterthwaite's gχ²ₕ: the parts away from their
+    // ideal IN ANY DIRECTION (poor setup posture). One badly-off part is enough (§5.2).
+    Distance,
+};
+
+// One part of a composite: a quantity, read by the FIRST of its alternatives that reads with a
+// corridor on this swing.
+//
+// ALTERNATIVES ARE A LADDER WITHIN ONE PART, best instrument first — DetectionMode::First at the
+// level of a part. Needed because a measure's own `preferKeys` ladder must keep one unit, and two
+// instruments for one quantity often do not share one: DTL forward bend is in degrees, face-on trunk
+// rise in % of the address chord. Both together would count the quantity twice, so the first that
+// reads stands for the part and the rest are ignored.
+struct CompositePartSpec {
+    QString             name;        // stable within the composite: "trunk", "pelvisDepth"
+    QStringList         measures;    // the alternatives, best first
+    // COHERENT ONLY: one per alternative, ±1 — the direction of THIS instrument's reading that counts
+    // toward the composite's high tail. Per alternative because two instruments for one quantity can
+    // run opposite ways (bend falls as trunk rise grows). Doubles, not ints, so a 2 or a 0.5 an
+    // author typed survives to the validator (`compositeSign`) instead of being rounded into a
+    // legal-looking ±1. Empty on a distance part — it squares, so it has no direction to state.
+    std::vector<double> signs;
+    // Strictly inside 0 and 1 (`compositeWeight`, [[weights-normalised-0-to-1]]). The coherent
+    // statistic does not change when every weight is scaled together, so the range costs nothing,
+    // and it lets the weights compose with the rest of the model.
+    double              weight   = 0.0;
+    // Without this part there is nothing to judge (the trunk hinge of the setup composite, §5.3), so
+    // the composite is unavailable however much of the rest was read. Honoured in either mode; the
+    // design only needs it on a distance composite.
+    bool                required = false;
+};
+
+struct CompositeSpec {
+    CompositeCombine               combine   = CompositeCombine::Coherent;
+    // The coverage rule (§4.6): the parts read must carry at least this share of the authored weight,
+    // or the composite is unavailable (MissingKind / SignalRefusal::CompositeCoverage). Missing parts
+    // are never counted as z = 0 — that would turn "not seen" into "fine".
+    double                         minWeight = 0.5;
+    std::vector<CompositePartSpec> parts;
+};
+
+QString compositeCombineName(CompositeCombine c);
+bool    compositeCombineFromName(const QString &s, CompositeCombine &out);
 
 enum class MeasureStatus {
     Live,           // a producer exists today
@@ -235,7 +298,24 @@ struct Measure {
     // is for.
     std::optional<Direction> unwatchedTail;
     QString                  unwatchedReason;
+
+    // MeasureKind::Composite only: its parts and how they combine. Empty on every other kind, and the
+    // loader refuses a `composite` block on one (`compositeKind`).
+    CompositeSpec            composite;
 };
+
+// Every measure id a composite can read, alternatives included, in authored order. Empty for any
+// other kind. The ONE walk the validator, the shared-evidence stamp and the tail lint all use, so
+// none of them can disagree about which measures a composite stands on.
+inline QStringList compositePartMeasures(const Measure &m)
+{
+    QStringList out;
+    if (m.kind != MeasureKind::Composite) return out;
+    for (const CompositePartSpec &p : m.composite.parts)
+        for (const QString &id : p.measures)
+            if (!out.contains(id)) out << id;
+    return out;
+}
 
 // Every catalogue key this measure will accept a value from, best first: the preferred instruments
 // and then its own. THE ONE PLACE THE ORDER IS EXPRESSED — reading a value, reporting why there

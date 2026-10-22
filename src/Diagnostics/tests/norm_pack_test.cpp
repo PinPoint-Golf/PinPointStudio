@@ -1422,6 +1422,73 @@ int main()
               "a man of 55 resolves a lower corridor than the same man at 40");
     }
 
+    // ── A composite's norm: ρ, "measured", and compositeNorm (posture_metrics_design.md §6.2) ──
+    std::printf("=== composite norm rows ===\n");
+    {
+        Norm c = makeNorm("m_held", "full_swing", 0.0, 1.0, "z");
+        c.rho      = 0.3;
+        c.n        = 24;
+        c.source   = NormSource::Measured;
+        c.citation = QStringLiteral("posture-2026-10-21 run root; V2 mean pairwise correlation");
+        NormPack in;
+        in.id = QStringLiteral("t");
+        in.norms.push_back(c);
+        const QJsonObject saved = saveNormPack(in);
+        const NormPackLoadResult back = loadNormPack(saved);
+        const Norm *b = back.pack.norms.empty() ? nullptr : &back.pack.norms.front();
+        check(b && b->rho.has_value() && near(*b->rho, 0.3), "rho round-trips");
+        check(b && b->source == NormSource::Measured && b->n == 24 && b->citation == c.citation,
+              "source \"measured\", n and the provenance note round-trip");
+        check(saved.value(QStringLiteral("norms")).toArray().at(0).toObject()
+                  .value(QStringLiteral("source")).toString() == QLatin1String("measured"),
+              "the JSON spelling is source \"measured\"");
+        check(saved == saveNormPack(back.pack), "a composite norm row round-trips byte-identically");
+        NormPack plain;
+        plain.id = QStringLiteral("t");
+        plain.norms.push_back(makeNorm("m_ballPosition", "driver", 12.0, 4.0, "%"));
+        check(!saveNormPack(plain).value(QStringLiteral("norms")).toArray().at(0).toObject()
+                   .contains(QStringLiteral("rho")),
+              "an ordinary row writes no rho");
+
+        CharacteristicPack pack;
+        Measure ball;
+        ball.id   = QStringLiteral("m_ballPosition");
+        ball.unit = QStringLiteral("%");
+        pack.measures.push_back(ball);
+        Measure held;
+        held.id   = QStringLiteral("m_held");
+        held.kind = MeasureKind::Composite;
+        held.unit = QStringLiteral("z");
+        pack.measures.push_back(held);
+        const ContextTree tree = sampleTree();
+
+        check(!hasCode(validateNormsAgainst(in, pack, tree), "compositeNorm"),
+              "a composite row at mu 0, sigma 1, \"z\", with rho, validates clean");
+
+        NormPack noRho = in;
+        noRho.norms.front().rho.reset();
+        check(hasCode(validateNormsAgainst(noRho, pack, tree), "compositeNorm"),
+              "compositeNorm: a composite row with no rho is refused");
+        NormPack badRho = in;
+        badRho.norms.front().rho = 1.4;
+        check(hasCode(validateNormsAgainst(badRho, pack, tree), "compositeNorm"),
+              "compositeNorm: a rho outside 0..1 is refused");
+        NormPack wide = in;
+        wide.norms.front().sigmaHi = 1.5;
+        check(hasCode(validateNormsAgainst(wide, pack, tree), "compositeNorm"),
+              "compositeNorm: a composite row that is not sigma 1 is refused");
+        NormPack shifted = in;
+        shifted.norms.front().mu = 0.5;
+        check(hasCode(validateNormsAgainst(shifted, pack, tree), "compositeNorm"),
+              "compositeNorm: a composite row that is not mu 0 is refused");
+        NormPack stray;
+        Norm sb = makeNorm("m_ballPosition", "driver", 12.0, 4.0, "%");
+        sb.rho = 0.2;
+        stray.norms.push_back(sb);
+        check(hasCode(validateNormsAgainst(stray, pack, tree), "compositeNorm"),
+              "compositeNorm: rho on a row whose measure is not a composite is refused");
+    }
+
     std::printf("%s\n", g_fail == 0 ? "ALL PASS" : "FAILURES");
     return g_fail == 0 ? 0 : 1;
 }

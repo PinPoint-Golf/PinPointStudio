@@ -267,6 +267,30 @@ ValidationReport validateNormsAgainst(const NormPack           &norms,
                 QStringLiteral("Measure '%1' can never be captured, so a norm on it can only "
                                "mislead.").arg(m->id));
 
+        // ── A composite's norm is its calibration (posture_metrics_design.md §6.2) ──
+        //
+        // The combined statistic is standard normal on a clean swing BY CONSTRUCTION, so its row is
+        // always μ 0, σ 1 in "z" and nothing else; any other number re-scales a calibration the
+        // engine already did and moves every composite's trip rate off the 2.3 % it was built to.
+        // And ρ is what the denominator (or the moments) is computed FROM, so a row without one has
+        // no calibration at all. A ρ on any other row means nothing, and is refused the same way.
+        if (m->kind == MeasureKind::Composite) {
+            const bool standard = n.mu == 0.0 && n.sigmaLo == 1.0 && n.sigmaHi == 1.0
+                                  && n.unit == QLatin1String("z");
+            if (!standard)
+                err(QStringLiteral("compositeNorm"), key,
+                    QStringLiteral("Norm '%1' is a composite's: it is always mu 0, sigma 1 in \"z\" — "
+                                   "the composite is calibrated to that by construction.").arg(key));
+            if (!n.rho.has_value() || !(*n.rho >= 0.0 && *n.rho <= 1.0))
+                err(QStringLiteral("compositeNorm"), key,
+                    QStringLiteral("Norm '%1' is a composite's and needs the parts' measured "
+                                   "correlation rho, between 0 and 1 (floored at 0).").arg(key));
+        } else if (n.rho.has_value()) {
+            err(QStringLiteral("compositeNorm"), key,
+                QStringLiteral("Norm '%1' carries rho, but measure '%2' is not a composite.")
+                    .arg(key, m->id));
+        }
+
         // ── The norm's numbers against the measure's SHAPE ──────────────────
         //
         // Here rather than in validateNormPack for the same reason normUnitMismatch is: only the
@@ -461,6 +485,10 @@ std::optional<Norm> readNorm(const QJsonObject &o, ValidationReport &rep)
     readOptionalDouble(o, QStringLiteral("plausibleLo"), n.plausibleLo);
     readOptionalDouble(o, QStringLiteral("plausibleHi"), n.plausibleHi);
 
+    // A composite's ρ (Norm::rho). Read as written — a 1.4 or a −0.2 survives to `compositeNorm`
+    // rather than being clamped into something that looks measured.
+    readOptionalDouble(o, QStringLiteral("rho"), n.rho);
+
     n.n    = o.value(QStringLiteral("n")).toInt();
     n.unit = o.value(QStringLiteral("unit")).toString();
     if (!normSourceFromName(o.value(QStringLiteral("source")).toString(), n.source))
@@ -521,6 +549,7 @@ QJsonObject writeNorm(const Norm &n)
     // Singly is legal: a floor caps above and says nothing below.
     if (n.plausibleLo.has_value()) o.insert(QStringLiteral("plausibleLo"), *n.plausibleLo);
     if (n.plausibleHi.has_value()) o.insert(QStringLiteral("plausibleHi"), *n.plausibleHi);
+    if (n.rho.has_value())       o.insert(QStringLiteral("rho"), *n.rho);
     if (n.n != 0)                o.insert(QStringLiteral("n"), n.n);
     if (!n.unit.isEmpty())       o.insert(QStringLiteral("unit"), n.unit);
     o.insert(QStringLiteral("source"), normSourceName(n.source));

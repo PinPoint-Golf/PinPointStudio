@@ -84,7 +84,11 @@ int main(int argc, char **argv)
     // m_spineBendLossDown is a floor — the fault is standing up out of the address bend, and staying
     // more bent over through the ball is not one; m_trailForearmTop is a ceiling — the fault is the
     // trail elbow flying behind the golfer at the top, and an elbow pointing down is not one.
-    check(oneSided == 17, "…and one of exactly seventeen one-sided measures in the shipped pack");
+    // 17 -> 18 on 2026-10-22: m_setupPosture is a ceiling — a distance composite squares each part
+    // against its ideal, so a low reading is a setup close to a good one and only the high tail is a
+    // fault (posture_metrics_design.md §5.2; the loader refuses a distance composite of any other
+    // shape).
+    check(oneSided == 18, "…and one of exactly eighteen one-sided measures in the shipped pack");
 
     // ── The rows ────────────────────────────────────────────────────────────
     //

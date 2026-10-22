@@ -41,6 +41,12 @@ using detail::Row;
 const Row<MeasureKind> kMeasureKinds[] = {
     { MeasureKind::Composed, "composed", "composed" },
     { MeasureKind::Provided, "provided", "provided" },
+    { MeasureKind::Composite, "composite", "composite" },
+};
+
+const Row<CompositeCombine> kCompositeCombines[] = {
+    { CompositeCombine::Coherent, "coherent", "the parts moving together" },
+    { CompositeCombine::Distance, "distance", "the parts away from their ideal" },
 };
 
 const Row<MeasureStatus> kMeasureStatuses[] = {
@@ -191,6 +197,9 @@ const Condition *CharacteristicPack::condition(const QString &cid) const
 
 QString measureKindName(MeasureKind k) { return nameOf(kMeasureKinds, k); }
 bool    measureKindFromName(const QString &s, MeasureKind &out) { return fromName(kMeasureKinds, s, out); }
+
+QString compositeCombineName(CompositeCombine c) { return nameOf(kCompositeCombines, c); }
+bool    compositeCombineFromName(const QString &s, CompositeCombine &out) { return fromName(kCompositeCombines, s, out); }
 
 QString measureStatusName(MeasureStatus s) { return nameOf(kMeasureStatuses, s); }
 QString measureStatusLabel(MeasureStatus s) { return labelOf(kMeasureStatuses, s); }

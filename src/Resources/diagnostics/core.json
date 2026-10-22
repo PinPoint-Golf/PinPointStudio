@@ -2021,20 +2021,20 @@
     {
       "id": "m_kneeFlexAddress",
       "kind": "provided",
-      "metricKey": "leadKneeFlexion",
+      "metricKey": "trailKneeFlexion",
       "reducer": {
         "kind": "at",
         "anchor": "p1"
       },
-      "status": "held",
-      "gapReason": "Produced from the down-the-line view; excessive_knee_flex (crouching) is explained by poor core stability, but insufficient_knee_flex has no authored cause yet.",
-      "label": "Lead knee flexion, at address",
+      "status": "live",
+      "label": "Trail knee flexion, at address",
       "unit": "°",
-      "golferHigh": "your lead knee bends more at address",
-      "golferLow": "your lead knee is straighter at address",
-      "highMeans": "more bend in the lead knee at address — sitting deeper",
+      "golferHigh": "your trail knee bends more at address",
+      "golferLow": "your trail knee is straighter at address",
+      "highMeans": "more bend in the trail knee at address — sitting deeper",
       "golferSign": 1,
-      "golferName": "lead-knee bend at address"
+      "golferName": "trail-knee bend at address",
+      "viewNeeded": "downTheLine"
     },
     {
       "id": "m_trailKneeFlex",
@@ -2880,15 +2880,399 @@
         "kind": "at",
         "anchor": "p1"
       },
-      "status": "held",
-      "gapReason": "Produced as a down-the-line proxy; weight_in_heels_address is explained by crouching, but the measure has no norm yet.",
+      "status": "live",
       "label": "Balance heel to toe, at address",
       "unit": "% foot length",
       "golferHigh": "your weight is more on your toes at address",
       "golferLow": "your weight is more on your heels at address",
       "highMeans": "the balance point further toward the toes at address",
       "golferSign": 1,
-      "golferName": "how far toward your toes your weight sits at address"
+      "golferName": "how far toward your toes your weight sits at address",
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_spineBendChangeImpact",
+      "kind": "provided",
+      "metricKey": "spineForwardBend",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p7"
+        ]
+      },
+      "status": "live",
+      "label": "Spine forward bend, change P1 to P7",
+      "unit": "°",
+      "highMeans": "more forward bend at impact than at address; the LOW side is standing up out of the address posture, read at impact itself rather than at the least bend on the way down",
+      "golferHigh": "you are more bent over at impact than at address",
+      "golferLow": "you stand taller at impact than at address",
+      "golferSign": 1,
+      "golferName": "change in your forward bend from address to impact",
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_pelvisThrustImpact",
+      "kind": "provided",
+      "metricKey": "pelvisThrust",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p7"
+        ]
+      },
+      "status": "live",
+      "label": "Pelvis thrust toward the ball, change P1 to P7",
+      "unit": "cm",
+      "highMeans": "the pelvis further toward the ball at impact than at address",
+      "golferHigh": "your hips are further toward the ball at impact",
+      "golferLow": "your hips are further back from the ball at impact",
+      "golferSign": 1,
+      "golferName": "hip movement toward the ball by impact, minus meaning away from it",
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_headLiftImpact",
+      "kind": "provided",
+      "metricKey": "headLift",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p7"
+        ]
+      },
+      "status": "live",
+      "label": "Head height, change P1 to P7",
+      "unit": "cm",
+      "highMeans": "the head higher at impact than at address",
+      "golferHigh": "your head is higher at impact than at address",
+      "golferLow": "your head is lower at impact than at address",
+      "golferSign": 1,
+      "golferName": "head rise by impact, minus meaning a drop",
+      "viewNeeded": "faceOn"
+    },
+    {
+      "id": "m_pelvisLiftImpact",
+      "kind": "provided",
+      "metricKey": "pelvisLift",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p7"
+        ]
+      },
+      "status": "live",
+      "label": "Pelvis lift, change P1 to P7",
+      "unit": "% stance width",
+      "highMeans": "the pelvis higher at impact than at address",
+      "golferHigh": "your hips are higher at impact than at address",
+      "golferLow": "your hips are lower at impact than at address",
+      "golferSign": 1,
+      "golferName": "hip rise by impact, minus meaning a drop",
+      "viewNeeded": "faceOn"
+    },
+    {
+      "id": "m_trunkRiseImpact",
+      "kind": "provided",
+      "metricKey": "trunkRise",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p7"
+        ]
+      },
+      "status": "live",
+      "label": "Trunk rise seen face-on, change P1 to P7",
+      "unit": "%",
+      "highMeans": "the trunk imaging longer face-on at impact than at address, which is the trunk more upright: forward bend lost, seen from the front",
+      "golferHigh": "your upper body stands taller at impact, seen from the front",
+      "golferLow": "your upper body is more bent over at impact, seen from the front",
+      "golferSign": 1,
+      "golferName": "how much taller your upper body stands at impact, seen from the front",
+      "viewNeeded": "faceOn"
+    },
+    {
+      "id": "m_spineBendChangeTop",
+      "kind": "provided",
+      "metricKey": "spineForwardBend",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p4"
+        ]
+      },
+      "status": "live",
+      "label": "Spine forward bend, change P1 to P4",
+      "unit": "°",
+      "highMeans": "more forward bend at the top than at address; the LOW side is standing up out of the address posture going back",
+      "golferHigh": "you are more bent over at the top than at address",
+      "golferLow": "you stand taller at the top than at address",
+      "golferSign": 1,
+      "golferName": "change in your forward bend from address to the top",
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_axisTiltAddress",
+      "kind": "provided",
+      "metricKey": "secondaryAxisTilt",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p1"
+      },
+      "status": "live",
+      "label": "Secondary axis tilt, at P1",
+      "unit": "°",
+      "highMeans": "more tilt away from the target at address, the trail shoulder lower",
+      "golferHigh": "you lean away from the target more at address",
+      "golferLow": "you lean more toward the target at address",
+      "golferSign": 1,
+      "golferName": "lean away from the target at address",
+      "viewNeeded": "faceOn"
+    },
+    {
+      "id": "m_armHangAddress",
+      "kind": "provided",
+      "metricKey": "armHang",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p1"
+      },
+      "status": "live",
+      "label": "Arm hang, at P1",
+      "unit": "°",
+      "highMeans": "the hands further toward the ball than the shoulders at address, reaching; the low side is the hands tucked in under the body",
+      "golferHigh": "your hands reach further out toward the ball at address",
+      "golferLow": "your hands sit closer in under you at address",
+      "golferSign": 1,
+      "golferName": "how far your arms reach out toward the ball at address",
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_headPitchAddress",
+      "kind": "provided",
+      "metricKey": "headPitch",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p1"
+      },
+      "status": "held",
+      "gapReason": "Held until it passes the repeatability gate (posture_metrics_design.md §3.1 and §9 V5): the library pose against the pinned corpus pose on the same swings, with a control, spreading by no more than 3°. The ear and nose are body keypoints, not the fine face points, and the absolute value carries the head's own shape (about +26° on one golfer), so a change tells more than the number. Until then it is a part of the setup posture composite that is never read.",
+      "label": "Head pitch, at P1",
+      "unit": "°",
+      "highMeans": "the chin further down toward the chest at address, against a head held square to the trunk",
+      "golferHigh": "your chin is tucked further down at address",
+      "golferLow": "your chin is held higher at address",
+      "golferSign": 1,
+      "golferName": "how far your chin is tucked down at address",
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_postureHeldImpact",
+      "kind": "composite",
+      "status": "live",
+      "label": "Posture held into impact",
+      "unit": "z",
+      "highMeans": "standing up out of the address posture by impact: the trunk more upright, the hips toward the ball and higher, the head higher, read together at impact; the LOW side is the posture sunk lower than at address",
+      "golferName": "your posture at impact against your posture at address",
+      "composite": {
+        "combine": "coherent",
+        "minWeight": 0.5,
+        "parts": [
+          {
+            "name": "trunk",
+            "measures": [
+              "m_spineBendChangeImpact",
+              "m_trunkRiseImpact"
+            ],
+            "signs": [
+              -1,
+              1
+            ],
+            "weight": 0.9
+          },
+          {
+            "name": "pelvisDepth",
+            "measures": [
+              "m_pelvisThrustImpact"
+            ],
+            "signs": [
+              1
+            ],
+            "weight": 0.8
+          },
+          {
+            "name": "head",
+            "measures": [
+              "m_headLiftImpact"
+            ],
+            "signs": [
+              1
+            ],
+            "weight": 0.6
+          },
+          {
+            "name": "pelvisHeight",
+            "measures": [
+              "m_pelvisLiftImpact"
+            ],
+            "signs": [
+              1
+            ],
+            "weight": 0.4
+          }
+        ]
+      }
+    },
+    {
+      "id": "m_postureHeldTop",
+      "kind": "composite",
+      "status": "live",
+      "label": "Posture held to the top",
+      "unit": "z",
+      "highMeans": "standing up out of the address posture by the top: the trunk more upright, the trail knee straighter, the hips and head higher and the hips toward the ball, read together; the LOW side is the posture sunk lower than at address",
+      "golferName": "your posture at the top against your posture at address",
+      "composite": {
+        "combine": "coherent",
+        "minWeight": 0.5,
+        "parts": [
+          {
+            "name": "trunk",
+            "measures": [
+              "m_spineBendChangeTop"
+            ],
+            "signs": [
+              -1
+            ],
+            "weight": 0.9
+          },
+          {
+            "name": "trailKnee",
+            "measures": [
+              "m_trailKneeFlex"
+            ],
+            "signs": [
+              -1
+            ],
+            "weight": 0.8
+          },
+          {
+            "name": "pelvisHeight",
+            "measures": [
+              "m_pelvisSinkTop",
+              "m_pelvisLiftTop"
+            ],
+            "signs": [
+              1,
+              1
+            ],
+            "weight": 0.6
+          },
+          {
+            "name": "head",
+            "measures": [
+              "m_headLiftBack"
+            ],
+            "signs": [
+              1
+            ],
+            "weight": 0.6
+          },
+          {
+            "name": "pelvisDepth",
+            "measures": [
+              "m_pelvisThrustBack"
+            ],
+            "signs": [
+              1
+            ],
+            "weight": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "m_setupPosture",
+      "kind": "composite",
+      "shape": "ceiling",
+      "status": "live",
+      "label": "Setup posture, distance from a good one",
+      "unit": "z",
+      "highMeans": "an address shape further from a good one, in any direction: trunk hinge, knee flex, balance over the feet, arm hang, the curves of the back, side tilt and the head, each against its own ideal; a low reading is a setup close to a good one, which is not a fault",
+      "golferName": "how far your address posture is from a balanced, athletic one",
+      "composite": {
+        "combine": "distance",
+        "minWeight": 0.5,
+        "parts": [
+          {
+            "name": "trunkHinge",
+            "measures": [
+              "m_spineBendAtAddress"
+            ],
+            "weight": 0.9,
+            "required": true
+          },
+          {
+            "name": "kneeFlex",
+            "measures": [
+              "m_kneeFlexAddress"
+            ],
+            "weight": 0.7
+          },
+          {
+            "name": "balance",
+            "measures": [
+              "m_balanceHeelToeAddress"
+            ],
+            "weight": 0.6
+          },
+          {
+            "name": "armHang",
+            "measures": [
+              "m_armHangAddress"
+            ],
+            "weight": 0.6
+          },
+          {
+            "name": "upperBack",
+            "measures": [
+              "m_thoracicCurve"
+            ],
+            "weight": 0.5
+          },
+          {
+            "name": "lowBack",
+            "measures": [
+              "m_lumbarCurve"
+            ],
+            "weight": 0.5
+          },
+          {
+            "name": "sideTilt",
+            "measures": [
+              "m_axisTiltAddress"
+            ],
+            "weight": 0.4
+          },
+          {
+            "name": "head",
+            "measures": [
+              "m_headPitchAddress"
+            ],
+            "weight": 0.3
+          }
+        ]
+      }
     },
     {
       "id": "m_leadKneeDriftImpact",
@@ -4192,6 +4576,70 @@
       "direction": "low"
     },
     {
+      "id": "sig_lossOfPosture",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_postureHeldImpact"
+      ],
+      "direction": "high"
+    },
+    {
+      "id": "sig_postureSinksImpact",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_postureHeldImpact"
+      ],
+      "direction": "low"
+    },
+    {
+      "id": "sig_lossOfPostureBack",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_postureHeldTop"
+      ],
+      "direction": "high"
+    },
+    {
+      "id": "sig_postureSinksBack",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_postureHeldTop"
+      ],
+      "direction": "low"
+    },
+    {
+      "id": "sig_poorSetupPosture",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_setupPosture"
+      ],
+      "direction": "high"
+    },
+    {
+      "id": "sig_weightOnToes",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_balanceHeelToeAddress"
+      ],
+      "direction": "high"
+    },
+    {
+      "id": "sig_armsReaching",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_armHangAddress"
+      ],
+      "direction": "high"
+    },
+    {
+      "id": "sig_reverseTiltAddress",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_axisTiltAddress"
+      ],
+      "direction": "low"
+    },
+    {
       "id": "sig_leadKneeValgusImpact",
       "test": "outsideCorridor",
       "measures": [
@@ -4649,7 +5097,6 @@
         "line": "spine"
       },
       "aliases": [
-        "loss of posture",
         "standing up through it",
         "backing out of the shot",
         "pulling off the ball"
@@ -4676,6 +5123,167 @@
         "drill.postureRod",
         "drill.hipsToWall"
       ]
+    },
+    {
+      "id": "loss_of_posture",
+      "label": "Loss of posture",
+      "golfer": "you stand up out of your posture through impact",
+      "golferWell": "you keep your posture through impact",
+      "golferWhy": "Standing up lifts the bottom of your swing, so contact gets thin and harder to repeat.",
+      "goal": "Keep your address posture through the ball",
+      "cue": "Feel your chest stay over the ball and your seat stay back until the ball has gone.",
+      "check": "Film from down the line. At impact your back and hips should still sit on the lines you drew at address.",
+      "picture": {
+        "kind": "change",
+        "camera": "dtl",
+        "phase": "P7",
+        "line": "spine"
+      },
+      "aliases": [
+        "loss of posture",
+        "losing your posture"
+      ],
+      "group": "posture",
+      "kind": "fault",
+      "prominence": "common",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_lossOfPosture"
+      ],
+      "state": "draft",
+      "consequence": "The posture as a whole is more upright at impact than it was at address: the trunk has stood up, the hips have moved toward the ball and risen, and the head has risen, read together at impact against address. No one of them has to be large. The sum is the golfer further from the ground than the club was set to, so the bottom of the swing lifts and the hands have to rescue the strike.",
+      "drills": [
+        "drill.hipsToWall",
+        "drill.postureRod"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-22",
+        "searchTerms": "loss of posture golf swing standing up through impact thin shots coaching\n\nA FAMILY CONDITION, READ ON A COMPOSITE (posture_metrics_design.md §4). The detector is the whole family: the parts are read at one instant against address and combined, weighted and signed, into one z calibrated to trip a clean swing as often as a single reading trips its own line. One part alone does not make it fire, and a compensation (bend lost, height dropped) cancels. The specific moves keep their own conditions and are joined to this one by causes edges, so the explanation reads \"loss of posture, mostly early extension\". DRAFT until the V4 firing table is written.\n\nTHE NAME COMES BACK. In September the old `loss_of_posture` (one forward-bend reading that could not fire) became `coming_out_of_it`, because the family name sat on one narrow detector. This time the detector is the family, and the aliases \"loss of posture\" and \"losing your posture\" move here from `coming_out_of_it`, which is a sibling: they share the head reading and early extension as the commonest cause, and no edge joins them because the evidence cannot test an order."
+      },
+      "axis": "posture_held_impact"
+    },
+    {
+      "id": "posture_sinks_impact",
+      "label": "Sinking through impact",
+      "golfer": "you drop lower through impact",
+      "golferWell": "you keep your height through impact",
+      "golferWhy": "Dropping lower moves the bottom of your swing down, so you catch the ground before the ball.",
+      "goal": "Keep your height through the ball",
+      "cue": "Feel your chest and your belt buckle stay at their address height as you turn through to the target.",
+      "check": "Film from down the line. At impact your head and hips should be no lower than they were at address, and your back no more bent over.",
+      "picture": {
+        "kind": "change",
+        "camera": "dtl",
+        "phase": "P7",
+        "line": "spine"
+      },
+      "aliases": [
+        "sinking through the ball",
+        "dropping through impact"
+      ],
+      "group": "posture",
+      "kind": "fault",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_postureSinksImpact"
+      ],
+      "state": "draft",
+      "consequence": "The posture as a whole is lower at impact than at address: the trunk more bent over, the hips lower or further from the ball, the head lower, read together. It is not diving, which is a dip on the way down that may recover by impact; this is the posture still lower when the club arrives, so the bottom of the swing moves down and back and the ground is found first.",
+      "drills": [
+        "drill.postureRod",
+        "drill.impactHold"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-22",
+        "searchTerms": "golf dropping down through impact fat shots posture height\n\nA FAMILY CONDITION, READ ON A COMPOSITE (posture_metrics_design.md §4). The detector is the whole family: the parts are read at one instant against address and combined, weighted and signed, into one z calibrated to trip a clean swing as often as a single reading trips its own line. One part alone does not make it fire, and a compensation (bend lost, height dropped) cancels. The specific moves keep their own conditions and are joined to this one by causes edges, so the explanation reads \"loss of posture, mostly early extension\". DRAFT until the V4 firing table is written. The low tail of the same axis as `loss_of_posture`."
+      },
+      "axis": "posture_held_impact"
+    },
+    {
+      "id": "loss_of_posture_backswing",
+      "label": "Standing up going back",
+      "golfer": "you stand up out of your posture going back",
+      "golferWell": "you keep your posture going back",
+      "golferWhy": "Standing up going back changes your height over the ball, so you have to find it again coming down.",
+      "goal": "Keep your posture as you turn back",
+      "cue": "Feel your trail knee stay soft and your chest stay over the ball as your back turns to the target.",
+      "check": "Film from down the line. At the top your back should be as bent over as it was at address, and your head and hips no higher.",
+      "picture": {
+        "kind": "change",
+        "camera": "dtl",
+        "phase": "P4",
+        "line": "spine"
+      },
+      "aliases": [
+        "standing up going back",
+        "losing posture going back"
+      ],
+      "group": "posture",
+      "kind": "fault",
+      "prominence": "common",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_lossOfPostureBack"
+      ],
+      "state": "draft",
+      "consequence": "The posture as a whole is more upright at the top than at address: the trunk stood up, the trail knee straightened, the hips and head higher and the hips toward the ball, read together. The swing centre has moved before the downswing starts, and the height has to be found again on the way down for the club to reach the ball.",
+      "drills": [
+        "drill.postureRod",
+        "drill.trailHipLoad",
+        "drill.beltLine"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-22",
+        "searchTerms": "golf losing height in backswing standing up going back trail knee straightens\n\nA FAMILY CONDITION, READ ON A COMPOSITE (posture_metrics_design.md §4). The detector is the whole family: the parts are read at one instant against address and combined, weighted and signed, into one z calibrated to trip a clean swing as often as a single reading trips its own line. One part alone does not make it fire, and a compensation (bend lost, height dropped) cancels. The specific moves keep their own conditions and are joined to this one by causes edges, so the explanation reads \"loss of posture, mostly early extension\". DRAFT until the V4 firing table is written. Separate from the impact pair for the reason `diving` and `coming_out_of_it` are separate: different events at different times, and a golfer can do both. The alias \"standing up going back\" moved here from `pelvis_rise_backswing`, which names one part."
+      },
+      "axis": "posture_held_top"
+    },
+    {
+      "id": "posture_sinks_backswing",
+      "label": "Sinking going back",
+      "golfer": "you sink lower going back",
+      "golferWell": "you keep your height going back",
+      "golferWhy": "Sinking going back changes your height over the ball, so you have to find it again coming down.",
+      "goal": "Keep your height as you turn back",
+      "cue": "Feel your belt buckle and your head turn at the height they started, as if a shelf sat just above your head.",
+      "check": "Film face-on or from down the line. At the top your head and belt should be level with where they were at address.",
+      "picture": {
+        "kind": "change",
+        "camera": "dtl",
+        "phase": "P4",
+        "line": "spine"
+      },
+      "aliases": [
+        "sinking going back",
+        "dropping going back"
+      ],
+      "group": "posture",
+      "kind": "fault",
+      "prominence": "uncommon",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_postureSinksBack"
+      ],
+      "state": "draft",
+      "consequence": "The posture as a whole is lower at the top than at address: the trunk more bent over, the trail knee bent further, the hips and head lower, read together. The golfer usually rises again coming down to make room, which is why it leads into standing up through impact.",
+      "drills": [
+        "drill.beltLine",
+        "drill.headOnWall"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-22",
+        "searchTerms": "golf losing height in backswing sinking dipping going back\n\nA FAMILY CONDITION, READ ON A COMPOSITE (posture_metrics_design.md §4). The detector is the whole family: the parts are read at one instant against address and combined, weighted and signed, into one z calibrated to trip a clean swing as often as a single reading trips its own line. One part alone does not make it fire, and a compensation (bend lost, height dropped) cancels. The specific moves keep their own conditions and are joined to this one by causes edges, so the explanation reads \"loss of posture, mostly early extension\". DRAFT until the V4 firing table is written. The low tail of the same axis as `loss_of_posture_backswing`."
+      },
+      "axis": "posture_held_top"
     },
     {
       "id": "early_extension",
@@ -4941,7 +5549,6 @@
         "line": "hips"
       },
       "aliases": [
-        "standing up going back",
         "lifting out of the shot"
       ],
       "group": "posture",
@@ -9830,6 +10437,157 @@
         "tier": "practice",
         "searchedOn": "2026-08-06",
         "searchTerms": "address setup geometry stance width posture golf swing"
+      }
+    },
+    {
+      "id": "poor_setup_posture",
+      "label": "Poor posture at address",
+      "golfer": "your posture at address is hard to swing from",
+      "golferWell": "you set up in a balanced, athletic posture",
+      "golferWhy": "A posture that is hard to hold changes during the swing, so the strike gets harder to repeat.",
+      "goal": "Set up in a balanced, athletic posture",
+      "cue": "Hinge from your hips until your arms hang straight down, then soften your knees just enough to feel ready.",
+      "check": "Film from down the line at address: a line down from your shoulders should pass over your knees and the balls of your feet.",
+      "picture": {
+        "kind": "typical",
+        "camera": "dtl",
+        "phase": "P1",
+        "line": "spine"
+      },
+      "aliases": [
+        "poor posture",
+        "bad posture at address"
+      ],
+      "group": "setup",
+      "kind": "setup",
+      "prominence": "common",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_poorSetupPosture"
+      ],
+      "state": "draft",
+      "consequence": "The address shape is far from a balanced, athletic one: some mix of the hinge from the hips, the knee flex, where the weight sits over the feet, how the arms hang and the side tilt is off, in whichever direction. A shape that is hard to hold changes during the swing, which is how a setup fault becomes a posture fault later.",
+      "drills": [
+        "drill.armsHangSetup"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-22",
+        "searchTerms": "golf athletic setup posture hinge from hips knee flex balance poor posture at address\n\nREAD ON THE SETUP POSTURE COMPOSITE (posture_metrics_design.md §5), in distance mode: each part squared against its own ideal, so one part badly off is enough and the member condition fires as well. The trunk hinge is required, so a face-on camera alone cannot assess it. Placement (ball distance and position, stance width, aim) stays out and reaches it by causes edges instead, so a golfer told their posture is poor can fix it without moving their feet. DRAFT until the V4 firing table is written."
+      }
+    },
+    {
+      "id": "weight_on_toes_address",
+      "label": "Weight on the toes at address",
+      "golfer": "your weight is forward on your toes at address",
+      "golferWell": "you set your weight over the middle of your feet",
+      "golferWhy": "Weight on the toes tips you toward the ball as you swing, so contact drifts toward the heel.",
+      "goal": "Set your weight over the middle of your feet",
+      "cue": "Feel your weight settle back toward your shoelaces, so your heels press into the ground as firmly as the balls of your feet.",
+      "check": "Film from down the line at address. A line straight down from your shoulders should pass close to the balls of your feet rather than out over your toes, and you should be able to lift your toes inside your shoes.",
+      "picture": {
+        "kind": "typical",
+        "camera": "dtl",
+        "phase": "P1",
+        "line": "trailShin"
+      },
+      "aliases": [
+        "leaning onto the toes at address"
+      ],
+      "group": "setup",
+      "kind": "setup",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_weightOnToes"
+      ],
+      "state": "draft",
+      "consequence": "Starting with the weight forward on the toes leaves the golfer already tipping toward the ball, and the swing tips them further: the body moves toward the ball and contact drifts to the heel. The other tail of the heel-to-toe balance axis from weight in the heels; the reading is a down-the-line proxy whose absolute value has never been checked against a pressure plate.",
+      "drills": [
+        "drill.armsHangSetup"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-22",
+        "searchTerms": "golf setup posture weight on toes at address heel strikes balance\n\nREAD ON THE SETUP POSTURE COMPOSITE (posture_metrics_design.md §5), in distance mode: each part squared against its own ideal, so one part badly off is enough and the member condition fires as well. The trunk hinge is required, so a face-on camera alone cannot assess it. Placement (ball distance and position, stance width, aim) stays out and reaches it by causes edges instead, so a golfer told their posture is poor can fix it without moving their feet."
+      },
+      "axis": "balance_heel_toe_address"
+    },
+    {
+      "id": "arms_reaching_at_address",
+      "label": "Reaching with the arms at address",
+      "golfer": "you reach out for the ball with your arms at address",
+      "golferWell": "your arms hang naturally from your shoulders",
+      "golferWhy": "Reaching puts the club out of its natural path, so the swing gets flatter and harder to repeat.",
+      "goal": "Let your arms hang naturally at address",
+      "cue": "Feel your arms hang from your shoulders like heavy ropes, then move your feet until the club reaches the ball.",
+      "check": "Film from down the line at address. Your hands should sit roughly below your shoulders, about a hand's width from your thighs, rather than pushed out toward the ball.",
+      "picture": {
+        "kind": "typical",
+        "camera": "dtl",
+        "phase": "P1",
+        "line": "trailArm"
+      },
+      "aliases": [
+        "arms stretched out at address"
+      ],
+      "group": "setup",
+      "kind": "setup",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_armsReaching"
+      ],
+      "state": "draft",
+      "consequence": "The hands sit further out toward the ball than the shoulders at address, so the arms start stretched rather than hanging. The club starts outside the path the arms would swing it on, and the swing tends to flatten to bring it back. Read as the angle of the shoulder-to-wrist line against vertical, so it needs no ruler. The other tail, the hands tucked in, is read only as a part of the setup posture composite for now.",
+      "drills": [
+        "drill.armsHangSetup"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-22",
+        "searchTerms": "golf arms reaching at address stretching to the ball flat swing\n\nREAD ON THE SETUP POSTURE COMPOSITE (posture_metrics_design.md §5), in distance mode: each part squared against its own ideal, so one part badly off is enough and the member condition fires as well. The trunk hinge is required, so a face-on camera alone cannot assess it. Placement (ball distance and position, stance width, aim) stays out and reaches it by causes edges instead, so a golfer told their posture is poor can fix it without moving their feet."
+      }
+    },
+    {
+      "id": "reverse_tilt_at_address",
+      "label": "Tilted toward the target at address",
+      "golfer": "your upper body leans toward the target at address",
+      "golferWell": "your upper body tilts slightly away from the target",
+      "golferWhy": "Leaning toward the target at address tends to carry into the top, so the club comes down steep.",
+      "goal": "Set your upper body slightly away from the target",
+      "cue": "Feel your trail shoulder sit a little lower than your lead shoulder, the way your trail hand sits lower on the grip.",
+      "check": "Film face-on at address. Your upper body should lean slightly away from the target, with your trail shoulder a little lower than your lead shoulder and your head just behind the ball.",
+      "picture": {
+        "kind": "typical",
+        "camera": "faceOn",
+        "phase": "P1",
+        "line": "spine"
+      },
+      "aliases": [
+        "reverse tilt at address",
+        "leaning toward the target at address"
+      ],
+      "group": "setup",
+      "kind": "setup",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_reverseTiltAddress"
+      ],
+      "state": "draft",
+      "consequence": "The upper body leans toward the target at address rather than slightly away from it. The lean tends to carry into the backswing, where it becomes a reverse spine at the top, and the club comes down steep from there. The other tail, too much tilt away from the target, is read only as a part of the setup posture composite for now.",
+      "drills": [
+        "drill.setupTilt"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-22",
+        "searchTerms": "golf address spine tilt away from target reverse tilt at setup steep downswing\n\nREAD ON THE SETUP POSTURE COMPOSITE (posture_metrics_design.md §5), in distance mode: each part squared against its own ideal, so one part badly off is enough and the member condition fires as well. The trunk hinge is required, so a face-on camera alone cannot assess it. Placement (ball distance and position, stance width, aim) stays out and reaches it by causes edges instead, so a golfer told their posture is poor can fix it without moving their feet."
       }
     },
     {
@@ -16421,6 +17179,465 @@
         "tier": "practice",
         "searchedOn": "2026-10-20",
         "searchTerms": "held off release club speed peaks before the ball golf"
+      }
+    },
+    {
+      "from": "early_extension",
+      "to": "loss_of_posture",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "loss_of_posture_backswing",
+      "to": "loss_of_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "posture_sinks_backswing",
+      "to": "loss_of_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "poor_setup_posture",
+      "to": "loss_of_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "poor_core_stability",
+      "to": "loss_of_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "limited_thoracic_rotation",
+      "to": "loss_of_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "limited_lead_hip_ir",
+      "to": "loss_of_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "loss_of_posture",
+      "to": "thin",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "loss_of_posture",
+      "to": "top",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "loss_of_posture",
+      "to": "flipping",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "loss_of_posture",
+      "to": "strike_toe",
+      "type": "causes",
+      "strength": "weak",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "diving",
+      "to": "posture_sinks_impact",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "trying_to_hit_down",
+      "to": "posture_sinks_impact",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "poor_core_stability",
+      "to": "posture_sinks_impact",
+      "type": "causes",
+      "strength": "weak",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "posture_sinks_impact",
+      "to": "chunk",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "posture_sinks_impact",
+      "to": "attack_too_steep",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "posture_sinks_impact",
+      "to": "strike_heel",
+      "type": "causes",
+      "strength": "weak",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "trail_knee_straighten",
+      "to": "loss_of_posture_backswing",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "pelvis_rise_backswing",
+      "to": "loss_of_posture_backswing",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "head_rise_backswing",
+      "to": "loss_of_posture_backswing",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "limited_trail_hip_ir",
+      "to": "loss_of_posture_backswing",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "limited_thoracic_rotation",
+      "to": "loss_of_posture_backswing",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "poor_setup_posture",
+      "to": "loss_of_posture_backswing",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "loss_of_posture_backswing",
+      "to": "flat_shoulder_plane",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "pelvis_sink_backswing",
+      "to": "posture_sinks_backswing",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "head_drop_backswing",
+      "to": "posture_sinks_backswing",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "posture_too_upright",
+      "to": "poor_setup_posture",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "posture_too_bent",
+      "to": "poor_setup_posture",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "excessive_knee_flex",
+      "to": "poor_setup_posture",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "c_posture",
+      "to": "poor_setup_posture",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "s_posture",
+      "to": "poor_setup_posture",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "insufficient_knee_flex",
+      "to": "poor_setup_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "weight_in_heels_address",
+      "to": "poor_setup_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "weight_on_toes_address",
+      "to": "poor_setup_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "arms_reaching_at_address",
+      "to": "poor_setup_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "reverse_tilt_at_address",
+      "to": "poor_setup_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "ball_too_close",
+      "to": "poor_setup_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "ball_too_far",
+      "to": "poor_setup_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "poor_core_stability",
+      "to": "poor_setup_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "thoracic_kyphosis",
+      "to": "poor_setup_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "limited_hamstring_length",
+      "to": "poor_setup_posture",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "weight_on_toes_address",
+      "to": "early_extension",
+      "type": "causes",
+      "strength": "weak",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "weight_on_toes_address",
+      "to": "strike_heel",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "arms_reaching_at_address",
+      "to": "flat_backswing_plane",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "hands_set_high",
+      "to": "arms_reaching_at_address",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "reverse_tilt_at_address",
+      "to": "reverse_spine_p4",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "reverse_tilt_at_address",
+      "to": "attack_too_steep",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "ball_too_far",
+      "to": "weight_on_toes_address",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "posture_too_bent",
+      "to": "weight_on_toes_address",
+      "type": "causes",
+      "strength": "weak",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "ball_back",
+      "to": "reverse_tilt_at_address",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "trying_to_hit_down",
+      "to": "reverse_tilt_at_address",
+      "type": "causes",
+      "strength": "weak",
+      "provenance": {
+        "tier": "practice"
       }
     }
   ]

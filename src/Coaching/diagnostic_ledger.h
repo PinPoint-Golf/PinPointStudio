@@ -202,7 +202,12 @@ inline constexpr double kDiagSharpExcess = 1000.0;
 // the gate record that kept the reading out of the finding (`sequence.sightedBand` on `ks.pelvis`), so
 // the reason names the gate and the Trust panel can list what each gate blocked. A file at 7 reads back
 // with none, and regrades on activation (the content stamp carries this version).
-inline constexpr int kDiagSchemaVersion = 8;
+// 9 added ConditionRow / MeasureRow `composite` (posture_metrics_design.md §6.3, §8): a composite
+// measure's parts — each in its own unit, with its z, weight, share and, for a change, the series at
+// both ends — and the authored parts it could not read, with the coverage. The composite's own number
+// is never shown, so these ARE the evidence Replay and Print draw. A file at 8 reads back with none
+// (no composite was ever graded under it), and regrades on activation.
+inline constexpr int kDiagSchemaVersion = 9;
 
 // Every §4 tunable in one injectable bundle.
 struct LedgerOptions {
@@ -445,6 +450,43 @@ inline CorridorShape corridorShapeFromString(const QString &s)
     return CorridorShape::Unknown;      // anything unrecognised is "we did not record it"
 }
 
+// ── A composite's parts (schema 9, posture_metrics_design.md §6.3, §8) ──────────
+//
+// The ledger's copy of the engine's CompositePart / CompositeUnread (characteristic_engine.h). A
+// copy and not the engine's type because this header stands apart from the Diagnostics module —
+// it reduces rows, and must build where the engine does not. NaN wherever the engine had no number;
+// such a field is omitted from the JSON rather than written as a zero nobody measured.
+struct CompositePartRow {
+    QString name;                                               // the part's name in the composite
+    QString measureId;                                          // the alternative that answered
+    double  value   = std::numeric_limits<double>::quiet_NaN(); // in the part measure's own unit
+    QString unit;
+    double  z       = std::numeric_limits<double>::quiet_NaN(); // against its own norm
+    double  weight  = 0.0;
+    double  share   = std::numeric_limits<double>::quiet_NaN(); // negative = against the finding
+    int     sign    = 0;                                        // ±1 coherent, 0 distance
+    double  atStart = std::numeric_limits<double>::quiet_NaN(); // a change's anchor value
+    double  atEnd   = std::numeric_limits<double>::quiet_NaN(); // …and its end-instant value
+};
+
+struct CompositeUnreadRow {
+    QString name;
+    QString measureId;      // the last alternative tried
+    QString reason;         // notMeasured · noCorridor · implausible · withheld · nested
+};
+
+// Everything a surface needs to draw a composite finding without the composite's own number:
+// the parts read, the parts not read, and the weight each set carries. `present()` is false on every
+// row that is not a composite's, and on every row of a file older than schema 9.
+struct CompositeRowEvidence {
+    std::vector<CompositePartRow>   parts;
+    std::vector<CompositeUnreadRow> unread;
+    double weightRead  = std::numeric_limits<double>::quiet_NaN();
+    double weightTotal = std::numeric_limits<double>::quiet_NaN();
+
+    bool present() const { return !parts.empty() || !unread.empty() || std::isfinite(weightTotal); }
+};
+
 // One measure's reading behind a row, when the condition is read by more than one signal
 // (Finding::readings). The driving reading is among them; the row's own fields still say which
 // one decided it.
@@ -457,6 +499,7 @@ struct MeasureRow {
     double  z          = 0.0;
     CorridorShape corridorShape = CorridorShape::Unknown;
     bool    fired      = false;     // this signal's own verdict
+    CompositeRowEvidence composite; // schema 9: this reading's parts, when its measure is a composite
 };
 
 // One condition's reading on one shot.
@@ -508,6 +551,11 @@ struct ConditionRow {
     // Every signal's reading, when there is more than one (schema 4). Empty on a single-signal
     // row and on every row of an older file: rowReadings() then answers from the driving fields.
     std::vector<MeasureRow> readings;
+
+    // Schema 9: the DRIVING measure's parts and coverage, when it is a composite. Not present
+    // otherwise. On a NotAssessable row refused for coverage this is empty too — the engine forms no
+    // evidence for a finding it could not assess — and the reason says "too few parts".
+    CompositeRowEvidence composite;
 };
 
 // The readings behind a row: every signal's when they were recorded, else the driving one alone
@@ -524,6 +572,7 @@ inline std::vector<MeasureRow> rowReadings(const ConditionRow &r)
     m.z             = r.z;
     m.corridorShape = r.corridorShape;
     m.fired         = r.state == ShotState::Fired;
+    m.composite     = r.composite;
     return { m };
 }
 
@@ -1104,6 +1153,9 @@ struct EdgeSpec {
     QString from, to;
     int type     = 0;
     int strength = 0;
+    // The pack's Edge::sharedEvidence: the two ends are measured from a common reading
+    // (posture_metrics_design.md §6.5). Computed by the pack at load, carried here, never authored.
+    bool sharedEvidence = false;
 };
 
 // The focus contract's split. Without one, Moved-together is not on offer at all — the
@@ -1125,6 +1177,8 @@ struct LinkEvidence {
     LinkGrade grade = LinkGrade::Unanchored;
 
     bool rangeRestricted = false;   // capped at Coherent: upstream fires on every shot
+    bool sharedEvidence  = false;   // capped at Coherent: both ends read one measure, so the
+                                    // 2×2 is not run (posture_metrics_design.md §6.5)
     bool screenOutstanding = false; // an unentered screened root anchors nothing
 
     int    pairs = 0;               // shots on which BOTH endpoints were assessable
@@ -1181,6 +1235,13 @@ inline bool nodePresent(const NodeSpec &node, const ConditionLedger *ledger)
 //     no variance to covary with; a 2×2 with an empty row is not evidence of coupling, it
 //     is evidence of a constant. This resolves across sessions as the fault improves,
 //     which is exactly the right time for it to resolve.
+//   · SHARED EVIDENCE caps at Coherent too, and is the range restriction's sibling: two ends
+//     measured from one reading (EdgeSpec::sharedEvidence — `early_extension → loss_of_posture`
+//     both read the forward bend) ALWAYS co-fire, so a 2×2 between them measures the arithmetic
+//     that relates them, not the swing. Unlike the range restriction this never resolves with
+//     more shots, so nothing is counted at all and neither the dependence test nor Moved
+//     together is run. explain() is unaffected: a fired member covering its fired family is
+//     exactly the sentence wanted (§6.5).
 inline LinkEvidence gradeLink(const EdgeSpec &edge,
                               const NodeSpec &from, const NodeSpec &to,
                               const ConditionLedger *fromLedger,
@@ -1226,6 +1287,10 @@ inline LinkEvidence gradeLink(const EdgeSpec &edge,
     ev.coherent = observedBoth && dirOk && temporalOk;
     if (!ev.coherent) return ev;                               // PresentTogether
     ev.grade = LinkGrade::Coherent;
+
+    // The sibling cap (see above): measured from the same readings, so the link is not tested.
+    ev.sharedEvidence = edge.sharedEvidence;
+    if (ev.sharedEvidence) return ev;                          // Coherent, capped, untested
 
     // Cap two.
     ev.rangeRestricted = fromLedger && fromLedger->rangeRestricted;
@@ -1866,6 +1931,76 @@ inline ShotState shotStateFromString(const QString &s)
     return ShotState::NotAssessable;      // anything unrecognised is "we did not look"
 }
 
+// Schema 9's `composite` object. Non-finite numbers are OMITTED rather than written: JSON has no
+// spelling for NaN, and a null read back as 0 would put a reading in the ledger nobody measured.
+inline QJsonObject compositeToJson(const CompositeRowEvidence &c)
+{
+    const auto putFinite = [](QJsonObject &o, const char *key, double v) {
+        if (std::isfinite(v)) o[QLatin1String(key)] = v;
+    };
+    QJsonObject co;
+    putFinite(co, "weightRead", c.weightRead);
+    putFinite(co, "weightTotal", c.weightTotal);
+    QJsonArray pa;
+    for (const CompositePartRow &p : c.parts) {
+        QJsonObject po;
+        po[QStringLiteral("name")]      = p.name;
+        po[QStringLiteral("measureId")] = p.measureId;
+        putFinite(po, "value", p.value);
+        if (!p.unit.isEmpty()) po[QStringLiteral("unit")] = p.unit;
+        putFinite(po, "z", p.z);
+        po[QStringLiteral("weight")]    = p.weight;
+        putFinite(po, "share", p.share);
+        if (p.sign != 0) po[QStringLiteral("sign")] = p.sign;
+        putFinite(po, "atStart", p.atStart);
+        putFinite(po, "atEnd", p.atEnd);
+        pa.append(po);
+    }
+    co[QStringLiteral("parts")] = pa;
+    if (!c.unread.empty()) {
+        QJsonArray ua;
+        for (const CompositeUnreadRow &u : c.unread)
+            ua.append(QJsonObject{ { QStringLiteral("name"), u.name },
+                                   { QStringLiteral("measureId"), u.measureId },
+                                   { QStringLiteral("reason"), u.reason } });
+        co[QStringLiteral("unread")] = ua;
+    }
+    return co;
+}
+
+inline CompositeRowEvidence compositeFromJson(const QJsonObject &co)
+{
+    const auto num = [](const QJsonObject &o, const char *key) {
+        const QJsonValue v = o.value(QLatin1String(key));
+        return v.isDouble() ? v.toDouble() : std::numeric_limits<double>::quiet_NaN();
+    };
+    CompositeRowEvidence c;
+    c.weightRead  = num(co, "weightRead");
+    c.weightTotal = num(co, "weightTotal");
+    for (const QJsonValue &pv : co.value(QStringLiteral("parts")).toArray()) {
+        const QJsonObject po = pv.toObject();
+        CompositePartRow p;
+        p.name      = po.value(QStringLiteral("name")).toString();
+        p.measureId = po.value(QStringLiteral("measureId")).toString();
+        p.value     = num(po, "value");
+        p.unit      = po.value(QStringLiteral("unit")).toString();
+        p.z         = num(po, "z");
+        p.weight    = po.value(QStringLiteral("weight")).toDouble();
+        p.share     = num(po, "share");
+        p.sign      = po.value(QStringLiteral("sign")).toInt(0);
+        p.atStart   = num(po, "atStart");
+        p.atEnd     = num(po, "atEnd");
+        c.parts.push_back(std::move(p));
+    }
+    for (const QJsonValue &uv : co.value(QStringLiteral("unread")).toArray()) {
+        const QJsonObject uo = uv.toObject();
+        c.unread.push_back({ uo.value(QStringLiteral("name")).toString(),
+                             uo.value(QStringLiteral("measureId")).toString(),
+                             uo.value(QStringLiteral("reason")).toString() });
+    }
+    return c;
+}
+
 inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
                           const LedgerOptions &opt = LedgerOptions())
 {
@@ -1912,10 +2047,13 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
                     mo[QStringLiteral("z")]             = m.z;
                     mo[QStringLiteral("corridorShape")] = corridorShapeToString(m.corridorShape);
                     mo[QStringLiteral("fired")]         = m.fired;
+                    if (m.composite.present()) mo[QStringLiteral("composite")] = compositeToJson(m.composite);
                     ra.append(mo);
                 }
                 ro[QStringLiteral("readings")] = ra;
             }
+            // Schema 9 — only on a row whose driving measure is a composite.
+            if (r.composite.present()) ro[QStringLiteral("composite")] = compositeToJson(r.composite);
             rowArr.append(ro);
         }
         QJsonObject so;
@@ -2062,8 +2200,12 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
                 m.z             = mo.value(QStringLiteral("z")).toDouble();
                 m.corridorShape = corridorShapeFromString(mo.value(QStringLiteral("corridorShape")).toString());
                 m.fired         = mo.value(QStringLiteral("fired")).toBool();
+                if (const QJsonValue cv = mo.value(QStringLiteral("composite")); cv.isObject())
+                    m.composite = compositeFromJson(cv.toObject());
                 r.readings.push_back(std::move(m));
             }
+            if (const QJsonValue cv = ro.value(QStringLiteral("composite")); cv.isObject())
+                r.composite = compositeFromJson(cv.toObject());
             s.rows.push_back(std::move(r));
         }
         for (const QJsonValue &gv : so.value(QStringLiteral("signals")).toArray()) {

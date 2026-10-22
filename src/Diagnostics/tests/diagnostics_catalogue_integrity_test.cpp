@@ -63,7 +63,16 @@ int main()
         for (const QString &sid : c.detectedBy) {
             const Signal *s = p.signal(sid);
             if (!s) continue;
+            // A COMPOSITE names no metric of its own; it reads its parts', so a characteristic on a
+            // composite uses every part's metric — exactly as it would reading those measures directly
+            // (posture_metrics_design.md §6.1). Expanded here, one level: composites never nest.
+            QStringList read;
             for (const QString &mid : s->measures) {
+                const Measure *m = p.measure(mid);
+                if (m && m->kind == MeasureKind::Composite) read << compositePartMeasures(*m);
+                else read << mid;
+            }
+            for (const QString &mid : read) {
                 const Measure *m = p.measure(mid);
                 if (!m) continue;
                 // EVERY RUNG OF THE LADDER IS A USE. A measure that prefers `lm.attackAngle` and
@@ -106,6 +115,11 @@ int main()
                 for (const QString &mid : s->measures) {
                     const Measure *m = p.measure(mid);
                     if (m && !m->metricKey.isEmpty()) resolves = true;
+                    // A composite resolves through its parts (see the use map above).
+                    if (m && m->kind == MeasureKind::Composite)
+                        for (const QString &part : compositePartMeasures(*m))
+                            if (const Measure *pm = p.measure(part); pm && !pm->metricKey.isEmpty())
+                                resolves = true;
                 }
             }
             if (!resolves) {

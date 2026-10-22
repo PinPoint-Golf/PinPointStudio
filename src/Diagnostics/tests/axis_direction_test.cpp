@@ -335,6 +335,29 @@ static const Expect kExpected[] = {
     { "sig_weightInHeelsAddress",   Direction::Low,
       "m_balanceHeelToeAddress highMeans 'the balance point further toward the toes at address'; "
       "sitting back on the heels is the low end" },
+    // The posture composites and their setup members (posture_metrics_design.md §7.1). The two
+    // coherent composites are oriented by their parts' LOSS signs, so standing up is high by
+    // construction and sinking low; the distance composite is a ceiling, and only high grades.
+    { "sig_weightOnToes",           Direction::High,
+      "m_balanceHeelToeAddress highMeans 'the balance point further toward the toes at address'; "
+      "the other tail from sig_weightInHeelsAddress" },
+    { "sig_armsReaching",           Direction::High,
+      "armHang: 'POSITIVE MEANS THE HANDS ARE FURTHER TOWARD THE BALL THAN THE SHOULDERS — "
+      "reaching'" },
+    { "sig_reverseTiltAddress",     Direction::Low,
+      "secondaryAxisTilt: positive is 'the upper body leaning AWAY from the target'; leaning "
+      "toward it is the low end" },
+    { "sig_lossOfPosture",          Direction::High,
+      "m_postureHeldImpact highMeans 'standing up out of the address posture by impact'; each "
+      "part's sign turns its standing-up direction into the high end" },
+    { "sig_postureSinksImpact",     Direction::Low,
+      "m_postureHeldImpact: the LOW side is the posture sunk lower than at address" },
+    { "sig_lossOfPostureBack",      Direction::High,
+      "m_postureHeldTop highMeans 'standing up out of the address posture by the top'" },
+    { "sig_postureSinksBack",       Direction::Low,
+      "m_postureHeldTop: the LOW side is the posture sunk lower than at address" },
+    { "sig_poorSetupPosture",       Direction::High,
+      "m_setupPosture is a ceiling distance: higher is further from a good setup in any direction" },
     // The same tail as sig_leadKneeDriftIn on the same metric, read at impact instead of the top.
     // The HIGH tail is the post-up and is declared unwatched on the measure, not signalled here.
     { "sig_leadKneeValgusImpact",   Direction::Low,

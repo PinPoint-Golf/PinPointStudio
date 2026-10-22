@@ -169,6 +169,9 @@ QVariantMap cohortToMap(const Cohort &cohort);
 //   plausibleInsideCorridor  a plausible bound sits inside the Watch edge, so a reading would be
 //                        graded Action and disbelieved at once. Measured against the WIDEST shipped
 //                        preset, so the answer cannot depend on the reader's grade-policy setting
+//   compositeNorm        a composite measure's row that is not μ 0, σ 1 in "z", or has no ρ in
+//                        [0, 1]; or a ρ on a row whose measure is not a composite
+//                        (posture_metrics_design.md §6.2, §6.4)
 //
 // Shape checks live HERE and not in the standalone validator for the same reason normUnitMismatch
 // does: shape is a property of the MEASURE (see measure_vocabulary.h), a norm row carries only numbers,

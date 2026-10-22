@@ -44,6 +44,7 @@ const Row<NormSource> kNormSources[] = {
     { NormSource::Seated,     "seated",     "Seated on swings" },
     { NormSource::Literature, "literature", "Published" },
     { NormSource::Imported,   "imported",   "Imported" },
+    { NormSource::Measured,   "measured",   "Measured on swings" },
 };
 
 // The user-facing words. An ordinary, monotone ramp: nobody has to be told Ideal outranks Good, and
@@ -253,6 +254,7 @@ bool normIsWeak(const Norm &n)
     case NormSource::Seated:     return n.n < kMinSeatedN;
     case NormSource::Literature: return n.citation.trimmed().isEmpty();
     case NormSource::Imported:   return false;                      // it stood somewhere else first
+    case NormSource::Measured:   return n.n < kMinSeatedN;          // as seated: n is its standing
     }
     return true;
 }
@@ -273,6 +275,10 @@ QString normWeakReason(const Norm &n)
                    : QString();
     case NormSource::Imported:
         return QString();
+    case NormSource::Measured:
+        return n.n < kMinSeatedN
+                   ? QObject::tr("Measured on %n swing(s) — too few to be more than indicative.", "", n.n)
+                   : QString();
     }
     return QString();
 }

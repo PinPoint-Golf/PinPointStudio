@@ -911,7 +911,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("more forward bend from the hips"),
         .signNegative = QStringLiteral("standing taller than upright, which a swing does not reach"),
         .phases = { P::Address, P::Impact },
-        .card = { .readAt = { { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact, .rate = false },
+        .card = { .readAt = { { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact, .rate = false,
+                  .curve = true },   // the Posture preset plots the angle changing (posture_metrics_design.md §8)
         .routes = {
             via("dtl", RM::Projected, Direct, { .dtlCamera = true },
                 QStringLiteral("the trunk's hinge over the ball, seen square-on from down the "
@@ -922,7 +923,12 @@ void installMetricManifest(MetricCatalogue &cat)
         .usedBy = { QStringLiteral("characteristic:posture_too_upright"),
                     QStringLiteral("characteristic:posture_too_bent"),
                     QStringLiteral("characteristic:diving"),
-                    QStringLiteral("characteristic:early_extension") },
+                    QStringLiteral("characteristic:early_extension"),
+                    QStringLiteral("characteristic:loss_of_posture"),
+                    QStringLiteral("characteristic:posture_sinks_impact"),
+                    QStringLiteral("characteristic:loss_of_posture_backswing"),
+                    QStringLiteral("characteristic:posture_sinks_backswing"),
+                    QStringLiteral("characteristic:poor_setup_posture") },
     });
 
     // FORWARD-BEND CHANGE, READ FACE-ON (posture_metrics_design.md §3.2). The face-on camera cannot
@@ -965,6 +971,8 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the hip-to-shoulder line's length in the face-on image, which "
                                "shortens with the trunk's lean toward the camera")) },
+        .usedBy = { QStringLiteral("characteristic:loss_of_posture"),
+                    QStringLiteral("characteristic:posture_sinks_impact") },
     });
 
     cat.addDescriptor({
@@ -1046,7 +1054,9 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:reverse_spine_p4"),
                     QStringLiteral("characteristic:excessive_axis_tilt_top"),
                     QStringLiteral("characteristic:reverse_pivot"),
-                    QStringLiteral("characteristic:coming_out_of_it") },
+                    QStringLiteral("characteristic:coming_out_of_it"),
+                    QStringLiteral("characteristic:reverse_tilt_at_address"),
+                    QStringLiteral("characteristic:poor_setup_posture") },
     });
 
     cat.addDescriptor({
@@ -1126,7 +1136,11 @@ void installMetricManifest(MetricCatalogue &cat)
                                "at all")) },
         .usedBy = { QStringLiteral("characteristic:early_extension"),
                     QStringLiteral("characteristic:backing_off_the_ball"),
-                    QStringLiteral("characteristic:pelvis_thrust_backswing") },
+                    QStringLiteral("characteristic:pelvis_thrust_backswing"),
+                    QStringLiteral("characteristic:loss_of_posture"),
+                    QStringLiteral("characteristic:posture_sinks_impact"),
+                    QStringLiteral("characteristic:loss_of_posture_backswing"),
+                    QStringLiteral("characteristic:posture_sinks_backswing") },
     });
 
     cat.addDescriptor({
@@ -1158,7 +1172,11 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("vertical travel of the hip centre in the face-on image, against "
                                "the ground plane")) },
-        .usedBy = {                     QStringLiteral("characteristic:pelvis_rise_backswing") },
+        .usedBy = { QStringLiteral("characteristic:pelvis_rise_backswing"),
+                    QStringLiteral("characteristic:loss_of_posture"),
+                    QStringLiteral("characteristic:posture_sinks_impact"),
+                    QStringLiteral("characteristic:loss_of_posture_backswing"),
+                    QStringLiteral("characteristic:posture_sinks_backswing") },
     });
 
     // The belt line's height — what `pelvis_sink_backswing` actually asks for. The hip keypoints
@@ -1190,7 +1208,10 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the waistband edge tracked as a line in the face-on image, its "
                                "height against the address reference"), PLANNED) },
-        .usedBy = { QStringLiteral("characteristic:pelvis_sink_backswing") },
+        .usedBy = { QStringLiteral("characteristic:pelvis_sink_backswing"),
+                    // the belt line is the first alternative of m_postureHeldTop's pelvis-height part
+                    QStringLiteral("characteristic:loss_of_posture_backswing"),
+                    QStringLiteral("characteristic:posture_sinks_backswing") },
     });
 
     cat.addDescriptor({
@@ -2940,7 +2961,11 @@ void installMetricManifest(MetricCatalogue &cat)
         .usedBy = { QStringLiteral("chart:review"),
                     QStringLiteral("characteristic:head_drop_backswing"),
                     QStringLiteral("characteristic:head_rise_backswing"),
-                    QStringLiteral("characteristic:coming_out_of_it") },
+                    QStringLiteral("characteristic:coming_out_of_it"),
+                    QStringLiteral("characteristic:loss_of_posture"),
+                    QStringLiteral("characteristic:posture_sinks_impact"),
+                    QStringLiteral("characteristic:loss_of_posture_backswing"),
+                    QStringLiteral("characteristic:posture_sinks_backswing") },
     });
 
     // THE HEAD'S NOD AT ADDRESS (posture_metrics_design.md §3.1), from down the line: body keypoints
@@ -2973,6 +2998,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("dtl", RM::Projected, Direct, { .dtlCamera = true },
                 QStringLiteral("the ear-to-nose line against the trunk, seen side-on from down the "
                                "line")) },
+        .usedBy = { QStringLiteral("characteristic:poor_setup_posture") },
     });
 
     cat.addDescriptor({
@@ -3045,7 +3071,8 @@ void installMetricManifest(MetricCatalogue &cat)
                                "layout carries a keypoint between the shoulders and the hips, so "
                                "this cannot come from the skeleton at all"), PLANNED) },
         .usedBy = { QStringLiteral("characteristic:c_posture"),
-                    QStringLiteral("characteristic:flat_thoracic_spine") },
+                    QStringLiteral("characteristic:flat_thoracic_spine"),
+                    QStringLiteral("characteristic:poor_setup_posture") },
     });
 
     cat.addDescriptor({
@@ -3075,7 +3102,8 @@ void installMetricManifest(MetricCatalogue &cat)
                                "layout carries a keypoint between the shoulders and the hips, so "
                                "this cannot come from the skeleton at all"), PLANNED) },
         .usedBy = { QStringLiteral("characteristic:s_posture"),
-                    QStringLiteral("characteristic:flat_lumbar_spine") },
+                    QStringLiteral("characteristic:flat_lumbar_spine"),
+                    QStringLiteral("characteristic:poor_setup_posture") },
     });
 
     cat.addDescriptor({
@@ -3181,9 +3209,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("a sagittal angle foreshortened by the frontal projection — "
                                "visible, but close enough to noise that no producer reads it "
                                "there today"), PLANNED) },
-        .usedBy = { QStringLiteral("characteristic:excessive_knee_flex"),
-                    QStringLiteral("characteristic:insufficient_knee_flex"),
-                    QStringLiteral("characteristic:late_buckle") },
+        .usedBy = { QStringLiteral("characteristic:late_buckle") },
     });
 
     cat.addDescriptor({
@@ -3403,7 +3429,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("more knee bend"),
         .signNegative = QString(),
         .phases = { P::Address, P::Top },
-        .card = { .readAt = { { P::Top, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Top, .rate = false },
+        .card = { .readAt = { { P::Top, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Top, .rate = false,
+                  .curve = true },   // the Posture preset plots the angle changing (posture_metrics_design.md §8)
         .routes = {
             via("dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("the shin-against-thigh angle seen from down the line, where the "
@@ -3412,7 +3439,12 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("a sagittal angle foreshortened by the frontal projection — "
                                "visible, but close enough to noise that no producer reads it "
                                "there today"), PLANNED) },
-        .usedBy = { QStringLiteral("characteristic:trail_knee_straighten") },
+        .usedBy = { QStringLiteral("characteristic:trail_knee_straighten"),
+                    QStringLiteral("characteristic:excessive_knee_flex"),
+                    QStringLiteral("characteristic:insufficient_knee_flex"),
+                    QStringLiteral("characteristic:loss_of_posture_backswing"),
+                    QStringLiteral("characteristic:posture_sinks_backswing"),
+                    QStringLiteral("characteristic:poor_setup_posture") },
     });
 
     cat.addDescriptor({
@@ -3476,7 +3508,9 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("heel-to-toe travel lies along the face-on camera's blind axis, "
                                "the same axis pelvis thrust lives on, so it takes the "
                                "down-the-line view to see at all")) },
-        .usedBy = { QStringLiteral("characteristic:weight_in_heels_address") },
+        .usedBy = { QStringLiteral("characteristic:weight_in_heels_address"),
+                    QStringLiteral("characteristic:weight_on_toes_address"),
+                    QStringLiteral("characteristic:poor_setup_posture") },
     });
 
     // ---------------------------------------------------- Arms
@@ -3511,6 +3545,8 @@ void installMetricManifest(MetricCatalogue &cat)
             via("dtl", RM::Projected, Direct, { .dtlCamera = true },
                 QStringLiteral("the shoulder-to-wrist line seen square-on from down the line, where "
                                "the face-on camera sees it end-on")) },
+        .usedBy = { QStringLiteral("characteristic:arms_reaching_at_address"),
+                    QStringLiteral("characteristic:poor_setup_posture") },
     });
 
     cat.addDescriptor({

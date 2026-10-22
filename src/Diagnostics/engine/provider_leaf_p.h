@@ -147,6 +147,8 @@ struct PackTraits {
         return !(i.code == QLatin1String("unknownCondition")
                  || i.code == QLatin1String("unknownSignal")
                  || i.code == QLatin1String("unknownMeasure")
+                 // a composite part naming a measure only the assembly carries (a core part)
+                 || i.code == QLatin1String("compositeUnknownPart")
                  || i.code == QLatin1String("noCause")
                  || i.code == QLatin1String("orphanCause")
                  || i.code == QLatin1String("observableNoSignal"));

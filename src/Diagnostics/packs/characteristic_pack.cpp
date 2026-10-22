@@ -378,6 +378,85 @@ QString golferNameProblem(const QString &name)
     return QString();
 }
 
+// ── A composite measure's own rules (posture_metrics_design.md §6.4) ─────────
+//
+// All ERRORS. Each one is a composite whose z would not mean what its calibration says it means: a
+// nested composite squares its own calibration, a weight outside (0, 1) breaks the rule that lets
+// weights compose ([[weights-normalised-0-to-1]]), a sign that is not ±1 rescales a part rather than
+// orienting it, a session-scope part has no per-swing value to combine, and a distance composite
+// graded two-sided calls a near-perfect setup a fault on its low tail. The NORM half (μ 0, σ 1, "z",
+// ρ) is `compositeNorm` in validateNormsAgainst — this file cannot see a norm.
+void validateComposite(ValidationReport &r, const CharacteristicPack &pack, const Measure &m,
+                       const QSet<QString> &measureSet)
+{
+    const CompositeSpec &c = m.composite;
+    const bool coherent = c.combine == CompositeCombine::Coherent;
+
+    if (!(c.minWeight > 0.0 && c.minWeight <= 1.0))
+        err(r, QStringLiteral("compositeWeight"), m.id,
+            QStringLiteral("Composite '%1' asks for %2 of its weight to be read; the coverage share "
+                           "is above 0 and at most 1.").arg(m.id).arg(c.minWeight));
+
+    if (c.parts.empty())
+        err(r, QStringLiteral("compositeUnknownPart"), m.id,
+            QStringLiteral("Composite '%1' names no parts.").arg(m.id));
+
+    if (c.combine == CompositeCombine::Distance && m.shape != Shape::Ceiling)
+        err(r, QStringLiteral("compositeShape"), m.id,
+            QStringLiteral("Composite '%1' combines its parts by distance, so a low reading is a good "
+                           "setup and only the high tail is a fault: its shape must be ceiling, not "
+                           "'%2'.").arg(m.id, shapeName(m.shape)));
+
+    if (m.scope == MeasureScope::Session)
+        err(r, QStringLiteral("compositeScope"), m.id,
+            QStringLiteral("Composite '%1' is read over the session; a composite combines one swing's "
+                           "readings.").arg(m.id));
+
+    for (const CompositePartSpec &p : c.parts) {
+        const QString part = QStringLiteral("%1.%2").arg(m.id, p.name);
+
+        if (!(p.weight > 0.0 && p.weight < 1.0))
+            err(r, QStringLiteral("compositeWeight"), m.id,
+                QStringLiteral("Composite part '%1' weighs %2; a weight sits strictly between 0 and 1.")
+                    .arg(part).arg(p.weight));
+
+        if (p.measures.isEmpty())
+            err(r, QStringLiteral("compositeUnknownPart"), m.id,
+                QStringLiteral("Composite part '%1' names no measure.").arg(part));
+
+        if (coherent) {
+            bool ok = p.signs.size() == size_t(p.measures.size());
+            for (double sg : p.signs) ok = ok && (sg == 1.0 || sg == -1.0);
+            if (!ok)
+                err(r, QStringLiteral("compositeSign"), m.id,
+                    QStringLiteral("Composite part '%1' needs one sign per alternative, each 1 or -1 — "
+                                   "the direction of that instrument's reading that counts toward the "
+                                   "high tail.").arg(part));
+        } else if (!p.signs.empty()) {
+            err(r, QStringLiteral("compositeSign"), m.id,
+                QStringLiteral("Composite part '%1' carries signs, but '%2' combines by distance and "
+                               "squares every part; a sign there means nothing.").arg(part, m.id));
+        }
+
+        for (const QString &mid : p.measures) {
+            if (!measureSet.contains(mid)) {
+                err(r, QStringLiteral("compositeUnknownPart"), m.id,
+                    QStringLiteral("Composite part '%1' names unknown measure '%2'.").arg(part, mid));
+                continue;
+            }
+            const Measure *pm = pack.measure(mid);
+            if (pm && pm->kind == MeasureKind::Composite)
+                err(r, QStringLiteral("compositeNested"), m.id,
+                    QStringLiteral("Composite part '%1' names composite '%2'. A composite combines "
+                                   "graded readings, never another composite.").arg(part, mid));
+            if (pm && pm->scope == MeasureScope::Session)
+                err(r, QStringLiteral("compositeScope"), m.id,
+                    QStringLiteral("Composite part '%1' names '%2', which is read over the session "
+                                   "and has no value on one swing.").arg(part, mid));
+        }
+    }
+}
+
 } // namespace
 
 // ── The name a measure renders under ────────────────────────────────────────
@@ -756,6 +835,8 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
             if (!fc.valid)
                 err(r, QStringLiteral("badFacets"), m.id,
                     QStringLiteral("Measure '%1': %2").arg(m.id, fc.reason));
+        } else if (m.kind == MeasureKind::Composite) {
+            validateComposite(r, pack, m, measureSet);
         } else if (m.metricKey.isEmpty()) {
             err(r, QStringLiteral("badFacets"), m.id,
                 QStringLiteral("Provided measure '%1' names no metric key.").arg(m.id));
@@ -793,8 +874,10 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
         }
 
         // The reducer is checked for BOTH kinds: a Provided measure over a catalogue TimeSeries
-        // still has to say how the curve becomes a number.
-        const ReducerCheck rc = validateReducer(m.reducer);
+        // still has to say how the curve becomes a number. A composite reduces nothing — its parts
+        // already did — so it carries no reducer to check.
+        const ReducerCheck rc = m.kind == MeasureKind::Composite ? ReducerCheck{ true, QString() }
+                                                                 : validateReducer(m.reducer);
         if (!rc.valid)
             err(r, QStringLiteral("badReducer"), m.id,
                 QStringLiteral("Measure '%1': %2").arg(m.id, rc.reason));
@@ -928,6 +1011,12 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
         }
     }
 
+    // A composite's parts are USED: the composite reads them, and the reading reaches a signal
+    // through it. Only a part of a composite nothing reads is as idle as any other measure, and that
+    // case is the composite's own `unusedMeasure` row.
+    for (const Measure &m : pack.measures)
+        if (m.kind == MeasureKind::Composite && usedMeasures.contains(m.id))
+            for (const QString &part : compositePartMeasures(m)) usedMeasures.insert(part);
     for (const Measure &m : pack.measures)
         if (!usedMeasures.contains(m.id))
             warn(r, QStringLiteral("unusedMeasure"), m.id,
@@ -1435,7 +1524,12 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
         const bool producesReadings = m.status == MeasureStatus::Live
                                       || m.status == MeasureStatus::Held
                                       || m.status == MeasureStatus::ExternalDevice;
-        if (producesReadings && (m.golferHigh.trimmed().isEmpty() || m.golferLow.trimmed().isEmpty()))
+        // A COMPOSITE is exempt from the missing-phrase half. Its number is a z with no golfer-facing
+        // unit and is never shown (posture_metrics_design.md §8): the golfer reads its PARTS, each in
+        // its own words, so a higher/lower phrase for the composite would name a reading nobody sees.
+        // Any phrase an author does write is still held to the wording rule below.
+        if (producesReadings && m.kind != MeasureKind::Composite
+            && (m.golferHigh.trimmed().isEmpty() || m.golferLow.trimmed().isEmpty()))
             warn(r, QStringLiteral("golferPhraseMissing"), m.id,
                  QStringLiteral("Measure '%1' produces readings but does not say, in a golfer's "
                                 "words, what a %2 reading looks like, so the home screen cannot "
@@ -1512,15 +1606,50 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
         // entirely, which is what decides whether the series is even consulted.
         if (!measureKindFromName(o.value(QStringLiteral("kind")).toString(QStringLiteral("composed")), m.kind))
             err(r, QStringLiteral("unknownKind"), m.id,
-                QStringLiteral("Measure '%1' declares kind '%2'; the kinds are composed and provided.")
+                QStringLiteral("Measure '%1' declares kind '%2'; the kinds are composed, provided and "
+                               "composite.")
                     .arg(m.id, o.value(QStringLiteral("kind")).toString()));
 
         QString why;
         if (m.kind == MeasureKind::Composed
             && !readSeries(o.value(QStringLiteral("series")).toObject(), m.series, why))
             err(r, QStringLiteral("badFacets"), m.id, QStringLiteral("Measure '%1': %2").arg(m.id, why));
-        if (!readReducer(o.value(QStringLiteral("reducer")).toObject(), m.reducer, why))
+        // A composite reduces nothing — its parts already did — so it carries no reducer to read.
+        if (m.kind != MeasureKind::Composite
+            && !readReducer(o.value(QStringLiteral("reducer")).toObject(), m.reducer, why))
             err(r, QStringLiteral("badReducer"), m.id, QStringLiteral("Measure '%1': %2").arg(m.id, why));
+
+        // The composite block (posture_metrics_design.md §6.1). Read as written — a weight of 1.3 or
+        // a sign of 2 survives parsing so `validateComposite` can name it, rather than being clamped
+        // into something legal-looking here. Only the closed vocabulary (`combine`) is refused at
+        // parse, in the regime every closed token in this loader follows.
+        if (o.contains(QStringLiteral("composite"))) {
+            const QJsonObject co = o.value(QStringLiteral("composite")).toObject();
+            if (m.kind != MeasureKind::Composite)
+                err(r, QStringLiteral("compositeKind"), m.id,
+                    QStringLiteral("Measure '%1' carries a composite block but is kind '%2'; only a "
+                                   "composite measure names parts.")
+                        .arg(m.id, measureKindName(m.kind)));
+            if (co.contains(QStringLiteral("combine"))
+                && !compositeCombineFromName(co.value(QStringLiteral("combine")).toString(),
+                                             m.composite.combine))
+                err(r, QStringLiteral("unknownCombine"), m.id,
+                    QStringLiteral("Composite '%1' combines by '%2'; the modes are coherent and "
+                                   "distance.")
+                        .arg(m.id, co.value(QStringLiteral("combine")).toString()));
+            m.composite.minWeight = co.value(QStringLiteral("minWeight")).toDouble(0.5);
+            for (const QJsonValue &pv : co.value(QStringLiteral("parts")).toArray()) {
+                const QJsonObject po = pv.toObject();
+                CompositePartSpec p;
+                p.name     = po.value(QStringLiteral("name")).toString();
+                p.measures = readStringList(po.value(QStringLiteral("measures")));
+                for (const QJsonValue &sv : po.value(QStringLiteral("signs")).toArray())
+                    p.signs.push_back(sv.isDouble() ? sv.toDouble() : 0.0);   // 0 → compositeSign
+                p.weight   = po.value(QStringLiteral("weight")).toDouble(0.0);
+                p.required = po.value(QStringLiteral("required")).toBool(false);
+                m.composite.parts.push_back(std::move(p));
+            }
+        }
 
         m.metricKey  = o.value(QStringLiteral("metricKey")).toString();
         m.preferKeys = readStringList(o.value(QStringLiteral("preferKeys")));
@@ -1868,6 +1997,13 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
         e.to   = o.value(QStringLiteral("to")).toString();
         edgeTypeFromName(o.value(QStringLiteral("type")).toString(QStringLiteral("causes")), e.type);
         strengthFromName(o.value(QStringLiteral("strength")).toString(QStringLiteral("moderate")), e.strength);
+        // Computed at load from what the two ends read (stampSharedEvidence, below) and never taken
+        // from the file: an authored value would be stale the first time a measure changed.
+        if (o.contains(QStringLiteral("sharedEvidence")))
+            err(r, QStringLiteral("sharedEvidenceAuthored"), e.from,
+                QStringLiteral("The edge '%1' -> '%2' states sharedEvidence. It is computed from the "
+                               "measures the two ends read and is never authored; remove the key.")
+                    .arg(e.from, e.to));
 
         e.provenance = parseProvenance(o.value(QStringLiteral("provenance")).toObject());
         // An edge used to carry a bare `citation` string with no tier. No shipped edge ever did,
@@ -1918,6 +2054,8 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
 
     out.parsed = true;
 
+    stampSharedEvidence(out.pack);
+
     const ValidationReport structural = validatePack(out.pack);
     r.issues.insert(r.issues.end(), structural.issues.begin(), structural.issues.end());
 
@@ -1952,7 +2090,29 @@ QJsonObject savePack(const CharacteristicPack &pack)
         o.insert(QStringLiteral("kind"), measureKindName(m.kind));
         if (m.kind == MeasureKind::Composed)
             o.insert(QStringLiteral("series"), writeSeries(m.series));
-        o.insert(QStringLiteral("reducer"), writeReducer(m.reducer));
+        if (m.kind != MeasureKind::Composite)
+            o.insert(QStringLiteral("reducer"), writeReducer(m.reducer));
+        if (m.kind == MeasureKind::Composite) {
+            QJsonObject co;
+            co.insert(QStringLiteral("combine"), compositeCombineName(m.composite.combine));
+            co.insert(QStringLiteral("minWeight"), m.composite.minWeight);
+            QJsonArray parts;
+            for (const CompositePartSpec &p : m.composite.parts) {
+                QJsonObject po;
+                po.insert(QStringLiteral("name"), p.name);
+                po.insert(QStringLiteral("measures"), writeStringList(p.measures));
+                if (!p.signs.empty()) {
+                    QJsonArray sa;
+                    for (double sg : p.signs) sa.append(sg);
+                    po.insert(QStringLiteral("signs"), sa);
+                }
+                po.insert(QStringLiteral("weight"), p.weight);
+                if (p.required) po.insert(QStringLiteral("required"), true);
+                parts.append(po);
+            }
+            co.insert(QStringLiteral("parts"), parts);
+            o.insert(QStringLiteral("composite"), co);
+        }
         if (!m.metricKey.isEmpty()) o.insert(QStringLiteral("metricKey"), m.metricKey);
         if (!m.preferKeys.isEmpty()) o.insert(QStringLiteral("preferKeys"), writeStringList(m.preferKeys));
         if (!m.label.isEmpty())     o.insert(QStringLiteral("label"), m.label);
@@ -2093,6 +2253,130 @@ QJsonObject savePack(const CharacteristicPack &pack)
     }
 
     return root;
+}
+
+// ── Shared evidence ─────────────────────────────────────────────────────────
+
+QSet<QString> conditionEvidenceMeasures(const CharacteristicPack &pack, const QString &conditionId)
+{
+    QSet<QString> out;
+    const Condition *c = pack.condition(conditionId);
+    if (!c) return out;
+    for (const QString &sid : c->detectedBy) {
+        const Signal *s = pack.signal(sid);
+        if (!s) continue;
+        // Every measure the signal can read: its own, an order chain's fallback links (each one is
+        // compared on a swing where the link before it was not placed) and the before-impact guard.
+        QStringList named = s->measures + s->fallback;
+        named.removeAll(QLatin1String(kImpactLink));
+        if (!s->requiresBeforeImpact.isEmpty()) named << s->requiresBeforeImpact;
+        for (const QString &mid : named) {
+            out.insert(mid);
+            if (const Measure *m = pack.measure(mid))
+                for (const QString &part : compositePartMeasures(*m)) out.insert(part);
+        }
+    }
+    return out;
+}
+
+QSet<QString> conditionEvidenceKeys(const CharacteristicPack &pack, const QString &conditionId)
+{
+    QSet<QString> out;
+    for (const QString &mid : conditionEvidenceMeasures(pack, conditionId)) {
+        // The measure itself, so two conditions on one measure that names no curve still share it.
+        out.insert(QStringLiteral("measure:") + mid);
+        const Measure *m = pack.measure(mid);
+        if (!m || m->kind == MeasureKind::Composite) continue;   // its parts are in the set already
+        const QStringList ladder = measureKeyLadder(*m);
+        for (const QString &k : ladder) out.insert(QStringLiteral("key:") + k);
+        // A composed measure resolved through no key is still one curve: its facets name it.
+        if (ladder.isEmpty() && m->kind == MeasureKind::Composed)
+            out.insert(QStringLiteral("series:") + canonicalSeriesId(m->series));
+    }
+    return out;
+}
+
+namespace {
+
+// True when some signal of this condition reads a composite measure directly.
+bool conditionReadsComposite(const CharacteristicPack &pack, const QString &conditionId)
+{
+    const Condition *c = pack.condition(conditionId);
+    if (!c) return false;
+    for (const QString &sid : c->detectedBy)
+        if (const Signal *s = pack.signal(sid))
+            for (const QString &mid : s->measures)
+                if (const Measure *m = pack.measure(mid); m && m->kind == MeasureKind::Composite) return true;
+    return false;
+}
+
+// One condition's evidence, computed once per stamp.
+struct EvidenceOf {
+    QSet<QString> measures;    // conditionEvidenceMeasures
+    QSet<QString> keys;        // conditionEvidenceKeys
+    bool          composite = false;
+};
+
+EvidenceOf evidenceOf(const CharacteristicPack &pack, const QString &id)
+{
+    return { conditionEvidenceMeasures(pack, id), conditionEvidenceKeys(pack, id),
+             conditionReadsComposite(pack, id) };
+}
+
+// THE RULE, in two halves (posture_metrics_design.md §6.5; decided 2026-10-22).
+//
+//   (a) Every edge: the two ends read a common MEASURE (composite parts and their alternatives
+//       expanded). This is the rule the whole pack had, unchanged.
+//   (b) Only where at least one end is read by a COMPOSITE: the two ends read a common CURVE
+//       (conditionEvidenceKeys). §6.5 was written for the composite family, whose parts read the
+//       same series as the single faults at one instant through measures of their own (§4.4) —
+//       `early_extension` reads the forward bend's P5–P7 extreme, `loss_of_posture` its P1→P7
+//       change — so (a) alone missed exactly the edges the flag exists for.
+//
+// THE SERIES-WIDE RULE WAS MEASURED AND DELIBERATELY NOT TAKEN. Applying (b) to every edge marked
+// 53 of the shipped 620 edges against 31 under this rule; the 16 non-posture edges it would also
+// have capped were one curve read at two instants along an established causal chain — forearm
+// rotation (early_face_roll / open_face_top / face_held_shut_takeaway, 6), pelvis sway (sway,
+// pelvis_drift_lead_backswing → slide / hanging_back, 3), lead-wrist radial-ulnar (insufficient_set,
+// over_set → casting, 2), swing plane (2), pelvis rotation (2), lead-wrist flexion (1) — plus axis
+// tilt top → impact. Re-grading those links is out of the posture build's scope and has not been
+// reviewed, so the series-wide rule waits for that review.
+bool sharesEvidence(const EvidenceOf &a, const EvidenceOf &b)
+{
+    if (a.measures.intersects(b.measures)) return true;                    // (a)
+    return (a.composite || b.composite) && a.keys.intersects(b.keys);      // (b)
+}
+
+} // namespace
+
+bool edgeSharesEvidence(const CharacteristicPack &pack, const Edge &edge)
+{
+    if (edge.from == edge.to) return false;
+    return sharesEvidence(evidenceOf(pack, edge.from), evidenceOf(pack, edge.to));
+}
+
+const Measure *landingMeasureOf(const CharacteristicPack &pack, const Measure &m)
+{
+    if (m.kind != MeasureKind::Composite) return &m;
+    for (const CompositePartSpec &p : m.composite.parts)
+        for (const QString &id : p.measures)
+            if (const Measure *pm = pack.measure(id); pm && pm->kind != MeasureKind::Composite)
+                return pm;
+    return &m;
+}
+
+void stampSharedEvidence(CharacteristicPack &pack)
+{
+    // Each condition's evidence once, not once per edge: the shipped graph has several hundred edges
+    // over a hundred-odd conditions, and a hub like `loss_of_posture` is an end of a dozen of them.
+    QHash<QString, EvidenceOf> cache;
+    const auto of = [&](const QString &id) {
+        auto it = cache.find(id);
+        if (it == cache.end()) it = cache.insert(id, evidenceOf(pack, id));
+        return *it;   // a copy: the next insert may rehash
+    };
+    for (Edge &e : pack.edges)
+        e.sharedEvidence = e.from != e.to && sharesEvidence(of(e.from), of(e.to));
 }
 
 } // namespace pinpoint::analysis

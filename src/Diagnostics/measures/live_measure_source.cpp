@@ -52,6 +52,7 @@ QString missingReasonText(MissingKind k)
     case MissingKind::PhaseNotSegmented:        return QStringLiteral("the phase this reads at was not segmented");
     case MissingKind::CaptureDataIssue:         return QStringLiteral("frames were lost during capture, so this shot is not assessed");
     case MissingKind::SessionScope:             return QStringLiteral("read over the session, never one swing");
+    case MissingKind::CompositeCoverage:        return QStringLiteral("too few of its parts read on this shot");
     }
     return QString();
 }
@@ -101,6 +102,15 @@ std::optional<IMeasureValueSource::Value> LiveMeasureSource::value(const QString
         return std::nullopt;
     }
 
+    // A COMPOSITE has no grid reading of its own: it is its parts, combined under their norms by
+    // NormMeasureSource, which never asks this source for the composite's id. The only caller that
+    // does is one explaining a refusal after the fact, and the refusal a composite meets for want of
+    // values is too few parts — so that is the sentence, not "no metric behind it yet".
+    if (m->kind == MeasureKind::Composite) {
+        note(measureId, MissingKind::CompositeCoverage);
+        return std::nullopt;
+    }
+
     if (m->metricKey.isEmpty() && m->preferKeys.isEmpty()) {
         note(measureId, MissingKind::NoMetricBinding);
         return std::nullopt;
@@ -129,6 +139,8 @@ std::optional<IMeasureValueSource::Value> LiveMeasureSource::value(const QString
         out.direct = v->direct;
         // So is the producer's "drawn but not judged": it is not a σ, and must hold either way.
         out.withheld = v->withheld;
+        // The two ends of a change, for a composite's part rows ("address 34° → impact 24°").
+        seriesEndpoints(*m, out.atStart, out.atEnd);
         // The measurement σ (session_diagnostics_design.md §A8.3), behind its switch so the off
         // state reproduces the pre-uncertainty source exactly.
         if (m_withSigma) {
@@ -167,6 +179,33 @@ std::optional<IMeasureValueSource::Value> LiveMeasureSource::value(const QString
 
     note(measureId, MissingKind::PhaseNotSegmented);
     return std::nullopt;
+}
+
+void LiveMeasureSource::seriesEndpoints(const Measure &m, double &atStart, double &atEnd) const
+{
+    // Only a reading BETWEEN two instants has two ends. A value read at one phase stays NaN at both:
+    // its series may already be address-relative (pelvis thrust), but saying "0 → x" for it would be
+    // this source inventing an anchor the measure never names.
+    const Reducer &r = m.reducer;
+    const bool anchoredExtremum = r.kind == ReducerKind::Extremum && r.anchor.has_value();
+    if (!(r.kind == ReducerKind::Delta || anchoredExtremum) || !r.anchor.has_value()) return;
+
+    // The rung that ANSWERED, which is the first in the ladder the reduction itself succeeds on —
+    // the same walk reduceOverGridReading() makes, so the ends belong to the value beside them.
+    for (const QString &key : measureKeyLadder(m)) {
+        const std::optional<double> v = reduceOverGrid(m_grid, key, r);
+        if (!v) continue;
+        const MetricPhaseGrid *mg = m_grid.metric(key);
+        const PhaseGridValue  *a  = mg ? mg->at(*r.anchor) : nullptr;
+        if (!a) return;
+        atStart = a->value;
+        if (r.kind == ReducerKind::Delta) {
+            if (const PhaseGridValue *b = mg->at(r.window.second)) atEnd = b->value;
+        } else {
+            atEnd = a->value + *v;   // the signed deviation, put back on the series' own scale
+        }
+        return;
+    }
 }
 
 LiveMeasureSource::GateCause LiveMeasureSource::gateCause(const QString &measureId) const

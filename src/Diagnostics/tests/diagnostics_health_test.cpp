@@ -361,7 +361,27 @@ int main()
         sig("sig_declared",    "m_declared",    Direction::High);   // low tail declared unwatched
         sig("sig_wrongTail",   "m_wrongTail",   Direction::High);   // declared the WATCHED tail
 
+        // A PART of a composite watches both tails through it (posture_metrics_design.md §6.4): a
+        // coherent sum consumes the reading either side of the norm. One part with a single-tail
+        // signal of its own, one with none at all — neither is reported.
+        measure("m_part",       MeasureStatus::Live,    Shape::Target);
+        measure("m_partBare",   MeasureStatus::Live,    Shape::Target);
+        sig("sig_part",        "m_part",        Direction::High);
+        {
+            Measure comp;
+            comp.id     = QStringLiteral("m_comp");
+            comp.label  = comp.id;
+            comp.kind   = MeasureKind::Composite;
+            comp.status = MeasureStatus::Live;
+            comp.unit   = QStringLiteral("z");
+            comp.composite.parts = { { QStringLiteral("a"), { QStringLiteral("m_part") }, { 1.0 }, 0.6, false },
+                                     { QStringLiteral("b"), { QStringLiteral("m_partBare") }, { 1.0 }, 0.4, false } };
+            pack.measures.push_back(comp);
+        }
+
         FakeNorms norms;
+        norms.add("m_part",      "full_swing", 0.0, 2.0);
+        norms.add("m_partBare",  "full_swing", 0.0, 2.0);
         norms.add("m_normed",    "full_swing", 10.0, 2.0);
         norms.add("m_unnormed",  "full_swing", 10.0, 2.0);
         norms.add("m_oneTail",   "full_swing", 10.0, 2.0);
@@ -390,6 +410,10 @@ int main()
         check(hasSubject(issues, "ungradedTail", QStringLiteral("m_wrongTail")),
               "…but declaring the tail a signal ALREADY watches silences nothing — the ungraded "
               "tail is still ungraded, and validatePack refuses the declaration separately");
+
+        check(!hasSubject(issues, "ungradedTail", QStringLiteral("m_part"))
+                  && !hasSubject(issues, "ungradedTail", QStringLiteral("m_partBare")),
+              "a composite's part counts as watched on BOTH tails, with or without a signal of its own");
 
         // m_unnormed carries a norm here and one direction, so it is the fourth legitimate row.
         check(countCode(issues, "ungradedTail") == 3,

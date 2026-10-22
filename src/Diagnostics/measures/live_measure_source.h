@@ -80,6 +80,10 @@ enum class MissingKind {
                                 // inconsistent) — every row on the shot is withheld, not just one measure
     SessionScope,               // read over the session's swings (MeasureScope::Session), never off one
                                 // swing — the session model reduces it (§10.8 E2)
+    CompositeCoverage,          // a composite (MeasureKind::Composite): never a grid reading of its own.
+                                // NormMeasureSource composes it from its parts, so this source is only
+                                // ever asked about one after it was refused — too few parts read
+                                // (posture_metrics_design.md §4.6, rule.diag.compositeCoverage)
 };
 
 // The sentence a not-assessable cell shows. Generic on purpose — see the header comment on why
@@ -165,6 +169,8 @@ public:
 
 private:
     void note(const QString &measureId, MissingKind k) const;
+    // Value::atStart / atEnd for a Delta or anchored-Extremum measure; left NaN otherwise.
+    void seriesEndpoints(const Measure &m, double &atStart, double &atEnd) const;
 
     SwingPhaseGrid                  m_grid;
     const CharacteristicPack       &m_pack;
