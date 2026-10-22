@@ -1270,7 +1270,8 @@ int main()
         check(pv && th && pv->color == QStringLiteral("crimson") && th->color == QStringLiteral("mint"),
               "pelvis is crimson and chest mint in the kinematic sequence");
 
-        // THE POSTURE PRESET (posture_metrics_design.md §8): the six readings of the posture changing,
+        // THE POSTURE PRESET (posture_metrics_design.md §8): the five readings of the posture changing
+        // (trunkRise left out on 22 Oct: it failed validation V1 and is held),
         // face-on and down the line together, in manifest order. A reading dropped from it, or a
         // seventh added, has to be a deliberate edit here too.
         QStringList posture;
@@ -1278,8 +1279,8 @@ int main()
             if (std::find(d->presets.begin(), d->presets.end(), QStringLiteral("Posture")) != d->presets.end())
                 posture << d->key;
         check(posture.join(QLatin1Char(','))
-                  == QStringLiteral("spineForwardBend,trunkRise,pelvisThrust,pelvisLift,headLift,trailKneeFlexion"),
-              "the Posture preset carries the six posture readings, in manifest order");
+                  == QStringLiteral("spineForwardBend,pelvisThrust,pelvisLift,headLift,trailKneeFlexion"),
+              "the Posture preset carries the five posture readings, in manifest order");
         std::printf("    Posture preset: %s\n", qPrintable(posture.join(QStringLiteral(", "))));
     }
 

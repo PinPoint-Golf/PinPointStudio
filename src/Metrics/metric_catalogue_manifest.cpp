@@ -945,7 +945,9 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("%"),
         .group = QStringLiteral("Spine & tilt"),
         .color = QStringLiteral("gold"),
-        .presets = { QStringLiteral("Posture") },
+        // NOT in the Posture preset (Mark, 22 Oct 2026): it failed validation V1 against the down-the-line
+        // bend (Spearman 0.12-0.23, docs/research/data/posture/posture_composites_2026-10-22.md) and is
+        // held from grading, so it is not drawn as a posture curve either.
         .description = QStringLiteral(
             "How much longer the line from the hips to the shoulders looks from the face-on camera "
             "than it did at address, as a percentage of its address length. A trunk bent over the "
