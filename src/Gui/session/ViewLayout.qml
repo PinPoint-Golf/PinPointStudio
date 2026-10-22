@@ -51,9 +51,13 @@
 //                                                            // tile) off|frame — auto_annotations_design.md
 //           traceTarget: string                        // optional (see below)
 //       },
-//       coachLines: bool                               // the View menu's static address marks
-//                                                       // (auto_annotations_design.md §1); Replay and
-//                                                       // Analyse only — Capture never draws them
+//       coachLineSets: { posture: bool, plane: bool,  // the View menu's static address marks, in three
+//                        headHips: bool },             // independent sets (auto_annotations_design.md §1c);
+//                                                       // Replay and Analyse only — Capture never draws them
+//       coachLines: bool                               // LEGACY single toggle, still written as "any set on"
+//                                                       // for an older build. Read only when coachLineSets
+//                                                       // is absent: true ⇒ Head & hips + Plane (what the
+//                                                       // old toggle drew), Posture off; false/absent ⇒ none
 //       sizes: {                                       // optional — the user's dragged panel sizes,
 //           split: { <panelKey>: weight },             // per ARRANGEMENT (setSizes). Relative weights,
 //           stage: { main: fraction,                   // mean 1 over the panels active when written;
@@ -287,11 +291,37 @@ QtObject {
 
     // The coach's static marks (auto_annotations_design.md): a VIEW property, not a motion
     // element — they are reference lines, available whenever a swing is being looked at.
+    // Three independent sets (§1c), each mark tagged with its set by AutoAnnotations.js:
+    //   posture  — spine (tailbone → back of the neck), shoulder plane, trail leg
+    //   plane    — the address shaft plane and the Hogan line
+    //   headHips — face-on head circle and hip edges; the DTL butt line
     // Off by default; never in Capture.
+    readonly property var coachSetKeys: ["posture", "plane", "headHips"]
+
+    // The stored sets of a layout entry, migrating the old single `coachLines` bool: true read
+    // as Head & hips + Plane (exactly what that toggle drew before Posture existed), Posture off.
+    function _coachSetsOf(l) {
+        var cs = l ? l.coachLineSets : undefined
+        if (cs && typeof cs === "object")
+            return { posture: cs.posture === true, plane: cs.plane === true, headHips: cs.headHips === true }
+        var old = !!l && l.coachLines === true
+        return { posture: false, plane: old, headHips: old }
+    }
+
+    // { posture, plane, headHips } for a mode — all false in Capture.
+    function coachSetsFor(mode) {
+        if (mode === SessionMode.capture) return { posture: false, plane: false, headHips: false }
+        return _coachSetsOf(_layout(mode))
+    }
+
+    function coachSetOn(mode, set) {
+        return coachSetsFor(mode)[set] === true
+    }
+
+    // Any set on — the tile's gate (and what `coachLines` meant before the sets).
     function coachLinesOn(mode) {
-        if (mode === SessionMode.capture) return false
-        var l = _layout(mode)
-        return l.coachLines === true
+        var cs = coachSetsFor(mode)
+        return cs.posture || cs.plane || cs.headHips
     }
 
     // The dragged panel sizes for a mode (see the storage shape above): a fresh object, {} when
@@ -326,8 +356,19 @@ QtObject {
         _write(mode, enabledKeysFor(mode).slice(), name)
     }
 
+    // One set on or off; the others keep their stored (or migrated) state.
+    function setCoachSet(mode, set, on) {
+        if (coachSetKeys.indexOf(set) < 0) return
+        var cs = _coachSetsOf(_layout(mode))
+        cs[set] = on === true
+        _write(mode, enabledKeysFor(mode).slice(), arrangementFor(mode), undefined, cs)
+    }
+
+    // Shim for the old single toggle: every set on, or every set off.
     function setCoachLines(mode, on) {
-        _write(mode, enabledKeysFor(mode).slice(), arrangementFor(mode), undefined, on === true)
+        var v = on === true
+        _write(mode, enabledKeysFor(mode).slice(), arrangementFor(mode), undefined,
+               { posture: v, plane: v, headHips: v })
     }
 
     function setMotionOn(mode, on) {
@@ -372,22 +413,23 @@ QtObject {
         _write(mode, enabledKeysFor(mode).slice(), arrangementFor(mode), undefined, undefined, all)
     }
 
-    // motion, coachLines and sizes are optional — omitted by setPanel/setArrangement and kin, so
+    // motion, coachSets and sizes are optional — omitted by setPanel/setArrangement and kin, so
     // preserve the mode's current value (migrating an old bool `overlays` entry into a
     // full `motion` object at that moment; the old key is not written back). The entry starts
     // from the stored one, so any field this version does not name survives a write too.
-    function _write(mode, panels, arrangement, motion, coachLines, sizes) {
+    function _write(mode, panels, arrangement, motion, coachSets, sizes) {
         var m = _clone(appSettings.viewLayoutByMode)
         var l = _layout(mode)
         var mo = (motion !== undefined) ? motion : _rawMotion(mode)
-        var cl = (coachLines !== undefined) ? coachLines : (l.coachLines === true)
+        var cs = (coachSets !== undefined) ? coachSets : _coachSetsOf(l)
         var sz = (sizes !== undefined) ? sizes : l.sizes
         var e = _clone(m[_key(mode)])
         delete e.overlays
         e.panels = panels
         e.arrangement = arrangement
         e.motion = mo
-        e.coachLines = cl
+        e.coachLineSets = { posture: cs.posture === true, plane: cs.plane === true, headHips: cs.headHips === true }
+        e.coachLines = e.coachLineSets.posture || e.coachLineSets.plane || e.coachLineSets.headHips   // legacy readers
         if (sz && typeof sz === "object" && Object.keys(sz).length > 0) e.sizes = sz
         else delete e.sizes
         m[_key(mode)] = e

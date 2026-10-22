@@ -22,15 +22,23 @@
 // from, returned in NORMALISED image coordinates, and drawn unchanged on every frame of
 // the swing. Pure functions, no Qt: a QML test can press them with a hand-made payload.
 //
-//   build(det, isDtl, addressUs) → [ mark, … ]
-//     { kind: "circle", cx, cy, r, label }           face-on: the head at address
-//     { kind: "vline",  x, label }                   face-on: the outside of each hip; DTL: the rear of the butt
-//     { kind: "line",   x0, y0, x1, y1, label }      DTL: the address shaft line through ball and grip
+//   build(det, isDtl, addressUs, leadIsLeft, aspect) → [ mark, … ]   every mark also carries `set`
+//   filterSets(marks, { posture, plane, headHips }) → the marks of the sets that are on
+//     { kind: "circle",   cx, cy, r, label }         face-on: the head at address
+//     { kind: "vline",    x, label }                 face-on: the outside of each hip; DTL: the rear of the butt
+//     { kind: "line",     x0, y0, x1, y1, label }    DTL: the address shaft line through ball and grip (dashed)
+//     { kind: "polyline", pts: [[x, y], …], label, dash }  DTL: the spine (tailbone → back of the
+//                                                    neck) and the trail leg, solid; the shoulder plane,
+//                                                    dash "dot"; the Hogan line, dash "long"
 //
 // `det` is the tile's own detail (face-on top level, or the nested `dtl` block — the same
 // shapes, dtl_overlay_payload.h). The pose keypoints are COCO-17-first: nose 0, eyes 1–2,
-// ears 3–4, hips 11–12. Every number here is what the pose / ball / club READ at address,
-// in pixels; none is a metric and nothing persists.
+// ears 3–4, shoulders 5–6, hips 11–12, knees 13–14, ankles 15–16 (odd = the body's left).
+// `leadIsLeft` (default true, a right-handed golfer) picks the TRAIL side (shoulder, leg).
+// `aspect` is the drawn image's width / height — only the shoulder plane needs it (its offset
+// from the trail shoulder is a distance in pixels); without it that line is not drawn.
+// Every number here is what the pose / mask / ball / club READ at address, in pixels; none is a
+// metric and nothing persists.
 
 var kConfMin = 0.3
 var kAddressWindowUs = 60000     // a pose frame or club sample further than this from address is not "at address"
@@ -104,7 +112,7 @@ function headCircle(frame) {
     else if (lEye && rEye) r = 1.1 * dist(lEye, rEye)
     else                   r = 0.04
     r = Math.max(r, 0.025)
-    return { kind: "circle", cx: cx, cy: cy, r: r, label: "head" }
+    return { kind: "circle", cx: cx, cy: cy, r: r, label: "head", set: "headHips" }
 }
 
 // ── the hip verticals: the body's OUTER edges, from the person mask ─────────
@@ -118,10 +126,10 @@ function hipLines(det, isDtl) {
     if (!am || !am.found) return []
     var out = []
     if (isDtl) {
-        if (isFinite(am.buttX)) out.push({ kind: "vline", x: am.buttX, label: "butt" })
+        if (isFinite(am.buttX)) out.push({ kind: "vline", x: am.buttX, label: "butt", set: "headHips" })
     } else {
-        if (isFinite(am.leftX))  out.push({ kind: "vline", x: am.leftX,  label: "hip edge" })
-        if (isFinite(am.rightX)) out.push({ kind: "vline", x: am.rightX, label: "hip edge" })
+        if (isFinite(am.leftX))  out.push({ kind: "vline", x: am.leftX,  label: "hip edge", set: "headHips" })
+        if (isFinite(am.rightX)) out.push({ kind: "vline", x: am.rightX, label: "hip edge", set: "headHips" })
     }
     return out
 }
@@ -172,11 +180,126 @@ function planeLine(det, addressUs) {
     var e = extendToSquare(grip, through)
     if (!e) return null
     return { kind: "line", x0: e.x0, y0: e.y0, x1: e.x1, y1: e.y1,
-             label: ball ? "address shaft plane (ball → hands)" : "address shaft plane (shaft)" }
+             label: ball ? "address shaft plane (ball → hands)" : "address shaft plane (shaft)", set: "plane" }
+}
+
+// ── DTL: the spine, shoulder-plane, Hogan and trail-leg lines, frozen at address ──
+// Mark, 22 Oct 2026: "coaching lines on the dtl view that show the spine and leg angles frozen
+// at address. then we can see how the golfer moves through the swing."
+
+function mid(a, b) { return [0.5 * (a[0] + b[0]), 0.5 * (a[1] + b[1])] }
+
+// The SPINE line is TPI's spine angle line, "from the base of the tailbone to the back of the
+// neck": two points on the REAR outline of the silhouette, measured by the analysis on the
+// address frame (address_marks.h measureBackLine → `det.addressMarks.tailbone*/neck*`, stage
+// version 2). It ends AT the neck — no extension through the head — and runs kSpineTailFrac of
+// its length below the tailbone, so its start reads past the waistband. A swing analysed before
+// version 2 has no such points and draws NO spine line (and so no shoulder plane) until it is
+// re-analysed: never the joint line instead, a different line under the same name.
+var kSpineTailFrac = 0.1
+
+function backLine(det) {
+    var am = det ? det.addressMarks : null
+    if (!am || !am.found) return null
+    var t = [am.tailboneX, am.tailboneY], n = [am.neckX, am.neckY]
+    if (!(isFinite(t[0]) && isFinite(t[1]) && isFinite(n[0]) && isFinite(n[1]))) return null
+    var vx = n[0] - t[0], vy = n[1] - t[1]
+    if (Math.abs(vx) < 1e-9 && Math.abs(vy) < 1e-9) return null
+    return { t: t, n: n, vx: vx, vy: vy }
+}
+
+function spineLine(det) {
+    var b = backLine(det)
+    if (!b) return null
+    return { kind: "polyline", label: "spine", set: "posture",
+             pts: [ [b.t[0] - kSpineTailFrac * b.vx, b.t[1] - kSpineTailFrac * b.vy], [b.n[0], b.n[1]] ] }
+}
+
+// ── the shoulder plane ──────────────────────────────────────────────────────
+// TPI's flat-shoulder-plane check (mytpi.com, "Flat Shoulder Plane"): after the spine angle line,
+// a second line "just above the trailing shoulder and parallel to the spine angle line"; at the
+// top, "if the lead shoulder is above the line they have a flat shoulder plane." So: PARALLEL to
+// the spine line above, offset from the address TRAIL shoulder joint (pose 6, or 5 for a
+// left-hander) by kShoulderPlaneMargin of the spine line's length, at a right angle to it and
+// upward (toward the golfer's back).
+// The margin, from Nick Henn's 20 Oct swing 1 address frame (pose + the analysis's u2netp mask):
+// walking from the trail shoulder joint at a right angle to the tailbone→neck line, the body's
+// outline is 0.22 of that line's length away (48 px of 222); 0.25 puts the line just clear of the
+// shoulder's outline — "just above" it — and 0.18 of the length above the spine line, so the two
+// read apart. (The joint itself sits 0.10 BELOW the spine line: the line is a chord across the
+// rounded upper back.) The extent: kShoulderPlaneDown below the offset point and kShoulderPlaneUp
+// above it, which spans the shoulders through the swing (on that swing they stay within about
+// 0.1 of the line's length of the address shoulders, along it, from P1 to P7).
+// The offset is a distance IN THE PICTURE: normalised coordinates are stretched by the frame's
+// width and height separately, so the perpendicular is taken in pixels — `aspect` is the drawn
+// image's width / height (the tile's content rect) — and mapped back. No spine line, no
+// confident trail shoulder, or no usable aspect ⇒ no shoulder plane.
+var kShoulderPlaneMargin = 0.25
+var kShoulderPlaneUp = 0.5
+var kShoulderPlaneDown = 0.7
+
+function trailShoulder(frame, leadIsLeft) { return frame ? kpt(frame, leadIsLeft === false ? 5 : 6) : null }
+
+function shoulderPlane(det, frame, aspect, leadIsLeft) {
+    var b = backLine(det)
+    if (!b || !(aspect > 0) || !isFinite(aspect)) return null
+    var trail = trailShoulder(frame, leadIsLeft)
+    if (!trail) return null
+    // In pixels (unit height): d = (vx·a, vy); a normal n of the same length, the upward one.
+    var nx = b.vy, ny = -b.vx * aspect
+    if (ny > 0) { nx = -nx; ny = -ny }
+    // back to normalised: (n.x / a, n.y); the line's direction is (vx, vy) in either space
+    var o = [trail[0] + kShoulderPlaneMargin * nx / aspect, trail[1] + kShoulderPlaneMargin * ny]
+    return { kind: "polyline", label: "shoulder plane", dash: "dot", set: "posture",
+             pts: [ [o[0] - kShoulderPlaneDown * b.vx, o[1] - kShoulderPlaneDown * b.vy],
+                    [o[0] + kShoulderPlaneUp * b.vx,   o[1] + kShoulderPlaneUp * b.vy] ] }
+}
+
+// ── the Hogan line ──────────────────────────────────────────────────────────
+// Hogan's plane: from the ball through the address TRAIL shoulder joint. With the dashed shaft
+// plane (ball up the address shaft) it bounds the "V zone" the club should swing within. The
+// ball is the shaft plane's own (`det.ball.samples[0]`). It runs from the ball through the
+// shoulder to the picture's edge: on Nick Henn's 20 Oct swing 1 the hands at the top sit 1.25 of
+// the ball→shoulder length up it and the club beyond them, and the edge is at 1.78 — any fixed
+// length short of the edge risks ending under the club. No ball or no confident trail shoulder ⇒
+// no line. Long dashes, so it reads apart from the shaft plane's shorter ones.
+function hoganLine(det, frame, leadIsLeft) {
+    var ball = addressBall(det), trail = trailShoulder(frame, leadIsLeft)
+    if (!ball || !trail) return null
+    var e = extendToSquare(ball, trail)            // t: ball 0, shoulder 1; (x1, y1) is the shoulder side
+    if (!e) return null
+    return { kind: "polyline", label: "Hogan plane (ball → trail shoulder)", dash: "long", set: "plane",
+             pts: [ [ball[0], ball[1]], [e.x1, e.y1] ] }
+}
+
+// ── the trail leg ───────────────────────────────────────────────────────────
+// Hip → knee → ankle of the TRAIL leg (the near one down the line), drawn only when its three
+// points are confident — never half a leg. The lead leg is not drawn: from down the line it is
+// behind the trail leg and its line was a distraction (Mark, 22 Oct 2026).
+function trailLeg(frame, leadIsLeft) {
+    if (!frame) return null
+    var j = leadIsLeft === false ? [11, 13, 15] : [12, 14, 16]
+    var hip = kpt(frame, j[0]), knee = kpt(frame, j[1]), ankle = kpt(frame, j[2])
+    return (hip && knee && ankle) ? { kind: "polyline", label: "trail leg", set: "posture", pts: [hip, knee, ankle] } : null
+}
+
+// ── the View menu's sets ────────────────────────────────────────────────────
+// Every mark carries `set` (auto_annotations_design.md §1c), and the View menu turns each set on
+// or off on its own (ViewLayout.coachSetsFor):
+//   "posture"  — the spine (tailbone → back of the neck), the shoulder plane, the trail leg
+//   "plane"    — the address shaft plane and the Hogan line (the "V zone")
+//   "headHips" — face-on: the head circle and the hip edges; DTL: the butt line
+var kSets = ["posture", "plane", "headHips"]
+
+// The marks whose set is on in `sets` ({ posture, plane, headHips }: bool). A mark with no set,
+// or an unknown one, is dropped — never drawn by default.
+function filterSets(marks, sets) {
+    if (!marks || !sets) return []
+    return marks.filter(function (m) { return kSets.indexOf(m.set) >= 0 && sets[m.set] === true })
 }
 
 // ── everything, for one tile ────────────────────────────────────────────────
-function build(det, isDtl, addressUs) {
+function build(det, isDtl, addressUs, leadIsLeft, aspect) {
     if (!det || !(addressUs >= 0)) return []
     var frame = addressPose(det, addressUs)
     var out = []
@@ -189,6 +312,14 @@ function build(det, isDtl, addressUs) {
     if (isDtl) {
         var pl = planeLine(det, addressUs)
         if (pl) out.push(pl)
+        var hg = hoganLine(det, frame, leadIsLeft)
+        if (hg) out.push(hg)
+        var sp = spineLine(det)
+        if (sp) out.push(sp)
+        var sh = shoulderPlane(det, frame, aspect, leadIsLeft)
+        if (sh) out.push(sh)
+        var tl = trailLeg(frame, leadIsLeft)
+        if (tl) out.push(tl)
     }
     return out
 }

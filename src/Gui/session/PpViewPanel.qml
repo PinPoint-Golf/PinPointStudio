@@ -150,20 +150,40 @@ Item {
             // The coach's static marks, fixed at address (auto_annotations_design.md §1): a VIEW
             // property — reference lines a swing is looked at against, not a motion analysis —
             // so they live here, per mode, Replay and Analyse only. Capture never draws them.
-            Item {
-                width: parent.width
-                height: Theme.sp(20)
+            // Three independent sets (§1c), so the picture is never all the lines at once.
+            Text {
                 visible: SessionMode.mode !== SessionMode.capture
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("Coach lines (head, hips, address plane)")
-                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                    color: ViewLayout.coachLinesOn(SessionMode.mode) ? Theme.colorText : Theme.colorText2
-                }
-                MiniToggle {
-                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                    checked: ViewLayout.coachLinesOn(SessionMode.mode)
-                    onToggled: ViewLayout.setCoachLines(SessionMode.mode, !checked)
+                text: qsTr("Coach lines")
+                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                color: ViewLayout.coachLinesOn(SessionMode.mode) ? Theme.colorText : Theme.colorText2
+            }
+            Repeater {
+                model: [
+                    { key: "posture",  label: qsTr("Posture"),     name: "coachSetPosture" },
+                    { key: "plane",    label: qsTr("Plane"),       name: "coachSetPlane" },
+                    { key: "headHips", label: qsTr("Head & hips"), name: "coachSetHeadHips" }
+                ]
+                delegate: Item {
+                    required property var modelData
+                    readonly property bool _on: ViewLayout.coachSetOn(SessionMode.mode, modelData.key)
+                    objectName: modelData.name
+                    visible: SessionMode.mode !== SessionMode.capture
+                    width: parent.width
+                    height: Theme.sp(20)
+                    Text {
+                        objectName: modelData.name + "Label"
+                        x: Theme.sp(12)                 // indented under the heading
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.label
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                        color: parent._on ? Theme.colorText : Theme.colorText2
+                    }
+                    MiniToggle {
+                        objectName: modelData.name + "Toggle"
+                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                        checked: parent._on
+                        onToggled: ViewLayout.setCoachSet(SessionMode.mode, modelData.key, !checked)
+                    }
                 }
             }
         }

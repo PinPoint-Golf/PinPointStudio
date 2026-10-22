@@ -139,6 +139,196 @@ TestCase {
         compare(ofKind(m2, "line").length, 1, "the plane line does not depend on the mask")
     }
 
+    // A DTL address: the pose with the trunk and both legs — hips (0.47, 0.52) / (0.49, 0.53),
+    // shoulders 5 (0.59, 0.38) / trail 6 (0.61, 0.39), the trail (right, 12/14/16 for a
+    // right-hander) leg nearer the camera — the analysis's rear-outline points (tailbone
+    // (0.42, 0.50), back of the neck (0.58, 0.35); address_marks.h, stage version 2) and the ball
+    // at (0.80, 0.88). A later frame with everything moved, which the lines must ignore.
+    function dtlBodyDet(drop, noBack) {
+        var pts = { 5: [0.59, 0.38], 6: [0.61, 0.39], 11: [0.47, 0.52], 12: [0.49, 0.53],
+                    13: [0.52, 0.70], 14: [0.53, 0.71], 15: [0.50, 0.83], 16: [0.48, 0.88] }
+        for (var i = 0; drop && i < drop.length; ++i) delete pts[drop[i]]
+        var addr = kpFrame(1000000, pts)
+        var later = kpFrame(1400000, { 5: [0.40, 0.30], 6: [0.42, 0.31], 11: [0.45, 0.50], 12: [0.47, 0.51],
+                                       13: [0.60, 0.70], 14: [0.61, 0.71], 15: [0.60, 0.85], 16: [0.62, 0.86] })
+        var am = { found: true, rowY: 0.525, hipLeftX: 0.47, hipRightX: 0.49, leftX: 0.41, rightX: 0.61, buttX: 0.41, side: -1, rows: 31,
+                   tailboneX: 0.42, tailboneY: 0.50, neckX: 0.58, neckY: 0.35, backWalks: 11 }
+        if (noBack) { am.tailboneX = NaN; am.tailboneY = NaN; am.neckX = NaN; am.neckY = NaN }
+        return { pose2d: { frames: [addr, later] }, addressMarks: am,
+                 ball: { samples: [ { t_us: 990000, x: 0.80, y: 0.88, r: 0.01, conf: 1, found: true } ] } }
+    }
+    function polys(marks, label) {
+        return marks.filter(function (m) { return m.kind === "polyline" && (!label || m.label === label) })
+    }
+    function hogan(marks) { return marks.filter(function (m) { return m.kind === "polyline" && m.dash === "long" }) }
+    function onSeg(a, b, p, tol) {
+        var dx = b[0] - a[0], dy = b[1] - a[1]
+        return Math.abs(dx * (p[1] - a[1]) - dy * (p[0] - a[0])) / Math.hypot(dx, dy) <= tol
+    }
+
+    // ── the spine: TPI's tailbone → back of the neck, from the analysis's rear outline ──
+    function test_dtl_spine_is_tailbone_to_back_of_neck() {
+        var marks = AA.build(dtlBodyDet(), true, 1000000, true, 1)
+        var sp = polys(marks, "spine")
+        compare(sp.length, 1, "one spine line on the DTL tile")
+        compare(sp[0].pts.length, 2)
+        compare(sp[0].pts[1], [0.58, 0.35], "it ends AT the back of the neck — no extension through the head")
+        fuzzyCompare(sp[0].pts[0][0], 0.42 - AA.kSpineTailFrac * 0.16, 1e-12, "a short tail below the tailbone")
+        fuzzyCompare(sp[0].pts[0][1], 0.50 + AA.kSpineTailFrac * 0.15, 1e-12)
+        verify(onSeg(sp[0].pts[0], sp[0].pts[1], [0.42, 0.50], 1e-12), "through the tailbone")
+        // the pose's joint line is not this line: moving the shoulder joints does not move it
+        var d = dtlBodyDet(); d.pose2d.frames[0].kp[5 * 3] = 0.70; d.pose2d.frames[0].kp[6 * 3] = 0.72
+        compare(polys(AA.build(d, true, 1000000, true, 1), "spine")[0].pts, sp[0].pts, "the joints do not move it")
+        // frozen: the analysis's address reading, asked at any instant
+        compare(polys(AA.build(dtlBodyDet(), true, 1250000, true, 1), "spine").length, 1, "a reading of the address frame, like the butt line")
+    }
+
+    function test_dtl_unreanalysed_swing_has_no_spine() {
+        // Analysed before addressMarks version 2: no tailbone / neck. No spine line and so no
+        // shoulder plane — never the joint line in its place; everything else still draws.
+        var marks = AA.build(dtlBodyDet(null, true), true, 1000000, true, 1)
+        compare(polys(marks, "spine").length, 0, "no rear-outline points ⇒ no spine line")
+        compare(polys(marks, "shoulder plane").length, 0, "and no shoulder plane (it is parallel to the spine)")
+        compare(ofKind(marks, "vline").length, 1, "the butt line stands")
+        compare(hogan(marks).length, 1, "the Hogan line stands (ball + pose)")
+        compare(polys(marks, "trail leg").length, 1, "the trail leg stands (pose)")
+        var d = dtlBodyDet(); delete d.addressMarks.neckX; delete d.addressMarks.neckY
+        compare(polys(AA.build(d, true, 1000000, true, 1), "spine").length, 0, "half the points ⇒ no line")
+        var e = dtlBodyDet(); e.addressMarks.found = false
+        compare(polys(AA.build(e, true, 1000000, true, 1), "spine").length, 0, "no address marks ⇒ no line")
+    }
+
+    // ── the trail leg only ──
+    function test_dtl_trail_leg_only() {
+        var marks = AA.build(dtlBodyDet(), true, 1000000, true, 1)
+        compare(polys(marks, "trail leg").length, 1, "the trail leg")
+        compare(polys(marks, "trail leg")[0].pts, [[0.49, 0.53], [0.53, 0.71], [0.48, 0.88]], "right-handed: 12 → 14 → 16")
+        compare(polys(marks, "lead leg").length, 0, "the lead leg is never drawn")
+        var lefty = AA.build(dtlBodyDet(), true, 1000000, false, 1)
+        compare(polys(lefty, "trail leg")[0].pts[0], [0.47, 0.52], "left-handed: the trail leg is the body's left")
+        compare(polys(AA.build(dtlBodyDet([14]), true, 1000000, true, 1), "trail leg").length, 0, "trail knee unseen ⇒ no line, never half a leg")
+        var d = dtlBodyDet(); d.pose2d.frames[0].kp[16 * 3 + 2] = 0.2
+        compare(polys(AA.build(d, true, 1000000, true, 1), "trail leg").length, 0, "conf 0.2 ⇒ the trail ankle is not seen")
+        compare(polys(AA.build(dtlBodyDet(), true, 1250000, true, 1), "trail leg").length, 0, "no pose at address ⇒ no leg")
+    }
+
+    // ── the shoulder plane (TPI): PARALLEL to the spine, just above the trail shoulder ──
+    function shoulderAt(aspect, drop, leadIsLeft) {
+        return polys(AA.build(dtlBodyDet(drop), true, 1000000, leadIsLeft === undefined ? true : leadIsLeft, aspect), "shoulder plane")
+    }
+    // Signed distance in PIXELS (unit height) of point p from the line through a with direction d
+    // (normalised inputs, x stretched by the aspect); positive = above (smaller image y).
+    function aboveBy(p, a, d, aspect) {
+        var dx = d[0] * aspect, dy = d[1], len = Math.hypot(dx, dy)
+        var nx = dy / len, ny = -dx / len
+        if (ny > 0) { nx = -nx; ny = -ny }
+        return ((p[0] - a[0]) * aspect * nx + (p[1] - a[1]) * ny)
+    }
+    function test_dtl_shoulder_plane_parallel_to_spine_above_trail_shoulder() {
+        // Nick Henn's DTL frame (976 × 1024) and a wide 16:9 one: the offset is measured in pixels.
+        var aspects = [976 / 1024, 16 / 9]
+        for (var i = 0; i < aspects.length; ++i) {
+            var a = aspects[i]
+            var marks = AA.build(dtlBodyDet(), true, 1000000, true, a)
+            var sh = polys(marks, "shoulder plane"), sp = polys(marks, "spine")
+            compare(sh.length, 1, "one shoulder plane line (aspect " + a + ")")
+            compare(sh[0].dash, "dot", "drawn dotted")
+            var dS = [sp[0].pts[1][0] - sp[0].pts[0][0], sp[0].pts[1][1] - sp[0].pts[0][1]]
+            var dP = [sh[0].pts[1][0] - sh[0].pts[0][0], sh[0].pts[1][1] - sh[0].pts[0][1]]
+            var cross = (dS[0] * a) * dP[1] - dS[1] * (dP[0] * a)
+            verify(Math.abs(cross) < 1e-12, "parallel to the spine line in the picture (cross " + cross + ")")
+            verify(dP[1] < 0, "runs the same way as the spine (up toward the neck)")
+            // the trail shoulder (6: [0.61, 0.39]) lies kShoulderPlaneMargin spine lengths BELOW the
+            // line, measured at a right angle in pixels
+            var spinePx = Math.hypot(0.16 * a, 0.15)
+            fuzzyCompare(-aboveBy([0.61, 0.39], sh[0].pts[0], dP, a), AA.kShoulderPlaneMargin * spinePx, 1e-9,
+                         "just above the trail shoulder, by the margin")
+            fuzzyCompare(Math.hypot(dP[0] * a, dP[1]), (AA.kShoulderPlaneDown + AA.kShoulderPlaneUp) * spinePx, 1e-9, "its length")
+        }
+        var lefty = shoulderAt(1, [], false)[0]
+        var dl = [lefty.pts[1][0] - lefty.pts[0][0], lefty.pts[1][1] - lefty.pts[0][1]]
+        fuzzyCompare(-aboveBy([0.59, 0.38], lefty.pts[0], dl, 1), AA.kShoulderPlaneMargin * Math.hypot(0.16, 0.15), 1e-9,
+                     "left-handed: the margin is above the left shoulder")
+    }
+
+    function test_dtl_shoulder_plane_refusals() {
+        compare(polys(AA.build(dtlBodyDet(null, true), true, 1000000, true, 1), "shoulder plane").length, 0, "no spine line ⇒ none")
+        compare(shoulderAt(1, [6]).length, 0, "trail shoulder unseen ⇒ none")
+        compare(shoulderAt(1, [5]).length, 1, "the lead shoulder is not needed")
+        compare(shoulderAt(undefined).length, 0, "no image aspect ⇒ no offset to measure")
+        compare(shoulderAt(0).length, 0)
+        compare(shoulderAt(NaN).length, 0)
+        compare(polys(AA.build(dtlBodyDet(), true, 1250000, true, 1), "shoulder plane").length, 0, "no pose at address ⇒ none")
+    }
+
+    // ── the Hogan line: ball → trail shoulder, on to the picture's edge ──
+    function test_dtl_hogan_line_ball_through_trail_shoulder() {
+        var marks = AA.build(dtlBodyDet(), true, 1000000, true, 1)
+        var h = hogan(marks)
+        compare(h.length, 1, "one Hogan line")
+        verify(h[0].label.indexOf("Hogan") === 0)
+        compare(h[0].pts[0], [0.80, 0.88], "it starts at the ball")
+        verify(onSeg(h[0].pts[0], h[0].pts[1], [0.61, 0.39], 1e-12), "through the trail shoulder at address")
+        var e = h[0].pts[1]
+        verify(Math.abs(e[0]) < 1e-9 || Math.abs(e[1]) < 1e-9, "on to the picture's edge (left or top here)")
+        verify(e[1] < 0.39, "past the shoulder, above it, where the hands and club are at the top")
+        // the dashed shaft plane is a different line, untouched
+        compare(ofKind(marks, "line").length, 0, "this fixture has no club; the shaft plane line is not the Hogan line")
+        var lefty = hogan(AA.build(dtlBodyDet(), true, 1000000, false, 1))[0]
+        verify(onSeg(lefty.pts[0], lefty.pts[1], [0.59, 0.38], 1e-12), "left-handed: through the body's left shoulder")
+    }
+
+    function test_dtl_hogan_line_refusals() {
+        compare(hogan(AA.build(dtlBodyDet([6]), true, 1000000, true, 1)).length, 0, "trail shoulder unseen ⇒ none")
+        var d = dtlBodyDet(); d.pose2d.frames[0].kp[6 * 3 + 2] = 0.2
+        compare(hogan(AA.build(d, true, 1000000, true, 1)).length, 0, "conf 0.2 ⇒ none")
+        var e = dtlBodyDet(); delete e.ball
+        compare(hogan(AA.build(e, true, 1000000, true, 1)).length, 0, "no ball ⇒ none")
+        var f = dtlBodyDet(); f.ball.samples[0].found = false
+        compare(hogan(AA.build(f, true, 1000000, true, 1)).length, 0, "a ball not found ⇒ none")
+        compare(hogan(AA.build(dtlBodyDet(), true, 1250000, true, 1)).length, 0, "no pose at address ⇒ none")
+    }
+
+    function test_faceOn_never_gets_the_dtl_lines() {
+        var marks = AA.build(dtlBodyDet(), false, 1000000, true, 1)
+        compare(polys(marks).length, 0, "spine, shoulder plane, Hogan and leg lines are DTL only")
+        compare(ofKind(marks, "vline").length, 2, "face-on keeps its hip edges")
+    }
+
+    // ── the View menu's sets: every mark carries one; the tile draws only the sets that are on ──
+    function test_every_mark_has_its_set() {
+        var want = { "head": "headHips", "hip edge": "headHips", "butt": "headHips",
+                     "address shaft plane (ball → hands)": "plane", "address shaft plane (shaft)": "plane",
+                     "Hogan plane (ball → trail shoulder)": "plane",
+                     "spine": "posture", "shoulder plane": "posture", "trail leg": "posture" }
+        var dtl = dtlBodyDet()
+        dtl.club = dtlDet(true).club                     // the plane line too
+        var all = AA.build(faceOnDet(true), false, 1000000, true, 1).concat(AA.build(dtl, true, 1000000, true, 1))
+        compare(all.length, 3 + 6, "face-on: head + 2 hips; DTL: butt, plane, Hogan, spine, shoulder plane, trail leg")
+        for (var i = 0; i < all.length; ++i) {
+            verify(want[all[i].label] !== undefined, "a known mark: " + all[i].label)
+            compare(all[i].set, want[all[i].label], all[i].label + " is in the " + want[all[i].label] + " set")
+        }
+    }
+
+    function test_filter_by_sets() {
+        var dtl = dtlBodyDet(); dtl.club = dtlDet(true).club
+        var marks = AA.build(dtl, true, 1000000, true, 1)
+        function labels(sets) { return AA.filterSets(marks, sets).map(function (m) { return m.label }).sort() }
+        compare(labels({ posture: true, plane: false, headHips: false }), ["shoulder plane", "spine", "trail leg"], "Posture")
+        compare(labels({ posture: false, plane: true, headHips: false }),
+                ["Hogan plane (ball → trail shoulder)", "address shaft plane (ball → hands)"], "Plane")
+        compare(labels({ posture: false, plane: false, headHips: true }), ["butt"], "Head & hips on DTL: the butt line")
+        compare(AA.filterSets(marks, { posture: true, plane: true, headHips: true }).length, marks.length, "all on ⇒ everything")
+        compare(AA.filterSets(marks, { posture: false, plane: false, headHips: false }).length, 0, "all off ⇒ nothing")
+        compare(AA.filterSets(marks, null).length, 0, "no sets ⇒ nothing")
+        compare(AA.filterSets([ { kind: "vline", x: 0.5, label: "untagged" } ], { posture: true, plane: true, headHips: true }).length, 0,
+                "a mark with no set is never drawn")
+        var fo = AA.build(faceOnDet(true), false, 1000000, true, 1)
+        compare(AA.filterSets(fo, { posture: false, plane: false, headHips: true }).length, 3, "face-on Head & hips: the circle and both hip edges")
+        compare(AA.filterSets(fo, { posture: true, plane: true, headHips: false }).length, 0, "face-on has nothing in Posture or Plane")
+    }
+
     function test_head_radius_fallbacks() {
         // Ears missing, eyes present ⇒ 1.1 × the eye span; nothing ⇒ 4 % of the height; floor 2.5 %.
         var eyesOnly = { pose2d: { frames: [ kpFrame(0, { 1: [0.49, 0.2], 2: [0.51, 0.2] }) ] } }

@@ -171,6 +171,12 @@ Item {
     property var    motionModes: ({})
     property string motionTraceTarget: ""      // "" ⇒ per-element default anchors
     property bool   leadIsLeft: true           // RH golfer ⇒ lead side is left (kp5/7/9)
+    // The coach lines' pen (auto_annotations_design.md §1): one ink (Theme.colorGood), these widths,
+    // a hint of translucency. 22 Oct 2026, Mark: "they need to be thicker but with a hint of
+    // translucency … as not easily discerned" — 1.5 → 2.6 px (×1.75), dots 2.5 → 4.4 px, alpha 0.75 → 0.8.
+    readonly property real kCoachPenPx: 2.6
+    readonly property real kCoachDotPx: 4.4
+    readonly property real kCoachAlpha: 0.8
     // Dev-only: swap the smoothed pose series back to raw detector frames for
     // frame/fan debugging (trace is always smoothed-only). No UI hook today —
     // flip in QML to inspect the raw detections. If a project-wide dev-overlay
@@ -1178,7 +1184,10 @@ Item {
             id: replayOverlay
             anchors.fill: parent
             z: 21
-            visible: root.showReplayOverlay
+            // The coach lines are a VIEW toggle, not a motion element (auto_annotations_design.md):
+            // they draw with the Motion master switch off too, and then nothing else does (the
+            // paint returns after the ANNOTATE pass).
+            visible: (root.showReplayOverlay || _annotations.length > 0)
                      && root._replayActive
                      && root._det !== null
                      && root._inSwingWindow
@@ -1330,7 +1339,14 @@ Item {
             readonly property var _annotations: {
                 var d = root._det
                 if (!d || !root._isReplay || !ViewLayout.coachLinesOn(SessionMode.mode)) return []
-                return AutoAnnotations.build(d, root._isDtl, root._addressUs)
+                // aspect = the drawn image's width / height (the rect the paint maps normalised
+                // coordinates into), for the shoulder plane's offset measured in pixels
+                var cr = videoOut.contentRect
+                // only the sets the View menu has on (Posture / Plane / Head & hips)
+                return AutoAnnotations.filterSets(
+                            AutoAnnotations.build(d, root._isDtl, root._addressUs, root.leadIsLeft,
+                                                  cr.height > 0 ? cr.width / cr.height : NaN),
+                            ViewLayout.coachSetsFor(SessionMode.mode))
             }
 
             // Greatest index with t_us <= t (−1 when empty).
@@ -1387,6 +1403,7 @@ Item {
             on_BallSamplesChanged: if (visible) requestPaint()
             on_ClubSynthChanged:     if (visible) requestPaint()
             on_ClubPositionsChanged: if (visible) requestPaint()
+            on_AnnotationsChanged:   if (visible) requestPaint()   // Coach lines toggled while paused
 
             onPaint: {
                 var ctx = getContext("2d")
@@ -1433,12 +1450,17 @@ Item {
 
                 // ANNOTATE pass — the coach's marks, under everything that moves. One thin pen
                 // in the "good" ink so they read as reference, not as body or club; the plane
-                // line dashed (it is an extension past anything measured), the rest solid.
+                // line dashed (it is an extension past anything measured), the rest solid —
+                // the DTL spine and trail leg among them (polylines, frozen at address); the
+                // shoulder plane dotted and the Hogan line in long dashes.
                 if (_annotations.length > 0) {
+                    // Qt's setLineDash counts in PEN WIDTHS: patterns given here in pixels are
+                    // divided by the pen, so the dash and gap lengths on screen do not grow with it.
+                    var dashPx = function(pattern, pen) { return pattern.map(function(v) { return v / pen }) }
                     ctx.save()
                     ctx.strokeStyle = cGood
-                    ctx.globalAlpha = 0.75
-                    ctx.lineWidth   = 1.5
+                    ctx.globalAlpha = root.kCoachAlpha
+                    ctx.lineWidth   = root.kCoachPenPx
                     ctx.lineCap     = "butt"
                     for (var ai = 0; ai < _annotations.length; ++ai) {
                         var an = _annotations[ai]
@@ -1452,16 +1474,46 @@ Item {
                             var vx = an.x * cr.width + cr.x
                             ctx.beginPath(); ctx.moveTo(vx, cr.y); ctx.lineTo(vx, cr.y + cr.height); ctx.stroke()
                         } else if (an.kind === "line") {
-                            ctx.setLineDash([0.04 * S, 0.03 * S])
+                            // the shaft plane's dashes: the same pixel lengths as at the 1.5 px pen
+                            ctx.setLineDash(dashPx([0.06 * S, 0.045 * S], root.kCoachPenPx))
                             ctx.beginPath()
                             ctx.moveTo(an.x0 * cr.width + cr.x, an.y0 * cr.height + cr.y)
                             ctx.lineTo(an.x1 * cr.width + cr.x, an.y1 * cr.height + cr.y)
+                            ctx.stroke()
+                        } else if (an.kind === "polyline" && an.pts.length >= 2) {
+                            // DTL spine and trail leg at address: solid, joined at the knee. The
+                            // shoulder plane (dash "dot"): round dots, so it reads apart from the
+                            // solid body lines and the plane line's dashes — kCoachDotPx dots two
+                            // dot-widths apart (the pattern is in pen widths, so the spacing grows
+                            // with the dot and it stays dotted). The Hogan line (dash "long"): 18 px
+                            // dashes, 6 px gaps — three times the shaft plane's, so the two sides of
+                            // the "V zone" read as two lines.
+                            if (an.dash === "dot") {
+                                ctx.lineWidth = root.kCoachDotPx
+                                ctx.lineCap = "round"
+                                ctx.setLineDash([0.01, 2])
+                            } else if (an.dash === "long") {
+                                ctx.lineWidth = root.kCoachPenPx
+                                ctx.lineCap = "butt"
+                                ctx.setLineDash(dashPx([18, 6], root.kCoachPenPx))
+                            } else {
+                                ctx.lineWidth = root.kCoachPenPx
+                                ctx.lineCap = "butt"
+                                ctx.setLineDash([])
+                            }
+                            ctx.lineJoin = "round"
+                            ctx.beginPath()
+                            ctx.moveTo(an.pts[0][0] * cr.width + cr.x, an.pts[0][1] * cr.height + cr.y)
+                            for (var pj = 1; pj < an.pts.length; ++pj)
+                                ctx.lineTo(an.pts[pj][0] * cr.width + cr.x, an.pts[pj][1] * cr.height + cr.y)
                             ctx.stroke()
                         }
                     }
                     ctx.setLineDash([])
                     ctx.restore()
                 }
+                if (!root.showReplayOverlay)
+                    return                       // Motion off: the coach lines only
 
                 // FRAME pass — Biomech Blueprint, muted (sits over footage); only the
                 // body elements in "frame" mode draw. The mask returns true for every
