@@ -153,7 +153,8 @@ std::vector<QString> ShaftPlaneProvider::provides() const
 
 std::vector<QString> DtlPostureProvider::provides() const
 {
-    return { QStringLiteral("pelvisThrust"),     QStringLiteral("spineForwardBend"),
+    return { QStringLiteral("pelvisThrust"),     QStringLiteral("headRise"),
+             QStringLiteral("spineForwardBend"),
              QStringLiteral("leadKneeFlexion"),  QStringLiteral("trailKneeFlexion"),
              QStringLiteral("ballBodyDistance"), QStringLiteral("balanceHeelToe"),
              QStringLiteral("handPathLoop"),     QStringLiteral("trailForearmAngle"),

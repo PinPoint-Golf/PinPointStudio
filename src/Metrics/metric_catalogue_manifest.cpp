@@ -926,7 +926,6 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:early_extension"),
                     QStringLiteral("characteristic:loss_of_posture"),
                     QStringLiteral("characteristic:posture_sinks_impact"),
-                    QStringLiteral("characteristic:loss_of_posture_backswing"),
                     QStringLiteral("characteristic:posture_sinks_backswing"),
                     QStringLiteral("characteristic:poor_setup_posture") },
     });
@@ -1141,8 +1140,39 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:pelvis_thrust_backswing"),
                     QStringLiteral("characteristic:loss_of_posture"),
                     QStringLiteral("characteristic:posture_sinks_impact"),
-                    QStringLiteral("characteristic:loss_of_posture_backswing"),
                     QStringLiteral("characteristic:posture_sinks_backswing") },
+    });
+
+    // STANDING UP GOING BACK, from down the line (posture_metrics_design.md §4.5, 22 Oct 2026). The
+    // head's height on the EAR MIDPOINT — the nose, the eyes or one ear climb with the head's turn.
+    cat.addDescriptor({
+        .key = QStringLiteral("headRise"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Head rise (down the line)"),
+        .shortLabel = QStringLiteral("Head rise"),
+        .unit = QStringLiteral("cm"),
+        .group = QStringLiteral("Head"),
+        .color = QStringLiteral("orchid"),
+        .presets = { QStringLiteral("Posture") },
+        .description = QStringLiteral(
+            "How far the head rises or drops relative to address, seen from down the line, in "
+            "centimetres. HIGHER MEANS THE HEAD HAS RISEN. A head that comes up on the way back is "
+            "the golfer standing up out of the posture."),
+        .howToRead = QStringLiteral(
+            "A per-frame curve read against the address height. Read on the midpoint of the two "
+            "ears, which holds its height while the head turns; the nose or one ear alone climbs "
+            "several centimetres at the top on a head that has not moved. The centimetre scale is "
+            "the down-the-line ruler, so the reading is absent rather than rescaled when no ruler "
+            "resolves. Read it beside the face-on head lift: the same quantity from the other camera."),
+        .signPositive = QStringLiteral("the head rose"),
+        .signNegative = QStringLiteral("the head dropped"),
+        .phases = { P::Top, P::Impact },
+        .routes = {
+            via("dtl", RM::Projected, Direct, { .dtlCamera = true },
+                QStringLiteral("vertical travel of the ear midpoint in the down-the-line view, "
+                               "scaled by the ball or by the face-on ruler carried across")) },
+        .usedBy = { QStringLiteral("chart:review"),
+                    QStringLiteral("characteristic:loss_of_posture_backswing") },
     });
 
     cat.addDescriptor({
@@ -1210,7 +1240,6 @@ void installMetricManifest(MetricCatalogue &cat)
                                "height against the address reference"), PLANNED) },
         .usedBy = { QStringLiteral("characteristic:pelvis_sink_backswing"),
                     // the belt line is the first alternative of m_postureHeldTop's pelvis-height part
-                    QStringLiteral("characteristic:loss_of_posture_backswing"),
                     QStringLiteral("characteristic:posture_sinks_backswing") },
     });
 
@@ -2964,7 +2993,6 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:coming_out_of_it"),
                     QStringLiteral("characteristic:loss_of_posture"),
                     QStringLiteral("characteristic:posture_sinks_impact"),
-                    QStringLiteral("characteristic:loss_of_posture_backswing"),
                     QStringLiteral("characteristic:posture_sinks_backswing") },
     });
 
@@ -3442,7 +3470,6 @@ void installMetricManifest(MetricCatalogue &cat)
         .usedBy = { QStringLiteral("characteristic:trail_knee_straighten"),
                     QStringLiteral("characteristic:excessive_knee_flex"),
                     QStringLiteral("characteristic:insufficient_knee_flex"),
-                    QStringLiteral("characteristic:loss_of_posture_backswing"),
                     QStringLiteral("characteristic:posture_sinks_backswing"),
                     QStringLiteral("characteristic:poor_setup_posture") },
     });

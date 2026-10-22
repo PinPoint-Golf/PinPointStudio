@@ -31,6 +31,13 @@
 //   pelvisThrust      cm   hip-MIDPOINT travel toward the ball, from address. The midpoint is
 //                          what makes it a thrust and not a turn: rotation about the vertical
 //                          carries one hip toward the ball and the other away by the same amount.
+//   headRise          cm   EAR-MIDPOINT travel upward, from address. Standing up out of the posture
+//                          read as what it does to the head's height (posture_metrics_design.md §4.5).
+//                          The ears, both of them, and nothing else: they sit near the axis the skull
+//                          turns about, so their midpoint holds its height while the head rotates. The
+//                          nose, the eyes or the near ear alone climb 5–10 cm at the top on a head that
+//                          has not risen (Nick Henn 20 Oct: near ear +6.3, nose +4.9, ear midpoint +1.9
+//                          against face-on −0.8 and 3-D +1.0).
 //   spineForwardBend  °    hip-midpoint → shoulder-midpoint against the vertical, + over the ball.
 //   leadKneeFlexion   °    180° − (hip, knee, ankle), by side. The trail leg is nearer the camera
 //   trailKneeFlexion  °    and occludes the lead one through much of the swing; both are emitted
@@ -70,7 +77,7 @@
 // ruler lying in the image, so the DTL tracker's measured ball radius is used when the ball was
 // found by its BRIGHT cue (the shadow cue's radius is implied from a scale, so it is not a
 // ruler). Otherwise the face-on ruler is carried across by the same vertical-extent ratio. No
-// ruler ⇒ no pelvisThrust: the unit never switches at runtime.
+// ruler ⇒ no pelvisThrust and no headRise: the unit never switches at runtime.
 //
 // WHAT IS NOT CLAIMED. The 2026 rigs put this camera behind the BALL and above hand height, not
 // on the hands line. Address-referenced displacements and angle CHANGES are tolerant of that;
@@ -251,7 +258,8 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
         res.reason = why;
         res.gates.push_back(GateRecord{ PP_GATE("posture.address"), QStringLiteral("pelvisThrust"), GateEffect::Refused,
                                         ev, {}, {},
-                                        { QStringLiteral("spineForwardBend"), QStringLiteral("leadKneeFlexion"),
+                                        { QStringLiteral("headRise"),
+                                          QStringLiteral("spineForwardBend"), QStringLiteral("leadKneeFlexion"),
                                           QStringLiteral("trailKneeFlexion"), QStringLiteral("trailForearmAngle"),
                                           QStringLiteral("balanceHeelToe"), QStringLiteral("ballBodyDistance"),
                                           QStringLiteral("handPathLoop"), QStringLiteral("armHang"),
@@ -331,7 +339,7 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
             ev.insert(QStringLiteral("minCm"), cfg.shoulderMinCm);
             ev.insert(QStringLiteral("maxCm"), cfg.shoulderMaxCm);
             res.gates.push_back(GateRecord{ PP_GATE("posture.ruler"), QStringLiteral("pelvisThrust"),
-                                            GateEffect::Refused, ev, {}, {}, {} });
+                                            GateEffect::Refused, ev, {}, {}, { QStringLiteral("headRise") } });
             res.cmPerPx = 0.0;
             res.ruler   = QStringLiteral("none");
         }
@@ -339,13 +347,17 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
         // No ruler at all — neither a bright DTL ball nor a face-on ruler carried across — so no
         // centimetres: the thrust is absent rather than published in another unit.
         res.gates.push_back(GateRecord{ PP_GATE("posture.ruler"), QStringLiteral("pelvisThrust"),
-                                        GateEffect::Refused, code("none"), {}, {}, {} });
+                                        GateEffect::Refused, code("none"), {}, {}, { QStringLiteral("headRise") } });
     }
+
+    // The head's address height: the ear midpoint, both ears confident (headRise above).
+    const auto earAddrY = medianAt(v, *addrT, half, cm, { kLEar, kREar }, minN,
+                                   [&](size_t i) { return mid(v.px(i, kLEar), v.px(i, kREar)).y(); });
 
     // ── per-frame channels ─────────────────────────────────────────────────────────────────
     std::vector<int64_t> grid;
     grid.reserve(v.size());
-    MetricChannel thrust, bend, kneeLead, kneeTrail, forearm;
+    MetricChannel thrust, headRise, bend, kneeLead, kneeTrail, forearm;
     const int lHip = in.leadIsLeft ? kLHip : kRHip, lKnee = in.leadIsLeft ? kLKnee : kRKnee,
               lAnk = in.leadIsLeft ? kLAnk : kRAnk;
     const int tHip = in.leadIsLeft ? kRHip : kLHip, tKnee = in.leadIsLeft ? kRKnee : kLKnee,
@@ -357,6 +369,8 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
         const bool hips = v.ok(i, kLHip, cm) && v.ok(i, kRHip, cm);
         if (hips && res.cmPerPx > 0.0)
             thrust.push(t, tw * (mid(v.px(i, kLHip), v.px(i, kRHip)).x() - *hipAddrX) * res.cmPerPx);
+        if (earAddrY && res.cmPerPx > 0.0 && v.ok(i, kLEar, cm) && v.ok(i, kREar, cm))
+            headRise.push(t, (*earAddrY - mid(v.px(i, kLEar), v.px(i, kREar)).y()) * res.cmPerPx);
         if (hips && v.ok(i, kLSh, cm) && v.ok(i, kRSh, cm)) {
             const QPointF d = mid(v.px(i, kLSh), v.px(i, kRSh)) - mid(v.px(i, kLHip), v.px(i, kRHip));
             bend.push(t, std::atan2(tw * d.x(), -d.y()) * 180.0 / M_PI);
@@ -390,6 +404,8 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
     // and walking through, which is not early extension. The knees are read into the follow-through.
     pushSeries(thrust, "pelvisThrust", "Pelvis thrust", "cm",
          { Phase::Top, Phase::ArmParallelDown, Phase::Impact }, true);
+    pushSeries(headRise, "headRise", "Head rise", "cm",
+         { Phase::Address, Phase::Top, Phase::Impact }, true);
     pushSeries(bend, "spineForwardBend", "Spine forward bend", "°",
          { Phase::Address, Phase::Top, Phase::Impact }, true);
     pushSeries(kneeLead, "leadKneeFlexion", "Lead knee flexion", "°",

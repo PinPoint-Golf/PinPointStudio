@@ -87,7 +87,7 @@ int main()
         // sequence is read from (pelvis / thorax / leadArm / club — segment_rates.h); the
         // Sequence itself went from planned to live the same day.
         // 104 -> 105 on 2026-09-23 with handPathLoop, the down-the-line hand loop over the top reads.
-        checkEqI(static_cast<int>(cat.all().size()), 123, "descriptor count == 123");   // +trunkRise, +armHang, +headPitch (2026-10-21, posture_metrics_design.md §3)   // +lowPointFromAttack (2026-10-21, issue #92: the low point the monitor's attack angle implies)   // +ksOrderShare, +ksTimingSpread (2026-10-14: the session sequence-consistency readings, planned)   // +8 sequence node readings (2026-10-14: arm/club peak times, four peak speeds, two reversals)   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
+        checkEqI(static_cast<int>(cat.all().size()), 124, "descriptor count == 124");   // +headRise (2026-10-22, standing up going back from down the line, posture_metrics_design.md §4.5)   // +trunkRise, +armHang, +headPitch (2026-10-21, posture_metrics_design.md §3)   // +lowPointFromAttack (2026-10-21, issue #92: the low point the monitor's attack angle implies)   // +ksOrderShare, +ksTimingSpread (2026-10-14: the session sequence-consistency readings, planned)   // +8 sequence node readings (2026-10-14: arm/club peak times, four peak speeds, two reversals)   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
                                "clubheadPeakLead",
@@ -131,7 +131,7 @@ int main()
 
     // 2. Type / group / scored filtering.
     {
-        checkEqI(countType(cat, MetricType::TimeSeries),  54, "TimeSeries count");   // +trunkRise (2026-10-21)   // +trailForearmAngle (2026-10-08)   // +shaftLie (2026-10-01)   // +4 segment angular speeds (2026-09-17)   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
+        checkEqI(countType(cat, MetricType::TimeSeries),  55, "TimeSeries count");   // +headRise (2026-10-22)   // +trunkRise (2026-10-21)   // +trailForearmAngle (2026-10-08)   // +shaftLie (2026-10-01)   // +4 segment angular speeds (2026-09-17)   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
         // 26, not 28: `shoulderAlignment` and `hipAlignment` were both PointInTime and both retired
         // as duplicates of a series the catalogue already carries.
         // 45 -> 47 on 2026-09-14, both PLANNED and both the honest replacement for a measure that
@@ -153,7 +153,7 @@ int main()
         checkEqI(static_cast<int>(cat.query(scq).size()), 3, "group 'Score' == 3");
 
         MetricQuery hq; hq.group = QStringLiteral("Head");
-        checkEqI(static_cast<int>(cat.query(hq).size()), 4, "group 'Head' == 4");   // +headPitch (2026-10-21)
+        checkEqI(static_cast<int>(cat.query(hq).size()), 5, "group 'Head' == 5");   // +headRise (2026-10-22)   // +headPitch (2026-10-21)
 
         MetricQuery brq; brq.group = QStringLiteral("Body rotation");
         checkEqI(static_cast<int>(cat.query(brq).size()), 8, "group 'Body rotation' == 8");   // +shoulderPlaneAngle3d   // +pelvisRotationSigned
@@ -1270,8 +1270,9 @@ int main()
         check(pv && th && pv->color == QStringLiteral("crimson") && th->color == QStringLiteral("mint"),
               "pelvis is crimson and chest mint in the kinematic sequence");
 
-        // THE POSTURE PRESET (posture_metrics_design.md §8): the five readings of the posture changing
-        // (trunkRise left out on 22 Oct: it failed validation V1 and is held),
+        // THE POSTURE PRESET (posture_metrics_design.md §8): the six readings of the posture changing
+        // (trunkRise left out on 22 Oct: it failed validation V1 and is held; headRise in the same day,
+        // standing up going back read from down the line, §4.5),
         // face-on and down the line together, in manifest order. A reading dropped from it, or a
         // seventh added, has to be a deliberate edit here too.
         QStringList posture;
@@ -1279,8 +1280,8 @@ int main()
             if (std::find(d->presets.begin(), d->presets.end(), QStringLiteral("Posture")) != d->presets.end())
                 posture << d->key;
         check(posture.join(QLatin1Char(','))
-                  == QStringLiteral("spineForwardBend,pelvisThrust,pelvisLift,headLift,trailKneeFlexion"),
-              "the Posture preset carries the five posture readings, in manifest order");
+                  == QStringLiteral("spineForwardBend,pelvisThrust,headRise,pelvisLift,headLift,trailKneeFlexion"),
+              "the Posture preset carries the six posture readings, in manifest order");
         std::printf("    Posture preset: %s\n", qPrintable(posture.join(QStringLiteral(", "))));
     }
 

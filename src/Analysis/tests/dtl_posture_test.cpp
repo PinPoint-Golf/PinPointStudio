@@ -340,6 +340,43 @@ int main()
         check(rb.valid && find(rb, "headPitch") == nullptr, "§6 no ear seen ⇒ no headPitch, the rest still valid");
     }
 
+    // §7 head rise (posture_metrics_design.md §4.5): the EAR MIDPOINT's travel up from address, in cm.
+    // The two ears part as the head turns — one up, one down by the same amount — and that is not a
+    // rise; the midpoint climbing is. No ruler ⇒ no headRise, as for the thrust.
+    {
+        auto setEars = [](PoseTrack2D &p, bool mirror, double risePx, double turnPx) {
+            for (PoseFrame2D &f : p.frames) {
+                const double u = smooth(double(f.t_us), kAddr, kTop);
+                const double x = mirror ? kW - 250.0 : 250.0, y = 300.0 - risePx * u;
+                f.kp[3] = QPointF(x / kW, (y - turnPx * u) / kH);
+                f.kp[4] = QPointF(x / kW, (y + turnPx * u) / kH);
+            }
+        };
+        const double cmpp = 4.267 / 15.0;
+        PoseTrack2D d = makePose(false);
+        setEars(d, false, 20.0, 0.0);
+        const DtlPostureResult r = buildDtlPosture(inputs(d, false), cfg);
+        const MetricSeries *h = find(r, "headRise");
+        check(h && h->unit == QStringLiteral("cm") && near(atPhase(h, Phase::Address), 0.0, 0.01)
+                  && near(atPhase(h, Phase::Top), 20.0 * cmpp, 0.05),
+              "§7 ears 20 px higher at the top ⇒ headRise 0 at address, 20 px in cm at the top");
+        PoseTrack2D t = makePose(false);
+        setEars(t, false, 0.0, 15.0);
+        check(near(atPhase(find(buildDtlPosture(inputs(t, false), cfg), "headRise"), Phase::Top), 0.0, 0.01),
+              "§7 a head TURN that parts the ears 30 px is not a rise: 0 at the top");
+        PoseTrack2D m = makePose(true);
+        setEars(m, true, 20.0, 0.0);
+        check(near(atPhase(find(buildDtlPosture(inputs(m, true), cfg), "headRise"), Phase::Top), 20.0 * cmpp, 0.05),
+              "§7 mirrored golfer ⇒ the same rise");
+        DtlPostureInputs in = inputs(d, false);
+        in.ballBright = false; in.foMmPerPx = 0.0;
+        const DtlPostureResult n = buildDtlPosture(in, cfg);
+        bool covered = false;
+        for (const GateRecord &g : n.gates)
+            if (g.gate == QLatin1String("posture.ruler") && g.covers.contains(QStringLiteral("headRise"))) covered = true;
+        check(n.valid && !find(n, "headRise") && covered, "§7 no ruler ⇒ no headRise, and the ruler gate says so");
+    }
+
     std::printf(g_fail ? "FAILED (%d)\n" : "ALL PASS\n", g_fail);
     return g_fail ? 1 : 0;
 }
