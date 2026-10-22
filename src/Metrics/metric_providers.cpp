@@ -91,7 +91,10 @@ std::vector<QString> UpperBodyMetricProvider::provides() const
              QStringLiteral("thoraxLateralDrift"),  QStringLiteral("shoulderPlaneAngle"),
              QStringLiteral("elbowAlignment"),      QStringLiteral("trailElbowHeight"),
              QStringLiteral("leadHandWidth"),       QStringLiteral("leadUpperArmToChest"),
-             QStringLiteral("leadArmToTorso") };
+             QStringLiteral("leadArmToTorso"),
+             // The trunk chord's image length against address — forward-bend CHANGE read face-on
+             // (posture_metrics_design.md §3.2).
+             QStringLiteral("trunkRise") };
 }
 
 // ------------------------------------------------------------------------- TrailWristProvider
@@ -153,7 +156,9 @@ std::vector<QString> DtlPostureProvider::provides() const
     return { QStringLiteral("pelvisThrust"),     QStringLiteral("spineForwardBend"),
              QStringLiteral("leadKneeFlexion"),  QStringLiteral("trailKneeFlexion"),
              QStringLiteral("ballBodyDistance"), QStringLiteral("balanceHeelToe"),
-             QStringLiteral("handPathLoop"),     QStringLiteral("trailForearmAngle") };
+             QStringLiteral("handPathLoop"),     QStringLiteral("trailForearmAngle"),
+             // The two address angles (posture_metrics_design.md §3.1).
+             QStringLiteral("armHang"),          QStringLiteral("headPitch") };
 }
 
 // ------------------------------------------------------------------------ DtlShaftLieProvider

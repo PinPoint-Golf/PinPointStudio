@@ -87,6 +87,7 @@
 //   % shoulder width  — trailElbowHeight, leadUpperArmToChest   (address shoulder span)
 //   % stance width    — thoraxLateralDrift                      (address ankle span)
 //   % arm length      — leadHandWidth                           (address lead arm, shoulder→elbow→wrist)
+//   %                 — trunkRise                               (address trunk chord, hip mid→shoulder mid)
 //
 // A denominator is measured over the SAME address reference frames as its numerators,
 // so the ratio shares its scale by construction rather than by luck — the reason
@@ -102,6 +103,18 @@
 // line in a face-on image), and it is a deliberate product decision rather than an accident:
 // the alternative was continuing to grade +88° as a posture. Anyone tempted to treat the gate
 // as an edge case, or to wonder why a Top corridor stopped firing, should start here.
+//
+// ── trunkRise: a SAGITTAL change read from the frontal plane, and why that is not a contradiction ──
+//
+// The rule above refuses `spineForwardBend` because the face-on image cannot see an angle in depth.
+// It can see what that angle does to a length IN the image: the hip-midpoint→shoulder-midpoint chord
+// images as L·cos β, β the trunk's lean toward the ball (toward this camera's blind axis). So the
+// chord's length against its own address length, ℓ(t)/ℓ(Address) − 1, rises as the golfer stands up —
+// about +1.2 % per degree of bend lost near 34° — while the bend itself stays unmeasured. A ratio
+// rather than degrees because turning it into an angle needs the address bend, which this camera
+// cannot see (posture_metrics_design.md §3.2). Side tilt moves the chord within the image plane and
+// does not change its length; a pelvis thrust toward the ball is also a move toward this camera and
+// enlarges everything a little, which this reading cannot separate and does not hide.
 
 #include <QPointF>
 #include <QString>
@@ -175,6 +188,10 @@ struct UpperBodyReference {
     double  shoulderSpanPx = 0.0;   // |lead shoulder − trail shoulder|, the % shoulder width denominator
     double  stanceSpanPx   = 0.0;   // |lead ankle − trail ankle|, the % stance width denominator
     double  leadArmLenPx   = 0.0;   // shoulder→elbow + elbow→wrist, the % arm length denominator
+    // |shoulder midpoint − hip midpoint|, the trunk chord trunkRise is a ratio against. 0 when the
+    // address hips were never confident — the reference admission test does not require them — and
+    // trunkRise is then ABSENT for the whole swing, the same refusal hipDxPx makes for spineSideBend.
+    double  trunkLenPx     = 0.0;
     double  leadSign       = 1.0;   // +1 if the lead side is image +x at address, else −1
     bool    valid          = false; // a shoulder span above the floor was resolved
 
@@ -216,7 +233,7 @@ struct UpperBodyReference {
 // and never become a zero on MetricSeries::sigma, whose absence means "not characterised".
 struct UpperBodySigma {
     std::vector<double> axisTilt, sideBend, thoraxDrift, shoulderPlane, elbowLine;
-    std::vector<double> trailElbowHeight, leadHandWidth, leadArmGap;
+    std::vector<double> trailElbowHeight, leadHandWidth, leadArmGap, trunkRise;
     // ⚠ THERE IS NO leadArmToTorso ENTRY, and that is a decision with a reason rather than an
     // omission — the block above that channel's push in trackUpperBody carries it in full. In short:
     // the reported value is an UNSIGNED angle, so near the small angles a hanging arm actually
@@ -239,6 +256,7 @@ struct UpperBodyResult {
     MetricChannel leadHandWidth;    // leadHandWidth            % arm length
     MetricChannel leadArmGap;       // leadUpperArmToChest      % shoulder width
     MetricChannel leadArmToTorso;   // leadArmToTorso           °   (unsigned, 0–180)
+    MetricChannel trunkRise;        // trunkRise                % of the address trunk chord (+ = more upright)
 
     // The instants each gated channel's geometry was REFUSED at — the joints were confident and the
     // LINE was not usable. Ascending, one entry per such frame.
@@ -249,7 +267,7 @@ struct UpperBodyResult {
     // budget. Without the distinction a 23-frame gated shoulder run came back with 30 of its frames
     // flagged valid, and a P4 shoulder-plane sample of 25.8° was emitted from the bridge (see the
     // note in metric_channel.h).
-    std::vector<int64_t> gatedShoulderLine;   // shoulderPlaneAngle, trailElbowHeight
+    std::vector<int64_t> gatedShoulderLine;   // shoulderPlaneAngle, trailElbowHeight, trunkRise
     std::vector<int64_t> gatedElbowLine;      // elbowAlignment
     std::vector<int64_t> gatedSideBend;       // spineSideBend — EITHER line refused
 
@@ -285,7 +303,7 @@ struct UpperBodyResult {
 UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, bool leadIsLeft,
                                int64_t addressUs = -1, const UpperBodyConfig &cfg = {});
 
-// Resample the sparse channels onto the full per-frame grid and emit the nine series. Empty when
+// Resample the sparse channels onto the full per-frame grid and emit the ten series. Empty when
 // the address reference is unresolved or the shoulder span is below its floor — below that the
 // percentages are noise divided by noise, and the honest answer is that nothing was measured.
 //
@@ -294,7 +312,7 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
 // bridge more than res.maxBridgeUs across frames the DETECTOR lost; empty when neither happened. AN
 // INVALID INSTANT EMITS NO PHASE SAMPLE, the same rule an unsegmented phase already obeys.
 //
-// Eight of the nine also carry MetricSeries::sigma when the smoother's per-keypoint posterior was
+// Nine of the ten also carry MetricSeries::sigma when the smoother's per-keypoint posterior was
 // available: the keypoint σ propagated through THAT channel's own geometry, per frame, then the
 // MEDIAN over the frames the final mask still calls measurements — so a gated run, an over-long
 // bridge and the post-Impact tail cannot set it. ABSENT (never 0) on a track with no `smoothedAux`,
@@ -305,7 +323,7 @@ std::vector<MetricSeries> buildUpperBodySeries(const UpperBodyResult &res,
 
 // Every gate record this producer leaves on the swing (trust stage 6): trackUpperBody's
 // whole-reference refusals, plus one summary record per line gate that fired — the shoulder line
-// (shoulderPlaneAngle over Address..Impact, trailElbowHeight over the swing), the elbow line
+// (shoulderPlaneAngle and trunkRise over Address..Impact, trailElbowHeight over the swing), the elbow line
 // (elbowAlignment, Address..Impact) and either line under spineSideBend (Address..Impact).
 std::vector<GateRecord> upperBodyGates(const UpperBodyResult &res, const std::vector<PhaseEvent> &phases);
 

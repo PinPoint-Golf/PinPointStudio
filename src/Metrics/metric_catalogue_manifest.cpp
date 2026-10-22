@@ -893,6 +893,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Spine & tilt"),
         .color = QStringLiteral("moss"),
+        .presets = { QStringLiteral("Posture") },
         .description = QStringLiteral(
             "The forward tilt of the trunk over the ball — the flexion/extension of the thorax "
             "relative to the pelvis — which sets the posture the whole swing rotates around. Losing "
@@ -922,6 +923,48 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:posture_too_bent"),
                     QStringLiteral("characteristic:diving"),
                     QStringLiteral("characteristic:early_extension") },
+    });
+
+    // FORWARD-BEND CHANGE, READ FACE-ON (posture_metrics_design.md §3.2). The face-on camera cannot
+    // see the bend angle — that is why spineForwardBend has no face-on rung — but it can see the
+    // hip-to-shoulder chord get LONGER as the trunk stands up, because the chord images as L·cos β.
+    // Its own metric, in its own unit, not a third rung of spineForwardBend: a rung ladder keeps one
+    // unit, and turning this ratio into degrees needs the address bend this camera cannot see.
+    // Shares spineForwardBend's group, where a coach reads the trunk's inclination.
+    cat.addDescriptor({
+        .key = QStringLiteral("trunkRise"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Trunk rise"),
+        .shortLabel = QStringLiteral("Trunk rise"),
+        .unit = QStringLiteral("%"),
+        .group = QStringLiteral("Spine & tilt"),
+        .color = QStringLiteral("gold"),
+        .presets = { QStringLiteral("Posture") },
+        .description = QStringLiteral(
+            "How much longer the line from the hips to the shoulders looks from the face-on camera "
+            "than it did at address, as a percentage of its address length. A trunk bent over the "
+            "ball leans toward that camera and looks shorter; as the golfer stands up out of the "
+            "bend it looks longer. So this is the face-on view of losing forward bend — standing up "
+            "through the ball — without needing the down-the-line camera."),
+        .howToRead = QStringLiteral(
+            "Read from address to impact. HIGHER MEANS THE TRUNK IS MORE UPRIGHT than at address; "
+            "zero is the address posture held, and negative is bending further over. Near a 34° "
+            "address bend each degree lost reads about +1.2 %, so losing 9° reads about +10 %. It "
+            "stays a percentage rather than degrees because the conversion needs the address bend, "
+            "which this camera cannot see. A side tilt does not move it. A pelvis pushing toward the "
+            "ball is also moving toward the camera and adds about a third of a percent per "
+            "centimetre — the same way as the loss it sits on. Not read at the top on most swings: "
+            "once the shoulders overlap in the picture their midpoint is guesswork. Needs a face-on "
+            "camera; with a down-the-line camera, spine forward bend is the better reading."),
+        .signPositive = QStringLiteral("the trunk more upright than at address"),
+        .signNegative = QStringLiteral("the trunk bent further over the ball"),
+        .phases = { P::Address, P::Impact },
+        // Same projection rule as the frontal family: see P1toP7.
+        .domain = P1toP7,
+        .routes = {
+            via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
+                QStringLiteral("the hip-to-shoulder line's length in the face-on image, which "
+                               "shortens with the trunk's lean toward the camera")) },
     });
 
     cat.addDescriptor({
@@ -1055,6 +1098,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("cm"),
         .group = QStringLiteral("Pelvis & lateral"),
         .color = QStringLiteral("teal"),
+        .presets = { QStringLiteral("Posture") },
         .description = QStringLiteral(
             "How far the pelvis pushes toward the ball (along the line from the player to the ball) "
             "relative to address — the depth-axis partner to sway. A late, controlled move is "
@@ -1093,6 +1137,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("% stance width"),
         .group = QStringLiteral("Pelvis & lateral"),
         .color = QStringLiteral("cornflower"),
+        .presets = { QStringLiteral("Posture") },
         .description = QStringLiteral(
             "How much the pelvis rises or drops vertically relative to address, as a percentage of "
             "the golfer's own stance — the up/down component of pelvis motion. HIGHER MEANS THE "
@@ -2873,6 +2918,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("cm"),
         .group = QStringLiteral("Head"),
         .color = QStringLiteral("sky"),
+        .presets = { QStringLiteral("Posture") },
         .description = QStringLiteral(
             "How far the head rises or drops relative to address, in centimetres. HIGHER MEANS THE "
             "HEAD HAS RISEN. Vertical head movement is an early, easy-to-see indicator of standing "
@@ -2895,6 +2941,38 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:head_drop_backswing"),
                     QStringLiteral("characteristic:head_rise_backswing"),
                     QStringLiteral("characteristic:coming_out_of_it") },
+    });
+
+    // THE HEAD'S NOD AT ADDRESS (posture_metrics_design.md §3.1), from down the line: body keypoints
+    // 0 and 3/4 only, never the face landmarks. HELD in the pack until it passes the repeatability gate
+    // (V5) — the descriptor says what it is; the pack says whether it is graded.
+    cat.addDescriptor({
+        .key = QStringLiteral("headPitch"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Head pitch at address"),
+        .shortLabel = QStringLiteral("Head pitch"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Head"),
+        .color = QStringLiteral("coral"),
+        .description = QStringLiteral(
+            "How the head is carried relative to the trunk at address, seen from down the line: the "
+            "line from the ear to the nose against a line square to the trunk. Chin tucked down "
+            "toward the chest, or held up and away from it."),
+        .howToRead = QStringLiteral(
+            "Read at Address. POSITIVE MEANS THE CHIN IS DOWN TOWARD THE CHEST; zero is the "
+            "ear-to-nose line square to the hip-to-shoulder line, and negative is the chin up. "
+            "Because it is against the trunk, bending over the ball does not move it. The ear and "
+            "nose are the body keypoints, not the fine face points, and the absolute value carries "
+            "the head's own shape, so a change is more telling than the number itself. Needs a "
+            "down-the-line camera that can see the face side-on."),
+        .signPositive = QStringLiteral("the chin down toward the chest"),
+        .signNegative = QStringLiteral("the chin up, away from the chest"),
+        .phases = { P::Address },
+        .card = { .readAt = { { P::Address, {} } }, .peak = false, .delta = false, .rate = false },
+        .routes = {
+            via("dtl", RM::Projected, Direct, { .dtlCamera = true },
+                QStringLiteral("the ear-to-nose line against the trunk, seen side-on from down the "
+                               "line")) },
     });
 
     cat.addDescriptor({
@@ -3309,7 +3387,10 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Trail knee"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Feet & stance"),
-        .color = QStringLiteral("teal"),
+        // CORAL, not the teal it had until 21 Oct 2026: it now shares the Posture preset with
+        // pelvisThrust, which is teal, and two curves plotted together must read apart.
+        .color = QStringLiteral("coral"),
+        .presets = { QStringLiteral("Posture") },
         .description = QStringLiteral(
             "The angle between the trail shin and the trail thigh through the swing. The trail knee "
             "holds the flex it was given at address while the pelvis turns against it; losing that "
@@ -3399,6 +3480,38 @@ void installMetricManifest(MetricCatalogue &cat)
     });
 
     // ---------------------------------------------------- Arms
+
+    // "LET THE ARMS HANG" (posture_metrics_design.md §3.1): the down-the-line address angle of the
+    // arms under the shoulders. An ADDRESS scalar — the pack reads it at P1 — so PointInTime, no curve.
+    cat.addDescriptor({
+        .key = QStringLiteral("armHang"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Arm hang at address"),
+        .shortLabel = QStringLiteral("Arm hang"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Arms"),
+        .color = QStringLiteral("ochre"),
+        .description = QStringLiteral(
+            "How the arms hang from the shoulders at address, seen from down the line: the line from "
+            "the middle of the shoulders to the middle of the wrists, against straight down. Arms "
+            "that hang naturally sit close to vertical; hands pushed out toward the ball are "
+            "reaching, and hands pulled in under the body are tucked."),
+        .howToRead = QStringLiteral(
+            "Read at Address. POSITIVE MEANS THE HANDS ARE FURTHER TOWARD THE BALL THAN THE "
+            "SHOULDERS — reaching; negative means tucked in under the body. Which way the ball is "
+            "comes from the golfer's own feet, so a left-handed golfer or a mirrored camera reads the "
+            "same. An angle, so no ruler is needed. Down the line the two shoulders and the two wrists "
+            "sit almost on top of each other, so one of each pair is enough; with neither wrist seen "
+            "there is no reading. Needs a down-the-line camera."),
+        .signPositive = QStringLiteral("the hands further toward the ball than the shoulders — reaching"),
+        .signNegative = QStringLiteral("the hands tucked in under the body"),
+        .phases = { P::Address },
+        .card = { .readAt = { { P::Address, {} } }, .peak = false, .delta = false, .rate = false },
+        .routes = {
+            via("dtl", RM::Projected, Direct, { .dtlCamera = true },
+                QStringLiteral("the shoulder-to-wrist line seen square-on from down the line, where "
+                               "the face-on camera sees it end-on")) },
+    });
 
     cat.addDescriptor({
         .key = QStringLiteral("leadUpperArmToChest"),

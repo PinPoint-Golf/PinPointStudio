@@ -45,6 +45,13 @@
 //                          the same height, + toward the ball. The over-the-top move seen the way a
 //                          coach sees it on a down-the-line hand trace: the loop at the top that
 //                          sends the downswing out over the backswing path.
+//   armHang           °    shoulder midpoint → wrist midpoint against the vertical, at ADDRESS only;
+//                          + = the hands further toward the ball than the shoulders (reaching),
+//                          − = tucked in under the body. "Let the arms hang" (posture_metrics_design.md §3.1).
+//   headPitch         °    the ear → nose line against the square to the trunk line (hip midpoint →
+//                          shoulder midpoint), at ADDRESS only; + = chin down toward the chest. Body
+//                          keypoints 0 and 3/4 only — never the 68 face landmarks (WholeBody's fine
+//                          keypoints score high and can still be wrong; see the hands).
 //
 // WHY THE HAND LOOP IS A RATIO AND NOT CENTIMETRES. Both paths are the same wrist in the same image,
 // so the offset needs no calibration at all if it is scaled by something in that image — the
@@ -156,7 +163,7 @@ struct DtlPostureResult {
 
 namespace dtl_posture_detail {
 
-constexpr int kNose = 0, kLSh = 5, kRSh = 6, kLEl = 7, kREl = 8, kLWr = 9, kRWr = 10, kLHip = 11, kRHip = 12, kLKnee = 13, kRKnee = 14,
+constexpr int kNose = 0, kLEar = 3, kREar = 4, kLSh = 5, kRSh = 6, kLEl = 7, kREl = 8, kLWr = 9, kRWr = 10, kLHip = 11, kRHip = 12, kLKnee = 13, kRKnee = 14,
               kLAnk = 15, kRAnk = 16, kLBigToe = 17, kLHeel = 19, kRBigToe = 20, kRHeel = 22;
 
 struct View {
@@ -197,6 +204,32 @@ inline std::optional<double> medianAt(const View &v, int64_t tUs, int64_t half, 
 
 inline QPointF mid(const QPointF &a, const QPointF &b) { return (a + b) * 0.5; }
 
+// The midpoint of whichever of a left/right pair is confident on frame i — both, one, or neither.
+// Down the line at address the two shoulders, the two wrists and the two ears each sit nearly on top
+// of one another in the image (the pair lies along the camera's axis), so either one stands for the
+// midpoint to within a few pixels, and a frame that lost one of the pair to occlusion is not lost.
+inline std::optional<QPointF> seenMid(const View &v, size_t i, int a, int b, double confMin)
+{
+    const bool okA = v.ok(i, a, confMin), okB = v.ok(i, b, confMin);
+    if (okA && okB) return mid(v.px(i, a), v.px(i, b));
+    if (okA) return v.px(i, a);
+    if (okB) return v.px(i, b);
+    return std::nullopt;
+}
+
+// medianAt for a reading that decides its own admission: `f` returns nullopt for a frame it refuses.
+template <typename F>
+inline std::optional<double> medianOfSeen(const View &v, int64_t tUs, int64_t half, int minN, F f)
+{
+    std::vector<double> xs;
+    for (size_t i = 0; i < v.size(); ++i) {
+        if (std::llabs(v.t(i) - tUs) > half) continue;
+        if (const std::optional<double> x = f(i)) xs.push_back(*x);
+    }
+    if (int(xs.size()) < minN) return std::nullopt;
+    return medianOfCopy(xs);
+}
+
 inline double kneeFlexDeg(const QPointF &hip, const QPointF &knee, const QPointF &ank)
 {
     const QPointF a = hip - knee, b = ank - knee;
@@ -221,7 +254,8 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
                                         { QStringLiteral("spineForwardBend"), QStringLiteral("leadKneeFlexion"),
                                           QStringLiteral("trailKneeFlexion"), QStringLiteral("trailForearmAngle"),
                                           QStringLiteral("balanceHeelToe"), QStringLiteral("ballBodyDistance"),
-                                          QStringLiteral("handPathLoop") } });
+                                          QStringLiteral("handPathLoop"), QStringLiteral("armHang"),
+                                          QStringLiteral("headPitch") } });
         return res;
     };
     auto code = [](const char *c) { return QVariantMap{ { QStringLiteral("code"), QString::fromLatin1(c) } }; };
@@ -409,6 +443,42 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
                                             GateEffect::Refused, ev, {}, {}, {} });
         }
     }
+
+    // ── the address angles: arm hang and head pitch (posture_metrics_design.md §3.1) ─────────
+    //
+    // Angles, so no ruler; signed toward the ball by the feet like everything above. Address
+    // scalars, the balance proxy's shape: the pack reads them `at p1`, and neither means anything
+    // once the club has left the ball — the arms are swinging and the head is turning.
+    const double kDeg = 180.0 / M_PI;
+    // ARM HANG: the frame is refused when NEITHER wrist is confident, and a shoulder likewise; one of
+    // either pair is enough (seenMid). Hands at or above the shoulders are not a hang at all.
+    if (const auto hang = medianOfSeen(v, *addrT, half, minN, [&](size_t i) -> std::optional<double> {
+            const auto sh = seenMid(v, i, kLSh, kRSh, cm), wr = seenMid(v, i, kLWr, kRWr, cm);
+            if (!sh || !wr) return std::nullopt;
+            const QPointF d = *wr - *sh;
+            if (d.y() <= 1.0) return std::nullopt;
+            return std::atan2(tw * d.x(), d.y()) * kDeg;
+        }))
+        scalar("armHang", "Arm hang", "°", *hang);
+    // HEAD PITCH: e = ear → nose, u = hip mid → shoulder mid (up the trunk). In a frame with x toward
+    // the ball and y up, a head held square to the trunk has e at −90° from u; chin down turns e
+    // further round toward the feet. headPitch = atan2(−u·e, tw·(u × e)) in image coordinates is that
+    // turn, 0 when square, + chin down, and the same number for a golfer facing either way (tw).
+    // The trunk needs both shoulders and both hips, exactly as spineForwardBend does; the ear is
+    // whichever is confident (the lead ear is usually behind the head from this camera).
+    if (const auto pitch = medianOfSeen(v, *addrT, half, minN, [&](size_t i) -> std::optional<double> {
+            if (!v.ok(i, kNose, cm) || !v.ok(i, kLSh, cm) || !v.ok(i, kRSh, cm)
+                || !v.ok(i, kLHip, cm) || !v.ok(i, kRHip, cm))
+                return std::nullopt;
+            const auto ear = seenMid(v, i, kLEar, kREar, cm);
+            if (!ear) return std::nullopt;
+            const QPointF u = mid(v.px(i, kLSh), v.px(i, kRSh)) - mid(v.px(i, kLHip), v.px(i, kRHip));
+            const QPointF e = v.px(i, kNose) - *ear;
+            if (std::hypot(u.x(), u.y()) < 1.0 || std::hypot(e.x(), e.y()) < 1.0) return std::nullopt;
+            const double dot = u.x() * e.x() + u.y() * e.y(), cross = u.x() * e.y() - u.y() * e.x();
+            return std::atan2(-dot, tw * cross) * kDeg;
+        }))
+        scalar("headPitch", "Head pitch", "°", *pitch);
 
     // ── the hand-path loop ─────────────────────────────────────────────────────────────────
     //

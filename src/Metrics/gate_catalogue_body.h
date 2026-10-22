@@ -89,7 +89,9 @@ inline void appendBodyGates(std::vector<GateEntry> &c)
         QStringLiteral("The shoulder plane, and the trail elbow's height against the shoulder line, are measured "
                        "across the line between the two shoulders. As the chest turns, the shoulders line up one "
                        "behind the other in the face-on picture and that line stops having an angle the camera can "
-                       "read. Frames where the shoulders are that narrow are left out of the reading."),
+                       "read. Frames where the shoulders are that narrow are left out of the reading. Trunk rise "
+                       "is left out on the same frames: it reads the point midway between the shoulders, and "
+                       "once they overlap in the picture that point is guesswork."),
         "No shoulder line on {frames} of {ofFrames} frames ({frac:pct})[ from {fromMs:t} to {toMs:t}]; the shoulders "
         "must stay at least {minRatio:pct} as wide as at address.",
         { GateEffect::Masked }, upperProd, upperDoc)

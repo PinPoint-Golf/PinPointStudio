@@ -158,7 +158,8 @@ static bool isAddressToImpactMetric(const QString &key)
         || key == QLatin1String("spineSideBend")
         || key == QLatin1String("thoraxLateralDrift")
         || key == QLatin1String("shoulderPlaneAngle")
-        || key == QLatin1String("elbowAlignment");
+        || key == QLatin1String("elbowAlignment")
+        || key == QLatin1String("trunkRise");   // posture_metrics_design.md §3.2: read P1..P7 only
 }
 
 // How many phase samples a fully segmented swing should give this series: three inside the narrowed
@@ -317,7 +318,7 @@ int main()
     {
         const Upper a = addressPose();
         const auto series = runOn(a, a);
-        CHECK("all nine series produced", series.size() == 9);
+        CHECK("all ten series produced", series.size() == 10);
 
         double v = 0.0;
         CHECK("secondaryAxisTilt present", seriesAt(series, "secondaryAxisTilt", Phase::Address, v));
@@ -402,7 +403,8 @@ int main()
 
         for (const char *key : { "secondaryAxisTilt", "spineSideBend", "shoulderPlaneAngle",
                                  "elbowAlignment", "trailElbowHeight", "leadHandWidth",
-                                 "leadUpperArmToChest", "leadArmToTorso", "thoraxLateralDrift" }) {
+                                 "leadUpperArmToChest", "leadArmToTorso", "thoraxLateralDrift",
+                                 "trunkRise" }) {
             double p = 0.0, f = 0.0;
             const bool okP = seriesAt(plain, key, Phase::Top, p);
             const bool okF = seriesAt(flipped, key, Phase::Top, f);
@@ -674,7 +676,7 @@ int main()
         // MetricSeries::valid existed. EMPTY means all valid — never an all-ones array.
         {
             const auto series = rotate(false, false);
-            bool untouched = series.size() == 9;
+            bool untouched = series.size() == 10;
             for (const MetricSeries &m : series)
                 untouched = untouched && domainOnly(&m)
                             && m.phaseSamples.size() == expectedPhaseSamples(m.key);
@@ -716,7 +718,7 @@ int main()
             CHECK("a 15 px elbow separation produces NO elbowAlignment at all",
                   !hasSeries(series, "elbowAlignment"));
             CHECK("…and costs nothing else — the shoulder line is untouched",
-                  hasSeries(series, "shoulderPlaneAngle") && series.size() == 8);
+                  hasSeries(series, "shoulderPlaneAngle") && series.size() == 9);
         }
 
         // (b) GATED is not the same as MISSING, mid-track. §10's runs sit at the tail, where the
@@ -960,10 +962,11 @@ int main()
                   && r.sigma.elbowLine.size()        == r.elbowLine.size()
                   && r.sigma.trailElbowHeight.size() == r.trailElbowHeight.size()
                   && r.sigma.leadHandWidth.size()    == r.leadHandWidth.size()
-                  && r.sigma.leadArmGap.size()       == r.leadArmGap.size());
+                  && r.sigma.leadArmGap.size()       == r.leadArmGap.size()
+                  && r.sigma.trunkRise.size()        == r.trunkRise.size());
 
         const auto series = buildUpperBodySeries(r, phases);
-        CHECK("all nine series emitted", series.size() == 9);
+        CHECK("all ten series emitted", series.size() == 10);
 
         const double toDeg  = 57.29577951308232;
         const double q2     = std::sqrt(8.0);          // σ of a difference of two 2 px keypoints
@@ -998,6 +1001,9 @@ int main()
             { "trailElbowHeight",    sigTeh },
             { "leadHandWidth",       std::sqrt(4.0 + sigTh * sigTh) / armLen * 100.0 },
             { "leadUpperArmToChest", sigGap },
+            // A distance between the neck and the pelvis centre (two √2 px midpoints), over the
+            // 250 px address trunk chord: sqrt(2 + 2)/250·100.
+            { "trunkRise",           std::sqrt(sigNk * sigNk + sigNk * sigNk) / 250.0 * 100.0 },
         };
         for (const Want &w : wants) {
             const MetricSeries *m = findSeriesU(series, w.key);
@@ -1028,7 +1034,7 @@ int main()
         const auto phases = phasesAt(20000, 60000, 110000);
         const auto bare = buildUpperBodySeries(
             trackUpperBody(sigmaTrackOf(poses, {}), kW, kH, true, 20000), phases);
-        bool none = bare.size() == 9;
+        bool none = bare.size() == 10;
         for (const MetricSeries &m : bare)
             none = none && !m.sigma.has_value();
         CHECK("no series carries σ — and none carries 0 either", none);
@@ -1038,7 +1044,7 @@ int main()
         const auto zeros = buildUpperBodySeries(
             trackUpperBody(sigmaTrackOf(poses, std::vector<double>(12, 0.0)), kW, kH, true, 20000),
             phases);
-        bool zn = zeros.size() == 9;
+        bool zn = zeros.size() == 10;
         for (const MetricSeries &m : zeros)
             zn = zn && !m.sigma.has_value();
         CHECK("σ = 0 on every joint is ABSENT, not a perfect measurement", zn);
@@ -1076,7 +1082,7 @@ int main()
         const auto as = buildUpperBodySeries(trackUpperBody(all, kW, kH, true, 20000), phases);
         const char *shoulderKeys[] = { "shoulderPlaneAngle", "spineSideBend", "trailElbowHeight",
                                        "secondaryAxisTilt", "thoraxLateralDrift", "leadHandWidth",
-                                       "leadUpperArmToChest" };
+                                       "leadUpperArmToChest", "trunkRise" };
         bool gone = true;
         for (const char *k : shoulderKeys) {
             const MetricSeries *m = findSeriesU(as, k);
@@ -1200,7 +1206,7 @@ int main()
         size_t withSigma = 0;
         for (const MetricSeries &m : series)
             if (m.sigma.has_value()) ++withSigma;
-        CHECK("eight of the nine carry σ on the same track", withSigma == 8);
+        CHECK("nine of the ten carry σ on the same track", withSigma == 9);
     }
 
     // ── 12g) A TILTED line: Euclidean L, and the sqrt(1+s²) factor ─────────────────────────────
@@ -1381,7 +1387,7 @@ int main()
         const auto series = buildUpperBodySeries(
             trackUpperBody(sigmaTrackOf(poses, std::vector<double>(12, 2.0)), kW, kH, true,
                            20000, off), phases);
-        bool none = series.size() == 9;
+        bool none = series.size() == 10;
         for (const MetricSeries &m : series)
             none = none && m.valid.empty() && !m.sigma.has_value();
         CHECK("no mask and no σ on any series — the switch restores the old bytes whole", none);
@@ -1392,7 +1398,123 @@ int main()
         size_t withSigma = 0;
         for (const MetricSeries &m : on)
             if (m.sigma.has_value()) ++withSigma;
-        CHECK("…while the default run has σ on the eight that propagate one", withSigma == 8);
+        CHECK("…while the default run has σ on the nine that propagate one", withSigma == 9);
+    }
+
+    // ── 14. trunkRise: forward-bend CHANGE read face-on (posture_metrics_design.md §3.2) ─────────
+    //
+    // The face-on image shortens the hip-midpoint→shoulder-midpoint chord by the cosine of its lean
+    // toward the camera, so a chord L·cos β against its address L·cos β₀ is the reading. The fixture
+    // builds exactly that: a 300 px trunk (hips at y 0.60) bent β toward the camera, so its image
+    // length is 300·cos β and every expectation below is a cosine a reader can check by hand.
+    //
+    // THIRTY held address frames, not runOn's six: the address reference is a median over ±250 ms,
+    // and with six address frames against six test frames that median would be half the test pose.
+    // Here the window (0..270 ms) holds address frames only, so the reference is the address chord
+    // exactly. Test pose from 300 ms; Top at 350, Impact at 380, three frames past it.
+    {
+        std::printf("=== 14) trunkRise ===\n");
+        const double kPi = 3.14159265358979323846;
+        const auto bentAt = [&](double betaDeg, double shoulderHalfSpan = 0.08) {
+            Upper p = addressPose();
+            const double chord = 0.300 * std::cos(betaDeg * kPi / 180.0);   // normalized, kW == kH
+            p.lHip = QPointF(0.45, 0.60);   p.rHip = QPointF(0.55, 0.60);
+            const double shY = 0.60 - chord;
+            p.lSh = QPointF(0.50 - shoulderHalfSpan, shY);
+            p.rSh = QPointF(0.50 + shoulderHalfSpan, shY);
+            return p;
+        };
+        const std::vector<PhaseEvent> trPhases = phasesAt(20000, 350000, 380000);
+        const auto trackFor = [&](const Upper &addr, const Upper &later) {
+            std::vector<Upper> poses(30, addr);
+            for (int i = 0; i < 12; ++i) poses.push_back(later);
+            return trackOf(poses);
+        };
+        const auto runTrunk = [&](const Upper &addr, const Upper &later) {
+            return buildUpperBodySeries(trackUpperBody(trackFor(addr, later), kW, kH, true, 20000), trPhases);
+        };
+        // (a) Units and sign: 34° at address, standing up to 24° by impact. ℓ grows, so POSITIVE,
+        // and it is cos 24°/cos 34° − 1 in %, 10.19 % — the design's "about 10 %".
+        {
+            const auto series = runTrunk(bentAt(34.0), bentAt(24.0));
+            const MetricSeries *tr = findSeriesU(series, "trunkRise");
+            CHECK("trunkRise produced, in %", tr && tr->unit == QStringLiteral("%"));
+            double addr = 99.0, imp = 0.0;
+            CHECK("trunkRise at address", seriesAt(series, "trunkRise", Phase::Address, addr));
+            CHECK("…is 0 — the address chord against itself", near(addr, 0.0, 1e-6));
+            CHECK("trunkRise at impact", seriesAt(series, "trunkRise", Phase::Impact, imp));
+            const double want = 100.0 * (std::cos(24.0 * kPi / 180.0) / std::cos(34.0 * kPi / 180.0) - 1.0);
+            std::printf("    34° → 24°: trunkRise %.3f %% (closed form %.3f %%)\n", imp, want);
+            CHECK("standing up 34° → 24° reads POSITIVE, cos 24°/cos 34° − 1 = +10.19 %",
+                  imp > 0.0 && near(imp, want, 0.05) && near(want, 10.19, 0.01));
+            CHECK("…with no Finish sample — the domain is P1..P7", tr && !hasPhaseSample(*tr, Phase::Finish));
+            bool tailMasked = tr && tr->valid.size() == tr->t_us.size();
+            if (tailMasked)
+                for (size_t i = 0; i < tr->t_us.size(); ++i)
+                    if (tr->t_us[i] > 380000 && tr->valid[i]) tailMasked = false;
+            CHECK("…and every grid sample past Impact is marked invalid", tailMasked);
+        }
+        // (b) The slope near 34°: one degree of bend lost is about +1.2 % (design §3.2).
+        {
+            double imp = 0.0;
+            CHECK("trunkRise at impact (34° → 33°)",
+                  seriesAt(runTrunk(bentAt(34.0), bentAt(33.0)), "trunkRise", Phase::Impact, imp));
+            std::printf("    34° → 33°: trunkRise %.3f %% per degree\n", imp);
+            CHECK("one degree of bend lost near 34° reads ≈ +1.2 % (1.1 … 1.3)", imp > 1.1 && imp < 1.3);
+        }
+        // (c) Bending FURTHER over reads negative.
+        {
+            double imp = 0.0;
+            CHECK("trunkRise at impact (34° → 40°)",
+                  seriesAt(runTrunk(bentAt(34.0), bentAt(40.0)), "trunkRise", Phase::Impact, imp));
+            CHECK("bending further over reads NEGATIVE", imp < -5.0);
+        }
+        // (d) A SIDE TILT does not move it: the chord rotated within the image plane keeps its
+        // length. 15° of lean away from the target with the bend held.
+        {
+            Upper tilted = bentAt(34.0);
+            const double chord = 0.300 * std::cos(34.0 * kPi / 180.0);
+            const double dx = chord * std::sin(15.0 * kPi / 180.0), dy = chord * std::cos(15.0 * kPi / 180.0);
+            tilted.lSh = QPointF(0.42 + dx, 0.60 - dy);   tilted.rSh = QPointF(0.58 + dx, 0.60 - dy);
+            double imp = 99.0;
+            CHECK("trunkRise at impact (side tilt)",
+                  seriesAt(runTrunk(bentAt(34.0), tilted), "trunkRise", Phase::Impact, imp));
+            CHECK("a 15° side tilt with the bend held reads ≈ 0", near(imp, 0.0, 0.05));
+        }
+        // (e) THE 40 % SHOULDER-SPAN REFUSAL. The trunk stands up AND the shoulders foreshorten to
+        // 30 % of their address span (a turned trunk at the top): no sample, refused not bridged —
+        // and at 50 % the same trunk reads.
+        {
+            const auto narrowT = trackFor(bentAt(34.0), bentAt(24.0, 0.08 * 0.30));
+            const UpperBodyResult r = trackUpperBody(narrowT, kW, kH, true, 20000);
+            const auto narrow = buildUpperBodySeries(r, trPhases);
+            double v = 0.0;
+            const MetricSeries *tr = findSeriesU(narrow, "trunkRise");
+            CHECK("shoulders at 30 % of their address span ⇒ NO trunkRise sample at the top or impact",
+                  tr && !seriesAt(narrow, "trunkRise", Phase::Top, v)
+                      && !seriesAt(narrow, "trunkRise", Phase::Impact, v));
+            bool refused = tr && tr->valid.size() == tr->t_us.size();
+            if (refused)
+                for (size_t i = 0; i < tr->t_us.size(); ++i)
+                    if (tr->t_us[i] >= 300000 && tr->valid[i]) refused = false;
+            CHECK("…every refused instant is invalid — the gate is never bridged", refused);
+            bool gateRecord = false;
+            for (const GateRecord &g : upperBodyGates(r, trPhases))
+                if (g.gate == QStringLiteral("body.shoulderLine") && g.subject == QStringLiteral("trunkRise"))
+                    gateRecord = true;
+            CHECK("…and the shoulder-line gate leaves a record on trunkRise", gateRecord);
+            CHECK("at 50 % of the address span the same trunk is read",
+                  seriesAt(runTrunk(bentAt(34.0), bentAt(24.0, 0.08 * 0.50)), "trunkRise", Phase::Impact, v)
+                      && v > 9.0);
+        }
+        // (f) No hips at address ⇒ no trunk chord ⇒ trunkRise absent, the rest unaffected.
+        {
+            PoseTrack2D t = trackFor(bentAt(34.0), bentAt(34.0));
+            for (PoseFrame2D &f : t.frames) { f.conf[kLHip] = 0.05f; f.conf[kRHip] = 0.05f; }
+            const auto series = buildUpperBodySeries(trackUpperBody(t, kW, kH, true, 20000), trPhases);
+            CHECK("hips never seen ⇒ NO trunkRise, while the shoulder line is still produced",
+                  !hasSeries(series, "trunkRise") && hasSeries(series, "shoulderPlaneAngle"));
+        }
     }
 
     std::printf(g_fail == 0 ? "ALL PASS\n" : "%d FAILURE(S)\n", g_fail);

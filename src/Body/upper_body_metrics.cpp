@@ -313,14 +313,15 @@ FrameGeom resolveFrame(const PxFrame &px, bool leadIsLeft, double confMin, const
 }
 
 // What a whole-reference refusal takes down (trust stage 6: one cascade record, on the first
-// reading it refused — secondaryAxisTilt — naming the rest). All nine: both refusals return before
+// reading it refused — secondaryAxisTilt — naming the rest). All ten: both refusals return before
 // any channel is pushed.
 QStringList upperBodyCovers()
 {
     return { QStringLiteral("spineSideBend"), QStringLiteral("thoraxLateralDrift"),
              QStringLiteral("shoulderPlaneAngle"), QStringLiteral("elbowAlignment"),
              QStringLiteral("trailElbowHeight"), QStringLiteral("leadHandWidth"),
-             QStringLiteral("leadUpperArmToChest"), QStringLiteral("leadArmToTorso") };
+             QStringLiteral("leadUpperArmToChest"), QStringLiteral("leadArmToTorso"),
+             QStringLiteral("trunkRise") };
 }
 
 int countWithin(const std::vector<int64_t> &ts, int64_t fromUs, int64_t toUs)
@@ -418,6 +419,10 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
     // way. There is no elbow entry: that line takes an absolute pixel floor, for the reason given at
     // the gates below.
     std::vector<double> shoulderDx, hipDx;
+    // The trunk chord, trunkRise's denominator: neck (shoulder midpoint) to pelvis centre (hip
+    // midpoint), the same two derived points secondaryAxisTilt reads. Conditional on the hips for the
+    // reason hipDx is, and over the same reference frames, so the ratio's two ends are measured alike.
+    std::vector<double> trunkLens;
     for (const FrameGeom *g : ref) {
         // % shoulder width means the EUCLIDEAN shoulder separation, because that is what it already
         // means in the shipped `stanceWidth` metric (foot_metrics' shoulderWidthPxAt). % stance
@@ -434,6 +439,8 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
         shoulderDx.push_back(std::abs(g->trailShoulder.x() - g->leadShoulder.x()));
         if (g->hipsValid)
             hipDx.push_back(std::abs(g->trailHip.x() - g->leadHip.x()));
+        if (g->spineValid)
+            trunkLens.push_back(lengthOf(g->neck, g->pelvis));
     }
 
     res.ref.shoulderSpanPx = medianOfCopy(shoulderSpans);
@@ -441,6 +448,7 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
     res.ref.leadArmLenPx   = medianOfCopy(armLens);
     res.ref.shoulderDxPx   = medianOfCopy(shoulderDx);
     res.ref.hipDxPx        = medianOfCopy(hipDx);      // 0 when address hips were never confident
+    res.ref.trunkLenPx     = medianOfCopy(trunkLens);  // likewise
 
     // Which image direction the lead side is, resolved from the address geometry rather than
     // assumed — a camera can be mirrored and an operator can flip the preview.
@@ -462,6 +470,7 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
     const double toPctShoulder = 100.0 / res.ref.shoulderSpanPx;
     const double toPctStance   = res.ref.stanceSpanPx > kEps ? 100.0 / res.ref.stanceSpanPx : 0.0;
     const double toPctArm      = res.ref.leadArmLenPx > kEps ? 100.0 / res.ref.leadArmLenPx : 0.0;
+    const double toPctTrunk    = res.ref.trunkLenPx > kEps ? 100.0 / res.ref.trunkLenPx : 0.0;
 
     // The body LINES' validity gates, resolved per frame against the address spans above.
     //
@@ -795,6 +804,30 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
             const QPointF torsoDir(g.pelvis.x() - g.neck.x(), g.pelvis.y() - g.neck.y());
             res.leadArmToTorso.push(g.t_us, angleBetweenDeg(armDir, torsoDir));
         }
+
+        // trunkRise — the trunk chord's image length against its address length, % (see the header).
+        // POSITIVE = THE CHORD IMAGES LONGER = THE TRUNK MORE UPRIGHT. ℓ = L·cos β, so standing up out
+        // of a 34° bend reads about +1.2 % per degree.
+        //
+        // GATED ON THE SHOULDER LINE, by the same ratio as shoulderPlaneAngle, though nothing here
+        // divides by the line's dx. The chord's top end is the shoulder MIDPOINT, and once the two
+        // shoulders foreshorten toward one image column (the top, on most swings) which keypoint is
+        // which, and so where their midpoint sits, is guesswork: a pose that swaps or merges them
+        // moves the midpoint by a large fraction of the span while the trunk has not moved. A refused
+        // instant goes on gatedShoulderLine with the others, so the resample never bridges it.
+        //
+        // σ: a DISTANCE between two points, so its gradient with respect to either is the unit vector
+        // joining them and an isotropic σ enters whole:
+        //     σ = sqrt(σ_neck² + σ_pelvis²) · 100/trunkLenPx.
+        // Neck and PelvisCentre are built from disjoint keypoints (shoulders vs hips), so independent.
+        // The address reference's own noise is left out, as pelvisLift leaves its out
+        // (lower_body_metrics.cpp carries the size of that omission) — the same reference rule, the
+        // same omission.
+        if (g.shoulderLineValid && g.spineValid && toPctTrunk > 0.0) {
+            pushS(res.trunkRise, res.sigma.trunkRise, g.t_us,
+                  (lengthOf(g.neck, g.pelvis) * toPctTrunk) - 100.0,
+                  quad2(g.neckSig, g.pelvisSig) * toPctTrunk);
+        }
     }
 
     res.valid = !res.axisTilt.empty() || !res.shoulderPlane.empty() || !res.thoraxDrift.empty();
@@ -912,6 +945,12 @@ std::vector<MetricSeries> buildUpperBodySeries(const UpperBodyResult &res,
     // trackUpperBody, and UpperBodySigma. An empty vector leaves the series' sigma unset.
     push(res.leadArmToTorso,   nullptr,
          "leadArmToTorso",      "Lead arm to torso angle", deg);
+    // trunkRise reads the shoulder MIDPOINT, which stops being one point when the shoulder line
+    // collapses, so it is refused on the shoulder line's instants; and it is an ADDRESS->IMPACT
+    // quantity (posture_metrics_design.md §3.2) — past impact the chord is turning out of the image.
+    push(res.trunkRise,        &res.sigma.trunkRise,
+         "trunkRise",           "Trunk rise",              QStringLiteral("%"),
+         res.gatedShoulderLine, kP1toP7Samples, /*p1toP7Domain=*/true);
     return out;
 }
 
@@ -940,6 +979,8 @@ std::vector<GateRecord> upperBodyGates(const UpperBodyResult &res, const std::ve
             fromUs, toUs, "minRatio", res.minShoulderSpanRatio);
     summary(PP_GATE("body.shoulderLine"), "trailElbowHeight", res.gatedShoulderLine, res.shouldersSeenUs,
             INT64_MIN, INT64_MAX, "minRatio", res.minShoulderSpanRatio);
+    summary(PP_GATE("body.shoulderLine"), "trunkRise", res.gatedShoulderLine, res.shouldersSeenUs,
+            fromUs, toUs, "minRatio", res.minShoulderSpanRatio);
     summary(PP_GATE("body.elbowLine"), "elbowAlignment", res.gatedElbowLine, res.elbowsSeenUs,
             fromUs, toUs, "minPx", res.minElbowSpanPx);
     {

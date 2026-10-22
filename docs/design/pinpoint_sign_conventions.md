@@ -334,6 +334,19 @@ The trunk frame and its stand-tall solve are owned by
 
 **The measurement site.** A back-mounted thorax sensor reads spine rotation at T2–T5, not the shoulder line. Norms must match the site, and each descriptor's provenance says which it is.
 
+### Posture readings (21 Oct 2026)
+
+From [`posture_metrics_design.md`](posture_metrics_design.md) §3.1–3.2. None of the three is lateral, so
+neither rule 1 nor rule 2 reaches them, and each states its own. The two down-the-line angles take
+"toward the ball" from the golfer's own feet, as `pelvisThrust` and `spineForwardBend` do, so a
+left-handed golfer or a mirrored camera reads the same number.
+
+| metric | positive means | note |
+|---|---|---|
+| `trunkRise` | the trunk MORE UPRIGHT than at address: the face-on hip-to-shoulder line images longer, `ℓ(t)/ℓ(Address) − 1`, in % | face-on; P1 → P7 only; 0 at address by construction; negative is bending further over. About +1.2 % per degree of forward bend lost near 34° |
+| `armHang` | the hands FURTHER TOWARD THE BALL than the shoulders — reaching; negative is tucked in under the body | down the line; shoulder midpoint → wrist midpoint against the vertical, at address only |
+| `headPitch` | the CHIN DOWN toward the chest; negative is the chin up | down the line; the ear → nose line against the square to the trunk line (hip midpoint → shoulder midpoint), so 0 is the head held square to the trunk and forward bend does not move it; at address only |
+
 ## Not covered by either rule
 
 A metric on neither axis **must state its own convention**: `pelvisThrust` is toward the ball, which

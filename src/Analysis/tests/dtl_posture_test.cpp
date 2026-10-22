@@ -117,6 +117,37 @@ static PoseTrack2D makeFo()
     }
     return p;
 }
+// The address arms (posture_metrics_design.md §3.1): over the address window, both wrists put on a
+// line from the shoulder midpoint `hangDeg` off the vertical, + toward the ball, 280 px long, with the
+// given confidences. Everything else in the frame is left alone.
+static void setArmHang(PoseTrack2D &p, bool mirror, double hangDeg, float lWrConf = 0.9f, float rWrConf = 0.9f)
+{
+    const double tw = mirror ? -1.0 : 1.0, h = hangDeg * M_PI / 180.0;
+    for (PoseFrame2D &f : p.frames) {
+        if (std::llabs(f.t_us - kAddr) > 200000) continue;
+        const double sx = 0.5 * (f.kp[5].x() + f.kp[6].x()) * kW, sy = 0.5 * (f.kp[5].y() + f.kp[6].y()) * kH;
+        const QPointF w((sx + tw * 280.0 * std::sin(h)) / kW, (sy + 280.0 * std::cos(h)) / kH);
+        f.kp[9] = w; f.kp[10] = w;
+        f.conf[9] = lWrConf; f.conf[10] = rWrConf;
+    }
+}
+// The head (posture_metrics_design.md §3.1), on every frame: both ears 70 px up the trunk line from
+// the shoulder midpoint and the nose 40 px from them, `pitchDeg` past square to the trunk toward the
+// feet (+ = chin down). Built in a ball-forward, y-up frame and turned into the image by the facing.
+static void setHead(PoseTrack2D &p, bool mirror, double pitchDeg)
+{
+    const double tw = mirror ? -1.0 : 1.0, pr = pitchDeg * M_PI / 180.0;
+    for (PoseFrame2D &f : p.frames) {
+        const double sx = 0.5 * (f.kp[5].x() + f.kp[6].x()) * kW, sy = 0.5 * (f.kp[5].y() + f.kp[6].y()) * kH;
+        const double hx = 0.5 * (f.kp[11].x() + f.kp[12].x()) * kW, hy = 0.5 * (f.kp[11].y() + f.kp[12].y()) * kH;
+        const double beta = std::atan2(tw * (sx - hx), -(sy - hy));     // trunk lean toward the ball
+        const double ux = tw * std::sin(beta), uy = -std::cos(beta);     // up the trunk, image coords
+        const double ex = tw * std::cos(beta + pr), ey = std::sin(beta + pr);   // ear → nose, image coords
+        const QPointF ear((sx + 70.0 * ux) / kW, (sy + 70.0 * uy) / kH);
+        f.kp[3] = ear; f.kp[4] = ear;
+        f.kp[0] = QPointF((sx + 70.0 * ux + 40.0 * ex) / kW, (sy + 70.0 * uy + 40.0 * ey) / kH);
+    }
+}
 static const MetricSeries *find(const DtlPostureResult &r, const char *key)
 {
     for (const MetricSeries &m : r.series) if (m.key == QLatin1String(key)) return &m;
@@ -245,6 +276,68 @@ int main()
         const DtlPostureResult n = buildDtlPosture(in, cfg);
         check(n.valid && !find(n, "pelvisThrust") && find(n, "spineForwardBend") && find(n, "trailKneeFlexion"),
               "§4 no ruler ⇒ no pelvisThrust, the angles still produced");
+    }
+
+    // §5 arm hang at address (posture_metrics_design.md §3.1): an angle, so no ruler; + toward the ball
+    // by the feet; one wrist is enough, neither is no reading.
+    {
+        PoseTrack2D d = makePose(false);
+        setArmHang(d, false, 8.0);
+        const DtlPostureResult r = buildDtlPosture(inputs(d, false), cfg);
+        const MetricSeries *a = find(r, "armHang");
+        check(a && a->unit == QStringLiteral("°") && a->phaseSamples.size() == 1
+                  && a->phaseSamples.front().phase == Phase::Address && a->t_us.empty(),
+              "§5 armHang is an address scalar, in degrees");
+        check(near(atPhase(a, Phase::Address), 8.0, 0.01), "§5 hands 8° toward the ball ⇒ +8° (reaching)");
+        PoseTrack2D m = makePose(true);
+        setArmHang(m, true, 8.0);
+        check(near(atPhase(find(buildDtlPosture(inputs(m, true), cfg), "armHang"), Phase::Address), 8.0, 0.01),
+              "§5 mirrored golfer ⇒ the same +8°");
+        PoseTrack2D t = makePose(false);
+        setArmHang(t, false, -5.0);
+        DtlPostureInputs noRuler = inputs(t, false);
+        noRuler.ballBright = false;                               // and no ruler anywhere
+        check(near(atPhase(find(buildDtlPosture(noRuler, cfg), "armHang"), Phase::Address), -5.0, 0.01),
+              "§5 hands tucked 5° under the body ⇒ −5°, with no ruler");
+        PoseTrack2D one = makePose(false);
+        setArmHang(one, false, 8.0, 0.05f, 0.9f);                 // the lead wrist hidden
+        check(near(atPhase(find(buildDtlPosture(inputs(one, false), cfg), "armHang"), Phase::Address), 8.0, 0.01),
+              "§5 one wrist hidden ⇒ the other stands for the midpoint");
+        PoseTrack2D none = makePose(false);
+        setArmHang(none, false, 8.0, 0.05f, 0.05f);               // neither wrist confident at address
+        const DtlPostureResult rn = buildDtlPosture(inputs(none, false), cfg);
+        check(rn.valid && find(rn, "armHang") == nullptr && find(rn, "spineForwardBend") != nullptr,
+              "§5 neither wrist confident ⇒ the frame is refused and there is no armHang; the rest still valid");
+    }
+
+    // §6 head pitch at address: the ear → nose line against square-to-the-trunk, + chin down, measured
+    // against the TRUNK so the 33° of forward bend in this fixture does not move it.
+    {
+        PoseTrack2D d = makePose(false);
+        setHead(d, false, 0.0);
+        const DtlPostureResult r0 = buildDtlPosture(inputs(d, false), cfg);
+        const MetricSeries *h = find(r0, "headPitch");
+        check(h && h->unit == QStringLiteral("°") && h->phaseSamples.size() == 1
+                  && h->phaseSamples.front().phase == Phase::Address,
+              "§6 headPitch is an address scalar, in degrees");
+        check(near(atPhase(h, Phase::Address), 0.0, 0.01), "§6 head square to a 33° trunk ⇒ 0°");
+        PoseTrack2D down = makePose(false);
+        setHead(down, false, 20.0);
+        check(near(atPhase(find(buildDtlPosture(inputs(down, false), cfg), "headPitch"), Phase::Address), 20.0, 0.01),
+              "§6 chin 20° down toward the chest ⇒ +20°");
+        PoseTrack2D up = makePose(false);
+        setHead(up, false, -15.0);
+        check(near(atPhase(find(buildDtlPosture(inputs(up, false), cfg), "headPitch"), Phase::Address), -15.0, 0.01),
+              "§6 chin 15° up ⇒ −15°");
+        PoseTrack2D m = makePose(true);
+        setHead(m, true, 20.0);
+        check(near(atPhase(find(buildDtlPosture(inputs(m, true), cfg), "headPitch"), Phase::Address), 20.0, 0.01),
+              "§6 mirrored golfer ⇒ the same +20°");
+        PoseTrack2D blind = makePose(false);
+        setHead(blind, false, 20.0);
+        for (PoseFrame2D &f : blind.frames) { f.conf[3] = 0.05f; f.conf[4] = 0.05f; }
+        const DtlPostureResult rb = buildDtlPosture(inputs(blind, false), cfg);
+        check(rb.valid && find(rb, "headPitch") == nullptr, "§6 no ear seen ⇒ no headPitch, the rest still valid");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "ALL PASS\n", g_fail);
