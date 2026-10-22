@@ -2163,7 +2163,16 @@
       "sigmaLo": 2.5,
       "unit": "°",
       "source": "heuristic",
-      "citation": "CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 127, mean -7.3 SD 1.8 (z of the mean -2.9); Nick n 28, mean -8.2 SD 2.2 (z of the mean -3.3); Jess n 23, mean +2.0 SD 1.7 (z of the mean +0.8). No backswing forward-bend row exists to seat it from; carried from m_spineBendLossDown's 2.5° (Mark's 5° line for bend lost on the way down) to the top, both sides. Unchecked whether the down-the-line bend reading changes at the top on a good swing merely because the shoulder midpoint moves as the shoulders turn, which would put the centre off 0. No golfer's data behind it. docs/research/data/posture/posture_composites_2026-10-22.md"
+      "citation": "NOT GRADED: the measure is HELD from 2026-10-22 until the trunk IMUs corroborate it (core.json gapReason; trunk_imu_sequence_grf_design.md §8.8). The row stays so the reading can be shown. CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 127, mean -7.3 SD 1.8 (z of the mean -2.9); Nick n 28, mean -8.2 SD 2.2 (z of the mean -3.3); Jess n 23, mean +2.0 SD 1.7 (z of the mean +0.8). No backswing forward-bend row exists to seat it from; carried from m_spineBendLossDown's 2.5° (Mark's 5° line for bend lost on the way down) to the top, both sides. Unchecked whether the down-the-line bend reading changes at the top on a good swing merely because the shoulder midpoint moves as the shoulders turn, which would put the centre off 0. No golfer's data behind it. docs/research/data/posture/posture_composites_2026-10-22.md"
+    },
+    {
+      "measure": "m_headRiseBackDtl",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 3.0,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "Carried from m_headLiftBack (0 ± 3 cm, the face-on head height going back): the same physical quantity, read from down the line on the ear midpoint. A ceiling, so only a rise grades; the signal surfaces from 6 cm and Action begins at 9 cm under the Standard policy. Measured 2026-10-22 on the stored poses, for the record and not adopted: Nick Henn n 27 +1.9 SD 1.6, Mark n 49 (7 Oct) +2.7 SD 1.7, Jess n 7 -8.4 SD 1.2 (her dip). Mark judges Nick rock solid going back, so a corridor that fired on him would be wrong. No golfer's data behind the sigma."
     },
     {
       "measure": "m_axisTiltAddress",

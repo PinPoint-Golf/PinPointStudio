@@ -526,6 +526,26 @@ The wiring exists (`analysis_pipeline.cpp:3050`: Pelvis → Hips, Thorax → Spi
 - **Integrity:** before the first trunk capture, run `--refuse-orientation` on one worn swing. If live and re-fused disagree (the Witmotion history says they will), the trunk lanes take the HackMotion-style exclusion until understood, so every shot does not carry a false ⚠.
 - **Mixed instruments (D1):** HackMotion and Witmotion bindings coexist in one shot; the placement guard refuses only a second claim on the same role; `imuIntegrity` skips the wG3 lanes alone and judges trunk lanes on their own.
 
+### 8.8 Held for the IMUs: the trunk-bend change at the top (22 October 2026)
+
+`m_spineBendChangeTop` (forward bend, P1 → P4) is **held**: produced and shown, never graded, until a thorax and a pelvis sensor can corroborate it. It is a down-the-line reading of the hip-midpoint → shoulder-midpoint line, and at the top both midpoints move with the turn rather than with the posture. The shoulders go from end-on at address to spread across the image, and the trail hip rotates forward, so the line tips upright when the back has not changed. Mark reviewed annotated P1/P4 frames on 22 October and judged it measurement error.
+
+| Golfer (Mark's coach view) | DTL shoulder-midpoint line, P1 → P4 | Hip → ear-midpoint line, same frames |
+|---|---|---|
+| Nick Henn, 28 swings (holds his spine angle, "rock solid") | −8.2° ± 2.2 | −3.6° ± 2.2 |
+| Mark, 111 swings | −7.4° ± 1.8 | −1.9° ± 1.9 |
+| Jess Ratcliffe, 23 swings (dips going back) | +2.0° ± 1.7 | +5.8° ± 1.8 |
+
+Scored against 0 ± 2.5°, the reading made `loss_of_posture_backswing` fire on every swing Nick hit. The IMUs remove both failure modes: the sensors sit on the segments, so there is no occlusion and no keypoint travel with the turn.
+
+**What the IMU work owes here:**
+- `thoraxForwardBend` (§3.2) as the `trunkImus` route on `spineForwardBend`, from the §5.3 decomposition, with the §8.2 σ.
+- The reading at the top **relative to the pelvis**: thorax bend minus pelvis tilt, so that a pelvis that tips under the trunk is not reported as the trunk standing up.
+- A grading pass on worn swings recorded with both cameras (§14.4): the DTL line against the IMU at P1 and P4. That pass decides whether the camera line can be corrected (its error looks systematic, about 7°, but has been measured on two golfers only) or stays held on camera-only swings.
+- Then release the hold: `m_spineBendChangeTop` back to `live`, with the IMU rung first in its ladder. The camera rung is live only if §14.4 passes it. Re-seat its norm from the worn swings, labelled one-golfer.
+
+**What fires meanwhile.** "Standing up going back" (`loss_of_posture_backswing`) now fires only on a measured rise of the head seen down the line (`m_headRiseBackDtl`, ear midpoint, 0 ± 3 cm ceiling; `posture_metrics_design.md` §4.5). The trunk-bend change is shown as a reading and fires nothing.
+
 ---
 
 ## 9. What Part A delivers (definition of done)
@@ -535,6 +555,7 @@ The wiring exists (`analysis_pipeline.cpp:3050`: Pelvis → Hips, Thorax → Spi
 | Trunk placement and calibration, in the app | Mark straps on vest and belt, runs the ceremony, sees both segments track in the live check. A deliberately mis-seated sensor fails and the message names it. |
 | Trunk analysis | A captured swing yields measured pelvis and thorax rotation, signed series, rates and placed KS nodes, each with σ. `hip_stall` and `sequence_order` assessable. Trunk-only jobs keep the vision ladder. |
 | skeleton3d fusion | Trunk IMUs constrain the fit with a calibrated mount; the pelvis no longer coasts through square on a worn swing. |
+| Trunk-bend hold released (§8.8) | `m_spineBendChangeTop` reads from the thorax and pelvis IMUs on worn swings, graded against its DTL camera rung on two-camera swings, and is live again. |
 | Camera-route grading | `docs/research/data/trunk_imu/` holds the per-swing IMU-vs-camera table and a note giving the measured σ and bias of every camera trunk route and the decisions they imply. A failed gate, written up honestly, counts. |
 | Tests | The synthetic end-to-end test (§14.1). |
 

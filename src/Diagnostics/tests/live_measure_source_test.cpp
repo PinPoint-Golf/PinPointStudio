@@ -348,7 +348,7 @@ int main(int argc, char **argv)
     // m_headLiftImpact, m_pelvisLiftImpact, m_trunkRiseImpact, m_spineBendChangeTop,
     // m_axisTiltAddress, m_armHangAddress, m_headPitchAddress) and the three composites
     // m_postureHeldImpact, m_postureHeldTop, m_setupPosture.
-    check(pack.measures.size() == 168, "…and 168 measures");   // +11 kinematic-sequence measures (2026-10-14)   // +m_shaftLieDelta
+    check(pack.measures.size() == 169, "…and 169 measures");   // +m_headRiseBackDtl (2026-10-22, standing up going back from down the line)   // +11 kinematic-sequence measures (2026-10-14)   // +m_shaftLieDelta
     check(!norms->norms().norms.empty(), "the shipped norm set loaded");
 
     QTemporaryDir tmp;
@@ -592,7 +592,10 @@ int main(int argc, char **argv)
         // 10 -> 11 on 2026-10-22: m_trunkRiseImpact is HELD — it failed validation V1 against the
         // down-the-line bend (docs/research/data/posture/posture_composites_2026-10-22.md).
         // 11 -> 10 the same day: m_headPitchAddress passed V5 (repeatability) and went live.
-        check(planned == 10, "10 shipped measures are not live yet");   // 16 -> 14 on 2026-10-14: m_ksOrderShare, m_ksTimingSpread went live on the session reducer (scope: session — still no per-swing value, which `wrong` below confirms)
+        // 10 -> 11 on 2026-10-22: m_spineBendChangeTop is HELD until the trunk IMUs can corroborate it —
+        // the down-the-line hip-to-shoulder line tips upright at the top with the turn, not the posture
+        // (trunk_imu_sequence_grf_design.md §8.8).
+        check(planned == 11, "11 shipped measures are not live yet");   // 16 -> 14 on 2026-10-14: m_ksOrderShare, m_ksTimingSpread went live on the session reducer (scope: session — still no per-swing value, which `wrong` below confirms)
         check(wrong == 0, "…and not one of them produced a value");
     }
 

@@ -3013,7 +3013,7 @@
           "p4"
         ]
       },
-      "status": "live",
+      "status": "held",
       "label": "Spine forward bend, change P1 to P4",
       "unit": "°",
       "highMeans": "more forward bend at the top than at address; the LOW side is standing up out of the address posture going back",
@@ -3021,6 +3021,30 @@
       "golferLow": "you stand taller at the top than at address",
       "golferSign": 1,
       "golferName": "change in your forward bend from address to the top",
+      "viewNeeded": "downTheLine",
+      "gapReason": "Held 2026-10-22 until the trunk IMUs can corroborate it (trunk_imu_sequence_grf_design.md §8.8). From down the line the reading is the hip-midpoint to shoulder-midpoint line, and at the top both midpoints move with the turn, not with the posture: the shoulders spread from end-on to across the image and the trail hip rotates forward, so the line tips upright with no change in the back. Mark and Nick Henn, whom Mark judges to hold their spine angle going back, read -7.4 and -8.2 degrees on every swing; the hip-midpoint to ear-midpoint line on the same frames reads -1.9 and -3.6. Annotated P1/P4 frames reviewed by Mark 22 Oct. A thorax and a pelvis sensor read the trunk's forward bend directly, with no occlusion and no keypoint travel."
+    },
+    {
+      "id": "m_headRiseBackDtl",
+      "kind": "provided",
+      "metricKey": "headRise",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p4"
+        ]
+      },
+      "shape": "ceiling",
+      "status": "live",
+      "label": "Head rise seen down the line, change P1 to P4",
+      "unit": "cm",
+      "highMeans": "the head higher at the top than at address: standing up out of the posture going back",
+      "golferHigh": "your head comes up going back",
+      "golferLow": "your head stays down going back",
+      "golferSign": 1,
+      "golferName": "how far your head rises going back",
       "viewNeeded": "downTheLine"
     },
     {
@@ -3197,7 +3221,9 @@
             "weight": 0.5
           }
         ]
-      }
+      },
+      "unwatchedTail": "high",
+      "unwatchedReason": "The high tail was `loss_of_posture_backswing` until 2026-10-22. Its two angle parts outvoted the height parts: the down-the-line trunk-bend change tips upright at the top with the turn, and the trail knee straightening turns the pelvis without lifting it, so it fired on every swing of a golfer whose head and hips held their height (Nick Henn). Standing up going back is now read on the down-the-line head rise, m_headRiseBackDtl (posture_metrics_design.md §4.5). The low tail, posture_sinks_backswing, still grades here."
     },
     {
       "id": "m_setupPosture",
@@ -4590,10 +4616,10 @@
       "direction": "low"
     },
     {
-      "id": "sig_lossOfPostureBack",
+      "id": "sig_standUpBackDtl",
       "test": "outsideCorridor",
       "measures": [
-        "m_postureHeldTop"
+        "m_headRiseBackDtl"
       ],
       "direction": "high"
     },
@@ -5209,13 +5235,13 @@
       "golferWell": "you keep your posture going back",
       "golferWhy": "Standing up going back changes your height over the ball, so you have to find it again coming down.",
       "goal": "Keep your posture as you turn back",
-      "cue": "Feel your trail knee stay soft and your chest stay over the ball as your back turns to the target.",
-      "check": "Film from down the line. At the top your back should be as bent over as it was at address, and your head and hips no higher.",
+      "cue": "Feel your trail knee stay soft and your head stay at its address height as your back turns to the target.",
+      "check": "Film from down the line and mark the top of your head on the screen at address. At the top your head should still be at that height.",
       "picture": {
         "kind": "change",
         "camera": "dtl",
         "phase": "P4",
-        "line": "spine"
+        "line": "head"
       },
       "aliases": [
         "standing up going back",
@@ -5227,10 +5253,10 @@
       "observability": "observable",
       "confirmedBy": "measured",
       "detectedBy": [
-        "sig_lossOfPostureBack"
+        "sig_standUpBackDtl"
       ],
       "state": "draft",
-      "consequence": "The posture as a whole is more upright at the top than at address: the trunk stood up, the trail knee straightened, the hips and head higher and the hips toward the ball, read together. The swing centre has moved before the downswing starts, and the height has to be found again on the way down for the club to reach the ball.",
+      "consequence": "The head is higher at the top than at address, seen from down the line: the golfer has stood up out of the posture on the way back. The swing centre has moved before the downswing starts, and the height has to be found again on the way down for the club to reach the ball.",
       "drills": [
         "drill.postureRod",
         "drill.trailHipLoad",
@@ -5239,9 +5265,9 @@
       "provenance": {
         "tier": "practice",
         "searchedOn": "2026-10-22",
-        "searchTerms": "golf losing height in backswing standing up going back trail knee straightens\n\nA FAMILY CONDITION, READ ON A COMPOSITE (posture_metrics_design.md §4). The detector is the whole family: the parts are read at one instant against address and combined, weighted and signed, into one z calibrated to trip a clean swing as often as a single reading trips its own line. One part alone does not make it fire, and a compensation (bend lost, height dropped) cancels. The specific moves keep their own conditions and are joined to this one by causes edges, so the explanation reads \"loss of posture, mostly early extension\". DRAFT until the V4 firing table is written. Separate from the impact pair for the reason `diving` and `coming_out_of_it` are separate: different events at different times, and a golfer can do both. The alias \"standing up going back\" moved here from `pelvis_rise_backswing`, which names one part."
+        "searchTerms": "golf losing height in backswing standing up going back trail knee straightens\n\nREAD ON THE DOWN-THE-LINE HEAD HEIGHT (posture_metrics_design.md §4.5, changed 2026-10-22). Standing up is the head rising, and only a measured rise fires it. Until 22 Oct this condition was the high tail of the m_postureHeldTop composite, where the down-the-line trunk-bend change and the trail knee could outvote the height parts: it fired on every swing of Nick Henn, whose head Mark judges rock solid going back (DTL ear midpoint +1.9 cm, face-on -0.8, 3-D +1.0). The trunk-bend change is held until the trunk IMUs corroborate it; the trail knee keeps its own condition and its causes edge. The composite keeps its low tail, posture_sinks_backswing. The alias \"standing up going back\" moved here from `pelvis_rise_backswing`, which names one part."
       },
-      "axis": "posture_held_top"
+      "axis": "head_height_top_dtl"
     },
     {
       "id": "posture_sinks_backswing",

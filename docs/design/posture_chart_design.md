@@ -416,7 +416,7 @@ same thing (§6.2). **None of these is ever offered as a pattern.**
 |---|---|---|---|
 | D1 | **Hips in** (early extension) | hip depth above the band from P5 on, head level or rising | `early_extension`, `loss_of_posture` |
 | D2 | **Standing up** | head above the band at P6–P7, trunk bend lost | `coming_out_of_it`, `loss_of_posture` |
-| D3 | **Standing up going back** | hips toward the ball and/or head up by P3–P4, with the trail leg straightening | `pelvis_thrust_backswing`, `head_rise_backswing`, `loss_of_posture_backswing` |
+| D3 | **Standing up going back** | head up by P3–P4 (seen down the line), hips toward the ball | `pelvis_thrust_backswing`, `head_rise_backswing`, `loss_of_posture_backswing` (DTL head rise only since 22 Oct; trunk-bend change held, `posture_metrics_design.md` §4.5) |
 | D4 | **Early or deep dip** | head (and pelvis) below the band at P2–P4 | `head_drop_backswing`, `posture_sinks_backswing` |
 | D5 | **Dip then rise** | D4, then the head above address by P7 | D4's conditions plus D2's; the edge `posture_sinks_backswing → loss_of_posture` exists |
 | D6 | **Staying down into the ground** | head and pelvis still below the band at P7, bend gained at P5–P6 | `posture_sinks_impact`, `diving` |

@@ -1793,14 +1793,15 @@ int main()
         };
         const char *dagger[][2] = {
             { "early_extension", "loss_of_posture" },
-            { "loss_of_posture_backswing", "loss_of_posture" },
+            // loss_of_posture_backswing -> loss_of_posture was † and is NOT stamped since 2026-10-22: the
+            // first reads the down-the-line head rise, which the impact composite does not read (§4.5).
             { "posture_sinks_backswing", "loss_of_posture" },
             { "diving", "posture_sinks_impact" },
-            { "trail_knee_straighten", "loss_of_posture_backswing" },
-            // pelvis_rise_backswing -> loss_of_posture_backswing is † in the design but NOT stamped since
-            // 2026-10-22: the V3 measurement took the hip-joint pelvis lift (keypoint migration reads it
-            // 18-37 % low at the top) out of m_postureHeldTop, so the two ends no longer read one series.
-            { "head_rise_backswing", "loss_of_posture_backswing" },
+            // trail_knee_straighten, pelvis_rise_backswing and head_rise_backswing -> loss_of_posture_backswing
+            // were † and are NOT stamped since 2026-10-22: standing up going back is read on the
+            // down-the-line head rise alone (posture_metrics_design.md §4.5), which none of them reads.
+            // pelvis_rise_backswing had already left earlier that day, when the V3 measurement took the
+            // hip-joint pelvis lift out of m_postureHeldTop.
             { "head_drop_backswing", "posture_sinks_backswing" },
             { "pelvis_sink_backswing", "posture_sinks_backswing" },
             { "posture_too_upright", "poor_setup_posture" },

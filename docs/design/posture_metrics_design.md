@@ -36,7 +36,9 @@ The design adds four things:
    Readings tab all work on it unchanged.
 3. **Five new characteristics:**
    - `loss_of_posture` and `posture_sinks_impact`: the two tails of the posture held into impact;
-   - `loss_of_posture_backswing` and `posture_sinks_backswing`: the same thing at the top;
+   - `loss_of_posture_backswing` and `posture_sinks_backswing`: the same thing at the top
+     (**changed 22 Oct 2026**: standing up going back now fires on the down-the-line head rise
+     alone, and the trunk-bend change at the top is held; §4.5);
    - `poor_setup_posture`: one tail, how far the address shape is from a good one.
 
    Each is joined to the existing single-reading conditions by `causes` edges, so the explanation
@@ -135,6 +137,15 @@ Two new channels. Both are **angles, so they need no ruler**:
   ([[pose-is-133-wholebody-hands-unreliable]]). The 2026 rigs put the DTL camera behind the ball,
   so they see the golfer's front-trail quarter and the face is partly visible. This reading ships
   **held** until it passes the repeatability gate (§9 V5).
+
+A third, added 22 Oct 2026 (§4.5). It **needs the ruler**, like `pelvisThrust`:
+
+- **`headRise`** (cm). The ear midpoint's travel upward from its address height (the address median),
+  + up. Both ears and nothing else: their midpoint sits near the axis the skull turns about, so it
+  holds its height while the head rotates. The nose, the eyes or the near ear alone climb 5–10 cm at
+  the top on a head that has not risen. On Nick Henn's 27 two-camera swings the ear midpoint reads
+  +1.9 ± 1.6 cm at P4, against −0.8 cm face-on and +1.0 cm from the 3-D fit; the near ear alone
+  reads +6.3 and the nose +4.9.
 
 One change of input:
 
@@ -306,8 +317,41 @@ The backswing has its own composite, `m_postureHeldTop`, on axis `posture_held_t
 | Head height | `m_headLiftBack` | + | 0.6 |
 | Pelvis depth | `m_pelvisThrustBack` | + | 0.5 |
 
-Its tails are `loss_of_posture_backswing` (*"you stand up out of your posture going back"*) and
+Its tails were `loss_of_posture_backswing` (*"you stand up out of your posture going back"*) and
 `posture_sinks_backswing` (*"you sink lower going back"*).
+
+**Changed 22 October 2026: standing up going back is read on the head's height, from down the
+line.** The composite fired `loss_of_posture_backswing` on every swing Nick Henn hit (10 of 10 on
+20 Oct session 3; 27 of 28 over three sessions). Mark judges him rock solid going back, and the
+heights agree: head +1.0 cm and pelvis −0.9 cm at P4 in the 3-D fit, head −0.8 cm face-on. The
+firing came from the two angle parts, both scored against heuristic norms centred on 0:
+
+- **Trunk, `m_spineBendChangeTop`: measurement error, now HELD.** The down-the-line line runs from
+  the hip midpoint to the shoulder midpoint, and at the top both midpoints move with the turn. The
+  shoulders go from end-on to spread across the image, and the trail hip rotates forward, so the
+  line tips upright when the back has not changed. It read −8.2° ± 2.2 on Nick and −7.4° ± 1.8 on
+  Mark, against −3.6° and −1.9° for the hip → ear line on the same frames. Mark reviewed the
+  annotated P1/P4 frames and called it measurement error. It is held, shown but never graded, until
+  the trunk IMUs can corroborate it (`trunk_imu_sequence_grf_design.md` §8.8). The composite reads
+  without it: it is unread, never counted as z = 0 (§4.6).
+- **Trail knee, `m_trailKneeFlex`.** The trail knee straightening while the lead knee flexes turns
+  the pelvis; it does not lift it, and the pelvis height shows that. The 2-D reading also overstates
+  it (Nick −19.7° against −10.9° in the 3-D fit). It keeps its own condition,
+  `trail_knee_straighten`, and its `causes` edge into standing up.
+- **Pelvis height, `m_pelvisSinkTop`, has no producer**, so the one part that measures height most
+  directly was never read.
+
+So **`loss_of_posture_backswing` is detected by `sig_standUpBackDtl`**: the new measure
+`m_headRiseBackDtl` (the `headRise` channel, §3.1, P1 → P4, a ceiling at 0 ± 3 cm carried from the
+face-on `m_headLiftBack`) above its corridor. It fires only on a measured rise. It sits on its own
+axis, `head_height_top_dtl`, with one tail. `sig_lossOfPostureBack` is gone. The composite
+`m_postureHeldTop` keeps its low tail, `posture_sinks_backswing`, through `sig_postureSinksBack`.
+
+| Golfer, two-camera swings | `headRise` P1 → P4 | Mark's view |
+|---|---|---|
+| Nick Henn, 27 | +1.9 ± 1.6 cm | holds his posture, rock solid |
+| Mark, 49 (7 Oct) | +2.7 ± 1.7 cm | — |
+| Jess Ratcliffe, 7 with a ruler | −8.4 ± 1.2 cm | dips going back |
 
 The backswing and the downswing are separate conditions, the same choice `swing_fault_ontology.md`
 made for `diving` and `coming_out_of_it`. They are different events at different times, and a
@@ -528,7 +572,7 @@ cannot leave it stale.
 |---|---|---|---|---|
 | `loss_of_posture` | fault / posture | Loss of posture | common | draft → active after V4 |
 | `posture_sinks_impact` | fault / posture | Sinking through impact | occasional | draft |
-| `loss_of_posture_backswing` | fault / posture | Standing up going back | common | draft |
+| `loss_of_posture_backswing` | fault / posture | Standing up going back | common | draft (on the DTL head rise from 22 Oct, §4.5) |
 | `posture_sinks_backswing` | fault / posture | Sinking going back | uncommon | draft |
 | `poor_setup_posture` | setup / setup | Poor posture at address | common | draft |
 | `weight_on_toes_address` | setup / setup | Weight on the toes at address | occasional | draft |
@@ -553,7 +597,7 @@ All edges below are `causes`. An edge marked † gets `sharedEvidence` at load (
 | From | Strength |
 |---|---|
 | `early_extension` † | strong |
-| `loss_of_posture_backswing` † | moderate |
+| `loss_of_posture_backswing` (no † since 22 Oct 2026, §4.5) | moderate |
 | `posture_sinks_backswing` † | moderate (dropping going back, then rising to make room) |
 | `poor_setup_posture` | moderate |
 | `poor_core_stability` | moderate |
@@ -585,13 +629,14 @@ All edges below are `causes`. An edge marked † gets `sharedEvidence` at load (
 | `attack_too_steep` | moderate |
 | `strike_heel` | weak |
 
-**Into `loss_of_posture_backswing`:**
+**Into `loss_of_posture_backswing`:** (no † since 22 Oct 2026: the condition reads the
+down-the-line head rise, which none of these reads; §4.5)
 
 | From | Strength |
 |---|---|
-| `trail_knee_straighten` † | strong |
-| `pelvis_rise_backswing` † | strong |
-| `head_rise_backswing` † | moderate |
+| `trail_knee_straighten` | strong |
+| `pelvis_rise_backswing` | strong |
+| `head_rise_backswing` | moderate |
 | `limited_trail_hip_ir` | moderate |
 | `limited_thoracic_rotation` | moderate |
 | `poor_setup_posture` | moderate |
