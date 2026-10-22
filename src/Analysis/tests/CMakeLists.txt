@@ -1356,6 +1356,37 @@ set_target_properties(regrade_ledger PROPERTIES AUTOMOC ON)
 pp_apply_sanitizers(regrade_ledger)
 # Note: intentionally NOT added to add_test() — manual run only; it rewrites diagnostics.json.
 
+# measure_dump — every pack measure's reading per shot as a CSV, for the posture validation
+# (posture_metrics_design.md §9 V1–V5): value, z, grade or refusal, and each composite part. The
+# app's own per-shot construction (LiveMeasureSource + NormMeasureSource), minus the phase-grid
+# sidecar write — READ-ONLY on the library. Same sources as regrade_ledger less the model, which it
+# does not need. Not a test; measure_dump_test (below) drives the same core on staged fixtures.
+set(MEASURE_DUMP_SRC
+    ${PP_REPO_ROOT}/tools/diagnostics/measure_dump_core.cpp
+    ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
+    ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
+    ${DIAG}/packs/screen_pack.cpp
+    ${DIAG_NORM}
+    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+    ${DIAG}/norms/merged_norm_provider.cpp
+    ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+    ${DIAG}/packs/merged_pack_provider.cpp
+    ${SRC}/Export/swing_doc.cpp
+    ${SRC}/Export/swing_paths.cpp
+    ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+    ${SRC}/Core/pp_log_stream.cpp
+    ${SRC}/Core/PpMessageLog.cpp)
+add_executable(measure_dump ${PP_REPO_ROOT}/tools/diagnostics/measure_dump.cpp ${MEASURE_DUMP_SRC})
+target_include_directories(measure_dump PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor)
+target_link_libraries(measure_dump PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
+pp_apply_sanitizers(measure_dump)
+pp_add_test(measure_dump_test
+    SOURCES ${PP_REPO_ROOT}/tools/diagnostics/measure_dump_test.cpp ${MEASURE_DUMP_SRC}
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
+set_tests_properties(measure_dump_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+
 # diag_uncertainty_report — the session_diagnostics_design.md §A8.8 gates over real sessions: the panel's
 # model run under each measurement-uncertainty switch, verdict identity, the soft tier's moves, the
 # posterior's root order, re-rank cost and word sensitivity. READ-ONLY on the library: it runs over a
