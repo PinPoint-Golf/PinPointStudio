@@ -871,6 +871,14 @@ QString ChartMetrics::formatUncertainty(double err, const QString &unit) const
 
 // ── Chart metric presets ────────────────────────────────────────────────────────
 
+QStringList ChartMetrics::presetKeys(const QString &preset) const
+{
+    QStringList out;
+    for (const pinpoint::analysis::MetricDescriptor *d : m_catalogue.all())
+        if (std::find(d->presets.begin(), d->presets.end(), preset) != d->presets.end()) out << d->key;
+    return out;
+}
+
 QVariantList ChartMetrics::seriesGroups(const QVariantList &seriesList) const
 {
     // The keys this swing can actually SHOW: a curve (`> 1`, not `> 0` — a single sample is a

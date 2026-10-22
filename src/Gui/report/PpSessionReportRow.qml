@@ -25,7 +25,8 @@
 //
 // THE LINKS. Open session always. A session of fewer than three swings, or the one still running, has
 // nothing else: its "report" would be the one-page note, or out of date as soon as it went.
-//   Report         the PDF, in the system's viewer, when it is current; "Make report" when there is none
+//   Report         the PDF, in the system's viewer, when it is current, with a quiet "Remake" beside it
+//                  (always on offer: a model change leaves a report current but out of step); "Make report" when there is none
 //                  (opens the sheet); "Remake report" when it is out of date, with "open the old one"
 //                  beside it
 //   Email to Nick  hands the PDF to the coach's mail app. Shown INACTIVE, with the reason in place as a
@@ -244,6 +245,27 @@ Item {
                     text: "· " + row.sizeWords(row.sizeBytes)
                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                     color: Theme.colorText3
+                }
+                // Remake a CURRENT report too (Mark, 22 Oct 2026: "I'd like to always have the option").
+                // A report goes stale only when the session's own data changes; a change to the model,
+                // its norms or its words leaves it "current" while it says something the app no longer
+                // would. Quiet, like "open the old one": the PDF is still the main link.
+                Text {
+                    visible: remakeLink.visible
+                    anchors.baseline: reportLink.baseline
+                    text: "·"
+                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                    color: Theme.colorText3
+                }
+                PpLink {
+                    id: remakeLink
+                    objectName: "linkRemakeReport"
+                    visible: row.reportState === "current" && !row.making
+                    anchors.baseline: reportLink.baseline
+                    text: qsTr("Remake")
+                    color: hovered ? Theme.colorText2 : Theme.colorText3
+                    pressMargin: Theme.sp(3)
+                    onClicked: row.makeReportRequested(false)
                 }
                 PpLink {
                     objectName: "linkOpenOldReport"

@@ -891,6 +891,188 @@ static void sequenceConsistencySuite(const QTemporaryDir &tmp)
     }
 }
 
+// ── A composite's evidence on every surface (posture_metrics_design.md §8) ──────────────────────
+//
+// The composite's number is never shown. The rows a composite drives carry its parts (schema 9's
+// `composite`); this suite writes them into a staged session's diagnostics.json — the shipped pack has
+// no composite to grade yet, and the presentation reads the ROW, so a row carrying parts is the input —
+// re-activates (same content stamp: no regrade) and reads what each surface publishes.
+static QJsonObject compositeJson(bool distance)
+{
+    const auto part = [&](const char *name, const char *mid, double value, const char *unit, double z,
+                          double w, double share, int sign, double a = qQNaN(), double b = qQNaN()) {
+        QJsonObject o{ { "name", name }, { "measureId", mid }, { "value", value }, { "unit", unit },
+                       { "z", z }, { "weight", w }, { "share", share } };
+        if (!distance) o["sign"] = sign;
+        if (std::isfinite(a)) o["atStart"] = a;
+        if (std::isfinite(b)) o["atEnd"] = b;
+        return o;
+    };
+    QJsonArray parts;
+    if (!distance) {
+        parts.append(part("trunk", "m_spineBendLossDown", -9.0, "°", -3.6, 0.9, 0.60, -1, 34.0, 25.0));
+        parts.append(part("pelvisDepth", "m_pelvisThrustDown", 7.0, "cm", 2.8, 0.8, 0.30, 1));
+        parts.append(part("knee", "m_trailKneeFlex", -2.0, "°", -0.6, 0.5, 0.15, -1, 17.0, 15.0));
+        parts.append(part("pelvisHeight", "m_pelvisLiftTop", -2.0, "% stance width", -0.4, 0.4, -0.05, 1));
+    } else {
+        parts.append(part("trunkHinge", "m_spineBendAtAddress", 52.0, "°", 1.5, 0.9, 0.70, 0));
+        parts.append(part("ballGap", "m_ballBodyGap", 60.0, "% shoulder width", 0.5, 0.6, 0.30, 0));
+    }
+    return QJsonObject{ { "weightRead", distance ? 1.5 : 2.6 }, { "weightTotal", distance ? 2.1 : 3.2 },
+                        { "parts", parts },
+                        { "unread", QJsonArray{ QJsonObject{ { "name", "head" }, { "measureId", "m_headLiftDown" },
+                                                             { "reason", "notMeasured" } } } } };
+}
+
+// A figure as the app quotes it — at the decimals of the axis its measure is drawn on — read back as a number.
+static double figOf(const QString &t, const QString &unit)
+{
+    QString n = t;
+    if (!unit.isEmpty() && n.endsWith(unit)) n.chop(unit.size());
+    n = n.trimmed().replace(QChar(0x2212), QLatin1Char('-'));
+    bool ok = false;
+    const double v = n.toDouble(&ok);
+    return ok ? v : qQNaN();
+}
+
+static void compositePresentationSuite(const QTemporaryDir &tmp)
+{
+    std::printf("\ncomposite presentation (posture_metrics_design.md §8)\n");
+    const QString dir = makeSession(tmp, "athlete_cp", "session_cp");
+    bool staged = true;
+    for (int i = 1; i <= 4; ++i) staged = staged && stageShot(dir, i, "rich_7iron");
+    check(staged, "four swings staged");
+    {
+        auto m = freshModel();
+        m->activateSession(dir);
+        for (int i = 1; i <= 4; ++i) m->ingestShot(i, swingDirFor(dir, i));
+    }
+    // Two conditions that fired on shot 1: the first becomes a coherent composite, the second a distance one.
+    QJsonObject root = diagnosticsJsonOf(dir);
+    QJsonObject ledgerJ = root.value(QStringLiteral("ledger")).toObject();
+    QJsonArray shots = ledgerJ.value(QStringLiteral("shots")).toArray();
+    QString coh, dist;
+    for (const QJsonValue &rv : shots.at(0).toObject().value(QStringLiteral("rows")).toArray()) {
+        const QJsonObject r = rv.toObject();
+        if (r.value(QStringLiteral("state")).toString() != QLatin1String("fired")) continue;
+        if (coh.isEmpty()) coh = r.value(QStringLiteral("conditionId")).toString();
+        else if (dist.isEmpty()) { dist = r.value(QStringLiteral("conditionId")).toString(); break; }
+    }
+    check(!coh.isEmpty() && !dist.isEmpty(), "two conditions fired on shot 1 to carry the composites");
+    for (int i = 0; i < shots.size(); ++i) {
+        QJsonObject so = shots.at(i).toObject();
+        QJsonArray rows = so.value(QStringLiteral("rows")).toArray();
+        for (int k = 0; k < rows.size(); ++k) {
+            QJsonObject r = rows.at(k).toObject();
+            const QString id = r.value(QStringLiteral("conditionId")).toString();
+            if ((id != coh && id != dist) || r.value(QStringLiteral("state")).toString() == QLatin1String("notAssessable")) continue;
+            r[QStringLiteral("composite")] = compositeJson(id == dist);
+            rows[k] = r;
+        }
+        so[QStringLiteral("rows")] = rows;
+        shots[i] = so;
+    }
+    ledgerJ[QStringLiteral("shots")] = shots;
+    root[QStringLiteral("ledger")] = ledgerJ;
+    check(writeDiagnosticsJson(dir, root), "composite evidence written into diagnostics.json");
+
+    auto m = freshModel();
+    m->setReviewing(true);
+    m->activateSession(dir);
+    m->setSelectedShotId(1);
+    check(m->shotCount() == 4, "the session re-activates with its four shots (no regrade)");
+
+    // ── THIS SHOT: the value slot quotes the dominant part, never the composite ──
+    QVariantMap cell, distCell;
+    for (const QVariant &cv : m->shotReadout(1).value(QStringLiteral("conditions")).toList()) {
+        const QVariantMap c = cv.toMap();
+        if (c.value(QStringLiteral("id")).toString() == coh)  cell = c;
+        if (c.value(QStringLiteral("id")).toString() == dist) distCell = c;
+    }
+    std::printf("      value slot \"%s\"; trunk %s → %s, change %s\n", qPrintable(cell.value(QStringLiteral("valueText")).toString()),
+                qPrintable(cell.value(QStringLiteral("whatChanged")).toMap().value(QStringLiteral("rows")).toList().value(0).toMap().value(QStringLiteral("startText")).toString()),
+                qPrintable(cell.value(QStringLiteral("whatChanged")).toMap().value(QStringLiteral("rows")).toList().value(0).toMap().value(QStringLiteral("endText")).toString()),
+                qPrintable(cell.value(QStringLiteral("whatChanged")).toMap().value(QStringLiteral("rows")).toList().value(0).toMap().value(QStringLiteral("changeText")).toString()));
+    const QString vt = cell.value(QStringLiteral("valueText")).toString();
+    check(vt.endsWith(QString(QChar(0x00B0))) && figOf(vt, QString(QChar(0x00B0))) == 9.0
+              && cell.value(QStringLiteral("whatChanged")).toMap().value(QStringLiteral("dominant")).toMap()
+                     .value(QStringLiteral("name")).toString() == QStringLiteral("posture lost on the way to impact"),
+          "the value slot: the dominant part's change in its own unit (9°), the part named by What changed");
+    check(cell.value(QStringLiteral("corridorText")).toString().isEmpty(), "…and no corridor in the composite's units");
+    check(cell.value(QStringLiteral("composite")).toBool()
+              && !cell.value(QStringLiteral("strengthText")).toString().contains(QChar(0x00D7))
+              && cell.value(QStringLiteral("strengthText")).toString().startsWith(
+                     QStringLiteral("%1 of 5").arg(cell.value(QStringLiteral("strength")).toInt())),
+          "the meter keeps its step and loses the multiple (the multiple IS the composite's number)");
+
+    // ── WHAT CHANGED ──
+    const QVariantMap wc = cell.value(QStringLiteral("whatChanged")).toMap();
+    const QVariantList rows = wc.value(QStringLiteral("rows")).toList();
+    check(wc.value(QStringLiteral("mode")).toString() == QLatin1String("coherent") && rows.size() == 5,
+          "what changed: coherent, one line per part — four read, one not");
+    QStringList words;
+    for (const QVariant &r : rows) words << r.toMap().value(QStringLiteral("shareWord")).toString();
+    check(words == QStringList({ "most of it", "some", "a little", "against it", "-" }),
+          "the share ladder: ≥ 0.5 most of it · ≥ 0.2 some · > 0 a little · < 0 against it · not read \"-\"");
+    const QVariantMap trunk = rows.value(0).toMap();
+    const QString deg = QString(QChar(0x00B0));
+    check(figOf(trunk.value(QStringLiteral("startText")).toString(), deg) == 34.0
+              && figOf(trunk.value(QStringLiteral("endText")).toString(), deg) == 25.0
+              && figOf(trunk.value(QStringLiteral("changeText")).toString(), deg) == 9.0
+              && trunk.value(QStringLiteral("dominant")).toBool(),
+          "the trunk: address 34°, impact 25°, the change 9° in its words' direction (raw × golferSign), dominant");
+    const QVariantMap depth = rows.value(1).toMap();
+    check(depth.value(QStringLiteral("startText")).toString().isEmpty() && figOf(depth.value(QStringLiteral("changeText")).toString(), QStringLiteral(" cm")) == 7.0,
+          "a part read at one instant names no address value — it is never invented");
+    const QVariantMap lift = rows.value(3).toMap();
+    check(figOf(lift.value(QStringLiteral("changeText")).toString(), QStringLiteral(" %")) == -2.0
+              && lift.value(QStringLiteral("unitNote")).toString() == QStringLiteral("% stance width"),
+          "a worded unit is said once (unitNote); the figure keeps its symbol");
+    const QVariantMap head = rows.value(4).toMap();
+    check(!head.value(QStringLiteral("read")).toBool() && head.value(QStringLiteral("changeText")).toString() == QStringLiteral("-")
+              && head.value(QStringLiteral("startText")).toString() == QStringLiteral("-"),
+          "a part not read: \"-\" in every figure, never 0");
+    check(wc.value(QStringLiteral("coverageText")).toString().startsWith(QStringLiteral("Read from 4 of 5 parts: head rise coming down"))
+              && wc.value(QStringLiteral("coverageText")).toString().endsWith(QStringLiteral("not measured on this swing."))
+              && wc.value(QStringLiteral("trustLines")).toList().size() == 1,
+          "coverage, with the reason, said once — the trust fold's line");
+
+    // ── THE CARD AND THE DETAIL ──
+    QVariantMap card;
+    for (const QVariant &cv : m->cards()) if (cv.toMap().value(QStringLiteral("id")).toString() == coh) card = cv.toMap();
+    if (!card.isEmpty()) {
+        const QVariantMap sp = card.value(QStringLiteral("spread")).toMap();
+        check(sp.value(QStringLiteral("composite")).toBool() && !sp.contains(QStringLiteral("run")) && !sp.contains(QStringLiteral("dots"))
+                  && !sp.contains(QStringLiteral("yTicks")) && !sp.contains(QStringLiteral("box")),
+              "the card's spread carries no run, dots, ticks or box — those would be the composite's number per shot");
+        check(figOf(sp.value(QStringLiteral("currentNumber")).toString(), QString()) == 9.0
+                  && figOf(sp.value(QStringLiteral("medianNumber")).toString(), QString()) == 9.0
+                  && sp.value(QStringLiteral("unit")).toString() == deg,
+              "…its figures are the dominant part's: this shot 9, median 9 (°)");
+    }
+    m->openDetail(coh);
+    const QVariantMap d = m->detail();
+    check(d.value(QStringLiteral("composite")).toBool()
+              && d.value(QStringLiteral("whatChanged")).toMap().value(QStringLiteral("rows")).toList().size() == 5,
+          "the detail opens on What changed, for the picked shot");
+    check(d.value(QStringLiteral("history")).toMap().isEmpty(), "…and draws no across-sessions columns of the composite");
+    check(d.value(QStringLiteral("header")).toMap().value(QStringLiteral("valueText")).toString() == cell.value(QStringLiteral("valueText")).toString(),
+          "the header card quotes the same reading as the page (defect 1, by construction)");
+
+    // ── POOR SETUP POSTURE: the distance table ──
+    const QVariantMap dwc = distCell.value(QStringLiteral("whatChanged")).toMap();
+    const QVariantList drows = dwc.value(QStringLiteral("rows")).toList();
+    check(dwc.value(QStringLiteral("mode")).toString() == QLatin1String("distance") && drows.size() == 3,
+          "distance mode: the setup table");
+    const QVariantMap hinge = drows.value(0).toMap();
+    check(hinge.value(QStringLiteral("changeText")).toString().isEmpty() && figOf(hinge.value(QStringLiteral("valueText")).toString(), deg) == 52.0
+              && hinge.value(QStringLiteral("idealText")).toString().contains(QStringLiteral(" to "))
+              && !hinge.value(QStringLiteral("grade")).toString().isEmpty() && hinge.value(QStringLiteral("shareWord")).toString() == QLatin1String("most of it"),
+          "…the address reading against its ideal band, its band and its share, no change");
+    check(figOf(distCell.value(QStringLiteral("valueText")).toString(), QString(QChar(0x00B0))) == 52.0,
+          "…and the value slot quotes the setup's dominant part as it stands at address");
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -2622,6 +2804,7 @@ int main(int argc, char **argv)
 
     sequenceChecksSuite(tmp);
     sequenceConsistencySuite(tmp);
+    compositePresentationSuite(tmp);
 
     std::printf("\npatterns at close: %d\n", patternsAtClose);
     std::printf("\n%s\n", g_fail == 0 ? "OK" : "FAILURES");

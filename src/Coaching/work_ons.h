@@ -340,6 +340,17 @@ struct SessionWorkOns {
 // The authored causal edges among conditions, as (cause, effect).
 using WorkOnCauses = std::vector<std::pair<QString, QString>>;
 
+// The authored edges whose two ends are MEASURED FROM THE SAME READINGS (the pack's computed
+// Edge::sharedEvidence, posture_metrics_design.md §6.5), keyed workOnEdgeKey(cause, effect). Two numbers
+// taken from one reading always move together, so their 2×2 measures the arithmetic that relates them,
+// not the swing: such a link is never testable and never supported — the panel's gradeLink cap
+// (Coherent, "measured from the same readings, so the link is not tested") applied to the list.
+using WorkOnSharedEvidence = QSet<QString>;
+inline QString workOnEdgeKey(const QString &cause, const QString &effect)
+{
+    return cause + QStringLiteral("\u2192") + effect;
+}
+
 // DOES THIS SESSION SUPPORT AN AUTHORED LINK, enough to put the effect behind its cause? The
 // panel's own Conditionally-dependent grade (diagnostic_ledger.h gradeLinks): the cause must not
 // fire on every shot (range-restricted — nothing to compare), there must be enough shots on which
@@ -367,18 +378,19 @@ inline RootBecause linkPairs(const ConditionLedger &cause, const ConditionLedger
     return t;
 }
 
+// `sharedEvidence`: the two ends read one measure (WorkOnSharedEvidence above) — never testable.
 inline bool linkTestable(const ConditionLedger &cause, const RootBecause &pairs,
-                         const LedgerOptions &opt = LedgerOptions())
+                         const LedgerOptions &opt = LedgerOptions(), bool sharedEvidence = false)
 {
-    return !cause.rangeRestricted
+    return !sharedEvidence && !cause.rangeRestricted
         && pairs.a + pairs.b + pairs.c + pairs.d >= opt.minPairsForDependence;
 }
 
 inline bool linkSupported(const ConditionLedger &cause, const ConditionLedger &effect,
-                          const LedgerOptions &opt = LedgerOptions())
+                          const LedgerOptions &opt = LedgerOptions(), bool sharedEvidence = false)
 {
     const RootBecause t = linkPairs(cause, effect);
-    if (!linkTestable(cause, t, opt)) return false;
+    if (!linkTestable(cause, t, opt, sharedEvidence)) return false;
     return fisherExactOneSided(t.a, t.b, t.c, t.d) <= opt.fisherAlpha;
 }
 
@@ -402,7 +414,8 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
                                            const QHash<QString, WorkOnClass> &classOf,
                                            const WorkOnCauses &causes,
                                            const QHash<QString, double> &swingPosOf,
-                                           const WorkOnOptions &opt = WorkOnOptions())
+                                           const WorkOnOptions &opt = WorkOnOptions(),
+                                           const WorkOnSharedEvidence &sharedEvidence = WorkOnSharedEvidence())
 {
     SessionWorkOns out;
     out.shotCount = int(shots.size());
@@ -449,8 +462,9 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
             const ConditionLedger *from = nullptr;
             for (const ConditionLedger &k : ledgers) if (k.id == edge.first) { from = &k; break; }
             const RootBecause pairs = from ? linkPairs(*from, l) : RootBecause{};
-            if (from && linkTestable(*from, pairs)) out.linksTestable = true;
-            if (from && linkSupported(*from, l)) {
+            const bool shared = sharedEvidence.contains(workOnEdgeKey(edge.first, l.id));
+            if (from && linkTestable(*from, pairs, LedgerOptions(), shared)) out.linksTestable = true;
+            if (from && linkSupported(*from, l, LedgerOptions(), shared)) {
                 c.e.causedBy.append(edge.first);
                 RootBecause t = pairs;
                 t.id = l.id;                                  // the effect, quoted on the cause
@@ -472,7 +486,9 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
         for (const ShotRecord &s : shots) {
             const ConditionRow *r = rowFor(s, l.id);
             if (!r || r->state != ShotState::Fired) continue;
-            if (!std::isfinite(r->value)) { sameCorridor = false; break; }
+            // A COMPOSITE's reading is its z, which is never shown (posture_metrics_design.md §8): no
+            // typical value to quote, so the card and the report say how often, not how far.
+            if (!std::isfinite(r->value) || r->composite.present()) { sameCorridor = false; break; }
             if (!haveCorridor) {
                 c.e.corridorLo = r->corridorLo;
                 c.e.corridorHi = r->corridorHi;

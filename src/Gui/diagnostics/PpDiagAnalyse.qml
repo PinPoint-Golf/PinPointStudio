@@ -125,7 +125,7 @@ Item {
             out.push({ label: lab + " inside the pass edge by", figure: fmt(Math.min(v - lo, hi - v)) })
         }
         const rc = detail ? ro.byId(conds, detail.id) : null
-        if (rc && rc.strengthKnown && rc.stateKind === "fired") out.push({ label: lab + " out by", figure: rc.strengthSharp ? "sharp" : rc.strengthExcess.toFixed(1) + "×" })
+        if (rc && rc.strengthKnown && rc.stateKind === "fired" && !rc.composite) out.push({ label: lab + " out by", figure: rc.strengthSharp ? "sharp" : rc.strengthExcess.toFixed(1) + "×" })
         return out
     }
     // F64: the screened roots on the open condition's paths, and the condition itself when it is one
@@ -638,6 +638,11 @@ Item {
                 readonly property var hdr: (root.detail && root.detail.header) || ({})
                 readonly property var sp: hdr.spread || ({})
                 readonly property var measures: (root.detail && root.detail.measures) || []
+                // A COMPOSITE (posture_metrics_design.md §8): its number is never shown, so the page opens on
+                // What changed and draws no figure row — a run of composite readings would be that number.
+                readonly property var wc: (root.detail && root.detail.whatChanged) || ({})
+                readonly property bool hasWc: (wc.rows || []).length > 0
+                readonly property bool composite: !!(root.detail && root.detail.composite)
                 PpFeatureHead {
                     objectName: "sdFeatureHead"
                     width: dc.width; roles: ro; brush: br; detail: root.detail; readout: root.shot; source: root.source
@@ -646,6 +651,22 @@ Item {
                     onShotActivated: (d, s) => root.pickShot(d, s)
                 }
                 Item { width: 1; height: ro.u(10) }
+                // WHAT CHANGED, open on arrival; the coverage ("read from 3 of 4 parts") is said once, in the
+                // trust fold under it, never on the table
+                PpWhatChanged {
+                    visible: dc.hasWc
+                    width: dc.width; roles: ro; info: dc.wc; interactive: root.interactive
+                }
+                PpTrustSummaryFold {
+                    objectName: "sdWhatChangedTrust"
+                    visible: dc.hasWc && lines.length > 0
+                    width: dc.width; roles: ro; scope: "shot"
+                    topPadding: ro.u(8)
+                    swingDir: root.detail ? String(root.detail.whatChangedSwingDir || "") : ""
+                    sessionDir: root.source ? String(root.source.sessionDir || "") : ""
+                    extraLines: dc.wc.trustLines || []
+                }
+                Item { visible: dc.hasWc; width: 1; height: ro.u(14) }
                 // A's key figures: this shot, the median and how many went past the fault line (the fact file already
                 // says corridor, recurrence, after and trend), then the distance to travel (round 3)
                 PpKeyFigures {
@@ -685,10 +706,11 @@ Item {
                         }
                     }
                 }
-                PpPageKey { width: dc.width; roles: ro; readout: root.shot; set: "figure" }
-                Item { width: 1; height: ro.u(14) }
+                PpPageKey { visible: !dc.composite; width: dc.width; roles: ro; readout: root.shot; set: "figure" }
+                Item { visible: !dc.composite; width: 1; height: ro.u(14) }
                 PpFigureRow {
                     objectName: "sdFigureRow"
+                    visible: !dc.composite
                     width: dc.width; roles: ro; brush: br; detail: root.detail; readout: root.shot
                     interactive: root.interactive
                     onShotActivated: (d, s) => root.pickShot(d, s)

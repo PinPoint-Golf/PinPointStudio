@@ -46,8 +46,12 @@ struct Plan {
     QString id;
     std::vector<int> states;
     double z = 3.0;
+    double cleanZ = 0.5;    // where a CLEAN swing reads: inside the Ideal band unless a test says otherwise
 };
-Plan plan(const char *id, std::vector<int> states, double z = 3.0) { return Plan{ QString::fromLatin1(id), std::move(states), z }; }
+Plan plan(const char *id, std::vector<int> states, double z = 3.0, double cleanZ = 0.5)
+{
+    return Plan{ QString::fromLatin1(id), std::move(states), z, cleanZ };
+}
 std::vector<int> rep(int v, int n) { return std::vector<int>(size_t(n), v); }
 
 std::vector<ShotRecord> sessionOf(const std::vector<Plan> &plans)
@@ -69,7 +73,7 @@ std::vector<ShotRecord> sessionOf(const std::vector<Plan> &plans)
             r.corridorShape = CorridorShape::TwoSided;
             const int v = i < p.states.size() ? p.states[i] : -1;
             if (v == 1)      { r.state = ShotState::Fired; r.direction = 1; r.z = p.z; r.value = p.z * 2.0; }
-            else if (v == 0) { r.state = ShotState::Clean; r.z = 0.5; r.value = 1.0; }
+            else if (v == 0) { r.state = ShotState::Clean; r.z = p.cleanZ; r.value = 1.0; }
             else             { r.state = ShotState::NotAssessable; r.notAssessableReason = QStringLiteral("not seen"); }
             s.rows.push_back(std::move(r));
         }
@@ -635,6 +639,19 @@ int main()
         check(idsOf(pickStrengths(t.ledgers, 3, t.workOns, p)) == QStringList{ "sway" },
               "never fewer than three judged swings");
 
+        // Well within the corridor, not just clean (Mark, 22 Oct, Jess's report): a condition that never
+        // fired but read out at |z| 1.8 on every swing — the far side of a two-sided corridor, or close
+        // to its own line — is not something going well. One at 0.9 still is.
+        {
+            const Session w = sessionFrom({ plan("sway", rep(0, 10), 3.0, -1.8), plan("loner", rep(0, 10), 3.0, 0.9) }, p);
+            check(idsOf(pickStrengths(w.ledgers, 10, w.workOns, p)) == QStringList{ "loner" },
+                  "clean but out at |z| 1.8 is not a strength; clean at 0.9 is");
+            const Session nc = sessionFrom({ plan("sway", rep(0, 10)) }, p);
+            std::vector<ConditionLedger> noCorridor = nc.ledgers;
+            for (ConditionLedger &l : noCorridor) { l.medianExcess = std::numeric_limits<double>::quiet_NaN(); l.excessN = 0; }
+            check(pickStrengths(noCorridor, 10, nc.workOns, p).empty(), "a reading with no corridor is never a strength");
+        }
+
         // Session-scope ledgers have no swing to be clean on.
         std::vector<ConditionLedger> scoped{ *ledgerFor(s.ledgers, "sway") };
         scoped[0].sessionScope = true;
@@ -837,6 +854,13 @@ int main()
         const CauseGroups gt = causeGroups("sym", t.ledgers, t.workOns, q);
         check(gt.lead == CauseLead::Spotted && gt.spottedSupported && !gt.spottedEverySwing && gt.spotted[0].supported,
               "a spotted cause the session supports: the swings point to it");
+        // …unless its two ends are measured from the same readings (posture_metrics_design.md §6.5): then the
+        // link is never tested, so it is never "supported" — the panel's cap, in the report.
+        ReportPack qs = q;
+        for (ReportCause &c : qs.causes) c.sharedEvidence = true;
+        const CauseGroups gs = causeGroups("sym", t.ledgers, t.workOns, qs);
+        check(gs.lead == CauseLead::Spotted && !gs.spottedSupported && !gs.spotted[0].supported,
+              "a shared-evidence cause is spotted but never 'supported', however clean its 2x2");
 
         // The other three leads.
         check(causeGroups("hidden", s.ledgers, s.workOns, p).lead == CauseLead::NoneAuthored,

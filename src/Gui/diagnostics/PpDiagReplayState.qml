@@ -93,6 +93,8 @@ QtObject {
                      strengthExcess: t.strengthExcess, strengthKnown: t.strengthKnown !== false,
                      strengthSharp: t.strengthSharp === true,
                      valueText: t.strengthSharp === true ? "sharp"
+                              // a composite's multiple IS its number, never shown (posture_metrics_design.md §8): its meter step
+                              : t.composite === true && t.strengthKnown !== false ? t.strength + " of 5"
                               : t.strengthKnown !== false && t.strengthExcess !== undefined ? Number(t.strengthExcess).toFixed(1) + "×" : "-",
                      corridorText: card ? card.corridorText : "", recurrence: card ? card.recurrence : (w ? w.recurrence : ""),
                      ticks: card ? card.ticks : [], firingsAfterText: "" }

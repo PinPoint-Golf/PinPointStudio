@@ -98,6 +98,10 @@ Item {
         return out
     }
     readonly property int notJudgedN: notJudgedGroups.reduce((n, g) => n + g.names.length, 0)
+    // WHAT CHANGED (posture_metrics_design.md §8): the fired composite findings, whose number is never shown —
+    // each opens to its parts under the plot; their coverage is the trust fold's line, said once there
+    readonly property var firedComposites: fired.filter(c => c.whatChanged && (c.whatChanged.rows || []).length > 0)
+    readonly property var compositeTrustLines: firedComposites.map(c => ({ kind: "coverage", text: c.name + ": " + ro.lower1(c.whatChanged.coverageText || "") }))
     readonly property int firedPatterns: fired.filter(c => c.tierTag === "pattern").length
     readonly property var watching: (source && source.watching) || []
     readonly property var watchingSorted: watching.slice().sort((a, b) => (ro.rate(b.recurrence) - ro.rate(a.recurrence)) || a.name.localeCompare(b.name))
@@ -326,6 +330,7 @@ Item {
                 width: sc.width; roles: ro; scope: "shot"
                 swingDir: root.readout ? String(root.readout.swingDir || "") : ""
                 sessionDir: root.source ? String(root.source.sessionDir || "") : ""
+                extraLines: root.compositeTrustLines
             }
             PpDotPlot {
                 id: dp
@@ -340,12 +345,30 @@ Item {
                 readonly property real room: shotFlick.height - ro.u(16) - shotHead.height - foot.height - 2 * sc.spacing
                                              - (shotTrust.visible ? shotTrust.height + sc.spacing : 0)
                                              - (njFoot.visible ? njFoot.height + sc.spacing : 0)
+                                             - (wcList.visible ? wcList.height + sc.spacing : 0)
                 // rows that fit, measured by the plot itself (names may wrap once the tier folds)
                 readonly property int fit: rowsFitting(room)
                 availableHeight: room
                 rowsOverride: !ss.partial && fit > root.fired.length ? allRows.slice(0, Math.min(allRows.length, fit)) : null
                 readonly property int shownClean: rowsOverride ? rowsOverride.length - root.fired.length : 0
                 onConditionActivated: id => root.openCondition(id)
+            }
+            // What changed, one closed line per fired composite finding (the glance stays still until asked);
+            // not on the cast, where nothing opens
+            Column {
+                id: wcList
+                objectName: "sdWhatChangedList"
+                visible: !ss.quiet && !root.cast && root.firedComposites.length > 0
+                width: sc.width
+                spacing: ro.u(4)
+                Repeater {
+                    model: wcList.visible ? root.firedComposites : []
+                    delegate: PpWhatChanged {
+                        required property var modelData
+                        width: wcList.width; roles: ro; info: modelData.whatChanged; sub: modelData.name
+                        open: false; interactive: root.interactive
+                    }
+                }
             }
             // the rest, as one quiet line; the shot ruler beside it while it fits, else under it.
             // Its size is worked out from the LONGEST form of the line, never the line itself, so the plot's

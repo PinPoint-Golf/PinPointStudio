@@ -3067,8 +3067,7 @@
         "kind": "at",
         "anchor": "p1"
       },
-      "status": "held",
-      "gapReason": "Held until it passes the repeatability gate (posture_metrics_design.md §3.1 and §9 V5): the library pose against the pinned corpus pose on the same swings, with a control, spreading by no more than 3°. The ear and nose are body keypoints, not the fine face points, and the absolute value carries the head's own shape (about +26° on one golfer), so a change tells more than the number. Until then it is a part of the setup posture composite that is never read.",
+      "status": "live",
       "label": "Head pitch, at P1",
       "unit": "°",
       "highMeans": "the chin further down toward the chest at address, against a head held square to the trunk",
@@ -5150,7 +5149,7 @@
       "detectedBy": [
         "sig_lossOfPosture"
       ],
-      "state": "draft",
+      "state": "active",
       "consequence": "The posture as a whole is more upright at impact than it was at address: the trunk has stood up, the hips have moved toward the ball and risen, and the head has risen, read together at impact against address. No one of them has to be large. The sum is the golfer further from the ground than the club was set to, so the bottom of the swing lifts and the hands have to rescue the strike.",
       "drills": [
         "drill.hipsToWall",
@@ -6993,7 +6992,7 @@
       "detectedBy": [
         "sig_kneeFlexExcess"
       ],
-      "state": "draft",
+      "state": "active",
       "consequence": "Too much knee bend at address drops the whole swing centre and leaves the legs with nowhere to go — the golfer has spent the flex they needed for the downswing before the club has moved.",
       "drills": [
         "drill.armsHangSetup"
@@ -7032,7 +7031,7 @@
       "detectedBy": [
         "sig_kneeFlexInsufficient"
       ],
-      "state": "draft",
+      "state": "active",
       "consequence": "Straight legs at address take the lower body out of the swing. Without knee flex there is nothing to push against, so the arms and shoulders end up supplying the speed.",
       "drills": [
         "drill.armsHangSetup"

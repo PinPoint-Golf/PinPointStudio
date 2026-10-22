@@ -673,6 +673,30 @@ private:
                            const QString &measureId = QString()) const;
     // The distinct measures a condition's signals read, in pack order.
     QStringList conditionMeasures(const QString &conditionId) const;
+
+    // ── A composite's evidence (posture_metrics_design.md §8, principle 5) ──────────
+    //
+    // A COMPOSITE's number is never shown. Every surface that would print a row's value prints the
+    // DOMINANT PART's change instead (its own unit, its golferName), and the detail opens on
+    // "What changed": one line per part, built here so the three registers draw one answer.
+    //   whatChanged   { mode: coherent|distance, startWord, endWord, rows[{ name, measureId, read,
+    //                   startText, endText, changeText, valueText, idealText, unit, grade, share,
+    //                   shareWord, dominant }], dominant{ name, changeText, figure, unit, measureId, valueText },
+    //                   partsRead, partsTotal, coverageText, trustLines[{ kind, text }] }
+    //   Empty for a row whose measure is not a composite.
+    bool        isCompositeMeasure(const QString &measureId) const;
+    // …or the ledger's rows say so: a row graded as a composite carries its parts (schema 9).
+    bool        readsComposite(const pinpoint::analysis::ConditionLedger &l, const QString &measureId) const;
+    QVariantMap whatChangedOf(const pinpoint::analysis::ConditionRow &r) const;
+    // The card's "how far" for a composite measure: the dominant part's figures in place of the
+    // composite's, the counts the strip states, and NO dots, run, bands, ticks or box — a run of
+    // composite readings would put its number on screen (§12: no z-unit curve).
+    QVariantMap compositeSpreadFor(const pinpoint::analysis::ConditionLedger &l, int focusIdx,
+                                   const QString &measureId) const;
+    // A part's grade against its OWN norm, at the row's context: the band word (ideal | good |
+    // watch | action | open, "" without a corridor), the axis's decimals, and its Ideal band.
+    struct PartBand { QString grade; int decimals = 1; QString idealText; };
+    PartBand partBandOf(const QString &measureId, const QString &contextId, double value) const;
     const pinpoint::analysis::ConditionLedger *ledger(const QString &id) const;
     int  indexOfShot(int shotId) const;
     // Which shot the panel is talking about: the selected one while reviewing, the newest

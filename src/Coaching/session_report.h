@@ -85,6 +85,11 @@ inline constexpr int    kJudgedMinSwings        = kDiagMinAssessableForPattern;
 inline constexpr double kStrengthMeasurableShare = 0.80;
 inline constexpr int    kStrengthCap            = 3;
 inline constexpr int    kStrengthOutcomes       = 1;    // one outcome + two movements
+// "Going well should be the things that are well within corridor" (Mark, 22 Oct 2026, on Jess's report:
+// "you keep your posture going back" was offered while her posture reading sat out at z -2, on the
+// sinking side, every swing, and her head dipped on all nine). A strength's median excess over its
+// judged swings must sit inside the Ideal band: |z| <= 1, the Standard policy's idealMaxZ.
+inline constexpr double kStrengthWellWithinZ    = 1.0;
 // Caps (§9.1 rule 4).
 inline constexpr int    kCouldBeCap             = 6;
 inline constexpr int    kRuledOutCap            = 4;
@@ -116,6 +121,9 @@ struct ReportCause {
     QString from;
     QString to;
     int     strength = int(Strength::Moderate);
+    // Both ends measured from the same readings (Edge::sharedEvidence, posture_metrics_design.md §6.5):
+    // the link is never tested, so it is never "supported" — the panel's cap, in the report's words.
+    bool    sharedEvidence = false;
 };
 
 struct ReportPack {
@@ -167,7 +175,7 @@ inline ReportPack reportPackOf(const CharacteristicPack &pack)
         out.conditions.insert(r.id, r);
     }
     for (const Edge &e : pack.edges)
-        if (e.type == EdgeType::Causes) out.causes.push_back({ e.from, e.to, int(e.strength) });
+        if (e.type == EdgeType::Causes) out.causes.push_back({ e.from, e.to, int(e.strength), e.sharedEvidence });
     return out;
 }
 
@@ -262,6 +270,10 @@ struct StrengthPick {
 //   · judged on at least 80 % of the session's swings, and never fewer than three;
 //   · fired on none of them; per-swing (a session-scope ledger has no swing to be clean on);
 //   · a movement (Fault or Setup) or an outcome, with golferWell to say it in; not held, not retired;
+//   · WELL WITHIN ITS CORRIDOR, not merely clean: the median distance from the centre over its judged
+//     swings (ConditionLedger::medianExcess) inside the Ideal band, measured on at least as many swings
+//     as "judged" asks. A reading with no corridor cannot be shown to be well within one, so it is
+//     never a strength;
 //   · an OUTCOME only when its WHOLE AXIS was clean — no other condition on the same axis fired on
 //     any swing. Nick, 20 Oct: "Nothing off the heel" was clean, but toe strike showed once, so
 //     calling the heel a strength would have been true and misleading; "No slices" takes its place.
@@ -287,6 +299,7 @@ inline std::vector<StrengthPick> pickStrengths(const std::vector<ConditionLedger
         const ReportCondition *c = pack.condition(l.id);
         if (!c || l.sessionScope || l.fired != 0 || l.assessable < need) continue;
         if (c->held || c->retired || !c->hasGolferWell) continue;
+        if (l.excessN < need || !(l.medianExcess <= kStrengthWellWithinZ)) continue;   // well within, not just clean
         const bool movement = c->kind == FactKind::Fault || c->kind == FactKind::Setup;
         const bool outcome  = c->kind == FactKind::Outcome;
         if (!movement && !outcome) continue;
@@ -705,7 +718,7 @@ inline CauseGroups causeGroups(const QString &id, const std::vector<ConditionLed
         } else if (l && l->tier == Tier::Pattern) {
             it.group = CauseGroup::Spotted;
             it.workOnRank = workOnRank(workOns, e.from);
-            it.supported  = effect && linkSupported(*l, *effect);
+            it.supported  = effect && linkSupported(*l, *effect, LedgerOptions(), e.sharedEvidence);
             it.everySwing = l->rangeRestricted;
         } else if (isJudged(l)) {
             it.group = CauseGroup::RuledOut;

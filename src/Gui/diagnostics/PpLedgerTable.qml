@@ -186,7 +186,8 @@ Item {
                                  || { t: roles.fig(r.valueText), c: r.stateKind === "fired" ? roles.warn : r.stateKind === "notAssessable" ? roles.ink3 : roles.ink }
             case "unit": return { t: roles.unitOf(r.valueText) }
             case "corridor": return { t: roles.corridorShort(r.corridorText) }
-            case "outby": return { t: r.stateKind === "fired" && r.strengthKnown ? (r.strengthSharp ? "sharp" : r.strengthExcess.toFixed(1) + "×") : "-" }
+            // a composite's multiple IS its number, never shown (posture_metrics_design.md §8): its meter step instead
+            case "outby": return { t: r.stateKind === "fired" && r.strengthKnown ? (r.strengthSharp ? "sharp" : r.composite ? r.strength + "/5" : r.strengthExcess.toFixed(1) + "×") : "-" }
             case "strip": return { ticks: r.ticks }
             case "frac": return { t: roles.frac(r.recurrence) }
             }

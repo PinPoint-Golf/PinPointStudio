@@ -1271,6 +1271,9 @@ inline Table buildTable(const std::vector<const ThemeSessionInput *> &sessions)
             for (const ConditionRow &row : shot.rows) {
                 if (row.state == ShotState::NotAssessable) continue;
                 for (const MeasureRow &m : rowReadings(row)) {
+                    // A COMPOSITE's reading stays out (posture_metrics_design.md §8): it has no golfer-facing
+                    // unit, and as a column it would count its own parts — already columns — a second time.
+                    if (m.composite.present()) continue;
                     if (m.measureId.isEmpty() || !std::isfinite(m.value) || rec.contains(m.measureId)) continue;
                     rec.insert(m.measureId, m.value);
                     seen.insert(m.measureId);

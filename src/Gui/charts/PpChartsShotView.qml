@@ -290,7 +290,7 @@ Column {
             visible: !sv.replay && sv.available
             width: parent.width; roles: sv.roles; key: "controls"; title: "Controls"; interactive: sv.interactive
             collapsed: !!sv.body && sv.body.collapsed.controls === true
-            state_: [sv.tc.presetTitle || "", sv.windowLabel(), sv.tr && sv.tr.active ? sv.againstLabel() : ""].filter(function (x) { return x !== "" }).join("  ·  ")
+            state_: [sv.tc.presetTitle || "", sv.tc.fromAddress ? "from address" : "", sv.windowLabel(), sv.tr && sv.tr.active ? sv.againstLabel() : ""].filter(function (x) { return x !== "" }).join("  ·  ")
             onToggled: if (sv.body) sv.body.toggleSection("controls")
         }
         PpChChoices {

@@ -591,7 +591,8 @@ int main(int argc, char **argv)
         // on a provisional norm, and the new m_headPitchAddress is HELD until the repeatability gate.
         // 10 -> 11 on 2026-10-22: m_trunkRiseImpact is HELD — it failed validation V1 against the
         // down-the-line bend (docs/research/data/posture/posture_composites_2026-10-22.md).
-        check(planned == 11, "11 shipped measures are not live yet");   // 16 -> 14 on 2026-10-14: m_ksOrderShare, m_ksTimingSpread went live on the session reducer (scope: session — still no per-swing value, which `wrong` below confirms)
+        // 11 -> 10 the same day: m_headPitchAddress passed V5 (repeatability) and went live.
+        check(planned == 10, "10 shipped measures are not live yet");   // 16 -> 14 on 2026-10-14: m_ksOrderShare, m_ksTimingSpread went live on the session reducer (scope: session — still no per-swing value, which `wrong` below confirms)
         check(wrong == 0, "…and not one of them produced a value");
     }
 

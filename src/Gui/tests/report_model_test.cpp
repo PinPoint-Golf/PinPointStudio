@@ -200,7 +200,10 @@ int main(int argc, char **argv)
     check(linkWords(2, QStringLiteral("Over the top"), QStringLiteral("B")).contains(QLatin1String("cannot test it, because over the top showed on every swing")),
           "untestable: cause on every swing");
     check(linkWords(3, QStringLiteral("A"), QStringLiteral("B")).contains(QLatin1String("too few swings")), "untestable: too few swings");
-    for (int g = 0; g < 4; ++g) {
+    check(linkWords(4, QStringLiteral("Early extension"), QStringLiteral("Loss of posture"))
+              == QStringLiteral("Linked in the coaching model. Early extension and loss of posture are measured from the same readings, so your swings cannot test it."),
+          "untestable: measured from the same readings (sharedEvidence, posture_metrics_design.md §6.5)");
+    for (int g = 0; g < 5; ++g) {
         const QString w = linkWords(g, QStringLiteral("A"), QStringLiteral("B"), 4, 2);
         check(!w.contains(QLatin1String("causes ")) || w.contains(QLatin1String("not proof")), "no grade claims cause");
     }

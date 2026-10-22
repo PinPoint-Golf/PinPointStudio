@@ -383,6 +383,25 @@ int main()
                   && !symptom->root, "the effect names the supported cause it waits behind");
         check(fx && fx->reasons.resolving && fx->reasons.behind.isEmpty(), "resolving is a reason too");
 
+        // SHARED EVIDENCE (posture_metrics_design.md §6.5): the same link, its two ends measured from one
+        // reading. The panel caps it at Coherent untested; the list does too — never testable, never
+        // supported, so the effect is named as one that may follow and is not put behind its cause.
+        {
+            const std::vector<ShotRecord> shots = sessionOf({ plan("symptom", together, 6.0), plan("cause", together, 2.5),
+                                                              plan("early", rep(1, 13), 2.0), plan("fixed", fixed, 9.0) });
+            const std::vector<ConditionLedger> ls = conditionLedgers(shots, flatOpts());
+            const ConditionLedger *lc = ledgerFor(ls, QStringLiteral("cause")), *lsym = ledgerFor(ls, QStringLiteral("symptom"));
+            check(lc && lsym && linkSupported(*lc, *lsym) && !linkSupported(*lc, *lsym, LedgerOptions(), true)
+                      && !linkTestable(*lc, linkPairs(*lc, *lsym), LedgerOptions(), true),
+                  "linkSupported / linkTestable: a shared-evidence pair is never tested, however clean its 2x2");
+            const WorkOnSharedEvidence shared{ workOnEdgeKey(QStringLiteral("cause"), QStringLiteral("symptom")) };
+            const SessionWorkOns sh = reduceSessionWorkOns(shots, ls, cls, causes, pos, WorkOnOptions(), shared);
+            const WorkOnEntry *ssym = sh.entry("symptom");
+            check(ssym && ssym->root && ssym->reasons.behind.isEmpty() && ssym->reasons.mayFollow == QStringList{ "cause" }
+                      && !sh.linksTestable,
+                  "…and in the list: the effect may follow its cause but is not put behind it, and nothing was testable");
+        }
+
         // Testable but NOT supported: the cause fires on the first half, the symptom on the second.
         // There is something to compare, the comparison fails — v3's magnitude order, no demotion.
         const SessionWorkOns apart = reduceAt({ plan("symptom", { 0,0,0,0,0,1,1,1,1,1,1,1 }, 6.0),

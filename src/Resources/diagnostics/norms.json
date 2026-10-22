@@ -2190,7 +2190,7 @@
       "sigmaLo": 8.0,
       "unit": "°",
       "source": "heuristic",
-      "citation": "CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 127, mean +22.9 SD 6.4 (z of the mean -0.4); Nick n 28, mean +24.8 SD 3.4 (z of the mean -0.2); Jess n 23, mean +32.9 SD 5.0 (z of the mean +0.9). Centre 26°, about what the producer reads on Mark's address swings (one golfer; the ear-to-nose line carries an anatomical offset, so 0 is not the ideal). sigma 8° is authored. The measure is HELD (V5), so this row grades nothing until the repeatability gate passes. docs/research/data/posture/posture_composites_2026-10-22.md"
+      "citation": "CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 127, mean +22.9 SD 6.4 (z of the mean -0.4); Nick n 28, mean +24.8 SD 3.4 (z of the mean -0.2); Jess n 23, mean +32.9 SD 5.0 (z of the mean +0.9). Centre 26°, about what the producer reads on Mark's address swings (one golfer; the ear-to-nose line carries an anatomical offset, so 0 is not the ideal). sigma 8° is authored. docs/research/data/posture/posture_composites_2026-10-22.md V5 2026-10-22: passed on one golfer only (Mark, 15 swings with an independent pose run): no verdict flips, between-run difference median 0.4°, 90th percentile 2.5° (bar 3°); live from that date."
     },
     {
       "measure": "m_balanceHeelToeAddress",

@@ -70,6 +70,11 @@ Item {
     readonly property var detailCard: detail && detail.id ? (ro.byId(allCards, detail.id) || detail.header || null) : null
     readonly property int shotCount: readout ? readout.shotCount : 0
     readonly property int shotNo: ro.shotNo(readout)
+    // WHAT CHANGED (posture_metrics_design.md §8): the open pattern's parts when it is a composite, whose number
+    // is never printed — no figure row for it; its coverage prints once, in this shot's trust summary
+    readonly property var whatChanged: (detail && detail.whatChanged) || ({})
+    readonly property bool hasWhatChanged: (whatChanged.rows || []).length > 0
+    readonly property bool composite: !!(detail && detail.composite)
 
     // ── the galley's flows, counted from the text width (portrait ≈ compact, landscape ≈ medium) ──
     readonly property real textW: width - 2 * ro.p.marginX
@@ -177,7 +182,8 @@ Item {
                      standfirst: ro.shotStandfirst(root.readout, false) }
         PpTrustSummaryFold { width: pager.textW; roles: ro; printed: true; scope: "shot"
                              swingDir: root.readout ? String(root.readout.swingDir || "") : ""
-                             sessionDir: root.source ? String(root.source.sessionDir || "") : "" }
+                             sessionDir: root.source ? String(root.source.sessionDir || "") : ""
+                             extraLines: root.hasWhatChanged ? (root.whatChanged.trustLines || []).map(l => ({ kind: l.kind, text: root.detail.name + ": " + ro.lower1(l.text) })) : [] }
         PpLedgerTable {
             printGroup: "fired"
             width: pager.textW; roles: ro; brush: br; medium: "print"
@@ -205,10 +211,14 @@ Item {
             width: pager.textW; roles: ro; medium: "print"; detail: root.detail; readout: root.readout; source: root.source
             citationOpen: false                   // the norm's source prints in full as a footnote under the figures
         }
+        // a composite's parts, set open (print: nothing to click)
+        PpWhatChanged { visible: root.hasWhatChanged; width: pager.textW; roles: ro; printed: true; info: root.whatChanged }
         // C's figures, as ONE atom: the Loader carries atom + keyKinds, so the Pager never cuts inside the row
         // (in the mock it loaded by URL to survive a figure block mid-rework; in the module it is a type)
         Loader {
             id: figs
+            visible: !root.composite             // a composite's run would print its number (§8, §12)
+            active: !root.composite
             property bool atom: true
             readonly property var keyKinds: ["fired", "clean", "ring", "median", "fault", "pass", "corridor"]
             width: pager.textW

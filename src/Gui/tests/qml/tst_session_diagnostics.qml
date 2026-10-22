@@ -648,6 +648,43 @@ Item {
         s.detail.history = probe.historyFixture()
         return s
     }
+    // WHAT CHANGED (posture_metrics_design.md §8): a composite's parts, in the shape
+    // SessionDiagnosticsModel::whatChangedOf publishes — four read (most of it, some, a little, against
+    // it) and one not read, whose reason is the trust fold's line and never the table's.
+    function whatChangedFixture(mode) {
+        const distance = mode === "distance"
+        const row = function (part, name, read, start, end, change, value, ideal, grade, word, dom) {
+            return { part: part, name: name, measureId: "m_" + part, read: read, unit: "°", unitNote: "",
+                     startText: start, endText: end, changeText: distance ? "" : change, valueText: value,
+                     idealText: ideal, grade: grade, shareWord: word, dominant: dom, reason: read ? "" : "not measured on this swing" }
+        }
+        return {
+            mode: distance ? "distance" : "coherent", startWord: "address", endWord: distance ? "address" : "impact",
+            rows: [ row("trunk", "forward bend lost", true, "34°", "25°", "9°", "34°", "32 to 48°", "action", "most of it", true),
+                    row("pelvisDepth", "hips toward the ball", true, "", "", "7 cm", "7 cm", "", "watch", "some", false),
+                    row("pelvisHeight", "hips higher", true, "", "", "3°", "3°", "", "good", "a little", false),
+                    row("knee", "trail-knee bend lost", true, "", "", "−2°", "−2°", "", "ideal", "against it", false),
+                    row("head", "head higher", false, "-", "-", "-", "-", "", "", "-", false) ],
+            dominant: { name: "forward bend lost", measureId: "m_trunk", unit: "°", figure: "9", changeText: "9°",
+                        valueText: "9°" },
+            partsRead: 4, partsTotal: 5,
+            coverageText: "Read from 4 of 5 parts: head higher, not measured on this swing.",
+            trustLines: [{ kind: "coverage", text: "Read from 4 of 5 parts: head higher, not measured on this swing." }]
+        }
+    }
+    function compositeDetailSource(mode) {
+        const s = detailSource()
+        s.detail.composite = true
+        s.detail.whatChanged = whatChangedFixture(mode)
+        s.detail.whatChangedSwingDir = ""
+        s.detail.header.valueText = "9°"
+        s.detail.header.corridorText = ""
+        s.detail.header.spread = { composite: true, currentNumber: "9", medianNumber: "8", medianText: "8°", unit: "°",
+                                   measure: "forward bend lost", placed: 5, pastFault: 3, notAssessable: 0,
+                                   corridorKnown: false, caption: "forward bend lost, median 8° · 4 of 5 outside" }
+        return s
+    }
+
     // The picked shot for the spread detail: shot `idx` of 5 (ids 1-5).
     function spreadReadout(idx) {
         const states = ["fired", "notAssessable", "clean", "fired", "fired", "clean"]
@@ -3167,6 +3204,64 @@ Item {
 
         // F49: one measure at a time — a tab per measure, the shown one ruled, the pick asked of the model
         // (which keeps it across a rebuild); a condition with one measure draws no tabs.
+        // NEW (posture_metrics_design.md §8): a composite condition's page opens on What changed — one line per
+        // part, the part not read a "-" — and draws no figure row: a run of the composite would be its number.
+        // The coverage is said once, in the trust fold under the table, never on it.
+        function test_62_aCompositeOpensOnWhatChangedAndPrintsNoNumberOfItsOwn() {
+            useRegister("Analyse")
+            setSource(spied(compositeDetailSource("coherent")))
+            const d = viewOf("detail")
+            const wc = oneShown(d, "sdWhatChanged")
+            verify(wc.open, "open on arrival")
+            const rows = ["trunk", "pelvisDepth", "pelvisHeight", "knee", "head"].map(function (p) { return oneShown(wc, "sdWhatChangedRow:" + p) })
+            compare(rows.length, 5, "one line per part, read or not")
+            const t = allText(wc)
+            for (const w of ["Address", "Impact", "Change", "Band", "Share", "Forward bend lost", "34°", "25°", "9°",
+                             "most of it", "some", "a little", "against it"])
+                verify(t.indexOf(w) >= 0, "the table says '" + w + "': " + t)
+            const head = allText(rows[4])
+            verify(head.indexOf("Head higher") >= 0 && head.indexOf("-") >= 0, "a part not read shows '-': " + head)
+            verify(t.indexOf("not measured on this swing") < 0, "its reason is not on the table")
+            compare(shownAll(d, "sdFigureRow").length, 0, "no figure row: the composite's run would be its number")
+            const fold = oneShown(d, "sdWhatChangedTrust")
+            compare(fold.lines[0].text, "Read from 4 of 5 parts: head higher, not measured on this swing.",
+                    "the coverage is the trust fold's first line")
+            verify(allText(d).indexOf(" z") < 0, "no figure in the composite's own unit anywhere on the page")
+            mouseClick(oneShown(wc, "sdWhatChangedToggle"))
+            laidOut()
+            verify(!wc.open && shownAll(wc, "sdWhatChangedRow:trunk").length === 0, "it folds")
+        }
+
+        // NEW: poor setup posture is the same table without a change: the address reading against its ideal band.
+        function test_63_theSetupTableReadsAddressAgainstTheIdealBand() {
+            useRegister("Analyse")
+            setSource(spied(compositeDetailSource("distance")))
+            const wc = oneShown(viewOf("detail"), "sdWhatChanged")
+            const t = allText(wc)
+            verify(t.indexOf("At address") >= 0 && t.indexOf("Ideal") >= 0 && t.indexOf("32 to 48°") >= 0, t)
+            verify(t.indexOf("Change") < 0 && t.indexOf("Impact") < 0, "no change column, no second instant: " + t)
+        }
+
+        // NEW: Replay's This shot lists What changed under the plot, closed, one line per fired composite.
+        function test_64_replayListsWhatChangedForEachFiredComposite() {
+            useRegister("Replay")
+            const r = spreadReadout(0)
+            r.conditions[0].whatChanged = whatChangedFixture("coherent")
+            r.conditions[0].composite = true
+            r.conditions[0].valueText = "9°"
+            setReview(spied(reviewSource()), r)
+            showTab("shot")
+            const v = viewOf("shot")
+            const list = oneShown(v, "sdWhatChangedList")
+            const wcs = shownAll(list, "sdWhatChanged")
+            compare(wcs.length, 1, "one per fired composite")
+            verify(!wcs[0].open && shownAll(wcs[0], "sdWhatChangedRow:trunk").length === 0, "closed in the glance")
+            verify(allText(wcs[0]).indexOf("Casting") >= 0, "named after its condition")
+            mouseClick(oneShown(wcs[0], "sdWhatChangedToggle"))
+            laidOut()
+            verify(wcs[0].open && shownAll(wcs[0], "sdWhatChangedRow:trunk").length === 1, "and opens in place")
+        }
+
         function test_61_theDetailsMeasureTabsPickOneMeasureAtATime() {
             useRegister("Analyse")
             applyState(Real.reviewed(true))

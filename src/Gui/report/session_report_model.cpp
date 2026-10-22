@@ -589,6 +589,9 @@ struct Run {
     QString measureId, unit, golferName, golferLow;
     int decimals = 0, sign = 1;
     QVariantMap spread;
+    // A COMPOSITE habit (posture_metrics_design.md §8): its number is never shown, so the run carries
+    // no values, no corridor and no name to quote one under — the page says how often, not how far.
+    bool composite = false;
 };
 
 Run runOf(const Ctx &x, const QString &id)
@@ -599,6 +602,11 @@ Run runOf(const Ctx &x, const QString &id)
     const ConditionLedger *l = x.ledger(id);
     r.measureId = l ? l->drivingMeasureId : QString();
     const Measure *m = x.measure(r.measureId);
+    if (m && m->kind == MeasureKind::Composite) {
+        r.composite = true;
+        r.h.values.assign(size_t(x.N), std::numeric_limits<double>::quiet_NaN());
+        return r;
+    }
     r.unit = r.spread.value(QStringLiteral("unit")).toString();
     if (r.unit.isEmpty() && m) r.unit = m->unit;
     r.decimals = r.spread.value(QStringLiteral("decimals")).toInt();
@@ -1511,7 +1519,8 @@ void SessionReportModel::build()
             if (!lf || !lt) continue;
             int grade = 3, n = 0, gone = 0;
             const RootBecause t = linkPairs(*lf, *lt);
-            if (to->causedBy.contains(ed.from)) { grade = 0; n = t.c + t.d; gone = t.d; }
+            if (ed.sharedEvidence)                grade = 4;   // the panel's cap: measured from one reading, untested
+            else if (to->causedBy.contains(ed.from)) { grade = 0; n = t.c + t.d; gone = t.d; }
             else if (lf->rangeRestricted)      grade = 2;
             else if (linkTestable(*lf, t))      grade = 1;
             links << QVariantMap{ { QStringLiteral("from"), x.label(ed.from) }, { QStringLiteral("to"), x.label(ed.to) },
@@ -1663,7 +1672,7 @@ void SessionReportModel::build()
                     // A still's caption carries the plain figure in the golfer's sign; the low-side words
                     // live in the sentences, where there is room for them.
                     auto value = [&](int k) {
-                        if (k < 0) return QString();
+                        if (k < 0 || r.composite) return QString();
                         const double raw = r.h.values[size_t(k)];
                         return W::isInstantVsImpact(r.unit, r.golferName) ? W::timeVsImpact(raw * r.sign) : W::golferValue(raw, r.unit, r.decimals, r.sign);
                     };

@@ -27,6 +27,7 @@ import PinPointStudio
 // (TrustFocus, §7.0). Reads the session through its own SessionSeriesModel (the process-wide cache) and a
 // TrustPresenter, as PpTrustInlineFor does.
 //   scope     "shot" (swingDir picks the shot) | "session"
+//   extraLines a surface's own lines, said before the presenter's (a composite's coverage)
 // objectNames: trustSummaryFold, trustSummaryToggle, trustSummaryLine:<kind>.
 Column {
     id: fold
@@ -47,7 +48,11 @@ Column {
     // the presenter's id ran before the presenter was complete and dereferenced a null meta-object
     // (qml_ui SessionDiagnostics, and one app start).
     property var summary: null
-    readonly property var lines: (summary && summary.lines) || []
+    // LINES A SURFACE ADDS to what the presenter says about this shot, first: a composite finding's
+    // coverage ("Read from 3 of 4 parts: head higher, not measured on this swing."), which is said once,
+    // here, and never on the What changed table (posture_metrics_design.md §4.6, §8). [{ kind, text }]
+    property var extraLines: []
+    readonly property var lines: (extraLines || []).concat((summary && summary.lines) || [])
     function _read() {
         const m = !_ready ? null : scope === "session" ? tp.session : tp.shot
         summary = (m && m.summary) || null

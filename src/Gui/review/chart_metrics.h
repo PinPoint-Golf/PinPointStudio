@@ -504,6 +504,9 @@ public:
     // rather than dropped: a metric added to the pipeline before the manifest should be awkward
     // to find, not invisible.
     Q_INVOKABLE QVariantList seriesGroups(const QVariantList &seriesList) const;
+    // Every catalogue key a cross-cutting preset (MetricDescriptor::presets) names, in manifest order,
+    // whatever a swing measured — the charts presenter's from-address rebase reads it (Posture).
+    QStringList presetKeys(const QString &preset) const;
 
     // Does this metric's curve belong on the chart? Straight off MetricCardSpec::drawsCurve
     // (metric_descriptor.h says why): false for a metric read only at fixed instants — shaft lean,

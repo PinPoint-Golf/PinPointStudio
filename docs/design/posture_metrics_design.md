@@ -1,6 +1,6 @@
 # Posture — the metrics, loss of posture, and poor posture at address
 
-*2026-10-21. Status: **design agreed by Mark (2026-10-21, all four §11 decisions as recommended). Nothing here is built.** Follows
+*2026-10-21. Status: **design agreed by Mark (2026-10-21, all four §11 decisions as recommended). Built 2026-10-22 (stages 1–5, measurement V1–V5 on re-analysed copies; the live libraries re-analysed in place on the cabin PC 22 Oct, 217 swings). What the measurement changed — trunk rise held (V1 failed), the hip-joint pelvis lift out of the top composite, ρ, axis tilt at address — is in `docs/research/data/posture/posture_composites_2026-10-22.md`.** Follows
 `dtl_posture_design.md` (the down-the-line producer, 21 Sept), the posture-cluster rebuild of
 6 Sept (`swing_fault_ontology.md` §11) and the early-extension work of 8 Oct.*
 

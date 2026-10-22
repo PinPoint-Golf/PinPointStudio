@@ -90,6 +90,8 @@ Item {
         y: kf.roles.r.figureRuleTop + kf.gridH + kf.roles.u(3)
         width: parent.width; wrapMode: Text.WordWrap
         font: kf.roles.fMicro; color: kf.roles.ink3
-        text: "Figures in " + (kf.sp.unit || "-") + ".  " + kf.roles.cap1(kf.c.trendText || "") + "."
+        // a composite's figures are its dominant part's (posture_metrics_design.md §8): the foot names the part
+        text: "Figures in " + (kf.sp.unit || "-") + (kf.sp.composite && kf.sp.measure ? ", " + kf.sp.measure : "") + ".  "
+              + kf.roles.cap1(kf.c.trendText || "") + "."
     }
 }

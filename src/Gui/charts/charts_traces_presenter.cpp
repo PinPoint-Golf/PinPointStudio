@@ -131,6 +131,15 @@ struct ChartsTracesPresenter::Worker {
     std::shared_ptr<const ShotSeries> refShot;
     QString refWhy;
 
+    // THE FROM-ADDRESS SNAPSHOT (kFromAddressPresets): the session with each preset member's series
+    // rebased to its address value, built once per snapshot revision and preset. refresh() takes it IN
+    // PLACE of the raw snapshot, so every cache above describes one or the other and never a mix —
+    // a change of preset to or from Posture is a snapshot change to the caches.
+    std::shared_ptr<const SessionSnapshot> relFrom;
+    quint64 relRevision = 0;
+    QString relPreset;
+    std::shared_ptr<const SessionSnapshot> relSnap;
+
     void ensureTools()
     {
         if (!cm) cm = std::make_unique<ChartMetrics>();
@@ -286,6 +295,51 @@ qint64 phaseUsOf(const ShotSeries &s, int phase)
 {
     for (const PhaseMark &p : s.phases) if (p.phase == phase) return p.tUs;
     return -1;
+}
+
+// ── FROM ADDRESS (posture_metrics_design.md §8) ─────────────────────────────────────────────
+//
+// A preset named here draws its members FROM ADDRESS: each series less its own value at address, so
+// angles and displacements that live on different absolute scales (34° of forward bend beside 0 cm of
+// pelvis thrust) are drawn as what Mark asked to see — the posture CHANGING. A member already measured
+// from address (thrust, head lift, trunk rise) is unchanged by this up to its address sample. The cards
+// read the rebased series too, so "at P7" is the change by P7 and the Δ tile is untouched.
+const QStringList kFromAddressPresets{ QStringLiteral("Posture") };
+
+// The address value of one series: its Address phase sample, else the first measured sample at or after
+// the address instant. NaN when the swing has neither — the series is then not drawn from address at
+// all (its curve is dropped from the copy), never left on its absolute scale beside rebased neighbours.
+double addressValueOf(const ShotSeries &s, const MetricSeries &m)
+{
+    for (const PhaseSample &p : m.phaseSamples)
+        if (p.phase == phase::Address && std::isfinite(p.value)) return p.value;
+    const qint64 a = phaseUsOf(s, phase::Address);
+    if (a < 0 || !m.hasCurve() || m.value.size() != m.tUs.size()) return kNaN;
+    for (size_t i = nearestIndex(m.tUs, a); i < m.tUs.size(); ++i)
+        if (std::isfinite(m.value[i]) && m.isValid(i)) return m.value[i];
+    return kNaN;
+}
+
+std::shared_ptr<const ShotSeries> fromAddress(const ShotSeries &s, const QStringList &keys)
+{
+    auto out = std::make_shared<ShotSeries>(s);
+    for (const QString &k : keys) {
+        auto it = out->metrics.find(k);
+        if (it == out->metrics.end()) continue;
+        MetricSeries &m = it.value();
+        const double base = addressValueOf(s, m);
+        if (!std::isfinite(base)) { m.tUs.clear(); m.value.clear(); m.valid.clear(); m.phaseSamples.clear(); continue; }
+        for (double &v : m.value) v -= base;
+        for (PhaseSample &p : m.phaseSamples) p.value -= base;
+    }
+    return out;
+}
+
+std::shared_ptr<const SessionSnapshot> fromAddress(const SessionSnapshot &snap, const QStringList &keys)
+{
+    auto out = std::make_shared<SessionSnapshot>(snap);
+    for (auto &sh : out->shots) if (sh) sh = fromAddress(*sh, keys);
+    return out;
 }
 
 QVariantList tList(const MetricSeries &m) { QVariantList l; l.reserve(int(m.tUs.size())); for (qint64 t : m.tUs) l << qlonglong(t); return l; }
@@ -545,7 +599,15 @@ struct Ctx {
         if (snap) for (const auto &s : snap->shots) if (const MetricSeries *m = s->metric(k)) return m->unit;
         return QString();
     }
+    // the members a from-address preset rebased (kFromAddressPresets): their name says so wherever it is
+    // printed — legend, summary, tiles — so "at P7 −5°" reads as the change it is, never as the angle
+    QStringList fromAddressKeys;
     QString labelOf(const QString &k) const
+    {
+        const QString base = baseLabelOf(k);
+        return fromAddressKeys.contains(k) ? base + QStringLiteral(" from address") : base;
+    }
+    QString baseLabelOf(const QString &k) const
     {
         const QString sh = w->cm->shortLabel(k);
         if (shot) if (const MetricSeries *m = shot->metric(k)) if (!m->label.isEmpty()) return m->label;
@@ -2647,6 +2709,8 @@ void buildChoices(Ctx &c, ChartsTracesPresenter::Result &R)
     out.insert(QStringLiteral("presets"), presets);
     out.insert(QStringLiteral("preset"), c.preset);
     out.insert(QStringLiteral("presetTitle"), c.preset);
+    // drawn from address (kFromAddressPresets): the Controls line says so, beside the preset's name
+    out.insert(QStringLiteral("fromAddress"), kFromAddressPresets.contains(c.preset) && kFromAddressPresets.contains(c.in->preset));
     bool custom = false;
     QVariantList metrics;
     for (const QString &k : c.presetKeys) {
@@ -2740,7 +2804,20 @@ static std::shared_ptr<ChartsTracesPresenter::Result> computeAll(ChartsTracesPre
     all.start();
     w.ensureTools();
     auto R = std::make_shared<ChartsTracesPresenter::Result>();
-    const bool hit = w.refresh(in.snapshot);
+    // A from-address preset reads the rebased session (kFromAddressPresets), cached per revision.
+    const bool fromAddr = kFromAddressPresets.contains(in.preset);
+    const QStringList relKeys = fromAddr ? w.cm->presetKeys(in.preset) : QStringList();
+    std::shared_ptr<const SessionSnapshot> source = in.snapshot;
+    if (fromAddr && in.snapshot) {
+        if (w.relFrom.get() != in.snapshot.get() || w.relRevision != in.snapshot->revision || w.relPreset != in.preset || !w.relSnap) {
+            w.relFrom = in.snapshot;
+            w.relRevision = in.snapshot->revision;
+            w.relPreset = in.preset;
+            w.relSnap = fromAddress(*in.snapshot, relKeys);
+        }
+        source = w.relSnap;
+    }
+    const bool hit = w.refresh(source);
     Ctx c;
     c.w = &w;
     c.in = &in;
@@ -2763,7 +2840,7 @@ static std::shared_ptr<ChartsTracesPresenter::Result> computeAll(ChartsTracesPre
             sh->shotId = SessionSeriesModel::folderShotId(want);
             sh->swingDir = want;
         }
-        c.shot = sh;
+        c.shot = fromAddr ? fromAddress(*sh, relKeys) : std::shared_ptr<const ShotSeries>(sh);
     } else if (c.index >= 0) {
         c.shot = c.snap->shots[size_t(c.index)];
     }
@@ -2788,6 +2865,7 @@ static std::shared_ptr<ChartsTracesPresenter::Result> computeAll(ChartsTracesPre
         c.refWhy = QStringLiteral("No reference swing is set: ★ marks one, and it stays your reference across sessions.");
     }
     resolvePreset(c);
+    if (fromAddr && c.preset == in.preset) c.fromAddressKeys = relKeys;
     resolveWindow(c);
     if (c.snap && c.snap->count() > 0) resolveSessionWindow(c);
 

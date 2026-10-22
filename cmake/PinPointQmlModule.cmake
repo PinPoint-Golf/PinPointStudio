@@ -245,6 +245,7 @@ set(PP_QML_FILES
     src/Gui/diagnostics/PpBarcode.qml
     src/Gui/diagnostics/PpCauseGraph.qml
     src/Gui/diagnostics/PpDetailBar.qml
+    src/Gui/diagnostics/PpWhatChanged.qml
     src/Gui/diagnostics/PpDotPlot.qml
     src/Gui/diagnostics/PpEntryFlow.qml
     src/Gui/diagnostics/PpExpectations.qml

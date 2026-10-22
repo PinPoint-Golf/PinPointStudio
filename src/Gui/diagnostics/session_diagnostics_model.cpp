@@ -120,6 +120,44 @@ QString strengthPhrase(int level)
     }
 }
 
+// ── A composite part's share, in words (posture_metrics_design.md §8) ───────────────────
+//
+// The composite's own number is never shown, so what a golfer reads of how the finding is made up
+// is each part's SHARE of it — wᵢsᵢzᵢ / Σ (coherent) or wᵢzᵢ² / Q (distance) — as one ordinal word.
+// THE LADDER LIVES HERE, beside the strength meter's, and not in QML JS: the panel gets the word.
+//   ≥ kShareMost   "most of it"   — this part alone carries at least half of the finding
+//   ≥ kShareSome   "some"         — a fifth or more
+//   > 0            "a little"
+//   < 0            "against it"   — a coherent part read the OTHER way (a compensation, §4.3)
+//   not a number   ""             — a share over a zero sum, or a part not read: the cell says "-"
+constexpr double kShareMost = 0.5;
+constexpr double kShareSome = 0.2;
+
+QString compositeShareWord(double share)
+{
+    if (!std::isfinite(share)) return QString();
+    if (share < 0.0)          return QStringLiteral("against it");
+    if (share >= kShareMost)  return QStringLiteral("most of it");
+    if (share >= kShareSome)  return QStringLiteral("some");
+    return QStringLiteral("a little");
+}
+
+// Why a composite part was not read (CompositeUnreadRow::reason), in the trust fold's words.
+QString compositeUnreadWords(const QString &reason, const QString &status = QString())
+{
+    // A part whose measure is not live (held, planned) is not graded at all: say it is held back,
+    // which is the honest reason, rather than "not measured" — the series may well be on the swing.
+    if (reason == QLatin1String("notLive"))
+        return status == QLatin1String("held") ? QStringLiteral("held back until it is trusted to grade")
+                                               : QStringLiteral("not graded yet");
+    if (reason == QLatin1String("notMeasured")) return QStringLiteral("not measured on this swing");
+    if (reason == QLatin1String("noCorridor"))  return QStringLiteral("no range to judge it against");
+    if (reason == QLatin1String("implausible")) return QStringLiteral("set aside as implausible");
+    if (reason == QLatin1String("withheld"))    return QStringLiteral("drawn but not judged");
+    if (reason == QLatin1String("nested"))      return QStringLiteral("a combined reading cannot be a part");
+    return reason.isEmpty() ? QStringLiteral("not read") : reason;
+}
+
 void addStrength(QVariantMap &m, const ConditionRow *r)
 {
     const RowStrength st = r ? rowStrength(*r) : RowStrength();
@@ -133,6 +171,16 @@ void addStrength(QVariantMap &m, const ConditionRow *r)
     if (r && r->sharp && r->state == ShotState::Fired) {
         m[QStringLiteral("strengthText")] =
             QStringLiteral("%1 of 5 · a sharp finding: crossing this line is serious in itself").arg(level);
+        return;
+    }
+    // A COMPOSITE's row keeps the meter's step and loses the number (posture_metrics_design.md §8,
+    // session diagnostics principle 5): the multiple of the distance to the edge IS the composite's
+    // z, and that number is never shown. The step is a position, which the meter already draws.
+    const bool composite = r && r->composite.present();
+    m[QStringLiteral("composite")] = composite;
+    if (composite) {
+        m[QStringLiteral("strengthText")] =
+            st.known ? QStringLiteral("%1 of 5 · %2").arg(level).arg(strengthPhrase(level)) : QString();
         return;
     }
     // The one sentence, and it carries the number as well as the step: a meter read off a
@@ -220,8 +268,26 @@ QString refusalReason(SignalRefusal k, const QString &measureId)
     case SignalRefusal::MixedScale:             return sequenceGapReason(SequenceGap::MixedScale, measureId);
     case SignalRefusal::Implausible:            return sequenceGapReason(SequenceGap::Implausible, measureId);
     case SignalRefusal::PeakAfterImpact:        return sequenceGapReason(SequenceGap::PeakAfterImpact, measureId);
+    case SignalRefusal::CompositeCoverage:      return missingReasonText(MissingKind::CompositeCoverage);
     default:                                    return QString();
     }
+}
+
+// A composite's parts and coverage, from the engine's evidence into the ledger's row (schema 9). The
+// two structs are copies of one shape — the ledger header stands apart from the Diagnostics module —
+// and this is the one place the copy is made. Empty for any measure that is not a composite.
+CompositeRowEvidence compositeRowOf(const MeasureEvidence &e)
+{
+    CompositeRowEvidence c;
+    c.weightRead  = e.partsWeightRead;
+    c.weightTotal = e.partsWeightTotal;
+    c.parts.reserve(e.parts.size());
+    for (const CompositePart &p : e.parts)
+        c.parts.push_back({ p.name, p.measureId, p.value, p.unit, p.z, p.weight, p.share, p.sign,
+                            p.atStart, p.atEnd });
+    for (const CompositeUnread &u : e.partsUnread)
+        c.unread.push_back({ u.name, u.measureId, u.reason, u.status });
+    return c;
 }
 
 // "4 measures not assessable on this capture", and of those, the ones a gate or rule accounts for, by
@@ -328,6 +394,8 @@ QString normTagOf(bool fromNorm, NormSource src, int n)
                                               : QStringLiteral("norm · data");
     case NormSource::Literature: return QStringLiteral("norm · published data");
     case NormSource::Imported:   return QStringLiteral("norm · imported");
+    case NormSource::Measured:   return n > 0 ? QStringLiteral("norm · measured, %1 swings").arg(n)
+                                              : QStringLiteral("norm · measured");
     }
     return QStringLiteral("norm");
 }
@@ -350,6 +418,9 @@ QString normTagLongOf(bool fromNorm, NormSource src, int n)
     case NormSource::Imported:
         return QStringLiteral("The corridor is the norm's claim, imported from another norm pack. "
                               "It is not fitted to your shots.");
+    case NormSource::Measured:
+        return QStringLiteral("The corridor is the norm's claim, measured on %1 swings of the library. "
+                              "It is not fitted to your shots.").arg(n);
     }
     return QString();
 }
@@ -874,6 +945,8 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
             // Every branch that left z at 0 for want of a scale records None, so a meter is
             // never drawn over a reading that was graded against an authored number.
             r.corridorShape    = corridorShapeOf(f.evidence);
+            // Schema 9: a composite's parts and coverage, the evidence its detail page draws.
+            r.composite        = compositeRowOf(f.evidence);
         }
         // Every signal's measure, when there is more than one to show (schema 4).
         if (f.readings.size() > 1) {
@@ -887,6 +960,7 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
                 m.z             = e.z;
                 m.corridorShape = corridorShapeOf(e);
                 m.fired         = e.fired;
+                m.composite     = compositeRowOf(e);
                 r.readings.push_back(std::move(m));
             }
         }
@@ -1659,6 +1733,9 @@ void SessionDiagnosticsModel::marshalGraph(const QSet<QString> &keep,
         // coherence on temporal order alone rather than on a sign nobody authored.
         s.type     = 0;
         s.strength = int(e.strength);
+        // Computed by the pack at load (stampSharedEvidence): both ends read one measure, so the
+        // link caps at Coherent untested (posture_metrics_design.md §6.5).
+        s.sharedEvidence = e.sharedEvidence;
         edges.push_back(std::move(s));
     }
 }
@@ -2002,6 +2079,7 @@ SessionWorkOns SessionDiagnosticsModel::sessionWorkOns() const
     QHash<QString, WorkOnClass> classOf;
     QHash<QString, double>      swingPosOf;
     WorkOnCauses causes;
+    WorkOnSharedEvidence shared;
     if (m_packProv) {
         const CharacteristicPack &pack = m_packProv->pack();
         for (const Condition &c : pack.conditions) {
@@ -2020,7 +2098,11 @@ SessionWorkOns SessionDiagnosticsModel::sessionWorkOns() const
             classOf.insert(c.id, cls);
         }
         for (const Edge &e : pack.edges)
-            if (e.type == EdgeType::Causes) causes.emplace_back(e.from, e.to);
+            if (e.type == EdgeType::Causes) {
+                causes.emplace_back(e.from, e.to);
+                // the panel's cap, carried into the list: measured from the same readings, never tested
+                if (e.sharedEvidence) shared.insert(workOnEdgeKey(e.from, e.to));
+            }
 
         // WHERE IN THE SWING each condition is read, for rule v4's swing order (work_ons.h, above
         // workOnSwingPosOfPhase): where the ledger's driving measure's reduction lands — the same
@@ -2035,7 +2117,7 @@ SessionWorkOns SessionDiagnosticsModel::sessionWorkOns() const
         }
     }
 
-    SessionWorkOns out = reduceSessionWorkOns(m_shots, m_ledgers, classOf, causes, swingPosOf);
+    SessionWorkOns out = reduceSessionWorkOns(m_shots, m_ledgers, classOf, causes, swingPosOf, WorkOnOptions(), shared);
     out.sessionId = QFileInfo(m_sessionDir).fileName();
     for (WorkOnEntry &e : out.entries) e.name = conditionName(e.id);
     return out;
@@ -2290,8 +2372,10 @@ void publishCorridor(QVariantMap &out, const SpreadCorridor &c, const SpreadAxis
 QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi, int selectedTick,
                                                const QString &measure) const
 {
-    QVariantMap out;
     const QString measureId = measure.isEmpty() ? l.drivingMeasureId : measure;
+    // A COMPOSITE draws no strip, run or box: those are its number, per shot (§8, §12).
+    if (readsComposite(l, measureId)) return compositeSpreadFor(l, fi, measureId);
+    QVariantMap out;
     const QString unit      = measureUnitOf(measureId);
     const int n             = int(m_shots.size());
 
@@ -2587,6 +2671,312 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
     return out;
 }
 
+// ── A composite's evidence, part by part (posture_metrics_design.md §8) ────────────────────
+//
+// THE COMPOSITE'S NUMBER IS NEVER SHOWN (session diagnostics principle 5). It is a weighted sum of
+// z-scores with no golfer-facing unit, and "2.8" next to "loss of posture" is a statement nobody can
+// act on. What the golfer is owed instead is what changed, each part in its own unit — "forward bend
+// lost 9°, hips 7 cm toward the ball" — and which part carried the finding. Everything below turns
+// the ledger's CompositeRowEvidence (schema 9) into that, so the three registers draw one answer.
+
+bool SessionDiagnosticsModel::isCompositeMeasure(const QString &measureId) const
+{
+    if (measureId.isEmpty() || !m_packProv) return false;
+    const Measure *m = m_packProv->pack().measure(measureId);
+    return m && m->kind == MeasureKind::Composite;
+}
+
+bool SessionDiagnosticsModel::readsComposite(const ConditionLedger &l, const QString &measureId) const
+{
+    // The pack's word first; then the ROWS' — a row graded as a composite carries its parts whatever the
+    // pack says today, and its stored value is still the composite's number.
+    if (isCompositeMeasure(measureId)) return true;
+    for (const ShotRecord &s : m_shots) {
+        const ConditionRow *r = rowFor(s, l.id);
+        if (!r) continue;
+        if (r->drivingMeasureId == measureId && r->composite.present()) return true;
+        for (const MeasureRow &mr : r->readings)
+            if (mr.measureId == measureId && mr.composite.present()) return true;
+    }
+    return false;
+}
+
+SessionDiagnosticsModel::PartBand SessionDiagnosticsModel::partBandOf(const QString &measureId,
+                                                                      const QString &contextId,
+                                                                      double value) const
+{
+    PartBand out;
+    if (!m_norms || measureId.isEmpty() || !std::isfinite(value)) return out;
+    Shape shape = Shape::Target;
+    QString unit;
+    if (m_packProv)
+        if (const Measure *m = m_packProv->pack().measure(measureId)) { shape = m->shape; unit = m->unit; }
+    const NormResolution res = m_norms->resolve(measureId, contextId);
+    if (!res.found()) return out;
+    const SpreadCorridor c = spreadCorridorFromNorm(*res.norm, shape, gradePolicyByName(m_policyName));
+    if (!c.known) return out;
+    // The axis the card would draw this reading on — its decimals are how the app quotes it.
+    const SpreadAxis a = spreadAxisFor(c, { value });
+    out.decimals = a.decimals;
+    const std::vector<SpreadBand> bands = spreadBands(c, a);
+    for (const SpreadBand &b : bands)
+        if (value >= b.lo && value <= b.hi) { out.grade = b.grade; break; }
+    if (out.grade.isEmpty() && !bands.empty())     // past the axis: the outermost band on that side
+        out.grade = value < bands.front().lo ? bands.front().grade : bands.back().grade;
+    // The Ideal band, for the setup table's "against the ideal band" (§8).
+    double lo = std::numeric_limits<double>::infinity(), hi = -std::numeric_limits<double>::infinity();
+    for (const SpreadBand &b : bands)
+        if (b.grade == QLatin1String("ideal")) { lo = std::min(lo, b.lo); hi = std::max(hi, b.hi); }
+    if (std::isfinite(lo) && std::isfinite(hi))
+        out.idealText = QStringLiteral("%1 to %2").arg(fmtSpread(lo, a.decimals),
+                                                       fmtSpread(hi, a.decimals, unit.size() <= 3 ? unit : unit.section(QLatin1Char(' '), 0, 0)));
+    return out;
+}
+
+QVariantMap SessionDiagnosticsModel::whatChangedOf(const ConditionRow &r) const
+{
+    QVariantMap out;
+    const CompositeRowEvidence &ev = r.composite;
+    if (!ev.present()) return out;
+
+    const Measure *cm = m_packProv ? m_packProv->pack().measure(r.drivingMeasureId) : nullptr;
+    const bool hasSpec = cm && cm->kind == MeasureKind::Composite;
+    // The mode is the composite's own; a row read under a pack that no longer knows it falls back on
+    // the evidence: a coherent part carries a sign, a distance part never does.
+    bool coherent = hasSpec ? cm->composite.combine == CompositeCombine::Coherent
+                            : std::any_of(ev.parts.begin(), ev.parts.end(), [](const CompositePartRow &p) { return p.sign != 0; });
+
+    // WHERE THE CHANGE ENDS: the instant the parts are read at (they are all read at one, §4.4) —
+    // impact, the top, or address for the setup composite.
+    auto instantWord = [&](const QString &measureId) -> QString {
+        if (!m_packProv || measureId.isEmpty()) return QString();
+        const ConditionReading cr = measureReading(m_packProv->pack(), measureId);
+        if (!cr.found) return QString();
+        switch (Phase(cr.phase)) {
+        case Phase::Address: return QStringLiteral("address");
+        case Phase::Top:     return QStringLiteral("top");
+        case Phase::Impact:  return QStringLiteral("impact");
+        default:             return phaseLabel(Phase(cr.phase));
+        }
+    };
+    const auto golferNameOf = [&](const QString &measureId, const QString &fallback) {
+        const Measure *m = (m_packProv && !measureId.isEmpty()) ? m_packProv->pack().measure(measureId) : nullptr;
+        if (m && !m->golferName.isEmpty()) return m->golferName;
+        if (m) return measureDisplayLabel(*m).toLower();
+        return fallback;
+    };
+    const auto golferSignOf = [&](const QString &measureId) {
+        const Measure *m = (m_packProv && !measureId.isEmpty()) ? m_packProv->pack().measure(measureId) : nullptr;
+        return (m && m->golferSign < 0) ? -1.0 : 1.0;
+    };
+
+    // The authored order when the pack still holds the composite, so a part not read keeps its place;
+    // else the parts read, then the parts not.
+    QStringList order;
+    if (hasSpec) for (const CompositePartSpec &ps : cm->composite.parts) order << ps.name;
+    for (const CompositePartRow &p : ev.parts)    if (!order.contains(p.name)) order << p.name;
+    for (const CompositeUnreadRow &u : ev.unread) if (!order.contains(u.name)) order << u.name;
+
+    // The dominant part: the largest share FOR the finding (a share against it never carries it).
+    int dominant = -1;
+    for (int i = 0; i < int(ev.parts.size()); ++i) {
+        const double s = ev.parts[size_t(i)].share;
+        if (std::isfinite(s) && s > 0.0 && (dominant < 0 || s > ev.parts[size_t(dominant)].share)) dominant = i;
+    }
+
+    QString endWord;
+    QVariantList rows;
+    QStringList unreadClauses;
+    int partsRead = 0;
+    QVariantMap dom;
+    for (const QString &name : order) {
+        const auto pit = std::find_if(ev.parts.begin(), ev.parts.end(), [&](const CompositePartRow &p) { return p.name == name; });
+        QVariantMap row;
+        if (pit != ev.parts.end()) {
+            const CompositePartRow &p = *pit;
+            ++partsRead;
+            if (endWord.isEmpty()) endWord = instantWord(p.measureId);
+            const QString unit = p.unit.isEmpty() ? measureUnitOf(p.measureId) : p.unit;
+            // A SHORT unit rides on every figure ("27°", "7 cm"); a worded one ("% stance width") is said
+            // once, after the part's name, and the figures carry its symbol alone — a table column cannot
+            // hold "−3 % stance width" three times over.
+            const bool shortUnit = unit.size() <= 3;
+            const QString figUnit = shortUnit ? unit : unit.section(QLatin1Char(' '), 0, 0);
+            const PartBand band = partBandOf(p.measureId, r.contextId, p.value);
+            const int dec = band.decimals;
+            const QString pname = golferNameOf(p.measureId, p.name);
+            // THE CHANGE in the golfer's direction: raw × golferSign, so "forward bend lost 9°" reads as
+            // a magnitude in the direction the words name (MeasureRow golferSign, the report's rule).
+            const double change = p.value * golferSignOf(p.measureId);
+            row[QStringLiteral("name")]       = pname;
+            row[QStringLiteral("part")]       = p.name;
+            row[QStringLiteral("measureId")]  = p.measureId;
+            row[QStringLiteral("read")]       = true;
+            row[QStringLiteral("unit")]       = unit;
+            row[QStringLiteral("unitNote")]   = shortUnit ? QString() : unit;
+            // the two ends only where the measure names them (a change between two instants); a reading
+            // at one instant has no address value to quote, and inventing "0 →" would be this panel's
+            row[QStringLiteral("startText")]  = std::isfinite(p.atStart) ? fmtSpread(p.atStart, dec, figUnit) : QString();
+            row[QStringLiteral("endText")]    = std::isfinite(p.atEnd)   ? fmtSpread(p.atEnd, dec, figUnit)   : QString();
+            row[QStringLiteral("changeText")] = coherent ? fmtSpread(change, dec, figUnit) : QString();
+            row[QStringLiteral("valueText")]  = fmtSpread(p.value, dec, figUnit);   // the reading itself (distance mode)
+            row[QStringLiteral("idealText")]  = band.idealText;
+            row[QStringLiteral("grade")]      = band.grade;
+            row[QStringLiteral("share")]      = std::isfinite(p.share) ? QVariant(p.share) : QVariant();
+            row[QStringLiteral("shareWord")]  = compositeShareWord(p.share);
+            const bool isDom = dominant >= 0 && &ev.parts[size_t(dominant)] == &p;
+            row[QStringLiteral("dominant")]   = isDom;
+            if (isDom) {
+                const double fig = coherent ? change : p.value;
+                dom = QVariantMap{
+                    { QStringLiteral("name"),       pname },
+                    { QStringLiteral("measureId"),  p.measureId },
+                    { QStringLiteral("unit"),       unit },
+                    { QStringLiteral("figure"),     fmtSpread(fig, dec) },
+                    { QStringLiteral("changeText"), fmtSpread(fig, dec, unit) },
+                    // the card's value slot: the figure in its unit, as every other row's reads ("7 cm") — the
+                    // part's name is What changed's to say, and the detail's key figures name it once
+                    { QStringLiteral("valueText"),  fmtSpread(fig, dec, unit) },
+                };
+            }
+        } else {
+            const auto uit = std::find_if(ev.unread.begin(), ev.unread.end(), [&](const CompositeUnreadRow &u) { return u.name == name; });
+            const QString mid = uit != ev.unread.end() ? uit->measureId : QString();
+            const QString pname = golferNameOf(mid, name);
+            const QString why = compositeUnreadWords(uit != ev.unread.end() ? uit->reason : QString(),
+                                                     uit != ev.unread.end() ? uit->status : QString());
+            // "-" in every figure slot: not read is not zero (missing-metrics-show-dash); the reason is
+            // the trust fold's, said once there
+            row[QStringLiteral("name")]       = pname;
+            row[QStringLiteral("part")]       = name;
+            row[QStringLiteral("measureId")]  = mid;
+            row[QStringLiteral("read")]       = false;
+            row[QStringLiteral("startText")]  = QStringLiteral("-");
+            row[QStringLiteral("endText")]    = QStringLiteral("-");
+            row[QStringLiteral("changeText")] = QStringLiteral("-");
+            row[QStringLiteral("valueText")]  = QStringLiteral("-");
+            row[QStringLiteral("idealText")]  = QString();
+            row[QStringLiteral("grade")]      = QString();
+            row[QStringLiteral("shareWord")]  = QStringLiteral("-");
+            row[QStringLiteral("dominant")]   = false;
+            row[QStringLiteral("reason")]     = why;
+            unreadClauses << QStringLiteral("%1, %2").arg(pname, why);
+        }
+        rows.append(row);
+    }
+
+    const int total = int(order.size());
+    // COVERAGE, SAID ONCE — in the trust fold, never on the table (§4.6, §8).
+    QString coverage = partsRead == total
+                           ? QStringLiteral("Read from all %1 of its parts").arg(total)
+                           : QStringLiteral("Read from %1 of %2 parts").arg(partsRead).arg(total);
+    if (!unreadClauses.isEmpty()) coverage += QStringLiteral(": ") + unreadClauses.join(QStringLiteral("; "));
+    coverage += QLatin1Char('.');
+
+    out[QStringLiteral("mode")]         = coherent ? QStringLiteral("coherent") : QStringLiteral("distance");
+    out[QStringLiteral("startWord")]    = QStringLiteral("address");
+    out[QStringLiteral("endWord")]      = endWord.isEmpty() ? QStringLiteral("impact") : endWord;
+    out[QStringLiteral("rows")]         = rows;
+    out[QStringLiteral("dominant")]     = dom;
+    out[QStringLiteral("partsRead")]    = partsRead;
+    out[QStringLiteral("partsTotal")]   = total;
+    out[QStringLiteral("coverageText")] = coverage;
+    out[QStringLiteral("trustLines")]   = QVariantList{ QVariantMap{ { QStringLiteral("kind"), QStringLiteral("coverage") },
+                                                                     { QStringLiteral("text"), coverage } } };
+    return out;
+}
+
+QVariantMap SessionDiagnosticsModel::compositeSpreadFor(const ConditionLedger &l, int fi,
+                                                        const QString &measure) const
+{
+    const QString measureId = measure.isEmpty() ? l.drivingMeasureId : measure;
+    const int n = int(m_shots.size());
+    QVariantMap out;
+    out[QStringLiteral("composite")] = true;
+
+    // The composite's verdicts per shot, as the strip draws them: COUNTS only, no positions. Past the
+    // fault line against the corridor the card's strip would have drawn (spreadFor's count), never printed.
+    const SpreadCorridor c = spreadCorridorOf(l, fi, nullptr, measureId);
+    int placed = 0, pastFault = 0, notAssessable = 0;
+    for (int i = 0; i < n; ++i) {
+        const ConditionRow *r = rowFor(m_shots[size_t(i)], l.id);
+        if (!r || r->state == ShotState::NotAssessable) { ++notAssessable; continue; }
+        const std::optional<MeasureRow> mr = rowReadingOf(*r, measureId);
+        const double v = mr ? mr->value : r->value;
+        if (!std::isfinite(v)) { ++notAssessable; continue; }
+        ++placed;
+        if (c.known && ((!c.highOpen && v > c.faultHi) || (!c.lowOpen && v < c.faultLo))) ++pastFault;
+    }
+    out[QStringLiteral("placed")]        = placed;
+    out[QStringLiteral("pastFault")]     = pastFault;
+    out[QStringLiteral("notAssessable")] = notAssessable;
+    out[QStringLiteral("corridorKnown")] = false;
+
+    // THE DOMINANT PART, AS THE CARD'S FIGURES: this shot's largest share for the finding, and the
+    // session median of THAT part's reading (the same alternative, so one unit), so the card and the
+    // page quote the same reading (§8 — defect 1 fixed by construction for these rows).
+    const ConditionRow *here = (fi >= 0 && fi < n) ? rowFor(m_shots[size_t(fi)], l.id) : nullptr;
+    QVariantMap dom;
+    if (here && here->state != ShotState::NotAssessable) dom = whatChangedOf(*here).value(QStringLiteral("dominant")).toMap();
+    if (dom.isEmpty()) {
+        // no reading here: the part that dominated most often across the session names the figures
+        QHash<QString, int> times;
+        QString best;
+        for (const ShotRecord &s : m_shots) {
+            const ConditionRow *r = rowFor(s, l.id);
+            if (!r || r->state == ShotState::NotAssessable) continue;
+            const QString id = whatChangedOf(*r).value(QStringLiteral("dominant")).toMap().value(QStringLiteral("measureId")).toString();
+            if (id.isEmpty()) continue;
+            if (++times[id] > times.value(best)) best = id;
+        }
+        if (!best.isEmpty())
+            dom = QVariantMap{ { QStringLiteral("measureId"), best }, { QStringLiteral("unit"), measureUnitOf(best) } };
+    }
+    const QString partId = dom.value(QStringLiteral("measureId")).toString();
+    const QString unit   = dom.value(QStringLiteral("unit")).toString();
+    std::vector<double> vals;
+    int decimals = 1;
+    QString partName = dom.value(QStringLiteral("name")).toString();
+    for (const ShotRecord &s : m_shots) {
+        const ConditionRow *r = rowFor(s, l.id);
+        if (!r || partId.isEmpty()) continue;
+        const QVariantList rows = whatChangedOf(*r).value(QStringLiteral("rows")).toList();
+        for (const QVariant &rv : rows) {
+            const QVariantMap pr = rv.toMap();
+            if (pr.value(QStringLiteral("measureId")).toString() != partId || !pr.value(QStringLiteral("read")).toBool()) continue;
+            if (partName.isEmpty()) partName = pr.value(QStringLiteral("name")).toString();
+            const auto pit = std::find_if(r->composite.parts.begin(), r->composite.parts.end(),
+                                          [&](const CompositePartRow &p) { return p.measureId == partId; });
+            if (pit == r->composite.parts.end() || !std::isfinite(pit->value)) continue;
+            const bool coherent = pit->sign != 0;
+            const Measure *pm = m_packProv ? m_packProv->pack().measure(partId) : nullptr;
+            vals.push_back(coherent ? pit->value * ((pm && pm->golferSign < 0) ? -1.0 : 1.0) : pit->value);
+            decimals = partBandOf(partId, r->contextId, pit->value).decimals;
+        }
+    }
+    std::sort(vals.begin(), vals.end());
+    out[QStringLiteral("measure")]       = partName;
+    out[QStringLiteral("unit")]          = unit;
+    out[QStringLiteral("decimals")]      = decimals;
+    out[QStringLiteral("currentNumber")] = dom.contains(QStringLiteral("figure")) ? dom.value(QStringLiteral("figure")).toString()
+                                                                                  : QStringLiteral("-");
+    out[QStringLiteral("medianNumber")]  = vals.empty() ? QStringLiteral("-") : fmtSpread(spreadQuantile(vals, 0.5), decimals);
+    out[QStringLiteral("medianText")]    = vals.empty() ? QStringLiteral("-") : fmtSpread(spreadQuantile(vals, 0.5), decimals, unit);
+    out[QStringLiteral("currentState")]  = here ? shotStateKind(here->state) : QStringLiteral("notAssessable");
+    const RowGate cg = (here && here->state == ShotState::NotAssessable) ? rowGate(here) : RowGate();
+    out[QStringLiteral("currentGated")]  = cg.on;
+    out[QStringLiteral("currentWords")]  = cg.words;
+    out[QStringLiteral("currentGate")]   = gateNoteOf(cg, cg.on && fi >= 0 ? m_swingDirs.value(m_shots[size_t(fi)].shotId) : QString());
+    // The caption in counts: how often, never how far in the composite's own terms.
+    QStringList parts;
+    if (!vals.empty() && !partName.isEmpty()) parts << QStringLiteral("%1, median %2").arg(partName, out.value(QStringLiteral("medianText")).toString());
+    parts << QStringLiteral("%1 of %2 outside").arg(l.fired).arg(l.assessable);
+    if (notAssessable > 0) parts << QStringLiteral("%1 not measured").arg(notAssessable);
+    out[QStringLiteral("caption")]      = parts.join(QStringLiteral(" · "));
+    out[QStringLiteral("captionShort")] = parts.join(QStringLiteral(" · "));
+    return out;
+}
+
 QVariantMap SessionDiagnosticsModel::spreadOf(const QString &conditionId) const
 {
     const ConditionLedger *l = ledger(conditionId);
@@ -2702,6 +3092,8 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
 {
     QVariantMap out;
     const QString measureId = measure.isEmpty() ? l.drivingMeasureId : measure;
+    // A composite has no across-sessions columns: each would be its number, per session (§8, §12).
+    if (readsComposite(l, measureId)) return out;
     const QString unit      = measureUnitOf(measureId);
 
     struct Col { QString dir, label; qint64 firstMs = 0; bool current = false; std::vector<double> v; };
@@ -3405,7 +3797,14 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
                 : (hereState == QLatin1String("fired") ? QStringLiteral("FIRED")
                  : hereState == QLatin1String("clean") ? QStringLiteral("CLEAN")
                                                        : unmeasuredPill);
-        if (here && here->state != ShotState::NotAssessable) {
+        if (here && here->state != ShotState::NotAssessable && here->composite.present()) {
+            // A COMPOSITE's value slot quotes its dominant part's change in that part's own unit and
+            // words, never the composite's number, and it has no corridor in a golfer's units (§8).
+            const QVariantMap wc = whatChangedOf(*here);
+            c[QStringLiteral("valueText")]    = wc.value(QStringLiteral("dominant")).toMap().value(QStringLiteral("valueText")).toString();
+            c[QStringLiteral("corridorText")] = QString();
+            c[QStringLiteral("whatChanged")]  = wc;
+        } else if (here && here->state != ShotState::NotAssessable) {
             c[QStringLiteral("valueText")]    = withUnit(fmtNumber(here->value), unit);
             // THE PASS BAND AND THE FAULT LINE — the two edges the strip under it draws — and not
             // the stored Ideal band, which quoted "pass 0.0 to 4.3" over a strip whose fault line
@@ -3766,7 +4165,9 @@ QVariantMap SessionDiagnosticsModel::linkMap(const LinkEvidence &e) const
         note = QStringLiteral("Fisher exact · %1 paired shots").arg(e.pairs);
         break;
     case LinkGrade::Coherent:
-        note = e.rangeRestricted
+        note = e.sharedEvidence
+                   ? QStringLiteral("measured from the same readings, so the link is not tested")
+             : e.rangeRestricted
                    ? QStringLiteral("no variance to test")
                    : (e.pairs < m_opt.minPairsForDependence
                           ? QStringLiteral("%1 paired shots · too few to test").arg(e.pairs)
@@ -4053,7 +4454,15 @@ QVariantMap SessionDiagnosticsModel::shotReadout(int shotId) const
         c[QStringLiteral("state")] = st == ShotState::Fired ? QStringLiteral("OUT")
                                    : st == ShotState::Clean ? QStringLiteral("IN")
                                                             : QStringLiteral("—");
-        if (st != ShotState::NotAssessable && r) {
+        if (st != ShotState::NotAssessable && r && r->composite.present()) {
+            // A composite: its dominant part's change, never its own number (§8), and its parts for
+            // the registers' What changed fold.
+            const QVariantMap wc = whatChangedOf(*r);
+            c[QStringLiteral("valueText")]    = wc.value(QStringLiteral("dominant")).toMap().value(QStringLiteral("valueText")).toString();
+            c[QStringLiteral("corridorText")] = QString();
+            c[QStringLiteral("reason")]       = QString();
+            c[QStringLiteral("whatChanged")]  = wc;
+        } else if (st != ShotState::NotAssessable && r) {
             c[QStringLiteral("valueText")] = withUnit(fmtNumber(r->value), unit);
             // The same sentence the card prints (spreadCorridorWords) — pass band and fault line.
             c[QStringLiteral("corridorText")] = spreadCorridorWords(corridorForRow(*r), unit);
@@ -4571,6 +4980,16 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
     }
     out[QStringLiteral("measureId")]     = measureId;
     out[QStringLiteral("measurePicked")] = m_detailMeasureId;   // the reader's pick, for the nav save
+    // WHAT CHANGED (posture_metrics_design.md §8): a composite condition's page opens on its parts, read
+    // off the swing the page is about. Empty for every other condition, and on a shot it was not read.
+    {
+        const ConditionRow *fr = (l && fi >= 0 && fi < int(m_shots.size())) ? rowFor(m_shots[size_t(fi)], conditionId) : nullptr;
+        const QVariantMap wc = fr ? whatChangedOf(*fr) : QVariantMap();
+        out[QStringLiteral("whatChanged")] = wc;
+        out[QStringLiteral("composite")]   = !wc.isEmpty() || (l && readsComposite(*l, measureId.isEmpty() ? l->drivingMeasureId : measureId));
+        if (!wc.isEmpty())
+            out[QStringLiteral("whatChangedSwingDir")] = m_swingDirs.value(m_shots[size_t(fi)].shotId);
+    }
     out[QStringLiteral("history")] = (m_reviewing && l) ? historyFor(*l, fi, measureId) : QVariantMap();
     // The two absences, in words, so the panel never has to invent a sentence for an empty list.
     out[QStringLiteral("noCausesLine")] =

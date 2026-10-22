@@ -213,6 +213,53 @@ private slots:
         QVERIFY(figs.at(2).toMap().value(QStringLiteral("warn")).toBool());
     }
 
+    // THE POSTURE PRESET DRAWS FROM ADDRESS (posture_metrics_design.md §8): forward bend, a card of fixed
+    // instants, still draws its curve (card.curve), every member is less its address value, and the name
+    // says so — so "at P7" reads as the change by P7, never as the angle. Another preset reads the raw series.
+    void postureDrawsFromAddress()
+    {
+        // The fixture carries forward bend as phase samples only: give every shot a curve, 34° at address
+        // falling to 25° by the finish, the shape of 4 July's loss of posture.
+        auto snap = std::make_shared<SessionSnapshot>(*m_snap);
+        for (auto &sh : snap->shots) {
+            auto c = std::make_shared<ShotSeries>(*sh);
+            MetricSeries &m = c->metrics[QStringLiteral("spineForwardBend")];
+            m.key = QStringLiteral("spineForwardBend");
+            m.unit = QStringLiteral("°");
+            const qint64 a = phaseUs(*c, 0), f = phaseUs(*c, 7);
+            if (a < 0 || f <= a) continue;
+            m.tUs.clear(); m.value.clear(); m.valid.clear(); m.phaseSamples.clear();
+            for (int i = 0; i <= 40; ++i) {
+                m.tUs.push_back(a - 100000 + (f - a + 100000) * i / 40);
+                m.value.push_back(i <= 4 ? 34.0 : 34.0 - 9.0 * (i - 4) / 36.0);
+            }
+            if (!c->metricOrder.contains(m.key)) c->metricOrder << m.key;
+            sh = c;
+        }
+        snap->revision += 1000;
+        ChartsTracesPresenter p;
+        setUp(p, snap);
+        p.setPreset(QStringLiteral("Posture"));
+        if (p.choices().value(QStringLiteral("preset")).toString() != QLatin1String("Posture"))
+            QSKIP("the fixture session carries no Posture member");
+        QVERIFY(p.choices().value(QStringLiteral("fromAddress")).toBool());
+        const QVariantMap bend = rowOf(p.thisShot().value(QStringLiteral("rows")).toList(), QStringLiteral("spineForwardBend"));
+        QVERIFY2(!bend.isEmpty(), "forward bend draws its curve in the Posture preset");
+        QVERIFY2(bend.value(QStringLiteral("label")).toString().endsWith(QLatin1String(" from address")),
+                 qPrintable(bend.value(QStringLiteral("label")).toString()));
+        bool nearZero = false;
+        double far = 0.0;
+        for (const QVariant &v : bend.value(QStringLiteral("raw")).toList()) {
+            const double d = v.toDouble();
+            if (!std::isfinite(d)) continue;
+            nearZero = nearZero || std::fabs(d) < 1.0;
+            far = std::max(far, std::fabs(d));
+        }
+        QVERIFY2(nearZero && far < 25.0, "the curve is the change from address, not the 30-odd degree angle");
+        p.setPreset(QStringLiteral("Kinematic sequence"));
+        QVERIFY(!p.choices().value(QStringLiteral("fromAddress")).toBool());
+    }
+
     void replayHeadClubAndSpeed()
     {
         ChartsTracesPresenter p;

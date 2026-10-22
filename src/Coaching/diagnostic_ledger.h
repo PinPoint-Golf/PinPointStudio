@@ -803,6 +803,16 @@ struct ConditionLedger {
     double firingExcess = 0.0;
     int    firingExcessN = 0;       // firings that carried a gradeable reading
 
+    // HOW FAR OUT IT SITS ON EVERY JUDGED SWING, fired or clean: the median rowStrength() excess over
+    // the assessable shots that carried a gradeable reading. NaN when none did (no corridor: a
+    // threshold test, a sharp line, a refused reading). Where firingExcess asks how bad a habit is
+    // when it shows, this asks whether a CLEAN condition was comfortably clean — what the report's
+    // "going well" needs (session_report.h pickStrengths). A clean row out on the far side of a
+    // two-sided corridor counts as out, which is the point: never firing is not the same as being
+    // well inside the corridor.
+    double medianExcess = std::numeric_limits<double>::quiet_NaN();
+    int    excessN      = 0;
+
     double directionAgreement = 1.0;// modal share among SIGNED firings
     int    modalDirection     = 0;  // +1 / −1 / 0 when unsigned or split dead level
     bool   directionClaimed   = true; // agreement >= gate; false ⇒ dispersion, not a
@@ -997,7 +1007,7 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
         L.zRun.assign(size_t(std::max(n, 0)), std::numeric_limits<double>::quiet_NaN());
 
         int signedFirings = 0, positives = 0, negatives = 0;
-        std::vector<double> absZ, ordinal, firingExcesses;
+        std::vector<double> absZ, ordinal, firingExcesses, allExcesses;
         std::vector<std::pair<double, double>> soft(size_t(std::max(n, 0)), { 0.0, 1.0 });
 
         for (int i = 0; i < n; ++i) {
@@ -1017,6 +1027,10 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
                 ordinal.push_back(double(absZ.size()));
                 absZ.push_back(std::fabs(r->z));
             }
+            {
+                const RowStrength st = rowStrength(*r);
+                if (st.known && !(r->sharp && r->state == ShotState::Fired)) allExcesses.push_back(st.excess);
+            }
             if (r->state != ShotState::Fired) continue;
             {
                 const RowStrength st = rowStrength(*r);
@@ -1026,6 +1040,8 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
             else if (r->direction < 0) { ++negatives; ++signedFirings; }
         }
 
+        L.excessN = int(allExcesses.size());
+        if (!allExcesses.empty()) L.medianExcess = medianOf(allExcesses);
         L.firingExcessN = int(firingExcesses.size());
         if (!firingExcesses.empty()) {
             const double m = medianOf(firingExcesses);

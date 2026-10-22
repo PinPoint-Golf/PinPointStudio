@@ -141,7 +141,7 @@ Column {
         PpChFoldHead {
             width: parent.width; roles: sv.roles; key: "sessionControls"; title: "Controls"; interactive: sv.interactive
             collapsed: sv.controlsFolded
-            state_: [sv.tc.presetTitle || "", sv.currentLabel(sv.tc.windows), sv.currentLabel(sv.tc.bands),
+            state_: [sv.tc.presetTitle || "", sv.tc.fromAddress ? "from address" : "", sv.currentLabel(sv.tc.windows), sv.currentLabel(sv.tc.bands),
                      sv.body && sv.body.facet ? sv.currentLabel(sv.tc.facets) : ""].filter(function (x) { return x !== "" }).join("  ·  ")
             onToggled: if (sv.body) sv.body.toggleSection("sessionControls")
         }

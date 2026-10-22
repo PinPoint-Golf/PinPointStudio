@@ -660,7 +660,8 @@ inline QString timelineNote(bool any, bool firstIsEarliest, int why, const QStri
 
 // A link between two listed habits, at the grade the session earned (§10 rule 3).
 // grade: 0 supported (the effect went away where the cause did), 1 testable, not shown, 2 untestable —
-// the cause on every swing, 3 untestable — too few swings together.
+// the cause on every swing, 3 untestable — too few swings together, 4 untestable — the two are measured
+// from the same readings (Edge::sharedEvidence; the panel's "so the link is not tested").
 inline QString linkWords(int grade, const QString &cause, const QString &effect, int bothJudgedWithoutCause = 0,
                          int effectGoneWithoutCause = 0)
 {
@@ -674,6 +675,9 @@ inline QString linkWords(int grade, const QString &cause, const QString &effect,
             .arg(low1(effect), low1(cause));
     case 2:
         return QStringLiteral("Linked in the coaching model. This session cannot test it, because %1 showed on every swing.").arg(low1(cause));
+    case 4:
+        return QStringLiteral("Linked in the coaching model. %1 and %2 are measured from the same readings, so your swings cannot test it.")
+            .arg(cap1(cause), low1(effect));
     default:
         return QStringLiteral("Linked in the coaching model. This session cannot test it: too few swings had both measured.");
     }
