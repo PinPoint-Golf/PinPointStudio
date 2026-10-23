@@ -191,6 +191,12 @@ struct SessionSnapshot {
     // "pattern" — from the ledger's own reduction (diagnostic_ledger.h conditionLedgers, over the
     // options the file was written with), so the Wrist tab says what Session diagnostics says.
     QHash<QString, QString> tiers;
+    // ADDED 22 Oct: EVERY session pattern in the work-on list's order — roots before symptoms, still
+    // happening before resolving, sharp first, then where in the swing, then the bigger miss — by the
+    // ONE reduction Session diagnostics and the report use (Coaching/work_ons_pack.h
+    // sessionWorkOnsForPack, uncapped), over the same ledgers as `tiers`. The Posture section orders its
+    // head line and its Findings by it. Empty with no ledger, or no pattern.
+    QStringList workOnOrder;
     quint64 revision = 0;                                    // bumps on every change
 
     int count() const { return int(shots.size()); }

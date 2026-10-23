@@ -712,5 +712,214 @@ Item {
             verify(!ViewLayout._migrateStored(), "once: nothing left to migrate")
             appSettings.viewLayoutByMode = saved
         }
+
+        // ── the Posture section (docs/design/posture_chart_design.md §5, stage 3a) ──
+        // `posture: true` feeds the Posture presenter the fixture's six posture series, read at address, the top
+        // and impact (P1, P4, P7): every other cell is "-", and the top's trunk bend and hip depth carry the ⚠ the
+        // capture always carries at P3–P5. The words and numbers are charts_posture_presenter_test's; these pin
+        // WHERE the panel surfaces them: a "Posture" section on This shot and Session when a posture reading AND a
+        // posture metric is among the curves on show (the Posture preset).
+        readonly property string posturePreset: "Posture"
+        function usePosturePreset() {
+            verify((hn.body.tChoices.presets || []).some(function (p) { return p.id === posturePreset }), "the Posture preset is offered")
+            hn.body.choose("preset", posturePreset); settle()
+            compare(hn.body.tChoices.preset, posturePreset)
+        }
+        function postureCell(sec, rowKey, tag) {
+            const c = shownAll("chPostureCell", sec).filter(function (x) { return x.rowKey === rowKey && x.tag === tag })
+            compare(c.length, 1, "one " + rowKey + " cell at " + tag)
+            return c[0]
+        }
+        function test_28_the_posture_section_shows_on_the_posture_preset() {
+            fresh({ posture: true }, 8)
+            compare(hn.body.postureAvailable, true, "a shot carries a posture reading")
+            compare(hn.body.postureOnShow, false, "the default preset shows no posture curve")
+            compare(shownAll("chPostureSection").length, 0, "no posture curve on show: no section")
+            usePosturePreset()
+            compare(hn.body.postureOnShow, true)
+            compare(hn.body.postureShotShown, true)
+            const sec = oneShown("chPostureSection")
+            verify(sec.height > 0, "the section draws")
+            verify(textOf(oneShown("chPostureHead", sec)).length > 0, "a head")
+            verify(textOf(oneShown("chPosturePattern", sec)).indexOf("Pattern") === 0, "the pattern line")
+            verify(oneShown("chPostureControls", sec))
+            const prof = oneShown("chPostureProfile", sec)
+            compare(shownAll("chPostureRow", prof).length, 6, "six rows")
+            compare(shownAll("chPostureCol", prof).length, 8, "P1…P8")
+            // a cell with no reading is a plain "-"; the top's trunk bend and hip depth keep their figure under a ⚠
+            compare(postureCell(prof, "head", "P2").text, "-")
+            verify(!postureCell(prof, "head", "P2").warned)
+            // the top's trunk bend keeps its figure under a ⚠; the fixture reads no hip depth, so its ⚠ cell is a plain "-"
+            const bend = postureCell(prof, "bend", "P4"), hips = postureCell(prof, "hips", "P4")
+            verify(bend.warned, "⚠ on trunk bend at the top")
+            verify(bend.text !== "-", "a ⚠ reading keeps its figure (" + bend.text + ")")
+            verify(textOf(bend).indexOf("⚠") >= 0, "the ⚠ is said under the figure")
+            compare(hips.text, "-", "no hip depth reading in the fixture")
+            verify(!hips.warned && textOf(hips).indexOf("⚠") < 0, "a refused reading is a plain \"-\": no ⚠ on it")
+            compare(postureCell(prof, "bend", "P7").warned, false, "no ⚠ at impact")
+            // trunk bend's second reading (the back line, decision 16): under P3–P5 of that row only, never elsewhere.
+            // The fixture carries no back-line series, so each says "back line -" and draws no ⚠ on a missing figure.
+            const alts = shownAll("chPostureAltValue", prof)
+            compare(alts.map(function (a) { return a.rowKey + ":" + a.tag }).sort().join(","), "bend:P3,bend:P4,bend:P5", "a second reading under P3–P5 of trunk bend")
+            verify(alts.every(function (a) { return a.text.indexOf("back line") === 0 && !a.warned }), "\"back line -\" with no ⚠ where nothing was read")
+            const altTop = alts.filter(function (a) { return a.tag === "P4" })[0]
+            verify(altTop.mapToItem(prof, 0, 0).y > bend.mapToItem(prof, 0, 0).y, "under the cell's numbers")
+            verify(postureCell(prof, "leadKnee", "P2").mapToItem(prof, 0, 0).y > altTop.mapToItem(prof, 0, 0).y + altTop.height, "the next row clears it")
+            // said once: the trust fold under the profile, closed
+            const tr = oneShown("chPostureTrust", sec)
+            compare(shownAll("chPostureTrustLine", tr).length, 0, "closed by default")
+            press(oneShown("chPostureTrustToggle", tr))
+            verify(shownAll("chPostureTrustLine", tr).length >= 1, "opened, it says the trust lines")
+            verify(oneShown("chPostureFindings", sec))
+            verify(oneShown("chPostureWorkingWell", sec))
+            // At address (§7.4.2): under the profile, above What moved; a row per address reading the capture can
+            // produce, each with its ⚠ and its few words
+            const adr = oneShown("chPostureAddress", sec)
+            verify(adr, "the At address block")
+            const arows = shownAll("chPostureAddressRow", adr)
+            verify(arows.length >= 1, "an address reading (forward bend and trail-knee bend from the fixture's series)")
+            compare(arows.length, hn.body.pShot.address.rows.length, "a row per reading the presenter gives")
+            verify(arows.every(function (r) { return r.warned }), "the ⚠ on every row")
+            compare(shownAll("chPostureAddressWarn", adr).length, arows.length, "its words under every row")
+            verify(shownAll("chPostureAddressWarn", adr).every(function (w) { return w.text.indexOf("depends on where the camera stands") >= 0 }))
+            verify(arows.some(function (r) { return r.measureId === "m_spineBendAtAddress" && r.text !== "-" && r.banded }), "forward bend: a number on its band")
+            const prof0 = oneShown("chPostureProfile", sec), mv = oneShown("chPostureMoved", sec)
+            verify(adr.mapToItem(sec, 0, 0).y > prof0.mapToItem(sec, 0, 0).y, "under the profile")
+            if (mv) verify(adr.mapToItem(sec, 0, 0).y < mv.mapToItem(sec, 0, 0).y, "above What moved")
+            verify(oneShown("chShotView"), "the traces stay above it")
+            // the section's posture curves switched off: the section goes
+            for (const k of ["headLift", "pelvisThrust", "spineForwardBend", "leadKneeFlexion", "trailKneeFlexion", "pelvisLift", "headRise"])
+                if ((hn.body.tChoices.metrics || []).some(function (m) { return m.key === k && m.on })) hn.body.toggleMetric(k)
+            settle()
+            compare(hn.body.postureOnShow, false)
+            compare(shownAll("chPostureSection").length, 0, "no posture curve on show: no section")
+        }
+        function test_29_no_posture_section_without_posture_data() {
+            fresh({}, 8)
+            usePosturePreset()
+            compare(hn.body.postureAvailable, false)
+            compare(hn.body.postureShotShown, false)
+            compare(shownAll("chPostureSection").length, 0)
+            tabPress("session")
+            compare(hn.body.postureSessionShown, false)
+            compare(shownAll("chPostureSessionSlot").length, 0)
+        }
+        function test_30_a_posture_column_seeks_and_the_session_section_reads() {
+            fresh({ posture: true }, 8)
+            usePosturePreset()
+            const sec = oneShown("chPostureSection")
+            const col = shownAll("chPostureCol", sec).filter(function (c) { return c.tag === "P4" })
+            compare(col.length, 1)
+            const before = hn.replay.seeks
+            press(col[0])
+            compare(hn.replay.seeks, before + 1, "a column press seeks")
+            compare(hn.replay.lastSeekUs, hn.body.postureP.seekUsFor("P4"), "to that position")
+            // Session: the session's section after the standard content; the presenter's scope follows the view
+            tabPress("session")
+            compare(hn.body.postureP.scope, "session")
+            compare(hn.body.postureSessionShown, true)
+            verify(oneShown("chPostureSessionSlot"))
+            const ses = oneShown("chPostureSession")
+            compare(shownAll("chPostureRow", oneShown("chPostureProfile", ses)).length, 6)
+            compare(shownAll("chPostureAltValue", oneShown("chPostureProfile", ses)).length, 3, "Session: the second reading under trunk bend at P3–P5")
+            verify(shownAll("chPostureMark", oneShown("chPostureStrip", ses)).length >= 1, "a mark per shot")
+            verify(oneShown("chPostureDepartures", ses))
+            const sadr = oneShown("chPostureAddress", ses)
+            verify(sadr, "the At address block on Session")
+            compare(shownAll("chPostureAddressRow", sadr).length, hn.body.pSession.address.rows.length, "a row per reading")
+            verify(shownAll("chPostureAddressRow", sadr).every(function (r) { return r.warned }))
+            tabPress("shot")
+            compare(hn.body.postureP.scope, "shot")
+        }
+        function test_31_the_posture_glance_has_no_controls_and_no_session() {
+            fresh({ posture: true }, 8)
+            useMode("Replay")
+            usePosturePreset()
+            const sec = oneShown("chPostureSection")
+            verify(textOf(oneShown("chPostureHead", sec)).length > 0, "a head")
+            verify(oneShown("chPosturePattern", sec))
+            verify(oneShown("chPostureProfile", sec))
+            compare(shownAll("chPostureControls", sec).length, 0, "no controls at the glance")
+            compare(shownAll("chPostureFindings", sec).length, 0, "no ledgers at the glance")
+            compare(shownAll("chPostureMoved", sec).length, 0)
+            tabPress("session")
+            compare(hn.body.postureSessionShown, false)
+            compare(shownAll("chPostureSessionSlot").length, 0, "Session adds no posture section at the glance")
+        }
+        function test_32_the_posture_fold_and_choices_persist() {
+            fresh({ posture: true }, 8)
+            usePosturePreset()
+            const b = hn.sessionType + ":" + SessionMode.analyse + ":"
+            clickOption("pattern", "1")
+            compare(hn.body.posturePattern, 1)
+            compare(appSettings.chartPrefs[b + "posturePattern"], 1)
+            clickOption("against", "previous")
+            compare(hn.body.postureAgainst, "previous")
+            compare(appSettings.chartPrefs[b + "postureAgainst"], "previous")
+            press(oneShown("chFold:posture"))
+            compare(hn.body.collapsed.posture, true)
+            compare(appSettings.sectionCollapse[b + "posture"], true)
+            compare(shownAll("chPostureProfile").length, 0, "folded: the profile goes")
+            verify(textOf(oneShown("chFold:posture")).length > "Posture".length, "folded, the head keeps a one-line state")
+            // a rebuild puts them back
+            fresh({ posture: true }, 8)
+            compare(hn.body.posturePattern, 1)
+            compare(hn.body.postureAgainst, "previous")
+            compare(hn.body.collapsed.posture, true)
+            verify(oneShown("chPostureSection"))
+            compare(shownAll("chPostureProfile").length, 0)
+        }
+        // ── the picture strip (posture_chart_design.md §5.4, stage 5) ──
+        // `picture: true` gives every shot the picture's document (data/posture/picture_doc.json, a real re-analysed
+        // swing; no video, so each frame draws its lines on an empty frame). The geometry is charts_posture_presenter_test's.
+        function test_33_the_posture_picture_strip_on_this_shot_seeks() {
+            fresh({ posture: true, picture: true }, 8)
+            usePosturePreset()
+            const sec = oneShown("chPostureSection")
+            const pic = oneShown("chPosturePicture", sec)
+            const frames = shownAll("chPosturePictureFrame", pic)
+            compare(frames.length, 6, "address, the top and impact, down the line and face-on")
+            compare(frames[0].camera, "dtl", "down the line first")
+            compare(frames.map(function (f) { return f.tag }).join(","), "P1,P4,P7,P1,P4,P7")
+            verify(frames.every(function (f) { return f.coachDrawn > 0 }), "the frozen address lines on every frame (the default sets)")
+            const di = frames.filter(function (f) { return f.camera === "dtl" && f.tag === "P7" })[0]
+            // the strip is drawn where the pattern has a hip band at P7 — the norms the binary reads: run with
+            // PINPOINT_CORE_NORMS / _PACK / _CONTEXTS at src/Resources/diagnostics (as ctest's Charts suites are) for the
+            // shipped posture bands; the profile's P7 cell says the same either way
+            const hipRow = (hn.body.pShot.profile.rows || []).filter(function (r) { return r.key === "hips" })[0]
+            const hipBanded = !!hipRow && hipRow.cells[6].banded === true
+            compare(di.bandDrawn, hipBanded ? 1 : 0, "the hip strip at impact, where the pattern has a band")
+            compare(di.inkDrawn, 1, "the butt line at impact")
+            const fi = frames.filter(function (f) { return f.camera === "faceOn" && f.tag === "P7" })[0]
+            const headRow = (hn.body.pShot.profile.rows || []).filter(function (r) { return r.key === "head" })[0]
+            // face-on impact: the tick at your head at address always (the band's anchor), the band where the pattern
+            // has one, and your head at impact in ink
+            compare(fi.bandDrawn, !!headRow && headRow.cells[6].banded === true ? 2 : 1, "the head band at impact, where the pattern has a band, and its tick")
+            compare(fi.inkDrawn, 1, "your head at impact")
+            compare(frames.filter(function (f) { return f.tag === "P4" && (f.bandDrawn + f.inkDrawn) > 0 }).length, 0, "nothing of the top's own")
+            verify(oneShown("chPosturePictureLegend", pic))
+            const before = hn.replay.seeks
+            press(di)
+            compare(hn.replay.seeks, before + 1, "a frame press seeks")
+            compare(hn.replay.lastSeekUs, di.seekUs, "to that frame's position")
+            verify(di.seekUs > 0)
+            // without the document: no frames, and why
+            fresh({ posture: true }, 8)
+            const pic2 = oneShown("chPosturePicture", oneShown("chPostureSection"))
+            compare(shownAll("chPosturePictureFrame", pic2).length, 0)
+            verify(shownAll("chPosturePictureWhy", pic2).length >= 1, "it says why there is no picture")
+        }
+        function test_34_the_posture_picture_at_the_glance_does_not_seek() {
+            fresh({ posture: true, picture: true }, 8)
+            useMode("Replay")
+            usePosturePreset()
+            const pic = oneShown("chPosturePicture", oneShown("chPostureSection"))
+            const frames = shownAll("chPosturePictureFrame", pic)
+            compare(frames.length, 6, "the glance shows the picture strip")
+            const before = hn.replay.seeks
+            press(frames[0])
+            compare(hn.replay.seeks, before, "no affordance at the glance")
+            compare(shownAll("chPosturePictureWhy", pic).length, 0, "no reasons at the glance")
+        }
     }
 }

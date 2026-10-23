@@ -302,6 +302,7 @@ private:
     qint64      m_ledgerMtimeMs = -1;
     QHash<int, ShotDiagnostics> m_ledger;        // shotId → the shot's ledger row, joined
     QHash<QString, QString>     m_ledgerTiers;   // conditionId → session tier (SessionSnapshot::tiers)
+    QStringList                 m_ledgerWorkOnOrder;   // SessionSnapshot::workOnOrder
     int         m_wArchetype = -1;               // the archetype the running job grades against
     std::shared_ptr<const SessionSnapshot> m_wLast;
     std::vector<Skip> m_wLastSkipped;

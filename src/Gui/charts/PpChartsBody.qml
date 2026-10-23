@@ -46,8 +46,9 @@ import PinPointStudio
 //
 // THIS API IS THE INTEGRATION SEAM (the panel, the harness overlay, tests and probes reach in): tracesP,
 // relationsP, wristP (+ wChoices wShot wSession wMoves wStandfirst wSelected wristAvailable wristOnShow
-// wristShotShown wristSessionShown), tab, view, shownView, preset, metricsOff, window, customStartUs/EndUs, band,
-// facet, against, difference, overlay, showDots, showCursor, upId, acrossId, relFacet, wristAgainst, wristCurves, wristArchetype, openId, collapsed, askedId, interactive, surface,
+// wristShotShown wristSessionShown), postureP (+ pChoices pShot pSession pStandfirst pSelected postureAvailable
+// postureOnShow postureShotShown postureSessionShown canOpenCondition; openCondition()), tab, view, shownView, preset, metricsOff, window, customStartUs/EndUs, band,
+// facet, against, difference, overlay, showDots, showCursor, upId, acrossId, relFacet, wristAgainst, wristCurves, wristArchetype, posturePattern, postureAgainst, openId, collapsed, askedId, interactive, surface,
 // framed, cardAside, register, registerItem, demoState, forceRegister, playUs, spanUs; choose(),
 // toggleMetric(), chooseCustom(), chooseUp(), toggleSection(), openReading(), ask(), clearAsk(), pickOrdinal(),
 // applyDemo(); choiceMade, sectionToggled, navChanged, demoReset, shotRequested; objectName "chBody".
@@ -59,6 +60,7 @@ Item {
     property QtObject tracesP: null
     property QtObject relationsP: null
     property QtObject wristP: null               // ChartsWristPresenter: the Wrist sections of This shot and Session
+    property QtObject postureP: null             // ChartsPosturePresenter: the Posture sections of This shot and Session
 
     // ── the outputs, each bound ONCE (a QVariantMap read is a deep copy; the views read these) ──
     readonly property var tChoices: tracesP ? tracesP.choices : ({})
@@ -92,8 +94,29 @@ Item {
     readonly property bool wristShotShown: wristOnShow && !!wShot && wShot.available === true
     // Session's section reads in depth only: the glance (Replay register) adds This shot's, never Session's
     readonly property bool wristSessionShown: wristOnShow && wristAvailable && register !== "Replay" && !!wSession && wSession.available === true
+    // THE POSTURE SECTIONS (docs/design/posture_chart_design.md §5.1), the wrist's rule: the shot (or some shot of the
+    // session) carries a posture reading AND a posture metric is among the curves on show — one of the presenter's
+    // choices.onShowKeys (the rows' series and headRise) on in the traces' preset. In practice the Posture preset.
+    readonly property var pChoices: postureP ? postureP.choices : ({})
+    readonly property var pShot: postureP ? postureP.thisShot : ({})
+    readonly property var pSession: postureP ? postureP.session : ({})
+    readonly property var pStandfirst: postureP ? postureP.standfirst : ({})
+    readonly property int pSelected: postureP ? postureP.selected : -1
+    readonly property bool postureAvailable: !!postureP && postureP.available
+    readonly property bool postureOnShow: {
+        const keys = (pChoices && pChoices.onShowKeys) || []
+        return keys.length > 0 && (tChoices && tChoices.metrics ? tChoices.metrics : [])
+                   .some(function (m) { return m.on === true && keys.indexOf(root._bareKey(m.key)) >= 0 })
+    }
+    readonly property bool postureShotShown: postureOnShow && !!pShot && pShot.available === true
+    readonly property bool postureSessionShown: postureOnShow && postureAvailable && register !== "Replay" && !!pSession && pSession.available === true
+    // A condition named on a chart opens in Session diagnostics, when that panel is up (SessionMode.sessionDiagnostics
+    // is its model; null while the panel is off — then a name is plain text, never a dead link).
+    readonly property bool canOpenCondition: interactive && !!SessionMode.sessionDiagnostics
+    function openCondition(id) { if (canOpenCondition && id) SessionMode.sessionDiagnostics.openDetail(id) }
     readonly property int pickedOrdinal: tShot && tShot.available ? (tShot.ordinal || -1) : (rStatus && rStatus.pickedOrdinal > 0 ? rStatus.pickedOrdinal : -1)
     readonly property bool busy: (!!tracesP && tracesP.busy) || (!!relationsP && relationsP.busy) || (!!wristP && wristP.busy)
+                                 || (!!postureP && postureP.busy)
 
     // ── the replay, fed by the panel (constants on an invisible screen) ──
     property real playUs: -1
@@ -126,6 +149,9 @@ Item {
     property string wristAgainst: "address"      // "address" | "previous" | "reference" | "median"
     property bool wristCurves: false             // the curve behind the checkpoints
     property int wristArchetype: -1              // -1 Auto | 0 Neutral | 1 Bowed | 2 Cupped
+    // the Posture sections' choices (ChartsPosturePresenter inputs; its scope follows shownView)
+    property int posturePattern: -1              // -1 Auto | 0 Level | 1 Squat and push
+    property string postureAgainst: "address"    // "address" | "previous" | "reference" | "median"
     // transient place (SessionMode.chartsNav, per session): the open profile row
     property string openId: ""
     // the folds (AppSettings sectionCollapse, per screen × mode)
@@ -193,6 +219,7 @@ Item {
     //   scrub[:ms]  open:apart  open:curve  open:run  ask:<question id>  up:<readingId>  relFacet:first  preset:<name>
     //   wristAgainst:<id>  wristCurves  wristArchetype:<-1..2>  seekP:<P tag> (the Wrist sections; also wristPrevious
     //   wristReference  wristMedian  atP<n>, safe in a file name; wristSession, from the retired Wrist tab, opens Session)
+    //   posturePattern:<-1..1>  postureAgainst:<id> (the Posture sections)
     property string _lastDemo: ""
     function applyDemo(state, brush) {
         if (state === "" && _lastDemo === "") return
@@ -218,6 +245,8 @@ Item {
             else if (k === "wristAgainst") wristAgainst = v
             else if (k === "wristCurves") wristCurves = true
             else if (k === "wristArchetype") wristArchetype = Number(v)
+            else if (k === "posturePattern") posturePattern = Number(v)
+            else if (k === "postureAgainst") postureAgainst = v
             else if (k === "seekP") _pendingSeekTag = v
             // file-name-safe spellings of the same (render tags carry the state)
             else if (k === "wristSession") tab = "session"

@@ -34,6 +34,8 @@ import PinPointStudio
 //   The wrist section (PpChWristShotSection, "Wrist"), under the traces in either register, when this shot carries a
 //     wrist reading and a wrist metric is among the curves on show (body.wristShotShown): the standard curves first,
 //     the domain read added where it means something (Mark, 16 Oct).
+//   The posture section (PpChPostureShotSection, "Posture"), after it, by the same rule (body.postureShotShown: a
+//     posture reading AND a posture curve on show; docs/design/posture_chart_design.md §5.1).
 // Every word and number is a presenter's (body.t* = ChartsTracesPresenter, body.r* = ChartsRelationsPresenter,
 // each bound ONCE on the body). The presenters' own empty / refusal sentences are what an empty view says.
 // objectName: chShotView.
@@ -402,6 +404,15 @@ Column {
         width: sv.width
         sourceComponent: PpChWristShotSection { roles: sv.roles; brush: sv.brush; body: sv.body; reg: sv.reg
                                                 interactive: sv.interactive; cast: sv.cast }
+    }
+    // ═══ the posture section, when it means something (a posture reading AND a posture curve on show) ═══
+    Loader {
+        objectName: "chPostureShotSlot"
+        active: !!sv.body && sv.body.postureShotShown && !!sv.roles
+        visible: active
+        width: sv.width
+        sourceComponent: PpChPostureShotSection { roles: sv.roles; brush: sv.brush; body: sv.body; reg: sv.reg
+                                                  interactive: sv.interactive; cast: sv.cast }
     }
 
     // Apart from the session (B): the readings past the session's whiskers lead

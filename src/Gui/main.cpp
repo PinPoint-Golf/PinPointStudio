@@ -79,6 +79,8 @@
 #include "work_ons_controller.h"
 #include "studio_profile.h"
 #include "report/session_report_model.h"
+#include "report/report_stills.h"
+#include "charts/charts_posture_presenter.h"
 #include "report/session_report_list_model.h"
 #include "report/report_mailer.h"
 #include "../Diagnostics/packs/pack_provider.h"
@@ -909,6 +911,18 @@ int main(int argc, char *argv[])
                      &llmController,  &LlmController::refreshCloudAvailability);
 
     QQmlApplicationEngine engine;
+    // The Charts Posture picture's stills (posture_chart_design.md §5.4): the report's renderer, cut at the picture's
+    // own crop, run off the GUI thread by the presenter. Returns why for each it could not make.
+    pinpoint::charts::ChartsPosturePresenter::setStillMaker([](const QVariantList &stills) {
+        QVector<StillRequest> rq;
+        for (const QVariant &v : stills) rq << stillRequestOf(v.toMap());
+        const QVector<StillResult> res = ReportStills::renderSwing(rq);
+        QHash<QString, QString> errs;
+        for (int i = 0; i < rq.size(); ++i)
+            if (i >= res.size() || !res[i].ok)
+                errs.insert(rq[i].outPath, i < res.size() && !res[i].error.isEmpty() ? res[i].error : QStringLiteral("the still was not made"));
+        return errs;
+    });
     // Every QML-facing swing payload (pose tiers, club/ball tracks, metric series) converts into
     // THIS engine once and is shared by reference from then on — see qml_payload.h for why a
     // QVariantMap property froze the studio for 7.8 s per shot. Must precede the first load().

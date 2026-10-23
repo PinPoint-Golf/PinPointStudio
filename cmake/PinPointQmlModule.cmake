@@ -313,6 +313,15 @@ set(PP_QML_FILES
     src/Gui/charts/PpChWristProfile.qml
     src/Gui/charts/PpChWristLedger.qml
     src/Gui/charts/PpChWristSession.qml
+    src/Gui/charts/PpChPostureShotSection.qml
+    src/Gui/charts/PpChPostureProfile.qml
+    src/Gui/charts/PpChPostureLedger.qml
+    src/Gui/charts/PpChPostureAddress.qml
+    src/Gui/charts/PpChPostureMoved.qml
+    src/Gui/charts/PpChPostureTrust.qml
+    src/Gui/charts/PpChPostureSession.qml
+    src/Gui/charts/PpChPosturePicture.qml
+    src/Gui/charts/PpChPostureFrame.qml
     src/Gui/charts/PpChMatrix.qml
     src/Gui/charts/PpChReadingPicker.qml
     src/Gui/charts/PpChSeqSession.qml
@@ -388,6 +397,7 @@ set(PP_QML_FILES
     src/Gui/report/PpBallTiles.qml
     src/Gui/report/PpNumbersTable.qml
     src/Gui/report/PpLmAppendix.qml
+    src/Gui/report/PpPosturePage.qml
     src/Gui/report/PpReportAbout.qml
     src/Gui/report/PpReportPrintHost.qml
     src/Gui/report/PpSessionReportRow.qml
@@ -450,8 +460,29 @@ set(PP_QML_SOURCES
     src/Gui/charts/charts_relations_presenter.cpp
     src/Gui/charts/session_wrist.h
     src/Gui/charts/session_wrist.cpp
+    # The Posture section's core (posture_chart_design.md stage 2a): pure C++ over the snapshot.
+    src/Gui/charts/session_posture.h
+    src/Gui/charts/session_posture.cpp
     src/Gui/charts/charts_wrist_presenter.h
     src/Gui/charts/charts_wrist_presenter.cpp
+    # The Posture section's presenter (posture_chart_design.md stage 2b): the core above, serialised.
+    src/Gui/charts/charts_posture_presenter.h
+    src/Gui/charts/charts_posture_presenter.cpp
+    # The Posture picture strip (posture_chart_design.md §5.4, stage 5): pure C++ over the swing document —
+    # the frames, the frozen coach lines and the band offsets in each frame's pixels. Its closure: the
+    # report stills' pure half (which frame, which crop; no decoder), the markup stream rules it picks the
+    # camera's video by, the DTL overlay translator (the DTL ball and club at address) and the head track
+    # (the face-on inter-ear ruler headLift is measured with). The app lists these too; a target dedups.
+    src/Gui/charts/posture_picture.h
+    src/Gui/charts/posture_picture.cpp
+    src/Gui/report/report_stills_pure.h
+    src/Gui/report/report_stills_pure.cpp
+    src/Gui/markup/markup_truth.h
+    src/Gui/markup/markup_truth.cpp
+    src/Gui/shot/dtl_overlay_payload.h
+    src/Gui/shot/dtl_overlay_payload.cpp
+    src/Body/head_track.h
+    src/Body/head_track.cpp
     src/Gui/trust/trust_readings.h
     src/Gui/trust/trust_readings.cpp
     src/Gui/trust/trust_presenter.h

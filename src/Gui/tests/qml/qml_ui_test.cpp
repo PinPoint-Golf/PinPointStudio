@@ -58,6 +58,7 @@
 #include "charts/charts_relations_presenter.h"
 #include "charts/charts_traces_presenter.h"
 #include "charts/charts_wrist_presenter.h"
+#include "charts/charts_posture_presenter.h"
 #include "charts/session_wrist.h"
 #include "tests/charts_maths_fixture.h"
 
@@ -177,6 +178,11 @@ public:
     //                        SessionSeriesModel fills it; the fixture's pose trail wrist), so the Wrist
     //                        tab is offered. Without it the payload stays empty: no shot carries a
     //                        wrist reading and the tab is not offered.
+    //   posture: true        feed the Posture presenter the session (the fixture's six posture series: their
+    //                        address, top and impact readings — P1, P4, P7 — so every other cell is "-").
+    //                        Without it the Posture presenter is fed an empty snapshot: no shot carries a
+    //                        posture reading and no Posture section shows, whatever the preset.
+    //   picture: true        (with posture) every shot's picture strip reads data/posture/picture_doc.json
     // Returns the number of shots in the snapshot fed (−1 when the fixture did not load).
     Q_INVOKABLE int feed(const QVariantList &presenters, const QVariantMap &opts = {})
     {
@@ -218,6 +224,23 @@ public:
             if (auto *t = qobject_cast<ChartsTracesPresenter *>(o)) { t->setModel(nullptr); t->setSnapshot(s); }
             else if (auto *r = qobject_cast<ChartsRelationsPresenter *>(o)) r->setSnapshot(s);
             else if (auto *w = qobject_cast<ChartsWristPresenter *>(o)) { w->setModel(nullptr); w->setSnapshot(s); }
+            else if (auto *p = qobject_cast<ChartsPosturePresenter *>(o)) {
+                p->setModel(nullptr);
+                if (opts.value(QStringLiteral("posture")).toBool()) {
+                    p->setSnapshot(s);
+                    // the picture strip's document for every shot (data/posture/picture_doc.json, a real re-analysed
+                    // swing trimmed; no video, so the frames draw their lines on an empty frame)
+                    if (opts.value(QStringLiteral("picture")).toBool())
+                        for (const auto &sh : s->shots)
+                            p->setPictureDocumentForTest(sh->swingDir, QStringLiteral(QUICK_TEST_SOURCE_DIR "/../data/posture/picture_doc.json"));
+                }
+                else {
+                    auto e = std::make_shared<SessionSnapshot>();
+                    e->revision = s->revision;
+                    e->sessionDir = s->sessionDir;
+                    p->setSnapshot(e);
+                }
+            }
         }
         return s->count();
     }

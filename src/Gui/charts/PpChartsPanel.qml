@@ -39,9 +39,11 @@
 //     across restarts. The folds keep their saved state in sectionCollapse under the same base. Keys:
 //       today's   preset · split (small multiples ↔ overlay) · dots · cursor
 //       wrist     wristAgainst · wristCurves · wristArchetype           (the Wrist sections; a saved wristScope is ignored)
+//       posture   posturePattern · postureAgainst                       (the Posture sections)
 //       new       view · metricsOff · window · customStartUs · customEndUs · band · facet · against ·
 //                 difference · up · across · relFacet
-//       folds     controls · summary · sequence · apart · wrist · seqSession · wristSession   (sectionCollapse)
+//       folds     controls · summary · sequence · apart · wrist · seqSession · wristSession · posture · postureSession
+//                 (sectionCollapse)
 //     A saved "Custom" from today's panel restores as its base preset with its switched-off series.
 //   • THE READER'S PLACE (transient, per session) is SessionMode.chartsNav: { sessionDir, openId, scroll }.
 //     The stage rebuilds its panels on every Capture↔Replay flip, so the place is saved as it changes and put
@@ -166,6 +168,21 @@ Item {
         archetype: body.wristArchetype
         referenceSwingDir: appSettings.wristReferenceSwingDir
     }
+    // the Posture sections (docs/design/posture_chart_design.md §5, stage 3a): their findings are the posture
+    // conditions off the model's snapshot, as the wrist's are; the scope follows the view on show, the ★ is the
+    // same reference swing.
+    ChartsPosturePresenter {
+        id: posturePresenter
+        model: seriesModel
+        pickedSwingDir: root._swingDir
+        pickedDetail: root._detail
+        register: root._register
+        playheadUs: root._playUs
+        scope: body.shownView === "session" ? "session" : "shot"
+        against: body.postureAgainst
+        pattern: body.posturePattern
+        referenceSwingDir: appSettings.wristReferenceSwingDir
+    }
 
     Connections {
         target: shotProcessor
@@ -227,6 +244,8 @@ Item {
         body.wristAgainst = str("wristAgainst", "address")
         body.wristCurves = has("wristCurves") ? m[b + "wristCurves"] === true : false
         body.wristArchetype = has("wristArchetype") ? Math.max(-1, Math.min(2, Number(m[b + "wristArchetype"]) || 0)) : -1
+        body.posturePattern = has("posturePattern") ? Math.max(-1, Math.min(1, Number(m[b + "posturePattern"]) || 0)) : -1
+        body.postureAgainst = str("postureAgainst", "address")
     }
     function _persist(name, value) {
         // a new chart type opens on its own default window — whether or not this panel remembers anything
@@ -246,7 +265,8 @@ Item {
         const m = appSettings.sectionCollapse || {}, b = _keyBase
         body.collapsed = { controls: m[b + "controls"] === true, summary: m[b + "summary"] === true, sequence: m[b + "sequence"] === true,
                            apart: m[b + "apart"] === true, wrist: m[b + "wrist"] === true,
-                           seqSession: m[b + "seqSession"] === true, wristSession: m[b + "wristSession"] === true }
+                           seqSession: m[b + "seqSession"] === true, wristSession: m[b + "wristSession"] === true,
+                           posture: m[b + "posture"] === true, postureSession: m[b + "postureSession"] === true }
     }
     function _persistFold(name, val) {
         if (root.sessionType < 0 || !root.remembersNav) return
@@ -377,6 +397,7 @@ Item {
         tracesP: tracesPresenter
         relationsP: relationsPresenter
         wristP: wristPresenter
+        postureP: posturePresenter
         playUs: root._playUs
         spanUs: root._spanUs
         onShotRequested: (dir, id) => root._pickShot(dir)

@@ -7,6 +7,10 @@
 # Included from each charts_*_tests.cmake (GUI, SRC set by src/Gui/tests/CMakeLists.txt).
 set(CHARTS_WRIST_SRC
     ${GUI}/charts/session_wrist.cpp
+    # The Posture section's core (session_posture.{h,cpp}, posture_chart_design.md stage 2a) rides with
+    # the wrist profile: it reads each cell through the measure engine's own sampler (measure_sample.cpp).
+    ${GUI}/charts/session_posture.cpp
+    ${SRC}/Diagnostics/measures/measure_sample.cpp
     ${SRC}/Wrist/wrist_analysis_adapter.cpp
     ${SRC}/Wrist/wrist_assessment_engine.cpp
     ${SRC}/Wrist/assessment_rules.cpp

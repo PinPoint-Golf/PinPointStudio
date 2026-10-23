@@ -21,6 +21,7 @@
 #include "../../Analysis/swing_analysis.h"              // Phase::Impact
 #include "../../Analysis/uncertainty_json.h"            // copyPhaseSampleSigma — σ keys, one spelling
 #include "../../Coaching/diagnostic_ledger.h"
+#include "../../Coaching/work_ons_pack.h"           // the work-on order (SessionSnapshot::workOnOrder)
 #include "../../Coaching/sequence_checks.h"         // the KS checks off the ledger's signal rows           // the ledger's one deserialiser
 #include "../../Core/club_vocabulary.h"                 // swingDocDeclaredClub
 #include "../../Core/pp_debug.h"
@@ -44,6 +45,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace pinpoint::charts {
 
@@ -769,6 +771,7 @@ bool SessionSeriesModel::readLedgerIfChanged()
     m_ledgerMtimeMs = mtime;
     m_ledger.clear();
     m_ledgerTiers.clear();
+    m_ledgerWorkOnOrder.clear();
     if (!exists) return true;      // no diagnostics yet: every shot reads with none
 
     QFile f(fi.absoluteFilePath());
@@ -795,9 +798,17 @@ bool SessionSeriesModel::readLedgerIfChanged()
     // The session tiers, by the ledger's own reduction over the options the file was written with —
     // the numbers Session diagnostics shows, never a second rule (the Wrist tab's severity reads them).
     using pinpoint::analysis::Tier;
-    for (const pinpoint::analysis::ConditionLedger &l : pinpoint::analysis::conditionLedgers(shots, opt))
+    const std::vector<pinpoint::analysis::ConditionLedger> ledgers = pinpoint::analysis::conditionLedgers(shots, opt);
+    for (const pinpoint::analysis::ConditionLedger &l : ledgers)
         m_ledgerTiers.insert(l.id, l.tier == Tier::Pattern ? QStringLiteral("pattern")
                                    : l.tier == Tier::Watching ? QStringLiteral("watching") : QStringLiteral("clean"));
+    // The work-on ORDER of every session pattern: the list's own reduction, uncapped (the cap cuts
+    // after the sort, so the first five are the list's own five, in its order).
+    pinpoint::analysis::WorkOnOptions wopt;
+    wopt.maxPerSession = std::numeric_limits<int>::max();
+    for (const pinpoint::analysis::WorkOnEntry &e :
+         pinpoint::analysis::sessionWorkOnsForPack(m_pack ? &m_pack->pack() : nullptr, shots, ledgers, wopt).entries)
+        m_ledgerWorkOnOrder << e.id;
     return true;
 }
 
@@ -815,6 +826,7 @@ SessionSeriesModel::Result SessionSeriesModel::buildSnapshot(int generation, boo
     auto snap = std::make_shared<SessionSnapshot>();
     snap->sessionDir = m_wSessionDir;
     snap->tiers      = m_ledgerTiers;
+    snap->workOnOrder = m_ledgerWorkOnOrder;
     snap->shots.reserve(size_t(dirs.size()));
     std::vector<Skip> skipped;
 
@@ -914,7 +926,7 @@ SessionSeriesModel::Result SessionSeriesModel::buildSnapshot(int generation, boo
     Result r;
     r.generation = generation;
     if (m_wLast && m_wLast->sessionDir == snap->sessionDir && m_wLast->shots == snap->shots
-        && m_wLast->tiers == snap->tiers && sameSkips(m_wLastSkipped, skipped)) {
+        && m_wLast->tiers == snap->tiers && m_wLast->workOnOrder == snap->workOnOrder && sameSkips(m_wLastSkipped, skipped)) {
         // Nothing moved: the same snapshot, the same revision. An activation publishes it anyway,
         // because the owner may be holding an interim one (activateSession).
         r.changed  = forcePublish;

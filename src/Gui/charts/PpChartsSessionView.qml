@@ -31,6 +31,7 @@ import PinPointStudio
 // Then, in Analyse, the wrist section ("Wrist", PpChWristSession) when some shot of the session carries a wrist
 // reading and a wrist metric is among the curves on show (body.wristSessionShown; Mark, 16 Oct: the standard
 // curves first, the domain read added where it means something). The glance never adds it.
+// Then the posture section ("Posture", PpChPostureSession) by the same rule (body.postureSessionShown), Analyse only.
 // objectNames: chSessionView, chSessionHead, chSessionControls, chFacetPicker (Analyse), chFacetPickerGlance.
 Column {
     id: sv
@@ -234,6 +235,22 @@ Column {
                            state_: sv.body && sv.body.wSession ? sv.firstClause(sv.body.wSession.head) : ""
                            onToggled: if (sv.body) sv.body.toggleSection("wristSession") }
             PpChWristSession { visible: !sv.wristFolded; width: parent.width; roles: sv.roles; brush: sv.brush; body: sv.body; interactive: sv.interactive }
+        }
+    }
+    // the posture section: the positions across the session, the pattern by shot, the departures, repeatability
+    readonly property bool postureFolded: !!body && !!body.collapsed && body.collapsed.postureSession === true
+    Loader {
+        objectName: "chPostureSessionSlot"
+        active: !!sv.body && sv.body.postureSessionShown && !!sv.roles
+        visible: active
+        width: sv.width
+        sourceComponent: Column {
+            spacing: sv.roles.u(14)
+            PpChFoldHead { width: parent.width; roles: sv.roles; key: "postureSession"; title: "Posture"; interactive: sv.interactive
+                           collapsed: sv.postureFolded
+                           state_: sv.body && sv.body.pSession ? sv.firstClause(sv.body.pSession.head) : ""
+                           onToggled: if (sv.body) sv.body.toggleSection("postureSession") }
+            PpChPostureSession { visible: !sv.postureFolded; width: parent.width; roles: sv.roles; brush: sv.brush; body: sv.body; interactive: sv.interactive }
         }
     }
 }
