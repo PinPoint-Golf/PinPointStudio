@@ -38,6 +38,7 @@
 #include "../markup/markup_truth.h"                   // streamLooksDownTheLine — the setup-less DTL rule
 #include "dtl_overlay_payload.h"                      // dtlOverlayDetail — the DTL tile's overlay
 #include "../../Body/address_marks_json.h"            // viewMarksPayload — the coach lines' edges
+#include "../../Body/dtl_ruler_json.h"                // dtlRulerPayload — the DTL ruler
 #include "../../Analysis/uncertainty_json.h"          // copyPhaseSampleSigma — σ keys, one spelling
 
 namespace {
@@ -448,10 +449,17 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
                 const auto rt = [t0](const QJsonValue &v) { return relUs(v, t0); };
                 m_analysisDetail.insert(QStringLiteral("addressMarks"),
                                         pinpoint::analysis::viewMarksPayload(am.value(QStringLiteral("faceOn")).toObject(), rt));
-                if (!dtl.isEmpty())
+                if (!dtl.isEmpty()) {
                     dtl.insert(QStringLiteral("addressMarks"),
                                pinpoint::analysis::viewMarksPayload(am.value(QStringLiteral("dtl")).toObject(), rt));
+                    // Schema /2: the DTL P-frames (empty for a /1 record).
+                    dtl.insert(QStringLiteral("addressMarksPhases"), pinpoint::analysis::dtlPhaseMarksPayload(am, rt));
+                }
             }
+            // The DTL ruler (analysis.dtlRuler, dtl_ruler_json.h): cm per DTL pixel. No times in it.
+            if (an.contains(QStringLiteral("dtlRuler")) && !dtl.isEmpty())
+                dtl.insert(QStringLiteral("ruler"),
+                           pinpoint::analysis::dtlRulerPayload(an[QStringLiteral("dtlRuler")].toObject()));
             if (!dtl.isEmpty())
                 m_analysisDetail.insert(QStringLiteral("dtl"), dtl);
         }

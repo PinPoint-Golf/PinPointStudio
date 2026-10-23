@@ -159,7 +159,10 @@ std::vector<QString> DtlPostureProvider::provides() const
              QStringLiteral("ballBodyDistance"), QStringLiteral("balanceHeelToe"),
              QStringLiteral("handPathLoop"),     QStringLiteral("trailForearmAngle"),
              // The two address angles (posture_metrics_design.md §3.1).
-             QStringLiteral("armHang"),          QStringLiteral("headPitch") };
+             QStringLiteral("armHang"),          QStringLiteral("headPitch"),
+             // The silhouette pair at every P-frame (posture_chart_design.md §10 stage 4a): read by
+             // AddressMarksStage off the person mask, through this stage's DTL ruler.
+             QStringLiteral("spineBackLine"),    QStringLiteral("hipDepthButt") };
 }
 
 // ------------------------------------------------------------------------ DtlShaftLieProvider

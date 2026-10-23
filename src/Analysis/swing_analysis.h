@@ -982,6 +982,18 @@ struct AnalysisTimings {
     std::vector<StageTiming> stages;
 };
 
+// The down-the-line ruler as DtlPostureStage resolved it (dtl_posture.h; SwingAnalysis::dtlRuler).
+// `ran` false ⇒ the stage did not run (no DTL pose, no Address, disabled): nothing was decided.
+struct DtlRuler {
+    bool    ran     = false;
+    double  cmPerPx = 0.0;          // 0 = no ruler
+    QString source;                 // "dtlBall" | "faceOnBall" | "none"
+    QString refused;                // why a ruler that resolved was dropped (the shoulder check); else empty
+    QString reason;                 // the posture's refusal when it stopped before the ruler; else empty
+    double  toward  = 0.0;          // +1 ball image-right, −1 image-left, 0 not decided (from the feet)
+    double  scaleRatio = 0.0;       // DTL px per face-on px at the golfer; 0 = not measured
+};
+
 // The rich detail behind ShotAnalysisResult::detail — the full analyzed swing.
 struct SwingAnalysis {
     int tier = static_cast<int>(ReconstructionTier::Angles2D);
@@ -1032,6 +1044,12 @@ struct SwingAnalysis {
     // address_marks.h) — the coach's static lines. Feeds NO metric; persisted as
     // `analysis.addressMarks`; never reused.
     addressmarks::AddressMarks addressMarks;
+    // The DOWN-THE-LINE RULER (DtlPostureStage; dtl_posture.h buildDtlPosture): centimetres per
+    // DTL pixel at the golfer, from the DTL ball, else the face-on ruler carried across, else none —
+    // the one ruler pelvisThrust and headRise use, kept so AddressMarks' hipDepthButt and the Replay
+    // tile read the SAME scale (posture_chart_design.md §5.4, §10 stage 4a). Persisted as
+    // `analysis.dtlRuler` (pinpoint.dtlRuler/1, dtl_ruler_json.h); never reused.
+    DtlRuler                  dtlRuler;
     BallTrack2D               ball;    // face-on ball track for the replay overlay (empty ⇒ none)
     ImpactTrack2D             impact;  // the impact camera's ball + club track (check .valid)
     AnalysisTimings           timings; // per-stage wall times (telemetry); -1 = not measured

@@ -2575,7 +2575,9 @@ struct ShaftFusionStage : AnalysisStage {
 //      ball and (for shoulder width and the fallback ruler) the face-on pose. DETAIL series only.
 struct DtlPostureStage : AnalysisStage {
     QString name() const override { return QStringLiteral("DtlPosture"); }
-    StageDecl decl() const override { return D({ kPoseDtl, kPose2d, kSeg, kDetailBall, kShaftDtl }, {}, { kSeries }); }
+    // Writes the DTL ruler it resolved (detail.dtlRuler) for AddressMarks' hipDepthButt and the
+    // document — one ruler, never a second one computed elsewhere.
+    StageDecl decl() const override { return D({ kPoseDtl, kPose2d, kSeg, kDetailBall, kShaftDtl }, { kDtlRuler }, { kSeries }); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return DtlPostureConfig::fromOverrides(ctx.job.tuningOverrides).enabled
@@ -2620,6 +2622,17 @@ struct DtlPostureStage : AnalysisStage {
         }
         DtlPostureResult r = buildDtlPosture(in, DtlPostureConfig::fromOverrides(ctx.job.tuningOverrides));
         ctx.addGates(std::move(r.gates));   // trust stage 6: kept on a refusal too
+        // The ruler, kept on a refusal too (a refusal before the ruler resolved leaves "none").
+        DtlRuler &ru = ctx.detail->dtlRuler;
+        ru = DtlRuler{};
+        ru.ran        = true;
+        ru.cmPerPx    = r.cmPerPx > 0.0 ? r.cmPerPx : 0.0;
+        ru.source     = r.ruler.isEmpty() ? QStringLiteral("none") : r.ruler;
+        ru.refused    = r.rulerRefused;
+        ru.reason     = r.valid ? QString() : r.reason;
+        ru.toward     = r.toward;
+        ru.scaleRatio = r.scaleRatio;
+        ctx.detail->versions.dtlPosture = kDtlPostureStageVersion;
         if (!r.valid) {
             ppInfo() << "[WristAnalysis] dtl posture: refused —" << qPrintable(r.reason);
             return;
@@ -3427,18 +3440,37 @@ struct DtlSynth3DStage : AnalysisStage {
 // 13c-nonies. ADDRESS MARKS (address_marks.h; auto_annotations_design.md §1): the body's
 //      OUTER edges at hip height on the frame nearest Address, on each camera, from the person
 //      mask — the coach lines' input (the outside of each hip face-on, the rear of the butt down
-//      the line). The pose knows joint centres; this reads the silhouette. Two frames and two
-//      mask passes; feeds no metric; persisted as `analysis.addressMarks`; never reused.
-//      Without the segmenter in the build the stage records that it did not run.
+//      the line). The pose knows joint centres; this reads the silhouette. Persisted as
+//      `analysis.addressMarks`; never reused. Without the segmenter in the build the stage
+//      records that it did not run.
+//      Since stage version 3 (posture_chart_design.md §2.3, §10 stage 4a) it ALSO reads the DTL
+//      butt line and TPI's back line at every P-frame P2…P7 (P1 is the address reading), the rear
+//      side frozen from address, and appends two sparse series read at those positions:
+//        spineBackLine  °   the back line (tailbone → back of the neck) against the vertical,
+//                           + over the ball — spineForwardBend's sign, off the silhouette
+//                           instead of the hip and shoulder joints that turn out of the picture;
+//        hipDepthButt   cm  the butt line's travel from address, + toward the ball —
+//                           pelvisThrust's sign, through the DTL ruler DtlPosture resolved
+//                           (detail.dtlRuler: the same ruler, never a second one). No ruler ⇒
+//                           no hipDepthButt.
+//      So it runs after DtlPosture (it reads the ruler) — still after DtlShaft, whose DTL reader
+//      it would otherwise take first (see the decl).
+//      Since stage version 4 (22 Oct 2026) each camera's address mask also gives the HEAD OUTLINE
+//      (address_marks.h measureHead: the crown and the head's width → the coach lines' head circle,
+//      which the face points put on the face when the golfer looks down at the ball).
 struct AddressMarksStage : AnalysisStage {
     QString name() const override { return QStringLiteral("AddressMarks"); }
-    StageDecl decl() const override { return D({ kWindowFaceOn, kWindowDtl, kSeg, kPose2d, kPoseDtl }, { kAddressMarks }, {}); }
+    StageDecl decl() const override
+    {
+        return D({ kWindowFaceOn, kWindowDtl, kSeg, kPose2d, kPoseDtl, kDtlRuler }, { kAddressMarks }, { kSeries });
+    }
     // pose.dtlEarly leaves this leaf ready ~25 ms before DtlShaft (which waits on ShaftPlane),
     // and it takes the one DTL reader for ~0.9 s on the studio (6 Oct). A read of
     // detail.shaftDtl here does NOT fix that: the graph only orders a stage after EARLIER-
     // authored ones, and this one is authored before DtlShaft, so the read became a
     // write-after-read edge the other way. The fix is the profile order (AddressMarks after
-    // DtlShaft — output-neutral: neither reads the other), not a declaration.
+    // DtlShaft — output-neutral: neither reads the other), not a declaration. Since v3 it reads
+    // detail.dtlRuler, so it is authored after DtlPosture too, which is after DtlShaft.
     bool canRun(const AnalysisContext &ctx) const override
     {
 #ifdef HAVE_SEGMENTER
@@ -3471,12 +3503,55 @@ struct AddressMarksStage : AnalysisStage {
             if (!best || std::llabs(f.t_us - t) < std::llabs(best->t_us - t)) best = &f;
         return best && std::llabs(best->t_us - t) <= 60000 ? best : nullptr;
     }
-    // fetchMs / segMs: the stage-local split for the log line (the frame fetch + decode
-    // — on an MP4-backed window a back-seek re-decodes from the start — vs u2netp).
+    // The camera frame nearest `tUs` (within 60 ms) as owned BGR, and its timestamp. `fetchMs`
+    // gains the fetch + decode (on an MP4-backed window a back-seek re-decodes from the start).
+    static bool frameAt(const AnalysisContext &ctx, pinpoint::SourceId src, const pinpoint::CameraFormat &cfmt,
+                        int64_t tUs, cv::Mat &bgr, int64_t &frameTUs, QString &why, qint64 &fetchMs)
+    {
+        const std::vector<pinpoint::IndexEntry> entries = ctx.window->entriesFor(src);
+        if (entries.empty()) { why = QStringLiteral("no frames"); return false; }
+        const pinpoint::IndexEntry *e = nullptr;
+        for (const pinpoint::IndexEntry &it : entries)
+            if (!e || std::llabs(it.timestamp_us - tUs) < std::llabs(e->timestamp_us - tUs)) e = &it;
+        if (!e || std::llabs(e->timestamp_us - tUs) > 60000) { why = QStringLiteral("no frame at the instant"); return false; }
+        QElapsedTimer part; part.start();
+        // decode.frameStore: the store's BGR when it kept BGR (the decodeToBgr output for
+        // this payload); else the fetch below, under the camera's reader lock.
+        const FrameLease frameLease(*ctx.window, src, ctx.job.tuningOverrides, /*needBgr*/ true);
+        cv::Mat view;
+        if (const FrameStore *store = frameLease.store()) {
+            const cv::Mat *b = store->bgr(*e);
+            if (!store->bgrOk(*e) || !b || b->empty()) {
+                why = QStringLiteral("frame not decodable to BGR"); fetchMs += part.elapsed(); return false;
+            }
+            view = *b;
+        } else {
+            const pinpoint::SourceRing::ReadHandle handle = ctx.window->payloadOf(*e);
+            if (!pinpoint::decodeToBgr(cfmt, handle.data, handle.bytes, view) || view.empty()) {
+                why = QStringLiteral("frame not decodable to BGR"); fetchMs += part.elapsed(); return false;
+            }
+        }
+        bgr = view.channels() == 3 ? view.clone() : cv::Mat();   // owned before the lease goes
+        if (bgr.empty()) cv::cvtColor(view, bgr, cv::COLOR_GRAY2BGR);
+        frameTUs = e->timestamp_us;
+        fetchMs += part.elapsed();
+        return true;
+    }
+    // PINPOINT_ADDRESS_MARKS_DUMP=<dir>: the frame and the mask it read, for looking at.
+    static void dump(const QString &tag, const cv::Mat &bgr, const cv::Mat &mask)
+    {
+        const QByteArray dir = qgetenv("PINPOINT_ADDRESS_MARKS_DUMP");
+        if (dir.isEmpty()) return;
+        const QString base = QString::fromUtf8(dir) + QLatin1Char('/') + tag;
+        cv::Mat m8; mask.convertTo(m8, CV_8U, 255.0);
+        cv::imwrite((base + "_frame.png").toStdString(), bgr);
+        cv::imwrite((base + "_mask.png").toStdString(), m8);
+    }
     static addressmarks::ViewMarks measure(const AnalysisContext &ctx, PersonSegmenter &seg,
                                            pinpoint::SourceId src, const PoseTrack2D &trk,
                                            int64_t addressUs, bool dtl, QString &why,
-                                           qint64 &fetchMs, qint64 &segMs)
+                                           qint64 &fetchMs, qint64 &segMs,
+                                           cv::Mat *maskOut = nullptr, const PoseFrame2D **poseOut = nullptr)
     {
         addressmarks::ViewMarks none;
         if (src == pinpoint::kInvalidSourceId || trk.frames.empty()) { why = QStringLiteral("no camera / no pose"); return none; }
@@ -3487,45 +3562,19 @@ struct AddressMarksStage : AnalysisStage {
         if (!pf) { why = QStringLiteral("no pose frame within 60 ms of address"); return none; }
         if (pf->conf[11] < 0.3f || pf->conf[12] < 0.3f) { why = QStringLiteral("hips not seen at address"); return none; }
         // The frame nearest the pose frame's instant on this camera.
-        const std::vector<pinpoint::IndexEntry> entries = ctx.window->entriesFor(src);
-        if (entries.empty()) { why = QStringLiteral("no frames"); return none; }
-        const pinpoint::IndexEntry *e = nullptr;
-        for (const pinpoint::IndexEntry &it : entries)
-            if (!e || std::llabs(it.timestamp_us - pf->t_us) < std::llabs(e->timestamp_us - pf->t_us)) e = &it;
-        if (!e || std::llabs(e->timestamp_us - pf->t_us) > 60000) { why = QStringLiteral("no frame at address"); return none; }
         cv::Mat bgr;
-        QElapsedTimer part; part.start();
-        {
-            // decode.frameStore: the store's BGR when it kept BGR (the decodeToBgr output for
-            // this payload); else the fetch below, under the camera's reader lock.
-            const FrameLease frameLease(*ctx.window, src, ctx.job.tuningOverrides, /*needBgr*/ true);
-            cv::Mat view;
-            if (const FrameStore *store = frameLease.store()) {
-                const cv::Mat *b = store->bgr(*e);
-                if (!store->bgrOk(*e) || !b || b->empty()) {
-                    why = QStringLiteral("frame not decodable to BGR"); return none;
-                }
-                view = *b;
-            } else {
-                const pinpoint::SourceRing::ReadHandle handle = ctx.window->payloadOf(*e);
-                if (!pinpoint::decodeToBgr(*cfmt, handle.data, handle.bytes, view) || view.empty()) {
-                    why = QStringLiteral("frame not decodable to BGR"); return none;
-                }
-            }
-            bgr = view.channels() == 3 ? view.clone() : cv::Mat();   // owned before the lease goes
-            if (bgr.empty()) cv::cvtColor(view, bgr, cv::COLOR_GRAY2BGR);
+        int64_t frameTUs = 0;
+        if (!frameAt(ctx, src, *cfmt, pf->t_us, bgr, frameTUs, why, fetchMs)) {
+            if (why == QLatin1String("no frame at the instant")) why = QStringLiteral("no frame at address");
+            return none;
         }
-        fetchMs += part.restart();
+        QElapsedTimer part; part.start();
         const cv::Mat mask = seg.segment(bgr);
         segMs += part.elapsed();
         if (mask.empty()) { why = QStringLiteral("segmenter returned nothing"); return none; }
-        // PINPOINT_ADDRESS_MARKS_DUMP=<dir>: the frame and the mask it read, for looking at.
-        if (const QByteArray dump = qgetenv("PINPOINT_ADDRESS_MARKS_DUMP"); !dump.isEmpty()) {
-            const QString base = QString::fromUtf8(dump) + (dtl ? "/dtl" : "/faceOn");
-            cv::Mat m8; mask.convertTo(m8, CV_8U, 255.0);
-            cv::imwrite((base + "_frame.png").toStdString(), bgr);
-            cv::imwrite((base + "_mask.png").toStdString(), m8);
-        }
+        dump(dtl ? QStringLiteral("dtl") : QStringLiteral("faceOn"), bgr, mask);
+        if (maskOut) *maskOut = mask;      // the P1 series reading re-reads this mask (measurePhases)
+        if (poseOut) *poseOut = pf;
         const double hx = 0.5 * (pf->leadHand.x() + pf->trailHand.x()) * W;
         // The wrists (9, 10) and knees (13, 14), for the face-on row choice (address_marks.h).
         double wristY = addressmarks::kNan, kneeY = addressmarks::kNan;
@@ -3534,10 +3583,27 @@ struct AddressMarksStage : AnalysisStage {
         for (int j : { 13, 14 })
             if (pf->conf[size_t(j)] > 0.3f) kneeY = std::isfinite(kneeY) ? std::min(kneeY, double(pf->kp[size_t(j)].y()) * H) : double(pf->kp[size_t(j)].y()) * H;
         addressmarks::ViewMarks v = addressmarks::measureView(
-            mask, W, H, e->timestamp_us,
+            mask, W, H, frameTUs,
             pf->kp[11].x() * W, pf->kp[11].y() * H, pf->kp[12].x() * W, pf->kp[12].y() * H,
             pf->handConf > 0.3f ? hx : addressmarks::kNan, dtl, wristY, kneeY);
         if (!v.found) why = QStringLiteral("no person mask on the hip rows");
+        // The head outline (stage version 4; address_marks.h measureHead): the crown and the head's
+        // width off this mask, seeded by the head points, bounded below by the shoulders.
+        {
+            double hxp[5], hyp[5]; bool hok[5];
+            for (int j = 0; j < 5; ++j) {
+                hok[j] = pf->conf[size_t(j)] > 0.3f;
+                hxp[j] = double(pf->kp[size_t(j)].x()) * W;
+                hyp[j] = double(pf->kp[size_t(j)].y()) * H;
+            }
+            double shTop = addressmarks::kNan;
+            for (int j : { 5, 6 })
+                if (pf->conf[size_t(j)] > 0.3f) {
+                    const double y = double(pf->kp[size_t(j)].y()) * H;
+                    shTop = std::isfinite(shTop) ? std::min(shTop, y) : y;
+                }
+            addressmarks::measureHead(mask, W, H, v, hxp, hyp, hok, shTop);
+        }
         // DTL: TPI's spine angle line — the tailbone and the back of the neck on the rear
         // outline (address_marks.h measureBackLine). Both shoulders and both hips confident and
         // at least one ear, else no points (the tile then draws no spine line).
@@ -3553,6 +3619,98 @@ struct AddressMarksStage : AnalysisStage {
                 ex / ne, ey / ne, reach);
         }
         return v;
+    }
+    // The midpoint of whichever of a left/right keypoint pair is confident (both, one, none), in px.
+    // Past address down the line one of each pair can be behind the body (the lead hip behind the
+    // trail hip as the pelvis turns, the lead shoulder at the top); the pair lies nearly along the
+    // camera's axis, so either one stands for the midpoint well enough to SEED a walk to the
+    // outline — the outline, not the joint, is the reading.
+    static bool seenMidPx(const PoseFrame2D &pf, int a, int b, int W, int H, double &x, double &y)
+    {
+        const bool okA = pf.conf[size_t(a)] > 0.3f, okB = pf.conf[size_t(b)] > 0.3f;
+        if (!okA && !okB) return false;
+        if (okA && okB) {
+            x = 0.5 * (pf.kp[size_t(a)].x() + pf.kp[size_t(b)].x()) * W;
+            y = 0.5 * (pf.kp[size_t(a)].y() + pf.kp[size_t(b)].y()) * H;
+        } else {
+            const int k = okA ? a : b;
+            x = pf.kp[size_t(k)].x() * W; y = pf.kp[size_t(k)].y() * H;
+        }
+        return true;
+    }
+    // THE P-FRAME BACK LINE on `mask` (v.side must be set): the tailbone behind the hip midpoint
+    // and the upper point behind `neckFrac` of the way from the shoulder midpoint to the ears, each
+    // pair's midpoint from whichever of the pair is seen (seenMidPx). `gapPx` > 0 ends each walk at
+    // the body's own outline (rearEdgeAlong): from down the line the trail arm and the hands are
+    // behind the upper back at the top, and the farthest-pixel rule of address reads them.
+    // WHY neckFrac 1.0 (behind the ears, the back of the head) and not the coach line's 0.5 (the
+    // collar), 22 Oct 2026 on Nick Henn 20 Oct swing 2, Jess Ratcliffe 20 Oct swing 2 and Mark
+    // 7 Oct swing 2: once the shoulders turn, the rear outline at collar height is the trail
+    // shoulder's trapezius, not the neck — Nick read −7.1° at P2 and −5.0° at P4 off the collar,
+    // +0.2° and −2.6° behind the ears; on Jess the collar point at the top was her trail arm.
+    // The coach line (`addressMarks.dtl`) keeps 0.5. Returns the refusal, empty when read.
+    static std::string phaseBackLine(const cv::Mat &mask, int W, int H, const PoseFrame2D &pf,
+                                     addressmarks::ViewMarks &v, int gapPx, double neckFrac)
+    {
+        v.tailboneX = v.tailboneY = v.neckX = v.neckY = addressmarks::kNan;
+        v.backWalks = 0;
+        double hipX = 0, hipY = 0, shX = 0, shY = 0, earX = 0, earY = 0;
+        if (!seenMidPx(pf, 11, 12, W, H, hipX, hipY)) return "hips not seen: no back line";
+        if (!seenMidPx(pf, 5, 6, W, H, shX, shY))     return "shoulders not seen: no back line";
+        if (!seenMidPx(pf, 3, 4, W, H, earX, earY))   return "ears not seen: no back line";
+        const double hipSep = (pf.conf[11] > 0.3f && pf.conf[12] > 0.3f) ? std::fabs(pf.kp[12].x() - pf.kp[11].x()) * W : 0.0;
+        const double reach = std::max(1.5 * hipSep, 0.20 * W);
+        addressmarks::measureBackLine(mask, W, H, v, hipX, hipY, shX, shY, earX, earY, reach,
+                                      0.0, neckFrac, 0.05, 11, gapPx);
+        if (!std::isfinite(v.neckX) || !std::isfinite(v.tailboneX))
+            return "the rear outline not found behind the trunk: no back line";
+        return std::string();
+    }
+    // One DTL P-frame past address: the frame nearest the pose frame nearest the position, the
+    // mask, the butt line on the hip rows with the rear side `side` FROZEN from address, and the
+    // back line behind the trunk (phaseBackLine).
+    static addressmarks::DtlPhaseMarks measurePhase(const AnalysisContext &ctx, PersonSegmenter &seg,
+                                                    pinpoint::SourceId src, const pinpoint::CameraFormat &cfmt,
+                                                    const PoseTrack2D &trk, Phase phase, int pNum, int64_t eventUs,
+                                                    int side, int gapPx, double neckFrac, qint64 &fetchMs, qint64 &segMs)
+    {
+        addressmarks::DtlPhaseMarks out;
+        out.phase = int(phase);
+        out.eventTUs = eventUs;
+        out.v.side = side;
+        const int W = int(cfmt.width), H = int(cfmt.height);
+        const PoseFrame2D *pf = poseAt(trk, eventUs);
+        if (!pf) { out.refused = "no pose frame within 60 ms"; return out; }
+        double hipX = 0, hipY = 0;
+        if (!seenMidPx(*pf, 11, 12, W, H, hipX, hipY)) { out.refused = "hips not seen"; return out; }
+        // Both hip joints seed the two walks when both are seen; one seen stands for both.
+        double hlx = hipX, hly = hipY, hrx = hipX, hry = hipY;
+        if (pf->conf[11] > 0.3f && pf->conf[12] > 0.3f) {
+            hlx = pf->kp[11].x() * W; hly = pf->kp[11].y() * H;
+            hrx = pf->kp[12].x() * W; hry = pf->kp[12].y() * H;
+        }
+        cv::Mat bgr;
+        int64_t frameTUs = 0;
+        QString why;
+        if (!frameAt(ctx, src, cfmt, pf->t_us, bgr, frameTUs, why, fetchMs)) { out.refused = why.toStdString(); return out; }
+        QElapsedTimer part; part.start();
+        const cv::Mat mask = seg.segment(bgr);
+        segMs += part.elapsed();
+        if (mask.empty()) { out.refused = "segmenter returned nothing"; return out; }
+        dump(QStringLiteral("dtl_P%1").arg(pNum), bgr, mask);
+        out.v = addressmarks::measureViewFrozenSide(mask, W, H, frameTUs, hlx, hly, hrx, hry, side);
+        out.v.frameTUs = frameTUs;
+        if (!out.v.found) { out.v.side = side; out.refused = "no person mask on the hip rows"; return out; }
+        out.refused = phaseBackLine(mask, W, H, *pf, out.v, gapPx, neckFrac);
+        return out;
+    }
+    // The head outline for the log line: the circle (normalised) or why not.
+    static QString headWords(const addressmarks::ViewMarks &v)
+    {
+        if (v.headFound)
+            return QStringLiteral("crown %1, circle %2,%3 r %4").arg(v.crownY, 0, 'f', 3).arg(v.headCx, 0, 'f', 3)
+                .arg(v.headCy, 0, 'f', 3).arg(v.headR, 0, 'f', 3);
+        return QStringLiteral("none (%1)").arg(v.headRefused.empty() ? QStringLiteral("not read") : QString::fromStdString(v.headRefused));
     }
 #endif
     void run(AnalysisContext &ctx) override
@@ -3585,7 +3743,10 @@ struct AddressMarksStage : AnalysisStage {
         if (!ctx.job.cameraSources.empty())
             m.faceOn = measure(ctx, seg, ctx.job.cameraSources.front(), ctx.detail->pose2d, addressUs, false, whyF,
                                fetchF, segF);
-        m.dtl = measure(ctx, seg, ctx.job.dtlSource, ctx.detail->poseDtl, addressUs, true, whyD, fetchD, segD);
+        cv::Mat addrMaskDtl;
+        const PoseFrame2D *addrPoseDtl = nullptr;
+        m.dtl = measure(ctx, seg, ctx.job.dtlSource, ctx.detail->poseDtl, addressUs, true, whyD, fetchD, segD,
+                        &addrMaskDtl, &addrPoseDtl);
         ctx.detail->versions.addressMarks = kAddressMarksStageVersion;
         ppInfo() << "[WristAnalysis] address marks: face-on"
                  << (m.faceOn.found ? QStringLiteral("hips %1..%2 → edges %3..%4 (%5 rows at the %6)")
@@ -3601,13 +3762,131 @@ struct AddressMarksStage : AnalysisStage {
                                        .arg(m.dtl.tailboneX, 0, 'f', 3).arg(m.dtl.tailboneY, 0, 'f', 3)
                                        .arg(m.dtl.neckX, 0, 'f', 3).arg(m.dtl.neckY, 0, 'f', 3).arg(m.dtl.backWalks)
                                  : QStringLiteral("none (%1)").arg(whyD))
+                 << "; head" << qPrintable(headWords(m.faceOn)) << "face-on," << qPrintable(headWords(m.dtl)) << "DTL"
                  << "," << qlonglong(wall.elapsed()) << "ms (session" << (sessionCache ? "cached" : "private")
                  << loadMs << "ms; face-on frame" << fetchF << "ms, u2netp" << segF << "ms; DTL frame" << fetchD
                  << "ms, u2netp" << segD << "ms)";
+        measurePhases(ctx, seg, addrMaskDtl, addrPoseDtl);
 #else
         (void)ctx;
 #endif
     }
+#ifdef HAVE_SEGMENTER
+    // ── the DTL P-frames (stage version 3) ─────────────────────────────────────────────────────
+    void measurePhases(AnalysisContext &ctx, PersonSegmenter &seg, const cv::Mat &addrMask,
+                       const PoseFrame2D *addrPose) const
+    {
+        addressmarks::AddressMarks &m = ctx.detail->addressMarks;
+        m.dtlPhases.clear();
+        // addressMarks.phases: false = the address reading only, as before stage version 3.
+        bool phasesOn = true;
+        tuning::apply(ctx.job.tuningOverrides, "addressMarks.phases", phasesOn);
+        // addressMarks.phaseGapFrac: the back-line walks past address end at a background run this
+        // fraction of the frame width (at least 3 px); 0 = cross any gap, the address rule.
+        double gapFrac = 0.005;
+        tuning::apply(ctx.job.tuningOverrides, "addressMarks.phaseGapFrac", gapFrac);
+        // addressMarks.phaseNeckFrac: where the P-frame back line's upper point is read, as a
+        // fraction of the way from the shoulder midpoint to the ears (phaseBackLine: 1.0, behind
+        // the ears; the coach line's 0.5 is the collar, which the trail shoulder covers once it turns).
+        double neckFrac = 1.0;
+        tuning::apply(ctx.job.tuningOverrides, "addressMarks.phaseNeckFrac", neckFrac);
+        m.phaseNeckFrac = neckFrac;
+        const pinpoint::SourceId src = ctx.job.dtlSource;
+        if (!phasesOn || src == pinpoint::kInvalidSourceId || ctx.detail->poseDtl.frames.empty()) return;
+        const auto *cfmt = std::get_if<pinpoint::CameraFormat>(&ctx.window->formatOf(src).format);
+        if (!cfmt || cfmt->width <= 0 || cfmt->height <= 0) return;
+        const int W = int(cfmt->width), H = int(cfmt->height);
+        const int gapPx = gapFrac > 0.0 ? std::max(3, int(std::lround(gapFrac * W))) : 0;
+        QElapsedTimer wall; wall.start();
+        qint64 fetchMs = 0, segMs = 0;
+        int nRead = 0;
+        struct PAt { Phase phase; int pNum; };
+        static const PAt kPositions[] = {
+            { Phase::Address, 1 }, { Phase::ShaftParallelBack, 2 }, { Phase::MidBackswing, 3 }, { Phase::Top, 4 },
+            { Phase::ArmParallelDown, 5 }, { Phase::Delivery, 6 }, { Phase::Impact, 7 } };
+        const int side = m.dtl.found ? m.dtl.side : 0;
+        for (const PAt &p : kPositions) {
+            const PhaseEvent *ev = ctx.seg.eventFor(p.phase);
+            addressmarks::DtlPhaseMarks pm;
+            pm.phase = int(p.phase);
+            pm.v.side = side;
+            if (!ev) { pm.refused = "not on the ladder"; m.dtlPhases.push_back(std::move(pm)); continue; }
+            pm.eventTUs = ev->t_us;
+            if (p.phase == Phase::Address) {
+                // P1 IS the address reading — the same frame, mask and butt line as the coach lines'
+                // `dtl` view — with its back line re-read on that mask by the P-frame rule, so the
+                // seven back lines are one construction (the coach line keeps its own, unchanged).
+                pm.v = m.dtl;
+                if (!m.dtl.found) pm.refused = "no address reading";
+                else if (side == 0) pm.refused = "no rear side at address: no back line";
+                else if (addrMask.empty() || !addrPose) pm.refused = "no address mask: no back line";
+                else pm.refused = phaseBackLine(addrMask, W, H, *addrPose, pm.v, gapPx, neckFrac);
+                m.dtlPhases.push_back(std::move(pm));
+                continue;
+            }
+            if (side == 0) {
+                pm.refused = "no rear side at address";
+                m.dtlPhases.push_back(std::move(pm));
+                continue;
+            }
+            m.dtlPhases.push_back(measurePhase(ctx, seg, src, *cfmt, ctx.detail->poseDtl, p.phase, p.pNum, ev->t_us,
+                                               side, gapPx, neckFrac, fetchMs, segMs));
+            ++nRead;
+        }
+
+        // ── the two series ───────────────────────────────────────────────────────────────────
+        // Which way is the ball: the feet's answer (DtlPosture, the sign every DTL posture series
+        // carries) when it has one, else away from the rear. A disagreement refuses both: a bend
+        // read with its sign backwards is early extension reported as its opposite.
+        const DtlRuler &ru = ctx.detail->dtlRuler;
+        double toward = side != 0 ? double(-side) : 0.0;
+        QString refusedWhy;
+        if (ru.ran && ru.toward != 0.0) {
+            if (side != 0 && ru.toward != toward) refusedWhy = QStringLiteral("the feet and the rear side disagree on which way the ball is");
+            toward = ru.toward;
+        }
+        if (toward == 0.0 && refusedWhy.isEmpty()) refusedWhy = QStringLiteral("no rear side at address");
+        MetricSeries bend, depth;
+        bend.key  = QStringLiteral("spineBackLine"); bend.label  = QStringLiteral("Trunk bend, back line"); bend.unit  = QStringLiteral("°");
+        depth.key = QStringLiteral("hipDepthButt");  depth.label = QStringLiteral("Hip depth, butt line");  depth.unit = QStringLiteral("cm");
+        const double cmPerPx = ru.ran ? ru.cmPerPx : 0.0;
+        const addressmarks::DtlPhaseMarks *addr = nullptr;
+        for (const addressmarks::DtlPhaseMarks &pm : m.dtlPhases)
+            if (pm.phase == int(Phase::Address)) addr = &pm;
+        if (refusedWhy.isEmpty()) {
+            for (const addressmarks::DtlPhaseMarks &pm : m.dtlPhases) {
+                if (!pm.v.found) continue;
+                const Phase ph = Phase(pm.phase);
+                const double b = addressmarks::backLineBendDeg(pm.v, W, H, toward);
+                if (std::isfinite(b)) bend.phaseSamples.push_back({ ph, pm.eventTUs, b, QString() });
+                if (addr && addr->v.found) {
+                    const double d = addressmarks::buttShiftCm(pm.v, addr->v, W, toward, cmPerPx);
+                    if (std::isfinite(d)) depth.phaseSamples.push_back({ ph, pm.eventTUs, d, QString() });
+                }
+            }
+        }
+        QStringList perPhase;
+        for (size_t i = 0; i < m.dtlPhases.size(); ++i) {
+            const addressmarks::DtlPhaseMarks &pm = m.dtlPhases[i];
+            QString s = QStringLiteral("P%1:").arg(i + 1);   // kPositions order
+            if (pm.v.found)
+                s += QStringLiteral(" butt %1").arg(pm.v.buttX, 0, 'f', 3)
+                   + (std::isfinite(pm.v.neckX)
+                          ? QStringLiteral(" back %1°").arg(addressmarks::backLineBendDeg(pm.v, W, H, toward == 0.0 ? 1.0 : toward), 0, 'f', 1)
+                          : QString());
+            if (!pm.refused.empty()) s += QStringLiteral(" (%1)").arg(QString::fromStdString(pm.refused));
+            perPhase << s;
+        }
+        ppInfo() << "[WristAnalysis] address marks, DTL P-frames:" << nRead << "read," << qlonglong(wall.elapsed())
+                 << "ms (frames" << fetchMs << "ms, u2netp" << segMs << "ms; gap" << gapPx << "px);"
+                 << qPrintable(perPhase.join(QStringLiteral("; ")))
+                 << "; spineBackLine" << qlonglong(bend.phaseSamples.size()) << "positions, hipDepthButt"
+                 << qlonglong(depth.phaseSamples.size()) << "positions (ruler" << qPrintable(ru.ran ? ru.source : QStringLiteral("not run"))
+                 << cmPerPx << "cm/px)" << (refusedWhy.isEmpty() ? QString() : QStringLiteral("; REFUSED: ") + refusedWhy);
+        if (!bend.phaseSamples.empty())  ctx.seriesOut().push_back(std::move(bend));
+        if (!depth.phaseSamples.empty()) ctx.seriesOut().push_back(std::move(depth));
+    }
+#endif
 };
 
 void appendBodyMetricStages(SessionProfile &p)
@@ -3652,11 +3931,11 @@ SessionProfile fullProfile()
     p.stages.push_back(std::make_unique<ShaftPlaneStage>());
     p.stages.push_back(std::make_unique<DtlPoseStage>());
     p.stages.push_back(std::make_unique<DtlShaftStage>());
-    // After DtlShaft (neither reads the other; AddressMarks appends no series): under the
-    // executor the leaf otherwise took the DTL reader just before DtlShaft was ready (~0.9 s).
-    p.stages.push_back(std::make_unique<AddressMarksStage>());
     p.stages.push_back(std::make_unique<ShaftFusionStage>());
     p.stages.push_back(std::make_unique<DtlPostureStage>());
+    // After DtlPosture, whose DTL ruler it reads (hipDepthButt), and so after DtlShaft: under the
+    // executor the leaf otherwise took the DTL reader just before DtlShaft was ready (~0.9 s).
+    p.stages.push_back(std::make_unique<AddressMarksStage>());
     p.stages.push_back(std::make_unique<DtlShaftLieStage>());
     // The sequence runs AFTER the two-camera skeleton: its lead-arm rung reads the fit
     // (ks_skeleton3d_route_design.md §8). Neither skeleton stage reads anything the sequence writes.
@@ -3814,11 +4093,11 @@ SessionProfile cameraKinematicsProfile()
     p.stages.push_back(std::make_unique<ShaftPlaneStage>());
     p.stages.push_back(std::make_unique<DtlPoseStage>());
     p.stages.push_back(std::make_unique<DtlShaftStage>());
-    // After DtlShaft (neither reads the other; AddressMarks appends no series): under the
-    // executor the leaf otherwise took the DTL reader just before DtlShaft was ready (~0.9 s).
-    p.stages.push_back(std::make_unique<AddressMarksStage>());
     p.stages.push_back(std::make_unique<ShaftFusionStage>());
     p.stages.push_back(std::make_unique<DtlPostureStage>());
+    // After DtlPosture, whose DTL ruler it reads (hipDepthButt), and so after DtlShaft: under the
+    // executor the leaf otherwise took the DTL reader just before DtlShaft was ready (~0.9 s).
+    p.stages.push_back(std::make_unique<AddressMarksStage>());
     p.stages.push_back(std::make_unique<DtlShaftLieStage>());
     // The sequence runs AFTER the two-camera skeleton: its lead-arm rung reads the fit
     // (ks_skeleton3d_route_design.md §8). Neither skeleton stage reads anything the sequence writes.

@@ -100,8 +100,19 @@ constexpr int kShaftFusionStageVersion = 6;   // 2: the address plane and delive
 //           Bump when skeleton3d_fit.* or skeleton3d_rig.h changes its output.
 // addressMarks — kAddressMarksStageVersion: the body's outer edges at hip height on each camera's
 //           address frame, from the person mask (AddressMarksStage, address_marks.h;
-//           auto_annotations_design.md). Stamped; never reused — two frames and a mask, cheap.
-constexpr int kAddressMarksStageVersion = 2;  // 2: DTL tailbone + back of the neck, TPI's spine angle line (2026-10-22)
+//           auto_annotations_design.md). Stamped; never reused — a mask per frame read.
+constexpr int kAddressMarksStageVersion = 4;  // 4: the head outline at address on each camera (the crown and the
+                                              //    head's width off the mask → the coach lines' head circle;
+                                              //    address_marks.h measureHead, 2026-10-22)
+                                              // 3: the DTL butt line and back line at EVERY P-frame P1–P7 (rear side
+                                              //    frozen from address) and the spineBackLine / hipDepthButt series
+                                              //    (posture_chart_design.md §10 stage 4a, 2026-10-22)
+                                              // 2: DTL tailbone + back of the neck, TPI's spine angle line (2026-10-22)
+// dtlPosture — kDtlPostureStageVersion: the down-the-line posture series (DtlPostureStage,
+//           dtl_posture.h) and, since 1, the DTL ruler it resolved (analysis.dtlRuler). The stage
+//           had no version before 2026-10-22: its output was series only, recomputed on every
+//           re-analysis. Stamped; never reused. Bump when dtl_posture.h changes its output.
+constexpr int kDtlPostureStageVersion = 1;   // 1: first stamped version — the ruler persisted (2026-10-22)
 
 constexpr int kSkeleton3DStageVersion = 16;  // 16: cut at P8 + 25 ms (2026-10-19); 15: two cameras or no skeleton — the face-on-only fit refused (2026-10-19); 14: the wrists and elbows kept in front of the back (2026-10-19); 13: the hands locked exactly — each frame's trail arm moved onto its locked grip after the solve; knots back to v11 (2026-10-19); 12: fast spline knots on through the follow-through (2026-10-19); 11: the hands keep one spacing along the grip (2026-10-19, #29 follow-up); 10: the head at the ball at impact (its own frame) and through address; a recorded length held on one camera too (2026-10-19, issues #28 / #29); 9: both planted soles rest on one floor — the lead foot's pitch is the trail foot's, and its toe keypoints are not fitted, until 150 ms before impact (2026-10-19, issue #27); 8: the club is held in the hands — grip-offset prior σ 3 cm → 1 cm (2026-10-05); 7: a recorded club's length is held (σ 5 mm), and the grounded head rests ON the floor (lift 0) (2026-10-02)
                                              // 6: the club grounded at address levels the world; a recorded club's length held to ±3 cm; session pools stamped (2026-10-02)
@@ -118,6 +129,7 @@ struct AnalysisVersions {
     int     shaftFusion = 0;    // 0 = the shaft fusion stage did not run
     int     skeleton3d = 0;     // 0 = the skeleton3d stage did not run
     int     addressMarks = 0;   // 0 = the address-marks stage did not run (address_marks.h)
+    int     dtlPosture = 0;     // 0 = the DTL posture stage did not run (or predates its version)
     QString poseModel;          // "<file>@<bytes>" of the ViTPose model that ran
     QString poseScope;          // "span" | "full"
     QString poseDtlModel;       // "<file>@<bytes>" of the model that posed the DTL stream

@@ -45,6 +45,7 @@
 #include "../Export/swing_doc.h"
 #include "../Kinematics/kinematic_sequence_json.h" // kinematicSequenceToJson — one shape, three paths
 #include "../Body/address_marks_json.h"            // viewMarksPayload — the coach lines' edges
+#include "../Body/dtl_ruler_json.h"                // dtlRulerPayload — the DTL ruler
 #include "../Club/dtl_shaft_json.h"                // dtlShaftTrackToJson — the clubDtl/1 shape
 #include "dtl_overlay_payload.h"                   // dtlOverlayDetail — the DTL tile's overlay
 #include "../Core/club_vocabulary.h"
@@ -637,10 +638,18 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
             const auto ident = [](const QJsonValue &v) { return static_cast<qint64>(v.toDouble()); };
             detail.insert(QStringLiteral("addressMarks"),
                           viewMarksPayload(viewMarksToJson(a.addressMarks.faceOn, 0), ident));
-            if (!dtl.isEmpty())
+            if (!dtl.isEmpty()) {
                 dtl.insert(QStringLiteral("addressMarks"),
                            viewMarksPayload(viewMarksToJson(a.addressMarks.dtl, 0), ident));
+                // The DTL butt line and back line at every P-frame (schema /2), through the
+                // document's own builder so both paths read one shape.
+                dtl.insert(QStringLiteral("addressMarksPhases"),
+                           dtlPhaseMarksPayload(addressMarksToJson(a.addressMarks, 0, a.versions.addressMarks), ident));
+            }
         }
+        // The DTL ruler (dtl_ruler_json.h): cm per DTL pixel, for centimetres drawn on that frame.
+        if (a.dtlRuler.ran && !dtl.isEmpty())
+            dtl.insert(QStringLiteral("ruler"), dtlRulerPayload(dtlRulerToJson(a.dtlRuler, a.versions.dtlPosture)));
         if (!dtl.isEmpty())
             detail.insert(QStringLiteral("dtl"), dtl);
     }

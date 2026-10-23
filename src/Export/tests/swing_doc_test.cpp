@@ -11,6 +11,8 @@
 #include "../../Analysis/swing_analysis.h"
 #include "../../Analysis/recorded_products.h"   // the club / ladder readers this file round-trips
 #include "../../Club/dtl_shaft_json.h"      // dtlShaftTrackToJson — analysis.clubDtl's builder
+#include "../../Body/address_marks_json.h"  // dtlPhaseMarksPayload — the /1 and /2 readers
+#include "../../Body/dtl_ruler_json.h"      // dtlRulerPayload — analysis.dtlRuler's reader
 
 // Stub — avoids linking swing_paths.cpp (which pulls in the PpLogStream logging deps).
 // SwingDocReader::latestSessionDir() (the only sanitise() user) isn't exercised here.
@@ -670,6 +672,116 @@ int main()
               "versions.poseDtl.model");
         check(vv[QStringLiteral("shaftDtl")].toObject()[QStringLiteral("code")].toInt() == kDtlShaftStageVersion,
               "versions.shaftDtl.code");
+        check(!an.contains(QStringLiteral("dtlRuler")) && !vv.contains(QStringLiteral("dtlPosture")),
+              "DtlPosture did not run ⇒ no dtlRuler block, no versions.dtlPosture");
+
+        // posture_chart_design.md §10 stage 4a: the DTL ruler persisted (analysis.dtlRuler) and the
+        // DTL P-frames in addressMarks schema /2; a /1 record still reads.
+        {
+            SwingAnalysis aR = aD;
+            aR.dtlRuler.ran = true; aR.dtlRuler.cmPerPx = 0.1234; aR.dtlRuler.source = QStringLiteral("dtlBall");
+            aR.dtlRuler.toward = -1.0; aR.dtlRuler.scaleRatio = 0.9;
+            aR.versions.dtlPosture = kDtlPostureStageVersion;
+            aR.versions.addressMarks = kAddressMarksStageVersion;
+            aR.addressMarks.dtl.found = true; aR.addressMarks.dtl.frameTUs = T0 + 1000000;
+            aR.addressMarks.dtl.buttX = 0.31; aR.addressMarks.dtl.side = +1;
+            addressmarks::DtlPhaseMarks p1; p1.phase = int(Phase::Address); p1.eventTUs = T0 + 1000000; p1.v = aR.addressMarks.dtl;
+            addressmarks::DtlPhaseMarks p4; p4.phase = int(Phase::Top); p4.eventTUs = T0 + 1800000;
+            p4.v.found = true; p4.v.frameTUs = T0 + 1801000; p4.v.buttX = 0.32; p4.v.side = +1;
+            p4.v.tailboneX = 0.33; p4.v.tailboneY = 0.55; p4.v.neckX = 0.40; p4.v.neckY = 0.30;
+            addressmarks::DtlPhaseMarks p5; p5.phase = int(Phase::ArmParallelDown); p5.eventTUs = T0 + 2000000;
+            p5.v.side = +1; p5.refused = "hips not seen";
+            aR.addressMarks.dtlPhases = { p1, p4, p5 };
+            aR.addressMarks.phaseNeckFrac = 1.0;
+            check(SwingDocWriter::writeSwingJson(dirD, mD, &aR, &derr), "ruler + P-frames write ok");
+            const QJsonObject anR = readManifest(dirD)[QStringLiteral("analysis")].toObject();
+            const QJsonObject ru = anR[QStringLiteral("dtlRuler")].toObject();
+            check(ru[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.dtlRuler/1")
+                      && near(ru[QStringLiteral("cmPerPx")].toDouble(), 0.1234, 1e-12)
+                      && ru[QStringLiteral("source")].toString() == QStringLiteral("dtlBall")
+                      && ru[QStringLiteral("toward")].toInt() == -1
+                      && ru[QStringLiteral("stageVersion")].toInt() == kDtlPostureStageVersion,
+                  "analysis.dtlRuler { schema, cmPerPx, source, toward, stageVersion }");
+            check(anR[QStringLiteral("versions")].toObject()[QStringLiteral("dtlPosture")].toObject()
+                      [QStringLiteral("code")].toInt() == kDtlPostureStageVersion, "versions.dtlPosture.code");
+            const QVariantMap rp = dtlRulerPayload(ru);
+            check(near(rp.value(QStringLiteral("cmPerPx")).toDouble(), 0.1234, 1e-12)
+                      && rp.value(QStringLiteral("source")).toString() == QStringLiteral("dtlBall"),
+                  "dtlRulerPayload reads it back");
+            // No ruler: cmPerPx null (never a zero to multiply by), source "none".
+            SwingAnalysis aN = aR;
+            aN.dtlRuler.cmPerPx = 0.0; aN.dtlRuler.source = QStringLiteral("none");
+            check(SwingDocWriter::writeSwingJson(dirD, mD, &aN, &derr), "no-ruler write ok");
+            const QJsonObject ruN = readManifest(dirD)[QStringLiteral("analysis")].toObject()[QStringLiteral("dtlRuler")].toObject();
+            check(ruN[QStringLiteral("cmPerPx")].isNull() && ruN[QStringLiteral("source")].toString() == QStringLiteral("none")
+                      && !std::isfinite(dtlRulerPayload(ruN).value(QStringLiteral("cmPerPx")).toDouble()),
+                  "no ruler: cmPerPx null, source none, the payload NaN");
+
+            const QJsonObject am = anR[QStringLiteral("addressMarks")].toObject();
+            check(am[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.addressMarks/2")
+                      && near(am[QStringLiteral("phaseNeckFrac")].toDouble(), 1.0, 1e-12),
+                  "addressMarks schema /2, with where the P-frames' back line is read");
+            const QJsonArray ph = am[QStringLiteral("dtlPhases")].toArray();
+            check(ph.size() == 3, "addressMarks.dtlPhases: one entry per position read, refusals included");
+            const QJsonObject j4 = ph.at(1).toObject(), j5 = ph.at(2).toObject();
+            check(j4[QStringLiteral("phase")].toInt() == int(Phase::Top)
+                      && qint64(j4[QStringLiteral("eventTUs")].toDouble()) == 1800000
+                      && qint64(j4[QStringLiteral("t_us")].toDouble()) == 1801000
+                      && near(j4[QStringLiteral("buttX")].toDouble(), 0.32, 1e-12)
+                      && near(j4[QStringLiteral("neckY")].toDouble(), 0.30, 1e-12)
+                      && j4[QStringLiteral("side")].toInt() == 1 && !j4.contains(QStringLiteral("refused")),
+                  "a P-frame: phase, event and frame window-relative, butt, back line, the frozen side");
+            check(!j5[QStringLiteral("found")].toBool() && j5[QStringLiteral("refused")].toString() == QStringLiteral("hips not seen")
+                      && j5[QStringLiteral("side")].toInt() == 1,
+                  "a refused P-frame says why, and keeps the frozen side");
+            const auto rt = [](const QJsonValue &v) { return qint64(v.toDouble()); };
+            const QVariantList pl = dtlPhaseMarksPayload(am, rt);
+            check(pl.size() == 3 && pl.at(1).toMap().value(QStringLiteral("phase")).toInt() == int(Phase::Top)
+                      && near(pl.at(1).toMap().value(QStringLiteral("buttX")).toDouble(), 0.32, 1e-12)
+                      && pl.at(2).toMap().value(QStringLiteral("refused")).toString() == QStringLiteral("hips not seen"),
+                  "dtlPhaseMarksPayload reads /2");
+            // A /1 record (stage version 2): no dtlPhases — the P-frames are an empty list and the
+            // address view reads exactly as before.
+            QJsonObject am1 = am;
+            am1[QStringLiteral("schema")] = QStringLiteral("pinpoint.addressMarks/1");
+            am1.remove(QStringLiteral("dtlPhases"));
+            check(dtlPhaseMarksPayload(am1, rt).isEmpty(), "schema /1: no P-frames, an empty list");
+            const QVariantMap v1 = viewMarksPayload(am1[QStringLiteral("dtl")].toObject(), rt);
+            check(v1.value(QStringLiteral("found")).toBool() && v1.value(QStringLiteral("side")).toInt() == 1
+                      && near(v1.value(QStringLiteral("buttX")).toDouble(), 0.31, 1e-12)
+                      && qint64(v1.value(QStringLiteral("t_us")).toLongLong()) == 1000000,
+                  "schema /1 and /2: the address view reads the same");
+            check(!v1.value(QStringLiteral("headFound")).toBool() && !std::isfinite(v1.value(QStringLiteral("headR")).toDouble())
+                      && !am[QStringLiteral("dtl")].toObject().contains(QStringLiteral("headFound")),
+                  "a record with no head outline (before stage version 4): no head keys, the payload reads not found");
+
+            // Stage version 4: the head outline on an address view — the circle, or why not — written and read back
+            SwingAnalysis aH = aR;
+            aH.addressMarks.faceOn.found = true; aH.addressMarks.faceOn.frameTUs = T0 + 1000000;
+            aH.addressMarks.faceOn.headFound = true;
+            aH.addressMarks.faceOn.headCx = 0.5; aH.addressMarks.faceOn.headCy = 0.27; aH.addressMarks.faceOn.headR = 0.042;
+            aH.addressMarks.faceOn.crownY = 0.228; aH.addressMarks.faceOn.headRowY = 0.27;
+            aH.addressMarks.faceOn.headLeftX = 0.455; aH.addressMarks.faceOn.headRightX = 0.54;
+            aH.addressMarks.dtl.headFound = false;
+            aH.addressMarks.dtl.headRefused = "the outline steps out before it is a head's width (a hood, a cap's brim or the shoulders join it)";
+            check(SwingDocWriter::writeSwingJson(dirD, mD, &aH, &derr), "head outline write ok");
+            const QJsonObject amH = readManifest(dirD)[QStringLiteral("analysis")].toObject()[QStringLiteral("addressMarks")].toObject();
+            const QJsonObject fo = amH[QStringLiteral("faceOn")].toObject(), dt = amH[QStringLiteral("dtl")].toObject();
+            check(fo[QStringLiteral("headFound")].toBool() && near(fo[QStringLiteral("headR")].toDouble(), 0.042, 1e-12)
+                      && near(fo[QStringLiteral("crownY")].toDouble(), 0.228, 1e-12) && !fo.contains(QStringLiteral("headRefused")),
+                  "face-on: the head circle and its crown persisted");
+            check(dt.contains(QStringLiteral("headFound")) && !dt[QStringLiteral("headFound")].toBool()
+                      && dt[QStringLiteral("headRefused")].toString().startsWith(QStringLiteral("the outline steps out"))
+                      && !dt.contains(QStringLiteral("headR")),
+                  "DTL: refused, the reason persisted, no circle");
+            const QVariantMap pf = viewMarksPayload(fo, rt), pdt = viewMarksPayload(dt, rt);
+            check(pf.value(QStringLiteral("headFound")).toBool() && near(pf.value(QStringLiteral("headCy")).toDouble(), 0.27, 1e-12)
+                      && !pdt.value(QStringLiteral("headFound")).toBool()
+                      && pdt.value(QStringLiteral("headRefused")).toString().startsWith(QStringLiteral("the outline steps out")),
+                  "viewMarksPayload carries the head outline (both payload builders go through it)");
+            check(!amH[QStringLiteral("dtlPhases")].toArray().at(1).toObject().contains(QStringLiteral("headFound")),
+                  "a P-frame never carries a head outline");
+        }
 
         check(an.contains(QStringLiteral("clubDtl")), "clubDtl block present");
         const QJsonObject cd = an[QStringLiteral("clubDtl")].toObject();

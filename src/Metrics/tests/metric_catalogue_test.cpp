@@ -87,7 +87,7 @@ int main()
         // sequence is read from (pelvis / thorax / leadArm / club — segment_rates.h); the
         // Sequence itself went from planned to live the same day.
         // 104 -> 105 on 2026-09-23 with handPathLoop, the down-the-line hand loop over the top reads.
-        checkEqI(static_cast<int>(cat.all().size()), 124, "descriptor count == 124");   // +headRise (2026-10-22, standing up going back from down the line, posture_metrics_design.md §4.5)   // +trunkRise, +armHang, +headPitch (2026-10-21, posture_metrics_design.md §3)   // +lowPointFromAttack (2026-10-21, issue #92: the low point the monitor's attack angle implies)   // +ksOrderShare, +ksTimingSpread (2026-10-14: the session sequence-consistency readings, planned)   // +8 sequence node readings (2026-10-14: arm/club peak times, four peak speeds, two reversals)   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
+        checkEqI(static_cast<int>(cat.all().size()), 126, "descriptor count == 126");   // +spineBackLine, +hipDepthButt (2026-10-22, the silhouette pair at every P-frame, posture_chart_design.md §10 stage 4a)   // +headRise (2026-10-22, standing up going back from down the line, posture_metrics_design.md §4.5)   // +trunkRise, +armHang, +headPitch (2026-10-21, posture_metrics_design.md §3)   // +lowPointFromAttack (2026-10-21, issue #92: the low point the monitor's attack angle implies)   // +ksOrderShare, +ksTimingSpread (2026-10-14: the session sequence-consistency readings, planned)   // +8 sequence node readings (2026-10-14: arm/club peak times, four peak speeds, two reversals)   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
                                "clubheadPeakLead",
@@ -131,7 +131,7 @@ int main()
 
     // 2. Type / group / scored filtering.
     {
-        checkEqI(countType(cat, MetricType::TimeSeries),  55, "TimeSeries count");   // +headRise (2026-10-22)   // +trunkRise (2026-10-21)   // +trailForearmAngle (2026-10-08)   // +shaftLie (2026-10-01)   // +4 segment angular speeds (2026-09-17)   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
+        checkEqI(countType(cat, MetricType::TimeSeries),  57, "TimeSeries count");   // +spineBackLine, +hipDepthButt (2026-10-22)   // +headRise (2026-10-22)   // +trunkRise (2026-10-21)   // +trailForearmAngle (2026-10-08)   // +shaftLie (2026-10-01)   // +4 segment angular speeds (2026-09-17)   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
         // 26, not 28: `shoulderAlignment` and `hipAlignment` were both PointInTime and both retired
         // as duplicates of a series the catalogue already carries.
         // 45 -> 47 on 2026-09-14, both PLANNED and both the honest replacement for a measure that
@@ -1148,7 +1148,7 @@ int main()
                 if (!d->card.drawsCurve()) { ++instantOnly; who << d->key; }
             }
             std::printf("    instant-only time series: %s\n", qPrintable(who.join(QStringLiteral(", "))));
-            checkEqI(instantOnly, 16, "16 time-series metrics are instant-only — a card, no curve (2026-10-22)");   // 18 → 16: forward bend and trail-knee bend draw for the Posture preset (card.curve)   // +trailForearmAngle   // 19 → 17: the two forearm rotations keep their curve with a PEAK over P1→P2
+            checkEqI(instantOnly, 18, "18 time-series metrics are instant-only — a card, no curve (2026-10-22)");   // +spineBackLine, +hipDepthButt: read per P-frame, no curve   // 18 → 16: forward bend and trail-knee bend draw for the Posture preset (card.curve)   // +trailForearmAngle   // 19 → 17: the two forearm rotations keep their curve with a PEAK over P1→P2
             for (const char *k : { "leadKneeFlexion", "leadUpperArmToChest", "plumbBobDistance", "lagAngle",
                                    "clubheadSpeed", "pelvisSway", "headSway", "leadWristFlexExt",
                                    "forearmRotation", "hm.forearmRotation" })
@@ -1195,6 +1195,8 @@ int main()
             // The face-on trunk chord (posture_metrics_design.md §3.2): past impact it is turning
             // out of the image, the same projection rule.
             "trunkRise",
+            // The silhouette pair (posture_chart_design.md §10 stage 4a): read at P1–P7 only.
+            "spineBackLine", "hipDepthButt",
         };
         bool allNarrowed = true;
         for (const char *k : kAddressToImpact) {

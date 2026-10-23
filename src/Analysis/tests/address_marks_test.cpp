@@ -1,6 +1,8 @@
 // Standalone test for address_marks.h: a drawn person mask, the hip rows read for the body's
 // outer edges — through a hole, past the hands, never beyond the cap; the DTL rear side chosen
-// away from the hands; no mask on the hip rows ⇒ not a measurement.
+// away from the hands; no mask on the hip rows ⇒ not a measurement. Stage version 3: the DTL
+// P-frames with the rear side frozen from address, the back line's angle and the butt line's
+// travel in their signs and units, and the gap rule that keeps the trail arm off the neck.
 //
 //   cmake --build build/tests --target address_marks_test
 //   ctest --test-dir build/tests -R address_marks_test --output-on-failure
@@ -171,6 +173,191 @@ int main()
         ViewMarks nh; nh.found = true; nh.side = -1;
         measureBackLine(holed, W, H, nh, hip.x, hip.y, sh.x, sh.y, ear.x, ear.y, 200);
         check(near(nh.tailboneX * W, tb.x, 1.5), "§7 a hole inside the back is crossed");
+    }
+    {
+        // §8 the DTL P-frames past address (posture_chart_design.md §10 stage 4a): the rear side is
+        // FROZEN from address. At the top the hands are up and over the trail shoulder — on the
+        // REAR side from down the line — and "away from the hands" would put the butt on the belly.
+        ViewMarks addr = measureView(mask, W, H, 1, 355, 300, 365, 300, 440, true);   // hands right ⇒ rear left
+        check(addr.found && addr.side == -1, "§8 address: the rear is image-left");
+        ViewMarks topByHands = measureView(mask, W, H, 2, 355, 300, 365, 300, 280, true);   // hands now left
+        check(topByHands.side == +1, "§8 (choosing by the hands at the top would flip the rear side)");
+        ViewMarks top = measureViewFrozenSide(mask, W, H, 2, 355, 300, 365, 300, addr.side);
+        check(top.found && top.side == -1 && near(top.buttX * W, 300, 0.5), "§8 frozen: the rear stays image-left, the butt on the left edge");
+        ViewMarks noSide = measureViewFrozenSide(mask, W, H, 2, 355, 300, 365, 300, 0);
+        check(noSide.found && noSide.side == 0 && !std::isfinite(noSide.buttX), "§8 no frozen side ⇒ edges, no butt claimed");
+        // One hip joint seen (the lead hip behind the trail hip as the pelvis turns): it seeds both walks.
+        ViewMarks oneHip = measureViewFrozenSide(mask, W, H, 2, 360, 300, 360, 300, -1);
+        check(oneHip.found && near(oneHip.buttX * W, 300, 0.5) && near(oneHip.rightX * W, 420, 0.5),
+              "§8 one hip joint seeds both walks; the outline is the same");
+        DtlPhaseMarks pm; pm.phase = 2; pm.eventTUs = 77; pm.v = top;
+        check(pm.refused.empty() && pm.v.found, "§8 a DtlPhaseMarks carries the view and no refusal when found");
+        AddressMarks am; am.dtl = addr; am.dtlPhases.push_back(pm);
+        check(am.dtlPhases.size() == 1 && am.any(), "§8 AddressMarks carries the P-frames beside the address views");
+    }
+    {
+        // §9 the two readings' sign and units. spineBackLine: the back line against the vertical,
+        // + over the ball (spineForwardBend's atan2(toward·dx, −dy)). hipDepthButt: the butt line's
+        // travel from address in cm, + toward the ball (pelvisThrust's sign), through the ruler.
+        const double r2 = std::sqrt(0.5);
+        const cv::Point2d hip(200, 350), u(r2, -r2);
+        const double L = 170, halfW = 50, neckHalfW = 20, neckLen = 60;
+        const cv::Point2d sh = hip + u * L, ear = sh + u * neckLen;
+        auto quad = [&](cv::Mat &m, cv::Point2d a, cv::Point2d b, double hw, cv::Point2d uu) {
+            const cv::Point2d n(-uu.y, uu.x);
+            std::vector<cv::Point> q { a + n * hw, b + n * hw, b - n * hw, a - n * hw };
+            cv::fillConvexPoly(m, q, cv::Scalar(1));
+        };
+        cv::Mat body(H, W, CV_32F, cv::Scalar(0));
+        quad(body, hip - u * 40, sh, halfW, u);
+        quad(body, sh - u * 5, ear + u * 30, neckHalfW, u);
+        ViewMarks v; v.found = true; v.side = -1;               // rear image-left ⇒ the ball is image-right
+        measureBackLine(body, W, H, v, hip.x, hip.y, sh.x, sh.y, ear.x, ear.y, 200);
+        // The back is wider at the hips than at the neck (50 vs 20 px), so the line tailbone → neck
+        // leans 30 px further toward the ball than the trunk axis over its 200 px: the expected
+        // angle is the analytic points' own, 45° + atan(30/200).
+        const cv::Point2d nRear(-r2, -r2);
+        const cv::Point2d tb = hip + nRear * halfW, nk = sh + u * (0.5 * neckLen) + nRear * neckHalfW;
+        const double expect = std::atan2(nk.x - tb.x, -(nk.y - tb.y)) * 180.0 / 3.14159265358979323846;
+        check(near(expect, 45.0 + std::atan(30.0 / 200.0) * 180.0 / 3.14159265358979323846, 1e-6), "§9 (the analytic back line)");
+        const double b45 = backLineBendDeg(v, W, H, +1.0);
+        check(near(b45, expect, 1.0), "§9 a trunk 45° over the ball: the back line reads its own angle, + over the ball");
+        check(near(backLineBendDeg(v, W, H, -1.0), -expect, 1.0), "§9 (the same line with the ball on the other side reads negative: the sign is toward the ball)");
+        // The same golfer mirrored (ball image-left) reads the same +45°.
+        cv::Mat flipped; cv::flip(body, flipped, 1);
+        ViewMarks w; w.found = true; w.side = +1;
+        measureBackLine(flipped, W, H, w, W - 1 - hip.x, hip.y, W - 1 - sh.x, sh.y, W - 1 - ear.x, ear.y, 200);
+        check(near(backLineBendDeg(w, W, H, -1.0), expect, 1.0), "§9 mirrored, the ball image-left: the same positive angle");
+        // Standing up: the trunk at 35° from the vertical reads 35°.
+        const double a35 = 35.0 * 3.14159265358979323846 / 180.0;
+        const cv::Point2d u35(std::sin(a35), -std::cos(a35));
+        const cv::Point2d sh35 = hip + u35 * L, ear35 = sh35 + u35 * neckLen;
+        cv::Mat body35(H, W, CV_32F, cv::Scalar(0));
+        quad(body35, hip - u35 * 40, sh35, halfW, u35);
+        quad(body35, sh35 - u35 * 5, ear35 + u35 * 30, neckHalfW, u35);
+        ViewMarks s35; s35.found = true; s35.side = -1;
+        measureBackLine(body35, W, H, s35, hip.x, hip.y, sh35.x, sh35.y, ear35.x, ear35.y, 200);
+        const double b35 = backLineBendDeg(s35, W, H, +1.0);
+        check(near(b35, 35.0 + std::atan(30.0 / 200.0) * 180.0 / 3.14159265358979323846, 1.0) && near(b45 - b35, 10.0, 1.0),
+              "§9 the trunk 10° more upright reads 10° less on the back line (standing up = smaller)");
+        ViewMarks none; none.found = true;
+        check(!std::isfinite(backLineBendDeg(none, W, H, 1.0)), "§9 no back-line points ⇒ no angle");
+        check(!std::isfinite(backLineBendDeg(v, W, H, 0.0)), "§9 no direction to the ball ⇒ no angle");
+
+        // hipDepthButt: the rear image-left, the ball image-right. The butt 10 px toward the ball
+        // (rightward) at 0.5 cm/px is +5 cm; 6 px away is −3 cm; no ruler ⇒ none.
+        ViewMarks a0; a0.buttX = 300.0 / W;
+        ViewMarks in10; in10.buttX = 310.0 / W;
+        ViewMarks out6; out6.buttX = 294.0 / W;
+        check(near(buttShiftCm(in10, a0, W, +1.0, 0.5), 5.0, 1e-9), "§9 the butt 10 px toward the ball at 0.5 cm/px: +5 cm");
+        check(near(buttShiftCm(out6, a0, W, +1.0, 0.5), -3.0, 1e-9), "§9 6 px away from the ball: −3 cm");
+        check(near(buttShiftCm(a0, a0, W, +1.0, 0.5), 0.0, 1e-12), "§9 address against itself: 0");
+        // Mirrored (ball image-left): the butt moving LEFT is toward the ball, +.
+        ViewMarks m0; m0.buttX = 340.0 / W;
+        ViewMarks mIn; mIn.buttX = 330.0 / W;
+        check(near(buttShiftCm(mIn, m0, W, -1.0, 0.5), 5.0, 1e-9), "§9 mirrored: 10 px leftward toward the ball is +5 cm");
+        check(!std::isfinite(buttShiftCm(in10, a0, W, +1.0, 0.0)), "§9 no ruler ⇒ no centimetres, never pixels");
+        ViewMarks nob;
+        check(!std::isfinite(buttShiftCm(nob, a0, W, +1.0, 0.5)), "§9 no butt on the frame ⇒ none");
+    }
+    {
+        // §10 the gap rule past address: at the top the trail arm sits behind the neck from down
+        // the line. With the address rule (cross any gap) the neck reads the arm; with a gap
+        // limit the walk ends at the body's own outline.
+        const double r2 = std::sqrt(0.5);
+        const cv::Point2d hip(300, 350), u(r2, -r2), nRear(-r2, -r2);
+        const double L = 150, halfW = 45, neckHalfW = 18, neckLen = 50;
+        const cv::Point2d sh = hip + u * L, ear = sh + u * neckLen;
+        auto quad = [&](cv::Mat &m, cv::Point2d a, cv::Point2d b, double hw) {
+            const cv::Point2d n(-u.y, u.x);
+            std::vector<cv::Point> q { a + n * hw, b + n * hw, b - n * hw, a - n * hw };
+            cv::fillConvexPoly(m, q, cv::Scalar(1));
+        };
+        cv::Mat body(H, W, CV_32F, cv::Scalar(0));
+        quad(body, hip - u * 40, sh, halfW);
+        quad(body, sh - u * 5, ear + u * 30, neckHalfW);
+        const cv::Point2d neckSeed = sh + u * (0.5 * neckLen);
+        // The trail arm: a blob 12 px behind the back of the neck, along the rear normal.
+        const cv::Point2d armC = neckSeed + nRear * (neckHalfW + 12 + 15);
+        cv::circle(body, cv::Point(int(std::lround(armC.x)), int(std::lround(armC.y))), 15, cv::Scalar(1), cv::FILLED);
+        ViewMarks any; any.found = true; any.side = -1;
+        measureBackLine(body, W, H, any, hip.x, hip.y, sh.x, sh.y, ear.x, ear.y, 200);
+        const cv::Point2d nk = neckSeed + nRear * neckHalfW;
+        check(std::isfinite(any.neckX) && std::hypot(any.neckX * W - nk.x, any.neckY * H - nk.y) > 20,
+              "§10 (crossing any gap, the neck lands on the arm behind it)");
+        ViewMarks gapped; gapped.found = true; gapped.side = -1;
+        measureBackLine(body, W, H, gapped, hip.x, hip.y, sh.x, sh.y, ear.x, ear.y, 200, 0.0, 0.5, 0.05, 11, 4);
+        check(std::isfinite(gapped.neckX) && near(gapped.neckX * W, nk.x, 1.5) && near(gapped.neckY * H, nk.y, 1.5),
+              "§10 a 4 px gap limit ends the walk at the back of the neck");
+        check(std::isfinite(gapped.tailboneX) && near(gapped.tailboneX * W, (hip + nRear * halfW).x, 1.5),
+              "§10 the tailbone is unchanged by the gap limit");
+        // A 3 px hole inside the back is still crossed under a 4 px limit.
+        cv::Mat holed = body.clone();
+        cv::circle(holed, cv::Point(int(hip.x + nRear.x * 25), int(hip.y + nRear.y * 25)), 1, cv::Scalar(0), cv::FILLED);
+        ViewMarks gh; gh.found = true; gh.side = -1;
+        measureBackLine(holed, W, H, gh, hip.x, hip.y, sh.x, sh.y, ear.x, ear.y, 200, 0.0, 0.5, 0.05, 11, 4);
+        check(near(gh.tailboneX * W, (hip + nRear * halfW).x, 1.5), "§10 a 3 px hole inside the back is crossed under the limit");
+    }
+    {
+        // §11 THE HEAD OUTLINE (stage version 4, measureHead): a head disc r 40 at (320, 120) on a neck and a torso
+        // whose shoulders top out at y 175; the ears 70 px apart (S = 70). The circle is the crown and the width:
+        // top at y 80, 81 px across (x 280…360), centred on x 320 — wherever the face points sit inside the head.
+        cv::Mat body(H, W, CV_32F, cv::Scalar(0));
+        cv::circle(body, cv::Point(320, 120), 40, cv::Scalar(1), cv::FILLED);
+        cv::rectangle(body, cv::Rect(300, 150, 41, 30), cv::Scalar(1), cv::FILLED);
+        cv::rectangle(body, cv::Rect(220, 175, 201, 225), cv::Scalar(1), cv::FILLED);
+        const double hx[5] = { 320, 305, 335, 285, 355 }, hy[5] = { 150, 140, 140, 130, 130 };
+        const bool ok5[5] = { true, true, true, true, true };
+        ViewMarks v;
+        measureHead(body, W, H, v, hx, hy, ok5, 175.0);
+        check(v.headFound && v.headRefused.empty(), "§11 a head on the mask is found");
+        check(near(v.crownY * H, 80, 0.5), "§11 the crown is the mask's top over the head");
+        check(near(v.headR * H, 40.5, 0.6) && near(v.headCx * W, 320, 0.6) && near(v.headCy * H, 80 + 40.5, 0.6),
+              "§11 the circle touches the crown with the head's width as its diameter");
+        check(near(v.headLeftX * W, 280, 0.5) && near(v.headRightX * W, 360, 0.5), "§11 the widest row's ends are the head's outline");
+        // looking down: the face points 18 px lower and 6 px forward, still inside the head — the same circle
+        const double hxd[5] = { 326, 311, 341, 291, 361 }, hyd[5] = { 156, 148, 148, 138, 138 };
+        ViewMarks d;
+        measureHead(body, W, H, d, hxd, hyd, ok5, 175.0);
+        check(d.headFound && near(d.headCx, v.headCx, 1e-9) && near(d.headCy, v.headCy, 1e-9) && near(d.headR, v.headR, 1e-9),
+              "§11 looking down moves the face points, not the circle");
+        // a cap standing 60 px proud of the skull: the crown is too far above the face for a head
+        cv::Mat cap = body.clone();
+        cv::rectangle(cap, cv::Rect(290, 20, 61, 70), cv::Scalar(1), cv::FILLED);
+        ViewMarks c;
+        measureHead(cap, W, H, c, hx, hy, ok5, 175.0);
+        check(!c.headFound && c.headRefused.find("too far above") != std::string::npos, "§11 a tall cap: refused, said");
+        // a hood joining the head near the crown: the outline is wider than a head
+        cv::Mat hood = body.clone();
+        cv::rectangle(hood, cv::Rect(330, 83, 80, 47), cv::Scalar(1), cv::FILLED);
+        ViewMarks h;
+        measureHead(hood, W, H, h, hx, hy, ok5, 175.0);
+        check(!h.headFound && h.headRefused.find("hood") != std::string::npos, "§11 a hood joining the head: refused, said");
+        // something joining the head's side once it is a head wide (down the line: the upper back behind the head):
+        // the walk stops above it; joined before the head is three quarters of its width, refused
+        cv::Mat side = body.clone();
+        cv::rectangle(side, cv::Rect(340, 87, 100, 43), cv::Scalar(1), cv::FILLED);
+        ViewMarks sd;
+        measureHead(side, W, H, sd, hx, hy, ok5, 175.0);
+        check(!sd.headFound && sd.headRefused.find("steps out") != std::string::npos, "§11 a step out at half a head's width: refused, said");
+        // the head at the frame's top: the crown is out of the picture
+        cv::Mat top(H, W, CV_32F, cv::Scalar(0));
+        cv::circle(top, cv::Point(320, 30), 40, cv::Scalar(1), cv::FILLED);
+        cv::rectangle(top, cv::Rect(220, 85, 201, 300), cv::Scalar(1), cv::FILLED);
+        const double hyt[5] = { 60, 50, 50, 40, 40 };
+        ViewMarks t;
+        measureHead(top, W, H, t, hx, hyt, ok5, 85.0);
+        check(!t.headFound && t.headRefused.find("top of the frame") != std::string::npos, "§11 the head cut by the frame's top: refused");
+        // no mask at the head (a dark hoodie on a dark room: the segmenter lost the golfer), and too few points
+        cv::Mat none(H, W, CV_32F, cv::Scalar(0));
+        cv::rectangle(none, cv::Rect(220, 175, 201, 225), cv::Scalar(1), cv::FILLED);
+        ViewMarks n;
+        measureHead(none, W, H, n, hx, hy, ok5, 175.0);
+        check(!n.headFound && n.headRefused == "no person mask at the head", "§11 no mask at the head: refused");
+        const bool one[5] = { true, false, false, false, false };
+        ViewMarks o;
+        measureHead(body, W, H, o, hx, hy, one, 175.0);
+        check(!o.headFound && !o.headRefused.empty(), "§11 one head point: refused");
     }
     std::printf(g_fail ? "FAILED (%d)\n" : "ALL PASS\n", g_fail);
     return g_fail ? 1 : 0;

@@ -1143,6 +1143,80 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:posture_sinks_backswing") },
     });
 
+    // THE SILHOUETTE PAIR (posture_chart_design.md §2.3, §10 stage 4a; 22 Oct 2026). Down the line,
+    // spineForwardBend and pelvisThrust read JOINT points, and both turn out of the picture as the
+    // body turns: the shoulder midpoint swings away at P3–P5 (Nick Henn read 9° "more upright" at
+    // the top with his back line unchanged) and the trail hip comes forward while the lead hip hides
+    // behind it (his hips read +4 cm toward the ball where Mark judges him rock solid). These two
+    // read the person mask's REAR OUTLINE instead, at every P-frame (AddressMarksStage): TPI's back
+    // line, tailbone to the back of the neck, and the butt line at hip height. Same signs and units
+    // as the joint readings, so the two can be laid side by side. Not in the Posture preset until
+    // they have been graded on the three golfers.
+    cat.addDescriptor({
+        .key = QStringLiteral("spineBackLine"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Trunk bend, back line"),
+        .shortLabel = QStringLiteral("Back line"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Spine & tilt"),
+        .color = QStringLiteral("ochre"),
+        .description = QStringLiteral(
+            "How far your back leans over the ball, read along the line of your back from down the "
+            "line: from the base of the spine to the back of the neck, the line a TPI coach draws. "
+            "It is the same forward bend as Spine forward bend, read off the outline of your body "
+            "rather than the hip and shoulder joints, so it holds when your shoulders turn away from "
+            "the camera at the top."),
+        .howToRead = QStringLiteral(
+            "Read at each position from address to impact, against your own address value: a back "
+            "that keeps its angle reads the same number at the top as at address, and a lower number "
+            "means you have stood up. It is read on the frame nearest each position, so it is a "
+            "reading per position, not a curve. Like Spine forward bend, the change is robust while "
+            "the absolute angle carries the down-the-line camera's pitch."),
+        .signPositive = QStringLiteral("more forward bend over the ball"),
+        .signNegative = QStringLiteral("leaning back past upright, which a swing does not reach"),
+        .phases = { P::Address, P::Top, P::Impact },
+        .domain = P1toP7,
+        .card = { .readAt = { { P::Top, {} }, { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true,
+                  .deltaFrom = P::Address, .deltaTo = P::Top, .rate = false },
+        .routes = {
+            via("dtl", RM::Projected, Direct, { .dtlCamera = true },
+                QStringLiteral("the rear outline of the person mask behind the trunk, read square-on "
+                               "from down the line")) },
+        .usedBy = { QStringLiteral("chart:review") },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("hipDepthButt"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Hip depth, butt line"),
+        .shortLabel = QStringLiteral("Butt line"),
+        .unit = QStringLiteral("cm"),
+        .group = QStringLiteral("Pelvis & lateral"),
+        .color = QStringLiteral("sky"),
+        .description = QStringLiteral(
+            "How far your backside moves toward or away from the ball compared with address, seen from "
+            "down the line, in centimetres. It is read on the back edge of your body at hip height, "
+            "the butt line a coach draws, so your hips turning does not move it the way it moves the "
+            "hip joints."),
+        .howToRead = QStringLiteral(
+            "Read at each position from address to impact. Zero is your address butt line held; "
+            "HIGHER MEANS YOUR HIPS HAVE MOVED IN TOWARD THE BALL, the early-extension direction, and "
+            "negative means they moved back. It pairs with Pelvis thrust, which reads the hip joints: "
+            "at the top the two can differ because the joints turn, and by impact they should agree. "
+            "The centimetres come from the down-the-line ruler, so with no ruler there is no reading "
+            "rather than one in another unit."),
+        .signPositive = QStringLiteral("the hips moved toward the ball"),
+        .signNegative = QStringLiteral("the hips moved away from the ball"),
+        .phases = { P::Top, P::Impact },
+        .domain = P1toP7,
+        .card = { .readAt = { { P::Top, {} }, { P::Impact, {} } }, .peak = false, .delta = false, .rate = false },
+        .routes = {
+            via("dtl", RM::Projected, Direct, { .dtlCamera = true },
+                QStringLiteral("the rear edge of the person mask at hip height in the down-the-line "
+                               "view, scaled by the ball or by the face-on ruler carried across")) },
+        .usedBy = { QStringLiteral("chart:review") },
+    });
+
     // STANDING UP GOING BACK, from down the line (posture_metrics_design.md §4.5, 22 Oct 2026). The
     // head's height on the EAR MIDPOINT — the nose, the eyes or one ear climb with the head's turn.
     cat.addDescriptor({
@@ -3237,7 +3311,8 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("a sagittal angle foreshortened by the frontal projection — "
                                "visible, but close enough to noise that no producer reads it "
                                "there today"), PLANNED) },
-        .usedBy = { QStringLiteral("characteristic:late_buckle") },
+        .usedBy = { QStringLiteral("characteristic:late_buckle"),
+                    QStringLiteral("characteristic:lead_knee_folds_backswing") },
     });
 
     cat.addDescriptor({

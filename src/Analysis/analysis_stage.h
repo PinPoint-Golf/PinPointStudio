@@ -247,6 +247,7 @@ inline constexpr const char *kSeries        = "detail.series";
 inline constexpr const char *kPhases        = "detail.phases";
 inline constexpr const char *kImpact        = "detail.impact";
 inline constexpr const char *kAddressMarks  = "detail.addressMarks";
+inline constexpr const char *kDtlRuler      = "detail.dtlRuler";
 inline constexpr const char *kDetailBall    = "detail.ball";
 inline constexpr const char *kKinSeq        = "detail.kinematicSequence";
 inline constexpr const char *kScore         = "detail.score";
@@ -258,7 +259,7 @@ inline const std::vector<QString> &all()
         kWindowFaceOn, kWindowDtl, kWindowImpact, kWindowImu, kFramesFaceOn, kFramesDtl,
         kStreams, kDoRefuse, kSegImu,
         kSegVision, kSeg, kCtxSeries, kRunnerOpt, kBall, kFoWitness, kHalted, kPose2d, kPoseDtl,
-        kShaft, kShaftDtl, kShaft3d, kSkeleton3d, kSeries, kPhases, kImpact, kAddressMarks,
+        kShaft, kShaftDtl, kShaft3d, kSkeleton3d, kSeries, kPhases, kImpact, kAddressMarks, kDtlRuler,
         kDetailBall, kKinSeq, kScore, kBindings };
     return k;
 }

@@ -45,6 +45,7 @@
 #include "../Skeleton3d/skeleton3d_json.h" // skeleton3dToJson — analysis.skeleton3d
 #include "../Club/dtl_shaft_json.h"                // dtlShaftTrackToJson — analysis.clubDtl == club_dtl.json
 #include "../Body/address_marks_json.h"            // addressMarksToJson — analysis.addressMarks
+#include "../Body/dtl_ruler_json.h"                // dtlRulerToJson — analysis.dtlRuler
 #include "../Core/club_standards.h"            // lmArcRadiusM — the club's standard length
 #include "../Core/club_vocabulary.h"
 
@@ -258,6 +259,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
             v.insert(QStringLiteral("skeleton3d"), QJsonObject{ { QStringLiteral("code"), a.versions.skeleton3d } });
         if (a.versions.addressMarks > 0)
             v.insert(QStringLiteral("addressMarks"), QJsonObject{ { QStringLiteral("code"), a.versions.addressMarks } });
+        if (a.versions.dtlPosture > 0)
+            v.insert(QStringLiteral("dtlPosture"), QJsonObject{ { QStringLiteral("code"), a.versions.dtlPosture } });
         o[QStringLiteral("versions")] = v;
     }
     o[QStringLiteral("tier")]   = a.tier;
@@ -768,10 +771,16 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
     // input. Written whenever the stage RAN, valid or not: `reason` says why there is none.
     if (a.versions.skeleton3d > 0)
         o[QStringLiteral("skeleton3d")] = pinpoint::skeleton3d::skeleton3dToJson(a.skeleton3d, windowT0, a.versions.skeleton3d);
-    // The body's outer edges at hip height at address (AddressMarksStage) — pinpoint.addressMarks/1,
-    // the coach lines' input. Written whenever the stage RAN: `found` false per view is the record.
+    // The body's outer edges at hip height at address (AddressMarksStage) — pinpoint.addressMarks/2
+    // (the DTL P-frames since stage version 3), the coach lines' input. Written whenever the stage
+    // RAN: `found` false per view is the record.
     if (a.versions.addressMarks > 0)
         o[QStringLiteral("addressMarks")] = analysis::addressMarksToJson(a.addressMarks, windowT0, a.versions.addressMarks);
+    // The DTL ruler (DtlPostureStage) — pinpoint.dtlRuler/1: the cm per DTL pixel pelvisThrust,
+    // headRise and hipDepthButt were measured in, for a reader drawing centimetres on that frame.
+    // Written whenever the stage RAN; `cmPerPx` null and `source` "none" is the record of no ruler.
+    if (a.dtlRuler.ran)
+        o[QStringLiteral("dtlRuler")] = analysis::dtlRulerToJson(a.dtlRuler, a.versions.dtlPosture);
     return o;
 }
 
