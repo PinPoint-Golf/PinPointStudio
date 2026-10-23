@@ -139,13 +139,15 @@ TestCase {
         compare(ofKind(m2, "line").length, 1, "the plane line does not depend on the mask")
     }
 
-    // A DTL address: the pose with the trunk and both legs — hips (0.47, 0.52) / (0.49, 0.53),
-    // shoulders 5 (0.59, 0.38) / trail 6 (0.61, 0.39), the trail (right, 12/14/16 for a
-    // right-hander) leg nearer the camera — the analysis's rear-outline points (tailbone
-    // (0.42, 0.50), back of the neck (0.58, 0.35); address_marks.h, stage version 2) and the ball
-    // at (0.80, 0.88). A later frame with everything moved, which the lines must ignore.
+    // A DTL address: the pose with the head, the trunk and both legs — ears 3 (0.66, 0.27) / 4
+    // (0.68, 0.27), shoulders 5 (0.59, 0.38) / trail 6 (0.61, 0.39), hips (0.47, 0.52) / (0.49, 0.53),
+    // the trail (right, 12/14/16 for a right-hander) leg nearer the camera — the analysis's
+    // rear-outline points (tailbone (0.42, 0.50), back of the neck (0.58, 0.35); address_marks.h,
+    // stage version 2; the coach lines no longer read them) and the ball at (0.80, 0.88). A later
+    // frame with everything moved, which the lines must ignore.
     function dtlBodyDet(drop, noBack) {
-        var pts = { 5: [0.59, 0.38], 6: [0.61, 0.39], 11: [0.47, 0.52], 12: [0.49, 0.53],
+        var pts = { 3: [0.66, 0.27], 4: [0.68, 0.27],
+                    5: [0.59, 0.38], 6: [0.61, 0.39], 11: [0.47, 0.52], 12: [0.49, 0.53],
                     13: [0.52, 0.70], 14: [0.53, 0.71], 15: [0.50, 0.83], 16: [0.48, 0.88] }
         for (var i = 0; drop && i < drop.length; ++i) delete pts[drop[i]]
         var addr = kpFrame(1000000, pts)
@@ -166,36 +168,76 @@ TestCase {
         return Math.abs(dx * (p[1] - a[1]) - dy * (p[0] - a[0])) / Math.hypot(dx, dy) <= tol
     }
 
-    // ── the spine: TPI's tailbone → back of the neck, from the analysis's rear outline ──
-    function test_dtl_spine_is_tailbone_to_back_of_neck() {
+    // The joint neck of the fixture: halfway from the shoulder midpoint (0.60, 0.385) to the ear
+    // midpoint (0.67, 0.27) — the point AddressMarksStage starts its back-of-the-neck walk from.
+    function fixtureNeck(ears) {
+        var e = ears || [[0.66, 0.27], [0.68, 0.27]], ex = 0, ey = 0
+        for (var i = 0; i < e.length; ++i) { ex += e[i][0]; ey += e[i][1] }
+        ex /= e.length; ey /= e.length
+        var sx = 0.5 * (0.59 + 0.61), sy = 0.5 * (0.38 + 0.39)
+        return [sx + 0.5 * (ex - sx), sy + 0.5 * (ey - sy)]
+    }
+    function near(p, q, tol) { return Math.abs(p[0] - q[0]) <= tol && Math.abs(p[1] - q[1]) <= tol }
+
+    // ── the spine: the trail hip joint → the neck, joining the trail leg (Mark, 23 Oct 2026) ──
+    function test_dtl_spine_is_trail_hip_to_neck() {
         var marks = AA.build(dtlBodyDet(), true, 1000000, true, 1)
         var sp = polys(marks, "spine")
         compare(sp.length, 1, "one spine line on the DTL tile")
         compare(sp[0].pts.length, 2)
-        compare(sp[0].pts[1], [0.58, 0.35], "it ends AT the back of the neck — no extension through the head")
-        fuzzyCompare(sp[0].pts[0][0], 0.42 - AA.kSpineTailFrac * 0.16, 1e-12, "a short tail below the tailbone")
-        fuzzyCompare(sp[0].pts[0][1], 0.50 + AA.kSpineTailFrac * 0.15, 1e-12)
-        verify(onSeg(sp[0].pts[0], sp[0].pts[1], [0.42, 0.50], 1e-12), "through the tailbone")
-        // the pose's joint line is not this line: moving the shoulder joints does not move it
-        var d = dtlBodyDet(); d.pose2d.frames[0].kp[5 * 3] = 0.70; d.pose2d.frames[0].kp[6 * 3] = 0.72
-        compare(polys(AA.build(d, true, 1000000, true, 1), "spine")[0].pts, sp[0].pts, "the joints do not move it")
-        // frozen: the analysis's address reading, asked at any instant
-        compare(polys(AA.build(dtlBodyDet(), true, 1250000, true, 1), "spine").length, 1, "a reading of the address frame, like the butt line")
+        compare(sp[0].pts[0], polys(marks, "trail leg")[0].pts[0], "it starts EXACTLY at the trail leg's first point: the two lines join")
+        compare(sp[0].pts[0], [0.49, 0.53], "right-handed: the trail hip is 12 — no tail below it")
+        verify(near(sp[0].pts[1], fixtureNeck(), 1e-12),
+               "it ends AT the joint neck, halfway from the shoulders to the ears — no extension through the head: " + sp[0].pts[1])
+        // left-handed: the trail hip is the body's left (11), the neck the same
+        var lm = AA.build(dtlBodyDet(), true, 1000000, false, 1), ls = polys(lm, "spine")
+        compare(ls.length, 1)
+        compare(ls[0].pts[0], [0.47, 0.52], "left-handed: from keypoint 11")
+        compare(ls[0].pts[0], polys(lm, "trail leg")[0].pts[0], "left-handed: joined to the trail leg")
+        verify(near(ls[0].pts[1], fixtureNeck(), 1e-12))
+        // one ear seen: it stands for the ear point (the analysis's mean of the confident ears)
+        verify(near(polys(AA.build(dtlBodyDet([3]), true, 1000000, true, 1), "spine")[0].pts[1], fixtureNeck([[0.68, 0.27]]), 1e-12),
+               "one ear: the neck is halfway to it")
+        // the rear-outline points are not this line: moving them does not move it
+        var d = dtlBodyDet(); d.addressMarks.tailboneX = 0.30; d.addressMarks.neckX = 0.70
+        compare(polys(AA.build(d, true, 1000000, true, 1), "spine")[0].pts, sp[0].pts, "the mask's back line does not move it")
+        // the joints at the asked instant only: no pose frame at address ⇒ no spine, like the trail leg
+        compare(polys(AA.build(dtlBodyDet(), true, 1250000, true, 1), "spine").length, 0, "no pose at address ⇒ no spine")
     }
 
-    function test_dtl_unreanalysed_swing_has_no_spine() {
-        // Analysed before addressMarks version 2: no tailbone / neck. No spine line and so no
-        // shoulder plane — never the joint line in its place; everything else still draws.
+    function test_dtl_spine_refusals_never_half_a_line() {
+        function spineAndPlane(det, leadIsLeft) {
+            var m = AA.build(det, true, 1000000, leadIsLeft === undefined ? true : leadIsLeft, 1)
+            return polys(m, "spine").length + polys(m, "shoulder plane").length
+        }
+        var d = dtlBodyDet(); d.pose2d.frames[0].kp[12 * 3 + 2] = 0.2
+        compare(spineAndPlane(d), 0, "trail hip conf 0.2 ⇒ no spine and no shoulder plane")
+        var e = dtlBodyDet(); e.pose2d.frames[0].kp[11 * 3 + 2] = 0.2
+        compare(spineAndPlane(e, false), 0, "left-handed: hip 11 conf 0.2 ⇒ none")
+        compare(spineAndPlane(e, true), 2, "right-handed: the lead hip (11) is not needed")
+        compare(spineAndPlane(dtlBodyDet([3, 4])), 0, "no ear seen ⇒ no neck ⇒ none")
+        var f = dtlBodyDet(); f.pose2d.frames[0].kp[3 * 3 + 2] = 0.2; f.pose2d.frames[0].kp[4 * 3 + 2] = 0.3
+        compare(spineAndPlane(f), 0, "ears at conf 0.2 / 0.3 (not above 0.3) ⇒ none")
+        compare(spineAndPlane(dtlBodyDet([5])), 0, "the lead shoulder unseen ⇒ no shoulder midpoint ⇒ none")
+        compare(spineAndPlane(dtlBodyDet([6])), 0, "the trail shoulder unseen ⇒ none")
+    }
+
+    function test_dtl_unreanalysed_swing_has_a_spine() {
+        // Analysed before addressMarks version 2: no tailbone / neck. The spine comes from the
+        // pose's joints now, so it is drawn all the same, and the shoulder plane with it.
         var marks = AA.build(dtlBodyDet(null, true), true, 1000000, true, 1)
-        compare(polys(marks, "spine").length, 0, "no rear-outline points ⇒ no spine line")
-        compare(polys(marks, "shoulder plane").length, 0, "and no shoulder plane (it is parallel to the spine)")
+        compare(polys(marks, "spine").length, 1, "no rear-outline points ⇒ the joint spine all the same")
+        compare(polys(marks, "spine")[0].pts, polys(AA.build(dtlBodyDet(), true, 1000000, true, 1), "spine")[0].pts, "the same line")
+        compare(polys(marks, "shoulder plane").length, 1, "and the shoulder plane parallel to it")
         compare(ofKind(marks, "vline").length, 1, "the butt line stands")
         compare(hogan(marks).length, 1, "the Hogan line stands (ball + pose)")
         compare(polys(marks, "trail leg").length, 1, "the trail leg stands (pose)")
-        var d = dtlBodyDet(); delete d.addressMarks.neckX; delete d.addressMarks.neckY
-        compare(polys(AA.build(d, true, 1000000, true, 1), "spine").length, 0, "half the points ⇒ no line")
         var e = dtlBodyDet(); e.addressMarks.found = false
-        compare(polys(AA.build(e, true, 1000000, true, 1), "spine").length, 0, "no address marks ⇒ no line")
+        var em = AA.build(e, true, 1000000, true, 1)
+        compare(polys(em, "spine").length, 1, "no address marks at all ⇒ the spine still drawn")
+        compare(ofKind(em, "vline").length, 0, "and no butt line (that one is the mask's)")
+        var g = dtlBodyDet(); delete g.addressMarks
+        compare(polys(AA.build(g, true, 1000000, true, 1), "spine").length, 1, "no addressMarks object ⇒ the spine still drawn")
     }
 
     // ── the trail leg only ──
@@ -239,22 +281,28 @@ TestCase {
             verify(Math.abs(cross) < 1e-12, "parallel to the spine line in the picture (cross " + cross + ")")
             verify(dP[1] < 0, "runs the same way as the spine (up toward the neck)")
             // the trail shoulder (6: [0.61, 0.39]) lies kShoulderPlaneMargin spine lengths BELOW the
-            // line, measured at a right angle in pixels
-            var spinePx = Math.hypot(0.16 * a, 0.15)
+            // line, measured at a right angle in pixels; the spine is trail hip (12) → the joint neck
+            var nk = fixtureNeck()
+            var spinePx = Math.hypot((nk[0] - 0.49) * a, nk[1] - 0.53)
             fuzzyCompare(-aboveBy([0.61, 0.39], sh[0].pts[0], dP, a), AA.kShoulderPlaneMargin * spinePx, 1e-9,
                          "just above the trail shoulder, by the margin")
             fuzzyCompare(Math.hypot(dP[0] * a, dP[1]), (AA.kShoulderPlaneDown + AA.kShoulderPlaneUp) * spinePx, 1e-9, "its length")
         }
-        var lefty = shoulderAt(1, [], false)[0]
+        var lm = AA.build(dtlBodyDet(), true, 1000000, false, 1)
+        var lefty = polys(lm, "shoulder plane")[0], lsp = polys(lm, "spine")[0]
         var dl = [lefty.pts[1][0] - lefty.pts[0][0], lefty.pts[1][1] - lefty.pts[0][1]]
-        fuzzyCompare(-aboveBy([0.59, 0.38], lefty.pts[0], dl, 1), AA.kShoulderPlaneMargin * Math.hypot(0.16, 0.15), 1e-9,
+        var dls = [lsp.pts[1][0] - lsp.pts[0][0], lsp.pts[1][1] - lsp.pts[0][1]]
+        verify(Math.abs(dls[0] * dl[1] - dls[1] * dl[0]) < 1e-12, "left-handed: parallel to its own spine (hip 11 → neck)")
+        var nk = fixtureNeck()
+        fuzzyCompare(-aboveBy([0.59, 0.38], lefty.pts[0], dl, 1), AA.kShoulderPlaneMargin * Math.hypot(nk[0] - 0.47, nk[1] - 0.52), 1e-9,
                      "left-handed: the margin is above the left shoulder")
     }
 
     function test_dtl_shoulder_plane_refusals() {
-        compare(polys(AA.build(dtlBodyDet(null, true), true, 1000000, true, 1), "shoulder plane").length, 0, "no spine line ⇒ none")
+        compare(shoulderAt(1, [3, 4]).length, 0, "no spine line (no ear, so no neck) ⇒ none")
+        compare(shoulderAt(1, [12]).length, 0, "no spine line (no trail hip) ⇒ none")
         compare(shoulderAt(1, [6]).length, 0, "trail shoulder unseen ⇒ none")
-        compare(shoulderAt(1, [5]).length, 1, "the lead shoulder is not needed")
+        compare(shoulderAt(1, [5]).length, 0, "the lead shoulder unseen ⇒ no neck, no spine ⇒ none")
         compare(shoulderAt(undefined).length, 0, "no image aspect ⇒ no offset to measure")
         compare(shoulderAt(0).length, 0)
         compare(shoulderAt(NaN).length, 0)

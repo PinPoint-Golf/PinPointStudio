@@ -37,9 +37,9 @@
 // here from the swing document that payload is made from: face-on the head circle (the mask's head outline, else
 // the address pose's head points; radius a fraction of the frame HEIGHT) and the hip edges (analysis.addressMarks.faceOn); down the
 // line the butt line (addressMarks.dtl.buttX), the address shaft plane (the measured DTL club sample nearest address,
-// through the DTL ball), the Hogan line (ball → the trail shoulder), the spine (tailbone → the back of the neck, run
-// on 0.1 of its length below the tailbone), the shoulder plane (parallel, 0.25 of its length above the trail
-// shoulder) and the trail leg. Each carries its `set` (posture | plane | headHips); the reader's Coach lines toggles
+// through the DTL ball), the Hogan line (ball → the trail shoulder), the spine (the trail hip joint → the neck,
+// halfway from the shoulder midpoint to the ears: it joins the trail leg), the shoulder plane (parallel, 0.25 of its
+// length above the trail shoulder) and the trail leg. Each carries its `set` (posture | plane | headHips); the reader's Coach lines toggles
 // pick which are drawn. Frozen at address: the same lines on the top and impact frames.
 //   · NOT drawn: the golfer's back line at the top. It was held at the 22 Oct gate (§2.3: it catches the arms at
 //     the top); the address spine line stands alone there.
@@ -112,7 +112,6 @@ struct PictureCameraDoc {
     // analysis.addressMarks for this view (normalised; NaN = not read)
     bool    marksFound = false;
     double  leftX = kPicNaN, rightX = kPicNaN, buttX = kPicNaN, rowY = kPicNaN;
-    double  tailboneX = kPicNaN, tailboneY = kPicNaN, neckX = kPicNaN, neckY = kPicNaN;
     // the head outline off the mask (stage version 4): the circle (cx ÷ W, cy and r ÷ H), else why not
     bool    headFound = false;
     double  headCx = kPicNaN, headCy = kPicNaN, headR = kPicNaN;

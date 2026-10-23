@@ -43,7 +43,6 @@ namespace {
 constexpr double kConfMin = 0.3;
 constexpr qint64 kAddressWindowUs = 60000;
 constexpr int kFlagCoasted = 0x04, kFlagPredicted = 0x20, kFlagOffFrame = 0x80, kFlagSynthesized = 0x100;
-constexpr double kSpineTailFrac = 0.1;
 constexpr double kShoulderPlaneMargin = 0.25, kShoulderPlaneUp = 0.5, kShoulderPlaneDown = 0.7;
 constexpr int kImpactPhase = 5;   // Phase::Impact
 
@@ -76,6 +75,23 @@ bool kpt(const QVector<float> &kp, int j, QPointF *out)
     return true;
 }
 double dist(const QPointF &a, const QPointF &b) { return std::hypot(a.x() - b.x(), a.y() - b.y()); }
+
+// jointNeck(frame): halfway from the shoulder midpoint (5 and 6, both confident) to the ear point (the mean of
+// whichever of 3 / 4 are confident, at least one) — the point AddressMarksStage starts its back-of-the-neck walk
+// from (measureBackLine's shX/earX, neckFrac 0.5).
+bool jointNeck(const QVector<float> &kp, QPointF *out)
+{
+    QPointF l, r;
+    if (!kpt(kp, 5, &l) || !kpt(kp, 6, &r)) return false;
+    double ex = 0, ey = 0;
+    int ne = 0;
+    for (int j : { 3, 4 }) { QPointF e; if (kpt(kp, j, &e)) { ex += e.x(); ey += e.y(); ++ne; } }
+    if (ne == 0) return false;
+    ex /= ne; ey /= ne;
+    const double sx = 0.5 * (l.x() + r.x()), sy = 0.5 * (l.y() + r.y());
+    *out = QPointF(sx + 0.5 * (ex - sx), sy + 0.5 * (ey - sy));
+    return true;
+}
 
 // headCircle(frame): the mean of the visible head points; radius from the ears, else the eyes, else 0.04, never
 // below 0.025 — a fraction of the frame HEIGHT.
@@ -165,12 +181,14 @@ QVector<Mark> coachMarks(const PictureCameraDoc &cam, bool leadIsLeft)
             out << m;
         }
     }
-    // spineLine and shoulderPlane: the back line read on the address mask (stage version 2)
-    const bool back = cam.marksFound && fin(cam.tailboneX) && fin(cam.tailboneY) && fin(cam.neckX) && fin(cam.neckY);
-    const double vx = back ? cam.neckX - cam.tailboneX : 0, vy = back ? cam.neckY - cam.tailboneY : 0;
-    if (back && !(std::fabs(vx) < 1e-9 && std::fabs(vy) < 1e-9)) {
+    // spineLine and shoulderPlane: the trail hip joint (the trail leg's first point, so the two join) → the joint
+    // neck, both off the address pose; either not confident ⇒ neither line (Mark, 23 Oct 2026)
+    QPointF hip, neck;
+    const bool axis = kpt(kp, leadIsLeft ? 12 : 11, &hip) && jointNeck(kp, &neck);
+    const double vx = axis ? neck.x() - hip.x() : 0, vy = axis ? neck.y() - hip.y() : 0;
+    if (axis && !(std::fabs(vx) < 1e-9 && std::fabs(vy) < 1e-9)) {
         Mark m; m.kind = QStringLiteral("polyline"); m.label = QStringLiteral("spine"); m.set = QStringLiteral("posture");
-        m.pts = { QPointF(cam.tailboneX - kSpineTailFrac * vx, cam.tailboneY - kSpineTailFrac * vy), QPointF(cam.neckX, cam.neckY) };
+        m.pts = { hip, neck };
         out << m;
         const double aspect = cam.H > 0 ? double(cam.W) / double(cam.H) : kPicNaN;
         if (hasTrail && aspect > 0 && fin(aspect)) {
@@ -255,10 +273,6 @@ void readView(const QJsonObject &v, PictureCameraDoc *c)
     c->rightX = numOr(v.value(QStringLiteral("rightX")));
     c->buttX = numOr(v.value(QStringLiteral("buttX")));
     c->rowY = numOr(v.value(QStringLiteral("rowY")));
-    c->tailboneX = numOr(v.value(QStringLiteral("tailboneX")));
-    c->tailboneY = numOr(v.value(QStringLiteral("tailboneY")));
-    c->neckX = numOr(v.value(QStringLiteral("neckX")));
-    c->neckY = numOr(v.value(QStringLiteral("neckY")));
     c->headCx = numOr(v.value(QStringLiteral("headCx")));
     c->headCy = numOr(v.value(QStringLiteral("headCy")));
     c->headR = numOr(v.value(QStringLiteral("headR")));
@@ -532,7 +546,7 @@ QVariantMap posturePicture(const PictureDoc &doc, const PictureBands &bands, con
     if (!doc.ok) return posturePictureUnread(doc.swingDir, doc.why.isEmpty() ? QStringLiteral("the swing's document could not be read") : doc.why);
     QStringList why;
     if (doc.marksVersion == 0)
-        why << QStringLiteral("This swing was analysed before the address marks were read: the butt line, the hip edges and the spine "
+        why << QStringLiteral("This swing was analysed before the address marks were read: the butt line and the hip edges "
                               "are not drawn. Re-analyse it to add them.");
     else if (doc.marksVersion < 3 && doc.dtl.present)
         why << QStringLiteral("This swing was analysed before the butt line was read at each position: your butt line at impact is not "
@@ -551,7 +565,7 @@ QVariantMap posturePicture(const PictureDoc &doc, const PictureBands &bands, con
         if (c->present && doc.marksVersion > 0 && !c->marksFound)
             why << QStringLiteral("The person mask found no body at address %1: its %2 not drawn%3.")
                        .arg(c->dtl ? QStringLiteral("down the line") : QStringLiteral("face-on"),
-                            c->dtl ? QStringLiteral("butt line and spine are") : QStringLiteral("hip edges are"),
+                            c->dtl ? QStringLiteral("butt line is") : QStringLiteral("hip edges are"),
                             c->dtl ? QString() : QStringLiteral(", and the head circle is drawn from the face points"));
 
     bool anyBand = false, anyInk = false, anyHeadInk = false, anyFrame = false, pending = false;

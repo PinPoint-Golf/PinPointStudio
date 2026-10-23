@@ -1147,6 +1147,35 @@ private slots:
         const QStringList dl = labelsOf(da, QStringLiteral("coach"));
         QVERIFY2(dl.contains(QStringLiteral("butt")) && dl.contains(QStringLiteral("spine")) && dl.contains(QStringLiteral("trail leg")), qPrintable(dl.join(',')));
         QCOMPARE(dl.count(QStringLiteral("spine")), 1);
+        // the spine: the trail hip joint (12, a right-hander — the trail leg's first point, so the two join) → the joint
+        // neck, halfway from the shoulder midpoint to the ears (AddressMarksStage's neck seed); no tail, no extension
+        // (Mark, 23 Oct 2026). The shoulder plane runs parallel to it.
+        {
+            QVariantList sp, lp, pp;
+            for (const QVariant &m : marksOf(da, QStringLiteral("coach"))) {
+                const QString l = m.toMap().value(QStringLiteral("label")).toString();
+                if (l == QLatin1String("spine")) sp = m.toMap().value(QStringLiteral("pts")).toList();
+                if (l == QLatin1String("trail leg")) lp = m.toMap().value(QStringLiteral("pts")).toList();
+                if (l == QLatin1String("shoulder plane")) pp = m.toMap().value(QStringLiteral("pts")).toList();
+            }
+            QCOMPARE(sp.size(), 2);
+            QVERIFY(!lp.isEmpty() && pp.size() == 2);
+            QCOMPARE(sp.first(), lp.first());
+            const QVector<float> &kp = d.dtl.addressKp;
+            for (int j : { 3, 4, 5, 6, 12 }) QVERIFY2(kp[j * 3 + 2] > 0.3f, qPrintable(QString::number(j)));
+            const auto k = [&](int j, int c) { return double(kp[j * 3 + c]); };
+            const double W = d.dtl.W, H = d.dtl.H, ox = d.dtl.cropPx.x(), oy = d.dtl.cropPx.y();
+            const double sx = 0.5 * (k(5, 0) + k(6, 0)), sy = 0.5 * (k(5, 1) + k(6, 1));
+            const double ex = 0.5 * (k(3, 0) + k(4, 0)), ey = 0.5 * (k(3, 1) + k(4, 1));
+            const QVariantList h = sp.first().toList(), n = sp.last().toList();
+            QVERIFY(qAbs(h[0].toDouble() - (k(12, 0) * W - ox)) < 1e-6 && qAbs(h[1].toDouble() - (k(12, 1) * H - oy)) < 1e-6);
+            QVERIFY2(qAbs(n[0].toDouble() - ((sx + 0.5 * (ex - sx)) * W - ox)) < 1e-6 && qAbs(n[1].toDouble() - ((sy + 0.5 * (ey - sy)) * H - oy)) < 1e-6,
+                     qPrintable(QStringLiteral("neck %1, %2").arg(n[0].toDouble()).arg(n[1].toDouble())));
+            const double dsx = n[0].toDouble() - h[0].toDouble(), dsy = n[1].toDouble() - h[1].toDouble();
+            const QVariantList p0 = pp.first().toList(), p1 = pp.last().toList();
+            const double dpx = p1[0].toDouble() - p0[0].toDouble(), dpy = p1[1].toDouble() - p0[1].toDouble();
+            QVERIFY2(qAbs(dsx * dpy - dsy * dpx) < 1e-6 * std::hypot(dsx, dsy) * std::hypot(dpx, dpy), "the shoulder plane is parallel to the spine");
+        }
         const QStringList fl = labelsOf(frameOf(pic, QStringLiteral("faceOn"), QStringLiteral("P1")), QStringLiteral("coach"));
         QVERIFY2(fl.contains(QStringLiteral("head")) && fl.count(QStringLiteral("hip edge")) == 2, qPrintable(fl.join(',')));
         for (const QVariant &m : marksOf(da, QStringLiteral("coach")))
@@ -1193,7 +1222,8 @@ private slots:
         QVERIFY(fi.value(QStringLiteral("note")).toString().startsWith(QStringLiteral("No band: the ears")));
     }
 
-    // A swing analysed before the address marks: the frames, with the lines the pose and club give, and why the rest are absent.
+    // A swing analysed before the address marks: the frames, with the lines the pose and club give (the spine among them:
+    // it is the joints' since 23 Oct), and why the rest are absent.
     void pictureWithoutAddressMarks()
     {
         QJsonObject root = pictureRoot();
@@ -1208,7 +1238,8 @@ private slots:
         const QStringList why = pic.value(QStringLiteral("why")).toStringList();
         QVERIFY2(!why.isEmpty() && why.first().startsWith(QStringLiteral("This swing was analysed before the address marks were read")), qPrintable(why.join('|')));
         const QStringList dl = labelsOf(frameOf(pic, QStringLiteral("dtl"), QStringLiteral("P1")), QStringLiteral("coach"));
-        QVERIFY2(!dl.contains(QStringLiteral("butt")) && !dl.contains(QStringLiteral("spine")) && dl.contains(QStringLiteral("trail leg")), qPrintable(dl.join(',')));
+        QVERIFY2(!dl.contains(QStringLiteral("butt")) && dl.contains(QStringLiteral("spine")) && dl.contains(QStringLiteral("shoulder plane"))
+                 && dl.contains(QStringLiteral("trail leg")), qPrintable(dl.join(',')));
         const QStringList fl = labelsOf(frameOf(pic, QStringLiteral("faceOn"), QStringLiteral("P1")), QStringLiteral("coach"));
         QVERIFY2(fl == QStringList{ QStringLiteral("head") }, qPrintable(fl.join(',')));
         const QVariantMap di = frameOf(pic, QStringLiteral("dtl"), QStringLiteral("P7"));

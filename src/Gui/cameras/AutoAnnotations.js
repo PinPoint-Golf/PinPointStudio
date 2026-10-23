@@ -27,9 +27,9 @@
 //     { kind: "circle",   cx, cy, r, label, source } face-on: the head at address (the mask's outline, else the face points)
 //     { kind: "vline",    x, label }                 face-on: the outside of each hip; DTL: the rear of the butt
 //     { kind: "line",     x0, y0, x1, y1, label }    DTL: the address shaft line through ball and grip (dashed)
-//     { kind: "polyline", pts: [[x, y], …], label, dash }  DTL: the spine (tailbone → back of the
-//                                                    neck) and the trail leg, solid; the shoulder plane,
-//                                                    dash "dot"; the Hogan line, dash "long"
+//     { kind: "polyline", pts: [[x, y], …], label, dash }  DTL: the spine (trail hip joint → the
+//                                                    neck, joining the trail leg) and the trail leg, solid;
+//                                                    the shoulder plane, dash "dot"; the Hogan line, dash "long"
 //
 // `det` is the tile's own detail (face-on top level, or the nested `dtl` block — the same
 // shapes, dtl_overlay_payload.h). The pose keypoints are COCO-17-first: nose 0, eyes 1–2,
@@ -204,47 +204,67 @@ function planeLine(det, addressUs) {
 
 function mid(a, b) { return [0.5 * (a[0] + b[0]), 0.5 * (a[1] + b[1])] }
 
-// The SPINE line is TPI's spine angle line, "from the base of the tailbone to the back of the
-// neck": two points on the REAR outline of the silhouette, measured by the analysis on the
-// address frame (address_marks.h measureBackLine → `det.addressMarks.tailbone*/neck*`, stage
-// version 2). It ends AT the neck — no extension through the head — and runs kSpineTailFrac of
-// its length below the tailbone, so its start reads past the waistband. A swing analysed before
-// version 2 has no such points and draws NO spine line (and so no shoulder plane) until it is
-// re-analysed: never the joint line instead, a different line under the same name.
-var kSpineTailFrac = 0.1
+// The SPINE line runs from the address TRAIL HIP JOINT (pose 12, or 11 for a left-hander — the
+// trail leg's own first point, so the two lines join) to the NECK, through the trunk. Mark,
+// 23 Oct 2026: "the solid green spine line is supposed to run from the hips (joining the line
+// that is already there from the knee to the hips) to the neck." The neck is a JOINT-SPACE point:
+// halfway from the shoulder midpoint to the ear point — the same point the analysis starts its
+// back-of-the-neck walk from (analysis_pipeline.cpp, AddressMarksStage → measureBackLine's shX/earX
+// and its default neckFrac 0.5): BOTH shoulders (5, 6) confident, and the mean of whichever ears
+// (3, 4) are confident, at least one. Confident = kpt()'s conf > kConfMin, the stage's > 0.3.
+// It ends AT the neck — no extension through the head — and starts AT the hip — no tail below it.
+// WHY not the rear outline any more (the 22 Oct line, tailbone → back of the neck off the person
+// mask, address_marks.h measureBackLine): on a golfer in a hoodie that line followed the hood and
+// the back, not the trunk, and it did not meet the trail leg, which ends at the hip joint. From the
+// pose alone, a swing analysed before addressMarks version 2 gets the line too. A hip or a neck
+// that is not confident ⇒ no spine line (and so no shoulder plane), never half a line. Frozen at
+// address: the same pose frame the trail leg is drawn from.
 
-function backLine(det) {
-    var am = det ? det.addressMarks : null
-    if (!am || !am.found) return null
-    var t = [am.tailboneX, am.tailboneY], n = [am.neckX, am.neckY]
-    if (!(isFinite(t[0]) && isFinite(t[1]) && isFinite(n[0]) && isFinite(n[1]))) return null
-    var vx = n[0] - t[0], vy = n[1] - t[1]
-    if (Math.abs(vx) < 1e-9 && Math.abs(vy) < 1e-9) return null
-    return { t: t, n: n, vx: vx, vy: vy }
+function jointNeck(frame) {
+    if (!frame) return null
+    var lsh = kpt(frame, 5), rsh = kpt(frame, 6)
+    if (!lsh || !rsh) return null
+    var ears = [kpt(frame, 3), kpt(frame, 4)].filter(function (p) { return p !== null })
+    if (ears.length === 0) return null
+    var ex = 0, ey = 0
+    for (var i = 0; i < ears.length; ++i) { ex += ears[i][0]; ey += ears[i][1] }
+    ex /= ears.length; ey /= ears.length
+    var sh = mid(lsh, rsh)
+    return [sh[0] + 0.5 * (ex - sh[0]), sh[1] + 0.5 * (ey - sh[1])]
 }
 
-function spineLine(det) {
-    var b = backLine(det)
+function trailHip(frame, leadIsLeft) { return frame ? kpt(frame, leadIsLeft === false ? 11 : 12) : null }
+
+// The spine's two ends and its direction (normalised), or null.
+function spineAxis(frame, leadIsLeft) {
+    var h = trailHip(frame, leadIsLeft), n = jointNeck(frame)
+    if (!h || !n) return null
+    var vx = n[0] - h[0], vy = n[1] - h[1]
+    if (Math.abs(vx) < 1e-9 && Math.abs(vy) < 1e-9) return null
+    return { h: h, n: n, vx: vx, vy: vy }
+}
+
+function spineLine(frame, leadIsLeft) {
+    var b = spineAxis(frame, leadIsLeft)
     if (!b) return null
-    return { kind: "polyline", label: "spine", set: "posture",
-             pts: [ [b.t[0] - kSpineTailFrac * b.vx, b.t[1] - kSpineTailFrac * b.vy], [b.n[0], b.n[1]] ] }
+    return { kind: "polyline", label: "spine", set: "posture", pts: [ [b.h[0], b.h[1]], [b.n[0], b.n[1]] ] }
 }
 
 // ── the shoulder plane ──────────────────────────────────────────────────────
 // TPI's flat-shoulder-plane check (mytpi.com, "Flat Shoulder Plane"): after the spine angle line,
 // a second line "just above the trailing shoulder and parallel to the spine angle line"; at the
 // top, "if the lead shoulder is above the line they have a flat shoulder plane." So: PARALLEL to
-// the spine line above, offset from the address TRAIL shoulder joint (pose 6, or 5 for a
-// left-hander) by kShoulderPlaneMargin of the spine line's length, at a right angle to it and
-// upward (toward the golfer's back).
-// The margin, from Nick Henn's 20 Oct swing 1 address frame (pose + the analysis's u2netp mask):
-// walking from the trail shoulder joint at a right angle to the tailbone→neck line, the body's
-// outline is 0.22 of that line's length away (48 px of 222); 0.25 puts the line just clear of the
-// shoulder's outline — "just above" it — and 0.18 of the length above the spine line, so the two
-// read apart. (The joint itself sits 0.10 BELOW the spine line: the line is a chord across the
-// rounded upper back.) The extent: kShoulderPlaneDown below the offset point and kShoulderPlaneUp
-// above it, which spans the shoulders through the swing (on that swing they stay within about
-// 0.1 of the line's length of the address shoulders, along it, from P1 to P7).
+// the spine line above (trail hip → neck), offset from the address TRAIL shoulder joint (pose 6,
+// or 5 for a left-hander) by kShoulderPlaneMargin of the spine line's length, at a right angle to
+// it and upward (toward the golfer's back).
+// The margin, from Nick Henn's 20 Oct swing 1 address frame (pose + the analysis's u2netp mask),
+// measured against the 22 Oct tailbone→neck line: walking from the trail shoulder joint at a right
+// angle to it, the body's outline was 0.22 of that line's length away (48 px of 222); 0.25 put the
+// line just clear of the shoulder's outline — "just above" it. Since 23 Oct the margin, the extent
+// and the direction are those of the hip→neck line (the same fractions of ITS length); the joint
+// line runs through the trunk, so the trail shoulder joint now sits near it rather than 0.10 below
+// it — worth a look on a real frame. The extent: kShoulderPlaneDown below the offset point and
+// kShoulderPlaneUp above it, which spans the shoulders through the swing.
 // The offset is a distance IN THE PICTURE: normalised coordinates are stretched by the frame's
 // width and height separately, so the perpendicular is taken in pixels — `aspect` is the drawn
 // image's width / height (the tile's content rect) — and mapped back. No spine line, no
@@ -255,8 +275,8 @@ var kShoulderPlaneDown = 0.7
 
 function trailShoulder(frame, leadIsLeft) { return frame ? kpt(frame, leadIsLeft === false ? 5 : 6) : null }
 
-function shoulderPlane(det, frame, aspect, leadIsLeft) {
-    var b = backLine(det)
+function shoulderPlane(frame, aspect, leadIsLeft) {
+    var b = spineAxis(frame, leadIsLeft)
     if (!b || !(aspect > 0) || !isFinite(aspect)) return null
     var trail = trailShoulder(frame, leadIsLeft)
     if (!trail) return null
@@ -301,7 +321,7 @@ function trailLeg(frame, leadIsLeft) {
 // ── the View menu's sets ────────────────────────────────────────────────────
 // Every mark carries `set` (auto_annotations_design.md §1c), and the View menu turns each set on
 // or off on its own (ViewLayout.coachSetsFor):
-//   "posture"  — the spine (tailbone → back of the neck), the shoulder plane, the trail leg
+//   "posture"  — the spine (trail hip → neck), the shoulder plane, the trail leg
 //   "plane"    — the address shaft plane and the Hogan line (the "V zone")
 //   "headHips" — face-on: the head circle and the hip edges; DTL: the butt line
 var kSets = ["posture", "plane", "headHips"]
@@ -329,9 +349,9 @@ function build(det, isDtl, addressUs, leadIsLeft, aspect) {
         if (pl) out.push(pl)
         var hg = hoganLine(det, frame, leadIsLeft)
         if (hg) out.push(hg)
-        var sp = spineLine(det)
+        var sp = spineLine(frame, leadIsLeft)
         if (sp) out.push(sp)
-        var sh = shoulderPlane(det, frame, aspect, leadIsLeft)
+        var sh = shoulderPlane(frame, aspect, leadIsLeft)
         if (sh) out.push(sh)
         var tl = trailLeg(frame, leadIsLeft)
         if (tl) out.push(tl)

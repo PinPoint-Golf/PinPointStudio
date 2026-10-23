@@ -292,7 +292,7 @@ QtObject {
     // The coach's static marks (auto_annotations_design.md): a VIEW property, not a motion
     // element — they are reference lines, available whenever a swing is being looked at.
     // Three independent sets (§1c), each mark tagged with its set by AutoAnnotations.js:
-    //   posture  — spine (tailbone → back of the neck), shoulder plane, trail leg
+    //   posture  — spine (trail hip → neck), shoulder plane, trail leg
     //   plane    — the address shaft plane and the Hogan line
     //   headHips — face-on head circle and hip edges; the DTL butt line
     // Off by default; never in Capture.

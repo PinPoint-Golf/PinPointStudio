@@ -160,6 +160,10 @@ Item {
                     ViewLayout.setPanel(m, k, beside.indexOf(k) >= 0)
                 ViewLayout.setPanel(m, "charts", true)
                 ViewLayout.setArrangement(m, beside.length ? "split" : "tabs")
+                // --probe-coach-sets posture,plane,headHips: the coach-line sets the picture draws (else the settings')
+                const coachArg = probe.arg("--probe-coach-sets", "")
+                if (coachArg !== "")
+                    for (const s of ["posture", "plane", "headHips"]) ViewLayout.setCoachSet(m, s, coachArg.split(",").indexOf(s) >= 0)
             } else if (probe.step === 4) {
                 const bodies = []
                 probe.walk(root, "chBody", bodies)
