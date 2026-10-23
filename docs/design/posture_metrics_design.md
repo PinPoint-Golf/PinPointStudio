@@ -811,6 +811,22 @@ Mark agreed all four as recommended on 2026-10-21. The build follows them.
    parts of the composite only, for now. *Agreed:* yes. These three have a coaching fix of
    their own; the others do not yet.
 
+**Carried-over decisions, 2026-10-22** (taken in the posture chart's plan-mode session;
+`posture_chart_design.md` §9):
+
+5. **`reportHold` for the setup family.** `weight_on_toes_address` and `poor_setup_posture` read the
+   heel-to-toe balance proxy, whose absolute is unchecked. *Decided:* **leave them in reports**. No
+   hold.
+6. **The dip → shallowing edge.** *Decided:* not modelled. Mark: "I might be wrong, let's not follow
+   up on this for now."
+7. **"Well within" on home.** *Decided:* home's "What you do well" takes the report's rule (within
+   the Ideal band, |z| ≤ 1). On building it, the rule turned out to hold already: a ledger row's
+   stored corridor is the Ideal band, so home's "inside the corridor by value" is "well within".
+   The composites session's claim that home "only asks inside the corridor" was wrong. No change, beyond a comment
+   in `swing_themes.h`.
+8. **Nick's top composite.** Already fixed by the down-the-line head rise (§4.5). The chart follows
+   it: D3 is named from the head rise only.
+
 ## 12. Considered and not done
 
 - **The family as `Any` over its members' signals.** This adds a name and no information, and it

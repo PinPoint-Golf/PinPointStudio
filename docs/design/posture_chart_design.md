@@ -1,6 +1,8 @@
 # Posture chart: where your posture goes, P1 to P8, against good players and their patterns
 
-*2026-10-22. Status: **design for Mark to review. Nothing built.** Mark asked for it on 22 Oct, during the
+*2026-10-22. Status: **agreed; building stages 1–5.** Mark answered the §9 questions and four carried-over
+decisions in plan mode on 22 Oct (§9 records each answer); the sections below are revised to match.
+Mark asked for it on 22 Oct, during the
 posture composites build (`posture_metrics_design.md`, measured in
 `docs/research/data/posture/posture_composites_2026-10-22.md`). It replaces the same evening's
 first-thinking draft. The draft's two views, its picture idea and its order of normative sources are
@@ -24,8 +26,9 @@ good players' pattern is yours?"*
    follows the Wrist section as Mark reworked it on 16 Oct (`wrist_motion_into_charts.md` §8.1).
    The Posture preset already draws the curves.
 2. **Change from address is the default, and the only view compared with good players.** Changes
-   travel between camera set-ups; absolute angles do not. An absolute reading is compared with a
-   published band only on a calibrated or protocol-placed camera (§7.4).
+   travel between camera set-ups; absolute angles do not. An absolute address reading is still
+   drawn against its published band, with a ⚠ saying it depends on the camera, and beside the
+   golfer's own sessions from the same set-up (§7.4; Mark, 22 Oct).
 3. **Six rows, each one honest about where it can be trusted:**
    - head height
    - hip depth (the hips toward or away from the ball)
@@ -34,8 +37,8 @@ good players' pattern is yours?"*
    - trail knee
    - pelvis height
 
-   Head height is the test of "standing up". Trunk bend and pelvis height carry a ⚠ at P3–P5, where
-   the turning body moves the joint points they are read from (§2.3).
+   Head height is the test of "standing up". Trunk bend, hip depth and pelvis height carry a ⚠ at
+   P3–P5, where the turning body moves the joint points they are read from (§2.3).
 4. **Two patterns that good players use, and one free style choice:**
    - **Level**
    - **Squat and push**
@@ -64,14 +67,16 @@ three:
 
 | Golfer | Nearest pattern | Trail knee | Where they leave it | Mark's label |
 |---|---|---|---|---|
-| Mark | Level | released | from P5: hips 4.5 → 7.6 cm toward the ball by impact | agrees |
-| Nick | Level | released | from P4: hips +4 cm going back, +6.5 cm at impact; head level | agrees |
+| Mark | Level | released | from P6: hips 6.5 → 7.6 cm toward the ball by impact | agrees |
+| Nick | Level | released | from P6: hips +5.6 cm, +6.5 cm at impact; head level throughout | agrees (revised label: holds his posture going back) |
 | Jess | between Squat and push and Level (Squat and push nearer) | kept | P3–P4: head 9.5 cm down at the top, lead knee +36°; back inside the band by P6 | agrees |
 
 What the data adds to the labels:
 
-- **Mark and Nick's "standing up going back"** shows in the hips moving toward the ball while the
-  trail leg straightens. Their heads stay level.
+- **Going back, Mark's and Nick's heads stay level.** Their hip readings at the top (+3 to +4 cm
+  toward the ball) carry a ⚠ and are not counted. The hip points turn with the pelvis, the same
+  artefact Mark identified on the trunk bend (§2.3). Mark revised Nick's label on 22 Oct: he holds
+  his posture going back.
 - **Jess's dip** is mostly her lead knee folding. She keeps her trunk bend better than the published
   tour average.
 
@@ -89,7 +94,7 @@ The per-position numbers below were read from the phase grids of the re-analysed
 | Row | Camera | Series | Unit | Read P1–P8? | Caveat |
 |---|---|---|---|---|---|
 | Head height | face-on | `headLift` | cm (inter-ear ruler) | yes, incl. P8 | none known; the honest test of standing up |
-| Hip depth | DTL | `pelvisThrust` | cm | P1–P7 (bridged after impact) | moves 1.9 cm between two pose runs (V5) |
+| Hip depth | DTL | `pelvisThrust`; P3–P5 `hipDepthButt` (the butt line, since 22 Oct) | cm | P1–P7 (bridged after impact) | moves 1.9 cm between two pose runs (V5); P3–P5 read on the butt line with no ⚠, falling back to the joints with ⚠ "the hip points turn with the pelvis" where a shot has no butt line (§2.3) |
 | Trunk bend | DTL | `spineForwardBend` | ° | P1–P7 | joint chord, not the back line; ⚠ P3–P5 (§2.3) |
 | Lead knee | DTL | `leadKneeFlexion` | ° | P1–P8 | seen behind the trail leg |
 | Trail knee | DTL | `trailKneeFlexion` | ° | P1–P8 | none known |
@@ -129,9 +134,9 @@ depth 7).
 | Head height (cm) | Mark | 0.1 | 0.0 | 0.8 | −0.2 | 0.8 | 2.4 | 6.6 |
 | | Nick | 0.2 | 0.5 | −0.1 | −0.4 | −0.1 | 0.1 | 3.8 |
 | | Jess | −2.6 | −5.2 | **−9.5** | −8.6 | −7.3 | −6.0 | 2.1 |
-| Hip depth (cm, + toward ball) | Mark | −0.3 | 1.0 | 3.0 | 4.5 | 6.5 | **7.6** | - |
-| | Nick | 2.6 | 2.9 | 4.1 | 4.7 | 5.6 | **6.5** | - |
-| | Jess (n 7) | −0.3 | −0.4 | −1.8 | 0.9 | 3.3 | 0.6 | - |
+| Hip depth (cm, + toward ball) | Mark | −0.3 | 1.0⚠ | 3.0⚠ | 4.5⚠ | 6.5 | **7.6** | - |
+| | Nick | 2.6 | 2.9⚠ | 4.1⚠ | 4.7⚠ | 5.6 | **6.5** | - |
+| | Jess (n 7) | −0.3 | −0.4⚠ | −1.8⚠ | 0.9⚠ | 3.3 | 0.6 | - |
 | Trunk bend (°) | Mark | −3.6 | −8.3⚠ | −7.2⚠ | −4.4⚠ | −5.0 | **−10.2** | - |
 | | Nick | −3.2 | −3.9⚠ | −8.5⚠ | −7.5⚠ | −9.4 | **−13.5** | - |
 | | Jess | 1.8 | 3.0⚠ | 2.1⚠ | 2.9⚠ | −0.3 | −2.2 | - |
@@ -158,9 +163,11 @@ depth 7).
   posture is "any significant alteration from your body's original set up angles"
   ([mytpi.com](https://www.mytpi.com/improve-my-game/swing-characteristics/loss-of-posture)). The
   chart's "what moved" line (§5.3) is built on this split.
-- **"Standing up going back"** in Mark's and Nick's swings is the hips moving 3–4 cm toward the ball
-  by the top while the trail knee straightens 18–21°. Their heads do not rise (+0.8, −0.1 cm). The
-  trunk-bend change at the top is partly the turn (§2.3).
+- **Going back, Mark's and Nick's heads do not rise** (+0.8, −0.1 cm) while the trail knee
+  straightens 18–21°. Their hips read 3–4 cm toward the ball by the top, but that reading, like the
+  trunk-bend change there, is partly the turn (§2.3). *Revised 22 Oct:* Mark judges Nick "rock solid"
+  going back. Standing up going back is now graded on the down-the-line head rise only
+  (`posture_metrics_design.md` §4.5), and the chart follows (D3).
 - **Jess's dip is her lead knee.** By the top her lead knee has flexed 36° more than at address. The
   tour average is about 13° (§3). Her head is 9.5 cm lower and her trunk 2° more bent. From P5 she
   rises steadily to 6 cm below address at impact, then above it by P8. Her trail knee holds going
@@ -179,9 +186,47 @@ depth 7).
   - **The fix** (stage 4, §10): read the TPI back line (tailbone to the back of the neck) at every
     P-frame from the person mask, as the address marks already do once. It is also the line closest
     to the published C7-to-sacrum trunk angle (§3.1).
+  - **Shown as a second reading (22 Oct, Mark's honesty rule).** The back line from the mask (stage 4a)
+    did not pass the gate: at the top it can catch the raised arms (Jess) and it is wide on Mark. It is
+    still drawn at P3–P5 beside the joint reading, as a second number with its own ⚠ ("can catch the
+    arms at the top"). The joint reading stays the one that is matched. The coming weeks' data decides
+    which of the two earns the row.
+- **Hip depth at P3–P5** (added 22 Oct, Mark). The hip midpoint is read from the two hip joints.
+  As the pelvis turns, the trail hip comes forward and the lead hip is hidden behind it, so the
+  midpoint moves toward the ball with the hips unchanged. This is the same artefact as the trunk
+  bend. Between two pose runs the reading also moves by a median 1.9 cm (V5). Nick's +4.1 cm at the
+  top, against Mark's judgement that he holds his posture, is the case.
+  - **The fix** (stage 4): read the butt line (the rear edge of the person mask at hip height) at
+    every P-frame, as the address marks already do at address, and convert it to centimetres with
+    the DTL ruler.
+  - **Landed 22 Oct for P3–P5 (stage 4c, Mark's decision after the gate on 176 DTL swings).** Hip depth
+    at P3–P5 reads `m_hipDepthButt_p3/_p4/_p5` with no ⚠ and takes full part in matching, exits and
+    "what moved". A shot with no butt line there (no DTL ruler, or the mask refused that frame) falls
+    back to the joints with the ⚠, and the trust fold says which source each cell used. P2, P6 and P7
+    stay on `pelvisThrust`, where the joints are believed and early extension grades. Median at P4:
+
+    | Golfer | Joints | Butt line |
+    |---|---|---|
+    | Nick | +4.1 cm | +0.1 cm |
+    | Mark | +3.0 cm | −0.9 cm |
+    | Jess (7 swings with a ruler) | −1.8 cm | −7.0 cm |
 - **Pelvis height at P3–P5.** The hip-joint keypoints migrate at the top: −20.7 %, −17.5 % and −5.3 %
   of stance on nearly every swing. The belt-line producer `pelvisLiftBelt` (designed, no producer)
-  removes this.
+  would remove this.
+  - **Shown with a band (22 Oct, Mark's honesty rule).** The cells draw the §7.1 authored seeds (−3, −5,
+    −8 ± 6 % of stance; P4 written at `posture_level` and `posture_squat_push`, since the general row of
+    `m_pelvisLiftTop` is a fault corridor) under the ⚠, and stay out of matching. The trust fold says the
+    band there is an authored seed.
+  - **22 Oct 2026: a belt-line producer was built, measured on one swing each of Nick, Mark and
+    Jess, and reverted (Mark's decision).** Four cues were tried. The waist notch on the mask: Nick's
+    outline is straight at the waist, and Mark's and Jess's masks break there. Optical-flow tracking:
+    the points die in the motion blur. A Lab colour edge: about 5 units of contrast in these dark
+    frames. A voted horizontal luminance edge between the hip joints, arms cut out: the best, but it
+    refused Mark P2–P6 and Jess entirely (the mask loses her black hoodie at address); it read Nick
+    at P4–P5 (+2.6, +4.6 %) only where his joints barely migrate, so the case was not tested; it read
+    the wrong edge on Mark at P7; and one pixel of tuning flipped a reading between +2 % and −20 %.
+    On an untucked top the line is the hem. The ⚠ at P3–P5 stays; the route back is better face-on
+    light at the waist, or a taped belt.
 
 A reading under a ⚠ is still drawn and still has its number. It carries the warning and its short
 gate words, as the Charts pattern requires. It is left out of pattern matching (§4.5).
@@ -359,7 +404,8 @@ measurements.
     sway, and slide"
     ([mytpi.com](https://www.mytpi.com/articles/swing/understanding-and-assessing-pelvic-tilt-in-the-golf-swing)).
 - **Found nowhere:** a source for "a head dip going back makes the club shallow", which is Mark's
-  reading of Jess. It stays Mark's coaching claim and is labelled as his.
+  reading of Jess. It stays Mark's coaching claim and is labelled as his. *22 Oct:* Mark ("I might be
+  wrong, let's not follow up on this for now"): no edge is modelled.
 
 ---
 
@@ -403,8 +449,14 @@ Two patterns and one style choice. The signatures are changes from address in th
 - **Released:** straightens 10–20° or more going back. GOLFTEC calls it common ("some a lot"); Hogan,
   Jones and Snead are the classic examples.
 
-Both are valid in both patterns. Straightening is a fault **only together with** the hips moving
-toward the ball or the head rising going back (D3).
+Both are valid patterns for good players, so the trail knee never counts toward the match. **The row's
+band follows the style** (22 Oct review): a released trail knee (it loses 8° or more by the top) is
+drawn at P2–P4 against the `posture_trail_released` node's band, −15 ± 8° (authored from GOLFTEC's
+description), and a kept one against Kim's 0 ± 5°; P5–P7 are the pattern's either way. The session uses
+the session's style. The
+pack's own condition `trail_knee_straighten` still judges it as a fault for this golfer. Mark
+decided on 22 Oct to keep it a fault: Nick's coach is working on exactly that. When it fires it is
+listed under Findings like any other condition (Q3).
 
 ### 4.3 Departures: faults that are never a pattern
 
@@ -414,20 +466,26 @@ same thing (§6.2). **None of these is ever offered as a pattern.**
 
 | | Departure | Signature in our rows | Conditions that name it |
 |---|---|---|---|
-| D1 | **Hips in** (early extension) | hip depth above the band from P5 on, head level or rising | `early_extension`, `loss_of_posture` |
-| D2 | **Standing up** | head above the band at P6–P7, trunk bend lost | `coming_out_of_it`, `loss_of_posture` |
-| D3 | **Standing up going back** | head up by P3–P4 (seen down the line), hips toward the ball | `pelvis_thrust_backswing`, `head_rise_backswing`, `loss_of_posture_backswing` (DTL head rise only since 22 Oct; trunk-bend change held, `posture_metrics_design.md` §4.5) |
+| D1 | **Hips in** (early extension) | hip depth above the band from P5 on, head level or rising | `early_extension` |
+| D2 | **Standing up** | head above the band at P6–P7, trunk bend lost | `coming_out_of_it` |
+| D3 | **Standing up going back** | the head up by P3–P4, seen down the line (`headRise`). **Named from the head rise only** (22 Oct): the hip and trunk readings at the top carry a ⚠ and never name it | `loss_of_posture_backswing` (DTL head rise only since 22 Oct; trunk-bend change held, `posture_metrics_design.md` §4.5), `head_rise_backswing` |
 | D4 | **Early or deep dip** | head (and pelvis) below the band at P2–P4 | `head_drop_backswing`, `posture_sinks_backswing` |
-| D5 | **Dip then rise** | D4, then the head above address by P7 | D4's conditions plus D2's; the edge `posture_sinks_backswing → loss_of_posture` exists |
+| D5 | **Dip then rise** | D4, then the head above address by P7 | D4's conditions plus D2's (`coming_out_of_it`) |
 | D6 | **Staying down into the ground** | head and pelvis still below the band at P7, bend gained at P5–P6 | `posture_sinks_impact`, `diving` |
-| D7 | **Lead knee folds going back** | lead knee above the band at P3–P4 | **no condition today** (Question 5) |
+| D7 | **Lead knee folds going back** | lead knee above the band at P3–P4 | `lead_knee_folds_backswing` (new, stage 1; Q5): `m_leadKneeFlex_p4` against Kim's +13 ± 7°, causes `head_drop_backswing` |
+
+**A departure is named only by its own condition** (22 Oct review). `loss_of_posture` is a composite of
+several parts at once, so it names none: when it fires it is listed under Findings like any other
+condition, without a departure. Nick's 20 Oct session had said "Standing up from P7" on four shots only
+because `loss_of_posture` fired there; his head stays level.
 
 The **combinations** are what separate faults from styles, as Tier 2 does in the wrist design
 (`wristmotion_assessment_design.md` §7.2):
 
 - A transition dip is Squat and push. A dip **before** the top is D4. A dip that is then paid back
   by rising above address is D5.
-- A straightening trail knee is a style. Trail knee **plus** hips in is D3.
+- A straightening trail knee is a style among good players. It does not count toward the match,
+  and its own condition judges it for the golfer (Q3).
 - Losing trunk bend with the head level and the hips in is D1. Losing it with the head rising is D2.
 
 ### 4.4 Matching a golfer to a pattern
@@ -435,7 +493,8 @@ The **combinations** are what separate faults from styles, as Tier 2 does in the
 1. **What is compared.** The session median of each row's change from address at P2–P7, from the
    rows read on the capture. Excluded from matching:
    - P8, which is bridged on the DTL rows;
-   - readings under a ⚠ (trunk bend and pelvis height at P3–P5);
+   - readings under a ⚠ (trunk bend and pelvis height at P3–P5; hip depth at P3–P5 only on a shot
+     that fell back to the joints: read from the butt line it is matched, since 22 Oct);
    - the trail knee, which is a style, not a pattern feature.
 
    A face-on-only session matches on head height and pelvis height alone, and says so. A DTL-only
@@ -455,25 +514,38 @@ The **combinations** are what separate faults from styles, as Tier 2 does in the
    | d > 2 | "no pattern fits closely; nearest is …" |
 4. **Where you leave it.** In time order, the first position where a row's |z| against the nearest
    pattern exceeds 2, named by the departure (§4.3) that the row and the direction describe. Later
-   exits are listed after it.
+   exits are listed after it. An exit that no departure describes (Nick's lead knee at P5, already
+   straight) is said as "outside the good-player band, not a fault".
 5. **Trail knee.** "Kept" if it loses less than 8° by P4, "released" otherwise. Said in the words;
    it never counts against a pattern.
 6. **Session against shot.**
    - The pattern is a property of the golfer, so it is chosen from the session (at least 5 shots;
      with fewer, from the shot itself, and said so).
    - This shot is then judged against the session's pattern.
-   - The reader can override it, as the wrist bands can be ("Compare with: Auto → Level · Level ·
-     Squat and push").
+   - The reader can override it, as the wrist archetype can be ("Pattern: Auto → Level · Level ·
+     Squat and push"). It is a separate choice from Charts' Against ghost.
 
 ### 4.5 Worked example: Mark, Nick and Jess
 
-Computed from the §2.1 medians against the seed bands of §7.1 (Appendix B).
+Computed from the §2.1 medians against the seed bands of §7.1 (Appendix B), with μ −3 for trunk bend
+at P7, and trunk bend and hip depth at P3–P5 excluded for their ⚠. *Recomputed 22 Oct after Mark's
+answers; the first draft counted hip depth at P3–P5 and half-weighted the bend there.*
 
 | Golfer | d Level | d Squat and push | Nearest | Trail knee | First exits (z > 2) |
 |---|---:|---:|---|---|---|
-| Mark | **1.32** | 1.47 | Level | released (−18°) | P5 hips +4.5 cm (z 2.4), P6 +6.5 (2.6), P7 +7.6 (2.6); bend at P3–P4 shown with ⚠, not counted |
-| Nick | **1.53** | 1.71 | Level | released (−21°) | P4 hips +4.1 cm (2.0); P5 hips +4.7 (2.5), bend −7.5⚠; P6 hips +5.6 (2.2); P7 bend −13.5 (−2.5) |
-| Jess | 1.50 | **1.39** | between the two; Squat and push nearer (gap 0.11, under the 0.15 close-call rule) | kept (+1°) | P3 head −5.2 cm (−2.1); P4 head −9.5 (−2.9), lead knee +36° (3.3); inside both bands from P6 |
+| Mark | **1.23** | 1.41 | Level (gap 0.18) | released (−18°) | P6 hips +6.5 cm (z 2.6), P7 +7.6 (2.6), P7 bend −10.2° (−2.4); hips and bend at P3–P5 shown with ⚠, not counted |
+| Nick | **1.46** | 1.68 | Level (gap 0.22) | released (−21°) | P5 lead knee +3.0° (−2.4; no departure describes it: "outside the good-player band, not a fault"); P6 hips +5.6 (2.2); P7 hips +6.5 (2.2), bend −13.5 (−3.5) |
+| Jess | 1.61 | **1.48** | between the two; Squat and push nearer (gap 0.13, under the 0.15 close-call rule) | kept (+1°) | P3 head −5.2 cm (−2.1); P4 head −9.5 (−2.9), lead knee +36° (3.3); inside both bands from P6 |
+
+*As built (stage 2, `src/Gui/charts/session_posture.h`):*
+- **Pelvis height counts where it has a band** (P2, P6, P7). The table above uses Appendix B's four
+  rows. With pelvis height included, the distances are Mark 1.30 / 1.44, Nick 1.37 / 1.57 and
+  Jess 1.63 / 1.52 (Level / Squat and push). Nobody's nearest pattern moves.
+- **"Level" head.** A head within 1 cm of address is said as level, even when that sits above the
+  good-player band. At impact the band's top is −0.5 cm, because good players' heads drop a little.
+  So Nick's +0.1 cm reads "under a level head", not "Standing up". The 1 cm is an authored
+  tolerance (`kPostureHeadLevelCm`); Mark confirmed it on 22 Oct: "within 1 cm is definitely level".
+- **Thresholds.** "Outside the band" means |z| > 1; an exit means |z| > 2.
 
 **Against Mark's labels:**
 
@@ -482,24 +554,25 @@ Computed from the §2.1 medians against the seed bands of §7.1 (Appendix B).
   above the published band at P7 (about 6 cm above the tour mean), so it is named as part of D2.
   Nick's head never rises: his loss of bend is all hips. The chart says that in plain words, and the
   composite cannot.
-- **Mark and Nick, "stand up going back":** agrees. By the top their hips are 3–4 cm toward the ball,
-  where good players' hips sit back a little (D3, with the trail leg released). The head says level.
-  So the evidence for "standing up going back" is the hips and the trail leg, not height. Mark can
-  check that against his eye.
+- **Going back:** agrees with the revised labels. Nick holds his posture going back (Mark, 22 Oct),
+  and the chart names no exit for him before P5. His head is level, and his hip and trunk readings
+  at the top carry the turn's ⚠. Mark's head is level too (+0.8 cm). His "stands up going back" is
+  graded by the down-the-line head rise (D3), which fires on 3 of his 50 swings of 7 Oct.
 - **Jess, "excellent posture-wise apart from a head dip going back":** agrees. Her nearest pattern is
   Squat and push. She leaves it only at P3–P4, by dipping before the top instead of after it (D4),
   and is back inside both bands from P6. She keeps her trunk bend better than the tour mean, and her
   hips do not move in (+0.6 cm).
 - **Jess shows where the model has holes**, as Mark suspected:
-  1. Her dip is mostly the **lead knee** folding (+36° against about +13°). Nothing grades that
-     today (D7), and from down the line the lead knee is seen behind the trail leg.
+  1. Her dip is mostly the **lead knee** folding (+36° against about +13°). Nothing graded that
+     until `lead_knee_folds_backswing` (D7, Q5). From down the line the lead knee is seen behind
+     the trail leg.
   2. Her "shallow plane and busy wrists" cannot be seen by posture readings. The chart can point to
      them: the Plane coach lines, the shaft and shoulder-plane conditions, the Wrist section. It must
      not claim them.
   3. Her absolute address readings are where the camera hides the golfer: 29.4° bend, 78 % toward
      the toes, side tilt −6°. Under §7.4 the chart shows none of them against a band until her
      camera is trusted.
-  4. The close call between the two patterns (1.39 against 1.50) is said on the page, not hidden.
+  4. The close call between the two patterns (1.48 against 1.61) is said on the page, not hidden.
 - **"All three marginally too bent at address":** the chart cannot say. Absolute address bend is
   rig-sensitive (§7.4). The three readings do not even order the golfers as Mark sees them.
 
@@ -527,7 +600,7 @@ No new tab: the wrist rework of 16 Oct settled that domain reads live inside the
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
 │ Posture                                                                       ▾ fold      │
 │ Your hips moved 7.6 cm toward the ball by impact; good players' stay within 4 cm.        │  head (largest departure)
-│ Pattern  Level (nearest, of your session) · trail knee released     Compare with ▸ Auto  │  pattern line
+│ Pattern  Level (nearest, of your session) · trail knee released          Pattern ▸ Auto  │  pattern line
 │                                                                                            │
 │           P1    P2    P3    P4    P5    P6    P7    P8                                     │
 │ Head      ●─────●─────●─────●─────●─────●─────●     ●      cm   ┐                          │
@@ -543,8 +616,8 @@ No new tab: the wrist rework of 16 Oct settled that domain reads live inside the
 │ Pelvis height …                                                 ┘                            │
 │                                                                                            │
 │ What moved          At the top                    At impact                                │  §5.3
-│                     hips 3 cm in, head level,     hips 7.6 cm in, head 2.4 cm up,          │
-│                     trail leg straightened 18°    bend −10°: hips in, then up               │
+│                     head level, trail leg         hips 7.6 cm in, head 2.4 cm up,          │
+│                     straightened 18° (hips ⚠)     bend −10°: hips in, then up               │
 │                                                                                            │
 │ [ DTL address │ DTL top │ DTL impact ]  [ face-on address │ top │ impact ]                  │  §5.4 picture strip
 │                                                                                            │
@@ -559,21 +632,31 @@ No new tab: the wrist rework of 16 Oct settled that domain reads live inside the
     a hairline, the numbers under each column, a pole word at the right ("up", "in", "upright").
   - A column click seeks to that P-position, and the playhead's P is the picked column.
   - In Session mode the dots become the session's box per position (§5.5).
-- **Words, not colour.** A reading outside the band gets a ring plus a word ("in 7.6", "up 2.4"),
-  never colour alone, so it reads in greyscale.
-- **Gated readings.** Readings under a ⚠ keep their number. A reading with no value is "-".
+- **Words, not colour.** A reading outside the band gets a ring plus a word, never colour alone, so it
+  reads in greyscale. The word names the side of the band it falls outside on, the row's pole word
+  ("in", "up", "straighter"), never the change from address and never a second number: the figure is
+  printed above it (22 Oct review).
+- **Gated readings.** Readings under a ⚠ keep their number and the ⚠ with its short reason, and are
+  never ringed: no word, no W-D6 note, and they never count as outside anywhere (head line, exits,
+  departures). A reading with no value is "-".
+- **The head line** (22 Oct, round 2) names the top-ranked (work-on order) FIRED condition that names a
+  departure, read on the departure's own row at the position the condition read it, with the good-player
+  band there — "Your hips moved 5.3 cm toward the ball by impact; good players stay between −1.5 and
+  +3.5 cm." — whether or not that cell is an |z| > 2 exit. Only when no departure condition fired does it
+  fall back to the largest exit in the W-D6 words (`session_posture.h` decision 11).
 - **The fault line** is the corridor edge where the matching condition fires. When a reading leaves
   the band but no condition fired, the head says so (the wrist W-D6 rule): "outside the good-player
   band at P4, not far enough to be a fault".
-- **Compare with.** Auto → (pattern), Level, Squat and push. It is persisted per screen and mode,
-  like the wrist choices. The Against choices of Charts (★ Reference, session median, previous)
-  draw as a ghost line, as on every trace.
+- **Pattern.** Auto → (pattern), Level, Squat and push. It is persisted per screen and mode, like
+  the wrist archetype (`appSettings.chartPrefs`). The Against choices of Charts (★ Reference, session
+  median, previous) draw as a ghost line, as on every trace.
 
 ### 5.3 "What moved"
 
 At the top and at impact, one line each, built from the rows read. The rule, in order:
 
-1. **Hips in** if hip depth is outside the band toward the ball.
+1. **Hips in** if hip depth is outside the band toward the ball. At the top (P3–P5) the hip reading
+   carries its ⚠, so it is not said as a movement; the head clause decides.
 2. **Up** if the head is above the band. **Down** if it is below it.
 3. **Bend lost** or **bend gained**, attributed to whichever of 1–2 holds. If neither holds, "the
    trunk alone"; at P3–P5 the bend clause carries the ⚠.
@@ -597,10 +680,23 @@ what a coach draws.
   - **Down the line, impact:** a faint strip in front of the butt line, where good players' hips sit
     at impact (−2…+4 cm). It is scaled from centimetres to pixels by the DTL ruler that `pelvisThrust`
     already uses. Mark's butt is 7.6 cm into the ball, out past the strip.
-  - **Face-on, impact:** a faint band below the address head circle's top: 0–6 cm lower is where
-    good players' heads are.
+  - **Face-on, impact:** anchored on the MEASURED head point (22 Oct, after Mark saw the band as a strip
+    across Nick's forehead): a tick "your head at address" at the tracked head centre at P1 (the centre
+    `headLift` measures), the head-height band at P7 hung below it (today Level −3.5 ± 3 cm: 0.5 to 6.5 cm
+    lower), and the golfer's own head centre at P7 as a white tick, its rise in the note ("your head at
+    impact: 1.4 cm higher" — `headLift` P7 − P1 through the chart's sampler, so the drawn gap ÷ px/cm is
+    the P7 cell). The head circle no longer anchors anything: it is the person mask's head outline
+    (`addressMarks.<view>.head*`, stage version 4 — the crown and the head's width; looking down at the ball
+    put the face-point circle on the face), else the face points' circle, said.
   - **Down the line, top:** with the back-line producer (stage 4), the golfer's back line at the top
     is drawn in ink against the frozen address spine line.
+- **Built 22 Oct (stage 5, uncommitted).** `src/Gui/charts/posture_picture.{h,cpp}` (pure C++ over the swing document:
+  the report stills' frame and crop rule, `report_stills_pure.h`, widened sideways to the golfer's own mask marks; the
+  coach lines of `AutoAnnotations.js` in C++; the hip strip on `analysis.dtlRuler`, the head band on the inter-ear ruler
+  `trackHead` resolves; the butt line at impact from `addressMarks.dtlPhases`), on `thisShot.picture` and, for the
+  session's typical swing (fit nearest the median), on the report's `posture.picture`. QML: `PpChPosturePicture`,
+  `PpChPostureFrame`. The back line at the top is not drawn (held). With every Coach lines set off the strip draws its
+  default sets (posture, head and hips), so it never goes blank; print draws those.
 - **Why not a ghost body.** The draft's ghost of a pro, scaled to the golfer's trunk, would need
   absolute pro angles. Those depend on the camera (§1.2.1), and it would show a shape no source
   measured in 2-D.
@@ -631,6 +727,10 @@ what a coach draws.
 - **The pattern per shot** as a strip of marks. A shot whose nearest pattern differs from the
   session's is ringed.
 - **Departures** as counts across the shots, each opening its condition in Session diagnostics.
+- **The head** counts the session's pattern ("Level on 13 of 15 shots"); a session between the two counts
+  every shot's word instead — "Between Level and Squat and push: Level on 17, between on 33 of 50 shots" —
+  and the tail follows either way. A departure one of whose conditions is a session pattern leads the tail
+  (decisions 11, 12). The report counts "swings", from the same sentence code (decision 14).
 - **Repeatability:** the row and position with the narrowest and the widest middle half. A golfer
   with a consistent fault is told so ("the same way every time").
 
@@ -639,6 +739,8 @@ what a coach draws.
 The trust fold under the plot carries, once:
 
 - which camera each row came from;
+- a row with no value at any position, and the gate that refused it ("Hip depth: not measured on this shot —
+  no ruler: no ball to measure with in either view."; Session: "on any shot" / "on 8 of 9 shots");
 - the ⚠ reasons (the turn at P3–P5; the hip-joint migration);
 - the bands' sources ("bands from 20 tour professionals, Kim 2021; 29 skilled men, Evans 2008; a vendor
   range, Sportsbox");
@@ -650,14 +752,25 @@ Nothing in the body repeats it.
 
 ### 5.7 Print
 
-The Posture section prints as part of Charts:
+Charts has no print path yet (D8 in `charts_panel_traces_relations.md` §8 was deferred to "one
+report with Session diagnostics"). Mark decided on 22 Oct that the Posture section prints as a
+**Posture page in the session report PDF**, built from the same presenter output as the screen:
 
-- the profile with bands;
+- the Session profile with bands;
 - the "what moved" lines;
-- the picture strip at address, top and impact;
-- the Session boxes and the pattern strip.
+- the pattern strip and the departure counts;
+- the picture strip at address, top and impact (stage 5);
+- the trust note.
 
-Figures are numbered and carry no affordances, as in `charts_panel_traces_relations.md` §3.
+It uses the report's numbered section heads and carries no affordances. This shot's print follows
+when D8 builds Charts print.
+
+Built 22 Oct (stage 3b): `PpPosturePage.qml`, after the work-on pages and before "Between now and next time"
+(`session_report_design.md` §3, "The Posture page"); the map's `posture` block is cut from
+`postureSessionReportPayload` by `src/Gui/report/report_posture.h`. The profile is a print-only sibling of
+`PpChPostureProfile` reading the same rows (the screen geometry would need two pages for six rows); the box is
+`PpChBoxCell` → `PpBoxPlot`. The picture strip's place is marked in the page, between "Repeatable?" and the trust
+note.
 
 ---
 
@@ -684,12 +797,12 @@ alignment did (`wrist_motion_into_charts.md` §7.3).
 | Departure | Leads with | Its golfer words today | Proposed change | Drills already in the pack |
 |---|---|---|---|---|
 | D1 hips in | `early_extension` | "you stand up through the ball" | **"your hips move toward the ball coming down"**. TPI defines early extension by the hips moving in, and Nick shows the hips can move in without standing up. "Stand up" belongs to `loss_of_posture` / `coming_out_of_it`. | `drill.hipsToWall`, `drill.postureRod`, `drill.standoffCheck` |
-| D2 standing up | `coming_out_of_it` (head) or `loss_of_posture` (several parts) | "your head lifts and you lean back through impact" / "you stand up out of your posture through impact" | none | `drill.headOnWall`, `drill.postureRod` |
-| D3 standing up going back | `pelvis_thrust_backswing` first, then `loss_of_posture_backswing` | "your hips move toward the ball going back" | none | `drill.hipsToWall` |
+| D2 standing up | `coming_out_of_it` (head); `loss_of_posture` (several parts) is a Finding and names no departure | "your head lifts and you lean back through impact" / "you stand up out of your posture through impact" | none | `drill.headOnWall`, `drill.postureRod` |
+| D3 standing up going back | `loss_of_posture_backswing` (the down-the-line head rise, since 22 Oct) | "you stand up out of your posture going back" | none | `drill.postureRod`, `drill.trailHipLoad`, `drill.beltLine` |
 | D4 early or deep dip | `head_drop_backswing` | "your head dips going back" | none | `drill.headOnWall` |
 | D5 dip then rise | the two, linked | — | the page joins them: "you dip going back, then come up to make room" | as D2 and D4 |
 | D6 staying down | `posture_sinks_impact` or `diving` | "you drop lower through impact" | none | `drill.leadLegBrace` |
-| D7 lead knee folds | none | — | Question 5 | — |
+| D7 lead knee folds | `lead_knee_folds_backswing` (new, Q5; causes `head_drop_backswing`, moderate) | "your lead knee folds going back" | none | `drill.leadKneeSteady` (new), `drill.headOnWall` |
 
 **Work-ons.** No change. The work-on list already ranks the conditions. The chart only links to them:
 a departure line ends with "Go to P7" (seek) and the condition's name, which opens it in Session
@@ -701,8 +814,10 @@ band: "Your head stays level going back", "You keep your trunk bend through P6".
 
 **The trail-knee condition.** `trail_knee_straighten` fires on its own on 124 of 127 Mark swings and
 27 of 28 Nick swings ("a straight trail leg lets your hips slide instead of turn"). The design treats
-the straightening as a style, so on the chart it is said as the trail-knee style, not as a finding,
-unless D3 holds (Question 3).
+the straightening as a style among good players, so it never counts toward the pattern match. Mark
+decided on 22 Oct (Q3) that the condition stays a fault: he confirmed it is right on Nick, whose
+coach is working on it. So when it fires, the chart lists it under Findings like any other condition,
+and "released" stays the pattern line's descriptive word.
 
 ---
 
@@ -723,7 +838,7 @@ The bands are changes from address. "Level" is the general band. Squat and push 
 | Lead knee (°) | +5 ± 5 | +10 ± 6 | +13 ± 7 | +20 ± 7 | +6 ± 6 | −1 ± 6 | Kim 2021 | measured |
 | Lead knee, Squat and push | | | | +25 ± 7 | +12 ± 6 | as Level | authored from the coaching descriptions | claim |
 | Trail knee (°) | style: kept 0 ± 5, released −15 ± 8 | | | +5 ± 8 | +3 ± 8 | +1 ± 8 | Kim (kept), GOLFTEC (released) | measured / claim |
-| Pelvis height (% stance) | 0 ± 5 | ⚠ | ⚠ | ⚠ | 0 ± 5 | +5 ± 6 | Sportsbox +1" at impact; Chu +9 cm (not elite); converted at about 45 cm of stance | claim; **no band at P3–P5 until the belt line** |
+| Pelvis height (% stance) | 0 ± 5 | −3 ± 6 ⚠ | −5 ± 6 ⚠ | −8 ± 6 ⚠ | 0 ± 5 | +5 ± 6 | Sportsbox +1" at impact, and "almost two inches lower" (≈ −11 % of a 45 cm stance) early in the downswing; Chu +9 cm (not elite); converted at about 45 cm of stance | claim; P3–P5 are authored seeds (22 Oct: Mark's honesty rule, a band shown with its ⚠ rather than none) |
 
 **Spread.** σ is a seed for the **between-golfer** spread of a good player's change. No source reports
 that directly. Kim reports between-player SDs of the absolute angle, which bound it from above. So σ
@@ -761,12 +876,10 @@ source, because the numbers come from the same producers and gates as the golfer
 - **Target:** 30 swings from at least 10 players per pattern, each labelled by Mark by pattern.
 - **Use:** changes from address straight away. Absolutes only where the camera position is known.
 - **Rows:** `source: measured`, with n, the players and the footage named in the citation.
-- **Rights (Question 4):** broadcast and social-media clips are not ours. The options are:
-  - use them only to compute corridor numbers, never displayed or redistributed (the numbers are
-    facts about the swings, but a lawyer's view is needed);
-  - license footage;
-  - film better players ourselves (club professionals, county players) with written consent. This
-    is the clean route and also gives two cameras.
+- **Rights (Question 4, decided 22 Oct):** Mark: **tour clips may be run through the pipeline for
+  corridor numbers only.** The clips and frames are never displayed, redistributed or stored with
+  the app; only the numbers and their provenance are kept. Filming better players ourselves with
+  written consent stays the route for absolutes (two cameras, protocol placement).
 
 **C. Calibrated cameras (the camera calibration thread, designed, not built).** These turn absolutes
 into numbers that travel. Until then:
@@ -854,25 +967,31 @@ absolutes. The upgrade, if per-club pattern rows are ever needed, is a fourth op
    - any absolute trunk or knee angle at a position.
 
    This is a new boolean on the measure in `core.json`. Changes from address are not marked.
-2. **An absolute is compared with a published band only on a trusted capture.** Trusted means the
-   camera is calibrated (when the calibration thread lands), or the session declares the capture
-   protocol's placement and the address frame passes its checks (the hands-line stick vertical, the
-   camera level).
-3. **On an untrusted capture,** the absolute is still shown, with its number. It is compared only
-   with the golfer's own sessions on the **same** set-up (same camera, same placement record), as a
-   box. The trust fold says, in these words: *"How bent you are at address depends on where the
-   camera stands, so it is compared only with your other sessions from this set-up."*
+2. **An absolute is always drawn, with its band and a warning** (Mark, 22 Oct: "we use trust to indicate
+   how trustworthy they are, but an app that produces nothing is worthless"; this replaces the first
+   draft's "compare only on a trusted capture"). Each address reading shows:
+   - its number;
+   - the good-player band, keyed by club where a source gives one, for example trunk bend at address
+     against Kim's 40.6 ± 2.7° (5-iron);
+   - the golfer's own sessions from the same set-up, as a box beside it;
+   - a ⚠ with the short words "depends on where the camera stands".
+3. **The trust fold says why once**, in these words: *"How bent you are at address depends on where the
+   camera stands, so read the good-player band as a guide and your own sessions from this set-up as the
+   real comparison."* On a trusted capture (calibrated, or the capture protocol's placement with its
+   checks passed) the ⚠ comes off.
 4. **Changes from address are always compared with the bands,** each labelled with its source.
-5. **Not in this design's scope, but asked (Question 6):** whether the same rule should stop the
-   setup conditions grading absolutes on untrusted rigs. Today `poor_setup_posture` fires on 21 of
-   Jess's 23 swings through the balance reading the camera may be causing.
+5. **The setup conditions keep grading (Question 6, decided 22 Oct: flag now, gate later).** The
+   `rigSensitive` flag is added now, and the chart and the trust fold use it. Gating the conditions
+   waits until a capture can be declared trusted (the protocol declaration or calibration), since
+   today none can. `poor_setup_posture` and `weight_on_toes_address` also stay in reports (no
+   `reportHold`; Mark, 22 Oct).
 
 ---
 
 ## 8. What it does not do
 
 - **It shows no pro body or pro frame.** Bands are drawn as offsets of the golfer's own lines (§5.4).
-- **It makes no absolute comparison with good players on an untrusted camera** (§7.4).
+- **It never hides an absolute reading.** On an untrusted camera it shows the band with a ⚠ and the golfer's own same-set-up sessions (§7.4).
 - **It shows no posture score and no composite number.** Session diagnostics principle 5 keeps
   composites inside the engine. The chart shows each row in its own unit.
 - **It grades nothing new.** The departures are the existing conditions. The pattern is description.
@@ -892,24 +1011,29 @@ absolutes. The upgrade, if per-club pattern rows are ever needed, is a fourth op
 
 ---
 
-## 9. Questions for Mark
+## 9. Questions for Mark: answered 22 Oct 2026
 
-1. **Two patterns and a trail-knee style** (§4.2): is that the list? Is a dip going back ever a
-   style to you, or always Jess's flaw? This design says always a flaw past a few centimetres.
-2. **Should the fault lines move to the published band?** Kim's professionals lose about 6° of trunk
-   bend by impact, and Evans' skilled players' heads are 3.5 cm **lower** at impact. Our corridors
-   say "held is ideal" (μ 0, firing at 5° and at 3 cm).
-   - **Re-centred:** Mark's head would read further out (+2.4 cm against a −3.5 mean) and his bend
-     less (−10° against −6°).
-   - **Unchanged:** the chart shows the band and the fault line as two different marks.
-3. **`trail_knee_straighten` as a standalone fault:** demote it to a style note that fires only with
-   the hips moving in or the head rising going back (D3)? Today it fires on 124 of 127 of your swings.
-4. **Pro footage rights:** may clips of named tour players be run through the pipeline to compute
-   corridor numbers that are never shown? Or only footage we film or license?
-5. **The lead knee folding going back** (Jess, +36° against about +13°): a new condition, or part of
-   `head_drop_backswing`'s explanation?
-6. **Absolutes on untrusted cameras:** should the setup conditions also stop grading them, as the
-   chart stops comparing them?
+Put to Mark one at a time in the plan-mode session that started the build. Each answer is folded into
+the sections it names.
+
+| # | Question | Answer | Where it lands |
+|---|---|---|---|
+| 1 | Two patterns and a trail-knee style; is a dip going back ever a style? | "Jess's dip is a swing fault." The list stands. | §4.2, D4 |
+| 2 | Move the fault lines to the published band? | **Unchanged.** The chart draws the good-player band and the fault line as two marks; re-centring would be its own measured change later. | §5.2, §7.3 |
+| 3 | Demote `trail_knee_straighten` to a style note? | **Keep it a fault** (Mark confirmed it on Nick; his coach is working on it). It is listed as a finding when it fires and never counts toward the match. | §4.2, §4.3, §6.2 |
+| 4 | Pro footage rights | **Tour clips for numbers only**, never displayed or stored. | §7.2 B |
+| 5 | The lead knee folding going back | **A new condition plus a causes edge:** `lead_knee_folds_backswing` → `head_drop_backswing`. | D7, stage 1 |
+| 6 | Should the setup conditions stop grading absolutes on untrusted cameras? | **Flag now, gate later.** | §7.4.5 |
+
+Carried over from the composites build (`posture_metrics_design.md`):
+
+| Decision | Answer |
+|---|---|
+| Nick's "stands up going back" at the top | The condition was already fixed on 22 Oct (down-the-line head rise). The chart follows: (a) Nick holds his posture going back (§0, §4.5); (b) D3 is named from the head rise only; (c) hip depth carries a ⚠ at P3–P5 and is left out of matching (§2.3). |
+| `reportHold` for `weight_on_toes_address` / `poor_setup_posture` | **Leave them in reports.** |
+| The dip → shallowing edge | "I might be wrong, let's not follow up on this for now." No edge. |
+| "Well within" on home | **The same rule on home.** On building it, home's rule was found to meet it already: the corridor a ledger row stores is the Ideal band (\|z\| ≤ 1), so "inside the corridor" already means "well within" (14,987 two-sided readings checked; none inside at \|z\| > 1). Mark agreed to revert the explicit v2 and keep a comment saying so (`swing_themes.h`). |
+| Print (asked after the code was read: Charts has no print path) | **A Posture page in the session report PDF** (§5.7). |
 
 ---
 
@@ -922,10 +1046,10 @@ called done, and closed with a windowed run. Two to three app builds per stage.
 | Stage | What | Done when |
 |---|---|---|
 | **0. Per-position data, committed** (DONE 22 Oct) | Extract the per-position change table (Appendix A) for the three golfers into `docs/research/data/posture/posture_positions_<date>.csv`, from the run root's phase grids, before those copies are deleted. Add the script to `tools/diagnostics/`. | The CSV is in the repo, §2.1 reproduces from it, and the run tree's deletion is no longer blocked by this design |
-| **1. Measures and bands** | The per-position measures of §7.3. The two context nodes. The §7.1 rows, with sources. The `rigSensitive` flag (parsed, validated, written). | `core_pack_test` and `diagnostics_health` clean; a `measure_dump` of the three golfers shows every row at every position; no grade in Session diagnostics changes (regrade the three golfers: an identical firing table) |
+| **1. Measures and bands** | The per-position measures of §7.3. The two context nodes. The §7.1 rows, with sources. The `rigSensitive` flag (parsed, validated, written). Then `lead_knee_folds_backswing` (Q5). | `core_pack_test` and `diagnostics_health` clean; a `measure_dump` of the three golfers shows every row at every position; the regrade gives an identical firing table after the measures, then one that differs only by the new condition |
 | **2. The presenter (C++)** | `ChartsPosturePresenter` beside `ChartsWristPresenter`, with nothing computed in QML. It produces: per shot and per session the profile with bands; the pattern match (§4.4) with the close-call rule; the first exits named by departure; the "what moved" lines; the trust lines; the trail-knee style. The session-series model carries the phase-grid rows. | Unit tests on fixtures of the three golfers' medians give the §4.5 table exactly; a face-on-only and a DTL-only fixture match on their own rows and say so; a ⚠ reading is excluded from matching and still drawn |
-| **3. The Posture section (QML)** | This shot, Session and the Replay glance (§5), using the Wrist section's profile and ledger forms; Print. | Review sheets of the three golfers in Analyse, Replay and Print, light and dark, approved by Mark; `qml_ui` probes for the section's objectNames |
-| **4. Producers that remove the ⚠** | (a) The TPI back line at every P-frame: tailbone and back of the neck from the person mask, extending `AddressMarksStage` to P2–P7 on DTL. (b) The belt-line pelvis height. Stage-version bumps, then re-analysis of the library on the cabin PC (pose reused). | On the three golfers, trunk bend at P4 from the back line agrees with the address back line within the V5 bar on Nick (who read 9° off); the ⚠ comes off any row whose producer passes; the firing table is rewritten |
+| **3. The Posture section (QML)** | This shot, Session and the Replay glance (§5), using the Wrist section's profile and ledger forms; the Posture page in the session report (§5.7). | Review sheets of the three golfers in Analyse, Replay and Print, light and dark, approved by Mark; `qml_ui` probes for the section's objectNames |
+| **4. Producers that remove the ⚠** (4a producers DONE 22 Oct; 4c hip depth at P3–P5 on the butt line DONE 22 Oct, uncommitted; trunk bend keeps its ⚠, the back line recorded but unused; the belt line reverted) | (a) The TPI back line and the butt line at every P-frame: from the person mask, extending `AddressMarksStage` to P2–P7 on DTL; the DTL ruler persisted. (b) The belt-line pelvis height. Stage-version bumps, then re-analysis of the library on the cabin PC (pose reused). | On the three golfers, trunk bend at P4 from the back line agrees with the address back line within the V5 bar on Nick (who read 9° off); butt-line hip depth agrees with the joint reading at P6–P7 within 1.5 cm, and Nick's at P4 sits in the Level band; the ⚠ comes off any row whose producer passes; the firing table is rewritten |
 | **5. The picture strip** | Address, top and impact frames with the frozen coach lines and the band offsets (§5.4), in the section and in print. | Review sheet on all three golfers; the hip strip scales with the DTL ruler; a swing without address marks degrades as specified |
 | **6. Normative collection** | §7.2 A at once; B after Question 4; C with the calibration thread. Each new set of rows goes in with its write-up under `docs/research/data/posture/`. | Ten labelled golfers matched, disagreements written up; the bands' `source` moves from `heuristic` to `measured` row by row, never silently |
 
@@ -977,8 +1101,10 @@ Within-golfer correlations at P7 (two-camera swings):
 
 ## Appendix B: the worked match (reproduce)
 
-The §2.1 medians against the §7.1 seeds. Trunk bend at P3–P5 is given half weight here as a stand-in
-for its ⚠. The build excludes it, which moves no golfer's nearest pattern.
+The §2.1 medians against the §7.1 seeds. *First draft:* trunk bend at P3–P5 was given half weight
+here as a stand-in for its ⚠, and hip depth there was counted. §4.5 now gives the build's rule (both
+excluded at P3–P5, μ −3 at P7); set `w` to 0 for `bend` and `hips` at P3–P5 and μ −3 to reproduce it.
+No golfer's nearest pattern moves between the two.
 
 ```python
 import numpy as np
