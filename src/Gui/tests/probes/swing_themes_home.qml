@@ -13,8 +13,9 @@
 //   drawn text in YOUR SWING is technical (no P-position, no degrees, no fault's technical name)
 //   or causal (because / cause / due to / leads to) → the work-ons are no longer on the home
 //   screen →
-//   click "Swing diagnostics →": the screen is drawn, the home is not, its FAULTS card draws a row
-//   per work-on (five at most until "more"), and "what goes together" draws an item each with its
+//   click "Swing diagnostics →": the screen is drawn, the home is not, its Faults card (headed in
+//   the theme's own case) draws a row per work-on (five at most until "more"), and "what goes
+//   together" draws an item each with its
 //   first half and where it starts, or its note → no causal words there either →
 //   click "← Home": the home is back.
 //
@@ -213,7 +214,11 @@ Item {
         check(!drawn(summary), "…in place of the home screen")
         if (!screen) { finish(); return }
 
-        check(screen.faults && screen.faults.title === "FAULTS", "its faults card is headed FAULTS")
+        // The heading's case is the theme's (Theme.caps: FAULTS where headings are capitals, "Faults"
+        // in a sentence-case theme such as Folio), so the probe asks the theme, not a spelling.
+        const faultsTitle = Theme.caps("Faults")
+        check(screen.faults && screen.faults.title === faultsTitle,
+              "its faults card is headed " + faultsTitle + " (" + (screen.faults ? screen.faults.title : "none") + ")")
         const items = workOns.items || []
         const rows = all(screen, "workOnRow")
         check(rows.length >= 1 && rows.length === Math.min(items.length, 5) && rows.every(drawn),

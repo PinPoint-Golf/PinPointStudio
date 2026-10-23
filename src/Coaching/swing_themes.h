@@ -46,7 +46,10 @@
 //
 // Beside them, WHAT YOU DO WELL — the faults this golfer is reliably clear of. Judged BY VALUE
 // against each reading's own corridor (floor v ≥ lo, ceiling v ≤ hi, two-sided lo ≤ v ≤ hi; a row
-// whose corridor shape is unknown is not counted at all), never by the fired flag, so a condition
+// whose corridor shape is unknown is not counted at all; the corridor a ledger row stores IS the
+// Ideal band, |z| <= 1, so this is already Mark's "well within corridor" rule of 22 Oct 2026, the
+// report's kStrengthWellWithinZ: checked on 14,987 two-sided readings, none inside it at |z| > 1),
+// never by the fired flag, so a condition
 // that does not fire only because it could not be graded is never praised. Only faults read by
 // alternative signals (detection Any / First — an All conjunction has no one reading that is the
 // condition) and common enough to matter (prominence Occasional and up); at least two judged
