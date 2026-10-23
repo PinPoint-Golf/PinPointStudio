@@ -24,7 +24,7 @@
 //
 //   build(det, isDtl, addressUs, leadIsLeft, aspect) → [ mark, … ]   every mark also carries `set`
 //   filterSets(marks, { posture, plane, headHips }) → the marks of the sets that are on
-//     { kind: "circle",   cx, cy, r, label }         face-on: the head at address
+//     { kind: "circle",   cx, cy, r, label, source } face-on: the head at address (the mask's outline, else the face points)
 //     { kind: "vline",    x, label }                 face-on: the outside of each hip; DTL: the rear of the butt
 //     { kind: "line",     x0, y0, x1, y1, label }    DTL: the address shaft line through ball and grip (dashed)
 //     { kind: "polyline", pts: [[x, y], …], label, dash }  DTL: the spine (tailbone → back of the
@@ -94,11 +94,26 @@ function kpt(frame, j) {
 function dist(a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]) }
 
 // ── face-on: the head circle ────────────────────────────────────────────────
-// Centre = the mean of the visible head keypoints; radius from the ears (the head's
+// FROM THE PERSON MASK when the analysis read the head's outline on the address frame
+// (`det.addressMarks.headFound`, address_marks.h measureHead, stage version 4): the circle
+// touches the crown and is the head's width across — it fits the skull whether the golfer
+// looks down at the ball or not (Mark, 22 Oct 2026: on the face points "when looking down it
+// doesn't really work"). `source` says which: "mask" | "pose".
+// ELSE (a swing analysed before version 4, or a mask that could not find the crown — a hood,
+// a cap, a broken mask; quietly, the tile draws what it has) the face points' circle:
+// centre = the mean of the visible head keypoints; radius from the ears (the head's
 // width), else the eyes, else a share of the frame; never smaller than 2.5 % of the
 // frame height. Normalised coordinates are not isotropic, so the radius is kept as a
 // fraction of HEIGHT and the painter scales it by the content rect's height.
-function headCircle(frame) {
+function maskHeadCircle(am) {
+    if (!am || !am.found || am.headFound !== true) return null
+    if (!(isFinite(am.headCx) && isFinite(am.headCy) && am.headR > 0)) return null
+    return { kind: "circle", cx: am.headCx, cy: am.headCy, r: am.headR, label: "head", set: "headHips", source: "mask" }
+}
+
+function headCircle(frame, am) {
+    var m = maskHeadCircle(am)
+    if (m) return m
     if (!frame) return null
     var pts = []
     for (var j = 0; j <= 4; ++j) { var p = kpt(frame, j); if (p) pts.push(p) }
@@ -112,7 +127,7 @@ function headCircle(frame) {
     else if (lEye && rEye) r = 1.1 * dist(lEye, rEye)
     else                   r = 0.04
     r = Math.max(r, 0.025)
-    return { kind: "circle", cx: cx, cy: cy, r: r, label: "head", set: "headHips" }
+    return { kind: "circle", cx: cx, cy: cy, r: r, label: "head", set: "headHips", source: "pose" }
 }
 
 // ── the hip verticals: the body's OUTER edges, from the person mask ─────────
@@ -304,7 +319,7 @@ function build(det, isDtl, addressUs, leadIsLeft, aspect) {
     var frame = addressPose(det, addressUs)
     var out = []
     if (!isDtl) {
-        var c = headCircle(frame)
+        var c = headCircle(frame, det.addressMarks)
         if (c) out.push(c)
     }
     var hips = hipLines(det, isDtl)

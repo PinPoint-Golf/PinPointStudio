@@ -329,6 +329,41 @@ TestCase {
         compare(AA.filterSets(fo, { posture: true, plane: true, headHips: false }).length, 0, "face-on has nothing in Posture or Plane")
     }
 
+    // The head circle from the person mask (address_marks.h measureHead, stage version 4): the
+    // analysis's own circle — the crown and the head's width — wins over the face points, and like
+    // the hip edges it does not depend on the pose at the asked instant. No outline (a hood, a cap,
+    // a broken mask: `headFound` false with its reason, or a record from before version 4) ⇒ the
+    // face points' circle, quietly.
+    function test_head_circle_from_the_mask() {
+        var d = faceOnDet(true)
+        d.addressMarks.headFound = true
+        d.addressMarks.headCx = 0.505; d.addressMarks.headCy = 0.17; d.addressMarks.headR = 0.032
+        var c = ofKind(AA.build(d, false, 1000000), "circle")
+        compare(c.length, 1, "one head circle")
+        compare(c[0].source, "mask", "the mask's outline")
+        fuzzyCompare(c[0].cx, 0.505, 1e-9); fuzzyCompare(c[0].cy, 0.17, 1e-9); fuzzyCompare(c[0].r, 0.032, 1e-9)
+        compare(c[0].set, "headHips")
+        var late = ofKind(AA.build(d, false, 1250000), "circle")
+        compare(late.length, 1, "no address pose frame: the measured outline still stands")
+        fuzzyCompare(late[0].cx, 0.505, 1e-9)
+    }
+
+    function test_head_circle_falls_back_to_the_face_points() {
+        var d = faceOnDet(true)
+        d.addressMarks.headFound = false
+        d.addressMarks.headRefused = "the outline steps out before it is a head's width (a hood, a cap's brim or the shoulders join it)"
+        d.addressMarks.headCx = NaN; d.addressMarks.headCy = NaN; d.addressMarks.headR = NaN
+        var c = ofKind(AA.build(d, false, 1000000), "circle")
+        compare(c.length, 1, "still a head circle")
+        compare(c[0].source, "pose", "the face points'")
+        fuzzyCompare(c[0].r, 0.75 * 0.06, 1e-6, "radius 0.75 × the ear span, as before")
+        // found but no usable radius: never a circle of size NaN
+        d.addressMarks.headFound = true
+        compare(ofKind(AA.build(d, false, 1000000), "circle")[0].source, "pose", "a found flag without a circle is not a circle")
+        // the old record (no head keys): the face points' circle
+        compare(ofKind(AA.build(faceOnDet(true), false, 1000000), "circle")[0].source, "pose")
+    }
+
     function test_head_radius_fallbacks() {
         // Ears missing, eyes present ⇒ 1.1 × the eye span; nothing ⇒ 4 % of the height; floor 2.5 %.
         var eyesOnly = { pose2d: { frames: [ kpFrame(0, { 1: [0.49, 0.2], 2: [0.51, 0.2] }) ] } }
