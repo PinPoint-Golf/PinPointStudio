@@ -30,9 +30,12 @@
 #include "../../Core/pp_debug.h"
 #include "../../Diagnostics/engine/condition_reading.h"
 #include "../../Diagnostics/engine/wrist_domain_score.h"
+#include "../../Diagnostics/norms/norm.h"            // NormSource: where the wrist bands come from (TRUST)
+#include "../../Diagnostics/norms/norm_provider.h"   // sharedNormProvider: the bands' own rows
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Export/swing_store.h"
 #include "../../Wrist/wrist_assessment_types.h"   // dofForMetricKey
+#include "../../Wrist/reference_bands.h"          // NormBandProvider::cellMeasureId, BandContext
 #include "../review/timeline_labels.h"
 #include "../../Metrics/gate_catalogue.h"   // the gate behind an empty wrist value (its words)
 
@@ -47,11 +50,13 @@
 #include <QMetaObject>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QRegularExpression>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
+#include <map>
 
 // The value types the worker keeps. A NAMED namespace, not an anonymous one: Worker (a member type of
 // a class with external linkage) holds them.
@@ -118,6 +123,9 @@ namespace pa = pinpoint::analysis;
 struct ChartsWristPresenter::Result {
     bool available = false;
     QVariantMap choices, thisShot, session, movesWith;
+    // the session standfirst's parts, for paper (wristSessionReportPayload): scoreLine, styleLine, repeat,
+    // sizeLine. Not in `session`: the screen's map is unchanged by them.
+    QVariantMap sessionParts;
     QVariantList standfirsts;                 // 8 Sentences (thisShot.standfirsts)
     std::array<qint64, kP> cpUs{};            // the picked shot's checkpoint µs, −1 none
     QStringList tags;
@@ -386,6 +394,12 @@ struct Ctx {
     Profile refProf;
     QString refWhy, refLabel;
     bool refIsPicked = false;
+    // THE NOUN the session's sentences count in: "shots" on Charts, "swings" in the report (its own word).
+    QString many = QStringLiteral("shots"), one = QStringLiteral("shot");
+    // the report's band wash (wristSessionReportPayload): the dominant style, −1 = the screen (the picked shot's)
+    int washStyle = -1;
+    // paper (the report payload): its sentences never name the Auto control, which only the screen has
+    bool paper = false;
 
     TimelineLabels &tl() const { return *w.tl; }
     QString phaseName(int ph) const { return tl().phaseFullName(ph); }
@@ -594,7 +608,7 @@ QVariantList positionsOf(const Ctx &c, const Profile &p)
 // DOF's reading (its subject or a cascade's covers: the metric key, or any key that is this DOF), else the
 // mask whose stretch holds the checkpoint (wrist.cellRefused: the positions it could not read). Only ever
 // asked of a value that is missing — masks do not label values. Empty on an old swing (gatesVersion 0).
-struct WristGate { QString words, subject; };
+struct WristGate { QString words, subject, why; };   // why: the refusing gate's evidence, said in full in TRUST
 bool namesDof(const QString &k, const QString &dofId, const QString &key)
 {
     if (k.isEmpty()) return false;
@@ -615,12 +629,13 @@ WristGate wristGate(const ShotSeries *s, const QString &dofId, const QString &ke
         const gates::GateEntry *e = gates::gateEntry(r.value(QStringLiteral("gate")).toString());
         if (!e) continue;
         const QString eff = r.value(QStringLiteral("effect")).toString();
-        if (eff == QLatin1String("refused") || eff == QLatin1String("bounded")) return WristGate{ gates::claimWords(*e), subject };
+        if (eff == QLatin1String("refused") || eff == QLatin1String("bounded"))
+            return WristGate{ gates::claimWords(*e), subject, gates::evidenceText(*e, r.value(QStringLiteral("evidence")).toMap()) };
         if (eff == QLatin1String("masked") && mask.words.isEmpty() && std::isfinite(atMs)) {
             const QVariantMap ev = r.value(QStringLiteral("evidence")).toMap();
             if (!ev.contains(QStringLiteral("fromMs")) || !ev.contains(QStringLiteral("toMs"))) continue;
             const double a = ev.value(QStringLiteral("fromMs")).toDouble(), b = ev.value(QStringLiteral("toMs")).toDouble();
-            if (atMs >= std::min(a, b) - 2.0 && atMs <= std::max(a, b) + 2.0) mask = WristGate{ e->shortText, subject };
+            if (atMs >= std::min(a, b) - 2.0 && atMs <= std::max(a, b) + 2.0) mask = WristGate{ e->shortText, subject, QString() };
         }
     }
     return mask;
@@ -816,6 +831,222 @@ QVariantMap scoreMap(const Verdicts &v, const Profile &p)
                                                    : QStringLiteral("Wrist score -: diagnostics have not graded this swing yet"));
     m.insert(QStringLiteral("engineScore"), p.has && p.engineScore >= 0 ? QVariant(p.engineScore) : nullv());
     return m;
+}
+
+// ── How far can I trust this? (TRUST, said once; the shape of the Posture presenter's) ──────────
+
+// Where a row's reading comes from, in the golfer's words: the instrument, never a product's name.
+QString sourceWords(const QString &src)
+{
+    if (src == QLatin1String("IMU"))        return QStringLiteral("the wrist sensor");
+    if (src == QLatin1String("IMU + pose")) return QStringLiteral("the wrist sensor and the face-on camera");
+    if (src.startsWith(QLatin1String("pose"))) return QStringLiteral("the face-on camera");
+    return src.isEmpty() ? QString() : src.toLower();
+}
+// The same without the article, for a row's label on paper ("wrist sensor, °").
+QString sourceLabel(const QString &src)
+{
+    QString w = sourceWords(src);
+    w.replace(QStringLiteral("the "), QString());
+    return w;
+}
+
+// "out of sight: the hands left the frame" — a gate's words, then its evidence lower-cased, no stop.
+QString gateReason(const WristGate &g)
+{
+    QString w = g.why.trimmed();
+    while (w.endsWith(QLatin1Char('.'))) w.chop(1);
+    if (!w.isEmpty() && !(w.size() > 1 && w.at(1).isUpper())) w = w.left(1).toLower() + w.mid(1);
+    if (g.words.isEmpty()) return w;
+    return w.isEmpty() || w.compare(g.words, Qt::CaseInsensitive) == 0 ? g.words : g.words + QStringLiteral(": ") + w;
+}
+
+// WHERE THE BANDS COME FROM: the norm rows the cells resolve to (m_<dof>_p<N>, P2–P8, in the style's context),
+// by their provenance. Said plainly: an authored row is a coaching starting point, not a measurement.
+QString bandSourceLine(const QStringList &dofIds, const QList<int> &styles)
+{
+    const std::shared_ptr<const pa::INormProvider> norms = pa::sharedNormProvider();
+    if (!norms) return QString();
+    bool heuristic = false, literature = false, seated = false, measured = false, imported = false, any = false;
+    for (const QString &id : dofIds) {
+        const auto dof = pa::dofForMetricKey(id);
+        if (!dof) continue;
+        for (int style : styles) {
+            pa::BandContext ctx;
+            ctx.archetype = style;
+            for (int p = 1; p < kP; ++p) {
+                const pa::NormResolution res = norms->resolve(pa::NormBandProvider::cellMeasureId(*dof, pa::PpSwingPosition(p)), ctx.resolvedContextId());
+                if (!res.found()) continue;
+                any = true;
+                switch (res.norm->source) {
+                case pa::NormSource::Heuristic:  heuristic = true; break;
+                case pa::NormSource::Literature: literature = true; break;
+                case pa::NormSource::Seated:     seated = true; break;
+                case pa::NormSource::Measured:   measured = true; break;
+                case pa::NormSource::Imported:   imported = true; break;
+                }
+            }
+        }
+    }
+    if (!any) return QStringLiteral("No band resolves for these readings yet, so no checkpoint is graded against one.");
+    QStringList from;
+    if (literature) from << QStringLiteral("published measurement");
+    if (seated) from << QStringLiteral("swings marked as well placed");
+    if (measured) from << QStringLiteral("readings measured across the library");
+    if (imported) from << QStringLiteral("another set of bands");
+    if (from.isEmpty()) return QStringLiteral("The bands are coaching starting points; they have not yet been measured on good players.");
+    return QStringLiteral("The bands come from ") + W::list(from)
+           + (heuristic ? QStringLiteral("; the rest are coaching starting points, not yet measured on good players.") : QStringLiteral("."));
+}
+
+// "on 6 of 6 swings" | "on every swing"
+QString onCount(const Ctx &c, int k, int of)
+{
+    if (k == of && of > 1) return QStringLiteral("on every ") + c.one;
+    return QStringLiteral("on %1 of %2 %3").arg(k).arg(of).arg(of == 1 ? c.one : c.many);
+}
+
+// ONE HELPER for both scopes (`shot` given: This shot; else the session, in the noun). Only lines that are true.
+//   This shot: each DOF's source and confidence; each DOF not measured, with the gate's FULL reason (the
+//   in-place words stay short); not graded yet; a gate refused the wrist (no score); the bands' style and
+//   source; no resemblance index.
+//   Session: each row's source and confidence on how many shots; no reading; a gate refused; not graded; how
+//   the shots are graded (by style), the report's wash (washStyle) when it shades one; the bands' source; no
+//   index; a small session (the standfirst's size words).
+QVariantMap trustOf(const Ctx &c, const ShotSeries *shot, const Profile *p, const Verdicts *v,
+                    const std::vector<Verdicts> *all, const QString &sizeWords)
+{
+    QStringList lines;
+    const bool byHand = c.in.archetype >= 0;
+    if (shot && p && v) {
+        QStringList present;
+        for (const Dof &d : p->dofs) {
+            present << d.id;
+            const QString src = sourceWords(d.source);
+            lines << W::cap1(longName(d.id)) + QStringLiteral(": ") + (src.isEmpty() ? QStringLiteral("source not recorded") : QStringLiteral("from ") + src)
+                         + QStringLiteral(", confidence ") + pips(d.conf) + (d.hasStrip ? QString() : QStringLiteral(" (no band: the angle only)")) + QLatin1Char('.');
+        }
+        const bool forearmRotation = shot->metric(QStringLiteral("hm.forearmRotation")) || shot->metric(QStringLiteral("forearmRotation"));
+        for (const QString &id : dofOrder()) {
+            if (present.contains(id) || (id == QLatin1String("leadForearmRot") && forearmRotation)) continue;
+            const WristGate g = wristGate(shot, id, QString(), kNaN);
+            const QString why = gateReason(g);
+            lines << W::cap1(longName(id)) + QStringLiteral(": not measured on this swing") + (why.isEmpty() ? QString() : QStringLiteral(" — ") + why) + QLatin1Char('.');
+        }
+        if (v->refused) lines << QStringLiteral("No wrist score on this swing: a check refused one of its wrist readings, and the score is not made from the rest.");
+        else if (!v->graded) lines << QStringLiteral("The diagnostics have not graded this swing yet, so it has no wrist score and no findings.");
+        // Auto resolves the style off the lead wrist's bow / cup at the top: without it there is nothing to resolve
+        const bool fe = p->dof(QStringLiteral("leadWristFlexExt")) != nullptr;
+        lines << (byHand ? QStringLiteral("The bands are the %1 style's, set by hand.").arg(p->archetypeName)
+                  : fe ? QStringLiteral("The bands are the %1 style's, the style Auto resolved this swing to.").arg(p->archetypeName)
+                       : QStringLiteral("This swing has no lead wrist bow / cup reading, so Auto has no style to resolve and the bands are the %1 style's.").arg(p->archetypeName));
+        QStringList ids;
+        for (const Dof &d : p->dofs) if (d.hasStrip) ids << d.id;
+        const QString src = bandSourceLine(ids, { p->archetype });
+        if (!src.isEmpty()) lines << src;
+        if (!p->resemblance.contains(QStringLiteral("neutral")))
+            lines << (byHand ? QStringLiteral("This swing's analysis carries no resemblance index, so there is no style to set beside the bands chosen by hand.")
+                      : fe ? QStringLiteral("This swing's analysis carries no resemblance index, so its style is the one Auto resolved from its own readings.")
+                           : QStringLiteral("This swing's analysis carries no resemblance index."));
+        return { { QStringLiteral("lines"), lines } };
+    }
+
+    // ── the session ──
+    QStringList ids;
+    QList<int> styles;
+    for (const QString &id : dofOrder()) {
+        // the source(s) of each banded row, on how many shots, and the median confidence
+        QMap<QString, int> bySource;
+        std::vector<double> confs;
+        int k = 0;
+        for (const Profile &pf : c.profs) {
+            const Dof *d = pf.has ? pf.dof(id) : nullptr;
+            if (!d || !d->hasStrip) continue;
+            ++k;
+            ++bySource[sourceWords(d->source)];
+            confs.push_back(d->conf);
+        }
+        if (k == 0) continue;
+        ids << id;
+        std::vector<std::pair<QString, int>> sl;
+        for (auto it = bySource.cbegin(); it != bySource.cend(); ++it) sl.emplace_back(it.key(), it.value());
+        std::stable_sort(sl.begin(), sl.end(), [](const auto &a, const auto &b) { return a.second > b.second; });
+        QString from;
+        if (sl.size() == 1) from = (sl.front().first.isEmpty() ? QStringLiteral("source not recorded") : QStringLiteral("from ") + sl.front().first) + QLatin1Char(' ') + onCount(c, k, c.n);
+        else {
+            QStringList parts;
+            for (const auto &x : sl) parts << (x.first.isEmpty() ? QStringLiteral("unrecorded") : x.first) + QStringLiteral(" on %1").arg(x.second);
+            from = QStringLiteral("from ") + W::list(parts) + QStringLiteral(" of %1 %2").arg(c.n).arg(c.n == 1 ? c.one : c.many);
+        }
+        std::sort(confs.begin(), confs.end());
+        const double med = confs.size() % 2 ? confs[confs.size() / 2] : 0.5 * (confs[confs.size() / 2 - 1] + confs[confs.size() / 2]);
+        lines << W::cap1(longName(id)) + QStringLiteral(": ") + from + QStringLiteral(", confidence ") + pips(med)
+                     + (confs.size() > 1 ? QStringLiteral(" (the median)") : QString()) + QLatin1Char('.');
+    }
+    if (c.ready < c.n)
+        lines << QStringLiteral("No wrist reading %1.").arg(onCount(c, c.n - c.ready, c.n));
+    int refused = 0, ungraded = 0;
+    QStringList refusedWhat;
+    for (int i = 0; all && i < c.n && i < int(all->size()); ++i) {
+        const Verdicts &vv = (*all)[size_t(i)];
+        if (!c.profs[size_t(i)].has) continue;
+        if (vv.refused) {
+            ++refused;
+            for (const QString &id : dofOrder()) {
+                const WristGate g = wristGate(c.snap->shots[size_t(i)].get(), id, QString(), kNaN);
+                const QString w = g.words.isEmpty() ? QString() : longName(id) + QStringLiteral(": ") + g.words;
+                if (!w.isEmpty() && !refusedWhat.contains(w)) refusedWhat << w;
+            }
+        } else if (!vv.graded) ++ungraded;
+    }
+    if (refused)
+        lines << QStringLiteral("No wrist score %1: a check refused a wrist reading%2.").arg(onCount(c, refused, c.ready))
+                     .arg(refusedWhat.isEmpty() ? QString() : QStringLiteral(" (") + refusedWhat.join(QStringLiteral("; ")) + QLatin1Char(')'));
+    if (ungraded)
+        lines << QStringLiteral("No wrist score yet %1: the diagnostics have not graded %2.").arg(onCount(c, ungraded, c.ready),
+                                                                                             ungraded == 1 ? QStringLiteral("it") : QStringLiteral("them"));
+    // how the shots are graded, by style
+    QMap<int, int> byStyle;
+    for (const Profile &pf : c.profs) if (pf.has) ++byStyle[pf.archetype];
+    for (auto it = byStyle.cbegin(); it != byStyle.cend(); ++it) styles << it.key();
+    // Auto resolves each style off the lead wrist's bow / cup at the top: a session without it has nothing to resolve
+    bool anyFe = false;
+    for (const Profile &pf : c.profs) anyFe = anyFe || (pf.has && pf.dof(QStringLiteral("leadWristFlexExt")));
+    if (!byHand && !anyFe) {
+        lines << (c.paper ? QStringLiteral("No %1 reads the lead wrist's bow / cup, so every %1 is graded against the %2 band.")
+                          : QStringLiteral("No %1 reads the lead wrist's bow / cup, so Auto has no style to resolve: every %1 is graded against the %2 band."))
+                     .arg(c.one, wristArchetypeName(byStyle.isEmpty() ? 0 : byStyle.firstKey()));
+    } else if (byHand) {
+        lines << QStringLiteral("Every %1 is graded against the %2 band, set by hand.").arg(c.one, wristArchetypeName(c.in.archetype));
+    } else if (byStyle.size() == 1) {
+        lines << (c.paper ? QStringLiteral("Every %1 with a wrist reading is graded as a %2 wrist, against the %2 band.")
+                          : QStringLiteral("Auto resolved every %1 with a wrist reading to %2, so each is graded against the %2 band."))
+                     .arg(c.one, wristArchetypeName(byStyle.firstKey()));
+    } else {
+        QStringList parts;
+        for (int s = 0; s < 3; ++s) if (byStyle.contains(s)) parts << QStringLiteral("%1 on %2").arg(wristArchetypeName(s)).arg(byStyle.value(s));
+        lines << (c.paper ? QStringLiteral("Each %1 is graded against the band of its own style: %2.")
+                          : QStringLiteral("Each %1 is graded against the band of the style Auto resolved it to: %2.")).arg(c.one, W::list(parts));
+    }
+    // the report's wash (the dominant style): said only when swings were graded against more than one style (one
+    // style, by hand or with no bow / cup reading, is said by the line above and the caption); a tie is said plainly
+    if (c.washStyle >= 0 && anyFe && !byHand && byStyle.size() > 1) {
+        QStringList tied;
+        for (int s = 0; s < 3; ++s) if (byStyle.value(s) == byStyle.value(c.washStyle)) tied << wristArchetypeName(s);
+        lines << (tied.size() > 1 ? QStringLiteral("%1 were tied; the %2 band is shaded.").arg(W::list(tied), wristArchetypeName(c.washStyle))
+                                  : QStringLiteral("The shaded band is the %1 style's, the style most %2 were graded as.").arg(wristArchetypeName(c.washStyle), c.many));
+    }
+    const QString src = bandSourceLine(ids, styles);
+    if (!src.isEmpty()) lines << src;
+    bool anyIndex = false;
+    for (const Profile &pf : c.profs) anyIndex = anyIndex || (pf.has && pf.resemblance.contains(QStringLiteral("neutral")));
+    if (!anyIndex)
+        lines << (byHand ? QStringLiteral("No %1 in this session carries a resemblance index, so there is no style to set beside the bands chosen by hand.").arg(c.one)
+                  : anyFe ? (c.paper ? QStringLiteral("No %1 in this session carries a resemblance index, so each %1's style is read from its own wrist readings.")
+                                     : QStringLiteral("No %1 in this session carries a resemblance index, so each %1's style is the one Auto resolved from its own readings.")).arg(c.one)
+                          : QStringLiteral("No %1 in this session carries a resemblance index, so there is no style to compare.").arg(c.one));
+    if (c.n < 10 && !sizeWords.isEmpty()) lines << sizeWords;
+    return { { QStringLiteral("lines"), lines } };
 }
 
 void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter::Result &R)
@@ -1021,6 +1252,7 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
     out.insert(QStringLiteral("strengths"), strengths);
     out.insert(QStringLiteral("findingsEmpty"), v.graded ? QStringLiteral("No faults and nothing to watch.") : QStringLiteral("Diagnostics have not graded this swing yet."));
     out.insert(QStringLiteral("strengthsEmpty"), QStringLiteral("Nothing stood out as a strength on this swing."));
+    out.insert(QStringLiteral("trust"), trustOf(c, &s, &p, &v, nullptr, QString()));
     R.thisShot = out;
 }
 
@@ -1054,12 +1286,12 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
     out.insert(QStringLiteral("available"), c.ready > 0);
     QStringList clubs;
     for (int i = 0; i < c.n; ++i) { const QString k = c.snap->shots[size_t(i)]->club.toLower(); if (!k.isEmpty() && !clubs.contains(k)) clubs << k; }
-    out.insert(QStringLiteral("kicker"), QStringLiteral("%1 shots").arg(c.n)
+    out.insert(QStringLiteral("kicker"), QStringLiteral("%1 %2").arg(c.n).arg(c.many)
                                              + (clubs.size() == 1 ? QStringLiteral("  ·  ") + clubs.first() : clubs.size() > 1 ? QStringLiteral("  ·  mixed clubs") : QString())
                                              + QStringLiteral("  ·  Wrist"));
     if (c.ready == 0) {
-        out.insert(QStringLiteral("head"), W::Sentence().append(QStringLiteral("No shot in this session carries a wrist reading")).toVariant());
-        out.insert(QStringLiteral("recurringEmpty"), QStringLiteral("No wrist finding fired on any shot."));
+        out.insert(QStringLiteral("head"), W::Sentence().append(QStringLiteral("No %1 in this session carries a wrist reading").arg(c.one)).toVariant());
+        out.insert(QStringLiteral("recurringEmpty"), QStringLiteral("No wrist finding fired on any %1.").arg(c.one));
         R.session = out;
         return;
     }
@@ -1087,22 +1319,29 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
     const auto &top = styleList.front();
     if (styleList.size() == 1)
         head.append(QStringLiteral("Graded as a %1 wrist on ").arg(top.first))
-            .append(top.second == c.n ? QStringLiteral("every shot") : QStringLiteral("%1 of %2 shots").arg(top.second).arg(c.n));
+            .append(top.second == c.n ? QStringLiteral("every ") + c.one : QStringLiteral("%1 of %2 %3").arg(top.second).arg(c.n).arg(c.many));
     else {
         QStringList rest;
         for (size_t i = 1; i < styleList.size(); ++i) rest << QStringLiteral("%1 on %2").arg(styleList[i].first).arg(styleList[i].second);
-        head.append(QStringLiteral("Graded %1 on %2 of %3 shots, ").arg(top.first).arg(top.second).arg(c.ready) + rest.join(QStringLiteral(", ")));
+        head.append(QStringLiteral("Graded %1 on %2 of %3 %4, ").arg(top.first).arg(top.second).arg(c.ready).arg(c.many) + rest.join(QStringLiteral(", ")));
     }
     out.insert(QStringLiteral("head"), head.toVariant());
 
     // THE STANDFIRST: the score, the most and least repeatable checkpoint, the resemblance index, the n
     const BoxStats sb = boxStats(scores);
-    W::Sentence st;
+    // built in its four parts (score, repeat, resemblance, size) and joined, run for run, into the one standfirst
+    // the screen sets; paper prints the parts as lines of their own (sessionParts)
+    W::Sentence stScore, stRepeat, stIndex, stIndexPaper, stSize;
     if (sb.n > 0)
-        st.append(QStringLiteral("Wrist score median ")).figure(W::fig(sb.med)).append(QStringLiteral(", middle half "))
-          .figure(W::fig(sb.q1) + QStringLiteral("–") + W::fig(sb.q3)).append(QStringLiteral(". "));
+    {
+        stScore.append(QStringLiteral("Wrist score median ")).figure(W::fig(sb.med));
+        // a middle half of one value is said as one ("all at 100"), never a range of it to itself ("100–100")
+        if (W::fig(sb.q1) == W::fig(sb.q3)) stScore.append(QStringLiteral(", middle half all at ")).figure(W::fig(sb.q1));
+        else stScore.append(QStringLiteral(", middle half ")).figure(W::fig(sb.q1) + QStringLiteral("–") + W::fig(sb.q3));
+        stScore.append(QStringLiteral(". "));
+    }
     else
-        st.append(QStringLiteral("No shot's wrist conditions have been graded yet. "));
+        stScore.append(QStringLiteral("No %1's wrist conditions have been graded yet. ").arg(c.one));
     struct Spread { QString name, tag; double w; };
     std::vector<Spread> spreads;
     for (const DofAgg &a : aggs)
@@ -1113,7 +1352,7 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
     std::stable_sort(spreads.begin(), spreads.end(), [](const Spread &a, const Spread &b) { return a.w < b.w; });
     if (spreads.size() >= 2) {
         const Spread &a = spreads.front(), &b = spreads.back();
-        st.append(QStringLiteral("From P3 on, most repeatable: %1 at %2 (middle half ").arg(a.name, a.tag)).figure(degBare(a.w))
+        stRepeat.append(QStringLiteral("From P3 on, most repeatable: %1 at %2 (middle half ").arg(a.name, a.tag)).figure(degBare(a.w))
           .append(QStringLiteral(" wide); least: %1 at %2 (").arg(b.name, b.tag)).figure(degBare(b.w)).append(QStringLiteral("). "));
     }
     QMap<QString, int> most;
@@ -1132,19 +1371,48 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
         std::vector<std::pair<QString, int>> ml;
         for (auto it = most.cbegin(); it != most.cend(); ++it) ml.emplace_back(it.key(), it.value());
         std::stable_sort(ml.begin(), ml.end(), [](const auto &a, const auto &b) { return a.second > b.second; });
-        st.append(QStringLiteral("By the resemblance index, most resemble "));
+        stIndex.append(QStringLiteral("By the resemblance index, most resemble "));
         for (size_t i = 0; i < ml.size(); ++i) {
-            if (i) st.append(QStringLiteral(", "));
-            st.append(ml[i].first + QStringLiteral(" (")).figure(QString::number(ml[i].second)).append(QStringLiteral(")"));
+            if (i) stIndex.append(QStringLiteral(", "));
+            stIndex.append(ml[i].first + QStringLiteral(" (")).figure(QString::number(ml[i].second)).append(QStringLiteral(")"));
         }
-        if (disagree)
-            st.append(QStringLiteral("; on ")).figure(QString::number(disagree)).append(QStringLiteral(" of ")).figure(QString::number(withRes))
-              .append(c.in.archetype < 0 ? QStringLiteral(" shots that is not the style Auto graded against. ")
-                                         : QStringLiteral(" shots that is not the style the bands are set to. "));
-        else st.append(QStringLiteral(". "));
+        // the disagreement: on the screen it names the Auto control; paper (styleLine) says it without the control
+        stIndexPaper = stIndex;
+        if (disagree) {
+            const QString screenTail = c.in.archetype < 0 ? QStringLiteral(" that is not the style Auto graded against. ")
+                                                         : QStringLiteral(" that is not the style the bands are set to. ");
+            const QString paperTail = c.in.archetype < 0 ? QStringLiteral(" that is not the style it was graded against. ") : screenTail;
+            for (W::Sentence *x : { &stIndex, &stIndexPaper }) {
+                const QString &tail = x == &stIndex ? screenTail : paperTail;
+                // every swing (each carries an index and none agrees): "on every swing", not "on 5 of 5 swings"
+                if (disagree == withRes && withRes == c.n) x->append(QStringLiteral("; on every ") + c.one + tail);
+                else x->append(QStringLiteral("; on ")).figure(QString::number(disagree)).append(QStringLiteral(" of ")).figure(QString::number(withRes))
+                       .append(QLatin1Char(' ') + c.many + tail);
+            }
+        } else {
+            stIndex.append(QStringLiteral(". "));
+            stIndexPaper.append(QStringLiteral(". "));
+        }
     }
-    st.append(c.n < 10 ? W::cap1(W::word(c.n)) + QStringLiteral(" shots is a small session: each") : QStringLiteral("Each"))
+    stSize.append(c.n < 10 ? W::cap1(W::word(c.n)) + QStringLiteral(" %1 is a small session: each").arg(c.many) : QStringLiteral("Each"))
       .append(QStringLiteral(" box is drawn from ")).figure(QString::number(c.ready)).append(QStringLiteral(" values."));
+    W::Sentence st;
+    for (const W::Sentence *part : { &stScore, &stRepeat, &stIndex, &stSize })
+        for (const W::Sentence::Run &r : part->runs) st.runs.push_back(r);
+    {
+        // a part as a line of its own: its text without the joining space (and, for the score and the style,
+        // without the full stop: they are a labelled line, not a sentence)
+        const auto line = [](const W::Sentence &x, bool stop) {
+            QString t = x.text().trimmed();
+            if (!stop) while (t.endsWith(QLatin1Char('.'))) t.chop(1);
+            return t;
+        };
+        // the style line carries only the resemblance index's clause: the head already says the style counts
+        // ("Graded Cupped on 5 of 6 swings, Neutral on 1"), and paper does not print one fact twice ("" with no index)
+        const QString styleLine = stIndexPaper.isEmpty() ? QString() : line(stIndexPaper, false);
+        R.sessionParts = QVariantMap{ { QStringLiteral("scoreLine"), line(stScore, false) }, { QStringLiteral("styleLine"), styleLine },
+                                      { QStringLiteral("repeat"), line(stRepeat, true) }, { QStringLiteral("sizeLine"), line(stSize, true) } };
+    }
     out.insert(QStringLiteral("standfirst"), st.toVariant());
 
     // THE CHECKPOINT BOXES
@@ -1190,13 +1458,13 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
             { QStringLiteral("boxes"), boxes }, { QStringLiteral("yLo"), sc.lo }, { QStringLiteral("yHi"), sc.hi }, { QStringLiteral("outCount"), 0 } });
     }
     out.insert(QStringLiteral("rows"), rows);
-    const QString pickedWord = c.index >= 0 ? QStringLiteral("shot %1’s").arg(c.shot->ordinal) : QStringLiteral("this swing’s");
+    const QString pickedWord = c.index >= 0 ? QStringLiteral("%1 %2’s").arg(c.one).arg(c.shot->ordinal) : QStringLiteral("this swing’s");
     out.insert(QStringLiteral("caption"), wash == &c.pick
         ? QStringLiteral("Shaded: %1 %2 band. ").arg(pickedWord, c.pick.archetypeName)
-              + (c.in.archetype < 0 ? QStringLiteral("Each shot is graded against its own style’s band on This shot.")
-                                    : QStringLiteral("Every shot is graded against the %1 band.").arg(wristArchetypeName(c.in.archetype)))
+              + (c.in.archetype < 0 ? QStringLiteral("Each %1 is graded against its own style’s band on This shot.").arg(c.one)
+                                    : QStringLiteral("Every %1 is graded against the %2 band.").arg(c.one, wristArchetypeName(c.in.archetype)))
         : QStringLiteral("No band is shaded: the picked swing has no wrist reading."));
-    out.insert(QStringLiteral("sub"), QStringLiteral("Δ from address, degrees  ·  a box per checkpoint, n %1, this shot ringed  ·  under each: median, and how wide the middle half is").arg(c.ready));
+    out.insert(QStringLiteral("sub"), QStringLiteral("Δ from address, degrees  ·  a box per checkpoint, n %1, this %2 ringed  ·  under each: median, and how wide the middle half is").arg(c.ready).arg(c.one));
 
     // THE SCORE RUN (PpChRunBox's RUN)
     QVariantList pts;
@@ -1215,7 +1483,7 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
         { QStringLiteral("readingId"), QStringLiteral("wristScore") }, { QStringLiteral("key"), QString() },
         { QStringLiteral("label"), QStringLiteral("Wrist score") }, { QStringLiteral("tag"), QString() },
         { QStringLiteral("unit"), QString() }, { QStringLiteral("unitText"), QString() },
-        { QStringLiteral("caption"), QStringLiteral("Wrist score, shot by shot (0–100)") }, { QStringLiteral("points"), pts },
+        { QStringLiteral("caption"), QStringLiteral("Wrist score, %1 by %1 (0–100)").arg(c.one) }, { QStringLiteral("points"), pts },
         { QStringLiteral("box"), boxMap(sb, scoreText) },
         { QStringLiteral("yRange"), QVariantMap{ { QStringLiteral("lo"), 0 }, { QStringLiteral("hi"), 100 } } },
         { QStringLiteral("drift"), driftMap(pearson(xs, ys), c.n) } });
@@ -1225,7 +1493,7 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
     for (int i = 0; i < c.n; ++i) {
         const ShotSeries &s = *c.snap->shots[size_t(i)];
         cols.append(QVariantMap{ { QStringLiteral("ordinal"), s.ordinal }, { QStringLiteral("shotId"), s.shotId }, { QStringLiteral("swingDir"), s.swingDir },
-                                 { QStringLiteral("label"), QStringLiteral("Shot %1").arg(s.ordinal) },
+                                 { QStringLiteral("label"), W::cap1(c.one) + QStringLiteral(" %1").arg(s.ordinal) },
                                  { QStringLiteral("short"), QString::number(s.ordinal) },   // the header when columns are narrow
                                  { QStringLiteral("picked"), i == c.index } });
     }
@@ -1246,7 +1514,7 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
     out.insert(QStringLiteral("styles"), QVariantMap{
         { QStringLiteral("columns"), anyIndex ? cols : QVariantList{} }, { QStringLiteral("rows"), srows }, { QStringLiteral("counts"), counts },
         { QStringLiteral("hasIndex"), anyIndex },
-        { QStringLiteral("note"), anyIndex ? QString() : QStringLiteral("No shot in this session carries a resemblance index, so there is no style to compare.") } });
+        { QStringLiteral("note"), anyIndex ? QString() : QStringLiteral("No %1 in this session carries a resemblance index, so there is no style to compare.").arg(c.one) } });
 
     // WHAT KEEPS FIRING
     struct Rec { const Cond *k; int count; QVariantList marks; QList<QPair<QString, int>> pos; };
@@ -1280,11 +1548,12 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
             { QStringLiteral("id"), r.k->id }, { QStringLiteral("name"), r.k->label },
             { QStringLiteral("severity"), tier == QLatin1String("pattern") ? QStringLiteral("pattern") : QStringLiteral("watching") },
             { QStringLiteral("tier"), tier }, { QStringLiteral("count"), r.count },
-            { QStringLiteral("countText"), QStringLiteral("%1 of %2 shots").arg(r.count).arg(c.ready) + (tags.isEmpty() ? QString() : QStringLiteral(", at ") + tags.join(QStringLiteral(", "))) },
+            { QStringLiteral("countText"), QStringLiteral("%1 of %2 %3").arg(r.count).arg(c.ready).arg(c.many) + (tags.isEmpty() ? QString() : QStringLiteral(", at ") + tags.join(QStringLiteral(", "))) },
             { QStringLiteral("positions"), pos }, { QStringLiteral("marks"), r.marks } });
     }
     out.insert(QStringLiteral("recurring"), recurring);
-    out.insert(QStringLiteral("recurringEmpty"), QStringLiteral("No wrist finding fired on any shot."));
+    out.insert(QStringLiteral("recurringEmpty"), QStringLiteral("No wrist finding fired on any %1.").arg(c.one));
+    out.insert(QStringLiteral("trust"), trustOf(c, nullptr, nullptr, nullptr, &vs, R.sessionParts.value(QStringLiteral("sizeLine")).toString()));
     R.session = out;
 }
 
@@ -1298,7 +1567,7 @@ void buildMovesWith(Ctx &c, ChartsWristPresenter::Result &R)
     QVariantMap m;
     if (key.isEmpty() || !c.snap) {
         m.insert(QStringLiteral("available"), false);
-        m.insert(QStringLiteral("refusal"), W::Sentence().append(QStringLiteral("No shot of this session reads the lead wrist's bow / cup.")).toVariant());
+        m.insert(QStringLiteral("refusal"), W::Sentence().append(QStringLiteral("No %1 of this session reads the lead wrist's bow / cup.").arg(c.one)).toVariant());
     } else {
         const QString id = key + QStringLiteral("@%1").arg(phase::Impact);
         if (c.w.mwSnap == c.snap.get() && c.w.mwRev == c.snap->revision && c.w.mwId == id) {
@@ -1429,6 +1698,183 @@ static std::shared_ptr<ChartsWristPresenter::Result> computeWrist(ChartsWristPre
     buildMovesWith(c, *R);
     buildChoices(c, *R);
     return R;
+}
+
+// ── the session report's Wrist page ─────────────────────────────────────────────────────────
+
+namespace {
+
+// A Sentence re-worded in the report's noun: "shot(s)" as whole words → `one` / `many` (and capitalised). Used
+// ONLY on the Relations presenter's refusal, whose words count "shots" and take no noun of their own.
+QVariantMap nounSentence(QVariantMap sentence, const QString &one, const QString &many)
+{
+    if (one == QLatin1String("shot")) return sentence;
+    const auto swap = [&](QString t) {
+        static const QRegularExpression pl(QStringLiteral("\\bshots\\b")), Pl(QStringLiteral("\\bShots\\b")),
+                                        sg(QStringLiteral("\\bshot\\b")), Sg(QStringLiteral("\\bShot\\b"));
+        t.replace(pl, many).replace(Pl, W::cap1(many)).replace(sg, one).replace(Sg, W::cap1(one));
+        return t;
+    };
+    sentence.insert(QStringLiteral("text"), swap(sentence.value(QStringLiteral("text")).toString()));
+    QVariantList runs = sentence.value(QStringLiteral("runs")).toList();
+    for (QVariant &r : runs) {
+        QVariantMap m = r.toMap();
+        m.insert(QStringLiteral("text"), swap(m.value(QStringLiteral("text")).toString()));
+        r = m;
+    }
+    sentence.insert(QStringLiteral("runs"), runs);
+    return sentence;
+}
+
+} // namespace
+
+QVariantMap wristSessionReportPayload(const SessionSnapshot &snapshot, int archetypeMode, const QString &noun)
+{
+    const int mode = archetypeMode < -1 || archetypeMode > 2 ? -1 : archetypeMode;
+    const QString many = noun.trimmed().isEmpty() ? QStringLiteral("shots") : noun.trimmed();
+    const QString one = many.endsWith(QLatin1Char('s')) ? many.chopped(1) : many;
+
+    // a worker of our own (the pack's wrist conditions, the timeline words): this runs on the caller's thread
+    ChartsWristPresenter::Worker w;
+    QMutexLocker lk(&w.mutex);
+    w.ensure();
+    ChartsWristPresenter::Inputs in;
+    in.scope = QStringLiteral("session");
+    in.archetype = mode;
+    const std::shared_ptr<const SessionSnapshot> snap(&snapshot, [](const SessionSnapshot *) {});   // not ours: no delete
+    Ctx c(w, in, snap);
+    c.many = many;
+    c.one = one;
+    c.paper = true;
+    c.n = snapshot.count();
+    c.profs.reserve(size_t(c.n));
+    for (const auto &s : snapshot.shots) {
+        c.profs.push_back(parseProfile(regradeWristPayload(*s, s->wrist, mode)));
+        if (c.profs.back().has) ++c.ready;
+    }
+    // THE DOMINANT STYLE: the style most shots were graded as; a tie goes to the earlier of Neutral, Bowed, Cupped
+    std::array<int, 3> graded{};
+    for (const Profile &p : c.profs) if (p.has) ++graded[size_t(std::clamp(p.archetype, 0, 2))];
+    int dom = 0;
+    for (int s = 1; s < 3; ++s) if (graded[size_t(s)] > graded[size_t(dom)]) dom = s;
+    if (c.ready > 0) c.washStyle = dom;
+
+    const std::vector<DofAgg> aggs = aggregates(c);
+    ChartsWristPresenter::Result R;
+    buildSession(c, aggs, R);
+    buildMovesWith(c, R);
+    QVariantMap out = R.session;
+    if (c.ready == 0) return out;
+    // the score run's value axis on paper: the presenter's ticks, made here (PpChRunBox asks a ticker; the report
+    // has no Relations presenter to ask, so the ticks travel in the payload)
+    {
+        QVariantMap sr = out.value(QStringLiteral("scoreRun")).toMap();
+        const QVariantMap yr = sr.value(QStringLiteral("yRange")).toMap();
+        sr.insert(QStringLiteral("ticks"), ChartsRelationsPresenter::axisTicks(yr.value(QStringLiteral("lo")).toDouble(), yr.value(QStringLiteral("hi")).toDouble(), 3,
+                                                                               sr.value(QStringLiteral("unit")).toString()));
+        out.insert(QStringLiteral("scoreRun"), sr);
+    }
+
+    // the dominant style's band at a checkpoint: off a shot graded as it, else a shot carrying the row re-graded to it
+    std::map<QString, Profile> regraded;
+    const auto bandAt = [&](const QString &id, int p, double *lo, double *hi) {
+        for (const Profile &pf : c.profs) {
+            if (!pf.has || pf.archetype != dom) continue;
+            const Dof *d = pf.dof(id);
+            if (!d || !d->hasStrip) continue;
+            const Cell &cl = d->cells[size_t(p)];
+            if (cl.banded && std::isfinite(cl.lo) && std::isfinite(cl.hi)) { *lo = cl.lo; *hi = cl.hi; return true; }
+        }
+        auto it = regraded.find(id);
+        if (it == regraded.end()) {
+            Profile rp;
+            for (int i = 0; i < c.n; ++i)
+                if (c.profs[size_t(i)].has && c.profs[size_t(i)].dof(id)) {
+                    const ShotSeries &s = *snapshot.shots[size_t(i)];
+                    rp = parseProfile(regradeWristPayload(s, s.wrist, dom));
+                    break;
+                }
+            it = regraded.emplace(id, rp).first;
+        }
+        const Dof *d = it->second.dof(id);
+        if (!d) return false;
+        const Cell &cl = d->cells[size_t(p)];
+        if (!(cl.banded && std::isfinite(cl.lo) && std::isfinite(cl.hi))) return false;
+        *lo = cl.lo; *hi = cl.hi;
+        return true;
+    };
+
+    QVariantList rows;
+    for (const QVariant &rv : out.value(QStringLiteral("rows")).toList()) {
+        QVariantMap row = rv.toMap();
+        const QString id = row.value(QStringLiteral("dof")).toString();
+        const DofAgg *a = aggOf(aggs, id);
+        // the row's source on paper: the one most shots read it from
+        QMap<QString, int> bySource;
+        for (const Profile &pf : c.profs) if (const Dof *d = pf.has ? pf.dof(id) : nullptr) ++bySource[d->source];
+        QString source;
+        int best = 0;
+        for (auto it = bySource.cbegin(); it != bySource.cend(); ++it) if (it.value() > best) { best = it.value(); source = it.key(); }
+        const QString poleTop = row.value(QStringLiteral("poleTop")).toString(), poleBottom = row.value(QStringLiteral("poleBottom")).toString();
+        QVariantList points, boxes = row.value(QStringLiteral("boxes")).toList();
+        Scale sc;
+        int outCount = 0;
+        for (int p = 0; p < kP; ++p) {
+            double lo = kNaN, hi = kNaN;
+            const bool banded = bandAt(id, p, &lo, &hi);
+            points.append(QVariantMap{ { QStringLiteral("available"), false }, { QStringLiteral("value"), nullv() },
+                                       { QStringLiteral("valueText"), QStringLiteral("-") }, { QStringLiteral("banded"), banded },
+                                       { QStringLiteral("bandLo"), nv(lo) }, { QStringLiteral("bandHi"), nv(hi) },
+                                       { QStringLiteral("wash"), banded ? QStringLiteral("band") : QStringLiteral("none") },
+                                       { QStringLiteral("out"), false } });
+            if (banded) { sc.add(lo); sc.add(hi); }
+            if (a) { sc.add(a->box[size_t(p)].min); sc.add(a->box[size_t(p)].max); }
+            if (p < boxes.size()) {
+                QVariantMap bm = boxes[p].toMap();
+                const QVariant mv = bm.value(QStringLiteral("median"));
+                const double med = mv.isNull() ? kNaN : mv.toDouble();
+                // P1 is address, the reference every Δ is taken from (the engine's "ref" cell): never outside
+                const bool outside = p > 0 && banded && std::isfinite(med) && (med > hi || med < lo);
+                if (outside) ++outCount;
+                bm.insert(QStringLiteral("outside"), outside);
+                bm.insert(QStringLiteral("ringWord"), outside ? (med > hi ? poleTop : poleBottom) : QString());
+                boxes[p] = bm;
+            }
+        }
+        sc.finish();
+        row.insert(QStringLiteral("points"), points);
+        row.insert(QStringLiteral("boxes"), boxes);
+        row.insert(QStringLiteral("yLo"), sc.lo);
+        row.insert(QStringLiteral("yHi"), sc.hi);
+        row.insert(QStringLiteral("outCount"), outCount);
+        row.insert(QStringLiteral("label"), W::cap1(longName(id)));
+        row.insert(QStringLiteral("source"), source);
+        row.insert(QStringLiteral("camera"), sourceLabel(source));
+        row.insert(QStringLiteral("unit"), QStringLiteral("°"));
+        rows.append(row);
+    }
+    out.insert(QStringLiteral("rows"), rows);
+    const QString domName = wristArchetypeName(dom);
+    const int k = graded[size_t(dom)];
+    // no swing reads the lead wrist's bow / cup (a camera-only session): nothing chose the style, so the caption
+    // names the band alone and the trust line says why
+    bool anyFe = false;
+    for (const Profile &pf : c.profs) anyFe = anyFe || (pf.has && pf.dof(QStringLiteral("leadWristFlexExt")));
+    out.insert(QStringLiteral("caption"),
+               mode >= 0 ? QStringLiteral("Shaded: the %1 band, set by hand; every %2 is graded against it.").arg(domName, one)
+               : !anyFe ? QStringLiteral("Shaded: the %1 band.").arg(domName)
+               : k == c.ready ? QStringLiteral("Shaded: the %1 band, the style every %2 was graded as.").arg(domName, one)
+               : QStringLiteral("Shaded: the %1 band, the style %2 of %3 %4 were graded as. Each %5 was graded against its own style’s band.")
+                     .arg(domName).arg(k).arg(c.ready).arg(many, one));
+    out.insert(QStringLiteral("sub"), QStringLiteral("Δ from address, degrees  ·  a box per checkpoint, n %1  ·  under each: median, and how wide the middle half is").arg(c.ready));
+    out.insert(QStringLiteral("dominant"), QVariantMap{ { QStringLiteral("archetype"), dom }, { QStringLiteral("name"), domName },
+                                                        { QStringLiteral("n"), k }, { QStringLiteral("of"), c.ready } });
+    for (auto it = R.sessionParts.cbegin(); it != R.sessionParts.cend(); ++it) out.insert(it.key(), it.value());
+    QVariantMap mw = R.movesWith;
+    if (mw.contains(QStringLiteral("refusal")))
+        mw.insert(QStringLiteral("refusal"), nounSentence(mw.value(QStringLiteral("refusal")).toMap(), one, many));
+    out.insert(QStringLiteral("movesWith"), mw);
+    return out;
 }
 
 // ── the object ──────────────────────────────────────────────────────────────────────────────

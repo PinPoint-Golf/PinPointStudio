@@ -23,7 +23,9 @@ import PinPointStudio
 // struck (warn where a condition reading it fired), this shot ringed, a not-measured shot a STUB on the foot
 // (never a gap), and right of it the session's box on the same value axis (spec 15.8's run + box). The drift
 // line (least squares on shot order) is drawn only when the presenter gives one (it clears chance); the
-// caption always carries r and its interval. Ticks are the presenter's (ticks()).
+// caption always carries r and its interval. Ticks are the presenter's (ticks()). ON PAPER (the session report's
+// Wrist page) a point may carry its own `label` (the report's swing number, where the ordinal only places it), and
+// `hueOf` gives the metric's ink theme-free (the report's palette: roles.hue reads the live theme).
 // objectName: chRun (+ readingId).
 Item {
     id: rb
@@ -35,6 +37,7 @@ Item {
     property bool interactive: false
     property bool showCaption: true
     property bool showBox: true
+    property var hueOf: null                    // print: key → colour, theme-free; null = roles.hue
     property real plotH: roles ? roles.u(roles.isPrint ? 84 : 96) : 96
     property bool atom: true
     readonly property var keyKinds: ["box", "ring", "fired"]
@@ -83,7 +86,7 @@ Item {
         onPaint: {
             const ctx = getContext("2d"); ctx.reset()
             if (!rb.roles || !ln) return
-            ctx.strokeStyle = rb.roles.hue(rb.key); ctx.lineWidth = rb.roles.isPrint ? 0.75 : 1.2
+            ctx.strokeStyle = rb.hueOf ? rb.hueOf(rb.key) : rb.roles.hue(rb.key); ctx.lineWidth = rb.roles.isPrint ? 0.75 : 1.2
             ctx.beginPath(); ctx.moveTo(rb.sx(ln.x0), rb.vy(ln.y0)); ctx.lineTo(rb.sx(ln.x1), rb.vy(ln.y1)); ctx.stroke()
         }
     }
@@ -111,7 +114,7 @@ Item {
                 readonly property int hv: rb.brush ? rb.brush.hoveredShot : -1
                 visible: rb.step === 1 || rb.roles.axisLabelShown(index, rb.n, Math.max(5, rb.step), [pk - 1, hv - 1])
                 x: rb.sx(modelData.ordinal) - width / 2; y: rb.pTop + rb.plotH + rb.roles.u(4)
-                text: String(modelData.ordinal); font: rb.roles.fFigLabel
+                text: modelData.label !== undefined ? String(modelData.label) : String(modelData.ordinal); font: rb.roles.fFigLabel
                 color: modelData.ordinal === pk || modelData.ordinal === hv ? rb.roles.ink : rb.roles.ink3
             }
         }
@@ -125,7 +128,7 @@ Item {
         box: rb.run ? rb.run.box : null
         values: rb.pts.map(function (p) { return p.measured ? p.value : null })
         fired: rb.pts.map(function (p) { return p.fired === true })
-        color: rb.roles && rb.key ? rb.roles.hue(rb.key) : "grey"
+        color: rb.hueOf ? rb.hueOf(rb.key) : rb.roles && rb.key ? rb.roles.hue(rb.key) : "grey"
         onShotActivated: (o) => rb.shotActivated(o)
     }
 }

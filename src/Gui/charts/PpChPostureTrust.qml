@@ -18,38 +18,10 @@
 import QtQuick
 import PinPointStudio
 
-// PPCHPOSTURETRUST — the Posture section's "How far can I trust this?" (docs/design/posture_chart_design.md §5.6),
-// under its profile, CLOSED by default, in the look of the panel's own fold (PpTrustSummaryFold). The panel's fold
-// speaks for the traces' readings (TrustPresenter) and carries no posture words, so the section says its own,
-// ONCE: which camera each row came from, the ⚠ reasons, the bands' sources, the trunk-bend datum and, for the
-// absolutes, the rig rule — TRUST.lines, verbatim. Nothing in the body repeats them: a cell says only "⚠" and a
-// few words.
+// PPCHPOSTURETRUST — the Posture section's "How far can I trust this?" (docs/design/posture_chart_design.md §5.6): the
+// shared section fold (PpChTrustFold) with the Posture names, under its profile, CLOSED by default. TRUST.lines,
+// verbatim, said once.
 // objectNames: chPostureTrust, chPostureTrustToggle, chPostureTrustLine.
-Column {
-    id: fold
-    objectName: "chPostureTrust"
-    property QtObject roles: null
-    property var lines: []
-    property bool open: false
-    visible: (lines || []).length > 0
-    spacing: roles ? roles.u(4) : 4
-
-    Text {
-        objectName: "chPostureTrustToggle"
-        text: (fold.open ? "▾" : "▸") + " How far can I trust this?"
-        font: fold.roles ? fold.roles.fSmallL : Qt.font({}); color: fold.roles ? fold.roles.link : "grey"
-        MouseArea { anchors.fill: parent; anchors.margins: -2; cursorShape: Qt.PointingHandCursor; onClicked: fold.open = !fold.open }
-    }
-    Repeater {
-        model: fold.open ? (fold.lines || []) : []
-        delegate: Text {
-            required property var modelData
-            objectName: "chPostureTrustLine"
-            width: fold.roles ? Math.min(fold.width, fold.roles.measureW(fold.width)) : fold.width
-            leftPadding: fold.roles ? fold.roles.u(14) : 14
-            wrapMode: Text.WordWrap
-            text: String(modelData)
-            font: fold.roles ? fold.roles.fSmall : Qt.font({}); color: fold.roles ? fold.roles.ink2 : "grey"
-        }
-    }
+PpChTrustFold {
+    prefix: "chPosture"
 }

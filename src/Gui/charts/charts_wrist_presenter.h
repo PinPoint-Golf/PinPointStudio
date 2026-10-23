@@ -111,7 +111,10 @@
 //      forearm ROLL strip is absent but the forearm's rotation from address is carried: monitored, not graded) },
 //    findings: [FINDING], strengths: [FINDING],
 //    findingsEmpty ("No faults and nothing to watch." | "Diagnostics have not graded this swing yet."),
-//    strengthsEmpty ("Nothing stood out as a strength on this swing.") }
+//    strengthsEmpty ("Nothing stood out as a strength on this swing."),
+//    trust: TRUST (each DOF's source and confidence; each DOF not measured, with the gate's FULL reason — the
+//      in-place words stay short; "not graded yet" / a gate refused the score; the bands' style and source;
+//      no resemblance index) }
 //
 //  POS  = { index (0..7), tag ("P4"), phase, name ("Top"), note ("face checkpoint"), available,
 //           tUs (window-relative, −1 none), seekUs (= tUs; −1 none) }
@@ -154,7 +157,12 @@
 //              columns and rows are empty and the note stands in for the grid) },
 //    recurring: [{ id, name, severity, tier, count, countText ("4 of 6 shots, at P4"),
 //                  positions: [{ tag, n }], marks: [{ ordinal, shotId, swingDir, fired }] }],
-//    recurringEmpty ("No wrist finding fired on any shot.") }
+//    recurringEmpty ("No wrist finding fired on any shot."),
+//    trust: TRUST (each banded row's source and median confidence on how many shots; no reading; a gate refused
+//      the score; not graded yet; how the shots are graded (by style); the bands' source; no resemblance index;
+//      a small session — the standfirst's size words) }
+//  TRUST = { lines: [string] } — said once, in order, only lines that are true; the Posture presenter's shape.
+//      Golfer's words: the sensor is "the wrist sensor", the camera "the face-on camera", never a product's name.
 //  BOXCELL = { box: BOX, values: [per shot Δ° | null], n, median (| null, n < 3), medianText,
 //              wide (q3 − q1 | null), wideText ("2° wide" | ""), picked (this shot's Δ | null) }
 //
@@ -164,6 +172,38 @@
 //
 //  selected: int (the playhead's checkpoint, 0..7), standfirst: Sentence (thisShot.standfirsts[selected]).
 namespace pinpoint::charts {
+
+// THE SESSION REPORT'S WRIST PAGE (report/report_wrist.h): the `session` map above for a snapshot, with no picked
+// shot and no QObject — built on the caller's thread with the shipped pack and the shared norm set (call
+// warmWristBands() once first, as SessionReportModel does). `archetypeMode` −1 Auto, 0..2 by hand. `available`
+// false when no shot reads a wrist DOF. `noun`: what its sentences count, plural — "shots" as on Charts, "swings"
+// for the report (with "shots" every string is the screen's, byte for byte, but for the keys changed below).
+// What differs from `session`, for paper:
+//   · THE WASH is the DOMINANT style's band — the style most shots were graded as (a tie goes to the earlier of
+//     Neutral, Bowed, Cupped); each row's `points` = 8 × { available false, banded, bandLo, bandHi, wash ("band" |
+//     "none") } of that style, each BOXCELL adds `outside` (its median, n ≥ 3, outside that band; never at P1, the
+//     address every Δ is taken from) and `ringWord`
+//     (the pole it fell on, "closed" | "open" | …; "" inside); yLo/yHi take the band in; outCount = outside medians;
+//   · each row adds label ("Lead wrist bow / cup"), source (the one most shots read it from: "IMU" | "pose" | …),
+//     camera (its words: "wrist sensor" | "face-on camera" | "wrist sensor and face-on camera"), unit ("°");
+//   · caption ("Shaded: the Cupped band, the style 8 of 10 swings were graded as. Each swing was graded against its
+//     own style’s band." | "…, the style every swing was graded as." | "…, set by hand; every swing is graded against
+//     it." | "Shaded: the Neutral band." when no shot reads the lead wrist's bow / cup: nothing chose the style),
+//     sub (no "this shot ringed"), dominant { archetype, name, n, of };
+//   · the standfirst's parts as lines: scoreLine ("Wrist score median 84, middle half 78–90" | "No swing's wrist
+//     conditions have been graded yet"), styleLine (the resemblance index's clause alone, "By the resemblance index,
+//     most resemble …" | "" with no index: the head says the style counts), repeat ("From P3 on, most repeatable: … ." | ""), sizeLine ("Six swings
+//     is a small session: each box is drawn from 6 values." — the trust lines carry it; paper does not print it
+//     twice); `standfirst` stays;
+//   · scoreRun adds ticks ([{ v, text }], ChartsRelationsPresenter::axisTicks over its yRange: paper has no ticker);
+//   · trust.lines add the wash rule, only when shots were graded against more than one style ("The shaded band is the
+//     Cupped style's, the style most swings were graded as." | a tie said plainly: "Neutral and Cupped were tied; the
+//     Neutral band is shaded."), and the trust lines and styleLine never name the Auto control (paper: clients do not
+//     know it) — "the style it was graded against", "the band of its own style", "graded as a Cupped wrist";
+//   · movesWith: what the tab draws (no picked shot), its refusal re-worded in the noun (the Relations presenter
+//     counts "shots" in its refusals and takes no noun); its rows, chance line and note verbatim.
+QVariantMap wristSessionReportPayload(const SessionSnapshot &snapshot, int archetypeMode = -1,
+                                      const QString &noun = QStringLiteral("shots"));
 
 class ChartsWristPresenter : public QObject
 {

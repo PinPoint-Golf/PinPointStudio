@@ -306,6 +306,8 @@ public:
     // minus. For every value axis the figures draw (trace, run, scatter, kind curve); call it when a range
     // or a width changes, never per frame.
     Q_INVOKABLE QVariantList ticks(double lo, double hi, int maxTicks, const QString &unit = QString()) const;
+    // The same, with no presenter: for a payload that carries its ticks to paper (wristSessionReportPayload's score run).
+    static QVariantList axisTicks(double lo, double hi, int maxTicks, const QString &unit = QString());
 
     // Test seams.
     Q_INVOKABLE void setSynchronous(bool on) { m_synchronous = on; }

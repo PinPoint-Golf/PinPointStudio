@@ -28,15 +28,18 @@ import PinPointStudio
 //     figure at the right at medium, one line under the head below); the quiet controls — Bands (Auto →
 //     resolved), Against (address · previous · reference ★ · session median), Curves behind, and "★ set this
 //     swing as your reference" — folded to one summary line below medium (decision rule 5); the resemblance
-//     line; the checkpoint profile (PpChWristProfile, a column seeks); Findings | Working well
-//     (PpChWristLedger) and what moves with the lead wrist at impact (PpChMovesWith), in a right rail at wide.
+//     line; the checkpoint profile (PpChWristProfile, a column seeks), its caption and, under them, the section's own
+//     "How far can I trust this?" (PpChTrustFold, closed: thisShot.trust.lines verbatim — each reading's source and
+//     confidence, what was not measured and the gate's full reason, not graded yet, the bands' source and style, no
+//     resemblance index); Findings | Working well (PpChWristLedger) and what moves with the lead wrist at impact
+//     (PpChMovesWith), in a right rail at wide.
 //   Replay (the glance at the mat, and the cast): the head, the standfirst, the score line and the profile;
-//     no controls, no ledgers.
+//     no controls, no ledgers, no trust fold.
 // Every word and number is ChartsWristPresenter's (body.w*, each bound ONCE on the body); the choices go to the
 // body (body.choose: wristAgainst, wristCurves, wristArchetype — persisted per screen × mode by the panel). The
 // ★ writes appSettings.wristReferenceSwingDir (cross-session; the traces' Against "reference ★" reads it too).
 // objectNames: chWristSection, chWristHead, chWristScore, chWristControls, chWristFold, chWristRefLink,
-// chWristMoves (+ the blocks' own).
+// chWristTrust (+ chWristTrustToggle, chWristTrustLine), chWristMoves (+ the blocks' own).
 Item {
     id: ws
     objectName: "chWristSection"
@@ -229,6 +232,9 @@ Item {
                    font: ws.ty.fSmall; color: ws.ty.ink3
                    onLinkActivated: (link) => { if (ws.interactive) ws.openTrust(link) }
                    HoverHandler { enabled: ws.missingLinks; cursorShape: parent.hoveredLink !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor } }
+            // how far the wrist read can be trusted, said once, under the plot it explains (closed; Analyse only)
+            PpChTrustFold { prefix: "chWrist"; visible: !ws.replay && !ws.cast && (lines || []).length > 0; width: parent.width; roles: ws.ty
+                            lines: ws.has && ws.sh.trust ? (ws.sh.trust.lines || []) : [] }
             PpTrustInlineFor { width: parent.width; roles: ws.ty; subject: ws.trustSubject; swingDir: ws._dir
                                onClosed: ws.trustSubject = "" }
         }

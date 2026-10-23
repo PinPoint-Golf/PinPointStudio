@@ -24,10 +24,13 @@ import PinPointStudio
 // how repeatable is it?" The head and standfirst (the style each shot was graded as, the score's median, the most
 // and least repeatable checkpoint, the resemblance index against what Auto chose, the session's size said);
 // the checkpoint profile as one box per checkpoint across the shots over the picked shot's band, this shot
-// ringed, the median and how wide the middle half is under each; then — in a right rail at wide — the score shot
+// ringed, the median and how wide the middle half is under each, its caption, and under it the section's own
+// "How far can I trust this?" (PpChTrustFold, closed: session.trust.lines verbatim — the sources and confidence, the
+// shots with no reading / refused / not graded, the bands' sources and the style rule, no resemblance index, a small
+// session); then — in a right rail at wide — the score shot
 // by shot with its box (PpChRunBox), the style table, and what keeps firing as a mark per shot that picks that
 // swing. Every word and number is ChartsWristPresenter.session's.
-// objectName: chWristSession.
+// objectNames: chWristSession, chWristTrust (+ chWristTrustToggle, chWristTrustLine).
 Item {
     id: ws
     objectName: "chWristSession"
@@ -70,6 +73,9 @@ Item {
             }
             Text { width: parent.width; wrapMode: Text.WordWrap; text: ws.se.caption || ""
                    font: ws.ok ? ws.roles.fSmall : Qt.font({}); color: ws.ok ? ws.roles.ink3 : "grey" }
+            // how far the session's wrist read can be trusted, said once, under the profile (closed)
+            PpChTrustFold { prefix: "chWrist"; width: parent.width; roles: ws.roles
+                            lines: ws.available && ws.se.trust ? (ws.se.trust.lines || []) : [] }
         }
         Loader { active: !ws.rail && ws.available; visible: active; width: parent.width; sourceComponent: sideC }
     }

@@ -2415,6 +2415,11 @@ qint64 ChartsRelationsPresenter::seekUsAtShotMs(double shotMs) const
 
 QVariantList ChartsRelationsPresenter::ticks(double lo, double hi, int maxTicks, const QString &unit) const
 {
+    return axisTicks(lo, hi, maxTicks, unit);
+}
+
+QVariantList ChartsRelationsPresenter::axisTicks(double lo, double hi, int maxTicks, const QString &unit)
+{
     QVariantList out;
     if (!fin(lo) || !fin(hi)) return out;
     if (!(hi > lo)) { out.append(QVariantMap{ { QStringLiteral("v"), lo }, { QStringLiteral("text"), figBare(lo, shortUnit(unit)) } }); return out; }

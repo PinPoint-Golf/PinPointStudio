@@ -921,5 +921,35 @@ Item {
             compare(hn.replay.seeks, before, "no affordance at the glance")
             compare(shownAll("chPosturePictureWhy", pic).length, 0, "no reasons at the glance")
         }
+        // the Wrist section's own "How far can I trust this?" (PpChTrustFold, prefix chWrist): under the profile on This
+        // shot (Analyse only) and on Session, closed by default, the presenter's trust lines verbatim when opened
+        function test_35_the_wrist_trust_fold_on_this_shot_and_session() {
+            fresh({ wrist: true }, 8)
+            useWristPreset()
+            const sec = oneShown("chWristSection")
+            const lines = (hn.body.wShot.trust || {}).lines || []
+            verify(lines.length >= 1, "This shot's presenter says trust lines")
+            const tr = oneShown("chWristTrust", sec)
+            compare(shownAll("chWristTrustLine", tr).length, 0, "closed by default")
+            verify(tr.mapToItem(sec, 0, 0).y > oneShown("chWristProfile", sec).mapToItem(sec, 0, 0).y, "under the profile")
+            press(oneShown("chWristTrustToggle", tr))
+            compare(shownAll("chWristTrustLine", tr).map(function (t) { return t.text }).join("\n"), lines.join("\n"), "opened: This shot's lines, verbatim")
+            press(oneShown("chWristTrustToggle", tr))
+            compare(shownAll("chWristTrustLine", tr).length, 0, "and it closes")
+            // Session: the session's lines, under the profile caption, closed
+            tabPress("session")
+            const ses = oneShown("chWristSession")
+            const sl = (hn.body.wSession.trust || {}).lines || []
+            verify(sl.length >= 1, "Session's presenter says trust lines")
+            const st = oneShown("chWristTrust", ses)
+            compare(shownAll("chWristTrustLine", st).length, 0, "closed by default")
+            press(oneShown("chWristTrustToggle", st))
+            compare(shownAll("chWristTrustLine", st).map(function (t) { return t.text }).join("\n"), sl.join("\n"), "opened: Session's lines, verbatim")
+            // the glance (Replay): no fold
+            tabPress("shot")
+            useMode("Replay")
+            useWristPreset()
+            compare(shownAll("chWristTrust", oneShown("chWristSection")).length, 0, "no trust fold at the glance")
+        }
     }
 }

@@ -319,6 +319,7 @@ set(PP_QML_FILES
     src/Gui/charts/PpChPostureAddress.qml
     src/Gui/charts/PpChPostureMoved.qml
     src/Gui/charts/PpChPostureTrust.qml
+    src/Gui/charts/PpChTrustFold.qml
     src/Gui/charts/PpChPostureSession.qml
     src/Gui/charts/PpChPosturePicture.qml
     src/Gui/charts/PpChPostureFrame.qml
