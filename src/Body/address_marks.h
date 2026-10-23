@@ -34,6 +34,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <vector>
 
 // The result structs below are plain and every consumer of swing_analysis.h sees them; the
@@ -80,12 +81,69 @@ struct ViewMarks {
     double  tailboneX = kNan, tailboneY = kNan;
     double  neckX     = kNan, neckY     = kNan;
     int     backWalks = 0;         // walks behind the lower of the two counts
+    // THE HEAD OUTLINE (stage version 4, 22 Oct 2026; measureHead below): the head circle the coach
+    // lines draw, off the SILHOUETTE instead of the face points — at address the golfer looks down at
+    // the ball, the eyes sit low and forward, and a circle on the face keypoints lands on the face, not
+    // round the skull (Mark, Nick Henn 20 Oct swing 2). The crown is the mask's top over the head; the
+    // width the widest row of the head's outline between the crown and the ears; the circle touches the
+    // crown with that width as its diameter. `headCx` ÷ W, `headCy` and `headR` ÷ H (the coach lines'
+    // radius convention: a fraction of the frame HEIGHT), `crownY` and `headRowY` (the widest row) ÷ H,
+    // `headLeftX/headRightX` (that row's ends) ÷ W. Not found ⇒ `headRefused` says why (a hood or a cap
+    // merging with the body, the mask at the frame's edge, no head points); the readers then fall back
+    // to the face-point circle.
+    bool        headFound = false;
+    double      headCx = kNan, headCy = kNan, headR = kNan;
+    double      crownY = kNan, headRowY = kNan;
+    double      headLeftX = kNan, headRightX = kNan;
+    std::string headRefused;
+};
+
+// One DOWN-THE-LINE P-frame's marks (posture_chart_design.md §2.3, §10 stage 4a; stage version 3):
+// the butt line and TPI's back line read on the frame nearest each position P1…P7, so the trunk
+// bend and the hip depth can be read off the silhouette where the joint points turn out of the
+// picture (P3–P5). The rear side is FROZEN from address (the hands go up at the top, and "away
+// from the hands" would flip). P1 is the address frame, mask and butt line, copied from the coach
+// lines' `dtl` view; its back line is re-read on that mask by the P-frame rule (behind the ears,
+// AddressMarks::phaseNeckFrac), so the seven back lines are one construction.
+struct DtlPhaseMarks {
+    int         phase    = 0;      // the Phase (swing_analysis.h), as its persisted int
+    int64_t     eventTUs = 0;      // the position's instant on the ladder
+    ViewMarks   v;                 // found, the frame read, rowY, buttX, side (frozen), tailbone, neck
+    std::string refused;           // why there is no reading, when there is none ("" when found)
 };
 
 struct AddressMarks {
     ViewMarks faceOn, dtl;
+    std::vector<DtlPhaseMarks> dtlPhases;   // P1…P7 on the DTL camera, ladder order; empty before v3
+    // Where the P-frames' back line reads its upper point (a fraction of the way from the shoulder
+    // midpoint to the ears; AddressMarksStage phaseBackLine, 1.0 by default). The coach line in
+    // `dtl` is read at 0.5, the collar; P1's entry re-reads the same address mask at this fraction.
+    double phaseNeckFrac = kNan;
     bool any() const { return faceOn.found || dtl.found; }
 };
+
+// THE BACK LINE'S LEAN from the vertical, in degrees, + over the ball — spineForwardBend's sign
+// (dtl_posture.h: atan2(toward·dx, −dy) on the hip → shoulder chord), read on tailbone → back of
+// the neck instead. `toward` is +1 when the ball is image-right, −1 image-left; W/H the frame
+// (the points are normalised). NaN when either point is missing or they coincide.
+inline double backLineBendDeg(const ViewMarks &v, int W, int H, double toward)
+{
+    if (!(toward == 1.0 || toward == -1.0) || W <= 0 || H <= 0) return kNan;
+    for (double q : { v.tailboneX, v.tailboneY, v.neckX, v.neckY }) if (!std::isfinite(q)) return kNan;
+    const double dx = (v.neckX - v.tailboneX) * W, dy = (v.neckY - v.tailboneY) * H;
+    if (std::hypot(dx, dy) < 1.0) return kNan;
+    return std::atan2(toward * dx, -dy) * 180.0 / 3.14159265358979323846;
+}
+
+// THE BUTT LINE'S TRAVEL from address in centimetres, + toward the ball — pelvisThrust's sign.
+// `cmPerPx` is the DTL ruler (dtl_posture.h buildDtlPosture, persisted as analysis.dtlRuler); no
+// ruler (≤ 0) ⇒ NaN, never another unit.
+inline double buttShiftCm(const ViewMarks &v, const ViewMarks &addr, int W, double toward, double cmPerPx)
+{
+    if (!(toward == 1.0 || toward == -1.0) || W <= 0 || !(cmPerPx > 0.0)) return kNan;
+    if (!std::isfinite(v.buttX) || !std::isfinite(addr.buttX)) return kNan;
+    return toward * (v.buttX - addr.buttX) * W * cmPerPx;
+}
 
 #ifdef HAVE_OPENCV
 // The outer extents of the body on the rows [yPx − halfRows, yPx + halfRows]: on each row,
@@ -195,6 +253,20 @@ inline ViewMarks measureView(const cv::Mat &mask, int W, int H, int64_t frameTUs
     return v;
 }
 
+// measureView on a DTL P-frame past address: the rear side is GIVEN (frozen from address) rather
+// than chosen away from the hands, which are over the trail shoulder at the top. side 0 ⇒ the edges
+// are measured and no butt is claimed, as measureView does without hands.
+inline ViewMarks measureViewFrozenSide(const cv::Mat &mask, int W, int H, int64_t frameTUs,
+                                       double hipLx, double hipLy, double hipRx, double hipRy, int side)
+{
+    ViewMarks v = measureView(mask, W, H, frameTUs, hipLx, hipLy, hipRx, hipRy, kNan, true);
+    if (v.found && side != 0) {
+        v.side  = side < 0 ? -1 : +1;
+        v.buttX = v.side < 0 ? v.leftX : v.rightX;
+    }
+    return v;
+}
+
 // The rear outline behind a point: `walks` parallel walks along the unit direction (nx, ny),
 // their seeds spread ±`halfSpanPx` along the unit axis (ux, uy) around (sx, sy), each keeping
 // the farthest person pixel within `reachPx` (across any gap, as outerExtents does). A walk
@@ -202,10 +274,14 @@ inline ViewMarks measureView(const cv::Mat &mask, int W, int H, int64_t frameTUs
 // edge before its reach, contributes nothing — the edge is not in the picture (a clipped body
 // is not measured, the butt line's rule). The per-walk distances are medianed and the edge is
 // the CENTRE seed plus that distance along n; fewer than `minWalks` is not a measurement.
+// `gapPx` > 0 ends a walk at the first run of that many background pixels after the body — the
+// body's OWN outline, not the farthest person pixel within reach (P2–P7: the trail arm and the
+// hands at the top sit behind the neck from down the line; posture_chart_design.md §10 stage 4a).
+// 0 = cross any gap, the address rule.
 inline bool rearEdgeAlong(const cv::Mat &mask, double sx, double sy, double ux, double uy,
                           double nx, double ny, double halfSpanPx, int walks, double reachPx,
                           double &ex, double &ey, int &used,
-                          double thr = 0.5, int seedReachPx = 12, int minWalks = 3)
+                          double thr = 0.5, int seedReachPx = 12, int minWalks = 3, int gapPx = 0)
 {
     ex = ey = kNan;
     used = 0;
@@ -231,10 +307,12 @@ inline bool rearEdgeAlong(const cv::Mat &mask, double sx, double sy, double ux, 
         if (!seeded) continue;
         double last = -1.0;
         bool clipped = false;
+        int gap = 0;
         for (int t = 0; t <= int(std::lround(reachPx)); ++t) {
             const double x = x0 + nx * t, y = y0 + ny * t;
             if (!inside(x, y)) { clipped = true; break; }
-            if (person(x, y)) last = double(t);
+            if (person(x, y)) { last = double(t); gap = 0; }
+            else if (gapPx > 0 && last >= 0 && ++gap >= gapPx) break;
         }
         if (clipped || last < 0) continue;
         D.push_back(last);
@@ -261,7 +339,7 @@ inline bool rearEdgeAlong(const cv::Mat &mask, double sx, double sy, double ux, 
 inline void measureBackLine(const cv::Mat &mask, int W, int H, ViewMarks &v,
                             double hipX, double hipY, double shX, double shY, double earX, double earY,
                             double reachPx, double tailboneFrac = 0.0, double neckFrac = 0.5,
-                            double spanFrac = 0.05, int walks = 11)
+                            double spanFrac = 0.05, int walks = 11, int gapPx = 0)
 {
     v.tailboneX = v.tailboneY = v.neckX = v.neckY = kNan;
     v.backWalks = 0;
@@ -274,12 +352,162 @@ inline void measureBackLine(const cv::Mat &mask, int W, int H, ViewMarks &v,
     if ((nx < 0) != (v.side < 0)) { nx = -nx; ny = -ny; }
     double tx, ty, kx, ky; int tw, kw;
     if (!rearEdgeAlong(mask, hipX + tailboneFrac * ax, hipY + tailboneFrac * ay, ux, uy, nx, ny,
-                       spanFrac * L, walks, reachPx, tx, ty, tw)) return;
+                       spanFrac * L, walks, reachPx, tx, ty, tw, 0.5, 12, 3, gapPx)) return;
     if (!rearEdgeAlong(mask, shX + neckFrac * (earX - shX), shY + neckFrac * (earY - shY), ux, uy, nx, ny,
-                       spanFrac * L, walks, reachPx, kx, ky, kw)) return;
+                       spanFrac * L, walks, reachPx, kx, ky, kw, 0.5, 12, 3, gapPx)) return;
     v.tailboneX = tx / W; v.tailboneY = ty / H;
     v.neckX     = kx / W; v.neckY     = ky / H;
     v.backWalks = std::min(tw, kw);
+}
+
+// THE HEAD OUTLINE on the address mask (ViewMarks::head*; stage version 4). Inputs in px: the five
+// COCO head points (nose, eyes, ears: `hx/hy`, `hok` whether each is confident) and the shoulders' top
+// row `shoulderTopY` (the higher of the seen shoulder joints; NaN when neither is seen).
+//   · SCALE S: the head's width as the face points give it — the ear span, else the eye span × 1.8
+//     (head_track's ear/eye ratio), else 1.3 × nose→ear; the largest that is available. No two head
+//     points ⇒ refused.
+//   · THE HEAD'S BLOB: the person pixels 4-connected to the seed (the head points' mean, snapped to the
+//     nearest person pixel within 0.4 S), inside a search box ±`spanS` S beside the head points and from
+//     the frame's top down to the shoulders (or 1.5 S below the head points).
+//   · THE CROWN: that blob's top-most row. Refused when the blob reaches the frame's top edge (the crown
+//     is out of the picture), when it reaches the box's top above the frame (the walk left the head),
+//     when it sits more than `crownAboveS` S above the highest head point (a hood or a cap stands proud
+//     of the skull, or the background merges), or when it is not above the head points at all.
+//   · THE WIDTH: the widest row of the blob between the crown and the ears' row (the eyes', the head
+//     points' mean), the walk down stopping at the first row whose outline steps out by more than
+//     `stepS` S on a side (something joining the head) once it is half a head wide; refused when that row runs into the search
+//     box's side (the head merges with the shoulders, a collar or the background) or is outside
+//     [`minWidthS`, `maxWidthS`] S.
+//   · THE CIRCLE: diameter = that width, centred on that row's middle, its top at the crown.
+// Fills v.head* (normalised) on success, else v.headRefused. A circle, not an ellipse: the crown and the
+// width are what a coach's circle shows, and the chin is not in question.
+inline void measureHead(const cv::Mat &mask, int W, int H, ViewMarks &v,
+                        const double hx[5], const double hy[5], const bool hok[5], double shoulderTopY,
+                        double thr = 0.5, double spanS = 0.9, double crownAboveS = 1.35,
+                        double minWidthS = 0.75, double maxWidthS = 1.7, double stepS = 0.12)
+{
+    v.headFound = false;
+    v.headCx = v.headCy = v.headR = v.crownY = v.headRowY = v.headLeftX = v.headRightX = kNan;
+    v.headRefused.clear();
+    if (mask.empty() || !(mask.type() == CV_32F || mask.type() == CV_8U) || W <= 0 || H <= 0
+        || mask.cols != W || mask.rows != H) { v.headRefused = "no mask"; return; }
+    auto person = [&](int x, int y) {
+        if (x < 0 || x >= W || y < 0 || y >= H) return false;
+        return mask.type() == CV_32F ? mask.at<float>(y, x) > float(thr) : double(mask.at<uint8_t>(y, x)) > thr;
+    };
+    int n = 0;
+    double sx = 0, sy = 0, minX = 1e18, maxX = -1e18, minY = 1e18;
+    for (int j = 0; j < 5; ++j) {
+        if (!hok[j] || !std::isfinite(hx[j]) || !std::isfinite(hy[j])) continue;
+        sx += hx[j]; sy += hy[j]; ++n;
+        minX = std::min(minX, hx[j]); maxX = std::max(maxX, hx[j]); minY = std::min(minY, hy[j]);
+    }
+    if (n < 2) { v.headRefused = "fewer than two head points seen"; return; }
+    sx /= n; sy /= n;
+    auto span = [&](int a, int b) { return (hok[a] && hok[b]) ? std::hypot(hx[a] - hx[b], hy[a] - hy[b]) : 0.0; };
+    double S = std::max(span(3, 4), 1.8 * span(1, 2));
+    S = std::max(S, 1.3 * std::max(span(0, 3), span(0, 4)));
+    if (!(S >= 4.0)) { v.headRefused = "the head points give no size"; return; }
+    // the ears' row (else the eyes', else the points' mean): the bottom of the width search
+    double earY = kNan;
+    if (hok[3] && hok[4]) earY = 0.5 * (hy[3] + hy[4]);
+    else if (hok[3] || hok[4]) earY = hok[3] ? hy[3] : hy[4];
+    else if (hok[1] && hok[2]) earY = 0.5 * (hy[1] + hy[2]);
+    else earY = sy;
+    // the search box
+    const int x0 = std::max(0, int(std::floor(minX - spanS * S)));
+    const int x1 = std::min(W - 1, int(std::ceil(maxX + spanS * S)));
+    const double floorY = std::isfinite(shoulderTopY) && shoulderTopY > sy ? shoulderTopY : sy + 1.5 * S;
+    const int yTop = std::max(0, int(std::floor(minY - 2.5 * S)));
+    const int yBot = std::min(H - 1, int(std::ceil(floorY)));
+    if (x1 - x0 < 4 || yBot - yTop < 4) { v.headRefused = "the head is at the frame's edge"; return; }
+    // the seed, snapped to the nearest person pixel
+    int seedX = -1, seedY = -1;
+    {
+        const int cx = int(std::lround(sx)), cy = int(std::lround(sy)), reach = int(std::lround(0.4 * S));
+        double best = 1e18;
+        for (int dy = -reach; dy <= reach; ++dy)
+            for (int dx = -reach; dx <= reach; ++dx) {
+                const double d = double(dx) * dx + double(dy) * dy;
+                if (d < best && d <= double(reach) * reach && person(cx + dx, cy + dy)) { best = d; seedX = cx + dx; seedY = cy + dy; }
+            }
+    }
+    if (seedX < 0 || seedY < yTop || seedY > yBot) { v.headRefused = "no person mask at the head"; return; }
+    // the blob: 4-connected person pixels inside the box
+    const int bw = x1 - x0 + 1, bh = yBot - yTop + 1;
+    std::vector<uint8_t> in(size_t(bw) * size_t(bh), 0);
+    std::vector<int> stack{ (seedY - yTop) * bw + (seedX - x0) };
+    in[size_t(stack.back())] = 1;
+    while (!stack.empty()) {
+        const int i = stack.back(); stack.pop_back();
+        const int bx = i % bw, by = i / bw;
+        const int nb[4][2] = { { bx - 1, by }, { bx + 1, by }, { bx, by - 1 }, { bx, by + 1 } };
+        for (const auto &q : nb) {
+            if (q[0] < 0 || q[0] >= bw || q[1] < 0 || q[1] >= bh) continue;
+            const int k = q[1] * bw + q[0];
+            if (in[size_t(k)] || !person(x0 + q[0], yTop + q[1])) continue;
+            in[size_t(k)] = 1;
+            stack.push_back(k);
+        }
+    }
+    // the crown
+    int crown = -1;
+    for (int by = 0; by < bh && crown < 0; ++by)
+        for (int bx = 0; bx < bw; ++bx) if (in[size_t(by) * bw + bx]) { crown = by; break; }
+    if (crown < 0) { v.headRefused = "no person mask at the head"; return; }
+    const double crownPx = yTop + crown;
+    if (crown == 0) {
+        v.headRefused = yTop == 0 ? "the mask runs to the top of the frame: the crown is out of the picture"
+                                  : "the outline above the head runs on past the search: not a head (a hood, a cap or the background)";
+        return;
+    }
+    if (minY - crownPx > crownAboveS * S) {
+        v.headRefused = "the outline stands too far above the face for a head (a hood, a cap or the background merges)";
+        return;
+    }
+    if (crownPx >= minY) { v.headRefused = "the mask does not cover the top of the head"; return; }
+    // the width: the widest row between the crown and the ears
+    // Walking down from the crown the skull widens a few pixels a row; a row whose outline steps OUT by
+    // more than `stepS` S on either side is something else joining it — down the line the upper back
+    // behind the head, a hood's brim, the shoulders — and the search stops above it (Nick Henn, Mark,
+    // Jess Ratcliffe, the 20 Oct / 7 Oct swing 2 address masks: the back of the head meets the upper back
+    // in a step of 0.2–0.8 S in one row, the skull itself widens by under 0.1 S a row).
+    const double stepPx = stepS * S;
+    const int rowEnd = std::min(bh - 1, int(std::lround(earY)) - yTop);
+    int bestRow = -1, bestL = 0, bestR = -1, prevL = -1, prevR = -1;
+    bool stepped = false;
+    for (int by = crown; by <= rowEnd; ++by) {
+        int l = -1, r = -1;
+        for (int bx = 0; bx < bw; ++bx) if (in[size_t(by) * bw + bx]) { if (l < 0) l = bx; r = bx; }
+        if (l < 0) continue;
+        // (not near the crown, where a round head itself widens fast: only once the outline is half a head wide)
+        if (prevL >= 0 && prevR - prevL + 1 >= 0.5 * S && (prevL - l > stepPx || r - prevR > stepPx)) { stepped = true; break; }
+        prevL = l; prevR = r;
+        if (r - l > bestR - bestL) { bestRow = by; bestL = l; bestR = r; }
+    }
+    if (bestRow < 0) { v.headRefused = "no head outline between the crown and the ears"; return; }
+    if ((bestL == 0 && x0 > 0) || (bestR == bw - 1 && x1 < W - 1)) {
+        v.headRefused = "the head's outline runs into the shoulders or the background beside it";
+        return;
+    }
+    if (bestL == 0 || bestR == bw - 1) { v.headRefused = "the head is at the frame's edge"; return; }
+    const double width = double(bestR - bestL + 1);
+    if (width > maxWidthS * S) { v.headRefused = "the outline is wider than a head (a hood or a collar merges)"; return; }
+    if (width < minWidthS * S) {
+        v.headRefused = stepped ? "the outline steps out before it is a head's width (a hood, a cap's brim or the shoulders join it)"
+                                : "the outline is narrower than a head (the mask lost part of it)";
+        return;
+    }
+    const double r = 0.5 * width;
+    const double cx = x0 + 0.5 * (bestL + bestR);
+    v.headFound  = true;
+    v.headCx     = cx / W;
+    v.headCy     = (crownPx + r) / H;
+    v.headR      = r / H;
+    v.crownY     = crownPx / H;
+    v.headRowY   = double(yTop + bestRow) / H;
+    v.headLeftX  = double(x0 + bestL) / W;
+    v.headRightX = double(x0 + bestR) / W;
 }
 
 #endif // HAVE_OPENCV
