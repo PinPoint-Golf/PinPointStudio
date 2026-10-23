@@ -57,7 +57,8 @@ Item {
             "nick": 11, "jess": 10, "clean": 4, "one-work-on": 6, "five-work-ons-longest-text": 16,
             "causes-at-caps": 13, "sixty-swings-three-clubs": 14, "junior-no-photos": 11,
             "longest-names-and-note": 11, "note": 1, "no-launch-monitor": 10,
-            "launch-monitor-appendix": 15       // nick + the launch monitor appendix (Nick Henn's 20 Oct session 3 readings)
+            "launch-monitor-appendix": 15,      // nick + the launch monitor appendix (Nick Henn's 20 Oct session 3 readings)
+            "posture": 15                       // nick + the Posture page (Nick Henn's 20 Oct session 3 posture readings; + its picture strip, stage 5)
         })
 
         function signature() { return JSON.stringify(reg.pageInfo().map(p => [Math.round(p.from), Math.round(p.to)])) }
@@ -201,6 +202,52 @@ Item {
                    && reg.sectionPage("reportLaunchMonitorStats") > reg.sectionPage("reportLaunchMonitorShots"),
                    "figures, then the shot tables, then the summary, each from its own page")
 
+            // the Posture page (posture_chart_design.md §5.7): only with the map's `posture`; after the work-ons, before
+            // the back matter; every block it has words for, nothing it has not
+            load("nick")
+            verify(!shown("reportPosture") && !shown("reportPostureProfile"), "no posture in the map: no Posture page")
+            load("posture")
+            verify(shown("reportPosture") && shown("reportPostureProfile") && shown("reportPostureStrip") && shown("reportPostureTrust"),
+                   "the Posture page: the head, the profile, the pattern by shot, the trust note")
+            compare(findAll(reg, "reportPostureRow", []).filter(it => it.visible).length, Fx.maps["posture"].posture.profile.rows.length, "a row per reading")
+            compare(findAll(reg, "reportPostureCell", []).filter(it => it.visible).length, 8 * Fx.maps["posture"].posture.profile.rows.length, "eight cells a row")
+            verify(findAll(reg, "reportPostureCell", []).every(c => c.text !== ""), "every cell says a figure or \"-\"")
+            // At address (§7.4.2): the block between the profile and What moved, a row per reading, the ⚠ on each
+            const adm = Fx.maps["posture"].posture.address
+            verify(!!adm && adm.rows.length > 0, "the posture fixture carries the At address block")
+            verify(shown("reportPostureAddress"), "the At address block on the Posture page")
+            const arows = findAll(reg, "reportPostureAddressRow", []).filter(it => it.visible)
+            compare(arows.length, adm.rows.length, "a row per address reading")
+            verify(arows.every(r => r.warned && r.text !== ""), "each says its figure (or \"-\") and carries the ⚠")
+            verify(shown("reportPostureMoved") === Fx.maps["posture"].posture.moved.length > 0, "What moved only with a line")
+            verify(shown("reportPostureDepartures") === Fx.maps["posture"].posture.departures.length > 0, "Departures only with a departure")
+            // the picture strip (stage 5): the typical swing's frames, each with its lines; the frames' marks are the map's
+            const pic = Fx.maps["posture"].posture.picture
+            verify(!!pic, "the posture fixture carries a picture")
+            verify(shown("reportPosturePicture"), "the picture strip, between Repeatable? and the trust note")
+            const pframes = findAll(reg, "reportPosturePictureFrame", []).filter(it => it.visible)
+            compare(pframes.length, pic.groups.reduce((a, g) => a + g.frames.length, 0), "a frame per picture frame")
+            verify(pframes.every(f => f.coachDrawn > 0), "every frame carries its frozen address lines")
+            compare(pframes.filter(f => f.bandDrawn > 0).length, pic.groups.filter(g => g.frames.some(f => f.marks.some(m => m.role === "band"))).length,
+                    "the band only at impact")
+            // one pager atom per camera, each with its own heading, so the pager can break between them (a page is never
+            // left a quarter empty by one strip too tall to follow the text)
+            const pgroups = findAll(reg, "reportPosturePictureGroup", []).filter(it => it.visible)
+            compare(pgroups.length, 2, "two picture atoms: down the line, face-on")
+            compare(pgroups.map(g => g.camera).join(","), pic.groups.map(g => g.camera).join(","), "down the line, then face-on")
+            verify(pgroups.every(g => g.atom === true), "each camera is its own pager atom")
+            verify(findAll(reg, "reportPosturePicture", []).every(c => c.atom !== true), "the strip itself is no longer one atom")
+            for (let i = 0; i < pgroups.length; ++i) {
+                const heads = findAll(pgroups[i], "reportPosturePictureHeading", []).filter(it => it.visible)
+                compare(heads.length, 1, "camera " + (i + 1) + ": its own heading")
+                verify(heads[0].text.indexOf(pic.groups[i].label) > 0, "the heading names its camera: " + heads[0].text)
+                compare(findAll(pgroups[i], "reportPosturePictureFrame", []).filter(it => it.visible).length, pic.groups[i].frames.length,
+                        "camera " + (i + 1) + ": its own frames")
+            }
+            verify(reg.sectionPage("reportPosture") > reg.sectionPage("reportWorkOn1"), "after the work-on pages")
+            verify(reg.sectionPage("reportPosture") < reg.sectionPage("reportPractice"), "before Between now and next time")
+            compare(reg.insideLine.indexOf("posture"), -1, "the cover's contents line keeps its room")
+
             load("note")
             compare(reg.printPageCount, 1, "the note is one page")
             verify(!shown("reportGrid") && !shown("reportAbout") && !shown("reportWorkOn1"))
@@ -257,6 +304,25 @@ Item {
             verify(a.length > 100, "the walk found the page")
             compare(b.length, a.length)
             for (let i = 0; i < a.length; ++i) compare(b[i], a[i], "item " + i + " changed with the app theme")
+        }
+        // the Posture page: its own type and inks (the report's), the metric colours in Folio light, the box plot through
+        // the Charts print roles in the same fixed aesthetic — on every page of the section
+        function test_06_thePosturePageIgnoresTheAppTheme() {
+            const start = Theme.themeIndex
+            Theme.themeIndex = 12                       // Folio light
+            load("posture")
+            const pages = reg.pageInfo().map((p, i) => p.section === "Posture" ? i : -1).filter(i => i >= 0)
+            verify(pages.length > 0, "the Posture section has a page")
+            const a = [], b = []
+            for (const p of pages) { reg.printPage = p; wait(30); a.push(appearance()) }
+            Theme.themeIndex = 7                        // Vector dark
+            wait(300)
+            for (const p of pages) { reg.printPage = p; wait(30); b.push(appearance()) }
+            Theme.themeIndex = start
+            for (let k = 0; k < a.length; ++k) {
+                compare(b[k].length, a[k].length, "posture page " + (pages[k] + 1) + ": items")
+                for (let i = 0; i < a[k].length; ++i) compare(b[k][i], a[k][i], "posture page " + (pages[k] + 1) + " item " + i + " changed with the app theme")
+            }
         }
         // the appendix too: its tables (Folio light from the register) and the launch monitor panel's own figures,
         // embedded with their fixed aesthetic, on every appendix page

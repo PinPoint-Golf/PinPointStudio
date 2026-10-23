@@ -156,6 +156,13 @@ Item {
                 ro: rr; wo: modelData; rank: index + 1; photos: root.photosIncluded; pageH: pager.pageH
             }
         }
+        // the posture page (posture_chart_design.md §5.7): a client page about this session's swings, so after the
+        // work-ons and before the back matter; absent when the map has no `posture`
+        PpPosturePage {
+            width: pager.textW
+            visible: root.kind !== "note" && !!root.rep.posture
+            ro: rr; po: root.rep.posture || null
+        }
         PpNumbersTable {
             width: pager.textW
             visible: root.kind !== "note" && (!!root.rep.practice || !!root.rep.numbers)
@@ -382,6 +389,16 @@ Item {
         readonly property font fFigB:    f(figs, 11, Font.DemiBold)
         // the inline HTML a map string may carry (<i>, <b>, <br>) is StyledText; a colour inside it is this ink
         function hex(c) { return String(c) }
+        // A METRIC'S OWN COLOUR, in Folio light whatever the app shows: the metric's colour NAME (the catalogue's, or
+        // the user's choice — an identity, the same in every theme) read through Folio's light palette (data, not the
+        // live tokens), with the user's own retune of that name for Folio light when there is one.
+        function hue(key) {
+            const name = Theme.metricColorName(key)
+            const own = appSettings.metricPalette ? appSettings.metricPalette["folio/light/" + name] : undefined
+            if (own !== undefined && own !== "") return own
+            const v = Theme._metricPalettes.folio.light[name]
+            return v !== undefined ? v : ink3
+        }
     }
 
     // THE PAGER'S ROLES: the report's own page geometry, everything else a print PpTypeset's. The pager, its running

@@ -28,8 +28,10 @@
 // ── What a make runs, in order ──────────────────────────────────────────────────────────────────
 //   1. the private model is pointed at the session (activateSession, reviewing, the app's grade
 //      policy) while the swing documents' small blocks — launch monitor, athlete, clock, cameras — are
-//      read on a worker thread;
-//   2. once both have landed, the work-on list is derived FRESH (sessionWorkOns(), never work_ons.json,
+//      read on a worker thread, and, on another, the Charts panel's session snapshot of the swings is
+//      built (a private SessionSeriesModel, inline) and the Posture presenter's session payload read off
+//      it (postureSessionReportPayload) for the Posture page;
+//   2. once all three have landed, the work-on list is derived FRESH (sessionWorkOns(), never work_ons.json,
 //      which can be stale after a delete), the same-day sessions' records are read for "Earlier today",
 //      and the pure reductions (src/Coaching/session_report.h) choose what to say;
 //   3. the stills are made off the GUI thread (ReportStills::renderAll) unless photos are off;
@@ -128,6 +130,7 @@ private:
     SessionDiagnosticsModel *model();
     void onModelSettled();
     void onDocsRead();
+    void onPostureRead();
     void maybeBuild();
     void build();
     void deliver();

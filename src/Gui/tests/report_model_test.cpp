@@ -24,12 +24,18 @@
 // noun, hard-coded number words, a session-level kicker that broke, "Coaches call the habit X"
 // repeating the title, "125 %" losing its words, "came down to 2 of 2" on two swings.
 //
+// The posture page's block (report/report_posture.h, posture_chart_design.md §5.7) is cut from the Charts
+// Posture presenter's session payload; here on a payload of the presenter's shape (the real one is cut in
+// charts_posture_presenter_test): absent without a reading, the sentences verbatim, the caps and their "N more",
+// the strip renumbered to the report's swings, "What moved" only where there is a line.
+//
 // The map itself is assembled by SessionReportModel from a live diagnostics model, and is proved on
 // real sessions by tools/session-report-mock/dump_report.qml (build/report-build/model-I/): a model test
 // over a fixture session would need the whole diagnostics stack linked into a test, which no Gui test
 // does today; the probe is the stronger check of that half.
 
 #include "report/report_words.h"
+#include "report/report_posture.h"
 #include "../../Coaching/report_gate_words.h"
 
 #include <QCoreApplication>
@@ -438,6 +444,158 @@ int main(int argc, char **argv)
               && noDoubledNoun(ballByline(QStringLiteral("x"), 5, 6))
               && noDoubledNoun(lmAppendixStandfirst(QStringLiteral("x"), 5, 6, {})),
           "no 'swings swings'");
+
+    std::printf("the posture page: absent without a reading, the presenter's words, the caps\n");
+    {
+        using pinpoint::report::postureReportBlock;
+        const QHash<QString, int> noSwings;
+        check(postureReportBlock(QVariantMap{}, noSwings).isNull(), "no payload: no posture block");
+        check(postureReportBlock(QVariantMap{ { QStringLiteral("available"), false } }, noSwings).isNull(), "not available: no posture block");
+        check(postureReportBlock(QVariantMap{ { QStringLiteral("available"), true },
+                                              { QStringLiteral("profile"), QVariantMap{ { QStringLiteral("rows"), QVariantList{} } } } }, noSwings).isNull(),
+              "available but no profile row: no posture block (empty means absent)");
+
+        const QString dir = QStringLiteral("/lib/Golfer/2026-10-20_Golfer_01/swing_%1");
+        QVariantList marks, deps, cells, rows, positions;
+        for (int i = 1; i <= 10; ++i)
+            marks.append(QVariantMap{ { QStringLiteral("ordinal"), i }, { QStringLiteral("swingDir"), dir.arg(i + 2, 4, 10, QLatin1Char('0')) },
+                                      { QStringLiteral("ok"), i != 4 }, { QStringLiteral("differs"), i == 7 }, { QStringLiteral("between"), i == 7 },
+                                      { QStringLiteral("word"), i == 4 ? QStringLiteral("-") : i == 7 ? QStringLiteral("between") : QStringLiteral("Level") } });
+        for (int i = 0; i < 8; ++i)
+            deps.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("D%1").arg(i + 1) }, { QStringLiteral("name"), QStringLiteral("Departure %1").arg(i + 1) },
+                                     { QStringLiteral("detail"), QStringLiteral("from P5  ·  10 of 10 shots") },
+                                     { QStringLiteral("line"), QStringLiteral("Departure %1, from P5: 10 of 10 shots").arg(i + 1) }, { QStringLiteral("shots"), 10 } });
+        for (int p = 0; p < 8; ++p) {
+            cells.append(QVariantMap{ { QStringLiteral("tag"), QStringLiteral("P%1").arg(p + 1) }, { QStringLiteral("text"), p == 3 ? QStringLiteral("-") : QStringLiteral("+1.0") } });
+            positions.append(QVariantMap{ { QStringLiteral("tag"), QStringLiteral("P%1").arg(p + 1) }, { QStringLiteral("name"), QStringLiteral("P%1").arg(p + 1) },
+                                          { QStringLiteral("available"), true }, { QStringLiteral("seekUs"), 1000 * p } });
+        }
+        for (const char *k : { "head", "hips", "bend", "leadKnee", "trailKnee", "pelvisHeight", "extra" })
+            rows.append(QVariantMap{ { QStringLiteral("key"), QString::fromLatin1(k) }, { QStringLiteral("label"), QString::fromLatin1(k) },
+                                     { QStringLiteral("present"), true }, { QStringLiteral("cells"), cells } });
+        QStringList trust;
+        for (int i = 0; i < 18; ++i) trust << QStringLiteral("Trust line %1.").arg(i + 1);
+        trust << QString();
+        const QVariantMap payload{
+            { QStringLiteral("available"), true }, { QStringLiteral("kicker"), QStringLiteral("10 shots  ·  7 iron  ·  Posture") },
+            { QStringLiteral("headText"), QStringLiteral("Level on 9 of 10 shots; you leave it the same way every time: hips in from P5.") },
+            { QStringLiteral("patternLine"), QStringLiteral("Level (nearest, of your session)") },
+            { QStringLiteral("profile"), QVariantMap{ { QStringLiteral("positions"), positions }, { QStringLiteral("rows"), rows },
+                                                      { QStringLiteral("sub"), QStringLiteral("change from address") }, { QStringLiteral("caption"), QStringLiteral("Shaded: the Level band.") } } },
+            { QStringLiteral("whatMoved"), QVariantMap{ { QStringLiteral("top"), QVariantMap{ { QStringLiteral("when"), QStringLiteral("At the top") }, { QStringLiteral("line"), QString() } } },
+                                                        { QStringLiteral("impact"), QVariantMap{ { QStringLiteral("tag"), QStringLiteral("P7") }, { QStringLiteral("when"), QStringLiteral("At impact") },
+                                                                                                 { QStringLiteral("line"), QStringLiteral("hips 6.5 cm in under a level head") } } } } },
+            { QStringLiteral("strip"), QVariantMap{ { QStringLiteral("marks"), marks }, { QStringLiteral("line"), QStringLiteral("Level on 9 of 10 shots") },
+                                                    { QStringLiteral("legend"), QStringLiteral("each mark is a shot's nearest pattern") } } },
+            { QStringLiteral("departures"), deps },
+            { QStringLiteral("repeat"), QVariantMap{ { QStringLiteral("words"), QStringLiteral("The tightest: head at P7.") } } },
+            { QStringLiteral("trust"), QVariantMap{ { QStringLiteral("lines"), trust } } },
+            { QStringLiteral("address"), QVariantMap{ { QStringLiteral("available"), true }, { QStringLiteral("title"), QStringLiteral("At address") },
+                                                      { QStringLiteral("sub"), QStringLiteral("this session against the good-player band") },
+                                                      { QStringLiteral("legend"), QStringLiteral("Shaded: the good-player band.") },
+                                                      { QStringLiteral("rows"), QVariantList{
+                                                          QVariantMap{ { QStringLiteral("measureId"), QStringLiteral("m_spineBendAtAddress") },
+                                                                       { QStringLiteral("text"), QStringLiteral("39°") }, { QStringLiteral("warned"), true },
+                                                                       { QStringLiteral("warnShort"), QStringLiteral("depends on where the camera stands") } } } } } } };
+        QHash<QString, int> swingNo;
+        for (int i = 1; i <= 10; ++i) swingNo.insert(QDir::cleanPath(dir.arg(i + 2, 4, 10, QLatin1Char('0'))), i == 10 ? 0 : 20 + i);
+        swingNo.remove(QDir::cleanPath(dir.arg(12, 4, 10, QLatin1Char('0'))));      // shot 10: a swing the report does not number
+
+        const QVariant bv = postureReportBlock(payload, swingNo);
+        check(!bv.isNull(), "a reading: the posture block");
+        const QVariantMap b = bv.toMap();
+        bool keys = true;
+        for (const char *k : { "kicker", "head", "patternLine", "profile", "moved", "strip", "departures", "departuresMore", "departuresSub", "repeat", "trust", "trustMore" })
+            if (!b.contains(QString::fromLatin1(k))) { keys = false; std::printf("        missing: %s\n", k); }
+        check(keys, "the block carries every documented key");
+        eq(b.value(QStringLiteral("head")).toString(), payload.value(QStringLiteral("headText")).toString(), "the head is the presenter's, verbatim");
+        eq(b.value(QStringLiteral("kicker")).toString(), QStringLiteral("10 shots  ·  7 iron  ·  Posture"), "the kicker is the presenter's");
+        const QVariantMap pf = b.value(QStringLiteral("profile")).toMap();
+        check(pf.value(QStringLiteral("rows")).toList().size() == 6, "rows capped at six");
+        check(pf.value(QStringLiteral("positions")).toList().size() == 8, "eight positions");
+        check(!pf.value(QStringLiteral("positions")).toList().at(0).toMap().contains(QStringLiteral("seekUs")), "no seek target on paper");
+        eq(pf.value(QStringLiteral("rows")).toList().at(1).toMap().value(QStringLiteral("cells")).toList().at(3).toMap().value(QStringLiteral("text")).toString(),
+           QStringLiteral("-"), "no value is \"-\", as the presenter said it");
+        const QVariantList mv = b.value(QStringLiteral("moved")).toList();
+        check(mv.size() == 1 && mv.at(0).toMap().value(QStringLiteral("when")).toString() == QLatin1String("At impact"), "What moved: only the line that says something");
+        const QVariantList mk = b.value(QStringLiteral("strip")).toMap().value(QStringLiteral("marks")).toList();
+        check(mk.size() == 10, "every shot's mark");
+        check(mk.at(0).toMap().value(QStringLiteral("swing")).toInt() == 21 && mk.at(8).toMap().value(QStringLiteral("swing")).toInt() == 29,
+              "marks numbered as the report numbers its swings");
+        check(mk.at(9).toMap().value(QStringLiteral("swing")).toInt() == 10, "a shot the report does not number keeps its ordinal");
+        check(mk.at(6).toMap().value(QStringLiteral("differs")).toBool() && !mk.at(3).toMap().value(QStringLiteral("ok")).toBool(), "ringed and unread marks carried");
+        eq(b.value(QStringLiteral("strip")).toMap().value(QStringLiteral("more")).toString(), QString(), "no strip ending under the cap");
+        check(b.value(QStringLiteral("departures")).toList().size() == 6, "departures capped at six");
+        eq(b.value(QStringLiteral("departuresMore")).toString(), QStringLiteral("2 more"), "the departures' ending");
+        check(!b.value(QStringLiteral("departuresSub")).toString().isEmpty(), "the departures' sub is the map's");
+        eq(b.value(QStringLiteral("repeat")).toString(), QStringLiteral("The tightest: head at P7."), "repeatability verbatim");
+        check(b.value(QStringLiteral("trust")).toStringList().size() == 16, "trust lines capped at sixteen");
+        eq(b.value(QStringLiteral("trustMore")).toString(), QStringLiteral("2 more"), "the trust ending counts only lines with words");
+
+        {
+            const QVariantMap ad = b.value(QStringLiteral("address")).toMap();
+            eq(ad.value(QStringLiteral("title")).toString(), QStringLiteral("At address"), "the At address block, its title the presenter's");
+            check(ad.value(QStringLiteral("rows")).toList().size() == 1
+                  && ad.value(QStringLiteral("rows")).toList().at(0).toMap().value(QStringLiteral("warnShort")).toString() == QLatin1String("depends on where the camera stands"),
+                  "its rows verbatim, the ⚠ words with them");
+        }
+
+        QVariantMap bare = payload;
+        bare.remove(QStringLiteral("address"));
+        bare.insert(QStringLiteral("departures"), QVariantList{});
+        bare.insert(QStringLiteral("strip"), QVariantMap{ { QStringLiteral("marks"), QVariantList{} } });
+        bare.insert(QStringLiteral("whatMoved"), QVariantMap{});
+        bare.insert(QStringLiteral("repeat"), QVariantMap{});
+        const QVariantMap bb = postureReportBlock(bare, noSwings).toMap();
+        check(bb.value(QStringLiteral("departures")).toList().isEmpty() && bb.value(QStringLiteral("departuresSub")).toString().isEmpty(),
+              "no departure: no list and no sub");
+        check(bb.value(QStringLiteral("address")).isNull(), "no address reading: no At address block");
+        check(bb.value(QStringLiteral("strip")).isNull() && bb.value(QStringLiteral("moved")).toList().isEmpty() && bb.value(QStringLiteral("repeat")).toString().isEmpty(),
+              "no mark, no line, no words: absent");
+        check(bb.value(QStringLiteral("picture")).isNull() && bb.value(QStringLiteral("pictureWhy")).toStringList().isEmpty(),
+              "no picture in the payload: none on the page, and nothing said");
+
+        // the picture strip (stage 5): the typical swing numbered as the report numbers it, the coach lines cut to the
+        // picture's default sets (paper has no toggle), bands and ink kept, the frames' words verbatim
+        const auto mark = [](const char *role, const char *set) {
+            return QVariantMap{ { QStringLiteral("kind"), QStringLiteral("vline") }, { QStringLiteral("role"), QString::fromLatin1(role) },
+                                { QStringLiteral("set"), QString::fromLatin1(set) }, { QStringLiteral("x"), 10.0 } };
+        };
+        const QVariantMap frame{ { QStringLiteral("key"), QStringLiteral("dtl_P7") }, { QStringLiteral("camera"), QStringLiteral("dtl") },
+                                 { QStringLiteral("tag"), QStringLiteral("P7") }, { QStringLiteral("when"), QStringLiteral("impact") },
+                                 { QStringLiteral("caption"), QStringLiteral("impact: good players' hips sit in the shaded strip") },
+                                 { QStringLiteral("note"), QStringLiteral("The white line: your butt line at impact, 7.6 cm toward the ball.") },
+                                 { QStringLiteral("width"), 300 }, { QStringLiteral("height"), 600 }, { QStringLiteral("src"), QString() },
+                                 { QStringLiteral("imageWhy"), QString() }, { QStringLiteral("seekUs"), 2500000 },
+                                 { QStringLiteral("still"), QVariantMap{ { QStringLiteral("phase"), QStringLiteral("P7") } } },
+                                 { QStringLiteral("marks"), QVariantList{ mark("coach", "posture"), mark("coach", "plane"), mark("coach", "headHips"),
+                                                                         mark("band", ""), mark("ink", "") } } };
+        QVariantMap withPic = payload;
+        withPic.insert(QStringLiteral("picture"), QVariantMap{
+            { QStringLiteral("available"), true }, { QStringLiteral("swingDir"), dir.arg(5, 4, 10, QLatin1Char('0')) }, { QStringLiteral("ordinal"), 3 },
+            { QStringLiteral("typicalWhy"), QStringLiteral("the swing whose fit to Level is nearest the session's median") },
+            { QStringLiteral("legend"), QStringLiteral("Thin lines: your lines at address, frozen on every frame.") },
+            { QStringLiteral("why"), QStringList{} },
+            { QStringLiteral("defaultSets"), QVariantMap{ { QStringLiteral("posture"), true }, { QStringLiteral("plane"), false }, { QStringLiteral("headHips"), true } } },
+            { QStringLiteral("groups"), QVariantList{ QVariantMap{ { QStringLiteral("camera"), QStringLiteral("dtl") }, { QStringLiteral("label"), QStringLiteral("down the line") },
+                                                                   { QStringLiteral("frames"), QVariantList{ frame } } } } } });
+        const QVariantMap pb = postureReportBlock(withPic, swingNo).toMap();
+        const QVariantMap pic = pb.value(QStringLiteral("picture")).toMap();
+        eq(pic.value(QStringLiteral("typical")).toString(), QStringLiteral("A typical swing: swing 23"), "the typical swing, numbered as the report numbers it");
+        const QVariantMap pf0 = pic.value(QStringLiteral("groups")).toList().value(0).toMap().value(QStringLiteral("frames")).toList().value(0).toMap();
+        check(pf0.value(QStringLiteral("marks")).toList().size() == 4, "the plane set is cut (paper draws the default sets); bands and ink kept");
+        eq(pf0.value(QStringLiteral("caption")).toString(), frame.value(QStringLiteral("caption")).toString(), "the frame's caption verbatim");
+        check(!pf0.contains(QStringLiteral("seekUs")), "no seek target on paper");
+        check(pf0.value(QStringLiteral("still")).toMap().value(QStringLiteral("phase")).toString() == QLatin1String("P7"), "the still to make, kept for the model");
+        QVariantMap noPic = payload;
+        noPic.insert(QStringLiteral("picture"), QVariantMap{ { QStringLiteral("available"), false },
+                                                             { QStringLiteral("why"), QStringList{ QStringLiteral("No picture: the swing's document is not on disk.") } } });
+        const QVariantMap nb = postureReportBlock(noPic, swingNo).toMap();
+        check(nb.value(QStringLiteral("picture")).isNull() && nb.value(QStringLiteral("pictureWhy")).toStringList().size() == 1, "no frame: no picture, and why");
+
+        eq(pinpoint::report::postureMoreWords(1, "shot"), QStringLiteral("1 more shot not shown"), "the strip's ending, one");
+        eq(pinpoint::report::postureMoreWords(3, "shot"), QStringLiteral("3 more shots not shown"), "the strip's ending, several");
+    }
 
     std::printf("%s (%d failed)\n", g_fail ? "FAILED" : "OK", g_fail);
     return g_fail ? 1 : 0;

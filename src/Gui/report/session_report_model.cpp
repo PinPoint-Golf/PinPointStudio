@@ -19,10 +19,14 @@
 #include "session_report_model.h"
 
 #include "report_meta.h"
+#include "report_posture.h"
 #include "report_stills.h"
 #include "report_words.h"
 
 #include "../athlete/athlete_controller.h"
+#include "../charts/charts_posture_presenter.h"
+#include "../charts/session_series_model.h"
+#include "../charts/session_wrist.h"
 #include "../diagnostics/session_diagnostics_model.h"
 #include "../launchmonitor/lm_session_model.h"
 #include "../shot/shot_list_model.h"
@@ -94,6 +98,20 @@ struct DocFacts {
     qint64      wallMs = 0;
     QStringList videoAliases;
 };
+
+// THE POSTURE PAGE'S READING (posture_chart_design.md §5.7): the Charts panel's own session snapshot of the
+// swings (a private SessionSeriesModel, run inline on this worker: the analysis' series, phases and the ledger
+// rows, never the pose blob) and the Posture presenter's session payload over it, nothing picked, Auto pattern.
+// The same numbers and words the Charts Posture section draws for the session. Empty when nothing reads.
+QVariantMap readPosture(const QString &sessionDir)
+{
+    pinpoint::charts::SessionSeriesModel series;
+    series.setSynchronous(true);
+    series.activateSession(sessionDir);
+    const std::shared_ptr<const pinpoint::charts::SessionSnapshot> snap = series.snapshot();
+    if (!snap || snap->count() == 0) return {};
+    return pinpoint::charts::postureSessionReportPayload(*snap, -1, QStringLiteral("swings"));   // the report says swings
+}
 
 QVector<DocFacts> readDocs(const QString &sessionDir)
 {
@@ -204,8 +222,11 @@ QString gradePolicyName()
 }
 
 // One planned still: which slot of the map it fills.
+constexpr int kPostureStillSlot = -2;        // StillSlot::workOn for the posture picture's frames
+constexpr int kPostureFramesPerGroup = 16;   // StillSlot::index = group × this + frame
+
 struct StillSlot {
-    int     workOn = -1;   // index into the work-ons list; -1 = the reference swing
+    int     workOn = -1;   // index into the work-ons list; -1 = the reference swing; kPostureStillSlot = the posture picture
     int     index  = 0;    // slot within it
     QString outPath;
 };
@@ -221,9 +242,12 @@ struct SessionReportModel::Job {
     bool        stills = true;
     bool        modelReady = false;
     bool        docsReady = false;
+    bool        postureReady = false;
     bool        built = false;
     QFutureWatcher<QVector<DocFacts>> docsWatcher;
     QVector<DocFacts> docs;
+    QFutureWatcher<QVariantMap> postureWatcher;     // the posture page's payload (readPosture)
+    QVariantMap posture;
 
     QVariantMap         map;
     QVector<StillRequest> requests;
@@ -243,7 +267,7 @@ SessionReportModel::SessionReportModel(QObject *parent) : QObject(parent) {}
 
 SessionReportModel::~SessionReportModel()
 {
-    if (m_job) m_job->docsWatcher.waitForFinished();
+    if (m_job) { m_job->docsWatcher.waitForFinished(); m_job->postureWatcher.waitForFinished(); }
 }
 
 void SessionReportModel::setStudioProfile(StudioProfile *studio) { m_studio = studio; }
@@ -421,6 +445,11 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
 
     connect(&m_job->docsWatcher, &QFutureWatcher<QVector<DocFacts>>::finished, this, &SessionReportModel::onDocsRead);
     m_job->docsWatcher.setFuture(QtConcurrent::run([dir] { return readDocs(dir); }));
+    // The posture page's reading, alongside. The wrist grader's shared norm set is built here first, on this
+    // thread, as SessionSeriesModel's constructor does for its own worker (session_wrist.h).
+    pinpoint::charts::warmWristBands();
+    connect(&m_job->postureWatcher, &QFutureWatcher<QVariantMap>::finished, this, &SessionReportModel::onPostureRead);
+    m_job->postureWatcher.setFuture(QtConcurrent::run([dir] { return readPosture(dir); }));
 
     SessionDiagnosticsModel *m = model();
     m->setGradePolicy(gradePolicyName());
@@ -452,10 +481,18 @@ void SessionReportModel::onDocsRead()
     QTimer::singleShot(0, this, [this] { maybeBuild(); });
 }
 
+void SessionReportModel::onPostureRead()
+{
+    if (!m_job) return;
+    m_job->posture = m_job->postureWatcher.result();
+    m_job->postureReady = true;
+    QTimer::singleShot(0, this, [this] { maybeBuild(); });
+}
+
 void SessionReportModel::maybeBuild()
 {
-    // Both halves call here as they land, and the later one may find the build already begun.
-    if (!m_job || !m_job->modelReady || !m_job->docsReady || m_job->built) return;
+    // The three halves call here as they land, and the last may find the build already begun.
+    if (!m_job || !m_job->modelReady || !m_job->docsReady || !m_job->postureReady || m_job->built) return;
     m_job->built = true;
     build();
 }
@@ -481,7 +518,7 @@ void SessionReportModel::finishJob()
     const bool wasPrinting = m_printing;
     m_printing = false;
     m_printShotId = -1;
-    if (m_job) m_job->docsWatcher.waitForFinished();
+    if (m_job) { m_job->docsWatcher.waitForFinished(); m_job->postureWatcher.waitForFinished(); }
     m_job.reset();
     if (wasPrinting) emit printModelChanged();
     emit busyChanged();
@@ -1804,6 +1841,55 @@ void SessionReportModel::build()
             map[QStringLiteral("lmAppendix")] = lmAppendixOf(x, lmGraphics, swingNoOfShot);
         }
 
+        // The posture page (posture_chart_design.md §5.7): the Charts Posture section's session reading, its
+        // strip numbered as the report numbers its swings. Not in a note (the cover alone); absent when no
+        // swing reads a posture row.
+        if (isNote) {
+            map[QStringLiteral("posture")] = kNull;
+        } else {
+            QHash<QString, int> swingNoOfDir;
+            for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), k + 1);
+            QVariant po = M::postureReportBlock(job.posture, swingNoOfDir);
+            // the picture strip's stills (posture_chart_design.md §5.4): made in the stills pass below, cut at the
+            // picture's own crop; with no photos in this report the strip is left out and the page says so
+            QVariantMap pm = po.toMap();
+            if (!pm.isEmpty() && pm.value(QStringLiteral("picture")).typeId() == QMetaType::QVariantMap) {
+                if (!wantStills) {
+                    pm[QStringLiteral("picture")] = kNull;
+                    pm[QStringLiteral("pictureWhy")] = QStringList{ job.stills && !photo.included
+                        ? QStringLiteral("The picture strip is left out: this report carries no photos.")
+                        : QStringLiteral("The picture strip is left out: pictures were not made for this report.") };
+                } else {
+                    QVariantMap pic = pm.value(QStringLiteral("picture")).toMap();
+                    QVariantList groups = pic.value(QStringLiteral("groups")).toList();
+                    for (int g = 0; g < groups.size(); ++g) {
+                        QVariantMap gm = groups[g].toMap();
+                        QVariantList frames = gm.value(QStringLiteral("frames")).toList();
+                        for (int f = 0; f < frames.size(); ++f) {
+                            QVariantMap fm = frames[f].toMap();
+                            const QVariantMap still = fm.value(QStringLiteral("still")).toMap();
+                            if (still.isEmpty() || !fm.value(QStringLiteral("imageWhy")).toString().isEmpty()) continue;
+                            const QString out = QDir(stillsDir).filePath(QStringLiteral("posture_%1_%2_%3x%4.jpg")
+                                .arg(QString::fromLatin1(QCryptographicHash::hash(still.value(QStringLiteral("swingDir")).toString().toUtf8(),
+                                                                                  QCryptographicHash::Sha1).toHex().left(10)),
+                                     fm.value(QStringLiteral("key")).toString())
+                                .arg(still.value(QStringLiteral("x")).toInt()).arg(still.value(QStringLiteral("y")).toInt()));
+                            job.requests << stillRequestOf(still, out);
+                            job.stillSlots << StillSlot{ kPostureStillSlot, g * kPostureFramesPerGroup + f, out };
+                            fm[QStringLiteral("src")] = fileUrl(out);
+                            frames[f] = fm;
+                        }
+                        gm[QStringLiteral("frames")] = frames;
+                        groups[g] = gm;
+                    }
+                    pic[QStringLiteral("groups")] = groups;
+                    pm[QStringLiteral("picture")] = pic;
+                }
+                po = pm;
+            }
+            map[QStringLiteral("posture")] = po;
+        }
+
         if (isNote) {
             map[QStringLiteral("about")] = kNull;
         } else {
@@ -1884,6 +1970,31 @@ void SessionReportModel::build()
                 const bool ok = r.ok && QFileInfo::exists(s.outPath);
                 if (ok) ++made;
                 else ppWarn() << "[Report] still not made:" << s.outPath << r.error;
+                if (s.workOn == kPostureStillSlot) {
+                    // the posture picture's frame: no picture → an empty frame and the honest note
+                    if (ok) continue;
+                    QVariantMap pm = mp.value(QStringLiteral("posture")).toMap();
+                    QVariantMap pic = pm.value(QStringLiteral("picture")).toMap();
+                    QVariantList groups = pic.value(QStringLiteral("groups")).toList();
+                    const int g = s.index / kPostureFramesPerGroup, f = s.index % kPostureFramesPerGroup;
+                    if (g < groups.size()) {
+                        QVariantMap gm = groups[g].toMap();
+                        QVariantList frames = gm.value(QStringLiteral("frames")).toList();
+                        if (f < frames.size()) {
+                            QVariantMap fm = frames[f].toMap();
+                            fm[QStringLiteral("src")] = QString();
+                            fm[QStringLiteral("imageWhy")] = QStringLiteral("The frame could not be read%1.")
+                                .arg(r.error.isEmpty() ? QString() : QStringLiteral(": ") + r.error);
+                            frames[f] = fm;
+                        }
+                        gm[QStringLiteral("frames")] = frames;
+                        groups[g] = gm;
+                    }
+                    pic[QStringLiteral("groups")] = groups;
+                    pm[QStringLiteral("picture")] = pic;
+                    mp[QStringLiteral("posture")] = pm;
+                    continue;
+                }
                 if (s.workOn < 0) {
                     if (s.index < best.size() && !ok) best[s.index] = QString();
                     continue;

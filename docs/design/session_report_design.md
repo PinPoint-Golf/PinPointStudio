@@ -147,6 +147,22 @@ why*, and *Worth checking next time*.
 mock first put both on one page; with the causes block they no longer fit, and the real register
 flows on `PpPager` anyway.)
 
+**The Posture page** (added 22 October, Mark: the Charts Posture section prints as a page of the report,
+`posture_chart_design.md` §5.7). After the work-on pages and before "Between now and next time": it is a client
+page about this session's swings, so it sits with the work-ons, and the back matter (practice and numbers, About,
+the appendices) follows it. It starts a fresh page and may run on ("Posture, continued"). It is the Charts Posture
+section's *session* reading, printed from the same presenter output (`postureSessionReportPayload`, nothing
+picked, the Auto pattern): the head and pattern line; the session profile, one row per reading, P1 to P8, the
+pattern's band as a wash in the reading's own metric colour (Folio light), the fault line as a hairline, the
+session's box per position (`PpBoxPlot`), and under each column the median ("-" for none), how wide the middle half
+is, or the side of the band a median falls on (warn, a word); the ⚠ and its few words; "What moved" at the top and
+at impact; the pattern by shot; the departures as counts; how repeatable it is; and the trust note, said once.
+The picture strip (address, top, impact) joins it in stage 5, between "Repeatable?" and the trust note. No posture
+reading in the session: no page. Not on the cover's contents line (the line shares the folio with the studio's
+contact). `SessionReportModel` reads it on a worker while the documents are read: a private `SessionSeriesModel`
+(the Charts panel's loader, inline) builds the session snapshot and the presenter's payload is cut to the map's
+`posture` block by `report_posture.h` (the strip renumbered to the report's swings, the lists capped).
+
 **Page 8. Between now and next time.**
 - **How to practise a change:** four steps, written as studio text (§7). The coach edits them
   once and every report carries them.
@@ -678,6 +694,7 @@ for any content, and it is tested on content chosen to break it.
    | Worth checking | 5 per kind | the rest on the work-on pages |
    | Drills per work-on | 1 in full + 1 as "Also" | the pack may hold more; they are not printed |
    | Numbers table | all swings | flows, repeating its heads |
+   | Posture page | rows 6, positions 8; strip 120 marks, 30 a line; departures 6; trust lines 8 | "N more shots not shown" / "N more" |
    | Stills | 2 per work-on (first three only), 4 for the reference swing | — |
 
 5. **Widths come from the text, not from Nick.** Columns use the typeset size classes in em

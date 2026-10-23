@@ -1,0 +1,6915 @@
+{
+ "kind": "report",
+ "brand": {
+  "studio": "Northfield Golf Studio",
+  "monogram": "NG",
+  "logo": "",
+  "accent": "#1F5A4C",
+  "coach": "Alex Morgan",
+  "coachTitle": "Head coach",
+  "coachLine": "Alex Morgan  ·  Head coach",
+  "contact": "alex@northfieldgolf.example  ·  01234 567890",
+  "web": "northfieldgolf.example",
+  "footLine": "Alex Morgan, Northfield Golf Studio  ·  alex@northfieldgolf.example  ·  01234 567890",
+  "signoff": "Book your next session at northfieldgolf.example or reply to this email.",
+  "coachPhoto": ""
+ },
+ "meta": {
+  "golfer": "Nick Henn",
+  "first": "Nick",
+  "date": "Tuesday 20 October 2026",
+  "dateShort": "20 Oct 2026",
+  "prepared": "20 October 2026",
+  "preparedShort": "20 Oct 2026",
+  "pdfTitle": "Session report — Nick Henn — session of 20 Oct 2026",
+  "fileName": "2026-10-20_Nick-Henn_session-report.pdf",
+  "emailSubject": "Your session report — 20 October 2026",
+  "club": "7 iron",
+  "swings": 10,
+  "sessionOfDay": "Session 3 of 3 today",
+  "hand": "right-handed",
+  "devices": "Down-the-line and face-on cameras · GC Quad launch monitor",
+  "mastheadDate": "Prepared 20 October 2026",
+  "folioDate": "Prepared 20 Oct 2026",
+  "kicker": "Session of Tuesday 20 October 2026  ·  7 iron  ·  10 swings  ·  Session 3 of 3 today",
+  "runningHead": "Nick Henn  ·  session of 20 Oct 2026  ·  7 iron"
+ },
+ "headline": "Five habits showed on almost every swing. We start with your backswing: keep the flex in your trail knee.",
+ "coachNote": "Good work today, Nick.",
+ "photos": {
+  "included": true,
+  "reason": ""
+ },
+ "held": [],
+ "appendix": true,
+ "strengths": [
+  {
+   "text": "No slices.",
+   "count": "0 of 10 swings"
+  },
+  {
+   "text": "Your hips turn in place going back.",
+   "count": "all 10 swings"
+  },
+  {
+   "text": "Your head stays level going back.",
+   "count": "all 10 swings"
+  }
+ ],
+ "found": [
+  {
+   "name": "Trail knee straightens",
+   "golfer": "Your trail leg straightens going back",
+   "count": "10 of 10 swings"
+  },
+  {
+   "name": "Hips under-rotated at impact",
+   "golfer": "Your hips haven't turned enough by impact",
+   "count": "10 of 10 swings"
+  },
+  {
+   "name": "Early extension",
+   "golfer": "You stand up through the ball",
+   "count": "10 of 10 swings"
+  },
+  {
+   "name": "Over the top",
+   "golfer": "Your hands come over the top coming down",
+   "count": "10 of 10 swings"
+  },
+  {
+   "name": "Reverse spine angle at P4",
+   "golfer": "You lean toward the target at the top",
+   "count": "9 of 10 swings"
+  }
+ ],
+ "watching": [],
+ "workOnsBrief": [
+  {
+   "rank": 1,
+   "goal": "Keep the flex in your trail knee",
+   "drill": "Trail hip load and hold"
+  },
+  {
+   "rank": 2,
+   "goal": "Have your hips open at impact",
+   "drill": "Impact hold"
+  },
+  {
+   "rank": 3,
+   "goal": "Stay in your posture through the ball",
+   "drill": "Rod along the spine"
+  },
+  {
+   "rank": 4,
+   "goal": "Bring your hands down inside the path they went up",
+   "drill": "Gate drill"
+  },
+  {
+   "rank": 5,
+   "goal": "Lean slightly away from the target at the top",
+   "drill": "Club across the chest"
+  }
+ ],
+ "ball": {
+  "device": "GC Quad",
+  "byline": "measured on every swing by GC Quad",
+  "note": "Typical value (the middle of your 10 swings) in large type; the range from lowest to highest beneath.",
+  "groups": [
+   {
+    "club": "",
+    "tiles": [
+     {
+      "label": "Carry",
+      "value": "148",
+      "unit": "yd",
+      "range": "133–155"
+     },
+     {
+      "label": "Ball speed",
+      "value": "105",
+      "unit": "mph",
+      "range": "98–109"
+     },
+     {
+      "label": "Club speed",
+      "value": "79",
+      "unit": "mph",
+      "range": "76–83"
+     },
+     {
+      "label": "Smash",
+      "value": "1.33",
+      "unit": "",
+      "range": "1.21–1.35"
+     },
+     {
+      "label": "Launch",
+      "value": "22°",
+      "unit": "",
+      "range": "19–23"
+     },
+     {
+      "label": "Spin",
+      "value": "5,009",
+      "unit": "rpm",
+      "range": "4,659–5,624"
+     },
+     {
+      "label": "Club path",
+      "value": "1°",
+      "unit": "in-to-out",
+      "range": "−0.2 to +4.2"
+     },
+     {
+      "label": "Offline",
+      "value": "8",
+      "unit": "yd",
+      "range": "widest, either side"
+     }
+    ]
+   }
+  ],
+  "more": ""
+ },
+ "grid": {
+  "title": "Your habits, swing by swing",
+  "standfirst": "Each row is one thing we measured; each column is one of your ten swings, in the order you hit them. A filled dot means it showed on that swing.",
+  "sessionNote": "",
+  "swings": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10
+  ],
+  "rows": [
+   {
+    "group": "habit",
+    "name": "Trail knee straightens",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "10 of 10"
+   },
+   {
+    "group": "habit",
+    "name": "Hips under-rotated at impact",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "10 of 10"
+   },
+   {
+    "group": "habit",
+    "name": "Early extension",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "10 of 10"
+   },
+   {
+    "group": "habit",
+    "name": "Over the top",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "10 of 10"
+   },
+   {
+    "group": "habit",
+    "name": "Reverse spine angle at P4",
+    "marks": [
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "9 of 10"
+   },
+   {
+    "group": "seen",
+    "name": "Head sways off the ball",
+    "marks": [
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean"
+    ],
+    "count": "4 of 10"
+   },
+   {
+    "group": "seen",
+    "name": "Separation stretched past control",
+    "marks": [
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired"
+    ],
+    "count": "4 of 10"
+   },
+   {
+    "group": "seen",
+    "name": "Hips move toward the ball going back",
+    "marks": [
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "count": "4 of 10"
+   },
+   {
+    "group": "ball",
+    "name": "Club returns toe-up at impact",
+    "marks": [
+     "notAssessable",
+     "fired",
+     "fired",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "notAssessable"
+    ],
+    "count": "7 of 7"
+   },
+   {
+    "group": "ball",
+    "name": "Thin",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired"
+    ],
+    "count": "6 of 10"
+   },
+   {
+    "group": "ball",
+    "name": "Face closed to the path",
+    "marks": [
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean"
+    ],
+    "count": "5 of 10"
+   }
+  ],
+  "carry": [
+   133,
+   147,
+   148,
+   147,
+   147,
+   150,
+   133,
+   153,
+   149,
+   155
+  ],
+  "best": 3,
+  "bestText": "Swing 3 came closest to your targets: a 148 yard carry at 105 mph ball speed.",
+  "bestStills": [
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P1.jpg",
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P4.jpg",
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P7.jpg",
+   "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0003_DTL_P10.jpg"
+  ],
+  "bestLabels": [
+   "Address",
+   "Top",
+   "Impact",
+   "Finish"
+  ],
+  "groups": [
+   {
+    "key": "habit",
+    "title": "Your habits — the five work-ons"
+   },
+   {
+    "key": "seen",
+    "title": "Seen, not yet habits"
+   },
+   {
+    "key": "ball",
+    "title": "What the ball did"
+   }
+  ],
+  "more": {},
+  "carryLabel": "Carry, yards"
+ },
+ "today": {
+  "sessions": [
+   "Session 1 · 8 swings",
+   "Session 2 · 8 swings",
+   "Session 3 · 10 swings"
+  ],
+  "rows": [
+   {
+    "name": "Trail knee straightens",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 10/10"
+     }
+    ]
+   },
+   {
+    "name": "Hips under-rotated at impact",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 10/10"
+     }
+    ]
+   },
+   {
+    "name": "Early extension",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 10/10"
+     }
+    ]
+   },
+   {
+    "name": "Over the top",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 10/10"
+     }
+    ]
+   },
+   {
+    "name": "Reverse spine angle at P4",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 9/10"
+     }
+    ]
+   },
+   {
+    "name": "Out-of-order sequence",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 4/4"
+     },
+     {
+      "state": "inconclusive",
+      "text": "1/2"
+     },
+     {
+      "state": "quiet",
+      "text": "2/2"
+     }
+    ]
+   },
+   {
+    "name": "Hips move toward the ball going back",
+    "marks": [
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "pattern",
+      "text": "habit 8/8"
+     },
+     {
+      "state": "quiet",
+      "text": "4/10"
+     }
+    ]
+   }
+  ],
+  "note": "Five of today's habits were already there in your first session. Out-of-order sequence was a habit earlier today; this session could only judge it on two swings, too few to say. Hips move toward the ball going back was a habit earlier today and came down to 4 of 10 here.",
+  "more": ""
+ },
+ "order": {
+  "intro": "Your list is ordered by three rules, applied in turn. Here is each rule and what it did today.",
+  "rules": [
+   {
+    "title": "What is still happening comes first",
+    "body": "A habit you started fixing during the session goes to the back of the list.",
+    "today": "None of the five eased during the session, so this rule changed nothing today."
+   },
+   {
+    "title": "Causes before the things they cause",
+    "body": "When one habit sets up another, working on the first often fixes the second for free. We only put one behind another when your swings show it: the second goes away on the swings where the first does.",
+    "today": "It could not be tested today. All five showed on every swing (or all but one), so there is no swing without one to compare against."
+   },
+   {
+    "title": "Then the biggest miss first",
+    "body": "Each habit is measured against a target range. The one that missed by most, for its range, comes first.",
+    "today": "This is what set today's order. The bars below show how far each one missed."
+   }
+  ],
+  "items": [
+   {
+    "rank": 1,
+    "name": "Trail knee straightens",
+    "goal": "Keep the flex in your trail knee",
+    "phase": "P4",
+    "share": 1.0,
+    "count": "10 of 10 swings"
+   },
+   {
+    "rank": 2,
+    "name": "Hips under-rotated at impact",
+    "goal": "Have your hips open at impact",
+    "phase": "P7",
+    "share": 0.963,
+    "count": "10 of 10 swings"
+   },
+   {
+    "rank": 3,
+    "name": "Early extension",
+    "goal": "Stay in your posture through the ball",
+    "phase": "P7",
+    "share": 0.727,
+    "count": "10 of 10 swings"
+   },
+   {
+    "rank": 4,
+    "name": "Over the top",
+    "goal": "Bring your hands down inside the path they went up",
+    "phase": "P6",
+    "share": 0.7,
+    "count": "10 of 10 swings"
+   },
+   {
+    "rank": 5,
+    "name": "Reverse spine angle at P4",
+    "goal": "Lean slightly away from the target at the top",
+    "phase": "P4",
+    "share": 0.658,
+    "count": "9 of 10 swings"
+   }
+  ],
+  "links": [
+   {
+    "from": "Over the top",
+    "to": "Early extension",
+    "words": "Linked in the coaching model. This session cannot test it, because both happened on every swing."
+   }
+  ],
+  "notListed": [
+   {
+    "name": "Club returns toe-up at impact (7 of 7)",
+    "why": "A result, not a movement to practise: the coaching model links it to early extension (work-on 3). Fix that, and it should follow."
+   },
+   {
+    "name": "Thin (6 of 10)",
+    "why": "Something the ball did, not a movement to practise. It is on the watch list until it repeats often enough to call a habit."
+   }
+  ],
+  "timeline": [
+   {
+    "rank": 1,
+    "pos": 1.6
+   },
+   {
+    "rank": 2,
+    "pos": 4
+   },
+   {
+    "rank": 3,
+    "pos": 4.3
+   },
+   {
+    "rank": 4,
+    "pos": 3
+   },
+   {
+    "rank": 5,
+    "pos": 2
+   }
+  ],
+  "timelineNote": "Your first work-on is also the earliest in the swing. Habits early in the swing tend to set up the ones after them, which is one more reason to start there.",
+  "barsNote": "Bar: how far outside its target range each habit went, compared with the range’s own width. The longest bar goes first."
+ },
+ "checks": [
+  {
+   "title": "A quick physical test would tell. Each could sit behind two or more of your work-ons:",
+   "body": "Lead-hip mobility (3, 4) · Upper-back mobility (4, 5) · Trail-hip mobility (3, 5) · Core stability (3, 5) · Turning your hips without your chest (3, 4)"
+  },
+  {
+   "title": "Your coach can look; the cameras can't see these yet:",
+   "body": "Across the line at the top (4) · Flat lower back at address (5) · Flat shoulder plane (4) · Club taken inside (4) · Club taken outside (4)"
+  }
+ ],
+ "workOns": [
+  {
+   "rank": 1,
+   "id": "trail_knee_straighten",
+   "name": "Trail knee straightens",
+   "goal": "Keep the flex in your trail knee",
+   "phase": "P4",
+   "phaseWords": "at the top",
+   "also": "“standing up on it going back”",
+   "count": "10 of 10 swings",
+   "saw": "Your trail leg straightens going back — on all 10 swings, steady from first swing to last. Typical trail-knee bend lost by the top: 22°, against a target of less than 12°.",
+   "why": "A straight trail leg lets your hips slide instead of turn, so you lose power.",
+   "cameWith": "It often drags other habits in with it. Not today — on every swing, your head stays level going back, your hips turn in place going back and your hips hold their height going back.",
+   "causes": {
+    "lead": "We checked every cause we know of for this one, and each was fine — so it may come from something we can't yet put a name to. Worth talking through with your coach.",
+    "rows": [
+     {
+      "kind": "ruledOut",
+      "title": "Ruled out — measured, and fine",
+      "items": [
+       "You squat too much at address"
+      ],
+      "more": "",
+      "note": ""
+     }
+    ]
+   },
+   "drills": [
+    {
+     "label": "Trail hip load and hold",
+     "instruction": "Take your address position, make a slow backswing turn, and stop at the top. Feel the pressure in the trail hip socket rather than on the outside of the trail foot. Hold for three seconds, then return.",
+     "targets": "To feel the trail hip accepting the turn instead of the pelvis sliding away from the target.",
+     "note": "The stick is a feedback aid, not the drill. If the hip cannot rotate internally, the slide is the body finding the only route it has.",
+     "equipment": "an alignment stick outside the trail hip, optional"
+    }
+   ],
+   "cue": "As you turn back, feel your trail knee stay soft and pointing at the ball while your trail pocket turns behind you.",
+   "check": "Film from down the line. At the top, your trail knee should look about as bent as it did at address.",
+   "target": "Trail-knee bend lost by the top: less than 12°, on most swings. Today: 22°.",
+   "figure": {
+    "unit": "°",
+    "decimals": 0,
+    "bands": [
+     {
+      "grade": "action",
+      "lo": 18,
+      "hi": 24.735678004898478
+     },
+     {
+      "grade": "watch",
+      "lo": 12,
+      "hi": 18
+     },
+     {
+      "grade": "good",
+      "lo": 6,
+      "hi": 12
+     },
+     {
+      "grade": "ideal",
+      "lo": 0,
+      "hi": 6
+     },
+     {
+      "grade": "open",
+      "lo": -0.9513722309576338,
+      "hi": 0
+     }
+    ],
+    "points": [
+     {
+      "swing": 1,
+      "value": 18.90800117629965,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 2,
+      "value": 23.784305773940844,
+      "state": "fired",
+      "text": "−24°"
+     },
+     {
+      "swing": 3,
+      "value": 16.295295999644708,
+      "state": "fired",
+      "text": "−16°"
+     },
+     {
+      "swing": 4,
+      "value": 18.3683461418682,
+      "state": "fired",
+      "text": "−18°"
+     },
+     {
+      "swing": 5,
+      "value": 21.4706759174352,
+      "state": "fired",
+      "text": "−21°"
+     },
+     {
+      "swing": 6,
+      "value": 22.004755547254035,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 7,
+      "value": 21.648525745997347,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 8,
+      "value": 21.605083543492242,
+      "state": "fired",
+      "text": "−22°"
+     },
+     {
+      "swing": 9,
+      "value": 19.20507656020476,
+      "state": "fired",
+      "text": "−19°"
+     },
+     {
+      "swing": 10,
+      "value": 23.646459089322207,
+      "state": "fired",
+      "text": "−24°"
+     }
+    ],
+    "medianText": "−22°"
+   },
+   "figureLabel": "Each dot is one swing: trail-knee bend lost by the top, in degrees.",
+   "stills": [
+    {
+     "src": "file:///mnt/swingdata/scratch/session-report/out/nick/stills/o0005_DTL_P1_knee.jpg",
+     "caption": "Address, swing 5",
+     "value": "",
+     "note": "Your typical swing (swing 5). The line is your trail leg, hip to knee to ankle."
+    },
+    {
+     "src": "file:///mnt/swingdata/scratch/session-report/out/nick/stills/o0005_DTL_P4_knee.jpg",
+     "caption": "Top",
+     "value": "21° lost",
+     "note": ""
+    }
+   ],
+   "kicker": "Work-on 1 of 5  ·  P4, at the top  ·  10 of 10 swings",
+   "coachTerm": "Coaches call the habit <i>Trail knee straightens</i>, or “standing up on it going back”."
+  },
+  {
+   "rank": 2,
+   "id": "hips_closed_at_impact",
+   "name": "Hips under-rotated at impact",
+   "goal": "Have your hips open at impact",
+   "phase": "P7",
+   "phaseWords": "at impact",
+   "also": "“hips not clearing”, “blocked”",
+   "count": "10 of 10 swings",
+   "saw": "Your hips haven't turned enough by impact — on all 10 swings, steady from first swing to last. Typical hip turn at impact: 3°, against a target of 18° to 58°.",
+   "why": "Hips that haven't turned enough get in your arms' way, so your hands take over and the strike varies.",
+   "cameWith": "",
+   "causes": {
+    "lead": "We checked every cause we know of for this one, and each was fine — so it may come from something we can't yet put a name to. Worth talking through with your coach.",
+    "rows": [
+     {
+      "kind": "ruledOut",
+      "title": "Ruled out — measured, and fine",
+      "items": [
+       "Your hips are slow to start turning coming down"
+      ],
+      "more": "",
+      "note": ""
+     }
+    ]
+   },
+   "drills": [
+    {
+     "label": "Impact hold",
+     "instruction": "Make slow swings to impact and stop there. Check three things: your belt buckle points between the ball and the target, your trail heel is just off the ground, and your hands are level with your lead thigh. Hold for two seconds, then finish the swing slowly.",
+     "targets": "To feel where your hips need to be when the club reaches the ball, so the turn has somewhere to go.",
+     "note": "If your hips will not open without your shoulders opening too, that is a mobility question before it is a practice one.",
+     "equipment": "a mirror or a phone on a stand"
+    }
+   ],
+   "cue": "Through the ball, feel your belt buckle already facing between the ball and the target.",
+   "check": "Film face-on. At impact you should see the front of your lead hip, with your belt turned toward the target.",
+   "target": "Hip turn at impact: 18° to 58°, on most swings. Today: 3°.",
+   "figure": {
+    "unit": "°",
+    "decimals": 0,
+    "bands": [
+     {
+      "grade": "action",
+      "lo": -2.5,
+      "hi": 8
+     },
+     {
+      "grade": "watch",
+      "lo": 8,
+      "hi": 18
+     },
+     {
+      "grade": "good",
+      "lo": 18,
+      "hi": 28
+     },
+     {
+      "grade": "ideal",
+      "lo": 28,
+      "hi": 48
+     },
+     {
+      "grade": "good",
+      "lo": 48,
+      "hi": 58
+     },
+     {
+      "grade": "watch",
+      "lo": 58,
+      "hi": 68
+     },
+     {
+      "grade": "action",
+      "lo": 68,
+      "hi": 78.5
+     }
+    ],
+    "points": [
+     {
+      "swing": 1,
+      "value": 5.643165512159556,
+      "state": "fired",
+      "text": "6°"
+     },
+     {
+      "swing": 2,
+      "value": 3.3949052704382883,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 3,
+      "value": 1.1750320341462086,
+      "state": "fired",
+      "text": "1°"
+     },
+     {
+      "swing": 4,
+      "value": 7.264444372865225,
+      "state": "fired",
+      "text": "7°"
+     },
+     {
+      "swing": 5,
+      "value": 3.4958727938955305,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 6,
+      "value": 2.2841212478748707,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 7,
+      "value": 2.3132859657624736,
+      "state": "fired",
+      "text": "2°"
+     },
+     {
+      "swing": 8,
+      "value": 3.8476774523983472,
+      "state": "fired",
+      "text": "4°"
+     },
+     {
+      "swing": 9,
+      "value": 3.013295350331602,
+      "state": "fired",
+      "text": "3°"
+     },
+     {
+      "swing": 10,
+      "value": 8.25071784010312,
+      "state": "fired",
+      "text": "8°"
+     }
+    ],
+    "medianText": "3°"
+   },
+   "figureLabel": "Each dot is one swing: hip turn at impact, in degrees.",
+   "stills": [
+    {
+     "src": "file:///mnt/swingdata/scratch/session-report/out/nick/stills/s0005_Face-On_P7.jpg",
+     "caption": "Typical, swing 5",
+     "value": "3°",
+     "note": "Every swing looked much like this one."
+    }
+   ],
+   "kicker": "Work-on 2 of 5  ·  P7, at impact  ·  10 of 10 swings",
+   "coachTerm": "Coaches call the habit <i>Hips under-rotated at impact</i>, or “hips not clearing”, “blocked”."
+  },
+  {
+   "rank": 3,
+   "id": "early_extension",
+   "name": "Early extension",
+   "goal": "Stay in your posture through the ball",
+   "phase": "P7",
+   "phaseWords": "at impact",
+   "also": "“standing up”, “hip thrust toward the ball”",
+   "count": "10 of 10 swings",
+   "saw": "You stand up through the ball — on all 10 swings, steady from first swing to last. Typical posture lost by impact: 12.9°, against a target of less than 5°.",
+   "why": "Standing up takes away the room your arms need, so your hands have to rescue the strike.",
+   "cameWith": "It came with club returns toe-up at impact (7 of the 7 swings we could see). That fits the coaching model, though showing up together is not proof that one causes the other. And on every swing, you lean slightly away from the target at impact.",
+   "causes": {
+    "lead": "One possible cause showed up on the same swings. Because both happened on every swing, we can't prove one drives the other — so here is what we spotted, what we couldn't check, and what we've ruled out.",
+    "rows": [
+     {
+      "kind": "seen",
+      "title": "What we spotted",
+      "items": [
+       "Your hands come over the top coming down — on 10 of 10 swings, work-on 4"
+      ],
+      "more": "",
+      "note": "it fits, but isn't proof"
+     },
+     {
+      "kind": "possible",
+      "title": "Could be behind it — we couldn't check",
+      "items": [
+       "<i>A quick physical test would tell:</i> Lead-hip mobility · Turning your hips without your chest · Trail-hip mobility · Core stability · Glute strength · Lead-ankle mobility"
+      ],
+      "more": "4 more, less likely",
+      "note": ""
+     },
+     {
+      "kind": "ruledOut",
+      "title": "Ruled out — measured, and fine",
+      "items": [
+       "You stand too close to the ball",
+       "You bend over too much at address",
+       "You throw the club out early from the top",
+       "You hang back on your trail side through impact"
+      ],
+      "more": "3 more",
+      "note": ""
+     }
+    ]
+   },
+   "drills": [
+    {
+     "label": "Rod along the spine",
+     "instruction": "Hold an alignment stick along your spine, touching the back of your head, your upper back and your tailbone. Rehearse your address position and your backswing turn keeping all three in contact.",
+     "targets": "To feel the spine angle you set at address being kept through the turn.",
+     "note": "A fixed upper-back curve will stop all three touching. That is information, not a failure.",
+     "equipment": "an alignment stick"
+    },
+    {
+     "label": "Standoff check",
+     "instruction": "Set up with a headcover just outside the toe of the club and make swings without hitting it.",
+     "targets": "To keep the distance between the body and the ball the same at impact as it was at address.",
+     "note": "The standard first answer to a hosel strike, and it works because it addresses the standoff rather than the fear.",
+     "equipment": "a headcover"
+    }
+   ],
+   "cue": "Keep your backside on an imaginary wall behind you all the way to impact.",
+   "check": "Film from down the line with a line drawn down the back of your hips at address. At impact your hips should still be touching it.",
+   "target": "Posture lost by impact: less than 5°, on most swings. Today: 12.9°.",
+   "figure": {
+    "unit": "°",
+    "decimals": 1,
+    "bands": [
+     {
+      "grade": "action",
+      "lo": 7.5,
+      "hi": 14.740173170296494
+     },
+     {
+      "grade": "watch",
+      "lo": 5,
+      "hi": 7.5
+     },
+     {
+      "grade": "good",
+      "lo": 2.5,
+      "hi": 5
+     },
+     {
+      "grade": "ideal",
+      "lo": 0,
+      "hi": 2.5
+     },
+     {
+      "grade": "open",
+      "lo": -0.5669297373190959,
+      "hi": 0
+     }
+    ],
+    "points": [
+     {
+      "swing": 1,
+      "value": 12.442305502810818,
+      "state": "fired",
+      "text": "−12.4°"
+     },
+     {
+      "swing": 2,
+      "value": 14.173243432977397,
+      "state": "fired",
+      "text": "−14.2°"
+     },
+     {
+      "swing": 3,
+      "value": 12.697438970241876,
+      "state": "fired",
+      "text": "−12.7°"
+     },
+     {
+      "swing": 4,
+      "value": 12.044436452745792,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 5,
+      "value": 11.9699143059011,
+      "state": "fired",
+      "text": "−12.0°"
+     },
+     {
+      "swing": 6,
+      "value": 13.144672951788703,
+      "state": "fired",
+      "text": "−13.1°"
+     },
+     {
+      "swing": 7,
+      "value": 13.590841053280808,
+      "state": "fired",
+      "text": "−13.6°"
+     },
+     {
+      "swing": 8,
+      "value": 13.70055185593013,
+      "state": "fired",
+      "text": "−13.7°"
+     },
+     {
+      "swing": 9,
+      "value": 12.318447566238913,
+      "state": "fired",
+      "text": "−12.3°"
+     },
+     {
+      "swing": 10,
+      "value": 13.60816461254042,
+      "state": "fired",
+      "text": "−13.6°"
+     }
+    ],
+    "medianText": "−12.9°"
+   },
+   "figureLabel": "Each dot is one swing: posture lost by impact, in degrees.",
+   "stills": [
+    {
+     "src": "file:///mnt/swingdata/scratch/session-report/out/nick/stills/o0003_DTL_P7_spine_g.jpg",
+     "caption": "At impact, swing 3",
+     "value": "12.7° lost",
+     "note": "Orange: your spine at impact. White dashes: the same swing at address. Every swing looked much like this one."
+    }
+   ],
+   "kicker": "Work-on 3 of 5  ·  P7, at impact  ·  10 of 10 swings",
+   "coachTerm": "Coaches call the habit <i>Early extension</i>, or “standing up”, “hip thrust toward the ball”."
+  },
+  {
+   "rank": 4,
+   "id": "over_the_top",
+   "name": "Over the top",
+   "goal": "Bring your hands down inside the path they went up",
+   "phase": "P6",
+   "phaseWords": "coming down",
+   "also": "“coming over it”, “OTT”",
+   "count": "10 of 10 swings",
+   "saw": "Your hands come over the top coming down — on all 10 swings, steady from first swing to last. Typical hand rise coming down: 11% hand rise, against a target of 9% hand rise or less.",
+   "why": "When the club comes over the top it cuts across the ball, so shots start left or curve right.",
+   "cameWith": "It often drags other habits in with it. Not today — on every swing, you keep your arms wide at the top.",
+   "causes": {
+    "lead": "We couldn't pin down what drives this one today. Here are the possible causes: the ones we couldn't check, and the ones we've ruled out.",
+    "rows": [
+     {
+      "kind": "possible",
+      "title": "Could be behind it — we couldn't check",
+      "items": [
+       "<i>A quick physical test would tell:</i> Turning your hips without your chest · Lead-hip mobility · Upper-back mobility<br><i>Hidden on today's swings:</i> Your shoulders start down before your hips<br><i>Your coach can look:</i> Your shoulders turn too flat going back · You take the club back too far outside"
+      ],
+      "more": "3 more, less likely",
+      "note": ""
+     },
+     {
+      "kind": "ruledOut",
+      "title": "Ruled out — measured, and fine",
+      "items": [
+       "Your hips are slow to start turning coming down",
+       "Your hips don't turn enough going back",
+       "You hang back on your trail side through impact",
+       "You rush from the top"
+      ],
+      "more": "4 more",
+      "note": ""
+     }
+    ]
+   },
+   "drills": [
+    {
+     "label": "Gate drill",
+     "instruction": "Place two tees, or a headcover just outside the ball, so the club has to travel through a gate to reach it. Start with slow half swings.",
+     "targets": "To feel the club approaching from a different direction, with immediate feedback when it does not.",
+     "note": "Set the gate for the path you want, not against the one you have — a gate that punishes the current swing without offering another produces a flinch, not a change.",
+     "equipment": "two tees, or a headcover"
+    },
+    {
+     "label": "Pump to delivery",
+     "instruction": "Swing to the top, then move down to about waist height and stop, checking that the shaft is on the plane it started on and your hands still have their angle. Return to the top and repeat three times, then hit the shot.",
+     "targets": "To rehearse the delivery position rather than to arrive at it by accident.",
+     "note": "Rehearsal, not a swing thought. Trying to do this consciously at full speed produces a different, slower swing.",
+     "equipment": ""
+    }
+   ],
+   "cue": "Start down by letting your trail elbow drop toward your trail hip pocket.",
+   "check": "Film from down the line. Coming down, your hands should drop below the line they went up on.",
+   "target": "Hand rise coming down: 9% hand rise or less, on most swings. Today: 11% hand rise.",
+   "figure": {
+    "unit": "% hand rise",
+    "decimals": 0,
+    "bands": [
+     {
+      "grade": "open",
+      "lo": -0.65,
+      "hi": 0
+     },
+     {
+      "grade": "ideal",
+      "lo": 0,
+      "hi": 4.333333333333333
+     },
+     {
+      "grade": "good",
+      "lo": 4.333333333333333,
+      "hi": 8.666666666666666
+     },
+     {
+      "grade": "watch",
+      "lo": 8.666666666666666,
+      "hi": 13
+     },
+     {
+      "grade": "action",
+      "lo": 13,
+      "hi": 16.9
+     }
+    ],
+    "points": [
+     {
+      "swing": 1,
+      "value": 9.692341146566523,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 2,
+      "value": 11.77449346335929,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 3,
+      "value": 10.8745939821342,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 4,
+      "value": 13.43778823315169,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 5,
+      "value": 13.001370791932228,
+      "state": "fired",
+      "text": "13 % hand rise"
+     },
+     {
+      "swing": 6,
+      "value": 10.897191498778867,
+      "state": "fired",
+      "text": "11 % hand rise"
+     },
+     {
+      "swing": 7,
+      "value": 12.031664623528101,
+      "state": "fired",
+      "text": "12 % hand rise"
+     },
+     {
+      "swing": 8,
+      "value": 9.567104609120884,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 9,
+      "value": 9.844215356286153,
+      "state": "fired",
+      "text": "10 % hand rise"
+     },
+     {
+      "swing": 10,
+      "value": 9.385290628423501,
+      "state": "fired",
+      "text": "9 % hand rise"
+     }
+    ],
+    "medianText": "11 % hand rise"
+   },
+   "figureLabel": "Each dot is one swing: hand rise coming down, in percent of hand rise.",
+   "stills": [],
+   "kicker": "Work-on 4 of 5  ·  P6, coming down  ·  10 of 10 swings",
+   "coachTerm": "Coaches call the habit <i>Over the top</i>, or “coming over it”, “OTT”."
+  },
+  {
+   "rank": 5,
+   "id": "reverse_spine_p4",
+   "name": "Reverse spine angle at P4",
+   "goal": "Lean slightly away from the target at the top",
+   "phase": "P4",
+   "phaseWords": "at the top",
+   "also": "“leaning left at the top”, “forward spine angle at the top”",
+   "count": "9 of 10 swings",
+   "saw": "You lean toward the target at the top — on 9 of 10 swings, steady from first swing to last. Typical lean away from the target at the top: −1°, against a target of 0° to 24°; this is a small miss: just outside the range, never far.",
+   "why": "Leaning toward the target at the top strains your lower back and makes it hard to start down smoothly.",
+   "cameWith": "",
+   "causes": {
+    "lead": "We couldn't pin down what drives this one today. Here are the possible causes: the ones we couldn't check, and the ones we've ruled out.",
+    "rows": [
+     {
+      "kind": "possible",
+      "title": "Could be behind it — we couldn't check",
+      "items": [
+       "<i>Your coach can look:</i> Your lower back arches too much at address · Your lower back is too flat at address<br><i>A quick physical test would tell:</i> Upper-back mobility · Trail-hip mobility · Core stability"
+      ],
+      "more": "",
+      "note": ""
+     }
+    ]
+   },
+   "drills": [
+    {
+     "label": "Club across the chest",
+     "instruction": "Without a ball, hold a club across your chest. Turn to the top and check in a mirror that the shaft tilts down toward the target and your chest sits behind the ball. Ten slow turns.",
+     "targets": "To feel the upper body staying behind the ball as it turns, rather than tipping toward the target.",
+     "note": "A short turn often hides inside this one: if the shoulders cannot turn further, the body tips instead.",
+     "equipment": "a mirror"
+    }
+   ],
+   "cue": "At the top, feel your sternum stay over your trail thigh.",
+   "check": "Film face-on. At the top your head and chest should sit a little behind the ball, never toward the target.",
+   "target": "Lean away from the target at the top: 0° to 24°, on most swings. Today: −1°.",
+   "figure": {
+    "unit": "°",
+    "decimals": 0,
+    "bands": [
+     {
+      "grade": "action",
+      "lo": -12.3,
+      "hi": -6
+     },
+     {
+      "grade": "watch",
+      "lo": -6,
+      "hi": 0
+     },
+     {
+      "grade": "good",
+      "lo": 0,
+      "hi": 6
+     },
+     {
+      "grade": "ideal",
+      "lo": 6,
+      "hi": 18
+     },
+     {
+      "grade": "good",
+      "lo": 18,
+      "hi": 24
+     },
+     {
+      "grade": "watch",
+      "lo": 24,
+      "hi": 30
+     },
+     {
+      "grade": "action",
+      "lo": 30,
+      "hi": 36.3
+     }
+    ],
+    "points": [
+     {
+      "swing": 1,
+      "value": -3.1959136765123306,
+      "state": "fired",
+      "text": "−3°"
+     },
+     {
+      "swing": 2,
+      "value": 2.3513036085066616,
+      "state": "clean",
+      "text": "2°"
+     },
+     {
+      "swing": 3,
+      "value": -0.6367275643476862,
+      "state": "fired",
+      "text": "−1°"
+     },
+     {
+      "swing": 4,
+      "value": -0.33362644329840835,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 5,
+      "value": -5.555546877463192,
+      "state": "fired",
+      "text": "−6°"
+     },
+     {
+      "swing": 6,
+      "value": -0.28241793786008496,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 7,
+      "value": -0.05067115942497291,
+      "state": "fired",
+      "text": "0°"
+     },
+     {
+      "swing": 8,
+      "value": -5.450541411172689,
+      "state": "fired",
+      "text": "−5°"
+     },
+     {
+      "swing": 9,
+      "value": -4.209195539487604,
+      "state": "fired",
+      "text": "−4°"
+     },
+     {
+      "swing": 10,
+      "value": -2.163588246602049,
+      "state": "fired",
+      "text": "−2°"
+     }
+    ],
+    "medianText": "−1°"
+   },
+   "figureLabel": "Each dot is one swing: lean away from the target at the top, in degrees.",
+   "stills": [],
+   "kicker": "Work-on 5 of 5  ·  P4, at the top  ·  9 of 10 swings",
+   "coachTerm": "Coaches call the habit <i>Reverse spine angle at P4</i>, or “leaning left at the top”, “forward spine angle at the top”."
+  }
+ ],
+ "practice": {
+  "title": "How to practise a change",
+  "steps": [
+   {
+    "head": "Rehearse without a ball",
+    "body": "Slow swings, ten at a time, feeling the change. This is where the new move is learned."
+   },
+   {
+    "head": "Small swings with a ball",
+    "body": "Half swings at half speed. Keep the feel; ignore where the ball goes."
+   },
+   {
+    "head": "Mix it in",
+    "body": "Full swings: one with the feel, then two normal ones. Film every fifth swing."
+   },
+   {
+    "head": "One thing at a time",
+    "body": "Stay with work-on 1 until your next session. The rest of the list waits."
+   }
+  ]
+ },
+ "numbers": {
+  "cols": [
+   "Swing",
+   "Carry",
+   "Total",
+   "Ball",
+   "Club",
+   "Smash",
+   "Launch",
+   "Spin",
+   "Path",
+   "Face",
+   "Face to path",
+   "Attack",
+   "Offline"
+  ],
+  "units": [
+   "",
+   "yd",
+   "yd",
+   "mph",
+   "mph",
+   "",
+   "°",
+   "rpm",
+   "°",
+   "°",
+   "°",
+   "°",
+   "yd"
+  ],
+  "rows": [
+   {
+    "cells": [
+     "1",
+     "133",
+     "145",
+     "99",
+     "76",
+     "1.29",
+     "19",
+     "5,624",
+     "-0.2",
+     "-1.1",
+     "-0.8",
+     "-3.1",
+     "-2"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "2",
+     "147",
+     "158",
+     "104",
+     "78",
+     "1.34",
+     "23",
+     "4,894",
+     "3.7",
+     "0.6",
+     "-3.1",
+     "-0.7",
+     "-2"
+    ],
+    "habitsText": "4 of 5"
+   },
+   {
+    "cells": [
+     "3",
+     "148",
+     "159",
+     "105",
+     "78",
+     "1.34",
+     "23",
+     "5,059",
+     "0.7",
+     "-2.5",
+     "-3.2",
+     "-1.1",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "4",
+     "147",
+     "158",
+     "104",
+     "77",
+     "1.35",
+     "22",
+     "4,959",
+     "-0.1",
+     "-1.6",
+     "-1.5",
+     "-1.8",
+     "6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "5",
+     "147",
+     "159",
+     "104",
+     "79",
+     "1.33",
+     "21",
+     "4,824",
+     "0.8",
+     "-2.7",
+     "-3.5",
+     "-2.0",
+     "-6"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "6",
+     "150",
+     "162",
+     "106",
+     "79",
+     "1.34",
+     "22",
+     "4,659",
+     "2.9",
+     "-1.0",
+     "-3.8",
+     "-1.0",
+     "3"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "7",
+     "133",
+     "146",
+     "98",
+     "81",
+     "1.21",
+     "19",
+     "5,258",
+     "1.4",
+     "1.5",
+     "0.1",
+     "-1.7",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "8",
+     "153",
+     "164",
+     "108",
+     "81",
+     "1.34",
+     "20",
+     "5,319",
+     "1.3",
+     "-1.5",
+     "-2.8",
+     "-2.0",
+     "-8"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "9",
+     "149",
+     "161",
+     "105",
+     "80",
+     "1.32",
+     "22",
+     "4,879",
+     "2.5",
+     "-2.1",
+     "-4.5",
+     "-1.8",
+     "5"
+    ],
+    "habitsText": "5 of 5"
+   },
+   {
+    "cells": [
+     "10",
+     "155",
+     "166",
+     "109",
+     "83",
+     "1.32",
+     "22",
+     "5,074",
+     "4.2",
+     "5.3",
+     "1.1",
+     "-1.2",
+     "-4"
+    ],
+    "habitsText": "5 of 5"
+   }
+  ],
+  "typical": [
+   {
+    "cells": [
+     "Typical",
+     "148",
+     "159",
+     "105",
+     "79",
+     "1.33",
+     "22",
+     "5,009",
+     "1.4",
+     "-1.3",
+     "-2.9",
+     "-1.7",
+     "-2"
+    ]
+   }
+  ],
+  "habitsHead": "Habits",
+  "note": "Path, face and offline: positive is right of target, negative left (right-handed golfer). Habits: how many of your five work-ons showed on that swing. Typical: the middle value of your ten swings."
+ },
+ "about": {
+  "dates": "This report covers your session on Tuesday 20 October 2026 and was prepared on 20 October 2026. If a session is re-analysed, the report is prepared again and carries the new date.",
+  "measured": "10 swings with a 7 iron, filmed down-the-line and face-on at high frame rate, with every ball measured by a GC Quad. Your body positions are read from the video by pose tracking; the club and ball numbers come from the launch monitor.",
+  "ranges": "Each habit is judged against a target range. Most ranges are coaching judgement, set from what good ball-strikers do; a few come from published measurements. They are not fitted to you. A swing outside the range is not a mistake in itself — it is where the evidence points.",
+  "notChecked": "Some things could not be checked on every swing: pelvis peak a spike (10 of 10); chest peak out of sight (10 of 10); club peak drawn, not judged (10 of 10). Nothing in this report depends on them.",
+  "words": [
+   [
+    "Habit",
+    "something that showed on most swings — at least 3, and often enough that it is not chance"
+   ],
+   [
+    "Target range",
+    "where a good ball-striker's swing usually is at that point"
+   ],
+   [
+    "Work-on",
+    "a habit you can practise your way out of, in the order to work on it"
+   ],
+   [
+    "P1 … P10",
+    "the ten positions of the swing, from address (P1) through the top (P4) and impact (P7) to the finish (P10)"
+   ]
+  ],
+  "footnote": "Measured and prepared with PinPoint Studio. Swing images show only the golfer; video stays in the studio."
+ },
+ "posture": {
+  "kicker": "10 swings  ·  7 iron  ·  Posture",
+  "head": "Level on 9 of 10 swings; most often you leave it by hips in (8 of 10 swings).",
+  "patternLine": "Level (nearest, of your session) · trail knee released",
+  "profile": {
+   "caption": "Shaded: the Level band, where good players are at each position. The hairline: where a fault fires. A ring and a word: the session's median outside the band, and on which side. ⚠: drawn, not matched, never ringed.",
+   "positions": [
+    {
+     "available": true,
+     "name": "address",
+     "tag": "P1"
+    },
+    {
+     "available": true,
+     "name": "P2",
+     "tag": "P2"
+    },
+    {
+     "available": true,
+     "name": "P3",
+     "tag": "P3"
+    },
+    {
+     "available": true,
+     "name": "the top",
+     "tag": "P4"
+    },
+    {
+     "available": true,
+     "name": "P5",
+     "tag": "P5"
+    },
+    {
+     "available": true,
+     "name": "P6",
+     "tag": "P6"
+    },
+    {
+     "available": true,
+     "name": "impact",
+     "tag": "P7"
+    },
+    {
+     "available": true,
+     "name": "P8",
+     "tag": "P8"
+    }
+   ],
+   "rows": [
+    {
+     "boxes": [
+      {
+       "box": {
+        "hi": 0,
+        "lo": 0,
+        "max": 0,
+        "med": 0,
+        "min": 0,
+        "n": 10,
+        "outliers": [],
+        "q1": 0,
+        "q3": 0,
+        "texts": {
+         "hi": "0.0",
+         "lo": "0.0",
+         "med": "0.0",
+         "q1": "0.0",
+         "q3": "0.0"
+        }
+       },
+       "median": 0,
+       "medianText": "0.0",
+       "n": 10,
+       "picked": null,
+       "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "wide": null,
+       "wideText": ""
+      },
+      {
+       "box": {
+        "hi": 8.370726338325817,
+        "lo": -10.407076625486543,
+        "max": 8.370726338325817,
+        "med": -0.07349589740055412,
+        "min": -10.407076625486543,
+        "n": 10,
+        "outliers": [],
+        "q1": -3.7658076280402373,
+        "q3": 3.601373249007274,
+        "texts": {
+         "hi": "+8.4",
+         "lo": "−10.4",
+         "med": "−0.1",
+         "q1": "−3.8",
+         "q3": "+3.6"
+        }
+       },
+       "median": -0.07349589740055412,
+       "medianText": "−0.1",
+       "n": 10,
+       "picked": null,
+       "values": [
+        4.776398646435475,
+        4.708243664636509,
+        -6.03109760552559,
+        -4.259861577065584,
+        -2.283645780964199,
+        8.370726338325817,
+        0.19348728416746475,
+        -10.407076625486543,
+        -0.34047907896857305,
+        0.28076200211957036
+       ],
+       "wide": 7.367180877047511,
+       "wideText": "7.4 cm wide"
+      },
+      {
+       "box": {
+        "hi": 7.657744612544105,
+        "lo": -9.274609726185314,
+        "max": 7.657744612544105,
+        "med": 1.1221508812698562,
+        "min": -9.274609726185314,
+        "n": 10,
+        "outliers": [],
+        "q1": -2.55792100044933,
+        "q3": 2.348276277784741,
+        "texts": {
+         "hi": "+7.7",
+         "lo": "−9.3",
+         "med": "+1.1",
+         "q1": "−2.6",
+         "q3": "+2.3"
+        }
+       },
+       "median": 1.1221508812698562,
+       "medianText": "+1.1",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -0.8549419991087649,
+        0.5042486267528767,
+        1.8540120431391107,
+        -9.274609726185314,
+        -3.1255806675628515,
+        2.5130310226666173,
+        5.128479403141626,
+        -9.04033849844474,
+        7.657744612544105,
+        1.7400531357868354
+       ],
+       "wide": 4.906197278234071,
+       "wideText": "4.9 cm wide"
+      },
+      {
+       "box": {
+        "hi": 2.157192052524663,
+        "lo": -2.359447937822402,
+        "max": 2.157192052524663,
+        "med": -1.093147801665105,
+        "min": -9.288693225814201,
+        "n": 10,
+        "outliers": [
+         4,
+         8
+        ],
+        "q1": -2.323952819497446,
+        "q3": 0.09879911460725897,
+        "texts": {
+         "hi": "+2.2",
+         "lo": "−2.4",
+         "med": "−1.1",
+         "q1": "−2.3",
+         "q3": "+0.1"
+        }
+       },
+       "median": -1.093147801665105,
+       "medianText": "−1.1",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -0.8414819060930029,
+        0.20233608324055508,
+        -1.3448136972372073,
+        -9.288693225814201,
+        -2.359447937822402,
+        2.157192052524663,
+        -2.2174674645225796,
+        -8.175172983664652,
+        0.964560697741368,
+        -0.21181179129262934
+       ],
+       "wide": 2.422751934104705,
+       "wideText": "2.4 cm wide"
+      },
+      {
+       "box": {
+        "hi": 2.3974059109538293,
+        "lo": -2.271895298335136,
+        "max": 2.3974059109538293,
+        "med": -0.9687166541096704,
+        "min": -9.065248171320336,
+        "n": 10,
+        "outliers": [
+         4,
+         8
+        ],
+        "q1": -2.122797542893981,
+        "q3": 0.28770605919042036,
+        "texts": {
+         "hi": "+2.4",
+         "lo": "−2.3",
+         "med": "−1.0",
+         "q1": "−2.1",
+         "q3": "+0.3"
+        }
+       },
+       "median": -0.9687166541096704,
+       "medianText": "−1.0",
+       "n": 10,
+       "picked": null,
+       "values": [
+        0.13031897527748712,
+        0.34016842049473145,
+        -1.484975092974485,
+        -9.065248171320336,
+        -2.271895298335136,
+        2.3974059109538293,
+        -1.6755042765705164,
+        -8.896895433679534,
+        0.5292840993602197,
+        -0.45245821524485597
+       ],
+       "wide": 2.4105036020844013,
+       "wideText": "2.4 cm wide"
+      },
+      {
+       "box": {
+        "hi": 2.853553594279559,
+        "lo": -1.9007187213346737,
+        "max": 2.853553594279559,
+        "med": -0.598823085959063,
+        "min": -8.661293545080088,
+        "n": 10,
+        "outliers": [
+         4,
+         8
+        ],
+        "q1": -1.761434696223133,
+        "q3": 0.8016887568779051,
+        "texts": {
+         "hi": "+2.9",
+         "lo": "−1.9",
+         "med": "−0.6",
+         "q1": "−1.8",
+         "q3": "+0.8"
+        }
+       },
+       "median": -0.598823085959063,
+       "medianText": "−0.6",
+       "n": 10,
+       "picked": null,
+       "values": [
+        0.6202195287942687,
+        0.8621784995724505,
+        -1.135915369125112,
+        -8.661293545080088,
+        -1.9007187213346737,
+        2.853553594279559,
+        -1.3435826208885113,
+        -8.593706371010832,
+        0.9333791090453816,
+        -0.061730802793013954
+       ],
+       "wide": 2.563123453101038,
+       "wideText": "2.6 cm wide"
+      },
+      {
+       "box": {
+        "hi": 3.1265378614844326,
+        "lo": -2.6340977524216123,
+        "max": 3.1265378614844326,
+        "med": 0.2556011262800071,
+        "min": -9.346770090999298,
+        "n": 10,
+        "outliers": [
+         4,
+         8
+        ],
+        "q1": -2.066161566845403,
+        "q3": 1.4215793606455889,
+        "texts": {
+         "hi": "+3.1",
+         "lo": "−2.6",
+         "med": "+0.3",
+         "q1": "−2.1",
+         "q3": "+1.4"
+        }
+       },
+       "median": 0.2556011262800071,
+       "medianText": "+0.3",
+       "n": 10,
+       "picked": null,
+       "values": [
+        1.636940947164209,
+        1.3862268540396536,
+        -0.0681750111345596,
+        -9.346770090999298,
+        -2.6340977524216123,
+        3.1265378614844326,
+        -0.36235301011677545,
+        -8.447105953354788,
+        1.433363529514234,
+        0.5793772636945738
+       ],
+       "wide": 3.487740927490992,
+       "wideText": "3.5 cm wide"
+      },
+      {
+       "box": {
+        "hi": 6.632704033498291,
+        "lo": -5.942800350558927,
+        "max": 15.002667999117245,
+        "med": 4.242417782289198,
+        "min": -7.231375680804387,
+        "n": 8,
+        "outliers": [
+         3,
+         8
+        ],
+        "q1": 0.7675282601892874,
+        "q3": 5.42368904895357,
+        "texts": {
+         "hi": "+6.6",
+         "lo": "−5.9",
+         "med": "+4.2",
+         "q1": "+0.8",
+         "q3": "+5.4"
+        }
+       },
+       "median": 4.242417782289198,
+       "medianText": "+4.2",
+       "n": 8,
+       "picked": null,
+       "values": [
+        5.020684054105329,
+        4.066831780181649,
+        15.002667999117245,
+        -5.942800350558927,
+        null,
+        6.632704033498291,
+        null,
+        -7.231375680804387,
+        4.418003784396749,
+        3.0043044637720255
+       ],
+       "wide": 4.656160788764282,
+       "wideText": "4.7 cm wide"
+      }
+     ],
+     "camera": "face-on",
+     "cells": [
+      {
+       "available": true,
+       "bandContext": "",
+       "bandHi": null,
+       "bandInherited": false,
+       "bandLo": null,
+       "bandMu": null,
+       "bandSource": "",
+       "banded": false,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 0,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1507925,
+       "tag": "P1",
+       "text": "0.0",
+       "value": 0,
+       "valueText": "0.0 cm",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "none",
+       "watchHi": null,
+       "watchLo": null,
+       "z": null
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 2,
+       "bandInherited": true,
+       "bandLo": -2,
+       "bandMu": 0,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 1,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1862943,
+       "tag": "P2",
+       "text": "−0.1",
+       "value": -0.07349589740055412,
+       "valueText": "−0.1 cm",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 6,
+       "watchLo": -6,
+       "z": -0.03674794870027706
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 4,
+       "bandInherited": true,
+       "bandLo": -2,
+       "bandMu": 1,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 2,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1983587,
+       "tag": "P3",
+       "text": "+1.1",
+       "value": 1.1221508812698562,
+       "valueText": "+1.1 cm",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 10,
+       "watchLo": -8,
+       "z": 0.040716960423285396
+      },
+      {
+       "available": true,
+       "bandContext": "posture_level",
+       "bandHi": 6,
+       "bandInherited": false,
+       "bandLo": -2,
+       "bandMu": 2,
+       "bandSource": "literature",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": {
+        "conditionId": "head_rise_backswing",
+        "edge": 6,
+        "edgeText": "+6.0",
+        "label": "Head rises in the backswing"
+       },
+       "faultLo": {
+        "conditionId": "head_drop_backswing",
+        "edge": -6,
+        "edgeText": "−6.0",
+        "label": "Head drops in the backswing"
+       },
+       "firedShots": 2,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 3,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2224662,
+       "tag": "P4",
+       "text": "−1.1",
+       "value": -1.093147801665105,
+       "valueText": "−1.1 cm",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 14,
+       "watchLo": -10,
+       "z": -0.7732869504162763
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 3,
+       "bandInherited": true,
+       "bandLo": -3,
+       "bandMu": 0,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": {
+        "conditionId": "coming_out_of_it",
+        "edge": 6,
+        "edgeText": "+6.0",
+        "label": "Coming out of it"
+       },
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 4,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2397675,
+       "tag": "P5",
+       "text": "−1.0",
+       "value": -0.9687166541096704,
+       "valueText": "−1.0 cm",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 9,
+       "watchLo": -9,
+       "z": -0.32290555136989013
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 1,
+       "bandInherited": true,
+       "bandLo": -5,
+       "bandMu": -2,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": {
+        "conditionId": "coming_out_of_it",
+        "edge": 6,
+        "edgeText": "+6.0",
+        "label": "Coming out of it"
+       },
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 5,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2450585,
+       "tag": "P6",
+       "text": "−0.6",
+       "value": -0.598823085959063,
+       "valueText": "−0.6 cm",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 7,
+       "watchLo": -11,
+       "z": 0.46705897134697905
+      },
+      {
+       "available": true,
+       "bandContext": "posture_level",
+       "bandHi": -0.5,
+       "bandInherited": false,
+       "bandLo": -6.5,
+       "bandMu": -3.5,
+       "bandSource": "literature",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": {
+        "conditionId": "coming_out_of_it",
+        "edge": 6,
+        "edgeText": "+6.0",
+        "label": "Coming out of it"
+       },
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 6,
+       "mark": "ring",
+       "note": "outside the good-player band at P7, not far enough to be a fault",
+       "outside": true,
+       "picked": null,
+       "pickedText": "-",
+       "ring": true,
+       "ringWord": "up",
+       "seekUs": 2519396,
+       "tag": "P7",
+       "text": "+0.3",
+       "value": 0.2556011262800071,
+       "valueText": "+0.3 cm",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 5.5,
+       "watchLo": -12.5,
+       "z": 1.2518670420933358
+      },
+      {
+       "available": true,
+       "bandContext": "",
+       "bandHi": null,
+       "bandInherited": false,
+       "bandLo": null,
+       "bandMu": null,
+       "bandSource": "",
+       "banded": false,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 7,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2649348,
+       "tag": "P8",
+       "text": "+4.2",
+       "value": 4.242417782289198,
+       "valueText": "+4.2 cm",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "none",
+       "watchHi": null,
+       "watchLo": null,
+       "z": null
+      }
+     ],
+     "decimals": 1,
+     "hueKey": "headLift",
+     "key": "head",
+     "label": "Head height",
+     "metricKey": "headLift",
+     "minusWord": "down",
+     "outCount": 1,
+     "plusWord": "up",
+     "poleText": "up ▲",
+     "poleWord": "up",
+     "present": true,
+     "style": false,
+     "styleText": "",
+     "styleWord": "",
+     "unit": "cm",
+     "yHi": 17.035447569085548,
+     "yLo": -12.439856195454846
+    },
+    {
+     "boxes": [
+      {
+       "box": {
+        "hi": 0,
+        "lo": 0,
+        "max": 0,
+        "med": 0,
+        "min": 0,
+        "n": 10,
+        "outliers": [],
+        "q1": 0,
+        "q3": 0,
+        "texts": {
+         "hi": "0.0",
+         "lo": "0.0",
+         "med": "0.0",
+         "q1": "0.0",
+         "q3": "0.0"
+        }
+       },
+       "median": 0,
+       "medianText": "0.0",
+       "n": 10,
+       "picked": null,
+       "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "wide": null,
+       "wideText": ""
+      },
+      {
+       "box": {
+        "hi": 2.9660713465560526,
+        "lo": 0.5678821857974314,
+        "max": 2.9660713465560526,
+        "med": 1.3749036894408415,
+        "min": 0.5678821857974314,
+        "n": 10,
+        "outliers": [],
+        "q1": 1.1620405638450955,
+        "q3": 2.0364252593600547,
+        "texts": {
+         "hi": "+3.0",
+         "lo": "+0.6",
+         "med": "+1.4",
+         "q1": "+1.2",
+         "q3": "+2.0"
+        }
+       },
+       "median": 1.3749036894408415,
+       "medianText": "+1.4",
+       "n": 10,
+       "picked": null,
+       "values": [
+        2.099389197568383,
+        2.529788519310812,
+        0.5678821857974314,
+        1.2510186019142022,
+        0.9789688698823208,
+        1.3862388574295619,
+        1.1323812178220598,
+        2.9660713465560526,
+        1.363568521452121,
+        1.8475334447350693
+       ],
+       "wide": 0.8743846955149592,
+       "wideText": "0.9 cm wide"
+      },
+      {
+       "box": {
+        "hi": 3.337892826595756,
+        "lo": -0.46002269473591667,
+        "max": 3.337892826595756,
+        "med": 1.2090923476680175,
+        "min": -0.46002269473591667,
+        "n": 10,
+        "outliers": [],
+        "q1": 0.8050714283319091,
+        "q3": 1.941751990059043,
+        "texts": {
+         "hi": "+3.3",
+         "lo": "−0.5",
+         "med": "+1.2",
+         "q1": "+0.8",
+         "q3": "+1.9"
+        }
+       },
+       "median": 1.2090923476680175,
+       "medianText": "+1.2",
+       "n": 10,
+       "picked": null,
+       "values": [
+        1.088624386531111,
+        3.337892826595756,
+        -0.46002269473591667,
+        0.7105537755988418,
+        1.2011575890686528,
+        2.109202417975027,
+        1.217027106267382,
+        2.9807367135041813,
+        0.48403550698599357,
+        1.4394007063110916
+       ],
+       "wide": 1.1366805617271338,
+       "wideText": "1.1 cm wide"
+      },
+      {
+       "box": {
+        "hi": 4.066778250762585,
+        "lo": 1.5994311419987721,
+        "max": 4.066778250762585,
+        "med": 2.15512284061325,
+        "min": 1.5994311419987721,
+        "n": 10,
+        "outliers": [],
+        "q1": 1.9441462078123943,
+        "q3": 3.4086104627890355,
+        "texts": {
+         "hi": "+4.1",
+         "lo": "+1.6",
+         "med": "+2.2",
+         "q1": "+1.9",
+         "q3": "+3.4"
+        }
+       },
+       "median": 2.15512284061325,
+       "medianText": "+2.2",
+       "n": 10,
+       "picked": null,
+       "values": [
+        1.9564711919053683,
+        3.819543065101854,
+        1.5994311419987721,
+        1.6214133561025341,
+        1.940037879781403,
+        2.1345008726065617,
+        2.1757448086199385,
+        3.4522760154334815,
+        3.2776138048556978,
+        4.066778250762585
+       ],
+       "wide": 1.4644642549766411,
+       "wideText": "1.5 cm wide"
+      },
+      {
+       "box": {
+        "hi": 4.666862695620453,
+        "lo": 1.9211950282196546,
+        "max": 4.666862695620453,
+        "med": 3.1629659848104548,
+        "min": 1.9211950282196546,
+        "n": 10,
+        "outliers": [],
+        "q1": 2.718074680362862,
+        "q3": 4.4312750834466,
+        "texts": {
+         "hi": "+4.7",
+         "lo": "+1.9",
+         "med": "+3.2",
+         "q1": "+2.7",
+         "q3": "+4.4"
+        }
+       },
+       "median": 3.1629659848104548,
+       "medianText": "+3.2",
+       "n": 10,
+       "picked": null,
+       "values": [
+        2.6722721551101847,
+        4.532498496185658,
+        2.3350799929165675,
+        1.9211950282196546,
+        3.396513403686778,
+        2.9294185659341316,
+        2.855482256120895,
+        4.540616752017421,
+        4.127604845229426,
+        4.666862695620453
+       ],
+       "wide": 1.713200403083738,
+       "wideText": "1.7 cm wide"
+      },
+      {
+       "box": {
+        "hi": 5.952135974174034,
+        "lo": 3.208737488940191,
+        "max": 5.952135974174034,
+        "med": 4.397840291635155,
+        "min": 3.208737488940191,
+        "n": 10,
+        "outliers": [],
+        "q1": 3.814790772001843,
+        "q3": 5.521520797865514,
+        "texts": {
+         "hi": "+6.0",
+         "lo": "+3.2",
+         "med": "+4.4",
+         "q1": "+3.8",
+         "q3": "+5.5"
+        }
+       },
+       "median": 4.397840291635155,
+       "medianText": "+4.4",
+       "n": 10,
+       "picked": null,
+       "values": [
+        3.4769997418978087,
+        5.554071521790746,
+        3.7298442116807107,
+        3.208737488940191,
+        4.373846644389907,
+        4.421833938880402,
+        4.06963045296524,
+        5.952135974174034,
+        5.423868626089818,
+        5.678319337206247
+       ],
+       "wide": 1.706730025863671,
+       "wideText": "1.7 cm wide"
+      },
+      {
+       "box": {
+        "hi": 7.438241805890402,
+        "lo": 4.044185812402921,
+        "max": 7.438241805890402,
+        "med": 5.667310827928107,
+        "min": 4.044185812402921,
+        "n": 10,
+        "outliers": [],
+        "q1": 5.440023158639627,
+        "q3": 6.492214127914968,
+        "texts": {
+         "hi": "+7.4",
+         "lo": "+4.0",
+         "med": "+5.7",
+         "q1": "+5.4",
+         "q3": "+6.5"
+        }
+       },
+       "median": 5.667310827928107,
+       "medianText": "+5.7",
+       "n": 10,
+       "picked": null,
+       "values": [
+        4.4831136049198355,
+        6.506112236046408,
+        5.404322800975849,
+        4.044185812402921,
+        5.54712423163096,
+        5.578091563133183,
+        5.75653009272303,
+        6.9702171192258255,
+        6.45051980352065,
+        7.438241805890402
+       ],
+       "wide": 1.0521909692753413,
+       "wideText": "1.1 cm wide"
+      },
+      {
+       "box": {
+        "hi": null,
+        "lo": null,
+        "max": null,
+        "med": null,
+        "min": null,
+        "n": 0,
+        "outliers": [],
+        "q1": null,
+        "q3": null
+       },
+       "median": null,
+       "medianText": "-",
+       "n": 0,
+       "picked": null,
+       "values": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+       ],
+       "wide": null,
+       "wideText": ""
+      }
+     ],
+     "camera": "down the line",
+     "cells": [
+      {
+       "available": true,
+       "bandContext": "",
+       "bandHi": null,
+       "bandInherited": false,
+       "bandLo": null,
+       "bandMu": null,
+       "bandSource": "",
+       "banded": false,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 0,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1507925,
+       "tag": "P1",
+       "text": "0.0",
+       "value": 0,
+       "valueText": "0.0 cm",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "none",
+       "watchHi": null,
+       "watchLo": null,
+       "z": null
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 2,
+       "bandInherited": true,
+       "bandLo": -2,
+       "bandMu": 0,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": {
+        "conditionId": "pelvis_thrust_backswing",
+        "edge": 2.6666666666666665,
+        "edgeText": "+2.7",
+        "label": "Pelvis moves toward the ball in the backswing"
+       },
+       "faultLo": null,
+       "firedShots": 4,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 1,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1862943,
+       "tag": "P2",
+       "text": "+1.4",
+       "value": 1.3749036894408415,
+       "valueText": "+1.4 cm",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 6,
+       "watchLo": -6,
+       "z": 0.6874518447204208
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 1.5,
+       "bandInherited": true,
+       "bandLo": -3.5,
+       "bandMu": -1,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": {
+        "conditionId": "pelvis_thrust_backswing",
+        "edge": 2.6666666666666665,
+        "edgeText": "+2.7",
+        "label": "Pelvis moves toward the ball in the backswing"
+       },
+       "faultLo": null,
+       "firedShots": 4,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 2,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1983587,
+       "tag": "P3",
+       "text": "+1.2",
+       "value": 1.2090923476680175,
+       "valueText": "+1.2 cm",
+       "warn": "⚠",
+       "warnReason": "the hip points turn with the pelvis",
+       "warnShort": "hip turn",
+       "warned": true,
+       "wash": "band",
+       "watchHi": 6.5,
+       "watchLo": -8.5,
+       "z": 0.883636939067207
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 1,
+       "bandInherited": true,
+       "bandLo": -5,
+       "bandMu": -2,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": {
+        "conditionId": "pelvis_thrust_backswing",
+        "edge": 2.6666666666666665,
+        "edgeText": "+2.7",
+        "label": "Pelvis moves toward the ball in the backswing"
+       },
+       "faultLo": null,
+       "firedShots": 4,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 3,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2224662,
+       "tag": "P4",
+       "text": "+2.2",
+       "value": 2.15512284061325,
+       "valueText": "+2.2 cm",
+       "warn": "⚠",
+       "warnReason": "the hip points turn with the pelvis",
+       "warnShort": "hip turn",
+       "warned": true,
+       "wash": "band",
+       "watchHi": 7,
+       "watchLo": -11,
+       "z": 1.3850409468710836
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 1,
+       "bandInherited": true,
+       "bandLo": -4,
+       "bandMu": -1.5,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": {
+        "conditionId": "early_extension",
+        "edge": 5,
+        "edgeText": "+5.0",
+        "label": "Early extension"
+       },
+       "faultLo": {
+        "conditionId": "backing_off_the_ball",
+        "edge": -5,
+        "edgeText": "−5.0",
+        "label": "Backing away from the ball"
+       },
+       "firedShots": 10,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 4,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2397675,
+       "tag": "P5",
+       "text": "+3.2",
+       "value": 3.1629659848104548,
+       "valueText": "+3.2 cm",
+       "warn": "⚠",
+       "warnReason": "the hip points turn with the pelvis",
+       "warnShort": "hip turn",
+       "warned": true,
+       "wash": "band",
+       "watchHi": 6,
+       "watchLo": -9,
+       "z": 1.8651863939241822
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 2.5,
+       "bandInherited": true,
+       "bandLo": -2.5,
+       "bandMu": 0,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": {
+        "conditionId": "early_extension",
+        "edge": 5,
+        "edgeText": "+5.0",
+        "label": "Early extension"
+       },
+       "faultLo": {
+        "conditionId": "backing_off_the_ball",
+        "edge": -5,
+        "edgeText": "−5.0",
+        "label": "Backing away from the ball"
+       },
+       "firedShots": 10,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 5,
+       "mark": "ring",
+       "note": "",
+       "outside": true,
+       "picked": null,
+       "pickedText": "-",
+       "ring": true,
+       "ringWord": "in",
+       "seekUs": 2450585,
+       "tag": "P6",
+       "text": "+4.4",
+       "value": 4.397840291635155,
+       "valueText": "+4.4 cm",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 7.5,
+       "watchLo": -7.5,
+       "z": 1.7591361166540618
+      },
+      {
+       "available": true,
+       "bandContext": "posture_level",
+       "bandHi": 3.5,
+       "bandInherited": false,
+       "bandLo": -1.5,
+       "bandMu": 1,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": true,
+       "counted": true,
+       "exit": false,
+       "faultHi": {
+        "conditionId": "early_extension",
+        "edge": 5,
+        "edgeText": "+5.0",
+        "label": "Early extension"
+       },
+       "faultLo": {
+        "conditionId": "backing_off_the_ball",
+        "edge": -5,
+        "edgeText": "−5.0",
+        "label": "Backing away from the ball"
+       },
+       "firedShots": 10,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 6,
+       "mark": "ring",
+       "note": "",
+       "outside": true,
+       "picked": null,
+       "pickedText": "-",
+       "ring": true,
+       "ringWord": "in",
+       "seekUs": 2519396,
+       "tag": "P7",
+       "text": "+5.7",
+       "value": 5.667310827928107,
+       "valueText": "+5.7 cm",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 8.5,
+       "watchLo": -6.5,
+       "z": 1.866924331171243
+      },
+      {
+       "available": false,
+       "bandContext": "",
+       "bandHi": null,
+       "bandInherited": false,
+       "bandLo": null,
+       "bandMu": null,
+       "bandSource": "",
+       "banded": false,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 7,
+       "mark": "none",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2649348,
+       "tag": "P8",
+       "text": "-",
+       "value": null,
+       "valueText": "-",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "none",
+       "watchHi": null,
+       "watchLo": null,
+       "z": null
+      }
+     ],
+     "decimals": 1,
+     "hueKey": "pelvisThrust",
+     "key": "hips",
+     "label": "Hip depth",
+     "metricKey": "pelvisThrust",
+     "minusWord": "back",
+     "outCount": 2,
+     "plusWord": "in",
+     "poleText": "in ▲",
+     "poleWord": "in",
+     "present": true,
+     "style": false,
+     "styleText": "",
+     "styleWord": "",
+     "unit": "cm",
+     "yHi": 8.433301150361634,
+     "yLo": -5.995059344471232
+    },
+    {
+     "boxes": [
+      {
+       "box": {
+        "hi": 0,
+        "lo": 0,
+        "max": 0,
+        "med": 0,
+        "min": 0,
+        "n": 10,
+        "outliers": [],
+        "q1": 0,
+        "q3": 0,
+        "texts": {
+         "hi": "0",
+         "lo": "0",
+         "med": "0",
+         "q1": "0",
+         "q3": "0"
+        }
+       },
+       "median": 0,
+       "medianText": "0",
+       "n": 10,
+       "picked": null,
+       "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "wide": null,
+       "wideText": ""
+      },
+      {
+       "box": {
+        "hi": -1.2770975757074368,
+        "lo": -3.897142113428565,
+        "max": -1.2770975757074368,
+        "med": -2.0475426221798436,
+        "min": -4.615697958830971,
+        "n": 10,
+        "outliers": [
+         2
+        ],
+        "q1": -2.7988113619398387,
+        "q3": -1.7285203879514768,
+        "texts": {
+         "hi": "−1",
+         "lo": "−4",
+         "med": "−2",
+         "q1": "−3",
+         "q3": "−2"
+        }
+       },
+       "median": -2.0475426221798436,
+       "medianText": "−2",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -2.116556770639164,
+        -4.615697958830971,
+        -1.978528473720523,
+        -1.8142837931816942,
+        -1.43276517123806,
+        -2.9570757609294844,
+        -2.3240181649709015,
+        -3.897142113428565,
+        -1.699932586208071,
+        -1.2770975757074368
+       ],
+       "wide": 1.070290973988362,
+       "wideText": "1° wide"
+      },
+      {
+       "box": {
+        "hi": -1.6126497306976404,
+        "lo": -4.981480277950617,
+        "max": -1.6126497306976404,
+        "med": -2.808919655868614,
+        "min": -4.981480277950617,
+        "n": 10,
+        "outliers": [],
+        "q1": -3.8393581777097,
+        "q3": -2.2475286143898625,
+        "texts": {
+         "hi": "−2",
+         "lo": "−5",
+         "med": "−3",
+         "q1": "−4",
+         "q3": "−2"
+        }
+       },
+       "median": -2.808919655868614,
+       "medianText": "−3",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -1.6126497306976404,
+        -4.980289605339557,
+        -2.4375649364472594,
+        -2.4419075994831587,
+        -3.1759317122540693,
+        -3.9147444805326046,
+        -3.6131992692409867,
+        -4.981480277950617,
+        -2.1841831737040636,
+        -1.7235484779191452
+       ],
+       "wide": 1.5918295633198376,
+       "wideText": "2° wide"
+      },
+      {
+       "box": {
+        "hi": -6.346101695864775,
+        "lo": -9.131623062160362,
+        "max": -6.346101695864775,
+        "med": -7.987936918773185,
+        "min": -9.131623062160362,
+        "n": 10,
+        "outliers": [],
+        "q1": -8.504463874713004,
+        "q3": -6.983026925544308,
+        "texts": {
+         "hi": "−6",
+         "lo": "−9",
+         "med": "−8",
+         "q1": "−9",
+         "q3": "−7"
+        }
+       },
+       "median": -7.987936918773185,
+       "medianText": "−8",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -6.511920224306593,
+        -8.924045302532146,
+        -8.563607447932132,
+        -6.853603876537623,
+        -6.346101695864775,
+        -7.371296072564363,
+        -9.131623062160362,
+        -8.327033155055624,
+        -7.9551923099876305,
+        -8.02068152755874
+       ],
+       "wide": 1.521436949168696,
+       "wideText": "2° wide"
+      },
+      {
+       "box": {
+        "hi": -5.747069602688079,
+        "lo": -7.53794054074433,
+        "max": -5.747069602688079,
+        "med": -6.923371204005793,
+        "min": -8.293608045683847,
+        "n": 10,
+        "outliers": [
+         2
+        ],
+        "q1": -7.0435792061263784,
+        "q3": -6.24766966727225,
+        "texts": {
+         "hi": "−6",
+         "lo": "−8",
+         "med": "−7",
+         "q1": "−7",
+         "q3": "−6"
+        }
+       },
+       "median": -6.923371204005793,
+       "medianText": "−7",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -6.840943508175926,
+        -8.293608045683847,
+        -5.747069602688079,
+        -6.0194569954608355,
+        -7.005798899835661,
+        -6.12242673921606,
+        -7.015318468786521,
+        -7.53794054074433,
+        -7.052999451906331,
+        -6.623398451440821
+       ],
+       "wide": 0.7959095388541284,
+       "wideText": "1° wide"
+      },
+      {
+       "box": {
+        "hi": -8.305949253394555,
+        "lo": -10.409160203064523,
+        "max": -8.305949253394555,
+        "med": -8.854213206600212,
+        "min": -10.409160203064523,
+        "n": 10,
+        "outliers": [],
+        "q1": -9.608817771133683,
+        "q3": -8.511532096929756,
+        "texts": {
+         "hi": "−8",
+         "lo": "−10",
+         "med": "−9",
+         "q1": "−10",
+         "q3": "−9"
+        }
+       },
+       "median": -8.854213206600212,
+       "medianText": "−9",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -8.64844053204078,
+        -10.409160203064523,
+        -8.347403867176375,
+        -8.305949253394555,
+        -8.698703462750895,
+        -8.465895951892747,
+        -9.009722950449529,
+        -9.939725914916664,
+        -9.203372295389265,
+        -9.743966263048488
+       ],
+       "wide": 1.0972856742039276,
+       "wideText": "1° wide"
+      },
+      {
+       "box": {
+        "hi": -12.27248116538178,
+        "lo": -14.528983542191337,
+        "max": -12.27248116538178,
+        "med": -13.235458230625643,
+        "min": -14.528983542191337,
+        "n": 10,
+        "outliers": [],
+        "q1": -13.922880645138758,
+        "q3": -12.587843218431722,
+        "texts": {
+         "hi": "−12",
+         "lo": "−15",
+         "med": "−13",
+         "q1": "−14",
+         "q3": "−13"
+        }
+       },
+       "median": -13.235458230625643,
+       "medianText": "−13",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -12.65826347173211,
+        -14.528983542191337,
+        -12.986072263908007,
+        -12.27248116538178,
+        -12.277181861247307,
+        -13.484844197343278,
+        -13.946593214385963,
+        -14.094472140643632,
+        -12.564369800664927,
+        -13.851742937397137
+       ],
+       "wide": 1.3350374267070357,
+       "wideText": "1° wide"
+      },
+      {
+       "box": {
+        "hi": null,
+        "lo": null,
+        "max": null,
+        "med": null,
+        "min": null,
+        "n": 0,
+        "outliers": [],
+        "q1": null,
+        "q3": null
+       },
+       "median": null,
+       "medianText": "-",
+       "n": 0,
+       "picked": null,
+       "values": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+       ],
+       "wide": null,
+       "wideText": ""
+      }
+     ],
+     "camera": "down the line",
+     "cells": [
+      {
+       "available": true,
+       "bandContext": "",
+       "bandHi": null,
+       "bandInherited": false,
+       "bandLo": null,
+       "bandMu": null,
+       "bandSource": "",
+       "banded": false,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 0,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1507925,
+       "tag": "P1",
+       "text": "0",
+       "value": 0,
+       "valueText": "0°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "none",
+       "watchHi": null,
+       "watchLo": null,
+       "z": null
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 1.5,
+       "bandInherited": true,
+       "bandLo": -3.5,
+       "bandMu": -1,
+       "bandSource": "literature",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 1,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1862943,
+       "tag": "P2",
+       "text": "−2",
+       "value": -2.0475426221798436,
+       "valueText": "−2°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 6.5,
+       "watchLo": -8.5,
+       "z": -0.41901704887193747
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 2,
+       "bandInherited": true,
+       "bandLo": -4,
+       "bandMu": -1,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 2,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1983587,
+       "tag": "P3",
+       "text": "−3",
+       "value": -2.808919655868614,
+       "valueText": "−3°",
+       "warn": "⚠",
+       "warnReason": "the shoulders turning out of the down-the-line picture move the joint line",
+       "warnShort": "the turn",
+       "warned": true,
+       "wash": "band",
+       "watchHi": 8,
+       "watchLo": -10,
+       "z": -0.6029732186228713
+      },
+      {
+       "available": true,
+       "bandContext": "posture_level",
+       "bandHi": 2,
+       "bandInherited": false,
+       "bandLo": -4,
+       "bandMu": -1,
+       "bandSource": "literature",
+       "banded": true,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 3,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2224662,
+       "tag": "P4",
+       "text": "−8",
+       "value": -7.987936918773185,
+       "valueText": "−8°",
+       "warn": "⚠",
+       "warnReason": "the shoulders turning out of the down-the-line picture move the joint line",
+       "warnShort": "the turn",
+       "warned": true,
+       "wash": "band",
+       "watchHi": 8,
+       "watchLo": -10,
+       "z": -2.3293123062577283
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 4,
+       "bandInherited": true,
+       "bandLo": -2,
+       "bandMu": 1,
+       "bandSource": "literature",
+       "banded": true,
+       "beyondFault": true,
+       "counted": false,
+       "exit": false,
+       "faultHi": {
+        "conditionId": "diving",
+        "edge": 10,
+        "edgeText": "+10",
+        "label": "Diving into the ball"
+       },
+       "faultLo": {
+        "conditionId": "early_extension",
+        "edge": -5,
+        "edgeText": "−5",
+        "label": "Early extension"
+       },
+       "firedShots": 10,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 4,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2397675,
+       "tag": "P5",
+       "text": "−7",
+       "value": -6.923371204005793,
+       "valueText": "−7°",
+       "warn": "⚠",
+       "warnReason": "the shoulders turning out of the down-the-line picture move the joint line",
+       "warnShort": "the turn",
+       "warned": true,
+       "wash": "band",
+       "watchHi": 10,
+       "watchLo": -8,
+       "z": -2.641123734668598
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": -1,
+       "bandInherited": true,
+       "bandLo": -7,
+       "bandMu": -4,
+       "bandSource": "literature",
+       "banded": true,
+       "beyondFault": true,
+       "counted": true,
+       "exit": false,
+       "faultHi": {
+        "conditionId": "diving",
+        "edge": 10,
+        "edgeText": "+10",
+        "label": "Diving into the ball"
+       },
+       "faultLo": {
+        "conditionId": "early_extension",
+        "edge": -5,
+        "edgeText": "−5",
+        "label": "Early extension"
+       },
+       "firedShots": 10,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 5,
+       "mark": "ring",
+       "note": "",
+       "outside": true,
+       "picked": null,
+       "pickedText": "-",
+       "ring": true,
+       "ringWord": "upright",
+       "seekUs": 2450585,
+       "tag": "P6",
+       "text": "−9",
+       "value": -8.854213206600212,
+       "valueText": "−9°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 5,
+       "watchLo": -13,
+       "z": -1.6180710688667375
+      },
+      {
+       "available": true,
+       "bandContext": "posture_level",
+       "bandHi": 0,
+       "bandInherited": false,
+       "bandLo": -6,
+       "bandMu": -3,
+       "bandSource": "literature",
+       "banded": true,
+       "beyondFault": true,
+       "counted": true,
+       "exit": true,
+       "faultHi": null,
+       "faultLo": {
+        "conditionId": "early_extension",
+        "edge": -5,
+        "edgeText": "−5",
+        "label": "Early extension"
+       },
+       "firedShots": 10,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 6,
+       "mark": "ring",
+       "note": "",
+       "outside": true,
+       "picked": null,
+       "pickedText": "-",
+       "ring": true,
+       "ringWord": "upright",
+       "seekUs": 2519396,
+       "tag": "P7",
+       "text": "−13",
+       "value": -13.235458230625643,
+       "valueText": "−13°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 6,
+       "watchLo": -12,
+       "z": -3.4118194102085475
+      },
+      {
+       "available": false,
+       "bandContext": "",
+       "bandHi": null,
+       "bandInherited": false,
+       "bandLo": null,
+       "bandMu": null,
+       "bandSource": "",
+       "banded": false,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 7,
+       "mark": "none",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2649348,
+       "tag": "P8",
+       "text": "-",
+       "value": null,
+       "valueText": "-",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "none",
+       "watchHi": null,
+       "watchLo": null,
+       "z": null
+      }
+     ],
+     "decimals": 0,
+     "hueKey": "spineForwardBend",
+     "key": "bend",
+     "label": "Trunk bend",
+     "metricKey": "spineForwardBend",
+     "minusWord": "upright",
+     "outCount": 2,
+     "plusWord": "more bent",
+     "poleText": "upright ▲",
+     "poleWord": "upright",
+     "present": true,
+     "style": false,
+     "styleText": "",
+     "styleWord": "",
+     "unit": "°",
+     "yHi": 11.962318683375306,
+     "yLo": -16.491302225566645
+    },
+    {
+     "boxes": [
+      {
+       "box": {
+        "hi": 0,
+        "lo": 0,
+        "max": 0,
+        "med": 0,
+        "min": 0,
+        "n": 10,
+        "outliers": [],
+        "q1": 0,
+        "q3": 0,
+        "texts": {
+         "hi": "0",
+         "lo": "0",
+         "med": "0",
+         "q1": "0",
+         "q3": "0"
+        }
+       },
+       "median": 0,
+       "medianText": "0",
+       "n": 10,
+       "picked": null,
+       "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "wide": null,
+       "wideText": ""
+      },
+      {
+       "box": {
+        "hi": 5.035848479911735,
+        "lo": -2.3484257290143375,
+        "max": 5.035848479911735,
+        "med": 0.9447073382321065,
+        "min": -2.3484257290143375,
+        "n": 10,
+        "outliers": [],
+        "q1": -0.7857591326957234,
+        "q3": 2.1202120154289616,
+        "texts": {
+         "hi": "+5",
+         "lo": "−2",
+         "med": "+1",
+         "q1": "−1",
+         "q3": "+2"
+        }
+       },
+       "median": 0.9447073382321065,
+       "medianText": "+1",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -0.8973273467613581,
+        1.6384925002611084,
+        1.4815629560604293,
+        -0.8068334313516203,
+        2.2807851871515794,
+        -2.3484257290143375,
+        2.9523809958376006,
+        0.4078517204037837,
+        5.035848479911735,
+        -0.7225362367280326
+       ],
+       "wide": 2.905971148124685,
+       "wideText": "3° wide"
+      },
+      {
+       "box": {
+        "hi": 10.482582191287932,
+        "lo": 5.055852509195702,
+        "max": 15.570897789382315,
+        "med": 8.04026446985717,
+        "min": 5.055852509195702,
+        "n": 10,
+        "outliers": [
+         9
+        ],
+        "q1": 6.249630019641337,
+        "q3": 9.620313814688856,
+        "texts": {
+         "hi": "+10",
+         "lo": "+5",
+         "med": "+8",
+         "q1": "+6",
+         "q3": "+10"
+        }
+       },
+       "median": 8.04026446985717,
+       "medianText": "+8",
+       "n": 10,
+       "picked": null,
+       "values": [
+        5.055852509195702,
+        7.649899229888192,
+        8.43062970982615,
+        9.260424956098007,
+        9.740276767552473,
+        5.623260412075481,
+        10.482582191287932,
+        6.208274413216145,
+        15.570897789382315,
+        6.3736968389169135
+       ],
+       "wide": 3.370683795047519,
+       "wideText": "3° wide"
+      },
+      {
+       "box": {
+        "hi": 19.079819473224404,
+        "lo": 13.195683024536919,
+        "max": 22.02762105438265,
+        "med": 16.022630537100525,
+        "min": 13.195683024536919,
+        "n": 10,
+        "outliers": [
+         9
+        ],
+        "q1": 15.06420361994979,
+        "q3": 17.559741432422694,
+        "texts": {
+         "hi": "+19",
+         "lo": "+13",
+         "med": "+16",
+         "q1": "+15",
+         "q3": "+18"
+        }
+       },
+       "median": 16.022630537100525,
+       "medianText": "+16",
+       "n": 10,
+       "picked": null,
+       "values": [
+        15.66779376711159,
+        13.195683024536919,
+        17.951723366406696,
+        16.383795630470686,
+        15.359793490932802,
+        16.37746730708946,
+        19.079819473224404,
+        14.050854635813238,
+        22.02762105438265,
+        14.965673662955453
+       ],
+       "wide": 2.4955378124729037,
+       "wideText": "2° wide"
+      },
+      {
+       "box": {
+        "hi": 7.918141061556213,
+        "lo": 0.27550372759867514,
+        "max": 7.918141061556213,
+        "med": 2.685024235246104,
+        "min": 0.27550372759867514,
+        "n": 10,
+        "outliers": [],
+        "q1": 2.196774144302811,
+        "q3": 4.6966422138122255,
+        "texts": {
+         "hi": "+8",
+         "lo": "0",
+         "med": "+3",
+         "q1": "+2",
+         "q3": "+5"
+        }
+       },
+       "median": 2.685024235246104,
+       "medianText": "+3",
+       "n": 10,
+       "picked": null,
+       "values": [
+        2.2671685667490777,
+        6.025696460293432,
+        3.8525099938598544,
+        1.5796308443155027,
+        2.6364215722524307,
+        0.27550372759867514,
+        4.978019620463016,
+        2.173309336820722,
+        7.918141061556213,
+        2.733626898239777
+       ],
+       "wide": 2.4998680695094144,
+       "wideText": "2° wide"
+      },
+      {
+       "box": {
+        "hi": -0.770271174270249,
+        "lo": -5.878730169437915,
+        "max": 4.48030871322959,
+        "med": -2.1809807820596347,
+        "min": -5.878730169437915,
+        "n": 10,
+        "outliers": [
+         9
+        ],
+        "q1": -3.5536761846361955,
+        "q3": -0.9271306189781754,
+        "texts": {
+         "hi": "−1",
+         "lo": "−6",
+         "med": "−2",
+         "q1": "−4",
+         "q3": "−1"
+        }
+       },
+       "median": -2.1809807820596347,
+       "medianText": "−2",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -2.1650068649252177,
+        -3.70074878846512,
+        -0.9236598612382068,
+        -4.523843499175356,
+        -2.196954699194052,
+        -5.878730169437915,
+        -0.770271174270249,
+        -3.1124583731494226,
+        4.48030871322959,
+        -0.9375428921980813
+       ],
+       "wide": 2.62654556565802,
+       "wideText": "3° wide"
+      },
+      {
+       "box": {
+        "hi": -0.20837685738200662,
+        "lo": -9.204086131871946,
+        "max": -0.20837685738200662,
+        "med": -7.002004138960551,
+        "min": -9.204086131871946,
+        "n": 10,
+        "outliers": [],
+        "q1": -8.26955724659405,
+        "q3": -4.420821795495069,
+        "texts": {
+         "hi": "0",
+         "lo": "−9",
+         "med": "−7",
+         "q1": "−8",
+         "q3": "−4"
+        }
+       },
+       "median": -7.002004138960551,
+       "medianText": "−7",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -4.280319835936169,
+        -7.891477722940209,
+        -3.276990740841029,
+        -7.8246669800005435,
+        -8.395583754478665,
+        -6.179341297920558,
+        -4.84232767417177,
+        -9.204086131871946,
+        -0.20837685738200662,
+        -9.084289618274994
+       ],
+       "wide": 3.8487354510989817,
+       "wideText": "4° wide"
+      },
+      {
+       "box": {
+        "hi": -8.892344466815956,
+        "lo": -18.057511863003327,
+        "max": -5.848609186587822,
+        "med": -13.253657226071603,
+        "min": -18.057511863003327,
+        "n": 8,
+        "outliers": [
+         9
+        ],
+        "q1": -15.057490971141348,
+        "q3": -11.726728547288289,
+        "texts": {
+         "hi": "−9",
+         "lo": "−18",
+         "med": "−13",
+         "q1": "−15",
+         "q3": "−12"
+        }
+       },
+       "median": -13.253657226071603,
+       "medianText": "−13",
+       "n": 8,
+       "picked": null,
+       "values": [
+        -15.328119496949995,
+        -8.892344466815956,
+        -18.057511863003327,
+        -12.896429831222477,
+        null,
+        -14.967281462538466,
+        null,
+        -13.610884620920729,
+        -5.848609186587822,
+        -12.671523240779067
+       ],
+       "wide": 3.3307624238530593,
+       "wideText": "3° wide"
+      }
+     ],
+     "camera": "down the line",
+     "cells": [
+      {
+       "available": true,
+       "bandContext": "",
+       "bandHi": null,
+       "bandInherited": false,
+       "bandLo": null,
+       "bandMu": null,
+       "bandSource": "",
+       "banded": false,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 0,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1507925,
+       "tag": "P1",
+       "text": "0",
+       "value": 0,
+       "valueText": "0°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "none",
+       "watchHi": null,
+       "watchLo": null,
+       "z": null
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 10,
+       "bandInherited": true,
+       "bandLo": 0,
+       "bandMu": 5,
+       "bandSource": "literature",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 1,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1862943,
+       "tag": "P2",
+       "text": "+1",
+       "value": 0.9447073382321065,
+       "valueText": "+1°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 20,
+       "watchLo": -10,
+       "z": -0.8110585323535787
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 16,
+       "bandInherited": true,
+       "bandLo": 4,
+       "bandMu": 10,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 2,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1983587,
+       "tag": "P3",
+       "text": "+8",
+       "value": 8.04026446985717,
+       "valueText": "+8°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 28,
+       "watchLo": -8,
+       "z": -0.32662258835713825
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 20,
+       "bandInherited": true,
+       "bandLo": 6,
+       "bandMu": 13,
+       "bandSource": "literature",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": {
+        "conditionId": "lead_knee_folds_backswing",
+        "edge": 27,
+        "edgeText": "+27",
+        "label": "Lead knee folds going back"
+       },
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 3,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2224662,
+       "tag": "P4",
+       "text": "+16",
+       "value": 16.022630537100525,
+       "valueText": "+16°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 34,
+       "watchLo": -8,
+       "z": 0.4318043624429322
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 27,
+       "bandInherited": true,
+       "bandLo": 13,
+       "bandMu": 20,
+       "bandSource": "literature",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": true,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 4,
+       "mark": "ring",
+       "note": "",
+       "outside": true,
+       "picked": null,
+       "pickedText": "-",
+       "ring": true,
+       "ringWord": "straighter",
+       "seekUs": 2397675,
+       "tag": "P5",
+       "text": "+3",
+       "value": 2.685024235246104,
+       "valueText": "+3°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 41,
+       "watchLo": -1,
+       "z": -2.473567966393414
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 12,
+       "bandInherited": true,
+       "bandLo": 0,
+       "bandMu": 6,
+       "bandSource": "literature",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 5,
+       "mark": "ring",
+       "note": "",
+       "outside": true,
+       "picked": null,
+       "pickedText": "-",
+       "ring": true,
+       "ringWord": "straighter",
+       "seekUs": 2450585,
+       "tag": "P6",
+       "text": "−2",
+       "value": -2.1809807820596347,
+       "valueText": "−2°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 24,
+       "watchLo": -12,
+       "z": -1.3634967970099392
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 5,
+       "bandInherited": true,
+       "bandLo": -7,
+       "bandMu": -1,
+       "bandSource": "literature",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 6,
+       "mark": "ring",
+       "note": "",
+       "outside": true,
+       "picked": null,
+       "pickedText": "-",
+       "ring": true,
+       "ringWord": "straighter",
+       "seekUs": 2519396,
+       "tag": "P7",
+       "text": "−7",
+       "value": -7.002004138960551,
+       "valueText": "−7°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 17,
+       "watchLo": -19,
+       "z": -1.000334023160092
+      },
+      {
+       "available": true,
+       "bandContext": "",
+       "bandHi": null,
+       "bandInherited": false,
+       "bandLo": null,
+       "bandMu": null,
+       "bandSource": "",
+       "banded": false,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 7,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2649348,
+       "tag": "P8",
+       "text": "−13",
+       "value": -13.253657226071603,
+       "valueText": "−13°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "none",
+       "watchHi": null,
+       "watchLo": null,
+       "z": null
+      }
+     ],
+     "decimals": 0,
+     "hueKey": "leadKneeFlexion",
+     "key": "leadKnee",
+     "label": "Lead knee",
+     "metricKey": "leadKneeFlexion",
+     "minusWord": "straighter",
+     "outCount": 3,
+     "plusWord": "more bend",
+     "poleText": "more bend ▲",
+     "poleWord": "more bend",
+     "present": true,
+     "style": false,
+     "styleText": "",
+     "styleWord": "",
+     "unit": "°",
+     "yHi": 30.604600949040268,
+     "yLo": -21.662112812043596
+    },
+    {
+     "boxes": [
+      {
+       "box": {
+        "hi": 0,
+        "lo": 0,
+        "max": 0,
+        "med": 0,
+        "min": 0,
+        "n": 10,
+        "outliers": [],
+        "q1": 0,
+        "q3": 0,
+        "texts": {
+         "hi": "0",
+         "lo": "0",
+         "med": "0",
+         "q1": "0",
+         "q3": "0"
+        }
+       },
+       "median": 0,
+       "medianText": "0",
+       "n": 10,
+       "picked": null,
+       "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "wide": null,
+       "wideText": ""
+      },
+      {
+       "box": {
+        "hi": -15.442890995640795,
+        "lo": -18.373719764449703,
+        "max": -12.255032248270268,
+        "med": -15.916102963303828,
+        "min": -22.423326002280376,
+        "n": 10,
+        "outliers": [
+         1,
+         2,
+         3
+        ],
+        "q1": -17.059783615862155,
+        "q3": -15.485903518678093,
+        "texts": {
+         "hi": "−15",
+         "lo": "−18",
+         "med": "−16",
+         "q1": "−17",
+         "q3": "−15"
+        }
+       },
+       "median": -15.916102963303828,
+       "medianText": "−16",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -12.255032248270268,
+        -22.423326002280376,
+        -13.077039055772389,
+        -15.782281961967257,
+        -17.243904384467896,
+        -18.373719764449703,
+        -16.507421310044933,
+        -15.614941087789987,
+        -16.0499239646404,
+        -15.442890995640795
+       ],
+       "wide": 1.5738800971840625,
+       "wideText": "2° wide"
+      },
+      {
+       "box": {
+        "hi": -17.79483885649644,
+        "lo": -23.049241189851386,
+        "max": -17.79483885649644,
+        "med": -21.232155785100396,
+        "min": -23.049241189851386,
+        "n": 10,
+        "outliers": [],
+        "q1": -21.69500366845032,
+        "q3": -19.41663589378118,
+        "texts": {
+         "hi": "−18",
+         "lo": "−23",
+         "med": "−21",
+         "q1": "−22",
+         "q3": "−19"
+        }
+       },
+       "median": -21.232155785100396,
+       "medianText": "−21",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -18.71314629438878,
+        -23.049241189851386,
+        -17.79483885649644,
+        -21.736075632886113,
+        -21.131407176764924,
+        -21.571787775142937,
+        -21.332904393435868,
+        -18.94221524504151,
+        -20.83989784000019,
+        -21.876163488800472
+       ],
+       "wide": 2.278367774669139,
+       "wideText": "2° wide"
+      },
+      {
+       "box": {
+        "hi": -16.295295999644708,
+        "lo": -23.784305773940844,
+        "max": -16.295295999644708,
+        "med": -21.53787973046372,
+        "min": -23.784305773940844,
+        "n": 10,
+        "outliers": [],
+        "q1": -21.915698096939863,
+        "q3": -18.982270022275927,
+        "texts": {
+         "hi": "−16",
+         "lo": "−24",
+         "med": "−22",
+         "q1": "−22",
+         "q3": "−19"
+        }
+       },
+       "median": -21.53787973046372,
+       "medianText": "−22",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -18.90800117629965,
+        -23.784305773940844,
+        -16.295295999644708,
+        -18.3683461418682,
+        -21.4706759174352,
+        -22.004755547254035,
+        -21.648525745997347,
+        -21.605083543492242,
+        -19.20507656020476,
+        -23.646459089322207
+       ],
+       "wide": 2.9334280746639365,
+       "wideText": "3° wide"
+      },
+      {
+       "box": {
+        "hi": -8.718507111807696,
+        "lo": -18.0838790091924,
+        "max": -8.718507111807696,
+        "med": -12.553916127106106,
+        "min": -18.0838790091924,
+        "n": 10,
+        "outliers": [],
+        "q1": -14.388470759495398,
+        "q3": -10.813321564620093,
+        "texts": {
+         "hi": "−9",
+         "lo": "−18",
+         "med": "−13",
+         "q1": "−14",
+         "q3": "−11"
+        }
+       },
+       "median": -12.553916127106106,
+       "medianText": "−13",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -11.379335439965672,
+        -18.0838790091924,
+        -8.718507111807696,
+        -10.757324644421246,
+        -13.76280109237905,
+        -13.72849681424654,
+        -10.981312325216635,
+        -14.597027315200847,
+        -10.626787508339106,
+        -15.890927895412517
+       ],
+       "wide": 3.575149194875305,
+       "wideText": "4° wide"
+      },
+      {
+       "box": {
+        "hi": -3.8006444195548568,
+        "lo": -13.594539762084793,
+        "max": -3.8006444195548568,
+        "med": -7.201247267885606,
+        "min": -13.594539762084793,
+        "n": 10,
+        "outliers": [],
+        "q1": -9.571258410388364,
+        "q3": -6.272072116590149,
+        "texts": {
+         "hi": "−4",
+         "lo": "−14",
+         "med": "−7",
+         "q1": "−10",
+         "q3": "−6"
+        }
+       },
+       "median": -7.201247267885606,
+       "medianText": "−7",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -6.182620575047125,
+        -9.607251555791606,
+        -3.8006444195548568,
+        -6.259590343271626,
+        -9.463278974178635,
+        -7.948515103403565,
+        -6.453979432367646,
+        -10.69387957123402,
+        -6.309517436545718,
+        -13.594539762084793
+       ],
+       "wide": 3.299186293798215,
+       "wideText": "3° wide"
+      },
+      {
+       "box": {
+        "hi": -1.704150010841488,
+        "lo": -12.70443352045703,
+        "max": -1.704150010841488,
+        "med": -6.476311786879165,
+        "min": -12.70443352045703,
+        "n": 10,
+        "outliers": [],
+        "q1": -8.21271079338877,
+        "q3": -4.715522977787664,
+        "texts": {
+         "hi": "−2",
+         "lo": "−13",
+         "med": "−6",
+         "q1": "−8",
+         "q3": "−5"
+        }
+       },
+       "median": -6.476311786879165,
+       "medianText": "−6",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -4.524682822638738,
+        -8.075800729347549,
+        -1.704150010841488,
+        -2.9933634617845684,
+        -8.25834748140251,
+        -6.713318322949448,
+        -5.288043443234443,
+        -10.55831148311097,
+        -6.239305250808883,
+        -12.70443352045703
+       ],
+       "wide": 3.497187815601105,
+       "wideText": "3° wide"
+      },
+      {
+       "box": {
+        "hi": 7.252806453977655,
+        "lo": -3.7790116830046543,
+        "max": 7.252806453977655,
+        "med": 3.0078881570826894,
+        "min": -12.748618577508026,
+        "n": 8,
+        "outliers": [
+         3
+        ],
+        "q1": -1.1784483545901665,
+        "q3": 6.40482225018545,
+        "texts": {
+         "hi": "+7",
+         "lo": "−4",
+         "med": "+3",
+         "q1": "−1",
+         "q3": "+6"
+        }
+       },
+       "median": 3.0078881570826894,
+       "medianText": "+3",
+       "n": 8,
+       "picked": null,
+       "values": [
+        6.8696768991903525,
+        2.3680621540016205,
+        -12.748618577508026,
+        6.24987070051715,
+        null,
+        7.252806453977655,
+        null,
+        -3.7790116830046543,
+        3.6477141601637584,
+        -0.31159391178533724
+       ],
+       "wide": 7.583270604775617,
+       "wideText": "8° wide"
+      }
+     ],
+     "camera": "down the line",
+     "cells": [
+      {
+       "available": true,
+       "bandContext": "",
+       "bandHi": null,
+       "bandInherited": false,
+       "bandLo": null,
+       "bandMu": null,
+       "bandSource": "",
+       "banded": false,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 0,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1507925,
+       "tag": "P1",
+       "text": "0",
+       "value": 0,
+       "valueText": "0°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "none",
+       "watchHi": null,
+       "watchLo": null,
+       "z": null
+      },
+      {
+       "available": true,
+       "bandContext": "posture_trail_released",
+       "bandHi": -7,
+       "bandInherited": false,
+       "bandLo": -23,
+       "bandMu": -15,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 1,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1862943,
+       "tag": "P2",
+       "text": "−16",
+       "value": -15.916102963303828,
+       "valueText": "−16°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 9,
+       "watchLo": -39,
+       "z": -0.11451287041297853
+      },
+      {
+       "available": true,
+       "bandContext": "posture_trail_released",
+       "bandHi": -7,
+       "bandInherited": false,
+       "bandLo": -23,
+       "bandMu": -15,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 2,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1983587,
+       "tag": "P3",
+       "text": "−21",
+       "value": -21.232155785100396,
+       "valueText": "−21°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 9,
+       "watchLo": -39,
+       "z": -0.7790194731375495
+      },
+      {
+       "available": true,
+       "bandContext": "posture_trail_released",
+       "bandHi": -15,
+       "bandInherited": false,
+       "bandLo": -23,
+       "bandMu": -15,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": true,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": {
+        "conditionId": "trail_knee_straighten",
+        "edge": -12,
+        "edgeText": "−12",
+        "label": "Trail knee straightens"
+       },
+       "firedShots": 10,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 3,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2224662,
+       "tag": "P4",
+       "text": "−22",
+       "value": -21.53787973046372,
+       "valueText": "−22°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": -15,
+       "watchLo": -39,
+       "z": -0.8172349663079652
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 13,
+       "bandInherited": true,
+       "bandLo": -3,
+       "bandMu": 5,
+       "bandSource": "literature",
+       "banded": true,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 4,
+       "mark": "ring",
+       "note": "",
+       "outside": true,
+       "picked": null,
+       "pickedText": "-",
+       "ring": true,
+       "ringWord": "straighter",
+       "seekUs": 2397675,
+       "tag": "P5",
+       "text": "−13",
+       "value": -12.553916127106106,
+       "valueText": "−13°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 29,
+       "watchLo": -19,
+       "z": -2.1942395158882633
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 11,
+       "bandInherited": true,
+       "bandLo": -5,
+       "bandMu": 3,
+       "bandSource": "literature",
+       "banded": true,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 5,
+       "mark": "ring",
+       "note": "",
+       "outside": true,
+       "picked": null,
+       "pickedText": "-",
+       "ring": true,
+       "ringWord": "straighter",
+       "seekUs": 2450585,
+       "tag": "P6",
+       "text": "−7",
+       "value": -7.201247267885606,
+       "valueText": "−7°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 27,
+       "watchLo": -21,
+       "z": -1.2751559084857007
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 9,
+       "bandInherited": true,
+       "bandLo": -7,
+       "bandMu": 1,
+       "bandSource": "literature",
+       "banded": true,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 6,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2519396,
+       "tag": "P7",
+       "text": "−6",
+       "value": -6.476311786879165,
+       "valueText": "−6°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 25,
+       "watchLo": -23,
+       "z": -0.9345389733598957
+      },
+      {
+       "available": true,
+       "bandContext": "",
+       "bandHi": null,
+       "bandInherited": false,
+       "bandLo": null,
+       "bandMu": null,
+       "bandSource": "",
+       "banded": false,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 7,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2649348,
+       "tag": "P8",
+       "text": "+3",
+       "value": 3.0078881570826894,
+       "valueText": "+3°",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "none",
+       "watchHi": null,
+       "watchLo": null,
+       "z": null
+      }
+     ],
+     "decimals": 0,
+     "hueKey": "trailKneeFlexion",
+     "key": "trailKnee",
+     "label": "Trail knee",
+     "metricKey": "trailKneeFlexion",
+     "minusWord": "straighter",
+     "outCount": 2,
+     "plusWord": "more bend",
+     "poleText": "more bend ▲",
+     "poleWord": "more bend",
+     "present": true,
+     "style": true,
+     "styleText": "style: released",
+     "styleWord": "released",
+     "unit": "°",
+     "yHi": 15.942744461915268,
+     "yLo": -26.72705023585611
+    },
+    {
+     "boxes": [
+      {
+       "box": {
+        "hi": 0,
+        "lo": 0,
+        "max": 0,
+        "med": 0,
+        "min": 0,
+        "n": 10,
+        "outliers": [],
+        "q1": 0,
+        "q3": 0,
+        "texts": {
+         "hi": "0",
+         "lo": "0",
+         "med": "0",
+         "q1": "0",
+         "q3": "0"
+        }
+       },
+       "median": 0,
+       "medianText": "0",
+       "n": 10,
+       "picked": null,
+       "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ],
+       "wide": null,
+       "wideText": ""
+      },
+      {
+       "box": {
+        "hi": -2.7376513803499583,
+        "lo": -9.779144651625758,
+        "max": -2.7376513803499583,
+        "med": -5.826396134016985,
+        "min": -9.779144651625758,
+        "n": 10,
+        "outliers": [],
+        "q1": -7.427798584517316,
+        "q3": -4.681163778343697,
+        "texts": {
+         "hi": "−3",
+         "lo": "−10",
+         "med": "−6",
+         "q1": "−7",
+         "q3": "−5"
+        }
+       },
+       "median": -5.826396134016985,
+       "medianText": "−6",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -4.581769154467487,
+        -4.526813087615029,
+        -9.779144651625758,
+        -7.965039359774947,
+        -5.878629504336361,
+        -2.7376513803499583,
+        -7.944188277910968,
+        -4.979347649972324,
+        -5.821817806308255,
+        -5.830974461725715
+       ],
+       "wide": 2.7466348061736188,
+       "wideText": "3 % stance wide"
+      },
+      {
+       "box": {
+        "hi": -3.722421557017676,
+        "lo": -7.483146011424955,
+        "max": -3.722421557017676,
+        "med": -6.4629440263635285,
+        "min": -7.483146011424955,
+        "n": 10,
+        "outliers": [],
+        "q1": -6.972135665456309,
+        "q3": -5.1688110441069615,
+        "texts": {
+         "hi": "−4",
+         "lo": "−7",
+         "med": "−6",
+         "q1": "−7",
+         "q3": "−5"
+        }
+       },
+       "median": -6.4629440263635285,
+       "medianText": "−6",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -3.722421557017676,
+        -7.483146011424955,
+        -7.448535429307124,
+        -6.54580703880442,
+        -4.453140313882077,
+        -5.811259515385381,
+        -6.380081013922637,
+        -7.112094065723981,
+        -4.954661553680822,
+        -6.552260464653296
+       ],
+       "wide": 1.803324621349348,
+       "wideText": "2 % stance wide"
+      },
+      {
+       "box": {
+        "hi": -4.353860025268552,
+        "lo": -7.210573157333686,
+        "max": -4.353860025268552,
+        "med": -5.739616902766494,
+        "min": -7.989684462837863,
+        "n": 10,
+        "outliers": [
+         7
+        ],
+        "q1": -6.349583157936145,
+        "q3": -5.333116872078145,
+        "texts": {
+         "hi": "−4",
+         "lo": "−7",
+         "med": "−6",
+         "q1": "−6",
+         "q3": "−5"
+        }
+       },
+       "median": -5.739616902766494,
+       "medianText": "−6",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -4.353860025268552,
+        -5.48138406944359,
+        -7.210573157333686,
+        -5.978491871867702,
+        -5.28369447295633,
+        -5.541806511354465,
+        -7.989684462837863,
+        -5.937427294178523,
+        -4.698685904598689,
+        -6.473280253292293
+       ],
+       "wide": 1.0164662858579998,
+       "wideText": "1 % stance wide"
+      },
+      {
+       "box": {
+        "hi": 0.49945683219455006,
+        "lo": -6.238807949480775,
+        "max": 0.49945683219455006,
+        "med": -3.334267671541343,
+        "min": -6.238807949480775,
+        "n": 10,
+        "outliers": [],
+        "q1": -4.559887456534381,
+        "q3": -2.4720678726188607,
+        "texts": {
+         "hi": "0",
+         "lo": "−6",
+         "med": "−3",
+         "q1": "−5",
+         "q3": "−2"
+        }
+       },
+       "median": -3.334267671541343,
+       "medianText": "−3",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -3.4558466946368114,
+        -1.720850907457472,
+        -6.238807949480775,
+        -2.3232466446821256,
+        -2.9185315564290666,
+        0.49945683219455006,
+        -4.626665476773569,
+        -4.4202704889860565,
+        -4.6064264457171555,
+        -3.2126886484458748
+       ],
+       "wide": 2.08781958391552,
+       "wideText": "2 % stance wide"
+      },
+      {
+       "box": {
+        "hi": 2.2044298444224264,
+        "lo": -4.516633850255104,
+        "max": 2.2044298444224264,
+        "med": -2.3915406545889786,
+        "min": -4.516633850255104,
+        "n": 10,
+        "outliers": [],
+        "q1": -3.5184292511091284,
+        "q3": -1.0477857880454755,
+        "texts": {
+         "hi": "+2",
+         "lo": "−5",
+         "med": "−2",
+         "q1": "−4",
+         "q3": "−1"
+        }
+       },
+       "median": -2.3915406545889786,
+       "medianText": "−2",
+       "n": 10,
+       "picked": null,
+       "values": [
+        -2.9519397403269316,
+        -1.0260982946911665,
+        -4.377591180368405,
+        -1.965575973196192,
+        -1.1128482681084026,
+        2.2044298444224264,
+        -2.817505335981765,
+        -4.516633850255104,
+        -3.707259088036527,
+        -0.6540171232201959
+       ],
+       "wide": 2.470643463063653,
+       "wideText": "2 % stance wide"
+      },
+      {
+       "box": {
+        "hi": 7.089465112951125,
+        "lo": 1.9905015045570507,
+        "max": 7.089465112951125,
+        "med": 4.688207505143099,
+        "min": 1.9905015045570507,
+        "n": 10,
+        "outliers": [],
+        "q1": 3.2627460069473386,
+        "q3": 5.553632235061773,
+        "texts": {
+         "hi": "+7",
+         "lo": "+2",
+         "med": "+5",
+         "q1": "+3",
+         "q3": "+6"
+        }
+       },
+       "median": 4.688207505143099,
+       "medianText": "+5",
+       "n": 10,
+       "picked": null,
+       "values": [
+        5.601826124940072,
+        5.409050565426876,
+        1.9905015045570507,
+        3.1879690902873046,
+        3.4870767569274412,
+        7.089465112951125,
+        2.0323206323804444,
+        5.091517880325232,
+        6.618527371940419,
+        4.284897129960967
+       ],
+       "wide": 2.2908862281144344,
+       "wideText": "2 % stance wide"
+      },
+      {
+       "box": {
+        "hi": null,
+        "lo": null,
+        "max": null,
+        "med": null,
+        "min": null,
+        "n": 0,
+        "outliers": [],
+        "q1": null,
+        "q3": null
+       },
+       "median": null,
+       "medianText": "-",
+       "n": 0,
+       "picked": null,
+       "values": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+       ],
+       "wide": null,
+       "wideText": ""
+      }
+     ],
+     "camera": "face-on",
+     "cells": [
+      {
+       "available": true,
+       "bandContext": "",
+       "bandHi": null,
+       "bandInherited": false,
+       "bandLo": null,
+       "bandMu": null,
+       "bandSource": "",
+       "banded": false,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 0,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1507925,
+       "tag": "P1",
+       "text": "0",
+       "value": 0,
+       "valueText": "0 % stance",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "none",
+       "watchHi": null,
+       "watchLo": null,
+       "z": null
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 5,
+       "bandInherited": true,
+       "bandLo": -5,
+       "bandMu": 0,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 1,
+       "mark": "ring",
+       "note": "",
+       "outside": true,
+       "picked": null,
+       "pickedText": "-",
+       "ring": true,
+       "ringWord": "down",
+       "seekUs": 1862943,
+       "tag": "P2",
+       "text": "−6",
+       "value": -5.826396134016985,
+       "valueText": "−6 % stance",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 15,
+       "watchLo": -15,
+       "z": -1.165279226803397
+      },
+      {
+       "available": true,
+       "bandContext": "",
+       "bandHi": null,
+       "bandInherited": false,
+       "bandLo": null,
+       "bandMu": null,
+       "bandSource": "",
+       "banded": false,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 2,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 1983587,
+       "tag": "P3",
+       "text": "−6",
+       "value": -6.4629440263635285,
+       "valueText": "−6 % stance",
+       "warn": "⚠",
+       "warnReason": "the hip joints migrate at the top",
+       "warnShort": "joint drift",
+       "warned": true,
+       "wash": "none",
+       "watchHi": null,
+       "watchLo": null,
+       "z": null
+      },
+      {
+       "available": true,
+       "bandContext": "",
+       "bandHi": null,
+       "bandInherited": false,
+       "bandLo": null,
+       "bandMu": null,
+       "bandSource": "",
+       "banded": false,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": {
+        "conditionId": "pelvis_rise_backswing",
+        "edge": 12.4,
+        "edgeText": "+12",
+        "label": "Pelvis rises during the backswing"
+       },
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 3,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2224662,
+       "tag": "P4",
+       "text": "−6",
+       "value": -5.739616902766494,
+       "valueText": "−6 % stance",
+       "warn": "⚠",
+       "warnReason": "the hip joints migrate at the top",
+       "warnShort": "joint drift",
+       "warned": true,
+       "wash": "none",
+       "watchHi": null,
+       "watchLo": null,
+       "z": null
+      },
+      {
+       "available": true,
+       "bandContext": "",
+       "bandHi": null,
+       "bandInherited": false,
+       "bandLo": null,
+       "bandMu": null,
+       "bandSource": "",
+       "banded": false,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 4,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2397675,
+       "tag": "P5",
+       "text": "−3",
+       "value": -3.334267671541343,
+       "valueText": "−3 % stance",
+       "warn": "⚠",
+       "warnReason": "the hip joints migrate at the top",
+       "warnShort": "joint drift",
+       "warned": true,
+       "wash": "none",
+       "watchHi": null,
+       "watchLo": null,
+       "z": null
+      },
+      {
+       "available": true,
+       "bandContext": "any",
+       "bandHi": 5,
+       "bandInherited": true,
+       "bandLo": -5,
+       "bandMu": 0,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 5,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2450585,
+       "tag": "P6",
+       "text": "−2",
+       "value": -2.3915406545889786,
+       "valueText": "−2 % stance",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 15,
+       "watchLo": -15,
+       "z": -0.4783081309177957
+      },
+      {
+       "available": true,
+       "bandContext": "posture_level",
+       "bandHi": 11,
+       "bandInherited": false,
+       "bandLo": -1,
+       "bandMu": 5,
+       "bandSource": "heuristic",
+       "banded": true,
+       "beyondFault": false,
+       "counted": true,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 6,
+       "mark": "dot",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2519396,
+       "tag": "P7",
+       "text": "+5",
+       "value": 4.688207505143099,
+       "valueText": "+5 % stance",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "band",
+       "watchHi": 23,
+       "watchLo": -13,
+       "z": -0.051965415809483474
+      },
+      {
+       "available": false,
+       "bandContext": "",
+       "bandHi": null,
+       "bandInherited": false,
+       "bandLo": null,
+       "bandMu": null,
+       "bandSource": "",
+       "banded": false,
+       "beyondFault": false,
+       "counted": false,
+       "exit": false,
+       "faultHi": null,
+       "faultLo": null,
+       "firedShots": 0,
+       "gateWords": "",
+       "ghost": null,
+       "ghostText": "-",
+       "index": 7,
+       "mark": "none",
+       "note": "",
+       "outside": false,
+       "picked": null,
+       "pickedText": "-",
+       "ring": false,
+       "ringWord": "",
+       "seekUs": 2649348,
+       "tag": "P8",
+       "text": "-",
+       "value": null,
+       "valueText": "-",
+       "warn": "",
+       "warnReason": "",
+       "warnShort": "",
+       "warned": false,
+       "wash": "none",
+       "watchHi": null,
+       "watchLo": null,
+       "z": null
+      }
+     ],
+     "decimals": 0,
+     "hueKey": "pelvisLift",
+     "key": "pelvisHeight",
+     "label": "Pelvis height",
+     "metricKey": "pelvisLift",
+     "minusWord": "down",
+     "outCount": 1,
+     "plusWord": "up",
+     "poleText": "up ▲",
+     "poleWord": "up",
+     "present": true,
+     "style": false,
+     "styleText": "",
+     "styleWord": "",
+     "unit": "% stance",
+     "yHi": 14.174331572130061,
+     "yLo": -11.553476223755819
+    }
+   ],
+   "sub": "change from address  ·  a box per position, n 10  ·  under each: the median, and how wide the middle half is"
+  },
+  "address": {
+   "legend": "Shaded: the good-player band. Upper box: this session. Lower box: your earlier sessions from this set-up.",
+   "rows": [
+    {
+     "bandContext": "any",
+     "bandHi": 48,
+     "bandInherited": true,
+     "bandLo": 32,
+     "bandMu": 40,
+     "bandSource": "heuristic",
+     "bandText": "good players 32 to 48°",
+     "banded": true,
+     "box": {
+      "hi": 38.900530641212995,
+      "lo": 37.035570774389505,
+      "max": 38.900530641212995,
+      "med": 38.16625786047349,
+      "min": 37.035570774389505,
+      "n": 10,
+      "outliers": [],
+      "q1": 37.635366444281935,
+      "q3": 38.41640120851545,
+      "texts": {
+       "hi": "39°",
+       "lo": "37°",
+       "med": "38°",
+       "q1": "38°",
+       "q3": "38°"
+      }
+     },
+     "boxN": 10,
+     "boxText": "this session: median 38°, n 10",
+     "camera": "down the line",
+     "cameraKey": "dtl",
+     "dot": null,
+     "hasHistory": true,
+     "history": {
+      "hi": 39.863845572139624,
+      "lo": 37.45813843472476,
+      "max": 41.29003979452993,
+      "med": 39.14041611464476,
+      "min": 37.45813843472476,
+      "n": 12,
+      "outliers": [],
+      "q1": 38.417846002001504,
+      "q3": 39.40700032276533,
+      "texts": {
+       "hi": "40°",
+       "lo": "37°",
+       "med": "39°",
+       "q1": "38°",
+       "q3": "39°"
+      }
+     },
+     "historyN": 12,
+     "historySessions": 3,
+     "historyText": "your earlier sessions: median 39°, n 12 swings over 3 sessions",
+     "historyWhy": "",
+     "hueKey": "spineForwardBend",
+     "label": "Forward bend from your hips",
+     "measureId": "m_spineBendAtAddress",
+     "measureLabel": "Spine forward bend, at P1",
+     "metricKey": "spineForwardBend",
+     "text": "38°",
+     "trust": "How bent you are at address depends on where the camera stands, so read the good-player band as a guide and your own sessions from this set-up as the real comparison.",
+     "unit": "°",
+     "value": 38.16625786047349,
+     "valueWord": "median",
+     "values": [
+      38.900530641212995,
+      38.25592409155889,
+      38.60337053765868,
+      38.46989358083431,
+      37.49778794311453,
+      37.035570774389505,
+      38.2285438337104,
+      38.04810194778414,
+      38.10397188723659,
+      37.28319477883294
+     ],
+     "warn": "⚠",
+     "warnShort": "depends on where the camera stands",
+     "warned": true,
+     "xHi": 49.28,
+     "xLo": 30.72
+    },
+    {
+     "bandContext": "any",
+     "bandHi": 29,
+     "bandInherited": true,
+     "bandLo": 15,
+     "bandMu": 22,
+     "bandSource": "heuristic",
+     "bandText": "good players 15 to 29°",
+     "banded": true,
+     "box": {
+      "hi": 33.113117212748136,
+      "lo": 26.146668582349804,
+      "max": 33.113117212748136,
+      "med": 30.093015850054655,
+      "min": 26.146668582349804,
+      "n": 10,
+      "outliers": [],
+      "q1": 28.48969971888606,
+      "q3": 30.466829496929627,
+      "texts": {
+       "hi": "33°",
+       "lo": "26°",
+       "med": "30°",
+       "q1": "28°",
+       "q3": "30°"
+      }
+     },
+     "boxN": 10,
+     "boxText": "this session: median 30°, n 10",
+     "camera": "down the line",
+     "cameraKey": "dtl",
+     "dot": null,
+     "hasHistory": true,
+     "history": {
+      "hi": 30.471883992718944,
+      "lo": 26.789626856843682,
+      "max": 30.471883992718944,
+      "med": 29.157444864815986,
+      "min": 26.789626856843682,
+      "n": 12,
+      "outliers": [],
+      "q1": 27.898336890229277,
+      "q3": 29.693067467124894,
+      "texts": {
+       "hi": "30°",
+       "lo": "27°",
+       "med": "29°",
+       "q1": "28°",
+       "q3": "30°"
+      }
+     },
+     "historyN": 12,
+     "historySessions": 3,
+     "historyText": "your earlier sessions: median 29°, n 12 swings over 3 sessions",
+     "historyWhy": "",
+     "hueKey": "trailKneeFlexion",
+     "label": "Trail-knee bend",
+     "measureId": "m_kneeFlexAddress",
+     "measureLabel": "Trail knee flexion, at address",
+     "metricKey": "trailKneeFlexion",
+     "text": "30°",
+     "trust": "How bent you are at address depends on where the camera stands, so read the good-player band as a guide and your own sessions from this set-up as the real comparison.",
+     "unit": "°",
+     "value": 30.093015850054655,
+     "valueWord": "median",
+     "values": [
+      30.578653234450286,
+      33.113117212748136,
+      26.146668582349804,
+      26.772668601317136,
+      29.128225666470044,
+      30.13135828436765,
+      30.108315072965127,
+      30.077716627144184,
+      28.276857736358068,
+      31.292937900478364
+     ],
+     "warn": "⚠",
+     "warnShort": "depends on where the camera stands",
+     "warned": true,
+     "xHi": 34.56216658976799,
+     "xLo": 13.55095062298015
+    },
+    {
+     "bandContext": "any",
+     "bandHi": 59,
+     "bandInherited": true,
+     "bandLo": 47,
+     "bandMu": 53,
+     "bandSource": "heuristic",
+     "bandText": "good players 47 to 59 % foot length",
+     "banded": true,
+     "box": {
+      "hi": 63.71121381071303,
+      "lo": 58.72106592661622,
+      "max": 63.71121381071303,
+      "med": 62.35557618477751,
+      "min": 58.72106592661622,
+      "n": 10,
+      "outliers": [],
+      "q1": 59.760989349648064,
+      "q3": 62.76661468473961,
+      "texts": {
+       "hi": "64 % foot length",
+       "lo": "59 % foot length",
+       "med": "62 % foot length",
+       "q1": "60 % foot length",
+       "q3": "63 % foot length"
+      }
+     },
+     "boxN": 10,
+     "boxText": "this session: median 62 % foot length, n 10",
+     "camera": "down the line",
+     "cameraKey": "dtl",
+     "dot": null,
+     "hasHistory": true,
+     "history": {
+      "hi": 64.820510097144,
+      "lo": 59.467777357283595,
+      "max": 64.820510097144,
+      "med": 62.661274482685606,
+      "min": 59.467777357283595,
+      "n": 12,
+      "outliers": [],
+      "q1": 61.06464530452494,
+      "q3": 63.31671930378619,
+      "texts": {
+       "hi": "65 % foot length",
+       "lo": "59 % foot length",
+       "med": "63 % foot length",
+       "q1": "61 % foot length",
+       "q3": "63 % foot length"
+      }
+     },
+     "historyN": 12,
+     "historySessions": 3,
+     "historyText": "your earlier sessions: median 63 % foot length, n 12 swings over 3 sessions",
+     "historyWhy": "",
+     "hueKey": "balanceHeelToe",
+     "label": "How far toward your toes your weight sits",
+     "measureId": "m_balanceHeelToeAddress",
+     "measureLabel": "Balance heel to toe, at address",
+     "metricKey": "balanceHeelToe",
+     "text": "62 % foot length",
+     "trust": "How bent you are at address depends on where the camera stands, so read the good-player band as a guide and your own sessions from this set-up as the real comparison.",
+     "unit": "% foot length",
+     "value": 62.35557618477751,
+     "valueWord": "median",
+     "values": [
+      62.27027583738717,
+      58.72106592661622,
+      60.840736879044485,
+      58.84389345730169,
+      63.71121381071303,
+      63.54366640188003,
+      62.440876532167856,
+      62.797263356003796,
+      62.67466867094706,
+      59.40107350651592
+     ],
+     "warn": "⚠",
+     "warnShort": "depends on where the camera stands",
+     "warned": true,
+     "xHi": 66.24615090491551,
+     "xLo": 45.57435919222848
+    },
+    {
+     "bandContext": "any",
+     "bandHi": 1,
+     "bandInherited": true,
+     "bandLo": -5,
+     "bandMu": -2,
+     "bandSource": "heuristic",
+     "bandText": "good players −5 to 1°",
+     "banded": true,
+     "box": {
+      "hi": 0.21544524530305526,
+      "lo": -3.8475380383142364,
+      "max": 0.21544524530305526,
+      "med": -1.7036687857040531,
+      "min": -3.8475380383142364,
+      "n": 10,
+      "outliers": [],
+      "q1": -2.386549740961167,
+      "q3": -0.9785681070899329,
+      "texts": {
+       "hi": "0°",
+       "lo": "−4°",
+       "med": "−2°",
+       "q1": "−2°",
+       "q3": "−1°"
+      }
+     },
+     "boxN": 10,
+     "boxText": "this session: median −2°, n 10",
+     "camera": "face-on",
+     "cameraKey": "faceOn",
+     "dot": null,
+     "hasHistory": true,
+     "history": {
+      "hi": -1.2911194812398181,
+      "lo": -2.899157776403351,
+      "max": 0.9680140097445264,
+      "med": -1.5758525587374534,
+      "min": -2.899157776403351,
+      "n": 12,
+      "outliers": [],
+      "q1": -2.032928402385685,
+      "q3": -1.3717909760716616,
+      "texts": {
+       "hi": "−1°",
+       "lo": "−3°",
+       "med": "−2°",
+       "q1": "−2°",
+       "q3": "−1°"
+      }
+     },
+     "historyN": 12,
+     "historySessions": 3,
+     "historyText": "your earlier sessions: median −2°, n 12 swings over 3 sessions",
+     "historyWhy": "",
+     "hueKey": "secondaryAxisTilt",
+     "label": "Lean away from the target",
+     "measureId": "m_axisTiltAddress",
+     "measureLabel": "Secondary axis tilt, at P1",
+     "metricKey": "secondaryAxisTilt",
+     "text": "−2°",
+     "trust": "How bent you are at address depends on where the camera stands, so read the good-player band as a guide and your own sessions from this set-up as the real comparison.",
+     "unit": "°",
+     "value": -1.7036687857040531,
+     "valueWord": "median",
+     "values": [
+      -3.8475380383142364,
+      -0.914331575478999,
+      -2.445575106522778,
+      -0.5675895070280281,
+      -1.4535511417542457,
+      0.21544524530305526,
+      -1.1712777019227347,
+      -2.2333835960109703,
+      -2.4376051226112327,
+      -1.9537864296538605
+     ],
+     "warn": "⚠",
+     "warnShort": "depends on where the camera stands",
+     "warned": true,
+     "xHi": 3.8,
+     "xLo": -7.8
+    },
+    {
+     "bandContext": "any",
+     "bandHi": 5,
+     "bandInherited": true,
+     "bandLo": -5,
+     "bandMu": 0,
+     "bandSource": "heuristic",
+     "bandText": "good players −5 to 5°",
+     "banded": true,
+     "box": {
+      "hi": -0.5805939542351823,
+      "lo": -2.3058868992544563,
+      "max": -0.15018020699106002,
+      "med": -1.2042926710213475,
+      "min": -2.3058868992544563,
+      "n": 10,
+      "outliers": [
+       5
+      ],
+      "q1": -1.7182778412132511,
+      "q3": -1.1415106090794573,
+      "texts": {
+       "hi": "−1°",
+       "lo": "−2°",
+       "med": "−1°",
+       "q1": "−2°",
+       "q3": "−1°"
+      }
+     },
+     "boxN": 10,
+     "boxText": "this session: median −1°, n 10",
+     "camera": "down the line",
+     "cameraKey": "dtl",
+     "dot": null,
+     "hasHistory": true,
+     "history": {
+      "hi": -1.2213745104269296,
+      "lo": -2.847239413658235,
+      "max": -1.2213745104269296,
+      "med": -2.1494160628118157,
+      "min": -5.5771402075769085,
+      "n": 12,
+      "outliers": [],
+      "q1": -2.2709643725073856,
+      "q3": -1.3148233373698066,
+      "texts": {
+       "hi": "−1°",
+       "lo": "−3°",
+       "med": "−2°",
+       "q1": "−2°",
+       "q3": "−1°"
+      }
+     },
+     "historyN": 12,
+     "historySessions": 3,
+     "historyText": "your earlier sessions: median −2°, n 12 swings over 3 sessions",
+     "historyWhy": "",
+     "hueKey": "armHang",
+     "label": "How far your arms reach out toward the ball",
+     "measureId": "m_armHangAddress",
+     "measureLabel": "Arm hang, at P1",
+     "metricKey": "armHang",
+     "text": "−1°",
+     "trust": "How bent you are at address depends on where the camera stands, so read the good-player band as a guide and your own sessions from this set-up as the real comparison.",
+     "unit": "°",
+     "value": -1.2042926710213475,
+     "valueWord": "median",
+     "values": [
+      -1.2030080073166027,
+      -1.1655814668273614,
+      -1.2055773347260925,
+      -0.5805939542351823,
+      -0.15018020699106002,
+      -2.3058868992544563,
+      -1.8286116389823528,
+      -1.604907312221631,
+      -1.7560680175437913,
+      -1.133486989830156
+     ],
+     "warn": "⚠",
+     "warnShort": "depends on where the camera stands",
+     "warned": true,
+     "xHi": 5.846171216606153,
+     "xLo": -6.423311424183061
+    },
+    {
+     "bandContext": "any",
+     "bandHi": 34,
+     "bandInherited": true,
+     "bandLo": 18,
+     "bandMu": 26,
+     "bandSource": "heuristic",
+     "bandText": "good players 18 to 34°",
+     "banded": true,
+     "box": {
+      "hi": 28.992628259539476,
+      "lo": 20.711859523740955,
+      "max": 28.992628259539476,
+      "med": 25.865404592631773,
+      "min": 20.711859523740955,
+      "n": 10,
+      "outliers": [],
+      "q1": 24.23271928599923,
+      "q3": 27.523422151976856,
+      "texts": {
+       "hi": "29°",
+       "lo": "21°",
+       "med": "26°",
+       "q1": "24°",
+       "q3": "28°"
+      }
+     },
+     "boxN": 10,
+     "boxText": "this session: median 26°, n 10",
+     "camera": "down the line",
+     "cameraKey": "dtl",
+     "dot": null,
+     "hasHistory": true,
+     "history": {
+      "hi": 27.270845413079726,
+      "lo": 18.58156894659621,
+      "max": 27.270845413079726,
+      "med": 24.582078030763768,
+      "min": 18.58156894659621,
+      "n": 12,
+      "outliers": [],
+      "q1": 20.364339217684858,
+      "q3": 26.321590904190774,
+      "texts": {
+       "hi": "27°",
+       "lo": "19°",
+       "med": "25°",
+       "q1": "20°",
+       "q3": "26°"
+      }
+     },
+     "historyN": 12,
+     "historySessions": 3,
+     "historyText": "your earlier sessions: median 25°, n 12 swings over 3 sessions",
+     "historyWhy": "",
+     "hueKey": "headPitch",
+     "label": "How far your chin is tucked down",
+     "measureId": "m_headPitchAddress",
+     "measureLabel": "Head pitch, at P1",
+     "metricKey": "headPitch",
+     "text": "26°",
+     "trust": "How bent you are at address depends on where the camera stands, so read the good-player band as a guide and your own sessions from this set-up as the real comparison.",
+     "unit": "°",
+     "value": 25.865404592631773,
+     "valueWord": "median",
+     "values": [
+      23.85082725628264,
+      23.146526358182996,
+      25.378395375149,
+      25.922692458791033,
+      27.86833579946652,
+      28.88056389241071,
+      26.488681209507863,
+      28.992628259539476,
+      20.711859523740955,
+      25.808116726472512
+     ],
+     "warn": "⚠",
+     "warnShort": "depends on where the camera stands",
+     "warned": true,
+     "xHi": 35.28,
+     "xLo": 16.72
+    }
+   ],
+   "sub": "this session against the good-player band, and your earlier sessions",
+   "title": "At address"
+  },
+  "departures": [
+   {
+    "detail": "from P6  ·  8 of 10 swings",
+    "id": "D1",
+    "line": "Hips in, from P6: 8 of 10 swings",
+    "name": "Hips in",
+    "shots": 8
+   },
+   {
+    "detail": "from P2  ·  2 of 10 swings",
+    "id": "D4",
+    "line": "Early or deep dip, from P2: 2 of 10 swings",
+    "name": "Early or deep dip",
+    "shots": 2
+   }
+  ],
+  "departuresMore": "",
+  "departuresSub": "Each fault that took a reading out of the band: on how many swings, and the position it starts from.",
+  "moved": [
+   {
+    "line": "head −1.1 cm, inside the band, trail leg straightened 22°; trunk more upright 8° ⚠ (hips ⚠)",
+    "tag": "P4",
+    "when": "At the top"
+   },
+   {
+    "line": "hips 5.7 cm in under a level head; that is where the 13° of bend went",
+    "tag": "P7",
+    "when": "At impact"
+   }
+  ],
+  "repeat": "the tightest: trail knee at P2, middle half 2° · the loosest: head at P2, middle half 7.4 cm",
+  "strip": {
+   "legend": "each mark is a swing's nearest pattern; ringed: not the session's (Level), or between the two",
+   "line": "Level on 9 of 10 swings",
+   "marks": [
+    {
+     "between": false,
+     "differs": false,
+     "ok": true,
+     "swing": 1,
+     "word": "Level"
+    },
+    {
+     "between": false,
+     "differs": false,
+     "ok": true,
+     "swing": 2,
+     "word": "Level"
+    },
+    {
+     "between": false,
+     "differs": false,
+     "ok": true,
+     "swing": 3,
+     "word": "Level"
+    },
+    {
+     "between": true,
+     "differs": true,
+     "ok": true,
+     "swing": 4,
+     "word": "between"
+    },
+    {
+     "between": false,
+     "differs": false,
+     "ok": true,
+     "swing": 5,
+     "word": "Level"
+    },
+    {
+     "between": false,
+     "differs": false,
+     "ok": true,
+     "swing": 6,
+     "word": "Level"
+    },
+    {
+     "between": false,
+     "differs": false,
+     "ok": true,
+     "swing": 7,
+     "word": "Level"
+    },
+    {
+     "between": false,
+     "differs": false,
+     "ok": true,
+     "swing": 8,
+     "word": "Level"
+    },
+    {
+     "between": false,
+     "differs": false,
+     "ok": true,
+     "swing": 9,
+     "word": "Level"
+    },
+    {
+     "between": false,
+     "differs": false,
+     "ok": true,
+     "swing": 10,
+     "word": "Level"
+    }
+   ],
+   "more": ""
+  },
+  "trust": [
+   "Head height and pelvis height: the face-on camera.",
+   "Hip depth, trunk bend, lead knee and trail knee: the down-the-line camera.",
+   "Hip depth at P3–P5: the butt line on every swing, the back of the hips seen down the line, which the turn does not drag.",
+   "⚠ Trunk bend at P3–P5: the shoulders turning out of the down-the-line picture move the joint line.",
+   "⚠ Pelvis height at P3–P5: the hip joints migrate at the top.",
+   "Bands from 20 tour professionals (Kim 2021), 29 skilled men (Evans 2008), a vendor's published figures and a coaching chain's published observations; authored seeds where no source gives one.",
+   "Trunk bend is published on the line from the base of the neck to the sacrum; ours reads the hip and shoulder joints; expect a few degrees between them.",
+   "How bent you are at address depends on where the camera stands, so read the good-player band as a guide and your own sessions from this set-up as the real comparison.",
+   "Set-up not recorded (where the camera stood): your earlier sessions at address are all your down the line sessions on the same camera, 3 sessions with 12 swings.",
+   "Set-up not recorded (where the camera stood): your earlier sessions at address are all your face-on sessions on the same camera, 3 sessions with 12 swings.",
+   "Good-player bands at address for forward bend from your hips, trail-knee bend, how far toward your toes your weight sits, lean away from the target, how far your arms reach out toward the ball and how far your chin is tucked down are our own authored seeds (heuristic), not yet measured on good players."
+  ],
+  "trustMore": "",
+  "picture": {
+   "groups": [
+    {
+     "camera": "dtl",
+     "frames": [
+      {
+       "camera": "dtl",
+       "caption": "address",
+       "height": 910,
+       "imageWhy": "",
+       "key": "dtl_P1",
+       "marks": [
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "vline",
+         "label": "butt",
+         "role": "coach",
+         "set": "headHips",
+         "x": 54.99999999999999
+        },
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "polyline",
+         "label": "spine",
+         "pts": [
+          [
+           50.128714540220244,
+           399.77749463818225
+          ],
+          [
+           246.15667947119786,
+           237.10284547680192
+          ]
+         ],
+         "role": "coach",
+         "set": "posture"
+        },
+        {
+         "dash": "dot",
+         "hueKey": "",
+         "kind": "polyline",
+         "label": "shoulder plane",
+         "pts": [
+          [
+           70.11580911238742,
+           327.7875433873821
+          ],
+          [
+           283.96449812799926,
+           150.32428975678533
+          ]
+         ],
+         "role": "coach",
+         "set": "posture"
+        },
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "polyline",
+         "label": "trail leg",
+         "pts": [
+          [
+           108.24894714355469,
+           423.27960205078125
+          ],
+          [
+           160.57733631134033,
+           612.4547729492188
+          ],
+          [
+           126.92077875137329,
+           792.8807373046875
+          ]
+         ],
+         "role": "coach",
+         "set": "posture"
+        }
+       ],
+       "note": "",
+       "src": "",
+       "still": {
+        "camera": "dtl",
+        "h": 910,
+        "maxPx": 1400,
+        "outPath": "",
+        "phase": "P1",
+        "swingDir": "/lib/Nick-Henn/2026-10-20_Nick-Henn_Wrist_03/swing_0003",
+        "w": 371,
+        "x": 351,
+        "y": 114
+       },
+       "tag": "P1",
+       "when": "address",
+       "width": 371
+      },
+      {
+       "camera": "dtl",
+       "caption": "the top",
+       "height": 910,
+       "imageWhy": "",
+       "key": "dtl_P4",
+       "marks": [
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "vline",
+         "label": "butt",
+         "role": "coach",
+         "set": "headHips",
+         "x": 54.99999999999999
+        },
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "polyline",
+         "label": "spine",
+         "pts": [
+          [
+           50.128714540220244,
+           399.77749463818225
+          ],
+          [
+           246.15667947119786,
+           237.10284547680192
+          ]
+         ],
+         "role": "coach",
+         "set": "posture"
+        },
+        {
+         "dash": "dot",
+         "hueKey": "",
+         "kind": "polyline",
+         "label": "shoulder plane",
+         "pts": [
+          [
+           70.11580911238742,
+           327.7875433873821
+          ],
+          [
+           283.96449812799926,
+           150.32428975678533
+          ]
+         ],
+         "role": "coach",
+         "set": "posture"
+        },
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "polyline",
+         "label": "trail leg",
+         "pts": [
+          [
+           108.24894714355469,
+           423.27960205078125
+          ],
+          [
+           160.57733631134033,
+           612.4547729492188
+          ],
+          [
+           126.92077875137329,
+           792.8807373046875
+          ]
+         ],
+         "role": "coach",
+         "set": "posture"
+        }
+       ],
+       "note": "",
+       "src": "",
+       "still": {
+        "camera": "dtl",
+        "h": 910,
+        "maxPx": 1400,
+        "outPath": "",
+        "phase": "P4",
+        "swingDir": "/lib/Nick-Henn/2026-10-20_Nick-Henn_Wrist_03/swing_0003",
+        "w": 371,
+        "x": 351,
+        "y": 114
+       },
+       "tag": "P4",
+       "when": "the top",
+       "width": 371
+      },
+      {
+       "camera": "dtl",
+       "caption": "impact: good players' hips sit in the shaded strip",
+       "height": 910,
+       "imageWhy": "",
+       "key": "dtl_P7",
+       "marks": [
+        {
+         "dash": "",
+         "h": 910,
+         "hueKey": "pelvisThrust",
+         "kind": "rect",
+         "label": "good players' hips at impact",
+         "role": "band",
+         "set": "",
+         "w": 17.554374665289686,
+         "x": 49.73368760041308,
+         "y": 0
+        },
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "vline",
+         "label": "butt",
+         "role": "coach",
+         "set": "headHips",
+         "x": 54.99999999999999
+        },
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "polyline",
+         "label": "spine",
+         "pts": [
+          [
+           50.128714540220244,
+           399.77749463818225
+          ],
+          [
+           246.15667947119786,
+           237.10284547680192
+          ]
+         ],
+         "role": "coach",
+         "set": "posture"
+        },
+        {
+         "dash": "dot",
+         "hueKey": "",
+         "kind": "polyline",
+         "label": "shoulder plane",
+         "pts": [
+          [
+           70.11580911238742,
+           327.7875433873821
+          ],
+          [
+           283.96449812799926,
+           150.32428975678533
+          ]
+         ],
+         "role": "coach",
+         "set": "posture"
+        },
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "polyline",
+         "label": "trail leg",
+         "pts": [
+          [
+           108.24894714355469,
+           423.27960205078125
+          ],
+          [
+           160.57733631134033,
+           612.4547729492188
+          ],
+          [
+           126.92077875137329,
+           792.8807373046875
+          ]
+         ],
+         "role": "coach",
+         "set": "posture"
+        },
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "vline",
+         "label": "your butt line at impact",
+         "role": "ink",
+         "set": "",
+         "x": 74.00000000000003
+        }
+       ],
+       "note": "The white line: your butt line at impact, 5.4 cm toward the ball.",
+       "src": "",
+       "still": {
+        "camera": "dtl",
+        "h": 910,
+        "maxPx": 1400,
+        "outPath": "",
+        "phase": "P7",
+        "swingDir": "/lib/Nick-Henn/2026-10-20_Nick-Henn_Wrist_03/swing_0003",
+        "w": 371,
+        "x": 351,
+        "y": 114
+       },
+       "tag": "P7",
+       "when": "impact",
+       "width": 371
+      }
+     ],
+     "label": "down the line"
+    },
+    {
+     "camera": "faceOn",
+     "frames": [
+      {
+       "camera": "faceOn",
+       "caption": "address",
+       "height": 940,
+       "imageWhy": "",
+       "key": "faceOn_P1",
+       "marks": [
+        {
+         "cx": 224.05958995819088,
+         "cy": 268.2266418457031,
+         "dash": "",
+         "hueKey": "",
+         "kind": "circle",
+         "label": "head",
+         "r": 53.35097507209275,
+         "role": "coach",
+         "set": "headHips"
+        },
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "vline",
+         "label": "hip edge",
+         "role": "coach",
+         "set": "headHips",
+         "x": 142
+        },
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "vline",
+         "label": "hip edge",
+         "role": "coach",
+         "set": "headHips",
+         "x": 295.99999999999994
+        }
+       ],
+       "note": "",
+       "src": "",
+       "still": {
+        "camera": "faceOn",
+        "h": 940,
+        "maxPx": 1400,
+        "outPath": "",
+        "phase": "P1",
+        "swingDir": "/lib/Nick-Henn/2026-10-20_Nick-Henn_Wrist_03/swing_0003",
+        "w": 455,
+        "x": 286,
+        "y": 36
+       },
+       "tag": "P1",
+       "when": "address",
+       "width": 455
+      },
+      {
+       "camera": "faceOn",
+       "caption": "the top",
+       "height": 940,
+       "imageWhy": "",
+       "key": "faceOn_P4",
+       "marks": [
+        {
+         "cx": 224.05958995819088,
+         "cy": 268.2266418457031,
+         "dash": "",
+         "hueKey": "",
+         "kind": "circle",
+         "label": "head",
+         "r": 53.35097507209275,
+         "role": "coach",
+         "set": "headHips"
+        },
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "vline",
+         "label": "hip edge",
+         "role": "coach",
+         "set": "headHips",
+         "x": 142
+        },
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "vline",
+         "label": "hip edge",
+         "role": "coach",
+         "set": "headHips",
+         "x": 295.99999999999994
+        }
+       ],
+       "note": "",
+       "src": "",
+       "still": {
+        "camera": "faceOn",
+        "h": 940,
+        "maxPx": 1400,
+        "outPath": "",
+        "phase": "P4",
+        "swingDir": "/lib/Nick-Henn/2026-10-20_Nick-Henn_Wrist_03/swing_0003",
+        "w": 455,
+        "x": 286,
+        "y": 36
+       },
+       "tag": "P4",
+       "when": "the top",
+       "width": 455
+      },
+      {
+       "camera": "faceOn",
+       "caption": "impact: good players' heads sit in the shaded band",
+       "height": 940,
+       "imageWhy": "",
+       "key": "faceOn_P7",
+       "marks": [
+        {
+         "dash": "",
+         "h": 28.475573743316232,
+         "hueKey": "headLift",
+         "kind": "rect",
+         "label": "good players' head tops at impact",
+         "role": "band",
+         "set": "",
+         "w": 160.05292521627825,
+         "x": 144.03312735005176,
+         "y": 217.24863125222004
+        },
+        {
+         "cx": 224.05958995819088,
+         "cy": 268.2266418457031,
+         "dash": "",
+         "hueKey": "",
+         "kind": "circle",
+         "label": "head",
+         "r": 53.35097507209275,
+         "role": "coach",
+         "set": "headHips"
+        },
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "vline",
+         "label": "hip edge",
+         "role": "coach",
+         "set": "headHips",
+         "x": 142
+        },
+        {
+         "dash": "",
+         "hueKey": "",
+         "kind": "vline",
+         "label": "hip edge",
+         "role": "coach",
+         "set": "headHips",
+         "x": 295.99999999999994
+        }
+       ],
+       "note": "",
+       "src": "",
+       "still": {
+        "camera": "faceOn",
+        "h": 940,
+        "maxPx": 1400,
+        "outPath": "",
+        "phase": "P7",
+        "swingDir": "/lib/Nick-Henn/2026-10-20_Nick-Henn_Wrist_03/swing_0003",
+        "w": 455,
+        "x": 286,
+        "y": 36
+       },
+       "tag": "P7",
+       "when": "impact",
+       "width": 455
+      }
+     ],
+     "label": "face-on"
+    }
+   ],
+   "legend": "Thin lines: your lines at address, frozen on every frame. Shaded: where good players are at impact (the Level band). The white line: your butt line at impact.",
+   "swingDir": "/lib/Nick-Henn/2026-10-20_Nick-Henn_Wrist_03/swing_0003",
+   "typical": "A typical swing: swing 3",
+   "typicalWhy": "the swing whose fit to Level is nearest the session's median",
+   "why": []
+  },
+  "pictureWhy": []
+ }
+}
