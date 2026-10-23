@@ -36,6 +36,7 @@
 
 #include "report/report_words.h"
 #include "report/report_posture.h"
+#include "report/report_wrist.h"
 #include "../../Coaching/report_gate_words.h"
 
 #include <QCoreApplication>
@@ -595,6 +596,183 @@ int main(int argc, char **argv)
 
         eq(pinpoint::report::postureMoreWords(1, "shot"), QStringLiteral("1 more shot not shown"), "the strip's ending, one");
         eq(pinpoint::report::postureMoreWords(3, "shot"), QStringLiteral("3 more shots not shown"), "the strip's ending, several");
+    }
+
+    std::printf("the wrist page: absent without a reading, the presenter's words, the posture row's keys, the caps\n");
+    {
+        using pinpoint::report::wristReportBlock;
+        const QHash<QString, int> noSwings;
+        check(wristReportBlock(QVariantMap{}, noSwings).isNull(), "no payload: no wrist block");
+        check(wristReportBlock(QVariantMap{ { QStringLiteral("available"), false } }, noSwings).isNull(), "not available: no wrist block");
+        check(wristReportBlock(QVariantMap{ { QStringLiteral("available"), true },
+                                            { QStringLiteral("rows"), QVariantList{ QVariantMap{ { QStringLiteral("numbersOnly"), true } } } } }, noSwings).isNull(),
+              "available but no banded row: no wrist block (empty means absent)");
+
+        const QString dir = QStringLiteral("/lib/Golfer/2026-10-20_Golfer_01/swing_%1");
+        const int N = 130;
+        QVariantList positions, points, boxes, rows, pts, cols, marks, recurring, mwRows, cellsK;
+        for (int p = 0; p < 8; ++p) {
+            positions.append(QVariantMap{ { QStringLiteral("tag"), QStringLiteral("P%1").arg(p + 1) }, { QStringLiteral("name"), QStringLiteral("Pos %1").arg(p + 1) },
+                                          { QStringLiteral("available"), true }, { QStringLiteral("seekUs"), 1000 * p } });
+            points.append(QVariantMap{ { QStringLiteral("available"), false }, { QStringLiteral("banded"), p > 0 }, { QStringLiteral("wash"), p > 0 ? QStringLiteral("band") : QStringLiteral("none") },
+                                       { QStringLiteral("bandLo"), p > 0 ? QVariant(-16.0) : QVariant::fromValue(nullptr) },
+                                       { QStringLiteral("bandHi"), p > 0 ? QVariant(6.0) : QVariant::fromValue(nullptr) } });
+            boxes.append(QVariantMap{ { QStringLiteral("box"), QVariantMap{ { QStringLiteral("n"), 6 } } }, { QStringLiteral("values"), QVariantList{ 1.0, 2.0 } },
+                                      { QStringLiteral("n"), p == 2 ? 2 : 6 }, { QStringLiteral("median"), p == 2 ? QVariant::fromValue(nullptr) : QVariant(p == 3 ? -29.0 : 0.0) },
+                                      { QStringLiteral("medianText"), p == 2 ? QStringLiteral("-") : p == 3 ? QStringLiteral("−29°") : QStringLiteral("0°") },
+                                      { QStringLiteral("wide"), 2.0 }, { QStringLiteral("wideText"), p == 2 ? QString() : QStringLiteral("2° wide") },
+                                      { QStringLiteral("outside"), p == 3 }, { QStringLiteral("ringWord"), p == 3 ? QStringLiteral("open") : QString() },
+                                      { QStringLiteral("picked"), QVariant::fromValue(nullptr) } });
+        }
+        for (const char *k : { "leadWristRadUln", "leadWristFlexExt", "leadForearmRot", "trailWristFlexExt", "extraA", "extraB" })
+            rows.append(QVariantMap{ { QStringLiteral("numbersOnly"), false }, { QStringLiteral("dof"), QString::fromLatin1(k) },
+                                     { QStringLiteral("key"), QStringLiteral("hm.") + QString::fromLatin1(k) }, { QStringLiteral("label"), QStringLiteral("Lead wrist bow / cup") },
+                                     { QStringLiteral("name"), QStringLiteral("Lead wrist") }, { QStringLiteral("sub"), QStringLiteral("flexion–extension · face") },
+                                     { QStringLiteral("camera"), QStringLiteral("wrist sensor") }, { QStringLiteral("source"), QStringLiteral("IMU") },
+                                     { QStringLiteral("unit"), QStringLiteral("°") }, { QStringLiteral("poleTop"), QStringLiteral("closed") },
+                                     { QStringLiteral("poleBottom"), QStringLiteral("open") }, { QStringLiteral("poleTopText"), QStringLiteral("↑ closed") },
+                                     { QStringLiteral("poleBottomText"), QStringLiteral("↓ open") }, { QStringLiteral("yLo"), -40.0 }, { QStringLiteral("yHi"), 20.0 },
+                                     { QStringLiteral("outCount"), 1 }, { QStringLiteral("points"), points }, { QStringLiteral("boxes"), boxes } });
+        rows.prepend(QVariantMap{ { QStringLiteral("numbersOnly"), true }, { QStringLiteral("dof"), QStringLiteral("leadElbowFlex") } });
+        for (int i = 1; i <= N; ++i) {
+            const QString d = dir.arg(i + 2, 4, 10, QLatin1Char('0'));
+            pts.append(QVariantMap{ { QStringLiteral("ordinal"), i }, { QStringLiteral("swingDir"), d }, { QStringLiteral("value"), i == 4 ? QVariant::fromValue(nullptr) : QVariant(80 + i % 7) },
+                                    { QStringLiteral("measured"), i != 4 } });
+            cols.append(QVariantMap{ { QStringLiteral("ordinal"), i }, { QStringLiteral("swingDir"), d }, { QStringLiteral("label"), QStringLiteral("Swing %1").arg(i) } });
+            cellsK.append(QVariantMap{ { QStringLiteral("text"), i == 4 ? QStringLiteral("-") : QStringLiteral("50") }, { QStringLiteral("graded"), false } });
+            marks.append(QVariantMap{ { QStringLiteral("ordinal"), i }, { QStringLiteral("swingDir"), d }, { QStringLiteral("fired"), i % 2 == 0 } });
+        }
+        for (int k = 0; k < 10; ++k)
+            recurring.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("c%1").arg(k) }, { QStringLiteral("name"), QStringLiteral("Cupped at the top") },
+                                          { QStringLiteral("severity"), QStringLiteral("pattern") }, { QStringLiteral("tier"), QStringLiteral("pattern") },
+                                          { QStringLiteral("count"), 65 }, { QStringLiteral("countText"), QStringLiteral("65 of 130 swings, at P4") }, { QStringLiteral("marks"), marks } });
+        for (int k = 0; k < 7; ++k) mwRows.append(QVariantMap{ { QStringLiteral("label"), QStringLiteral("Reading %1").arg(k) }, { QStringLiteral("rText"), QStringLiteral(".41") } });
+        QStringList trust;
+        for (int i = 0; i < 18; ++i) trust << QStringLiteral("Trust line %1.").arg(i + 1);
+        trust << QString();
+        const auto sent = [](const QString &t) { return QVariantMap{ { QStringLiteral("text"), t }, { QStringLiteral("runs"), QVariantList{} } }; };
+        const QVariantMap payload{
+            { QStringLiteral("available"), true }, { QStringLiteral("kicker"), QStringLiteral("130 swings  ·  7 iron  ·  Wrist") },
+            { QStringLiteral("head"), sent(QStringLiteral("Graded as a Cupped wrist on every swing")) },
+            { QStringLiteral("styleLine"), QStringLiteral("By the resemblance index, most resemble Cupped (130)") },
+            { QStringLiteral("scoreLine"), QStringLiteral("Wrist score median 84, middle half 78–90") },
+            { QStringLiteral("repeat"), QStringLiteral("From P3 on, most repeatable: lead wrist bow / cup at P7 (middle half 2° wide); least: lead wrist hinge at P4 (9°).") },
+            { QStringLiteral("sizeLine"), QStringLiteral("Each box is drawn from 130 values.") },
+            { QStringLiteral("positions"), positions }, { QStringLiteral("rows"), rows },
+            { QStringLiteral("sub"), QStringLiteral("Δ from address, degrees  ·  a box per checkpoint, n 130") },
+            { QStringLiteral("caption"), QStringLiteral("Shaded: the Cupped band, the style every swing was graded as.") },
+            { QStringLiteral("scoreRun"), QVariantMap{ { QStringLiteral("caption"), QStringLiteral("Wrist score, swing by swing (0–100)") }, { QStringLiteral("points"), pts },
+                                                       { QStringLiteral("ticks"), QVariantList{ QVariantMap{ { QStringLiteral("v"), 0 }, { QStringLiteral("text"), QStringLiteral("0") } },
+                                                                                                QVariantMap{ { QStringLiteral("v"), 50 }, { QStringLiteral("text"), QStringLiteral("50") } },
+                                                                                                QVariantMap{ { QStringLiteral("v"), 100 }, { QStringLiteral("text"), QStringLiteral("100") } } } },
+                                                       { QStringLiteral("drift"), QVariantMap{ { QStringLiteral("defined"), true }, { QStringLiteral("rText"), QStringLiteral(".12") } } } } },
+            { QStringLiteral("styles"), QVariantMap{ { QStringLiteral("columns"), cols }, { QStringLiteral("hasIndex"), true },
+                                                     { QStringLiteral("rows"), QVariantList{ QVariantMap{ { QStringLiteral("key"), QStringLiteral("cupped") }, { QStringLiteral("name"), QStringLiteral("Cupped") },
+                                                                                                          { QStringLiteral("cells"), cellsK } } } } } },
+            { QStringLiteral("recurring"), recurring }, { QStringLiteral("recurringEmpty"), QStringLiteral("No wrist finding fired on any swing.") },
+            { QStringLiteral("movesWith"), QVariantMap{ { QStringLiteral("available"), true }, { QStringLiteral("head"), sent(QStringLiteral("What moves with bow / cup P7")) },
+                                                        { QStringLiteral("rows"), mwRows }, { QStringLiteral("chance"), QVariantMap{ { QStringLiteral("line"), sent(QStringLiteral("|r| under .17 is chance at n = 130")) } } },
+                                                        { QStringLiteral("note"), sent(QStringLiteral("They occur together; that is not to say one causes another.")) },
+                                                        { QStringLiteral("sub"), QStringLiteral("bow / cup at P7 against every reading, launch monitor included") } } },
+            { QStringLiteral("trust"), QVariantMap{ { QStringLiteral("lines"), trust } } } };
+        QHash<QString, int> swingNo;
+        for (int i = 1; i <= N; ++i) if (i != 10) swingNo.insert(QDir::cleanPath(dir.arg(i + 2, 4, 10, QLatin1Char('0'))), 200 + i);
+
+        const QVariant bv = wristReportBlock(payload, swingNo);
+        check(!bv.isNull(), "a reading: the wrist block");
+        const QVariantMap b = bv.toMap();
+        bool keys = true;
+        for (const char *k : { "kicker", "head", "styleLine", "scoreLine", "profile", "scoreRun", "styles", "recurring", "recurringMore", "recurringEmpty",
+                               "repeat", "sizeLine", "movesWith", "trust", "trustMore" })
+            if (!b.contains(QString::fromLatin1(k))) { keys = false; std::printf("        missing: %s\n", k); }
+        check(keys, "the block carries every documented key");
+        eq(b.value(QStringLiteral("head")).toString(), QStringLiteral("Graded as a Cupped wrist on every swing"), "the head is the presenter's, verbatim");
+        eq(b.value(QStringLiteral("scoreLine")).toString(), payload.value(QStringLiteral("scoreLine")).toString(), "the score line verbatim");
+        eq(b.value(QStringLiteral("repeat")).toString(), payload.value(QStringLiteral("repeat")).toString(), "the repeatability words verbatim");
+        const QVariantMap pf = b.value(QStringLiteral("profile")).toMap();
+        const QVariantList pr = pf.value(QStringLiteral("rows")).toList();
+        check(pr.size() == pinpoint::report::kWristRowCap, "rows capped, the numbers-only lead elbow left off (the screen's Session leaves it off)");
+        eq(pf.value(QStringLiteral("caption")).toString(), payload.value(QStringLiteral("caption")).toString(), "the caption verbatim");
+        check(!pf.value(QStringLiteral("positions")).toList().at(0).toMap().contains(QStringLiteral("seekUs")), "no seek target on paper");
+        const QVariantMap r0 = pr.at(1).toMap();
+        bool rowKeys = true;
+        for (const char *k : { "key", "label", "metricKey", "hueKey", "camera", "unit", "poleText", "styleText", "yLo", "yHi", "cells", "boxes" })
+            if (!r0.contains(QString::fromLatin1(k))) { rowKeys = false; std::printf("        row missing: %s\n", k); }
+        check(rowKeys, "a row carries every key the posture page's profile reads");
+        eq(r0.value(QStringLiteral("key")).toString(), QStringLiteral("leadWristFlexExt"), "key = the DOF");
+        eq(r0.value(QStringLiteral("hueKey")).toString(), QStringLiteral("hm.leadWristFlexExt"), "hueKey = the metric key");
+        eq(r0.value(QStringLiteral("camera")).toString(), QStringLiteral("wrist sensor"), "camera = the source words");
+        eq(r0.value(QStringLiteral("poleText")).toString(), QStringLiteral("↑ closed"), "poleText = which way is plus");
+        const QVariantList cells = r0.value(QStringLiteral("cells")).toList();
+        check(cells.size() == 8 && r0.value(QStringLiteral("boxes")).toList().size() == 8, "eight cells, eight boxes");
+        bool cellKeys = true;
+        for (const char *k : { "tag", "wash", "bandLo", "bandHi", "outside", "ringWord", "warn", "warnShort", "text" })
+            if (!cells.at(0).toMap().contains(QString::fromLatin1(k))) { cellKeys = false; std::printf("        cell missing: %s\n", k); }
+        check(cellKeys, "a cell carries every key the posture page's profile reads");
+        const QVariantMap c3 = cells.at(3).toMap(), c2 = cells.at(2).toMap(), c0 = cells.at(0).toMap();
+        check(c3.value(QStringLiteral("outside")).toBool() && c3.value(QStringLiteral("ringWord")).toString() == QLatin1String("open")
+              && c3.value(QStringLiteral("text")).toString() == QStringLiteral("−29°") && c3.value(QStringLiteral("wash")).toString() == QLatin1String("band"),
+              "a median outside the band: outside, its side in words, its figure");
+        eq(c2.value(QStringLiteral("text")).toString(), QStringLiteral("-"), "no median is \"-\", never 0");
+        check(c0.value(QStringLiteral("wash")).toString() == QLatin1String("none") && c0.value(QStringLiteral("bandLo")).isNull(), "no band at P1: no wash");
+        eq(r0.value(QStringLiteral("boxes")).toList().at(3).toMap().value(QStringLiteral("wideText")).toString(), QStringLiteral("2° wide"), "the width words verbatim");
+        const QVariantList sp = b.value(QStringLiteral("scoreRun")).toMap().value(QStringLiteral("points")).toList();
+        check(sp.size() == N && sp.at(0).toMap().value(QStringLiteral("swing")).toInt() == 201 && sp.at(9).toMap().value(QStringLiteral("swing")).toInt() == 10,
+              "score points numbered as the report numbers its swings (an unnumbered one keeps its ordinal)");
+        eq(sp.at(3).toMap().value(QStringLiteral("text")).toString(), QStringLiteral("-"), "an unscored swing is \"-\"");
+        check(b.value(QStringLiteral("scoreRun")).toMap().value(QStringLiteral("ticks")).toList().size() == 3, "the score run's ticks carried to paper");
+        const QVariantMap st = b.value(QStringLiteral("styles")).toMap();
+        check(st.value(QStringLiteral("columns")).toList().size() == pinpoint::report::kWristStyleColumnCap, "style columns capped");
+        eq(st.value(QStringLiteral("columns")).toList().at(0).toMap().value(QStringLiteral("label")).toString(), QStringLiteral("Swing 201"), "style columns renumbered");
+        check(st.value(QStringLiteral("rows")).toList().at(0).toMap().value(QStringLiteral("cells")).toList().size() == pinpoint::report::kWristStyleColumnCap,
+              "the style cells cut with the columns");
+        eq(st.value(QStringLiteral("more")).toString(), QStringLiteral("10 more swings not shown"), "the style table's ending");
+        check(!st.value(QStringLiteral("legend")).toString().isEmpty(), "the style table says what its figures are");
+        check(!b.value(QStringLiteral("recurringLegend")).toString().isEmpty() && !b.value(QStringLiteral("scoreRun")).toMap().value(QStringLiteral("legend")).toString().isEmpty(),
+              "the findings and the score run say what their marks are");
+        const QVariantList rec = b.value(QStringLiteral("recurring")).toList();
+        check(rec.size() == pinpoint::report::kWristRecurringCap, "findings capped");
+        eq(b.value(QStringLiteral("recurringMore")).toString(), QStringLiteral("2 more"), "the findings' ending");
+        check(rec.at(0).toMap().value(QStringLiteral("marks")).toList().at(1).toMap().value(QStringLiteral("swing")).toInt() == 202
+              && rec.at(0).toMap().value(QStringLiteral("marks")).toList().at(1).toMap().value(QStringLiteral("fired")).toBool(), "marks renumbered, fired kept");
+        eq(rec.at(0).toMap().value(QStringLiteral("countText")).toString(), QStringLiteral("65 of 130 swings, at P4"), "count words verbatim");
+        const QVariantMap mw = b.value(QStringLiteral("movesWith")).toMap();
+        check(mw.value(QStringLiteral("rows")).toList().size() == 7, "movesWith: four readings and three launch-monitor ones");
+        eq(mw.value(QStringLiteral("chanceLine")).toString(), QStringLiteral("|r| under .17 is chance at n = 130"), "the chance line verbatim");
+        check(b.value(QStringLiteral("trust")).toStringList().size() == 16, "trust lines capped at sixteen");
+        eq(b.value(QStringLiteral("trustMore")).toString(), QStringLiteral("2 more"), "the trust ending counts only lines with words");
+
+        QVariantMap refused = payload;
+        refused.insert(QStringLiteral("movesWith"), QVariantMap{ { QStringLiteral("available"), false },
+                                                                 { QStringLiteral("refusal"), sent(QStringLiteral("Five swings are needed to relate readings across a session; this session has three.")) } });
+        refused.insert(QStringLiteral("recurring"), QVariantList{});
+        const QVariantMap rb = wristReportBlock(refused, noSwings).toMap();
+        eq(rb.value(QStringLiteral("movesWith")).toMap().value(QStringLiteral("refusal")).toString(),
+           QStringLiteral("Five swings are needed to relate readings across a session; this session has three."), "movesWith refused: its reason, verbatim");
+        check(rb.value(QStringLiteral("recurring")).toList().isEmpty() && rb.value(QStringLiteral("recurringMore")).toString().isEmpty()
+              && rb.value(QStringLiteral("recurringEmpty")).toString() == QLatin1String("No wrist finding fired on any swing."), "nothing fired: the empty words");
+        QVariantMap noMw = payload;
+        noMw.remove(QStringLiteral("movesWith"));
+        check(wristReportBlock(noMw, noSwings).toMap().value(QStringLiteral("movesWith")).isNull(), "no movesWith in the payload: none on the page");
+        eq(pinpoint::report::wristMoreWords(1, "swing"), QStringLiteral("1 more swing not shown"), "the ending, one");
+
+        // the paper words (the presenter's, Stage C): a camera-only session's caption names the band alone and its
+        // one trust line says why; a middle half of one value is "all at"; no line names the Auto control
+        QVariantMap cam = payload;
+        cam.insert(QStringLiteral("caption"), QStringLiteral("Shaded: the Neutral band."));
+        cam.insert(QStringLiteral("scoreLine"), QStringLiteral("Wrist score median 100, middle half all at 100"));
+        cam.insert(QStringLiteral("styleLine"), QString());
+        cam.insert(QStringLiteral("trust"), QVariantMap{ { QStringLiteral("lines"), QStringList{
+            QStringLiteral("Trail wrist: from the face-on camera on every swing, confidence ●●○○ (the median)."),
+            QStringLiteral("No swing reads the lead wrist's bow / cup, so every swing is graded against the Neutral band.") } } });
+        const QVariantMap cb = wristReportBlock(cam, noSwings).toMap();
+        eq(cb.value(QStringLiteral("profile")).toMap().value(QStringLiteral("caption")).toString(), QStringLiteral("Shaded: the Neutral band."),
+           "camera-only: the caption names the band alone");
+        eq(cb.value(QStringLiteral("scoreLine")).toString(), QStringLiteral("Wrist score median 100, middle half all at 100"), "a one-value middle half, verbatim");
+        eq(cb.value(QStringLiteral("styleLine")).toString(), QString(), "no index: no style line");
+        bool noAuto = true;
+        for (const QString &l : cb.value(QStringLiteral("trust")).toStringList()) noAuto = noAuto && !l.contains(QStringLiteral("Auto"));
+        check(noAuto && cb.value(QStringLiteral("trust")).toStringList().size() == 2, "camera-only: two trust lines, neither names the Auto control");
     }
 
     std::printf("%s (%d failed)\n", g_fail ? "FAILED" : "OK", g_fail);

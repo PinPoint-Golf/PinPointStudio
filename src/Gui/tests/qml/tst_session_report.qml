@@ -58,7 +58,8 @@ Item {
             "causes-at-caps": 13, "sixty-swings-three-clubs": 14, "junior-no-photos": 11,
             "longest-names-and-note": 11, "note": 1, "no-launch-monitor": 10,
             "launch-monitor-appendix": 15,      // nick + the launch monitor appendix (Nick Henn's 20 Oct session 3 readings)
-            "posture": 15                       // nick + the Posture page (Nick Henn's 20 Oct session 3 posture readings; + its picture strip, stage 5)
+            "posture": 15,                      // nick + the Posture page (Nick Henn's 20 Oct session 3 posture readings; + its picture strip, stage 5)
+            "wrist": 17                         // posture + the Wrist page (Mark Liversedge's 18 Aug Wrist_02 wrist block: report_wrist.sh rich)
         })
 
         function signature() { return JSON.stringify(reg.pageInfo().map(p => [Math.round(p.from), Math.round(p.to)])) }
@@ -322,6 +323,140 @@ Item {
             for (let k = 0; k < a.length; ++k) {
                 compare(b[k].length, a[k].length, "posture page " + (pages[k] + 1) + ": items")
                 for (let i = 0; i < a[k].length; ++i) compare(b[k][i], a[k][i], "posture page " + (pages[k] + 1) + " item " + i + " changed with the app theme")
+            }
+        }
+        // ── the Wrist page (session_report_design.md "The Wrist page"; report_wrist.h) ──
+        function visibleAll(name) { return findAll(reg, name, []).filter(it => it.visible && it.height > 0) }
+        // a copy of the wrist fixture's map with its `wrist` block changed by `edit`
+        function wristMap(edit) {
+            const m = JSON.parse(JSON.stringify(Fx.maps["wrist"]))
+            if (edit) edit(m.wrist, m)
+            return m
+        }
+        function loadMap(m) {
+            reg.report = null
+            reg.printPage = 0
+            wait(30)
+            reg.report = m
+            let last = "", same = 0
+            for (let i = 0; i < 80 && same < 3; ++i) {
+                wait(100)
+                const s = signature()
+                same = (s === last) ? same + 1 : 0
+                last = s
+            }
+            verify(same >= 3, "the pagination never settled")
+        }
+        // n swings: the score run, the style table and every finding's marks carried out to n from the fixture's own
+        function longSession(w, n) {
+            const pts = w.scoreRun.points, cols = w.styles.columns
+            w.scoreRun.points = Array.from({ length: n }, (_, i) => Object.assign({}, pts[i % pts.length], { swing: i + 1 }))
+            w.styles.columns = Array.from({ length: n }, (_, i) => ({ swing: i + 1, label: "Swing " + (i + 1), short: String(i + 1) }))
+            w.styles.rows.forEach(r => { const c = r.cells; r.cells = Array.from({ length: n }, (_, i) => c[i % c.length]) })
+            w.recurring.forEach(f => { const k = f.marks; f.marks = Array.from({ length: n }, (_, i) => ({ swing: i + 1, fired: k[i % k.length].fired })) })
+            return w
+        }
+        function test_07_theWristPage() {
+            const w = Fx.maps["wrist"].wrist
+            // absent: no `wrist` in the map, no page, no heading
+            load("posture")
+            verify(!shown("reportWrist") && !shown("reportWristProfile") && !shown("reportWristTrust"), "no wrist in the map: no Wrist page")
+            compare(reg.sectionPage("reportWrist"), 0)
+            loadMap(wristMap((x, m) => { delete m.wrist }))
+            verify(!shown("reportWrist"), "the wrist fixture without its block: no Wrist page")
+            // present: every block the block has words for, in the Posture page's order
+            load("wrist")
+            for (const n of ["reportWrist", "reportWristProfile", "reportWristScore", "reportWristStyles", "reportWristRecurring", "reportWristRepeat",
+                             "reportWristMoves", "reportWristTrust"])
+                verify(shown(n), "the Wrist page draws " + n)
+            compare(visibleAll("reportWristRow").length, w.profile.rows.length, "a row per wrist DOF")
+            const cells = visibleAll("reportWristCell")
+            compare(cells.length, 8 * w.profile.rows.length, "eight cells a row")
+            verify(cells.every(c => c.text !== "" && c.text !== "0"), "every cell a figure with its unit, or \"-\"")
+            compare(cells.map(c => c.text).join(","), w.profile.rows.map(r => r.cells.map(c => c.text).join(",")).join(","), "the cells say the block's medians, verbatim")
+            compare(cells.filter(c => c.outside).length, w.profile.rows.reduce((a, r) => a + r.cells.filter(c => c.outside).length, 0), "outside where the block says")
+            compare(visibleAll("reportWristStylesLine").length, Math.ceil(w.styles.columns.length / 15), "fifteen swings a line")
+            compare(visibleAll("reportWristStyleCell").filter(c => c.graded).length, w.styles.columns.length, "one style in bold per swing")
+            compare(visibleAll("reportWristFinding").length, w.recurring.length, "a finding per recurring condition")
+            compare(visibleAll("reportWristMark").filter(k => k.fired).length, w.recurring.reduce((a, f) => a + f.marks.filter(k => k.fired).length, 0), "filled where it fired")
+            compare(visibleAll("reportWristMovesRow").length, w.movesWith.rows.length, "what moves with: a row per reading")
+            compare(visibleAll("reportWristTrustLine").map(t => t.text).join("\n"), w.trust.join("\n"), "the trust lines, open and verbatim")
+            verify(shown("reportWristScoreLine"), "the score line in the head")
+            // the head's style line is the resemblance clause alone (never the counts twice); absent with no index
+            verify(shown("reportWristStyleLine") === !!w.styleLine)
+            verify(reg.sectionPage("reportWrist") > reg.sectionPage("reportPosture"), "after the Posture page")
+            verify(reg.sectionPage("reportWrist") < reg.sectionPage("reportPractice"), "before Between now and next time")
+            compare(reg.insideLine.indexOf("wrist"), -1, "not on the cover's contents line")
+            const pages = reg.pageInfo().map((p, i) => p.section === "Wrist" ? i : -1).filter(i => i >= 0)
+            verify(pages.length >= 1, "the Wrist section has a page")
+            compare(reg.pageInfo()[pages[0]].cont, "", "it opens on a fresh page")
+            // no index: the note alone, no table, no style line
+            loadMap(wristMap(x => { x.styleLine = ""; x.styles = { columns: [], rows: [], counts: [], hasIndex: false, more: "", legend: "", countsLine: "",
+                                                                   note: "No swing in this session carries a resemblance index, so there is no style to compare." } }))
+            verify(shown("reportWristStyles"), "the style block says the note")
+            compare(visibleAll("reportWristStylesLine").length, 0, "and draws no table")
+            verify(!shown("reportWristStyleLine"), "no style line in the head")
+            // refused: the refusal alone under the heading
+            loadMap(wristMap(x => { x.movesWith = { available: false, head: "", sub: "", rows: [], chanceLine: "", note: "",
+                                                    refusal: "No swing of this session reads the lead wrist's bow / cup." } }))
+            compare(visibleAll("reportWristMovesRow").length, 0)
+            compare(visibleAll("reportWristMovesRefusal").map(t => t.text).join(), "No swing of this session reads the lead wrist's bow / cup.")
+            // nothing fired: the empty words alone
+            loadMap(wristMap(x => { x.recurring = []; x.recurringLegend = "" }))
+            verify(shown("reportWristRecurring"), "What keeps firing says nothing fired")
+            compare(visibleAll("reportWristFinding").length, 0)
+        }
+        // the register's caps (a guard: the map caps first), over-long lists cut at them
+        function test_08_theWristPageCaps() {
+            loadMap(wristMap(x => {
+                longSession(x, 130)
+                const r = x.profile.rows
+                while (x.profile.rows.length < 7) x.profile.rows.push(JSON.parse(JSON.stringify(r[x.profile.rows.length % 3])))
+                const f = x.recurring
+                while (x.recurring.length < 10) x.recurring.push(JSON.parse(JSON.stringify(f[x.recurring.length % f.length])))
+                const mr = x.movesWith.rows
+                while (x.movesWith.rows.length < 9) x.movesWith.rows.push(JSON.parse(JSON.stringify(mr[0])))
+                while (x.trust.length < 20) x.trust.push("Trust line " + x.trust.length + ".")
+            }))
+            compare(visibleAll("reportWristRow").length, 5, "five rows at most")
+            compare(visibleAll("reportWristStylesLine").length, 8, "120 swings at most in the style table: eight lines")
+            compare(visibleAll("reportWristFinding").length, 8, "eight findings at most")
+            verify(visibleAll("reportWristFinding").every(f => findAll(f, "reportWristMark", []).filter(k => k.visible).length === 120), "120 marks a finding at most")
+            compare(visibleAll("reportWristMovesRow").length, 7, "seven readings at most")
+            compare(visibleAll("reportWristTrustLine").length, 16, "sixteen trust lines at most")
+        }
+        // a long session runs on: "Wrist, continued" on every later page, the layout contract on every page
+        function test_09_aLongSessionContinuesTheWristPage() {
+            loadMap(wristMap(x => longSession(x, 40)))
+            const info = reg.pageInfo()
+            const pages = info.map((p, i) => p.section === "Wrist" ? i : -1).filter(i => i >= 0)
+            verify(pages.length >= 2, "forty swings run onto a second page (" + pages.length + ")")
+            verify(pages.slice(1).every(i => info[i].cont === "Wrist"), "each later page says Wrist, continued")
+            compare(visibleAll("reportWristStylesLine").length, 3, "forty swings: three lines of the style table")
+            verify(visibleAll("reportWristFinding").every(f => findAll(f, "reportWristMark", []).filter(k => k.visible).length === 40), "forty marks a finding")
+            checkLayout("wrist-40")
+            for (const i of pages) {
+                reg.printPage = i; wait(30)
+                const cont = findAll(reg, "reportContinued", []).filter(t => t.visible)
+                if (info[i].cont !== "") verify(cont.length === 1 && cont[0].text === "Wrist, continued", "p" + (i + 1) + ": Wrist, continued")
+            }
+        }
+        // the Wrist page in its own inks whatever the app's theme, as the Posture page
+        function test_10_theWristPageIgnoresTheAppTheme() {
+            const start = Theme.themeIndex
+            Theme.themeIndex = 12                       // Folio light
+            load("wrist")
+            const pages = reg.pageInfo().map((p, i) => p.section === "Wrist" ? i : -1).filter(i => i >= 0)
+            verify(pages.length > 0, "the Wrist section has a page")
+            const a = [], b = []
+            for (const p of pages) { reg.printPage = p; wait(30); a.push(appearance()) }
+            Theme.themeIndex = 7                        // Vector dark
+            wait(300)
+            for (const p of pages) { reg.printPage = p; wait(30); b.push(appearance()) }
+            Theme.themeIndex = start
+            for (let k = 0; k < a.length; ++k) {
+                compare(b[k].length, a[k].length, "wrist page " + (pages[k] + 1) + ": items")
+                for (let i = 0; i < a[k].length; ++i) compare(b[k][i], a[k][i], "wrist page " + (pages[k] + 1) + " item " + i + " changed with the app theme")
             }
         }
         // the appendix too: its tables (Folio light from the register) and the launch monitor panel's own figures,

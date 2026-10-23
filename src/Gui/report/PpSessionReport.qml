@@ -163,6 +163,13 @@ Item {
             visible: root.kind !== "note" && !!root.rep.posture
             ro: rr; po: root.rep.posture || null
         }
+        // the wrist page (session_report_design.md "The Wrist page"): after the Posture page, before the back matter;
+        // absent when the map has no `wrist` (no swing of the session reads a wrist DOF). Not on the cover's Inside line.
+        PpWristPage {
+            width: pager.textW
+            visible: root.kind !== "note" && !!root.rep.wrist
+            ro: rr; wr: root.rep.wrist || null
+        }
         PpNumbersTable {
             width: pager.textW
             visible: root.kind !== "note" && (!!root.rep.practice || !!root.rep.numbers)

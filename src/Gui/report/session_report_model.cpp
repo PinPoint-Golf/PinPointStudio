@@ -20,11 +20,13 @@
 
 #include "report_meta.h"
 #include "report_posture.h"
+#include "report_wrist.h"
 #include "report_stills.h"
 #include "report_words.h"
 
 #include "../athlete/athlete_controller.h"
 #include "../charts/charts_posture_presenter.h"
+#include "../charts/charts_wrist_presenter.h"
 #include "../charts/session_series_model.h"
 #include "../charts/session_wrist.h"
 #include "../diagnostics/session_diagnostics_model.h"
@@ -99,18 +101,21 @@ struct DocFacts {
     QStringList videoAliases;
 };
 
-// THE POSTURE PAGE'S READING (posture_chart_design.md §5.7): the Charts panel's own session snapshot of the
-// swings (a private SessionSeriesModel, run inline on this worker: the analysis' series, phases and the ledger
-// rows, never the pose blob) and the Posture presenter's session payload over it, nothing picked, Auto pattern.
-// The same numbers and words the Charts Posture section draws for the session. Empty when nothing reads.
-QVariantMap readPosture(const QString &sessionDir)
+// THE CHARTS PAGES' READING (posture_chart_design.md §5.7; the Wrist page): the Charts panel's own session
+// snapshot of the swings (a private SessionSeriesModel, run inline on this worker: the analysis' series, phases
+// and the ledger rows, never the pose blob), built ONCE, and over it the Posture presenter's session payload
+// (nothing picked, Auto pattern) and the Wrist presenter's (nothing picked, Auto style, the dominant style's
+// wash). The same numbers and words the Charts Posture and Wrist sections draw for the session. { posture, wrist },
+// each empty when nothing reads.
+QVariantMap readChartsPages(const QString &sessionDir)
 {
     pinpoint::charts::SessionSeriesModel series;
     series.setSynchronous(true);
     series.activateSession(sessionDir);
     const std::shared_ptr<const pinpoint::charts::SessionSnapshot> snap = series.snapshot();
     if (!snap || snap->count() == 0) return {};
-    return pinpoint::charts::postureSessionReportPayload(*snap, -1, QStringLiteral("swings"));   // the report says swings
+    return { { QStringLiteral("posture"), pinpoint::charts::postureSessionReportPayload(*snap, -1, QStringLiteral("swings")) },   // the report says swings
+             { QStringLiteral("wrist"), pinpoint::charts::wristSessionReportPayload(*snap, -1, QStringLiteral("swings")) } };
 }
 
 QVector<DocFacts> readDocs(const QString &sessionDir)
@@ -242,12 +247,12 @@ struct SessionReportModel::Job {
     bool        stills = true;
     bool        modelReady = false;
     bool        docsReady = false;
-    bool        postureReady = false;
+    bool        chartsReady = false;
     bool        built = false;
     QFutureWatcher<QVector<DocFacts>> docsWatcher;
     QVector<DocFacts> docs;
-    QFutureWatcher<QVariantMap> postureWatcher;     // the posture page's payload (readPosture)
-    QVariantMap posture;
+    QFutureWatcher<QVariantMap> chartsWatcher;      // the Posture and Wrist pages' payloads (readChartsPages)
+    QVariantMap posture, wrist;
 
     QVariantMap         map;
     QVector<StillRequest> requests;
@@ -267,7 +272,7 @@ SessionReportModel::SessionReportModel(QObject *parent) : QObject(parent) {}
 
 SessionReportModel::~SessionReportModel()
 {
-    if (m_job) { m_job->docsWatcher.waitForFinished(); m_job->postureWatcher.waitForFinished(); }
+    if (m_job) { m_job->docsWatcher.waitForFinished(); m_job->chartsWatcher.waitForFinished(); }
 }
 
 void SessionReportModel::setStudioProfile(StudioProfile *studio) { m_studio = studio; }
@@ -445,11 +450,11 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
 
     connect(&m_job->docsWatcher, &QFutureWatcher<QVector<DocFacts>>::finished, this, &SessionReportModel::onDocsRead);
     m_job->docsWatcher.setFuture(QtConcurrent::run([dir] { return readDocs(dir); }));
-    // The posture page's reading, alongside. The wrist grader's shared norm set is built here first, on this
-    // thread, as SessionSeriesModel's constructor does for its own worker (session_wrist.h).
+    // The Posture and Wrist pages' reading, alongside. The wrist grader's shared norm set is built here first, on
+    // this thread, as SessionSeriesModel's constructor does for its own worker (session_wrist.h).
     pinpoint::charts::warmWristBands();
-    connect(&m_job->postureWatcher, &QFutureWatcher<QVariantMap>::finished, this, &SessionReportModel::onPostureRead);
-    m_job->postureWatcher.setFuture(QtConcurrent::run([dir] { return readPosture(dir); }));
+    connect(&m_job->chartsWatcher, &QFutureWatcher<QVariantMap>::finished, this, &SessionReportModel::onChartsRead);
+    m_job->chartsWatcher.setFuture(QtConcurrent::run([dir] { return readChartsPages(dir); }));
 
     SessionDiagnosticsModel *m = model();
     m->setGradePolicy(gradePolicyName());
@@ -481,18 +486,20 @@ void SessionReportModel::onDocsRead()
     QTimer::singleShot(0, this, [this] { maybeBuild(); });
 }
 
-void SessionReportModel::onPostureRead()
+void SessionReportModel::onChartsRead()
 {
     if (!m_job) return;
-    m_job->posture = m_job->postureWatcher.result();
-    m_job->postureReady = true;
+    const QVariantMap pages = m_job->chartsWatcher.result();
+    m_job->posture = pages.value(QStringLiteral("posture")).toMap();
+    m_job->wrist = pages.value(QStringLiteral("wrist")).toMap();
+    m_job->chartsReady = true;
     QTimer::singleShot(0, this, [this] { maybeBuild(); });
 }
 
 void SessionReportModel::maybeBuild()
 {
     // The three halves call here as they land, and the last may find the build already begun.
-    if (!m_job || !m_job->modelReady || !m_job->docsReady || !m_job->postureReady || m_job->built) return;
+    if (!m_job || !m_job->modelReady || !m_job->docsReady || !m_job->chartsReady || m_job->built) return;
     m_job->built = true;
     build();
 }
@@ -518,7 +525,7 @@ void SessionReportModel::finishJob()
     const bool wasPrinting = m_printing;
     m_printing = false;
     m_printShotId = -1;
-    if (m_job) { m_job->docsWatcher.waitForFinished(); m_job->postureWatcher.waitForFinished(); }
+    if (m_job) { m_job->docsWatcher.waitForFinished(); m_job->chartsWatcher.waitForFinished(); }
     m_job.reset();
     if (wasPrinting) emit printModelChanged();
     emit busyChanged();
@@ -1888,6 +1895,16 @@ void SessionReportModel::build()
                 po = pm;
             }
             map[QStringLiteral("posture")] = po;
+        }
+
+        // The wrist page: the Charts Wrist section's Session reading, its swings numbered as the report numbers them.
+        // Not in a note (the cover alone); absent when no swing reads a wrist DOF (camera-only included: data decides).
+        if (isNote) {
+            map[QStringLiteral("wrist")] = kNull;
+        } else {
+            QHash<QString, int> swingNoOfDir;
+            for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), k + 1);
+            map[QStringLiteral("wrist")] = M::wristReportBlock(job.wrist, swingNoOfDir);
         }
 
         if (isNote) {

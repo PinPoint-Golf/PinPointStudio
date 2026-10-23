@@ -39,7 +39,7 @@ import PinPointStudio
 //     lines and the bands at impact (PpChPostureFrame, the screen's frame, in the report's inks);
 //   · the trust note, said once, open (paper has no fold).
 //
-// A PRINT-ONLY SIBLING of PpChPostureProfile, reading the same rows. The screen profile's geometry is a screen's
+// The profile is PpReportProfile (shared with the Wrist page): a PRINT-ONLY SIBLING of PpChPostureProfile, reading the same rows. The screen profile's geometry is a screen's
 // (rows of 160 px with labels above at this width: the six rows would need two pages on their own); the numbers, the
 // words, the bands, the boxes and the scale (each row's yLo…yHi) are the presenter's and are not re-made here.
 // FLOWED (§9.1 rules 1, 2): the section starts a fresh page; the profile is a printGroup whose head is the column
@@ -67,14 +67,8 @@ Column {
     visible: on
     width: 600
 
-    // the profile's geometry: a label column, eight position columns, the pole word at the right
+    // the address block's label column (the profile's own geometry is PpReportProfile's: the same label column)
     readonly property real labelW: 122
-    readonly property real poleW: 46
-    readonly property real plotX: labelW
-    readonly property real plotW: width - labelW - poleW
-    readonly property real colW: plotW / 8
-    readonly property real plotH: 50
-    function cx(i) { return plotX + (i + 0.5) * colW }
     function fin(v) { return v !== null && v !== undefined && isFinite(v) }
 
     // ═══ the head ═══
@@ -106,154 +100,13 @@ Column {
         Item { width: 1; height: 8 }
     }
 
-    // ═══ the profile: the column heads (repeated on a continued page), then one atom per reading ═══
-    Column {
-        objectName: "reportPostureProfile"
-        readonly property var keyKinds: []
-        property string printGroup: "posture"
-        visible: pp.on && pp.rows.length > 0
+    // ═══ the profile: the column heads (repeated on a continued page), then one atom per reading, then the caption
+    //     (PpReportProfile, shared with the Wrist page; the names stay reportPostureProfile / Row / Cell / AltValue) ═══
+    PpReportProfile {
+        ro: pp.ro; roles: cr
+        prefix: "reportPosture"; printGroup: "posture"
+        on: pp.on; rows: pp.rows; positions: pp.positions; caption: pp.prof.caption || ""
         width: pp.width
-        Item {
-            property bool atom: true
-            width: pp.width; height: colHeads.height + 6
-            Rectangle { anchors.fill: parent; color: pp.ro.paper }
-            Item {
-                id: colHeads
-                width: pp.width; height: childrenRect.height
-                Repeater {
-                    model: pp.positions
-                    delegate: Column {
-                        required property var modelData
-                        required property int index
-                        x: pp.cx(index) - pp.colW / 2 + 2; width: pp.colW - 4
-                        Text { width: parent.width; horizontalAlignment: Text.AlignHCenter; text: modelData.tag || ""
-                               font: pp.ro.fSmallM; color: modelData.available === false ? pp.ro.ink3 : pp.ro.ink }
-                        Text { width: parent.width; horizontalAlignment: Text.AlignHCenter; visible: text !== "" && text !== (modelData.tag || "")
-                               text: modelData.name || ""; font: pp.ro.fMicro; color: pp.ro.ink3; wrapMode: Text.WrapAtWordBoundaryOrAnywhere }
-                    }
-                }
-            }
-            Rectangle { x: pp.plotX; y: colHeads.height + 4; width: pp.plotW; height: pp.ro.hw; color: pp.ro.hair }
-        }
-        Repeater {
-            model: pp.rows
-            delegate: Item {
-                id: rw
-                required property var modelData
-                required property int index
-                objectName: "reportPostureRow"
-                property bool atom: true
-                readonly property var r: modelData
-                readonly property string key: r.key || ""
-                readonly property var cells: (r.cells || []).slice(0, 8)
-                readonly property var boxes: (r.boxes || []).slice(0, 8)
-                readonly property color hue: pp.ro.hue(r.hueKey || r.metricKey || "")
-                readonly property real lo: pp.fin(r.yLo) ? r.yLo : -1
-                readonly property real hi: pp.fin(r.yHi) ? r.yHi : 1
-                function vy(v) { return 4 + (pp.plotH - 8) * (1 - (v - lo) / Math.max(1e-9, hi - lo)) }
-                width: pp.width
-                height: Math.max(labCol.height + 6, pp.plotH + nums.height + 12)
-
-                // the label: the reading, the trail knee's style, the camera and unit
-                Column {
-                    id: labCol
-                    y: 4; width: pp.labelW - 12; spacing: 2
-                    Row { spacing: 6
-                        Rectangle { width: 7; height: 7; radius: 3.5; color: rw.hue; anchors.verticalCenter: parent.verticalCenter }
-                        Text { width: Math.min(implicitWidth, pp.labelW - 25); text: rw.r.label || ""; font: pp.ro.fBodyDM; color: pp.ro.ink; wrapMode: Text.WordWrap } }
-                    Text { visible: text !== ""; width: parent.width; text: rw.r.styleText || ""; font: pp.ro.fSmallM; color: pp.ro.ink2; wrapMode: Text.WordWrap }
-                    Text { width: parent.width; text: (rw.r.camera || "") + (rw.r.unit ? ", " + rw.r.unit : ""); font: pp.ro.fMicro; color: pp.ro.ink3; wrapMode: Text.WordWrap }
-                }
-                // the plot: the zero line (address), the band per position as a wash in the reading's own colour, the
-                // fault lines as hairlines, the session's box
-                Rectangle { visible: rw.lo < 0 && rw.hi > 0; x: pp.plotX; width: pp.plotW; y: Math.round(rw.vy(0)); height: pp.ro.hw; color: Qt.alpha(pp.ro.ink3, 0.6) }
-                Repeater {
-                    model: rw.cells
-                    delegate: Item {
-                        required property var modelData
-                        required property int index
-                        readonly property var c: modelData
-                        readonly property bool banded: c.wash === "band" && pp.fin(c.bandLo) && pp.fin(c.bandHi)
-                        x: pp.cx(index) - pp.colW * 0.36; width: pp.colW * 0.72; height: pp.plotH
-                        Rectangle { visible: parent.banded; width: parent.width
-                                    y: parent.banded ? rw.vy(Math.min(rw.hi, parent.c.bandHi)) : 0
-                                    height: parent.banded ? Math.max(1, rw.vy(Math.max(rw.lo, parent.c.bandLo)) - rw.vy(Math.min(rw.hi, parent.c.bandHi))) : 0
-                                    color: Qt.alpha(rw.hue, 0.16) }
-                        Rectangle { visible: !!parent.c.faultHi && pp.fin(parent.c.faultHi.edge)
-                                    x: -pp.colW * 0.06; width: parent.width + pp.colW * 0.12; height: Math.max(0.75, pp.ro.hw)
-                                    y: visible ? Math.round(rw.vy(parent.c.faultHi.edge)) : 0; color: Qt.alpha(pp.ro.warn, 0.7) }
-                        Rectangle { visible: !!parent.c.faultLo && pp.fin(parent.c.faultLo.edge)
-                                    x: -pp.colW * 0.06; width: parent.width + pp.colW * 0.12; height: Math.max(0.75, pp.ro.hw)
-                                    y: visible ? Math.round(rw.vy(parent.c.faultLo.edge)) : 0; color: Qt.alpha(pp.ro.warn, 0.7) }
-                    }
-                }
-                Repeater {
-                    model: rw.boxes
-                    delegate: PpChBoxCell {
-                        required property var modelData
-                        required property int index
-                        vertical: true
-                        x: pp.cx(index) - 10; width: 20; y: 4; height: pp.plotH - 8
-                        lo: rw.lo; hi: rw.hi
-                        roles: cr; brush: null; interactive: false; showPicked: false
-                        box: modelData ? modelData.box : null; values: modelData ? (modelData.values || []) : []; fired: []
-                        color: rw.hue
-                    }
-                }
-                // the pole: which way is plus
-                Text { x: pp.plotX + pp.plotW + 6; y: 2; width: pp.poleW - 6; text: rw.r.poleText || ""; font: pp.ro.fMicro; color: pp.ro.ink3
-                       wrapMode: Text.WrapAtWordBoundaryOrAnywhere }
-                // the numbers under each column: the median or "-"; then the side of the band it falls on (warn, a word)
-                // or how wide the middle half is; then the ⚠ and its few words
-                Row {
-                    id: nums
-                    x: pp.plotX; y: pp.plotH + 2
-                    Repeater {
-                        model: rw.cells
-                        delegate: Column {
-                            id: nc
-                            required property var modelData
-                            required property int index
-                            objectName: "reportPostureCell"
-                            readonly property var c: modelData
-                            readonly property var bc: rw.boxes[index] || null
-                            readonly property string tag: c.tag || ""
-                            readonly property string text: bc ? (bc.medianText || "-") : (c.text || "-")
-                            readonly property bool warned: !!c.warn
-                            readonly property bool outside: c.outside === true
-                            width: pp.colW
-                            Text { width: parent.width; horizontalAlignment: Text.AlignHCenter; text: nc.text; font: pp.ro.fFigM
-                                   color: nc.outside ? pp.ro.warn : (nc.text !== "-" ? pp.ro.ink : pp.ro.ink3)
-                                   Rectangle { visible: nc.outside; anchors.horizontalCenter: parent.horizontalCenter; y: parent.height - 1
-                                               width: parent.contentWidth; height: 1; color: pp.ro.warn } }
-                            Text { visible: text !== ""; width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                                   text: nc.outside ? (nc.c.ringWord || "") : (nc.bc ? (nc.bc.wideText || "") : "")
-                                   font: pp.ro.fMicro; color: nc.outside ? pp.ro.warn : pp.ro.ink3 }
-                            Text { visible: nc.warned; width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                                   text: (nc.c.warn || "") + (nc.c.warnShort ? " " + nc.c.warnShort : ""); font: pp.ro.fMicro; color: pp.ro.ink2 }
-                            // the second reading: the back line under trunk bend at P3–P5, smaller, with its own ⚠ words
-                            Item { visible: nc.c.alt === true; width: 1; height: 3 }
-                            Text { objectName: "reportPostureAltValue"
-                                   readonly property string tag: nc.tag
-                                   readonly property string rowKey: rw.key
-                                   readonly property bool warned: !!nc.c.altWarn
-                                   visible: nc.c.alt === true; width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                                   text: nc.c.altText || ""; font: pp.ro.fSmall; color: nc.c.altAvailable ? pp.ro.ink2 : pp.ro.ink3 }
-                            Text { visible: !!nc.c.altWarn; width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
-                                   text: (nc.c.altWarn || "") + (nc.c.altWarnShort ? " " + nc.c.altWarnShort : ""); font: pp.ro.fMicro; color: pp.ro.ink3 }
-                        }
-                    }
-                }
-                Rectangle { anchors.bottom: parent.bottom; anchors.bottomMargin: 4; x: 0; width: parent.width; height: pp.ro.hw; color: pp.ro.faint }
-            }
-        }
-        Item {
-            property bool atom: true
-            property bool keepPrev: true
-            visible: !!pp.prof.caption
-            width: pp.width; height: visible ? capText.height + 8 : 0
-            Text { id: capText; y: 4; width: parent.width; text: pp.prof.caption || ""; font: pp.ro.fMicro; color: pp.ro.ink3; wrapMode: Text.WordWrap; lineHeight: 1.25 }
-        }
     }
 
     // ═══ at address (§7.4.2): the rig-sensitive address readings — the session's box against the good-player band, the
