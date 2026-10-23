@@ -356,6 +356,16 @@ static const Expect kExpected[] = {
       "m_postureHeldTop highMeans 'standing up out of the address posture by the top'" },
     { "sig_postureSinksBack",       Direction::Low,
       "m_postureHeldTop: the LOW side is the posture sunk lower than at address" },
+    // Standing up going back, read on the down-the-line head height alone since 22 Oct 2026
+    // (posture_metrics_design.md §4.5). Its measure is a ceiling, so the high tail is the only one.
+    { "sig_standUpBackDtl",         Direction::High,
+      "headRise: 'HIGHER MEANS THE HEAD HAS RISEN'; standing up out of the posture going back is "
+      "the head coming up, the high end" },
+    // The lead knee folding going back (posture_chart_design.md D7). Two-sided measure; the low
+    // tail, a quiet lead leg, is declared unwatched on m_leadKneeFlex_p4.
+    { "sig_leadKneeFoldsBackswing", Direction::High,
+      "leadKneeFlexion: 'Higher means more bend'; m_leadKneeFlex_p4 highMeans 'the lead knee gained "
+      "bend between address and the top, folding in going back', so folding is the high end" },
     { "sig_poorSetupPosture",       Direction::High,
       "m_setupPosture is a ceiling distance: higher is further from a good setup in any direction" },
     // The same tail as sig_leadKneeDriftIn on the same metric, read at impact instead of the top.

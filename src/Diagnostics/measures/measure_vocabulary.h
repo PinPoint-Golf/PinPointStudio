@@ -299,6 +299,16 @@ struct Measure {
     std::optional<Direction> unwatchedTail;
     QString                  unwatchedReason;
 
+    // The ABSOLUTE value depends on where the camera stands (posture_chart_design.md §7.4): address
+    // bend, knee flex, arm hang, head pitch, heel-to-toe balance, absolute side tilt. A view may
+    // compare such a reading with a published band only on a trusted capture (calibrated, or the
+    // capture protocol's placement declared and checked); otherwise only with the golfer's own
+    // sessions from the same set-up. Content, not presentation, so it is in the pack and in its
+    // content stamp. It does NOT gate grading (yet, §7.4.5). A change from address cancels the
+    // placement, so the flag on a delta-from-address measure is a contradiction the validator warns
+    // about (`rigSensitiveDelta`).
+    bool                     rigSensitive = false;
+
     // MeasureKind::Composite only: its parts and how they combine. Empty on every other kind, and the
     // loader refuses a `composite` block on one (`compositeKind`).
     CompositeSpec            composite;

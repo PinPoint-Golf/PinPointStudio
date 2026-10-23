@@ -814,6 +814,54 @@ int main()
               "an unknown tail token is refused rather than silently defaulted");
     }
 
+    // ── rigSensitive: the absolute moves with the camera ───────────────────────
+    //
+    // posture_chart_design.md §7.4. Content, so it round-trips and reaches the content stamp; absent
+    // means false and writes no key; a change from address carrying it warns, because the change
+    // cancels the camera's placement; and anything but a JSON boolean is refused.
+    {
+        CharacteristicPack p = goodPack();                         // stanceWidth is `at` P1
+        check(!p.measures.front().rigSensitive, "rigSensitive defaults to false");
+        check(!savePack(p).value(QStringLiteral("measures")).toArray().at(0).toObject()
+                   .contains(QStringLiteral("rigSensitive")),
+              "a measure that is not rig-sensitive writes no rigSensitive key");
+
+        p.measures.front().rigSensitive = true;
+        const QJsonObject saved = savePack(p);
+        check(saved.value(QStringLiteral("measures")).toArray().at(0).toObject()
+                  .value(QStringLiteral("rigSensitive")) == QJsonValue(true),
+              "a rig-sensitive measure writes rigSensitive: true");
+
+        const PackLoadResult res = loadPack(saved, QStringLiteral("rig"));
+        const Measure       *m   = res.pack.measure(QStringLiteral("stanceWidth"));
+        check(res.report.ok() && m && m->rigSensitive,
+              "rigSensitive survives a save/load round-trip");
+        check(!hasWarning(validatePack(p), "rigSensitiveDelta"),
+              "…and on an absolute (`at` P1) it raises no warning");
+        // The session model's content stamp hashes savePack(), so a flag savePack writes is a flag
+        // the stamp sees.
+        check(QJsonDocument(saved).toJson() != QJsonDocument(savePack(goodPack())).toJson(),
+              "…and the saved pack (what the content stamp hashes) differs with the flag");
+
+        CharacteristicPack delta = p;
+        delta.measures.front().reducer.kind   = ReducerKind::Delta;
+        delta.measures.front().reducer.window = { Phase::Address, Phase::Top };
+        check(hasWarning(validatePack(delta), "rigSensitiveDelta"),
+              "rigSensitive on a change from address warns — the change cancels the placement");
+        delta.measures.front().rigSensitive = false;
+        check(!hasWarning(validatePack(delta), "rigSensitiveDelta"),
+              "…and the same change from address unflagged does not");
+
+        QJsonObject root     = saved;
+        QJsonArray  measures = root.value(QStringLiteral("measures")).toArray();
+        QJsonObject first    = measures.at(0).toObject();
+        first.insert(QStringLiteral("rigSensitive"), QStringLiteral("true"));
+        measures.replace(0, first);
+        root.insert(QStringLiteral("measures"), measures);
+        check(hasError(loadPack(root, QStringLiteral("rig-string")).report, "badRigSensitive"),
+              "a rigSensitive that is not a boolean is refused rather than coerced");
+    }
+
     // ── One coach term, one condition ───────────────────────────────────────────
     //
     // Not tidiness: a search for "flip" resolves to whichever condition came first in the file, so

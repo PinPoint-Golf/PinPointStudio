@@ -926,6 +926,18 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
                                    "signal watches exactly that tail. One of the two is wrong.")
                         .arg(m.id, directionName(*m.unwatchedTail)));
         }
+
+        // --- a rig-sensitive change from address -----------------------------
+        //
+        // A WARNING: the flag says the absolute moves with the camera, and a change from address
+        // cancels the camera's placement — that is the whole reason the posture chart compares
+        // changes with published bands on any capture (posture_chart_design.md §7.4). On a delta it
+        // would only keep a reading away from a band it can safely be set against.
+        if (m.rigSensitive && measureIsDeltaFromAddress(m))
+            warn(r, QStringLiteral("rigSensitiveDelta"), m.id,
+                 QStringLiteral("Measure '%1' is a change from address but is marked rigSensitive. A "
+                                "change from address cancels where the camera stands, so the flag "
+                                "belongs on the absolute reading, not on this one.").arg(m.id));
     }
 
     // --- signals -------------------------------------------------------------
@@ -1692,6 +1704,19 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
                         .arg(m.id, o.value(QStringLiteral("unwatchedTail")).toString()));
         }
 
+        // A boolean or nothing. A string "true" (or a 1) is an ERROR rather than a coercion: the flag
+        // decides whether a view may set an absolute against a published band, so a value the author
+        // did not write as a bool is a value nobody can be sure they meant.
+        if (o.contains(QStringLiteral("rigSensitive"))) {
+            const QJsonValue rv = o.value(QStringLiteral("rigSensitive"));
+            if (rv.isBool())
+                m.rigSensitive = rv.toBool();
+            else
+                err(r, QStringLiteral("badRigSensitive"), m.id,
+                    QStringLiteral("Measure '%1' declares rigSensitive as '%2'; it is true or false.")
+                        .arg(m.id, rv.toVariant().toString()));
+        }
+
         // An absent `viewNeeded` on a Composed measure is DERIVED from the series rather than
         // defaulted — the facets already say which camera can see the thing — and a misspelt one is
         // an error like every other closed vocabulary here. The two are not the same case: derived
@@ -2136,6 +2161,9 @@ QJsonObject savePack(const CharacteristicPack &pack)
             o.insert(QStringLiteral("unwatchedTail"), directionName(*m.unwatchedTail));
         if (!m.unwatchedReason.isEmpty())
             o.insert(QStringLiteral("unwatchedReason"), m.unwatchedReason);
+        // Written only when set, so the measures that are not rig-sensitive round-trip unchanged; and
+        // written, so computeContentStamp sees the flag change.
+        if (m.rigSensitive) o.insert(QStringLiteral("rigSensitive"), true);
         measures.append(o);
     }
     root.insert(QStringLiteral("measures"), measures);

@@ -144,7 +144,8 @@
       "golferLow": "you stand taller at address",
       "highMeans": "more forward bend from the hips, standing over the ball more",
       "golferSign": 1,
-      "golferName": "forward bend from your hips at address"
+      "golferName": "forward bend from your hips at address",
+      "rigSensitive": true
     },
     {
       "id": "m_spineBendDive",
@@ -2034,7 +2035,8 @@
       "highMeans": "more bend in the trail knee at address — sitting deeper",
       "golferSign": 1,
       "golferName": "trail-knee bend at address",
-      "viewNeeded": "downTheLine"
+      "viewNeeded": "downTheLine",
+      "rigSensitive": true
     },
     {
       "id": "m_trailKneeFlex",
@@ -2888,7 +2890,8 @@
       "highMeans": "the balance point further toward the toes at address",
       "golferSign": 1,
       "golferName": "how far toward your toes your weight sits at address",
-      "viewNeeded": "downTheLine"
+      "viewNeeded": "downTheLine",
+      "rigSensitive": true
     },
     {
       "id": "m_spineBendChangeImpact",
@@ -3025,6 +3028,786 @@
       "gapReason": "Held 2026-10-22 until the trunk IMUs can corroborate it (trunk_imu_sequence_grf_design.md §8.8). From down the line the reading is the hip-midpoint to shoulder-midpoint line, and at the top both midpoints move with the turn, not with the posture: the shoulders spread from end-on to across the image and the trail hip rotates forward, so the line tips upright with no change in the back. Mark and Nick Henn, whom Mark judges to hold their spine angle going back, read -7.4 and -8.2 degrees on every swing; the hip-midpoint to ear-midpoint line on the same frames reads -1.9 and -3.6. Annotated P1/P4 frames reviewed by Mark 22 Oct. A thorax and a pelvis sensor read the trunk's forward bend directly, with no occlusion and no keypoint travel."
     },
     {
+      "id": "m_headLift_p2",
+      "kind": "provided",
+      "metricKey": "headLift",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p2"
+        ]
+      },
+      "status": "live",
+      "label": "Head height, change P1 to P2",
+      "unit": "cm",
+      "highMeans": "the head higher early going back than it was at address",
+      "golferHigh": "your head is higher early going back than at address",
+      "golferLow": "your head is lower early going back than at address",
+      "golferSign": 1,
+      "viewNeeded": "faceOn"
+    },
+    {
+      "id": "m_headLift_p3",
+      "kind": "provided",
+      "metricKey": "headLift",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p3"
+        ]
+      },
+      "status": "live",
+      "label": "Head height, change P1 to P3",
+      "unit": "cm",
+      "highMeans": "the head higher halfway back than it was at address",
+      "golferHigh": "your head is higher halfway back than at address",
+      "golferLow": "your head is lower halfway back than at address",
+      "golferSign": 1,
+      "viewNeeded": "faceOn"
+    },
+    {
+      "id": "m_headLift_p5",
+      "kind": "provided",
+      "metricKey": "headLift",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p5"
+        ]
+      },
+      "status": "live",
+      "label": "Head height, change P1 to P5",
+      "unit": "cm",
+      "highMeans": "the head higher starting down than it was at address",
+      "golferHigh": "your head is higher starting down than at address",
+      "golferLow": "your head is lower starting down than at address",
+      "golferSign": 1,
+      "viewNeeded": "faceOn"
+    },
+    {
+      "id": "m_headLift_p6",
+      "kind": "provided",
+      "metricKey": "headLift",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p6"
+        ]
+      },
+      "status": "live",
+      "label": "Head height, change P1 to P6",
+      "unit": "cm",
+      "highMeans": "the head higher just before impact than it was at address",
+      "golferHigh": "your head is higher just before impact than at address",
+      "golferLow": "your head is lower just before impact than at address",
+      "golferSign": 1,
+      "viewNeeded": "faceOn"
+    },
+    {
+      "id": "m_headLift_p8",
+      "kind": "provided",
+      "metricKey": "headLift",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p8"
+        ]
+      },
+      "status": "live",
+      "label": "Head height, change P1 to P8",
+      "unit": "cm",
+      "highMeans": "the head higher after impact than it was at address",
+      "golferHigh": "your head is higher after impact than at address",
+      "golferLow": "your head is lower after impact than at address",
+      "golferSign": 1,
+      "viewNeeded": "faceOn"
+    },
+    {
+      "id": "m_pelvisThrust_p2",
+      "kind": "provided",
+      "metricKey": "pelvisThrust",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p2"
+        ]
+      },
+      "status": "live",
+      "label": "Pelvis thrust toward the ball, change P1 to P2",
+      "unit": "cm",
+      "highMeans": "the pelvis further toward the ball early going back than at address",
+      "golferHigh": "your hips are further toward the ball early going back",
+      "golferLow": "your hips are further back from the ball early going back",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_pelvisThrust_p3",
+      "kind": "provided",
+      "metricKey": "pelvisThrust",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p3"
+        ]
+      },
+      "status": "live",
+      "label": "Pelvis thrust toward the ball, change P1 to P3",
+      "unit": "cm",
+      "highMeans": "the pelvis further toward the ball halfway back than at address",
+      "golferHigh": "your hips are further toward the ball halfway back",
+      "golferLow": "your hips are further back from the ball halfway back",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_pelvisThrust_p4",
+      "kind": "provided",
+      "metricKey": "pelvisThrust",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p4"
+        ]
+      },
+      "status": "live",
+      "label": "Pelvis thrust toward the ball, change P1 to P4",
+      "unit": "cm",
+      "highMeans": "the pelvis further toward the ball at the top than at address",
+      "golferHigh": "your hips are further toward the ball at the top",
+      "golferLow": "your hips are further back from the ball at the top",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_pelvisThrust_p5",
+      "kind": "provided",
+      "metricKey": "pelvisThrust",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p5"
+        ]
+      },
+      "status": "live",
+      "label": "Pelvis thrust toward the ball, change P1 to P5",
+      "unit": "cm",
+      "highMeans": "the pelvis further toward the ball starting down than at address",
+      "golferHigh": "your hips are further toward the ball starting down",
+      "golferLow": "your hips are further back from the ball starting down",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_pelvisThrust_p6",
+      "kind": "provided",
+      "metricKey": "pelvisThrust",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p6"
+        ]
+      },
+      "status": "live",
+      "label": "Pelvis thrust toward the ball, change P1 to P6",
+      "unit": "cm",
+      "highMeans": "the pelvis further toward the ball just before impact than at address",
+      "golferHigh": "your hips are further toward the ball just before impact",
+      "golferLow": "your hips are further back from the ball just before impact",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_hipDepthButt_p3",
+      "kind": "provided",
+      "metricKey": "hipDepthButt",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p3"
+        ]
+      },
+      "status": "live",
+      "label": "Hip depth on the butt line, change P1 to P3",
+      "unit": "cm",
+      "highMeans": "the butt line further toward the ball halfway back than at address",
+      "golferHigh": "your backside is further toward the ball halfway back",
+      "golferLow": "your backside is further back from the ball halfway back",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_hipDepthButt_p4",
+      "kind": "provided",
+      "metricKey": "hipDepthButt",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p4"
+        ]
+      },
+      "status": "live",
+      "label": "Hip depth on the butt line, change P1 to P4",
+      "unit": "cm",
+      "highMeans": "the butt line further toward the ball at the top than at address",
+      "golferHigh": "your backside is further toward the ball at the top",
+      "golferLow": "your backside is further back from the ball at the top",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_hipDepthButt_p5",
+      "kind": "provided",
+      "metricKey": "hipDepthButt",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p5"
+        ]
+      },
+      "status": "live",
+      "label": "Hip depth on the butt line, change P1 to P5",
+      "unit": "cm",
+      "highMeans": "the butt line further toward the ball starting down than at address",
+      "golferHigh": "your backside is further toward the ball starting down",
+      "golferLow": "your backside is further back from the ball starting down",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_spineBackLine_p3",
+      "kind": "provided",
+      "metricKey": "spineBackLine",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p3"
+        ]
+      },
+      "status": "live",
+      "label": "Trunk bend on the back line, change P1 to P3",
+      "unit": "°",
+      "highMeans": "more forward bend on the back line halfway back than at address; the LOW side is standing taller than the address posture",
+      "golferHigh": "your back is more bent over halfway back than at address",
+      "golferLow": "your back stands taller halfway back than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_spineBackLine_p4",
+      "kind": "provided",
+      "metricKey": "spineBackLine",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p4"
+        ]
+      },
+      "status": "live",
+      "label": "Trunk bend on the back line, change P1 to P4",
+      "unit": "°",
+      "highMeans": "more forward bend on the back line at the top than at address; the LOW side is standing taller than the address posture",
+      "golferHigh": "your back is more bent over at the top than at address",
+      "golferLow": "your back stands taller at the top than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_spineBackLine_p5",
+      "kind": "provided",
+      "metricKey": "spineBackLine",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p5"
+        ]
+      },
+      "status": "live",
+      "label": "Trunk bend on the back line, change P1 to P5",
+      "unit": "°",
+      "highMeans": "more forward bend on the back line starting down than at address; the LOW side is standing taller than the address posture",
+      "golferHigh": "your back is more bent over starting down than at address",
+      "golferLow": "your back stands taller starting down than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_spineBendChange_p2",
+      "kind": "provided",
+      "metricKey": "spineForwardBend",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p2"
+        ]
+      },
+      "status": "live",
+      "label": "Spine forward bend, change P1 to P2",
+      "unit": "°",
+      "highMeans": "more forward bend early going back than at address; the LOW side is standing taller than the address posture",
+      "golferHigh": "you are more bent over early going back than at address",
+      "golferLow": "you stand taller early going back than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_spineBendChange_p3",
+      "kind": "provided",
+      "metricKey": "spineForwardBend",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p3"
+        ]
+      },
+      "status": "live",
+      "label": "Spine forward bend, change P1 to P3",
+      "unit": "°",
+      "highMeans": "more forward bend halfway back than at address; the LOW side is standing taller than the address posture",
+      "golferHigh": "you are more bent over halfway back than at address",
+      "golferLow": "you stand taller halfway back than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_spineBendChange_p5",
+      "kind": "provided",
+      "metricKey": "spineForwardBend",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p5"
+        ]
+      },
+      "status": "live",
+      "label": "Spine forward bend, change P1 to P5",
+      "unit": "°",
+      "highMeans": "more forward bend starting down than at address; the LOW side is standing taller than the address posture",
+      "golferHigh": "you are more bent over starting down than at address",
+      "golferLow": "you stand taller starting down than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_spineBendChange_p6",
+      "kind": "provided",
+      "metricKey": "spineForwardBend",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p6"
+        ]
+      },
+      "status": "live",
+      "label": "Spine forward bend, change P1 to P6",
+      "unit": "°",
+      "highMeans": "more forward bend just before impact than at address; the LOW side is standing taller than the address posture",
+      "golferHigh": "you are more bent over just before impact than at address",
+      "golferLow": "you stand taller just before impact than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_leadKneeFlex_p2",
+      "kind": "provided",
+      "metricKey": "leadKneeFlexion",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p2"
+        ]
+      },
+      "status": "live",
+      "label": "Lead knee flexion, change P1 to P2",
+      "unit": "°",
+      "highMeans": "more bend in the lead knee early going back than at address",
+      "golferHigh": "your lead knee is more bent early going back than at address",
+      "golferLow": "your lead leg is straighter early going back than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_leadKneeFlex_p3",
+      "kind": "provided",
+      "metricKey": "leadKneeFlexion",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p3"
+        ]
+      },
+      "status": "live",
+      "label": "Lead knee flexion, change P1 to P3",
+      "unit": "°",
+      "highMeans": "more bend in the lead knee halfway back than at address",
+      "golferHigh": "your lead knee is more bent halfway back than at address",
+      "golferLow": "your lead leg is straighter halfway back than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_leadKneeFlex_p4",
+      "kind": "provided",
+      "metricKey": "leadKneeFlexion",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p4"
+        ]
+      },
+      "status": "live",
+      "label": "Lead knee flexion, change P1 to P4",
+      "unit": "°",
+      "highMeans": "the lead knee gained bend between address and the top, folding in going back; the low end is a lead leg straighter at the top than it was at address",
+      "golferHigh": "your lead knee is more bent at the top than at address",
+      "golferLow": "your lead leg is straighter at the top than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine",
+      "golferName": "lead-knee bend added by the top",
+      "unwatchedTail": "low",
+      "unwatchedReason": "A lead knee that adds less bend than the band by the top, or a lead leg straighter at the top than at address, is a quiet lead leg, which some coaches teach and no condition here calls a fault. Only the knee folding past the band is watched, by lead_knee_folds_backswing."
+    },
+    {
+      "id": "m_leadKneeFlex_p5",
+      "kind": "provided",
+      "metricKey": "leadKneeFlexion",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p5"
+        ]
+      },
+      "status": "live",
+      "label": "Lead knee flexion, change P1 to P5",
+      "unit": "°",
+      "highMeans": "more bend in the lead knee starting down than at address",
+      "golferHigh": "your lead knee is more bent starting down than at address",
+      "golferLow": "your lead leg is straighter starting down than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_leadKneeFlex_p6",
+      "kind": "provided",
+      "metricKey": "leadKneeFlexion",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p6"
+        ]
+      },
+      "status": "live",
+      "label": "Lead knee flexion, change P1 to P6",
+      "unit": "°",
+      "highMeans": "more bend in the lead knee just before impact than at address",
+      "golferHigh": "your lead knee is more bent just before impact than at address",
+      "golferLow": "your lead leg is straighter just before impact than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_leadKneeFlex_p7",
+      "kind": "provided",
+      "metricKey": "leadKneeFlexion",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p7"
+        ]
+      },
+      "status": "live",
+      "label": "Lead knee flexion, change P1 to P7",
+      "unit": "°",
+      "highMeans": "more bend in the lead knee at impact than at address",
+      "golferHigh": "your lead knee is more bent at impact than at address",
+      "golferLow": "your lead leg is straighter at impact than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_leadKneeFlex_p8",
+      "kind": "provided",
+      "metricKey": "leadKneeFlexion",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p8"
+        ]
+      },
+      "status": "live",
+      "label": "Lead knee flexion, change P1 to P8",
+      "unit": "°",
+      "highMeans": "more bend in the lead knee after impact than at address",
+      "golferHigh": "your lead knee is more bent after impact than at address",
+      "golferLow": "your lead leg is straighter after impact than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_trailKneeFlex_p2",
+      "kind": "provided",
+      "metricKey": "trailKneeFlexion",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p2"
+        ]
+      },
+      "status": "live",
+      "label": "Trail knee flexion, change P1 to P2",
+      "unit": "°",
+      "highMeans": "more bend in the trail knee early going back than at address",
+      "golferHigh": "your trail knee is more bent early going back than at address",
+      "golferLow": "your trail leg is straighter early going back than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_trailKneeFlex_p3",
+      "kind": "provided",
+      "metricKey": "trailKneeFlexion",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p3"
+        ]
+      },
+      "status": "live",
+      "label": "Trail knee flexion, change P1 to P3",
+      "unit": "°",
+      "highMeans": "more bend in the trail knee halfway back than at address",
+      "golferHigh": "your trail knee is more bent halfway back than at address",
+      "golferLow": "your trail leg is straighter halfway back than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_trailKneeFlex_p5",
+      "kind": "provided",
+      "metricKey": "trailKneeFlexion",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p5"
+        ]
+      },
+      "status": "live",
+      "label": "Trail knee flexion, change P1 to P5",
+      "unit": "°",
+      "highMeans": "more bend in the trail knee starting down than at address",
+      "golferHigh": "your trail knee is more bent starting down than at address",
+      "golferLow": "your trail leg is straighter starting down than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_trailKneeFlex_p6",
+      "kind": "provided",
+      "metricKey": "trailKneeFlexion",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p6"
+        ]
+      },
+      "status": "live",
+      "label": "Trail knee flexion, change P1 to P6",
+      "unit": "°",
+      "highMeans": "more bend in the trail knee just before impact than at address",
+      "golferHigh": "your trail knee is more bent just before impact than at address",
+      "golferLow": "your trail leg is straighter just before impact than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_trailKneeFlex_p7",
+      "kind": "provided",
+      "metricKey": "trailKneeFlexion",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p7"
+        ]
+      },
+      "status": "live",
+      "label": "Trail knee flexion, change P1 to P7",
+      "unit": "°",
+      "highMeans": "more bend in the trail knee at impact than at address",
+      "golferHigh": "your trail knee is more bent at impact than at address",
+      "golferLow": "your trail leg is straighter at impact than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_trailKneeFlex_p8",
+      "kind": "provided",
+      "metricKey": "trailKneeFlexion",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p8"
+        ]
+      },
+      "status": "live",
+      "label": "Trail knee flexion, change P1 to P8",
+      "unit": "°",
+      "highMeans": "more bend in the trail knee after impact than at address",
+      "golferHigh": "your trail knee is more bent after impact than at address",
+      "golferLow": "your trail leg is straighter after impact than at address",
+      "golferSign": 1,
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_pelvisLift_p2",
+      "kind": "provided",
+      "metricKey": "pelvisLift",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p2"
+        ]
+      },
+      "status": "live",
+      "label": "Pelvis lift, change P1 to P2",
+      "unit": "% stance width",
+      "highMeans": "the pelvis higher early going back than at address",
+      "golferHigh": "your hips are higher early going back than at address",
+      "golferLow": "your hips are lower early going back than at address",
+      "golferSign": 1,
+      "viewNeeded": "faceOn"
+    },
+    {
+      "id": "m_pelvisLift_p3",
+      "kind": "provided",
+      "metricKey": "pelvisLift",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p3"
+        ]
+      },
+      "status": "live",
+      "label": "Pelvis lift, change P1 to P3",
+      "unit": "% stance width",
+      "highMeans": "the pelvis higher halfway back than at address",
+      "golferHigh": "your hips are higher halfway back than at address",
+      "golferLow": "your hips are lower halfway back than at address",
+      "golferSign": 1,
+      "viewNeeded": "faceOn"
+    },
+    {
+      "id": "m_pelvisLift_p5",
+      "kind": "provided",
+      "metricKey": "pelvisLift",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p5"
+        ]
+      },
+      "status": "live",
+      "label": "Pelvis lift, change P1 to P5",
+      "unit": "% stance width",
+      "highMeans": "the pelvis higher starting down than at address",
+      "golferHigh": "your hips are higher starting down than at address",
+      "golferLow": "your hips are lower starting down than at address",
+      "golferSign": 1,
+      "viewNeeded": "faceOn"
+    },
+    {
+      "id": "m_pelvisLift_p6",
+      "kind": "provided",
+      "metricKey": "pelvisLift",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p6"
+        ]
+      },
+      "status": "live",
+      "label": "Pelvis lift, change P1 to P6",
+      "unit": "% stance width",
+      "highMeans": "the pelvis higher just before impact than at address",
+      "golferHigh": "your hips are higher just before impact than at address",
+      "golferLow": "your hips are lower just before impact than at address",
+      "golferSign": 1,
+      "viewNeeded": "faceOn"
+    },
+    {
       "id": "m_headRiseBackDtl",
       "kind": "provided",
       "metricKey": "headRise",
@@ -3063,7 +3846,8 @@
       "golferLow": "you lean more toward the target at address",
       "golferSign": 1,
       "golferName": "lean away from the target at address",
-      "viewNeeded": "faceOn"
+      "viewNeeded": "faceOn",
+      "rigSensitive": true
     },
     {
       "id": "m_armHangAddress",
@@ -3081,7 +3865,8 @@
       "golferLow": "your hands sit closer in under you at address",
       "golferSign": 1,
       "golferName": "how far your arms reach out toward the ball at address",
-      "viewNeeded": "downTheLine"
+      "viewNeeded": "downTheLine",
+      "rigSensitive": true
     },
     {
       "id": "m_headPitchAddress",
@@ -3099,7 +3884,8 @@
       "golferLow": "your chin is held higher at address",
       "golferSign": 1,
       "golferName": "how far your chin is tucked down at address",
-      "viewNeeded": "downTheLine"
+      "viewNeeded": "downTheLine",
+      "rigSensitive": true
     },
     {
       "id": "m_postureHeldImpact",
@@ -3943,6 +4729,14 @@
         "m_headLiftBack"
       ],
       "direction": "low"
+    },
+    {
+      "id": "sig_leadKneeFoldsBackswing",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_leadKneeFlex_p4"
+      ],
+      "direction": "high"
     },
     {
       "id": "sig_headRiseDown",
@@ -7754,6 +8548,48 @@
         "tier": "practice",
         "searchedOn": "2026-07-27",
         "searchTerms": "head displacement knee flexion heel lift backswing golf kinematics"
+      }
+    },
+    {
+      "id": "lead_knee_folds_backswing",
+      "label": "Lead knee folds going back",
+      "golfer": "your lead knee folds going back",
+      "golferWell": "your lead knee stays steady going back",
+      "golferWhy": "When your lead knee folds going back your head drops with it, so you have to come back up in time to strike the ball.",
+      "goal": "Keep your lead knee steady going back",
+      "cue": "Feel your trail hip turn behind you while your lead knee keeps about the bend it had at address.",
+      "check": "Film from down the line and pause at address and at the top. At the top your lead knee should be bent only a little more than at address, and still above the laces of your lead shoe.",
+      "picture": {
+        "kind": "change",
+        "camera": "dtl",
+        "phase": "P4",
+        "line": "leadThigh"
+      },
+      "aliases": [
+        "sitting into the lead knee going back",
+        "lead knee collapses going back",
+        "dipping into the lead knee"
+      ],
+      "axis": "lead_knee_flex_top",
+      "group": "posture",
+      "kind": "fault",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_leadKneeFoldsBackswing"
+      ],
+      "state": "draft",
+      "consequence": "Seen from down the line, the lead knee bends far more by the top than good players let it: twenty tour professionals add about 13 degrees from address with a 5-iron (Kim 2021), and this fires past about 27. A knee folding that far lowers the lead side of the body, and the head and the swing centre go down with it unless the trunk or the trail leg pays the height back, so the height has to be found again on the way down. When the head dips going back as well, this is the place to start; a dip with a steady lead knee comes from somewhere else.",
+      "drills": [
+        "drill.leadKneeSteady",
+        "drill.headOnWall"
+      ],
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1038/s41598-020-79091-7",
+        "searchedOn": "2026-10-22",
+        "searchTerms": "lead knee flexion change address to top of backswing professional golfers 5-iron\n\nTHE BAND IS MEASURED, THE FAULT IS A COACH'S LABEL (posture_chart_design.md D7, Q5). Kim et al. 2021 (Sci Rep 11:2694; 20 male tour professionals, 5-iron, Vicon at 250 Hz) report the lead knee flexing +13.2 degrees from address by the club's change of direction, between-player SD of the absolute angle about 8.7; that is the corridor (13 +/- 7, sigma authored). That folding beyond it is a fault is our inference from Mark's coach label of 22 Oct 2026: Jess Ratcliffe's dip going back is mostly her lead knee folding (+36 by the top, against Mark +14 and Nick +17)."
       }
     },
     {
@@ -11911,6 +12747,28 @@
         "tier": "practice",
         "searchedOn": "2026-07-27",
         "searchTerms": "hip ankle mobility restriction golf swing compensation"
+      }
+    },
+    {
+      "from": "lead_knee_folds_backswing",
+      "to": "head_drop_backswing",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-22",
+        "searchTerms": "lead knee bends going back head dips backswing golf\n\nA geometric route, not a habit pairing: the lead knee folding lowers the lead side of the body and the head goes down with it unless something pays it back. Moderate, not strong: Kim's professionals add +13 degrees with the head held, so the trunk and the trail leg can and do hold the height. Stronger than lead_knee_drifts_in_at_top (weak), which is a face-on proxy for the same leg. Mark, 22 Oct 2026: Jess Ratcliffe's dip going back is mostly her lead knee (posture_chart_design.md §4.5)."
+      }
+    },
+    {
+      "from": "poor_hip_abductor_control",
+      "to": "lead_knee_folds_backswing",
+      "type": "causes",
+      "strength": "weak",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-22",
+        "searchTerms": "lead knee collapse backswing hip control golf\n\nThe muscles at the side of the lead hip hold the lead knee over the foot while the pelvis turns over it; without that control the knee gives way, forward and in. The same capacity already explains the lead knee falling in through impact (strong). Weak, because folding going back is as often a habit, letting the knee go to make the hips turn, as a limit."
       }
     },
     {

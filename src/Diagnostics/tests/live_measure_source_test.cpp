@@ -243,7 +243,7 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
 
     std::printf("  club %s -> context %s (session %s)\n", qPrintable(d.club),
                 qPrintable(d.contextId), qPrintable(src.sessionId()));
-    std::printf("  COVERAGE: %d of 181 conditions assessable on %s"
+    std::printf("  COVERAGE: %d of 182 conditions assessable on %s"
                 "  (%d evaluated, %d fired, %d unavailable)\n",
                 cov.assessable, label, cov.findings, cov.fired, cov.unavailable);
     // The denominator is COUNTED, not written down. It was the literal 109 while the pack carried
@@ -279,8 +279,9 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
 
     check(shapeOk, "every finding is assessed WITH evidence or unavailable WITHOUT it");
     // 145 -> 153 on 2026-10-22: the eight posture conditions (posture_metrics_design.md §7.2).
-    check(cov.findings == 153,
-          "detect() asked all 153 non-latent, non-withdrawn conditions (the shipped pack binds none)");   // +club_before_arms, D27 (2026-10-17)   // +2 lie tails (2026-10-01)   // +7 kinematic-sequence checks (2026-10-14)   // +5 peak-against-impact faults (2026-10-15)
+    // 153 -> 154 the same day: lead_knee_folds_backswing (posture_chart_design.md D7).
+    check(cov.findings == 154,
+          "detect() asked all 154 non-latent, non-withdrawn conditions (the shipped pack binds none)");   // +club_before_arms, D27 (2026-10-17)   // +2 lie tails (2026-10-01)   // +7 kinematic-sequence checks (2026-10-14)   // +5 peak-against-impact faults (2026-10-15)
 
     // (d) Where a norm resolved, the corridor on the evidence is a real band and z is finite.
     bool corridorsOk = true;
@@ -321,7 +322,9 @@ int main(int argc, char **argv)
     // §7.2) — loss_of_posture, posture_sinks_impact, loss_of_posture_backswing,
     // posture_sinks_backswing, poor_setup_posture, weight_on_toes_address, arms_reaching_at_address,
     // reverse_tilt_at_address.
-    check(pack.conditions.size() == 181, "the shipped pack carries 181 conditions");   // +club_before_arms, D27 (2026-10-17)   // +5 peak-against-impact faults (2026-10-15)   // +7 kinematic-sequence checks (2026-10-14, design §10.4)   // +lie_steep_at_impact, +lie_flat_at_impact (2026-10-01)
+    // 181 -> 182 on 2026-10-22: lead_knee_folds_backswing, the lead knee folding going back
+    // (posture_chart_design.md D7).
+    check(pack.conditions.size() == 182, "the shipped pack carries 182 conditions");   // +club_before_arms, D27 (2026-10-17)   // +5 peak-against-impact faults (2026-10-15)   // +7 kinematic-sequence checks (2026-10-14, design §10.4)   // +lie_steep_at_impact, +lie_flat_at_impact (2026-10-01)
     // 130 -> 135 with the plumb-bob work: hipLineTilt gained an impact reading and an
     // address-to-impact delta, and plumbBobDistance arrived with three of its own.
     //
@@ -348,7 +351,17 @@ int main(int argc, char **argv)
     // m_headLiftImpact, m_pelvisLiftImpact, m_trunkRiseImpact, m_spineBendChangeTop,
     // m_axisTiltAddress, m_armHangAddress, m_headPitchAddress) and the three composites
     // m_postureHeldImpact, m_postureHeldTop, m_setupPosture.
-    check(pack.measures.size() == 169, "…and 169 measures");   // +m_headRiseBackDtl (2026-10-22, standing up going back from down the line)   // +11 kinematic-sequence measures (2026-10-14)   // +m_shaftLieDelta
+    // 169 -> 200 on 2026-10-22: the posture chart's per-position changes from address
+    // (posture_chart_design.md §7.3) — m_headLift_p2/_p3/_p5/_p6/_p8, m_pelvisThrust_p2…_p6,
+    // m_spineBendChange_p2/_p3/_p5/_p6, m_leadKneeFlex_p2…_p8, m_trailKneeFlex_p2/_p3/_p5…_p8,
+    // m_pelvisLift_p2/_p3/_p5/_p6; the other cells reuse existing P1 -> PN deltas.
+    // 200 -> 203 on 2026-10-22: m_hipDepthButt_p3/_p4/_p5 — hip depth at P3–P5 read on the butt
+    // line (hipDepthButt) instead of the hip joints the turn drags (posture_chart_design.md §2.3,
+    // stage 4c); P2, P6 and P7 stay on pelvisThrust.
+    // 203 -> 206 on 2026-10-22: m_spineBackLine_p3/_p4/_p5 — the back line's change from address at P3–P5,
+    // drawn as the trunk-bend row's second reading under its own ⚠ (posture_chart_design.md §2.3); no signal
+    // reads them and they carry no band of their own.
+    check(pack.measures.size() == 206, "…and 206 measures");   // +m_headRiseBackDtl (2026-10-22, standing up going back from down the line)   // +11 kinematic-sequence measures (2026-10-14)   // +m_shaftLieDelta
     check(!norms->norms().norms.empty(), "the shipped norm set loaded");
 
     QTemporaryDir tmp;
@@ -673,7 +686,7 @@ int main(int argc, char **argv)
     // assessable here: the impact and top ones read too little of their weight face-on without
     // trunkRise (which this older fixture lacks), and the setup one requires the down-the-line trunk
     // hinge. All three report compositeCoverage, which is the refusal working.
-    check(cRich.assessable == 55, "rich_7iron: 55 of 181 conditions assessable (observed)");
+    check(cRich.assessable == 55, "rich_7iron: 55 of 182 conditions assessable (observed)");
     // HOW MANY OF THOSE ANSWERS RESTED ON EVIDENCE THE CAPTURE DID NOT HAVE. A conjunction
     // settled by one known-false term is a real negative, but it is a different kind of "no"
     // from one where every term was read, and it can only ever be a no. Pinned because the
@@ -713,7 +726,10 @@ int main(int argc, char **argv)
     // 50 -> 49 on 2026-09-14: m_attackAngle no longer resolves off the camera series.
     // 49 -> 52 on 2026-10-22: m_headLiftImpact, m_pelvisLiftImpact and m_axisTiltAddress read
     // headLift, pelvisLift and secondaryAxisTilt, which this fixture already carries.
-    check(cRich.measures   == 52, "rich_7iron: 52 live measures resolved (observed)");
+    // 52 -> 61 on 2026-10-22: the posture chart's per-position changes from address on the two
+    // face-on series this fixture carries — m_headLift_p2/_p3/_p5/_p6/_p8 and
+    // m_pelvisLift_p2/_p3/_p5/_p6. The down-the-line rows have no series here.
+    check(cRich.measures   == 61, "rich_7iron: 61 live measures resolved (observed)");
     // 12 → 14 on 2026-08-09: sig_launchLow/sig_launchHigh moved onto m_lmLaunchAngle (the
     // measured key this fixture actually carries), so launch_low and launch_high became
     // assessable on an LM-only capture.
@@ -745,9 +761,9 @@ int main(int argc, char **argv)
     // 2026-08-12 again. The four measures are m_clubPathAtImpact, m_launchAngle, m_launchDirection
     // and m_clubheadSpeedImpact, each now reading its monitor rung. m_ballSpeed resolves too but is
     // held, so it is not counted, and ball_speed_deficit stays Unavailable: no norm to judge it by.
-    check(cLm.assessable   == 23, "lm_7iron: 23 of 181 conditions assessable (observed)");
+    check(cLm.assessable   == 23, "lm_7iron: 23 of 182 conditions assessable (observed)");
     check(cLm.measures     == 30, "lm_7iron: 30 live measures resolved (observed)");
-    check(cSparse.assessable == 2, "sparse_noclub: 2 of 158 conditions assessable (observed)");
+    check(cSparse.assessable == 2, "sparse_noclub: 2 of 182 conditions assessable (observed)");
     check(cSparse.measures   == 1, "sparse_noclub: 1 live measure resolved (observed)");
     check(cRich.assessable > cSparse.assessable,
           "a richer capture assesses strictly more than a degraded one");

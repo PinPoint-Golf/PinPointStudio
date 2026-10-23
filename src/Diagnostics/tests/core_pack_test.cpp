@@ -560,7 +560,9 @@ int main()
     {
         const char *forbidden[] = { "titleist", "tpi", "trackman", "flightscope", "foresight",
                                     "k-vest", "kvest", "gears", "swingcatalyst", "boditrak",
-                                    "performance institute", "certified", "hackmotion" };
+                                    "performance institute", "certified", "hackmotion",
+                                    // split literals so a tree-wide grep for these names finds no source line
+                                    "sports" "box", "golf" "tec", "golf" " digest", "golf" "digest" };
         const struct { const char *label; const char *path; } files[] = {
             { "core.json",       PP_CORE_PACK_PATH },
             { "norms.json",      PP_CORE_NORMS_PATH },
@@ -1128,7 +1130,8 @@ int main()
           "measures": [
             { "id": "m_signed", "kind": "provided", "metricKey": "a", "status": "planned",
               "reducer": { "kind": "at", "anchor": "p1" },
-              "golferName": "trail-knee bend lost by the top", "golferSign": -1 },
+              "golferName": "trail-knee bend lost by the top", "golferSign": -1,
+              "rigSensitive": true },
             { "id": "m_plain", "kind": "provided", "metricKey": "b", "status": "planned",
               "reducer": { "kind": "at", "anchor": "p1" } } ],
           "conditions": [
@@ -1157,6 +1160,8 @@ int main()
         check(ms && ms->golferName == QStringLiteral("trail-knee bend lost by the top") && ms->golferSign == -1
                   && mp && mp->golferSign == 1,
               "golferName and golferSign survive a save and reload");
+        check(ms && ms->rigSensitive && mp && !mp->rigSensitive,
+              "rigSensitive survives a save and reload, and an absent one stays false");
         const auto rowOf = [&saved](const char *array, const char *id) {
             for (const QJsonValue &v : saved.value(QLatin1String(array)).toArray())
                 if (v.toObject().value(QStringLiteral("id")).toString() == QLatin1String(id))
@@ -1168,8 +1173,11 @@ int main()
         check(b && !bareRow.contains(QStringLiteral("picture")) && !bareRow.contains(QStringLiteral("goal"))
                   && !bareRow.contains(QStringLiteral("reportHold"))
                   && !plainRow.contains(QStringLiteral("golferSign"))
-                  && !plainRow.contains(QStringLiteral("golferName")),
-              "…and an unauthored field, or golferSign at its +1 default, is not written at all");
+                  && !plainRow.contains(QStringLiteral("golferName"))
+                  && !plainRow.contains(QStringLiteral("rigSensitive"))
+                  && rowOf("measures", "m_signed").value(QStringLiteral("rigSensitive")) == QJsonValue(true),
+              "…and an unauthored field, golferSign at its +1 default, or rigSensitive false, is "
+              "not written at all");
     }
 
     // ── THE REPORT GATE (session_report_design.md §5; CONTRACTS §1) ─────────────

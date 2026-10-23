@@ -16,7 +16,16 @@
     "The archetype nodes are not shot types. They carry the lead-wrist face corridor that used to be",
     "a compiled +/-10 degree shift in reference_bands.cpp, so a valid bowed or cupped style is graded",
     "against its own model rather than red-flagged. They sit under full_swing because that is what",
-    "they refine; a shot resolves to one of them only when the archetype has been detected."
+    "they refine; a shot resolves to one of them only when the archetype has been detected.",
+    "",
+    "The posture nodes are not shot types either. They carry a posture pattern's band for the",
+    "Posture chart (posture_chart_design.md §7.3). The general 'any' row of a per-position posture",
+    "measure IS the Level band, except where that row is a fault corridor a condition grades by;",
+    "there the Level band is written at posture_level and the corridor is left alone. A pattern",
+    "node otherwise holds a row only where its band differs. No shot's grading context ever",
+    "becomes a posture node; the chart names the node. posture_trail_released is the trail knee's",
+    "released style (posture_chart_design.md §4.2): its band at P2-P4 for a golfer whose trail leg",
+    "straightens going back, whichever pattern; it too is named by the chart, never by a grade."
   ],
 
   "contexts": [
@@ -46,6 +55,10 @@
 
     { "id": "archetype_bowed",  "label": "Bowed style",   "parent": "full_swing" },
     { "id": "archetype_cupped", "label": "Cupped style",  "parent": "full_swing" },
+
+    { "id": "posture_level",      "label": "Level posture pattern",          "parent": "full_swing" },
+    { "id": "posture_squat_push", "label": "Squat-and-push posture pattern", "parent": "full_swing" },
+    { "id": "posture_trail_released", "label": "Trail knee released style", "parent": "full_swing" },
 
     { "id": "partial",      "label": "Partial swing",     "parent": "any" },
     { "id": "pitch",        "label": "Pitch",             "parent": "partial" },

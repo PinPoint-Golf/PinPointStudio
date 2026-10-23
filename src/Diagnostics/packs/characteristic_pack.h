@@ -62,6 +62,8 @@ inline constexpr int kPackSchemaVersion = 1;
 //   unknownShape         a measure declares a shape that is not target/floor/ceiling. An error
 //                        rather than a fall back to Target: "flooor" would grade the good tail
 //   unknownDirection     a measure's unwatchedTail is not high or low — same reasoning
+//   badRigSensitive      a measure's rigSensitive is not a JSON boolean. Not coerced: the flag decides
+//                        whether an absolute may be set against a published band
 //   unknownConditionKind a condition declares a kind that is not one of the seven. A misread kind
 //                        lands the row in Fault, where the kind rules then accuse it of the wrong
 //                        defect entirely
@@ -145,6 +147,8 @@ inline constexpr int kPackSchemaVersion = 1;
 //   unwatchedTailNoReason  a measure declaring a tail deliberately unwatched without saying why.
 //                        The declaration silences `ungradedTail`; without the reason it is
 //                        indistinguishable from a tail nobody has got to
+//   rigSensitiveDelta    rigSensitive on a change from address. The change cancels where the camera
+//                        stands, so the flag belongs on the absolute (posture_chart_design.md §7.4)
 //   golferPhraseMissing  something the home screen's plain-language summary can name, with no
 //                        golfer words to name it in: a detectable Fault or Setup with no `golfer`,
 //                        or a measure that produces readings (live, held, external device) missing

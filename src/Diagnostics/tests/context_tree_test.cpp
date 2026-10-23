@@ -280,6 +280,13 @@ int main()
             check(res.tree.contains(QStringLiteral("archetype_bowed"))
                       && res.tree.contains(QStringLiteral("archetype_cupped")),
                   "the archetype contexts exist for the migrated face corridors");
+            // The posture pattern nodes carry the Posture chart's pattern bands
+            // (posture_chart_design.md §7.3). Under full_swing, so a pattern's absent row falls
+            // back to the general one.
+            check(res.tree.isDescendantOf(QStringLiteral("posture_level"), kDefaultContextId())
+                      && res.tree.isDescendantOf(QStringLiteral("posture_squat_push"),
+                                                 kDefaultContextId()),
+                  "the posture pattern contexts exist, under full_swing");
 
             // ── The club a swing was hit with, as a node in THIS tree ──────────
             //

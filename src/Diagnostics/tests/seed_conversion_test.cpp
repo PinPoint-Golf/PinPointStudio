@@ -88,7 +88,12 @@ int main(int argc, char **argv)
     // against its ideal, so a low reading is a setup close to a good one and only the high tail is a
     // fault (posture_metrics_design.md §5.2; the loader refuses a distance composite of any other
     // shape).
-    check(oneSided == 18, "…and one of exactly eighteen one-sided measures in the shipped pack");
+    // 18 -> 19 on 2026-10-22 (79899b2f): m_headRiseBackDtl is a ceiling — standing up going back is
+    // the head rising, read down the line, and a head that stays down or dips is not this fault
+    // (the dip is head_drop_backswing's, on the face-on m_headLiftBack). The lead knee folding going
+    // back (m_leadKneeFlex_p4, the same day) is NOT one-sided: its quiet-leg low tail is declared
+    // unwatched on the measure instead, so the count stays at nineteen.
+    check(oneSided == 19, "…and one of exactly nineteen one-sided measures in the shipped pack");
 
     // ── The rows ────────────────────────────────────────────────────────────
     //

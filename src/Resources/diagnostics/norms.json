@@ -2254,6 +2254,532 @@
       "source": "measured",
       "citation": "MEASURED 2026-10-22 (posture_metrics_design.md §9 V2). mu 0, sigma 1 in z by construction; rho 0.00 is the mean pairwise correlation of the parts' z-scores, each golfer centred on their own mean so only swing-to-swing co-movement counts, floored at 0 (measured -0.02). Three golfers: Mark (library, 127-163 shots), Nick Henn (28), Jess Ratcliffe (23); smallest pair n 176. Between golfers as well the mean r is -0.06, which three golfer means cannot estimate; it is reported, not used. Within-golfer variation is not the population's. Run root /mnt/swingdata/scratch/posture-20261021/dump1, command in docs/research/data/posture/posture_composites_2026-10-22.md.",
       "n": 176
+    },
+    {
+      "measure": "m_headLift_p2",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 2.0,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P2 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Authored between Evans 2008 at the top and impact; early in the backswing the head has not moved yet. Evans K, Refshauge KM, Adams R, Barrett R. Swing kinematics in skilled male golfers following putting practice. JOSPT 2008; 38(7): 425-433, doi:10.2519/jospt.2008.2617 (bibliography record ref.evans2008): 29 skilled men (handicap 1.6 ± 2.4), 5-iron, electromagnetic sensor on the forehead; top and impact read from the paper's Figure 2."
+    },
+    {
+      "measure": "m_headLift_p3",
+      "context": "any",
+      "mu": 1.0,
+      "sigmaLo": 3.0,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P3 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Authored, halfway between address and Evans 2008 at the top (+2.0 cm). Evans K, Refshauge KM, Adams R, Barrett R. Swing kinematics in skilled male golfers following putting practice. JOSPT 2008; 38(7): 425-433, doi:10.2519/jospt.2008.2617 (bibliography record ref.evans2008): 29 skilled men (handicap 1.6 ± 2.4), 5-iron, electromagnetic sensor on the forehead; top and impact read from the paper's Figure 2."
+    },
+    {
+      "measure": "m_headLiftBack",
+      "context": "posture_level",
+      "mu": 2.0,
+      "sigmaLo": 4.0,
+      "unit": "cm",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P4 (posture_chart_design.md §7.1). Written at the pattern node because the general row of this measure is the fault corridor a condition grades by, which is left unchanged (Q2, 22 Oct 2026). Description for the chart, not a grade: no condition reads this row. Evans 2008 at the top: +2.0 ± 3.9 cm from address. Evans K, Refshauge KM, Adams R, Barrett R. Swing kinematics in skilled male golfers following putting practice. JOSPT 2008; 38(7): 425-433, doi:10.2519/jospt.2008.2617 (bibliography record ref.evans2008): 29 skilled men (handicap 1.6 ± 2.4), 5-iron, electromagnetic sensor on the forehead; top and impact read from the paper's Figure 2.",
+      "n": 29
+    },
+    {
+      "measure": "m_headLiftBack",
+      "context": "posture_squat_push",
+      "mu": 2.0,
+      "sigmaLo": 4.0,
+      "unit": "cm",
+      "source": "literature",
+      "citation": "POSTURE CHART SQUAT-AND-PUSH BAND, change from address at P4 (posture_chart_design.md §7.1). Squat and push is as Level here; repeated at its node because the general row of this measure is the fault corridor, which the pattern must not fall back to. Description for the chart, not a grade: no condition reads this row. Evans 2008 at the top: +2.0 ± 3.9 cm from address. Evans K, Refshauge KM, Adams R, Barrett R. Swing kinematics in skilled male golfers following putting practice. JOSPT 2008; 38(7): 425-433, doi:10.2519/jospt.2008.2617 (bibliography record ref.evans2008): 29 skilled men (handicap 1.6 ± 2.4), 5-iron, electromagnetic sensor on the forehead; top and impact read from the paper's Figure 2.",
+      "n": 29
+    },
+    {
+      "measure": "m_headLift_p5",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 3.0,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P5 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Authored between Evans 2008 at the top (+2.0) and at impact (-3.5). Evans K, Refshauge KM, Adams R, Barrett R. Swing kinematics in skilled male golfers following putting practice. JOSPT 2008; 38(7): 425-433, doi:10.2519/jospt.2008.2617 (bibliography record ref.evans2008): 29 skilled men (handicap 1.6 ± 2.4), 5-iron, electromagnetic sensor on the forehead; top and impact read from the paper's Figure 2."
+    },
+    {
+      "measure": "m_headLift_p6",
+      "context": "any",
+      "mu": -2.0,
+      "sigmaLo": 3.0,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P6 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Authored between Evans 2008 at the top (+2.0) and at impact (-3.5). Evans K, Refshauge KM, Adams R, Barrett R. Swing kinematics in skilled male golfers following putting practice. JOSPT 2008; 38(7): 425-433, doi:10.2519/jospt.2008.2617 (bibliography record ref.evans2008): 29 skilled men (handicap 1.6 ± 2.4), 5-iron, electromagnetic sensor on the forehead; top and impact read from the paper's Figure 2."
+    },
+    {
+      "measure": "m_headLiftImpact",
+      "context": "posture_level",
+      "mu": -3.5,
+      "sigmaLo": 3.0,
+      "unit": "cm",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P7 (posture_chart_design.md §7.1). Written at the pattern node because the general row of this measure is the fault corridor a condition grades by, which is left unchanged (Q2, 22 Oct 2026). Description for the chart, not a grade: no condition reads this row. Evans 2008 at impact: -3.5 ± 3.1 cm from address, i.e. good players' heads are slightly LOWER at impact. Evans K, Refshauge KM, Adams R, Barrett R. Swing kinematics in skilled male golfers following putting practice. JOSPT 2008; 38(7): 425-433, doi:10.2519/jospt.2008.2617 (bibliography record ref.evans2008): 29 skilled men (handicap 1.6 ± 2.4), 5-iron, electromagnetic sensor on the forehead; top and impact read from the paper's Figure 2.",
+      "n": 29
+    },
+    {
+      "measure": "m_headLiftImpact",
+      "context": "posture_squat_push",
+      "mu": -3.5,
+      "sigmaLo": 3.0,
+      "unit": "cm",
+      "source": "literature",
+      "citation": "POSTURE CHART SQUAT-AND-PUSH BAND, change from address at P7 (posture_chart_design.md §7.1). Squat and push is as Level here; repeated at its node because the general row of this measure is the fault corridor, which the pattern must not fall back to. Description for the chart, not a grade: no condition reads this row. Evans 2008 at impact: -3.5 ± 3.1 cm from address, i.e. good players' heads are slightly LOWER at impact. Evans K, Refshauge KM, Adams R, Barrett R. Swing kinematics in skilled male golfers following putting practice. JOSPT 2008; 38(7): 425-433, doi:10.2519/jospt.2008.2617 (bibliography record ref.evans2008): 29 skilled men (handicap 1.6 ± 2.4), 5-iron, electromagnetic sensor on the forehead; top and impact read from the paper's Figure 2.",
+      "n": 29
+    },
+    {
+      "measure": "m_pelvisThrust_p2",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 2.0,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P2 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Authored: early in the backswing the hips have not moved. No source gives a number."
+    },
+    {
+      "measure": "m_pelvisThrust_p3",
+      "context": "any",
+      "mu": -1.0,
+      "sigmaLo": 2.5,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P3 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Authored, between address and the top. The reading at P3-P5 is partly the turn (the trail hip comes forward as the pelvis turns, §2.3), so this row sits under a warning."
+    },
+    {
+      "measure": "m_pelvisThrust_p4",
+      "context": "any",
+      "mu": -2.0,
+      "sigmaLo": 3.0,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P4 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Authored in the DIRECTION Kim 2021 measured: the centre of mass moves 3.3 cm toward the heels by the hips' change of direction (supplement Table S17). Not a hip-depth figure. Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6)."
+    },
+    {
+      "measure": "m_pelvisThrust_p5",
+      "context": "any",
+      "mu": -1.5,
+      "sigmaLo": 2.5,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P5 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Authored, between the top and P6. The reading at P3-P5 is partly the turn (§2.3)."
+    },
+    {
+      "measure": "m_pelvisThrust_p6",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 2.5,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P6 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Authored, between the top and impact. No source gives a number."
+    },
+    {
+      "measure": "m_hipDepthButt_p3",
+      "context": "any",
+      "mu": -1.0,
+      "sigmaLo": 2.5,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P3 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Authored, between address and the top. The reading at P3-P5 is partly the turn (the trail hip comes forward as the pelvis turns, §2.3), so this row sits under a warning. Since 22 Oct 2026 the chart reads hip depth at P3-P5 on the butt line (m_hipDepthButt_p3/_p4/_p5, the rear edge of the person mask at hip height, which the turn does not drag), and this Level band is copied onto it unchanged."
+    },
+    {
+      "measure": "m_hipDepthButt_p4",
+      "context": "any",
+      "mu": -2.0,
+      "sigmaLo": 3.0,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P4 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Authored in the DIRECTION Kim 2021 measured: the centre of mass moves 3.3 cm toward the heels by the hips' change of direction (supplement Table S17). Not a hip-depth figure. Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6). Since 22 Oct 2026 the chart reads hip depth at P3-P5 on the butt line (m_hipDepthButt_p3/_p4/_p5, the rear edge of the person mask at hip height, which the turn does not drag), and this Level band is copied onto it unchanged."
+    },
+    {
+      "measure": "m_hipDepthButt_p5",
+      "context": "any",
+      "mu": -1.5,
+      "sigmaLo": 2.5,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P5 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Authored, between the top and P6. The reading at P3-P5 is partly the turn (§2.3). Since 22 Oct 2026 the chart reads hip depth at P3-P5 on the butt line (m_hipDepthButt_p3/_p4/_p5, the rear edge of the person mask at hip height, which the turn does not drag), and this Level band is copied onto it unchanged."
+    },
+    {
+      "measure": "m_pelvisThrustImpact",
+      "context": "posture_level",
+      "mu": 1.0,
+      "sigmaLo": 2.5,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P7 (posture_chart_design.md §7.1). Written at the pattern node because the general row of this measure is the fault corridor a condition grades by, which is left unchanged (Q2, 22 Oct 2026). Description for the chart, not a grade: no condition reads this row. A claim, not a measurement: a vendor's published tour range for men with irons, from its motion-capture app, -2.3 to +4.3 cm at impact (reported in a golf magazine, Apr 2026); per-metric sample and club not stated."
+    },
+    {
+      "measure": "m_pelvisThrustImpact",
+      "context": "posture_squat_push",
+      "mu": 1.0,
+      "sigmaLo": 2.5,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART SQUAT-AND-PUSH BAND, change from address at P7 (posture_chart_design.md §7.1). Squat and push is as Level here; repeated at its node because the general row of this measure is the fault corridor, which the pattern must not fall back to. Description for the chart, not a grade: no condition reads this row. A claim, not a measurement: a vendor's published tour range for men with irons, from its motion-capture app, -2.3 to +4.3 cm at impact (reported in a golf magazine, Apr 2026); per-metric sample and club not stated."
+    },
+    {
+      "measure": "m_spineBendChange_p2",
+      "context": "any",
+      "mu": -1.0,
+      "sigmaLo": 2.5,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P2 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Kim 2021 at B90: -1.2° from address. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Different datum: Kim measures the C7 to mid-PSIS trunk line, not our hip-to-shoulder joint chord (§3.1). Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_spineBendChange_p3",
+      "context": "any",
+      "mu": -1.0,
+      "sigmaLo": 3.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P3 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Interpolated between Kim 2021 at B90 (-1.2°) and at the top (-0.7°); the paper has no P3 event. Different datum: Kim measures the C7 to mid-PSIS trunk line, not our hip-to-shoulder joint chord (§3.1). Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6)."
+    },
+    {
+      "measure": "m_spineBendChangeTop",
+      "context": "posture_level",
+      "mu": -1.0,
+      "sigmaLo": 3.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P4 (posture_chart_design.md §7.1). Written at the pattern node because the general row of this measure is the fault corridor a condition grades by, which is left unchanged (Q2, 22 Oct 2026). Description for the chart, not a grade: no condition reads this row. Kim 2021 at the club's change of direction: -0.7° from address. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Different datum: Kim measures the C7 to mid-PSIS trunk line, not our hip-to-shoulder joint chord (§3.1). Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_spineBendChangeTop",
+      "context": "posture_squat_push",
+      "mu": -1.0,
+      "sigmaLo": 3.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART SQUAT-AND-PUSH BAND, change from address at P4 (posture_chart_design.md §7.1). Squat and push is as Level here; repeated at its node because the general row of this measure is the fault corridor, which the pattern must not fall back to. Description for the chart, not a grade: no condition reads this row. Kim 2021 at the club's change of direction: -0.7° from address. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Different datum: Kim measures the C7 to mid-PSIS trunk line, not our hip-to-shoulder joint chord (§3.1). Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_spineBendChange_p5",
+      "context": "any",
+      "mu": 1.0,
+      "sigmaLo": 3.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P5 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Kim 2021 at D225: +1.4° from address, a small sit-down at the start of the downswing. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Different datum: Kim measures the C7 to mid-PSIS trunk line, not our hip-to-shoulder joint chord (§3.1). Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_spineBendChange_p6",
+      "context": "any",
+      "mu": -4.0,
+      "sigmaLo": 3.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P6 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Kim 2021 at D90: -3.8° from address. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Different datum: Kim measures the C7 to mid-PSIS trunk line, not our hip-to-shoulder joint chord (§3.1). Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_spineBendChangeImpact",
+      "context": "posture_level",
+      "mu": -3.0,
+      "sigmaLo": 3.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P7 (posture_chart_design.md §7.1). Written at the pattern node because the general row of this measure is the fault corridor a condition grades by, which is left unchanged (Q2, 22 Oct 2026). Description for the chart, not a grade: no condition reads this row. The band -6° to 0°: Kim 2021 at impact measures -5.9° from address; a coaching chain's published observation and a vendor's motion-capture app both say chest bend returns to about its setup value, on a chest datum. The datums differ, so the band is seeded wide (§3.6). Different datum: Kim measures the C7 to mid-PSIS trunk line, not our hip-to-shoulder joint chord (§3.1). Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_spineBendChangeImpact",
+      "context": "posture_squat_push",
+      "mu": -3.0,
+      "sigmaLo": 3.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART SQUAT-AND-PUSH BAND, change from address at P7 (posture_chart_design.md §7.1). Squat and push is as Level here; repeated at its node because the general row of this measure is the fault corridor, which the pattern must not fall back to. Description for the chart, not a grade: no condition reads this row. The band -6° to 0°: Kim 2021 at impact measures -5.9° from address; a coaching chain's published observation and a vendor's motion-capture app both say chest bend returns to about its setup value, on a chest datum. The datums differ, so the band is seeded wide (§3.6). Different datum: Kim measures the C7 to mid-PSIS trunk line, not our hip-to-shoulder joint chord (§3.1). Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_leadKneeFlex_p2",
+      "context": "any",
+      "mu": 5.0,
+      "sigmaLo": 5.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P2 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Kim 2021 at B90: +5.1° from address. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_leadKneeFlex_p3",
+      "context": "any",
+      "mu": 10.0,
+      "sigmaLo": 6.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P3 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Interpolated between Kim 2021 at B90 (+5.1°) and at the top (+13.2°); the paper has no P3 event. Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6)."
+    },
+    {
+      "measure": "m_leadKneeFlex_p4",
+      "context": "any",
+      "mu": 13.0,
+      "sigmaLo": 7.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P4 (posture_chart_design.md §7.1). This general row IS the Level band, and since 22 Oct 2026 it is also the fault corridor lead_knee_folds_backswing grades by (D7): only the high tail, the low tail declared unwatched on the measure; under the Standard policy the signal fires above +27° (z 2) and Action begins above +34° (z 3). Kim 2021 at the club's change of direction: +13.2° from address. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_leadKneeFlex_p5",
+      "context": "any",
+      "mu": 20.0,
+      "sigmaLo": 7.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P5 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Kim 2021 at D225: +20.3° from address, the sit-down at the start of the downswing. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_leadKneeFlex_p6",
+      "context": "any",
+      "mu": 6.0,
+      "sigmaLo": 6.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P6 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Kim 2021 at D90: +6.0° from address. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_leadKneeFlex_p7",
+      "context": "any",
+      "mu": -1.0,
+      "sigmaLo": 6.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P7 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Kim 2021 at impact: -1.1° from address. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_trailKneeFlex_p2",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 5.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P2 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. The KEPT trail-knee style: Kim 2021 at B90, -1.3° from address. The released style (about -15 ± 8°; a coaching chain observes that most players straighten the trail leg going back, some a lot) is a style the chart presents, not a fault. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_trailKneeFlex_p3",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 5.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P3 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. The KEPT trail-knee style, between Kim 2021 at B90 (-1.3°) and at the top (-0.6°); the paper has no P3 event. The released style is a style the chart presents, not a fault. Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6)."
+    },
+    {
+      "measure": "m_trailKneeFlex",
+      "context": "posture_level",
+      "mu": 0.0,
+      "sigmaLo": 5.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P4 (posture_chart_design.md §7.1). Written at the pattern node because the general row of this measure is the fault corridor a condition grades by, which is left unchanged (Q2, 22 Oct 2026). Description for the chart, not a grade: no condition reads this row. The KEPT trail-knee style: Kim 2021 at the club's change of direction, -0.6° from address. The released style (about -15 ± 8°, as a coaching chain observes) is a style the chart presents, not a fault. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_trailKneeFlex",
+      "context": "posture_squat_push",
+      "mu": 0.0,
+      "sigmaLo": 5.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART SQUAT-AND-PUSH BAND, change from address at P4 (posture_chart_design.md §7.1). Squat and push is as Level here; repeated at its node because the general row of this measure is the fault corridor, which the pattern must not fall back to. Description for the chart, not a grade: no condition reads this row. The KEPT trail-knee style: Kim 2021 at the club's change of direction, -0.6° from address. The released style (about -15 ± 8°, as a coaching chain observes) is a style the chart presents, not a fault. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_trailKneeFlex_p2",
+      "context": "posture_trail_released",
+      "mu": -15.0,
+      "sigmaLo": 8.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "POSTURE CHART TRAIL-KNEE RELEASED STYLE, change from address at P2 (posture_chart_design.md §4.2). The band a golfer whose trail knee straightens going back (loses 8° or more by the top) is drawn against at P2 to P4; the kept style keeps the pattern's own band. Description for the chart, not a grade: no condition reads this row, and the trail knee never counts toward the pattern match. mu and sigma are AUTHORED from a coaching description, not measured: a coaching chain's published observation, \"most players straighten their trail leg in the backswing to some degree – some a lot\"."
+    },
+    {
+      "measure": "m_trailKneeFlex_p3",
+      "context": "posture_trail_released",
+      "mu": -15.0,
+      "sigmaLo": 8.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "POSTURE CHART TRAIL-KNEE RELEASED STYLE, change from address at P3 (posture_chart_design.md §4.2). The band a golfer whose trail knee straightens going back (loses 8° or more by the top) is drawn against at P2 to P4; the kept style keeps the pattern's own band. Description for the chart, not a grade: no condition reads this row, and the trail knee never counts toward the pattern match. mu and sigma are AUTHORED from a coaching description, not measured: a coaching chain's published observation, \"most players straighten their trail leg in the backswing to some degree – some a lot\"."
+    },
+    {
+      "measure": "m_trailKneeFlex",
+      "context": "posture_trail_released",
+      "mu": -15.0,
+      "sigmaLo": 8.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "POSTURE CHART TRAIL-KNEE RELEASED STYLE, change from address at P4 (posture_chart_design.md §4.2). The band a golfer whose trail knee straightens going back (loses 8° or more by the top) is drawn against at P2 to P4; the kept style keeps the pattern's own band. Description for the chart, not a grade: no condition reads this row, and the trail knee never counts toward the pattern match. mu and sigma are AUTHORED from a coaching description, not measured: a coaching chain's published observation, \"most players straighten their trail leg in the backswing to some degree – some a lot\"."
+    },
+    {
+      "measure": "m_trailKneeFlex_p5",
+      "context": "any",
+      "mu": 5.0,
+      "sigmaLo": 8.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P5 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Kim 2021 at D225: +5.1° from address. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_trailKneeFlex_p6",
+      "context": "any",
+      "mu": 3.0,
+      "sigmaLo": 8.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P6 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Kim 2021 at D90: +3.3° from address. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_trailKneeFlex_p7",
+      "context": "any",
+      "mu": 1.0,
+      "sigmaLo": 8.0,
+      "unit": "°",
+      "source": "literature",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P7 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Kim 2021 at impact: +0.6° from address. mu is the published mean change from address; sigma is AUTHORED, since the paper reports only the between-player SD of the absolute angle, which bounds the SD of the change from above. Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6).",
+      "n": 20
+    },
+    {
+      "measure": "m_pelvisLift_p2",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 5.0,
+      "unit": "% stance width",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P2 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Authored: early in the backswing the pelvis has not moved. P3-P5 carry authored seeds under a warning, since the hip keypoints migrate down the body there (§2.3), until the belt-line producer."
+    },
+    {
+      "measure": "m_pelvisLift_p3",
+      "context": "any",
+      "mu": -3.0,
+      "sigmaLo": 6.0,
+      "unit": "% stance width",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P3 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row, and the chart draws the cell under its ⚠ and leaves it out of the match. authored seed: a vendor's published tour figure has the pelvis about two inches below address early in the downswing (≈ −11 % of a 45 cm stance) and about one inch above at impact; P3–P5 interpolated toward it; σ authored. Shown under the ⚠ (the hip joints migrate at the top) per Mark's honesty rule, 22 Oct 2026."
+    },
+    {
+      "measure": "m_pelvisLiftTop",
+      "context": "posture_level",
+      "mu": -5.0,
+      "sigmaLo": 6.0,
+      "unit": "% stance width",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P4 (posture_chart_design.md §7.1). Written at the pattern node because the general row of this measure is the fault corridor a condition grades by, which is left unchanged. Description for the chart, not a grade: no condition reads this row, and the chart draws the cell under its ⚠ and leaves it out of the match. authored seed: a vendor's published tour figure has the pelvis about two inches below address early in the downswing (≈ −11 % of a 45 cm stance) and about one inch above at impact; P3–P5 interpolated toward it; σ authored. Shown under the ⚠ (the hip joints migrate at the top) per Mark's honesty rule, 22 Oct 2026."
+    },
+    {
+      "measure": "m_pelvisLiftTop",
+      "context": "posture_squat_push",
+      "mu": -5.0,
+      "sigmaLo": 6.0,
+      "unit": "% stance width",
+      "source": "heuristic",
+      "citation": "POSTURE CHART SQUAT-AND-PUSH BAND, change from address at P4 (posture_chart_design.md §7.1). Squat and push is as Level here; repeated at its node because the general row of this measure is the fault corridor, which the pattern must not fall back to. Description for the chart, not a grade: no condition reads this row, and the chart draws the cell under its ⚠ and leaves it out of the match. authored seed: a vendor's published tour figure has the pelvis about two inches below address early in the downswing (≈ −11 % of a 45 cm stance) and about one inch above at impact; P3–P5 interpolated toward it; σ authored. Shown under the ⚠ (the hip joints migrate at the top) per Mark's honesty rule, 22 Oct 2026."
+    },
+    {
+      "measure": "m_pelvisLift_p5",
+      "context": "any",
+      "mu": -8.0,
+      "sigmaLo": 6.0,
+      "unit": "% stance width",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P5 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row, and the chart draws the cell under its ⚠ and leaves it out of the match. authored seed: a vendor's published tour figure has the pelvis about two inches below address early in the downswing (≈ −11 % of a 45 cm stance) and about one inch above at impact; P3–P5 interpolated toward it; σ authored. Shown under the ⚠ (the hip joints migrate at the top) per Mark's honesty rule, 22 Oct 2026."
+    },
+    {
+      "measure": "m_pelvisLift_p6",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 5.0,
+      "unit": "% stance width",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P6 (posture_chart_design.md §7.1). This general row IS the Level band. Description for the chart, not a grade: no condition reads this row. Authored from a vendor's motion-capture app's description of the pelvis almost two inches lower early in the downswing and one inch higher at impact (reported in a golf magazine, Nov 2024; sample not stated), a claim; about 45 cm of stance converts one inch to about 5.6 % of stance."
+    },
+    {
+      "measure": "m_pelvisLiftImpact",
+      "context": "posture_level",
+      "mu": 5.0,
+      "sigmaLo": 6.0,
+      "unit": "% stance width",
+      "source": "heuristic",
+      "citation": "POSTURE CHART LEVEL BAND, change from address at P7 (posture_chart_design.md §7.1). Written at the pattern node because the general row of this measure is the fault corridor a condition grades by, which is left unchanged (Q2, 22 Oct 2026). Description for the chart, not a grade: no condition reads this row. A claim, not a measurement: a vendor's motion-capture app describes the pelvis one inch higher than address at impact (reported in a golf magazine, Nov 2024; sample not stated); Chu, Sell and Lephart 2010 (doi:10.1080/02640414.2010.507249, 308 golfers of mixed ability, not elite) measure a 9 ± 6 cm rise by impact. Converted at about 45 cm of stance."
+    },
+    {
+      "measure": "m_pelvisLiftImpact",
+      "context": "posture_squat_push",
+      "mu": 5.0,
+      "sigmaLo": 6.0,
+      "unit": "% stance width",
+      "source": "heuristic",
+      "citation": "POSTURE CHART SQUAT-AND-PUSH BAND, change from address at P7 (posture_chart_design.md §7.1). Squat and push is as Level here; repeated at its node because the general row of this measure is the fault corridor, which the pattern must not fall back to. Description for the chart, not a grade: no condition reads this row. A claim, not a measurement: a vendor's motion-capture app describes the pelvis one inch higher than address at impact (reported in a golf magazine, Nov 2024; sample not stated); Chu, Sell and Lephart 2010 (doi:10.1080/02640414.2010.507249, 308 golfers of mixed ability, not elite) measure a 9 ± 6 cm rise by impact. Converted at about 45 cm of stance."
+    },
+    {
+      "measure": "m_headLift_p5",
+      "context": "posture_squat_push",
+      "mu": -4.0,
+      "sigmaLo": 3.0,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART SQUAT-AND-PUSH BAND, change from address at P5 (posture_chart_design.md §7.1). Description for the chart, not a grade: no condition reads this row. A claim: the squat-and-push head sits lower starting down. A vendor's motion-capture app describes the chest dropping about two inches early in the downswing (reported in a golf magazine, Nov 2024); a coaching chain's published observation on head drop; a tour coach (reported in a golf magazine, 2011, search snippet only): many long hitters drop several inches as they start the downswing (§3.7)."
+    },
+    {
+      "measure": "m_headLift_p6",
+      "context": "posture_squat_push",
+      "mu": -5.0,
+      "sigmaLo": 3.0,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "POSTURE CHART SQUAT-AND-PUSH BAND, change from address at P6 (posture_chart_design.md §7.1). Description for the chart, not a grade: no condition reads this row. A claim: the squat-and-push head is still low just before impact. A vendor's motion-capture app: chest about two inches down (reported in a golf magazine, Nov 2024); a coaching chain on head drop; a tour coach (reported in a golf magazine, 2011, search snippet only) on long hitters dropping as they start down (§3.7)."
+    },
+    {
+      "measure": "m_spineBendChange_p5",
+      "context": "posture_squat_push",
+      "mu": 2.0,
+      "sigmaLo": 3.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "POSTURE CHART SQUAT-AND-PUSH BAND, change from address at P5 (posture_chart_design.md §7.1). Description for the chart, not a grade: no condition reads this row. Authored one degree past Kim 2021 at D225 (+1.4°, the average professional's mild sit-down) for the pattern that sits deeper. Different datum: Kim measures the C7 to mid-PSIS trunk line, not our hip-to-shoulder joint chord (§3.1). Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6)."
+    },
+    {
+      "measure": "m_spineBendChange_p6",
+      "context": "posture_squat_push",
+      "mu": -3.0,
+      "sigmaLo": 3.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "POSTURE CHART SQUAT-AND-PUSH BAND, change from address at P6 (posture_chart_design.md §7.1). Description for the chart, not a grade: no condition reads this row. Authored one degree short of Kim 2021 at D90 (-3.8°): the pattern holds its bend a little longer. Different datum: Kim measures the C7 to mid-PSIS trunk line, not our hip-to-shoulder joint chord (§3.1). Kim SE, Lee J, Lee SY, Lee HD, Shim JK, Lee SC. Small changes in ball position at address cause a chain effect in golf swing. Sci Rep 2021; 11: 2694, doi:10.1038/s41598-020-79091-7 (PMC7846748), supplement Tables S11-S13: 20 male professionals, 5-iron, Vicon at 250 Hz. The events are club-shaft angles mapped to P-positions by us (B90 = P2, TC = P4, D225 = early P5, D90 = P6)."
+    },
+    {
+      "measure": "m_leadKneeFlex_p5",
+      "context": "posture_squat_push",
+      "mu": 25.0,
+      "sigmaLo": 7.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "POSTURE CHART SQUAT-AND-PUSH BAND, change from address at P5 (posture_chart_design.md §7.1). Description for the chart, not a grade: no condition reads this row. Authored from the coaching descriptions of the squat (§3.7), five degrees past Kim 2021 at D225 (+20.3°). A claim."
+    },
+    {
+      "measure": "m_leadKneeFlex_p6",
+      "context": "posture_squat_push",
+      "mu": 12.0,
+      "sigmaLo": 6.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "POSTURE CHART SQUAT-AND-PUSH BAND, change from address at P6 (posture_chart_design.md §7.1). Description for the chart, not a grade: no condition reads this row. Authored from the coaching descriptions of the squat (§3.7): the lead knee is still flexed just before impact, past Kim 2021 at D90 (+6.0°). A claim."
     }
   ]
 }

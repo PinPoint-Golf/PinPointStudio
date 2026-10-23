@@ -176,6 +176,14 @@
       "equipment": ["a mirror or a phone on a stand"],
       "note": "If your knee falls inward when you squat on one leg, strength and control around the hip come first, and this drill comes after."
     },
+    {
+      "id": "drill.leadKneeSteady",
+      "label": "Steady lead knee turns",
+      "instruction": "Cross your arms on your chest and take your posture side-on to a mirror, or with a phone filming from down the line. Turn slowly to the top, letting your trail hip turn behind you, and stop. Check that your lead knee is bent only a little more than at address and is still above the laces of your lead shoe. Hold for two seconds, turn back, and repeat ten times. Then hit easy half shots with the same feel.",
+      "targets": "To feel your hips turn going back while your lead leg keeps about the bend it had at address.",
+      "equipment": ["a mirror or a phone on a stand"],
+      "note": "Good players let the lead knee bend a little going back, so the aim is a little, not none. If your hips will only turn when the knee folds, ask your coach to check how freely your hips turn."
+    },
 {
       "id": "drill.leadHeelDown",
       "label": "Lead heel planted turns",

@@ -465,6 +465,19 @@
       "pages": "116-125",
       "year": 2013,
       "establishes": "15 elite (collegiate) against 14 recreational golfers, 5-iron, pelvis axial angular velocity through the downswing. The elite group accelerated the pelvis harder (2167 against 1707 deg/s^2) and peaked it EARLIER, 101.7 against 79.6 ms before impact; peak speed and average deceleration did not differ. Peak-to-impact time correlated with smash factor. The authors read the earlier peak as leaving time for the speed to pass distally, and tie it to their own earlier finding that skilled golfers shift onto the front foot and start the rotational force couples sooner. It is the mechanism behind `late_pelvis_rotation` -> `no_pelvis_braking`: a pelvis that starts turning late peaks late, closer to impact, with less time left to slow. Cited at `indirect` because it does not test that pair: every golfer in THIS sample, recreational included, did slow the pelvis before impact, and the authors conclude the amount of slowing matters less than that the peak comes and goes before the ball. Its fifth author is the first author of `ref.cheetham2008`."
+    },
+    {
+      "id": "ref.evans2008",
+      "doi": "10.2519/jospt.2008.2617",
+      "title": "Swing Kinematics in Skilled Male Golfers Following Putting Practice",
+      "authors": "Evans, Refshauge, Adams, Barrett",
+      "journal": "Journal of Orthopaedic & Sports Physical Therapy",
+      "volume": "38",
+      "issue": "7",
+      "pages": "425-433",
+      "year": 2008,
+      "generalReading": true,
+      "establishes": "29 skilled men (handicap 1.6 ± 2.4), 5-iron, electromagnetic sensors on the forehead, T3 and S2. Measured from address, the head is +2.0 ± 3.9 cm HIGHER at the top and 3.5 ± 3.1 cm LOWER at impact: a good player's head does not hold still, it rises a little going back and finishes below where it started. The pelvis is +5.4 ± 5.2 cm toward the ball at the top, but the sensor sits on the sacrum and moves as the pelvis turns, so that figure is not comparable with a hip-midpoint reading. Pelvis flexion falls from 23.1° at address to 4.9° by impact. The tables say only 'backswing' and 'downswing'; the top and impact values are read from the paper's Figure 2. It is the published basis for the posture chart's head-height band at P4 and P7 (posture_chart_design.md §3.2, §7.1) — those bands are norm rows, whose free-text citation does not join this registry, which is why the record carries the flag rather than a citation. NOTE THE QUESTION: the study asked what putting practice does to the full swing; the swing kinematics used here are its baseline, before any putting."
     }
   ]
 }

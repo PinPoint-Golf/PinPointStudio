@@ -8717,6 +8717,10 @@
    "drill": "drill.trailHipLoad",
    "when": 4
   },
+  "lead_knee_folds_backswing": {
+   "drill": "drill.leadKneeSteady",
+   "when": 4
+  },
   "lead_knee_valgus_impact": {
    "drill": "drill.leadLegBrace",
    "when": 7
