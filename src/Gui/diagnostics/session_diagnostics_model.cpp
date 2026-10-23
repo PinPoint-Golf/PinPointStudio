@@ -28,6 +28,7 @@
 #include "../../Diagnostics/packs/screen_pack.h"
 #include "../../Export/swing_doc.h"
 #include "../../Coaching/sequence_checks.h"
+#include "../../Coaching/work_ons_pack.h"
 #include "../../Metrics/gate_catalogue.h"
 #include "../../Core/pp_debug.h"
 
@@ -2071,53 +2072,12 @@ void SessionDiagnosticsModel::updateProfile()
 
 // ── Work-ons ────────────────────────────────────────────────────────────────────────────
 
-// The pack's facts, marshalled into work_ons.h's pack-agnostic inputs: which conditions are
-// movements a golfer can work on, and the authored causal edges. The selection itself is the
-// header's, so the list and the cards beside it are two readings of one ledger.
+// The pack's facts, marshalled into work_ons.h's pack-agnostic inputs — which conditions are
+// movements a golfer can work on, the authored causal edges, where each is read — and the list
+// reduced from them: work_ons_pack.h, the ONE function the Charts Posture section's order reads too.
 SessionWorkOns SessionDiagnosticsModel::sessionWorkOns() const
 {
-    QHash<QString, WorkOnClass> classOf;
-    QHash<QString, double>      swingPosOf;
-    WorkOnCauses causes;
-    WorkOnSharedEvidence shared;
-    if (m_packProv) {
-        const CharacteristicPack &pack = m_packProv->pack();
-        for (const Condition &c : pack.conditions) {
-            WorkOnClass cls = WorkOnClass::Excluded;
-            switch (c.kind) {
-            case ConditionKind::Fault:
-            case ConditionKind::Setup:    cls = WorkOnClass::Movement; break;
-            case ConditionKind::Delivery: cls = WorkOnClass::Delivery; break;
-            default: break;
-            }
-            // HELD BACK (Condition::reportHold): a reading not trusted enough to headline anything
-            // is never a work-on — not here, so not on the home screen and not in the report, and
-            // "work-on 1" stays one habit everywhere. The row still grades and still shows on the
-            // panel; only the list leaves it out.
-            if (!c.reportHold.isEmpty()) cls = WorkOnClass::Excluded;
-            classOf.insert(c.id, cls);
-        }
-        for (const Edge &e : pack.edges)
-            if (e.type == EdgeType::Causes) {
-                causes.emplace_back(e.from, e.to);
-                // the panel's cap, carried into the list: measured from the same readings, never tested
-                if (e.sharedEvidence) shared.insert(workOnEdgeKey(e.from, e.to));
-            }
-
-        // WHERE IN THE SWING each condition is read, for rule v4's swing order (work_ons.h, above
-        // workOnSwingPosOfPhase): where the ledger's driving measure's reduction lands — the same
-        // reading, and so the same P-position, the card's phase chip names (measurePhaseOf). A
-        // session-scope condition is read over the session's swings and sorts after all of them.
-        for (const ConditionLedger &l : m_ledgers) {
-            const ConditionReading r = conditionReadingFor(pack, l.id, l.drivingMeasureId);
-            const Measure *m = r.found ? pack.measure(r.measureId) : nullptr;
-            const bool sessionLevel = l.sessionScope || (m && m->scope == MeasureScope::Session);
-            swingPosOf.insert(l.id, (sessionLevel || !r.found) ? kWorkOnSwingPosSession
-                                                               : workOnSwingPosOfPhase(phaseLabel(Phase(r.phase))));
-        }
-    }
-
-    SessionWorkOns out = reduceSessionWorkOns(m_shots, m_ledgers, classOf, causes, swingPosOf, WorkOnOptions(), shared);
+    SessionWorkOns out = sessionWorkOnsForPack(m_packProv ? &m_packProv->pack() : nullptr, m_shots, m_ledgers);
     out.sessionId = QFileInfo(m_sessionDir).fileName();
     for (WorkOnEntry &e : out.entries) e.name = conditionName(e.id);
     return out;
