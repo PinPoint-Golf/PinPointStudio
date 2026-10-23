@@ -163,8 +163,14 @@ else()
     # is starved, a frame lands against half-settled geometry, and what should be a layout
     # assertion becomes an intermittent process-level crash. Serialised it is deterministic;
     # it was the only test in the suite that ever varied by how it was scheduled.
+    # ⚠ THE SHIPPED DIAGNOSTICS CONTENT, THROUGH THE PINPOINT_CORE_* SEAM (2026-10-23). The app embeds
+    # src/Resources/diagnostics/*.json as :/diagnostics (root CMakeLists); this binary does not, so
+    # without these the presenters run on an EMPTY pack and no norms. The Posture section's "At
+    # address" block is the pack's `rigSensitive` measures, so under ctest it had no rows and hid
+    # while a direct run with the variables set passed. The same files the app ships, read live.
+    set(_pp_diag "${PP_ROOT}/src/Resources/diagnostics")
     set_tests_properties(qml_ui PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PINPOINT_CORE_PACK=${_pp_diag}/core.json;PINPOINT_CORE_NORMS=${_pp_diag}/norms.json;PINPOINT_CORE_CONTEXTS=${_pp_diag}/contexts.json;PINPOINT_CORE_SCREENS=${_pp_diag}/screens.json;PINPOINT_CORE_DRILLS=${_pp_diag}/drills.json;PINPOINT_CORE_REFERENCES=${_pp_diag}/references.json"
         RUN_SERIAL TRUE)
 
     # ⚠ OPT-IN, OUT OF THE FULL SUITE AND THE RELEASE GATE (2026-10-17). It passes on an idle

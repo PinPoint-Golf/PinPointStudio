@@ -76,45 +76,50 @@ TestCase {
     // 14 Oct 2026: counts re-read from the run, not computed. "Setup and stance … of 23" —
     // trailForearmAngle joined the family (168b4a56, KB-13); "Sequence and tempo … of 19" — the
     // ten Part K kinematic-sequence descriptors (design trunk_imu_sequence_grf_design.md §10.9).
+    // 23 Oct 2026: counts re-read from the run. Body 8 of 15 → 9 of 18, Setup … of 23 → of 26, Club …
+    // of 21 → of 22 (and "1 of 21 estimated" → "2 of 22" with a launch monitor). Already owed at HEAD 79899b2f:
+    // trunkRise (Spine & tilt, face-on: the +1 measured), armHang + headPitch + headRise (Arms/Head, down
+    // the line) and lowPointFromAttack (Club delivery, #92), 21–22 Oct. From the posture-chart tree (22–23
+    // Oct, uncommitted): spineBackLine + hipDepthButt (Spine & tilt / Pelvis & lateral, down the line only).
     readonly property var expected: ({
         "1 face-on only": [
             "Wrist — Partly, 1 of 11 · no wrist sensor",
-            "Body turn and posture — Partly, 8 of 15 · no trunk sensors · no down-the-line camera",
-            "Setup and stance — Partly, 18 of 23 · no down-the-line camera",
+            "Body turn and posture — Partly, 9 of 18 · no trunk sensors · no down-the-line camera",
+            "Setup and stance — Partly, 18 of 26 · no down-the-line camera",
             "Sequence and tempo — Recorded, 17 of 19 estimated · no wrist sensor · no trunk sensors",
-            "Club — Partly, 9 of 21 · no launch monitor · no down-the-line camera · estimated from the camera",
+            "Club — Partly, 9 of 22 · no launch monitor · no down-the-line camera · estimated from the camera",
             "Ball and strike — Not recorded · no launch monitor"
         ],
         "2 face-on + wG3": [
             "Wrist — Partly, 9 of 11 · no upper-arm sensor",
-            "Body turn and posture — Partly, 8 of 15 · no trunk sensors · no down-the-line camera",
-            "Setup and stance — Partly, 18 of 23 · no down-the-line camera",
+            "Body turn and posture — Partly, 9 of 18 · no trunk sensors · no down-the-line camera",
+            "Setup and stance — Partly, 18 of 26 · no down-the-line camera",
             "Sequence and tempo — Recorded, 14 of 19 estimated · no trunk sensors · no down-the-line camera",
-            "Club — Partly, 9 of 21 · no launch monitor · no down-the-line camera · estimated from the camera",
+            "Club — Partly, 9 of 22 · no launch monitor · no down-the-line camera · estimated from the camera",
             "Ball and strike — Not recorded · no launch monitor"
         ],
         "3 face-on + two Witmotions": [
             "Wrist — Partly, 6 of 11 · no upper-arm sensor",
-            "Body turn and posture — Partly, 8 of 15 · no trunk sensors · no down-the-line camera",
-            "Setup and stance — Partly, 18 of 23 · no down-the-line camera",
+            "Body turn and posture — Partly, 9 of 18 · no trunk sensors · no down-the-line camera",
+            "Setup and stance — Partly, 18 of 26 · no down-the-line camera",
             "Sequence and tempo — Recorded, 14 of 19 estimated · no trunk sensors · no down-the-line camera",
-            "Club — Partly, 9 of 21 · no launch monitor · no down-the-line camera · estimated from the camera",
+            "Club — Partly, 9 of 22 · no launch monitor · no down-the-line camera · estimated from the camera",
             "Ball and strike — Not recorded · no launch monitor"
         ],
         "4 two cameras + trunk": [
             "Wrist — Partly, 1 of 11 · no wrist sensor",
-            "Body turn and posture — Recorded, 1 of 15 estimated",
+            "Body turn and posture — Recorded, 1 of 18 estimated",
             "Setup and stance — Measured",
             "Sequence and tempo — Recorded, 9 of 19 estimated · no wrist sensor",
-            "Club — Partly, 12 of 21 · no launch monitor · estimated from the cameras",
+            "Club — Partly, 12 of 22 · no launch monitor · estimated from the cameras",
             "Ball and strike — Not recorded · no launch monitor"
         ],
         "5 everything + launch monitor": [
             "Wrist — Partly, 9 of 11 · no upper-arm sensor",
-            "Body turn and posture — Recorded, 1 of 15 estimated",
+            "Body turn and posture — Recorded, 1 of 18 estimated",
             "Setup and stance — Measured",
             "Sequence and tempo — Recorded, 5 of 19 estimated",
-            "Club — Recorded, 1 of 21 estimated",
+            "Club — Recorded, 2 of 22 estimated",
             "Ball and strike — Measured by the launch monitor"
         ],
         "6 nothing": [
@@ -127,10 +132,10 @@ TestCase {
         ],
         "7 two cameras, no sensors": [
             "Wrist — Partly, 1 of 11 · no wrist sensor",
-            "Body turn and posture — Recorded, 5 of 15 estimated · no trunk sensors",
+            "Body turn and posture — Recorded, 5 of 18 estimated · no trunk sensors",
             "Setup and stance — Measured",
             "Sequence and tempo — Recorded, 17 of 19 estimated · no wrist sensor · no trunk sensors",
-            "Club — Partly, 12 of 21 · no launch monitor · estimated from the cameras",
+            "Club — Partly, 12 of 22 · no launch monitor · estimated from the cameras",
             "Ball and strike — Not recorded · no launch monitor"
         ],
         "8 face-on assigned, not connected": [
