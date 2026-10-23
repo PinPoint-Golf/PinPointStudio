@@ -340,3 +340,26 @@ the session" already carries it.
 shot (`SessionMode.autoReturnToCapture`) and the cast. A Replay the golfer opens to review a session reads
 in depth, as Analyse does, across all of Charts. In the glance the wrist section is This shot only: head,
 score line and profile, no controls. Session diagnostics still uses the old rule.
+
+### 8.2 The report's Wrist page and the trust fold (23 Oct 2026)
+
+The Session view prints as the session report's Wrist page (`docs/design/session_report_design.md`, "The Wrist
+page"). The presenter gained `wristSessionReportPayload(snapshot, archetypeMode, noun)` — the Session map with no
+pick, its sentences in the noun ("shots" on screen, unchanged byte for byte; "swings" in the report), the band wash
+of the dominant style with `outside` / `ringWord` per median, the standfirst's parts as lines (`scoreLine`,
+`styleLine`, `repeat`, `sizeLine`), and movesWith (its refusal re-worded in the noun: the Relations presenter counts
+"shots" in its refusals and takes no noun). Both `thisShot` and `session` now carry `trust: { lines }`, the Posture
+presenter's TRUST shape, built by one helper: where each reading comes from and its confidence ("the wrist sensor",
+"the face-on camera" — never a product's name), each DOF not measured with the refusing gate's full reason, not
+graded yet, a gate refused the score, the bands' style and where they come from (resolved from the norm rows' own
+provenance: today every wrist row is a coaching starting point, not yet measured on good players), no resemblance
+index, a small session.
+
+On Charts the lines sit in a closed "How far can I trust this?" fold (`PpChTrustFold`, the Posture fold made shared;
+`PpChPostureTrust` is now a thin wrapper keeping its object names) under the wrist profile's caption: on This shot wherever
+it reads in depth, and on Session. The glance at the mat and the cast have no fold. The report prints the Session lines
+open. The report's lines use paper words where the screen names a control: no "Auto" on paper, the dominant-style
+line only when swings were graded against more than one style, the tie said only when a tie decided it. Two sentence
+fixes apply to both: a middle half whose quartiles print the same figure reads "all at 100", and "on N of N shots"
+reads "on every shot" when every swing has a resemblance index and none matches its grade.
+

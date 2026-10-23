@@ -163,6 +163,25 @@ contact). `SessionReportModel` reads it on a worker while the documents are read
 (the Charts panel's loader, inline) builds the session snapshot and the presenter's payload is cut to the map's
 `posture` block by `report_posture.h` (the strip renumbered to the report's swings, the lists capped).
 
+**The Wrist page** (added 23 October, Mark: the Charts Wrist section's Session view prints as a page, after the
+Posture page, mirroring its order). The head ("Graded as a Cupped wrist on every swing"), a Style line and a Score
+line; "Checkpoints across the session", one row per banded wrist DOF, P1 to P8, the band of the **dominant style**
+(the style most swings were graded as; a tie goes to Neutral, then Bowed, then Cupped, and the trust note says so only
+when a tie decided it) as a wash, the session's box
+per checkpoint, the median ("-" for none) and "N° wide" under each column, a median outside the band in warn with the
+side it fell on ("open", "closed": a word, never colour alone), the caption saying which band is shaded and, in a
+mixed session, that each swing was graded against its own style's band; "Wrist score, swing by swing" (the score run
+and its box); "Wrist style by swing" (the resemblance table, every swing); "What keeps firing" (each finding, its count
+words, a mark per swing); "Repeatable?"; "What moves with the lead wrist at impact" (the Relations ledger, its rows
+and chance line verbatim); and "How far can I trust this?", said once (the presenter's `session.trust`, the same
+lines the Charts fold shows, plus the wash rule when more than one style was graded). Nothing picked, Auto style,
+"swings" everywhere; the paper never names the Auto control ("the style it was graded against", "its own style"), the
+screen keeps it. A camera-only session's caption is "Shaded: the Neutral band." and its trust note says why. Gated on DATA: any
+wrist DOF read, a camera-only session included (the trail wrist from the face-on camera); no wrist reading, no page.
+Not on the cover's contents line. The same worker read builds the snapshot once and returns both payloads
+(`readChartsPages`: `postureSessionReportPayload` and `wristSessionReportPayload`); `report_wrist.h` cuts the map's
+`wrist` block, its profile rows on the posture row's keys so one QML profile component draws both pages.
+
 **Page 8. Between now and next time.**
 - **How to practise a change:** four steps, written as studio text (§7). The coach edits them
   once and every report carries them.
@@ -695,6 +714,7 @@ for any content, and it is tested on content chosen to break it.
    | Drills per work-on | 1 in full + 1 as "Also" | the pack may hold more; they are not printed |
    | Numbers table | all swings | flows, repeating its heads |
    | Posture page | rows 6, positions 8; strip 120 marks, 30 a line; departures 6; trust lines 8 | "N more shots not shown" / "N more" |
+   | Wrist page | rows 5, positions 8; style columns and finding marks 120; findings 8; movesWith rows 7 (4 + 3 launch monitor); trust lines 16 | "N more swings not shown" / "N more" |
    | Stills | 2 per work-on (first three only), 4 for the reference swing | — |
 
 5. **Widths come from the text, not from Nick.** Columns use the typeset size classes in em
