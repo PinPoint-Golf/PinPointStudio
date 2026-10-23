@@ -11,6 +11,7 @@ find_package(OpenCV REQUIRED COMPONENTS core imgproc videoio)
 pp_add_test(report_stills_test
     SOURCES report_stills_test.cpp
             ${GUI}/report/report_stills.cpp
+            ${GUI}/report/report_stills_pure.cpp
             ${GUI}/markup/markup_truth.cpp
             ${SRC}/Analysis/mp4_frame_reader.cpp
             ${SRC}/Core/pp_log_stream.cpp
