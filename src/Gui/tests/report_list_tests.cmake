@@ -12,6 +12,7 @@ find_package(Qt6 REQUIRED COMPONENTS Network)
 pp_add_test(report_list_test
     SOURCES report_list_test.cpp
             ${GUI}/report/session_report_list_model.cpp
+            ${GUI}/review/device_filter_model.cpp
             ${GUI}/report/report_mailer.cpp
             ${GUI}/report/smtp_message.cpp
             ${GUI}/report/smtp_client.cpp

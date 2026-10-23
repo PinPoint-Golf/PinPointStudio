@@ -757,6 +757,7 @@ qt_add_executable(PinPointStudio
     src/Gui/session/session_controller.h       src/Gui/session/session_controller.cpp
     src/Gui/review/session_review_controller.h src/Gui/review/session_review_controller.cpp
     src/Gui/review/session_list_model.h        src/Gui/review/session_list_model.cpp
+    src/Gui/review/device_filter_model.h       src/Gui/review/device_filter_model.cpp
     src/Gui/review/session_summary.h
     src/Gui/shot/shot_arbiter.h
     src/Gui/shot/shot_controller.h          src/Gui/shot/shot_controller.cpp

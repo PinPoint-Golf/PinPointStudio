@@ -41,6 +41,10 @@
 //
 // Signals bubble to the host screen: Open session, Show all, and the links to where a missing detail is
 // entered (Settings → Studio; the golfer's own page).
+//
+// RECORDED WITH. The carousel drawer's device filter (PpDeviceFilterBar) heads the list, and each row
+// tags what recorded it (PpDeviceTags). The filter is the model's, so Home and the golfer page share it;
+// rows it leaves out are hidden in place (shownRank -1), and Home's ten are the first ten it keeps.
 
 import QtQuick
 import PinPointStudio
@@ -65,6 +69,9 @@ Column {
     signal golferDetailsRequested()
 
     readonly property int total: root.model ? root.model.count : 0
+    // What the device filter leaves; every row when it is off.
+    readonly property int shown: root.model && root.model.shownCount !== undefined ? root.model.shownCount : root.total
+    readonly property bool _filterActive: !!root.model && !!root.model.deviceFilter && root.model.deviceFilter.length > 0
 
     // ── The golfer's report details, re-read when the athlete or their record changes ──
     property int _detailsRev: 0
@@ -206,6 +213,29 @@ Column {
     spacing: 0
     width: parent ? parent.width : implicitWidth
 
+    // ── Recorded with: the drawer's filter ──────────────────────────────────
+    PpDeviceFilterBar {
+        id: deviceBar
+        objectName: "sessionListDeviceFilter"
+        model: root.model && root.model.availableDevices !== undefined ? root.model : null
+        showCount: true
+        width: root.width
+    }
+    Item { visible: deviceBar.visible; width: 1; height: visible ? Theme.gap(10) : 0 }
+
+    // ── Nothing matched the filter ───────────────────────────────────────────
+    Text {
+        objectName: "sessionListNoMatch"
+        visible: root.total > 0 && root.shown === 0
+        width:   root.width
+        height:  visible ? Theme.sp(40) : 0
+        verticalAlignment: Text.AlignVCenter
+        text: qsTr("No sessions used all of those")
+        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+        font.weight: Theme.fontBodyWeight
+        color: Theme.colorText3
+    }
+
     // ── Nothing yet ──────────────────────────────────────────────────────────
     Text {
         objectName: "sessionListEmpty"
@@ -230,7 +260,8 @@ Column {
             required property var model
 
             objectName: "sessionRow_" + index
-            visible: root.limit <= 0 || index < root.limit
+            readonly property int rank: model.shownRank !== undefined ? model.shownRank : index
+            visible: rank >= 0 && (root.limit <= 0 || rank < root.limit)
             height:  visible ? implicitHeight : 0
             width:   root.width
 
@@ -240,6 +271,8 @@ Column {
             clubs:        model.clubs
             swings:       model.swings
             devices:      model.devices
+            deviceTokens: model.deviceTokens || []
+            selectedDevices: root.model && root.model.deviceFilter ? root.model.deviceFilter : []
             workOn1:      model.workOn1
             workOnKnown:  model.workOnKnown
             isLive:       model.isLive
@@ -277,13 +310,14 @@ Column {
 
     // ── Show all N sessions ──────────────────────────────────────────────────
     Item {
-        visible: root.limit > 0 && root.total > root.limit
+        visible: root.limit > 0 && root.shown > root.limit
         width:   root.width
         height:  visible ? Theme.sp(40) : 0
         PpLink {
             objectName: "linkShowAllSessions"
             anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-            text: qsTr("Show all %1 sessions").arg(root.total)
+            text: root._filterActive ? qsTr("Show all %1 of these sessions").arg(root.shown)
+                                     : qsTr("Show all %1 sessions").arg(root.shown)
             pressMargin: Theme.sp(3)
             onClicked: root.showAll()
         }

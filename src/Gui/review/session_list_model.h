@@ -18,11 +18,11 @@
 
 #pragma once
 
-#include <QAbstractListModel>
 #include <QString>
 #include <QStringList>
-#include <QVariantList>
 #include <QVector>
+
+#include "device_filter_model.h"
 
 // SessionListModel — the rows in the carousel's "CHOOSE A SESSION" drawer.
 // Owned and populated by SessionReviewController (which aggregates each session's
@@ -31,20 +31,11 @@
 // full reset is simpler than incremental edits and cheap at this scale.
 //
 // DEVICE FILTER. Each row carries the devices its shots were recorded with (session_summary.h
-// device tokens). deviceFilter narrows the saved sessions to those that used EVERY listed device
-// ("HackMotion" and "DTL" = sessions with both); the live row is never filtered out — it is the
-// way back to the session in progress, not a search result. The filter lives on the model, so it
-// survives refresh() and the drawer closing, and is held for the life of the app only.
-class SessionListModel : public QAbstractListModel
+// device tokens); DeviceFilterModel narrows the rows shown to the saved sessions that used every
+// chosen device, the live row always kept.
+class SessionListModel : public DeviceFilterModel
 {
     Q_OBJECT
-    Q_PROPERTY(QStringList  deviceFilter     READ deviceFilter     WRITE setDeviceFilter NOTIFY deviceFilterChanged)
-    // [{ id, label, count }] — every device a saved session used (plus any token still in the
-    // filter, so a chip can always be switched off), in sortDeviceTokens order; count = saved
-    // sessions that pass the current filter AND used it — what turning that chip on would leave.
-    Q_PROPERTY(QVariantList availableDevices READ availableDevices NOTIFY availableDevicesChanged)
-    Q_PROPERTY(int          savedCount       READ savedCount       NOTIFY countsChanged)   // saved sessions in the library
-    Q_PROPERTY(int          shownSavedCount  READ shownSavedCount  NOTIFY countsChanged)   // …that pass the filter
 
 public:
     enum Roles {
@@ -88,19 +79,9 @@ public:
 
     void setRows(const QVector<Row> &rows);
 
-    QStringList  deviceFilter() const { return m_deviceFilter; }
-    void         setDeviceFilter(const QStringList &tokens);
-    QVariantList availableDevices() const;
-    int          savedCount() const;
-    int          shownSavedCount() const;
-
-    Q_INVOKABLE void toggleDevice(const QString &token);
-    Q_INVOKABLE void clearDeviceFilter() { setDeviceFilter({}); }
-
-signals:
-    void deviceFilterChanged();
-    void availableDevicesChanged();
-    void countsChanged();
+protected:
+    QVector<QStringList> savedDeviceSets() const override;
+    void applyDeviceFilter() override { rebuildShown(); }
 
 private:
     bool passes(const Row &r) const;
@@ -108,5 +89,4 @@ private:
 
     QVector<Row> m_all;                     // every row setRows() was given
     QVector<Row> m_rows;                    // what the view shows
-    QStringList  m_deviceFilter;
 };

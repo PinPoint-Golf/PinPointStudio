@@ -19,7 +19,7 @@
 // ONE SESSION, WITH ITS REPORT (docs/design/session_report_design.md §8.0) — a row of PpSessionReportList,
 // on Home and on the golfer page's Sessions tab alike.
 //
-//   Tue 20 Oct 2026 · Session 3                    7 iron · 10 swings · Face-on, DTL, GC Quad
+//   Tue 20 Oct 2026 · Session 3                    7 iron · 10 swings  (Face-on) (DTL) (GC Quad)
 //   Work-on 1: Keep the flex in your trail knee                    Opened in Mail 20 Oct 18:40
 //   Open session    Report · 1.4 MB    Email to Nick    Copy address    Show in Finder
 //
@@ -44,6 +44,9 @@
 // THE STATE WORDS are plain text in ink3 — never a badge, never colour alone. While this session's
 // report is being made they read "Making report…" with the page count.
 //
+// THE DEVICE TAGS are the carousel drawer's (PpDeviceTags): what recorded the session, the ones the list's
+// "Recorded with" filter asked for in the accent.
+//
 // The row only says what it was given and emits what was pressed: the list owns the sheet and the
 // hand-off, so the two pages that show rows share one of each.
 
@@ -59,7 +62,9 @@ Item {
     property int    sessionOfDay: 0
     property string clubs:        ""
     property int    swings:       0
-    property var    devices:      []
+    property var    devices:      []        // labels, for the tags
+    property var    deviceTokens: []        // their tokens, same order
+    property var    selectedDevices: []     // the list's device filter
     property string workOn1:      ""
     property bool   workOnKnown:  false
     property bool   isLive:       false
@@ -157,19 +162,27 @@ Item {
             Text {
                 id: what
                 objectName: "sessionRowWhat"
-                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                width: Math.min(implicitWidth, parent.width - whenRow.width - Theme.gap(20))
+                anchors { right: tags.left; rightMargin: tags.visible ? Theme.gap(8) : 0
+                          verticalCenter: parent.verticalCenter }
+                width: Math.min(implicitWidth, parent.width - whenRow.width - tags.width - Theme.gap(28))
                 horizontalAlignment: Text.AlignRight
                 elide: Text.ElideLeft
                 text: {
                     const parts = []
                     if (row.clubs !== "") parts.push(row.clubs)
                     parts.push(row.swings === 1 ? qsTr("1 swing") : qsTr("%1 swings").arg(row.swings))
-                    if (row.devices && row.devices.length > 0) parts.push(row.devices.join(", "))
                     return parts.join(" · ")
                 }
                 font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
                 color: Theme.colorText3
+            }
+            PpDeviceTags {
+                id: tags
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                width: visible ? implicitWidth : 0
+                tokens:   row.deviceTokens
+                labels:   row.devices
+                selected: row.selectedDevices
             }
         }
 

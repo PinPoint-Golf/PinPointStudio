@@ -44,8 +44,12 @@
 //
 // The state function and the goal resolver are injected rather than linked so the list's test runs
 // over a temp library without the report model or the pack behind it (report_list_test).
+//
+// THE DEVICE FILTER is the session drawer's (DeviceFilterModel): the chips over the list keep the saved
+// sessions that used every chosen device, the live one always. The rows stay where they are — the report
+// states are asked and answered by row — and each says where it falls among those shown (shownRank, -1
+// when filtered out), so Home's "first ten" are the first ten that pass.
 
-#include <QAbstractListModel>
 #include <QString>
 #include <QStringList>
 #include <QThreadPool>
@@ -54,12 +58,16 @@
 
 #include <functional>
 
+#include "../review/device_filter_model.h"
+
 class SessionReportModel;
 
-class SessionReportListModel : public QAbstractListModel
+class SessionReportListModel : public DeviceFilterModel
 {
     Q_OBJECT
     Q_PROPERTY(int count READ count NOTIFY countChanged)
+    // Rows that pass the device filter, the live one included: what the list shows.
+    Q_PROPERTY(int shownCount READ shownCount NOTIFY countsChanged)
     // True while a scan is running (the first one included). The list says "Reading sessions…" only
     // while it has no rows to show.
     Q_PROPERTY(bool scanning READ scanning NOTIFY scanningChanged)
@@ -72,6 +80,9 @@ public:
         // work-on record yet, so line 2 stays quiet rather than claiming "no habits"); whether the
         // state has been asked yet; the PDF on disk is not the one that last went out.
         SessionMsRole, WorkOnKnownRole, StateKnownRole, SentDiffersRole, PreparedMsRole,
+        // The device tokens behind DevicesRole's labels, same order (the filter's ids); and the row's
+        // place among those the device filter shows, -1 when it is filtered out.
+        DeviceTokensRole, ShownRankRole,
     };
     Q_ENUM(Role)
 
@@ -100,6 +111,7 @@ public:
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
     int count() const;
+    int shownCount() const;
     bool scanning() const { return m_scanning; }
 
     Q_INVOKABLE void refresh();
@@ -116,6 +128,7 @@ public:
         QString     clubs;              // "7 iron, Driver"
         int         swings = 0;
         QStringList devices;            // display labels, the drawer's order and words
+        QStringList deviceTokens;       // their session_summary.h tokens, same order
         bool        workOnKnown = false;
         QString     workOn1Id, workOn1;
         bool        isLive = false;
@@ -140,7 +153,12 @@ signals:
     // A scan has been applied (its rows are in; their states may still be arriving).
     void refreshed();
 
+protected:
+    QVector<QStringList> savedDeviceSets() const override;
+    void applyDeviceFilter() override;
+
 private:
+    void rerank();                          // m_shownRank from m_rows and the filter
     void applyScan(int generation, QVector<Row> rows);
     void askStates();
     void applyState(int row);
@@ -149,6 +167,7 @@ private:
     QString        m_athleteDir;
     QString        m_liveDir;
     QVector<Row>   m_rows;
+    QVector<int>   m_shownRank;             // per row: its place among those shown, -1 when filtered out
     StateFn        m_stateFn;
     GoalFn         m_goalFn;
     QThreadPool    m_pool;

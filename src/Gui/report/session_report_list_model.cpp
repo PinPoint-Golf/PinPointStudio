@@ -74,7 +74,7 @@ WorkOnLine readWorkOn1(const QString &sessionDir)
 
 } // namespace
 
-SessionReportListModel::SessionReportListModel(QObject *parent) : QAbstractListModel(parent)
+SessionReportListModel::SessionReportListModel(QObject *parent) : DeviceFilterModel(parent)
 {
     m_pool.setMaxThreadCount(1);
 }
@@ -111,8 +111,11 @@ void SessionReportListModel::setAthleteDir(const QString &dir)
     // The previous golfer's sessions must not sit under this one's name while the scan runs.
     beginResetModel();
     m_rows.clear();
+    rerank();
     endResetModel();
     emit countChanged();
+    emit countsChanged();
+    emit availableDevicesChanged();
     refresh();
 }
 
@@ -123,7 +126,10 @@ void SessionReportListModel::setLiveSessionDir(const QString &dir)
     m_liveDir = abs;
     beginResetModel();
     markLive(m_rows, m_liveDir);
+    rerank();
     endResetModel();
+    emit countsChanged();
+    emit availableDevicesChanged();
     refresh();       // a live session's swing count is moving; an ended one's report can now be made
 }
 
@@ -133,6 +139,37 @@ int SessionReportListModel::rowCount(const QModelIndex &parent) const
 }
 
 int SessionReportListModel::count() const { return int(m_rows.size()); }
+
+int SessionReportListModel::shownCount() const
+{
+    return int(std::count_if(m_shownRank.cbegin(), m_shownRank.cend(), [](int r) { return r >= 0; }));
+}
+
+QVector<QStringList> SessionReportListModel::savedDeviceSets() const
+{
+    QVector<QStringList> out;
+    for (const Row &r : m_rows)
+        if (!r.isLive)
+            out.append(r.deviceTokens);
+    return out;
+}
+
+void SessionReportListModel::rerank()
+{
+    m_shownRank.resize(m_rows.size());
+    int next = 0;
+    for (int i = 0; i < m_rows.size(); ++i) {
+        const Row &r = m_rows.at(i);
+        m_shownRank[i] = (r.isLive || passesDeviceFilter(r.deviceTokens)) ? next++ : -1;
+    }
+}
+
+// In place, never a reset: a delegate under the pointer stays put (applyScan's reason).
+void SessionReportListModel::applyDeviceFilter()
+{
+    rerank();
+    if (!m_rows.isEmpty()) emit dataChanged(index(0), index(int(m_rows.size()) - 1), { ShownRankRole });
+}
 
 QVariant SessionReportListModel::data(const QModelIndex &index, int role) const
 {
@@ -159,6 +196,8 @@ QVariant SessionReportListModel::data(const QModelIndex &index, int role) const
     case StateKnownRole:   return !r.state.isEmpty();
     case SentDiffersRole:  return r.sentDiffers;
     case PreparedMsRole:   return double(r.preparedMs);
+    case DeviceTokensRole: return r.deviceTokens;
+    case ShownRankRole:    return m_shownRank.value(index.row(), -1);
     default:               return {};
     }
 }
@@ -170,7 +209,8 @@ QHash<int, QByteArray> SessionReportListModel::roleNames() const
              {IsLiveRole, "isLive"}, {CanReportRole, "canReport"}, {StateRole, "state"},
              {StateWordsRole, "stateWords"}, {PdfPathRole, "pdfPath"}, {SizeBytesRole, "sizeBytes"},
              {SessionMsRole, "sessionMs"}, {WorkOnKnownRole, "workOnKnown"}, {StateKnownRole, "stateKnown"},
-             {SentDiffersRole, "sentDiffers"}, {PreparedMsRole, "preparedMs"} };
+             {SentDiffersRole, "sentDiffers"}, {PreparedMsRole, "preparedMs"},
+             {DeviceTokensRole, "deviceTokens"}, {ShownRankRole, "shownRank"} };
 }
 
 QVariantMap SessionReportListModel::rowFor(const QString &sessionDir) const
@@ -254,6 +294,7 @@ QVector<SessionReportListModel::Row> SessionReportListModel::scan(const QString 
         // The drawer joins clubs with " · ", which on this line is already the separator between facts.
         r.clubs = sum.clubMix;
         r.clubs.replace(QStringLiteral(" · "), QStringLiteral(", "));
+        r.deviceTokens = sum.devices;
         for (const QString &t : sum.devices) r.devices.append(pinpoint::deviceLabel(t));
 
         const WorkOnLine w = readWorkOn1(sessionDir);
@@ -311,13 +352,17 @@ void SessionReportListModel::applyScan(int generation, QVector<Row> rows)
     for (int i = 0; sameDirs && i < rows.size(); ++i) sameDirs = rows[i].dir == m_rows[i].dir;
     if (sameDirs) {
         m_rows = std::move(rows);
+        rerank();
         if (!m_rows.isEmpty()) emit dataChanged(index(0), index(int(m_rows.size()) - 1));
     } else {
         beginResetModel();
         m_rows = std::move(rows);
+        rerank();
         endResetModel();
     }
     if (int(m_rows.size()) != before) emit countChanged();
+    emit countsChanged();
+    emit availableDevicesChanged();
     emit scanningChanged();
     emit refreshed();
 

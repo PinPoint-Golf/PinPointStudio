@@ -207,6 +207,36 @@ int main(int argc, char **argv)
     check(role(list, 2, R::DevicesRole).toStringList() == QStringList({ "Face-on", "DTL", "GC Quad" }),
           "devices: the drawer's labels in its order");
     check(role(list, 0, R::DevicesRole).toStringList() == QStringList({ "Face-on", "DTL" }), "devices sorted, not as recorded");
+    check(role(list, 2, R::DeviceTokensRole).toStringList() == QStringList({ "faceOn", "dtl", "lm:gcquad" }),
+          "device tokens beside the labels, same order");
+
+    std::printf("device filter\n");
+    auto ranks = [&] {
+        QList<int> out;
+        for (int i = 0; i < list.count(); ++i) out << role(list, i, R::ShownRankRole).toInt();
+        return out;
+    };
+    check(ranks() == QList<int>({ 0, 1, 2, 3, 4 }) && list.shownCount() == 5, "no filter: every row shown, in order");
+    check(list.savedCount() == 5 && list.shownSavedCount() == 5, "five saved sessions");
+    {
+        const QVariantList chips = list.availableDevices();
+        QStringList ids; QList<int> counts;
+        for (const QVariant &c : chips) { ids << c.toMap().value("id").toString(); counts << c.toMap().value("count").toInt(); }
+        check(ids == QStringList({ "faceOn", "dtl", "lm:gcquad" }) && counts == QList<int>({ 4, 2, 1 }),
+              "chips: every device a session used, drawer order, with how many sessions each would leave");
+    }
+    list.toggleDevice(QStringLiteral("dtl"));
+    check(list.count() == 5, "filtering leaves the rows in place");
+    check(ranks() == QList<int>({ 0, -1, 1, -1, -1 }) && list.shownCount() == 2 && list.shownSavedCount() == 2,
+          "DTL: the two sessions that used it, ranked in order");
+    list.toggleDevice(QStringLiteral("lm:gcquad"));
+    check(ranks() == QList<int>({ -1, -1, 0, -1, -1 }), "DTL and GC Quad: AND, one session");
+    list.setLiveSessionDir(b2);
+    check(role(list, 0, R::IsLiveRole).toBool() && role(list, 0, R::ShownRankRole).toInt() == 0,
+          "the live session is never filtered out");
+    list.setLiveSessionDir(QString());
+    list.clearDeviceFilter();
+    check(ranks() == QList<int>({ 0, 1, 2, 3, 4 }) && list.deviceFilter().isEmpty(), "Clear: every row back");
 
     std::printf("work-on 1\n");
     check(role(list, 2, R::WorkOn1Role).toString() == QLatin1String("Keep the flex in your trail knee"),

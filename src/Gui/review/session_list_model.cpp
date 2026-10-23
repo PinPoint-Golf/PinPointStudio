@@ -23,7 +23,7 @@
 #include "session_summary.h"
 
 SessionListModel::SessionListModel(QObject *parent)
-    : QAbstractListModel(parent)
+    : DeviceFilterModel(parent)
 {
 }
 
@@ -87,12 +87,8 @@ void SessionListModel::setRows(const QVector<Row> &rows)
 
 bool SessionListModel::passes(const Row &r) const
 {
-    if (r.isLive)
-        return true;                        // the way back to live is never filtered away
-    for (const QString &d : m_deviceFilter)
-        if (!r.devices.contains(d))
-            return false;
-    return true;
+    return r.isLive                         // the way back to live is never filtered away
+        || passesDeviceFilter(r.devices);
 }
 
 void SessionListModel::rebuildShown()
@@ -106,65 +102,11 @@ void SessionListModel::rebuildShown()
     emit countsChanged();
 }
 
-void SessionListModel::setDeviceFilter(const QStringList &tokens)
+QVector<QStringList> SessionListModel::savedDeviceSets() const
 {
-    QStringList t = tokens;
-    t.removeDuplicates();
-    pinpoint::sortDeviceTokens(t);
-    if (t == m_deviceFilter)
-        return;
-    m_deviceFilter = t;
-    rebuildShown();
-    emit deviceFilterChanged();
-    emit availableDevicesChanged();         // a token kept only because it was selected may go
-}
-
-void SessionListModel::toggleDevice(const QString &token)
-{
-    QStringList t = m_deviceFilter;
-    if (!t.removeAll(token))
-        t.append(token);
-    setDeviceFilter(t);
-}
-
-QVariantList SessionListModel::availableDevices() const
-{
-    QStringList tokens = m_deviceFilter;
+    QVector<QStringList> out;
     for (const Row &r : m_all)
         if (!r.isLive)
-            for (const QString &d : r.devices)
-                if (!tokens.contains(d))
-                    tokens.append(d);
-    pinpoint::sortDeviceTokens(tokens);
-
-    QVariantList out;
-    for (const QString &d : std::as_const(tokens)) {
-        // Counted within the CURRENT filter, so each chip says how many sessions adding it would
-        // leave (AND) — a fixed library count read as if chips widened the list. For a chip that is
-        // already on, this is simply the number shown.
-        int n = 0;
-        for (const Row &r : m_all)
-            if (!r.isLive && passes(r) && r.devices.contains(d))
-                ++n;
-        out.append(QVariantMap{ { QStringLiteral("id"),    d },
-                                { QStringLiteral("label"), pinpoint::deviceLabel(d) },
-                                { QStringLiteral("count"), n } });
-    }
+            out.append(r.devices);
     return out;
-}
-
-int SessionListModel::savedCount() const
-{
-    int n = 0;
-    for (const Row &r : m_all)
-        if (!r.isLive) ++n;
-    return n;
-}
-
-int SessionListModel::shownSavedCount() const
-{
-    int n = 0;
-    for (const Row &r : m_rows)
-        if (!r.isLive) ++n;
-    return n;
 }

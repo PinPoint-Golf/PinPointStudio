@@ -88,6 +88,8 @@ set(PP_QML_FILES
     src/Gui/components/PpPip.qml
     src/Gui/components/PpPips.qml
     src/Gui/components/PpChip.qml
+    src/Gui/components/PpDeviceFilterBar.qml
+    src/Gui/components/PpDeviceTags.qml
     src/Gui/components/PpStrengthMark.qml
     src/Gui/components/PpSwingTimeline.qml
     src/Gui/components/PpInset.qml
