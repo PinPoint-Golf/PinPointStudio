@@ -1,0 +1,433 @@
+{
+  "id": "core",
+  "version": "1.0.0",
+  "schemaVersion": 1,
+  "_comment": [
+    "What we could not check, in a golfer's words (docs/design/session_report_design.md §9.3 item 5,",
+    "§10 rule 7). The gate catalogue's own claim words are written for an analyst; a client report says",
+    "the same thing once, on its back page, in these. Read through gate_words_pack.h.",
+    "",
+    "`gates`: one clause per catalogue id (Metrics/gate_catalogue.h) — per-swing gates and engine rules",
+    "alike — lower case, no digits, and WITHOUT ITS SUBJECT. One gate (sequence.sightedBand) refuses",
+    "several readings, so the clause is written to follow the reading's name: \"when your hips turned",
+    "fastest: the face-on camera cannot time a turn while you are square to it…\".",
+    "",
+    "`subjects`: the reading a gate acted on (a gate record's subject), in golfer words. A metric subject",
+    "is not listed: the report uses that measure's `golferName` from the pack.",
+    "",
+    "A gate with no clause gets no line in the report, rather than the analyst's words — an internal",
+    "phrase on a client document is worse than a gap the technical appendix fills. core_pack_test holds",
+    "this file to the catalogue in both directions.",
+    "",
+    "Authored in the content phase and first shipped compiled into src/Coaching/report_gate_words.h;",
+    "moved here, word for word, so a studio can read and correct them in the Diagnostic Model (#60)."
+  ],
+  "gates": [
+    {
+      "id": "sequence.sightedBand",
+      "golfer": "the face-on camera cannot time a turn while you are square to it; a down-the-line camera or a body sensor can"
+    },
+    {
+      "id": "sequence.validityHole",
+      "golfer": "the cameras lost track of you for a moment just there"
+    },
+    {
+      "id": "sequence.reversalSpike",
+      "golfer": "the reading jumped as your arms crossed your body, so there was no true peak to time"
+    },
+    {
+      "id": "sequence.risingAtEnd",
+      "golfer": "it was still speeding up when the part of the swing we time had ended"
+    },
+    {
+      "id": "sequence.routePlacement",
+      "golfer": "this camera set-up can draw it, but is not yet trusted to time it"
+    },
+    {
+      "id": "sequence.maxPlaceSigma",
+      "golfer": "we could not pin down its timing closely enough to compare it with the rest"
+    },
+    {
+      "id": "sequence.credibleClub",
+      "golfer": "the cameras lost the club through the downswing"
+    },
+    {
+      "id": "sequence.clubWithheld",
+      "golfer": "our cameras could see it, but not well enough to judge"
+    },
+    {
+      "id": "sequence.pairRoute",
+      "golfer": "the two-camera reading was not usable, so the face-on camera's was used instead"
+    },
+    {
+      "id": "sequence.pairMinCorr",
+      "golfer": "the two camera views disagreed, so the face-on camera's reading was used instead"
+    },
+    {
+      "id": "sequence.noPeak",
+      "golfer": "the cameras could not see it through the downswing"
+    },
+    {
+      "id": "sequence.routeWithdrawn",
+      "golfer": "the two-camera reading could not time it, so the face-on camera's was used instead"
+    },
+    {
+      "id": "body.lowerAddress",
+      "golfer": "the cameras could not see your hips, knees and ankles clearly at address"
+    },
+    {
+      "id": "body.stanceSpan",
+      "golfer": "you were too small in the face-on picture to measure your stance"
+    },
+    {
+      "id": "body.hipLine",
+      "golfer": "your hips were edge-on to the camera for part of the swing"
+    },
+    {
+      "id": "body.upperAddress",
+      "golfer": "the cameras could not see your shoulders, feet and lead arm clearly at address"
+    },
+    {
+      "id": "body.shoulderSpan",
+      "golfer": "you were too small in the face-on picture to measure your shoulders"
+    },
+    {
+      "id": "body.shoulderLine",
+      "golfer": "your shoulders were edge-on to the camera for part of the swing"
+    },
+    {
+      "id": "body.elbowLine",
+      "golfer": "your elbows were too close together in the picture to measure"
+    },
+    {
+      "id": "body.sideBendLines",
+      "golfer": "your hips or shoulders were edge-on to the camera for part of the swing"
+    },
+    {
+      "id": "body.rotation",
+      "golfer": "a single face-on camera cannot measure how far you turn; a down-the-line camera or a body sensor can"
+    },
+    {
+      "id": "body.xFactorStretchTop",
+      "golfer": "we could not find the top of the swing to measure from"
+    },
+    {
+      "id": "body.ballPosition",
+      "golfer": "the camera could not find the ball clearly at address"
+    },
+    {
+      "id": "posture.address",
+      "golfer": "the down-the-line camera could not see your feet and hips clearly at address"
+    },
+    {
+      "id": "posture.ruler",
+      "golfer": "we had no reliable way to turn the picture into real distances"
+    },
+    {
+      "id": "posture.sizeFloor",
+      "golfer": "you were too small in the down-the-line picture to measure it"
+    },
+    {
+      "id": "posture.handLoop",
+      "golfer": "the down-the-line camera could not follow your hands clearly enough"
+    },
+    {
+      "id": "posture.shaftLie",
+      "golfer": "the down-the-line camera never measured the shaft clearly"
+    },
+    {
+      "id": "club.trackRefused",
+      "golfer": "the face-on camera could not follow the club well enough to measure it"
+    },
+    {
+      "id": "club.followThrough",
+      "golfer": "after impact the camera followed your arm instead of the club"
+    },
+    {
+      "id": "club.ballSuspect",
+      "golfer": "the ball the camera found did not line up with the club at address, so this is less certain"
+    },
+    {
+      "id": "club.headConfidence",
+      "golfer": "the clubhead was blurred or hidden at the top"
+    },
+    {
+      "id": "club.attackFallback",
+      "golfer": "the club's path through the ball was only partly seen, so this is less certain"
+    },
+    {
+      "id": "club.lowPoint",
+      "golfer": "the camera could not see the bottom of the swing clearly enough"
+    },
+    {
+      "id": "club.peakLeadSamples",
+      "golfer": "the camera did not see enough of the club in the downswing"
+    },
+    {
+      "id": "club.planeWindow",
+      "golfer": "the club's path was not seen clearly enough to fit a plane to it"
+    },
+    {
+      "id": "club3d.planeScatter",
+      "golfer": "the club did not move on one plane that the cameras could measure"
+    },
+    {
+      "id": "club3d.illConditioned",
+      "golfer": "the two cameras were looking along nearly the same line there"
+    },
+    {
+      "id": "clubDtl.topOutOfView",
+      "golfer": "the club went out of the top of the down-the-line picture, which is the camera's framing, not your swing"
+    },
+    {
+      "id": "clubDtl.quarantine",
+      "golfer": "the down-the-line camera could not find your hands where it expected them"
+    },
+    {
+      "id": "clubDtl.lateEscape",
+      "golfer": "in the follow-through the camera picked up something that was not the club"
+    },
+    {
+      "id": "impact.pathTooShort",
+      "golfer": "the impact camera saw too little of the club around the ball"
+    },
+    {
+      "id": "impact.headOffsetAssumed",
+      "golfer": "the impact camera rarely saw the clubhead itself, so its path is an estimate"
+    },
+    {
+      "id": "lm.noData",
+      "golfer": "the launch monitor did not measure the club on these swings, usually because it could not see the stickers on the face"
+    },
+    {
+      "id": "lm.outOfRange",
+      "golfer": "the launch monitor sent a value no golf shot produces"
+    },
+    {
+      "id": "lm.noInputs",
+      "golfer": "the launch monitor measured neither the clubface nor the path"
+    },
+    {
+      "id": "shot.captureHoles",
+      "golfer": "the recording dropped frames, so the whole swing was left out"
+    },
+    {
+      "id": "shot.refusionParity",
+      "golfer": "a body sensor's recording did not hang together, so the whole swing was left out"
+    },
+    {
+      "id": "skeleton.refused",
+      "golfer": "the three-dimensional model of you needs both cameras to see you clearly, and could not be built"
+    },
+    {
+      "id": "tempo.refused",
+      "golfer": "we could not find address, the top and impact clearly enough to time them"
+    },
+    {
+      "id": "wrist.hmBinding",
+      "golfer": "the HackMotion recording did not say how the sensor was worn"
+    },
+    {
+      "id": "wrist.cellRefused",
+      "golfer": "the wrist sensor had too few clean readings at some positions"
+    },
+    {
+      "id": "wrist.findingLowConfidence",
+      "golfer": "the wrist readings were not clean enough to be sure"
+    },
+    {
+      "id": "wrist.strengthWithoutFault",
+      "golfer": "a wrist strength is only shown beside a fault it guards against"
+    },
+    {
+      "id": "rule.diag.patternWilson",
+      "golfer": "seen, but not on enough swings to call it a habit"
+    },
+    {
+      "id": "rule.diag.patternMinShots",
+      "golfer": "it could be judged on too few swings to say"
+    },
+    {
+      "id": "rule.diag.directionAgreement",
+      "golfer": "it missed both ways, so there is no single direction to report"
+    },
+    {
+      "id": "rule.diag.trend",
+      "golfer": "too few swings to say whether it was getting better or worse"
+    },
+    {
+      "id": "rule.diag.dependence",
+      "golfer": "too few swings to tell whether the two go together"
+    },
+    {
+      "id": "rule.diag.warmUp",
+      "golfer": "your first few swings count for less, as warm-up"
+    },
+    {
+      "id": "rule.diag.debounce",
+      "golfer": "the picture was still settling"
+    },
+    {
+      "id": "rule.diag.rankBand",
+      "golfer": "the order is held steady so it does not shuffle from one swing to the next"
+    },
+    {
+      "id": "rule.diag.borderline",
+      "golfer": "it sat so close to the edge of the target range that it could go either way"
+    },
+    {
+      "id": "rule.diag.rootStability",
+      "golfer": "how firm a cause is depends on how precisely the swings were measured"
+    },
+    {
+      "id": "rule.diag.noCorridor",
+      "golfer": "there is no target range for it with this club yet"
+    },
+    {
+      "id": "rule.diag.implausible",
+      "golfer": "the reading was not believable, so we treated it as a camera or sensor fault"
+    },
+    {
+      "id": "rule.diag.peakAfterImpact",
+      "golfer": "your hips were still speeding up at impact, so whether they slowed could not be read"
+    },
+    {
+      "id": "rule.diag.nonPositiveDenominator",
+      "golfer": "one of the two readings it compares was missing or zero"
+    },
+    {
+      "id": "rule.diag.mixedScale",
+      "golfer": "the two readings it compares came from different kinds of measurement"
+    },
+    {
+      "id": "rule.diag.compositeCoverage",
+      "golfer": "it is read from several readings taken together, and the cameras saw too few of them to judge it"
+    },
+    {
+      "id": "rule.diag.inferredContext",
+      "golfer": "no club was set, so it was judged against a default club's range"
+    },
+    {
+      "id": "rule.diag.workOnLimits",
+      "golfer": "a session names at most five work-ons"
+    },
+    {
+      "id": "rule.diag.workOnQuiet",
+      "golfer": "quiet means it showed on fewer than half the swings we could judge"
+    },
+    {
+      "id": "rule.diag.workOnClear",
+      "golfer": "a work-on leaves the list after two quiet sessions in a row"
+    },
+    {
+      "id": "rule.diag.themesMin",
+      "golfer": "themes need more swings, over more sessions, than we have yet"
+    },
+    {
+      "id": "rule.diag.themeSessionJudged",
+      "golfer": "this session judged it on too few swings to count toward your history"
+    },
+    {
+      "id": "rule.diag.themeCoverage",
+      "golfer": "it was measured on too few of your swings to take part"
+    },
+    {
+      "id": "rule.diag.sequenceSessionMin",
+      "golfer": "too few swings had all four peaks timed to judge the session's sequence"
+    },
+    {
+      "id": "rule.diag.sequenceOrderShare",
+      "golfer": "the share of swings in order is stated cautiously, at the generous end of what the swings support"
+    },
+    {
+      "id": "rule.charts.groupMin",
+      "golfer": "too few swings to draw a typical shape"
+    },
+    {
+      "id": "rule.charts.instantMin",
+      "golfer": "the cameras lost sight of it on most swings just there"
+    },
+    {
+      "id": "rule.charts.kindsMin",
+      "golfer": "too few swings to split into two kinds"
+    },
+    {
+      "id": "rule.charts.leadToWatch",
+      "golfer": "one group had too few swings, so the difference is a lead to watch"
+    },
+    {
+      "id": "rule.charts.correlationMin",
+      "golfer": "too few swings had both readings to see whether they move together"
+    },
+    {
+      "id": "rule.charts.boxMin",
+      "golfer": "too few swings to show a spread"
+    },
+    {
+      "id": "rule.charts.kindsAsClubs",
+      "golfer": "the two kinds of swing matched the two clubs, so they are named as clubs"
+    },
+    {
+      "id": "rule.charts.warpAnchors",
+      "golfer": "a swing position was found too uncertainly to line the swings up on"
+    },
+    {
+      "id": "rule.lm.spreadMin",
+      "golfer": "too few shots to show how much they varied"
+    },
+    {
+      "id": "rule.lm.clubVotes",
+      "golfer": "the ball numbers did not clearly read like a wood or an iron"
+    },
+    {
+      "id": "rule.lm.flightShape",
+      "golfer": "the launch monitor did not measure enough to name the shot shape"
+    },
+    {
+      "id": "rule.lm.strikeQuality",
+      "golfer": "the launch monitor did not measure where on the face you struck it"
+    }
+  ],
+  "subjects": [
+    {
+      "id": "ks.pelvis",
+      "golfer": "when your hips turned fastest"
+    },
+    {
+      "id": "ks.thorax",
+      "golfer": "when your chest turned fastest"
+    },
+    {
+      "id": "ks.leadArm",
+      "golfer": "when your lead arm moved fastest"
+    },
+    {
+      "id": "ks.club",
+      "golfer": "how fast the club was moving at its peak"
+    },
+    {
+      "id": "track.club",
+      "golfer": "the club, seen face-on"
+    },
+    {
+      "id": "track.clubDtl",
+      "golfer": "the club, seen down the line"
+    },
+    {
+      "id": "track.club3d",
+      "golfer": "the club in three dimensions"
+    },
+    {
+      "id": "track.impact",
+      "golfer": "the club at the ball"
+    },
+    {
+      "id": "track.skeleton3d",
+      "golfer": "the three-dimensional model of you"
+    },
+    {
+      "id": "shot",
+      "golfer": "the whole swing"
+    }
+  ]
+}

@@ -84,6 +84,11 @@ inline constexpr int kPackSchemaVersion = 1;
 //                        or with one not written as {"reason": "…"}. The report prints the reason
 //                        as the only thing it says about the habit, so a hold without one is a
 //                        habit that silently vanished
+//                        THE REPORT CODES ABOVE (the picture's five, badGolferSign and
+//                        reportHoldNoReason) are also raised by validatePack(), through
+//                        reportFieldIssues() below, wherever the in-memory row can show the fault —
+//                        so an unsaved draft in the editor reports them too. The loader keeps only
+//                        the cases the row cannot hold; see reportFieldIssues()
 //   unknownGroup · unknownObservability · unknownConfirmedBy · unknownState · unknownViewNeeded ·
 //   unknownStatus        the same rule for the six fields that used to fall back silently. Each
 //                        decides something invisible — which section a condition appears in, which
@@ -304,6 +309,56 @@ struct ReportContentGap {
 };
 std::vector<ReportContentGap> reportContentGaps(const CharacteristicPack &pack,
                                                 const QSet<QString>      &drillIds);
+
+// What is wrong with ONE row's report words, field by field — the checks the loader and the
+// validator raise about a condition's golfer / golferWell / golferWhy / goal / cue / check / picture
+// / reportHold, and a measure's golferName / golferSign / golferHigh / golferLow.
+//
+// ONE SOURCE FOR EACH MESSAGE. validatePack() raises these by calling the two functions below for
+// every condition and every measure, and the Diagnostic Model's inspector calls the same two while
+// the user types, so the line under a field and the line in Health are the same string and cannot
+// drift. Each issue's `code`, `severity` and `message` are exactly what validatePack() reports; the
+// subject (the row's id) is the caller's, because the caller is the one holding the row.
+//
+// What is covered, and the codes it is covered under:
+//   golferPhraseMissing   (warning) golfer on a detectable fault or set-up; golferWell and golferWhy on
+//                         a detectable Any/First fault; golferHigh/golferLow on a measure that
+//                         produces readings and is not a composite. Every one of those conditions is
+//                         read off the row itself, so nothing here needs the pack. The measure's
+//                         missing-phrase issue is ONE issue naming both directions when both are
+//                         missing; its `field` is the first missing one (golferHigh, then golferLow)
+//   golferPhraseWording   (warning) every phrase and sentence above, under the rules on the code
+//                         table at the top of this file
+//   unknownPictureKind · unknownPictureCamera · unknownPicturePhase · unknownPictureLine   (error)
+//                         `field` is "picture.kind" / "picture.camera" / "picture.phase" /
+//                         "picture.line". A picture with all four parts blank is "no picture
+//                         authored" and raises nothing here: presence is reportContentGaps' question
+//   pictureIncomplete     (error) a kind other than none with camera, phase or line blank. ONE issue,
+//                         on the first blank part in that order, because the message names all three
+//   reportHoldNoReason    (error) a hold whose reason is only white space. savePack() writes it, and
+//                         the loader then trims it to nothing and refuses the file, so the inspector
+//                         has to say so before the save rather than after
+//   badGolferSign         (error) a golferSign that is not 1 or -1
+//
+// What is NOT covered, because the row on its own cannot answer it: whether a listable habit HAS its
+// report words, and whether a measure a listable habit reads has a golferName (reportContentGaps,
+// which needs the pack and the drill registry); and the parse-level faults only the JSON can show — a
+// `picture` object with nothing in it, a reportHold not written as {"reason": "…"}, a golferSign that
+// is not a number at all. loadPack() raises those itself, through the same message text. Each of them
+// leaves the in-memory row at its default (no picture, no hold, +1), so the two passes can never
+// report one finding twice.
+//
+// Issues come back in the order validatePack() has always raised them: per condition golfer,
+// golferWell, golferWhy, goal, cue, check, then picture and reportHold; per measure the missing
+// phrase, golferHigh, golferLow, golferName, then golferSign.
+struct ReportFieldIssue {
+    QString       field;      // "goal", "picture.camera", "golferName", … — the Condition / Measure member
+    QString       code;       // the validator code, as above
+    IssueSeverity severity = IssueSeverity::Warning;
+    QString       message;    // the validator's own message, word for word
+};
+std::vector<ReportFieldIssue> reportFieldIssues(const Condition &c);
+std::vector<ReportFieldIssue> reportFieldIssues(const Measure &m);
 
 // ── Graph helpers (shared by the validator, the resolver and the UI) ────────
 // `Causes` edges only. Direction follows Edge's contract: `from` causes `to`.

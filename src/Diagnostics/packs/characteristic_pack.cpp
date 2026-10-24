@@ -378,6 +378,62 @@ QString golferNameProblem(const QString &name)
     return QString();
 }
 
+// ── The report fields' error messages, spelled once ─────────────────────────
+//
+// Two passes raise these: reportFieldIssues(), over what the in-memory row holds, and loadPack(),
+// over the few faults only the JSON can show (an empty `picture` object, a hold not written as
+// {"reason": …}, a golferSign that is not a number). One function per message so the two cannot
+// word one finding two ways — an author reading Health and an author reading the inspector are
+// reading the same sentence.
+
+QString unknownPictureKindMessage(const QString &id, const QString &kind)
+{
+    return QStringLiteral("Condition '%1' declares picture kind '%2'; the kinds are %3.")
+        .arg(id, kind, reportPictureKinds().join(QStringLiteral(", ")));
+}
+
+QString unknownPictureCameraMessage(const QString &id, const QString &camera)
+{
+    return QStringLiteral("Condition '%1' declares picture camera '%2'; the cameras are %3.")
+        .arg(id, camera, reportPictureCameras().join(QStringLiteral(", ")));
+}
+
+QString unknownPicturePhaseMessage(const QString &id, const QString &phase)
+{
+    return QStringLiteral("Condition '%1' declares picture phase '%2'; the phases are P1 to P10.")
+        .arg(id, phase);
+}
+
+QString unknownPictureLineMessage(const QString &id, const QString &line)
+{
+    return QStringLiteral("Condition '%1' declares picture line '%2'; the lines are %3.")
+        .arg(id, line, reportPictureLines().join(QStringLiteral(", ")));
+}
+
+QString pictureIncompleteMessage(const QString &id, const QString &kind)
+{
+    return QStringLiteral("Condition '%1' asks for a '%2' picture without saying which camera, phase "
+                          "and line it draws; a still needs all three (kind none needs none).")
+        .arg(id, kind);
+}
+
+QString reportHoldNoReasonMessage(const QString &id)
+{
+    return QStringLiteral("Condition '%1' is held off the work-on lists without a reason. Write it as "
+                          "{\"reason\": \"…\"}, in the golfer's words — the report prints it as why "
+                          "this could not be measured reliably.")
+        .arg(id);
+}
+
+// `shown` is the value as the author wrote it — a number as a number, anything else quoted — so the
+// caller formats it: the loader holds a QJsonValue, the inspector an int.
+QString badGolferSignMessage(const QString &id, const QString &shown)
+{
+    return QStringLiteral("Measure '%1' declares golferSign %2; it is 1, or -1 where the golferName's "
+                          "words already carry the sign.")
+        .arg(id, shown);
+}
+
 // ── A composite measure's own rules (posture_metrics_design.md §6.4) ─────────
 //
 // All ERRORS. Each one is a composite whose z would not mean what its calibration says it means: a
@@ -577,6 +633,209 @@ std::vector<ReportContentGap> reportContentGaps(const CharacteristicPack &pack,
             gap(m.id, "golferName",
                 QStringLiteral("Measure '%1' is read by a habit that can be a work-on and has no "
                                "golferName for the number the report prints.").arg(m.id));
+    return out;
+}
+
+// ── The report words, one row at a time ─────────────────────────────────────
+//
+// The golfer-wording block that used to sit inline at the end of validatePack(), moved here whole so
+// the inspector can ask the same question of one row while the user types. The reasoning for WHICH
+// rows need which phrase is unchanged and is kept beside each check; the reasoning for why both codes
+// are warnings is kept at the call in validatePack(), because that is a decision about the pack.
+
+std::vector<ReportFieldIssue> reportFieldIssues(const Condition &c)
+{
+    std::vector<ReportFieldIssue> out;
+    const auto issue = [&out](const char *field, const char *code, IssueSeverity sev,
+                              const QString &message) {
+        out.push_back({ QString::fromLatin1(field), QString::fromLatin1(code), sev, message });
+    };
+    const auto wording = [&issue](const char *field, const QString &message) {
+        issue(field, "golferPhraseWording", IssueSeverity::Warning, message);
+    };
+    const auto missing = [&issue](const char *field, const QString &message) {
+        issue(field, "golferPhraseMissing", IssueSeverity::Warning, message);
+    };
+
+    // The home screen's summary can name exactly a fault or set-up the swing can detect.
+    const bool named = (c.kind == ConditionKind::Fault || c.kind == ConditionKind::Setup)
+                       && !c.detectedBy.isEmpty();
+    if (named && c.golfer.trimmed().isEmpty())
+        missing("golfer",
+                QStringLiteral("'%1' can be detected but has no golfer phrase, so the home "
+                               "screen's summary cannot mention it. Say it as a coach would to a "
+                               "golfer: \"you stand up through the ball\".").arg(c.id));
+    const QString word = golferPhraseProblem(c.golfer);
+    if (!word.isEmpty())
+        wording("golfer",
+                QStringLiteral("'%1' golfer phrase \"%2\" uses '%3'. Golfer phrases say what "
+                               "happens in plain body words: no causes, no anatomy or planes of "
+                               "motion, no P-positions, no numbers or units.")
+                    .arg(c.id, c.golfer, word));
+
+    // "What you do well" can name a fault the golfer is clear of only when "clear of it" is one
+    // thing: a detectable Fault whose signals are alternatives (Any) or a preference (First).
+    // Under All the absence is "not every one of these fired", which is no single ideal to name,
+    // and a set-up is read on the panel, not praised on the home screen.
+    const bool praised = c.kind == ConditionKind::Fault && !c.detectedBy.isEmpty()
+                         && (c.detection == DetectionMode::Any || c.detection == DetectionMode::First);
+    if (praised && c.golferWell.trimmed().isEmpty())
+        missing("golferWell",
+                QStringLiteral("'%1' can be detected but has no golferWell phrase, so the home "
+                               "screen cannot say when the golfer is clear of it. Say the ideal "
+                               "as what they do: \"you keep your arms wide at the top\".").arg(c.id));
+    const QString wellWord = golferWellProblem(c.golferWell);
+    if (!wellWord.isEmpty())
+        wording("golferWell",
+                QStringLiteral("'%1' golferWell phrase \"%2\" uses '%3'. It says what the golfer "
+                               "does, in plain body words: no don't / not / never / no, no causes, "
+                               "no anatomy or planes of motion, no P-positions, no numbers or units.")
+                    .arg(c.id, c.golferWell, wellWord));
+
+    // The focus card names the fault it picked and then says what it costs (`golferWhy`); the
+    // card can pick exactly the rows "What you do well" can praise, so the requirement is the
+    // same set.
+    if (praised && c.golferWhy.trimmed().isEmpty())
+        missing("golferWhy",
+                QStringLiteral("'%1' can be detected but has no golferWhy sentence, so the home "
+                               "screen cannot say what it costs the golfer's shots. Say it as one "
+                               "sentence: \"A straight trail leg lets your hips slide instead of "
+                               "turn, so you lose power.\"").arg(c.id));
+    const QString whyProblem = golferWhyProblem(c.golferWhy);
+    if (!whyProblem.isEmpty())
+        wording("golferWhy",
+                QStringLiteral("'%1' golferWhy sentence \"%2\" has '%3'. It is one sentence with a "
+                               "capital and a full stop, saying what the fault costs the shot in "
+                               "plain words: no causes (\"so\" is fine), no anatomy or planes of "
+                               "motion, no P-positions, no numbers or units.")
+                    .arg(c.id, c.golferWhy, whyProblem));
+
+    // The session report's three sentences. Wording only — whether a listable row HAS them is
+    // the report gate's question (reportContentGaps), which core_pack_test asks of the shipped
+    // pack; here a user's pack that never authored a report keeps loading clean.
+    const QString goalWord = goalProblem(c.goal);
+    if (!goalWord.isEmpty())
+        wording("goal",
+                QStringLiteral("'%1' goal \"%2\" has %3. A goal is the work-on page's title: an "
+                               "instruction in sentence case, at most 60 characters, no full stop, "
+                               "no numbers or P-positions, and no don't or never — say what to "
+                               "do: \"Keep the flex in your trail knee\".")
+                    .arg(c.id, c.goal, goalWord));
+    const QString cueWord = reportSentenceProblem(c.cue, /*isCue*/ true);
+    if (!cueWord.isEmpty())
+        wording("cue",
+                QStringLiteral("'%1' cue \"%2\" has %3. A cue is one feel, written as sentences "
+                               "with a capital and a full stop, no P-positions or percentages, and "
+                               "never a promise (will fix, guarantees, cures).")
+                    .arg(c.id, c.cue, cueWord));
+    const QString checkWord = reportSentenceProblem(c.check, /*isCue*/ false);
+    if (!checkWord.isEmpty())
+        wording("check",
+                QStringLiteral("'%1' check \"%2\" has %3. A check says how to see it without the "
+                               "studio, in sentences with a capital and a full stop, and no "
+                               "P-positions or percentages.")
+                    .arg(c.id, c.check, checkWord));
+
+    // The still, in its four closed vocabularies. These are ERRORS, as they always were in the
+    // loader: the renderer draws from these words and cannot guess, so a misspelt line is a page with
+    // an empty frame. The loader stores each token as written (it refuses the file, it does not drop
+    // the word), so a bad token is on the row for this to see. Four blank parts are "no picture
+    // authored", which is not a wording question at all — reportContentGaps asks for one where it
+    // matters, and kind `none` is the explicit "no still".
+    const Condition::ReportPicture &pic = c.picture;
+    const bool pictured = !pic.kind.isEmpty() || !pic.camera.isEmpty() || !pic.phase.isEmpty()
+                          || !pic.line.isEmpty();
+    if (pictured) {
+        if (!reportPictureKinds().contains(pic.kind))
+            issue("picture.kind", "unknownPictureKind", IssueSeverity::Error,
+                  unknownPictureKindMessage(c.id, pic.kind));
+        if (!pic.camera.isEmpty() && !reportPictureCameras().contains(pic.camera))
+            issue("picture.camera", "unknownPictureCamera", IssueSeverity::Error,
+                  unknownPictureCameraMessage(c.id, pic.camera));
+        if (!pic.phase.isEmpty() && !isReportPicturePhase(pic.phase))
+            issue("picture.phase", "unknownPicturePhase", IssueSeverity::Error,
+                  unknownPicturePhaseMessage(c.id, pic.phase));
+        if (!pic.line.isEmpty() && !reportPictureLines().contains(pic.line))
+            issue("picture.line", "unknownPictureLine", IssueSeverity::Error,
+                  unknownPictureLineMessage(c.id, pic.line));
+        // One issue, on the first blank part: the message names all three, and three lines saying
+        // one thing under three fields would read as three faults.
+        if (pic.kind != QLatin1String("none") && reportPictureKinds().contains(pic.kind)) {
+            const char *blank = pic.camera.isEmpty() ? "picture.camera"
+                              : pic.phase.isEmpty()  ? "picture.phase"
+                              : pic.line.isEmpty()   ? "picture.line"
+                                                     : nullptr;
+            if (blank)
+                issue(blank, "pictureIncomplete", IssueSeverity::Error,
+                      pictureIncompleteMessage(c.id, pic.kind));
+        }
+    }
+
+    // A hold is the reason itself, so an EMPTY string is "not held" and is fine. White space alone
+    // is the one bad hold a row can carry: savePack() writes it as {"reason": "  "}, and the loader
+    // trims that to nothing and refuses the file — the fault would surface only after the save, in
+    // a pack that then would not load.
+    if (!c.reportHold.isEmpty() && c.reportHold.trimmed().isEmpty())
+        issue("reportHold", "reportHoldNoReason", IssueSeverity::Error,
+              reportHoldNoReasonMessage(c.id));
+
+    return out;
+}
+
+std::vector<ReportFieldIssue> reportFieldIssues(const Measure &m)
+{
+    std::vector<ReportFieldIssue> out;
+    const auto issue = [&out](const char *field, const char *code, IssueSeverity sev,
+                              const QString &message) {
+        out.push_back({ QString::fromLatin1(field), QString::fromLatin1(code), sev, message });
+    };
+
+    const bool producesReadings = m.status == MeasureStatus::Live
+                                  || m.status == MeasureStatus::Held
+                                  || m.status == MeasureStatus::ExternalDevice;
+    const bool noHigh = m.golferHigh.trimmed().isEmpty();
+    const bool noLow  = m.golferLow.trimmed().isEmpty();
+    // A COMPOSITE is exempt from the missing-phrase half. Its number is a z with no golfer-facing
+    // unit and is never shown (posture_metrics_design.md §8): the golfer reads its PARTS, each in
+    // its own words, so a higher/lower phrase for the composite would name a reading nobody sees.
+    // Any phrase an author does write is still held to the wording rule below.
+    if (producesReadings && m.kind != MeasureKind::Composite && (noHigh || noLow))
+        issue(noHigh ? "golferHigh" : "golferLow", "golferPhraseMissing", IssueSeverity::Warning,
+              QStringLiteral("Measure '%1' produces readings but does not say, in a golfer's "
+                             "words, what a %2 reading looks like, so the home screen cannot "
+                             "name a theme it belongs to.")
+                  .arg(m.id, noHigh ? (noLow ? QStringLiteral("higher or a lower")
+                                             : QStringLiteral("higher"))
+                                    : QStringLiteral("lower")));
+
+    const struct { const char *field; const QString &phrase; } phrases[] = {
+        { "golferHigh", m.golferHigh },
+        { "golferLow",  m.golferLow  },
+    };
+    for (const auto &p : phrases) {
+        const QString word = golferPhraseProblem(p.phrase);
+        if (!word.isEmpty())
+            issue(p.field, "golferPhraseWording", IssueSeverity::Warning,
+                  QStringLiteral("Measure '%1' golfer phrase \"%2\" uses '%3'. Golfer phrases "
+                                 "say what happens in plain body words: no causes, no anatomy or "
+                                 "planes of motion, no P-positions, no numbers or units.")
+                      .arg(m.id, p.phrase, word));
+    }
+
+    const QString nameWord = golferNameProblem(m.golferName);
+    if (!nameWord.isEmpty())
+        issue("golferName", "golferPhraseWording", IssueSeverity::Warning,
+              QStringLiteral("Measure '%1' golferName \"%2\" has %3. It names the number in the "
+                             "report's own sentences, so it is lower case throughout with no "
+                             "P-positions: \"trail-knee bend lost by the top\".")
+                  .arg(m.id, m.golferName, nameWord));
+
+    // The loader refuses anything but ±1 and leaves the default +1, so a loaded row never trips
+    // this; an edited one can, and a 0 would print every reading as zero.
+    if (m.golferSign != 1 && m.golferSign != -1)
+        issue("golferSign", "badGolferSign", IssueSeverity::Error,
+              badGolferSignMessage(m.id, QString::number(m.golferSign)));
+
     return out;
 }
 
@@ -1452,121 +1711,19 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
     // The wording check is a warning for the same reason, though a causal word in a co-movement
     // sentence is closer to a wrong answer than a missing one: the summary still says something
     // true about the golfer's swings, just in words that overclaim or that the golfer cannot read.
-    for (const Condition &c : pack.conditions) {
-        const bool named = (c.kind == ConditionKind::Fault || c.kind == ConditionKind::Setup)
-                           && !c.detectedBy.isEmpty();
-        if (named && c.golfer.trimmed().isEmpty())
-            warn(r, QStringLiteral("golferPhraseMissing"), c.id,
-                 QStringLiteral("'%1' can be detected but has no golfer phrase, so the home "
-                                "screen's summary cannot mention it. Say it as a coach would to a "
-                                "golfer: \"you stand up through the ball\".").arg(c.id));
-        const QString word = golferPhraseProblem(c.golfer);
-        if (!word.isEmpty())
-            warn(r, QStringLiteral("golferPhraseWording"), c.id,
-                 QStringLiteral("'%1' golfer phrase \"%2\" uses '%3'. Golfer phrases say what "
-                                "happens in plain body words: no causes, no anatomy or planes of "
-                                "motion, no P-positions, no numbers or units.")
-                     .arg(c.id, c.golfer, word));
-
-        // "What you do well" can name a fault the golfer is clear of only when "clear of it" is one
-        // thing: a detectable Fault whose signals are alternatives (Any) or a preference (First).
-        // Under All the absence is "not every one of these fired", which is no single ideal to name,
-        // and a set-up is read on the panel, not praised on the home screen.
-        const bool praised = c.kind == ConditionKind::Fault && !c.detectedBy.isEmpty()
-                             && (c.detection == DetectionMode::Any || c.detection == DetectionMode::First);
-        if (praised && c.golferWell.trimmed().isEmpty())
-            warn(r, QStringLiteral("golferPhraseMissing"), c.id,
-                 QStringLiteral("'%1' can be detected but has no golferWell phrase, so the home "
-                                "screen cannot say when the golfer is clear of it. Say the ideal "
-                                "as what they do: \"you keep your arms wide at the top\".").arg(c.id));
-        const QString wellWord = golferWellProblem(c.golferWell);
-        if (!wellWord.isEmpty())
-            warn(r, QStringLiteral("golferPhraseWording"), c.id,
-                 QStringLiteral("'%1' golferWell phrase \"%2\" uses '%3'. It says what the golfer "
-                                "does, in plain body words: no don't / not / never / no, no causes, "
-                                "no anatomy or planes of motion, no P-positions, no numbers or units.")
-                     .arg(c.id, c.golferWell, wellWord));
-
-        // The focus card names the fault it picked and then says what it costs (`golferWhy`); the
-        // card can pick exactly the rows "What you do well" can praise, so the requirement is the
-        // same set.
-        if (praised && c.golferWhy.trimmed().isEmpty())
-            warn(r, QStringLiteral("golferPhraseMissing"), c.id,
-                 QStringLiteral("'%1' can be detected but has no golferWhy sentence, so the home "
-                                "screen cannot say what it costs the golfer's shots. Say it as one "
-                                "sentence: \"A straight trail leg lets your hips slide instead of "
-                                "turn, so you lose power.\"").arg(c.id));
-        const QString whyProblem = golferWhyProblem(c.golferWhy);
-        if (!whyProblem.isEmpty())
-            warn(r, QStringLiteral("golferPhraseWording"), c.id,
-                 QStringLiteral("'%1' golferWhy sentence \"%2\" has '%3'. It is one sentence with a "
-                                "capital and a full stop, saying what the fault costs the shot in "
-                                "plain words: no causes (\"so\" is fine), no anatomy or planes of "
-                                "motion, no P-positions, no numbers or units.")
-                     .arg(c.id, c.golferWhy, whyProblem));
-
-        // The session report's three sentences. Wording only — whether a listable row HAS them is
-        // the report gate's question (reportContentGaps), which core_pack_test asks of the shipped
-        // pack; here a user's pack that never authored a report keeps loading clean.
-        const QString goalWord = goalProblem(c.goal);
-        if (!goalWord.isEmpty())
-            warn(r, QStringLiteral("golferPhraseWording"), c.id,
-                 QStringLiteral("'%1' goal \"%2\" has %3. A goal is the work-on page's title: an "
-                                "instruction in sentence case, at most 60 characters, no full stop, "
-                                "no numbers or P-positions, and no don't or never — say what to "
-                                "do: \"Keep the flex in your trail knee\".")
-                     .arg(c.id, c.goal, goalWord));
-        const QString cueWord = reportSentenceProblem(c.cue, /*isCue*/ true);
-        if (!cueWord.isEmpty())
-            warn(r, QStringLiteral("golferPhraseWording"), c.id,
-                 QStringLiteral("'%1' cue \"%2\" has %3. A cue is one feel, written as sentences "
-                                "with a capital and a full stop, no P-positions or percentages, and "
-                                "never a promise (will fix, guarantees, cures).")
-                     .arg(c.id, c.cue, cueWord));
-        const QString checkWord = reportSentenceProblem(c.check, /*isCue*/ false);
-        if (!checkWord.isEmpty())
-            warn(r, QStringLiteral("golferPhraseWording"), c.id,
-                 QStringLiteral("'%1' check \"%2\" has %3. A check says how to see it without the "
-                                "studio, in sentences with a capital and a full stop, and no "
-                                "P-positions or percentages.")
-                     .arg(c.id, c.check, checkWord));
-    }
-
-    for (const Measure &m : pack.measures) {
-        const bool producesReadings = m.status == MeasureStatus::Live
-                                      || m.status == MeasureStatus::Held
-                                      || m.status == MeasureStatus::ExternalDevice;
-        // A COMPOSITE is exempt from the missing-phrase half. Its number is a z with no golfer-facing
-        // unit and is never shown (posture_metrics_design.md §8): the golfer reads its PARTS, each in
-        // its own words, so a higher/lower phrase for the composite would name a reading nobody sees.
-        // Any phrase an author does write is still held to the wording rule below.
-        if (producesReadings && m.kind != MeasureKind::Composite
-            && (m.golferHigh.trimmed().isEmpty() || m.golferLow.trimmed().isEmpty()))
-            warn(r, QStringLiteral("golferPhraseMissing"), m.id,
-                 QStringLiteral("Measure '%1' produces readings but does not say, in a golfer's "
-                                "words, what a %2 reading looks like, so the home screen cannot "
-                                "name a theme it belongs to.")
-                     .arg(m.id, m.golferHigh.trimmed().isEmpty()
-                                    ? (m.golferLow.trimmed().isEmpty() ? QStringLiteral("higher or a lower")
-                                                                       : QStringLiteral("higher"))
-                                    : QStringLiteral("lower")));
-        for (const QString &phrase : { m.golferHigh, m.golferLow }) {
-            const QString word = golferPhraseProblem(phrase);
-            if (!word.isEmpty())
-                warn(r, QStringLiteral("golferPhraseWording"), m.id,
-                     QStringLiteral("Measure '%1' golfer phrase \"%2\" uses '%3'. Golfer phrases "
-                                    "say what happens in plain body words: no causes, no anatomy or "
-                                    "planes of motion, no P-positions, no numbers or units.")
-                         .arg(m.id, phrase, word));
-        }
-        const QString nameWord = golferNameProblem(m.golferName);
-        if (!nameWord.isEmpty())
-            warn(r, QStringLiteral("golferPhraseWording"), m.id,
-                 QStringLiteral("Measure '%1' golferName \"%2\" has %3. It names the number in the "
-                                "report's own sentences, so it is lower case throughout with no "
-                                "P-positions: \"trail-knee bend lost by the top\".")
-                     .arg(m.id, m.golferName, nameWord));
-    }
+    //
+    // The checks themselves are reportFieldIssues(), one row at a time, so the Diagnostic Model's
+    // inspector can show the same message under the field the user is typing in. That function also
+    // carries the report picture, reportHold and golferSign errors, which used to be raised only by
+    // the loader: through here they now reach an unsaved draft too (provider_leaf_p.h's adopt()
+    // validates the working copy with this function). The loader no longer raises any of those that
+    // the row can show — see the note at its picture block — so a load reports each finding once.
+    for (const Condition &c : pack.conditions)
+        for (const ReportFieldIssue &i : reportFieldIssues(c))
+            add(r, i.severity, i.code, c.id, i.message);
+    for (const Measure &m : pack.measures)
+        for (const ReportFieldIssue &i : reportFieldIssues(m))
+            add(r, i.severity, i.code, m.id, i.message);
 
     return r;
 }
@@ -1676,6 +1833,10 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
         // Absent => +1. Anything but ±1 is refused rather than clamped: the golfer-facing value is
         // raw × golferSign, so a 2 or a 0.5 would RESCALE the number on the page, and a string
         // that read as 0 would print every reading as zero.
+        //
+        // Raised here and not by reportFieldIssues(): a refused value leaves the row at +1, so the
+        // row-level check (which exists for an EDITED sign) never sees what this one refused, and a
+        // load reports it once. The message is shared, so both say it in the same words.
         if (o.contains(QStringLiteral("golferSign"))) {
             const QJsonValue sv = o.value(QStringLiteral("golferSign"));
             const double     s  = sv.isDouble() ? sv.toDouble() : 0.0;
@@ -1683,10 +1844,8 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
                 m.golferSign = int(s);
             else
                 err(r, QStringLiteral("badGolferSign"), m.id,
-                    QStringLiteral("Measure '%1' declares golferSign %2; it is 1, or -1 where the "
-                                   "golferName's words already carry the sign.")
-                        .arg(m.id, sv.isDouble() ? QString::number(sv.toDouble())
-                                                 : QStringLiteral("'%1'").arg(sv.toVariant().toString())));
+                    badGolferSignMessage(m.id, sv.isDouble() ? QString::number(sv.toDouble())
+                                                             : QStringLiteral("'%1'").arg(sv.toVariant().toString())));
         }
 
         m.unwatchedReason = o.value(QStringLiteral("unwatchedReason")).toString();
@@ -1835,51 +1994,40 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
         c.check      = o.value(QStringLiteral("check")).toString();
 
         // The report's still, in four closed vocabularies. Absent => no picture authored (the gate
-        // asks for one on every listable row; `none` is the explicit "no still"). A token outside a
-        // vocabulary is an error in the regime every closed token here follows: the renderer draws
-        // from these words and cannot guess, so "trailThight" would be a page with an empty frame.
+        // asks for one on every listable row; `none` is the explicit "no still"). Each token is stored
+        // AS WRITTEN, never dropped, and that is what lets the checks live in one place: a token
+        // outside its vocabulary, or a kind missing camera, phase or line, is an error raised by
+        // reportFieldIssues() when validatePack() runs at the end of this function — the same pass
+        // that checks an unsaved draft in the editor, so the two cannot disagree.
+        //
+        // The ONE picture fault the row cannot show is an object with nothing in it (or a `picture`
+        // that is not an object at all): four blank parts read as "no picture authored". It is raised
+        // here, under the code it always had, so the dedupe is by construction — reportFieldIssues()
+        // stays silent on four blank parts, and this stays silent on anything else.
         if (o.contains(QStringLiteral("picture"))) {
             const QJsonObject po = o.value(QStringLiteral("picture")).toObject();
             c.picture.kind   = po.value(QStringLiteral("kind")).toString();
             c.picture.camera = po.value(QStringLiteral("camera")).toString();
             c.picture.phase  = po.value(QStringLiteral("phase")).toString();
             c.picture.line   = po.value(QStringLiteral("line")).toString();
-            if (!reportPictureKinds().contains(c.picture.kind))
+            if (c.picture.kind.isEmpty() && c.picture.camera.isEmpty() && c.picture.phase.isEmpty()
+                && c.picture.line.isEmpty())
                 err(r, QStringLiteral("unknownPictureKind"), c.id,
-                    QStringLiteral("Condition '%1' declares picture kind '%2'; the kinds are %3.")
-                        .arg(c.id, c.picture.kind, reportPictureKinds().join(QStringLiteral(", "))));
-            if (!c.picture.camera.isEmpty() && !reportPictureCameras().contains(c.picture.camera))
-                err(r, QStringLiteral("unknownPictureCamera"), c.id,
-                    QStringLiteral("Condition '%1' declares picture camera '%2'; the cameras are %3.")
-                        .arg(c.id, c.picture.camera,
-                             reportPictureCameras().join(QStringLiteral(", "))));
-            if (!c.picture.phase.isEmpty() && !isReportPicturePhase(c.picture.phase))
-                err(r, QStringLiteral("unknownPicturePhase"), c.id,
-                    QStringLiteral("Condition '%1' declares picture phase '%2'; the phases are P1 "
-                                   "to P10.").arg(c.id, c.picture.phase));
-            if (!c.picture.line.isEmpty() && !reportPictureLines().contains(c.picture.line))
-                err(r, QStringLiteral("unknownPictureLine"), c.id,
-                    QStringLiteral("Condition '%1' declares picture line '%2'; the lines are %3.")
-                        .arg(c.id, c.picture.line, reportPictureLines().join(QStringLiteral(", "))));
-            if (c.picture.kind != QLatin1String("none") && reportPictureKinds().contains(c.picture.kind)
-                && (c.picture.camera.isEmpty() || c.picture.phase.isEmpty() || c.picture.line.isEmpty()))
-                err(r, QStringLiteral("pictureIncomplete"), c.id,
-                    QStringLiteral("Condition '%1' asks for a '%2' picture without saying which "
-                                   "camera, phase and line it draws; a still needs all three "
-                                   "(kind none needs none).").arg(c.id, c.picture.kind));
+                    unknownPictureKindMessage(c.id, c.picture.kind));
         }
 
         // {"reason": "…"} → the reason. A hold with no reason is refused: the reason is the only
         // thing the report says about a held habit, so an empty one is a habit that vanished.
+        //
+        // Raised HERE rather than by reportFieldIssues(), because every way the JSON can be wrong —
+        // not an object, no `reason`, a blank one — leaves the trimmed row at "not held", which the
+        // row-level check cannot tell from a habit nobody held. The converse case, a reason of white
+        // space on the row, cannot come out of this loader (it trims), so the two never overlap.
         if (o.contains(QStringLiteral("reportHold"))) {
             const QJsonValue hv = o.value(QStringLiteral("reportHold"));
             c.reportHold = hv.toObject().value(QStringLiteral("reason")).toString().trimmed();
             if (!hv.isObject() || c.reportHold.isEmpty())
-                err(r, QStringLiteral("reportHoldNoReason"), c.id,
-                    QStringLiteral("Condition '%1' is held off the work-on lists without a reason. "
-                                   "Write it as {\"reason\": \"…\"}, in the golfer's words — the "
-                                   "report prints it as why this could not be measured reliably.")
-                        .arg(c.id));
+                err(r, QStringLiteral("reportHoldNoReason"), c.id, reportHoldNoReasonMessage(c.id));
         }
 
         c.sharp      = o.value(QStringLiteral("sharp")).toBool(false);

@@ -82,8 +82,8 @@ QStringList characteristicPackFilesIn(const QString &directory)
     QStringList user, others;
     for (const QString &name : dir.entryList({ QStringLiteral("*.json") }, QDir::Files, QDir::Name)) {
         // This directory is shared with every other user registry (norm sets, contexts, screens,
-        // drills, references) — see the note in pack_io.h on why it is one directory rather than
-        // several. Left unfiltered, `*.json` picks up their files too: each has no top-level `id`,
+        // drills, gate words, references) — see the note in pack_io.h on why it is one directory
+        // rather than several. Left unfiltered, `*.json` picks up their files too: each has no top-level `id`,
         // so it either injects a spurious "Pack has no id" issue into a provider's report, or,
         // worse, if it DOES have a non-empty `id` (unlikely today but not contractually ruled out),
         // QDir::Name sorts it ahead of `user.json` and it silently becomes a pack in the assembled
@@ -95,6 +95,7 @@ QStringList characteristicPackFilesIn(const QString &directory)
         // and a skip list kept in two places is a skip list that will one day skip different files.
         if (name.endsWith(QLatin1String(".norms.json"))) continue;
         if (name == QLatin1String("screens.json") || name == QLatin1String("drills.json")
+            || name == QLatin1String("gate_words.json")
             || name == QLatin1String("references.json")
             || name == QLatin1String("contexts.json")) continue;
 

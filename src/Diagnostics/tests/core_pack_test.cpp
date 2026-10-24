@@ -10,9 +10,13 @@
 #include "../packs/characteristic_pack.h"
 #include "../norms/context_tree.h"
 #include "../norms/norm_pack.h"
+#include "../packs/gate_words_pack.h"
 #include "../packs/pack_provider.h"
 #include "../packs/reference_pack.h"
+// Header-only: the gate words are held to the catalogue's ids here, and only here.
+#include "../../Metrics/gate_catalogue.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -20,6 +24,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSet>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 
 #include <algorithm>
@@ -27,6 +32,7 @@
 #include <functional>
 #include <iterator>
 #include <map>
+#include <utility>
 
 using namespace pinpoint::analysis;
 
@@ -1180,6 +1186,152 @@ int main()
               "not written at all");
     }
 
+    // ── …and ONE row's report words, checked on their own (#60) ─────────────────
+    //
+    // reportFieldIssues() is what the Diagnostic Model's inspector shows under a field while the user
+    // types, and it is also what validatePack() raises for every row — so the inspector and Health
+    // cannot word one finding two ways. Asserted the strong way round: for each fault, the row-level
+    // issue names the right FIELD, and its message is the SAME STRING the load reports for that
+    // subject, and the load reports it exactly once (the loader and the validator no longer both
+    // raise a picture, hold or sign fault).
+    {
+        const auto agrees = [](const std::vector<ReportFieldIssue> &row, const ValidationReport &load,
+                               const char *code, const char *subject, const char *field) {
+            int     nRow = 0, nLoad = 0;
+            bool    fieldOk = false;
+            QString rowMsg, loadMsg;
+            for (const ReportFieldIssue &i : row)
+                if (i.code == QLatin1String(code)) {
+                    ++nRow;
+                    rowMsg  = i.message;
+                    fieldOk = i.field == QLatin1String(field);
+                }
+            for (const ValidationIssue &i : load.withCode(QString::fromLatin1(code)))
+                if (i.subject == QLatin1String(subject)) {
+                    ++nLoad;
+                    loadMsg = i.message;
+                }
+            const bool ok = nRow == 1 && fieldOk && nLoad == 1 && rowMsg == loadMsg;
+            if (!ok)
+                std::printf("        %s on %s: %d row issue(s) (field %s), %d load issue(s)\n"
+                            "          row:  %s\n          load: %s\n",
+                            code, subject, nRow, fieldOk ? "right" : "WRONG", nLoad,
+                            qPrintable(rowMsg), qPrintable(loadMsg));
+            return ok;
+        };
+
+        const QByteArray json = R"({
+          "id": "report_field_issues", "version": "1", "schemaVersion": 1,
+          "measures": [
+            { "id": "m_cap", "kind": "provided", "metricKey": "a", "status": "planned",
+              "reducer": { "kind": "at", "anchor": "p1" },
+              "golferName": "Trail-knee bend lost by the top" } ],
+          "conditions": [
+            { "id": "f_long", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "goal": "Keep the flex in your trail knee from address all the way up to the top" },
+            { "id": "f_dont", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "goal": "Don't straighten your trail knee" },
+            { "id": "f_cue", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "cue": "Keep your backside on the wall and this will fix your slice." },
+            { "id": "f_pic", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "picture": { "kind": "change", "phase": "P4", "line": "trailThigh" } },
+            { "id": "f_empty", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "picture": {} } ]
+        })";
+        const PackLoadResult lint = loadPack(json, QStringLiteral("report_field_issues"));
+        const auto rowOf = [&lint](const char *id) {
+            const Condition *c = lint.pack.condition(QString::fromLatin1(id));
+            return c ? reportFieldIssues(*c) : std::vector<ReportFieldIssue>{};
+        };
+
+        check(agrees(rowOf("f_long"), lint.report, "golferPhraseWording", "f_long", "goal"),
+              "reportFieldIssues: a goal over 60 characters, on `goal`, in the load's words");
+        check(agrees(rowOf("f_dont"), lint.report, "golferPhraseWording", "f_dont", "goal"),
+              "reportFieldIssues: a goal with don't, on `goal`, in the load's words");
+        check(agrees(rowOf("f_cue"), lint.report, "golferPhraseWording", "f_cue", "cue"),
+              "reportFieldIssues: a cue that promises (\"will fix\"), on `cue`, in the load's words");
+        check(agrees(rowOf("f_pic"), lint.report, "pictureIncomplete", "f_pic", "picture.camera"),
+              "reportFieldIssues: a 'change' picture with no camera is pictureIncomplete on "
+              "picture.camera, in the load's words, and the load says it once");
+        check(!lint.loaded, "…and pictureIncomplete still refuses the load, now raised by the validator");
+        {
+            const Measure *m = lint.pack.measure(QStringLiteral("m_cap"));
+            check(m && agrees(reportFieldIssues(*m), lint.report, "golferPhraseWording", "m_cap", "golferName"),
+                  "reportFieldIssues: a golferName with a capital, on `golferName`, in the load's words");
+        }
+
+        // The one picture fault only the JSON can show — an object with nothing in it — is still the
+        // loader's, once, and the row-level check (which sees four blank parts: no picture) is silent.
+        check(rowOf("f_empty").empty()
+                  && lint.report.withCode(QStringLiteral("unknownPictureKind")).size() == 1
+                  && lint.report.withCode(QStringLiteral("unknownPictureKind")).front().subject
+                         == QStringLiteral("f_empty"),
+              "an empty picture object is refused once, by the loader; the row reads it as no picture");
+
+        // The validator alone gives the same message — the path an unsaved draft takes (adopt()).
+        {
+            const ValidationReport draft = validatePack(lint.pack);
+            check(agrees(rowOf("f_pic"), draft, "pictureIncomplete", "f_pic", "picture.camera"),
+                  "validatePack() on the in-memory pack raises the picture fault itself, in the same words");
+        }
+
+        // An EDITED row: what the inspector meets before a save does.
+        {
+            Condition c = *lint.pack.condition(QStringLiteral("f_cue"));
+            c.cue     = QString();
+            c.picture = { QStringLiteral("change"), QStringLiteral("dtl"), QString(), QString() };
+            const std::vector<ReportFieldIssue> fi = reportFieldIssues(c);
+            check(fi.size() == 1 && fi.front().code == QStringLiteral("pictureIncomplete")
+                      && fi.front().field == QStringLiteral("picture.phase")
+                      && fi.front().severity == IssueSeverity::Error,
+                  "an edited picture missing phase and line: ONE pictureIncomplete, on picture.phase, an error");
+
+            c.picture = { QString(), QStringLiteral("dtl"), QString(), QString() };
+            const std::vector<ReportFieldIssue> noKind = reportFieldIssues(c);
+            check(noKind.size() == 1 && noKind.front().code == QStringLiteral("unknownPictureKind")
+                      && noKind.front().field == QStringLiteral("picture.kind"),
+                  "a camera chosen with no kind is unknownPictureKind on picture.kind");
+
+            c.picture = {};
+            check(reportFieldIssues(c).empty(), "a picture with every part blank is no picture, and silent");
+        }
+
+        // reportHold: an empty reason cannot be held in memory (empty IS "not held"), but white space
+        // can — and savePack() would write it for the loader to refuse. Same message both ways.
+        {
+            const PackLoadResult held = loadPack(QByteArray(R"({ "id": "report_hold", "version": "1",
+                "schemaVersion": 1, "conditions": [
+                { "id": "f_hold", "label": "c", "reportHold": { "reason": "  " } } ] })"),
+                QStringLiteral("report_hold"));
+            Condition c = *held.pack.condition(QStringLiteral("f_hold"));
+            check(c.reportHold.isEmpty() && reportFieldIssues(c).empty(),
+                  "a blank hold loads as not held, so the row cannot see it — the loader's alone");
+            c.reportHold = QStringLiteral("   ");
+            check(agrees(reportFieldIssues(c), held.report, "reportHoldNoReason", "f_hold", "reportHold"),
+                  "reportFieldIssues: a hold of white space, on `reportHold`, in the loader's words, once");
+            CharacteristicPack edited = held.pack;
+            edited.conditions.front() = c;
+            check(!loadPack(savePack(edited), QStringLiteral("report_hold2"))
+                       .report.withCode(QStringLiteral("reportHoldNoReason")).empty(),
+                  "…which is right to flag: saved and reloaded, that hold is refused");
+        }
+
+        // golferSign: the loader refuses anything but ±1 and leaves +1, so only an edit reaches the row.
+        {
+            const PackLoadResult signs = loadPack(QByteArray(R"({ "id": "report_sign", "version": "1",
+                "schemaVersion": 1, "measures": [
+                { "id": "m_sign", "kind": "provided", "metricKey": "x", "status": "planned",
+                  "reducer": { "kind": "at", "anchor": "p1" }, "golferSign": 2 } ] })"),
+                QStringLiteral("report_sign"));
+            Measure m = *signs.pack.measure(QStringLiteral("m_sign"));
+            check(m.golferSign == 1 && reportFieldIssues(m).empty(),
+                  "a refused golferSign loads as +1, and the row-level check is silent on it");
+            m.golferSign = 2;
+            check(agrees(reportFieldIssues(m), signs.report, "badGolferSign", "m_sign", "golferSign"),
+                  "reportFieldIssues: golferSign 2, on `golferSign`, in the loader's words, once");
+        }
+    }
+
     // ── THE REPORT GATE (session_report_design.md §5; CONTRACTS §1) ─────────────
     //
     // Every condition the work-on rule can list — set-up, fault or delivery, detectable, not retired
@@ -1594,6 +1746,9 @@ int main()
         // old glob had no way to tell a drill registry from a characteristic pack.
         write("drills.json", R"({"id":"drills_should_not_load"})");
         write("references.json", "{}");
+        // The gate words registry (gate_words_pack.h), with an `id` of its own like drills.json: it
+        // sorts after `community.json`, so a missing skip would show here as a THIRD pack.
+        write("gate_words.json", R"({"id":"gate_words_should_not_load"})");
         write("contexts.json", "{}");
         // A SECOND pack, sorting ahead of `user.json`. Two things ride on it. It is the file the
         // directory-wide provider used to swallow — parsed, reported, then discarded, because only
@@ -1846,6 +2001,181 @@ int main()
                             qPrintable(e.from), qPrintable(e.to));
             }
         std::printf("      (%d of %d edges share evidence)\n", n, int(p.edges.size()));
+    }
+
+    // ── The gate words: one clause per catalogued gate, both ways (#60) ─────────
+    //
+    // gate_words_pack.h does not consult the gate catalogue — the Diagnostics layer never looks a
+    // Metrics table up — so this is where the shipped file is held to it, and the only place the
+    // question can be asked. A gate added to the catalogue without a clause is a line the report
+    // silently leaves out; a clause for an id the catalogue does not have is words nothing can print.
+    {
+        const QString gwPath =
+            QFileInfo(QStringLiteral(PP_CORE_PACK_PATH)).dir().filePath(QStringLiteral("gate_words.json"));
+        QFile gf(gwPath);
+        check(gf.open(QIODevice::ReadOnly), "gate words: the shipped gate_words.json is readable beside core.json");
+        const GateWordLoadResult gw = loadGateWordSet(gf.readAll(), QStringLiteral("gate_words.json"));
+        for (const ValidationIssue &i : gw.report.issues)
+            std::printf("        %s: %s\n", qPrintable(i.code), qPrintable(i.message));
+        check(gw.loaded && gw.report.issues.empty(), "gate words: the shipped file loads with no issue at all");
+        check(gw.pack.schemaVersion == kGateWordSchemaVersion, "gate words: the current schema version");
+
+        QSet<QString> catalogued;
+        for (const pinpoint::gates::GateEntry &e : pinpoint::gates::gateCatalogue()) catalogued.insert(e.id);
+        int noClause = 0;
+        for (const QString &id : std::as_const(catalogued))
+            if (gateWordsFor(gw.pack, id).trimmed().isEmpty()) {
+                ++noClause;
+                std::printf("        no clause: %s\n", qPrintable(id));
+            }
+        check(!catalogued.isEmpty() && noClause == 0,
+              "gate words: every catalogued gate and rule has a clause (rule.diag.compositeCoverage included)");
+        int stray = 0;
+        for (const GateWord &g : gw.pack.gates)
+            if (!catalogued.contains(g.id)) {
+                ++stray;
+                std::printf("        not catalogued: %s\n", qPrintable(g.id));
+            }
+        check(stray == 0 && gw.pack.gates.size() == size_t(catalogued.size()),
+              "gate words: every clause is for a catalogued id, one each");
+
+        // The subjects a gate record names that are NOT metric keys. A metric subject takes its
+        // measure's golferName, so it must not be here — a second copy would drift from the pack's.
+        const QSet<QString> knownSubjects{
+            QStringLiteral("ks.pelvis"),   QStringLiteral("ks.thorax"),     QStringLiteral("ks.leadArm"),
+            QStringLiteral("ks.club"),     QStringLiteral("track.club"),    QStringLiteral("track.clubDtl"),
+            QStringLiteral("track.club3d"), QStringLiteral("track.impact"), QStringLiteral("track.skeleton3d"),
+            QStringLiteral("shot") };
+        QSet<QString> fileSubjects;
+        for (const GateWord &s : gw.pack.subjects) fileSubjects.insert(s.id);
+        check(fileSubjects == knownSubjects && gw.pack.subjects.size() == size_t(knownSubjects.size()),
+              "gate words: the subjects are exactly the ten gate subjects, once each");
+        bool clash = false;
+        for (const GateWord &s : gw.pack.subjects) clash = clash || catalogued.contains(s.id) || gw.pack.gate(s.id);
+        check(!clash, "gate words: no subject id is also a gate id");
+
+        int badWords = 0;
+        for (const auto *list : { &gw.pack.gates, &gw.pack.subjects })
+            for (const GateWord &g : *list) {
+                const QString problem = gateWordsProblem(g.golfer);
+                if (!problem.isEmpty()) {
+                    ++badWords;
+                    std::printf("        %s\n", qPrintable(gateWordsMessage(g.id, g.golfer, problem)));
+                }
+            }
+        check(badWords == 0, "gate words: every shipped clause and subject is lower case, digit-free and present");
+
+        // The registry's own core reader finds the same file — ctest sets PINPOINT_CORE_GATE_WORDS;
+        // a bare run of the binary gets it from here, as swing_themes_golden_test does for drills.
+        if (qEnvironmentVariableIsEmpty("PINPOINT_CORE_GATE_WORDS"))
+            qputenv("PINPOINT_CORE_GATE_WORDS", gwPath.toLocal8Bit());
+        check(coreGateWordSet().readOnly && coreGateWordSet().gates.size() == gw.pack.gates.size()
+                  && gateWordsFor(coreGateWordSet(), QStringLiteral("sequence.sightedBand"))
+                         == gateWordsFor(gw.pack, QStringLiteral("sequence.sightedBand"))
+                  && subjectWordsFor(coreGateWordSet(), QStringLiteral("ks.pelvis"))
+                         == QStringLiteral("when your hips turned fastest"),
+              "gate words: coreGateWordSet() reads the shipped file, read-only");
+        check(gateWordsFor(coreGateWordSet(), QStringLiteral("no.such.gate")).isEmpty()
+                  && subjectWordsFor(coreGateWordSet(), QStringLiteral("ballPosition")).isEmpty(),
+              "gate words: an unknown gate, and a metric subject, have no words (the caller's to resolve)");
+    }
+
+    // ── …and the gate words' own rule, both ways ────────────────────────────────
+    {
+        check(gateWordsProblem(QString()) == QStringLiteral("no words")
+                  && gateWordsProblem(QStringLiteral("   ")) == QStringLiteral("no words"),
+              "gateWordsProblem: empty and white space are no words");
+        check(gateWordsProblem(QStringLiteral("The cameras lost track of you")) == QStringLiteral("a capital first letter"),
+              "gateWordsProblem: a capital first letter");
+        check(gateWordsProblem(QStringLiteral("judged on fewer than 3 swings")) == QStringLiteral("a number"),
+              "gateWordsProblem: a digit");
+        check(gateWordsProblem(QStringLiteral("the cameras lost track of you for a moment just there")).isEmpty(),
+              "gateWordsProblem: silent on a clean clause");
+        check(gateWordsMessage(QStringLiteral("x"), QStringLiteral("fine"), QString()).isEmpty()
+                  && gateWordsMessage(QStringLiteral("rule.x"), QStringLiteral("The words"),
+                                      QStringLiteral("a capital first letter"))
+                         .contains(QStringLiteral("'rule.x' golfer words \"The words\" have a capital first letter")),
+              "gateWordsMessage: empty for no problem, and names the id, the text and the problem");
+
+        GateWordSet set;
+        set.id = QStringLiteral("lint");
+        set.gates    = { { QStringLiteral("g.capital"), QStringLiteral("The cameras lost you") },
+                         { QStringLiteral("g.clean"),   QStringLiteral("the cameras lost you") },
+                         { QStringLiteral("g.clean"),   QStringLiteral("the cameras lost you again") } };
+        set.subjects = { { QStringLiteral("s.empty"),   QString() } };
+        const ValidationReport vr = validateGateWordSet(set);
+        const auto wordingOn = [&vr](const char *id) {
+            for (const ValidationIssue &i : vr.withCode(QStringLiteral("gateWordsWording")))
+                if (i.subject == QLatin1String(id)) return i.message;
+            return QString();
+        };
+        check(wordingOn("g.capital") == gateWordsMessage(QStringLiteral("g.capital"), QStringLiteral("The cameras lost you"),
+                                                         QStringLiteral("a capital first letter"))
+                  && wordingOn("s.empty") == gateWordsMessage(QStringLiteral("s.empty"), QString(),
+                                                              QStringLiteral("no words"))
+                  && wordingOn("g.clean").isEmpty(),
+              "validateGateWordSet: gateWordsWording in gateWordsMessage's words, a warning, silent on clean words");
+        check(vr.withCode(QStringLiteral("duplicateId")).size() == 1 && vr.errorCount() == 1,
+              "validateGateWordSet: a repeated gate id is the one error");
+
+        const GateWordLoadResult future = loadGateWordSet(
+            QByteArray(R"({ "id": "x", "schemaVersion": 99, "gates": [] })"), QStringLiteral("future"));
+        check(!future.parsed && !future.report.withCode(QStringLiteral("schemaTooNew")).empty(),
+              "loadGateWordSet: a newer schema is refused, not partly read");
+    }
+
+    // ── …and a user layer overrides by id, through a save and a reload ───────────
+    //
+    // LAST in this file, because it turns QStandardPaths test mode on: the user layer must not land in
+    // the real application data directory, and no block above should read a different one.
+    {
+        QStandardPaths::setTestModeEnabled(true);
+        QCoreApplication::setApplicationName(QStringLiteral("core_pack_test_gate_words"));
+        const QString path = userGateWordSetPath();
+        check(!path.isEmpty(), "gate words: there is a user layer path in test mode");
+        QFile::remove(path);
+        resetSharedGateWordSet();
+
+        const QString id       = QStringLiteral("sequence.validityHole");
+        const QString shipped  = gateWordsFor(coreGateWordSet(), id);
+        const QString edited   = QStringLiteral("the cameras lost sight of you for a moment there");
+        check(!shipped.isEmpty() && loadUserGateWordSet().gates.empty()
+                  && gateWordsFor(sharedGateWordSet(), id) == shipped && sharedGateWordSet().readOnly,
+              "gate words: with no user layer the shared set is core's, read-only");
+
+        GateWordSet user;
+        user.id       = QStringLiteral("user");
+        user.version  = QStringLiteral("1");
+        user.gates    = { { id, edited } };
+        user.subjects = { { QStringLiteral("shot"), QStringLiteral("the swing as a whole") } };
+
+        const GateWordLoadResult back = loadGateWordSet(saveGateWordSet(user), QStringLiteral("round trip"));
+        check(back.loaded && back.pack.id == user.id && back.pack.gates.size() == 1
+                  && gateWordsFor(back.pack, id) == edited
+                  && subjectWordsFor(back.pack, QStringLiteral("shot")) == QStringLiteral("the swing as a whole"),
+              "gate words: saveGateWordSet → loadGateWordSet keeps the override, and only it");
+
+        QString whyNot;
+        check(saveUserGateWordSet(user, &whyNot), "gate words: the user layer saves");
+        if (!whyNot.isEmpty()) std::printf("        %s\n", qPrintable(whyNot));
+        check(gateWordsFor(sharedGateWordSet(), id) == shipped,
+              "gate words: the shared set is cached until it is reset");
+        resetSharedGateWordSet();
+        const GateWordSet merged = sharedGateWordSet();   // a copy: reset below frees the cache
+        check(gateWordsFor(merged, id) == edited && !merged.readOnly
+                  && merged.gates.size() == coreGateWordSet().gates.size()
+                  && gateWordsFor(merged, QStringLiteral("sequence.sightedBand"))
+                         == gateWordsFor(coreGateWordSet(), QStringLiteral("sequence.sightedBand"))
+                  && subjectWordsFor(merged, QStringLiteral("shot")) == QStringLiteral("the swing as a whole")
+                  && subjectWordsFor(merged, QStringLiteral("ks.pelvis"))
+                         == subjectWordsFor(coreGateWordSet(), QStringLiteral("ks.pelvis")),
+              "gate words: after a reset the user's clause and subject replace core's by id, and "
+              "nothing else moves");
+        check(gateWordsFor(coreGateWordSet(), id) == shipped,
+              "gate words: the core layer is untouched by the override");
+
+        QFile::remove(path);
+        resetSharedGateWordSet();
     }
 
     std::printf("%s (%d failure%s)\n", g_fail ? "FAILED" : "OK", g_fail, g_fail == 1 ? "" : "s");

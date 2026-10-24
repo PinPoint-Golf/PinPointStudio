@@ -170,7 +170,7 @@ else()
     # while a direct run with the variables set passed. The same files the app ships, read live.
     set(_pp_diag "${PP_ROOT}/src/Resources/diagnostics")
     set_tests_properties(qml_ui PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PINPOINT_CORE_PACK=${_pp_diag}/core.json;PINPOINT_CORE_NORMS=${_pp_diag}/norms.json;PINPOINT_CORE_CONTEXTS=${_pp_diag}/contexts.json;PINPOINT_CORE_SCREENS=${_pp_diag}/screens.json;PINPOINT_CORE_DRILLS=${_pp_diag}/drills.json;PINPOINT_CORE_REFERENCES=${_pp_diag}/references.json"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PINPOINT_CORE_PACK=${_pp_diag}/core.json;PINPOINT_CORE_NORMS=${_pp_diag}/norms.json;PINPOINT_CORE_CONTEXTS=${_pp_diag}/contexts.json;PINPOINT_CORE_SCREENS=${_pp_diag}/screens.json;PINPOINT_CORE_DRILLS=${_pp_diag}/drills.json;PINPOINT_CORE_GATE_WORDS=${_pp_diag}/gate_words.json;PINPOINT_CORE_REFERENCES=${_pp_diag}/references.json"
         RUN_SERIAL TRUE)
 
     # ⚠ OPT-IN, OUT OF THE FULL SUITE AND THE RELEASE GATE (2026-10-17). It passes on an idle

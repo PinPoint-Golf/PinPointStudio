@@ -1049,6 +1049,7 @@ qt_add_resources(PinPointStudio "app_diagnostics"
         src/Resources/diagnostics/contexts.json
         src/Resources/diagnostics/screens.json
         src/Resources/diagnostics/drills.json
+        src/Resources/diagnostics/gate_words.json
                 src/Resources/diagnostics/references.json
 )
 
@@ -3318,6 +3319,7 @@ if(PINPOINT_BUILD_TOOLS)
         # TestRecommendation has to resolve its screenRef to a protocol — the link does not fail.
         src/Diagnostics/packs/screen_pack.cpp
         src/Diagnostics/packs/drill_pack.cpp
+        src/Diagnostics/packs/gate_words_pack.cpp
         src/Diagnostics/packs/reference_pack.cpp
         src/Pose/pose_runner.cpp
         src/Ball/ball_runner.cpp
@@ -3455,6 +3457,7 @@ if(PINPOINT_BUILD_TOOLS)
                 src/Resources/diagnostics/contexts.json
                 src/Resources/diagnostics/screens.json
                 src/Resources/diagnostics/drills.json
+                src/Resources/diagnostics/gate_words.json
                 src/Resources/diagnostics/references.json
         )
     endfunction()

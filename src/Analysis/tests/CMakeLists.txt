@@ -1018,11 +1018,16 @@ pp_add_test(characteristic_pack_test
 # PP_CORE_REFERENCES_PATH, precisely so the validator and the content are gated separately.
 pp_add_test(core_pack_test
     SOURCES ${DIAG}/tests/core_pack_test.cpp ${DIAG_PACK} ${DIAG}/norms/norm.cpp ${DIAG}/norms/norm_pack.cpp ${DIAG}/norms/context_tree.cpp
-            ${DIAG}/packs/file_pack_provider.cpp
+            ${DIAG}/packs/file_pack_provider.cpp ${DIAG}/packs/gate_words_pack.cpp
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS}
     COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json"
                     -DPP_CORE_NORMS_PATH="${DIAGRES}/norms.json"
                     -DPP_CORE_REFERENCES_PATH="${DIAGRES}/references.json")
+# The gate words registry (gate_words_pack.h) is read through its own loader, so the shipped file is
+# what coreGateWordSet() returns. Gate words ONLY: PINPOINT_CORE_REFERENCES stays out for the reason
+# given above, and the test points the user layer at a QStandardPaths test location of its own.
+set_tests_properties(core_pack_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json")
 
 # Swing themes against the Python reference (tools/themes/make_golden.py) on real ledgers: the
 # fixture's five sessions of one golfer and the shipped core.json, marshalled through
@@ -1031,7 +1036,7 @@ pp_add_test(core_pack_test
 # every line). Prints the reduction's wall time. ~2 s optimised, ~13 s in a -O0 build on 10 cores,
 # so the timeout leaves room for a slow Debug box.
 pp_add_test(swing_themes_golden_test
-    SOURCES swing_themes_golden_test.cpp ${DIAG_PACK} ${DIAG}/packs/drill_pack.cpp
+    SOURCES swing_themes_golden_test.cpp ${DIAG_PACK} ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS}
     LINK    Threads::Threads
     COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json"
@@ -1087,12 +1092,12 @@ set(CMAKE_AUTOMOC ON)
 # producer the catalogue does not have.
 pp_add_test(diagnostics_catalogue_integrity_test
     SOURCES ${DIAG}/tests/diagnostics_catalogue_integrity_test.cpp ${DIAG_PACK}
-            ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/reference_pack.cpp
+            ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/reference_pack.cpp
             ${SRC}/Gui/diagnosticmodel/model_browser.cpp
             ${DIAG}/engine/dag_layout.cpp ${DIAG}/norms/corridor_plot.cpp
             ${DIAG}/packs/memory_pack_provider.cpp ${DIAG}/norms/memory_norm_provider.cpp
             # The model's health list spans the norm set now, and its corpus check reads phase grids.
-            ${DIAG}/engine/diagnostics_health.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/measures/measure_sample.cpp
+            ${DIAG}/engine/diagnostics_health.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/measures/measure_sample.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${DIAG}/packs/merged_pack_provider.cpp
             ${SRC}/Metrics/metric_catalogue.cpp
@@ -1111,7 +1116,7 @@ pp_add_test(diagnostics_catalogue_integrity_test
 target_compile_definitions(diagnostics_catalogue_integrity_test PRIVATE
     PP_DIAG_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../Gui/diagnosticmodel")
 set_tests_properties(diagnostics_catalogue_integrity_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json")
 
 # The ASSEMBLED-LIBRARY health checks: the ones no single validator can make, because they span the
 # pack, the norm set, the context tree and the metric catalogue at once. Run against the SHIPPED
@@ -1120,7 +1125,7 @@ set_tests_properties(diagnostics_catalogue_integrity_test PROPERTIES
 # scoping (unscoped, the n=0 check opens with 39 items of noise about migrated rows) and the
 # single-tail axis, which must NOT be reported.
 pp_add_test(diagnostics_health_test
-    SOURCES ${DIAG}/tests/diagnostics_health_test.cpp ${DIAG}/engine/diagnostics_health.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG_PACK}
+    SOURCES ${DIAG}/tests/diagnostics_health_test.cpp ${DIAG}/engine/diagnostics_health.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG_PACK}
             ${DIAG}/norms/norm.cpp ${DIAG}/norms/norm_pack.cpp ${DIAG}/norms/context_tree.cpp
             ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
@@ -1131,10 +1136,10 @@ pp_add_test(diagnostics_health_test
             ${SRC}/Metrics/metric_catalogue_manifest.cpp
             ${SRC}/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
-            ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp
+            ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})
 set_tests_properties(diagnostics_health_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json")
 
 # The two reference registries a characteristic points at: the physical screens behind `screenRef`
 # and the drills behind `drills`. Both joins are EXACT STRING MATCHES into a separate file, so a
@@ -1143,10 +1148,10 @@ set_tests_properties(diagnostics_health_test PROPERTIES
 # both directions and the validators in both, firing and staying silent.
 pp_add_test(reference_sets_test
     SOURCES ${DIAG}/tests/reference_sets_test.cpp
-            ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/reference_pack.cpp ${DIAG_PACK}
+            ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/reference_pack.cpp ${DIAG_PACK}
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})
 set_tests_properties(reference_sets_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json")
 
 # The causal DAG's layout. Everything about that view that can be wrong in a way a screenshot would
 # not show: two boxes on top of each other (a hidden node reads as a graph that lacks it), a picture
@@ -1292,7 +1297,7 @@ pp_add_test(session_diagnostics_model_test
     AUTOMOC
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
 set_tests_properties(session_diagnostics_model_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
 # WORK ONS, the join: WorkOnsController over ledgers staged on disk — the catch-up that records
 # sessions which were never "ended", the fingerprint that leaves a current record alone and
@@ -1310,7 +1315,7 @@ pp_add_test(work_ons_controller_test
             ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
             ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
             ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
-            ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp
+            ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp
             ${DIAG_NORM}
             ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
@@ -1325,7 +1330,7 @@ pp_add_test(work_ons_controller_test
     LINK    Qt6::Qml
     AUTOMOC)
 set_tests_properties(work_ons_controller_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
 # regrade_ledger — re-reduce a session's diagnostics.json under the CURRENT pack, headlessly. The
 # model back-fills only shots it has never reduced (activateSession), so when the CONTENT moves the
@@ -1385,7 +1390,7 @@ pp_add_test(measure_dump_test
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
 set_tests_properties(measure_dump_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
 # diag_uncertainty_report — the session_diagnostics_design.md §A8.8 gates over real sessions: the panel's
 # model run under each measurement-uncertainty switch, verdict identity, the soft tier's moves, the
@@ -1553,7 +1558,7 @@ pp_add_test(model_browser_test
             ${SRC}/Gui/diagnosticmodel/model_browser.cpp
             ${DIAG}/norms/corridor_plot.cpp ${DIAG}/measures/measure_sample.cpp
             ${DIAG}/engine/dag_layout.cpp ${DIAG}/engine/diagnostics_health.cpp
-            ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
+            ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${DIAG}/packs/merged_pack_provider.cpp ${DIAG}/packs/memory_pack_provider.cpp
             ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
@@ -1571,7 +1576,7 @@ pp_add_test(model_browser_test
 # the assembled library reports every screenRef and drill id as dangling — which would make the
 # validation-strip assertions below pass for entirely the wrong reason.
 set_tests_properties(model_browser_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/model_browser_scratch")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/model_browser_scratch")
 
 # Does the details pane REDRAW after a write? model_browser_test proves the façade answers correctly;
 # this proves the four-link chain between that answer and the screen — the command's signal, the
@@ -1584,7 +1589,7 @@ pp_add_test(inspector_refresh_test
             ${SRC}/Gui/diagnosticmodel/model_browser.cpp
             ${DIAG}/norms/corridor_plot.cpp ${DIAG}/measures/measure_sample.cpp
             ${DIAG}/engine/dag_layout.cpp ${DIAG}/engine/diagnostics_health.cpp
-            ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
+            ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${DIAG}/packs/merged_pack_provider.cpp ${DIAG}/packs/memory_pack_provider.cpp
             ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
@@ -1598,7 +1603,7 @@ pp_add_test(inspector_refresh_test
     LINK    Qt6::Qml Qt6::Quick Qt6::Concurrent
     COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json")
 set_tests_properties(inspector_refresh_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/inspector_refresh_scratch")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/inspector_refresh_scratch")
 
 # The corridor picture. Pure geometry over value types, which is the whole reason the layout lives
 # in C++ — a curve computed inside delegate bindings is a curve nothing can assert. The load-bearing
@@ -1608,7 +1613,7 @@ set_tests_properties(inspector_refresh_test PROPERTIES
 pp_add_test(corridor_plot_test
     SOURCES ${DIAG}/tests/corridor_plot_test.cpp
             ${DIAG}/norms/corridor_plot.cpp ${DIAG}/engine/diagnostics_health.cpp
-            ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
+            ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${DIAG}/packs/merged_pack_provider.cpp
             ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp

@@ -547,6 +547,8 @@ set(PP_QML_SOURCES
     src/Diagnostics/packs/screen_pack.cpp
     src/Diagnostics/packs/drill_pack.h
     src/Diagnostics/packs/drill_pack.cpp
+    src/Diagnostics/packs/gate_words_pack.h
+    src/Diagnostics/packs/gate_words_pack.cpp
     src/Diagnostics/packs/reference_pack.cpp
     src/Diagnostics/measures/measure_sample.h
     src/Diagnostics/measures/measure_sample.cpp
