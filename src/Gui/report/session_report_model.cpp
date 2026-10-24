@@ -32,13 +32,13 @@
 #include "../diagnostics/session_diagnostics_model.h"
 #include "../launchmonitor/lm_session_model.h"
 #include "../shot/shot_list_model.h"
-#include "../../Coaching/report_gate_words.h"
 #include "../../Coaching/session_report.h"
 #include "../../Coaching/work_ons.h"
 #include "../../Core/pp_debug.h"
 #include "../../Core/pp_settings.h"
 #include "../../Core/studio_profile.h"
 #include "../../Diagnostics/packs/drill_pack.h"
+#include "../../Diagnostics/packs/gate_words_pack.h"
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Export/swing_paths.h"
 #include "../../Export/swing_store.h"
@@ -539,6 +539,7 @@ namespace {
 struct Ctx {
     const CharacteristicPack *pack = nullptr;
     const DrillSet *drills = nullptr;
+    const GateWordSet *gateWords = nullptr;   // what we could not check, in golfer words (gate_words_pack.h)
     R::ReportPack rpack;
     const SessionDiagnosticsModel *model = nullptr;
     const std::vector<ShotRecord> *shots = nullptr;
@@ -739,10 +740,10 @@ QString unmeasuredReason(const Ctx &x, const QString &id)
         const ShotRecord &s = (*x.shots)[size_t(x.swings[size_t(k)].idx)];
         const ConditionRow *r = rowFor(s, id);
         if (!r || r->state != ShotState::NotAssessable || r->notJudgedGate.isEmpty()) continue;
-        if (M::gateGolferWords(r->notJudgedGate).isEmpty()) continue;
+        if (!x.gateWords || gateWordsFor(*x.gateWords, r->notJudgedGate).isEmpty()) continue;
         if (++n[r->notJudgedGate] > n.value(best)) best = r->notJudgedGate;
     }
-    return best.isEmpty() ? QString() : M::gateGolferWords(best);
+    return best.isEmpty() ? QString() : gateWordsFor(*x.gateWords, best);
 }
 
 QVariantMap drillMap(const Drill &d)
@@ -1091,6 +1092,14 @@ void SessionReportModel::build()
     Ctx x;
     x.pack    = &packProv->pack();
     x.drills  = &sharedDrillSet();
+    // The gate words as they stand now, for the same reason as the pack: a studio's edit on the Gates
+    // page reaches the next report. The Diagnostic Model drops this cache when it saves, but so does
+    // every make, because the user layer is a file in the data directory and nothing else watches it.
+    // The drills are left to save(): the work-ons controller holds that set too, and a reset here is not
+    // this builder's to make. The gate words have no reader but this one, on this (the UI) thread, so
+    // dropping them cannot pull the set out from under anything. One small file, read once per report.
+    resetSharedGateWordSet();
+    x.gateWords = &sharedGateWordSet();
     x.rpack   = R::reportPackOf(*x.pack);
     x.model   = m;
     x.shots   = &m->shotRecords();
@@ -1926,8 +1935,8 @@ void SessionReportModel::build()
                     const ConditionRow *row = rowFor((*x.shots)[size_t(x.swings[size_t(k)].idx)], l.id);
                     if (!row || row->state != ShotState::NotAssessable || row->notJudgedGate.isEmpty()) continue;
                     if (row->notJudgedGate.startsWith(QLatin1String("rule."))) continue;     // an engine rule, not a gate's refusal
-                    const QString clause = M::gateGolferWords(row->notJudgedGate);
-                    QString subject = M::gateSubjectWords(row->notJudgedSubject);
+                    const QString clause = gateWordsFor(*x.gateWords, row->notJudgedGate);
+                    QString subject = subjectWordsFor(*x.gateWords, row->notJudgedSubject);
                     if (subject.isEmpty()) subject = metricName.value(row->notJudgedSubject);
                     if (clause.isEmpty() || subject.isEmpty()) continue;
                     const QString key = W::cap1(subject) + QLatin1Char('\x1f') + clause;

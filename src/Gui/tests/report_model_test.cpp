@@ -16,7 +16,8 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// THE SESSION REPORT'S SENTENCES (src/Gui/report/report_words.h, src/Coaching/report_gate_words.h):
+// THE SESSION REPORT'S SENTENCES (src/Gui/report/report_words.h, and the gate words the model carries in
+// src/Resources/diagnostics/gate_words.json, read through Diagnostics/packs/gate_words_pack.h):
 // every template with every case written (docs/design/session_report_design.md §9.1 rule 7) — one and
 // several, every and almost every, none / one / several — plus the honesty rules of §10 that live in
 // words (link grades, counts as swings, no percentage, times against impact, the true minus), the two
@@ -33,14 +34,29 @@
 // real sessions by tools/session-report-mock/dump_report.qml (build/report-build/model-I/): a model test
 // over a fixture session would need the whole diagnostics stack linked into a test, which no Gui test
 // does today; the probe is the stronger check of that half.
+//
+// WHAT A STUDIO EDITS REACHES THE NEXT REPORT (#60), proved one level below the map for that reason: the
+// report's builder (SessionReportModel::build) reads three things per make — the pack through
+// makeCharacteristicPackProvider(), the drills through sharedDrillSet() and the gate words through
+// sharedGateWordSet() after dropping that cache — and its page readers take a work-on's goal from the
+// habit, its drills by the habit's `drills` ids from the drill set, and a not-checked line from the gate's
+// clause after the subject's words. The block at the end writes a user pack, a user drill and a user
+// gate-word override with the writers the Diagnostic Model saves through, into Qt's test data location,
+// and reads them back through exactly those three calls and the back page's own sentence.
 
 #include "report/report_words.h"
 #include "report/report_posture.h"
 #include "report/report_wrist.h"
-#include "../../Coaching/report_gate_words.h"
+#include "../../Diagnostics/packs/drill_pack.h"
+#include "../../Diagnostics/packs/gate_words_pack.h"
+#include "../../Diagnostics/packs/pack_provider.h"
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QRegularExpression>
+#include <QStandardPaths>
 
 #include <cstdio>
 
@@ -73,9 +89,24 @@ static SpreadCorridor corridor(double lo, double hi, bool lowOpen, bool highOpen
     return c;
 }
 
+// The user layers the end-to-end block writes, all three in diagnosticsDataDir().
+static void removeUserLayers()
+{
+    QFile::remove(pinpoint::analysis::userPackPath());
+    QFile::remove(pinpoint::analysis::userDrillSetPath());
+    QFile::remove(pinpoint::analysis::userGateWordSetPath());
+    pinpoint::analysis::resetSharedDrillSet();
+    pinpoint::analysis::resetSharedGateWordSet();
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    // Qt's test data location from the first line, so the gate words read below are never a user layer a
+    // studio left in the real one, and the end-to-end block's writes never land there.
+    QStandardPaths::setTestModeEnabled(true);
+    QCoreApplication::setApplicationName(QStringLiteral("report_model_test"));
+    removeUserLayers();
 
     std::printf("counts — the noun once, never a percentage\n");
     eq(countOf(9, 10), QStringLiteral("9 of 10 swings"), "countOf several");
@@ -423,19 +454,24 @@ int main(int argc, char **argv)
     check(!lmTablesNote(false, false, false, QString()).contains(QLatin1String("Out:")), "tables note leaves out marks it does not use");
     check(lmStatsNote(true).contains(QLatin1String("not left out")) && !lmStatsNote(false).contains(QLatin1String("left out")), "stats note, left-out shots");
 
-    std::printf("gate words (§9.3 item 5: golfer words, lower case, no digits)\n");
+    std::printf("gate words (§9.3 item 5: golfer words, lower case, no digits — the model's gate_words.json)\n");
     {
+        using pinpoint::analysis::gateWordsFor;
+        using pinpoint::analysis::subjectWordsFor;
+        // The SHIPPED layer: what every studio's report prints until someone edits it on the Gates page.
+        const pinpoint::analysis::GateWordSet &shipped = pinpoint::analysis::coreGateWordSet();
+        check(!shipped.gates.empty() && !shipped.subjects.empty(), "the shipped gate words are read (PINPOINT_CORE_GATE_WORDS)");
         const QStringList ids{ QStringLiteral("sequence.sightedBand"), QStringLiteral("shot.captureHoles"), QStringLiteral("club3d.planeScatter"),
                                QStringLiteral("rule.diag.noCorridor"), QStringLiteral("lm.noData"), QStringLiteral("body.ballPosition") };
         bool ok = true;
         for (const QString &id : ids) {
-            const QString w = pinpoint::report::gateGolferWords(id);
+            const QString w = gateWordsFor(shipped, id);
             if (w.isEmpty() || w[0].isUpper() || w.contains(QRegularExpression(QStringLiteral("\\d")))) { ok = false; std::printf("        bad: %s\n", qPrintable(id)); }
         }
         check(ok, "known gates have lower-case, digit-free golfer words");
-        check(pinpoint::report::gateGolferWords(QStringLiteral("no.such.gate")).isEmpty(), "an unknown gate has no words (left to the appendix)");
-        check(pinpoint::report::gateSubjectWords(QStringLiteral("ks.pelvis")) == QLatin1String("when your hips turned fastest"), "a subject in golfer words");
-        check(pinpoint::report::gateSubjectWords(QStringLiteral("ballPosition")).isEmpty(), "a metric subject is the caller's (its measure's golferName)");
+        check(gateWordsFor(shipped, QStringLiteral("no.such.gate")).isEmpty(), "an unknown gate has no words (left to the appendix)");
+        check(subjectWordsFor(shipped, QStringLiteral("ks.pelvis")) == QLatin1String("when your hips turned fastest"), "a subject in golfer words");
+        check(subjectWordsFor(shipped, QStringLiteral("ballPosition")).isEmpty(), "a metric subject is the caller's (its measure's golferName)");
     }
 
     std::printf("the doubled noun cannot happen anywhere a count is built\n");
@@ -773,6 +809,85 @@ int main(int argc, char **argv)
         bool noAuto = true;
         for (const QString &l : cb.value(QStringLiteral("trust")).toStringList()) noAuto = noAuto && !l.contains(QStringLiteral("Auto"));
         check(noAuto && cb.value(QStringLiteral("trust")).toStringList().size() == 2, "camera-only: two trust lines, neither names the Auto control");
+    }
+
+    std::printf("an edit in the Diagnostic Model reaches the next report (#60): goal, an attached drill, a gate's words\n");
+    {
+        namespace A = pinpoint::analysis;
+        const QString habit   = QStringLiteral("s_posture");             // a work-on with a page: goal, cue, check, picture, drill.postureRod
+        const QString drillId = QStringLiteral("drill.reportTestWallTilt");
+        const QString goal    = QStringLiteral("Stand tall with a soft curve in your lower back");
+        const QString gate    = QStringLiteral("sequence.sightedBand");  // a gate the back page prints, after its subject's words
+        const QString subject = QStringLiteral("ks.pelvis");
+        const QString clause  = QStringLiteral("a camera square to you cannot see a turn begin; one down the line can");
+
+        // Before anything is written: the report reads what shipped.
+        const std::unique_ptr<A::ICharacteristicPackProvider> before = A::makeCharacteristicPackProvider();
+        const A::Condition *shippedHabit = before->pack().condition(habit);
+        check(shippedHabit && shippedHabit->goal == QLatin1String("Set up with a natural curve in your lower back")
+                  && shippedHabit->drills.contains(QStringLiteral("drill.postureRod")) && !shippedHabit->drills.contains(drillId),
+              "before: the habit's shipped goal and drills");
+        const QString shippedClause = A::gateWordsFor(A::sharedGateWordSet(), gate);
+        check(!shippedClause.isEmpty() && shippedClause != clause, "before: the gate's shipped clause");
+
+        // The user's edits, written as the Diagnostic Model's save() writes them: the habit copied whole into
+        // the user pack (its copy-on-write) with the goal changed and a drill attached; the drill in the user
+        // drill set; one clause in the user gate-word set. Then the caches dropped, as save() drops them.
+        A::CharacteristicPack user;
+        user.id = QStringLiteral("user");
+        user.version = QStringLiteral("1");
+        user.schemaVersion = A::kPackSchemaVersion;
+        A::Condition edited = shippedHabit ? *shippedHabit : A::Condition{};
+        edited.goal = goal;
+        edited.drills << drillId;
+        user.conditions.push_back(edited);
+        QString whyNot;
+        check(A::saveUserPack(user, &whyNot), "the user pack saves");
+
+        A::DrillSet drills;
+        drills.id = QStringLiteral("user");
+        drills.version = QStringLiteral("1");
+        A::Drill d;
+        d.id = drillId;
+        d.label = QStringLiteral("Back to the wall");
+        d.instruction = QStringLiteral("Stand with your heels a foot from a wall, hinge until your seat touches it, and feel your lower back stay long.");
+        d.targets = QStringLiteral("To feel a natural curve in the lower back at address.");
+        drills.drills.push_back(d);
+        check(A::saveUserDrillSet(drills, &whyNot), "the user drill set saves");
+
+        A::GateWordSet words;
+        words.id = QStringLiteral("user");
+        words.version = QStringLiteral("1");
+        words.gates.push_back(A::GateWord{ gate, clause });
+        check(A::saveUserGateWordSet(words, &whyNot), "the user gate words save");
+        if (!whyNot.isEmpty()) std::printf("        %s\n", qPrintable(whyNot));
+        A::resetSharedDrillSet();
+        A::resetSharedGateWordSet();
+
+        // The next report's three reads, as build() makes them.
+        const std::unique_ptr<A::ICharacteristicPackProvider> after = A::makeCharacteristicPackProvider();
+        const A::Condition *c = after->pack().condition(habit);
+        check(c && c->goal.trimmed() == goal, "the work-on page's title is the edited goal");
+        check(c && shippedHabit && c->cue == shippedHabit->cue && c->check == shippedHabit->check, "the habit's other report text is untouched");
+        const A::DrillSet &shared = A::sharedDrillSet();
+        QStringList labels, instructions;
+        if (c)
+            for (const QString &did : c->drills)
+                if (const A::Drill *dr = shared.drill(did)) { labels << dr->label; instructions << dr->instruction; }
+        check(labels.contains(QStringLiteral("Rod along the spine")) && labels.contains(d.label) && instructions.contains(d.instruction),
+              "the work-on page's drills: the shipped one and the user's new one, label and instruction");
+
+        const A::GateWordSet &gw = A::sharedGateWordSet();
+        eq(A::gateWordsFor(gw, gate), clause, "the gate reads the user's clause");
+        eq(notCheckedItem(A::subjectWordsFor(gw, subject), A::gateWordsFor(gw, gate), 3, 10),
+           QStringLiteral("When your hips turned fastest: ") + clause + QStringLiteral(" (3 of 10 swings)"),
+           "the back page's not-checked line carries the overridden clause");
+        eq(A::gateWordsFor(gw, QStringLiteral("sequence.validityHole")), A::gateWordsFor(A::coreGateWordSet(), QStringLiteral("sequence.validityHole")),
+           "a gate the user did not touch keeps its shipped clause");
+
+        removeUserLayers();
+        QDir().rmdir(QFileInfo(A::userPackPath()).absolutePath());   // only if empty: nothing else of ours is there
+        check(A::gateWordsFor(A::sharedGateWordSet(), gate) == shippedClause, "cleaned up: the shipped clause again");
     }
 
     std::printf("%s (%d failed)\n", g_fail ? "FAILED" : "OK", g_fail);
