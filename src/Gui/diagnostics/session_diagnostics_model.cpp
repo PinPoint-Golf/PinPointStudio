@@ -547,6 +547,15 @@ bool railBefore(const QVariantMap &x, const QVariantMap &y)
     return ix < iy;
 }
 
+// "would explain ___": how many of the session's patterns a cause accounts for, in words a person
+// would say. "1 of your pattern" read as a typo; one is "one of your patterns". Shared by the
+// driver footer, the screen CTA and the detail's cause headline so the three cannot drift.
+QString patternsExplained(int n)
+{
+    return n == 1 ? QStringLiteral("one of your patterns")
+                  : QStringLiteral("%1 of your patterns").arg(n);
+}
+
 // HOW MANY PATHS THE DETAIL MAY PUBLISH PER SIDE, and how deep it walks. A pack condition can sit
 // under a fan of ancestors whose simple-path count is exponential in the fan; the panel draws one
 // path and collapses the rest to a line each, so publishing two hundred of them would cost a
@@ -4212,10 +4221,8 @@ void SessionDiagnosticsModel::buildDriver()
     // for rather than a score — the score is ordinal and publishing it would imply a
     // probability it is not.
     m_driver[QStringLiteral("whyText")] =
-        QStringLiteral("%1 — would explain %2 of your %3")
-            .arg(conditionName(top.conditionId))
-            .arg(top.coverage)
-            .arg(top.coverage == 1 ? QStringLiteral("pattern") : QStringLiteral("patterns"));
+        QStringLiteral("%1 — would explain %2")
+            .arg(conditionName(top.conditionId), patternsExplained(top.coverage));
 
     // INFERRED, NOT MEASURED. A root this session never assessed (no assessable shot — its measure
     // has no producer, or it is latent) and that no entered screen confirms is a conclusion the
@@ -4262,9 +4269,7 @@ void SessionDiagnosticsModel::buildDriver()
         m_driver[QStringLiteral("screenCta")] =
             QStringLiteral("%1 would anchor this chain").arg(sc ? sc->label : conditionName(rec.conditionId));
         m_driver[QStringLiteral("screenReason")] =
-            QStringLiteral("it would explain %1 of your %2")
-                .arg(rec.coverage)
-                .arg(rec.coverage == 1 ? QStringLiteral("pattern") : QStringLiteral("patterns"));
+            QStringLiteral("it would explain %1").arg(patternsExplained(rec.coverage));
         m_driver[QStringLiteral("screenProtocol")] = sc ? sc->protocol : QString();
     }
 
@@ -4746,6 +4751,58 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
         std::vector<QString> path{ conditionId };
         walk(conditionId, path, /*upstream*/ false, downPaths, downCapped);
     }
+    // ── the likely driver's path is ALWAYS drawn ───────────────────────────────────
+    //
+    // The cause headline names the resolver's ranked root when it accounts for this condition, but
+    // the walk above ranks and caps the paths on its own rule, so the driver's path could be cut
+    // and the page would open on a cause nothing beneath it shows (issue #15: Over the top named
+    // Across the line at the top over eight paths that never touched it). So the driver is decided
+    // here, and when no walked path runs through it one is built: up from this condition through
+    // conditions the driver sits above, then on up from the driver to a root. railsOf() then puts
+    // it first and lets the cap give way for it.
+    QString driverId;
+    int driverCoverage = 0;
+    for (const RankedCause &r : m_explanation.roots) {
+        if (!r.explains.contains(conditionId)) continue;
+        driverId       = r.conditionId;
+        driverCoverage = r.coverage;
+        break;
+    }
+    auto through = [](const std::vector<QString> &p, const QString &id) {
+        return std::find(p.begin(), p.end(), id) != p.end();
+    };
+    if (!driverId.isEmpty() && driverId != conditionId && up.contains(driverId)
+        && std::none_of(upPaths.begin(), upPaths.end(),
+                        [&](const std::vector<QString> &p) { return through(p, driverId); })) {
+        const QSet<QString> belowDriver = causalClosure(pack, driverId, /*downstream*/ true);
+        std::vector<QString> path{ conditionId };
+        // Below the driver: every step stays on a condition the driver is an ancestor of, so the
+        // walk cannot miss it. The first such branch in rail order, as the walk would take it.
+        while (path.back() != driverId) {
+            QString next;
+            for (const EdgeSpec *e : neighbours(path.back(), /*upstream*/ true))
+                if ((e->from == driverId || belowDriver.contains(e->from)) && !through(path, e->from)) {
+                    next = e->from;
+                    break;
+                }
+            if (next.isEmpty()) break;            // unreachable over a DAG; never loop
+            path.push_back(next);
+        }
+        // Above the driver: the strongest branch to a root, to the walk's own depth.
+        while (through(path, driverId) && int(path.size()) < kDetailMaxDepth) {
+            QString next;
+            for (const EdgeSpec *e : neighbours(path.back(), /*upstream*/ true))
+                if (!through(path, e->from)) { next = e->from; break; }
+            if (next.isEmpty()) break;
+            path.push_back(next);
+        }
+        if (through(path, driverId)) upPaths.push_back(path);
+    }
+    // A driver with no drawn path is not named: the headline falls through to the next answer.
+    if (std::none_of(upPaths.begin(), upPaths.end(),
+                     [&](const std::vector<QString> &p) { return through(p, driverId); }))
+        driverId.clear();
+
     // Walked upward the path came out condition-first; a rail reads in the swing's own direction.
     for (std::vector<QString> &p : upPaths) std::reverse(p.begin(), p.end());
 
@@ -4776,13 +4833,28 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
         };
     };
 
-    auto railsOf = [&](const std::vector<std::vector<QString>> &paths) {
+    auto railsOf = [&](const std::vector<std::vector<QString>> &paths, const QString &pin,
+                       bool &capped) {
         QVariantList rails;
         for (const std::vector<QString> &p : paths) rails.append(railFor(p));
         // MOST-EVIDENCED FIRST, on the rail's own rule — see railBefore().
         std::sort(rails.begin(), rails.end(), [](const QVariant &a, const QVariant &b) {
             return railBefore(a.toMap(), b.toMap());
         });
+        // …EXCEPT THE DRIVER'S. The best-ranked path through the named driver goes first, because
+        // the headline above the list is about it, and the cap gives way for it: the lowest-ranked
+        // of the rest is dropped rather than the one the headline names.
+        if (!pin.isEmpty()) {
+            for (int i = 0; i < rails.size(); ++i) {
+                const QVariantList ns = rails.at(i).toMap().value(QStringLiteral("nodes")).toList();
+                if (std::none_of(ns.begin(), ns.end(), [&](const QVariant &n) {
+                        return n.toMap().value(QStringLiteral("id")).toString() == pin; }))
+                    continue;
+                rails.move(i, 0);
+                break;
+            }
+            while (rails.size() > kDetailMaxPaths) { rails.removeLast(); capped = true; }
+        }
         // The one the panel draws in full; the rest collapse to a line each. A flag rather than
         // a truncation, because nothing here is withheld — brief §8.
         if (!rails.isEmpty()) {
@@ -4793,8 +4865,8 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
         return rails;
     };
 
-    const QVariantList causes  = railsOf(upPaths);
-    const QVariantList effects = railsOf(downPaths);
+    const QVariantList causes  = railsOf(upPaths, driverId, upCapped);
+    const QVariantList effects = railsOf(downPaths, QString(), downCapped);
 
     // ── the cause headline ─────────────────────────────────────────────────────────
     //
@@ -4803,15 +4875,9 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
     // actually tested; else the screen that would settle the question; else the absence of an
     // answer, said out loud. Never forced: three of the four are refusals of a kind.
     QString causeHeadline;
-    for (const RankedCause &r : m_explanation.roots) {
-        if (!r.explains.contains(conditionId)) continue;
-        causeHeadline = QStringLiteral("Likely driver: %1 — would explain %2 of your %3.")
-                            .arg(conditionName(r.conditionId))
-                            .arg(r.coverage)
-                            .arg(r.coverage == 1 ? QStringLiteral("pattern")
-                                                 : QStringLiteral("patterns"));
-        break;
-    }
+    if (!driverId.isEmpty())
+        causeHeadline = QStringLiteral("Likely driver: %1 — would explain %2.")
+                            .arg(conditionName(driverId), patternsExplained(driverCoverage));
     if (causeHeadline.isEmpty()) {
         // A DIRECT PARENT ONLY COUNTS FROM COHERENT UP. Present-together means neither end was
         // measurable and Unanchored means the root was never screened — naming either as "the
@@ -4886,6 +4952,7 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
     out[QStringLiteral("name")]            = conditionName(conditionId);
     out[QStringLiteral("header")]          = header;
     out[QStringLiteral("causeHeadline")]   = causeHeadline;
+    out[QStringLiteral("causeDriverId")]   = driverId;   // empty unless the headline names one
     out[QStringLiteral("outcomeHeadline")] = outcomeHeadline;
     out[QStringLiteral("causes")]          = causes;
     out[QStringLiteral("effects")]         = effects;

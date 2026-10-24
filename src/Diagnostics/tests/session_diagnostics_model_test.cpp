@@ -2151,6 +2151,7 @@ int main(int argc, char **argv)
         bool railsOk = true, primaryOk = true, orderedOk = true;
         int primaries = 0, lastLive = 1 << 30;
         const QVariantList sides[2] = { causes, effects };
+        const bool driverLeads = !d.value(QStringLiteral("causeDriverId")).toString().isEmpty();
         for (const QVariantList &side : sides) {
             primaries = 0;
             lastLive  = 1 << 30;
@@ -2164,10 +2165,13 @@ int main(int argc, char **argv)
                     // panel draws it — most-evidenced first, railBefore()'s rule.
                     if (i != 0) primaryOk = false;
                 }
-                // Most-evidenced first: the live count never rises as the list goes on.
+                // Most-evidenced first: the live count never rises as the list goes on. The one
+                // exception is a named driver's path, which leads the causes whatever its rank.
                 const int live = rail.value(QStringLiteral("liveCount")).toInt();
-                if (live > lastLive) orderedOk = false;
-                lastLive = live;
+                if (!(i == 0 && driverLeads && &side == &sides[0])) {
+                    if (live > lastLive) orderedOk = false;
+                    lastLive = live;
+                }
 
                 for (const QVariant &nv : nodes) {
                     const QVariantMap n = nv.toMap();
@@ -2235,6 +2239,48 @@ int main(int argc, char **argv)
             check(outcomeLine.contains(QLatin1String("measurable shots"))
                       || outcomeLine.contains(QLatin1String("not measurable with this capture")),
                   "…an anchored outcome quotes its count; an unanchored one says it has none");
+
+        // ── the named driver is on a drawn path (issue #15) ──────────────────────────
+        // The headline and the paths used to be ranked separately and the paths capped, so a page
+        // could open "Likely driver: Across the line at the top" over eight paths that never
+        // touched it. Swept over every condition the session holds, ancestry included, because
+        // the defect lives on whichever page the cap happens to bite.
+        {
+            QSet<QString> ids;
+            for (const QVariant &cv : m->cards())
+                ids.insert(cv.toMap().value(QStringLiteral("id")).toString());
+            for (const auto &row : m->ledgerRows()) ids.insert(row.id);
+            int named = 0;
+            bool onPath = true, wordedOk = true;
+            for (const QString &cid : ids) {
+                const QVariantMap dd = m->conditionDetail(cid);
+                const QString line   = dd.value(QStringLiteral("causeHeadline")).toString();
+                const QString driver = dd.value(QStringLiteral("causeDriverId")).toString();
+                if (line.contains(QLatin1String("of your pattern."))
+                    || line.contains(QLatin1String(" 1 of your"))) wordedOk = false;
+                if (line.startsWith(QLatin1String("Likely driver:")) != !driver.isEmpty())
+                    onPath = false;
+                if (driver.isEmpty()) continue;
+                ++named;
+                const QVariantList cs = dd.value(QStringLiteral("causes")).toList();
+                const QVariantMap first = cs.isEmpty() ? QVariantMap() : cs.first().toMap();
+                bool has = false;
+                for (const QVariant &nv : first.value(QStringLiteral("nodes")).toList())
+                    if (nv.toMap().value(QStringLiteral("id")).toString() == driver) has = true;
+                if (!has || !first.value(QStringLiteral("primary")).toBool()
+                    || cs.size() > 8) {
+                    onPath = false;
+                    std::printf("      ✗ %s: driver %s not on the first, primary path\n",
+                                qPrintable(cid), qPrintable(driver));
+                }
+            }
+            std::printf("      %d of %lld condition pages name a likely driver\n", named,
+                        static_cast<long long>(ids.size()));
+            check(onPath, "a named likely driver is always on a drawn path: the first, the primary, "
+                          "within the cap");
+            check(wordedOk, "…and its coverage reads \"one of your patterns\", never \"1 of your "
+                            "pattern\"");
+        }
 
         // ── determinism ──────────────────────────────────────────────────────────────
         // The walk chooses branches by grade, then authored strength, then id, exactly as the
