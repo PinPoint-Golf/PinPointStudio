@@ -442,7 +442,7 @@ Rectangle {
                                             root.commitField(root.selectedClubId, "bandCentersMm", parsed)
                                             if (parsed.length > 0)
                                                 root.commitField(root.selectedClubId, "tapedOn",
-                                                                 new Date().toISOString().slice(0, 10))
+                                                                 Qt.formatDate(new Date(), "yyyy-MM-dd"))
                                         }
                                     }
 

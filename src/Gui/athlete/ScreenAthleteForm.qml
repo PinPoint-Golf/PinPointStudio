@@ -84,7 +84,7 @@ Item {
         return w.length > 0 ? w[0] : ""
     }
     function approvedWords(iso) {
-        var d = new Date((iso && iso.length > 0 ? iso : new Date().toISOString().slice(0, 10)) + "T00:00:00")
+        var d = new Date((iso && iso.length > 0 ? iso : Qt.formatDate(new Date(), "yyyy-MM-dd")) + "T00:00:00")
         return isNaN(d.getTime()) ? "" : qsTr("approved %1").arg(Qt.formatDate(d, "d MMM yyyy"))
     }
 
@@ -111,10 +111,12 @@ Item {
         var t = String(text).trim()
         if (t.length === 0) return true
         if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return false
-        var d = new Date(t + "T00:00:00")
-        if (isNaN(d.getTime())) return false
-        // Round-trip: "2026-02-31" parses in JS by rolling over into March.
-        return d.toISOString().slice(0, 10) === t
+        // Built and read back in LOCAL time. Round-tripping through toISOString() compared a local
+        // midnight with its UTC date, so every date in British Summer Time came back as the day
+        // before and was rejected. The read-back still catches "2026-02-31", which rolls into March.
+        var p = t.split("-").map(Number)
+        var d = new Date(p[0], p[1] - 1, p[2])
+        return d.getFullYear() === p[0] && d.getMonth() === p[1] - 1 && d.getDate() === p[2]
     }
 
     // "" = create mode; a uuid = edit that athlete.
@@ -730,7 +732,7 @@ Item {
                                             if (root.dobError) return ""
                                             var who = athleteController.cohortLabelFor(
                                                 dobField.text.trim(), root.sex,
-                                                new Date().toISOString().slice(0, 10))
+                                                Qt.formatDate(new Date(), "yyyy-MM-dd"))   // local today
                                             return who.length > 0
                                                 ? qsTr("Today this places you in: %1").arg(who)
                                                 : ""
