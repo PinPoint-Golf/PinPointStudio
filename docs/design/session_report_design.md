@@ -362,12 +362,23 @@ New pack fields. The mock's PROPOSED blocks show each one in use:
 | `goal` | condition | `golferWell` as an instruction, used as the page title | "Keep the flex in your trail knee" |
 | `cue` | condition | One feel or swing thought. Written as a feel, never as a promise | "Keep your backside on an imaginary wall behind you all the way to impact." |
 | `check` | condition | How to see it without the studio: camera angle, position, what to look for | "Film from down the line. At the top, your trail knee should look about as bent as it did at address." |
-| `picture` | condition | `change` (address vs the position), `pair` (closest vs furthest), `typical`, or `none`; plus `camera`, `phase`, and the overlay `line` (`knee`, `spine`, …) | knee: `change`, DTL, P4, `knee` |
+| `picture` | condition | `change` (address vs the position), `pair` (closest vs furthest), `typical`, or `none`; plus `camera` (`faceOn`, `dtl`), `phase` (P1 to P10), and the overlay `line` (`trailThigh`, `trailShin`, `spine`, …: the segments in `reportPictureLines()`) | `trail_knee_straighten`: `change`, DTL, P4, `trailThigh` |
 | `golferName`, `golferSign` | measure | The number in the golfer's words, and whether the words carry its sign (so the value and the chart are shown as a magnitude) | "trail-knee bend lost by the top", sign −1 |
 | `golfer`, `golferWell`, `golferWhy` | every condition that can appear in a report | Includes delivery and outcome conditions, which have none today | `lie_steep_at_impact`: "the club coming back to the ball toe-up" |
 | `golfer` | every capacity condition (named under "could be behind it") | The golfer's name for the body quality the screen tests | `limited_lead_hip_ir`: "Lead-hip mobility" |
 | more `causes` edges | habits with one or no authored cause | So that "we checked everything we know of" is rare and means something | trail knee straightens ← trail-hip mobility (to be checked with a citation or marked `practice`) |
 | `drills` | every setup and fault condition | At least one, from `drills.json` | new `drill.impactHold`, `drill.topTilt` (mock) |
+| `reportHold` | condition | Keeps a habit off every work-on list, with the reason in the golfer's words. A hold with no reason is a load error | `chicken_wing`: "We could not measure your lead arm after impact reliably enough from these cameras to call it a habit." (#59) |
+
+Every field in this table is viewed and edited in the Diagnostic Model inspector (#60): the
+condition fields on the habit, and `golferName`, `golferSign`, `golferHigh` and `golferLow` on the
+measure. The picture's kind, camera, phase and line are chosen from the lists the pack loader
+accepts, never typed. Drills are attached to and removed from the habit through a picker of the
+drills in the model, including drills the studio wrote itself, so a new drill reaches that habit's
+work-on page in the next report. The loader's wording checks (a goal over 60 characters, or with a
+number, "don't" or "never" in it; a cue that promises a fix) show under the field while it is
+edited, with the loader's own message. An edit saves to the user's pack, and the report reads the
+pack afresh each time it is made.
 
 The authoring rules are those of `drills.json`, applied to the new fields as well:
 - a drill states what the golfer does and what it is trying to change;
@@ -803,7 +814,10 @@ page. What the test found:
    was not assessed, and its golfer phrase talks about order when only the timing spread fired.
 5. **The words for "what we could not check" are internal.** The gate clauses ("club peak drawn,
    not judged", "swing plane not one plane") need golfer words. That is the gate catalogue's
-   `claimWords`, written for golfers, or a report-side table.
+   `claimWords`, written for golfers, or a report-side table. *Settled as model content:* one
+   clause per gate and engine rule, and the words for each gate subject, in
+   `src/Resources/diagnostics/gate_words.json`, read through `gate_words_pack.h` and edited on the
+   Diagnostic Model's Gates page beside the gate (#60).
 6. **Stills need exposure correction.** Jess's face-on frames in the bay are very dark. The stills
    step (§6) lifts levels on the golfer's crop before the overlay.
 
@@ -844,7 +858,9 @@ it is rejected.
    far" is used when no swing passed the fault line (Nick's reverse spine: 9 of 10, median −1°
    against 0° to 24°).
 6. Strengths follow §3.2, including the whole-axis rule for outcomes.
-7. "What we could not check" is said once, at the back, in golfer words.
+7. "What we could not check" is said once, at the back, in golfer words. The words are the
+   model's (`gate_words.json`); a gate with no clause is left to the technical appendix, never
+   printed in the analyst's words.
 8. No percentage for any posterior, no composite score, no σ-rounded figure.
 9. Everything printed is reproducible from the session folder: the same report map comes from
    the same ledger and pack.
@@ -868,7 +884,8 @@ it is rejected.
 | `src/Gui/athlete/athlete_controller.{h,cpp}` | The Reports fields (§7.3) through `updateAthlete`, exposed as `currentReportEmail`, `currentReportGreeting`, `currentIsJunior`, `currentPhotosApproved(On)`; ticking or unticking stamps or clears the date; address shape check. |
 | `src/Gui/report/report_mailer.{h,cpp}` (+ `_mac.mm`, `_win.cpp`, `_linux.cpp`) | **new**: hand-off to the mail app (§8.3, option A): one interface, a platform file each. Option C's copy and reveal. |
 | `src/Gui/report/report_meta.h` | **new**, pure: `report_meta.json` read/write, including the send log (no addresses). |
-| `src/Resources/diagnostics/core.json`, `drills.json` | Content (§5): new fields on every listable condition, `golferName`/`golferSign` on their measures, drills for every listable condition. |
+| `src/Resources/diagnostics/core.json`, `drills.json` | Content (§5): new fields on every listable condition, `golferName`/`golferSign` on their measures, drills for every listable condition. Viewed and edited in the Diagnostic Model inspector. |
+| `src/Resources/diagnostics/gate_words.json` + `src/Diagnostics/packs/gate_words_pack.{h,cpp}` | Content (§9.3 item 5, §10 rule 7): "what we could not check" in golfer words, one clause per gate and engine rule plus the gate subjects' words, with a user layer that overrides by id. The report reads `sharedGateWordSet()` per make; the Diagnostic Model's Gates page edits it. |
 | Tests | `session_report_test` (C++ pure: every rule in §3.2, §4.2, §6, §10 on fixtures, including the "Nothing off the heel" case and the range-restricted case); `core_pack_test` gate (§5); `pdf_document_writer_test` (encodings, size); `qml_ui` `tst_session_report` (every page renders, every variant in §3.1, no overflow past the folio); a probe that prints a library session to the share and fails above the size budget. |
 
 ## 12. What the mock is and is not

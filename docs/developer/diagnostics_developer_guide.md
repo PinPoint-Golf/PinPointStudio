@@ -668,7 +668,7 @@ release 7, finish 3.
 
 **Screens** (`screens.json`) — 13, all referenced by at least one condition. Nine carry a numeric pass floor with its unit; four are qualitative on purpose, and `reference_sets_test` asserts that so the absence of a number reads as intent rather than as unfinished content.
 
-**Drills** (`drills.json`) — 12, attached to 23 conditions. Attached where a starter set can honestly answer the fault, not to everything — a field that is always populated is a field readers learn to skip.
+**Drills** (`drills.json`) — 45, attached to 138 conditions. Every condition the work-on rule can list carries at least one that resolves, because its work-on page in the session report prints them; `core_pack_test`'s report gate (`reportContentGaps`, §9) holds the shipped pack to that.
 
 ### 8.4 Content — what can actually fire
 
@@ -817,6 +817,19 @@ Two scoping rules there are load-bearing:
 
 **Do not add a check that pins shipped values.** Health checks look for wrong *shapes* — no norm, a unit mismatch, everything graded into one band — never for specific numbers. That is the same mistake the deleted parity gates made.
 
+**The report's words have one source for each message.** `reportFieldIssues(condition)` and
+`reportFieldIssues(measure)` (`characteristic_pack.h`) are the checks on one row's report text —
+`golferPhraseWording` (a goal over 60 characters or with a number, "don't" or "never" in it, a cue
+that promises a fix, …), `golferPhraseMissing`, the picture's `unknownPicture*` and
+`pictureIncomplete`, `reportHoldNoReason`, `badGolferSign` — each tagged with the `field` it is
+about. `validatePack()` raises them by calling those two for every row, the loader keeps only the
+faults the in-memory row cannot hold (a `picture` object with nothing in it, a hold not written as
+`{"reason": …}`), and the Diagnostic Model's inspector calls the same two while the user types, so
+the line under a field and the line in Health are one string. Do not write a second copy of a
+wording rule in the inspector; add it to `reportFieldIssues()`. Whether a listable habit HAS its
+words is a different question, `reportContentGaps(pack, drillIds)`: presence only, it needs the
+pack and the drill registry, and `core_pack_test` holds the shipped pack to zero gaps.
+
 ---
 
 ## 10. The GUI façade — `ModelBrowser`
@@ -905,6 +918,19 @@ on anybody.
 screening system may be named, cited or alluded to. The movements are common property; the packaging
 of them into a named system is somebody's product, and `reference_sets_test` greps the raw bytes.
 
+### Gate words
+
+"What we could not check", on the report's back page, in the golfer's words: one clause per
+catalogued gate and engine rule, and the words for each gate subject (`ks.pelvis`, `track.club`,
+`shot`, …), in `src/Resources/diagnostics/gate_words.json`, read through `gate_words_pack.h`
+(`sharedGateWordSet()`, a user layer overriding by id) and edited on the Diagnostic Model's Gates
+page. A gate added to `gate_catalogue*.h` needs its clause here in the same change — `core_pack_test`
+holds the shipped file to the catalogue in both directions. Write the clause WITHOUT ITS SUBJECT, to
+follow the reading's name after a colon ("when your hips turned fastest: the face-on camera cannot
+time a turn…"), lower case and with no digits (`gateWordsProblem()`). A metric subject has no entry:
+the report uses that measure's `golferName`. A gate with no clause is left out of the report, never
+printed in the analyst's words.
+
 ### A new signal test
 
 Add the enum, implement it in `evaluate()`, extend `validatePack()`'s arity/threshold checks, and add a case to `characteristic_engine_test`. `Threshold` and `Ratio` are already there as worked examples of the shape.
@@ -926,7 +952,7 @@ All in the analyzer suite: `cmake -S src/Analysis/tests -B build/analyzer-tests`
 | Suite | Gates |
 |---|---|
 | `characteristic_pack_test` | load, save, validation, every error and warning code |
-| `core_pack_test` | the SHIPPED pack: ids, referential integrity, that every live corridor signal can fire, and that **everything which can fire can also be explained** — a condition detectable today with no cause is a defect, not a backlog item. Also the kind census, that `Outcome` and the `BallFlight` group are coextensive **in both directions** (which is what makes `outcomeReachOf()`'s move a no-op rather than a hope), and — read off the raw JSON, because the loader cannot answer it — that every condition declares a kind and a prominence |
+| `core_pack_test` | the SHIPPED pack: ids, referential integrity, that every live corridor signal can fire, and that **everything which can fire can also be explained** — a condition detectable today with no cause is a defect, not a backlog item. Also the kind census, that `Outcome` and the `BallFlight` group are coextensive **in both directions** (which is what makes `outcomeReachOf()`'s move a no-op rather than a hope), and — read off the raw JSON, because the loader cannot answer it — that every condition declares a kind and a prominence. The **report gate**: every habit the work-on rule can list has its report words, a picture and a drill that resolves, and every measure it reads has a `golferName` (`reportContentGaps`), with `reportFieldIssues()` naming the right field for each case. The **gate words**: every catalogued gate and rule has a clause and every clause is a catalogued id, the subjects are exactly the gate subjects, every entry passes `gateWordsProblem()`, and a user layer overrides by id through a save and a reload |
 | `axis_direction_test` | every corridor signal points the way its own condition claims. The fixture carries the catalogue quote that decides each row, so a new signal with no fixture row **fails** |
 | `norm_test` | the grade rule: per-side z, monitor bounds dominating in both directions, the drawn Ideal edge agreeing with the graded one **under every preset**, and the preset ordering invariant |
 | `norm_pack_test` | persistence, validation, layering — that context specificity beats layer precedence, the cohort probe order exhaustively, and the band a date of birth derives at a given date |
@@ -994,6 +1020,7 @@ src/Diagnostics/
   measure_sample.{h,cpp}        phase grid + sidecar; read a measure off a swing
   screen_pack.{h,cpp}           the physical screens a `screenRef` names
   drill_pack.{h,cpp}            the drills a `drills` entry names
+  gate_words_pack.{h,cpp}       "what we could not check" in golfer words, per gate and subject
   measure_facets.{h,cpp}        Composed-measure vocabulary + validity table
   anatomy_vocabulary.{h,cpp}    body-part vocabulary shared with the overlays
   dag_layout.{h,cpp}            the causal graph, laid out in C++
@@ -1002,7 +1029,7 @@ src/Diagnostics/
   pack_provider.h               ICharacteristicPackProvider, PackOrigin
 
 src/Gui/diagnosticmodel/       ModelBrowser + DiagnosticModel.qml + the Model*.qml views
-src/Resources/diagnostics/      core.json · norms.json · contexts.json · screens.json · drills.json
+src/Resources/diagnostics/      core.json · norms.json · contexts.json · screens.json · drills.json · gate_words.json
 src/Analysis/reference_bands.{h,cpp}   NormBandProvider — Norm -> Band for the wrist grid
 src/Gui/review/metric_catalog.cpp      corridors for the metric + dashboard surfaces
 ```
