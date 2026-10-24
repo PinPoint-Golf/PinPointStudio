@@ -1975,7 +1975,21 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             gate.mayGate = PP_GATE("sequence.credibleClub");
             gate.mayEvidence = { { QStringLiteral("clubheadPeakMph"), in.clubheadSpeedPeakMph },
                                  { QStringLiteral("minCredibleClubMph"), cfg.minCredibleClubMph } };
-            finishChannel(res.club, differentiate(a, windowUs, 1.0, /*magnitude*/ true),
+            RateTrack clubRate = differentiate(a, windowUs, 1.0, /*magnitude*/ true);
+            // ONE RATE FOR THE CLUB (club_rate_filter.h). Where the club rate filter set the tick,
+            // its θ̇ is the rate — the same one clubhead speed composes — de-projected through the
+            // plane by the gain at the tick's image angle (dψ/dθ), its σ by the same gain. Not
+            // differentiated again and not windowed again: the filter's RTS pass already is.
+            for (size_t i = 0; i < n && i < clubRate.dps.size(); ++i) {
+                if (!(track[i].flags & ShaftRateFiltered)) continue;
+                const double g = clubPlane.have ? deprojectGain(track[i].thetaRad, clubPlane.nu, clubPlane.k) : 1.0;
+                const double v = std::fabs(g * track[i].thetaDotRadS) * kRadToDeg;
+                const double sd = track[i].sigmaThetaDotDps >= 0.f ? std::fabs(g) * double(track[i].sigmaThetaDotDps) : 0.0;
+                clubRate.dps[i]      = v;
+                clubRate.sigmaDps[i] = sd + a.extraRelSigma * v;
+                clubRate.valid[i]    = 1u;
+            }
+            finishChannel(res.club, std::move(clubRate),
                           SeqSegment::Club, QStringLiteral("Club angular speed"),
                           fused ? QStringLiteral("faceOn+dtl") : QStringLiteral("faceOnClub"),
                           false, clubDom, phases, cfg, nodes, gate);

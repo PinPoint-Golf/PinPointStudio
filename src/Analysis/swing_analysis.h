@@ -40,6 +40,7 @@
 #include "../Club/dtl_shaft_track.h"  // DtlShaftTrack2D (DtlShaftStage fills it; OpenCV-free)
 #include "../Club/shaft_fusion.h"     // fusion::Track3D (ShaftFusionStage fills it; pure std)
 #include "../Skeleton3d/skeleton3d_fit.h" // skeleton3d::FitResult (Skeleton3DStage fills it; pure std)
+#include "../Club/club_rate_filter.h" // ClubFilterStats (the club rate filter's diagnostic; pure std)
 #include "../Pose/pose_timing.h"    // PoseTiming (AnalysisTimings pose split; header-only, Qt Core)
 
 // Canonical intermediate + output data structures for the shot analyzer
@@ -632,6 +633,10 @@ enum ShaftSampleFlags : uint16_t {
                                     // handSpeed, lagAngle, clubheadPeakLead, attackAngle, lowPointAhead,
                                     // clubAngularSpeed, the conic plane's synth channel, the fusion bridge)
                                     // — see the ⚠ in shaft_synthesis.h.
+    // The club rate filter set this synth tick's θ and θ̇ (club_rate_filter.h, 2026-10-24): its
+    // θ̇ is the smoothed rate every club consumer reads, and the KS club series reads it directly
+    // rather than differentiating θ. Synth ticks only.
+    ShaftRateFiltered      = 0x800,
 };
 
 struct ShaftSample2D {
@@ -668,6 +673,9 @@ struct ShaftSample2D {
     // model predictions (resynthesizeLayerC's isPred) without the dead ShaftKinematicPredicted
     // flag. −1 = not recorded (uncertainty off / older document). Serialised only when ≥ 0.
     int8_t  tier          = -1;
+    // 1σ of thetaDotRadS in °/s where the club rate filter set it (ShaftRateFiltered); −1 = not
+    // assessed. IN-MEMORY ONLY: the synth is rebuilt on every load, and the KS club series reads it.
+    float   sigmaThetaDotDps = -1.f;
 };
 
 // Multi-estimator club-length fusion result (club_length_fusion.h), recorded per
@@ -875,6 +883,10 @@ struct ShaftTrack2D {
     QPointF addressBallPx;
     float   addressBallSigmaPx = -1.f;   // 1σ of addressBallPx (px); −1 = not assessed (uncertainty design §4.3)
     float   synthKappa         = -1.f;   // the synth posterior's reading-weight inflation used (§4.5); −1 = no posterior
+    // The club rate filter's per-swing diagnostic (club_rate_filter.h): how far the frames sat off
+    // the filtered track through the downswing — the tracker's wobble, a measurement-error marker.
+    // Developer only: persisted as analysis.club.filter when it ran, shown nowhere in the app.
+    ClubFilterStats clubFilter;
     // ── Robustness self-checks (2026-10-01, tracker_robustness) ─────────────
     // A refused track is one the tracker's own witnesses contradict: it keeps
     // its samples for the lab but is NOT a measurement — valid is false, the

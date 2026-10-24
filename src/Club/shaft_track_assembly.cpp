@@ -694,6 +694,18 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "synth.envelopeWindowUs", c.synth.envelopeWindowUs);
     apply(ov, "synth.envelopeTolDeg", c.synth.envelopeTolDeg);
     apply(ov, "synth.maxFollowThroughRateDps", c.synth.maxFollowThroughRateDps);
+    // The club rate filter: "synth.clubFilter.*" keys.
+    apply(ov, "synth.clubFilter.enabled",         c.clubFilter.enabled);
+    apply(ov, "synth.clubFilter.jerkDps3",        c.clubFilter.jerkDps3);
+    apply(ov, "synth.clubFilter.sigmaFloorDeg",   c.clubFilter.sigmaFloorDeg);
+    apply(ov, "synth.clubFilter.sigmaUnsetDeg",   c.clubFilter.sigmaUnsetDeg);
+    apply(ov, "synth.clubFilter.gateSigma",       c.clubFilter.gateSigma);
+    apply(ov, "synth.clubFilter.robustK",         c.clubFilter.robustK);
+    apply(ov, "synth.clubFilter.robustIters",     c.clubFilter.robustIters);
+    apply(ov, "synth.clubFilter.ballSigmaDeg",    c.clubFilter.ballSigmaDeg);
+    apply(ov, "synth.clubFilter.leadInUs",        c.clubFilter.leadInUs);
+    apply(ov, "synth.clubFilter.initRateDps",     c.clubFilter.initRateDps);
+    apply(ov, "synth.clubFilter.initRatePostDps", c.clubFilter.initRatePostDps);
     apply(ov, "shaft.followThrough.enabled", c.followThrough.enabled);
     apply(ov, "shaft.followThrough.rateFactor", c.followThrough.rateFactor);
     apply(ov, "shaft.followThrough.minRateCapDps", c.followThrough.minRateCapDps);
@@ -1678,6 +1690,88 @@ static double anchorSigmaRad(const ShaftTrack2D& out, const ShaftPosition& p)
     return sig * kPi / 180.0;
 }
 
+// The ball line at P7 (impact_anchor.h): the angle from the hands at the P7 instant to the address
+// ball — the clubhead IS at the ball at contact. False when the ball did not anchor the track, there
+// is no P7, or the samples do not straddle it. Shared by the synth's evidence fit and the club filter
+// so both read the ball the same way.
+static bool ballLineAtP7(const ShaftTrack2D& out, int64_t& p7Us, double& thetaRad)
+{
+    if (!out.ballAnchored || out.samples.size() < 2) return false;
+    int64_t p7 = -1;
+    for (const ShaftPosition& p : out.positions) if (p.p == 7) p7 = p.t_us;
+    const auto& S = out.samples;
+    for (size_t i = 1; p7 >= 0 && i < S.size(); ++i) {
+        if (!(S[i - 1].t_us <= p7 && p7 <= S[i].t_us && S[i].t_us > S[i - 1].t_us)) continue;
+        const double u = double(p7 - S[i - 1].t_us) / double(S[i].t_us - S[i - 1].t_us);
+        const QPointF g = S[i - 1].gripPx + u * (S[i].gripPx - S[i - 1].gripPx);
+        thetaRad = std::atan2(out.addressBallPx.y() - g.y(), out.addressBallPx.x() - g.x());
+        p7Us = p7;
+        return true;
+    }
+    return false;
+}
+
+// THE CLUB RATE FILTER (club_rate_filter.h, docs/design/club_rate_filter_design.md). One robust
+// Kalman + RTS estimate of the shaft angle and its rate from the top (P4) to impact (P7), and from
+// impact on, over the readings the tracker actually made: every measured frame at its own σθ (the
+// fit's evidence rule — a blurred frame is its timed edges when they exist), every wedge edge, the
+// ball line at P7. Its θ and θ̇ are written over the synth ticks it covers, so clubhead speed (which
+// reads θ̇) and the KS club angular speed (which reads it too, ShaftRateFiltered) are ONE rate. The
+// P-anchors are not readings — they were located on these same frames. No P4 or P7 ⇒ nothing runs.
+static void applyClubRateFilter(ShaftTrack2D& out, const ShaftV3Config& cfg)
+{
+    out.clubFilter = ClubFilterStats{};
+    if (!cfg.clubFilter.enabled || out.synth.empty()) return;
+    int64_t tTop = -1, tImp = -1;
+    for (const ShaftPosition& p : out.positions) {
+        if (p.p == 4) tTop = p.t_us;
+        if (p.p == 7) tImp = p.t_us;
+    }
+    if (tTop < 0 || tImp <= tTop) return;
+
+    const double d2r = kPi / 180.0;
+    std::vector<ClubFilterObs> obs;
+    const bool haveEdges = !out.wedgeObs.empty();
+    for (const ShaftSample2D& s : out.samples) {
+        if (s.flags & (ShaftCoasted | ShaftKinematicPredicted | ShaftSynthesized | ShaftImplausible)) continue;
+        const bool wedge = (s.flags & ShaftWedge) != 0;
+        if (wedge && haveEdges) continue;
+        if (!(s.flags & (ShaftMeasured | ShaftImuBridged | ShaftWedge))) continue;
+        const double sd = s.sigmaThetaDeg >= 0.f ? double(s.sigmaThetaDeg) : cfg.clubFilter.sigmaUnsetDeg;
+        obs.push_back({ s.t_us, s.thetaRad, sd * d2r, wedge ? ClubFilterObs::Wedge : ClubFilterObs::Frame });
+    }
+    for (const ShaftWedgeObs& w : out.wedgeObs)
+        obs.push_back({ w.t_us, w.thetaRad, double(w.sigmaDeg) * d2r, ClubFilterObs::Wedge });
+    int64_t p7Us = -1; double ballTh = 0.0;
+    if (cfg.clubFilter.ballSigmaDeg > 0.0 && ballLineAtP7(out, p7Us, ballTh))
+        obs.push_back({ p7Us, ballTh, cfg.clubFilter.ballSigmaDeg * d2r, ClubFilterObs::Ball });
+
+    std::vector<int64_t> tickT;
+    tickT.reserve(out.synth.size());
+    for (const ShaftSample2D& s : out.synth) tickT.push_back(s.t_us);
+    const ClubRateFilterResult r =
+        runClubRateFilter(tickT, obs, tTop, tImp, out.synth.back().t_us, cfg.clubFilter);
+    out.clubFilter = r.stats;
+    if (!r.stats.ran) return;
+    for (size_t j = 0; j < out.synth.size(); ++j) {
+        if (!r.covered[j]) continue;
+        ShaftSample2D& s = out.synth[j];
+        s.thetaRad         = s.thetaRad + std::remainder(r.thetaRad[j] - s.thetaRad, 2.0 * kPi);
+        s.thetaDotRadS     = r.thetaDotRadS[j];
+        s.sigmaThetaDeg    = float(r.sigmaThetaRad[j] / d2r);
+        s.sigmaThetaDotDps = float(r.sigmaThetaDotRadS[j] / d2r);
+        s.flags           |= ShaftRateFiltered;
+        s.headPx = QPointF{ s.gripPx.x() + s.visibleLenPx * std::cos(s.thetaRad),
+                            s.gripPx.y() + s.visibleLenPx * std::sin(s.thetaRad) };
+    }
+    // The uncertainty draws sample the filter where it ran (shaft_synthesis.h synthDraws).
+    if (out.synthPost) {
+        auto post = std::make_shared<SynthPosterior>(*out.synthPost);
+        post->clubFilter = r.segments;
+        out.synthPost = post;
+    }
+}
+
 // ── Layer C: synthesis between anchors (shaft_position_first §2 Layer C) ─────────
 // Factored out of decideTrack (2026-09-17) so the SAME code runs on a track rebuilt
 // from a swing document (resynthesizeLayerC below): the synth tier is a pure function
@@ -1884,19 +1978,10 @@ static void synthesizeLayerC(ShaftTrack2D& out, const std::vector<int64_t>& tUs,
                 ev.push_back({ w.t_us, w.thetaRad, double(w.sigmaDeg) * kPi / 180.0 });
             // The ball (impact_anchor.h): the hands at the P7 instant → the address ball, as a reading.
             bool softImpact = false;
-            if (out.ballAnchored && cfg.synth.ballAnchorSigmaDeg > 0.0 && out.samples.size() >= 2) {
-                int64_t p7 = -1;
-                for (const ShaftPosition& p : out.positions) if (p.p == 7) p7 = p.t_us;
-                const auto& S = out.samples;
-                for (size_t i = 1; p7 >= 0 && i < S.size(); ++i) {
-                    if (!(S[i - 1].t_us <= p7 && p7 <= S[i].t_us && S[i].t_us > S[i - 1].t_us)) continue;
-                    const double u = double(p7 - S[i - 1].t_us) / double(S[i].t_us - S[i - 1].t_us);
-                    const QPointF g = S[i - 1].gripPx + u * (S[i].gripPx - S[i - 1].gripPx);
-                    const double th = std::atan2(out.addressBallPx.y() - g.y(), out.addressBallPx.x() - g.x());
-                    ev.push_back({ p7, th, cfg.synth.ballAnchorSigmaDeg * kPi / 180.0 });
-                    softImpact = true;
-                    break;
-                }
+            int64_t p7Us = -1; double ballTh = 0.0;
+            if (cfg.synth.ballAnchorSigmaDeg > 0.0 && ballLineAtP7(out, p7Us, ballTh)) {
+                ev.push_back({ p7Us, ballTh, cfg.synth.ballAnchorSigmaDeg * kPi / 180.0 });
+                softImpact = true;
             }
             // Uncertainty U3 (shaft_uncertainty_propagation_design.md §4.5): keep the fit's
             // posterior, and — only under synthSoftAnchors — let the anchors move by their σ.
@@ -1962,6 +2047,10 @@ static void synthesizeLayerC(ShaftTrack2D& out, const std::vector<int64_t>& tUs,
             }
         }
 
+        // The club rate filter (applyClubRateFilter above) — after the fit, whose posterior the draws
+        // keep for the ticks it does not cover, and before Rule 2.
+        applyClubRateFilter(out, cfg);
+
         // Rule 2 — the synth may not sweep past the measurements. For every tick, the
         // measured frames within ±envelopeWindowUs bound θ (each brought onto the tick's
         // own sheet); a tick outside that envelope by more than the tolerance is clamped
@@ -1973,6 +2062,10 @@ static void synthesizeLayerC(ShaftTrack2D& out, const std::vector<int64_t>& tUs,
             int lo = 0;
             for (size_t j = 0; j < out.synth.size(); ++j) {
                 ShaftSample2D& s = out.synth[j];
+                // A filtered tick already weighed every measured frame at its σ and set aside the
+                // ones that disagree with the club's motion; clamping it back onto them would
+                // restore the wobble the filter removed.
+                if (s.flags & ShaftRateFiltered) continue;
                 while (lo < nf && tUs[lo] < s.t_us - cfg.synth.envelopeWindowUs) ++lo;
                 double mn = 0.0, mx = 0.0; bool any = false;
                 for (int i = lo; i < nf && tUs[i] <= s.t_us + cfg.synth.envelopeWindowUs; ++i) {

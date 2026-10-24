@@ -1392,6 +1392,32 @@ inline constexpr double  kCapFactor           = followThrough::kRateFactor;   //
 inline constexpr double  kTolDeg              = 6.0;      // shaft.impactWindow.tolDeg — angle tolerance on every test
 inline constexpr double  kBridgeSigmaDegPerMs = 0.5;      // shaft.impactWindow.bridgeSigmaDegPerMs — 0 = no bridge σ growth
 } // namespace impactWindow
+
+// --- Club rate filter (club_rate_filter.h, docs/design/club_rate_filter_design.md) ----------------
+// ONE estimate of the face-on shaft angle and its rate from the top to impact (and impact onwards),
+// so clubhead speed and the KS club angular speed read the same ω. A robust Kalman filter with RTS
+// smoothing, state [θ, θ̇, θ̈], white-jerk process noise, over the measured frames, the blur-wedge
+// edges and the ball line at P7. Keys "synth.clubFilter.*".
+//
+// σ_jerk: the filter's steady-state cutoff is ω_c = (σ_jerk² / (σ_m²·dt))^(1/6) (pose_smoother.cpp's
+// law, the same arithmetic). At σ_m ≈ 2° and 240 fps, 6000 °/s³ puts ω_c near 36 rad/s (a ~28 ms
+// window): the 60–80 ms wobble the tracker draws through the downswing is suppressed, a club's own
+// rise over ~250 ms passes. Gated 24 Oct 2026 (design §7): chosen on the tuning set, then on the 30
+// held-out GC Quad pairs impact speed read 0.948 of the launch monitor (off 0.818), SD 7.9 mph
+// (off 14.8). The impact reading is sensitive to it: 12000 → 0.897, 25000 → 0.761 (all pairs).
+namespace clubFilter {
+inline constexpr bool    kEnabled        = true;     // synth.clubFilter.enabled — false ⇒ byte-identical to before
+inline constexpr double  kJerkDps3       = 6000.0;   // synth.clubFilter.jerkDps3 — σ of the white jerk, °/s³
+inline constexpr double  kSigmaFloorDeg  = 1.0;      // synth.clubFilter.sigmaFloorDeg — σθ never below this
+inline constexpr double  kSigmaUnsetDeg  = 3.0;      // synth.clubFilter.sigmaUnsetDeg — σθ where none was assessed
+inline constexpr double  kGateSigma      = 3.0;      // synth.clubFilter.gateSigma — pass-1 innovation gate
+inline constexpr double  kRobustK        = 2.0;      // synth.clubFilter.robustK — Huber threshold, in σ
+inline constexpr int     kRobustIters    = 2;        // synth.clubFilter.robustIters — reweighted passes after pass 1
+inline constexpr double  kBallSigmaDeg   = 8.0;      // synth.clubFilter.ballSigmaDeg — the ball line at P7 (≤ 0 ⇒ unused)
+inline constexpr int64_t kLeadInUs       = 40000;    // synth.clubFilter.leadInUs — evidence read before the top
+inline constexpr double  kInitRateDps    = 600.0;    // synth.clubFilter.initRateDps — σθ̇ at the top (θ̇ = 0 there)
+inline constexpr double  kInitRatePostDps = 2500.0;  // synth.clubFilter.initRatePostDps — σθ̇ at impact (any rate)
+} // namespace clubFilter
 } // namespace shaft
 
 // --- Late-pipeline timeline-event refinement (src/Timeline/event_refine.h) -----

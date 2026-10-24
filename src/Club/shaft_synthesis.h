@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include <QPointF>
@@ -456,6 +457,10 @@ struct SynthPosterior {
     // on held-out hand marks (grade_coverage.py; tuned::uncertainty::kSynthSigmaScale). κ alone
     // cannot set it: κ scales only the evidence share, and the anchors' share does not move with it.
     double scale = 1.0;
+    // The club rate filter's segments (club_rate_filter.h), where it ran: a draw takes θ and θ̇ on
+    // those ticks from a backward sample of the filter's posterior instead of the fit's, so the
+    // uncertainty of everything read off the rate is the filter's own. Empty ⇒ draws as before.
+    std::vector<std::shared_ptr<const ClubFilterSegment>> clubFilter;
 };
 
 // Refit the θ of `synth` (sorted by time, as synthesizeLayerC emits it) to `evidence` — see
@@ -749,9 +754,24 @@ inline std::vector<std::vector<ShaftSample2D>> synthDraws(const std::vector<Shaf
             const size_t a = j > 0 ? j - 1 : j, b = j + 1 < s.size() ? j + 1 : j;
             const double dt = double(s[b].t_us - s[a].t_us) * 1e-6;
             if (dt > 0.0) s[j].thetaDotRadS += (delta[b] - delta[a]) * post.scale / dt;
+        }
+        // Where the club rate filter set the tick, the draw is the filter's: one backward sample of
+        // each segment's posterior, put on the tick's own sheet.
+        std::vector<double> fp, fv;
+        for (const auto &seg : post.clubFilter) {
+            if (!seg) continue;
+            seg->kf.sample(rng, fp, fv);
+            for (size_t q = 0; q < seg->tick.size(); ++q) {
+                const size_t j = seg->tick[q];
+                const int    k = seg->step[q];
+                if (j >= s.size() || k < 0 || size_t(k) >= fp.size()) continue;
+                s[j].thetaRad     = synth[j].thetaRad + std::remainder(fp[size_t(k)] - synth[j].thetaRad, 2.0 * kSynthPi);
+                s[j].thetaDotRadS = fv[size_t(k)];
+            }
+        }
+        for (size_t j = 0; j < s.size(); ++j)
             s[j].headPx = QPointF{ s[j].gripPx.x() + s[j].visibleLenPx * std::cos(s[j].thetaRad),
                                    s[j].gripPx.y() + s[j].visibleLenPx * std::sin(s[j].thetaRad) };
-        }
         out.push_back(std::move(s));
     }
     return out;

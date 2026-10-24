@@ -659,7 +659,7 @@ pp_add_test(shaft_segment_test
 # engines) — needs Qt (QVariantMap config) + OpenCV. ball_anchor.cpp supplies
 # medianGripBallLenPx (A1), now referenced by decideTrack's length ladder.
 pp_add_test(shaft_decide_test
-    SOURCES shaft_decide_test.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
+    SOURCES shaft_decide_test.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/club_rate_filter.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)
@@ -669,7 +669,7 @@ pp_add_test(shaft_decide_test
 # declared over the shared FrameSource/Viterbi seams, so it drags in the same
 # assembly + evidence + anchor + head translation units.
 pp_add_test(dtl_shaft_decide_test
-    SOURCES dtl_shaft_decide_test.cpp ${SRC}/Club/dtl_shaft_decide.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
+    SOURCES dtl_shaft_decide_test.cpp ${SRC}/Club/dtl_shaft_decide.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/club_rate_filter.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)
@@ -679,7 +679,7 @@ pp_add_test(dtl_shaft_decide_test
 # dtl_shaft_tracker.cpp is NOT here and never will be — it is the SwingWindow
 # adapter, and these tests are window-free by design.
 pp_add_test(dtl_shaft_post_test
-    SOURCES dtl_shaft_post_test.cpp ${SRC}/Club/dtl_shaft_post.cpp ${SRC}/Club/dtl_shaft_decide.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
+    SOURCES dtl_shaft_post_test.cpp ${SRC}/Club/dtl_shaft_post.cpp ${SRC}/Club/dtl_shaft_decide.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/club_rate_filter.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)
@@ -688,7 +688,7 @@ pp_add_test(dtl_shaft_post_test
 # conf-gated / wrap-aware off-axis penalty, disabled ⇒ zero contribution, plus
 # the shaft.handAxisPrior.* override plumbing. Same link set as shaft_decide_test.
 pp_add_test(shaft_hand_axis_prior_test
-    SOURCES shaft_hand_axis_prior_test.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
+    SOURCES shaft_hand_axis_prior_test.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/club_rate_filter.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)
@@ -903,6 +903,11 @@ pp_add_test(timeline_fusion_test SOURCES timeline_fusion_test.cpp)
 # OpenCV; synthetic noisy circular arc, no fixture.
 pp_add_test(pose_smoother_test SOURCES pose_smoother_test.cpp ${SRC}/Pose/pose_smoother.cpp)
 
+# The club rate filter (club_rate_filter.h, club_rate_filter_design.md): one robust Kalman + RTS
+# estimate of the shaft angle and its rate through the downswing, on a synthetic downswing with a
+# known θ(t) and the tracker's leg-lock and wrong-branch failures injected. No Qt, no OpenCV.
+pp_add_test(club_rate_filter_test SOURCES club_rate_filter_test.cpp ${SRC}/Club/club_rate_filter.cpp)
+
 # Layer C synthesis (shaft_synthesis.h): C¹ Hermite interpolation between P-anchors
 # — C⁰ continuity at anchors, conf decay shape, 200° unwrap onto the track branch,
 # strictly-between emission window, absent-anchor subsets. Header-only, Qt (QPointF/
@@ -914,7 +919,7 @@ pp_add_test(shaft_synthesis_test SOURCES shaft_synthesis_test.cpp)
 # live assembly would have produced from the same samples. Links the assembly like
 # shaft_decide_test does.
 pp_add_test(shaft_resynth_test
-    SOURCES shaft_resynth_test.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
+    SOURCES shaft_resynth_test.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/club_rate_filter.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS})
 
@@ -939,7 +944,7 @@ pp_add_test(shaft_position_fit_test
 # and the estimateSwingSpanUs Stage B helper — synthetic grip tracks, no fixture.
 # ball_anchor.cpp resolves medianGripBallLenPx, referenced from shaft_track_assembly.
 pp_add_test(swing_onset_test
-    SOURCES swing_onset_test.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
+    SOURCES swing_onset_test.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/club_rate_filter.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)
@@ -949,7 +954,7 @@ pp_add_test(swing_onset_test
 # onset back through the fidget) and the shaft.emitTakeaway ladder. Same link set
 # as swing_onset_test (segmentPhases + phasesToSegmentation are pure).
 pp_add_test(shaft_onset_test
-    SOURCES shaft_onset_test.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
+    SOURCES shaft_onset_test.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/club_rate_filter.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)
@@ -1633,7 +1638,7 @@ pp_add_test(det_rng_test SOURCES det_rng_test.cpp NO_QT)
 pp_add_test(uncertainty_delta_test SOURCES uncertainty_delta_test.cpp)
 pp_add_test(synth_posterior_test SOURCES synth_posterior_test.cpp)
 pp_add_test(forward_backward_test
-    SOURCES forward_backward_test.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
+    SOURCES forward_backward_test.cpp ${SRC}/Club/shaft_track_assembly.cpp ${SRC}/Club/club_rate_filter.cpp ${SRC}/Club/shaft_tracker_math.cpp ${SRC}/Club/ball_anchor.cpp ${SRC}/Club/clubhead_track.cpp
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)

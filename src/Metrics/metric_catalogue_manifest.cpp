@@ -1471,7 +1471,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .description = QStringLiteral(
             "How fast the clubhead is travelling as it arrives at the ball — the hands' velocity plus "
             "the shaft's rotation about them, composed from the tracked club and scaled to "
-            "real-world units by the club's length. It is the headline power number and the "
+            "real-world units by the club's length. The shaft's rotation is the filtered rate the "
+            "club angular speed reads, so the two curves move together. It is the headline power number and the "
             "biggest single driver of distance."),
         .howToRead = QStringLiteral(
             "Read the value at impact, which is where the curve peaks; the curve ends there because "
@@ -2243,9 +2244,11 @@ void installMetricManifest(MetricCatalogue &cat)
             "angular speed of the grip-to-head line, roll about the shaft left out. The last link "
             "of the kinematic sequence and the one the ball feels: a club still accelerating at "
             "impact has taken the whole chain's speed, and one that peaked early gave some of it "
-            "back. From the face-on club track it is the shaft's image angle de-projected through "
-            "the swing plane — the plane the two cameras measured where there are two, else the "
-            "one the face-on track implies; a club sensor measures it directly."),
+            "back. From the face-on club track it is the rate of the shaft's image angle, filtered "
+            "across every tracked frame from the top to impact so a stray frame cannot put a hump "
+            "in it, de-projected through the swing plane — the plane the two cameras measured where "
+            "there are two, else the one the face-on track implies; a club sensor measures it "
+            "directly. Clubhead speed reads the same filtered rate."),
         .howToRead = QStringLiteral(
             "Professionals peak around 2250 °/s AT impact, more than double the arm — the biggest "
             "gain in the chain. A peak tens of milliseconds early is the club racing the arm, which "
@@ -2264,10 +2267,10 @@ void installMetricManifest(MetricCatalogue &cat)
             // planned Direct rate off the 3-D shaft vector, which nothing computes (#21).
             via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true,
                                                             .clubTrack = true },
-                QStringLiteral("the tracker's shaft angle rate de-projected through the swing "
+                QStringLiteral("the filtered shaft angle rate de-projected through the swing "
                                "plane the two cameras measured (uncalibrated)")),
             via("faceOnClub", RM::Projected, Estimated, { .faceOnCamera = true, .clubTrack = true },
-                QStringLiteral("the tracker's shaft angle rate de-projected through the "
+                QStringLiteral("the filtered shaft angle rate de-projected through the "
                                "swing-plane ellipse")) },
     });
 

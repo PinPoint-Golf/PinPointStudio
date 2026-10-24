@@ -716,6 +716,21 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
                 wo.append(QJsonArray{ rel(w.t_us), w.thetaRad, int(w.kind), double(w.sigmaDeg) });
             clubObj.insert(QStringLiteral("wedgeObs"), wo);
         }
+        // The club rate filter's diagnostic (club_rate_filter.h) — developer only, written only when
+        // the filter ran, so a filter-off document is byte-identical. shot_processor.cpp mirrors it.
+        if (a.shaft.clubFilter.ran) {
+            const analysis::ClubFilterStats &f = a.shaft.clubFilter;
+            clubObj.insert(QStringLiteral("filter"), QJsonObject{
+                { QStringLiteral("version"),        f.version },
+                { QStringLiteral("nEvidence"),      f.nEvidence },
+                { QStringLiteral("nGated"),         f.nGated },
+                { QStringLiteral("nDownweighted"),  f.nDownweighted },
+                { QStringLiteral("nisMean"),        f.nisMean },
+                { QStringLiteral("residualRmsDeg"), f.residualRmsDeg },
+                { QStringLiteral("rateWobble"),     f.rateWobble },
+                { QStringLiteral("humpsRaw"),       f.humpsRaw },
+                { QStringLiteral("humpsFiltered"),  f.humpsFiltered } });
+        }
         o[QStringLiteral("club")] = clubObj;
     }
     // Ball track (v3.4 design §9) for the replay overlay — normalized [0,1]

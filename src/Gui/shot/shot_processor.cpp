@@ -584,6 +584,20 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                 wo.append(QVariantList{ qint64(w.t_us), w.thetaRad, int(w.kind), double(w.sigmaDeg) });
             clubMap.insert(QStringLiteral("wedgeObs"), wo);
         }
+        // Mirrors swing_doc.cpp's analysis.club.filter (the club rate filter's diagnostic).
+        if (a.shaft.clubFilter.ran) {
+            const pinpoint::analysis::ClubFilterStats &f = a.shaft.clubFilter;
+            clubMap.insert(QStringLiteral("filter"), QVariantMap{
+                { QStringLiteral("version"),        f.version },
+                { QStringLiteral("nEvidence"),      f.nEvidence },
+                { QStringLiteral("nGated"),         f.nGated },
+                { QStringLiteral("nDownweighted"),  f.nDownweighted },
+                { QStringLiteral("nisMean"),        f.nisMean },
+                { QStringLiteral("residualRmsDeg"), f.residualRmsDeg },
+                { QStringLiteral("rateWobble"),     f.rateWobble },
+                { QStringLiteral("humpsRaw"),       f.humpsRaw },
+                { QStringLiteral("humpsFiltered"),  f.humpsFiltered } });
+        }
         detail.insert(QStringLiteral("club"), clubMap);
     }
     // Ball track (v3.4 design §9) for the replay overlay — normalized [0,1]

@@ -33,6 +33,7 @@
 #include "club_length_fusion.h"    // LengthFusionConfig / LengthPriorState / fuseClubLength
 #include "shaft_positions.h"       // PositionsConfig / PTime / locatePTimes (Layer B B-time location)
 #include "shaft_synthesis.h"       // SynthConfig / synthesizeBetweenAnchors (Layer C synthesis)
+#include "club_rate_filter.h"      // ClubRateFilterConfig / runClubRateFilter (one θ̇ for the club)
 #include "shaft_wedge.h"           // WedgeConfig / measureWedge (R8-T1 blur-wedge, S2)
 #include "impact_geom.h"           // ImpactGeomConfig / locateImpactGeom (P7 club-at-ball)
 #include "../Analysis/uncertainty_config.h" // UncertaintyConfig (shaft_uncertainty_propagation_design.md)
@@ -491,6 +492,24 @@ struct ShaftV3Config {
         double  tolDeg              = tuned::shaft::impactWindow::kTolDeg;
         double  bridgeSigmaDegPerMs = tuned::shaft::impactWindow::kBridgeSigmaDegPerMs;
     } impactWindow;
+    // The club rate filter (club_rate_filter.h) — "synth.clubFilter.*". ONE robust Kalman + RTS
+    // estimate of θ and θ̇ from the top to impact and after, written over the synth ticks it covers,
+    // so clubhead speed and the KS club angular speed read the same rate. OFF ⇒ byte-identical.
+    ClubRateFilterConfig clubFilter = [] {
+        ClubRateFilterConfig c;
+        c.enabled         = tuned::shaft::clubFilter::kEnabled;
+        c.jerkDps3        = tuned::shaft::clubFilter::kJerkDps3;
+        c.sigmaFloorDeg   = tuned::shaft::clubFilter::kSigmaFloorDeg;
+        c.sigmaUnsetDeg   = tuned::shaft::clubFilter::kSigmaUnsetDeg;
+        c.gateSigma       = tuned::shaft::clubFilter::kGateSigma;
+        c.robustK         = tuned::shaft::clubFilter::kRobustK;
+        c.robustIters     = tuned::shaft::clubFilter::kRobustIters;
+        c.ballSigmaDeg    = tuned::shaft::clubFilter::kBallSigmaDeg;
+        c.leadInUs        = tuned::shaft::clubFilter::kLeadInUs;
+        c.initRateDps     = tuned::shaft::clubFilter::kInitRateDps;
+        c.initRatePostDps = tuned::shaft::clubFilter::kInitRatePostDps;
+        return c;
+    }();
     // Hand-axis θ prior (WB4) — "shaft.handAxisPrior.*" keys. DARK (enabled=false;
     // its corpus gate was never run); when on, the per-frame hand-axis direction penalises the DP
     // states far from it near the grip. fromOverrides populates it.

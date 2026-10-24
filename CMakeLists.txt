@@ -2876,6 +2876,9 @@ target_sources(PinPointStudio PRIVATE
     src/Club/shaft_tracker_math.cpp
     src/Club/shaft_track_assembly.h
     src/Club/shaft_track_assembly.cpp
+    src/Club/club_rate_filter.h
+    src/Club/club_rate_filter.cpp
+    src/Core/kf3_smoother.h
     src/Club/shaft_track_shared.h
     src/Club/shaft_frame_io.h
     # Down-the-line shaft tracker (dtl_shaft_tracker_design.md). Run in the app by
@@ -3330,6 +3333,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Timeline/event_refine.cpp
         src/Club/shaft_tracker_math.cpp
         src/Club/shaft_track_assembly.cpp
+        src/Club/club_rate_filter.cpp
         # DTL shaft tracker — DtlShaftStage and swinglab_run --dtl (§5.11).
         src/Club/dtl_face_on_witness.cpp
         src/Club/dtl_shaft_json.cpp
