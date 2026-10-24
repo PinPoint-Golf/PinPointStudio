@@ -431,6 +431,26 @@ QHash<QString, QJsonObject> drillEntities(const DrillSet &set)
     return out;
 }
 
+// The gate words, the same way — one entry of either list through the real serialiser. Keyed by the
+// bare id, which is also the Gates table's row id, so a dirty clause marks the row it was typed on.
+// The two lists share no id (core_pack_test holds the shipped file to that), so one hash is enough.
+QHash<QString, QJsonObject> gateWordEntities(const GateWordSet &set)
+{
+    QHash<QString, QJsonObject> out;
+    const auto add = [&out](const GateWord &w, bool subject) {
+        GateWordSet one;
+        (subject ? one.subjects : one.gates).push_back(w);
+        const QJsonArray arr = QJsonDocument::fromJson(saveGateWordSet(one))
+                                   .object()
+                                   .value(subject ? QStringLiteral("subjects") : QStringLiteral("gates"))
+                                   .toArray();
+        if (!arr.isEmpty()) out.insert(w.id, arr.first().toObject());
+    };
+    for (const GateWord &w : set.gates)    add(w, false);
+    for (const GateWord &w : set.subjects) add(w, true);
+    return out;
+}
+
 // One norm row as JSON, for the dirty diff. saveNormPack() serialises a whole pack, so a
 // single-row pack is wrapped and unwrapped — the point is to compare exactly the bytes a save would
 // write, rather than a hand-written field-by-field comparison that drifts when a field is added.
@@ -809,6 +829,15 @@ ModelBrowser::ModelBrowser(QObject *parent)
     }
     m_workingDrills = m_savedDrills;
 
+    // The gate words, read the same way and for the same reason (#60) — the fifth layer, and the only
+    // part of a gate this panel writes.
+    m_savedGateWords = loadUserGateWordSet();
+    if (m_savedGateWords.id.isEmpty()) {
+        m_savedGateWords.id      = QStringLiteral("user");
+        m_savedGateWords.version = QStringLiteral("1");
+    }
+    m_workingGateWords = m_savedGateWords;
+
     rebuild();
 }
 
@@ -821,8 +850,9 @@ ModelBrowser::~ModelBrowser()
     if (m_gateWatcher->isRunning())     m_gateWatcher->waitForFinished();
 }
 
-// ⚠ THIS INVALIDATES EVERY POINTER INTO THE ASSEMBLY. m_assembled, m_norms, m_screens and m_drills
-// are all replaced wholesale, so a `const Condition *`, `Measure *`, `Screen *`, `Drill *`,
+// ⚠ THIS INVALIDATES EVERY POINTER INTO THE ASSEMBLY. m_assembled, m_norms, m_screens, m_drills and
+// m_gateWords are all replaced wholesale, so a `const Condition *`, `Measure *`, `Screen *`, `Drill *`,
+// a `const GateWord *` from m_gateWords,
 // `ContextNode *` or a `const ContextTree &` taken before this call is dangling after it — as is the
 // reference `pack()` returned.
 //
@@ -832,8 +862,8 @@ ModelBrowser::~ModelBrowser()
 // stack blamed the formatting and the fault was three lines earlier.
 //
 // The rule: resolve pointers to QStrings BEFORE calling this. `m_working`, `m_workingNorms`,
-// `m_workingScreens` and `m_workingDrills` are members and survive this call, so pointers into those
-// are safe ACROSS IT.
+// `m_workingScreens`, `m_workingDrills` and `m_workingGateWords` are members and survive this call,
+// so pointers into those are safe ACROSS IT.
 //
 // They are not safe across a RESTORE. The refusal paths undo a copy-on-write with `m_working =
 // before`, and a vector copy-assignment from a shorter source destroys the surplus elements — which
@@ -874,6 +904,23 @@ void ModelBrowser::rebuild()
         if (it != m_drills.drills.end()) *it = d;
         else                              m_drills.drills.push_back(d);
     }
+
+    // The gate words, the same again — and PER LIST, because a gate's clause and a reading's words
+    // are two lists that happen to share a file. The same overlay sharedGateWordSet() assembles for
+    // the report, so the Gates page and the next report read one answer.
+    m_gateWords = coreGateWordSet();
+    const auto overlayWords = [](std::vector<GateWord> &into, const std::vector<GateWord> &from) {
+        for (const GateWord &w : from) {
+            auto it = std::find_if(into.begin(), into.end(),
+                                   [&](const GateWord &x) { return x.id == w.id; });
+            if (it != into.end()) *it = w;
+            else                  into.push_back(w);
+        }
+    };
+    overlayWords(m_gateWords.gates, m_workingGateWords.gates);
+    overlayWords(m_gateWords.subjects, m_workingGateWords.subjects);
+    if (!m_workingGateWords.gates.empty() || !m_workingGateWords.subjects.empty())
+        m_gateWords.readOnly = false;
 
     invalidateDerived();
 }
@@ -961,6 +1008,7 @@ const QSet<QString> &ModelBrowser::dirtyIds() const
     };
     diffSet(screenEntities(m_savedScreens), screenEntities(m_workingScreens));
     diffSet(drillEntities(m_savedDrills), drillEntities(m_workingDrills));
+    diffSet(gateWordEntities(m_savedGateWords), gateWordEntities(m_workingGateWords));
 
     m_dirtyIdsValid = true;
     return m_dirtyIds;
@@ -1002,6 +1050,12 @@ int ModelBrowser::countBySource(const QString &want) const
         if (sourceOf(s.id) == want) ++n;
     for (const Drill &d : m_workingDrills.drills)
         if (sourceOf(d.id) == want) ++n;
+    // A clause the studio rewrote is a change to shipped content like any other: it makes this
+    // install's reports read differently from an unmodified one, and a reset takes it away.
+    for (const GateWord &w : m_workingGateWords.gates)
+        if (gateWordsSourceOf(w.id) == want) ++n;
+    for (const GateWord &w : m_workingGateWords.subjects)
+        if (gateWordsSourceOf(w.id) == want) ++n;
     return n;
 }
 
@@ -1062,6 +1116,20 @@ QString ModelBrowser::sourceOf(const QString &id) const
     if (inUser)           return QStringLiteral("yours");
     if (inCore)           return QStringLiteral("shipped");
     // Reachable for the reference registry, which is imported and stays read-only.
+    return QStringLiteral("shipped");
+}
+
+// The gate-word layers' answer to the same question. A gate id carries no prefix to route on — it is
+// "sequence.sightedBand", not "gate.…" — so sourceOf() cannot tell one from a condition id, and asking
+// the pack about it would be asking the wrong registry.
+QString ModelBrowser::gateWordsSourceOf(const QString &id) const
+{
+    const GateWordSet &core    = coreGateWordSet();
+    const bool         shipped = core.gate(id) != nullptr || core.subject(id) != nullptr;
+    const bool         mine    = m_workingGateWords.gate(id) != nullptr
+                              || m_workingGateWords.subject(id) != nullptr;
+    if (mine && shipped) return QStringLiteral("both");
+    if (mine)            return QStringLiteral("yours");
     return QStringLiteral("shipped");
 }
 
@@ -2004,8 +2072,10 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             out.append(r);
         }
     } else if (type == kGates) {
-        // READ-ONLY, like the metrics: every cell is inert. One row per catalogue entry, gates and
-        // rules alike, in catalogue order (by area).
+        // Every cell is inert, like the metrics: a gate is part of the analysis. One row per catalogue
+        // entry, gates and rules alike, in catalogue order (by area) — and then the READINGS, below.
+        // The one thing on a gate a studio may change, its golfer words, is edited in the inspector,
+        // not in a cell.
         namespace G = pinpoint::gates;
         const bool counted = m_gateCounts.valid && m_gateCounts.root == m_libraryRoot;
         int order = 0;
@@ -2062,10 +2132,59 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             r.insert(QStringLiteral("sortKeys"), keys);
 
             QStringList haystack{ e.id, e.title, e.shortText, e.area, e.explain,
-                                  gateReadableTemplate(e.evidenceText) };
+                                  gateReadableTemplate(e.evidenceText),
+                                  gateWordsFor(m_gateWords, e.id) };
             haystack << effects;
             for (const G::GateTuning &t : e.tuning) haystack << t.key;
             r.insert(QStringLiteral("searchText"), haystack.join(QLatin1Char(' ')));
+            out.append(r);
+        }
+
+        // THE READINGS a gate acts on — "ks.pelvis", "track.club", "shot" — as rows of their own.
+        //
+        // Not gates, and every surface that asks "is this a catalogue gate" must keep saying no: they
+        // have no effects, no threshold and no count, and a gate lookup on one returns nothing. They
+        // are here because a line on the report's back page is built from TWO parts — the reading's
+        // name, then the gate's clause — and the first part is content too. Listing them on the page
+        // that holds the second keeps the sentence's two halves one click apart, which is where an
+        // author correcting it has to be.
+        //
+        // Kind `Reading`, so the Kind facet can take them out of the list in one click. A METRIC
+        // subject is not one of these: it is named by its measure's golferName, edited on the
+        // measure (gate_words_pack.h says why there is no second copy).
+        for (const GateWord &w : m_gateWords.subjects) {
+            const QString label = G::subjectLabel(w.id);
+
+            QVariantList cells;
+            cells.append(cell(label));
+            cells.append(cell(tr("Readings")));
+            cells.append(cell(tr("Reading"), QStringLiteral("dim")));
+            cells.append(cell(QString()));
+            cells.append(cell(tr("—"), QStringLiteral("dim")));
+            cells.append(cell(tr("—"), QStringLiteral("dim"), true, QStringLiteral("right")));
+            cells.append(cell(w.id, QStringLiteral("dim"), true));
+
+            QVariantMap r;
+            r.insert(QStringLiteral("id"), w.id);
+            r.insert(QStringLiteral("type"), kGates);
+            r.insert(QStringLiteral("label"), label);
+            r.insert(QStringLiteral("dot"), QString());
+            r.insert(QStringLiteral("reading"), true);
+            r.insert(QStringLiteral("cells"), cells);
+
+            QVariantMap keys;
+            keys.insert(QStringLiteral("order"), order++);
+            keys.insert(QStringLiteral("name"), label);
+            keys.insert(QStringLiteral("area"), tr("Readings"));
+            keys.insert(QStringLiteral("kind"), 2);
+            keys.insert(QStringLiteral("effects"), QString());
+            keys.insert(QStringLiteral("effectTags"), QStringList());
+            keys.insert(QStringLiteral("threshold"), QString());
+            keys.insert(QStringLiteral("fired"), -1.0);
+            keys.insert(QStringLiteral("id"), w.id);
+            r.insert(QStringLiteral("sortKeys"), keys);
+            r.insert(QStringLiteral("searchText"),
+                     QStringList{ w.id, label, w.golfer }.join(QLatin1Char(' ')));
             out.append(r);
         }
     } else if (type == kHealth) {
@@ -2077,10 +2196,18 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
         if (m_norms) {
             for (const ValidationIssue &i : m_norms->report().issues)
                 if (i.severity == IssueSeverity::Warning) issues.push_back(i);
-            for (const ValidationIssue &i :
-                 diagnosticsHealth(p, *m_norms, m_cat, sharedScreenSet(), sharedDrillSet()))
+            // Against the DRAFT's screens and drills, not the shared registries. Those reflect the
+            // files, so a drill written here a minute ago and attached to a habit read as a dangling
+            // reference until it was saved — the strip accusing the author of a fault the save they
+            // had not yet made would cure.
+            for (const ValidationIssue &i : diagnosticsHealth(p, *m_norms, m_cat, m_screens, m_drills))
                 issues.push_back(i);
         }
+        // The gate words the draft holds (#60): a clause left empty, or one with a capital or a number
+        // in it. The user's layer only — the shipped file is held to zero findings by core_pack_test,
+        // so everything listed here is something the author wrote and can fix on the Gates page.
+        for (const ValidationIssue &i : validateGateWordSet(m_workingGateWords).issues)
+            issues.push_back(i);
 
         int n = 0;
         for (const ValidationIssue &i : issues) {
@@ -2122,8 +2249,9 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
     for (QVariant &v : out) {
         QVariantMap  r      = v.toMap();
         const QString id    = r.value(QStringLiteral("id")).toString();
-        // A gate is part of the analysis: always shipped, and never in the pack sourceOf() reads.
-        const QString src   = type == kGates ? QStringLiteral("shipped") : sourceOf(id);
+        // A gate is part of the analysis and never in the pack sourceOf() reads; what can be yours is
+        // its golfer words, so its source is read off those layers.
+        const QString src   = type == kGates ? gateWordsSourceOf(id) : sourceOf(id);
         r.insert(QStringLiteral("source"), src);
         r.insert(QStringLiteral("sourceLabel"),
                  src == QStringLiteral("yours")   ? tr("Yours")
@@ -2833,6 +2961,174 @@ void appendCitation(QVariantList &sections, const QString &citation, bool onlyWh
     sections.append(section(QObject::tr("Cited from"), rows));
 }
 
+// ── The session report's words (#60) ────────────────────────────────────────
+//
+// What a client report prints about a habit, a measure and a gate, as fields of the inspector. The
+// vocabulary below is ONLY the words an author picks from: which tokens are legal is
+// characteristic_pack.h's (reportPictureKinds() and its siblings), because the loader that refuses a
+// misspelling and the still renderer that draws the word read those lists, and a picker built from
+// anything else could offer a word one of them refuses.
+
+// The picture's tokens in an author's words. A token this table has never heard of — a line added
+// to reportPictureLines() after it was written — falls back to its own camelCase split into words,
+// so a new segment is offered legibly rather than as a blank row.
+QString pictureTokenLabel(const QString &token)
+{
+    static const QHash<QString, const char *> words{
+        { QStringLiteral("change"),       QT_TR_NOOP("Change from address") },
+        { QStringLiteral("pair"),         QT_TR_NOOP("Closest and furthest") },
+        { QStringLiteral("typical"),      QT_TR_NOOP("A typical swing") },
+        { QStringLiteral("none"),         QT_TR_NOOP("No picture") },
+        { QStringLiteral("faceOn"),       QT_TR_NOOP("Face-on") },
+        { QStringLiteral("dtl"),          QT_TR_NOOP("Down the line") },
+        { QStringLiteral("P1"),           QT_TR_NOOP("P1 · Address") },
+        { QStringLiteral("P2"),           QT_TR_NOOP("P2 · Shaft parallel back") },
+        { QStringLiteral("P3"),           QT_TR_NOOP("P3 · Lead arm parallel back") },
+        { QStringLiteral("P4"),           QT_TR_NOOP("P4 · Top") },
+        { QStringLiteral("P5"),           QT_TR_NOOP("P5 · Lead arm parallel down") },
+        { QStringLiteral("P6"),           QT_TR_NOOP("P6 · Shaft parallel down") },
+        { QStringLiteral("P7"),           QT_TR_NOOP("P7 · Impact") },
+        { QStringLiteral("P8"),           QT_TR_NOOP("P8 · Shaft parallel through") },
+        { QStringLiteral("P9"),           QT_TR_NOOP("P9 · Lead arm parallel through") },
+        { QStringLiteral("P10"),          QT_TR_NOOP("P10 · Finish") },
+        { QStringLiteral("head"),         QT_TR_NOOP("Head") },
+        { QStringLiteral("shoulders"),    QT_TR_NOOP("Shoulders") },
+        { QStringLiteral("spine"),        QT_TR_NOOP("Spine") },
+        { QStringLiteral("hips"),         QT_TR_NOOP("Hips") },
+        { QStringLiteral("leadArm"),      QT_TR_NOOP("Lead arm") },
+        { QStringLiteral("leadUpperArm"), QT_TR_NOOP("Lead upper arm") },
+        { QStringLiteral("leadForearm"),  QT_TR_NOOP("Lead forearm") },
+        { QStringLiteral("trailArm"),     QT_TR_NOOP("Trail arm") },
+        { QStringLiteral("leadThigh"),    QT_TR_NOOP("Lead thigh") },
+        { QStringLiteral("trailThigh"),   QT_TR_NOOP("Trail thigh") },
+        { QStringLiteral("leadShin"),     QT_TR_NOOP("Lead shin") },
+        { QStringLiteral("trailShin"),    QT_TR_NOOP("Trail shin") },
+        { QStringLiteral("stance"),       QT_TR_NOOP("Stance") },
+        { QStringLiteral("shaft"),        QT_TR_NOOP("Shaft") },
+    };
+    const auto it = words.constFind(token);
+    if (it != words.constEnd()) return QObject::tr(it.value());
+
+    QString out;
+    for (const QChar ch : token) {
+        if (ch.isUpper() && !out.isEmpty()) out += QLatin1Char(' ');
+        out += out.isEmpty() ? ch.toUpper() : ch.toLower();
+    }
+    return out;
+}
+
+// P1 … P10, in swing order — the positions isReportPicturePhase() accepts, spelled as a list because
+// a picker needs one and the predicate is not one.
+QStringList picturePhaseTokens()
+{
+    QStringList out;
+    for (int i = 1; i <= 10; ++i) out << QStringLiteral("P%1").arg(i);
+    return out;
+}
+
+// One of the picture's closed vocabularies as options, led by a blank "Not set". A value the list does
+// not hold is still OFFERED when it is the row's own, and marked: a token a hand-edited file misspelt
+// has to be visible in the box beside the error that names it, not shown as an empty field that reads
+// as "not set" — which is exactly the state the error says it is not in.
+QVariantList pictureOptions(const QStringList &tokens, const QString &current)
+{
+    QVariantList l;
+    l.append(option(QString(), QObject::tr("Not set")));
+    for (const QString &t : tokens) l.append(option(t, pictureTokenLabel(t)));
+    if (!current.isEmpty() && !tokens.contains(current))
+        l.append(option(current, QObject::tr("%1 — not a value the report knows").arg(current)));
+    return l;
+}
+
+// What each kind of still is, under the picker. The four words are not self-explanatory — "pair" in
+// particular means two SWINGS, not two positions — and the kind decides what the other three parts
+// are for.
+QString pictureKindHint(const QString &kind)
+{
+    if (kind == QLatin1String("change"))
+        return QObject::tr("change: address beside the swing position below, so the change shows");
+    if (kind == QLatin1String("pair"))
+        return QObject::tr("pair: the swing closest to good beside the one furthest from it");
+    if (kind == QLatin1String("typical"))
+        return QObject::tr("typical: one typical swing at the position below");
+    if (kind == QLatin1String("none"))
+        return QObject::tr("none: no still on the page, so camera, position and line stay blank");
+    return QObject::tr("change · pair · typical · none — which still the work-on page shows");
+}
+
+// A measure's golferSign as the two words it means. The tokens are the stored integers spelled as
+// text, because that is what the enum control compares and what setField() parses back.
+QVariantList golferSignOptions(int current)
+{
+    QVariantList l;
+    l.append(option(QStringLiteral("1"), QObject::tr("Show the sign")));
+    l.append(option(QStringLiteral("-1"), QObject::tr("The words carry the sign")));
+    if (current != 1 && current != -1)
+        l.append(option(QString::number(current),
+                        QObject::tr("%1 — not a sign the report knows").arg(current)));
+    return l;
+}
+
+// The sign as typed or picked: +1 or −1, in the forms a person writes them ("1", "+1", "-1", "−1").
+// Zero for anything else, which is not a sign — the caller refuses it, or, asked for a live check,
+// stores it so badGolferSign says why in the validator's own words.
+int parseGolferSign(const QString &text)
+{
+    QString t = text.trimmed();
+    t.replace(QChar(0x2212), QLatin1Char('-'));
+    if (t.startsWith(QLatin1Char('+'))) t = t.mid(1);
+    if (t == QLatin1String("1"))  return 1;
+    if (t == QLatin1String("-1")) return -1;
+    return 0;
+}
+
+// One finding, in the shape the inspector draws under a field: { code, severity, message }.
+QVariantMap issueRow(const QString &code, IssueSeverity severity, const QString &message)
+{
+    QVariantMap m;
+    m.insert(QStringLiteral("code"), code);
+    m.insert(QStringLiteral("severity"), severity == IssueSeverity::Error ? QStringLiteral("error")
+                                                                           : QStringLiteral("warning"));
+    m.insert(QStringLiteral("message"), message);
+    return m;
+}
+
+// The loader's findings about one row, kept to one field. reportFieldIssues() names the field each
+// finding belongs to, so the line under "Work-on title" never carries the picture's fault.
+QVariantList issuesForField(const std::vector<ReportFieldIssue> &all, const QString &field)
+{
+    QVariantList out;
+    for (const ReportFieldIssue &i : all)
+        if (i.field == field) out.append(issueRow(i.code, i.severity, i.message));
+    return out;
+}
+
+// A gate's or a reading's golfer words, checked by the registry's own rule and worded by its own
+// message — the warning validateGateWordSet() puts in Health, word for word.
+QVariantList gateWordIssues(const QString &id, const QString &text)
+{
+    QVariantList  out;
+    const QString problem = gateWordsProblem(text);
+    if (!problem.isEmpty())
+        out.append(issueRow(QStringLiteral("gateWordsWording"), IssueSeverity::Warning,
+                            gateWordsMessage(id, text, problem)));
+    return out;
+}
+
+// A field of the REPORT group: an ordinary fieldRow() that inspect() files under its own "Report"
+// heading, carrying the findings about its current value. `issues` is present on every report field,
+// empty or not, and on no other field — which is how the inspector knows a field is one it can check
+// live as the author types, without a list of field names of its own.
+QVariantMap reportField(const QString &field, const QString &label, const QString &kind,
+                        const QVariant &value, const QVariantList &issues,
+                        const QVariantList &options, const QString &hint)
+{
+    QVariantMap r = fieldRow(field, label, kind, value, options, hint);
+    r.insert(QStringLiteral("group"), QStringLiteral("report"));
+    r.insert(QStringLiteral("issues"), issues);
+    return r;
+}
+
 } // namespace
 
 QVariantList ModelBrowser::measureUserRows(const QString &measureId) const
@@ -2930,7 +3226,16 @@ QVariantMap ModelBrowser::searchExtras(const QString &type, const QString &id) c
                                                               : QStringLiteral("good"));
     } else if (type == kGates) {
         const pinpoint::gates::GateEntry *e = pinpoint::gates::gateEntry(id);
-        if (!e) return out;
+        // A reading row is not a catalogue gate; it says what it is and what the report calls it.
+        if (!e) {
+            if (const GateWord *w = m_gateWords.subject(id)) {
+                out.insert(QStringLiteral("connected"), w->golfer);
+                out.insert(QStringLiteral("links"), QString());
+                out.insert(QStringLiteral("status"), tr("Reading"));
+                out.insert(QStringLiteral("statusTone"), QStringLiteral("dim"));
+            }
+            return out;
+        }
         out.insert(QStringLiteral("connected"), e->area);
         out.insert(QStringLiteral("links"), QString());
         out.insert(QStringLiteral("status"), e->rule ? tr("Rule") : tr("Gate"));
@@ -3022,6 +3327,52 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
                                                                : QString()));
         f.append(citationField(c->provenance.citation, tr("DOI, PMID or ISBN")));
 
+        // ── What the session report prints (#60) ─────────────────────────────
+        //
+        // Every word a client report says about this habit: the names it goes by on the home screen
+        // and the report, and its work-on page — title, feel, home check, picture. They were in the
+        // pack and the pack writer kept them, but nothing on this pane could show or change them, so
+        // a studio could not read the words its own reports print.
+        //
+        // In the golfer's voice and labelled in it, because that is the question an author has open
+        // here ("what will the golfer read?"), not which struct member it is. Each carries the
+        // loader's findings about its current value — the same reportFieldIssues() validatePack()
+        // raises — and the pane re-asks fieldIssues() as the author types.
+        //
+        // Filed under their own "Report" heading by inspect(), after the habit's own fields.
+        const std::vector<ReportFieldIssue> issues = reportFieldIssues(*c);
+        const auto rf = [&](const char *field, const QString &label, const QString &kind,
+                            const QString &value, const QVariantList &options, const QString &hint) {
+            const QString key = QString::fromLatin1(field);
+            f.append(reportField(key, label, kind, value, issuesForField(issues, key), options, hint));
+        };
+        rf("golfer", tr("In the golfer's words"), QStringLiteral("text"), c->golfer, {},
+           tr("the habit as the golfer hears it — “your hips sway away from the target going back”"));
+        rf("golferWell", tr("What they do well"), QStringLiteral("text"), c->golferWell, {},
+           tr("what they do instead, when they are clear of it — never “don't”"));
+        rf("golferWhy", tr("Why it matters"), QStringLiteral("prose"), c->golferWhy, {},
+           tr("one sentence: what it costs the shot"));
+        rf("goal", tr("Work-on title"), QStringLiteral("text"), c->goal, {},
+           tr("an instruction, at most 60 characters — “Keep the flex in your trail knee”"));
+        rf("cue", tr("Feel to practise"), QStringLiteral("prose"), c->cue, {},
+           tr("one feel or swing thought, never a promise"));
+        rf("check", tr("Check at home"), QStringLiteral("prose"), c->check, {},
+           tr("how to see it without the studio: camera, position, what to look for"));
+        rf("picture.kind", tr("Picture"), QStringLiteral("enum"), c->picture.kind,
+           pictureOptions(reportPictureKinds(), c->picture.kind), pictureKindHint(c->picture.kind));
+        rf("picture.camera", tr("Camera"), QStringLiteral("enum"), c->picture.camera,
+           pictureOptions(reportPictureCameras(), c->picture.camera),
+           tr("which camera the still is taken from"));
+        rf("picture.phase", tr("Swing position"), QStringLiteral("enum"), c->picture.phase,
+           pictureOptions(picturePhaseTokens(), c->picture.phase),
+           tr("the moment of the swing the still shows"));
+        rf("picture.line", tr("Line on the picture"), QStringLiteral("enum"), c->picture.line,
+           pictureOptions(reportPictureLines(), c->picture.line),
+           tr("the body segment drawn over the still"));
+        rf("reportHold", tr("Held off reports because"), QStringLiteral("text"), c->reportHold, {},
+           tr("blank: listed as normal. A reason keeps it off every work-on list, and the report "
+              "says it could not be measured reliably"));
+
     } else if (type == kMeasures) {
         const Measure *m = p.measure(id);
         if (!m) return f;
@@ -3038,6 +3389,26 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
                                                            : tr("Why it cannot be read"),
                           QStringLiteral("prose"), m->gapReason, {},
                           tr("quoted by the roadmap and the detail page")));
+
+        // What the session report calls this number, and which way it reads (#60). Under "Report",
+        // like a habit's, with the loader's findings on each.
+        const std::vector<ReportFieldIssue> issues = reportFieldIssues(*m);
+        const auto rf = [&](const char *field, const QString &label, const QString &kind,
+                            const QString &value, const QVariantList &options, const QString &hint) {
+            const QString key = QString::fromLatin1(field);
+            f.append(reportField(key, label, kind, value, issuesForField(issues, key), options, hint));
+        };
+        rf("golferName", tr("In the golfer's words"), QStringLiteral("text"), m->golferName, {},
+           tr("the number's name inside the report's sentences — “your trail-knee bend lost by the "
+              "top”; lower case"));
+        rf("golferSign", tr("The number's sign"), QStringLiteral("enum"), QString::number(m->golferSign),
+           golferSignOptions(m->golferSign),
+           tr("when the words already say which way (“lost”, “short of”), the report prints the "
+              "number without its minus"));
+        rf("golferHigh", tr("A high reading means"), QStringLiteral("prose"), m->golferHigh, {},
+           tr("in the golfer's words"));
+        rf("golferLow", tr("A low reading means"), QStringLiteral("prose"), m->golferLow, {},
+           tr("in the golfer's words"));
 
     } else if (type == kSignals) {
         const Signal *sig = p.signal(id);
@@ -3146,6 +3517,22 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
                           d->equipment.join(QStringLiteral(" · ")), {}, tr("separated by ·")));
         f.append(fieldRow(QStringLiteral("note"), tr("When it is the wrong drill"),
                           QStringLiteral("prose"), d->note));
+
+    } else if (type == kGates) {
+        // ONE field, and the only thing about a gate this panel writes: what the report's back page
+        // says when the gate keeps a reading from being checked (#60). The rest of a gate is part of
+        // the analysis — see setField(). A reading row carries the same field for the other half of
+        // that sentence, the reading's own name.
+        const bool      isGate = pinpoint::gates::gateEntry(id) != nullptr;
+        const GateWord *w      = isGate ? m_gateWords.gate(id) : m_gateWords.subject(id);
+        if (!isGate && !w) return f;
+        const QString words = w ? w->golfer : QString();
+        f.append(reportField(QStringLiteral("golferWords"), tr("In the golfer's words"),
+                             QStringLiteral("prose"), words, gateWordIssues(id, words), {},
+                             isGate ? tr("written to follow the reading's name, after a colon: lower "
+                                         "case, no numbers")
+                                    : tr("the reading's name on the report's back page: lower case, "
+                                         "no numbers")));
     }
     return f;
 }
@@ -3276,7 +3663,16 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                             : hubRow(kDrills, did, did, tr("No drill with this id"),
                                      QStringLiteral("error"), false));
         }
-        if (!drills.isEmpty()) sections.append(section(tr("Drills"), drills));
+        // SHOWN EVEN WHEN EMPTY, and with an action: this is where a habit's drills are attached
+        // from (#60). It used to appear only when the pack already listed some, which made the one
+        // join that puts a drill on a work-on page reachable only from the drill's end — and a drill
+        // written here had no way onto a habit at all. An empty list on a habit the report can list
+        // is a work-on page with nothing to practise, and the note says so.
+        sections.append(section(tr("Drills"), drills,
+                                drills.isEmpty()
+                                    ? tr("None yet — its work-on page would have nothing to practise.")
+                                    : QString(),
+                                QStringLiteral("list"), QStringLiteral("drill")));
 
         // Where it applies. Rows carry their own state so the control can cycle it, and the ones
         // that merely INHERIT are marked — a checkbox that cannot say whether it is stating
@@ -3519,6 +3915,34 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
             uses.append(hubRow(QString(), QString(), u, QString(), QString(), false));
         if (!uses.isEmpty()) sections.append(section(tr("Used by"), uses));
 
+    } else if (type == kGates && !pinpoint::gates::gateEntry(id)) {
+        // A READING row (rawRows says why the Gates page lists them). Not a gate, so nothing the gate
+        // branch below says — effects, thresholds, counts, the code that fires it — applies to it.
+        // What it has is its golfer words, under Report above, and one paragraph saying what it is.
+        namespace G = pinpoint::gates;
+        const GateWord *w = m_gateWords.subject(id);
+        if (!w) return out;
+
+        out.insert(QStringLiteral("found"), true);
+        out.insert(QStringLiteral("label"), G::subjectLabel(id));
+        out.insert(QStringLiteral("eyebrow"), tr("Reading"));
+        out.insert(QStringLiteral("subtitle"), id);
+        QVariantList badges;
+        badges.append(hubRow(QString(), QString(), tr("Named on the report"), QString(), QString(),
+                             false));
+        out.insert(QStringLiteral("badges"), badges);
+
+        sections.append(prose(tr("What this is"),
+                              tr("A reading the gates act on. When one of them keeps it from being "
+                                 "checked, the report's back page names it in the words above and "
+                                 "then gives that gate's own clause after a colon — “when your hips "
+                                 "turned fastest: the face-on camera cannot time a turn while you "
+                                 "are square to it”.")));
+        sections.append(prose(tr("Only the golfer's words are editable"),
+                              tr("Which readings exist is part of the analysis. What the report "
+                                 "calls one is content, so it is yours to correct."),
+                              QStringLiteral("dim")));
+
     } else if (type == kGates) {
         namespace G = pinpoint::gates;
         const G::GateEntry *e = G::gateEntry(id);
@@ -3665,9 +4089,15 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
             where.append(hubRow(QString(), QString(), e->design, tr("why"), QString(), false));
         if (!where.isEmpty()) sections.append(section(tr("In the code"), where));
 
-        sections.append(prose(tr("Why this is not editable"),
-                              tr("A gate is part of the analysis: its words and thresholds change "
-                                 "with the code that applies it, not here."),
+        // It WAS "Why this is not editable", and was true until the golfer words became content
+        // (#60). Said precisely, because a pane where one field is live and the rest are not reads as
+        // broken unless it says which is which and why.
+        sections.append(prose(tr("Only the golfer's words are editable"),
+                              tr("A gate is part of the analysis: its thresholds, what it does and "
+                                 "its words for an analyst change with the code that applies it, "
+                                 "not here. The golfer's words are what a client report says when "
+                                 "this gate keeps a reading from being checked — content, and yours "
+                                 "to correct."),
                               QStringLiteral("dim")));
 
     } else if (type == kSignals) {
@@ -3952,12 +4382,34 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
 
     // Whose content this is, and whether it is unsaved. Every inspector header shows it, because an
     // author has to know whose content they are changing BEFORE they change it.
-    out.insert(QStringLiteral("source"), type == kGates ? QStringLiteral("shipped") : sourceOf(id));
-    out.insert(QStringLiteral("dirty"), type == kGates ? false : dirtyIds().contains(id));
+    // A gate's provenance is its golfer words', read off their own layers — they are the only part
+    // of a gate that can be yours or unsaved.
+    out.insert(QStringLiteral("source"), type == kGates ? gateWordsSourceOf(id) : sourceOf(id));
+    out.insert(QStringLiteral("dirty"), dirtyIds().contains(id));
     if (!editableFields.isEmpty()) {
+        // Two headings from ONE list. fieldsOf() stays the single answer to "what can I edit"; the
+        // report's words are filed under their own heading because they are read by someone else —
+        // the golfer — and an author editing a habit's grading should not have to scroll through its
+        // work-on page to find the next field, nor the reverse.
+        QVariantList own, report;
+        for (const QVariant &v : editableFields)
+            (v.toMap().value(QStringLiteral("group")).toString() == QStringLiteral("report") ? report
+                                                                                             : own)
+                .append(v);
+        const QString reportNote =
+            type == kMeasures ? tr("How the session report names this number in its sentences.")
+            : type == kGates  ? (pinpoint::gates::gateEntry(id)
+                                     ? tr("What the report's back page says when this keeps a reading "
+                                          "from being checked.")
+                                     : tr("How the report's back page names this reading."))
+                              : tr("What the session report prints for this habit: its names, and "
+                                   "its work-on page.");
+
         QVariantList withFields;
-        withFields.append(section(tr("Fields"), editableFields, QString(),
-                                  QStringLiteral("fields")));
+        if (!own.isEmpty())
+            withFields.append(section(tr("Fields"), own, QString(), QStringLiteral("fields")));
+        if (!report.isEmpty())
+            withFields.append(section(tr("Report"), report, reportNote, QStringLiteral("fields")));
         for (const QVariant &v : sections) withFields.append(v);
         sections = withFields;
     }
@@ -4392,6 +4844,25 @@ Drill *ModelBrowser::workingDrill(const QString &id)
     return nullptr;
 }
 
+// Copy-on-write for one gate-word entry, mirroring workingDrill(). The third case is the one the drill
+// side does not have: a catalogue gate with no words ANYWHERE starts as an empty entry, so the first
+// clause it has ever had can be written here. A reading has no such case — the readings are the list.
+GateWord *ModelBrowser::workingGateWord(const QString &id, bool subject)
+{
+    std::vector<GateWord> &mine = subject ? m_workingGateWords.subjects : m_workingGateWords.gates;
+    for (GateWord &w : mine)
+        if (w.id == id) return &w;
+    if (const GateWord *src = subject ? m_gateWords.subject(id) : m_gateWords.gate(id)) {
+        mine.push_back(*src);
+        return &mine.back();
+    }
+    if (!subject && pinpoint::gates::gateEntry(id)) {
+        mine.push_back(GateWord{ id, QString() });
+        return &mine.back();
+    }
+    return nullptr;
+}
+
 void ModelBrowser::materialiseCausesOf(const QString &conditionId)
 {
     // A user pack REPLACES a condition's whole incoming causal set, so removing one shipped cause
@@ -4437,6 +4908,16 @@ void ModelBrowser::pushCommand(const QString &label, const QString &detail,
                                const CharacteristicPack &before, const NormPack &normsBefore,
                                const ScreenSet &screensBefore, const DrillSet &drillsBefore)
 {
+    // The gate-word layer as it stands IS the before-state for every caller of this form, by the
+    // same argument as the four-argument one: none of them can have touched it.
+    pushCommand(label, detail, before, normsBefore, screensBefore, drillsBefore, m_workingGateWords);
+}
+
+void ModelBrowser::pushCommand(const QString &label, const QString &detail,
+                               const CharacteristicPack &before, const NormPack &normsBefore,
+                               const ScreenSet &screensBefore, const DrillSet &drillsBefore,
+                               const GateWordSet &gateWordsBefore)
+{
     // Anything ahead of the cursor is gone: a new edit after an undo forks history, and keeping the
     // abandoned branch would offer a redo that no longer applies to the pack in hand.
     if (m_stackIndex + 1 < int(m_stack.size()))
@@ -4448,7 +4929,8 @@ void ModelBrowser::pushCommand(const QString &label, const QString &detail,
     if (m_savedIndex > m_stackIndex) m_savedIndex = -2;
 
     m_stack.push_back(Command{ label, detail, before, m_working, normsBefore, m_workingNorms,
-                               screensBefore, m_workingScreens, drillsBefore, m_workingDrills });
+                               screensBefore, m_workingScreens, drillsBefore, m_workingDrills,
+                               gateWordsBefore, m_workingGateWords });
     m_stackIndex = int(m_stack.size()) - 1;
     invalidateDerived();
 }
@@ -4466,20 +4948,22 @@ QVariantMap ModelBrowser::applyStackPosition(int newIndex)
 
     // The pack AT that position: the `after` of the last applied command, or the `before` of the
     // first when the cursor is below everything.
-    // ALL FOUR registries move together. Restoring some and leaving others is how a stack position
-    // stops describing a state anybody was ever in.
+    // EVERY registry moves together — the four, and the gate words since #60. Restoring some and
+    // leaving others is how a stack position stops describing a state anybody was ever in.
     if (newIndex >= 0) {
         const Command &c = m_stack.at(size_t(newIndex));
-        m_working        = c.after;
-        m_workingNorms   = c.normsAfter;
-        m_workingScreens = c.screensAfter;
-        m_workingDrills  = c.drillsAfter;
+        m_working          = c.after;
+        m_workingNorms     = c.normsAfter;
+        m_workingScreens   = c.screensAfter;
+        m_workingDrills    = c.drillsAfter;
+        m_workingGateWords = c.gateWordsAfter;
     } else {
         const Command &c = m_stack.front();
-        m_working        = c.before;
-        m_workingNorms   = c.normsBefore;
-        m_workingScreens = c.screensBefore;
-        m_workingDrills  = c.drillsBefore;
+        m_working          = c.before;
+        m_workingNorms     = c.normsBefore;
+        m_workingScreens   = c.screensBefore;
+        m_workingDrills    = c.drillsBefore;
+        m_workingGateWords = c.gateWordsBefore;
     }
     m_stackIndex = newIndex;
     rebuild();
@@ -4596,20 +5080,39 @@ QVariantMap ModelBrowser::save()
         invalidateDerived();
         r.insert(QStringLiteral("ok"), false);
         r.insert(QStringLiteral("message"),
-                 tr("Everything but the drills was saved. %1").arg(whyNot));
+                 tr("Everything but the drills and the gates' golfer words was saved. %1").arg(whyNot));
         return r;
     }
-    // The rest of the app reads these two through their process-wide caches, so a write that did not
-    // drop them would be on disk and invisible until relaunch.
+    // The gate words, written fifth (#60), and a failure named the same way. The two registries that
+    // DID land are dropped from their caches first: the next report would otherwise print last
+    // session's drills beside this session's characteristics.
+    if (!saveUserGateWordSet(m_workingGateWords, &whyNot)) {
+        resetSharedScreenSet();
+        resetSharedDrillSet();
+        m_savedUser    = m_working;
+        m_savedNorms   = m_workingNorms;
+        m_savedScreens = m_workingScreens;
+        m_savedDrills  = m_workingDrills;
+        invalidateDerived();
+        r.insert(QStringLiteral("ok"), false);
+        r.insert(QStringLiteral("message"),
+                 tr("Everything but the gates' golfer words was saved. %1").arg(whyNot));
+        return r;
+    }
+    // The rest of the app reads these three through their process-wide caches, so a write that did
+    // not drop them would be on disk and invisible until relaunch — the report builder re-takes the
+    // gate words for each report, and it would re-take the old ones.
     resetSharedScreenSet();
     resetSharedDrillSet();
+    resetSharedGateWordSet();
 
     const int wrote = unsavedCount();
-    m_savedUser    = m_working;
-    m_savedNorms   = m_workingNorms;
-    m_savedScreens = m_workingScreens;
-    m_savedDrills  = m_workingDrills;
-    m_savedIndex   = m_stackIndex;
+    m_savedUser      = m_working;
+    m_savedNorms     = m_workingNorms;
+    m_savedScreens   = m_workingScreens;
+    m_savedDrills    = m_workingDrills;
+    m_savedGateWords = m_workingGateWords;
+    m_savedIndex     = m_stackIndex;
     // The stack is NOT cleared. Saving and immediately spotting the mistake is the common case, and
     // an undo that stopped at the last save would be an undo the author could not rely on.
     invalidateDerived();
@@ -4637,15 +5140,17 @@ QVariantMap ModelBrowser::revert()
     const NormPack           priorNorms    = m_workingNorms;
     const ScreenSet          priorScreens  = m_workingScreens;
     const DrillSet           priorDrills   = m_workingDrills;
-    m_working        = m_savedUser;
-    m_workingNorms   = m_savedNorms;
-    m_workingScreens = m_savedScreens;
-    m_workingDrills  = m_savedDrills;
+    const GateWordSet        priorWords    = m_workingGateWords;
+    m_working          = m_savedUser;
+    m_workingNorms     = m_savedNorms;
+    m_workingScreens   = m_savedScreens;
+    m_workingDrills    = m_savedDrills;
+    m_workingGateWords = m_savedGateWords;
     rebuild();
     // Revert is itself a command. Discarding an afternoon's work with no way back would be the one
     // unrecoverable action in a panel whose rule is that there are none.
     pushCommand(tr("Revert"), tr("%n unsaved change(s) discarded", "", before), prior, priorNorms,
-                priorScreens, priorDrills);
+                priorScreens, priorDrills, priorWords);
 
     r.insert(QStringLiteral("ok"), true);
     r.insert(QStringLiteral("message"), tr("Reverted %n change(s)", "", before));
@@ -4714,11 +5219,13 @@ QVariantMap ModelBrowser::resetToStandard()
     if (!copyAside(userNormPath(), stamp, &backups, &whyNot))      return refuse(whyNot);
     if (!copyAside(userScreenSetPath(), stamp, &backups, &whyNot)) return refuse(whyNot);
     if (!copyAside(userDrillSetPath(), stamp, &backups, &whyNot))  return refuse(whyNot);
+    if (!copyAside(userGateWordSetPath(), stamp, &backups, &whyNot)) return refuse(whyNot);
 
     const CharacteristicPack prior        = m_working;
     const NormPack           priorNorms   = m_workingNorms;
     const ScreenSet          priorScreens = m_workingScreens;
     const DrillSet           priorDrills  = m_workingDrills;
+    const GateWordSet        priorWords   = m_workingGateWords;
 
     // Empty user layers, not deleted files: an absent layer and an empty one assemble identically,
     // and one that exists is one the next save can write to without re-deciding what its header says.
@@ -4735,11 +5242,15 @@ QVariantMap ModelBrowser::resetToStandard()
     DrillSet blankDrills;
     blankDrills.id      = QStringLiteral("user");
     blankDrills.version = QStringLiteral("1");
+    GateWordSet blankWords;
+    blankWords.id      = QStringLiteral("user");
+    blankWords.version = QStringLiteral("1");
 
-    m_working        = blank;
-    m_workingNorms   = blankNorms;
-    m_workingScreens = blankScreens;
-    m_workingDrills  = blankDrills;
+    m_working          = blank;
+    m_workingNorms     = blankNorms;
+    m_workingScreens   = blankScreens;
+    m_workingDrills    = blankDrills;
+    m_workingGateWords = blankWords;
     m_resetCorridors.clear();
     rebuild();
 
@@ -4747,14 +5258,15 @@ QVariantMap ModelBrowser::resetToStandard()
     // what the Edits list will show, and it has to be unmistakable next to "Revert".
     pushCommand(tr("Reset to the standard model"),
                 tr("%n local change(s) removed", "", overridden + authored), prior, priorNorms,
-                priorScreens, priorDrills);
+                priorScreens, priorDrills, priorWords);
 
     // Written through immediately. A reset that only cleared the draft would leave the files it just
     // backed up still on disk and the panel reading "n unsaved" — which is not what "reset" means to
     // anybody who clicked it.
     if (!saveUserPack(m_working, &whyNot) || !saveUserNormPack(m_workingNorms, &whyNot)
         || !saveUserScreenSet(m_workingScreens, &whyNot)
-        || !saveUserDrillSet(m_workingDrills, &whyNot)) {
+        || !saveUserDrillSet(m_workingDrills, &whyNot)
+        || !saveUserGateWordSet(m_workingGateWords, &whyNot)) {
         // The draft is already the standard model and the stack still holds the way back, so this is
         // a failure to PERSIST rather than a failure to reset. Say exactly that.
         QVariantMap r = refuse(tr("Reset here, but it could not be written to disk. %1").arg(whyNot));
@@ -4763,11 +5275,13 @@ QVariantMap ModelBrowser::resetToStandard()
     }
     resetSharedScreenSet();
     resetSharedDrillSet();
-    m_savedUser    = m_working;
-    m_savedNorms   = m_workingNorms;
-    m_savedScreens = m_workingScreens;
-    m_savedDrills  = m_workingDrills;
-    m_savedIndex   = m_stackIndex;
+    resetSharedGateWordSet();
+    m_savedUser      = m_working;
+    m_savedNorms     = m_workingNorms;
+    m_savedScreens   = m_workingScreens;
+    m_savedDrills    = m_workingDrills;
+    m_savedGateWords = m_workingGateWords;
+    m_savedIndex     = m_stackIndex;
     invalidateDerived();
 
     // Everybody else caches their provider, so without this the app keeps grading against the model
@@ -4813,25 +5327,32 @@ int ModelBrowser::validationWarningCount() const
 QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const QString &field,
                                    const QVariant &value)
 {
-    if (type == kGates)
-        return refuse(tr("Gates are read-only here: each is part of the analysis and changes with it."));
-    const CharacteristicPack before        = m_working;
-    const NormPack           normsBefore   = m_workingNorms;
-    const ScreenSet          screensBefore = m_workingScreens;
-    const DrillSet           drillsBefore  = m_workingDrills;
-    const QString            text          = value.toString();
+    // ONE field on a gate is content rather than analysis: the words a client report prints when the
+    // gate keeps a reading from being checked (#60). Everything else about a gate — its thresholds,
+    // what it does, the analyst's words for it — changes with the code that applies it, so every
+    // other field is still refused, and refused here, before anything has been touched.
+    if (type == kGates && field != QStringLiteral("golferWords"))
+        return refuse(tr("Only a gate's golfer words are editable here: the rest of it is part of the "
+                         "analysis and changes with it."));
+    const CharacteristicPack before          = m_working;
+    const NormPack           normsBefore     = m_workingNorms;
+    const ScreenSet          screensBefore   = m_workingScreens;
+    const DrillSet           drillsBefore    = m_workingDrills;
+    const GateWordSet        gateWordsBefore = m_workingGateWords;
+    const QString            text            = value.toString();
 
     // A refusal must leave NOTHING behind. The working-copy helpers below are copy-on-write, so
     // simply reaching for a shipped row copies it into the working pack — and a refusal that
     // returned without undoing that would leave an override nobody asked for, byte-identical to the
     // shipped row and marked as unsaved work. It is invisible until the author saves, and then it
-    // is a permanent override of content they never edited. That applies to screens and drills for
-    // exactly the same reason, so all four layers roll back together.
+    // is a permanent override of content they never edited. That applies to screens, drills and the
+    // gate words for exactly the same reason, so all five layers roll back together.
     auto reject = [&](const QString &why) {
-        m_working        = before;
-        m_workingNorms   = normsBefore;
-        m_workingScreens = screensBefore;
-        m_workingDrills  = drillsBefore;
+        m_working          = before;
+        m_workingNorms     = normsBefore;
+        m_workingScreens   = screensBefore;
+        m_workingDrills    = drillsBefore;
+        m_workingGateWords = gateWordsBefore;
         return refuse(why);
     };
 
@@ -4842,10 +5363,11 @@ QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const
     // exists to prevent. It also returns BEFORE pushCommand, so an undo stack does not fill with
     // entries that undo nothing.
     auto unchanged = [&](const QString &why) {
-        m_working        = before;
-        m_workingNorms   = normsBefore;
-        m_workingScreens = screensBefore;
-        m_workingDrills  = drillsBefore;
+        m_working          = before;
+        m_workingNorms     = normsBefore;
+        m_workingScreens   = screensBefore;
+        m_workingDrills    = drillsBefore;
+        m_workingGateWords = gateWordsBefore;
         return accept(why);
     };
 
@@ -4940,6 +5462,73 @@ QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const
             if (!conditionStateFromName(text, s)) return reject(tr("%1 is not a state.").arg(text));
             c->state = s;
             what     = tr("State → %1").arg(text);
+
+        // ── The session report's words (#60) ────────────────────────────────
+        //
+        // Written as typed. Whether they are WELL written is the loader's question, and the pane
+        // asks it live through fieldIssues(): a wording finding is a warning in the loader, so here
+        // it is a line under the field rather than a refusal. Refusing would also be refusing what
+        // the loader accepts — an author could then never save a draft the app itself would read.
+        } else if (field == QStringLiteral("golfer")) {
+            c->golfer = text;
+            what      = tr("In the golfer's words → %1").arg(text);
+        } else if (field == QStringLiteral("golferWell")) {
+            c->golferWell = text;
+            what          = tr("What they do well → %1").arg(text);
+        } else if (field == QStringLiteral("golferWhy")) {
+            c->golferWhy = text;
+            what         = tr("Why it matters edited");
+        } else if (field == QStringLiteral("goal")) {
+            c->goal = text;
+            what    = tr("Work-on title → %1").arg(text);
+        } else if (field == QStringLiteral("cue")) {
+            c->cue = text;
+            what   = tr("Feel to practise edited");
+        } else if (field == QStringLiteral("check")) {
+            c->check = text;
+            what     = tr("Check at home edited");
+
+        // The picture's four parts ARE refused outside their vocabularies, unlike the words above:
+        // they are errors in the loader, because the still renderer draws from the word and cannot
+        // guess at one. Blank is always accepted — it is "not set", and a half-set picture is the
+        // validator's pictureIncomplete, shown under the field and in Health rather than blocked,
+        // because the parts are set one at a time and every intermediate state is half-set.
+        } else if (field == QStringLiteral("picture.kind")) {
+            if (!text.isEmpty() && !reportPictureKinds().contains(text))
+                return reject(tr("“%1” is not a kind of picture; the kinds are %2.")
+                                  .arg(text, reportPictureKinds().join(QStringLiteral(", "))));
+            c->picture.kind = text;
+            what = text.isEmpty() ? tr("Picture → not set")
+                                  : tr("Picture → %1").arg(pictureTokenLabel(text));
+        } else if (field == QStringLiteral("picture.camera")) {
+            if (!text.isEmpty() && !reportPictureCameras().contains(text))
+                return reject(tr("“%1” is not a camera the report knows; the cameras are %2.")
+                                  .arg(text, reportPictureCameras().join(QStringLiteral(", "))));
+            c->picture.camera = text;
+            what = text.isEmpty() ? tr("Picture camera → not set")
+                                  : tr("Picture camera → %1").arg(pictureTokenLabel(text));
+        } else if (field == QStringLiteral("picture.phase")) {
+            if (!text.isEmpty() && !isReportPicturePhase(text))
+                return reject(tr("“%1” is not a swing position; a picture is taken at P1 to P10.")
+                                  .arg(text));
+            c->picture.phase = text;
+            what = text.isEmpty() ? tr("Picture position → not set")
+                                  : tr("Picture position → %1").arg(pictureTokenLabel(text));
+        } else if (field == QStringLiteral("picture.line")) {
+            if (!text.isEmpty() && !reportPictureLines().contains(text))
+                return reject(tr("“%1” is not a line the picture can draw; the lines are %2.")
+                                  .arg(text, reportPictureLines().join(QStringLiteral(", "))));
+            c->picture.line = text;
+            what = text.isEmpty() ? tr("Picture line → not set")
+                                  : tr("Picture line → %1").arg(pictureTokenLabel(text));
+        } else if (field == QStringLiteral("reportHold")) {
+            // The reason IS the hold, so blank is "not held". TRIMMED, because a reason of white space
+            // is the one hold that cannot be read back: savePack() writes it, and the loader trims it
+            // to nothing and refuses the row (reportHoldNoReason). Trimming here means this editor
+            // can never author it.
+            c->reportHold = text.trimmed();
+            what = c->reportHold.isEmpty() ? tr("No longer held off reports")
+                                           : tr("Held off reports: %1").arg(c->reportHold);
         } else {
             return reject(tr("%1 cannot be edited here.").arg(field));
         }
@@ -4974,6 +5563,26 @@ QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const
         } else if (field == QStringLiteral("gapReason")) {
             m->gapReason = text;
             what         = tr("Reason edited");
+
+        // What the session report calls this number (#60). Words as typed, as on a habit; the sign
+        // is refused outside its two values, because the golfer is shown raw × golferSign and any
+        // other number would rescale the reading.
+        } else if (field == QStringLiteral("golferName")) {
+            m->golferName = text;
+            what          = tr("In the golfer's words → %1").arg(text);
+        } else if (field == QStringLiteral("golferSign")) {
+            const int sign = parseGolferSign(text);
+            if (sign == 0)
+                return reject(tr("“%1” is not a sign: the words either carry it (−1) or they do not "
+                                 "(+1).").arg(text));
+            m->golferSign = sign;
+            what = sign < 0 ? tr("Sign → the words carry it") : tr("Sign → shown");
+        } else if (field == QStringLiteral("golferHigh")) {
+            m->golferHigh = text;
+            what          = tr("A high reading, in the golfer's words, edited");
+        } else if (field == QStringLiteral("golferLow")) {
+            m->golferLow = text;
+            what         = tr("A low reading, in the golfer's words, edited");
         } else {
             return reject(tr("%1 cannot be edited here.").arg(field));
         }
@@ -5287,6 +5896,21 @@ QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const
             return reject(tr("%1 cannot be edited here.").arg(field));
         }
 
+    } else if (type == kGates) {
+        // `golferWords`, the one gate field (the refusal at the top keeps every other). Which list an
+        // id belongs to is the CATALOGUE's to say: a catalogue id is a gate's clause, anything else
+        // has to be a reading the words already name.
+        const pinpoint::gates::GateEntry *e = pinpoint::gates::gateEntry(id);
+        if (!e && !m_gateWords.subject(id))
+            return reject(tr("No gate or reading with id %1.").arg(id));
+        subject = e ? e->title : pinpoint::gates::subjectLabel(id);
+
+        GateWord *w = workingGateWord(id, /*subject*/ e == nullptr);
+        if (!w) return reject(tr("No gate or reading with id %1.").arg(id));
+        w->golfer = text;
+        what      = text.isEmpty() ? tr("Golfer's words cleared")
+                                   : tr("Golfer's words → %1").arg(text);
+
     } else {
         // References are IMPORTED — regenerated on every pack build — so editing one here would be
         // overwritten. Saying so is better than a control that looks live and does nothing.
@@ -5296,15 +5920,20 @@ QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const
     rebuild();
     // `normsBefore`, never m_workingNorms — that is the state AFTER this edit, and passing it would
     // make a corridor edit unable to undo itself while looking perfectly correct on the pack side.
-    pushCommand(what, subject, before, normsBefore, screensBefore, drillsBefore);
+    // The same for every layer, the gate words included.
+    pushCommand(what, subject, before, normsBefore, screensBefore, drillsBefore, gateWordsBefore);
     return accept(what);
 }
 
 QVariantMap ModelBrowser::setFieldOnAll(const QString &type, const QStringList &ids,
                                         const QString &field, const QVariant &value)
 {
+    // Still refused for gates, golfer words included. Each clause is its own sentence, so one value
+    // across a selection is never what an author means — and the command this collapses into below
+    // is pushed through the short form, which does not snapshot the gate-word layer.
     if (type == kGates)
-        return refuse(tr("Gates are read-only here: each is part of the analysis and changes with it."));
+        return refuse(tr("Gates are not bulk-edited: only a gate's golfer words are editable, one "
+                         "gate at a time, because each clause is its own sentence."));
     if (ids.isEmpty()) return refuse(tr("Nothing selected."));
 
     // ONE command for the whole selection. Re-tiering twelve links has to undo as one action —
@@ -6337,6 +6966,80 @@ QVariantList ModelBrowser::drillCandidates(const QString &drillId, const QString
                                     : tr("%n drill(s) already", "", int(c.drills.size()))));
     }
     return out;
+}
+
+QVariantList ModelBrowser::conditionDrillCandidates(const QString &conditionId,
+                                                   const QString &search) const
+{
+    const CharacteristicPack &p = pack();
+    const Condition          *c = p.condition(conditionId);
+    if (!c) return {};
+
+    // From m_drills, the DRAFT's registry — not sharedDrillSet(), which is the files. A drill written
+    // in this panel a minute ago is exactly the one an author is about to attach, and the shared set
+    // would not have it until the save.
+    QVariantList out;
+    for (const Drill &d : m_drills.drills) {
+        if (c->drills.contains(d.id)) continue;
+        if (!search.isEmpty()
+            && !matches(QStringList{ d.label, d.id, d.targets }.join(QLatin1Char(' ')), search))
+            continue;
+        int answers = 0;
+        for (const Condition &o : p.conditions)
+            if (o.drills.contains(d.id)) ++answers;
+        out.append(candidateRow(d.id, d.label.isEmpty() ? d.id : d.label,
+                                answers == 0 ? tr("answers nothing yet")
+                                             : tr("answers %n habit(s) already", "", answers)));
+    }
+    return out;
+}
+
+// What the loader would say about one field if it held `value`. A COPY of the row is edited, never
+// the draft: a keystroke is not an edit, and pushing one would put a command on the stack per
+// character. The field is applied to the copy exactly as setField() would store it — reportHold
+// trimmed, the sign parsed — so the line under the field describes what a commit would write.
+QVariantList ModelBrowser::fieldIssues(const QString &type, const QString &id, const QString &field,
+                                       const QVariant &value) const
+{
+    const QString text = value.toString();
+
+    if (type == kCharacteristics || type == kCauses) {
+        const Condition *src = pack().condition(id);
+        if (!src) return {};
+        Condition c = *src;
+        if      (field == QStringLiteral("golfer"))         c.golfer         = text;
+        else if (field == QStringLiteral("golferWell"))     c.golferWell     = text;
+        else if (field == QStringLiteral("golferWhy"))      c.golferWhy      = text;
+        else if (field == QStringLiteral("goal"))           c.goal           = text;
+        else if (field == QStringLiteral("cue"))            c.cue            = text;
+        else if (field == QStringLiteral("check"))          c.check          = text;
+        else if (field == QStringLiteral("picture.kind"))   c.picture.kind   = text;
+        else if (field == QStringLiteral("picture.camera")) c.picture.camera = text;
+        else if (field == QStringLiteral("picture.phase"))  c.picture.phase  = text;
+        else if (field == QStringLiteral("picture.line"))   c.picture.line   = text;
+        else if (field == QStringLiteral("reportHold"))     c.reportHold     = text.trimmed();
+        else return {};
+        return issuesForField(reportFieldIssues(c), field);
+    }
+
+    if (type == kMeasures) {
+        const Measure *src = pack().measure(id);
+        if (!src) return {};
+        Measure m = *src;
+        if      (field == QStringLiteral("golferName")) m.golferName = text;
+        else if (field == QStringLiteral("golferHigh")) m.golferHigh = text;
+        else if (field == QStringLiteral("golferLow"))  m.golferLow  = text;
+        // Zero for a value that is not a sign, so badGolferSign says why — in its own words.
+        else if (field == QStringLiteral("golferSign")) m.golferSign = parseGolferSign(text);
+        else return {};
+        return issuesForField(reportFieldIssues(m), field);
+    }
+
+    if (type == kGates && field == QStringLiteral("golferWords")) {
+        if (!pinpoint::gates::gateEntry(id) && !m_gateWords.subject(id)) return {};
+        return gateWordIssues(id, text);
+    }
+    return {};
 }
 
 QVariantList ModelBrowser::linksCitingReference(const QString &refId) const

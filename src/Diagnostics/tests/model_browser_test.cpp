@@ -31,7 +31,9 @@
 #include "../measures/measure_facets.h"
 #include "../measures/anatomy_vocabulary.h"
 #include "../packs/drill_pack.h"
+#include "../packs/gate_words_pack.h"
 #include "../packs/screen_pack.h"
+#include "../../Metrics/gate_catalogue.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -115,6 +117,489 @@ static QString firstShippedId(const QVariantList &rows)
     return {};
 }
 
+// ── The session report's content (#60) ─────────────────────────────────────────────────────────
+//
+// Read through inspect(), the way the pane reads it, rather than off the pack: a field that
+// round-trips in C++ and never reaches a control is the bug #60 is about.
+
+// One field row as the inspector offers it, from whichever fields section holds it.
+static QVariantMap fieldRowFor(const ModelBrowser &m, const QString &type, const QString &id,
+                               const QString &field)
+{
+    for (const QVariant &sv : m.inspect(type, id).value(QStringLiteral("sections")).toList()) {
+        const QVariantMap s = sv.toMap();
+        if (s.value(QStringLiteral("kind")).toString() != QStringLiteral("fields")) continue;
+        for (const QVariant &fv : s.value(QStringLiteral("rows")).toList())
+            if (fv.toMap().value(QStringLiteral("field")).toString() == field) return fv.toMap();
+    }
+    return {};
+}
+
+static QString fieldValue(const ModelBrowser &m, const QString &type, const QString &id,
+                          const QString &field)
+{
+    return fieldRowFor(m, type, id, field).value(QStringLiteral("value")).toString();
+}
+
+static QVariantMap sectionTitled(const ModelBrowser &m, const QString &type, const QString &id,
+                                 const QString &title)
+{
+    for (const QVariant &sv : m.inspect(type, id).value(QStringLiteral("sections")).toList())
+        if (sv.toMap().value(QStringLiteral("title")).toString() == title) return sv.toMap();
+    return {};
+}
+
+static QStringList optionValues(const QVariantMap &fieldRow)
+{
+    QStringList out;
+    for (const QVariant &ov : fieldRow.value(QStringLiteral("options")).toList())
+        out << ov.toMap().value(QStringLiteral("value")).toString();
+    return out;
+}
+
+static QString optionLabel(const QVariantMap &fieldRow, const QString &value)
+{
+    for (const QVariant &ov : fieldRow.value(QStringLiteral("options")).toList())
+        if (ov.toMap().value(QStringLiteral("value")).toString() == value)
+            return ov.toMap().value(QStringLiteral("label")).toString();
+    return {};
+}
+
+static QStringList rowIds(const QVariantMap &section)
+{
+    QStringList out;
+    for (const QVariant &rv : section.value(QStringLiteral("rows")).toList())
+        out << rv.toMap().value(QStringLiteral("id")).toString();
+    return out;
+}
+
+static bool okOf(const QVariantMap &r) { return r.value(QStringLiteral("ok")).toBool(); }
+
+static bool healthHas(const ModelBrowser &m, const QString &code, const QString &subject)
+{
+    for (const QVariant &v : m.validation())
+        if (v.toMap().value(QStringLiteral("code")).toString() == code
+            && v.toMap().value(QStringLiteral("subject")).toString() == subject)
+            return true;
+    return false;
+}
+
+static void reportContentEditing(ModelBrowser &m)
+{
+    const QString chars  = QStringLiteral("characteristics");
+    const QString meas   = QStringLiteral("measures");
+    const QString gates  = QStringLiteral("gates");
+    const QString habit  = QStringLiteral("s_posture");
+    const QString measId = QStringLiteral("m_lumbarCurve");
+    const QString gateId = QStringLiteral("sequence.sightedBand");
+
+    while (m.canUndo()) m.undo();
+
+    std::printf("=== #60: a habit's report words are fields, under their own heading ===\n");
+    {
+        check(!rowFor(m.rows(chars), habit).isEmpty(), "the habit the report work is checked on ships");
+
+        const QVariantMap report = sectionTitled(m, chars, habit, QStringLiteral("Report"));
+        check(report.value(QStringLiteral("kind")).toString() == QStringLiteral("fields"),
+              "a habit's report words sit under a Report heading of their own");
+        QStringList offered;
+        bool        allCarry = !report.isEmpty();
+        for (const QVariant &fv : report.value(QStringLiteral("rows")).toList()) {
+            offered << fv.toMap().value(QStringLiteral("field")).toString();
+            if (!fv.toMap().contains(QStringLiteral("issues"))) allCarry = false;
+        }
+        check(offered == QStringList({ QStringLiteral("golfer"), QStringLiteral("golferWell"),
+                                       QStringLiteral("golferWhy"), QStringLiteral("goal"),
+                                       QStringLiteral("cue"), QStringLiteral("check"),
+                                       QStringLiteral("picture.kind"), QStringLiteral("picture.camera"),
+                                       QStringLiteral("picture.phase"), QStringLiteral("picture.line"),
+                                       QStringLiteral("reportHold") }),
+              "…offering every field the report reads off a habit, in reading order");
+        check(allCarry, "…each carrying the loader's findings, so the pane knows it can check it live");
+        check(!sectionTitled(m, chars, habit, QStringLiteral("Fields")).isEmpty(),
+              "and the habit's own fields keep their heading above it");
+
+        check(fieldValue(m, chars, habit, QStringLiteral("goal"))
+                  == QStringLiteral("Set up with a natural curve in your lower back"),
+              "the shipped work-on title is what the field holds");
+        check(fieldValue(m, chars, habit, QStringLiteral("picture.camera")) == QStringLiteral("dtl")
+                  && fieldValue(m, chars, habit, QStringLiteral("picture.phase")) == QStringLiteral("P1")
+                  && fieldValue(m, chars, habit, QStringLiteral("picture.line")) == QStringLiteral("spine"),
+              "…and the picture's parts are the shipped ones");
+
+        // THE LOADER'S LISTS, plus a blank. A picker built from anything else could offer a word the
+        // loader refuses or the still renderer cannot draw.
+        const auto withBlank = [](const QStringList &tokens) {
+            QStringList o{ QString() };
+            o << tokens;
+            return o;
+        };
+        QStringList phases;
+        for (int i = 1; i <= 10; ++i) phases << QStringLiteral("P%1").arg(i);
+        const QVariantMap kindRow   = fieldRowFor(m, chars, habit, QStringLiteral("picture.kind"));
+        const QVariantMap cameraRow = fieldRowFor(m, chars, habit, QStringLiteral("picture.camera"));
+        const QVariantMap phaseRow  = fieldRowFor(m, chars, habit, QStringLiteral("picture.phase"));
+        const QVariantMap lineRow   = fieldRowFor(m, chars, habit, QStringLiteral("picture.line"));
+        check(kindRow.value(QStringLiteral("kind")).toString() == QStringLiteral("enum")
+                  && cameraRow.value(QStringLiteral("kind")).toString() == QStringLiteral("enum")
+                  && phaseRow.value(QStringLiteral("kind")).toString() == QStringLiteral("enum")
+                  && lineRow.value(QStringLiteral("kind")).toString() == QStringLiteral("enum"),
+              "the picture's four parts are picked, not typed");
+        check(optionValues(kindRow) == withBlank(reportPictureKinds()),
+              "the kinds offered are reportPictureKinds(), after a blank");
+        check(optionValues(cameraRow) == withBlank(reportPictureCameras()),
+              "the cameras offered are reportPictureCameras(), after a blank");
+        check(optionValues(phaseRow) == withBlank(phases), "the positions offered are P1 to P10, after a blank");
+        bool phasesLegal = true;
+        for (const QString &ph : phases) if (!isReportPicturePhase(ph)) phasesLegal = false;
+        check(phasesLegal, "…every one of which the loader's own predicate accepts");
+        check(optionValues(lineRow) == withBlank(reportPictureLines()),
+              "the lines offered are reportPictureLines(), after a blank");
+        check(optionLabel(kindRow, QString()) == QStringLiteral("Not set"), "the blank reads Not set");
+        check(optionLabel(cameraRow, QStringLiteral("faceOn")) == QStringLiteral("Face-on")
+                  && optionLabel(cameraRow, QStringLiteral("dtl")) == QStringLiteral("Down the line")
+                  && optionLabel(lineRow, QStringLiteral("trailThigh")) == QStringLiteral("Trail thigh"),
+              "and the tokens read in an author's words");
+    }
+
+    std::printf("=== #60: every report field round-trips through setField and inspect ===\n");
+    {
+        check(!rowFor(m.rows(meas), measId).isEmpty(), "the measure the report work is checked on ships");
+
+        // `readBack` is what the field must hold afterwards; null means "what was written".
+        struct RT { QString type, id, field; const char *write; const char *readBack; };
+        const std::vector<RT> trips = {
+            { chars, habit, QStringLiteral("golfer"),     "your lower back hollows at address", nullptr },
+            { chars, habit, QStringLiteral("golferWell"), "you keep a long, gentle curve in your back", nullptr },
+            { chars, habit, QStringLiteral("golferWhy"),  "A hollow back takes load your hips should carry.", nullptr },
+            { chars, habit, QStringLiteral("goal"),       "Keep a long, gentle curve in your back", nullptr },
+            { chars, habit, QStringLiteral("cue"),        "Feel your belt buckle tip up a touch.", nullptr },
+            { chars, habit, QStringLiteral("check"),      "Film from down the line at address.", nullptr },
+            { chars, habit, QStringLiteral("picture.kind"),   "pair", nullptr },
+            { chars, habit, QStringLiteral("picture.camera"), "faceOn", nullptr },
+            { chars, habit, QStringLiteral("picture.phase"),  "P4", nullptr },
+            { chars, habit, QStringLiteral("picture.line"),   "trailThigh", nullptr },
+            { chars, habit, QStringLiteral("reportHold"), "The camera cannot see it reliably yet.", nullptr },
+            // White space is "not held": trimmed, because the loader would trim it to nothing and
+            // refuse the row.
+            { chars, habit, QStringLiteral("reportHold"), "   ", "" },
+            { meas, measId, QStringLiteral("golferName"), "hollow in your lower back at address", nullptr },
+            { meas, measId, QStringLiteral("golferSign"), "-1", nullptr },
+            { meas, measId, QStringLiteral("golferSign"), "+1", "1" },
+            { meas, measId, QStringLiteral("golferHigh"), "your back is more hollow than most", nullptr },
+            { meas, measId, QStringLiteral("golferLow"),  "your back is flatter than most", nullptr },
+        };
+        QStringList failed;
+        for (const RT &t : trips) {
+            const QString     write = QString::fromUtf8(t.write);
+            const QString     want  = t.readBack ? QString::fromUtf8(t.readBack) : write;
+            const QVariantMap r     = m.setField(t.type, t.id, t.field, write);
+            const QString     got   = fieldValue(m, t.type, t.id, t.field);
+            if (!okOf(r) || got != want)
+                failed << QStringLiteral("%1/%2 = '%3' → '%4' (%5)")
+                              .arg(t.type, t.field, write, got,
+                                   r.value(QStringLiteral("message")).toString());
+        }
+        for (const QString &f : failed) std::printf("      did not round-trip: %s\n", qPrintable(f));
+        check(failed.isEmpty(), "every habit and measure report field writes and reads back");
+        check(m.canUndo() && !m.undoLabel().isEmpty(), "each write is a named command");
+        check(rowFor(m.rows(chars), habit).value(QStringLiteral("source")).toString()
+                  == QStringLiteral("both"),
+              "editing a shipped habit's report words makes it yours, over shipped");
+        check(optionValues(fieldRowFor(m, meas, measId, QStringLiteral("golferSign")))
+                  == QStringList({ QStringLiteral("1"), QStringLiteral("-1") }),
+              "the sign is picked from its two values");
+
+        // Outside the closed vocabularies is REFUSED — and a refusal leaves nothing behind.
+        while (m.canUndo()) m.undo();
+        check(rowFor(m.rows(chars), habit).value(QStringLiteral("source")).toString()
+                  == QStringLiteral("shipped"),
+              "undone, the habit is shipped content again");
+        check(!okOf(m.setField(chars, habit, QStringLiteral("picture.kind"), QStringLiteral("photo"))),
+              "a kind of picture the loader does not know is refused");
+        check(!okOf(m.setField(chars, habit, QStringLiteral("picture.camera"), QStringLiteral("side"))),
+              "…a camera it does not know");
+        check(!okOf(m.setField(chars, habit, QStringLiteral("picture.phase"), QStringLiteral("P11"))),
+              "…a position past P10");
+        check(!okOf(m.setField(chars, habit, QStringLiteral("picture.line"), QStringLiteral("knee"))),
+              "…a line the still renderer cannot draw");
+        check(!okOf(m.setField(meas, measId, QStringLiteral("golferSign"), QStringLiteral("2"))),
+              "…and a sign that would rescale the reading");
+        check(rowFor(m.rows(chars), habit).value(QStringLiteral("source")).toString()
+                  == QStringLiteral("shipped")
+                  && rowFor(m.rows(meas), measId).value(QStringLiteral("source")).toString()
+                         == QStringLiteral("shipped")
+                  && !m.dirty(),
+              "and none of those refusals left an override behind");
+        check(okOf(m.setField(chars, habit, QStringLiteral("picture.kind"), QString())),
+              "a blank is \"not set\", and always accepted");
+        while (m.canUndo()) m.undo();
+    }
+
+    std::printf("=== #60: the live check gives the loader's own message, and writes nothing ===\n");
+    {
+        const QString bad  = QStringLiteral("Don't let your lower back arch at address, ever, whatever you do.");
+        const QString good = QStringLiteral("Set up with a natural curve in your lower back");
+
+        const int  stackBefore = m.edits().size();
+        const QVariantList issues = m.fieldIssues(chars, habit, QStringLiteral("goal"), bad);
+        check(!issues.isEmpty(), "a goal with don't in it, over 60 characters, has a finding");
+        check(m.edits().size() == stackBefore && !m.dirty(), "…and asking wrote nothing");
+        const QVariantMap first = issues.value(0).toMap();
+        check(first.value(QStringLiteral("code")).toString() == QStringLiteral("golferPhraseWording")
+                  && first.value(QStringLiteral("severity")).toString() == QStringLiteral("warning"),
+              "…the loader's code, at the loader's severity");
+        check(m.fieldIssues(chars, habit, QStringLiteral("goal"), good).isEmpty(),
+              "and a good one has none");
+        check(m.fieldIssues(chars, habit, QStringLiteral("label"), bad).isEmpty(),
+              "a field the report does not read is never checked");
+
+        // THE SAME STRING the health list shows once it is committed — the point of one source.
+        check(okOf(m.setField(chars, habit, QStringLiteral("goal"), bad)), "a badly worded goal still saves");
+        bool sameInHealth = false;
+        for (const QVariant &v : m.validation())
+            if (v.toMap().value(QStringLiteral("subject")).toString() == habit
+                && v.toMap().value(QStringLiteral("label")).toString()   // a health row's message is its label
+                       == first.value(QStringLiteral("message")).toString())
+                sameInHealth = true;
+        check(sameInHealth, "and Health words it exactly as the line under the field did");
+        const QVariantList onRow = fieldRowFor(m, chars, habit, QStringLiteral("goal"))
+                                       .value(QStringLiteral("issues")).toList();
+        check(!onRow.isEmpty()
+                  && onRow.first().toMap().value(QStringLiteral("message")) == first.value(QStringLiteral("message")),
+              "…and so does the row, once the edit is the field's value");
+        m.undo();
+
+        // A picture the loader would refuse is an ERROR, filed under the part that is missing.
+        const QVariantList cam = m.fieldIssues(chars, habit, QStringLiteral("picture.camera"), QString());
+        check(!cam.isEmpty()
+                  && cam.first().toMap().value(QStringLiteral("code")).toString() == QStringLiteral("pictureIncomplete")
+                  && cam.first().toMap().value(QStringLiteral("severity")).toString() == QStringLiteral("error"),
+              "a picture with its camera taken away is pictureIncomplete, an error");
+        check(!m.fieldIssues(meas, measId, QStringLiteral("golferSign"), QStringLiteral("3")).isEmpty(),
+              "a sign that is not ±1 is badGolferSign");
+
+        // The gate words' own rule and message.
+        const QVariantList gw = m.fieldIssues(gates, gateId, QStringLiteral("golferWords"),
+                                              QStringLiteral("The camera lost you for 2 frames"));
+        check(!gw.isEmpty()
+                  && gw.first().toMap().value(QStringLiteral("message")).toString()
+                         == gateWordsMessage(gateId, QStringLiteral("The camera lost you for 2 frames"),
+                                             gateWordsProblem(QStringLiteral("The camera lost you for 2 frames"))),
+              "a gate clause with a capital is gateWordsMessage()'s finding, word for word");
+        check(m.fieldIssues(gates, gateId, QStringLiteral("golferWords"),
+                            QStringLiteral("the cameras lost track of you for a moment")).isEmpty(),
+              "and a clean clause has none");
+    }
+
+    std::printf("=== #60: a drill written here can be attached from the habit ===\n");
+    QString newDrill;
+    {
+        const QVariantMap made = m.createObject(QStringLiteral("drills"), QStringLiteral("Probe wall drill"));
+        check(okOf(made), "a drill is created");
+        newDrill = made.value(QStringLiteral("id")).toString();
+
+        QStringList offered;
+        for (const QVariant &v : m.conditionDrillCandidates(habit))
+            offered << v.toMap().value(QStringLiteral("id")).toString();
+        check(offered.contains(newDrill), "the habit's picker offers the drill written a moment ago, unsaved");
+        check(!offered.contains(QStringLiteral("drill.postureRod")),
+              "…and not the drill the habit already has");
+        bool searched = false;
+        for (const QVariant &v : m.conditionDrillCandidates(habit, QStringLiteral("wall")))
+            if (v.toMap().value(QStringLiteral("id")).toString() == newDrill) searched = true;
+        check(searched, "…found by what it is called");
+        check(m.conditionDrillCandidates(habit, QStringLiteral("zzzz-no-such")).isEmpty(),
+              "…and a search that matches nothing offers nothing");
+
+        const QVariantMap drills = sectionTitled(m, chars, habit, QStringLiteral("Drills"));
+        check(drills.value(QStringLiteral("action")).toString() == QStringLiteral("drill"),
+              "the habit's Drills section is the place to add from");
+
+        check(okOf(m.addDrillAnswers(newDrill, habit)), "it attaches");
+        check(rowIds(sectionTitled(m, chars, habit, QStringLiteral("Drills"))).contains(newDrill),
+              "…and the habit's Drills section lists it");
+        QStringList after;
+        for (const QVariant &v : m.conditionDrillCandidates(habit))
+            after << v.toMap().value(QStringLiteral("id")).toString();
+        check(!after.contains(newDrill), "…and stops offering it");
+        check(!healthHas(m, QStringLiteral("unknownDrillRef"), habit),
+              "Health checks the DRAFT's drills, so the unsaved drill is not called dangling");
+
+        // The section is there even when empty, with the add on it — a habit with no drills was the
+        // one place a drill could not be attached from.
+        QString bare;
+        for (const QVariant &v : m.rows(chars)) {
+            const QString cid = v.toMap().value(QStringLiteral("id")).toString();
+            const QVariantMap d = sectionTitled(m, chars, cid, QStringLiteral("Drills"));
+            if (!d.isEmpty() && d.value(QStringLiteral("count")).toInt() == 0) { bare = cid; break; }
+        }
+        check(!bare.isEmpty(), "a habit with no drills still shows its Drills section");
+        check(sectionTitled(m, chars, bare, QStringLiteral("Drills")).value(QStringLiteral("action")).toString()
+                  == QStringLiteral("drill"),
+              "…with the add on it");
+    }
+
+    std::printf("=== #60: the Gates page — readings, and one editable field ===\n");
+    {
+        const QVariantList gateRows = m.rows(gates);
+        int catalogue = 0;
+        for (const QVariant &v : gateRows)
+            if (pinpoint::gates::gateEntry(v.toMap().value(QStringLiteral("id")).toString())) ++catalogue;
+        check(catalogue == int(pinpoint::gates::gateCatalogue().size()),
+              "every catalogue gate still has its row");
+
+        QStringList missing;
+        for (const GateWord &w : coreGateWordSet().subjects) {
+            const QVariantMap r = rowFor(gateRows, w.id);
+            if (r.isEmpty() || !r.value(QStringLiteral("reading")).toBool()
+                || r.value(QStringLiteral("type")).toString() != gates)
+                missing << w.id;
+        }
+        check(coreGateWordSet().subjects.size() == 10, "ten readings ship");
+        for (const QString &id : missing) std::printf("      no reading row: %s\n", qPrintable(id));
+        check(missing.isEmpty(), "…and each is a row of kind Reading on the Gates page");
+        check(!pinpoint::gates::gateEntry(QStringLiteral("ks.pelvis")),
+              "…and none of them is a catalogue gate");
+
+        const QVariantMap reading = m.inspect(gates, QStringLiteral("ks.pelvis"));
+        check(reading.value(QStringLiteral("found")).toBool()
+                  && reading.value(QStringLiteral("eyebrow")).toString() == QStringLiteral("Reading"),
+              "a reading opens in the inspector as what it is");
+        check(fieldValue(m, gates, QStringLiteral("ks.pelvis"), QStringLiteral("golferWords"))
+                  == QStringLiteral("when your hips turned fastest"),
+              "…showing its golfer words");
+
+        const QString shipped = gateWordsFor(coreGateWordSet(), gateId);
+        check(fieldValue(m, gates, gateId, QStringLiteral("golferWords")) == shipped && !shipped.isEmpty(),
+              "a gate shows its shipped golfer words");
+        check(!okOf(m.setField(gates, gateId, QStringLiteral("title"), QStringLiteral("Edited"))),
+              "a gate's title is still refused — it is part of the analysis");
+        check(!okOf(m.duplicate(gates, gateId)) && !okOf(m.removeObject(gates, gateId))
+                  && !okOf(m.createObject(gates)),
+              "…as are copying, removing and creating one");
+        check(!okOf(m.setFieldOnAll(gates, { gateId }, QStringLiteral("golferWords"), QStringLiteral("x"))),
+              "…and bulk-setting golfer words across gates");
+
+        const QString edited = QStringLiteral("the camera could not see your turn from where it stood");
+        // Counted from where the draft stands: the drill section above left its work in it.
+        const int unsavedBefore    = m.unsavedCount();
+        const int overriddenBefore = m.overriddenCount();
+        check(okOf(m.setField(gates, gateId, QStringLiteral("golferWords"), edited)),
+              "but its golfer words are editable");
+        check(fieldValue(m, gates, gateId, QStringLiteral("golferWords")) == edited, "…and read back");
+        check(m.inspect(gates, gateId).value(QStringLiteral("source")).toString() == QStringLiteral("both")
+                  && m.inspect(gates, gateId).value(QStringLiteral("dirty")).toBool(),
+              "…marking the gate yours, over shipped, and unsaved");
+        check(rowFor(m.rows(gates), gateId).value(QStringLiteral("dirty")).toBool(),
+              "…on its table row too");
+        check(m.unsavedCount() == unsavedBefore + 1 && m.overriddenCount() == overriddenBefore + 1,
+              "it counts as one more change to shipped content");
+
+        check(okOf(m.undo()), "the gate-word edit undoes");
+        check(fieldValue(m, gates, gateId, QStringLiteral("golferWords")) == shipped,
+              "…restoring the shipped clause");
+        check(m.inspect(gates, gateId).value(QStringLiteral("source")).toString() == QStringLiteral("shipped")
+                  && !m.inspect(gates, gateId).value(QStringLiteral("dirty")).toBool(),
+              "…and the gate is shipped again, with nothing unsaved");
+        check(okOf(m.redo()) && fieldValue(m, gates, gateId, QStringLiteral("golferWords")) == edited,
+              "and redo puts the edit back");
+
+        check(okOf(m.setField(gates, QStringLiteral("shot"), QStringLiteral("golferWords"),
+                              QStringLiteral("your whole swing"))),
+              "a reading's golfer words are editable the same way");
+        check(!okOf(m.setField(gates, QStringLiteral("no.such.thing"), QStringLiteral("golferWords"),
+                               QStringLiteral("x"))),
+              "an id that is neither a gate nor a reading is refused");
+
+        // A bad clause is a finding in Health, on the gate, in the registry's words.
+        check(okOf(m.setField(gates, QStringLiteral("shot"), QStringLiteral("golferWords"),
+                              QStringLiteral("Your 1 swing"))),
+              "a badly worded clause still writes — it is a warning, as the loader has it");
+        check(healthHas(m, QStringLiteral("gateWordsWording"), QStringLiteral("shot")),
+              "…and Health lists it against the reading");
+        m.undo();
+    }
+
+    std::printf("=== #60: a half-filled picture still saves, and nothing else is lost ===\n");
+    {
+        // THE DECISION RULE (plan W3 step 6), settled by reading the loaders: a user pack whose
+        // picture is half filled loads with a pictureIncomplete ERROR in its report, but `parsed`
+        // stays true — so ModelBrowser, the file provider and the report's own
+        // makeCharacteristicPackProvider() all keep every other edit in the file. Only that habit's
+        // still is affected. So the save is ALLOWED, and the error is shown under the field and in
+        // Health rather than blocking it; nothing is auto-filled.
+        check(okOf(m.setField(chars, habit, QStringLiteral("goal"),
+                              QStringLiteral("Keep a long, gentle curve in your back"))),
+              "the habit's title is edited");
+        check(okOf(m.setField(chars, habit, QStringLiteral("picture.camera"), QString())),
+              "…and its picture's camera taken away");
+        check(healthHas(m, QStringLiteral("pictureIncomplete"), habit),
+              "Health has the half-filled picture as an error");
+        const QVariantList camIssues = fieldRowFor(m, chars, habit, QStringLiteral("picture.camera"))
+                                           .value(QStringLiteral("issues")).toList();
+        check(!camIssues.isEmpty()
+                  && camIssues.first().toMap().value(QStringLiteral("severity")).toString()
+                         == QStringLiteral("error"),
+              "…and so does the line under the camera");
+
+        check(okOf(m.setField(meas, measId, QStringLiteral("golferName"),
+                              QStringLiteral("hollow in your lower back at address"))),
+              "a measure's golfer name is edited");
+        check(okOf(m.setField(gates, gateId, QStringLiteral("golferWords"),
+                              QStringLiteral("the camera could not see your turn from where it stood"))),
+              "…and a gate's golfer words (redone above, set again here to be sure)");
+
+        const QVariantMap saved = m.save();
+        check(okOf(saved), qPrintable(QStringLiteral("the draft saves, half-filled picture and all (%1)")
+                                          .arg(saved.value(QStringLiteral("message")).toString())));
+        check(QFile::exists(userGateWordSetPath()), "the gate words were written to their own file");
+    }
+
+    std::printf("=== #60: a second browser, from the files, reads it all back ===\n");
+    {
+        ModelBrowser again;
+        check(fieldValue(again, chars, habit, QStringLiteral("goal"))
+                  == QStringLiteral("Keep a long, gentle curve in your back"),
+              "the edited work-on title survives the reopen");
+        check(fieldValue(again, chars, habit, QStringLiteral("picture.kind")) == QStringLiteral("typical")
+                  && fieldValue(again, chars, habit, QStringLiteral("picture.camera")).isEmpty(),
+              "…and the half-filled picture comes back as it was left, not filled in");
+        check(rowIds(sectionTitled(again, chars, habit, QStringLiteral("Drills"))).contains(newDrill),
+              "…and the drill written here is still on the habit");
+        check(rowIds(sectionTitled(again, chars, habit, QStringLiteral("Drills")))
+                  .contains(QStringLiteral("drill.postureRod")),
+              "…beside the one it shipped with");
+        check(!rowFor(again.rows(QStringLiteral("drills")), newDrill).isEmpty(),
+              "…and is in the drill registry");
+        check(fieldValue(again, meas, measId, QStringLiteral("golferName"))
+                  == QStringLiteral("hollow in your lower back at address"),
+              "the measure's golfer name survives");
+        check(fieldValue(again, gates, gateId, QStringLiteral("golferWords"))
+                  == QStringLiteral("the camera could not see your turn from where it stood"),
+              "the gate's golfer words survive");
+        check(again.inspect(gates, gateId).value(QStringLiteral("source")).toString() == QStringLiteral("both")
+                  && !again.inspect(gates, gateId).value(QStringLiteral("dirty")).toBool(),
+              "…as yours, saved");
+
+        // What the REPORT reads: the app's own assembly, and the shared registries the save reset.
+        const auto provider = makeCharacteristicPackProvider();
+        const Condition *c = provider->pack().condition(habit);
+        check(c && c->goal == QStringLiteral("Keep a long, gentle curve in your back")
+                  && c->drills.contains(newDrill),
+              "the report's pack assembly has the edited title and the new drill — the error kept nothing out");
+        check(sharedDrillSet().drill(newDrill) != nullptr, "the shared drill set has the new drill");
+        check(gateWordsFor(sharedGateWordSet(), gateId)
+                  == QStringLiteral("the camera could not see your turn from where it stood"),
+              "and the shared gate words have the edited clause");
+    }
+
+    // Back to the standard model for whatever follows, through the panel's own way back.
+    const QVariantMap reset = m.resetToStandard();
+    for (const QString &path : reset.value(QStringLiteral("backups")).toStringList()) QFile::remove(path);
+    while (m.canUndo()) m.undo();
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -127,8 +612,11 @@ int main(int argc, char **argv)
     // the baseline has to clear those too or a previous run's overrides are this run's shipped set.
     QFile::remove(userScreenSetPath());
     QFile::remove(userDrillSetPath());
+    // …and the gate words, the fifth user layer since #60.
+    QFile::remove(userGateWordSetPath());
     resetSharedScreenSet();
     resetSharedDrillSet();
+    resetSharedGateWordSet();
 
     ModelBrowser m;
 
@@ -2528,10 +3016,13 @@ int main(int argc, char **argv)
             if (rows.isEmpty()) continue;
             const QString id = rows.first().toMap().value(QStringLiteral("id")).toString();
 
+            // EVERY fields section — a habit's and a measure's report words sit under their own
+            // "Report" heading (#60), and a check that read only the last one would test those and
+            // silently stop testing the rest.
             QVariantList fields;
             for (const QVariant &sv : m.inspect(type, id).value(QStringLiteral("sections")).toList())
                 if (sv.toMap().value(QStringLiteral("kind")).toString() == QStringLiteral("fields"))
-                    fields = sv.toMap().value(QStringLiteral("rows")).toList();
+                    fields += sv.toMap().value(QStringLiteral("rows")).toList();
 
             if (fields.isEmpty()) { noFields << type; continue; }
 
@@ -3813,11 +4304,22 @@ int main(int argc, char **argv)
         check(absent->layers().empty(), "a pack file that is not there is not a layer");
     }
 
+    // ── The session report's content, in the editor (#60) ───────────────────────────────────────
+    //
+    // Every word a client report prints about a habit, a measure and a gate is a field of the
+    // inspector now, and the gate words are content beside the drills. What is asserted here is the
+    // whole of #60's editor half: each field round-trips, the closed vocabularies are the loader's
+    // own, the live check gives the loader's own message, a drill written here can be attached from
+    // the habit and is not flagged on the way, the gate words are a fifth undoable layer, and every
+    // one of those edits SURVIVES — a second browser, built from the files, reads them back.
+    reportContentEditing(m);
+
     // Leave no user pack behind: a test with a side effect on the product is not a test.
     QFile::remove(userPackPath());
     QFile::remove(userNormPath());
     QFile::remove(userScreenSetPath());
     QFile::remove(userDrillSetPath());
+    QFile::remove(userGateWordSetPath());
 
     std::printf("\n%s (%d failure%s)\n", g_fail == 0 ? "PASS" : "FAIL", g_fail,
                 g_fail == 1 ? "" : "s");

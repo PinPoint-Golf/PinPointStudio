@@ -43,6 +43,16 @@ Item {
     property var corridorPlotSource: null
     // Add affordances are offered only where the panel can actually write.
     property bool editable: true
+    // Copy and Delete act on the whole OBJECT, which is not the same as being able to edit a field of
+    // it: a gate's golfer words are editable (#60) while the gate itself can be neither copied nor
+    // removed, because it is part of the analysis. The panel says which.
+    property bool objectActions: true
+    // What the pack loader would say about a field's words if they were committed now — a function
+    // (field, value) -> [{ code, severity, message }], wired by the panel to ModelBrowser.fieldIssues.
+    // Asked as the author types, so the line under a report field is the loader's own verdict on
+    // what is in the box rather than on what was last saved. Null in a pane built by hand (the QML
+    // tests do), and then the line shows the `issues` the row arrived with — what the field holds.
+    property var issuesFor: null
 
     signal navigate(string type, string id)
     signal addCauseRequested()
@@ -589,6 +599,31 @@ Item {
                                     height: implicitHeight
                                     spacing: Theme.gap(3)
 
+                                    // ── The loader's verdict on the words (#60) ──────────────────
+                                    //
+                                    // A field the façade can check arrives with `issues` (empty or
+                                    // not); any other field has none, and nothing below runs for it.
+                                    // `liveIssues` is the verdict on the text IN THE BOX while it
+                                    // differs from what the row holds, and null otherwise — so the
+                                    // line falls back to the row's own findings the moment the text
+                                    // matches again, and after a commit rebuilds the row with fresh
+                                    // ones.
+                                    readonly property bool checkable: hubRow.modelData.issues !== undefined
+                                    property var liveIssues: null
+                                    readonly property var shownIssues:
+                                        liveIssues !== null ? liveIssues : (hubRow.modelData.issues || [])
+
+                                    function recheck(typed) {
+                                        if (!fieldEditor.checkable) return
+                                        var was = hubRow.modelData.value !== undefined
+                                                      ? String(hubRow.modelData.value) : ""
+                                        if (typed === was || typeof root.issuesFor !== "function") {
+                                            fieldEditor.liveIssues = null
+                                            return
+                                        }
+                                        fieldEditor.liveIssues = root.issuesFor(hubRow.modelData.field, typed) || []
+                                    }
+
                                     RowLayout {
                                         Layout.fillWidth: true
                                         spacing: Theme.gap(6)
@@ -658,6 +693,10 @@ Item {
                                                                  : TextInput.AlignLeft
                                         font.family: hubRow.modelData.kind === "number"
                                                          ? Theme.fontData : Theme.fontBody
+                                        hasError: fieldEditor.shownIssues.length > 0
+                                        // Checked on every keystroke — it writes nothing, so it can.
+                                        onTextChanged: if (hubRow.modelData.kind === "text")
+                                                           fieldEditor.recheck(text)
                                         onEditingFinished: {
                                             var was = hubRow.modelData.value !== undefined
                                                           ? String(hubRow.modelData.value) : ""
@@ -697,6 +736,10 @@ Item {
                                             font.family:    Theme.fontBody
                                             font.pixelSize: Theme.fontSzBody2
                                             color:          Theme.colorText
+                                            // The CHECK is per keystroke (it writes nothing); the
+                                            // commit below is not.
+                                            onTextChanged: if (hubRow.modelData.kind === "prose")
+                                                               fieldEditor.recheck(text)
                                             // Focus-out, never per-keystroke: a paragraph typed a
                                             // character at a time would be a hundred commands.
                                             onActiveFocusChanged: {
@@ -720,6 +763,34 @@ Item {
                                         options: hubRow.modelData.options || []
                                         value:   hubRow.modelData.value
                                         onPicked: (v) => root.fieldCommitted(hubRow.modelData.field, v)
+                                    }
+
+                                    // What the loader would say about the words — under the box
+                                    // they are about, in the loader's own sentence. Errors in the
+                                    // error colour (a picture the still renderer cannot draw),
+                                    // warnings in the warn colour (it prints, and reads badly on a
+                                    // client's report). Shown, never blocking: the author decides.
+                                    ColumnLayout {
+                                        objectName: "fieldIssues:" + hubRow.modelData.field
+                                        Layout.fillWidth: true
+                                        Layout.topMargin: Theme.gap(2)
+                                        visible: fieldEditor.shownIssues.length > 0
+                                        spacing: Theme.gap(3)
+
+                                        Repeater {
+                                            model: fieldEditor.shownIssues
+                                            delegate: Text {
+                                                id: issueLine
+                                                required property var modelData
+                                                Layout.fillWidth: true
+                                                text:  issueLine.modelData.message
+                                                font.family:    Theme.fontBody
+                                                font.pixelSize: Theme.fontSzMicro
+                                                color: issueLine.modelData.severity === "error"
+                                                           ? Theme.colorError : Theme.colorWarn
+                                                wrapMode: Text.WordWrap
+                                            }
+                                        }
                                     }
                                 }
 
@@ -918,6 +989,7 @@ Item {
                                                      || sectionItem.modelData.action === "measure"
                                                      || sectionItem.modelData.action === "settles"
                                                      || sectionItem.modelData.action === "answers"
+                                                     || sectionItem.modelData.action === "drill"
                                                      || sectionItem.modelData.action === "preferKey")
                                         font.family:    Theme.fontData
                                         font.pixelSize: Theme.fontSzBody
@@ -947,6 +1019,7 @@ Item {
                         // where the thing goes. Click, type three characters, Enter.
                         Text {
                             id: addAffordance
+                            objectName: "addAffordance:" + sectionItem.modelData.action
                             visible: root.editable && sectionItem.modelData.action !== ""
                                      && sectionItem.modelData.action !== "binding"
                             x: Theme.sp(18)
@@ -955,6 +1028,7 @@ Item {
                                 : sectionItem.modelData.action === "corridor"  ? qsTr("+ add corridor")
                                 : sectionItem.modelData.action === "settles"   ? qsTr("+ settles a characteristic")
                                 : sectionItem.modelData.action === "answers"   ? qsTr("+ answers a characteristic")
+                                : sectionItem.modelData.action === "drill"     ? qsTr("+ add drill")
                                 : sectionItem.modelData.action === "preferKey" ? qsTr("+ prefer a metric")
                                                                                : qsTr("+ add measure")
                             font.family:    Theme.fontBody
@@ -974,6 +1048,7 @@ Item {
                                         root.addCorridorRequested()
                                     else if (sectionItem.modelData.action === "settles"
                                              || sectionItem.modelData.action === "answers"
+                                             || sectionItem.modelData.action === "drill"
                                              || sectionItem.modelData.action === "preferKey")
                                         root.addRowRequested(sectionItem.modelData.action)
                                     else
@@ -1009,7 +1084,7 @@ Item {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 1
-            visible: root.editable && root._found
+            visible: root.editable && root.objectActions && root._found
             color:   Theme.colorBorder
             opacity: Theme.borderOpacityNormal
         }
@@ -1020,7 +1095,7 @@ Item {
             Layout.rightMargin:  Theme.gap(18)
             Layout.topMargin:    Theme.gap(10)
             Layout.bottomMargin: Theme.gap(12)
-            visible: root.editable && root._found
+            visible: root.editable && root.objectActions && root._found
             spacing: Theme.gap(8)
 
             Item { Layout.fillWidth: true }

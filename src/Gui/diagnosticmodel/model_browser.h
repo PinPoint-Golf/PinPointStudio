@@ -19,6 +19,7 @@
 #pragma once
 
 #include "../../Diagnostics/packs/drill_pack.h"
+#include "../../Diagnostics/packs/gate_words_pack.h"
 #include "../../Diagnostics/measures/measure_sample.h"
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Diagnostics/packs/pack_provider.h"
@@ -498,6 +499,26 @@ public:
                                               const QString &search = QString()) const;
     Q_INVOKABLE QVariantList drillCandidates(const QString &drillId,
                                              const QString &search = QString()) const;
+    // The same join read from the HABIT's end: drills in the draft registry — shipped, overridden or
+    // authored here, saved or not — that this condition does not already list. The habit's Drills
+    // section adds from this, so a drill written in this panel can reach a work-on page without the
+    // author having to go and find the drill first.
+    Q_INVOKABLE QVariantList conditionDrillCandidates(const QString &conditionId,
+                                                      const QString &search = QString()) const;
+
+    // ── Report wording, checked while it is typed ───────────────────────────
+    //
+    // What the pack loader would say about ONE field if it held `value` — [{ code, severity, message }]
+    // with severity "error" | "warning", empty when the words are clean. Asked of a temporary copy of
+    // the draft object, so nothing is written and nothing reaches the undo stack: this is the line
+    // under the editor while the author types, and a keystroke is not an edit.
+    //
+    // The messages are reportFieldIssues()' (characteristic_pack.h) for a habit's and a measure's
+    // report fields, and gateWordsMessage()'s (gate_words_pack.h) for a gate's or a reading's golfer
+    // words — the SAME strings validatePack() and validateGateWordSet() put in Health, so the inspector
+    // and the health list cannot word one fault two ways. Any other field answers empty.
+    Q_INVOKABLE QVariantList fieldIssues(const QString &type, const QString &id, const QString &field,
+                                         const QVariant &value) const;
 
     // Every link resting on one reference. The citation is imported and stays read-only; the CLAIM
     // resting on it is ours, and its strength is editable through the ordinary setField("links", …).
@@ -657,9 +678,10 @@ private:
     struct Command {
         QString                                label;    // "Strength → strong"
         QString                                detail;   // "Early extension → Loss of posture"
-        // ALL FOUR registries, every time. A command that snapshotted only the one it happened to
-        // touch would restore correctly on its own and corrupt the others as soon as the stack was
-        // wound past it — the state a position on the stack describes is the whole draft, not a diff.
+        // EVERY registry, every time — five since the gate words joined. A command that
+        // snapshotted only the one it happened to touch would restore correctly on its own and
+        // corrupt the others as soon as the stack was wound past it — the state a position on the
+        // stack describes is the whole draft, not a diff.
         pinpoint::analysis::CharacteristicPack before;
         pinpoint::analysis::CharacteristicPack after;
         pinpoint::analysis::NormPack           normsBefore;
@@ -668,6 +690,10 @@ private:
         pinpoint::analysis::ScreenSet          screensAfter;
         pinpoint::analysis::DrillSet           drillsBefore;
         pinpoint::analysis::DrillSet           drillsAfter;
+        // The gate words joined the draft for #60 — the fifth layer, snapshotted for the same reason
+        // as the other four.
+        pinpoint::analysis::GateWordSet        gateWordsBefore;
+        pinpoint::analysis::GateWordSet        gateWordsAfter;
     };
     // Push the current state as a command, dropping any redo tail. `before` is the pack state the
     // command started from; the norm baseline is captured by the caller in the same breath.
@@ -683,6 +709,16 @@ private:
                             const pinpoint::analysis::NormPack           &normsBefore,
                             const pinpoint::analysis::ScreenSet          &screensBefore,
                             const pinpoint::analysis::DrillSet           &drillsBefore);
+    // …and the longest, for the few writes that can touch the gate words as well: a gate's golfer
+    // words in setField(), revert() and resetToStandard(). The six-argument form captures the
+    // CURRENT gate-word layer as its before-state, for the same reason the four-argument one does
+    // the screens and drills.
+    void        pushCommand(const QString &label, const QString &detail,
+                            const pinpoint::analysis::CharacteristicPack &before,
+                            const pinpoint::analysis::NormPack           &normsBefore,
+                            const pinpoint::analysis::ScreenSet          &screensBefore,
+                            const pinpoint::analysis::DrillSet           &drillsBefore,
+                            const pinpoint::analysis::GateWordSet        &gateWordsBefore);
     QVariantMap applyStackPosition(int newIndex);
 
     // ── Working-copy helpers ────────────────────────────────────────────────
@@ -822,6 +858,26 @@ private:
     // screen/drill exists anywhere.
     pinpoint::analysis::Screen *workingScreen(const QString &id);
     pinpoint::analysis::Drill  *workingDrill(const QString &id);
+
+    // The gate words (gate_words_pack.h), layered the same way again: what the user file holds,
+    // the draft of it, and core with the draft over it by id — each list on its own, because a
+    // gate's clause and a reading's words are two lists that share nothing but a file.
+    //
+    // A gate stays part of the analysis. These are the one thing about it a studio may change: the
+    // words a client report prints when the gate keeps a reading from being checked (#60).
+    pinpoint::analysis::GateWordSet m_savedGateWords;
+    pinpoint::analysis::GateWordSet m_workingGateWords;
+    pinpoint::analysis::GateWordSet m_gateWords;
+
+    // Copy-on-write for one entry: the draft's own, else a copy of the assembled one, else — for a
+    // catalogue gate that has no words anywhere yet — a new empty entry. `subject` picks the list.
+    // Null only for an id that is neither a catalogue gate nor a known reading.
+    pinpoint::analysis::GateWord *workingGateWord(const QString &id, bool subject);
+
+    // "shipped" | "yours" | "both" for a gate or reading id, read off the gate-word layers alone.
+    // Apart from sourceOf() because a gate id has no prefix to route on, and asking the pack about it
+    // would be asking the wrong registry.
+    QString gateWordsSourceOf(const QString &id) const;
 
     // The corridor rows this session has explicitly RETIRED — a reset of a user override back to
     // whatever core says. Tracked rather than inferred from absence, because "no user row" is also

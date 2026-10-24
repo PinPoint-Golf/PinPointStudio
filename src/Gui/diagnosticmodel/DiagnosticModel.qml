@@ -400,8 +400,9 @@ Item {
     // nothing else — it does not know, and must not have to know, which registry that id lives in.
     function openSubject(subject) {
         if (!subject || subject === "") return
+        // Gates last: a gate-words finding names the gate or reading it is about (#60).
         var order = [ "characteristics", "causes", "measures", "signals", "links",
-                      "screens", "drills", "references" ]
+                      "screens", "drills", "references", "gates" ]
         for (var t = 0; t < order.length; t++) {
             var rows = browser.rows(order[t], { ids: [ subject ] })
             if (rows.length > 0) {
@@ -1635,8 +1636,19 @@ Item {
                     onCollapseRequested: appSettings.diagnosticsInspectorCollapsed = true
                     detail:  root._inspectorDetail
                     corridorPlotSource: root._corridorPlotSource
-                    // A gate reached from a search result is read-only whatever list is behind it.
-                    editable: root._typeEditable && root._selectedType !== "gates"
+                    // A gate is editable in ONE field, its golfer words (#60), so its pane is live
+                    // wherever it was reached from — the Gates page included, which is why this is
+                    // not simply _typeEditable: adding "gates" there would also turn on "+ New" and
+                    // the table's editing for a page whose cells are all inert. What stays off for a
+                    // gate is everything that acts on the OBJECT — copy and delete — because a gate
+                    // is part of the analysis; the façade refuses those too, and this keeps the
+                    // buttons from being offered at all.
+                    editable: root._typeEditable || root._selectedType === "gates"
+                    objectActions: root._selectedType !== "gates"
+                    // The live wording check under each report field. The pane has no browser of its
+                    // own (so a test can build it by hand), so the question is handed in.
+                    issuesFor: (field, value) => browser.fieldIssues(root._selectedType,
+                                                                     root._selectedId, field, value)
                     onCorridorHandleCommitted: (handle, v) => root._report(
                         browser.setField("corridors", root._selectedId, handle, v))
                     // The text goes through verbatim: an empty one clears a plausibility bound,
@@ -1695,6 +1707,11 @@ Item {
                             root._openPickerNear(preferKeyPicker, inspector, inspector.actionOrigin)
                             return
                         }
+                        // A habit's own Drills section: which drill answers THIS habit.
+                        if (action === "drill") {
+                            root._openPickerNear(drillPicker, inspector, inspector.actionOrigin)
+                            return
+                        }
                         settlesPicker.mode = action
                         root._openPickerNear(settlesPicker, inspector, inspector.actionOrigin)
                     }
@@ -1707,6 +1724,10 @@ Item {
                             root._report(browser.removeScreenSettles(root._selectedId, id))
                         else if (kind === "answers")
                             root._report(browser.removeDrillAnswers(root._selectedId, id))
+                        // The same join from the habit's end: the row is the drill, the selection
+                        // is the habit.
+                        else if (kind === "drill")
+                            root._report(browser.removeDrillAnswers(id, root._selectedId))
                         else
                             root._report(browser.removeLink(id, root._selectedId, "causes"))
                     }
@@ -1831,6 +1852,20 @@ Item {
         onPicked: (id) => root._report(settlesPicker.mode === "settles"
                                            ? browser.addScreenSettles(root._selectedId, id)
                                            : browser.addDrillAnswers(root._selectedId, id))
+    }
+
+    // The same join read from the HABIT's end (#60): which drill answers the habit on screen. Fed from
+    // the draft's drill registry, so a drill written in this panel and not yet saved is on the list —
+    // which is the case this exists for: a drill nobody could attach never reached a work-on page.
+    ModelPicker {
+        id: drillPicker
+        parent: root
+        title: qsTr("Add which drill?")
+        candidateSource: (text) => {
+            if (root._revision < 0 || root._selectedId === "") return []
+            return browser.conditionDrillCandidates(root._selectedId, text)
+        }
+        onPicked: (id) => root._report(browser.addDrillAnswers(id, root._selectedId))
     }
 
     ModelMint {
@@ -1986,6 +2021,7 @@ Item {
         // a text key, and it has to stand down while something is being typed into.
         enabled: !searchField.activeFocus && !table.editing && root._type !== "gates"
                  && !causePicker.opened && !measurePicker.opened && !settlesPicker.opened
+                 && !drillPicker.opened
         onActivated: root._view = root._view === "graph" ? "table" : "graph"
     }
 
