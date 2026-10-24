@@ -842,5 +842,19 @@ Item {
             compare(drv.tingsSince(m3, "panel"), 0)
             verify(drv.done())
         }
+
+        // CW15 (#50) — the IMU panel's "needs calibrating" reads each unit's fullyCalibrated:
+        // a calibrated pair clears it, and a mount outside the 15° limit lights it again.
+        function test_CW15_panelFollowsMountLimits() {
+            open("witmotion2", { withPanel: true })
+            verify(drv.imus.A.imuConnected && drv.imus.B.imuConnected, "the pair is not connected")
+            verify(drv.panel.needsCalibration, "an uncalibrated pair does not need calibrating")
+            tryVerify(function() { return drv.done() }, 45000, "never done (stage " + drv.stage() + ")")
+            tryVerify(function() { return !drv.panel.needsCalibration }, 2000,
+                      "a calibrated pair still needs calibrating")
+            drv.imus.B.mountDeviationDeg = 40
+            verify(!drv.imus.B.fullyCalibrated)
+            verify(drv.panel.needsCalibration, "a 40° mount deviation does not need calibrating")
+        }
     }
 }

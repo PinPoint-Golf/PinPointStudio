@@ -43,21 +43,15 @@ Item {
         : Theme.sp(46) + 1 + listCol.implicitHeight
 
     // True when at least one connected IMU is not yet *successfully* calibrated.
-    // A sensor counts as calibrated only when anatCalibrated AND the mount check
-    // passes (same thresholds the flow uses: deviation ≤ 15°, gravity ≤ 25°).
-    // anatCalibrated alone flips true at the phase-1 arm-down capture, before
-    // phase-2 mount validation — so a failed calibration keeps Calibrate lit.
-    function _imuCalibratedOk(inst) {
-        return !!(inst && inst.anatCalibrated
-                  && inst.mountDeviationDeg    <= 15.0
-                  && inst.mountGravityErrorDeg <= 25.0)
-    }
+    // The rule is the device's own fullyCalibrated (ImuDeviceBase): Witmotion =
+    // anatomical solve AND both mount checks; HackMotion = the device's calibration
+    // state CALIBRATED. Never re-derive it here from one kind's properties (#50).
     readonly property bool needsCalibration: {
         var _dep = imuManager.instances
         var list = imuManager.imuDeviceList
         for (var i = 0; i < list.length; ++i) {
             var inst = imuManager.instanceFor(list[i].id)
-            if (inst && inst.imuConnected && !_imuCalibratedOk(inst)) return true
+            if (inst && inst.imuConnected && inst.fullyCalibrated !== true) return true
         }
         return false
     }
@@ -179,7 +173,6 @@ Item {
                 id: imuRow
                 required property var modelData
                 width: listCol.width
-                calibratedOk: root._imuCalibratedOk(imuRow.inst)
                 devId:    modelData.id
                 devIndex: modelData.index
                 devName: modelData.alias && modelData.alias !== "" ? modelData.alias
@@ -278,15 +271,14 @@ Item {
         property int    devIndex:  -1
         property string devName:   ""
         property string placement: ""   // the mount by name; "" when unassigned
-        // Calibrated AND the mount check passed (root._imuCalibratedOk), set by
-        // the list so the row's state follows the same thresholds as Calibrate.
-        property bool   calibratedOk: false
 
         // Live instance (reactive on imuManager.instances).
         property QtObject inst: {
             var _dep = imuManager.instances
             return imuManager.instanceFor(devId)
         }
+        // The device's own fullyCalibrated — the same rule as root.needsCalibration.
+        readonly property bool calibratedOk: inst ? inst.fullyCalibrated === true : false
         readonly property bool connected:     inst ? inst.imuConnected  : false
         // Live connection state (driver labels: Scanning… / Connecting… /
         // Discovering services… / Retrying… / Connected / Error / Not found).

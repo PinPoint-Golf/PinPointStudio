@@ -161,7 +161,7 @@ public:
     static constexpr double kMountGravityErrorMaxDeg = 25.0;
     // Composite "is calibrated" — anatomical transform valid AND both mount
     // checks within threshold. This is what saved shots record as `calibrated`.
-    bool fullyCalibrated() const
+    bool fullyCalibrated() const override
     {
         return m_anatCalibrated
             && m_mountDeviationDeg    <= kMountDeviationMaxDeg

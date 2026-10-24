@@ -105,7 +105,7 @@ QtObject {
     }
     function _valid(routine, obj) {
         if (!obj) return false
-        if (routine === "hackmotion") return obj.imuConnected === true && obj.calibrationState === 2
+        if (routine === "hackmotion") return obj.imuConnected === true && obj.fullyCalibrated === true
         return obj.fullyCalibrated === true
     }
     // { done, recorded, routine, at, devices }. `done` is the live answer; `recorded` says an

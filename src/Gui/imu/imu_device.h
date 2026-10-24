@@ -70,6 +70,15 @@ public:
     virtual int     batteryPercent()  const = 0;
     virtual double  dataRateHz()      const = 0;
 
+    // "Is this device calibrated well enough to trust" — the ONE rule the session
+    // toolbar, the IMU panel and setup all read (as the QML property
+    // `fullyCalibrated` each concrete class declares). Each kind answers it from
+    // its own evidence: a Witmotion from its anatomical solve AND both mount
+    // checks; a wG3 from the device's own calibration state, because it has no
+    // mount checks to offer. Deriving it in QML from one kind's properties is how
+    // every HackMotion came to read as uncalibrated (#50).
+    virtual bool    fullyCalibrated() const = 0;
+
     // ⚠ PLURAL, AND THAT IS THE POINT. A Witmotion returns exactly one id; a
     // HackMotion returns two (lower arm, palm). Every consumer that resolves
     // device metadata by source id — the exporter, the resource monitor, the

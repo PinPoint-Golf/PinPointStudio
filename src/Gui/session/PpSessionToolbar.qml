@@ -90,22 +90,14 @@ Item {
         return false
     }
     // True when at least one connected IMU is not yet *successfully* calibrated →
-    // attention. A sensor counts as calibrated only when anatCalibrated AND the
-    // mount check passes (same thresholds the calibration flow uses: deviation
-    // ≤ 15°, gravity ≤ 25°). anatCalibrated alone flips true at the phase-1 arm-down
-    // capture, before phase-2 mount validation — so a failed calibration must keep
-    // the attention indicator lit, not clear it.
-    function _imuCalibratedOk(inst) {
-        return inst && inst.anatCalibrated
-            && inst.mountDeviationDeg    <= 15.0
-            && inst.mountGravityErrorDeg <= 25.0
-    }
+    // attention. Same rule as PpImuPanel.needsCalibration: the device's own
+    // fullyCalibrated (ImuDeviceBase) — never re-derived here (#50).
     readonly property bool imuNeedsAttention: {
         var _dep = imuManager.instances
         var list = imuManager.imuDeviceList
         for (var i = 0; i < list.length; ++i) {
             var inst = imuManager.instanceFor(list[i].id)
-            if (inst && inst.imuConnected && !_imuCalibratedOk(inst)) return true
+            if (inst && inst.imuConnected && inst.fullyCalibrated !== true) return true
         }
         return false
     }

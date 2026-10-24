@@ -351,7 +351,8 @@ QtObject {
     // > any claimant). `unit` is what a viz or routine binds to (a wG3's HmUnit); `deviceObject`
     // the peripheral, which carries the connect state (imu_manager.h ⚠ — a unit has no
     // imuConnected of its own). `calibratedValid` is the device's LIVE validity — Witmotion:
-    // fullyCalibrated on the unit; HackMotion: connected and calibrationState CALIBRATED (2).
+    // fullyCalibrated on the unit; HackMotion: connected and fullyCalibrated on the peripheral
+    // (calibrationState CALIBRATED).
     readonly property var roles: {
         var devs  = ctx.devices
         var _list = imuMgr.imuDeviceList
@@ -369,7 +370,7 @@ QtObject {
             var obj  = id !== "" ? imuMgr.deviceForRole(role) : null
             var valid = false
             if (dev !== null && dev.isHackMotion)
-                valid = obj !== null && obj.imuConnected === true && obj.calibrationState === 2
+                valid = obj !== null && obj.imuConnected === true && obj.fullyCalibrated === true
             else if (unit !== null)
                 valid = unit.fullyCalibrated === true
             var present = dev !== null && dev.present

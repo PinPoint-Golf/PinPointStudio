@@ -722,5 +722,23 @@ Item {
                     + "step, then tap Recalibrate.")
             compare(drv.messageKind(), "error")
         }
+
+        // CH15 (#50) — the IMU panel's "needs calibrating" reads the wG3's own fullyCalibrated.
+        // It used to require the Witmotion-only mount readings, which a wG3 does not have, so a
+        // calibrated wG3 kept Calibrate lit for ever. The toolbar's imuNeedsAttention reads the
+        // same property.
+        function test_CH15_panelFollowsDeviceCalibration() {
+            open("hackmotion", { withPanel: true })
+            var dev = drv.hm
+            verify(dev.imuConnected, "the wG3 is not connected")
+            verify(drv.panel.needsCalibration, "an uncalibrated wG3 does not need calibrating")
+            tryVerify(function() { return drv.done() }, 30000, "never done (stage " + drv.stage() + ")")
+            compare(dev.calibrationState, dev.sCalibrated)
+            tryVerify(function() { return !drv.panel.needsCalibration }, 2000,
+                      "a calibrated wG3 still needs calibrating")
+            // Applied but the presence check never passed: not calibrated.
+            dev.calibrationState = dev.sUnknown
+            verify(drv.panel.needsCalibration, "a wG3 at WR_CAL_UNKNOWN does not need calibrating")
+        }
     }
 }

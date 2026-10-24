@@ -67,6 +67,8 @@ QtObject {
 
     property int    calibrationPhase:       pIdle
     property int    calibrationState:       sUncalibrated
+    // HmInstance::fullyCalibrated — the device's calibration state reads CALIBRATED.
+    readonly property bool fullyCalibrated: calibrationState === sCalibrated
     property int    calibrationAbortReason: aNone
     property double presenceAngleDeg:       NaN
     property double poseSpreadMaxDeg:       NaN

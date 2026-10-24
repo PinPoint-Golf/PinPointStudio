@@ -915,6 +915,11 @@ void HmInstance::deregisterFromBuffer()
     }
 }
 
+bool HmInstance::fullyCalibrated() const
+{
+    return m_calibrationState == WR_CAL_CALIBRATED;
+}
+
 bool HmInstance::calibrationActive() const
 {
     // ⚠ "A ROUTINE IS IN FLIGHT", WHICH IS NOT "SOMETHING IS CALIBRATED". Both

@@ -315,6 +315,14 @@ class HmInstance : public ImuDeviceBase
     // inferred here.
     Q_PROPERTY(int calibrationState READ calibrationState NOTIFY calibrationStateChanged)
 
+    // ImuDeviceBase::fullyCalibrated() for a wG3: calibrationState reads
+    // WR_CAL_CALIBRATED, i.e. the device applied its transform AND the presence
+    // check passed. There are no mount-deviation or gravity checks on this kind —
+    // the device owns its calibration — so there is nothing else to gate on.
+    // Link-down drives the state back (invalidateCalibration()), so this cannot
+    // outlive the connection it was earned on.
+    Q_PROPERTY(bool fullyCalibrated READ fullyCalibrated NOTIFY calibrationStateChanged)
+
     // wr_calibration_abort_reason. ⚠ NOT A SYNONYM FOR "ABORTED":
     // WR_CAL_ABORT_CALLER is carried on a transition to COMPLETE as well, because
     // aborting at WR_CALP_VERIFYING declines the presence check on a transform the
@@ -511,6 +519,7 @@ public:
     int    presenceSamplesUsed()   const { return m_presenceSamplesUsed; }
     bool   presenceNotMeasured()   const { return m_presenceNotMeasured; }
     bool   calibrationActive()     const;
+    bool   fullyCalibrated()       const override;
     bool   streaming()             const { return m_streaming; }
     double relativeAngleDeg()      const { return m_relativeAngleDeg; }
 
