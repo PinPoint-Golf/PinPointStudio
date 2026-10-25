@@ -158,8 +158,11 @@ struct SegmentRatesConfig {
     double  gapBridgeAgreeSigma    = tuned::sequence::kGapBridgeAgreeSigma;    // sequence.gapBridge.agreeSigma
     double  chestBackwardsWindowMs = tuned::sequence::kChestBackwardsWindowMs; // sequence.chestBackwardsWindowMs
     // The lead arm and club keep their DIRECTION (towards the target = +, the trunk's convention) instead of
-    // being read as a speed (|ω|) — pp_tuned_constants.h kSignedArmClub. Camera routes only.
+    // being read as a speed (|ω|) — pp_tuned_constants.h kSignedArmClub. Every route, the arm IMU included.
     bool    signedArmClub          = tuned::sequence::kSignedArmClub;          // sequence.signedArmClub
+    // A camera arm node's σ_t widened by the span over which its curve stays within this many σ_peak of its
+    // peak (σ² + span²/12) — pp_tuned_constants.h kCameraArmTopWidthSigmas. 0 = off.
+    double  cameraArmTopWidthSigmas = tuned::sequence::kCameraArmTopWidthSigmas; // sequence.cameraArm.topWidthSigmas
     // The club angle's per-sample σ from the shaft uncertainty pass (sigmaThetaDeg) in place of
     // shaftThetaSigmaRad / conf. A VALUE change, not a σ-only one: the wider σ un-places the club
     // node on some swings (the 1 Oct sigma sweep), so it has its own switch, off until Mark rules.
@@ -228,6 +231,7 @@ struct SegmentRatesConfig {
         apply(ov, "sequence.gapBridge.agreeSigma",     c.gapBridgeAgreeSigma);
         apply(ov, "sequence.chestBackwardsWindowMs", c.chestBackwardsWindowMs);
         apply(ov, "sequence.signedArmClub",          c.signedArmClub);
+        apply(ov, "sequence.cameraArm.topWidthSigmas", c.cameraArmTopWidthSigmas);
         return c;
     }
 };

@@ -120,6 +120,53 @@ void orientDownswingPositive(RateTrack &r, int64_t fromUs, int64_t toUs)
         for (double &v : r.dps) v = -v;
 }
 
+// THE ARM IMU KEEPS ITS SIGN TOO (sequence.signedArmClub; Mark, 25 Oct 2026: "we do need a sign on the hm
+// curve"). A gyro measures the swing as a VECTOR — the swing rate across the long axis, ω⊥ — and its sign is which
+// way along the swing plane's normal it points. In the sensor's frame that normal moves (the segment rolls, and its
+// plane is not quite flat), so it is CARRIED by the sensor's own rate: a world-fixed direction seen from a turning
+// body moves by −ω × n·dt, and the swing about the normal itself leaves it alone. It is fixed where it is
+// unmistakable — the fastest sample in [fromUs, toUs], the downswing — and carried from there both ways, so the
+// backswing is read against the SAME plane. Following ω⊥'s own direction sample to sample does not work: on the
+// 18 Aug HackMotion swings the forearm's swing vector turns over gradually through the top instead of passing
+// through zero, and a follower reads that as one direction all swing. The sign changes only where the rate ALONG
+// the normal is past `holdBelowDps`: through a turn-over the vector lies across the normal, still fast, and its
+// sign against it is noise (three sign changes on §3c's fixture); held, the curve changes sign once, at the top. `carryDps[i]` is the full ω in the same frame as `v`; null = a world-frame `v`, whose
+// plane needs no carrying. Returns ±1 per sample; the caller orients the whole curve (orientDownswingPositive).
+std::vector<double> signAgainstPlane(const std::vector<int64_t> &t, const std::vector<QVector3D> &v,
+                                     const std::vector<QVector3D> *carryDps, int64_t fromUs, int64_t toUs,
+                                     double holdBelowDps)
+{
+    const size_t n = std::min(t.size(), v.size());
+    std::vector<double> sign(n, 1.0);
+    size_t ref = n;
+    float best = 0.f;
+    for (size_t i = 0; i < n; ++i)
+        if (t[i] >= fromUs && t[i] <= toUs && v[i].length() > best) { best = v[i].length(); ref = i; }
+    if (ref == n || !(best >= float(holdBelowDps))) return sign;
+    std::vector<QVector3D> nrm(n);
+    nrm[ref] = v[ref] / best;
+    const bool carry = carryDps && carryDps->size() >= n;
+    const auto turn = [&](size_t i, size_t j) {   // the rotation vector (rad) from sample i to j, mid-point rate
+        const double dt = double(t[j] - t[i]) * 1e-6;
+        return ((*carryDps)[i] + (*carryDps)[j]) * float(0.5 * dt / kRadToDeg);
+    };
+    for (size_t i = ref + 1; i < n; ++i) {
+        nrm[i] = nrm[i - 1];
+        if (carry) nrm[i] = (nrm[i] - QVector3D::crossProduct(turn(i - 1, i), nrm[i])).normalized();
+    }
+    for (size_t i = ref; i-- > 0;) {
+        nrm[i] = nrm[i + 1];
+        if (carry) nrm[i] = (nrm[i] + QVector3D::crossProduct(turn(i, i + 1), nrm[i])).normalized();
+    }
+    double s = QVector3D::dotProduct(v[0], nrm[0]) >= 0.f ? 1.0 : -1.0;
+    for (size_t i = 0; i < n; ++i) {
+        const float along = QVector3D::dotProduct(v[i], nrm[i]);
+        if (std::fabs(along) >= float(holdBelowDps)) s = along >= 0.f ? 1.0 : -1.0;
+        sign[i] = s;
+    }
+    return sign;
+}
+
 RateTrack smoothRate(const std::vector<int64_t> &t, const std::vector<double> &dps,
                      double noiseDps, int64_t windowUs)
 {
@@ -1602,21 +1649,31 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
         return differentiate(a, windowUs, sign, /*magnitude*/ false);
     };
 
-    // Swing rate of a long axis (e_y in the anatomical frame): |ω − (ω·â)â| in world.
+    // Swing rate of a long axis (e_y in the anatomical frame): |ω − (ω·â)â|, signed along the swing's own
+    // plane when sequence.signedArmClub is on (signAgainstPlane). With a gyro the whole read stays in the
+    // SEGMENT frame (gyroDps is already there) and never touches the orientation: |ω⊥| is the same in any
+    // frame, and on the 18 Aug HackMotion swings the stream's quaternions turn ~50° through a downswing its
+    // own gyro integrates to ~246° — a world-frame projection off them would be wrong where the gyro is not.
+    const double signHoldDps = 15.0 * cfg.gyroNoiseDps;
     const auto swingFromImu = [&](const SegmentStream &s) -> RateTrack {
         const std::vector<int64_t> &grid = in.streams->timeGrid;
         std::vector<double> dps(grid.size(), 0.0);
         if (s.gyroDps.size() == s.qAnat.size()) {
+            std::vector<QVector3D> perp(grid.size());
             for (size_t i = 0; i < grid.size(); ++i) {
-                const QVector3D w    = s.qAnat[i].rotatedVector(s.gyroDps[i]);
-                const QVector3D axis = s.qAnat[i].rotatedVector(QVector3D(0.f, 1.f, 0.f));
-                const QVector3D perp = w - QVector3D::dotProduct(w, axis) * axis;
-                dps[i] = double(perp.length());
+                const QVector3D &w = s.gyroDps[i];
+                perp[i] = QVector3D(w.x(), 0.f, w.z());   // ω less its roll about the long axis, e_y
+                dps[i]  = double(perp[i].length());
+            }
+            if (cfg.signedArmClub) {
+                const std::vector<double> sg = signAgainstPlane(grid, perp, &s.gyroDps, dom.fromUs, dom.refUs(), signHoldDps);
+                for (size_t i = 0; i < grid.size(); ++i) dps[i] *= sg[i];
             }
             return smoothRate(grid, dps, cfg.gyroNoiseDps, windowUs);
         }
-        // No gyro: the long axis's direction rate from the orientation stream.
-        std::vector<QVector3D> axis(grid.size());
+        // No gyro: the long axis's direction rate from the orientation stream, signed along the axis it
+        // turned about (a world-fixed plane normal, so nothing carries the line).
+        std::vector<QVector3D> axis(grid.size()), turn(grid.size());
         for (size_t i = 0; i < grid.size(); ++i)
             axis[i] = s.qAnat[i].rotatedVector(QVector3D(0.f, 1.f, 0.f));
         for (size_t i = 0; i < grid.size(); ++i) {
@@ -1625,6 +1682,12 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             if (dt <= 0.0) continue;
             const double d = std::clamp(double(QVector3D::dotProduct(axis[a0], axis[b0])), -1.0, 1.0);
             dps[i] = std::acos(d) / dt * kRadToDeg;
+            const QVector3D c = QVector3D::crossProduct(axis[a0], axis[b0]);
+            if (c.length() > 0.f) turn[i] = c.normalized() * float(dps[i]);
+        }
+        if (cfg.signedArmClub) {
+            const std::vector<double> sg = signAgainstPlane(grid, turn, nullptr, dom.fromUs, dom.refUs(), signHoldDps);
+            for (size_t i = 0; i < grid.size(); ++i) dps[i] *= sg[i];
         }
         return smoothRate(grid, dps, cfg.gyroNoiseDps, windowUs);
     };
@@ -1637,14 +1700,50 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
         finishChannel(res.thorax, axialFromImu(*thoraxImu), SeqSegment::Thorax,
                       QStringLiteral("Thorax angular speed"), QStringLiteral("thoraxImu"), true,
                       dom, phases, cfg, nodes);
-    if (streamUsable(armImu))
-        finishChannel(res.leadArm, swingFromImu(*armImu), SeqSegment::LeadArm,
+    // THE CAMERA ARM'S PEAK INSTANT IS AS WIDE AS ITS TOP (sequence.cameraArm.topWidthSigmas; Mark, 25 Oct 2026:
+    // "I want sigma to be honest"). Graded against the HackMotion forearm on the 11 HM swings of 18 Aug, the face-on
+    // arm peaked 43 ms late on average (95 % CI 28–58, SD 22) while claiming σ ≈ 17 ms — 4 of 11 within 1σ. The
+    // curve has TWO humps on 9 of them, one at the HM's peak (~−100 ms) and one camera-only (~−45 ms) after a dip,
+    // nearly level, and the picker takes whichever is a hair higher. The rule the club node already uses
+    // (σ² + span²/12): the true peak could be anywhere the curve stays within k·σ_peak of its highest value, so
+    // that span widens the node's σ. It needs nothing from the HM, so it carries to other golfers, and a clean
+    // single-humped curve keeps its σ. At k = 3 it covers 10 of 11 within 2σ (median σ 39 ms). The error is
+    // bimodal, not Gaussian, so no symmetric σ reaches 7/11 within 1σ — the fix for that is the estimator.
+    // Camera arm routes only (face-on, two-camera skeleton); the skeleton's was not graded (no DTL with an HM).
+    const auto widenArmTop = [&](size_t before) {
+        if (!(cfg.cameraArmTopWidthSigmas > 0.0)) return;
+        const MetricSeries &m = res.leadArm.series;
+        for (size_t k = before; k < nodes.size(); ++k) {
+            KsNode &an = nodes[k];
+            if (an.segment != SeqSegment::LeadArm || !an.placed) continue;
+            const double thr = an.peakDps - cfg.cameraArmTopWidthSigmas * an.peakSigmaDps;
+            int64_t lo = std::numeric_limits<int64_t>::max(), hi = std::numeric_limits<int64_t>::min();
+            for (size_t i = 0; i < m.t_us.size() && i < m.value.size(); ++i) {
+                if (m.t_us[i] < dom.fromUs || m.t_us[i] > dom.toUs) continue;
+                if (!m.valid.empty() && !m.valid[i]) continue;
+                if (m.value[i] < thr) continue;
+                lo = std::min(lo, m.t_us[i]); hi = std::max(hi, m.t_us[i]);
+            }
+            if (hi <= lo) continue;
+            const double spanMs = double(hi - lo) / 1000.0;
+            an.tSigmaMs = std::sqrt(an.tSigmaMs * an.tSigmaMs + spanMs * spanMs / 12.0);
+        }
+    };
+
+    if (streamUsable(armImu)) {
+        RateTrack armRate = swingFromImu(*armImu);
+        if (cfg.signedArmClub) orientDownswingPositive(armRate, dom.fromUs, dom.refUs());
+        finishChannel(res.leadArm, std::move(armRate), SeqSegment::LeadArm,
                       QStringLiteral("Lead arm angular speed"), QStringLiteral("leadArmImus"), true,
                       dom, phases, cfg, nodes);
-    if (streamUsable(clubImu))
-        finishChannel(res.club, swingFromImu(*clubImu), SeqSegment::Club,
+    }
+    if (streamUsable(clubImu)) {
+        RateTrack clubRate = swingFromImu(*clubImu);
+        if (cfg.signedArmClub) orientDownswingPositive(clubRate, clubDom.fromUs, clubDom.refUs());
+        finishChannel(res.club, std::move(clubRate), SeqSegment::Club,
                       QStringLiteral("Club angular speed"), QStringLiteral("clubSensorFused"), true,
                       clubDom, phases, cfg, nodes);
+    }
 
     // ── The two-camera skeleton's trunk: BELOW the pair, above the face-on span ────────────────
     // The hip and shoulder lines' bearing in the horizontal plane — the quantity §3.1 defines —
@@ -1722,6 +1821,9 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
                     nodes.pop_back();
                     res.leadArm = SegmentRateChannel{};
                 } else {
+                    // The top's width is read BEFORE the camera gain joins the peak's σ: a gain scales
+                    // the whole curve and leaves its top where it was.
+                    widenArmTop(before);
                     // The assumed camera is a GAIN on every triangulated angle: it scales the peak
                     // and leaves its instant alone, so it widens the peak's σ and never tSigmaMs
                     // (ks_skeleton3d_route_design.md §6).
@@ -1967,11 +2069,13 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             gate.bandIsHole = true;
             gate.risingIntoMinFrac = cfg.faceOnArmRisingIntoMinFrac;
             validityBand(a, dom.fromUs, dom.toUs, seen, gate);
+            const size_t before = nodes.size();
             RateTrack armRate = differentiate(a, windowUs, 1.0, /*magnitude*/ !cfg.signedArmClub);
             if (cfg.signedArmClub) orientDownswingPositive(armRate, dom.fromUs, dom.refUs());
             finishChannel(res.leadArm, std::move(armRate),
                           SeqSegment::LeadArm, QStringLiteral("Lead arm angular speed"),
                           QStringLiteral("faceOn"), false, dom, phases, cfg, nodes, gate);
+            widenArmTop(before);
         }
     }
 

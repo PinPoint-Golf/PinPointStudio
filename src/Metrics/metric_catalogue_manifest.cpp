@@ -2216,7 +2216,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("leadArmImus", RM::Inertial, Direct, { .imuRoles = { R::LeadForearm } },
                 QStringLiteral("the lead-arm gyro's component across the arm's long axis (the "
-                               "upper arm when bound, else the forearm)")),
+                               "upper arm when bound, else the forearm), signed by the way it turns "
+                               "about the swing's own axis")),
             // LIVE 2026-10-02 (segment_rates.cpp skeletonArmTrack): the shoulder → wrist direction
             // from skeleton3d's two-camera fit, its angle in the arm's own downswing plane.
             // ESTIMATED, not Direct: the fit's cameras are assumed until calibrated, a gain error

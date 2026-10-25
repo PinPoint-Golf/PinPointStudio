@@ -1178,9 +1178,17 @@ inline constexpr double       kGapBridgeSfDps       = 155.4;  // sequence.gapBri
 //   all 4 curves" … "Let's fix the sign. Club and arm look good"). Read as speeds (|ω|) until then, they bounced
 //   off zero at the top instead of crossing it; with the sign, nine library swings drawn address → finish beside
 //   a reference kinematic sequence cross zero within a few hundredths of a second of the top and peak where it does. The
-//   downswing is + either way, so the sequence's peaks and every reading off them are unchanged. Camera routes
-//   only: the arm IMU's swing rate (the gyro across the arm) has no sign to keep.
+//   downswing is + either way, so the sequence's peaks and every reading off them are unchanged. The arm IMU too
+//   since later the same day (Mark: "we do need a sign on the hm curve"): the gyro's swing rate across the arm is a
+//   vector, signed against the swing plane's normal carried through the sensor's own rate (signAgainstPlane).
 inline constexpr bool         kSignedArmClub        = true;   // sequence.signedArmClub
+// kCameraArmTopWidthSigmas — AN HONEST σ ON THE CAMERA ARM'S PEAK INSTANT (Mark, 25 Oct 2026: "I want sigma to be
+//   honest"). Against the HackMotion forearm on the 11 HM swings of 18 Aug the face-on arm peak was 43 ms late
+//   (95 % CI 28–58, SD 22) under a claimed σ of ~17 ms: 4 of 11 within 1σ and 4 within 2σ. Its curve has two near-level
+//   humps on 9 of 11 (the HM's at ~−100 ms, a camera-only one at ~−45 ms). σ² + span²/12 over the stretch the curve
+//   stays within k·σ_peak of its peak — the club node's rule — gives at k = 1 / 2 / 3: 6, 8, 10 of 11 within 2σ
+//   (median σ 30 / 36 / 39 ms). 3 is the smallest that is honest at 2σ. Bimodal error, so 1σ coverage stays 4/11.
+inline constexpr double       kCameraArmTopWidthSigmas = 3.0; // sequence.cameraArm.topWidthSigmas
 // kChestBackwardsWindowMs — FAIL WITH GRACE (Mark, 25 Oct 2026: "try our hardest, report honestly and fail with
 //   grace"). A chest curve whose mean over this many ms before impact is at or below zero reads the chest turning
 //   AWAY from the target through the downswing — the face-on route's sign unfold at the wrong square-up instant

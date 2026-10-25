@@ -898,6 +898,24 @@ does it per shot too.
   at the top, which is the case for the trunk IMU. The downswing is + either way, so peaks and readings are
   unchanged — except 7 library shots (Paddy, Jess) whose old arm peak was junk the sign exposed (−3091 °/s
   backwards, or a leap to 3232–8332 °/s straight after a change of direction, now refused as a spike).
+- **The arm IMU carries its sign too** (Mark, later the same day: "we do need a sign on the hm curve"). The gyro's
+  swing rate across the arm is a vector; its sign is which way it points along the swing plane's normal, fixed at
+  the downswing's fastest sample and carried both ways by the sensor's own rate (`signAgainstPlane`; a world-fixed
+  direction seen from a turning body moves by −ω × n·dt). The sign changes only where the rate along that normal
+  is clear of noise, so a forearm whose swing vector turns over through the top changes sign once. Following the
+  vector's own direction instead read the 18 Aug HackMotion backswings as positive on 10 of 11. With the normal
+  carried, all 11 read negative going back and change sign once, 9–15 ms after the top; every peak is unchanged.
+- **An honest σ on the camera arm's peak instant** (Mark: "I want sigma to be honest"; `kCameraArmTopWidthSigmas`).
+  Graded against the HackMotion forearm on those 11 swings (the HM is the criterion), the face-on arm peaked
+  43 ms late (95 % CI 28–58, SD 22) under a claimed σ of ~17 ms. Its curve has two near-level humps on 9 of 11:
+  one at the HM's peak (~−100 ms), one camera-only (~−45 ms) after a dip at ~−72 ms. The keypoints are on the
+  joints through it (overlay sheets, wrist conf 0.83–0.96), the arm's image length and elbow bend hardly move,
+  the club-plane de-projection changes nothing (k 0.93–0.99), and de-projecting through the arm's own image
+  conic only halves the lateness while inflating the speed 35 %. So the second hump is a face-on 2-D effect
+  one camera cannot resolve. The node keeps its instant and value; its σ_t gains span²/12 over the stretch the
+  curve stays within 3 σ_peak of its peak (the club node's rule), read before the skeleton route's camera gain
+  joins σ_peak. On the 11: 10 within 2σ (was 4), median σ 39 ms; 4 within 1σ, because the error is bimodal
+  and no symmetric σ about a biased instant can be honest at both. Camera arm routes only.
 - **Not yet truthed.** No trunk sensor has checked the probable peak; calibrate the noise and grade the peak
   against the worn trunk-IMU session. The next step is #102: judge each curve's SHAPE against the reference KS
   shape to predict measurement error per shot.

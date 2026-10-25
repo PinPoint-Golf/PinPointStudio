@@ -211,7 +211,7 @@ static std::vector<PhaseEvent> phases()
 static PoseTrack2D makePose(bool leadIsLeft, double pelvisStartClosedDeg = 45.0, double addrOpenDeg = 0.0,
                             const Bump &pelvisBump = kPelvis, double shoulderTiltDeg = 0.0,
                             bool signedSpans = false, double thoraxStartClosedDeg = 90.0,
-                            const Bump &thoraxBump = kThorax)
+                            const Bump &thoraxBump = kThorax, const Bump *armHump2 = nullptr)
 {
     PoseTrack2D pose;
     const auto proj = [&](double a) { return signedSpans ? std::cos(a) : std::fabs(std::cos(a)); };
@@ -235,7 +235,7 @@ static PoseTrack2D makePose(bool leadIsLeft, double pelvisStartClosedDeg = 45.0,
         f.kp[kLAnk] = QPointF(0.48, 0.30 + kVertExtentPx / kH); f.conf[kLAnk] = 0.9f;
         f.kp[kRAnk] = QPointF(0.52, 0.30 + kVertExtentPx / kH); f.conf[kRAnk] = 0.9f;
         // Lead arm: shoulder fixed, wrist on the imaged arc.
-        const double alpha = (-120.0 + turnFromTop(kArm, s)) * kD2R;
+        const double alpha = (-120.0 + turnFromTop(kArm, s) + (armHump2 ? turnFromTop(*armHump2, s) : 0.0)) * kD2R;
         const double psi   = imageAngle(alpha);
         const int sIdx = leadIsLeft ? kLSh : kRSh, wIdx = leadIsLeft ? kLWr : kRWr;
         const QPointF shoulder = f.kp[sIdx];
@@ -703,6 +703,47 @@ int main()
                     qPrintable(faceOn.sequence.routeSummary));
     }
 
+    // ── §2b the camera arm's σ_t is as wide as its top (sequence.cameraArm.topWidthSigmas, 25 Oct 2026) ──
+    // Graded against the HackMotion forearm, the face-on arm picked between two near-level humps and claimed a
+    // σ_t far narrower than the gap between them. σ_t² gains span²/12, the span being where the curve stays within
+    // k·σ_peak of its peak: a single clean hump (§2's) keeps a σ_t close to its own, two humps (the arm bump plus a
+    // second one 50 ms later, as the camera drew on 9 of 11 HM swings) widen it past the distance between them.
+    {
+        const ShaftTrack2D shaft = makeShaft();
+        const auto armNode = [&](const Bump *hump2, double k, double *spanMs) -> KsNode {
+            const PoseTrack2D pose = makePose(true, 45.0, 0.0, kPelvis, 0.0, false, 90.0, kThorax, hump2);
+            SegmentRatesInputs in;
+            in.pose = &pose; in.frameW = kW; in.frameH = kH; in.leadIsLeft = true;
+            in.shaft = &shaft; in.phases = &ph; in.impactUs = kImpactUs;
+            SegmentRatesConfig c = cfg;
+            c.cameraArmTopWidthSigmas = k;
+            const SegmentRatesResult r = buildSegmentRates(in, c);
+            const KsNode *a = nodeOf(r, SeqSegment::LeadArm);
+            if (!a) return KsNode{};
+            if (spanMs) {
+                const MetricSeries &m = r.leadArm.series;
+                int64_t lo = INT64_MAX, hi = INT64_MIN;
+                for (size_t i = 0; i < m.t_us.size(); ++i)
+                    if ((m.valid.empty() || m.valid[i]) && m.t_us[i] >= kTransitionUs && m.t_us[i] <= kImpactUs
+                        && m.value[i] >= a->peakDps - k * a->peakSigmaDps) { lo = std::min(lo, m.t_us[i]); hi = std::max(hi, m.t_us[i]); }
+                *spanMs = hi > lo ? double(hi - lo) / 1000.0 : 0.0;
+            }
+            return *a;
+        };
+        double span1 = 0.0, span2 = 0.0;
+        const KsNode one0 = armNode(nullptr, 0.0, nullptr), one3 = armNode(nullptr, 3.0, &span1);
+        constexpr Bump kArmLate { 531.0, 0.990, 0.012 };   // level with kArm's hump, 50 ms after it
+        const KsNode two0 = armNode(&kArmLate, 0.0, nullptr), two3 = armNode(&kArmLate, 3.0, &span2);
+        std::printf("    top width: one hump σ_t %.1f → %.1f ms (span %.0f); two humps %.1f → %.1f ms (span %.0f)\n",
+                    one0.tSigmaMs, one3.tSigmaMs, span1, two0.tSigmaMs, two3.tSigmaMs, span2);
+        CHECK("§2b top width: σ_t² gains exactly span²/12 (one hump)",
+              one3.placed && near(one3.tSigmaMs * one3.tSigmaMs, one0.tSigmaMs * one0.tSigmaMs + span1 * span1 / 12.0, 1e-6));
+        CHECK("§2b top width: the peak instant and value are untouched",
+              one3.tPeakUs == one0.tPeakUs && one3.peakDps == one0.peakDps && two3.tPeakUs == two0.tPeakUs);
+        CHECK("§2b top width: two humps 50 ms apart widen σ_t to at least 40/√12 ms, and past one hump's",
+              two3.placed && span2 >= 40.0 && two3.tSigmaMs >= 40.0 / std::sqrt(12.0) && two3.tSigmaMs > one3.tSigmaMs);
+    }
+
     // ── §3 IMU only ───────────────────────────────────────────────────────────────────────────
     SegmentRatesResult imu;
     {
@@ -738,6 +779,84 @@ int main()
             std::printf("    imu    %-8s %s  t=%.1f ms before impact ±%.1f  peak %.0f ±%.0f\n",
                         seqSegmentKey(n.segment), n.placed ? "placed  " : "UNPLACED", n.beforeImpactMs,
                         n.tSigmaMs, n.peakDps, n.peakSigmaDps);
+    }
+
+    // ── §3c the arm IMU keeps its sign (sequence.signedArmClub, 25 Oct 2026: "we do need a sign on the hm curve") ──
+    // The forearm swings BACK 200° about world X through the backswing, then forward through kArm's bump, while
+    // it ROLLS about its own long axis at 0.6× the swing (up to ~590 °/s through the downswing): q = Rx(θ)·Ry(ρ),
+    // its gyro the body rate 2·q*·q̇ of that quaternion. The swing rate across the arm is |θ̇| in any frame; its
+    // direction in the sensor's frame turns with the roll, which the sign must not read as a reversal. Drawn
+    // address → finish (throughP8 off), the curve reads − through the backswing, crosses zero at the top, and its
+    // downswing peak is the unsigned one. Through the top the arm also turns 30° about world Z (Rz(β), ~450 °/s at
+    // its fastest), so the swing vector TURNS OVER instead of passing through zero — what the 18 Aug HackMotion
+    // forearms do, and what a sign that follows the vector's own direction reads as one direction all swing.
+    {
+        FusedStreams fs = makeStreams(true);
+        const double topS = kTopUs * 1e-6;
+        const auto theta = [&](double sec) {
+            if (sec <= kBackswingStartS) return 0.0;
+            if (sec <= topS) { const double u = (sec - kBackswingStartS) / (topS - kBackswingStartS); return -200.0 * u * u * (3.0 - 2.0 * u); }
+            return -200.0 + turnFromTop(kArm, sec);
+        };
+        const auto beta = [&](double sec) {   // 0 → 30° about world Z, smoothstep over the 100 ms around the top
+            const double u = std::clamp((sec - (topS - 0.05)) / 0.10, 0.0, 1.0);
+            return 30.0 * u * u * (3.0 - 2.0 * u);
+        };
+        const auto quat = [&](double sec) {
+            const double th = theta(sec);
+            return QQuaternion::fromAxisAndAngle(0.f, 0.f, 1.f, float(beta(sec)))
+                 * QQuaternion::fromAxisAndAngle(1.f, 0.f, 0.f, float(th)) * QQuaternion::fromAxisAndAngle(0.f, 1.f, 0.f, float(0.6 * th));
+        };
+        for (SegmentStream &st : fs.segments) {
+            if (st.role != SegmentRole::LeadForearm) continue;
+            for (size_t i = 0; i < fs.timeGrid.size(); ++i) {
+                const double sec = fs.timeGrid[i] * 1e-6, h = 0.0005;
+                const QQuaternion q = quat(sec), dq = (quat(sec + h) - quat(sec - h)) * float(1.0 / (2.0 * h));
+                const QQuaternion w = q.conjugated() * dq * 2.f;
+                st.qAnat[i]   = q;
+                st.gyroDps[i] = QVector3D(w.x(), w.y(), w.z()) * float(180.0 / kPi);
+            }
+        }
+        SegmentRatesInputs in;
+        in.streams = &fs; in.leadIsLeft = true; in.phases = &ph; in.impactUs = kImpactUs;
+        SegmentRatesConfig whole = cfg;
+        whole.throughP8 = false;
+        const SegmentRatesResult r = buildSegmentRates(in, whole);
+        SegmentRatesConfig speed = whole;
+        speed.signedArmClub = false;
+        const SegmentRatesResult u = buildSegmentRates(in, speed);
+        const MetricSeries &m = r.leadArm.series;
+        double back = 0.0, down = 0.0, backMin = 0.0;
+        int nb = 0, nd = 0, flips = 0;
+        long lastMoving = -1;
+        int64_t cross = -1;
+        for (size_t i = 0; i < m.t_us.size(); ++i) {
+            if (m.t_us[i] > 400000 && m.t_us[i] < 650000) { back += m.value[i]; ++nb; backMin = std::min(backMin, m.value[i]); }
+            if (m.t_us[i] > kTransitionUs && m.t_us[i] < kImpactUs) { down += m.value[i]; ++nd; }
+            // a sign change counts only between samples where the arm is MOVING (|ω| > 20 °/s): the fixture's arm
+            // stands still from ~750 to ~830 ms, between the top and kArm's bump, and ±0 there is not a direction
+            if (std::fabs(m.value[i]) > 20.0) {
+                if (lastMoving >= 0 && m.t_us[i] > 400000 && m.t_us[i] < kImpactUs && (m.value[size_t(lastMoving)] < 0.0) != (m.value[i] < 0.0)) {
+                    ++flips;
+                    if (m.value[i] > 0.0) cross = m.t_us[i];
+                }
+                lastMoving = long(i);
+            }
+        }
+        // the backswing's peak rate: 200° · d(smoothstep)/dt peaks at 1.5·200/(top − start) = 750 °/s
+        const double backPeak = 1.5 * 200.0 / (topS - kBackswingStartS);
+        const KsNode *a = nodeOf(r, SeqSegment::LeadArm), *b = nodeOf(u, SeqSegment::LeadArm);
+        std::printf("    signed IMU arm: backswing mean %.0f (min %.0f, truth −%.0f) · downswing mean %.0f · zero at %.0f ms, %d sign change(s)\n",
+                    nb ? back / nb : 0.0, backMin, backPeak, nd ? down / nd : 0.0, cross / 1000.0, flips);
+        CHECK("§3c signed IMU arm: route leadArmImus, the backswing reads −, the downswing +",
+              r.leadArm.routeId == QLatin1String("leadArmImus") && nb > 0 && nd > 0 && back / nb < -100.0 && down / nd > 100.0);
+        CHECK("§3c signed IMU arm: the backswing's fastest is −750 °/s within 5 %, through 450 °/s of roll",
+              near(backMin, -backPeak, 0.05 * backPeak));
+        CHECK("§3c signed IMU arm: it crosses zero ONCE, within 25 ms of the top, though the vector turns over there",
+              cross >= 0 && std::llabs(cross - kTopUs) <= 25000 && flips == 1);
+        CHECK("§3c signed IMU arm: the downswing peak is the unsigned one (instant and value)",
+              a && b && a->placed && b->placed && a->tPeakUs == b->tPeakUs && near(a->peakDps, b->peakDps, 1e-6)
+              && a->peakDps > 0.0 && msFromTruth(a, kArm) <= 5.0 && near(a->peakDps, 980.0, 49.0));
     }
 
     // ── §3b the trunk rate is the segment's own S-I rate (design D3), not the world-vertical one ──
