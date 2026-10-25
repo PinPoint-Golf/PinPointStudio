@@ -3,6 +3,7 @@
 **For:** Mark. **Time:** about 20 minutes, plus 6 on GOLFSIMPC.
 **Design:** `docs/design/trunk_imu_sequence_grf_design.md` §16 step 2.
 **Comes after:** the desk session (`hardware_desk_session.md`) and the calibration ceremony (§16 step 3), which is built using the desk results.
+**The wG3 is worn too** (design §3.7, D28; week plan §16.1 W3). The trunk sensors and the wG3 together give the pelvis, chest and arm curves of the kinematic sequence from sensors, and grade all three camera routes on the same swings.
 **Before you start:** the code is committed and pushed, and GOLFSIMPC is built from it (`tools\studio\studio-build.cmd both`). The studio passes run from the studio's own checkout.
 
 Everything runs from one script:
@@ -14,6 +15,7 @@ build/run-me/trunk-hw-worn.sh <step>
 ## What you need
 
 - The 2 trunk Witmotions, charged, with the rate the desk session settled on.
+- The wG3 on the lead wrist, calibrated with its own routine (the trunk sensors on and recording while you do it).
 - A firm belt with a pouch, and a snug GPS-style vest with a back pocket.
 - The alignment stick, both cameras, and the LM.
 
@@ -31,8 +33,8 @@ Pad each sensor so it can't rattle, and close the pocket.
 | Step | You do | Time | Command | It decides |
 |---|---|---|---|---|
 | **H1b** | On GOLFSIMPC: run `tools\studio\trunk-hw-record.cmd`, which starts the installed app with the recorder on. Repeat the desk H1a and H1b: 3 Witmotions for 2 min, then 2 + the wG3 for 2 min. | 6 min | `trunk-hw-worn.sh rate-studio` | Whether 200 Hz holds over the studio's Bluetooth too. |
-| **H3** | Belt and vest on, cameras live. Start a session with the hip and chest sensors assigned. **Calibrate** — see "Calibration" below. Then **3 hop shots**: stand where you address the ball, do one small hop straight up, and trigger the shot by hand. | 5 min | — | The delay between the sensors' clock and the cameras' clock, and whether it repeats (D14). It passes if each hop fits within 5 ms and the two sensors agree within 5 ms. |
-| **H4** | In the same session: **5 full 7-iron swings**, LM on. | 8 min | — | Whether your hips really peak after impact (the cameras say about +20 ms), or whether that is camera lag. |
+| **H3** | Belt and vest on, cameras live. Start a session with the hip and chest sensors assigned. **Calibrate** — see "Calibration" below. Then **3 hop shots**, wG3 on: stand where you address the ball, do one small hop straight up, and trigger the shot by hand. | 5 min | — | The delay between the sensors' clock and the cameras' clock, and whether it repeats (D14). It passes if each hop fits within 5 ms and the two sensors agree within 5 ms. With the wG3 on, the hop also gives the trunk-to-wrist offset, which decides whether the chest-to-arm order can be judged. |
+| **H4** | In the same session, wG3 on: **at least 10 full 7-iron swings**, LM on. | 12 min | — | Whether your hips really peak after impact (the cameras say about +20 ms), or whether that is camera lag. Whether the chest's bridged peak and the camera arm's peak (+43 ms late against the wG3 on 18 Aug) hold up against the sensors, and the sequence order, all on the same swings. |
 | **H5** | Nothing to capture; it is computed from H4. | — | `trunk-hw-worn.sh studio <session> [stand-tall swing]`, then `trunk-hw-worn.sh analyse <session>` | Whether the live orientation keeps the tilt at impact (under 1°), or the trunk needs re-processing after the swing (§7.2). |
 
 `<session>` is the session folder under `/mnt/swingdata/Mark-Liversedge`, for example `2026-10-24_Mark-Liversedge_Wrist_01`.
@@ -47,13 +49,14 @@ Pad each sensor so it can't rattle, and close the pocket.
 
 ## What happens to the shots
 
-`trunk-hw-worn.sh studio` runs four passes on GOLFSIMPC over every shot in the session. They read the library and write only to `scratch\trunk-hw\<session>\`:
+`trunk-hw-worn.sh studio` runs four passes on GOLFSIMPC over every shot in the session (a fifth, below, is to be added in week-plan stage W1). They read the library and write only to `scratch\trunk-hw\<session>\`:
 1. **dense:** every video frame posed. The hop needs it, because live pose is only every ~27 ms.
 2. **bound:** the trunk sensors used, calibrated from the stand-tall shot on the fallback route.
 3. **unbound:** the trunk sensors ignored, as the camera-only control.
 4. **refuse:** live orientation compared against orientation re-computed from the raw sensor data, with the tilt error at address, top, impact and finish.
+5. **arm unbound** (to add, W1): the wG3 ignored (`--ignore-role leadForearm,leadHand`), as the camera-arm control.
 
-`trunk-hw-worn.sh analyse <session>` prints the verdicts for the hops (`hop`), the hip peak, sensors against cameras (`hips`), and the tilt (`tilt`).
+`trunk-hw-worn.sh analyse <session>` prints the verdicts for the hops (`hop`), the hip peak, sensors against cameras (`hips`), and the tilt (`tilt`). To add in W1: the hop on the wG3 lanes, and `ks`, which compares pelvis, chest and arm peak times bound against unbound per swing and draws the full-swing sequence sheets.
 
 ## Known limits
 

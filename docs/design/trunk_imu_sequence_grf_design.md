@@ -1,6 +1,6 @@
 # Trunk IMUs, the kinematic sequence, load and ground reaction force — unified design
 
-**Status:** design, not started (beyond role-keyed placement). Merged 14 October 2026.
+**Status (25 October 2026):** Part K shipped (15–17 Oct). Part A §16 step 1 (frames, `solveTrunkSegment()`, the end-to-end test) and the step-2 tooling are pushed. No sensor has been worn yet: the desk session, the ceremony and the worn session are this week's work (§16), with the wG3 worn alongside the trunk sensors (§3.7). Merged 14 October 2026.
 **Owner:** Mark.
 **Merges three sources, which this document replaces:**
 - `docs/design/trunk_imu_design.md` (4 Oct; this file, renamed): pelvis belt and thorax vest, frames, the standing-only ceremony, the analysis changes, camera-route grading.
@@ -42,7 +42,7 @@ Each part is useful on its own. Part A pays even if B and C never ship, because 
 
 **The framing for (2) and (3)** stays "GRF-informed coaching cues", not "virtual force plate". Every load and GRF metric is `experimental` until the reference session (§14.6) says otherwise, and shows its measured error band.
 
-**Three defects** (found 4 Oct, not re-checked since) must be fixed before any trunk number is believed:
+**Three defects** (found 4 Oct) must be fixed before any trunk number is believed. **Status, re-checked 25 Oct:** 1 and 3 are fixed (17 Oct, §17.3). 2 is open: the `pelvisImu` route on `pelvisRotationSigned` is still PLANNED (`metric_catalogue_manifest.cpp:728`). Also open: `BodyRotationStage::run` still calls `cameraSources.front()` unguarded (`analysis_pipeline.cpp:1459`), which crashes an IMU-only job. It cannot bite this week, because every worn session has cameras.
 1. **The vertical axis.** Calibration makes the reference-pose body frame the "world" (`A = conj(refRaw·M)`, `imu_calibration.h`). For the arm, that world is Y-down. `body_rotation.cpp:90` and `segment_rates.cpp:1268` treat world **Z** as vertical; `phase_segmenter.cpp:290` reads the pelvis axial rate on segment **Y**. The unit tests feed synthetic yaw about Z and never pass through a calibration, so none of this is caught. §5 fixes it.
 2. **A pelvis IMU makes `hip_stall` unassessable.** The triangulated stage steps aside for any segment an IMU covers (`BodyRotationTriangulatedStage`, `analysis_pipeline.cpp:3207`; the Wrist analyzer became the analysis pipeline in 842095e7), but the IMU route for `pelvisRotationSigned` is still PLANNED (`metric_catalogue_manifest.cpp:661`), so the measure loses its only live producer.
 3. **A trunk-only IMU job replaces good vision phases with a conf-0 clamp.** `SegResolveStage` (`analysis_pipeline.cpp:869`) adopted `segImu` whenever it existed (fixed 17 Oct: only when its confidence is above 0); `PhaseSegmenter` needs a hand or forearm sensor and otherwise returns `clampFallback()` at conf 0.
@@ -95,6 +95,9 @@ Every swing worn with trunk IMUs and recorded on face-on + DTL is a paired obser
 | `kTriScaleFrac` 0.10 (0.03 calibrated): is the camera-scale σ honest? | `body_rotation.cpp:148` | Coverage: fraction of \|camera − IMU\| ≤ kσ |
 | Thorax KS placement is off by default on both camera rungs | `segment_rates.h:131` | Whether placements land within σ_t of truth |
 | Video COM acceleration: usable for load at 150 fps? | new (Part B) | IMU COM acceleration as the reference for the double-differentiated video COM |
+| Hips peak after impact on 54 of 59 swings, median about +20 ms: real, or camera lag? | §17.2 | The pelvis peak time against impact |
+| The chest's probable peak: a Gaussian-process bridge across the camera's gap at impact, with option A (the gap hides the peak; the taller hump after the top is a shoulder-keypoint artefact). Shipped with a ⚠ (25 Oct) | `gap_bridge.h`; `kinematic_sequence_design.md` §12.6 | Whether the thorax peak falls inside the bridge's ±, and whether option A is right |
+| Face-on pelvis and chest curves are blind near square at both ends of the swing and noisy at the top (full-swing signed curves, 25 Oct) | `tools/kinematics/plot_fullswing.py` | The whole signed curve, address to finish |
 
 ⚠ **One golfer.** All of this is Mark's swing. It grades methods on one body, which is what σ coverage needs. It cannot seat norms or corridors (memory note `wrist-perswing-closed`).
 
@@ -139,6 +142,29 @@ IMU-only sessions carry address, takeaway, top and impact; P-positions come from
 ### 3.6 What it does not give
 
 **Translation.** Double-integrating the accelerometer over 1.5 s is not credible for sway, slide, thrust or lift; those stay camera metrics. The IMU's contribution there is the posterior-tilt half of early extension, and the *acceleration* (not position) of the COM in Part B.
+
+### 3.7 With the wG3 worn: the body's sequence from sensors (25 October 2026)
+
+**Why now.** On 25 Oct the 11 HackMotion swings of 18 Aug graded the face-on arm route against the wG3 forearm. The camera arm peaked **+43 ms late** (95 % CI 28–58). Its curve has two humps on 9 of 11 swings, and the picker takes the camera-only one (`kinematic_sequence_design.md` §12.6, 35c0ee88). The camera chest needs a bridge across impact, and the camera hips peak after impact for reasons nobody has checked. Mark's conclusion: *"outside of the club the KS chart really needs imu/hm"* (D28). D1 already allows a wG3 on the wrist with Witmotions on the trunk. Worn together, three of the four sequence curves come from gyros, and only the club stays with the camera.
+
+**What the combination gives, beyond what each sensor gives alone:**
+
+| # | Benefit | Needs | Notes |
+|---|---|---|---|
+| 1 | **Every body link in the sequence chain measured at both ends.** Pelvis → chest → arm order, gaps and speed gains (the D23 hand-off ratios) are judged on gyro peaks, not camera stand-ins. `sequence_order` and the hand-off checks become assessable on every worn swing. | Trunk + wG3, one clock (#5) | The arm check is only as good as the clock between the two instruments. |
+| 2 | **The transition sequence: which segment starts down first.** The reversal times of pelvis, chest and arm come from three gyros. `upper_body_starts_down` is the #1 root in four sessions, and no swing has ever measured it (§17.2). | Same | This is the biggest diagnostic gain. It turns a hypothesis the model points at into a measurement. |
+| 3 | **All three camera body routes graded in one session.** The hips' +20 ms, the chest bridge's ± and option A, and the arm's +43 ms are each paired against truth on the same swings, three passes per swing (§13). | Both cameras + LM | The arm study had 11 swings, face-on only, and no trunk. |
+| 4 | **A test of the camera arm's second hump.** The face-on arm angle is the shoulder → wrist line, and the shoulder rides on the chest. If the camera-only hump at about −45 ms tracks the thorax rate, the hump is the chest's turn leaking into the arm's image angle, and it is correctable. If it does not, the 2-D geometry stays the explanation. | Trunk + wG3 + face-on | A hypothesis, not a finding. |
+| 5 | **One hop sets every instrument's clock.** The landing spike is in both trunk accelerometers and in both wG3 units, as well as in the video (§7.1). The thorax-to-arm order is decided by tens of milliseconds, so this offset matters more to the chart than any rate. | Ceremony step 4 with the wG3 worn | The wG3 has a device clock fit (+5 ± 8 ms against video at the top reversal, n = 5). The Witmotions have none. |
+| 6 | **Cleaner phase events.** Takeaway from the still thorax: the wrist stillness detector fell back to continuous waggle on 11 of 11 wG3 swings. Top from the arm's reversal (wG3), cross-checked by the thorax. Transition from the pelvis. Impact stays the camera's. The wG3 palm jolt lags impact by about 18 ms, on the sensor side. | Trunk + wG3 | §3.5 |
+| 7 | **The arm's gain over the chest, and the arm moving across the chest.** Speed gain (arm peak ÷ chest peak) needs only the two scalar rates. A relative orientation (lead arm across the chest at the top) needs a shared heading between the wG3's world and the trunk world. A candidate: the wG3's own calibration pose 0 (forearm across the chest, palm down) lays the forearm along the chest's medio-lateral axis, so a thorax sensor recording through that pose could solve the heading. | Speed gain: now. Orientation: later | ⚠ Use the wG3 **gyro**, not its quaternions. On 18 Aug Wrist_02 the lower-arm quaternions turned about 50° through a downswing that the gyro integrates to about 246° (unexplained, not yet filed). |
+| 8 | **Wrist timing against the body.** wG3 bow/cup and hinge, on the same clock as the pelvis and chest peaks: when the wrist releases relative to the chest peak and the arm peak. | Clock (#5) | Later. Shown as a reading only, with no condition, until it has been looked at. |
+| 9 | **A second club read from the palm unit (candidate).** The lead hand holds the club, so the palm unit's gyro approximates the club's angular velocity, less grip slip. That would time the club independently of the withheld camera club (KB-18, P10). | wG3 + camera club + LM | **A check on the camera club, not a replacement** (D28: the camera keeps the club). Before impact the wG3 samples at about 100 Hz. Grade it on the two-side-covered camera swings (§17.3) and against LM clubhead speed. Untested. |
+
+**What it does not settle.**
+- **The wG3 arm is the forearm.** Its rate is \|ω ⊥ forearm axis\|, signed against the swing plane (`swingFromImu`). Before the hand-off ratios are compared with the norms, check which arm segment the reference sequence's arm sensor sat on (upper arm, forearm or hand). The trunk rate is the segment S-I rate (D3), a different construction. Both are fine for timing; magnitudes compare like-for-like only with the reference's own definitions.
+- **One golfer** (§3.1).
+- **Two instruments, two clocks** until the hop ties them (#5). Until then, every arm-versus-trunk gap carries both clock σs in quadrature.
 
 ---
 
@@ -365,7 +391,7 @@ The binding records which tier set δ and its σ, so a re-analysis can improve i
 | Configuration | Calibrate | Check |
 |---|---|---|
 | Trunk only (2 Witmotions) | Stand tall, turn away, turn through, hop — about a minute | Live trunk model |
-| Trunk + HackMotion | wG3 device routine with its existing guide, then the four trunk steps | `ArmVizView` wrist check, then the live trunk model |
+| Trunk + HackMotion | wG3 device routine with its existing guide, then the four trunk steps. The trunk sensors record through the wG3 routine (pose 0 is a candidate for the arm-to-chest heading, §3.7 #7), and the hop is read on all four units (§7.1) | `ArmVizView` wrist check, then the live trunk model |
 | Trunk + 1 arm Witmotion (lead upper arm) | Arm down = stand tall, T-pose, turn away, turn through, hop | Live whole-body model with the lead upper arm |
 | Arm only (3 Witmotions) | Unchanged | Unchanged |
 
@@ -414,6 +440,11 @@ Witmotion samples are stamped at host arrival (`EventBuffer::nowMicros()` in the
 3. **Check per swing:** cross-correlate the IMU pelvis yaw rate with the camera route's over Top→P8. Lag and σ written as provenance; applied only once the paired table shows it stable (D6); flagged over 10 ms.
 
 Without step 3, the KS mixes IMU trunk nodes with camera arm and club nodes on two clocks.
+
+**With a wG3 worn (§3.7 #5), the arm is a third clock.** The wG3 lanes are dated through its own `clockFit` (BLE jitter 20–25 ms p90 on host times; `device_time_us` is the fit-independent anchor). The 25 Oct study measured it against the video at the top reversal: +5 ± 8 ms, n = 5. The Witmotions are dated at host arrival with no fit. So:
+- **The hop is read on every unit:** both trunk sensors, and the wG3's palm and lower arm. Each gets its offset to the video and its residual. The verdict that matters for the chart is the **Witmotion ↔ wG3** offset and its spread across hops: the chest-to-arm gap is a few tens of milliseconds.
+- **Per swing**, the arm's top reversal (wG3) against the video top is the arm's check, and the pelvis yaw-rate cross-correlation (step 3) is the trunk's. Both are recorded as provenance.
+- Until the hop has been measured, an arm-versus-trunk gap carries both clocks' σ in quadrature.
 
 ### 7.2 The trunk orientation estimator
 
@@ -499,6 +530,9 @@ Closes the census rows for the IMU tier ("IMU readings reach diagnostics with no
 - The thorax node from the IMU is placed. `pairTrunkThoraxPlacement` and `skel3dThoraxPlacement` stay as they are for camera-only swings until §14.4 grades them.
 - Mixed IMU and camera nodes carry the measured lag in σ_t (§7.1).
 - Cheetham's speed gain and timing consistency across a session (KS design §11 Q3).
+- **The signed chart (b699d505, 24–25 Oct, after step 1).** The sequence curves are now signed: all four cross zero at the top. The trunk S-I rate is signed natively (`axialFromImu`), and the wG3 arm is signed against its swing plane (`signAgainstPlane`, with a reversal only where the arm slows, 93c1e4c8). `trunk_e2e_test` predates the signed chart, so **check on the first worn swing** that pelvis, chest and arm cross zero together at the top with the same polarity. A trunk curve upside down against the arm would read as a sequence fault.
+- **The chest bridge steps aside.** The Gaussian-process bridge (`gap_bridge.h`) runs only on an *unplaced* camera chest node, so a placed thorax IMU node is never bridged. On a worn swing, the unbound pass (§13) produces the bridged camera chest to grade against it.
+- **Arm source order** (`segment_rates.cpp:1630`): lead upper arm, then lead forearm. The wG3 is the forearm. A Witmotion on the upper arm would win if both were worn, which no supported mounting allows (`no-dual-instrument-wear`).
 
 ### 8.5 Phases
 
@@ -984,7 +1018,14 @@ Extends `two_camera_capture_protocol.md` and keeps everything it asks: LM on eve
 7. **Drift hold:** 60 s at address, then 5 swings — the between-swing yaw drift.
 8. **Ceremony at the end** (stand tall + turn away): mount drift over the session.
 
-Each swing analysed twice: **bound** (normal) and **unbound** (trunk roles ignored; a swinglab switch `--ignore-role pelvis,thorax` to add). Sweeps on GOLFSIMPC (memory note `feedback_corpus_sweeps_on_studio`); run trees to `/mnt/swingdata/scratch/`.
+**The wG3 is worn throughout (§3.7),** so one session grades the pelvis, chest and arm camera routes together.
+
+Each swing is analysed three times:
+- **bound** (normal);
+- **trunk unbound**, `--ignore-role pelvis,thorax` (built 17 Oct): the camera pelvis and chest, including the chest bridge;
+- **arm unbound**, `--ignore-role leadForearm,leadHand`: the camera arm, as in the 25 Oct study.
+
+Sweeps on GOLFSIMPC (memory note `feedback_corpus_sweeps_on_studio`); run trees to `/mnt/swingdata/scratch/`.
 
 ---
 
@@ -1031,6 +1072,10 @@ Per segment and per route (face-on, pair, skeleton3d), against the IMU:
 | Peak time | Δt, coverage by σ_t | KS §9 stage 2: median \|Δt\| ≤ 20 ms and coverage ≥ 68 % ⇒ the rung ships Estimated; otherwise PLANNED with the measured σ |
 | Shoulder line − IMU thorax | Series | The clavicle term; whether camera thorax placement can ever be on |
 | Static poses | \|Δ\| per pose | The garment term (§8.2), and the camera's best case |
+| Pelvis peak time against impact | Δt bound − unbound; the sign of the bound one | Whether `hips_peak_after_impact` (54 of 59 library swings) is the hips or the camera |
+| Chest probable peak (bridge, rising, fell, seen) | Coverage of the IMU thorax peak by the probable ±; the hump the IMU picks against option A | Whether the bridge keeps its ⚠, needs a wider ±, or option A is reversed |
+| Camera arm peak against the wG3, with the thorax rate beside it | Δt, coverage by σ_t (the top-width rule, 35c0ee88); the second hump's correlation with the thorax rate | Whether the camera arm's second hump is the chest's turn (correctable) or 2-D geometry (§3.7 #4) |
+| Sequence verdicts | Per swing: `sequence_order`, the after-impact checks and the hand-off checks, bound against each unbound pass | How often the camera chart tells the golfer something the sensors contradict |
 
 Judge per swing, not by an aggregate (memory notes `windows-reanalysis-divergence`, `reanalyze-library-workflow`). Diff every metric against an unbound control, not only the ones being chased (memory note `ks-sequence-tile`).
 
@@ -1119,7 +1164,25 @@ The 5–9 October week did not run; only role-keyed placement landed. The order 
 9. **Part C Phase 0** (net GRF from kinematics), and the split solver plus synthetic plate against synthetic ground truth — neither needs hardware.
 10. **Part C Phase 1** once D17 is decided; Phase 2; then the reference session.
 
-**Progress (17 Oct 2026):** Part K is done (step 0). Step 1 is built and tested, uncommitted at the time of writing. The step-2 tooling is built. The measurements are split (Mark, 17 Oct): the desk part (H0–H2) runs now; the worn part (H1b, H3–H5) follows step 3, the ceremony (§17.3).
+**Progress (17 Oct 2026):** Part K is done (step 0). Step 1 is built and tested, and pushed (5fe4de25..23e76af0). The step-2 tooling is built. The measurements are split (Mark, 17 Oct): the desk part (H0–H2) runs now; the worn part (H1b, H3–H5) follows step 3, the ceremony (§17.3).
+
+**Progress (25 Oct 2026):** the desk session has not run (`/mnt/swingdata/scratch/trunk-hw/desk/` does not exist), and the ceremony is not built. Since 17 Oct the sequence has changed under the trunk work (§17.4): the chest bridge, signed curves, the wG3 arm route and its grading of the camera arm, and the filtered club rate. Defect 2 and the `front()` guard are still open (§1).
+
+### 16.1 The week of 26 October: trunk + wG3
+
+The order stands (desk, then ceremony, then worn). The wG3 is now worn in the worn session (§3.7, D28), and the work to read the sequence from it is added. Each stage can be tested on its own.
+
+| Stage | Who | What | Done when |
+|---|---|---|---|
+| **W0. Desk session** | Mark, ~15 min | H0–H2 (`hardware_desk_session.md`), H1b with the wG3 sharing the radio | Verdicts in §17.4: the rate, the bias, the 1 g check |
+| **W1. No-hardware code** (alongside W0) | Agents | (a) Defect 2: the `pelvisImu` route on `pelvisRotationSigned` and a `thoraxRotationSigned`, so `hip_stall` stays assessable on worn swings. (b) The `front()` guard. (c) `trunk_e2e_test` gains the signed-chart check: a synthetic body with trunk sensors and a forearm sensor, all three curves crossing zero together at the top (§8.4). (d) The hop read on the wG3 lanes from the shot's swing.json, since the raw recorder takes Witmotions only. (e) `trunk-hw-worn.sh studio` gains the arm-unbound pass, and `analyse` gains a `ks` verdict: per swing, bound against unbound peak times for pelvis, chest and arm, plus `plot_fullswing.py` sheets. | Tests green, run through ctest |
+| **W2. The ceremony** (§16 step 3), ~2–3 days | Agents; Mark reviews the sheets | Offer the trunk mounts with the §4.1 names. The routine: stand tall, turn away, turn through, hop, with the gates seated on the W0 numbers and the face-in cue at the first address. The avatar guide and the live check. The ceremony data recorded with the session. The trunk + HackMotion configuration (§6.7): the wG3's routine first, the trunk sensors recording through it. | Verified with `session_setup_ui` and `--probe-qml`; before/after review sheets for Mark |
+| **W3. Worn session, wG3 on** | Mark, ~30 min + studio | H1b on GOLFSIMPC; H3 hops (all four units); H4 at least **10** 7-iron swings, LM on (the arm study had 11); H5. Studio passes: dense, bound, trunk unbound, arm unbound, refuse. Needs the code pushed, with 93c1e4c8 among it, and GOLFSIMPC pull-built (its swinglab is still the patched build). | Run trees under `/mnt/swingdata/scratch/trunk-hw/` |
+| **W4. The sequence chart** | Fable analysis; Mark judges | Per swing, the signed chart bound against each unbound pass. The §14.4 rows for pelvis, chest, arm and the sequence verdicts. The §3.7 #4 test of the second hump. The clock verdict (§7.1). | Results in §17.4. Nothing committed before Mark has judged them |
+
+**An earlier look, if wanted (Mark's call).** The sequence does not need the ceremony's checks. S-I rates and peak times are immune to δ (§6.2) and need only "up", which a stand-tall shot gives. The fallback route in `hardware_worn_session.md` (a stand-tall shot, then `--trunk-calib-from`) could therefore give a first worn session with the wG3 right after W0, before W2 lands. The cost is a second worn session later, run with the ceremony.
+
+**Not this week:** the truth session (§13, step 5), skeleton3d fusion (step 6), Parts B and C, and the palm-unit club (§3.7 #9), unless W4 leaves room.
 
 **What slips first:** the mixed-route X-factor (D4), the posture measures in `core.json`, the clavicle series, Part C. The ceremony, the three defects and the paired table do not slip.
 
@@ -1251,6 +1314,16 @@ These are weak and not consistent. By the plan the count should come off the til
   - `build/run-me/trunk-hw-desk.sh`, `build/run-me/trunk-hw-worn.sh` and `tools/studio/trunk-hw*.cmd`.
 - **Next, in order:** the desk session (H0–H2, needs nothing new); then the calibration ceremony (§16 step 3), built on the desk numbers (rate, still-hold thresholds); then the worn session (H1b, H3–H5) with the ceremony doing the calibration live. The stand-tall-shot route stays as a fallback.
 
+### 17.4 25 October 2026: the sequence before the trunk week
+
+What changed in the sequence after §17.3, which the worn session will grade (`kinematic_sequence_design.md` §12.6):
+- **The chest's probable peak** (d4077b25, 8c8796fe, 36c0326e). A Gaussian process (Matérn 5/2, corpus kernel ℓ 31.9 ms, s_f 155.4 °/s, noise *assumed* 20 °/s) bridges the camera's gap at impact, with option A. Across the library: chest judged on 223 of 237 swings (189 bridged, 26 indicated), 11 unreadable. Median gap 27 ms, median ± 7 ms. The worn swings test this (§14.4).
+- **Signed curves** (b699d505): arm and club keep their sign, so all four curves cross zero at the top. The full-swing curves show the face-on pelvis and chest are blind near square at both ends and noisy at the top. Mark: *"chest and pelvis are terrible and really make the case for the imu work next week"*.
+- **The wG3 arm route** (35c0ee88, 93c1e4c8). When a wG3 is worn, the arm node is its forearm gyro, signed. Against it, the face-on camera arm peaks +43 ms late (CI 28–58), with a camera-only second hump on 9 of 11 swings. The camera arm's σ_t now uses the top-width rule.
+- **The club rate** (76e9f35c): one filtered shaft rate for clubhead speed and the KS club. The camera club stays withheld from the sequence checks (P10).
+
+**Desk session (W0):** not yet run.
+
 ## 18. Decisions
 
 All decided with Mark on 14 October 2026 unless dated otherwise.
@@ -1283,6 +1356,7 @@ All decided with Mark on 14 October 2026 unless dated otherwise.
 | D18 | Reference session | **Deferred.** Load and GRF metrics stay `experimental`; Phase 3 waits |
 | D19 | Third camera | **Deferred as a later development**; Phase 0 runs on face-on + DTL and states its weaker feet |
 | D20 | Club and ball in the GRF model | **Club in** (mass per club, 3-D shaft track); **ball impulse modelled** at the floor-camera impact time |
+| D28 | Where the sequence's body nodes come from (25 Oct, Mark) | *"Outside of the club the KS chart really needs imu/hm."* The pelvis, chest and arm come from the trunk Witmotions and the wG3 wherever they are worn. The camera routes for those three are stand-ins, shown with their ⚠ and graded against the sensors. The camera keeps the club. The worn session of 26 Oct week has the wG3 on (§3.7, §16.1) |
 
 **Amendments to the normative reference** (approved by Mark and applied to `golf_swing_normative_reference.md`, 14 October 2026):
 - **NR-05, amended 2026-10-14 (Mark):** the kinematic-sequence hand-off checks fire when the ratio of a segment's peak speed to the previous segment's falls below 80 % of the ratio in Cheetham et al. (2008), 19 PGA tour professionals. The amateur ratios in the same study lie within 3 % of the professional ones, so the check marks a breakdown in the chain, not a skill gap, and is worded as such.
@@ -1293,6 +1367,8 @@ All decided with Mark on 14 October 2026 unless dated otherwise.
 ## 19. Risks
 
 - **The garment term may be large.** A vest pocket over moving scapulae could be worse than the camera on some quantities. The static poses measure it. If large, the thorax IMU stays a *timing* instrument while the level comes from the fusion. Nothing assumes the IMU is truth on every axis.
+- **Two instruments, two clocks.** The Witmotions have no clock fit; the wG3 has its own fit with 20–25 ms p90 BLE jitter on host times. If the hop cannot tie them to within about 5 ms, repeatably, the chest-to-arm order cannot be judged from the sensors, and the chart must say so, not guess (§7.1).
+- **The wG3 quaternions** turned about 50° through a downswing whose gyro integrates to about 246° (Wrist_02, 18 Aug, unexplained). Everything in §3.7 reads the wG3 gyro. Anything needing the wG3's orientation waits until this is understood.
 - **BLE capacity at 200 Hz** with three Witmotions (or two + wG3) may force 100 Hz. KS timing at 100 Hz with peak interpolation is about 2–3 ms; stated in σ_t. Load timing at 100 Hz needs checking against the 10 ms target.
 - **Witmotion parity has never passed.** If the cause is deeper than the ESKF-capture hypothesis, the trunk lanes run on re-fused orientation only, and integrity needs a trunk rule.
 - **One golfer.** Everything graded is Mark's swing. Corridors and norms stay where they are until the reference session (≥ 3 golfers).
