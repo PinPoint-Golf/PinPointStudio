@@ -132,9 +132,14 @@ void orientDownswingPositive(RateTrack &r, int64_t fromUs, int64_t toUs)
 // the normal is past `holdBelowDps`: through a turn-over the vector lies across the normal, still fast, and its
 // sign against it is noise (three sign changes on §3c's fixture); held, the curve changes sign once, at the top. `carryDps[i]` is the full ω in the same frame as `v`; null = a world-frame `v`, whose
 // plane needs no carrying. Returns ±1 per sample; the caller orients the whole curve (orientDownswingPositive).
+// AN ARM REVERSES BY SLOWING DOWN. A change of sign is taken only where the swing slows, within ±`reversalWindowUs`, to
+// at most `reversalFrac` of the downswing's fastest: at the 11 HackMotion tops the forearm drops to 37–69 °/s (≤ 9 %
+// of its ~800 °/s peak). On 18 Aug Wrist_01 swing 3 it did NOT slow, holding 213 °/s (26 %) through a sign change
+// 390 ms after impact: the forearm folding out of its downswing plane in the follow-through turns the vector across
+// the carried normal, and the curve read −260 °/s for the rest of the swing. 0 = any sign change is taken.
 std::vector<double> signAgainstPlane(const std::vector<int64_t> &t, const std::vector<QVector3D> &v,
                                      const std::vector<QVector3D> *carryDps, int64_t fromUs, int64_t toUs,
-                                     double holdBelowDps)
+                                     double holdBelowDps, double reversalFrac, int64_t reversalWindowUs)
 {
     const size_t n = std::min(t.size(), v.size());
     std::vector<double> sign(n, 1.0);
@@ -158,10 +163,20 @@ std::vector<double> signAgainstPlane(const std::vector<int64_t> &t, const std::v
         nrm[i] = nrm[i + 1];
         if (carry) nrm[i] = (nrm[i] + QVector3D::crossProduct(turn(i, i + 1), nrm[i])).normalized();
     }
+    const double slowDps = reversalFrac * double(best);
+    const auto slowedNear = [&](size_t i) {
+        if (!(reversalFrac > 0.0)) return true;
+        for (size_t j = i; j-- > 0 && t[i] - t[j] <= reversalWindowUs;) if (v[j].length() <= slowDps) return true;
+        for (size_t j = i; j < n && t[j] - t[i] <= reversalWindowUs; ++j) if (v[j].length() <= slowDps) return true;
+        return false;
+    };
     double s = QVector3D::dotProduct(v[0], nrm[0]) >= 0.f ? 1.0 : -1.0;
     for (size_t i = 0; i < n; ++i) {
         const float along = QVector3D::dotProduct(v[i], nrm[i]);
-        if (std::fabs(along) >= float(holdBelowDps)) s = along >= 0.f ? 1.0 : -1.0;
+        if (std::fabs(along) >= float(holdBelowDps)) {
+            const double si = along >= 0.f ? 1.0 : -1.0;
+            if (si != s && (i == 0 || slowedNear(i))) s = si;
+        }
         sign[i] = s;
     }
     return sign;
@@ -1666,7 +1681,8 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
                 dps[i]  = double(perp[i].length());
             }
             if (cfg.signedArmClub) {
-                const std::vector<double> sg = signAgainstPlane(grid, perp, &s.gyroDps, dom.fromUs, dom.refUs(), signHoldDps);
+                const std::vector<double> sg = signAgainstPlane(grid, perp, &s.gyroDps, dom.fromUs, dom.refUs(), signHoldDps,
+                                                              cfg.imuSignReversalFrac, windowUs);
                 for (size_t i = 0; i < grid.size(); ++i) dps[i] *= sg[i];
             }
             return smoothRate(grid, dps, cfg.gyroNoiseDps, windowUs);
@@ -1686,7 +1702,8 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             if (c.length() > 0.f) turn[i] = c.normalized() * float(dps[i]);
         }
         if (cfg.signedArmClub) {
-            const std::vector<double> sg = signAgainstPlane(grid, turn, nullptr, dom.fromUs, dom.refUs(), signHoldDps);
+            const std::vector<double> sg = signAgainstPlane(grid, turn, nullptr, dom.fromUs, dom.refUs(), signHoldDps,
+                                                          cfg.imuSignReversalFrac, windowUs);
             for (size_t i = 0; i < grid.size(); ++i) dps[i] *= sg[i];
         }
         return smoothRate(grid, dps, cfg.gyroNoiseDps, windowUs);

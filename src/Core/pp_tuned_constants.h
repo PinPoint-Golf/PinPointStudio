@@ -1189,6 +1189,11 @@ inline constexpr bool         kSignedArmClub        = true;   // sequence.signed
 //   stays within k·σ_peak of its peak — the club node's rule — gives at k = 1 / 2 / 3: 6, 8, 10 of 11 within 2σ
 //   (median σ 30 / 36 / 39 ms). 3 is the smallest that is honest at 2σ. Bimodal error, so 1σ coverage stays 4/11.
 inline constexpr double       kCameraArmTopWidthSigmas = 3.0; // sequence.cameraArm.topWidthSigmas
+// kImuSignReversalFrac — AN ARM REVERSES BY SLOWING DOWN (25 Oct 2026). The signed arm IMU curve changes sign only
+//   where, within ±25 ms, the swing slows to this fraction of its downswing peak. At the 11 HackMotion tops of 18 Aug
+//   the forearm drops to 37–69 °/s (at most 9 % of its peak); the one false change, 390 ms after impact on Wrist_01
+//   swing 3, ran through at 213 °/s (26 %) and left the follow-through reading −260 °/s. 0.15 sits between the two.
+inline constexpr double       kImuSignReversalFrac  = 0.15;   // sequence.imuSign.reversalFrac
 // kChestBackwardsWindowMs — FAIL WITH GRACE (Mark, 25 Oct 2026: "try our hardest, report honestly and fail with
 //   grace"). A chest curve whose mean over this many ms before impact is at or below zero reads the chest turning
 //   AWAY from the target through the downswing — the face-on route's sign unfold at the wrong square-up instant

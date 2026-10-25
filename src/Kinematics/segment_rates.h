@@ -163,6 +163,9 @@ struct SegmentRatesConfig {
     // A camera arm node's σ_t widened by the span over which its curve stays within this many σ_peak of its
     // peak (σ² + span²/12) — pp_tuned_constants.h kCameraArmTopWidthSigmas. 0 = off.
     double  cameraArmTopWidthSigmas = tuned::sequence::kCameraArmTopWidthSigmas; // sequence.cameraArm.topWidthSigmas
+    // The IMU arm/club sign changes only where the swing slows, within ±derivWindowMs, to this fraction of its
+    // downswing peak — pp_tuned_constants.h kImuSignReversalFrac. 0 = any change of sign is taken.
+    double  imuSignReversalFrac    = tuned::sequence::kImuSignReversalFrac;    // sequence.imuSign.reversalFrac
     // The club angle's per-sample σ from the shaft uncertainty pass (sigmaThetaDeg) in place of
     // shaftThetaSigmaRad / conf. A VALUE change, not a σ-only one: the wider σ un-places the club
     // node on some swings (the 1 Oct sigma sweep), so it has its own switch, off until Mark rules.
@@ -232,6 +235,7 @@ struct SegmentRatesConfig {
         apply(ov, "sequence.chestBackwardsWindowMs", c.chestBackwardsWindowMs);
         apply(ov, "sequence.signedArmClub",          c.signedArmClub);
         apply(ov, "sequence.cameraArm.topWidthSigmas", c.cameraArmTopWidthSigmas);
+        apply(ov, "sequence.imuSign.reversalFrac",   c.imuSignReversalFrac);
         return c;
     }
 };

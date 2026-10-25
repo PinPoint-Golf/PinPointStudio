@@ -787,21 +787,26 @@ int main()
     // its gyro the body rate 2·q*·q̇ of that quaternion. The swing rate across the arm is |θ̇| in any frame; its
     // direction in the sensor's frame turns with the roll, which the sign must not read as a reversal. Drawn
     // address → finish (throughP8 off), the curve reads − through the backswing, crosses zero at the top, and its
-    // downswing peak is the unsigned one. Through the top the arm also turns 30° about world Z (Rz(β), ~450 °/s at
-    // its fastest), so the swing vector TURNS OVER instead of passing through zero — what the 18 Aug HackMotion
-    // forearms do, and what a sign that follows the vector's own direction reads as one direction all swing.
+    // downswing peak is the unsigned one. Through the top the arm also turns 6° about world Z (Rz(β), ~90 °/s at
+    // its fastest — the 18 Aug forearms are at 37–69 °/s there), so the swing vector TURNS OVER instead of passing
+    // through zero, which a sign that follows the vector's own direction reads as one direction all swing. And after
+    // impact the arm keeps swinging (+300 °/s) while it WRAPS 120° about world Z out of its plane, fast: past 90°
+    // the rate along the downswing's normal goes negative at speed, as the 18 Aug Wrist_01 swing 3 forearm did
+    // 390 ms after impact. An arm reverses by slowing down, so that is not a change of sign.
     {
         FusedStreams fs = makeStreams(true);
-        const double topS = kTopUs * 1e-6;
+        const double topS = kTopUs * 1e-6, impS = kImpactUs * 1e-6;
         const auto theta = [&](double sec) {
             if (sec <= kBackswingStartS) return 0.0;
             if (sec <= topS) { const double u = (sec - kBackswingStartS) / (topS - kBackswingStartS); return -200.0 * u * u * (3.0 - 2.0 * u); }
-            return -200.0 + turnFromTop(kArm, sec);
+            return -200.0 + turnFromTop(kArm, sec) + (sec > impS ? 300.0 * (sec - impS) : 0.0);
         };
-        const auto beta = [&](double sec) {   // 0 → 30° about world Z, smoothstep over the 100 ms around the top
-            const double u = std::clamp((sec - (topS - 0.05)) / 0.10, 0.0, 1.0);
-            return 30.0 * u * u * (3.0 - 2.0 * u);
+        const auto smooth = [](double sec, double from, double span) {
+            const double u = std::clamp((sec - from) / span, 0.0, 1.0);
+            return u * u * (3.0 - 2.0 * u);
         };
+        // 6° through the top (100 ms around it), then the 120° wrap from 20 to 140 ms after impact
+        const auto beta = [&](double sec) { return 6.0 * smooth(sec, topS - 0.05, 0.10) + 120.0 * smooth(sec, impS + 0.02, 0.12); };
         const auto quat = [&](double sec) {
             const double th = theta(sec);
             return QQuaternion::fromAxisAndAngle(0.f, 0.f, 1.f, float(beta(sec)))
@@ -825,6 +830,14 @@ int main()
         SegmentRatesConfig speed = whole;
         speed.signedArmClub = false;
         const SegmentRatesResult u = buildSegmentRates(in, speed);
+        SegmentRatesConfig anyFlip = whole;
+        anyFlip.imuSignReversalFrac = 0.0;
+        const SegmentRatesResult af = buildSegmentRates(in, anyFlip);
+        const auto afterImpactMin = [](const MetricSeries &ms) {
+            double lo = 0.0;
+            for (size_t i = 0; i < ms.t_us.size(); ++i) if (ms.t_us[i] > kImpactUs + 20000) lo = std::min(lo, ms.value[i]);
+            return lo;
+        };
         const MetricSeries &m = r.leadArm.series;
         double back = 0.0, down = 0.0, backMin = 0.0;
         int nb = 0, nd = 0, flips = 0;
@@ -836,7 +849,7 @@ int main()
             // a sign change counts only between samples where the arm is MOVING (|ω| > 20 °/s): the fixture's arm
             // stands still from ~750 to ~830 ms, between the top and kArm's bump, and ±0 there is not a direction
             if (std::fabs(m.value[i]) > 20.0) {
-                if (lastMoving >= 0 && m.t_us[i] > 400000 && m.t_us[i] < kImpactUs && (m.value[size_t(lastMoving)] < 0.0) != (m.value[i] < 0.0)) {
+                if (lastMoving >= 0 && m.t_us[i] > 400000 && (m.value[size_t(lastMoving)] < 0.0) != (m.value[i] < 0.0)) {
                     ++flips;
                     if (m.value[i] > 0.0) cross = m.t_us[i];
                 }
@@ -852,8 +865,14 @@ int main()
               r.leadArm.routeId == QLatin1String("leadArmImus") && nb > 0 && nd > 0 && back / nb < -100.0 && down / nd > 100.0);
         CHECK("§3c signed IMU arm: the backswing's fastest is −750 °/s within 5 %, through 450 °/s of roll",
               near(backMin, -backPeak, 0.05 * backPeak));
-        CHECK("§3c signed IMU arm: it crosses zero ONCE, within 25 ms of the top, though the vector turns over there",
-              cross >= 0 && std::llabs(cross - kTopUs) <= 25000 && flips == 1);
+        // the fixture's arm stands still from the top (700 ms) until kArm's bump rises (~830 ms): the sign is held
+        // through the pause and changes once, as the arm starts forward
+        CHECK("§3c signed IMU arm: it changes sign ONCE, between the top and the downswing's start, though the vector turns over",
+              cross >= kTopUs && cross <= 860000 && flips == 1);
+        std::printf("    after impact: lowest %.0f °/s held, %.0f °/s with any change of sign taken\n",
+                    afterImpactMin(m), afterImpactMin(af.leadArm.series));
+        CHECK("§3c signed IMU arm: the wrap out of the plane at speed after impact does not flip it (it would, unheld)",
+              afterImpactMin(m) > -20.0 && afterImpactMin(af.leadArm.series) < -200.0);
         CHECK("§3c signed IMU arm: the downswing peak is the unsigned one (instant and value)",
               a && b && a->placed && b->placed && a->tPeakUs == b->tPeakUs && near(a->peakDps, b->peakDps, 1e-6)
               && a->peakDps > 0.0 && msFromTruth(a, kArm) <= 5.0 && near(a->peakDps, 980.0, 49.0));
