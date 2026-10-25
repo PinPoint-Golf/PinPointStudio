@@ -458,6 +458,8 @@ set(PP_QML_SOURCES
     src/Gui/charts/session_relations.cpp
     src/Gui/charts/session_sequence.h
     src/Gui/charts/session_sequence.cpp
+    src/Gui/charts/session_bridge.h
+    src/Gui/charts/session_bridge.cpp
     src/Gui/charts/charts_words.h
     src/Gui/charts/charts_traces_presenter.h
     src/Gui/charts/charts_traces_presenter.cpp

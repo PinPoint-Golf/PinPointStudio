@@ -568,6 +568,86 @@ private slots:
         QCOMPARE(al.countRoute(AlignRoute::ImpactShift), 15);
     }
 
+    // ── Session lined up at impact (§2.2.1): every shot on its own clock; Session only ─────────
+    void sessionLinedUpAtImpact()
+    {
+        ChartsTracesPresenter p;
+        setUp(p);
+        p.setView(QStringLiteral("session"));
+        p.setPreset(QStringLiteral("Kinematic sequence"));
+        const auto tickOf = [](const QVariantMap &s, const QString &tag) {
+            for (const QVariant &t : s.value(QStringLiteral("ticks")).toList())
+                if (t.toMap().value(QStringLiteral("tag")).toString() == tag) return t.toMap().value(QStringLiteral("canonMs")).toDouble();
+            return kNaN;
+        };
+        QCOMPARE(p.session().value(QStringLiteral("alignedAt")).toString(), QStringLiteral("p"));
+        const double p6 = tickOf(p.session(), QStringLiteral("P6"));    // (session() ran the job the lookup below reads)
+        const double pWarped = p.canonMsForShotMs(-150.0);
+        p.setAlign(QStringLiteral("impact"));
+        const QVariantMap s = p.session();
+        QVERIFY2(s.value(QStringLiteral("available")).toBool(), qPrintable(text(s.value(QStringLiteral("why")))));
+        QCOMPARE(s.value(QStringLiteral("alignedAt")).toString(), QStringLiteral("impact"));
+        QVERIFY2(text(s.value(QStringLiteral("alignNote"))).startsWith(QStringLiteral("Lined up at impact")), qPrintable(text(s.value(QStringLiteral("alignNote")))));
+        QVERIFY(s.value(QStringLiteral("axisCaption")).toString().contains(QStringLiteral("own clock")));
+        QCOMPARE(tickOf(s, QStringLiteral("P6")), p6);                // the P tags stay at the session's median times
+        QCOMPARE(p.canonMsForShotMs(-150.0), -150.0);                 // the picked shot on its own clock
+        QVERIFY(std::isfinite(pWarped));
+        bool offered = false;
+        for (const QVariant &a : p.choices().value(QStringLiteral("aligns")).toList())
+            if (a.toMap().value(QStringLiteral("id")).toString() == QLatin1String("impact")) offered = a.toMap().value(QStringLiteral("current")).toBool();
+        QVERIFY(offered);
+        // one shared value axis for the overlaid form: the KS curves share a unit
+        const QVariantMap ov = s.value(QStringLiteral("overlay")).toMap();
+        QVERIFY(ov.value(QStringLiteral("yLo")).toDouble() < ov.value(QStringLiteral("yHi")).toDouble());
+        QVERIFY(ov.value(QStringLiteral("sameUnit")).toBool());
+        // This shot keeps the P-alignment whatever Session says
+        p.setView(QStringLiteral("shot"));
+        p.thisShot();                                                 // the lookups read the last result: run the job
+        QCOMPARE(p.canonMsForShotMs(-150.0), pWarped);
+        report("    impact note: %s\n", qPrintable(text(s.value(QStringLiteral("alignNote")))));
+    }
+
+    // ── the chest's probable peak (§2.2.1): bridged, drawn dashed, said with its ⚠ ──────────────
+    void chestProbablePeak()
+    {
+        ChartsTracesPresenter p;
+        setUp(p);
+        p.setView(QStringLiteral("session"));
+        p.setPreset(QStringLiteral("Kinematic sequence"));
+        p.setBand(QStringLiteral("every"));
+        const QVariantMap s = p.session();
+        const QVariantMap sq = s.value(QStringLiteral("sequence")).toMap();
+        QVariantMap chest;
+        for (const QVariant &v : sq.value(QStringLiteral("segments")).toList())
+            if (v.toMap().value(QStringLiteral("segment")).toString() == QLatin1String("thorax")) chest = v.toMap();
+        QVERIFY(!chest.isEmpty());
+        const int probable = chest.value(QStringLiteral("probable")).toInt();
+        report("    4 July: the chest probable on %d of 15\n", probable);
+        if (probable == 0) QSKIP("no chest gap bridged on this fixture");
+        QCOMPARE(chest.value(QStringLiteral("warn")).toString(), QStringLiteral("⚠"));
+        QVERIFY(chest.value(QStringLiteral("warnShort")).toString().contains(QStringLiteral("probable")));
+        QVERIFY(!chest.value(QStringLiteral("never")).toBool());
+        int marked = 0;
+        for (const QVariant &pt : chest.value(QStringLiteral("points")).toList())
+            if (pt.toMap().value(QStringLiteral("probable")).toBool()) { ++marked; QVERIFY(pt.toMap().value(QStringLiteral("sigmaMs")).toDouble() > 0); }
+        QCOMPARE(marked, probable);
+        QVERIFY(text(sq.value(QStringLiteral("stand"))).contains(QStringLiteral("The chest's peak is probable on")));
+        // said once in the trust fold, with its assumption
+        const QVariantList tl = s.value(QStringLiteral("trustLines")).toList();
+        QVERIFY(!tl.isEmpty());
+        QVERIFY(tl.first().toMap().value(QStringLiteral("text")).toString().contains(QStringLiteral("probable, not measured")));
+        // the curves: an estimate on some shot, never solid, and the straight bridge kept beside it for the model
+        const QVariantMap th = rowOf(s.value(QStringLiteral("rows")).toList(), QStringLiteral("thoraxAngularSpeed"));
+        int est = 0;
+        for (const QVariant &o : th.value(QStringLiteral("panels")).toList().value(0).toMap().value(QStringLiteral("others")).toList())
+            if (o.toMap().contains(QStringLiteral("estimate"))) {
+                ++est;
+                const QVariantMap e = o.toMap().value(QStringLiteral("estimate")).toMap();
+                QCOMPARE(dlist(e.value(QStringLiteral("t"))).size(), dlist(e.value(QStringLiteral("v"))).size());
+            }
+        QVERIFY(est > 0);
+    }
+
     // ── coverage: the thorax's bridged hole, and the group fit across it ─────────────────────
     void coverageThorax()
     {

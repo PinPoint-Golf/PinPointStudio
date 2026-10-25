@@ -34,8 +34,15 @@ import PinPointStudio
 //   • the P tags along the top and, once under the figure, the middle half of WHEN each P-position happened
 //     across the shots in ms from impact (ticks[].when: the timing the warp removed, kept quietly);
 //   • the playhead at the picked shot's canonical time (now.canonMs); click or drag seeks the picked shot;
-//     over a shot's curve (every shot) the pointer lights that shot, and a click puts it in the carousel.
-// objectNames: chSessionFigure, chEnvelope:<key>, chFit:<key>, chCoverage:<key>, chPartAt.
+//     over a shot's curve (every shot) the pointer lights that shot, and a click puts it in the carousel;
+//   • OVERLAID (This shot's Draw choice, shared): every row's layers in one plot on session.overlay's shared value
+//     axis, each curve named in a key at the top left, the rows' figures stacked in the column, their coverage
+//     strips stacked under the plot (§2.2.1);
+//   • THE CHEST'S BRIDGE (§2.2.1): each shot's fit across its gap dashed in the metric's hue (row.picked.estimate
+//     with its ± 1 sd as the wash, panel.others[].estimate), and the median dashed where a third or more of the
+//     shots are bridged (panel.medEst) — an estimate is never drawn solid. The straight bridge it replaces goes.
+// objectNames: chSessionFigure, chEnvelope:<key> (chEnvelope:overlay overlaid), chFit:<key>, chCoverage:<key>, chPartAt,
+// chSessionKey:<key> (overlaid).
 Item {
     id: sf
     objectName: "chSessionFigure"
@@ -49,6 +56,8 @@ Item {
     property string figMode: "figures"          // "figures" | "now"
     property int pickedOrdinal: 0
     property real plotH: roles ? roles.u(70) : 70
+    property bool overlay: false                // one plot, one shared value axis (session.overlay)
+    readonly property var ovAxis: session && session.overlay ? session.overlay : null
     readonly property var keyKinds: []
     property bool atom: true
     signal shotActivated(int ordinal)
@@ -75,7 +84,14 @@ Item {
     readonly property bool hasHeads: nPanels > 1
     readonly property real topH: roles ? (hasHeads ? roles.u(18) : 0) + roles.u(16) : 0
     readonly property real coverPitch: roles ? roles.ch.coverPitch : 1.5
-    function covH(r) { return band === "fit" && r.coverage && r.coverage.length ? r.coverage.length * coverPitch + roles.u(6) : 0 }
+    function covH(r) { return band === "fit" && r && r.coverage && r.coverage.length ? r.coverage.length * coverPitch + roles.u(6) : 0 }
+    function covAbove(list, i) { let h = 0; for (let j = 0; j < i; ++j) h += covH(list[j]); return h }
+    // a straight bridge goes where the fit's dashed curve spans the same gap
+    function outsideEstimate(list, est) {
+        if (!est || !est.t || est.t.length < 2) return list || []
+        const a = est.t[0], b = est.t[est.t.length - 1]
+        return (list || []).filter(function (q) { return q.t1 < a - 0.5 || q.t0 > b + 0.5 })
+    }
     function ownIndex() { for (let i = 0; i < groups.length; ++i) if (groups[i].own) return i; return 0 }
     function byKey(list, key) { for (let i = 0; i < (list || []).length; ++i) if (list[i].key === key) return list[i]; return null }
     function panelOf(r, group) { const ps = r.panels || []; for (let i = 0; i < ps.length; ++i) if (ps[i].group === group) return ps[i]; return null }
@@ -95,15 +111,25 @@ Item {
             if (band === "middle" && p.q1) out.push({ k: "band", t: p.t, lo: p.q1, hi: p.q3, color: roles.hueA(r.key, roles.envAlpha) })
             if (band === "every") for (const o of (p.others || [])) {
                 out.push({ k: "line", t: p.t, v: o.v, color: col, w: 0.8, alpha: c.otherShotAlpha, shot: o.ordinal, z: 0 })
-                if ((o.bridges || []).length) out.push({ k: "bridges", list: o.bridges, color: col, w: 0.8, alpha: c.otherShotAlpha, shot: o.ordinal, z: 0 })
+                const ob = outsideEstimate(o.bridges, o.estimate)
+                if (ob.length) out.push({ k: "bridges", list: ob, color: col, w: 0.8, alpha: c.otherShotAlpha, shot: o.ordinal, z: 0 })
+                if (o.estimate && o.estimate.t)
+                    out.push({ k: "line", t: o.estimate.t, v: o.estimate.v, color: col, w: 0.8, alpha: c.otherShotAlpha, dash: roles.dash(c.fitDash), shot: o.ordinal, z: 0 })
             }
             if (p.med) out.push({ k: "line", t: p.t, v: p.med, color: col, w: c.medianW, alpha: c.medianAlpha, z: 1 })
+            if (p.medEst) out.push({ k: "line", t: p.t, v: p.medEst, color: col, w: c.medianW, alpha: c.medianAlpha, dash: roles.dash(c.fitDash), z: 1 })
         }
         if (withAlt && p.alt && p.alt.v)
             out.push({ k: "line", t: p.t, v: p.alt.v, color: col, w: c.otherFacetW, dash: roles.dash(c.otherFacetDash), z: 1 })
         if (withPicked && r.picked && r.picked.t) {
+            const est = r.picked.estimate
             out.push({ k: "line", t: r.picked.t, v: r.picked.v, runs: r.picked.runs, color: col, w: c.thisShotW, z: 3, hover: false })
-            if ((r.picked.bridges || []).length) out.push({ k: "bridges", list: r.picked.bridges, color: col, w: c.thisShotW, z: 3 })
+            const pb = outsideEstimate(r.picked.bridges, est)
+            if (pb.length) out.push({ k: "bridges", list: pb, color: col, w: c.thisShotW, z: 3 })
+            if (est && est.t) {
+                out.push({ k: "band", t: est.t, lo: est.lo, hi: est.hi, color: roles.hueA(r.key, roles.envAlpha) })
+                out.push({ k: "line", t: est.t, v: est.v, color: col, w: c.thisShotW, dash: roles.dash(c.fitDash), z: 3, hover: false })
+            }
         }
         if (band !== "fit" && r.part && r.part.found)
             out.push({ k: "vline", t: r.part.canonMs, color: roles.ink3, dash: [roles.u(2), roles.u(2.5)] })
@@ -152,25 +178,34 @@ Item {
         y: sf.topH
         width: sf.width
         Repeater {
-            model: sf.roles ? sf.rows : []
+            model: sf.roles ? (sf.overlay ? (sf.rows.length ? [{ overlayRow: true }] : []) : sf.rows) : []
             delegate: Item {
                 id: rw
                 required property var modelData
-                readonly property var r: modelData
-                objectName: "chEnvelope:" + r.key
-                readonly property real lo: r.yLo
-                readonly property real hi: r.yHi + (r.yHi - r.yLo) * (sf.nameBand / Math.max(1, sf.plotH - sf.nameBand))
+                readonly property bool ov: modelData.overlayRow === true
+                readonly property var r: ov ? null : modelData
+                readonly property var covRows: ov ? sf.rows : [modelData]
+                // overlaid, the one plot takes the height its stacked figures need (as This shot's overlay)
+                readonly property real ph: ov && sf.figSide ? Math.max(sf.plotH, figCol.implicitHeight - cov) : sf.plotH
+                objectName: "chEnvelope:" + (ov ? "overlay" : r.key)
+                readonly property real lo0: ov ? (sf.ovAxis ? sf.ovAxis.yLo : 0) : r.yLo
+                readonly property real hi0: ov ? (sf.ovAxis ? sf.ovAxis.yHi : 1) : r.yHi
+                readonly property real lo: lo0
+                readonly property real hi: hi0 + (hi0 - lo0) * (sf.nameBand / Math.max(1, rw.ph - sf.nameBand))
                 // the presenter's ticks (texts included); a short plot keeps every other one
-                readonly property var yt0: r.yTicks || []
-                readonly property int ytStep: sf.plotH < sf.roles.u(60) ? Math.max(1, yt0.length - 1) : sf.plotH < sf.roles.u(90) && yt0.length > 4 ? 2 : 1
+                readonly property var yt0: ov ? (sf.ovAxis ? (sf.ovAxis.yTicks || []) : []) : (r.yTicks || [])
+                readonly property int ytStep: rw.ph < sf.roles.u(60) ? Math.max(1, yt0.length - 1) : rw.ph < sf.roles.u(90) && yt0.length > 4 ? 2 : 1
                 readonly property var yt: yt0.filter(function (t, i) { return (yt0.length - 1 - i) % ytStep === 0 })
-                readonly property real cov: sf.covH(r)
-                readonly property var nw: sf.byKey(sf.nowRows, r.key)
-                readonly property var figs: sf.figMode === "now" && nw
+                readonly property real cov: sf.covAbove(covRows, covRows.length)
+                readonly property var nw: ov ? null : sf.byKey(sf.nowRows, r.key)
+                // overlaid: each row's figures under its name, stacked
+                readonly property var figs: ov ? [].concat.apply([], sf.rows.map(function (q) {
+                                                     return [{ label: q.label, text: "", head: true, key: q.key }].concat(q.figures || []) }))
+                                            : sf.figMode === "now" && nw
                                             ? [{ label: "now", text: nw.text }, { label: "typical", text: nw.typicalText }]
                                             : (r.figures || [])
                 width: sf.width
-                height: sf.plotH + cov + (sf.figSide ? 0 : foldFlow.height + sf.roles.u(2)) + sf.roles.u(8)
+                height: rw.ph + cov + (sf.figSide ? 0 : foldFlow.height + sf.roles.u(2)) + sf.roles.u(8)
 
                 Repeater {
                     model: sf.cols
@@ -178,59 +213,78 @@ Item {
                         id: pn
                         required property int index
                         readonly property var g: sf.side ? sf.groups[index] : sf.groups[sf.ownIndex()]
-                        readonly property var p: g ? sf.panelOf(rw.r, g.key) : null
+                        readonly property var p: g && !rw.ov ? sf.panelOf(rw.r, g.key) : null
                         readonly property bool own: !!g && g.own === true
-                        objectName: sf.band === "fit" ? "chFit:" + rw.r.key : ""
-                        x: index * (sf.panelW + sf.gap); width: sf.panelW; height: sf.plotH
+                        objectName: sf.band === "fit" && !rw.ov ? "chFit:" + rw.r.key : ""
+                        x: index * (sf.panelW + sf.gap); width: sf.panelW; height: rw.ph
                         PpChPlot {
                             id: plot
-                            x: sf.yGut; width: sf.innerW; height: sf.plotH
+                            x: sf.yGut; width: sf.innerW; height: rw.ph
                             roles: sf.roles; brush: sf.brush
                             x0: sf.x0; x1: sf.x1; lo: rw.lo; hi: rw.hi
                             pTicks: sf.pLines
                             yTicks: rw.yt.map(function (t) { return t.v })
-                            layers: sf.layersFor(rw.r, pn.p, pn.own, !sf.side)
+                            layers: rw.ov ? [].concat.apply([], sf.rows.map(function (q) { return sf.layersFor(q, pn.g ? sf.panelOf(q, pn.g.key) : null, pn.own, !sf.side) }))
+                                              .filter(function (l) { return l.k !== "vline" })
+                                          : sf.layersFor(rw.r, pn.p, pn.own, !sf.side)
                         }
                         Repeater {
                             model: pn.index === 0 || sf.side ? rw.yt : []
                             delegate: Text {
                                 required property var modelData
                                 readonly property real yy: plot.yOf(modelData.v)
-                                visible: yy > sf.nameBand * 0.7 && yy < sf.plotH - 1 && (pn.index === 0)
+                                visible: yy > sf.nameBand * 0.7 && yy < rw.ph - 1 && (pn.index === 0)
                                 x: sf.yGut - width - sf.roles.u(5); y: yy - height / 2
                                 text: modelData.text; font: sf.roles.fFigLabel; color: sf.roles.ink3
                             }
                         }
+                        // overlaid: the key, one line per curve, at the top left on a knock-out (as This shot's)
+                        Column {
+                            visible: pn.index === 0 && rw.ov
+                            x: sf.yGut + sf.roles.u(4); y: sf.roles.u(1)
+                            Repeater {
+                                model: rw.ov ? sf.rows : []
+                                delegate: Row {
+                                    required property var modelData
+                                    objectName: "chSessionKey:" + modelData.key
+                                    spacing: sf.roles.u(5)
+                                    Rectangle { anchors.verticalCenter: kT.verticalCenter; width: sf.roles.u(sf.roles.ch.swatch); height: sf.roles.u(2); color: sf.roles.hue(modelData.key) }
+                                    Text { id: kT; text: modelData.label; font: sf.roles.fSmall; color: sf.roles.ink
+                                           Rectangle { z: -1; anchors.fill: parent; anchors.margins: -1; color: sf.roles.knock } }
+                                    Text { anchors.baseline: kT.baseline; text: modelData.unit; font: sf.roles.fSmall; color: sf.roles.ink3 }
+                                }
+                            }
+                        }
                         Row {
-                            visible: pn.index === 0
+                            visible: pn.index === 0 && !rw.ov
                             x: sf.yGut + sf.roles.u(4); y: sf.roles.u(1); spacing: sf.roles.u(5)
-                            Rectangle { anchors.verticalCenter: snm.verticalCenter; width: sf.roles.u(sf.roles.ch.swatch); height: sf.roles.u(2); color: sf.roles.hue(rw.r.key) }
-                            Text { id: snm; text: rw.r.label; font: sf.roles.fSmallM; color: sf.roles.ink
+                            Rectangle { anchors.verticalCenter: snm.verticalCenter; width: sf.roles.u(sf.roles.ch.swatch); height: sf.roles.u(2); color: rw.r ? sf.roles.hue(rw.r.key) : "transparent" }
+                            Text { id: snm; text: rw.r ? rw.r.label : ""; font: sf.roles.fSmallM; color: sf.roles.ink
                                    Rectangle { z: -1; anchors.fill: parent; anchors.margins: -2; color: sf.roles.knock } }
-                            Text { anchors.baseline: snm.baseline; text: rw.r.unit; font: sf.roles.fSmall; color: sf.roles.ink3 }
+                            Text { anchors.baseline: snm.baseline; text: rw.r ? rw.r.unit : ""; font: sf.roles.fSmall; color: sf.roles.ink3 }
                         }
                         // a refused fit says why, in the panel (never a curve read for a group under 3)
                         Text {
                             visible: sf.band === "fit" && !!pn.p && !!pn.p.fit && pn.p.fit.refused === true
-                            x: sf.yGut + sf.roles.u(6); y: sf.plotH / 2 - height / 2; width: sf.innerW - sf.roles.u(12); wrapMode: Text.WordWrap
+                            x: sf.yGut + sf.roles.u(6); y: rw.ph / 2 - height / 2; width: sf.innerW - sf.roles.u(12); wrapMode: Text.WordWrap
                             text: pn.p && pn.p.fit ? (pn.p.fit.why || "") : ""; font: sf.roles.fSmall; color: sf.roles.ink3
                         }
                         Text {
                             objectName: "chPartAt"
-                            visible: sf.band !== "fit" && !!rw.r.part && rw.r.part.found && pn.index === 0
-                            readonly property real px: rw.r.part ? sf.yGut + plot.xOf(rw.r.part.canonMs) : 0
+                            visible: !rw.ov && sf.band !== "fit" && !!rw.r.part && rw.r.part.found && pn.index === 0
+                            readonly property real px: rw.r && rw.r.part ? sf.yGut + plot.xOf(rw.r.part.canonMs) : 0
                             x: px + width + sf.roles.u(6) > sf.panelW ? px - width - sf.roles.u(3) : px + sf.roles.u(3)
-                            y: sf.plotH - height - sf.roles.u(1)
-                            text: rw.r.part ? (rw.r.part.when || "") : ""; font: sf.roles.fFigLabel; color: sf.roles.ink3
+                            y: rw.ph - height - sf.roles.u(1)
+                            text: rw.r && rw.r.part ? (rw.r.part.when || "") : ""; font: sf.roles.fFigLabel; color: sf.roles.ink3
                             Rectangle { z: -1; anchors.fill: parent; anchors.margins: -1; color: sf.roles.knock }
                         }
                         Rectangle {
                             visible: pn.own && isFinite(sf.playCanon) && sf.playCanon >= sf.x0 && sf.playCanon <= sf.x1
-                            x: sf.yGut + Math.round(plot.xOf(sf.playCanon)); width: 1; height: sf.plotH; color: sf.roles.ink2
+                            x: sf.yGut + Math.round(plot.xOf(sf.playCanon)); width: 1; height: rw.ph; color: sf.roles.ink2
                         }
                         MouseArea {
                             enabled: sf.interactive
-                            x: sf.yGut; width: sf.innerW; height: sf.plotH
+                            x: sf.yGut; width: sf.innerW; height: rw.ph
                             hoverEnabled: sf.band === "every"
                             cursorShape: sf.brush && sf.brush.hoveredShot > 0 ? Qt.PointingHandCursor : Qt.SizeHorCursor
                             property var hit: null
@@ -243,8 +297,13 @@ Item {
                                 if (pressed && !hit) { seekTo(e.x); return }
                                 if (sf.band !== "every" || !sf.presenter || !sf.brush) return
                                 const v = rw.lo + (1 - e.y / height) * (rw.hi - rw.lo)
-                                const s = sf.presenter.shotAt(rw.r.key, plot.tOf(e.x), v)
-                                hit = s && s.found && s.ordinal !== sf.pickedOrdinal ? s : null
+                                // overlaid: the first curve, in the key's order, that passes near the pointer
+                                let s = null
+                                for (const q of rw.covRows) {
+                                    const h = sf.presenter.shotAt(q.key, plot.tOf(e.x), v)
+                                    if (h && h.found && h.ordinal !== sf.pickedOrdinal) { s = h; break }
+                                }
+                                hit = s
                                 sf.brush.hoveredShot = hit ? hit.ordinal : -1
                             }
                             onExited: { hit = null; if (sf.brush && sf.band === "every") sf.brush.hoveredShot = -1 }
@@ -254,35 +313,47 @@ Item {
                         }
                     }
                 }
-                // the coverage strip (the group fit's payoff): one hairline per shot where it was measured
-                Canvas {
-                    objectName: "chCoverage:" + rw.r.key
-                    visible: rw.cov > 0
-                    x: sf.yGut; y: sf.plotH + sf.roles.u(3); width: sf.innerW; height: Math.max(1, rw.cov - sf.roles.u(3))
-                    readonly property var deps: [rw.r.coverage, width, sf.x0, sf.x1, sf.roles.ink, sf.brush ? sf.brush.hoveredShot : -1]
-                    onDepsChanged: requestPaint()
-                    onPaint: {
-                        const ctx = getContext("2d"); ctx.reset()
-                        const cov = rw.r.coverage || [], R = sf.roles
-                        for (let i = 0; i < cov.length; ++i) {
-                            const row = cov[i], y = Math.round(i * sf.coverPitch) + 0.5
-                            const hov = sf.brush && sf.brush.hoveredShot === row.ordinal
-                            ctx.strokeStyle = row.picked || hov ? R.ink : Qt.alpha(R.ink3, 0.75)
-                            ctx.lineWidth = row.picked ? 1.2 : 0.8
-                            ctx.beginPath()
-                            for (const run of (row.runs || [])) {
-                                const a = Math.max(sf.x0, run.t0), b = Math.min(sf.x1, run.t1)
-                                if (b <= a) continue
-                                const xa = (a - sf.x0) / (sf.x1 - sf.x0) * width, xb = (b - sf.x0) / (sf.x1 - sf.x0) * width
-                                ctx.moveTo(xa, y); ctx.lineTo(Math.max(xa + 1, xb), y)
+                // the coverage strip (the group fit's payoff): one hairline per shot where it was measured; overlaid,
+                // one strip per row, stacked, each led by its curve's swatch
+                Repeater {
+                    model: rw.covRows
+                    delegate: Canvas {
+                        id: cv
+                        required property var modelData
+                        required property int index
+                        readonly property var row: modelData
+                        objectName: "chCoverage:" + row.key
+                        visible: sf.covH(row) > 0
+                        x: sf.yGut; y: rw.ph + sf.roles.u(3) + sf.covAbove(rw.covRows, index)
+                        width: sf.innerW; height: Math.max(1, sf.covH(row) - sf.roles.u(3))
+                        readonly property var deps: [row.coverage, width, sf.x0, sf.x1, sf.roles.ink, sf.brush ? sf.brush.hoveredShot : -1]
+                        onDepsChanged: requestPaint()
+                        Rectangle { visible: rw.ov; x: -sf.roles.u(sf.roles.ch.swatch) - sf.roles.u(3); y: 0; width: sf.roles.u(sf.roles.ch.swatch); height: sf.roles.u(2)
+                                    color: sf.roles.hue(cv.row.key) }
+                        onPaint: {
+                            const ctx = getContext("2d"); ctx.reset()
+                            const cov = row.coverage || [], R = sf.roles
+                            for (let i = 0; i < cov.length; ++i) {
+                                const rr = cov[i], y = Math.round(i * sf.coverPitch) + 0.5
+                                const hov = sf.brush && sf.brush.hoveredShot === rr.ordinal
+                                ctx.strokeStyle = rr.picked || hov ? R.ink : Qt.alpha(R.ink3, 0.75)
+                                ctx.lineWidth = rr.picked ? 1.2 : 0.8
+                                ctx.beginPath()
+                                for (const run of (rr.runs || [])) {
+                                    const a = Math.max(sf.x0, run.t0), b = Math.min(sf.x1, run.t1)
+                                    if (b <= a) continue
+                                    const xa = (a - sf.x0) / (sf.x1 - sf.x0) * width, xb = (b - sf.x0) / (sf.x1 - sf.x0) * width
+                                    ctx.moveTo(xa, y); ctx.lineTo(Math.max(xa + 1, xb), y)
+                                }
+                                ctx.stroke()
                             }
-                            ctx.stroke()
                         }
                     }
                 }
-                Text { visible: rw.cov > 0; x: sf.yGut - width - sf.roles.u(5); y: sf.plotH; text: "shots"; font: sf.roles.fLabel; color: sf.roles.ink3 }
+                Text { visible: rw.cov > 0; x: sf.yGut - width - sf.roles.u(5); y: rw.ph; text: "shots"; font: sf.roles.fLabel; color: sf.roles.ink3 }
                 // the figure column, or its folded line
                 Column {
+                    id: figCol
                     visible: sf.figSide
                     x: sf.width - sf.figW; y: sf.roles.u(1); width: sf.figW
                     Repeater {
@@ -290,7 +361,11 @@ Item {
                         delegate: Item {
                             required property var modelData
                             width: sf.figW; height: sf.roles.u(15)
-                            Text { text: modelData.label; font: sf.roles.fLabel; color: sf.roles.ink3; anchors.baseline: sv.baseline }
+                            Rectangle { visible: modelData.head === true; anchors.verticalCenter: sv.verticalCenter; width: sf.roles.u(sf.roles.ch.swatch); height: sf.roles.u(2)
+                                        color: modelData.key ? sf.roles.hue(modelData.key) : "transparent" }
+                            Text { x: modelData.head === true ? sf.roles.u(sf.roles.ch.swatch) + sf.roles.u(5) : 0
+                                   text: modelData.label; font: modelData.head === true ? sf.roles.fSmallM : sf.roles.fLabel
+                                   color: modelData.head === true ? sf.roles.ink : sf.roles.ink3; anchors.baseline: sv.baseline }
                             Text { id: sv; anchors.right: parent.right; text: modelData.text; font: sf.roles.fFigS; color: sf.roles.ink }
                         }
                     }
@@ -298,7 +373,7 @@ Item {
                 Flow {
                     id: foldFlow
                     visible: !sf.figSide
-                    x: sf.yGut; y: sf.plotH + rw.cov + sf.roles.u(2); width: sf.width - sf.yGut
+                    x: sf.yGut; y: rw.ph + rw.cov + sf.roles.u(2); width: sf.width - sf.yGut
                     spacing: sf.roles.u(12)
                     Repeater {
                         model: sf.figSide ? [] : rw.figs

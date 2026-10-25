@@ -48,7 +48,7 @@ import PinPointStudio
 // relationsP, wristP (+ wChoices wShot wSession wMoves wStandfirst wSelected wristAvailable wristOnShow
 // wristShotShown wristSessionShown), postureP (+ pChoices pShot pSession pStandfirst pSelected postureAvailable
 // postureOnShow postureShotShown postureSessionShown canOpenCondition; openCondition()), tab, view, shownView, preset, metricsOff, window, customStartUs/EndUs, band,
-// facet, against, difference, overlay, showDots, showCursor, upId, acrossId, relFacet, wristAgainst, wristCurves, wristArchetype, posturePattern, postureAgainst, openId, collapsed, askedId, interactive, surface,
+// facet, against, difference, overlay, align, showDots, showCursor, upId, acrossId, relFacet, wristAgainst, wristCurves, wristArchetype, posturePattern, postureAgainst, openId, collapsed, askedId, interactive, surface,
 // framed, cardAside, register, registerItem, demoState, forceRegister, playUs, spanUs; choose(),
 // toggleMetric(), chooseCustom(), chooseUp(), toggleSection(), openReading(), ask(), clearAsk(), pickOrdinal(),
 // applyDemo(); choiceMade, sectionToggled, navChanged, demoReset, shotRequested; objectName "chBody".
@@ -140,6 +140,7 @@ Item {
     property string against: "none"
     property bool difference: false
     property bool overlay: false                 // F6: small multiples (false) or one shared plot
+    property string align: "p"                   // Session only: "p" (P-positions) | "impact" (§2.2.1)
     property bool showDots: true                 // F7
     property bool showCursor: true               // F7
     property string upId: ""                     // Relations: "" = the presenter's default
@@ -215,7 +216,7 @@ Item {
     }
 
     // ── demo states (renders only): reset to the saved choices, then set these WITHOUT saving them ──
-    //   against:<id>  diff  overlay  split  unfold  nodots  window:<key>  band:<id>  facet:<id>|facet:first  fitShape
+    //   against:<id>  diff  overlay  split  align:<p|impact>  unfold  nodots  window:<key>  band:<id>  facet:<id>|facet:first  fitShape
     //   scrub[:ms]  open:apart  open:curve  open:run  ask:<question id>  up:<readingId>  relFacet:first  preset:<name>
     //   wristAgainst:<id>  wristCurves  wristArchetype:<-1..2>  seekP:<P tag> (the Wrist sections; also wristPrevious
     //   wristReference  wristMedian  atP<n>, safe in a file name; wristSession, from the retired Wrist tab, opens Session)
@@ -233,6 +234,7 @@ Item {
             else if (k === "diff") { if (against === "none") against = "median"; difference = true }
             else if (k === "overlay") overlay = true
             else if (k === "split") overlay = false
+            else if (k === "align") align = v === "impact" ? "impact" : "p"
             else if (k === "unfold") collapsed = ({})
             else if (k === "nodots") showDots = false
             else if (k === "window") window = v

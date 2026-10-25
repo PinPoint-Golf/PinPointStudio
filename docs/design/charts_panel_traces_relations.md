@@ -82,6 +82,54 @@ falls back to Session there.
   peak-time dot plot on one ms axis.
 - Up to three data-backed questions ("which shots lie outside the middle half where the curves part?").
 
+### 2.2.1 Lined up at impact, overlaid, and the chest's probable peak (Mark, 25 Oct 2026)
+
+Mark: "for the KS chart (and probably them all) it would be good to have an option in controls to see them
+overlayed aligned to impact. For the KS chart especially it adds robustness to the sequencing." Then, on the
+chest: "the area of the chart that is missing, especially when we use all swings, is relatively short and I
+would argue cannot plausibly spike during the swing … bridge the gap and use that as an estimator (with a
+warning to the user) — so we can measure a 'probable' peak and how it moves over time rather than NOTHING."
+This amends D9 for Session only; This shot, Against and every other cross-shot analysis keep P-alignment.
+
+- **Line up: P-positions · impact** (Session Controls, every preset; default P-positions). Impact is the §4.1
+  impact-only route chosen on purpose: every aligned shot's warp is a pure shift at impact, so a curve sits on
+  the shot's own clock and a peak at its own time. The P tags stay at the session's median P-times (the same
+  canonical times), with the middle half of when each happened under them. The KS timing numbers were already
+  on each shot's clock (the sequence section); this puts the curves there too. The alignment note says it was
+  chosen: "Lined up at impact: every shot on its own clock, shifted to impact and never stretched …".
+- **Draw: small multiples · overlaid** — This shot's F6 choice, shared, now on Session too: every row's
+  layers in one plot on one value axis (the KS curves are all °/s), a key at the top left, the rows' figures
+  stacked in the column and their coverage strips stacked under the plot.
+- **The chest's probable peak** (`src/Gui/charts/session_bridge.h`). The face-on chest curve has a 20–40 ms
+  hole at or just before impact (3–6 frames; sequence.sightedBand), at the same instant on every shot, so
+  pooling cannot fill it and each shot is bridged on its own. On 07-04 and 10-20 the curve rises into the
+  hole and falls out of it on 24 of 32 shots: the peak is in the hole.
+  - **Estimator: a Gaussian process** (Matérn 5/2, constant mean) through the measured samples 110 ms
+    before and 80 ms after the hole; its length and height fitted once per session to every bridged shot;
+    the per-sample noise ASSUMED at 20 °/s (the stored curve is smoothed, so a fitted noise gives a false
+    ±1–3 ms). Peak = median of 600 posterior draws' maxima over the hole ± 40 ms (clipped at P8), ± half
+    their 16–84 % spread. Most draws at the right edge = still rising, at the left = fell into the hole: no
+    probable peak then. Chosen over a cubic bridge and a parabola (prototype 25 Oct: the same times to
+    1–4 ms; only the GP's ± is honest and only it caught the still-rising case). Seeded per shot, so the same
+    session draws the same estimate on every machine. Cost: ~3–4 ms a shot, once per snapshot, off the GUI
+    thread.
+  - **Option A (Mark, 25 Oct):** the probable peak is the hump the hole hides. A taller MEASURED hump earlier
+    in the downswing (10-20: −150…−220 ms, 780–1345 °/s, where the face-on shoulder keypoints jump as the
+    line squares to the camera; pp_tuned_constants.h kPairTrunkThoraxPlacement) is read as the measurement and
+    said so in the trust fold; it stays drawn on the curve. Mark: the complete sequence is the coaching point
+    ("the sequence of the pelvis is about opening the hips during impact, not stalling and snapping").
+  - **How it shows (show with a warning, never hide):** the bridge dashed in the chest's hue (the picked
+    shot's with its ± 1 sd wash) in place of the straight bridge; the session median dashed where a third or
+    more of the shots are bridged; in the sequence section the chest keeps its rank (italic) and its mark (a
+    ± whisker), its name carries ⚠ and one line under the dot plot says "⚠ Chest: probable: bridged across the camera's gap"; the
+    standfirst counts it; the trust fold says how it was made, what it assumes, that no trunk sensor has
+    checked it yet, and the earlier hump. A probable peak is ranked with the placed ones and can be late.
+  - **Never outside Session:** the analysis, the This shot tile, the diagnostics and sequence_order are
+    untouched; no stage version moves. Calibrate the noise, and grade the estimate, against the worn trunk
+    IMU session when it exists.
+  - **Next (#102):** judge each curve by its SHAPE against the reference KS shape (TPI, Els: one downswing hump
+    per segment from zero at the top, peaks growing and in order) to predict measurement error per shot.
+
 ### 2.3 Relations (B)
 - **A scatter of any two readings** (quiet Up / Across pickers that open in place; no menus or dialogs),
   box plots on both edges, the least-squares line (solid when it clears chance, dashed inside chance).
@@ -240,7 +288,7 @@ thorax_pair_20261014.md`). IMUs (vest + belt) will settle it.
 | D6 | Replay Session | follows the playhead (both mocks built it so) |
 | D7 | Kinds with no structure | say so, then the largest gap in the most separating reading, as B did |
 | D8 | Print | one combined report, sections in view order, the index at the back |
-| D9 | Alignment (§4.1) | DECIDED (Mark, 14 Oct): P-aligned time only, no clock-time view. Proposed: PCHIP warp with gated anchors; impact-only falls back to curve landmarks, then a labelled tempo scale |
+| D9 | Alignment (§4.1) | DECIDED (Mark, 14 Oct): P-aligned time only, no clock-time view. Proposed: PCHIP warp with gated anchors; impact-only falls back to curve landmarks, then a labelled tempo scale. AMENDED 25 Oct (§2.2.1): Session may also line up at impact (each shot on its own clock), by choice |
 
 ## 9. How this was made
 

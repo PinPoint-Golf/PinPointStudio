@@ -127,19 +127,30 @@ ShotSequence shotSequence(const ShotSeries &shot)
             }
         }
     }
+    rankSequence(out);
+    return out;
+}
+
+void rankSequence(ShotSequence &out)
+{
+    out.placedCount = 0;
+    out.timedCount = 0;
+    out.anyLate = false;
     for (int i = 0; i < kSequenceSegments; ++i) {
         SegmentPeak &a = out.segments[size_t(i)];
-        if (!a.placed) continue;
-        ++out.placedCount;
+        a.rank = 0;
+        a.late = false;
+        if (!a.timed()) continue;
+        if (a.placed) ++out.placedCount;
+        ++out.timedCount;
         a.rank = 1;
         for (int j = 0; j < kSequenceSegments; ++j) {
             const SegmentPeak &b = out.segments[size_t(j)];
-            if (j != i && b.placed && b.shotMs < a.shotMs) ++a.rank;
-            if (j > i && b.placed && b.shotMs < a.shotMs) a.late = true;
+            if (j != i && b.timed() && b.timeMs() < a.timeMs()) ++a.rank;
+            if (j > i && b.timed() && b.timeMs() < a.timeMs()) a.late = true;
         }
         out.anyLate = out.anyLate || a.late;
     }
-    return out;
 }
 
 UnplacedWhy unplacedWhy(const SegmentPeak &p)
@@ -236,19 +247,28 @@ QVariantList segmentGates(const SegmentPeak &p, int segment)
 SessionSequence sessionSequence(const SessionSnapshot &s)
 {
     SessionSequence out;
+    for (const auto &sh : s.shots) out.shots.push_back(shotSequence(*sh));
+    summariseSequence(out);
+    return out;
+}
+
+void summariseSequence(SessionSequence &out)
+{
+    out.segments = {};
+    out.commonOrder.clear();
+    out.commonOrderCount = 0;
     std::array<std::vector<double>, kSequenceSegments> ms;
     QStringList orderSeen;
     QHash<QString, int> orderCount;
-    for (const auto &sh : s.shots) {
-        out.shots.push_back(shotSequence(*sh));
-        const ShotSequence &q = out.shots.back();
+    for (const ShotSequence &q : out.shots) {
         for (int i = 0; i < kSequenceSegments; ++i) {
             const SegmentPeak &p = q.segments[size_t(i)];
-            if (!p.placed) continue;
-            ms[size_t(i)].push_back(p.shotMs);
+            if (!p.timed()) continue;
+            ms[size_t(i)].push_back(p.timeMs());
             SegmentSummary &sm = out.segments[size_t(i)];
-            ++sm.placed;
-            if (p.shotMs > 0) ++sm.afterImpact;
+            if (p.placed) ++sm.placed;
+            if (p.probable) ++sm.probable;
+            if (p.timeMs() > 0) ++sm.afterImpact;
             if (p.late) ++sm.late;
         }
         const QString key = q.order.join(QLatin1Char(','));
@@ -262,7 +282,6 @@ SessionSequence sessionSequence(const SessionSnapshot &s)
     }
     for (const QString &k : orderSeen)
         if (orderCount.value(k) > out.commonOrderCount) { out.commonOrderCount = orderCount.value(k); out.commonOrder = k; }
-    return out;
 }
 
 } // namespace pinpoint::charts

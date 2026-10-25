@@ -61,8 +61,16 @@ struct SegmentPeak {
     double shotMs = kNaN;               // peak time, ms from impact on the shot's clock (+ after)
     double tSigmaMs = kNaN;
     double peakDps = kNaN, peakSigmaDps = kNaN;
-    int    rank = 0;                    // among the placed, 1 = first; 0 = not placed
+    int    rank = 0;                    // among the timed (placed or probable), 1 = first; 0 = neither
     bool   late = false;                // D4
+    // A PROBABLE PEAK (session_bridge.h): the Session view's estimate for a node the analysis did not
+    // place, read off a fit bridging a short gap in its curve — never the analysis' own. Set only by
+    // applyBridges(); `placed` and `shotMs` keep what the analysis said.
+    bool   probable = false;
+    double probableMs = kNaN, probableSigmaMs = kNaN;       // ms from impact (+ after), ±σ
+    double probableDps = kNaN, probableSigmaDps = kNaN;
+    bool   timed() const { return placed || probable; }
+    double timeMs() const { return placed ? shotMs : probable ? probableMs : kNaN; }
     // FROM THE GATE RECORDS (trust_and_gates_design.md §6), when the analysis wrote them:
     bool        reasonsRecorded = false;    // the shot carries analysis.gates (gatesVersion > 0)
     QVariantMap refusal;                    // the record that refused / bounded the node (the one that says the most)
@@ -78,13 +86,15 @@ struct ShotSequence {
     std::array<SegmentPeak, kSequenceSegments> segments;
     QStringList order;                  // the sequence's own order (placed segment ids, by time)
     int  placedCount = 0;
+    int  timedCount = 0;                // placed or probable
     bool anyLate = false;
 };
 
 struct SegmentSummary {
     int    placed = 0;                  // shots it was placed on
-    double medianMs = kNaN, q1Ms = kNaN, q3Ms = kNaN;   // of the placed peak times (shot clocks)
-    int    afterImpact = 0;             // placed peaks after impact
+    int    probable = 0;                // shots it has a probable peak on (session_bridge.h)
+    double medianMs = kNaN, q1Ms = kNaN, q3Ms = kNaN;   // of the timed peak times (shot clocks)
+    int    afterImpact = 0;             // timed peaks after impact
     int    late = 0;                    // shots it was late on
 };
 
@@ -114,5 +124,11 @@ QVariantList segmentGates(const SegmentPeak &p, int segment);
 
 ShotSequence    shotSequence(const ShotSeries &shot);
 SessionSequence sessionSequence(const SessionSnapshot &session);
+
+// The two passes sessionSequence() runs after reading the nodes, exposed so a probable peak added
+// later (applyBridges) is ranked and summarised by the same rules: rank, late and the order over the
+// TIMED segments of one shot; then the session's per-segment counts, quartiles and commonest order.
+void rankSequence(ShotSequence &shot);
+void summariseSequence(SessionSequence &session);
 
 } // namespace pinpoint::charts

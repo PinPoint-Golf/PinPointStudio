@@ -22,8 +22,9 @@ import PinPointStudio
 // SESSION — "what do my curves usually look like, and where do they part?" (design §2.2, A; D2, D3, D6, D9).
 //   Analyse: the head built from the data (where the curves part, the facet, the fit's payoff), its
 //     standfirst, the alignment note (§4.1), the mixed-club note, the co-occurrence caveat; the P-aligned
-//     figure; "How far can I trust this?"; the Controls fold (Metrics, Window, Show: middle half · every shot ·
-//     group fit, Facet: none by default, D3); up to three questions answered in place (a facet or band set, the
+//     figure; "How far can I trust this?" (with the chest's probable peak said there, §2.2.1); the Controls fold
+//     (Metrics, Window, Show: middle half · every shot · group fit, Line up: P-positions · impact (§2.2.1), Draw: small
+//     multiples · overlaid (This shot's choice, shared), Facet: none by default, D3); up to three questions answered in place (a facet or band set, the
 //     lit shots); then the sequence across the session (order barcode and peak-time dot plot), folded.
 //   Replay (D6: follows the playhead): the head, the figure with "now" against "typical" in its column, and
 //     the lead reading at the latest P-position the playhead has passed (PpChReplaySession).
@@ -50,7 +51,11 @@ Column {
     readonly property bool available: !!se && se.available === true
     readonly property int nRows: Math.max(1, available ? (se.rows || []).length : 1)
     readonly property real headEst: !roles ? 0 : replay ? roles.u(90) + (body && body.rReplay && body.rReplay.readingId ? 0 : 0) : roles.u(240)
-    readonly property real plotH: !roles ? 60 : Math.max(roles.u(replay ? 44 : 56), Math.min(roles.u(replay ? 120 : 120), (pageH - headEst) / nRows - roles.u(14)
+    // overlaid (This shot's Draw choice, shared): one plot, given the room the rows would have had, as This shot's
+    readonly property bool overlaid: !replay && !!body && body.overlay
+    readonly property real plotH: !roles ? 60
+        : overlaid ? Math.max(roles.u(90), Math.min(roles.u(200), (pageH - headEst) * 0.8))
+        : Math.max(roles.u(replay ? 44 : 56), Math.min(roles.u(replay ? 120 : 120), (pageH - headEst) / nRows - roles.u(14)
                                    - (se && se.band === "fit" ? roles.u(26) : 0)))
     spacing: roles ? roles.u(8) : 8
 
@@ -73,6 +78,12 @@ Column {
         if ((tc.windows || []).length) s.push({ key: "window", label: "Window", opens: true, open: pickerOpen === "window", options: [{ key: "open", label: currentLabel(tc.windows) }] })
         s.push({ key: "band", label: "Show", current: ((tc.bands || []).filter(function (b) { return b.current })[0] || { id: "" }).id,
                  options: (tc.bands || []).map(function (b) { return { key: b.id, label: b.label } }) })
+        // how the shots are lined up (§2.2.1): the session's P-positions, or each on its own clock at impact
+        if ((tc.aligns || []).length)
+            s.push({ key: "align", label: "Line up", current: ((tc.aligns || []).filter(function (a) { return a.current })[0] || { id: "p" }).id,
+                     options: (tc.aligns || []).map(function (a) { return { key: a.id, label: a.label } }) })
+        s.push({ key: "draw", label: "Draw", current: body && body.overlay ? "overlay" : "split",
+                 options: [{ key: "split", label: "small multiples" }, { key: "overlay", label: "overlaid" }] })
         const more = (tc.facets || []).length > facetsMain.length
         s.push({ key: "facet", label: "Facet", current: ((tc.facets || []).filter(function (f) { return f.current })[0] || { id: "" }).id,
                  options: facetsMain.map(function (f) { return { key: f.id, label: f.label } })
@@ -84,6 +95,8 @@ Column {
         if (set === "preset" || set === "window") { pickerOpen = pickerOpen === set ? "" : set; return }
         if (set === "facet" && opt === "_more") { pickerOpen = pickerOpen === "facet" ? "" : "facet"; return }
         else if (set === "band") { body.choose("band", opt); body.clearAsk(brush) }
+        else if (set === "align") body.choose("align", opt)
+        else if (set === "draw") body.choose("overlay", opt === "overlay")
         else if (set === "facet") { body.choose("facet", opt); body.clearAsk(brush) }
     }
 
@@ -119,6 +132,7 @@ Column {
         figMode: sv.replay ? "now" : "figures"
         pickedOrdinal: sv.body && sv.body.tShot ? (sv.body.tShot.ordinal || 0) : 0
         plotH: sv.plotH
+        overlay: sv.overlaid
         onShotActivated: (o) => { if (sv.body) sv.body.pickOrdinal(o) }
     }
     // why readings are missing or held back across the session, said once and closed by default, under the figure
@@ -130,6 +144,8 @@ Column {
         width: sv.width; roles: sv.roles; scope: "session"
         topPadding: sv.roles ? sv.roles.u(6) : 6
         swingDir: pickedDir
+        // the chest's probable peak (§2.2.1): how it was made and what it assumes, said once, here
+        extraLines: sv.available ? (sv.se.trustLines || []) : []
     }
     // ═══ the controls, under the figure and its trust line, as on This shot (Mark, 17 Oct 2026) ═══
     // Foldable to one line that still says what is chosen. The glance has none (its Show line sits over the figure).
@@ -143,6 +159,7 @@ Column {
             width: parent.width; roles: sv.roles; key: "sessionControls"; title: "Controls"; interactive: sv.interactive
             collapsed: sv.controlsFolded
             state_: [sv.tc.presetTitle || "", sv.tc.fromAddress ? "from address" : "", sv.currentLabel(sv.tc.windows), sv.currentLabel(sv.tc.bands),
+                     sv.se && sv.se.alignedAt === "impact" ? "lined up at impact" : "", sv.overlaid ? "overlaid" : "",
                      sv.body && sv.body.facet ? sv.currentLabel(sv.tc.facets) : ""].filter(function (x) { return x !== "" }).join("  ·  ")
             onToggled: if (sv.body) sv.body.toggleSection("sessionControls")
         }

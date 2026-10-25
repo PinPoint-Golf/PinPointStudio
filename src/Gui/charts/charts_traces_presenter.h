@@ -216,6 +216,10 @@ class ChartsTracesPresenter : public QObject
     Q_PROPERTY(QString facet READ facet WRITE setFacet NOTIFY inputsChanged)        // "" | "half" | "shape" | "club" | conditionId
     Q_PROPERTY(QString against READ against WRITE setAgainst NOTIFY inputsChanged)
     Q_PROPERTY(bool difference READ difference WRITE setDifference NOTIFY inputsChanged)
+    // ADDED 25 Oct: how Session lines the shots up — "p" (the session's P-positions, §4.1, the default) or
+    // "impact" (each shot on its own clock, shifted to impact and never stretched: §2.2.1). Session only:
+    // This shot and Against keep the P-alignment whatever this says.
+    Q_PROPERTY(QString align READ align WRITE setAlign NOTIFY inputsChanged)
     // ADDED 15 Oct (build/wrist-tab): the ★ reference swing for Against "reference" — a swing dir in ANY
     // session (QML binds appSettings.wristReferenceSwingDir). Read off the GUI thread through
     // SwingStore::loadAnalysis + SessionSeriesModel::extractShot, cached by its document stamp, and lined
@@ -265,6 +269,8 @@ public:
     void setAgainst(const QString &a);
     bool difference() const { return m_in.difference; }
     void setDifference(bool on);
+    QString align() const { return m_in.align; }
+    void setAlign(const QString &a);
     QString referenceSwingDir() const { return m_in.referenceSwingDir; }
     void setReferenceSwingDir(const QString &d);
     qint64 playheadUs() const { return m_playheadUs; }
@@ -313,6 +319,7 @@ public:
         QString facet;
         QString against = QStringLiteral("none");
         bool difference = false;
+        QString align = QStringLiteral("p");
         QString referenceSwingDir;
     };
     struct NowRow;

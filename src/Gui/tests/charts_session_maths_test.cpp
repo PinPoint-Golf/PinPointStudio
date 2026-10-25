@@ -27,6 +27,7 @@
 //               the warp's properties, the landmarks against the real P-times.
 //   synth*    — every gate and edge on hand-built sessions.
 
+#include "charts/session_bridge.h"
 #include "charts/session_curves.h"
 #include "charts/session_relations.h"
 #include "charts/session_sequence.h"
@@ -1022,7 +1023,123 @@ private slots:
         QCOMPARE(q.segments[0].shotMs, 20.0);                          // + after impact, the shot's clock
     }
 
+    // ═════════════ THE CHEST'S PROBABLE PEAK (session_bridge.h; design §2.2.1) ═════════════
+
+    // A chest-like bump peaking just before impact, its top hidden by a ~30 ms hole, on five shots: the bridge
+    // finds the peak inside the hole, with a ± and no earlier hump, and draws the same numbers twice.
+    void bridgeFindsTheHiddenPeak()
+    {
+        std::vector<std::shared_ptr<ShotSeries>> shots;
+        for (int i = 1; i <= 5; ++i) shots.push_back(chestShot(i, [i](double t) { return 150.0 + 450.0 * gauss(t, -16.0 + i, 45.0); }));
+        const SessionSnapshot ss = snapshotOf(shots);
+        const SessionSequence seq = sessionSequence(ss);
+        const SessionBridges b = bridgeChest(ss, seq);
+        QVERIFY(b.kernel.fitted);
+        QCOMPARE(b.kernel.shots, 5);
+        QCOMPARE(b.bridgedCount(), 5);
+        for (int i = 0; i < 5; ++i) {
+            const ChestBridge &c = b.shots[size_t(i)];
+            QVERIFY(c.bridged());
+            QVERIFY(c.holeToMs - c.holeFromMs > 20 && c.holeToMs - c.holeFromMs < 40);
+            QVERIFY2(std::abs(c.peakMs - (-15.0 + i)) < 6.0, qPrintable(QStringLiteral("shot %1 peak %2 ms").arg(i + 1).arg(c.peakMs)));
+            QVERIFY2(std::abs(c.peakDps - 600.0) < 40.0, qPrintable(QStringLiteral("shot %1 peak %2 °/s").arg(i + 1).arg(c.peakDps)));
+            QVERIFY(c.peakSigmaMs > 0.0 && c.peakSigmaMs < 15.0);
+            QVERIFY(c.peakSigmaDps > 0.0);
+            QVERIFY(std::isnan(c.earlierMs));
+            QVERIFY(c.t.size() >= 20 && c.t.size() == c.mean.size() && c.t.size() == c.sd.size());
+        }
+        const SessionBridges again = bridgeChest(ss, seq);       // seeded: the same estimate every time
+        for (int i = 0; i < 5; ++i) {
+            QCOMPARE(again.shots[size_t(i)].peakMs, b.shots[size_t(i)].peakMs);
+            QCOMPARE(again.shots[size_t(i)].peakDps, b.shots[size_t(i)].peakDps);
+        }
+    }
+
+    // A curve still rising when the camera loses it and still rising after: no probable peak is said.
+    void bridgeSaysStillRising()
+    {
+        std::vector<std::shared_ptr<ShotSeries>> shots;
+        for (int i = 1; i <= 4; ++i) shots.push_back(chestShot(i, [](double t) { return 300.0 + 2.0 * (t + 300.0); }));
+        const SessionSnapshot ss = snapshotOf(shots);
+        const SessionBridges b = bridgeChest(ss, sessionSequence(ss));
+        QCOMPARE(b.bridgedCount(), 0);
+        for (const ChestBridge &c : b.shots) QCOMPARE(int(c.outcome), int(BridgeOutcome::StillRising));
+    }
+
+    // A taller measured hump earlier in the downswing is recorded, never taken as the peak (option A).
+    void bridgeRecordsTheEarlierHump()
+    {
+        std::vector<std::shared_ptr<ShotSeries>> shots;
+        for (int i = 1; i <= 4; ++i)
+            shots.push_back(chestShot(i, [](double t) { return 100.0 + 900.0 * gauss(t, -180.0, 12.0) + 450.0 * gauss(t, -12.0, 45.0); }));
+        const SessionSnapshot ss = snapshotOf(shots);
+        const SessionBridges b = bridgeChest(ss, sessionSequence(ss));
+        QCOMPARE(b.bridgedCount(), 4);
+        QCOMPARE(b.earlierCount(), 4);
+        for (const ChestBridge &c : b.shots) {
+            QVERIFY(std::abs(c.peakMs + 12.0) < 8.0);
+            QVERIFY(std::abs(c.earlierMs + 180.0) < 8.0);
+            QVERIFY(c.earlierDps > c.peakDps);
+        }
+    }
+
+    // The probable chest joins the sequence: ranked with the placed segments, late when it comes after the
+    // arm, the order rebuilt; a chest the analysis placed is never bridged.
+    void bridgeRanksTheProbableChest()
+    {
+        std::vector<std::shared_ptr<ShotSeries>> shots;
+        for (int i = 1; i <= 4; ++i) {
+            auto s = chestShot(i, [](double t) { return 150.0 + 450.0 * gauss(t, -14.0, 45.0); });
+            QVariantList nodes;
+            const auto node = [](const char *seg, double before, bool placed) {
+                return QVariantMap{ { QStringLiteral("segment"), QString::fromLatin1(seg) }, { QStringLiteral("beforeImpactMs"), before },
+                                    { QStringLiteral("placed"), placed }, { QStringLiteral("tPeakUs"), 1 } };
+            };
+            nodes << node("pelvis", 120, true) << node("thorax", 60, i == 4) << node("leadArm", 100, true) << node("club", 30, true);
+            s->kinematicSequence = QVariantMap{ { QStringLiteral("nodes"), nodes } };
+            shots.push_back(s);
+        }
+        const SessionSnapshot ss = snapshotOf(shots);
+        SessionSequence seq = sessionSequence(ss);
+        QCOMPARE(seq.segments[1].placed, 1);                          // shot 4's chest, placed by the analysis
+        const SessionBridges b = bridgeChest(ss, seq);
+        QCOMPARE(b.bridgedCount(), 3);
+        QCOMPARE(int(b.shots[3].outcome), int(BridgeOutcome::NoHole));
+        applyBridges(seq, b);
+        for (int i = 0; i < 3; ++i) {
+            const ShotSequence &q = seq.shots[size_t(i)];
+            const SegmentPeak &ch = q.segments[1];
+            QVERIFY(ch.probable && !ch.placed);
+            QVERIFY(std::abs(ch.probableMs + 14.0) < 8.0);
+            QCOMPARE(ch.rank, 4);
+            QVERIFY(ch.late);                                         // the chest should lead the arm and came after it
+            QVERIFY(!q.segments[0].late && !q.segments[2].late && !q.segments[3].late);
+            QCOMPARE(q.order, (QStringList{ QStringLiteral("pelvis"), QStringLiteral("leadArm"), QStringLiteral("club"), QStringLiteral("thorax") }));
+            QCOMPARE(q.timedCount, 4);
+            QCOMPARE(q.placedCount, 3);
+        }
+        QCOMPARE(seq.segments[1].placed, 1);
+        QCOMPARE(seq.segments[1].probable, 3);
+        QVERIFY(!seq.shots[3].segments[1].probable);
+    }
+
 private:
+    // A shot with a chest speed curve from f, sampled every 6.7 ms (150 fps), measured except for a hole from
+    // −21 to +5.5 ms (the camera losing the chest where the shoulders square to it).
+    std::shared_ptr<ShotSeries> chestShot(int ordinal, const std::function<double(double)> &f)
+    {
+        auto s = makeShot(ordinal);
+        MetricSeries m = curveOf(QStringLiteral("thoraxAngularSpeed"), f, -300, 100, 6.7);
+        m.unit = QStringLiteral("°/s");
+        for (const qint64 tu : m.tUs) {
+            const double t = double(tu - kImpactUs) / 1000.0;
+            m.valid.push_back(t > -21.0 && t < 5.5 ? 0 : 1);
+        }
+        s->metrics.insert(m.key, m);
+        s->metricOrder << m.key;
+        return s;
+    }
+
     template <typename F>
     std::shared_ptr<ShotSeries> makeShotWith(const QString &key, F f)
     {

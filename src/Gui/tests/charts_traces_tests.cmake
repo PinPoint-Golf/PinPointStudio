@@ -16,6 +16,7 @@ pp_add_test(charts_traces_presenter_test
             ${GUI}/charts/session_traces.cpp
             ${GUI}/charts/session_relations.cpp
             ${GUI}/charts/session_sequence.cpp
+            ${GUI}/charts/session_bridge.cpp
             ${GUI}/trust/trust_readings.cpp
             ${GUI}/review/chart_metrics.cpp
             ${GUI}/review/timeline_labels.cpp

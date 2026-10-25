@@ -134,6 +134,7 @@ Item {
         facet: body.facet
         against: body.against
         difference: body.difference
+        align: body.align
         playheadUs: root._playUs
         // the ★ reference swing for Against "reference" (any session; the wrist section's ★ link writes it)
         referenceSwingDir: appSettings.wristReferenceSwingDir
@@ -236,6 +237,7 @@ Item {
         body.against = str("against", "none")
         body.difference = has("difference") ? m[b + "difference"] === true : false
         body.overlay = has("split") ? m[b + "split"] === false : false
+        body.align = str("align", "p") === "impact" ? "impact" : "p"
         body.showDots = has("dots") ? m[b + "dots"] === true : true
         body.showCursor = has("cursor") ? m[b + "cursor"] === true : true
         body.upId = str("up", "")

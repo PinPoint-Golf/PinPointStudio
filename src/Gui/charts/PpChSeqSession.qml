@@ -24,7 +24,10 @@ import PinPointStudio
 // PLOT on one ms axis (each shot a PpMark, late ones warn, the median a rule, this shot ringed; marks that
 // would overprint stack upward). Every number is ChartsTracesPresenter.session.sequence's; the stand-first
 // sentence (stand) says the order count and the late pelvis neutrally. Hover a shot and it lights in both.
-// objectNames: chSeqBarcode, chSeqDots.
+// A PROBABLE peak (the chest bridged across the camera's gap, §2.2.1) keeps its rank and its mark, with its ⚠: the
+// segment's name carries the ⚠, its ranks are set in italic, its marks carry their ± as a whisker, and the ⚠'s
+// few words sit once under the dot plot (chSeqWarn; the full reason is the trust fold's).
+// objectNames: chSeqBarcode, chSeqDots, chSeqWarn.
 Column {
     id: ss
     property QtObject roles: null
@@ -86,7 +89,7 @@ Column {
                 required property var modelData
                 required property int index
                 y: ss.cellH * (index + 1); width: ss.width; height: ss.cellH
-                Text { anchors.verticalCenter: parent.verticalCenter; text: br.modelData.word; font: ss.roles.fSmall; color: ss.roles.ink2 }
+                Text { anchors.verticalCenter: parent.verticalCenter; text: br.modelData.word + (br.modelData.warn ? " " + br.modelData.warn : ""); font: ss.roles.fSmall; color: ss.roles.ink2 }
                 Repeater {
                     model: br.modelData.cells || []
                     delegate: Text {
@@ -95,7 +98,8 @@ Column {
                         x: ss.nameW + index * ss.pitch; width: ss.pitch; horizontalAlignment: Text.AlignHCenter
                         anchors.verticalCenter: parent.verticalCenter
                         opacity: ss.brush ? ss.brush.shotOpacity(modelData.ordinal, ss.roles.dim) : 1
-                        text: modelData.text; font: ss.roles.fFigS
+                        text: modelData.text; font.family: ss.roles.fFigS.family; font.pixelSize: ss.roles.fFigS.pixelSize
+                        font.weight: ss.roles.fFigS.weight; font.italic: modelData.probable === true
                         color: modelData.late ? ss.roles.warn : modelData.rank > 0 ? ss.roles.ink : ss.roles.ink3
                         Rectangle { visible: modelData.late; anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.baseline; anchors.topMargin: 1
                                     width: Math.min(parent.width - 2, ss.roles.u(9)); height: 1; color: ss.roles.warn }
@@ -152,8 +156,21 @@ Column {
                 }
                 readonly property int maxK: Math.max(1, Math.max.apply(null, [0].concat(stacked.map(function (s) { return s.k }))))
                 readonly property real step: Math.min(ss.roles.markFired * 0.9, (ss.dotRowH - ss.roles.u(10)) / maxK)
-                Text { anchors.verticalCenter: parent.verticalCenter; text: drow.modelData.word; font: ss.roles.fSmall; color: ss.roles.ink2 }
+                Text { anchors.verticalCenter: parent.verticalCenter; text: drow.modelData.word + (drow.modelData.warn ? " " + drow.modelData.warn : ""); font: ss.roles.fSmall; color: ss.roles.ink2 }
                 Rectangle { x: ss.nameW; anchors.bottom: parent.bottom; width: ss.plotW; height: ss.roles.hw; color: ss.roles.hair }
+                // a probable peak's ± (its estimate's spread), a hairline whisker behind its mark
+                Repeater {
+                    model: drow.stacked.filter(function (q) { return q.p.probable === true && isFinite(q.p.sigmaMs) && q.p.sigmaMs > 0 })
+                    delegate: Rectangle {
+                        required property var modelData
+                        readonly property real xa: Math.max(ss.nameW, ss.xOf(modelData.p.ms - modelData.p.sigmaMs))
+                        readonly property real xb: Math.min(ss.nameW + ss.plotW, ss.xOf(modelData.p.ms + modelData.p.sigmaMs))
+                        x: xa; width: Math.max(1, xb - xa); height: 1
+                        y: Math.round(drow.height - ss.roles.u(5) - modelData.k * drow.step)
+                        color: ss.roles.ink3
+                        opacity: ss.brush ? ss.brush.shotOpacity(modelData.p.ordinal, ss.roles.dim) : 1
+                    }
+                }
                 Text { visible: drow.modelData.never === true; x: ss.nameW + ss.roles.u(4); anchors.verticalCenter: parent.verticalCenter
                        text: drow.modelData.figText || ""; font: ss.roles.fSmall; color: ss.roles.ink3 }
                 Rectangle { visible: drow.modelData.median !== null && drow.modelData.median !== undefined && drow.modelData.never !== true
@@ -176,6 +193,15 @@ Column {
                 }
             }
         }
+    }
+    // the ⚠'s few words, once, under the dot plot ("Chest: probable: bridged across the camera's gap")
+    Text {
+        objectName: "chSeqWarn"
+        readonly property var warned: ss.segs.filter(function (g) { return !!g.warn })
+        visible: warned.length > 0
+        width: ss.width; wrapMode: Text.WordWrap
+        text: warned.map(function (g) { return g.warn + " " + g.word + ": " + (g.warnShort || "") }).join("   ")
+        font: ss.roles ? ss.roles.fSmall : Qt.font({}); color: ss.roles ? ss.roles.ink2 : "grey"
     }
     Flow {
         visible: !ss.figsSide

@@ -24,6 +24,7 @@
 #include "../../Metrics/gate_catalogue.h"   // the gates' words (the out-of-sight bars)
 #include "../trust/trust_readings.h"         // the readings a gate touched (the marks open them)
 #include "session_sequence.h"
+#include "session_bridge.h"     // the chest's probable peak (Session only)
 #include "session_series_model.h"
 #include "../../Core/pp_debug.h"
 #include "../../Export/swing_store.h"   // the ★ reference swing (loadAnalysis), read on the worker
@@ -110,8 +111,15 @@ struct ChartsTracesPresenter::Worker {
 
     std::shared_ptr<const SessionSnapshot> snap;     // the snapshot the caches below describe
     quint64 revision = 0;
+    // THE ALIGNMENT THE JOB READS: the session's P-alignment, or — Session's "lined up at impact"
+    // (§2.2.1) — the same canonical P-times with every aligned shot's warp a pure shift at impact. The
+    // P-alignment is kept, so switching is a cache flush, never a re-alignment.
+    SessionAlignment pAlignment;
     SessionAlignment alignment;
+    bool impactAligned = false;
+    // the sequence across the session, with the chest's probable peaks applied (session_bridge.h)
     SessionSequence sequence;
+    SessionBridges bridges;
     std::vector<SessionFacet> conditionFacets;
     std::optional<SessionFacet> clubFacet;
 
@@ -163,25 +171,51 @@ struct ChartsTracesPresenter::Worker {
         if (it == draws.end()) it = draws.insert(key, cm->drawsCurve(key));
         return it.value();
     }
-    // Rebuild the per-revision caches when the snapshot moved. Returns true on a hit.
-    bool refresh(const std::shared_ptr<const SessionSnapshot> &s)
+    // Rebuild the per-revision caches when the snapshot moved, and the alignment's when the way the
+    // shots are lined up changed. Returns true on a hit.
+    bool refresh(const std::shared_ptr<const SessionSnapshot> &s, bool atImpact)
     {
         const quint64 rev = s ? s->revision : 0;
-        if (s.get() == snap.get() && rev == revision && (s || !snap)) return true;
-        snap = s;
-        revision = rev;
+        const bool same = s.get() == snap.get() && rev == revision && (s || !snap);
+        if (same && atImpact == impactAligned) return true;
         aligned.clear(); envelopes.clear(); fits.clear(); shapes.clear(); scores.clear(); peaks.clear();
-        alignment = SessionAlignment{};
-        sequence = SessionSequence{};
-        conditionFacets.clear();
-        clubFacet.reset();
-        if (s && s->count() > 0) {
-            alignment = alignSession(*s);
-            sequence = sessionSequence(*s);
-            conditionFacets = charts::conditionFacets(*s);
-            clubFacet = charts::clubFacet(*s);
+        impactAligned = atImpact;
+        if (!same) {
+            snap = s;
+            revision = rev;
+            pAlignment = SessionAlignment{};
+            sequence = SessionSequence{};
+            bridges = SessionBridges{};
+            conditionFacets.clear();
+            clubFacet.reset();
+            if (s && s->count() > 0) {
+                pAlignment = alignSession(*s);
+                sequence = sessionSequence(*s);
+                bridges = bridgeChest(*s, sequence);
+                applyBridges(sequence, bridges);
+                conditionFacets = charts::conditionFacets(*s);
+                clubFacet = charts::clubFacet(*s);
+            }
         }
+        alignment = atImpact ? impactOnly(pAlignment) : pAlignment;
         return false;
+    }
+    // The P-alignment with every aligned shot lined up at impact only: the canonical P-times stay (they
+    // are the session's median times, where the P tags are drawn), the warps become pure shifts.
+    static SessionAlignment impactOnly(const SessionAlignment &p)
+    {
+        SessionAlignment out = p;
+        for (ShotWarp &w : out.shots) w = impactWarp(w);
+        return out;
+    }
+    static ShotWarp impactWarp(const ShotWarp &w)
+    {
+        if (!w.aligned()) return w;
+        ShotWarp out = makeWarp({ WarpAnchor{ phase::Impact, Landmark::None, 0.0, 0.0 } }, w.interp);
+        out.ordinal = w.ordinal;
+        out.impactUs = w.impactUs;
+        out.route = AlignRoute::ImpactShift;
+        return out;
     }
     std::shared_ptr<const std::vector<TraceCurve>> alignedOf(const QString &key)
     {
@@ -2032,6 +2066,12 @@ QString alignmentSentence(const Ctx &c)
               tf = al.countRoute(AlignRoute::TempoFitted), im = al.countRoute(AlignRoute::ImpactShift),
               un = al.countRoute(AlignRoute::Unaligned);
     QStringList s;
+    if (c.w->impactAligned)      // chosen in Controls (§2.2.1), not forced by a missing ladder
+        return QStringLiteral("Lined up at impact: every shot on its own clock, shifted to impact and never stretched, so a peak sits "
+                              "at the shot's own time. The P tags are the session's median times; tempo differences stay in the curves.")
+               + (un > 0 ? QStringLiteral(" ") + W::cap1(W::word(un)) + (un == 1 ? QStringLiteral(" shot has no impact and is left out.")
+                                                                                  : QStringLiteral(" shots have no impact and are left out."))
+                         : QString());
     if (im == n) return QStringLiteral("Only impact is known: shots are lined up at impact, tempo differences stay in the curves.");
     if (pA == n) s << QStringLiteral("Every shot is lined up on its P-positions; only the time axis is stretched, values keep their units.");
     else if (pA > 0) s << W::cap1(W::word(pA)) + QStringLiteral(" shots are lined up on their P-positions.");
@@ -2054,6 +2094,7 @@ QString axisCaption(const Ctx &c)
               tf = al.countRoute(AlignRoute::TempoFitted), im = al.countRoute(AlignRoute::ImpactShift);
     const int used = (pA > 0) + (lm > 0) + (tf > 0) + (im > 0);
     if (used == 0) return QString();
+    if (c.w->impactAligned) return QStringLiteral("ms from impact, each shot on its own clock; the P tags at the session's median times");
     if (used == 1) {
         if (pA) return QStringLiteral("ms from impact on the session's P-positions; between them, time runs at the session's median spacing");
         if (lm) return QStringLiteral("ms from impact, lined up on landmarks found in each shot's own curves (only impact was known)");
@@ -2261,18 +2302,21 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
 
 // ── SESSION ─────────────────────────────────────────────────────────────────────────────────
 
+// The chest's probable peak, said once and the same everywhere it is drawn (§2.2.1): the ⚠ and its words.
+QString probableWords() { return QStringLiteral("probable: bridged across the camera's gap"); }
+
 QVariantMap sessionSequenceBlock(Ctx &c)
 {
     const SessionSequence &q = c.w->sequence;
     const int n = c.snap->count();
     QVariantMap out;
     bool any = false;
-    for (const ShotSequence &s : q.shots) any = any || s.placedCount > 0;
+    for (const ShotSequence &s : q.shots) any = any || s.timedCount > 0;
     out.insert(QStringLiteral("present"), any && c.sequencePreset);
     if (!any || !c.sequencePreset) return out;
     double lo = 0, hi = 0;
     for (const ShotSequence &s : q.shots)
-        for (const SegmentPeak &p : s.segments) if (p.placed) { lo = std::min(lo, p.shotMs); hi = std::max(hi, p.shotMs); }
+        for (const SegmentPeak &p : s.segments) if (p.timed()) { lo = std::min(lo, p.timeMs()); hi = std::max(hi, p.timeMs()); }
     const double pad = std::max(10.0, (hi - lo) * 0.08);
     lo = std::floor((lo - pad) / 10) * 10; hi = std::ceil((hi + pad) / 10) * 10;
     out.insert(QStringLiteral("lo"), lo);
@@ -2293,30 +2337,40 @@ QVariantMap sessionSequenceBlock(Ctx &c)
             const SegmentPeak &p = s.segments[size_t(i)];
             QVariantMap ids = shotIds(c, s.ordinal);
             QVariantMap cell = ids;
-            cell.insert(QStringLiteral("rank"), p.placed ? p.rank : 0);
-            cell.insert(QStringLiteral("text"), p.placed ? QString::number(p.rank) : QStringLiteral("-"));
+            cell.insert(QStringLiteral("rank"), p.timed() ? p.rank : 0);
+            cell.insert(QStringLiteral("text"), p.timed() ? QString::number(p.rank) : QStringLiteral("-"));
             cell.insert(QStringLiteral("late"), p.late);
+            cell.insert(QStringLiteral("probable"), p.probable);
             cell.insert(QStringLiteral("picked"), s.ordinal == c.ordinal && c.index >= 0);
             cells << cell;
-            if (p.placed) {
+            if (p.timed()) {
                 QVariantMap pm = ids;
-                pm.insert(QStringLiteral("ms"), p.shotMs);
+                pm.insert(QStringLiteral("ms"), p.timeMs());
                 pm.insert(QStringLiteral("late"), p.late);
+                pm.insert(QStringLiteral("probable"), p.probable);
+                // a probable peak carries its ± as a whisker: the estimate's spread, drawn, never hidden
+                pm.insert(QStringLiteral("sigmaMs"), p.probable ? p.probableSigmaMs : kNaN);
                 pm.insert(QStringLiteral("picked"), s.ordinal == c.ordinal && c.index >= 0);
                 points << pm;
             }
         }
         const SegmentSummary &sm = q.segments[size_t(i)];
+        const int timed = sm.placed + sm.probable;
+        QString figText = QStringLiteral("-");
+        if (timed > 0)
+            figText = W::signedMs(sm.medianMs) + QStringLiteral(" median · middle half ") + W::fig(sm.q3Ms - sm.q1Ms)
+                      + QStringLiteral(" ms, %1 of %2").arg(timed).arg(n);
         segs << QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(i)] }, { QStringLiteral("word"), segWord(i) },
-                             { QStringLiteral("never"), sm.placed == 0 }, { QStringLiteral("cells"), cells }, { QStringLiteral("points"), points },
+                             { QStringLiteral("never"), timed == 0 }, { QStringLiteral("cells"), cells }, { QStringLiteral("points"), points },
                              { QStringLiteral("median"), sm.medianMs }, { QStringLiteral("q1"), sm.q1Ms }, { QStringLiteral("q3"), sm.q3Ms },
-                             { QStringLiteral("placed"), sm.placed },
-                             { QStringLiteral("figText"), sm.placed ? W::signedMs(sm.medianMs) + QStringLiteral(" median · middle half ")
-                                                                          + W::fig(sm.q3Ms - sm.q1Ms) + QStringLiteral("\u00A0ms, %1 of %2").arg(sm.placed).arg(n)
-                                                                    : QStringLiteral("-") } };
+                             { QStringLiteral("placed"), sm.placed }, { QStringLiteral("probable"), sm.probable },
+                             // the ⚠ and its few words, under the figure (the full reason is the trust fold's)
+                             { QStringLiteral("warn"), sm.probable > 0 ? QStringLiteral("⚠") : QString() },
+                             { QStringLiteral("warnShort"), sm.probable > 0 ? (sm.placed > 0 ? QStringLiteral("%1 ").arg(sm.probable) : QString()) + probableWords() : QString() },
+                             { QStringLiteral("figText"), figText } };
     }
     out.insert(QStringLiteral("segments"), segs);
-    // the standfirst: the commonest order, the segments never placed, the pelvis after impact
+    // the standfirst: the commonest order, the segments never timed, the probable chest, the pelvis after impact
     W::Sentence s;
     QStringList words;
     for (const QString &id : q.commonOrder.split(QLatin1Char(','), Qt::SkipEmptyParts)) {
@@ -2327,15 +2381,59 @@ QVariantMap sessionSequenceBlock(Ctx &c)
         s.append(W::cap1(words.join(QStringLiteral(", then "))) + QStringLiteral(" on ")).figure(QStringLiteral("%1 of %2").arg(q.commonOrderCount).arg(n))
             .append(QStringLiteral(" shots"));
     QStringList never;
-    for (int i = 0; i < kSequenceSegments; ++i) if (q.segments[size_t(i)].placed == 0) never << segWord(i).toLower();
+    for (int i = 0; i < kSequenceSegments; ++i) if (q.segments[size_t(i)].placed + q.segments[size_t(i)].probable == 0) never << segWord(i).toLower();
     if (!never.isEmpty()) s.append(QStringLiteral("; the ") + never.join(QStringLiteral(" and the ")) + QStringLiteral(" never placed"));
     if (!s.isEmpty()) s.append(QStringLiteral("."));
+    const SegmentSummary &chest = q.segments[size_t(kChestSegment)];
+    if (chest.probable > 0) {
+        const double h0 = c.w->bridges.holeMinMs(), h1 = c.w->bridges.holeMaxMs();
+        s.append(QStringLiteral(" ⚠ The chest's peak is probable on ")).figure(QStringLiteral("%1 of %2").arg(chest.probable).arg(n))
+            .append(QStringLiteral(" shots: the camera lost the chest for "))
+            .figure(std::abs(h1 - h0) < 0.5 ? W::fig(h0) + QStringLiteral(" ms") : W::fig(h0) + QStringLiteral("–") + W::fig(h1) + QStringLiteral(" ms"))
+            .append(QStringLiteral(" near impact, and the peak is read off a fit across the gap."));
+    }
     const SegmentSummary &pel = q.segments[0];
     if (pel.afterImpact > 0) {
         s.append(QStringLiteral(" The pelvis peaks after impact on ")).figure(QStringLiteral("%1 of %2").arg(pel.afterImpact).arg(pel.placed))
             .append(QStringLiteral(" placed shots. ") + W::latePelvisNote());
     }
     out.insert(QStringLiteral("stand"), s.toVariant());
+    return out;
+}
+
+// What the trust fold says about the chest's probable peak (§2.2.1), once, for the session: how it was made
+// and what it assumes, and the taller earlier hump read as the measurement (option A, Mark 25 Oct).
+QVariantList chestTrustLines(const Ctx &c)
+{
+    QVariantList out;
+    const SessionBridges &br = c.w->bridges;
+    const int k = br.bridgedCount();
+    if (k == 0) return out;
+    const int n = c.snap ? c.snap->count() : 0;
+    const double h0 = br.holeMinMs(), h1 = br.holeMaxMs();
+    const QString gap = std::abs(h1 - h0) < 0.5 ? W::fig(h0) + QStringLiteral(" ms")
+                                                : W::fig(h0) + QStringLiteral("–") + W::fig(h1) + QStringLiteral(" ms");
+    out << QVariantMap{ { QStringLiteral("kind"), QStringLiteral("chestProbable") },
+                        { QStringLiteral("text"),
+                          QStringLiteral("⚠ The chest's peak is probable, not measured, on %1 of %2 shots. The face-on camera loses the chest "
+                                         "for %3 where the shoulders square to it, so the peak is read off a smooth fit (a Gaussian process) "
+                                         "through the curve either side of the gap, ± from that fit, assuming %4 °/s of noise in each "
+                                         "sample and that the chest cannot spike inside the gap. Not yet checked against a trunk sensor.")
+                              .arg(k).arg(n).arg(gap).arg(W::fig(br.kernel.noiseDps)) } };
+    const int e = br.earlierCount();
+    if (e > 0) {
+        // when, as the middle half of those humps' times (a few sit back near the top of the swing)
+        std::vector<double> ts;
+        for (const ChestBridge &b : br.shots) if (b.bridged() && std::isfinite(b.earlierMs)) ts.push_back(b.earlierMs);
+        const double lo = quantile7(ts, 0.25), hi = quantile7(ts, 0.75);
+        const QString when = std::abs(hi - lo) < 0.5 ? QStringLiteral("at ") + W::signedMs(lo)
+                                                     : QStringLiteral("half of them ") + W::minus(W::fig(lo)) + QStringLiteral(" to ") + W::signedMs(hi);
+        out << QVariantMap{ { QStringLiteral("kind"), QStringLiteral("chestEarlier") },
+                            { QStringLiteral("text"),
+                              QStringLiteral("On %1 of those shots the chest curve rises higher earlier in the downswing (%2), where the shoulder "
+                                             "line turns square to the face-on camera and its keypoints jump. That hump is read as the "
+                                             "measurement, not the chest's peak; it stays drawn on the curve.").arg(e).arg(when) } };
+    }
     return out;
 }
 
@@ -2427,6 +2525,26 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
         const auto curves = c.w->alignedOf(k);
         double lo = kNaN, hi = kNaN;
         const auto grow = [&](double v) { if (std::isfinite(v)) { lo = std::isfinite(lo) ? std::min(lo, v) : v; hi = std::isfinite(hi) ? std::max(hi, v) : v; } };
+        // THE CHEST'S BRIDGE (§2.2.1): each shot's fit across its gap, on the canonical axis — drawn dashed,
+        // the picked shot's with its ± 1 sd; never read as a measurement anywhere else in this view
+        const bool chestRow = k == sequenceSeriesKey(kChestSegment) && c.w->bridges.attemptedCount() > 0;
+        const auto bridgeOf = [&](int ord) -> const ChestBridge * {
+            const size_t i = size_t(ord - 1);
+            if (!chestRow || i >= c.w->bridges.shots.size() || i >= c.w->alignment.shots.size()) return nullptr;
+            const ChestBridge &b = c.w->bridges.shots[i];
+            return b.ordinal == ord && b.t.size() >= 2 && c.w->alignment.shots[i].aligned() ? &b : nullptr;
+        };
+        const auto bridgeCanon = [&](int ord, const ChestBridge &b) {
+            const ShotWarp &wp = c.w->alignment.shots[size_t(ord - 1)];
+            std::vector<double> t(b.t.size());
+            for (size_t i = 0; i < b.t.size(); ++i) t[i] = wp.warpMs(b.t[i]);
+            return t;
+        };
+        const auto bridgedAt = [&](int ord, double g) {
+            const ChestBridge *b = bridgeOf(ord);
+            if (!b) return kNaN;
+            return interpAt(bridgeCanon(ord, *b), b->mean, g);
+        };
         QVariantList panels;
         for (size_t gi = 0; gi < groups.size(); ++gi) {
             const Group &g = groups[gi];
@@ -2458,8 +2576,33 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
                 }
             } else {
                 const SessionEnvelope &e = envOf(c, k, g.ords);
-                p.insert(QStringLiteral("q1"), dl(e.q1)); p.insert(QStringLiteral("med"), dl(e.med)); p.insert(QStringLiteral("q3"), dl(e.q3));
-                for (size_t i = 0; i < e.t.size(); ++i) { grow(e.q1[i]); grow(e.q3[i]); }
+                std::vector<double> q1 = e.q1, med = e.med, q3 = e.q3;
+                if (chestRow) {
+                    // where a third or more of the shots are bridged, the middle half and the median are the
+                    // session's with the bridges in, and the median is drawn dashed there (medEst)
+                    std::vector<double> medEst(e.t.size(), kNaN);
+                    std::vector<uint8_t> est(e.t.size(), 0);
+                    for (size_t i = 0; i < e.t.size(); ++i) {
+                        std::vector<double> vals;
+                        int nBr = 0;
+                        for (int o : g.ords) {
+                            const size_t oi = size_t(o - 1);
+                            double v = oi < curves->size() && !(*curves)[oi].empty() ? valueAt((*curves)[oi], e.t[i]) : kNaN;
+                            if (!std::isfinite(v)) { v = bridgedAt(o, e.t[i]); if (std::isfinite(v)) ++nBr; }
+                            if (std::isfinite(v)) vals.push_back(v);
+                        }
+                        if (nBr > 0 && vals.size() >= 3 && size_t(nBr) * 3 >= vals.size()) {
+                            est[i] = 1;
+                            q1[i] = quantile7(vals, 0.25); medEst[i] = quantile7(vals, 0.5); q3[i] = quantile7(vals, 0.75);
+                            med[i] = kNaN;
+                        }
+                    }
+                    for (size_t i = 0; i < e.t.size(); ++i)      // the dashed median meets the solid one
+                        if (!est[i] && ((i > 0 && est[i - 1]) || (i + 1 < e.t.size() && est[i + 1]))) medEst[i] = e.med[i];
+                    p.insert(QStringLiteral("medEst"), dl(medEst));
+                }
+                p.insert(QStringLiteral("q1"), dl(q1)); p.insert(QStringLiteral("med"), dl(med)); p.insert(QStringLiteral("q3"), dl(q3));
+                for (size_t i = 0; i < e.t.size(); ++i) { grow(q1[i]); grow(q3[i]); }
                 if (band == QLatin1String("every")) {
                     QVariantList others;
                     for (const TraceCurve *tc : curvesOf(*curves, g.ords)) {
@@ -2470,6 +2613,11 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
                         om.insert(QStringLiteral("v"), dl(v));
                         // the grid reads NaN across a bridged run (valueAt); the dashed bridge across it
                         om.insert(QStringLiteral("bridges"), bridgesOf(tc->t, tc->v, tc->ok, c.t0, c.t1));
+                        if (const ChestBridge *b = bridgeOf(tc->ordinal)) {
+                            for (double x : b->mean) grow(x);
+                            om.insert(QStringLiteral("estimate"), QVariantMap{ { QStringLiteral("t"), dl(bridgeCanon(tc->ordinal, *b)) },
+                                                                               { QStringLiteral("v"), dl(b->mean) } });
+                        }
                         others << om;
                     }
                     p.insert(QStringLiteral("others"), others);
@@ -2510,6 +2658,12 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
             picked = shotIds(c, c.ordinal);
             picked.insert(QStringLiteral("t"), dl(t)); picked.insert(QStringLiteral("v"), dl(v)); picked.insert(QStringLiteral("runs"), runs);
             picked.insert(QStringLiteral("bridges"), bridgesOf(t, v, ok));
+            if (const ChestBridge *b = c.index >= 0 ? bridgeOf(c.ordinal) : nullptr) {
+                std::vector<double> blo(b->mean.size()), bhi(b->mean.size());
+                for (size_t i = 0; i < b->mean.size(); ++i) { blo[i] = b->mean[i] - b->sd[i]; bhi[i] = b->mean[i] + b->sd[i]; grow(blo[i]); grow(bhi[i]); }
+                picked.insert(QStringLiteral("estimate"), QVariantMap{ { QStringLiteral("t"), dl(bridgeCanon(c.ordinal, *b)) }, { QStringLiteral("v"), dl(b->mean) },
+                                                                       { QStringLiteral("lo"), dl(blo) }, { QStringLiteral("hi"), dl(bhi) } });
+            }
         }
         // coverage (group fit): one hairline per shot, this shot first
         QVariantList coverage;
@@ -2580,6 +2734,25 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
             if (nr.key == k) { nr.medT = ea.t; nr.medV = ea.med; }
     }
     out.insert(QStringLiteral("rows"), rows);
+    // OVERLAID (This shot's F6 "Draw" choice, shared): one value axis across the rows, as This shot's overlay
+    {
+        double lo = kNaN, hi = kNaN;
+        QSet<QString> units;
+        for (const QVariant &rv : rows) {
+            const QVariantMap r = rv.toMap();
+            const double a = r.value(QStringLiteral("yLo")).toDouble(), b = r.value(QStringLiteral("yHi")).toDouble();
+            if (std::isfinite(a)) lo = std::isfinite(lo) ? std::min(lo, a) : a;
+            if (std::isfinite(b)) hi = std::isfinite(hi) ? std::max(hi, b) : b;
+            units.insert(r.value(QStringLiteral("unit")).toString());
+        }
+        out.insert(QStringLiteral("overlay"), QVariantMap{ { QStringLiteral("yLo"), lo }, { QStringLiteral("yHi"), hi },
+                                                           { QStringLiteral("yTicks"), ticksAsDoubles(niceTicksList(c, lo, hi)) },
+                                                           { QStringLiteral("sameUnit"), units.size() == 1 } });
+    }
+    out.insert(QStringLiteral("alignedAt"), c.w->impactAligned ? QStringLiteral("impact") : QStringLiteral("p"));
+    // the chest's probable peak, said in the trust fold (only where its curve or the sequence is on show)
+    out.insert(QStringLiteral("trustLines"), c.sessionKeys.contains(sequenceSeriesKey(kChestSegment)) || c.sequencePreset
+                                                 ? chestTrustLines(c) : QVariantList{});
 
     // ── the head and the standfirst ──
     W::Sentence head, stand, caveat;
@@ -2735,6 +2908,13 @@ void buildChoices(Ctx &c, ChartsTracesPresenter::Result &R)
         bands << QVariantMap{ { QStringLiteral("id"), QString::fromLatin1(b.first) }, { QStringLiteral("label"), QString::fromLatin1(b.second) },
                               { QStringLiteral("current"), band == QLatin1String(b.first) } };
     out.insert(QStringLiteral("bands"), bands);
+    // how Session lines the shots up (§2.2.1)
+    const QString align = c.in->align == QLatin1String("impact") ? QStringLiteral("impact") : QStringLiteral("p");
+    QVariantList aligns;
+    for (const auto &a : { std::pair{ "p", "P-positions" }, std::pair{ "impact", "impact" } })
+        aligns << QVariantMap{ { QStringLiteral("id"), QString::fromLatin1(a.first) }, { QStringLiteral("label"), QString::fromLatin1(a.second) },
+                               { QStringLiteral("current"), align == QLatin1String(a.first) } };
+    out.insert(QStringLiteral("aligns"), aligns);
     QVariantList facets;
     const auto addF = [&](const QString &id, const QString &label, const QString &kind, int n) {
         facets << QVariantMap{ { QStringLiteral("id"), id }, { QStringLiteral("label"), label }, { QStringLiteral("kind"), kind },
@@ -2817,7 +2997,9 @@ static std::shared_ptr<ChartsTracesPresenter::Result> computeAll(ChartsTracesPre
         }
         source = w.relSnap;
     }
-    const bool hit = w.refresh(source);
+    // Session's "lined up at impact" (§2.2.1) reaches Session only: This shot and Against keep the P-alignment
+    const bool atImpact = in.view == QLatin1String("session") && in.align == QLatin1String("impact");
+    const bool hit = w.refresh(source, atImpact);
     Ctx c;
     c.w = &w;
     c.in = &in;
@@ -2849,6 +3031,12 @@ static std::shared_ptr<ChartsTracesPresenter::Result> computeAll(ChartsTracesPre
         c.shotId = c.shot->shotId;
         c.swingDir = c.shot->swingDir;
         if (c.index >= 0 && size_t(c.index) < w.alignment.shots.size()) c.warp = w.alignment.shots[size_t(c.index)];
+        else if (w.impactAligned && c.shot->impactUs >= 0) {
+            c.warp = makeWarp({ WarpAnchor{ phase::Impact, Landmark::None, 0.0, 0.0 } }, WarpInterp::Pchip);
+            c.warp.ordinal = c.shot->ordinal;
+            c.warp.impactUs = c.shot->impactUs;
+            c.warp.route = AlignRoute::ImpactShift;
+        }
         else if (!w.alignment.canonical.empty()) c.warp = warpAgainst(*c.shot, w.alignment);
         c.aligned = c.warp.aligned();
         c.seq = shotSequence(*c.shot);
@@ -2965,6 +3153,7 @@ PP_SETTER(const QString &, setBand, band)
 PP_SETTER(const QString &, setFacet, facet)
 PP_SETTER(const QString &, setAgainst, against)
 PP_SETTER(bool, setDifference, difference)
+PP_SETTER(const QString &, setAlign, align)
 PP_SETTER(const QString &, setReferenceSwingDir, referenceSwingDir)
 #undef PP_SETTER
 
