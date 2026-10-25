@@ -1014,7 +1014,7 @@ QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
                                       // the reason lives in the panel's tail ("How far can I trust this?"), not on the tile
                                       { QStringLiteral("trustSubject"), QString() },
                                       { QStringLiteral("sentence"), (p.timed() || why.sentence.isEmpty() ? Sentence().figure(words::signedMs(v)) : Sentence().append(why.sentence))
-                                                                      .append(p.probable ? QStringLiteral(", probable") : QString())
+                                                                      .append(p.probable ? (p.probableHow == QLatin1String("seen") ? QStringLiteral(", indicated") : QStringLiteral(", probable")) : QString())
                                                                       .append(timedN >= 3 ? QStringLiteral(", median ") : QString())
                                                                       .figure(timedN >= 3 ? words::signedMs(sm.medianMs) : QString())
                                                                       .append(p.late ? QStringLiteral(", late") : QString()).toVariant() } });

@@ -66,7 +66,9 @@ struct GapBridgeOptions {
     double searchMarginMs = 40.0;    // the peak is looked for this far either side of the gap
     double gridStepMs     = 1.0;
     int    draws          = 600;
-    double maxGapMs       = 80.0;    // a longer gap is not bridged (Mark's premise: a SHORT gap)
+    // No limit by default (Mark, 25 Oct 2026: "I want the chest timing to always be reported so long as we warn
+    // the user. better to indicate than say nothing"): a long gap is bridged and its ± says how little it knows.
+    double maxGapMs       = std::numeric_limits<double>::infinity();
     int    minEachSide    = 3;       // measured samples needed on each side
     double nearFromMs     = -80.0;   // the gap must reach into [nearFromMs, nearToMs] about impact
     double nearToMs       = 40.0;
@@ -77,9 +79,9 @@ enum class GapBridgeOutcome {
     NoGap,           // nothing to bridge near impact
     GapTooLong,      // longer than maxGapMs
     TooLittleCurve,  // fewer than minEachSide measured samples on a side, or the fit failed
-    StillRising,     // most draws peak at the search window's right edge
-    FellIntoGap,     // most draws peak at its left edge: the top is before the gap
-    Bridged          // a probable peak
+    StillRising,     // most draws peak at the search window's right edge: the peak is no earlier than there
+    FellIntoGap,     // most draws peak at its left edge: the top is at or before there
+    Bridged          // a probable peak inside the window
 };
 
 // The run of unmeasured samples nearest impact with a measured sample either side, reaching into
@@ -93,9 +95,21 @@ ImpactGap findImpactGap(const std::vector<double> &tMs, const std::vector<uint8_
                         const GapBridgeOptions &o = {});
 
 // The training samples for a gap (measured, finite, within beforeMs / afterMs of it). False when either
-// side has fewer than minEachSide.
+// side has fewer than minEachSide. `noise` (per input sample, °/s) is carried into `nn` when both are given.
 bool gapTrainingSet(const std::vector<double> &tMs, const std::vector<double> &v, const std::vector<uint8_t> &measured,
-                    const ImpactGap &gap, const GapBridgeOptions &o, std::vector<double> *tt, std::vector<double> *vv);
+                    const ImpactGap &gap, const GapBridgeOptions &o, std::vector<double> *tt, std::vector<double> *vv,
+                    const std::vector<double> *noise = nullptr, std::vector<double> *nn = nullptr);
+
+// THE GAP IS ONLY WHAT DISAGREES (Mark, 25 Oct 2026). `candidate` samples — kept by the pose but near square to
+// the camera, where the rate is read less surely — are admitted to `measured` from each edge of the gap inward,
+// one at a time, while each agrees with the fit through the samples already admitted: within `k` of
+// √(posterior sd² + its own noise²). The first that disagrees closes that side (a spike from a missed
+// unfold, a keypoint jump). Clean near-square samples (07-04, 10-20 Mark) keep the gap to the frames the pose
+// lost; junk ones (10-20 Nick, ±2000 °/s) stay out. `noise` per input sample (°/s), empty = the kernel's.
+std::vector<uint8_t> admitAgreeing(const std::vector<double> &tMs, const std::vector<double> &v,
+                                   const std::vector<uint8_t> &measured, const std::vector<uint8_t> &candidate,
+                                   const std::vector<double> &noise, const GapBridgeKernel &kernel, double k,
+                                   const GapBridgeOptions &o = {});
 
 struct GapBridge {
     GapBridgeOutcome outcome = GapBridgeOutcome::NoGap;
@@ -103,7 +117,7 @@ struct GapBridge {
     double searchFromMs = std::numeric_limits<double>::quiet_NaN(), searchToMs = std::numeric_limits<double>::quiet_NaN();
     // the fit across the gap: posterior mean and sd every gridStepMs from fromMs to toMs (empty before the fit)
     std::vector<double> tMs, mean, sd;
-    // the probable peak (Bridged)
+    // the probable peak: inside the window (Bridged), or at the edge the draws crowd (StillRising, FellIntoGap)
     double peakMs = std::numeric_limits<double>::quiet_NaN(), peakSigmaMs = std::numeric_limits<double>::quiet_NaN();
     double peakValue = std::numeric_limits<double>::quiet_NaN(), peakSigmaValue = std::numeric_limits<double>::quiet_NaN();
     double edgeShare = std::numeric_limits<double>::quiet_NaN();
@@ -111,13 +125,34 @@ struct GapBridge {
     double earlierMs = std::numeric_limits<double>::quiet_NaN(), earlierValue = std::numeric_limits<double>::quiet_NaN();
 
     bool bridged() const { return outcome == GapBridgeOutcome::Bridged; }
+    // a peak to report: inside the window, or at the edge the curve was still rising to / falling from
+    bool hasPeak() const { return bridged() || outcome == GapBridgeOutcome::StillRising || outcome == GapBridgeOutcome::FellIntoGap; }
 };
 
 // One curve, the whole way: find the gap, train on its sides, draw, read the peak. `topMs` / `p8Ms` NaN
 // when unknown (the earlier search then starts 400 ms before the window; no P8 clip).
+// `noise` (per input sample, °/s) replaces the kernel's noise where given — a near-square sample is read
+// less surely; empty = the kernel's everywhere.
 GapBridge bridgeImpactGap(const std::vector<double> &tMs, const std::vector<double> &v, const std::vector<uint8_t> &measured,
                           double topMs, double p8Ms, const GapBridgeKernel &kernel, uint64_t seed,
-                          const GapBridgeOptions &o = {});
+                          const GapBridgeOptions &o = {}, const std::vector<double> &noise = {});
+
+// THE FASTEST THE CAMERA CLEARLY SAW (sequence.chestIndicated): the highest measured value in the window the
+// bridge searches — from `fromMs` (the caller passes nearFromMs − searchMarginMs, −120 ms) to P8 (`p8Ms`; NaN =
+// the curve's end) — skipping any within `minAfterReversalMs` of the last value at or below zero before it (a
+// trunk one window past its reversal is a keypoint spike, not its peak). OPTION A, as the bridge: a taller
+// measured value earlier (from `topMs`, or the curve's start, up to the window) is the shoulder-keypoint artefact
+// after the top, recorded in `earlier*`, never taken (the first cut searched from the top and took it on 25 of 37
+// library shots, 923–2422 °/s). ±: half the run of measured samples within `noise` of the peak, at least
+// `minSigmaMs` (the derivative window's own resolution), and `noise` on the value.
+struct SeenPeak {
+    bool   found = false;
+    double tMs = std::numeric_limits<double>::quiet_NaN(), tSigmaMs = std::numeric_limits<double>::quiet_NaN();
+    double value = std::numeric_limits<double>::quiet_NaN(), valueSigma = std::numeric_limits<double>::quiet_NaN();
+    double earlierMs = std::numeric_limits<double>::quiet_NaN(), earlierValue = std::numeric_limits<double>::quiet_NaN();
+};
+SeenPeak seenPeak(const std::vector<double> &tMs, const std::vector<double> &v, const std::vector<uint8_t> &measured,
+                  double topMs, double fromMs, double p8Ms, double minAfterReversalMs, double noise, double minSigmaMs);
 
 // The kernel that best explains several curves at once (maximum marginal likelihood, Nelder–Mead in log
 // space; noise held at `start.noiseDps`). `ok` false — and `start` returned — when the fit failed.
@@ -131,7 +166,8 @@ struct GpPeakDraws {
     std::vector<int>    peakIndex;
 };
 bool gpPeakDraws(const std::vector<double> &t, const std::vector<double> &v, const std::vector<double> &grid,
-                 const GapBridgeKernel &kernel, int draws, uint64_t seed, GpPeakDraws *out);
+                 const GapBridgeKernel &kernel, int draws, uint64_t seed, GpPeakDraws *out,
+                 const std::vector<double> *noise = nullptr);
 double gpNegLogMarginal(const std::vector<std::vector<double>> &ts, const std::vector<std::vector<double>> &vs,
                         double ellMs, double sfDps, double noiseDps);
 

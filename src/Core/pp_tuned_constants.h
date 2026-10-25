@@ -1173,6 +1173,16 @@ inline constexpr bool         kNodeSeries           = true;   // sequence.nodeSe
 inline constexpr bool         kGapBridge            = true;   // sequence.gapBridge
 inline constexpr double       kGapBridgeEllMs       = 31.9;   // sequence.gapBridge.ellMs
 inline constexpr double       kGapBridgeSfDps       = 155.4;  // sequence.gapBridge.sfDps
+// kChestBackwardsWindowMs — FAIL WITH GRACE (Mark, 25 Oct 2026: "try our hardest, report honestly and fail with
+//   grace"). A chest curve whose mean over this many ms before impact is at or below zero reads the chest turning
+//   AWAY from the target through the downswing — the face-on route's sign unfold at the wrong square-up instant
+//   (#103), 11 library shots. Its peak cannot be read: no time is reported, the curve is still drawn, and the
+//   refusal (sequence.chestUnreadable) says why.
+inline constexpr double       kChestBackwardsWindowMs = 60.0; // sequence.chestBackwardsWindowMs
+// kGapBridgeAgreeSigma — a near-square chest sample joins the curve while it lies within this many σ of the fit
+//   through the samples already admitted (gap_bridge.h admitAgreeing; 25 Oct 2026). 3: the junk it must refuse
+//   (±2000 °/s on 10-20 Nick Henn) sits tens of σ off; a clean sample beside the gap sits within one or two.
+inline constexpr double       kGapBridgeAgreeSigma  = 3.0;    // sequence.gapBridge.agreeSigma
 inline constexpr double       kGapBridgeNoiseDps    = 20.0;   // sequence.gapBridge.noiseDps
 // The SESSION's sequence consistency (trunk_imu_sequence_grf_design.md §10.8 E2, §10.9 P7/P8): the
 // fewest swings with all four peaks placed before the in-order share is read, and — as degrees of

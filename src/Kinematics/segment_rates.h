@@ -155,6 +155,8 @@ struct SegmentRatesConfig {
     double  gapBridgeEllMs         = tuned::sequence::kGapBridgeEllMs;         // sequence.gapBridge.ellMs
     double  gapBridgeSfDps         = tuned::sequence::kGapBridgeSfDps;         // sequence.gapBridge.sfDps
     double  gapBridgeNoiseDps      = tuned::sequence::kGapBridgeNoiseDps;      // sequence.gapBridge.noiseDps
+    double  gapBridgeAgreeSigma    = tuned::sequence::kGapBridgeAgreeSigma;    // sequence.gapBridge.agreeSigma
+    double  chestBackwardsWindowMs = tuned::sequence::kChestBackwardsWindowMs; // sequence.chestBackwardsWindowMs
     // The club angle's per-sample σ from the shaft uncertainty pass (sigmaThetaDeg) in place of
     // shaftThetaSigmaRad / conf. A VALUE change, not a σ-only one: the wider σ un-places the club
     // node on some swings (the 1 Oct sigma sweep), so it has its own switch, off until Mark rules.
@@ -220,6 +222,8 @@ struct SegmentRatesConfig {
         apply(ov, "sequence.gapBridge.ellMs",        c.gapBridgeEllMs);
         apply(ov, "sequence.gapBridge.sfDps",        c.gapBridgeSfDps);
         apply(ov, "sequence.gapBridge.noiseDps",     c.gapBridgeNoiseDps);
+        apply(ov, "sequence.gapBridge.agreeSigma",     c.gapBridgeAgreeSigma);
+        apply(ov, "sequence.chestBackwardsWindowMs", c.chestBackwardsWindowMs);
         return c;
     }
 };
@@ -240,6 +244,7 @@ struct SegmentRateChannel {
     // to series.t_us; empty = no band. The series keeps the blind samples for the chart; the peak search
     // and the chest's gap bridge treat them as unmeasured.
     std::vector<uint8_t> sighted;
+    std::vector<double>  turnDeg;       // …and |turn| from square per sample (°), parallel too; empty = no band
     QString              routeId;       // "pelvisImu" | "thoraxImu" | "leadArmImus" | "clubSensorFused" | "faceOn+dtl" | "faceOn+dtl3d" | "faceOn" | "faceOnClub"
     bool                 direct = false;
     // PELVIS AND THORAX ONLY: the reversal into the downswing, found on the route's own rate BEFORE

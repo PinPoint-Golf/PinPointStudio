@@ -185,6 +185,11 @@ struct KsNode {
     bool                probable = false;
     double              probableMs = 0.0, probableSigmaMs = 0.0;          // peak instant, ms from impact, ±1σ
     double              probableDps = 0.0, probableSigmaDps = 0.0;        // peak value, ±1σ
+    // HOW IT WAS READ (Mark, 25 Oct 2026: "always be reported so long as we warn the user"): "bridge" — the fit's
+    // peak inside the gap; "rising" / "fell" — the fit still rising at the search's end / falling into the gap,
+    // so this is the earliest / latest the peak can be; "seen" — no gap to bridge, the highest rate the camera
+    // saw (sequence.chestIndicated). `bridge*` is empty for "seen".
+    QString             probableHow = QStringLiteral("bridge");
     std::vector<double> bridgeMs, bridgeMean, bridgeSd;                   // the fit across the gap
     double              earlierMs = std::numeric_limits<double>::quiet_NaN();   // a taller measured value earlier
     double              earlierDps = std::numeric_limits<double>::quiet_NaN();  //   in the downswing (read as the measurement)

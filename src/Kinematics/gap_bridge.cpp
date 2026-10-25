@@ -186,9 +186,11 @@ ImpactGap findImpactGap(const std::vector<double> &t, const std::vector<uint8_t>
 }
 
 bool gapTrainingSet(const std::vector<double> &t, const std::vector<double> &v, const std::vector<uint8_t> &ok,
-                    const ImpactGap &gap, const GapBridgeOptions &o, std::vector<double> *tt, std::vector<double> *vv)
+                    const ImpactGap &gap, const GapBridgeOptions &o, std::vector<double> *tt, std::vector<double> *vv,
+                    const std::vector<double> *noise, std::vector<double> *nn)
 {
     tt->clear(); vv->clear();
+    if (nn) nn->clear();
     if (!gap.found) return false;
     int before = 0, after = 0;
     const size_t n = std::min({ t.size(), v.size(), ok.size() });
@@ -196,6 +198,7 @@ bool gapTrainingSet(const std::vector<double> &t, const std::vector<double> &v, 
         if (!ok[i] || !std::isfinite(v[i])) continue;
         if (t[i] < gap.fromMs - o.beforeMs - 1e-9 || t[i] > gap.toMs + o.afterMs + 1e-9) continue;
         tt->push_back(t[i]); vv->push_back(v[i]);
+        if (nn && noise) nn->push_back(i < noise->size() ? (*noise)[i] : kNaN);
         if (t[i] <= gap.fromMs + 1e-9) ++before;
         if (t[i] >= gap.toMs - 1e-9) ++after;
     }
@@ -245,15 +248,18 @@ GapBridgeKernel fitGapBridgeKernel(const std::vector<std::vector<double>> &ts, c
 }
 
 bool gpPeakDraws(const std::vector<double> &t, const std::vector<double> &v, const std::vector<double> &grid,
-                 const GapBridgeKernel &kernel, int draws, uint64_t seed, GpPeakDraws *out)
+                 const GapBridgeKernel &kernel, int draws, uint64_t seed, GpPeakDraws *out, const std::vector<double> *noise)
 {
     const size_t n = t.size(), m = grid.size();
-    if (n < 2 || m < 2 || !out) return false;
-    const double ell = kernel.ellMs, sf = kernel.sfDps, sn = kernel.noiseDps;
+    if (n < 2 || m < 1 || !out) return false;
+    const double ell = kernel.ellMs, sf = kernel.sfDps;
+    const auto sn = [&](size_t i) {
+        return noise && i < noise->size() && std::isfinite((*noise)[i]) ? (*noise)[i] : kernel.noiseDps;
+    };
     const double mu = meanOf(v);
     std::vector<double> k(n * n);
     for (size_t i = 0; i < n; ++i)
-        for (size_t j = 0; j < n; ++j) k[i * n + j] = matern52(t[i] - t[j], ell, sf) + (i == j ? sn * sn : 0.0);
+        for (size_t j = 0; j < n; ++j) k[i * n + j] = matern52(t[i] - t[j], ell, sf) + (i == j ? sn(i) * sn(i) : 0.0);
     std::vector<double> l;
     if (!factor(k, n, 1e-9 * sf * sf, &l)) return false;
     std::vector<double> alpha(n);
@@ -280,6 +286,7 @@ bool gpPeakDraws(const std::vector<double> &t, const std::vector<double> &v, con
         }
     out->sd.resize(m);
     for (size_t j = 0; j < m; ++j) out->sd[j] = std::sqrt(std::max(0.0, cov[j * m + j]));
+    if (draws <= 0) return true;                       // the posterior only (admitAgreeing)
     std::vector<double> lp;
     if (!factor(cov, m, 1e-6 * sf * sf, &lp)) return false;
     Normals rng(seed);
@@ -303,8 +310,79 @@ bool gpPeakDraws(const std::vector<double> &t, const std::vector<double> &v, con
     return true;
 }
 
+SeenPeak seenPeak(const std::vector<double> &t, const std::vector<double> &v, const std::vector<uint8_t> &ok,
+                  double topMs, double fromMs, double p8Ms, double minAfterReversalMs, double noise, double minSigmaMs)
+{
+    SeenPeak out;
+    const size_t n = std::min({ t.size(), v.size(), ok.size() });
+    if (n == 0) return out;
+    const double from = std::isfinite(fromMs) ? fromMs : t.front(), to = std::isfinite(p8Ms) ? p8Ms : t.back();
+    double lastNonPos = -1e300;
+    size_t best = n;
+    for (size_t i = 0; i < n; ++i) {
+        if (!ok[i] || !std::isfinite(v[i]) || t[i] > to) continue;
+        if (v[i] <= 0.0) { lastNonPos = t[i]; continue; }   // a reversal before the window still guards it
+        if (t[i] < from) continue;
+        if (t[i] - lastNonPos < minAfterReversalMs) continue;
+        if (best == n || v[i] > v[best]) best = i;
+    }
+    if (best == n) return out;
+    out.found = true;
+    out.tMs = t[best];
+    out.value = v[best];
+    out.valueSigma = noise;
+    size_t lo = best, hi = best;
+    while (lo > 0 && ok[lo - 1] && v[lo - 1] >= v[best] - noise) --lo;
+    while (hi + 1 < n && ok[hi + 1] && v[hi + 1] >= v[best] - noise) ++hi;
+    std::vector<double> steps;
+    for (size_t i = 1; i < n; ++i) steps.push_back(t[i] - t[i - 1]);
+    const double halfStep = steps.empty() ? 0.0 : quantile7(steps, 0.5) / 2.0;
+    out.tSigmaMs = std::max({ halfStep, minSigmaMs, (t[hi] - t[lo]) / 2.0 });
+    const double earlyFrom = std::isfinite(topMs) && topMs < from ? topMs : t.front();
+    for (size_t i = 0; i < n; ++i)
+        if (ok[i] && std::isfinite(v[i]) && t[i] >= earlyFrom && t[i] < from && v[i] > out.value
+            && (!std::isfinite(out.earlierValue) || v[i] > out.earlierValue)) { out.earlierMs = t[i]; out.earlierValue = v[i]; }
+    return out;
+}
+
+std::vector<uint8_t> admitAgreeing(const std::vector<double> &t, const std::vector<double> &v,
+                                   const std::vector<uint8_t> &measured, const std::vector<uint8_t> &candidate,
+                                   const std::vector<double> &noise, const GapBridgeKernel &kernel, double k,
+                                   const GapBridgeOptions &o)
+{
+    std::vector<uint8_t> ok = measured;
+    const size_t n = std::min({ t.size(), v.size(), ok.size(), candidate.size() });
+    const auto sn = [&](size_t i) { return i < noise.size() && std::isfinite(noise[i]) ? noise[i] : kernel.noiseDps; };
+    bool doneLeft = false, doneRight = false;
+    for (size_t step = 0; step < n && !(doneLeft && doneRight); ++step) {
+        const ImpactGap gap = findImpactGap(t, ok, o);
+        std::vector<double> tt, vv, nn;
+        if (!gap.found || !gapTrainingSet(t, v, ok, gap, o, &tt, &vv, &noise, &nn)) break;
+        // the samples just inside the gap at each edge
+        size_t li = n, ri = n;
+        for (size_t i = 0; i < n; ++i) if (t[i] > gap.fromMs + 1e-9) { li = i; break; }
+        for (size_t i = n; i-- > 0;) if (t[i] < gap.toMs - 1e-9) { ri = i; break; }
+        if (li >= n || ri >= n || li > ri) break;
+        bool moved = false;
+        for (const bool left : { true, false }) {
+            bool &done = left ? doneLeft : doneRight;
+            const size_t i = left ? li : ri;
+            if (done) continue;
+            if (!candidate[i] || !std::isfinite(v[i])) { done = true; continue; }
+            GpPeakDraws d;
+            if (!gpPeakDraws(tt, vv, { t[i] }, kernel, 0, 0, &d, &nn)) { done = true; continue; }
+            const double tol = k * std::sqrt(d.sd[0] * d.sd[0] + sn(i) * sn(i));
+            if (std::abs(v[i] - d.mean[0]) <= tol) { ok[i] = 1; moved = true; break; }   // refit before the other side
+            done = true;
+        }
+        if (!moved && doneLeft && doneRight) break;
+    }
+    return ok;
+}
+
 GapBridge bridgeImpactGap(const std::vector<double> &t, const std::vector<double> &v, const std::vector<uint8_t> &ok,
-                          double topMs, double p8Ms, const GapBridgeKernel &kernel, uint64_t seed, const GapBridgeOptions &o)
+                          double topMs, double p8Ms, const GapBridgeKernel &kernel, uint64_t seed, const GapBridgeOptions &o,
+                          const std::vector<double> &noise)
 {
     GapBridge b;
     const ImpactGap gap = findImpactGap(t, ok, o);
@@ -312,15 +390,15 @@ GapBridge bridgeImpactGap(const std::vector<double> &t, const std::vector<double
     b.fromMs = gap.fromMs;
     b.toMs = gap.toMs;
     if (gap.toMs - gap.fromMs > o.maxGapMs) { b.outcome = GapBridgeOutcome::GapTooLong; return b; }
-    std::vector<double> tt, vv;
-    if (!gapTrainingSet(t, v, ok, gap, o, &tt, &vv)) { b.outcome = GapBridgeOutcome::TooLittleCurve; return b; }
+    std::vector<double> tt, vv, nn;
+    if (!gapTrainingSet(t, v, ok, gap, o, &tt, &vv, noise.empty() ? nullptr : &noise, &nn)) { b.outcome = GapBridgeOutcome::TooLittleCurve; return b; }
     b.searchFromMs = gap.fromMs - o.searchMarginMs;
     b.searchToMs = gap.toMs + o.searchMarginMs;
     if (std::isfinite(p8Ms) && p8Ms > gap.toMs) b.searchToMs = std::min(b.searchToMs, p8Ms);
     std::vector<double> grid;
     for (double x = b.searchFromMs; x <= b.searchToMs + 1e-6; x += o.gridStepMs) grid.push_back(x);
     GpPeakDraws d;
-    if (!gpPeakDraws(tt, vv, grid, kernel, o.draws, seed, &d)) { b.outcome = GapBridgeOutcome::TooLittleCurve; return b; }
+    if (!gpPeakDraws(tt, vv, grid, kernel, o.draws, seed, &d, nn.empty() ? nullptr : &nn)) { b.outcome = GapBridgeOutcome::TooLittleCurve; return b; }
     for (size_t j = 0; j < grid.size(); ++j)
         if (grid[j] >= gap.fromMs - 1e-9 && grid[j] <= gap.toMs + 1e-9) {
             b.tMs.push_back(grid[j]); b.mean.push_back(d.mean[j]); b.sd.push_back(d.sd[j]);
@@ -329,9 +407,11 @@ GapBridge bridgeImpactGap(const std::vector<double> &t, const std::vector<double
     for (int k : d.peakIndex) { left += k == 0 ? 1 : 0; right += k == int(grid.size()) - 1 ? 1 : 0; }
     const double nd = double(std::max<size_t>(1, d.peakIndex.size()));
     b.edgeShare = double(left + right) / nd;
-    if (double(right) / nd > o.edgeShare) { b.outcome = GapBridgeOutcome::StillRising; return b; }
-    if (double(left) / nd > o.edgeShare) { b.outcome = GapBridgeOutcome::FellIntoGap; return b; }
-    b.outcome = GapBridgeOutcome::Bridged;
+    // At an edge the draws' median IS the edge: still reported (Mark, 25 Oct 2026: "better to indicate than say
+    // nothing"), as the earliest (rising) or latest (fell) the peak can be, and the caller says which.
+    b.outcome = double(right) / nd > o.edgeShare ? GapBridgeOutcome::StillRising
+              : double(left) / nd > o.edgeShare  ? GapBridgeOutcome::FellIntoGap
+                                                 : GapBridgeOutcome::Bridged;
     b.peakMs = quantile7(d.peakT, 0.5);
     b.peakSigmaMs = (quantile7(d.peakT, 0.84) - quantile7(d.peakT, 0.16)) / 2.0;
     b.peakValue = quantile7(d.peakV, 0.5);

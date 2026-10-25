@@ -86,6 +86,7 @@ ShotSequence shotSequence(const ShotSeries &shot)
             p.probableSigmaMs = pr.value(QStringLiteral("tSigmaMs"), kNaN).toDouble();
             p.probableDps = pr.value(QStringLiteral("peakDps"), kNaN).toDouble();
             p.probableSigmaDps = pr.value(QStringLiteral("peakSigmaDps"), kNaN).toDouble();
+            p.probableHow = pr.value(QStringLiteral("how"), QStringLiteral("bridge")).toString();
         }
     }
     // THE GATE RECORDS against each node (analysis.gates, subject "ks.<segment>"). The refusal shown is
@@ -100,6 +101,8 @@ ShotSequence shotSequence(const ShotSeries &shot)
         const auto score = [&](const QVariantMap &r) {
             const QString eff = r.value(QStringLiteral("effect")).toString();
             if (eff != QLatin1String("bounded") && eff != QLatin1String("refused")) return 1000;
+            // the chest's curve runs backwards (#103): says the most — no bound from it can be trusted
+            if (r.value(QStringLiteral("gate")).toString() == QLatin1String("sequence.chestUnreadable")) return -1;
             const int k = int(rank.indexOf(r.value(QStringLiteral("gate")).toString()));
             return (eff == QLatin1String("bounded") ? 0 : 100) + (k < 0 ? 99 : k);
         };

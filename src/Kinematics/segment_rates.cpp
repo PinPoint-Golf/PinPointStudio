@@ -144,6 +144,9 @@ struct Domain {
 struct PlacementGate {
     bool                        may         = true;
     const std::vector<uint8_t> *sighted     = nullptr;
+    // the span's turn (rad), parallel to `sighted`: how far from square each sample was (the chest's gap bridge
+    // weights a near-square sample by it)
+    const std::vector<double>  *turnRad     = nullptr;
     int64_t                     blindFromUs = -1;
     int64_t                     blindToUs   = -1;
     // The reversal-spike rule (below). Implied by `sighted` for the span rung; set explicitly by
@@ -254,9 +257,12 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
     std::vector<uint8_t> searchValid;
     const size_t ns = ch.series.t_us.size();
     ch.sighted.clear();
+    ch.turnDeg.clear();
     if (gate.sighted && gate.sighted->size() == arrived && skip + ns <= arrived) {
         searchValid.assign(ns, 1u);
         ch.sighted.assign(gate.sighted->begin() + std::ptrdiff_t(skip), gate.sighted->begin() + std::ptrdiff_t(skip + ns));
+        if (gate.turnRad && gate.turnRad->size() == arrived)
+            for (size_t i = 0; i < ns; ++i) ch.turnDeg.push_back(std::fabs((*gate.turnRad)[skip + i]) * 180.0 / kPi);
         for (size_t i = 0; i < ns; ++i)
             searchValid[i] = (ch.series.valid.empty() || ch.series.valid[i]) && ch.sighted[i];
     }
@@ -624,6 +630,7 @@ void sightedBand(const AngleTrack &a, double sightedDeg, int64_t fromUs, int64_t
     for (const Run &r : runs) if (!best || distance(r) < distance(*best)) best = &r;
     if (best) { gate.blindFromUs = best->fromUs; gate.blindToUs = best->toUs; }
     gate.sighted = &mask;
+    gate.turnRad = &a.angleRad;
 }
 
 // ── The paired face-on + down-the-line geometry (design §5.2; the offline measurement that
@@ -2060,56 +2067,125 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
     if (res.valid)
         res.sequence = resolveKinematicSequence(std::move(nodes), impactUs, cfg.sigmaK);
     // THE CHEST'S PROBABLE PEAK (gap_bridge.h; design §12.6; Mark, 25 Oct 2026). A chest node no rung could
-    // place, whose curve the route lost for a short gap at impact, is given the peak the gap hides: a Gaussian
-    // process through the curve either side (the corpus's kernel, the noise assumed), its ± from the fit. Not
-    // placed — the order and verdict stay the placed nodes' — but carried with a downgraded gate, and its
-    // readings (thoraxPeakTime, thoraxPeakSpeed) are emitted from it so the order checks can judge the chest.
+    // place, whose curve the route lost for a gap at impact, is given the peak the gap hides: a Gaussian process
+    // through the curve either side (the corpus's kernel, the noise assumed), its ± from the fit. Every other
+    // unplaced chest with a curve gets the highest rate the camera saw — "always be reported so long as we warn
+    // the user". Not placed — the order and verdict stay the placed nodes' — but carried with a downgraded gate
+    // that says how it was read, and its readings (thoraxPeakTime, thoraxPeakSpeed) are emitted from it so the
+    // order checks can judge the chest.
     if (res.valid && cfg.gapBridge && res.thorax.produced())
         for (KsNode &n : res.sequence.nodes) {
             if (n.segment != SeqSegment::Thorax || n.placed) continue;
-            // Measured = valid AND sighted: where the shoulder line is near square to the face-on camera the
-            // pose keeps reporting, but the span's slope no longer carries the rate (the derivative reads
-            // ±2000 °/s there on 10-20 Nick Henn), so those samples are the gap, not the curve.
+            // MEASURED = VALID AND SIGHTED, THEN WHAT AGREES. Where the shoulder line is near square to the face-on
+            // camera the pose keeps reporting but the span's slope carries the rate less surely (σ ∝ 1/sin θ), and
+            // there it can be junk: ±2000 °/s on 10-20 Nick Henn, from a missed unfold or a keypoint jump. Taking
+            // every near-square sample out (8c8796fe) widened the gap on clean curves too — 10-20 Mark s2 from 33 to
+            // 100 ms, the library median from 27 to 94 — so a near-square sample is admitted from each edge of the
+            // gap inward while it agrees with the fit (admitAgreeing), each with its 1/sin θ noise, and the gap is
+            // only what disagrees or the pose lost.
             const MetricSeries &cs = res.thorax.series;
             const std::vector<uint8_t> &seen = res.thorax.sighted;
-            std::vector<double> t, v;
-            std::vector<uint8_t> ok;
+            const std::vector<double> &turn = res.thorax.turnDeg;
+            const double sinLimit = std::sin(cfg.sightedTurnDeg * kPi / 180.0);
+            std::vector<double> t, v, noise;
+            std::vector<uint8_t> ok, nearSquare;
             for (size_t i = 0; i < cs.t_us.size() && i < cs.value.size(); ++i) {
+                const bool valid = (cs.valid.empty() || (i < cs.valid.size() && cs.valid[i])) && std::isfinite(cs.value[i]);
+                const bool sighted = seen.empty() || (i < seen.size() && seen[i]);
                 t.push_back(double(cs.t_us[i] - impactUs) / 1000.0);
                 v.push_back(cs.value[i]);
-                ok.push_back((cs.valid.empty() || (i < cs.valid.size() && cs.valid[i]))
-                             && (seen.empty() || (i < seen.size() && seen[i])) && std::isfinite(cs.value[i]) ? 1 : 0);
+                ok.push_back(valid && sighted ? 1 : 0);
+                nearSquare.push_back(valid && !sighted ? 1 : 0);
+                // the span's own error model: the rate's σ grows as 1/sin θ inside the turn limit (×20 at most)
+                const double th = i < turn.size() ? turn[i] * kPi / 180.0 : kPi / 2.0;
+                const double gain = sighted ? 1.0 : std::min(20.0, sinLimit / std::max(std::sin(th), sinLimit / 20.0));
+                noise.push_back(cfg.gapBridgeNoiseDps * gain);
             }
+            // FAIL WITH GRACE: a curve turning the chest AWAY from the target through the downswing (#103) has no
+            // peak to read — refused, with what it read, and nothing bridged or indicated from it
+            {
+                double sum = 0.0;
+                int cnt = 0;
+                for (size_t i = 0; i < t.size(); ++i)
+                    if ((ok[i] || nearSquare[i]) && t[i] >= -cfg.chestBackwardsWindowMs && t[i] <= 0.0) { sum += v[i]; ++cnt; }
+                if (cnt > 0 && sum / cnt <= 0.0) {
+                    n.gates.push_back({ PP_GATE("sequence.chestUnreadable"), QStringLiteral("ks.thorax"), GateEffect::Refused,
+                                        { { QStringLiteral("route"), n.routeId }, { QStringLiteral("meanDps"), sum / cnt },
+                                          { QStringLiteral("windowMs"), cfg.chestBackwardsWindowMs } }, {}, {} });
+                    break;
+                }
+            }
+            const GapBridgeKernel kern{ cfg.gapBridgeEllMs, cfg.gapBridgeSfDps, cfg.gapBridgeNoiseDps };
+            if (!seen.empty()) ok = admitAgreeing(t, v, ok, nearSquare, noise, kern, cfg.gapBridgeAgreeSigma);
             const auto msOf = [&](Phase p) {
                 const std::optional<int64_t> x = phaseTimeOpt(phases, p);
                 return x ? double(*x - impactUs) / 1000.0 : std::numeric_limits<double>::quiet_NaN();
             };
-            const GapBridgeKernel kern{ cfg.gapBridgeEllMs, cfg.gapBridgeSfDps, cfg.gapBridgeNoiseDps };
-            const GapBridge b = bridgeImpactGap(t, v, ok, msOf(Phase::Top), msOf(Phase::ShaftParallelThrough), kern,
-                                                kGapBridgeSeed);
-            if (!b.bridged()) break;
-            n.probable         = true;
-            n.probableMs       = b.peakMs;
-            n.probableSigmaMs  = b.peakSigmaMs;
-            n.probableDps      = b.peakValue;
-            n.probableSigmaDps = b.peakSigmaValue;
-            n.bridgeMs   = b.tMs;
-            n.bridgeMean = b.mean;
-            n.bridgeSd   = b.sd;
-            n.earlierMs  = b.earlierMs;
-            n.earlierDps = b.earlierValue;
-            QVariantMap ev{ { QStringLiteral("route"), n.routeId },
-                            { QStringLiteral("gapFromMs"), b.fromMs }, { QStringLiteral("gapToMs"), b.toMs },
-                            { QStringLiteral("gapMs"), b.toMs - b.fromMs },
-                            { QStringLiteral("peakMs"), b.peakMs }, { QStringLiteral("peakSigmaMs"), b.peakSigmaMs },
-                            { QStringLiteral("ellMs"), kern.ellMs }, { QStringLiteral("sfDps"), kern.sfDps },
-                            { QStringLiteral("noiseDps"), kern.noiseDps }, { QStringLiteral("edgeShare"), b.edgeShare } };
-            if (std::isfinite(b.earlierMs)) {
-                ev.insert(QStringLiteral("earlierMs"), b.earlierMs);
-                ev.insert(QStringLiteral("earlierDps"), b.earlierValue);
+            const double topMs = msOf(Phase::Top), p8Ms = msOf(Phase::ShaftParallelThrough);
+            // WHAT THE BRIDGE TREATS AS UNMEASURED, THE CURVE SHOWS AS A GAP: a near-square sample that did not agree
+            // (±2000 °/s on 10-20 Nick Henn) is marked invalid in the stored series, so the chart draws the gap and the
+            // fit across it rather than an axis stretched to the junk, and the summary's chest peak is not the junk
+            if (!seen.empty()) {
+                MetricSeries &ws = res.thorax.series;
+                for (size_t i = 0; i < ok.size() && i < ws.t_us.size(); ++i)
+                    if (nearSquare[i] && !ok[i]) {
+                        if (ws.valid.empty()) ws.valid.assign(ws.t_us.size(), 1u);
+                        ws.valid[i] = 0u;
+                    }
             }
-            n.gates.push_back({ PP_GATE("sequence.gapBridged"), QStringLiteral("ks.thorax"), GateEffect::Downgraded, ev, {}, {},
-                                { QStringLiteral("thoraxPeakTime"), QStringLiteral("thoraxPeakSpeed") } });
+            const GapBridge b = bridgeImpactGap(t, v, ok, topMs, p8Ms, kern, kGapBridgeSeed, {}, noise);
+            const QStringList covers{ QStringLiteral("thoraxPeakTime"), QStringLiteral("thoraxPeakSpeed") };
+            if (b.hasPeak()) {
+                n.probable         = true;
+                n.probableHow      = b.bridged() ? QStringLiteral("bridge")
+                                   : b.outcome == GapBridgeOutcome::StillRising ? QStringLiteral("rising") : QStringLiteral("fell");
+                n.probableMs       = b.peakMs;
+                n.probableSigmaMs  = b.peakSigmaMs;
+                n.probableDps      = b.peakValue;
+                n.probableSigmaDps = b.peakSigmaValue;
+                n.bridgeMs   = b.tMs;
+                n.bridgeMean = b.mean;
+                n.bridgeSd   = b.sd;
+                n.earlierMs  = b.earlierMs;
+                n.earlierDps = b.earlierValue;
+                QVariantMap ev{ { QStringLiteral("route"), n.routeId },
+                                { QStringLiteral("gapFromMs"), b.fromMs }, { QStringLiteral("gapToMs"), b.toMs },
+                                { QStringLiteral("gapMs"), b.toMs - b.fromMs },
+                                { QStringLiteral("peakMs"), b.peakMs }, { QStringLiteral("peakSigmaMs"), b.peakSigmaMs },
+                                { QStringLiteral("ellMs"), kern.ellMs }, { QStringLiteral("sfDps"), kern.sfDps },
+                                { QStringLiteral("noiseDps"), kern.noiseDps }, { QStringLiteral("edgeShare"), b.edgeShare } };
+                if (!b.bridged()) ev.insert(QStringLiteral("edge"), n.probableHow);
+                if (std::isfinite(b.earlierMs)) {
+                    ev.insert(QStringLiteral("earlierMs"), b.earlierMs);
+                    ev.insert(QStringLiteral("earlierDps"), b.earlierValue);
+                }
+                n.gates.push_back({ PP_GATE("sequence.gapBridged"), QStringLiteral("ks.thorax"), GateEffect::Downgraded, ev, {}, {}, covers });
+            } else if (const SeenPeak sp = seenPeak(t, v, ok, topMs, GapBridgeOptions{}.nearFromMs - GapBridgeOptions{}.searchMarginMs, p8Ms,
+                                                    cfg.minAfterReversalMs, cfg.gapBridgeNoiseDps, cfg.derivWindowMs / std::sqrt(12.0));
+                       sp.found) {
+                // NO GAP TO BRIDGE — none near impact, too little curve on a side (the camera never saw the chest
+                // again after impact), or the fit failed: the fastest the camera CLEARLY saw the chest turn between
+                // the top and P8, clear of the spike after its reversal. Never a peak another gate refused (a spike,
+                // a σ past the ceiling, a route's own search on a withdrawn route). "Better to indicate than say
+                // nothing" (Mark, 25 Oct 2026).
+                n.probable         = true;
+                n.probableHow      = QStringLiteral("seen");
+                n.probableMs       = sp.tMs;
+                n.probableSigmaMs  = sp.tSigmaMs;
+                n.probableDps      = sp.value;
+                n.probableSigmaDps = sp.valueSigma;
+                n.earlierMs        = sp.earlierMs;
+                n.earlierDps       = sp.earlierValue;
+                const QString code = b.outcome == GapBridgeOutcome::NoGap ? QStringLiteral("noGap") : QStringLiteral("tooLittleCurve");
+                QVariantMap ev{ { QStringLiteral("route"), n.routeId }, { QStringLiteral("code"), code },
+                                { QStringLiteral("peakMs"), n.probableMs }, { QStringLiteral("peakSigmaMs"), n.probableSigmaMs } };
+                if (std::isfinite(b.fromMs)) { ev.insert(QStringLiteral("gapFromMs"), b.fromMs); ev.insert(QStringLiteral("gapToMs"), b.toMs); }
+                if (std::isfinite(sp.earlierMs)) {
+                    ev.insert(QStringLiteral("earlierMs"), sp.earlierMs);
+                    ev.insert(QStringLiteral("earlierDps"), sp.earlierValue);
+                }
+                n.gates.push_back({ PP_GATE("sequence.chestIndicated"), QStringLiteral("ks.thorax"), GateEffect::Downgraded, ev, {}, {}, covers });
+            }
             break;
         }
     for (const KsNode &n : res.sequence.nodes)

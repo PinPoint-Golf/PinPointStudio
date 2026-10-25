@@ -68,6 +68,8 @@
 
 #include <QString>
 
+#include <limits>
+
 #include <vector>
 
 namespace pinpoint::charts {
@@ -79,7 +81,7 @@ struct BridgeOptions {
     double searchMarginMs = 40.0;     // the peak is looked for this far either side of the hole
     double gridStepMs     = 1.0;
     int    draws          = 600;
-    double maxHoleMs      = 80.0;     // a longer hole is not bridged (Mark's premise: a SHORT gap)
+    double maxHoleMs      = std::numeric_limits<double>::infinity();   // no limit: gap_bridge.h maxGapMs
     int    minEachSide    = 3;        // measured samples needed on each side of the hole
     double nearFromMs     = -80.0;    // the hole must reach into [nearFromMs, nearToMs] about impact
     double nearToMs       = 40.0;

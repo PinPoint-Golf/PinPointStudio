@@ -67,6 +67,9 @@ bool storedBridge(const ShotSeries &shot, ChestBridge *b)
         if (n.value(QStringLiteral("segment")).toString() != QLatin1String("thorax")) continue;
         const QVariantMap pr = n.value(QStringLiteral("probable")).toMap();
         if (pr.isEmpty()) return false;
+        // the highest rate the camera saw (sequence.chestIndicated): the analysis' reading stands, but nothing was
+        // bridged — the sequence already carries it (shotSequence), and the session draws no fit for it
+        if (pr.value(QStringLiteral("how")).toString() == QLatin1String("seen")) { b->stored = true; return true; }
         const QVariantMap br = pr.value(QStringLiteral("bridge")).toMap();
         for (const QVariant &x : br.value(QStringLiteral("tMs")).toList())  b->t.push_back(x.toDouble());
         for (const QVariant &x : br.value(QStringLiteral("mean")).toList()) b->mean.push_back(x.toDouble());

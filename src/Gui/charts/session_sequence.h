@@ -70,6 +70,7 @@ struct SegmentPeak {
     bool   probable = false;
     double probableMs = kNaN, probableSigmaMs = kNaN;       // ms from impact (+ after), ±σ
     double probableDps = kNaN, probableSigmaDps = kNaN;
+    QString probableHow;                // "bridge" | "rising" | "fell" | "seen" (KsNode::probableHow); empty = "bridge"
     bool   timed() const { return placed || probable; }
     double timeMs() const { return placed ? shotMs : probable ? probableMs : kNaN; }
     // FROM THE GATE RECORDS (trust_and_gates_design.md §6), when the analysis wrote them:

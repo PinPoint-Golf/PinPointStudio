@@ -75,6 +75,7 @@ inline QJsonObject kinematicSequenceToJson(const KinematicSequence &ks,
             }
             QJsonObject pr{ { QStringLiteral("peakMs"), n.probableMs }, { QStringLiteral("tSigmaMs"), n.probableSigmaMs },
                             { QStringLiteral("peakDps"), n.probableDps }, { QStringLiteral("peakSigmaDps"), n.probableSigmaDps },
+                            { QStringLiteral("how"), n.probableHow },
                             { QStringLiteral("bridge"), QJsonObject{ { QStringLiteral("tMs"), bt }, { QStringLiteral("mean"), bm },
                                                                      { QStringLiteral("sd"), bs } } } };
             if (std::isfinite(n.earlierMs)) {

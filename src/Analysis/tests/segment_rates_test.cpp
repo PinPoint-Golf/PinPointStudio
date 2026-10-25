@@ -2016,8 +2016,37 @@ int main()
         const GapBridge again = bridgeImpactGap(t, v, meas, -280.0, 85.0, kern, kGapBridgeSeed);
         CHECK("§16 seeded: the same estimate every time", again.peakMs == b.peakMs && again.peakValue == b.peakValue);
         curve(0.0, true, t, v, meas);
-        CHECK("§16 a curve still rising through the gap has no probable peak",
-              bridgeImpactGap(t, v, meas, -280.0, 85.0, kern, kGapBridgeSeed).outcome == GapBridgeOutcome::StillRising);
+        const GapBridge rising = bridgeImpactGap(t, v, meas, -280.0, 85.0, kern, kGapBridgeSeed);
+        CHECK("§16 a curve still rising through the gap is read as still rising",
+              rising.outcome == GapBridgeOutcome::StillRising && !rising.bridged());
+        CHECK("§16 …and still reported, at the search's end: the earliest it can have peaked",
+              rising.hasPeak() && near(rising.peakMs, rising.searchToMs, 2.0));
+
+        // near-square samples join from the edges while they agree; a spike closes its side
+        {
+            std::vector<double> nt, nv, noise;
+            std::vector<uint8_t> meas2, cand;
+            for (double x = -300.0; x <= 100.0; x += 6.7) {
+                nt.push_back(x);
+                const bool band = x > -60.0 && x < 30.0, hole = x > -21.0 && x < 5.5;
+                double val = 150.0 + 450.0 * std::exp(-(x + 15.0) * (x + 15.0) / (2.0 * 45.0 * 45.0));
+                if (x > -14.0 && x < -6.0) val = 2000.0;            // a missed unfold: junk inside the pose's gap edge
+                nv.push_back(val);
+                meas2.push_back(band ? 0 : 1);
+                cand.push_back(band && !hole ? 1 : 0);
+                noise.push_back(band ? 40.0 : 20.0);
+            }
+            const std::vector<uint8_t> adm = admitAgreeing(nt, nv, meas2, cand, noise, kern, 3.0);
+            const ImpactGap g0 = findImpactGap(nt, meas2), g1 = findImpactGap(nt, adm);
+            std::printf("      admitted: gap %.1f…%.1f ms → %.1f…%.1f ms\n", g0.fromMs, g0.toMs, g1.fromMs, g1.toMs);
+            CHECK("§16 clean near-square samples join the curve: the gap shrinks to what the pose lost",
+                  g1.found && g1.fromMs > -26.0 && g1.toMs < 9.0 && g1.toMs - g1.fromMs < g0.toMs - g0.fromMs);
+            std::vector<uint8_t> cand2 = cand;
+            for (size_t i = 0; i < nt.size(); ++i) if (nt[i] > -40.0 && nt[i] < -30.0) { nv[i] = 2000.0; }
+            const ImpactGap g2 = findImpactGap(nt, admitAgreeing(nt, nv, meas2, cand2, noise, kern, 3.0));
+            CHECK("§16 …and a spike near square is refused: that side stops before it",
+                  g2.found && g2.fromMs < -40.0);
+        }
 
         // the readings: a probable chest is emitted (thoraxPeakTime, thoraxPeakSpeed) from its probable peak;
         // an unplaced one without it emits nothing
@@ -2113,6 +2142,34 @@ int main()
         CHECK("§16b an early blind blip is not THE band: the band recorded is the one at the chest's square-up",
               bb && band && near(lost, band->evidence.value(QStringLiteral("sightLostMs")).toDouble(), 1e-6));
         CHECK("§16b …and the chest is still bridged", tb && tb->probable && std::fabs(tb->probableMs + 75.0) < 12.0);
+    }
+
+    // ── §16c the chest is always reported (Mark, 25 Oct 2026: "better to indicate than say nothing") ─────────
+    //    A chest still square to the camera at impact — the camera never sees it again — has no gap to bridge: the
+    //    highest rate it did see stands for the peak, downgraded by sequence.chestIndicated.
+    {
+        const Bump late { 727.0, 0.990, 0.050 };
+        const ShaftTrack2D shaft = makeShaft();
+        PoseTrack2D pose = makePose(true, 45.0, 0.0, kPelvis, 0.0, false, turnFromTop(late, kImpactUs * 1e-6), late);
+        SegmentRatesInputs in;
+        in.pose = &pose; in.frameW = kW; in.frameH = kH; in.leadIsLeft = true;
+        in.shaft = &shaft; in.phases = &ph; in.impactUs = kImpactUs;
+        const SegmentRatesResult r = buildSegmentRates(in, cfg);
+        const KsNode *tho = nodeOf(r, SeqSegment::Thorax);
+        const GateRecord *ind = nullptr;
+        if (tho) for (const GateRecord &g : tho->gates) if (g.gate == QLatin1String("sequence.chestIndicated")) ind = &g;
+        if (tho) std::printf("      never seen again: placed=%d probable=%d how=%s %.1f ±%.1f ms\n", int(tho->placed), int(tho->probable),
+                             qPrintable(tho->probableHow), tho->probableMs, tho->probableSigmaMs);
+        CHECK("§16c a chest the camera never sees again after impact is unplaced but INDICATED",
+              tho && !tho->placed && tho->probable && tho->probableHow == QLatin1String("seen"));
+        CHECK("§16c …at the highest rate the camera saw, before impact, with no fit to draw",
+              tho && tho->probableMs < 0.0 && tho->probableMs > -120.0 && tho->bridgeMs.empty() && tho->probableDps > 0.0);
+        CHECK("§16c …downgraded by sequence.chestIndicated, covering the chest's peak time and speed",
+              ind && ind->effect == GateEffect::Downgraded && ind->covers.contains(QStringLiteral("thoraxPeakTime"))
+              && ind->covers.contains(QStringLiteral("thoraxPeakSpeed")));
+        const auto pt = sequencePeakTimeSeries(r.sequence);
+        CHECK("§16c …and its peak time is emitted, so the order checks judge it",
+              std::any_of(pt.begin(), pt.end(), [](const MetricSeries &m) { return m.key == QLatin1String("thoraxPeakTime"); }));
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

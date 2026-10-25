@@ -312,15 +312,58 @@ inline std::vector<GateEntry> buildCatalogue()
                                  "with a ± from the fit. The peak is PROBABLE, not measured: the fit assumes %1 °/s of noise "
                                  "in each sample and that the chest cannot spike inside the gap, and no trunk sensor has "
                                  "checked it yet. A taller hump earlier in the downswing, where the shoulder keypoints jump "
-                                 "as the line squares to the camera, is read as the measurement, not the chest's peak.")
+                                 "as the line squares to the camera, is read as the measurement, not the chest's peak. "
+                                 "Samples near square, where the camera reads the turn less surely, count only while they "
+                                 "agree with the curve beside them. "
+                                 "When the fit is still rising where its search ends, or falling into the gap, that edge is "
+                                 "reported as the earliest or the latest the peak can be.")
                       .arg(S::kGapBridgeNoiseDps),
-                  QStringLiteral("Bridged across {gapMs:ms} ({gapFromMs:t} to {gapToMs:t}); the probable peak at {peakMs:t} ± {peakSigmaMs:ms}[, below a taller measured hump at {earlierMs:t}]."),
+                  QStringLiteral("Bridged across {gapMs:ms} ({gapFromMs:t} to {gapToMs:t}); the probable peak at {peakMs:t} ± {peakSigmaMs:ms}[, {edge:code}][, below a taller measured hump at {earlierMs:t}]."),
                   { GateEffect::Downgraded },
                   { { QStringLiteral("sequence.gapBridge.ellMs"), S::kGapBridgeEllMs, QStringLiteral("ms") },
                     { QStringLiteral("sequence.gapBridge.sfDps"), S::kGapBridgeSfDps, QStringLiteral("°/s") },
-                    { QStringLiteral("sequence.gapBridge.noiseDps"), S::kGapBridgeNoiseDps, QStringLiteral("°/s") } },
+                    { QStringLiteral("sequence.gapBridge.noiseDps"), S::kGapBridgeNoiseDps, QStringLiteral("°/s") },
+                    { QStringLiteral("sequence.gapBridge.agreeSigma"), S::kGapBridgeAgreeSigma, QStringLiteral("σ") } },
+                  { QStringLiteral("ks.thorax:thoraxImu") },
+                  ksDesign + QStringLiteral(" §12.6"), 2, prod,
+                  // the fit crowded at an edge of its search: still reported, as the earliest / latest it can be
+                  { { QStringLiteral("rising"), QStringLiteral("still rising where the search ended, so the earliest it can have peaked") },
+                    { QStringLiteral("fell"), QStringLiteral("falling into the gap, so the latest it can have peaked") } } });
+
+    // FAIL WITH GRACE (Mark, 25 Oct 2026: "try our hardest, report honestly and fail with grace"): a face-on chest
+    // curve that turns the chest away from the target through the downswing has no peak to read (#103).
+    c.push_back({ QStringLiteral("sequence.chestUnreadable"), seq,
+                  QStringLiteral("Chest curve runs backwards through impact"), QStringLiteral("unreadable"),
+                  QStringLiteral("On this shot the face-on camera's chest curve reads the chest turning away from the target "
+                                 "through the last part of the downswing, which a chest cannot do on its way to the ball: the "
+                                 "camera mistook which way the shoulders were turning as they squared up to it. Its peak "
+                                 "cannot be read, so no chest timing is reported; the curve is still drawn. A trunk sensor "
+                                 "measures the chest directly."),
+                  QStringLiteral("The chest curve averages {meanDps:deg}/s over the {windowMs:ms} before impact: turning away from the target."),
+                  { GateEffect::Refused },
+                  { { QStringLiteral("sequence.chestBackwardsWindowMs"), S::kChestBackwardsWindowMs, QStringLiteral("ms") } },
                   { QStringLiteral("ks.thorax:thoraxImu") },
                   ksDesign + QStringLiteral(" §12.6"), 2, prod, {} });
+
+    // THE CHEST INDICATED FROM WHAT THE CAMERA SAW (Mark, 25 Oct 2026: "I want the chest timing to always be reported
+    // so long as we warn the user. better to indicate than say nothing"): no gap at impact to bridge, so the highest
+    // rate the camera did see stands for the peak — downgraded, kept and judged with its ⚠.
+    c.push_back({ QStringLiteral("sequence.chestIndicated"), seq,
+                  QStringLiteral("Indicated from what the camera saw"), QStringLiteral("indicated"),
+                  QStringLiteral("The face-on camera could not time the chest's peak, and there was no short gap at impact "
+                                 "to bridge: the camera never saw the chest again after impact, or lost it somewhere else. "
+                                 "Rather than say nothing, the highest chest speed the camera clearly saw from 120 ms before "
+                                 "impact to P8 stands for the peak, "
+                                 "with its ±. It is an INDICATION, not a measurement: the real peak may be where the camera "
+                                 "could not see. As with the bridge, a taller hump earlier in the downswing is read as "
+                                 "the shoulder keypoints jumping, not the chest's peak."),
+                  QStringLiteral("The highest chest speed the camera clearly saw near impact, at {peakMs:t} ± {peakSigmaMs:ms}[, below a taller measured hump at {earlierMs:t}][; {code:code}]."),
+                  { GateEffect::Downgraded },
+                  {},
+                  { QStringLiteral("ks.thorax:thoraxImu") },
+                  ksDesign + QStringLiteral(" §12.6"), 2, prod,
+                  { { QStringLiteral("noGap"), QStringLiteral("no gap at impact to bridge") },
+                    { QStringLiteral("tooLittleCurve"), QStringLiteral("too little curve after the camera's gap ({gapFromMs:t} to {gapToMs:t}) to bridge it") } } });
 
     // ── stage 6: every other per-swing gate, and the on-read rules, area by area ──
     appendBodyGates(c);
@@ -419,6 +462,8 @@ inline const analysis::GateRecord *primaryRecord(const std::vector<analysis::Gat
                                    QStringLiteral("sequence.routePlacement"), QStringLiteral("sequence.credibleClub"),
                                    QStringLiteral("sequence.maxPlaceSigma") };
     const auto score = [&](const analysis::GateRecord &r) {
+        // the chest's curve runs backwards through impact (#103): says the most — no bound read off it stands
+        if (r.gate == QLatin1String("sequence.chestUnreadable")) return -1;
         const int k = int(rank.indexOf(r.gate));
         switch (r.effect) {
         case GateEffect::Bounded:  return 0 + (k < 0 ? 99 : k);
@@ -610,6 +655,7 @@ inline QVariantMap gateItem(const GateEntry &e, const QString &effect, const QVa
         if (x == QLatin1String("withheld"))   return QStringLiteral("not judged");
         // the chest's probable peak did not fall back to another route: a fit bridged the route's own gap
         if (x == QLatin1String("downgraded") && e.id == QLatin1String("sequence.gapBridged")) return QStringLiteral("bridged");
+        if (x == QLatin1String("downgraded") && e.id == QLatin1String("sequence.chestIndicated")) return QStringLiteral("indicated");
         if (x == QLatin1String("downgraded")) return QStringLiteral("fell back");
         if (x == QLatin1String("masked"))     return QStringLiteral("marked on the chart");
         return x;

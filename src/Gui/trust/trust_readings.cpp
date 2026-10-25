@@ -191,10 +191,13 @@ QVariantList trustReadings(const charts::ShotSeries &shot)
                 // THE CHEST'S PROBABLE PEAK (kinematic_sequence_design.md §12.6): kept, at the estimated level, its gate
                 // the bridge that read it (the out-of-sight band beside it explains the gap, not a refusal)
                 figure = W::signedMs(p.probableMs);
-                shortText = QStringLiteral("probable");
+                // …or, with no gap to bridge, the highest rate the camera saw (sequence.chestIndicated): "indicated"
+                const bool seen = p.probableHow == QLatin1String("seen");
+                shortText = seen ? QStringLiteral("indicated") : QStringLiteral("probable");
                 level = std::min(level, int(Probable));
+                const QLatin1String gate = seen ? QLatin1String("sequence.chestIndicated") : QLatin1String("sequence.gapBridged");
                 for (const QVariant &rv : records)
-                    if (rv.toMap().value(QStringLiteral("gate")).toString() == QLatin1String("sequence.gapBridged")) { primary = rv.toMap(); break; }
+                    if (rv.toMap().value(QStringLiteral("gate")).toString() == gate) { primary = rv.toMap(); break; }
             } else if (p.present) {
                 const charts::UnplacedWhy why = charts::unplacedWhy(p);
                 figure = why.unit.isEmpty() ? why.figure : why.figure + QChar(0x00A0) + why.unit;

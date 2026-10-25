@@ -855,18 +855,39 @@ does it per shot too.
   `sig_thoraxBeforeImpact` and the session's chest timing spread judge the chest, each reading with the ⚠ the
   gate gives it. This shot draws the bridge dashed with its ± 1 sd, the peak with its σ, and the tile, chain and
   headline rank it with a ⚠; Session reads the stored peak (it bridges only swings analysed before this).
-- **The gap is the blind band, not only lost pose** (same day, after the first library pass). The bridge first
-  read the gap from the series' `valid` mask alone, which marks only where the pose dropped the shoulders. On
-  40 library shots that stayed "chest out of sight", 36 of them the other golfers' (Nick, Jess, Paddy, Chris), the pose kept
-  reporting through the stretch near square, every sample stayed valid and the derivative read ±2000 °/s there,
-  so the bridge saw no gap at all. The §12.4 sighted mask (|turn| ≥ `sightedTurnDeg`) is now carried on the
-  channel (`SegmentRateChannel::sighted`) and the bridge's measured samples are valid AND sighted. Two older
-  defects under it, fixed with it: (1) since the curve was cut at P4 (2 Oct) the mask no longer matched the
-  series by size and the PEAK SEARCH silently ran over the blind samples too; it is now read past the cut.
-  (2) The band recorded was the FIRST blind run; an early blip (a shoulder keypoint wobbling through the limit,
-  9 library shots, 250–550 ms before impact) became the band and the stretch at impact was never recorded. The
-  band is now the blind run at impact, or the one nearest it; every blind run stays out of the mask
-  (`segment_rates_test` §16b). `validityBand` (the hole routes) keeps its first-run rule.
+- **The gap is what the camera could not read, not only lost pose** (same day, after the first library pass).
+  The bridge first read the gap from the series' `valid` mask alone, which marks only where the pose dropped
+  the shoulders. On 40 library shots that stayed "chest out of sight", 36 of them the other golfers' (Nick, Jess,
+  Paddy, Chris), the pose kept reporting through the stretch near square, every sample stayed valid and the
+  derivative read ±2000 °/s there, so the bridge saw no gap at all. The §12.4 sighted mask
+  (|turn| ≥ `sightedTurnDeg`) is now carried on the channel (`SegmentRateChannel::sighted`, with `turnDeg`).
+  Taking every near-square sample out (8c8796fe) was too blunt: it threw away clean curve too, and the library's
+  median gap went from 27 to 94 ms (10-20 Mark s2: 33 → 100 ms, ± 26 ms), with the conclusions moving with it
+  (`sequence_order` fired → clean on 20 shots, `chest_peak_after_impact` clean → fired on 31). So a near-square
+  sample now carries the span's own error model, noise × sin(`sightedTurnDeg`) / sin θ (×20 at most), and is
+  admitted from each edge of the gap inward while it agrees with the fit through the samples already admitted,
+  within `kGapBridgeAgreeSigma` (3) of √(posterior sd² + its noise²) (`admitAgreeing`). The first that disagrees
+  closes that side. 10-20 Mark s2 is back to 33 ms (peak −23 ± 10 ms); 10-20 Nick s2 bridges the 20 ms of junk
+  only (peak −42 ± 38 ms). Two older defects under it, fixed with it: (1) since the curve was cut at P4 (2 Oct)
+  the mask no longer matched the series by size and the PEAK SEARCH silently ran over the blind samples too; it
+  is now read past the cut. (2) The band recorded was the FIRST blind run; an early blip (a shoulder keypoint
+  wobbling through the limit, 9 library shots, 250–550 ms before impact) became the band and the stretch at
+  impact was never recorded. The band is now the blind run at impact, or the one nearest it; every blind run
+  stays out of the peak search's mask (`segment_rates_test` §16, §16b). `validityBand` (the hole routes) keeps
+  its first-run rule.
+- **The chest is always reported** (Mark, same day: "I want the chest timing to always be reported so long as we
+  warn the user. better to indicate than say nothing"). Every unplaced chest with a curve now carries a
+  `probable` peak, and `probable.how` says how it was read: `bridge` (the fit's peak inside the gap); `rising` /
+  `fell` (the fit still rising where its search ends / falling into the gap: that edge is reported as the
+  earliest / latest the peak can be, `edge` in the gapBridged evidence); `seen` (no gap at impact to bridge —
+  the camera never saw the chest again after impact, or lost it elsewhere — so the fastest the camera CLEARLY
+  saw the chest turn, top to P8, clear of the spike window after its reversal (`seenPeak`), stands for the
+  peak, gate `sequence.chestIndicated`, downgraded, shown as "indicated"). The first cut took the route's own
+  search result instead and reported peaks other gates had refused — spikes, σ past the ceiling (± 450–760 ms),
+  and a node with no peak at all as −2506 ms; never again. The 80 ms gap limit
+  is lifted (`maxGapMs` = ∞): a long gap is bridged and its ± says how little it knows. Only a swing with no
+  chest curve at all (no video) has no chest timing. The validity argument for long gaps and for `seen` rests on
+  the worn trunk-IMU session (this week, Oct 2026).
 - **Not yet truthed.** No trunk sensor has checked the probable peak; calibrate the noise and grade the peak
   against the worn trunk-IMU session. The next step is #102: judge each curve's SHAPE against the reference KS
   shape to predict measurement error per shot.

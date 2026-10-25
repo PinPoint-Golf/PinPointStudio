@@ -76,6 +76,14 @@
       "golfer": "the camera lost your chest for a moment at impact, so its peak is a probable one, read off a smooth fit across the gap"
     },
     {
+      "id": "sequence.chestUnreadable",
+      "golfer": "the camera could not tell which way your chest was turning as it squared up, so its timing is not shown on this shot"
+    },
+    {
+      "id": "sequence.chestIndicated",
+      "golfer": "the camera could not time your chest's peak, so the fastest it saw your chest turn stands in for it"
+    },
+    {
       "id": "body.lowerAddress",
       "golfer": "the cameras could not see your hips, knees and ankles clearly at address"
     },

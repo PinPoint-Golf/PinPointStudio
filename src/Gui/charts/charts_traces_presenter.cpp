@@ -1212,6 +1212,19 @@ double shotMsOf(const Ctx &c, qint64 us) { return c.shot && c.shot->impactUs >= 
 // The chest's probable peak on one shot (KsNode::probable, design §12.6): the gap it bridged and the fit
 // across it (the bridge's posterior mean ± 1 sd, ms from impact), from the analysis' own node. Empty when
 // the shot carries none (not bridged, or analysed before the analysis bridged).
+// A chest whose curve runs backwards through impact (sequence.chestUnreadable, #103): no time to show, not even
+// the route's own unplaced ring — failing with grace (Mark, 25 Oct 2026)
+bool unreadable(const SegmentPeak &p)
+{
+    return p.refusal.value(QStringLiteral("gate")).toString() == QLatin1String("sequence.chestUnreadable");
+}
+
+// "probable" (a fit across the gap) or "indicated" (the highest rate the camera saw: sequence.chestIndicated)
+QString probableWord(const SegmentPeak &p)
+{
+    return p.probableHow == QLatin1String("seen") ? QStringLiteral("indicated") : QStringLiteral("probable");
+}
+
 struct ProbableBridge { std::vector<double> t, mean, sd; double fromMs = kNaN, toMs = kNaN; bool ok() const { return t.size() >= 2; } };
 ProbableBridge probableBridgeOf(const ShotSeries &shot)
 {
@@ -1269,7 +1282,7 @@ QVariantMap sequenceBlock(Ctx &c)
                                                           + (p.probableSigmaDps > 0 ? QStringLiteral(" ±") + QString::number(std::lround(100.0 * p.probableSigmaDps / pro)) : QString())
                                                     : QStringLiteral("-"));
             r.insert(QStringLiteral("warn"), QStringLiteral("⚠"));
-            r.insert(QStringLiteral("warnShort"), QStringLiteral("probable"));
+            r.insert(QStringLiteral("warnShort"), probableWord(p));
         } else if (!p.placed) {
             // A NODE NOT PLACED IS A PLAIN "-" (Mark, 17 Oct 2026): no guessed rank ("3?"), no estimate, no gate
             // words; the headline names it and the panel's tail says why
@@ -1307,7 +1320,12 @@ QVariantMap sequenceBlock(Ctx &c)
     // ("How far can I trust this?") says why; the strip only gives the order it reads against.
     W::Sentence note;
     note.append(QStringLiteral("Expected pelvis, chest, lead arm, club."));
-    if (anyProbable) note.append(QStringLiteral(" ⚠ The chest's peak is probable, read off a fit across the camera's gap."));
+    if (anyProbable) {
+        const SegmentPeak &cp = q.segments[size_t(kChestSegment)];
+        note.append(cp.probableHow == QLatin1String("seen")
+                        ? QStringLiteral(" ⚠ The chest's peak is indicated: the fastest the camera saw it turn.")
+                        : QStringLiteral(" ⚠ The chest's peak is probable, read off a fit across the camera's gap."));
+    }
     // THE VERDICT IS THE TIMED SEGMENTS' (the table's reads an inversion against an unplaced peak too)
     QString verdict, state;
     if (q.timedCount < 2) { verdict = QStringLiteral("Order unclear"); state = QStringLiteral("unresolved"); }
@@ -1407,7 +1425,7 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
                                   { QStringLiteral("late"), p.late },
                                   { QStringLiteral("lateWord"), p.late ? QStringLiteral("late") : QString() },
                                   { QStringLiteral("rising"), false }, { QStringLiteral("risingWord"), QString() } };
-        else
+        else if (!unreadable(p))
         peaks << QVariantMap{ { QStringLiteral("shotMs"), p.risingAtImpact ? 0.0 : p.shotMs },
                               { QStringLiteral("value"), meanAt(p.risingAtImpact ? 0.0 : p.shotMs) },
                               { QStringLiteral("text"), p.risingAtImpact ? QStringLiteral("rising") : W::signedMs(p.shotMs) },
@@ -1423,7 +1441,7 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
                                     { QStringLiteral("text"), W::fig(std::abs(p.probableDps)) + (W::pm(p.probableSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(p.probableSigmaDps)) + QChar(0x00A0) + shortUnitOf(c, m.unit) },
                                     { QStringLiteral("warn"), false } };
             figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("order") },
-                                    { QStringLiteral("text"), W::ordinalWord(p.rank) + QStringLiteral(" of %1, probable").arg(c.seq.timedCount) },
+                                    { QStringLiteral("text"), W::ordinalWord(p.rank) + QStringLiteral(" of %1, ").arg(c.seq.timedCount) + probableWord(p) },
                                     { QStringLiteral("warn"), p.late } };
         } else if (p.placed) {
             figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak") },
@@ -1834,11 +1852,24 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
                 .figure(W::fig(std::abs(chest.probableMs)) + (W::pm(chest.probableSigmaMs).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(chest.probableSigmaMs))
                         + QStringLiteral("\u00A0ms"))
                 .append(chest.probableMs <= 0 ? QStringLiteral(" before impact") : QStringLiteral(" after impact"));
-            if (pb.ok())
-                stand.append(QStringLiteral(": the camera lost it for ")).figure(W::figMs(pb.toMs - pb.fromMs))
-                    .append(QStringLiteral(", and the peak is read off a fit across the gap."));
-            else
+            // how it was read (KsNode::probableHow): inside the gap, at an edge of the fit's search, or seen
+            const QString &how = chest.probableHow;
+            if (how == QLatin1String("seen"))
+                stand.append(QStringLiteral(": the fastest the camera saw it turn. The camera could not time its peak, so this is an indication, not a measurement."));
+            else if (pb.ok()) {
+                stand.append(QStringLiteral(": the camera lost it for ")).figure(W::figMs(pb.toMs - pb.fromMs));
+                if (how == QLatin1String("rising"))
+                    stand.append(QStringLiteral(", and a fit across the gap was still rising where it ended, so this is the earliest it can have peaked."));
+                else if (how == QLatin1String("fell"))
+                    stand.append(QStringLiteral(", and a fit across the gap was falling into it, so this is the latest it can have peaked."));
+                else
+                    stand.append(QStringLiteral(", and the peak is read off a fit across the gap."));
+            } else
                 stand.append(QStringLiteral(", read off a fit across the camera's gap."));
+        } else if (unreadable(chest)) {
+            stand.append(stand.isEmpty() ? QStringLiteral("⚠ ") : QStringLiteral(" ⚠ "))
+                .append(QStringLiteral("The chest's curve runs backwards through impact on this shot, so its peak cannot be read: "
+                                       "the camera mistook which way the shoulders were turning as they squared up to it."));
         }
         if (pel.placed && pel.shotMs > 0 && n >= 3) {     // a session clause needs a session (≥ 3 shots)
             const SegmentSummary &ps = c.w->sequence.segments[0];
