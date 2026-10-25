@@ -177,6 +177,17 @@ struct KsNode {
     // DRAWN BUT NOT JUDGED. Non-empty = why the route's node must not carry a diagnostic verdict
     // (MetricSeries::withheld); the node is placed and charted with its σ as usual.
     QString    withheld;
+    // A PROBABLE PEAK (gap_bridge.h; design §12.6). An UNPLACED node whose curve the route lost for a short gap
+    // at impact, bridged by a Gaussian process: the peak the gap hides, with its ±, and the bridge itself (its
+    // posterior mean and 1σ every ms across the gap). `placed` stays false — the order, gaps and verdict above
+    // are the placed nodes' — but the node's readings are emitted from here, downgraded (sequence.gapBridged).
+    // Times are ms from impact (+ after), so a reload needs no re-timing.
+    bool                probable = false;
+    double              probableMs = 0.0, probableSigmaMs = 0.0;          // peak instant, ms from impact, ±1σ
+    double              probableDps = 0.0, probableSigmaDps = 0.0;        // peak value, ±1σ
+    std::vector<double> bridgeMs, bridgeMean, bridgeSd;                   // the fit across the gap
+    double              earlierMs = std::numeric_limits<double>::quiet_NaN();   // a taller measured value earlier
+    double              earlierDps = std::numeric_limits<double>::quiet_NaN();  //   in the downswing (read as the measurement)
     // WHY THE NODE IS WHAT IT IS (trust_and_gates_design.md §4.2): every gate that fired on this
     // node — the sighted band (also when it only masked samples, so the chart can shade them), the σ
     // ceiling, the spike guard, the route switch, the club floor. Travels WITH the node so a rung

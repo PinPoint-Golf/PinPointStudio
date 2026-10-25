@@ -104,6 +104,19 @@ int main()
 
     // ── evidence sentences ────────────────────────────────────────────────────────────────────
     {
+        // the chest's probable peak (sequence.gapBridged): downgraded, its sentence filled, the earlier hump optional
+        const gates::GateEntry *gb = gates::gateEntry(QStringLiteral("sequence.gapBridged"));
+        check(gb && gb->effects.size() == 1 && gb->effects[0] == GateEffect::Downgraded, "the gap bridge is a downgrade, nothing else");
+        const QVariantMap ev{ { QStringLiteral("gapMs"), 26.7 }, { QStringLiteral("gapFromMs"), -20.1 }, { QStringLiteral("gapToMs"), 6.6 },
+                              { QStringLiteral("peakMs"), -13.0 }, { QStringLiteral("peakSigmaMs"), 4.0 } };
+        const QString t = gb ? gates::evidenceText(*gb, ev) : QString();
+        check(t.startsWith(QStringLiteral("Bridged across 27")) && !t.contains(QLatin1Char('{')) && !t.contains(QStringLiteral("hump")),
+              "the gap bridge's sentence, the earlier hump dropped when absent");
+        QVariantMap ev2 = ev;
+        ev2.insert(QStringLiteral("earlierMs"), -174.0);
+        check(gb && gates::evidenceText(*gb, ev2).contains(QStringLiteral("taller measured hump")), "…and said when present");
+    }
+    {
         const gates::GateEntry *band = gates::gateEntry(QStringLiteral("sequence.sightedBand"));
         const QString minus = QString(QChar(0x2212)), nb = QString(QChar(0x00A0));
         const QString a = gates::evidenceText(*band, { { QStringLiteral("sightLostMs"), -129.0 },

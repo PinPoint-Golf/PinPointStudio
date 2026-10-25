@@ -1209,22 +1209,70 @@ double shotMsOf(const Ctx &c, qint64 us) { return c.shot && c.shot->impactUs >= 
 
 // ── THIS SHOT ───────────────────────────────────────────────────────────────────────────────
 
+// The chest's probable peak on one shot (KsNode::probable, design §12.6): the gap it bridged and the fit
+// across it (the bridge's posterior mean ± 1 sd, ms from impact), from the analysis' own node. Empty when
+// the shot carries none (not bridged, or analysed before the analysis bridged).
+struct ProbableBridge { std::vector<double> t, mean, sd; double fromMs = kNaN, toMs = kNaN; bool ok() const { return t.size() >= 2; } };
+ProbableBridge probableBridgeOf(const ShotSeries &shot)
+{
+    ProbableBridge out;
+    for (const QVariant &nv : shot.kinematicSequence.value(QStringLiteral("nodes")).toList()) {
+        const QVariantMap n = nv.toMap();
+        if (n.value(QStringLiteral("segment")).toString() != QLatin1String("thorax")) continue;
+        const QVariantMap br = n.value(QStringLiteral("probable")).toMap().value(QStringLiteral("bridge")).toMap();
+        for (const QVariant &x : br.value(QStringLiteral("tMs")).toList())  out.t.push_back(x.toDouble());
+        for (const QVariant &x : br.value(QStringLiteral("mean")).toList()) out.mean.push_back(x.toDouble());
+        for (const QVariant &x : br.value(QStringLiteral("sd")).toList())   out.sd.push_back(x.toDouble());
+        if (out.t.size() != out.mean.size() || out.t.size() != out.sd.size()) return {};
+        if (!out.t.empty()) { out.fromMs = out.t.front(); out.toMs = out.t.back(); }
+    }
+    return out;
+}
+
+// A peak instant as the tile writes it: "−13 ±5 ms", "+12 ±4 ms".
+QString tileMs(double ms, double sigma)
+{
+    const long r = std::lround(ms);
+    return (r > 0 ? QStringLiteral("+") : r < 0 ? QStringLiteral("−") : QString()) + QString::number(std::labs(r))
+           + (sigma > 0.0 ? QStringLiteral(" ±") + QString::number(std::lround(sigma)) : QString()) + QStringLiteral(" ms");
+}
+
 QVariantMap sequenceBlock(Ctx &c)
 {
     const ShotSequence &q = c.seq;
     const QVariantMap table = c.w->cm->sequenceTable(c.shot->kinematicSequence);
+    bool anyProbable = false;
     QVariantList rows;
     for (const QVariant &rv : table.value(QStringLiteral("rows")).toList()) {
         QVariantMap r = rv.toMap();
         const int seg = int(std::find(sequenceSegmentIds().begin(), sequenceSegmentIds().end(),
                                       r.value(QStringLiteral("segment")).toString()) - sequenceSegmentIds().begin());
-        const bool late = r.value(QStringLiteral("outOfTurn")).toBool();
-        r.insert(QStringLiteral("late"), late);
-        r.insert(QStringLiteral("lateWord"), late ? QStringLiteral("late") : QString());
-        r.insert(QStringLiteral("rising"), seg >= 0 && seg < kSequenceSegments && q.segments[size_t(seg)].risingAtImpact);
-        // A NODE NOT PLACED IS A PLAIN "-" (Mark, 17 Oct 2026): no guessed rank ("3?"), no estimate, no gate
-        // words; the headline names it and the panel's tail says why
-        if (seg >= 0 && seg < kSequenceSegments && !q.segments[size_t(seg)].placed) {
+        if (seg < 0 || seg >= kSequenceSegments) { rows << r; continue; }
+        const SegmentPeak &p = q.segments[size_t(seg)];
+        // THE RANKS AND THE LATE MARK ARE THE TIMED SEGMENTS' (placed, or the chest's probable peak): the table
+        // ranks every node with a peak, an unplaced one too, which this tile blanks
+        r.insert(QStringLiteral("late"), p.late);
+        r.insert(QStringLiteral("outOfTurn"), p.late);
+        r.insert(QStringLiteral("lateWord"), p.late ? QStringLiteral("late") : QString());
+        r.insert(QStringLiteral("rising"), p.risingAtImpact);
+        r.insert(QStringLiteral("probable"), p.probable);
+        if (p.timed()) r.insert(QStringLiteral("actualRank"), QString::number(p.rank));
+        if (p.probable) {
+            // THE CHEST'S PROBABLE PEAK (design §12.6): its numbers with their ±, and the ⚠ with its few words
+            anyProbable = true;
+            const double pro = ChartMetrics::sequenceProDps(sequenceSegmentIds()[size_t(seg)]);
+            r.insert(QStringLiteral("peakText"), tileMs(p.probableMs, p.probableSigmaMs));
+            r.insert(QStringLiteral("speedText"), QString::number(std::lround(std::abs(p.probableDps)))
+                                                      + (p.probableSigmaDps > 0 ? QStringLiteral(" ±") + QString::number(std::lround(p.probableSigmaDps)) : QString()));
+            r.insert(QStringLiteral("pctText"), std::isfinite(pro) && pro > 0
+                                                    ? QString::number(std::lround(100.0 * std::abs(p.probableDps) / pro)) + QStringLiteral("%")
+                                                          + (p.probableSigmaDps > 0 ? QStringLiteral(" ±") + QString::number(std::lround(100.0 * p.probableSigmaDps / pro)) : QString())
+                                                    : QStringLiteral("-"));
+            r.insert(QStringLiteral("warn"), QStringLiteral("⚠"));
+            r.insert(QStringLiteral("warnShort"), QStringLiteral("probable"));
+        } else if (!p.placed) {
+            // A NODE NOT PLACED IS A PLAIN "-" (Mark, 17 Oct 2026): no guessed rank ("3?"), no estimate, no gate
+            // words; the headline names it and the panel's tail says why
             r.insert(QStringLiteral("actualRank"), QStringLiteral("-"));
             r.insert(QStringLiteral("peakText"), QStringLiteral("-"));
             r.insert(QStringLiteral("speedText"), QStringLiteral("-"));
@@ -1232,24 +1280,26 @@ QVariantMap sequenceBlock(Ctx &c)
         }
         rows << r;
     }
-    // THE CHAIN: the placed peaks in the order they happened, the gap on each arrow, the late one worded.
-    std::vector<int> placed;
-    for (int i = 0; i < kSequenceSegments; ++i) if (q.segments[size_t(i)].placed) placed.push_back(i);
-    std::stable_sort(placed.begin(), placed.end(), [&](int a, int b) { return q.segments[size_t(a)].shotMs < q.segments[size_t(b)].shotMs; });
+    // THE CHAIN: the timed peaks in the order they happened, the gap on each arrow, the late one worded, a
+    // probable one with its ⚠.
+    std::vector<int> timed;
+    for (int i = 0; i < kSequenceSegments; ++i) if (q.segments[size_t(i)].timed()) timed.push_back(i);
+    std::stable_sort(timed.begin(), timed.end(), [&](int a, int b) { return q.segments[size_t(a)].timeMs() < q.segments[size_t(b)].timeMs(); });
     W::Sentence chain;
     QVariantList links;
-    for (size_t i = 0; i < placed.size(); ++i) {
-        const SegmentPeak &p = q.segments[size_t(placed[i])];
-        chain.append(segWord(placed[i]) + (p.late ? QStringLiteral(", late") : QString()));
+    for (size_t i = 0; i < timed.size(); ++i) {
+        const SegmentPeak &p = q.segments[size_t(timed[i])];
+        chain.append(segWord(timed[i]) + (p.probable ? QStringLiteral(" ⚠") : QString()) + (p.late ? QStringLiteral(", late") : QString()));
         double gap = kNaN;
-        if (i + 1 < placed.size()) {
-            gap = q.segments[size_t(placed[i + 1])].shotMs - p.shotMs;
+        if (i + 1 < timed.size()) {
+            gap = q.segments[size_t(timed[i + 1])].timeMs() - p.timeMs();
             chain.append(QStringLiteral(" — ")).figure(W::figMs(gap)).append(QStringLiteral(" → "));
         }
-        links << QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(placed[i])] },
-                              { QStringLiteral("word"), segWord(placed[i]) },
+        links << QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(timed[i])] },
+                              { QStringLiteral("word"), segWord(timed[i]) },
                               { QStringLiteral("late"), p.late },
                               { QStringLiteral("lateWord"), p.late ? QStringLiteral("late") : QString() },
+                              { QStringLiteral("probable"), p.probable },
                               { QStringLiteral("gapMs"), gap },
                               { QStringLiteral("gapText"), std::isfinite(gap) ? W::figMs(gap) : QString() } };
     }
@@ -1257,16 +1307,18 @@ QVariantMap sequenceBlock(Ctx &c)
     // ("How far can I trust this?") says why; the strip only gives the order it reads against.
     W::Sentence note;
     note.append(QStringLiteral("Expected pelvis, chest, lead arm, club."));
-    // the table no longer marks a guessed rank with "?", so its key goes too; and a verdict that read "out of
-    // sequence" only against those guesses says what the headline says of the placed peaks ("in order so far")
-    QString verdict = table.value(QStringLiteral("verdictText")).toString();
-    if (verdict.contains(QStringLiteral(" (? = uncertain)"))) {
-        verdict.remove(QStringLiteral(" (? = uncertain)"));
-        if (!q.anyLate) verdict = QStringLiteral("In order so far");
-    }
+    if (anyProbable) note.append(QStringLiteral(" ⚠ The chest's peak is probable, read off a fit across the camera's gap."));
+    // THE VERDICT IS THE TIMED SEGMENTS' (the table's reads an inversion against an unplaced peak too)
+    QString verdict, state;
+    if (q.timedCount < 2) { verdict = QStringLiteral("Order unclear"); state = QStringLiteral("unresolved"); }
+    else if (q.anyLate) { verdict = QStringLiteral("Out of sequence"); state = QStringLiteral("mismatch"); }
+    else if (q.timedCount == kSequenceSegments) { verdict = QStringLiteral("In sequence"); state = QStringLiteral("match"); }
+    else { verdict = QStringLiteral("In order so far"); state = QStringLiteral("incomplete"); }
+    if (anyProbable && q.timedCount >= 2) verdict += QStringLiteral(" ⚠");
     return { { QStringLiteral("verdictText"), verdict },
-             { QStringLiteral("verdictState"), table.value(QStringLiteral("verdictState")) },
+             { QStringLiteral("verdictState"), state },
              { QStringLiteral("anyLate"), q.anyLate },
+             { QStringLiteral("anyProbable"), anyProbable },
              { QStringLiteral("chain"), chain.toVariant() },
              { QStringLiteral("links"), links },
              { QStringLiteral("note"), note.toVariant() },
@@ -1345,6 +1397,17 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
         const QVariantList trows = c.w->cm->sequenceTable(c.shot->kinematicSequence).value(QStringLiteral("rows")).toList();
         QVariantMap trow;
         for (const QVariant &r : trows) if (r.toMap().value(QStringLiteral("segment")).toString() == sequenceSegmentIds()[size_t(seg)]) trow = r.toMap();
+        if (p.probable)
+            // THE CHEST'S PROBABLE PEAK (design §12.6): on the fit across the gap, with its ± and its ⚠
+            peaks << QVariantMap{ { QStringLiteral("shotMs"), p.probableMs }, { QStringLiteral("value"), p.probableDps },
+                                  { QStringLiteral("text"), W::signedMs(p.probableMs) + QStringLiteral(" ⚠") },
+                                  { QStringLiteral("sigmaMs"), p.probableSigmaMs },
+                                  { QStringLiteral("valueSigmaText"), W::pm(p.probableSigmaDps) },
+                                  { QStringLiteral("placed"), true }, { QStringLiteral("probable"), true },
+                                  { QStringLiteral("late"), p.late },
+                                  { QStringLiteral("lateWord"), p.late ? QStringLiteral("late") : QString() },
+                                  { QStringLiteral("rising"), false }, { QStringLiteral("risingWord"), QString() } };
+        else
         peaks << QVariantMap{ { QStringLiteral("shotMs"), p.risingAtImpact ? 0.0 : p.shotMs },
                               { QStringLiteral("value"), meanAt(p.risingAtImpact ? 0.0 : p.shotMs) },
                               { QStringLiteral("text"), p.risingAtImpact ? QStringLiteral("rising") : W::signedMs(p.shotMs) },
@@ -1355,12 +1418,20 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
                               { QStringLiteral("lateWord"), p.late ? QStringLiteral("late") : QString() },
                               { QStringLiteral("rising"), p.risingAtImpact },
                               { QStringLiteral("risingWord"), p.risingAtImpact ? QStringLiteral("rising") : QString() } };
-        if (p.placed) {
+        if (p.probable) {
+            figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak ⚠") },
+                                    { QStringLiteral("text"), W::fig(std::abs(p.probableDps)) + (W::pm(p.probableSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(p.probableSigmaDps)) + QChar(0x00A0) + shortUnitOf(c, m.unit) },
+                                    { QStringLiteral("warn"), false } };
+            figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("order") },
+                                    { QStringLiteral("text"), W::ordinalWord(p.rank) + QStringLiteral(" of %1, probable").arg(c.seq.timedCount) },
+                                    { QStringLiteral("warn"), p.late } };
+        } else if (p.placed) {
             figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak") },
                                     { QStringLiteral("text"), W::fig(p.peakDps) + (W::pm(p.peakSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(p.peakSigmaDps)) + QChar(0x00A0) + shortUnitOf(c, m.unit) },
                                     { QStringLiteral("warn"), false } };
             figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("order") },
-                                    { QStringLiteral("text"), W::ordinalWord(p.rank) + QStringLiteral(" of %1 placed").arg(placedN) },
+                                    { QStringLiteral("text"), W::ordinalWord(p.rank) + (c.seq.timedCount > placedN ? QStringLiteral(" of %1").arg(c.seq.timedCount)
+                                                                                                 : QStringLiteral(" of %1 placed").arg(placedN)) },
                                     { QStringLiteral("warn"), p.late } };
         } else {
             // not placed: a plain "-"; the headline names it and the panel's tail says why (Mark, 17 Oct 2026)
@@ -1371,14 +1442,15 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
         seqInfo = QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(seg)] },
                                { QStringLiteral("word"), segWord(seg) },
                                { QStringLiteral("placed"), p.placed },
+                               { QStringLiteral("probable"), p.probable },
                                { QStringLiteral("rank"), p.rank },
-                               { QStringLiteral("rankText"), trow.value(QStringLiteral("actualRank")).toString() },
+                               { QStringLiteral("rankText"), p.timed() ? QString::number(p.rank) : QStringLiteral("-") },
                                { QStringLiteral("late"), p.late },
                                { QStringLiteral("lateWord"), p.late ? QStringLiteral("late") : QString() },
                                { QStringLiteral("rising"), p.risingAtImpact },
-                               { QStringLiteral("peakText"), trow.value(QStringLiteral("peakText")).toString() },
-                               { QStringLiteral("speedText"), trow.value(QStringLiteral("speedText")).toString() },
-                               { QStringLiteral("pctText"), trow.value(QStringLiteral("pctText")).toString() } };
+                               { QStringLiteral("peakText"), p.probable ? tileMs(p.probableMs, p.probableSigmaMs) : trow.value(QStringLiteral("peakText")).toString() },
+                               { QStringLiteral("speedText"), p.probable ? QString::number(std::lround(std::abs(p.probableDps))) : trow.value(QStringLiteral("speedText")).toString() },
+                               { QStringLiteral("pctText"), p.probable ? QString() : trow.value(QStringLiteral("pctText")).toString() } };
     } else if (s.winPeakOk) {
         const double pk = s.st.value(QStringLiteral("peak")).toDouble();
         const double tp = shotMsOf(c, s.st.value(QStringLiteral("tPeakUs")).toLongLong());
@@ -1425,6 +1497,25 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
     row.insert(QStringLiteral("figures"), figures);
     row.insert(QStringLiteral("windowEmpty"), s.collapsed);
     row.insert(QStringLiteral("sequence"), seqInfo);
+    // THE CHEST'S BRIDGE (design §12.6): the analysis' fit across the camera's gap, drawn dashed with its ± 1 sd,
+    // on this shot's clock — in place of the straight bridge across the same gap
+    if (seg == kChestSegment && c.seq.segments[size_t(seg)].probable) {
+        const ProbableBridge pb = probableBridgeOf(*c.shot);
+        if (pb.ok()) {
+            std::vector<double> blo(pb.mean.size()), bhi(pb.mean.size());
+            for (size_t i = 0; i < pb.mean.size(); ++i) { blo[i] = pb.mean[i] - pb.sd[i]; bhi[i] = pb.mean[i] + pb.sd[i]; }
+            row.insert(QStringLiteral("estimate"), QVariantMap{ { QStringLiteral("t"), dl(pb.t) }, { QStringLiteral("v"), dl(pb.mean) },
+                                                                { QStringLiteral("lo"), dl(blo) }, { QStringLiteral("hi"), dl(bhi) } });
+            // the value axis holds the bridge and its band
+            const double elo = *std::min_element(blo.begin(), blo.end()), ehi = *std::max_element(bhi.begin(), bhi.end());
+            if (std::isfinite(elo) && std::isfinite(ehi) && (!(elo >= lo) || !(ehi <= hi))) {
+                const double nlo = std::isfinite(lo) ? std::min(lo, elo) : elo, nhi = std::isfinite(hi) ? std::max(hi, ehi) : ehi;
+                row.insert(QStringLiteral("yLo"), nlo);
+                row.insert(QStringLiteral("yHi"), nhi);
+                row.insert(QStringLiteral("yTicks"), ticksAsDoubles(niceTicksList(c, nlo, nhi)));
+            }
+        }
+    }
     // THE STRETCH THE ROUTE COULD NOT SEE (trust_and_gates_design.md §7.2), a bar along the foot of the plot,
     // labelled with the gate's short words: the sighted band of a face-on trunk, a gap in a two-camera
     // track. From the record, so it is drawn whether or not the band refused the peak — the samples
@@ -1686,27 +1777,30 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
     const QString lead = c.rowKeys.value(0);
     if (seqShown) {
         QStringList late;
-        bool pelvisLate = false;
-        for (int i = 0; i < kSequenceSegments; ++i)
+        bool pelvisLate = false, anyProbable = false;
+        for (int i = 0; i < kSequenceSegments; ++i) {
+            anyProbable = anyProbable || c.seq.segments[size_t(i)].probable;
             if (c.seq.segments[size_t(i)].late) { late << QStringLiteral("the ") + segWord(i).toLower(); pelvisLate = pelvisLate || i == 0; }
+        }
         if (!late.isEmpty()) {
-            head.append(QStringLiteral("Out of sequence: ") + W::list(late) + QStringLiteral(" peaked late"));
+            head.append(QStringLiteral("Out of sequence: ") + W::list(late) + QStringLiteral(" peaked late")
+                        + (anyProbable ? QStringLiteral(" ⚠") : QString()));
         } else {
             // NOTHING PLACED PEAKED LATE: the head judges the placed segments only (one camera places
             // the lead arm and the club and nothing else; ChartMetrics' verdictState still reads an
             // inversion against an unplaced peak as "Out of sequence", which is not what was measured).
+            // the TIMED segments: placed, or the chest's probable peak (design §12.6), which carries its ⚠
             std::vector<int> placed;
             QStringList notPlaced;
             for (int i = 0; i < kSequenceSegments; ++i) {
-                if (c.seq.segments[size_t(i)].placed) placed.push_back(i);
+                if (c.seq.segments[size_t(i)].timed()) placed.push_back(i);
                 else notPlaced << segWord(i).toLower();
             }
-            std::stable_sort(placed.begin(), placed.end(), [&](int a, int b) { return c.seq.segments[size_t(a)].shotMs < c.seq.segments[size_t(b)].shotMs; });
-            const bool uncertain = c.w->cm->sequenceTable(c.shot->kinematicSequence).value(QStringLiteral("verdictText")).toString()
-                                       .contains(QStringLiteral("? = uncertain"));
+            std::stable_sort(placed.begin(), placed.end(), [&](int a, int b) { return c.seq.segments[size_t(a)].timeMs() < c.seq.segments[size_t(b)].timeMs(); });
+            const bool uncertain = !notPlaced.isEmpty();
             QStringList order;
-            for (int i : placed) order << segWord(i).toLower();
-            if (int(placed.size()) == kSequenceSegments) head.append(QStringLiteral("In sequence"));
+            for (int i : placed) order << segWord(i).toLower() + (c.seq.segments[size_t(i)].probable ? QStringLiteral(" ⚠") : QString());
+            if (int(placed.size()) == kSequenceSegments) head.append(QStringLiteral("In sequence") + (anyProbable ? QStringLiteral(" ⚠") : QString()));
             else if (placed.size() >= 2)
                 head.append(W::cap1(order.join(QStringLiteral(" then "))) + (uncertain ? QStringLiteral(", in order so far") : QStringLiteral(", in order")));
             else if (placed.size() == 1) head.append(QStringLiteral("Only the ") + order.first() + QStringLiteral(" placed"));
@@ -1714,7 +1808,7 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
             // the gate in words when it is the same for every unplaced segment (the face-on blind band, usually)
             bool allOutOfSight = !notPlaced.isEmpty();
             for (int i = 0; i < kSequenceSegments; ++i)
-                if (!c.seq.segments[size_t(i)].placed)
+                if (!c.seq.segments[size_t(i)].timed())
                     allOutOfSight = allOutOfSight && c.seq.segments[size_t(i)].present
                                  && unplacedWhy(c.seq.segments[size_t(i)]).shortText == QLatin1String("out of sight");
             if (!placed.empty() && !notPlaced.isEmpty())
@@ -1732,6 +1826,20 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
                 .figure(W::figMs(std::abs(pel.shotMs)))
                 .append(pel.shotMs > 0 ? QStringLiteral(" after impact") : QStringLiteral(" before impact"));
         if (!stand.isEmpty()) stand.append(QStringLiteral("."));
+        // THE CHEST'S PROBABLE PEAK, said once on the shot (design §12.6): when, its ±, and how it was read
+        const SegmentPeak &chest = c.seq.segments[size_t(kChestSegment)];
+        if (chest.probable) {
+            const ProbableBridge pb = probableBridgeOf(*c.shot);
+            stand.append(stand.isEmpty() ? QStringLiteral("⚠ The chest probably peaked ") : QStringLiteral(" ⚠ The chest probably peaked "))
+                .figure(W::fig(std::abs(chest.probableMs)) + (W::pm(chest.probableSigmaMs).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(chest.probableSigmaMs))
+                        + QStringLiteral("\u00A0ms"))
+                .append(chest.probableMs <= 0 ? QStringLiteral(" before impact") : QStringLiteral(" after impact"));
+            if (pb.ok())
+                stand.append(QStringLiteral(": the camera lost it for ")).figure(W::figMs(pb.toMs - pb.fromMs))
+                    .append(QStringLiteral(", and the peak is read off a fit across the gap."));
+            else
+                stand.append(QStringLiteral(", read off a fit across the camera's gap."));
+        }
         if (pel.placed && pel.shotMs > 0 && n >= 3) {     // a session clause needs a session (≥ 3 shots)
             const SegmentSummary &ps = c.w->sequence.segments[0];
             stand.append(QStringLiteral(" On ")).figure(W::word(ps.afterImpact) + QStringLiteral(" of the ") + W::word(n))

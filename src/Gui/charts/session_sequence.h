@@ -63,9 +63,10 @@ struct SegmentPeak {
     double peakDps = kNaN, peakSigmaDps = kNaN;
     int    rank = 0;                    // among the timed (placed or probable), 1 = first; 0 = neither
     bool   late = false;                // D4
-    // A PROBABLE PEAK (session_bridge.h): the Session view's estimate for a node the analysis did not
-    // place, read off a fit bridging a short gap in its curve — never the analysis' own. Set only by
-    // applyBridges(); `placed` and `shotMs` keep what the analysis said.
+    // A PROBABLE PEAK (gap_bridge.h): the estimate for a node the analysis did not place, read off a fit
+    // bridging a short gap in its curve — the analysis' own (KsNode::probable, read by shotSequence) or, for a
+    // swing analysed before it bridged, the Session view's (applyBridges). `placed` and `shotMs` keep what the
+    // analysis placed.
     bool   probable = false;
     double probableMs = kNaN, probableSigmaMs = kNaN;       // ms from impact (+ after), ±σ
     double probableDps = kNaN, probableSigmaDps = kNaN;

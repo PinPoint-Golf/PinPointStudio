@@ -57,7 +57,10 @@
 // raw output (std::normal_distribution differs between standard libraries), so a session draws the same
 // estimate on the Mac and on the cabin PC.
 //
-// Only the Session view reads this. The analysis, the This shot tile and the diagnostics never see it.
+// THE ANALYSIS DOES THIS TOO NOW (25 Oct 2026, the same day: src/Kinematics/gap_bridge.h, one implementation,
+// the corpus's kernel). A swing analysed with it carries its probable peak and bridge on the chest node, and
+// this file READS that (storedBridge) so Session and This shot say the same number. It bridges itself, with a
+// kernel fitted to the session, only the swings analysed before the analysis did.
 
 #include "session_curves.h"
 #include "session_sequence.h"
@@ -115,6 +118,8 @@ struct ChestBridge {
     // a taller measured hump earlier in the downswing (from Top to the search window), NaN when none
     double earlierMs = kNaN, earlierDps = kNaN;
 
+    bool stored = false;              // the analysis' own probable peak (KsNode::probable), read, not recomputed
+
     bool bridged() const { return outcome == BridgeOutcome::Bridged; }
 };
 
@@ -139,20 +144,5 @@ SessionBridges bridgeChest(const SessionSnapshot &session, const SessionSequence
 // probable = true and its time, then is ranked again (rankSequence) with its order rebuilt from the timed
 // segments; then the session is summarised again (summariseSequence).
 void applyBridges(SessionSequence &sequence, const SessionBridges &bridges);
-
-// The fit itself, exposed for the tests: a GP through (t, v) with the given kernel, its posterior mean and
-// sd on `grid`, and `draws` posterior samples' maxima over the grid (times and values). Returns false when
-// the matrices are not positive definite even with jitter.
-struct GpPeakDraws {
-    std::vector<double> mean, sd;
-    std::vector<double> peakT, peakV;
-    std::vector<int>    peakIndex;
-};
-bool gpPeakDraws(const std::vector<double> &t, const std::vector<double> &v, const std::vector<double> &grid,
-                 const BridgeKernel &kernel, int draws, quint64 seed, GpPeakDraws *out);
-
-// The negative log marginal likelihood of several curves under one kernel (constant mean per curve).
-double gpNegLogMarginal(const std::vector<std::vector<double>> &ts, const std::vector<std::vector<double>> &vs,
-                        double ellMs, double sfDps, double noiseDps);
 
 } // namespace pinpoint::charts

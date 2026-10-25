@@ -150,6 +150,11 @@ struct SegmentRatesConfig {
     bool    skel3dThoraxPlacement  = tuned::sequence::kSkel3dThoraxPlacement;  // sequence.skel3d.thoraxPlacement
     bool    peakTimes              = tuned::sequence::kPeakTimes;              // sequence.peakTimes
     bool    nodeSeries             = tuned::sequence::kNodeSeries;             // sequence.nodeSeries
+    // The chest's probable peak across the camera's gap (gap_bridge.h; tuned::sequence::kGapBridge).
+    bool    gapBridge              = tuned::sequence::kGapBridge;              // sequence.gapBridge
+    double  gapBridgeEllMs         = tuned::sequence::kGapBridgeEllMs;         // sequence.gapBridge.ellMs
+    double  gapBridgeSfDps         = tuned::sequence::kGapBridgeSfDps;         // sequence.gapBridge.sfDps
+    double  gapBridgeNoiseDps      = tuned::sequence::kGapBridgeNoiseDps;      // sequence.gapBridge.noiseDps
     // The club angle's per-sample σ from the shaft uncertainty pass (sigmaThetaDeg) in place of
     // shaftThetaSigmaRad / conf. A VALUE change, not a σ-only one: the wider σ un-places the club
     // node on some swings (the 1 Oct sigma sweep), so it has its own switch, off until Mark rules.
@@ -211,6 +216,10 @@ struct SegmentRatesConfig {
         apply(ov, "sequence.skel3d.thoraxPlacement", c.skel3dThoraxPlacement);
         apply(ov, "sequence.peakTimes",              c.peakTimes);
         apply(ov, "sequence.nodeSeries",             c.nodeSeries);
+        apply(ov, "sequence.gapBridge",              c.gapBridge);
+        apply(ov, "sequence.gapBridge.ellMs",        c.gapBridgeEllMs);
+        apply(ov, "sequence.gapBridge.sfDps",        c.gapBridgeSfDps);
+        apply(ov, "sequence.gapBridge.noiseDps",     c.gapBridgeNoiseDps);
         return c;
     }
 };
@@ -227,6 +236,10 @@ struct RateReversal {
 struct SegmentRateChannel {
     MetricSeries         series;        // °/s on the route's own grid; sigma = median over the domain
     std::vector<double>  sampleSigma;   // per-sample 1σ, parallel to series.t_us (for the peak finder)
+    // A route with a blind band only (the face-on span): 1 where the camera could see the rate, parallel
+    // to series.t_us; empty = no band. The series keeps the blind samples for the chart; the peak search
+    // and the chest's gap bridge treat them as unmeasured.
+    std::vector<uint8_t> sighted;
     QString              routeId;       // "pelvisImu" | "thoraxImu" | "leadArmImus" | "clubSensorFused" | "faceOn+dtl" | "faceOn+dtl3d" | "faceOn" | "faceOnClub"
     bool                 direct = false;
     // PELVIS AND THORAX ONLY: the reversal into the downswing, found on the route's own rate BEFORE

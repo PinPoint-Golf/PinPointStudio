@@ -77,6 +77,7 @@
 
 #include "../../Kinematics/segment_rates.h"
 #include "../../Kinematics/kinematic_sequence_json.h"
+#include "../../Kinematics/gap_bridge.h"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -1987,6 +1988,131 @@ int main()
                 CHECK(b.c_str(), std::isfinite(r.pair.thorax.foAtImpactPx) && r.pair.thorax.foAtImpactPx > 0.0);
             }
         }
+    }
+
+    // ── §16 the chest's probable peak across the camera's gap (gap_bridge.h; design §12.6) ────────────
+    {
+        // a chest-like bump peaking 15 ms before impact, every 6.7 ms (150 fps), unmeasured from −21 to +5.5 ms
+        const auto curve = [](double peakMs, bool rising, std::vector<double> &t, std::vector<double> &v, std::vector<uint8_t> &meas) {
+            t.clear(); v.clear(); meas.clear();
+            for (double x = -300.0; x <= 100.0; x += 6.7) {
+                t.push_back(x);
+                v.push_back(rising ? 300.0 + 2.0 * (x + 300.0) : 150.0 + 450.0 * std::exp(-(x - peakMs) * (x - peakMs) / (2.0 * 45.0 * 45.0)));
+                meas.push_back(x > -21.0 && x < 5.5 ? 0 : 1);
+            }
+        };
+        const GapBridgeKernel kern{ pinpoint::tuned::sequence::kGapBridgeEllMs, pinpoint::tuned::sequence::kGapBridgeSfDps,
+                                    pinpoint::tuned::sequence::kGapBridgeNoiseDps };
+        std::vector<double> t, v;
+        std::vector<uint8_t> meas;
+        curve(-15.0, false, t, v, meas);
+        const GapBridge b = bridgeImpactGap(t, v, meas, -280.0, 85.0, kern, kGapBridgeSeed);
+        std::printf("      bridged: gap %.1f…%.1f ms, peak %.1f ±%.1f ms, %.0f ±%.0f °/s\n", b.fromMs, b.toMs, b.peakMs, b.peakSigmaMs, b.peakValue, b.peakSigmaValue);
+        CHECK("§16 a peak hidden in a 27 ms gap is bridged", b.bridged() && b.toMs - b.fromMs > 20.0 && b.toMs - b.fromMs < 40.0);
+        CHECK("§16 …found within 6 ms of the truth, with a ±", std::fabs(b.peakMs + 15.0) < 6.0 && b.peakSigmaMs > 0.0 && b.peakSigmaMs < 15.0);
+        CHECK("§16 …at the bump's height, with a ±", std::fabs(b.peakValue - 600.0) < 40.0 && b.peakSigmaValue > 0.0);
+        CHECK("§16 …the fit across the gap every ms, mean and 1σ", b.tMs.size() >= 20 && b.tMs.size() == b.mean.size() && b.tMs.size() == b.sd.size());
+        CHECK("§16 …and no taller hump earlier", std::isnan(b.earlierMs));
+        const GapBridge again = bridgeImpactGap(t, v, meas, -280.0, 85.0, kern, kGapBridgeSeed);
+        CHECK("§16 seeded: the same estimate every time", again.peakMs == b.peakMs && again.peakValue == b.peakValue);
+        curve(0.0, true, t, v, meas);
+        CHECK("§16 a curve still rising through the gap has no probable peak",
+              bridgeImpactGap(t, v, meas, -280.0, 85.0, kern, kGapBridgeSeed).outcome == GapBridgeOutcome::StillRising);
+
+        // the readings: a probable chest is emitted (thoraxPeakTime, thoraxPeakSpeed) from its probable peak;
+        // an unplaced one without it emits nothing
+        KinematicSequence ks;
+        ks.valid = true;
+        ks.impactUs = 2'000'000;
+        KsNode chest;
+        chest.segment = SeqSegment::Thorax;
+        chest.placed = false;
+        chest.routeId = QStringLiteral("faceOn");
+        chest.tPeakUs = ks.impactUs - 150'000;               // the route's own (artefact) peak: never read
+        ks.nodes.push_back(chest);
+        const auto has = [](const std::vector<MetricSeries> &ms, const char *k) {
+            for (const MetricSeries &m : ms) if (m.key == QLatin1String(k)) return &m;
+            return static_cast<const MetricSeries *>(nullptr);
+        };
+        CHECK("§16 an unplaced chest with no probable peak emits no peak time", !has(sequencePeakTimeSeries(ks), "thoraxPeakTime"));
+        ks.nodes[0].probable = true;
+        ks.nodes[0].probableMs = -13.0; ks.nodes[0].probableSigmaMs = 4.0;
+        ks.nodes[0].probableDps = 612.0; ks.nodes[0].probableSigmaDps = 9.0;
+        ks.nodes[0].bridgeMs = { -20.0, -10.0, 0.0 }; ks.nodes[0].bridgeMean = { 600.0, 612.0, 590.0 }; ks.nodes[0].bridgeSd = { 3.0, 8.0, 3.0 };
+        const auto pt = sequencePeakTimeSeries(ks);
+        const MetricSeries *tp = has(pt, "thoraxPeakTime");
+        CHECK("§16 a probable chest emits thoraxPeakTime at its probable instant, with its σ",
+              tp && tp->phaseSamples.size() == 1 && near(tp->phaseSamples[0].value, -13.0, 1e-9) && tp->sigma && near(*tp->sigma, 4.0, 1e-9));
+        SegmentRatesResult rr;
+        rr.sequence = ks;
+        const auto ns = sequenceNodeSeries(rr);
+        const MetricSeries *sp = has(ns, "thoraxPeakSpeed");
+        CHECK("§16 …and thoraxPeakSpeed at its probable speed, with its σ",
+              sp && sp->phaseSamples.size() == 1 && near(sp->phaseSamples[0].value, 612.0, 1e-9) && sp->sigma && near(*sp->sigma, 9.0, 1e-9));
+        const QJsonObject js = kinematicSequenceToJson(ks, [](int64_t u) { return qint64(u); });
+        const QJsonObject pr = js.value(QStringLiteral("nodes")).toArray().at(0).toObject().value(QStringLiteral("probable")).toObject();
+        CHECK("§16 the JSON carries the probable peak and its bridge, in ms from impact",
+              near(pr.value(QStringLiteral("peakMs")).toDouble(), -13.0, 1e-9)
+              && pr.value(QStringLiteral("bridge")).toObject().value(QStringLiteral("tMs")).toArray().size() == 3
+              && !js.value(QStringLiteral("nodes")).toArray().at(0).toObject().value(QStringLiteral("placed")).toBool());
+    }
+
+    // ── §16b the bridge's gap is the camera's BLIND band, not only lost pose (2026-10-25) ─────────────
+    //    10-20 Nick Henn: the pose kept reporting the shoulders through the stretch near square, so every
+    //    sample stayed valid and the derivative read ±2000 °/s there; only the sighted mask knew, and it
+    //    never reached the bridge (nor, since the curve was cut at P4, the peak search). And an early blind
+    //    blip — a shoulder keypoint wobbling at the top — was taken as THE band.
+    {
+        const auto shoulderTurnAt = [](double s) { return turnFromTop(kThorax, s); };
+        // the shoulder line square exactly at the chest's true peak (75 ms before impact)
+        const double startClosed = shoulderTurnAt(kThorax.tPeakS);
+        const ShaftTrack2D shaft = makeShaft();
+        const auto run = [&](bool blip) {
+            PoseTrack2D pose = makePose(true, 45.0, 0.0, kPelvis, 0.0, false, startClosed);
+            if (blip)   // three frames ~250 ms before impact image the shoulders 15° from square: blind, not the widest
+                for (PoseFrame2D &f : pose.frames)
+                    if (f.t_us >= 745000 && f.t_us <= 762000) {
+                        const double hs = 0.5 * kShSpanPx * std::cos(15.0 * kD2R) / kW;
+                        f.kp[kLSh] = QPointF(0.5 - hs, 0.30);
+                        f.kp[kRSh] = QPointF(0.5 + hs, 0.30);
+                    }
+            SegmentRatesInputs in;
+            in.pose = &pose; in.frameW = kW; in.frameH = kH; in.leadIsLeft = true;
+            in.shaft = &shaft; in.phases = &ph; in.impactUs = kImpactUs;
+            return buildSegmentRates(in, cfg);
+        };
+        const auto bandOf = [](const KsNode *n) -> const GateRecord * {
+            if (!n) return nullptr;
+            for (const GateRecord &r : n->gates) if (r.gate == QLatin1String("sequence.sightedBand")) return &r;
+            return nullptr;
+        };
+        const SegmentRatesResult r = run(false);
+        const KsNode *tho = nodeOf(r, SeqSegment::Thorax);
+        const SegmentRateChannel &ch = r.thorax;
+        int blindValid = 0;
+        for (size_t i = 0; i < ch.sighted.size() && i < ch.series.t_us.size(); ++i)
+            if (!ch.sighted[i] && (ch.series.valid.empty() || ch.series.valid[i])) ++blindValid;
+        const GateRecord *band = bandOf(tho);
+        if (tho) std::printf("      chest: placed=%d probable=%d %.1f ±%.1f ms (truth −75), band %.1f…%.1f ms, %d blind-but-valid samples\n",
+                             int(tho->placed), int(tho->probable), tho->probableMs, tho->probableSigmaMs,
+                             band ? band->evidence.value(QStringLiteral("sightLostMs")).toDouble() : NAN,
+                             band ? band->evidence.value(QStringLiteral("sightBackMs")).toDouble() : NAN, blindValid);
+        CHECK("§16b the chest channel carries its sighted mask, parallel to the cut series",
+              !ch.sighted.empty() && ch.sighted.size() == ch.series.t_us.size());
+        CHECK("§16b …blind where the pose was still valid", blindValid >= 3);
+        CHECK("§16b the chest square at its peak is not placed (its peak is in the blind band)", tho && !tho->placed);
+        CHECK("§16b …and the bridge, reading the blind band as the gap, gives it a probable peak near the truth",
+              tho && tho->probable && std::fabs(tho->probableMs + 75.0) < 12.0 && tho->probableSigmaMs > 0.0);
+
+        const SegmentRatesResult rb = run(true);
+        const KsNode *tb = nodeOf(rb, SeqSegment::Thorax);
+        const GateRecord *bb = bandOf(tb);
+        const double lost = bb ? bb->evidence.value(QStringLiteral("sightLostMs")).toDouble() : NAN;
+        if (bb) std::printf("      with an early blip: band %.1f…%.1f ms; chest placed=%d probable=%d %.1f ms\n", lost,
+                            bb->evidence.value(QStringLiteral("sightBackMs")).toDouble(), int(tb->placed), int(tb->probable), tb->probableMs);
+        CHECK("§16b an early blind blip is not THE band: the band recorded is the one at the chest's square-up",
+              bb && band && near(lost, band->evidence.value(QStringLiteral("sightLostMs")).toDouble(), 1e-6));
+        CHECK("§16b …and the chest is still bridged", tb && tb->probable && std::fabs(tb->probableMs + 75.0) < 12.0);
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

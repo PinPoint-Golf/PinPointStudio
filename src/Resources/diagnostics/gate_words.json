@@ -72,6 +72,10 @@
       "golfer": "the two-camera reading could not time it, so the face-on camera's was used instead"
     },
     {
+      "id": "sequence.gapBridged",
+      "golfer": "the camera lost your chest for a moment at impact, so its peak is a probable one, read off a smooth fit across the gap"
+    },
+    {
       "id": "body.lowerAddress",
       "golfer": "the cameras could not see your hips, knees and ankles clearly at address"
     },

@@ -120,6 +120,7 @@ pp_add_test(angular_rate_test SOURCES angular_rate_test.cpp)
 # shipped pelvis node they must not move.
 pp_add_test(segment_rates_test SOURCES segment_rates_test.cpp
             ${SRC}/Kinematics/segment_rates.cpp
+            ${SRC}/Kinematics/gap_bridge.cpp
             DEFINES PP_SEGMENT_RATES_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data/segment_rates")
 
 # Corridor-bar reduction (dashboard_reductions.h) — the corridor bar's value→x
@@ -384,6 +385,7 @@ pp_add_test(body_rotation_test SOURCES body_rotation_test.cpp
 pp_add_test(trunk_e2e_test SOURCES trunk_e2e_test.cpp
             ${SRC}/Body/body_rotation.cpp
             ${SRC}/Kinematics/segment_rates.cpp
+            ${SRC}/Kinematics/gap_bridge.cpp
             ${SRC}/Timeline/phase_segmenter.cpp
             ${SRC}/Timeline/phase_signals.cpp)
 

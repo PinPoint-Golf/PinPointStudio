@@ -78,6 +78,15 @@ ShotSequence shotSequence(const ShotSeries &shot)
             const double b = n.value(QStringLiteral("peakNoLaterThanMs")).toDouble();
             if (std::isfinite(b)) p.beforeMs = -b;
         }
+        // the analysis' probable peak across the camera's gap (KsNode::probable; gap_bridge.h): ms from impact
+        const QVariantMap pr = n.value(QStringLiteral("probable")).toMap();
+        if (!pr.isEmpty() && !p.placed) {
+            p.probable = true;
+            p.probableMs = pr.value(QStringLiteral("peakMs"), kNaN).toDouble();
+            p.probableSigmaMs = pr.value(QStringLiteral("tSigmaMs"), kNaN).toDouble();
+            p.probableDps = pr.value(QStringLiteral("peakDps"), kNaN).toDouble();
+            p.probableSigmaDps = pr.value(QStringLiteral("peakSigmaDps"), kNaN).toDouble();
+        }
     }
     // THE GATE RECORDS against each node (analysis.gates, subject "ks.<segment>"). The refusal shown is
     // the one that says the most: a bound first (out of sight, in a gap, still rising), then the gates

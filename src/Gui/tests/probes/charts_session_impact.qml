@@ -108,7 +108,7 @@ Item {
                 if (!probe.body) { probe.log("no Charts body"); Qt.exit(1); return }
                 const b = probe.body
                 b.preset = "Kinematic sequence"
-                b.tab = "session"
+                b.tab = probe.arg("--probe-tab", "session")      // session | shot
                 b.band = probe.arg("--probe-band", "middle")
                 b.overlay = probe.arg("--probe-draw", "split") === "overlay"
                 if (b.align !== undefined) b.align = probe.arg("--probe-align", "p")
@@ -118,6 +118,28 @@ Item {
                 if (w !== "") b.window = w
             } else if (probe.step === 5) {
                 const b = probe.body
+                if (b.tab === "shot") {
+                    // THIS SHOT: the headline, the KS tile and chain, the chest row's peak and bridge
+                    const ts = b.tShot || {}
+                    probe.log("shot head: " + probe.words(ts.head))
+                    probe.log("shot stand: " + probe.words(ts.standfirst))
+                    const sq = ts.sequence || {}
+                    probe.log("tile verdict: " + (sq.verdictText || "") + " | chain: " + probe.words(sq.chain) + " | note: " + probe.words(sq.note))
+                    for (const r of (sq.table || []))
+                        probe.log("  tile " + r.segment + (r.warn ? " " + r.warn : "") + ": rank " + r.actualRank + (r.late ? " late" : "")
+                                  + " | " + r.peakText + " | " + r.speedText + " | " + r.pctText)
+                    const th = (ts.rows || []).filter(r => r.key === "thoraxAngularSpeed")[0]
+                    if (th) probe.log("chest row: estimate " + (th.estimate ? th.estimate.t.length + " pts" : "none") + ", peaks "
+                                      + (th.peaks || []).map(p => p.text + (p.probable ? " (probable)" : "")).join(", ")
+                                      + ", figures " + (th.figures || []).map(f => f.label + "=" + f.text).join("; "))
+                    const folds = []; probe.walk(b, "trustSummaryFold", folds)
+                    for (const f of folds) if (probe.shown(f, root)) {
+                        probe.log("trust fold: " + f.scope + " " + f.lines.length + " line(s)")
+                        for (const l of f.lines) probe.log("  trust [" + (l.kind || "") + "] " + String(l.text || l.sentence || JSON.stringify(l)).slice(0, 300))
+                        if (probe.arg("--probe-fold", "") === "open") f.open = true
+                    }
+                    return
+                }
                 const se = b.tSession || {}
                 probe.log("available " + se.available + ", n " + se.n + ", alignedAt " + (se.alignedAt || "(none)"))
                 probe.log("head: " + probe.words(se.head))
@@ -155,7 +177,7 @@ Item {
             } else if (probe.step === 6) {
                 if (probe.png === "") { Qt.exit(0); return }
                 // the whole Session view, scrolled or not: the flickable's content (the card shows only its viewport)
-                const views = []; probe.walk(probe.body, "chSessionView", views)
+                const views = []; probe.walk(probe.body, probe.body.tab === "shot" ? "chShotView*" : "chSessionView", views)
                 const view = views.filter(v => probe.shown(v, probe.Window.window.contentItem))[0]
                 let flick = view
                 while (flick && !(flick.contentHeight !== undefined && flick.contentItem !== undefined)) flick = flick.parent

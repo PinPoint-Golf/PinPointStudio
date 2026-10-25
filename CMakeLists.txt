@@ -2921,6 +2921,8 @@ target_sources(PinPointStudio PRIVATE
     src/Kinematics/kinematic_sequence_json.h
     src/Kinematics/segment_rates.h
     src/Kinematics/segment_rates.cpp
+    src/Kinematics/gap_bridge.h
+    src/Kinematics/gap_bridge.cpp
     src/Analysis/recorded_products.h
     src/Analysis/recorded_products.cpp
     src/Club/club_delivery.h
@@ -3348,6 +3350,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Body/upper_body_metrics.cpp
         src/Body/body_rotation.cpp
         src/Kinematics/segment_rates.cpp
+        src/Kinematics/gap_bridge.cpp
         src/Analysis/recorded_products.cpp
         src/Club/club_delivery.cpp
         src/Ball/ball_position.cpp

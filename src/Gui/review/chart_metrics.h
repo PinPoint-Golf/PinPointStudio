@@ -616,6 +616,8 @@ public:
     // verdictState is NOT narrowed with it: any inversion among the ranked peaks, placed or not,
     // still makes the verdict "Out of sequence" (with "? = uncertain" when an unplaced one is ranked).
     Q_INVOKABLE QVariantMap sequenceTable(const QVariantMap &ks) const;
+    // The professional peak speed the tile's "% of pro" divides by (Cheetham 2008), °/s; NaN for an unknown segment.
+    static double sequenceProDps(const QString &segment);
 
 private:
     pinpoint::analysis::MetricCatalogue m_catalogue;   // built once in the ctor; never mutated

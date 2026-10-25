@@ -65,15 +65,19 @@ Column {
             required property var modelData
             readonly property real line1: st.roles.u(24)
             width: st.width; height: line1 + (st.wide ? 0 : st.roles.u(15)) + st.roles.u(2)
-            opacity: modelData.placed ? 1 : 0.7
+            opacity: modelData.placed || modelData.probable ? 1 : 0.7
             Row {
                 y: st.roles.u(4); spacing: st.gap
-                Text { id: sn; width: st.segW; wrapMode: Text.WordWrap; text: rw.modelData.label; font: st.roles.fBody; color: st.roles.ink }
+                // a probable peak (the chest across the camera's gap, design §12.6): its ⚠ beside the name
+                Text { id: sn; width: st.segW; wrapMode: Text.WordWrap; text: rw.modelData.label + (rw.modelData.warn ? " " + rw.modelData.warn : "")
+                       font: st.roles.fBody; color: st.roles.ink }
                 Text { width: st.rankW; horizontalAlignment: Text.AlignRight; anchors.baseline: sn.baseline
                        text: rw.modelData.shouldRank; font: st.roles.fFig; color: st.roles.ink2 }
                 Row {
                     width: st.rankW; layoutDirection: Qt.RightToLeft; spacing: st.roles.u(4)
-                    Text { text: rw.modelData.actualRank; font: st.roles.fFig; color: rw.modelData.late ? st.roles.warn : rw.modelData.placed ? st.roles.ink : st.roles.ink3 }
+                    Text { text: rw.modelData.actualRank; font.family: st.roles.fFig.family; font.pixelSize: st.roles.fFig.pixelSize
+                           font.weight: st.roles.fFig.weight; font.italic: rw.modelData.probable === true
+                           color: rw.modelData.late ? st.roles.warn : rw.modelData.placed || rw.modelData.probable ? st.roles.ink : st.roles.ink3 }
                     Text { visible: rw.modelData.late && !!rw.modelData.lateWord; text: rw.modelData.lateWord || ""; font: st.roles.fSmall; color: st.roles.warn }
                 }
                 Row {

@@ -17,6 +17,7 @@ pp_add_test(charts_session_maths_test
             ${GUI}/charts/session_relations.cpp
             ${GUI}/charts/session_sequence.cpp
             ${GUI}/charts/session_bridge.cpp
+            ${SRC}/Kinematics/gap_bridge.cpp
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
     LINK    Qt6::Test

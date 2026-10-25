@@ -1317,6 +1317,12 @@ const SequenceNorm *sequenceNormOf(const QString &segment)
 
 } // namespace
 
+double ChartMetrics::sequenceProDps(const QString &segment)
+{
+    const SequenceNorm *n = sequenceNormOf(segment);
+    return n ? n->proDps : std::numeric_limits<double>::quiet_NaN();
+}
+
 QVariantMap ChartMetrics::sequenceTable(const QVariantMap &ks) const
 {
     QVariantMap out{ { QStringLiteral("rows"),         QVariantList{} },

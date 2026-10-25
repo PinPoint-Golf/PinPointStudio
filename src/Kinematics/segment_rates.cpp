@@ -19,6 +19,7 @@
 #include "segment_rates.h"
 
 #include "angular_rate.h"        // localRates, placePeak
+#include "gap_bridge.h"          // the chest's probable peak (design §12.6)
 #include "../Metrics/metric_channel.h" // phaseTimeOpt, interpChannel, nearestIndex
 #include "../Pose/pose_schedule.h" // localGapUs (pose.dtlLocalGap)
 #include "../Diagnostics/measures/anatomy_vocabulary.h" // kp:: COCO indices
@@ -182,6 +183,9 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
                    std::vector<KsNode> &nodes, const PlacementGate &gate = {})
 {
     if (r.t.size() < 2 || !dom.ok()) return;
+    // The gate's mask is parallel to the rate as it arrives; the cuts below take `skip` off its front.
+    const size_t arrived = r.t.size();
+    size_t skip = 0;
 
     // The trunk's reversal is read off the route's OWN rate, before the cut to P4 and the domain
     // mask below — the hips turn into the downswing before the club's top, outside both.
@@ -193,7 +197,6 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
     // follow-through after P8 is not part of the sequence and only cluttered the chart. And it
     // STARTS at P4, mirrored (Mark, same day): the backswing before the top is not part of it either.
     if (cfg.throughP8 && dom.drawFromUs >= 0 && dom.drawFromUs <= dom.fromUs) {
-        size_t skip = 0;
         while (skip < r.t.size() && r.t[skip] < dom.drawFromUs) ++skip;
         const auto drop = [skip](auto &v) { v.erase(v.begin(), v.begin() + std::min(skip, v.size())); };
         drop(r.t); drop(r.dps); drop(r.valid); drop(r.sigmaDps);
@@ -245,13 +248,17 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
     ch.direct      = direct;
 
     // The node: the shared peak finder over the domain — over the SIGHTED samples when the route
-    // has a blind band (the series itself keeps every sample the chart should show).
+    // has a blind band (the series itself keeps every sample the chart should show). The mask is
+    // read past the cut to P4 (`skip`): compared by size, as it was until 25 Oct 2026, it no longer
+    // matched once the curve was cut (2 Oct), and the search quietly ran over the blind samples too.
     std::vector<uint8_t> searchValid;
     const size_t ns = ch.series.t_us.size();
-    if (gate.sighted && gate.sighted->size() == ns) {
+    ch.sighted.clear();
+    if (gate.sighted && gate.sighted->size() == arrived && skip + ns <= arrived) {
         searchValid.assign(ns, 1u);
+        ch.sighted.assign(gate.sighted->begin() + std::ptrdiff_t(skip), gate.sighted->begin() + std::ptrdiff_t(skip + ns));
         for (size_t i = 0; i < ns; ++i)
-            searchValid[i] = (ch.series.valid.empty() || ch.series.valid[i]) && (*gate.sighted)[i];
+            searchValid[i] = (ch.series.valid.empty() || ch.series.valid[i]) && ch.sighted[i];
     }
     SeriesView sv;
     sv.t = ch.series.t_us.data();
@@ -582,13 +589,21 @@ AngleTrack spanTurnTrack(const PoseView &pv, int a, int b, int64_t addressUs, in
 // segment entered and left the blind band inside [fromUs, toUs]. The mask governs the PEAK SEARCH
 // only: the derivative keeps every admitted sample (blind ones carry their 1/sin θ σ), so the
 // charted series and its σ are unchanged by the band.
-void sightedBand(const AngleTrack &a, double sightedDeg, int64_t fromUs, int64_t toUs,
+//
+// THE BAND IS THE BLIND RUN AT IMPACT (`refUs`), or the one nearest it — not the first. A short blind
+// blip early in the downswing (2026-10-25: 9 library shots, 250–550 ms before impact, a shoulder
+// keypoint wobbling through the turn limit) used to be taken as THE band, so the stretch near square
+// at impact was never recorded and every later peak read as "at the edge of sight". Every blind run
+// stays out of the mask either way.
+void sightedBand(const AngleTrack &a, double sightedDeg, int64_t fromUs, int64_t toUs, int64_t refUs,
                  std::vector<uint8_t> &mask, PlacementGate &gate)
 {
     const size_t n = a.t.size();
     const double lim = sightedDeg * kPi / 180.0;
     mask.assign(n, 0u);
     gate.blindFromUs = gate.blindToUs = -1;
+    struct Run { int64_t fromUs, toUs; };   // toUs −1 = still blind at the domain end
+    std::vector<Run> runs;
     bool inBlind = false;
     for (size_t i = 0; i < n; ++i) {
         const bool admitted = !a.valid.empty() && a.valid[i];
@@ -598,9 +613,16 @@ void sightedBand(const AngleTrack &a, double sightedDeg, int64_t fromUs, int64_t
         // Blind = admitted-but-near-square OR dropped inside the sin floor (the gap the track
         // shows). Unadmitted for confidence is neither and does not move the band.
         const bool blind = !sighted && (admitted || (i < a.nearSquare.size() && a.nearSquare[i]));
-        if (blind && !inBlind && gate.blindFromUs < 0) { gate.blindFromUs = a.t[i]; inBlind = true; }
-        else if (sighted && inBlind && gate.blindToUs < 0) { gate.blindToUs = a.t[i]; inBlind = false; }
+        if (blind && !inBlind) { runs.push_back({ a.t[i], -1 }); inBlind = true; }
+        else if (sighted && inBlind) { runs.back().toUs = a.t[i]; inBlind = false; }
     }
+    const auto distance = [&](const Run &r) {
+        if (r.fromUs <= refUs && (r.toUs < 0 || r.toUs >= refUs)) return int64_t(0);
+        return r.fromUs > refUs ? r.fromUs - refUs : refUs - r.toUs;
+    };
+    const Run *best = nullptr;
+    for (const Run &r : runs) if (!best || distance(r) < distance(*best)) best = &r;
+    if (best) { gate.blindFromUs = best->fromUs; gate.blindToUs = best->toUs; }
     gate.sighted = &mask;
 }
 
@@ -1856,7 +1878,7 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             PlacementGate gate;
             gate.may = cfg.faceOnTrunkPlacement;
             gate.mayEvidence = { { QStringLiteral("switch"), QStringLiteral("sequence.faceOnTrunkPlacement") } };
-            sightedBand(at, cfg.sightedTurnDeg, dom.fromUs, dom.toUs, sighted, gate);
+            sightedBand(at, cfg.sightedTurnDeg, dom.fromUs, dom.toUs, dom.refUs(), sighted, gate);
             finishChannel(ch, differentiate(at, windowUs, /*opening = −dθ/dt*/ -1.0, false), seg, label,
                           QStringLiteral("faceOn"), false, dom, phases, cfg, nodes, gate);
         };
@@ -2037,6 +2059,59 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
     res.valid = res.pelvis.produced() || res.thorax.produced() || res.leadArm.produced() || res.club.produced();
     if (res.valid)
         res.sequence = resolveKinematicSequence(std::move(nodes), impactUs, cfg.sigmaK);
+    // THE CHEST'S PROBABLE PEAK (gap_bridge.h; design §12.6; Mark, 25 Oct 2026). A chest node no rung could
+    // place, whose curve the route lost for a short gap at impact, is given the peak the gap hides: a Gaussian
+    // process through the curve either side (the corpus's kernel, the noise assumed), its ± from the fit. Not
+    // placed — the order and verdict stay the placed nodes' — but carried with a downgraded gate, and its
+    // readings (thoraxPeakTime, thoraxPeakSpeed) are emitted from it so the order checks can judge the chest.
+    if (res.valid && cfg.gapBridge && res.thorax.produced())
+        for (KsNode &n : res.sequence.nodes) {
+            if (n.segment != SeqSegment::Thorax || n.placed) continue;
+            // Measured = valid AND sighted: where the shoulder line is near square to the face-on camera the
+            // pose keeps reporting, but the span's slope no longer carries the rate (the derivative reads
+            // ±2000 °/s there on 10-20 Nick Henn), so those samples are the gap, not the curve.
+            const MetricSeries &cs = res.thorax.series;
+            const std::vector<uint8_t> &seen = res.thorax.sighted;
+            std::vector<double> t, v;
+            std::vector<uint8_t> ok;
+            for (size_t i = 0; i < cs.t_us.size() && i < cs.value.size(); ++i) {
+                t.push_back(double(cs.t_us[i] - impactUs) / 1000.0);
+                v.push_back(cs.value[i]);
+                ok.push_back((cs.valid.empty() || (i < cs.valid.size() && cs.valid[i]))
+                             && (seen.empty() || (i < seen.size() && seen[i])) && std::isfinite(cs.value[i]) ? 1 : 0);
+            }
+            const auto msOf = [&](Phase p) {
+                const std::optional<int64_t> x = phaseTimeOpt(phases, p);
+                return x ? double(*x - impactUs) / 1000.0 : std::numeric_limits<double>::quiet_NaN();
+            };
+            const GapBridgeKernel kern{ cfg.gapBridgeEllMs, cfg.gapBridgeSfDps, cfg.gapBridgeNoiseDps };
+            const GapBridge b = bridgeImpactGap(t, v, ok, msOf(Phase::Top), msOf(Phase::ShaftParallelThrough), kern,
+                                                kGapBridgeSeed);
+            if (!b.bridged()) break;
+            n.probable         = true;
+            n.probableMs       = b.peakMs;
+            n.probableSigmaMs  = b.peakSigmaMs;
+            n.probableDps      = b.peakValue;
+            n.probableSigmaDps = b.peakSigmaValue;
+            n.bridgeMs   = b.tMs;
+            n.bridgeMean = b.mean;
+            n.bridgeSd   = b.sd;
+            n.earlierMs  = b.earlierMs;
+            n.earlierDps = b.earlierValue;
+            QVariantMap ev{ { QStringLiteral("route"), n.routeId },
+                            { QStringLiteral("gapFromMs"), b.fromMs }, { QStringLiteral("gapToMs"), b.toMs },
+                            { QStringLiteral("gapMs"), b.toMs - b.fromMs },
+                            { QStringLiteral("peakMs"), b.peakMs }, { QStringLiteral("peakSigmaMs"), b.peakSigmaMs },
+                            { QStringLiteral("ellMs"), kern.ellMs }, { QStringLiteral("sfDps"), kern.sfDps },
+                            { QStringLiteral("noiseDps"), kern.noiseDps }, { QStringLiteral("edgeShare"), b.edgeShare } };
+            if (std::isfinite(b.earlierMs)) {
+                ev.insert(QStringLiteral("earlierMs"), b.earlierMs);
+                ev.insert(QStringLiteral("earlierDps"), b.earlierValue);
+            }
+            n.gates.push_back({ PP_GATE("sequence.gapBridged"), QStringLiteral("ks.thorax"), GateEffect::Downgraded, ev, {}, {},
+                                { QStringLiteral("thoraxPeakTime"), QStringLiteral("thoraxPeakSpeed") } });
+            break;
+        }
     for (const KsNode &n : res.sequence.nodes)
         res.gates.insert(res.gates.end(), n.gates.begin(), n.gates.end());
     for (const GateRecord &r : routeGates.records()) res.gates.push_back(r);
@@ -2047,7 +2122,10 @@ std::vector<MetricSeries> sequencePeakTimeSeries(const KinematicSequence &ks)
 {
     std::vector<MetricSeries> out;
     for (const KsNode &n : ks.nodes) {
-        if (!n.placed || (n.segment != SeqSegment::Pelvis && n.segment != SeqSegment::Thorax)) continue;
+        if (n.segment != SeqSegment::Pelvis && n.segment != SeqSegment::Thorax) continue;
+        // a placed node, or the chest's probable peak (design §12.6: downgraded by sequence.gapBridged)
+        const bool probable = !n.placed && n.probable && n.segment == SeqSegment::Thorax;
+        if (!n.placed && !probable) continue;
         const bool pel = n.segment == SeqSegment::Pelvis;
         MetricSeries m;
         m.key   = pel ? QStringLiteral("pelvisPeakTime") : QStringLiteral("thoraxPeakTime");
@@ -2055,11 +2133,11 @@ std::vector<MetricSeries> sequencePeakTimeSeries(const KinematicSequence &ks)
         m.unit  = QStringLiteral("ms");
         m.routeId     = n.routeId;
         m.routeDirect = n.direct;
-        PhaseSample ps { Phase::Impact, ks.impactUs, double(n.tPeakUs - ks.impactUs) / 1000.0, QString() };
-        ps.sigma     = n.tSigmaMs;
+        PhaseSample ps { Phase::Impact, ks.impactUs, probable ? n.probableMs : double(n.tPeakUs - ks.impactUs) / 1000.0, QString() };
+        ps.sigma     = probable ? n.probableSigmaMs : n.tSigmaMs;
         ps.sigmaKind = uint8_t(SigmaKind::Propagated);
         m.phaseSamples.push_back(ps);
-        m.sigma     = n.tSigmaMs;
+        m.sigma     = ps.sigma;
         m.sigmaKind = uint8_t(SigmaKind::Propagated);
         out.push_back(std::move(m));
     }
@@ -2099,6 +2177,12 @@ std::vector<MetricSeries> sequenceNodeSeries(const SegmentRatesResult &res)
     const KinematicSequence &ks = res.sequence;
     const auto msFromImpact = [&](int64_t tUs) { return double(tUs - ks.impactUs) / 1000.0; };
     for (const KsNode &n : ks.nodes) {
+        // the chest's probable peak gives its peak speed only (design §12.6; downgraded by sequence.gapBridged)
+        if (!n.placed && n.probable && n.segment == SeqSegment::Thorax) {
+            out.push_back(nodeReading(n, ks.impactUs, "thoraxPeakSpeed", "Chest peak turning speed", "°/s",
+                                      std::fabs(n.probableDps), n.probableSigmaDps));
+            continue;
+        }
         if (!n.placed) continue;
         switch (n.segment) {
         case SeqSegment::Pelvis:

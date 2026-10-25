@@ -988,9 +988,11 @@ QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
         for (int s = 0; s < kSequenceSegments; ++s) {
             const SegmentPeak &p = q.segments[size_t(s)];
             const SegmentSummary &sm = x.c.seq.segments[size_t(s)];
-            const double v = p.placed ? p.shotMs : kNaN;
+            // a placed node, or the chest's probable peak (kinematic_sequence_design.md §12.6), which carries its ⚠
+            const double v = p.timed() ? p.timeMs() : kNaN;
+            const int timedN = sm.placed + sm.probable;
             // why an unplaced node is unplaced, for the tile's spoken sentence only (the bound and the gate's words)
-            UnplacedWhy why = p.present && !p.placed ? unplacedWhy(p) : UnplacedWhy{ QStringLiteral("-"), QString(), QStringLiteral("not placed"), QString() };
+            UnplacedWhy why = p.present && !p.timed() ? unplacedWhy(p) : UnplacedWhy{ QStringLiteral("-"), QString(), QStringLiteral("not placed"), QString() };
             // a node with no curve at all may still have a gate behind it: a cascade covering it (a refused club
             // track takes the club node with it), named by its own words rather than a bare "not placed"
             if (!p.present) {
@@ -1000,20 +1002,21 @@ QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
                     why.sentence = g.value(QStringLiteral("sentence")).toString();
                 }
             }
-            const QString median = sm.placed >= 3 ? QStringLiteral("median ") + words::signedMs(sm.medianMs) : QString();
+            const QString median = timedN >= 3 ? QStringLiteral("median ") + words::signedMs(sm.medianMs) : QString();
             // SAID ONCE (Mark, 17 Oct 2026): the headline names an unplaced node and the panel's tail says why; the
             // tile is a plain "-" with the median, no bound, no gate words, no link
-            const QString foot = p.placed ? (median.isEmpty() ? QStringLiteral("median needs 3 shots") : median) : median;
-            items.append(QVariantMap{ { QStringLiteral("readingId"), sequenceSeriesKey(s) }, { QStringLiteral("key"), sequenceSeriesKey(s) }, { QStringLiteral("label"), kSegLabels[s] + QStringLiteral(" peak") },
-                                      { QStringLiteral("figure"), p.placed ? signedMsBare(v) : QStringLiteral("-") }, { QStringLiteral("unit"), p.placed && fin(v) ? QStringLiteral("ms") : QString() },
-                                      { QStringLiteral("foot"), foot }, { QStringLiteral("median"), sm.placed >= 3 ? words::signedMs(sm.medianMs) : QString() },
+            const QString foot = p.timed() ? (median.isEmpty() ? QStringLiteral("median needs 3 shots") : median) : median;
+            items.append(QVariantMap{ { QStringLiteral("readingId"), sequenceSeriesKey(s) }, { QStringLiteral("key"), sequenceSeriesKey(s) }, { QStringLiteral("label"), kSegLabels[s] + QStringLiteral(" peak") + (p.probable ? QStringLiteral(" ⚠") : QString()) },
+                                      { QStringLiteral("figure"), p.timed() ? signedMsBare(v) : QStringLiteral("-") }, { QStringLiteral("unit"), p.timed() && fin(v) ? QStringLiteral("ms") : QString() },
+                                      { QStringLiteral("foot"), foot }, { QStringLiteral("median"), timedN >= 3 ? words::signedMs(sm.medianMs) : QString() },
                                       { QStringLiteral("place"), QString() }, { QStringLiteral("warn"), p.late },
                                       { QStringLiteral("warnWord"), p.late ? QStringLiteral("late") : QString() },
                                       // the reason lives in the panel's tail ("How far can I trust this?"), not on the tile
                                       { QStringLiteral("trustSubject"), QString() },
-                                      { QStringLiteral("sentence"), (p.placed || why.sentence.isEmpty() ? Sentence().figure(words::signedMs(v)) : Sentence().append(why.sentence))
-                                                                      .append(sm.placed >= 3 ? QStringLiteral(", median ") : QString())
-                                                                      .figure(sm.placed >= 3 ? words::signedMs(sm.medianMs) : QString())
+                                      { QStringLiteral("sentence"), (p.timed() || why.sentence.isEmpty() ? Sentence().figure(words::signedMs(v)) : Sentence().append(why.sentence))
+                                                                      .append(p.probable ? QStringLiteral(", probable") : QString())
+                                                                      .append(timedN >= 3 ? QStringLiteral(", median ") : QString())
+                                                                      .figure(timedN >= 3 ? words::signedMs(sm.medianMs) : QString())
                                                                       .append(p.late ? QStringLiteral(", late") : QString()).toVariant() } });
         }
     } else if (fam && x.pick >= 0) {
@@ -1201,18 +1204,20 @@ QVariantMap sequenceMap(const Ctx &x)
     if (ps) {
         std::vector<int> order;
         for (int s = 0; s < kSequenceSegments; ++s) {
-            if (ps->segments[size_t(s)].placed) order.push_back(s);
+            // the timed segments: placed, or the chest's probable peak (kinematic_sequence_design.md §12.6) with its ⚠
+            if (ps->segments[size_t(s)].timed()) order.push_back(s);
             else unplaced << kSegLabels[s].toLower();
             if (ps->segments[size_t(s)].late) late << kSegLabels[s].toLower();
         }
-        std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return ps->segments[size_t(a)].shotMs < ps->segments[size_t(b)].shotMs; });
+        std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return ps->segments[size_t(a)].timeMs() < ps->segments[size_t(b)].timeMs(); });
         for (size_t k = 0; k < order.size(); ++k) {
             const SegmentPeak &p = ps->segments[size_t(order[k])];
             if (k) cs.append(QStringLiteral("  →  "));
-            cs.append(kSegLabels[order[k]] + QLatin1Char(' ')).figure(words::signedMs(p.shotMs));
+            cs.append(kSegLabels[order[k]] + (p.probable ? QStringLiteral(" ⚠ ") : QStringLiteral(" "))).figure(words::signedMs(p.timeMs()));
             if (p.late) cs.append(QStringLiteral(", late"));
             chain.append(QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(order[k])] }, { QStringLiteral("label"), kSegLabels[order[k]] },
-                                      { QStringLiteral("shotMs"), p.shotMs }, { QStringLiteral("msText"), words::signedMs(p.shotMs) },
+                                      { QStringLiteral("probable"), p.probable },
+                                      { QStringLiteral("shotMs"), p.timeMs() }, { QStringLiteral("msText"), words::signedMs(p.timeMs()) },
                                       { QStringLiteral("late"), p.late }, { QStringLiteral("lateWord"), p.late ? QStringLiteral("late") : QString() } });
         }
     }
@@ -1227,14 +1232,14 @@ QVariantMap sequenceMap(const Ctx &x)
     m.insert(QStringLiteral("orderSame"), same);
     m.insert(QStringLiteral("orderCount"), x.n);
     QStringList parts;
-    if (ps && ps->placedCount >= 2)
+    if (ps && ps->timedCount >= 2)
         parts << (late.isEmpty() ? QStringLiteral("in sequence") : QStringLiteral("out of sequence: the ") + words::list(late) + QStringLiteral(" peaked late"));
     if (!unplacedText.isEmpty()) parts << unplacedText;
     if (!mine.isEmpty()) parts << QStringLiteral("this order on %1 of %2 shots").arg(same).arg(x.n);
     m.insert(QStringLiteral("verdict"), Sentence().append(parts.isEmpty() ? QString() : words::cap1(parts.join(QStringLiteral("; "))) + QStringLiteral(".")).toVariant());
 
     double lo = -150, hi = 40;
-    for (const ShotSequence &s : q.shots) for (const SegmentPeak &p : s.segments) if (p.placed && fin(p.shotMs)) { lo = std::min(lo, p.shotMs); hi = std::max(hi, p.shotMs); }
+    for (const ShotSequence &s : q.shots) for (const SegmentPeak &p : s.segments) if (p.timed() && fin(p.timeMs())) { lo = std::min(lo, p.timeMs()); hi = std::max(hi, p.timeMs()); }
     lo = std::floor((lo - 10) / 25) * 25; hi = std::ceil((hi + 10) / 25) * 25;
     m.insert(QStringLiteral("axis"), rangeMap(lo, hi));
     QVariantList ticks;
@@ -1248,18 +1253,22 @@ QVariantMap sequenceMap(const Ctx &x)
         QVariantList lateShots;
         for (const ShotSequence &sh : q.shots) {
             const SegmentPeak &p = sh.segments[size_t(s)];
-            ms.push_back(p.placed ? p.shotMs : kNaN);
+            ms.push_back(p.timed() ? p.timeMs() : kNaN);
             lateShots.append(p.late);
         }
         const SegmentSummary &sm = q.segments[size_t(s)];
-        const double v = ps && ps->segments[size_t(s)].placed ? ps->segments[size_t(s)].shotMs : kNaN;
-        rows.append(QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(s)] }, { QStringLiteral("label"), kSegLabels[s] },
+        const double v = ps && ps->segments[size_t(s)].timed() ? ps->segments[size_t(s)].timeMs() : kNaN;
+        const int timedN = sm.placed + sm.probable;
+        rows.append(QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(s)] },
+                                 { QStringLiteral("label"), kSegLabels[s] + (sm.probable > 0 ? QStringLiteral(" ⚠") : QString()) },
                                  { QStringLiteral("valueText"), signedMsBare(v) }, { QStringLiteral("shotMs"), num(v) },
-                                 { QStringLiteral("placed"), sm.placed }, { QStringLiteral("placedText"), QStringLiteral("%1 of %2").arg(sm.placed).arg(x.n) },
+                                 { QStringLiteral("placed"), timedN },
+                                 { QStringLiteral("placedText"), sm.probable > 0 ? QStringLiteral("%1 of %2, probable").arg(timedN).arg(x.n)
+                                                                                 : QStringLiteral("%1 of %2").arg(sm.placed).arg(x.n) },
                                  { QStringLiteral("box"), boxMap(boxStats(ms), [](double v) { return signedMsBare(v); }) }, { QStringLiteral("values"), nums(ms) }, { QStringLiteral("lateShots"), lateShots },
-                                 { QStringLiteral("hasBox"), sm.placed >= 3 },
-                                 { QStringLiteral("notPlacedText"), sm.placed == 0 ? QStringLiteral("not placed on any shot")
-                                                                    : sm.placed < 3 ? QStringLiteral("placed on too few shots for a box") : QString() } });
+                                 { QStringLiteral("hasBox"), timedN >= 3 },
+                                 { QStringLiteral("notPlacedText"), timedN == 0 ? QStringLiteral("not placed on any shot")
+                                                                    : timedN < 3 ? QStringLiteral("placed on too few shots for a box") : QString() } });
     }
     m.insert(QStringLiteral("rows"), rows);
     const SegmentSummary &pel = q.segments[0];

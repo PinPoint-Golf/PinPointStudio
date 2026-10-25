@@ -1159,6 +1159,21 @@ inline constexpr bool         kPeakTimes            = true;   // sequence.peakTi
 // the downswing. Each carries its node's route, which the diagnostics' same-scale rule for ratios
 // reads (trunk_imu_sequence_grf_design.md §10.4, §10.7). An unplaced node emits nothing.
 inline constexpr bool         kNodeSeries           = true;   // sequence.nodeSeries
+// THE CHEST'S PROBABLE PEAK (gap_bridge.h; kinematic_sequence_design.md §12.6; Mark, 25 Oct 2026). The face-on
+// chest curve stops measuring for 13–67 ms (median 27) at or just before impact, where the shoulders square to
+// that camera, and the node is never placed (kPairTrunkThoraxPlacement). With this on, an UNPLACED chest node whose
+// curve has such a gap is bridged by a Gaussian process and given a PROBABLE peak — not placed, carried with a
+// downgraded gate (sequence.gapBridged) — and thoraxPeakTime / thoraxPeakSpeed are read from it, so the order
+// checks can judge the chest, with the ⚠ that says how it was read.
+// THE KERNEL is the corpus's: one joint maximum-likelihood fit (Matérn 5/2, noise held at 20 °/s) over the 165
+// chest curves of every athlete library that had a bridgeable gap (cabin PC, 25 Oct 2026; per session the
+// length ran 37–55 ms on 14 of 15 fittable sessions, 14 ms on one four-shot session; the joint fit, 32 ms, is the
+// more cautious). The NOISE is assumed, not fitted: the stored curve is smoothed, and a fitted noise (~1 °/s)
+// gives a ±1–3 ms that is false precision. Calibrate both against the worn trunk IMU.
+inline constexpr bool         kGapBridge            = true;   // sequence.gapBridge
+inline constexpr double       kGapBridgeEllMs       = 31.9;   // sequence.gapBridge.ellMs
+inline constexpr double       kGapBridgeSfDps       = 155.4;  // sequence.gapBridge.sfDps
+inline constexpr double       kGapBridgeNoiseDps    = 20.0;   // sequence.gapBridge.noiseDps
 // The SESSION's sequence consistency (trunk_imu_sequence_grf_design.md §10.8 E2, §10.9 P7/P8): the
 // fewest swings with all four peaks placed before the in-order share is read, and — as degrees of
 // freedom + 1 — the fewest placed peaks of one segment, within club, before its timing spread is.

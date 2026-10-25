@@ -124,9 +124,10 @@ This amends D9 for Session only; This shot, Against and every other cross-shot a
     ± whisker), its name carries ⚠ and one line under the dot plot says "⚠ Chest: probable: bridged across the camera's gap"; the
     standfirst counts it; the trust fold says how it was made, what it assumes, that no trunk sensor has
     checked it yet, and the earlier hump. A probable peak is ranked with the placed ones and can be late.
-  - **Never outside Session:** the analysis, the This shot tile, the diagnostics and sequence_order are
-    untouched; no stage version moves. Calibrate the noise, and grade the estimate, against the worn trunk
-    IMU session when it exists.
+  - **Per shot too (later the same day):** the analysis bridges every swing itself (kinematic_sequence_design.md
+    §12.6, the corpus's kernel) and stores the probable peak on the chest node, downgraded by `sequence.gapBridged`;
+    This shot draws it, the diagnostics judge it, and Session READS it — bridging only swings analysed before. Calibrate
+    the noise, and grade the estimate, against the worn trunk IMU session when it exists.
   - **Next (#102):** judge each curve by its SHAPE against the reference KS shape (TPI, Els: one downswing hump
     per segment from zero at the top, peaks growing and in order) to predict measurement error per shot.
 

@@ -115,7 +115,16 @@ Item {
             if ((rr.bridges || []).length) out.push({ k: "bridges", list: rr.bridges, color: col, w: st.w, alpha: st.a, z: 1 })
         }
         out.push({ k: "line", t: r.t, v: r.mean, runs: r.runs, color: col, w: c.thisShotW, z: 3 })
-        if ((r.bridges || []).length) out.push({ k: "bridges", list: r.bridges, color: col, w: c.thisShotW, z: 3 })
+        // THE CHEST'S BRIDGE (design §12.6): the analysis' fit across the camera's gap, dashed with its ± 1 sd,
+        // in place of the straight bridge across the same gap — an estimate is never drawn solid
+        const est = r.estimate
+        const br = (r.bridges || []).filter(function (b) {
+            return !est || !est.t || est.t.length < 2 || b.t1 < est.t[0] - 0.5 || b.t0 > est.t[est.t.length - 1] + 0.5 })
+        if (br.length) out.push({ k: "bridges", list: br, color: col, w: c.thisShotW, z: 3 })
+        if (est && est.t && est.t.length >= 2) {
+            out.push({ k: "band", t: est.t, lo: est.lo, hi: est.hi, color: roles.hueA(r.key, roles.envAlpha) })
+            out.push({ k: "line", t: est.t, v: est.v, color: col, w: c.thisShotW, dash: roles.dash(c.fitDash), z: 3 })
+        }
         return out
     }
     property bool showRawDots: true

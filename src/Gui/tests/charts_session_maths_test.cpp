@@ -1123,6 +1123,46 @@ private slots:
         QVERIFY(!seq.shots[3].segments[1].probable);
     }
 
+    // A swing the analysis bridged carries its probable peak on the chest node: Session READS it (the same number
+    // This shot shows), never recomputes it, and shotSequence ranks it.
+    void bridgeReadsTheAnalysisPeak()
+    {
+        std::vector<std::shared_ptr<ShotSeries>> shots;
+        for (int i = 1; i <= 4; ++i) {
+            auto s = chestShot(i, [](double t) { return 150.0 + 450.0 * gauss(t, -14.0, 45.0); });
+            const QVariantMap probable{ { QStringLiteral("peakMs"), -21.0 }, { QStringLiteral("tSigmaMs"), 3.0 },
+                                        { QStringLiteral("peakDps"), 640.0 }, { QStringLiteral("peakSigmaDps"), 7.0 },
+                                        { QStringLiteral("bridge"), QVariantMap{ { QStringLiteral("tMs"), QVariantList{ -26.0, -20.0, 7.0 } },
+                                                                                { QStringLiteral("mean"), QVariantList{ 600.0, 640.0, 560.0 } },
+                                                                                { QStringLiteral("sd"), QVariantList{ 1.0, 9.0, 1.0 } } } } };
+            QVariantList nodes;
+            nodes << QVariantMap{ { QStringLiteral("segment"), QStringLiteral("leadArm") }, { QStringLiteral("beforeImpactMs"), 100.0 },
+                                  { QStringLiteral("placed"), true }, { QStringLiteral("tPeakUs"), 1 } }
+                  << QVariantMap{ { QStringLiteral("segment"), QStringLiteral("thorax") }, { QStringLiteral("beforeImpactMs"), 150.0 },
+                                  { QStringLiteral("placed"), false }, { QStringLiteral("tPeakUs"), 1 },
+                                  { QStringLiteral("probable"), probable } };
+            s->kinematicSequence = QVariantMap{ { QStringLiteral("nodes"), nodes } };
+            shots.push_back(s);
+        }
+        const SessionSnapshot ss = snapshotOf(shots);
+        const SessionSequence seq = sessionSequence(ss);
+        const SegmentPeak &ch = seq.shots[0].segments[1];
+        QVERIFY(ch.probable && !ch.placed);
+        QCOMPARE(ch.probableMs, -21.0);
+        QCOMPARE(ch.rank, 2);                                         // after the arm at −100
+        QVERIFY(ch.late);
+        QCOMPARE(seq.segments[1].probable, 4);
+        const SessionBridges b = bridgeChest(ss, seq);
+        QCOMPARE(b.bridgedCount(), 4);
+        for (const ChestBridge &c : b.shots) {
+            QVERIFY(c.stored);
+            QCOMPARE(c.peakMs, -21.0);
+            QCOMPARE(int(c.t.size()), 3);
+            QCOMPARE(c.holeFromMs, -26.0);
+        }
+        QVERIFY(!b.kernel.fitted);                                    // nothing left for the session to fit
+    }
+
 private:
     // A shot with a chest speed curve from f, sampled every 6.7 ms (150 fps), measured except for a hole from
     // −21 to +5.5 ms (the camera losing the chest where the shoulders square to it).

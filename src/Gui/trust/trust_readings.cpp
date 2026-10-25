@@ -37,7 +37,9 @@ namespace {
 namespace W = charts::words;
 
 // §4.3: ordered, a reading takes the LOWEST that applies.
-enum Level { NotSeen = 0, NotJudged = 1, Bounded = 2, Masked = 3, Estimated = 4, Measured = 5 };
+// Probable (25 Oct 2026): a value read off a fit across a gap the route could not see (the chest's probable peak,
+// sequence.gapBridged) — kept and judged, below an estimated route's own reading.
+enum Level { NotSeen = 0, NotJudged = 1, Bounded = 2, Masked = 3, Probable = 4, Estimated = 5, Measured = 6 };
 
 QString levelKey(int l)
 {
@@ -46,6 +48,7 @@ QString levelKey(int l)
     case NotJudged: return QStringLiteral("notJudged");
     case Bounded:   return QStringLiteral("bounded");
     case Masked:    return QStringLiteral("masked");
+    case Probable:  return QStringLiteral("probable");
     case Estimated: return QStringLiteral("estimated");
     default:        return QStringLiteral("measured");
     }
@@ -57,6 +60,7 @@ QString levelWord(int l)
     case NotJudged: return QStringLiteral("Drawn, not judged");
     case Bounded:   return QStringLiteral("Bounded");
     case Masked:    return QStringLiteral("Partly drawn");
+    case Probable:  return QStringLiteral("Probable");
     case Estimated: return QStringLiteral("Estimated");
     default:        return QStringLiteral("Measured");
     }
@@ -68,6 +72,7 @@ QString levelTip(int l)
     case NotJudged: return QStringLiteral("Shown, but kept out of every finding.");
     case Bounded:   return QStringLiteral("The exact value is refused; a range survives.");
     case Masked:    return QStringLiteral("Stretches a gate did not trust are left out; the rest stands.");
+    case Probable:  return QStringLiteral("Read off a fit across a gap the camera could not see; kept and judged, with its \u00B1.");
     case Estimated: return QStringLiteral("An estimated route; every gate passed.");
     default:        return QStringLiteral("A direct route; every gate passed.");
     }
@@ -134,11 +139,15 @@ namespace {
 QStringList coversOf(const QVariantList &records)
 {
     QStringList out;
-    for (const QVariant &rv : records)
+    for (const QVariant &rv : records) {
+        // a downgrade KEEPS what it covers (the chest's probable peak, sequence.gapBridged): nothing taken down
+        const QString eff = rv.toMap().value(QStringLiteral("effect")).toString();
+        if (eff == QLatin1String("downgraded") || eff == QLatin1String("masked")) continue;
         for (const QVariant &k : rv.toMap().value(QStringLiteral("covers")).toList()) {
             const QString l = subjectLabel(k.toString());
             if (!out.contains(l)) out << l;
         }
+    }
     return out;
 }
 } // namespace
@@ -178,6 +187,14 @@ QVariantList trustReadings(const charts::ShotSeries &shot)
             primary = p.refusal;
             if (p.placed) {
                 figure = W::signedMs(p.shotMs);
+            } else if (p.probable) {
+                // THE CHEST'S PROBABLE PEAK (kinematic_sequence_design.md §12.6): kept, at the estimated level, its gate
+                // the bridge that read it (the out-of-sight band beside it explains the gap, not a refusal)
+                figure = W::signedMs(p.probableMs);
+                shortText = QStringLiteral("probable");
+                level = std::min(level, int(Probable));
+                for (const QVariant &rv : records)
+                    if (rv.toMap().value(QStringLiteral("gate")).toString() == QLatin1String("sequence.gapBridged")) { primary = rv.toMap(); break; }
             } else if (p.present) {
                 const charts::UnplacedWhy why = charts::unplacedWhy(p);
                 figure = why.unit.isEmpty() ? why.figure : why.figure + QChar(0x00A0) + why.unit;

@@ -64,6 +64,25 @@ inline QJsonObject kinematicSequenceToJson(const KinematicSequence &ks,
             no.insert(QStringLiteral("peakNoEarlierThanMs"), n.peakNoEarlierThanMs);
         if (std::isfinite(n.peakNoLaterThanMs))
             no.insert(QStringLiteral("peakNoLaterThanMs"), n.peakNoLaterThanMs);
+        // The chest's probable peak across the camera's gap (KsNode::probable; design §12.6). Times are ms
+        // from impact (+ after), so retimeKinematicSequence leaves them alone. Absent = none.
+        if (n.probable) {
+            QJsonArray bt, bm, bs;
+            for (size_t i = 0; i < n.bridgeMs.size() && i < n.bridgeMean.size() && i < n.bridgeSd.size(); ++i) {
+                bt.append(n.bridgeMs[i]);
+                bm.append(std::round(n.bridgeMean[i] * 10.0) / 10.0);
+                bs.append(std::round(n.bridgeSd[i] * 10.0) / 10.0);
+            }
+            QJsonObject pr{ { QStringLiteral("peakMs"), n.probableMs }, { QStringLiteral("tSigmaMs"), n.probableSigmaMs },
+                            { QStringLiteral("peakDps"), n.probableDps }, { QStringLiteral("peakSigmaDps"), n.probableSigmaDps },
+                            { QStringLiteral("bridge"), QJsonObject{ { QStringLiteral("tMs"), bt }, { QStringLiteral("mean"), bm },
+                                                                     { QStringLiteral("sd"), bs } } } };
+            if (std::isfinite(n.earlierMs)) {
+                pr.insert(QStringLiteral("earlierMs"), n.earlierMs);
+                pr.insert(QStringLiteral("earlierDps"), n.earlierDps);
+            }
+            no.insert(QStringLiteral("probable"), pr);
+        }
         nodes.append(no);
     }
     o.insert(QStringLiteral("nodes"), nodes);

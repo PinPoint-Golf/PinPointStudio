@@ -302,6 +302,26 @@ inline std::vector<GateEntry> buildCatalogue()
                   { QStringLiteral("ks.pelvis:pelvisImu"), QStringLiteral("ks.thorax:thoraxImu") },
                   ksDesign + QStringLiteral(" §5.2, §11"), 1, prod, {} });
 
+    // THE CHEST'S PROBABLE PEAK (gap_bridge.h; Mark, 25 Oct 2026): downgraded, not refused — the reading is kept
+    // and judged, at the "estimated" level, with the ⚠ that says how it was read.
+    c.push_back({ QStringLiteral("sequence.gapBridged"), seq,
+                  QStringLiteral("Bridged across a gap"), QStringLiteral("probable"),
+                  QStringLiteral("The face-on camera loses the chest for a few frames at impact, where the shoulders square "
+                                 "to it, so the chest's peak cannot be timed there. When the curve is measured either side of "
+                                 "a short gap, a smooth fit (a Gaussian process) bridges it and reads the peak the gap hides, "
+                                 "with a ± from the fit. The peak is PROBABLE, not measured: the fit assumes %1 °/s of noise "
+                                 "in each sample and that the chest cannot spike inside the gap, and no trunk sensor has "
+                                 "checked it yet. A taller hump earlier in the downswing, where the shoulder keypoints jump "
+                                 "as the line squares to the camera, is read as the measurement, not the chest's peak.")
+                      .arg(S::kGapBridgeNoiseDps),
+                  QStringLiteral("Bridged across {gapMs:ms} ({gapFromMs:t} to {gapToMs:t}); the probable peak at {peakMs:t} ± {peakSigmaMs:ms}[, below a taller measured hump at {earlierMs:t}]."),
+                  { GateEffect::Downgraded },
+                  { { QStringLiteral("sequence.gapBridge.ellMs"), S::kGapBridgeEllMs, QStringLiteral("ms") },
+                    { QStringLiteral("sequence.gapBridge.sfDps"), S::kGapBridgeSfDps, QStringLiteral("°/s") },
+                    { QStringLiteral("sequence.gapBridge.noiseDps"), S::kGapBridgeNoiseDps, QStringLiteral("°/s") } },
+                  { QStringLiteral("ks.thorax:thoraxImu") },
+                  ksDesign + QStringLiteral(" §12.6"), 2, prod, {} });
+
     // ── stage 6: every other per-swing gate, and the on-read rules, area by area ──
     appendBodyGates(c);
     appendClubGates(c);
@@ -586,8 +606,10 @@ inline QString claimWords(const GateEntry &e)
 inline QVariantMap gateItem(const GateEntry &e, const QString &effect, const QVariantMap &evidence,
                             const QString &subject, const QStringList &tried, bool primary)
 {
-    const auto effectWord = [](const QString &x) {
+    const auto effectWord = [&e](const QString &x) {
         if (x == QLatin1String("withheld"))   return QStringLiteral("not judged");
+        // the chest's probable peak did not fall back to another route: a fit bridged the route's own gap
+        if (x == QLatin1String("downgraded") && e.id == QLatin1String("sequence.gapBridged")) return QStringLiteral("bridged");
         if (x == QLatin1String("downgraded")) return QStringLiteral("fell back");
         if (x == QLatin1String("masked"))     return QStringLiteral("marked on the chart");
         return x;
