@@ -992,7 +992,6 @@ Item {
                                         objectName: "athleteReportEmailMessage"
                                         readonly property bool bad: !root.emailShapeOk(reportEmailField.text)
                                         visible:        bad
-                                        height:         bad ? implicitHeight : 0
                                         width:          parent.width
                                         text:           qsTr("Not an email address yet. Use the form name@example.com, with a comma between two addresses.")
                                         font.family:    Theme.fontData
