@@ -2208,9 +2208,10 @@ void installMetricManifest(MetricCatalogue &cat)
         .howToRead = QStringLiteral(
             "Professionals peak around 980 °/s about 65 ms before impact, close behind the chest. "
             "An arm that peaks before the chest is the amateur pattern; an arm that peaks late and "
-            "large with a small chest gain is swinging with the arms. Unsigned — it is a speed."),
-        .signPositive = QStringLiteral("the arm swinging faster about the plane — a speed, never negative"),
-        .signNegative = QString(),
+            "large with a small chest gain is swinging with the arms. Signed like the pelvis and chest: "
+            "negative swinging back, crossing zero at the top, positive coming down."),
+        .signPositive = QStringLiteral("the arm swinging down and through, towards the target"),
+        .signNegative = QStringLiteral("the arm swinging back, away from the target"),
         .phases = { P::Transition, P::Delivery, P::Impact },
         .routes = {
             via("leadArmImus", RM::Inertial, Direct, { .imuRoles = { R::LeadForearm } },
@@ -2253,9 +2254,10 @@ void installMetricManifest(MetricCatalogue &cat)
             "Professionals peak around 2250 °/s AT impact, more than double the arm — the biggest "
             "gain in the chain. A peak tens of milliseconds early is the club racing the arm, which "
             "is casting seen as timing; compare it with the clubhead speed's own peak lead, which "
-            "reads the same event off the linear speed. Unsigned — it is a speed."),
-        .signPositive = QStringLiteral("the shaft swinging faster about the plane — a speed, never negative"),
-        .signNegative = QString(),
+            "reads the same event off the linear speed. Signed like the pelvis and chest: negative swinging "
+            "back, crossing zero at the top, positive coming down."),
+        .signPositive = QStringLiteral("the shaft swinging down and through, towards the target"),
+        .signNegative = QStringLiteral("the shaft swinging back, away from the target"),
         .phases = { P::Transition, P::Delivery, P::Impact },
         .routes = {
             via("clubSensorFused", RM::Fused, Direct, { .imuRoles = { R::Club }, .clubTrack = true },

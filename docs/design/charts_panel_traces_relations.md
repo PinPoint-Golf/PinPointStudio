@@ -128,7 +128,7 @@ This amends D9 for Session only; This shot, Against and every other cross-shot a
     §12.6, the corpus's kernel) and stores the probable peak on the chest node, downgraded by `sequence.gapBridged`;
     This shot draws it, the diagnostics judge it, and Session READS it — bridging only swings analysed before. Calibrate
     the noise, and grade the estimate, against the worn trunk IMU session when it exists.
-  - **Next (#102):** judge each curve by its SHAPE against the reference KS shape (TPI, Els: one downswing hump
+  - **Next (#102):** judge each curve by its SHAPE against a reference KS shape (one downswing hump
     per segment from zero at the top, peaks growing and in order) to predict measurement error per shot.
 
 ### 2.3 Relations (B)

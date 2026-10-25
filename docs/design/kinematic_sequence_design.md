@@ -844,8 +844,8 @@ does it per shot too.
   cautious. The **noise is assumed** at 20 °/s: the stored curve is smoothed, and a fitted noise (~1 °/s) gives
   a ±1–3 ms that is false precision.
 - **Option A:** the probable peak is the hump the gap hides. A taller MEASURED value earlier in the downswing
-  (10-20: −150…−220 ms, 780–1345 °/s, where the shoulder keypoints jump as the line squares to the camera; TPI's
-  reference KS has every segment near zero and rising together there) is recorded (`earlierMs`) and read as the
+  (10-20: −150…−220 ms, 780–1345 °/s, where the shoulder keypoints jump as the line squares to the camera; a reference
+  kinematic sequence has every segment near zero and rising together there) is recorded (`earlierMs`) and read as the
   measurement, never taken as the peak.
 - **What it changes.** The chest node stays `placed = false` (the order, gaps and verdict in the node JSON are
   the placed nodes'). It gains `probable { peakMs, tSigmaMs, peakDps, peakSigmaDps, bridge { tMs, mean, sd },
@@ -888,6 +888,16 @@ does it per shot too.
   is lifted (`maxGapMs` = ∞): a long gap is bridged and its ± says how little it knows. Only a swing with no
   chest curve at all (no video) has no chest timing. The validity argument for long gaps and for `seen` rests on
   the worn trunk-IMU session (this week, Oct 2026).
+- **All four curves carry their sign** (Mark, same day: "I am concerned that angular velocity does not carry the
+  correct sign on all 4 curves"). The lead arm and club were read as speeds (|ω|), so they bounced off zero at the
+  top instead of crossing it. They now keep their direction, towards the target +, as the pelvis and chest always
+  have (`kSignedArmClub`; camera routes only — the arm IMU's swing rate has no sign), turned over as a whole when
+  the net turn through the downswing reads backwards. Drawn address → finish (`tools/kinematics/plot_fullswing.py`),
+  nine library swings' arm and club cross zero within a few hundredths of a second of the top and peak as a
+  reference sequence does; the face-on pelvis and chest are blind near square at BOTH ends of the swing and noisy
+  at the top, which is the case for the trunk IMU. The downswing is + either way, so peaks and readings are
+  unchanged — except 7 library shots (Paddy, Jess) whose old arm peak was junk the sign exposed (−3091 °/s
+  backwards, or a leap to 3232–8332 °/s straight after a change of direction, now refused as a spike).
 - **Not yet truthed.** No trunk sensor has checked the probable peak; calibrate the noise and grade the peak
   against the worn trunk-IMU session. The next step is #102: judge each curve's SHAPE against the reference KS
   shape to predict measurement error per shot.

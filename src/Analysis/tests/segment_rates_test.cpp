@@ -803,6 +803,26 @@ int main()
         const KsNode *a = nodeOf(lf, SeqSegment::LeadArm);
         CHECK("§5 left-hander face-on: the arm is read off the RIGHT side and places at the same instant",
               a && a->placed && msFromTruth(a, kArm) <= 6.0);
+        // THE ARM AND CLUB KEEP THEIR DIRECTION (sequence.signedArmClub, 25 Oct 2026): towards the target +,
+        // for either lead side — the downswing peak is positive, and the curve is not a speed (|ω|): it is
+        // turned over as a whole, so a left-hander's reads the same way round as a right-hander's
+        const auto downswingPositive = [](const SegmentRatesResult &r, SeqSegment seg, const SegmentRateChannel &ch) {
+            const KsNode *n = nodeOf(r, seg);
+            return n && n->peakDps > 0.0 && !ch.series.value.empty();
+        };
+        const PoseTrack2D poseR = makePose(true);
+        SegmentRatesInputs rin = fin;
+        rin.pose = &poseR; rin.leadIsLeft = true;
+        const SegmentRatesResult rf = buildSegmentRates(rin, cfg);
+        CHECK("§5 signed: the arm and club peak POSITIVE for a right- and a left-hander",
+              downswingPositive(rf, SeqSegment::LeadArm, rf.leadArm) && downswingPositive(lf, SeqSegment::LeadArm, lf.leadArm)
+              && downswingPositive(rf, SeqSegment::Club, rf.club) && downswingPositive(lf, SeqSegment::Club, lf.club));
+        SegmentRatesConfig speedCfg = cfg;
+        speedCfg.signedArmClub = false;
+        const SegmentRatesResult sp = buildSegmentRates(rin, speedCfg);
+        const KsNode *as = nodeOf(sp, SeqSegment::LeadArm), *at = nodeOf(rf, SeqSegment::LeadArm);
+        CHECK("§5 signed: the sign changes no peak — the same instant and value as the speed",
+              as && at && as->tPeakUs == at->tPeakUs && near(as->peakDps, at->peakDps, 1e-6));
     }
 
     // ── §6 unresolved is a state, not a failure ───────────────────────────────────────────────

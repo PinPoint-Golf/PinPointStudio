@@ -106,6 +106,20 @@ RateTrack differentiate(const AngleTrack &a, int64_t windowUs, double sign, bool
 
 // Smooth a rate that a sensor already measured (IMU): the same time window, so the peak is as
 // blurred as a camera route's, and σ = per-sample noise / √n.
+// TOWARDS THE TARGET IS POSITIVE (sequence.signedArmClub): a signed arm or club rate whose NET turn between
+// `fromUs` and `toUs` (the downswing) is backwards is turned over, so the downswing reads + and the backswing −
+// whichever way round the image and the lead side put the angle. The net turn (the rate's sum), not the
+// largest single value: a keypoint spike near the top (±2000 °/s on 10-20 Jess) cannot outvote the whole
+// downswing.
+void orientDownswingPositive(RateTrack &r, int64_t fromUs, int64_t toUs)
+{
+    double net = 0.0;
+    for (size_t i = 0; i < r.t.size() && i < r.dps.size(); ++i)
+        if (r.valid[i] && r.t[i] >= fromUs && r.t[i] <= toUs) net += r.dps[i];
+    if (net < 0.0)
+        for (double &v : r.dps) v = -v;
+}
+
 RateTrack smoothRate(const std::vector<int64_t> &t, const std::vector<double> &dps,
                      double noiseDps, int64_t windowUs)
 {
@@ -1697,7 +1711,9 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             gate.bandIsHole = true;              // frames the fit only inferred are interior holes
             validityBand(at, dom.fromUs, dom.toUs, seen, gate);
             const size_t before = nodes.size();
-            finishChannel(res.leadArm, differentiate(at, windowUs, 1.0, /*magnitude*/ true),
+            RateTrack armRate = differentiate(at, windowUs, 1.0, /*magnitude*/ !cfg.signedArmClub);
+            if (cfg.signedArmClub) orientDownswingPositive(armRate, dom.fromUs, dom.refUs());
+            finishChannel(res.leadArm, std::move(armRate),
                           SeqSegment::LeadArm, QStringLiteral("Lead arm angular speed"),
                           QStringLiteral("faceOn+dtl3d"), false, dom, phases, cfg, nodes, gate);
             if (nodes.size() > before) {
@@ -1951,7 +1967,9 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             gate.bandIsHole = true;
             gate.risingIntoMinFrac = cfg.faceOnArmRisingIntoMinFrac;
             validityBand(a, dom.fromUs, dom.toUs, seen, gate);
-            finishChannel(res.leadArm, differentiate(a, windowUs, 1.0, /*magnitude*/ true),
+            RateTrack armRate = differentiate(a, windowUs, 1.0, /*magnitude*/ !cfg.signedArmClub);
+            if (cfg.signedArmClub) orientDownswingPositive(armRate, dom.fromUs, dom.refUs());
+            finishChannel(res.leadArm, std::move(armRate),
                           SeqSegment::LeadArm, QStringLiteral("Lead arm angular speed"),
                           QStringLiteral("faceOn"), false, dom, phases, cfg, nodes, gate);
         }
@@ -2004,7 +2022,7 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             gate.mayGate = PP_GATE("sequence.credibleClub");
             gate.mayEvidence = { { QStringLiteral("clubheadPeakMph"), in.clubheadSpeedPeakMph },
                                  { QStringLiteral("minCredibleClubMph"), cfg.minCredibleClubMph } };
-            RateTrack clubRate = differentiate(a, windowUs, 1.0, /*magnitude*/ true);
+            RateTrack clubRate = differentiate(a, windowUs, 1.0, /*magnitude*/ !cfg.signedArmClub);
             // ONE RATE FOR THE CLUB (club_rate_filter.h). Where the club rate filter set the tick,
             // its θ̇ is the rate — the same one clubhead speed composes — de-projected through the
             // plane by the gain at the tick's image angle (dψ/dθ), its σ by the same gain. Not
@@ -2012,12 +2030,13 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             for (size_t i = 0; i < n && i < clubRate.dps.size(); ++i) {
                 if (!(track[i].flags & ShaftRateFiltered)) continue;
                 const double g = clubPlane.have ? deprojectGain(track[i].thetaRad, clubPlane.nu, clubPlane.k) : 1.0;
-                const double v = std::fabs(g * track[i].thetaDotRadS) * kRadToDeg;
+                const double v = (cfg.signedArmClub ? g * track[i].thetaDotRadS : std::fabs(g * track[i].thetaDotRadS)) * kRadToDeg;
                 const double sd = track[i].sigmaThetaDotDps >= 0.f ? std::fabs(g) * double(track[i].sigmaThetaDotDps) : 0.0;
                 clubRate.dps[i]      = v;
-                clubRate.sigmaDps[i] = sd + a.extraRelSigma * v;
+                clubRate.sigmaDps[i] = sd + a.extraRelSigma * std::fabs(v);
                 clubRate.valid[i]    = 1u;
             }
+            if (cfg.signedArmClub) orientDownswingPositive(clubRate, clubDom.fromUs, clubDom.refUs());
             finishChannel(res.club, std::move(clubRate),
                           SeqSegment::Club, QStringLiteral("Club angular speed"),
                           fused ? QStringLiteral("faceOn+dtl") : QStringLiteral("faceOnClub"),

@@ -1173,6 +1173,14 @@ inline constexpr bool         kNodeSeries           = true;   // sequence.nodeSe
 inline constexpr bool         kGapBridge            = true;   // sequence.gapBridge
 inline constexpr double       kGapBridgeEllMs       = 31.9;   // sequence.gapBridge.ellMs
 inline constexpr double       kGapBridgeSfDps       = 155.4;  // sequence.gapBridge.sfDps
+// kSignedArmClub — the lead arm and club keep their DIRECTION, towards the target +, as the pelvis and chest
+//   always have (Mark, 25 Oct 2026: "I am concerned that angular velocity does not carry the correct sign on
+//   all 4 curves" … "Let's fix the sign. Club and arm look good"). Read as speeds (|ω|) until then, they bounced
+//   off zero at the top instead of crossing it; with the sign, nine library swings drawn address → finish beside
+//   a reference kinematic sequence cross zero within a few hundredths of a second of the top and peak where it does. The
+//   downswing is + either way, so the sequence's peaks and every reading off them are unchanged. Camera routes
+//   only: the arm IMU's swing rate (the gyro across the arm) has no sign to keep.
+inline constexpr bool         kSignedArmClub        = true;   // sequence.signedArmClub
 // kChestBackwardsWindowMs — FAIL WITH GRACE (Mark, 25 Oct 2026: "try our hardest, report honestly and fail with
 //   grace"). A chest curve whose mean over this many ms before impact is at or below zero reads the chest turning
 //   AWAY from the target through the downswing — the face-on route's sign unfold at the wrong square-up instant
