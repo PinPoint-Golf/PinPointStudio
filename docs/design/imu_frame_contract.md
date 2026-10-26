@@ -13,7 +13,7 @@ reference, that doc is the rationale.*
 | Frame | Definition | Owner |
 |---|---|---|
 | **World** (`imu_world`) | Right-handed, **gravity-aligned, +Z up**. Yaw is **arbitrary-but-fixed per session** (re-zeroable via calibration `A`) — **NOT** magnetic-north referenced (we run 6-axis, no magnetometer). REP-103 ENU *vocabulary*, REP-145 *no-mag semantics*. | Host fusion (`orientation_filter.h` Madgwick / `eskf_orientation_filter.h`) |
-| **Sensor body** (`imu_link`) | Right-handed, **+X = device-right, +Y = USB-end (long), +Z = face-normal**. Identity quaternion at the neutral pose. | Device characterization ([`imu_axis_reference.md`](../reference/imu_axis_reference.md)) |
+| **Sensor body** (`imu_link`) | Right-handed, **+X = device-right (your right with the face toward you, USB down), +Y = long axis pointing AWAY from the USB end, +Z = face-normal**. (Before 26 Oct 2026 this row said +Y = USB-end; the measured axes say the opposite — see the reference's §2 correction.) Identity quaternion at the neutral pose. | Device characterization ([`imu_axis_reference.md`](../reference/imu_axis_reference.md)) |
 | **Anatomical body** | Per-segment frame from `imu_calibration::solveSegment` (limbs) or `solveTrunkSegment` (pelvis, thorax). Axis tables in §5. | `imu_calibration.h` (`A`, `M`) |
 
 The fused quaternion produced by host fusion **is** the world→sensor-body orientation in
@@ -98,15 +98,15 @@ Right-handed: right × anterior = up.
 - `e_x` = `e_y × e_z`.
 - `M = fromAxes(e_x, e_y, e_z)`, so that `M·v_anat = v_sensor`.
 - `A = Rz(ψ)·L`:
-  - **L** is the smallest rotation taking the filter's own up, `q̄·e_z`, onto +Z. It is about identity for Madgwick and about Rx(180°) for ESKF (§7). It is solved, never assumed.
+  - **L** is the smallest rotation taking the filter's own up, `q̄·e_z`, onto +Z. It is about identity for both filters (§7; about Rx(180°) in some ESKF captures before 26 Oct). It is solved, never assumed.
   - **ψ** is the yaw about +Z taking `L·q̄·e_y` (horizontal by construction) onto +Y.
 - At stand tall, `q_anat = A·q̄·M` is the identity. After that, `q_anat` is the true segment orientation in the stance frame: forward bend at address reads as forward bend, and world z is vertical for every consumer.
 
-**The nominal mount** ("USB end up, label facing out", design §4.1), before the solve refines it:
+**The nominal mount** ("USB end down, label facing out" — the label's printing reads the right way up; design §4.1), before the solve refines it:
 
 | Segment axis | Sensor axis |
 |---|---|
-| +Z (superior) | ≈ +Y (USB end) |
+| +Z (superior) | ≈ +Y (away from the USB end, which points down) |
 | +Y (anterior) | ≈ −Z (into the body) |
 | +X (right) | ≈ +X (device right) |
 
@@ -115,9 +115,9 @@ Right-handed: right × anterior = up.
 - The S-I rate and peak times do not depend on δ (design §6.2).
 
 **Gates** (a failure names the sensor and the cause):
-- long (USB) axis within 35° of up;
+- the long axis, sensor +Y (away from the USB end), within 35° of up — i.e. the USB end within 35° of down;
 - face normal within 40° of horizontal;
-- |f̄| = 1 g ± 2 %;
+- |f̄| = 1 g ± 3 % (seated on the W0 desk session, trunk design §17.4; was ± 2 %);
 - mean gyro < 0.5 °/s on each axis;
 - ≥ 95 % of the expected samples.
 
@@ -155,11 +155,14 @@ Phase 2 (not yet landed).
 
 ## 7. Fusion filter gotcha (both implement `IOrientationFilter`)
 
-Madgwick and ESKF are runtime-swappable but use **different world conventions**: seeding
-gravity `(0,0,1)`, Madgwick → identity, ESKF → 180°-about-X. They feed the *same* `A·q·M`,
-so swapping filters **without re-calibrating** flips orientation by 180°; the per-session
-re-solve of `A` absorbs it. Don't assume the two produce interchangeable raw quaternions.
-(Frozen by `orientation_filter_test`.)
+Madgwick and ESKF are runtime-swappable and, since the **26 Oct 2026 fix (#104)**, share **one world
+convention**: +Z up, Hamilton body→world, a level sensor reads identity; they differ only by heading
+(free in 6-axis). Before the fix the ESKF wrapper never injected its error state (it was gyro-only and
+went NaN in the downswing on 12 of 13 real arm lanes), and its world depended on the seed pose:
+Rx(180°) when seeded flat, +Z up when seeded hanging or worn, other rotations at other tilts. Swings
+captured with the old ESKF keep those quaternions. `A·q·M` absorbs any constant world rotation either
+way (the per-session re-solve of `A`), so calibration never assumed one. (Frozen by
+`orientation_filter_test` §D–§E and `trunk_turn_path_test`.)
 
 ## 8. Code references
 

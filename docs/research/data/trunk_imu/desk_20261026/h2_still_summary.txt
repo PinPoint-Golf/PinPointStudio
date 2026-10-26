@@ -1,0 +1,20 @@
+trunk_hw still — design §4.2 bias, §6.3 sensor-health gates
+
+WT901BLE67  []  imu__523402d1-ba68-8c6a-5280-b422d79adf4c__20261026-092925.csv
+  still span 328.4 s from 0.0 s (65224 samples)
+  gx: bias -0.180 deg/s, SD 0.015 (detrended 0.015), drift -0.0007 deg/s per min
+  gy: bias -0.220 deg/s, SD 0.032 (detrended 0.032), drift -0.0013 deg/s per min
+  gz: bias +0.015 deg/s, SD 0.026 (detrended 0.026), drift -0.0000 deg/s per min
+  |f| mean 1.0057 g (+0.57 % from 1 g), SD 0.0003 g
+  VERDICT bias 0.220 deg/s < 0.5 -> bias estimator not needed for a 1.5 s swing (drift over 1.5 s: worst axis 0.33 deg, vector 0.43 deg)
+  VERDICT |f| +0.57 % -> within the §6.3 ±2 % health gate
+
+WT901BLE67  []  imu__f4907bae-d179-22a9-bc91-a8fef637e797__20261026-092926.csv
+  still span 327.3 s from 0.0 s (65008 samples)
+  gx: bias -0.002 deg/s, SD 0.018 (detrended 0.018), drift -0.0002 deg/s per min
+  gy: bias -0.004 deg/s, SD 0.016 (detrended 0.016), drift -0.0002 deg/s per min
+  gz: bias -0.000 deg/s, SD 0.002 (detrended 0.002), drift -0.0000 deg/s per min
+  |f| mean 1.0174 g (+1.74 % from 1 g), SD 0.0004 g
+  VERDICT bias 0.004 deg/s < 0.5 -> bias estimator not needed for a 1.5 s swing (drift over 1.5 s: worst axis 0.01 deg, vector 0.01 deg)
+  VERDICT |f| +1.74 % -> within the §6.3 ±2 % health gate
+

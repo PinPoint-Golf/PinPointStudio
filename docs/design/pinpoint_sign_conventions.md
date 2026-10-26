@@ -301,18 +301,19 @@ curve changes sign exactly where the reading matters — `hip_stall` fired on ev
 carries the one piece of information the magnitude discards, and a sequence is a claim about WHEN a
 rate peaked, so it has to.
 
-`leadArmAngularSpeed` and `clubAngularSpeed` are **unsigned magnitudes** of the segment's long
-axis swinging about the swing-plane normal — roll about the long axis (forearm pronation, shaft
-roll) excluded by construction on every route. A frontal projection cannot say which way round the
-plane the arm went, and a sign on a quantity the camera did not resolve would be a fabrication; the
-downswing domain already fixes the direction.
+`leadArmAngularSpeed` and `clubAngularSpeed` are **signed** since b699d505 (25 Oct 2026): the segment's
+long axis swinging about the swing-plane normal, roll about the long axis (forearm pronation, shaft
+roll) excluded by construction on every route, **positive toward the target** — negative going back,
+positive coming down — so all four sequence curves cross zero at the top. The sign comes from the
+segment's own swing (`signAgainstPlane`, `orientDownswingPositive`, `segment_rates.cpp`), not from the
+golfer's handedness, and it changes only where the segment slows (93c1e4c8).
 
 | metric | positive means | note |
 |---|---|---|
 | `pelvisAngularSpeed` | the hip line turning toward the LEAD side — opening | signed; lead-relative; mirrored by the producer for a left-hander |
 | `thoraxAngularSpeed` | the shoulder line turning toward the LEAD side — opening | signed; same convention as the pelvis |
-| `leadArmAngularSpeed` | *(unsigned)* the lead shoulder→wrist axis swinging about the swing-plane normal | roll about the long axis excluded |
-| `clubAngularSpeed` | *(unsigned)* the shaft swinging about the swing-plane normal | roll about the shaft excluded |
+| `leadArmAngularSpeed` | the lead arm swinging toward the target (downswing) | signed by its own swing; roll about the long axis excluded |
+| `clubAngularSpeed` | the shaft swinging toward the target (downswing) | signed by its own swing; roll about the shaft excluded |
 
 ### Trunk IMU readings (hip and chest sensors, 17 Oct 2026)
 
@@ -322,6 +323,7 @@ The trunk frame and its stand-tall solve are owned by
 | Reading | Definition | Positive means |
 |---|---|---|
 | Turn (`pelvisRotation`, `thoraxRotation` from the IMU) | heading of the ML axis `q_anat·x̂`, projected onto the horizontal plane, from its address heading | unsigned magnitude, as the camera turn above |
+| Signed turn (`pelvisRotationSigned`, `thoraxRotationSigned` from the IMU, 26 Oct 2026) | the same heading change, kept signed | turned toward the **lead** side (open); negative is closed. Crosses zero at the square-up, so a rate through impact can be read from it (`hip_stall`) |
 | X-factor | thorax turn − pelvis turn | as `xFactor` |
 | Obliquity / side bend | elevation of the ML axis above horizontal | **lead side higher** |
 | Forward bend / tilt | inclination of the long axis `q_anat·ẑ` from vertical, in the sagittal direction | **anterior** (bent toward the ball) |
@@ -330,6 +332,7 @@ The trunk frame and its stand-tall solve are owned by
 **Handedness (D15).** The flip happens at ingest. The trunk frame is the same for both hands (+X is always the golfer's right). The producer mirrors the lateral readings for a left-hander, so stored metrics are handedness-neutral and handedness lives in the binding.
 
 - For a right-hander, opening is a positive rate about +Z; for a left-hander the producer negates it.
+- The signed turn is flipped the same way (`body_rotation.cpp`, the `leadSign` the two-camera route also uses).
 - Obliquity is mirrored the same way: "lead side up" is +X-side up for a left-hander and −X-side up for a right-hander.
 
 **The measurement site.** A back-mounted thorax sensor reads spine rotation at T2–T5, not the shoulder line. Norms must match the site, and each descriptor's provenance says which it is.

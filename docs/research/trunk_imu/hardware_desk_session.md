@@ -21,7 +21,7 @@ Each recording step opens the app with the raw recorder on. The recorder writes 
 
 | Step | You do | Time | Command | It decides |
 |---|---|---|---|---|
-| **H0** | Read the model printed on each unit. In Settings ▸ IMUs, confirm the gyro range is ±2000 °/s and the accelerometer ±16 g, and set **200 Hz** on all three. Note any you can't set. | 2 min | — | Whether the sensors are what the frame maths assumes: the USB end is +Y and the label face is +Z (design R6). |
+| **H0** | Read the model printed on each unit. In Settings ▸ IMUs, confirm the gyro range is ±2000 °/s and the accelerometer ±16 g, and set **200 Hz** on all three. Note any you can't set. | 2 min | — | Whether the sensors are what the frame maths assumes: +Y runs along the long axis away from the USB end (corrected 26 Oct 2026; the original wording said the USB end is +Y) and the label face is +Z (design R6). |
 | **H1a** | Connect **all 3 Witmotions**, place them anywhere, and leave them streaming for **2 min**. Then quit the app. | 3 min | `trunk-hw-desk.sh h1-three` | Whether Bluetooth keeps up at 200 samples a second with three sensors. |
 | **H1b** | Connect **2 Witmotions and the wG3**, and leave them streaming for **2 min**. Then quit. | 3 min | `trunk-hw-desk.sh h1-wg3` | The same, with the wG3 sharing the radio (the arm-and-trunk session, D1). |
 | **H2** | Connect **2 Witmotions** and put them **flat on the desk, untouched**: no typing on that desk, no knocks. Leave them for **5 min**. Then quit. | 6 min | `trunk-hw-desk.sh h2-still` | How far each gyro drifts when still, and whether the accelerometer reads 1 g. |

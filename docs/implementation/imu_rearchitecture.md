@@ -108,7 +108,7 @@ BLE notify (0x55 0x61 frame: accel+gyro+Euler, little-endian int16)
 | Frame | Definition | Where |
 |---|---|---|
 | **Fusion-world** | Right-handed, **+Z = up** (gravity reaction). Yaw **unobservable / drifting** (no mag, no North). | Madgwick seed rotates world-up `(0,0,1)` onto measured gravity (`orientation_filter.h:69-71`); ESKF gravity `[0,0,−9.81]`. |
-| **Sensor/case body** | Right-handed, **+X = device-right, +Y = USB-end (long), +Z = face-normal**. | Desk characterization, `imu_axis_reference.md §3`. |
+| **Sensor/case body** | Right-handed, **+X = device-right (face toward you, USB down), +Y = long axis pointing away from the USB end, +Z = face-normal** (corrected 26 Oct 2026, `imu_axis_reference.md` §2). | Desk characterization, `imu_axis_reference.md §3`. |
 | **Anatomical body** (post `A·q·M`) | Right-handed, **+Y = long axis (distal), +X = flexion axis, +Z = e_x×e_y**. Anatomical "up" = `−Y`. | `imu_calibration.h:121-129`; `imu_instance.cpp:577`. |
 
 ### 1.3 The latent frame split (a real bug to fix in Track B)
