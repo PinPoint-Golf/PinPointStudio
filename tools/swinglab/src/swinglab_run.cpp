@@ -28,7 +28,7 @@
 //   swinglab_run <swing_dir> --out <run_dir> [--params p.json] [--trace]
 //                [--session-type 1] [--face-on Face] [--impact-us N] [--pose p.json]
 //                [--bind <index>=<role> ...] [--ignore-role <role[,role...]>]
-//                [--trunk-calib-from <standTallSwingDir>] [--dtl [--dtl-pose p.json]]
+//                [--trunk-calib-from <standTallSwingDir | trunk_ceremony.json>] [--dtl [--dtl-pose p.json]]
 //                [--bands <csv mm>] [--club-length-mm N] [--hosel-mm N]
 //                [--shaft-length-mm N] [--hands-end-mm N] [--height-m N]
 //
@@ -54,6 +54,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QThreadPool>
 #include <opencv2/imgproc.hpp>
 #include <thread>
@@ -84,6 +85,8 @@
 #include "../../../src/Core/PpMessageLog.h"   // echo the pipeline's own log to stderr
 #include "../../../src/Core/pp_debug.h"      // ppInfo / ppWarn
 #include "../../../src/IMU/imu_calibration.h" // solveTrunkSegment (--trunk-calib-from)
+#include "../../../src/IMU/trunk_stand_tall.h" // the window summary the live solve uses too
+#include "../../../src/IMU/trunk_ceremony_file.h" // --trunk-calib-from <trunk_ceremony.json>
 #include "../../../src/Analysis/shot_analyzer.h"
 #include "../../../src/Analysis/analysis_pipeline.h"   // analysisGraphJson (--dag)
 #include "../../../src/Analysis/swing_reanalyzer.h"
@@ -446,12 +449,13 @@ bool segmentRoleFromCliName(const QString &name, SegmentRole *out)
 
 // ── --trunk-calib-from: the stand-tall solve, replayed offline ───────────────────────────────
 // trunk_imu_sequence_grf_design.md §16 steps 1–2; imu_frame_contract.md §5 "Trunk segments".
-// The live ceremony is not recorded as a ceremony, but a shot recorded while the golfer stood
-// tall carries the same raw lanes, so the solve can be run on it here and its A/M put on the
-// swing under analysis — matched by sensor serial, since the stand-tall shot may have been
-// recorded under different roles (or before the session knew trunk slots at all).
+// Two sources, both matched to this swing's trunk bindings by sensor serial (the source may have
+// been recorded under different roles, or before the session knew trunk slots at all):
+//   * a session's trunk_ceremony.json (W2.1c, trunk_ceremony_file.h): the standTall step the live
+//     solve applied, its window ending where the live one did — the live A/M, replayed exactly;
+//   * a shot recorded while the golfer stood tall: its stillest 2 s, searched for below.
 
-constexpr double kStandTallSpanS = 2.0;   // the still window the ceremony holds (≥ 2 s)
+constexpr double kStandTallSpanS = trunk_stand_tall::kSpanS;   // the still window the ceremony holds
 
 struct StandTallLane {
     QString serial;
@@ -513,10 +517,11 @@ struct StillestWindow {
 
 // The stillest kStandTallSpanS window of a lane: the window minimising the peak gyro magnitude
 // |ω| over its samples (a sliding max over every start sample whose span fits inside the
-// recording), summarised as the ceremony would: mean accel, mean gyro, and the mean quaternion
-// — each sample sign-aligned to the running sum (q and −q are one rotation) and the sum
-// normalised. samplesExpected is span × the NOMINAL rate, so a lane that dropped samples in its
-// stillest stretch fails the solve's sample gate rather than passing on fewer samples.
+// recording), summarised exactly as the live ceremony is — trunk_stand_tall::summarise, the
+// one implementation (ImuInstance::calibrateTrunk calls it on its last 2 s): mean accel, mean
+// gyro, and the sign-aligned mean quaternion. samplesExpected is span × the NOMINAL rate, so a
+// lane that dropped samples in its stillest stretch fails the solve's sample gate rather than
+// passing on fewer samples.
 StillestWindow stillestWindow(const StandTallLane &L, double spanS)
 {
     StillestWindow out;
@@ -551,22 +556,7 @@ StillestWindow stillestWindow(const StandTallLane &L, double spanS)
         best = *std::max_element(g.begin(), g.end());
     }
     out.peakGyroDps = best;
-
-    double f[3] = { 0, 0, 0 }, w[3] = { 0, 0, 0 }, q[4] = { 0, 0, 0, 0 };
-    int cnt = 0;
-    for (size_t k = out.lo; k < out.hi; ++k, ++cnt) {
-        const ImuSample &s = L.rows[k];
-        f[0] += s.accel_x; f[1] += s.accel_y; f[2] += s.accel_z;
-        w[0] += s.gyro_x;  w[1] += s.gyro_y;  w[2] += s.gyro_z;
-        const double dot = s.quat_w * q[0] + s.quat_x * q[1] + s.quat_y * q[2] + s.quat_z * q[3];
-        const double sgn = (cnt == 0 || dot >= 0.0) ? 1.0 : -1.0;
-        q[0] += sgn * s.quat_w; q[1] += sgn * s.quat_x; q[2] += sgn * s.quat_y; q[3] += sgn * s.quat_z;
-    }
-    out.w.meanAccelG  = QVector3D(float(f[0] / cnt), float(f[1] / cnt), float(f[2] / cnt));
-    out.w.meanGyroDps = QVector3D(float(w[0] / cnt), float(w[1] / cnt), float(w[2] / cnt));
-    out.w.meanQuat    = QQuaternion(float(q[0]), float(q[1]), float(q[2]), float(q[3])).normalized();
-    out.w.samplesReceived = cnt;
-    out.w.samplesExpected = int(std::lround(spanS * double(L.rateHz)));
+    out.w = trunk_stand_tall::summarise(L.rows, out.lo, out.hi, spanS, L.rateHz);
     return out;
 }
 
@@ -625,13 +615,15 @@ int main(int argc, char **argv)
         "another role. Echoed into runmeta.json as `ignoredRoles`.", "role[,role...]");
     QCommandLineOption optTrunkCalib("trunk-calib-from",
         "Replay the trunk stand-tall solve (imu_frame_contract.md section 5, solveTrunkSegment) "
-        "from another recorded shot in which the golfer stood tall: in each of its IMU lanes the "
-        "stillest 2.0 s window (least peak |gyro|) is summarised and solved, and the result "
+        "from a session's trunk_ceremony.json (the standTall step's last 2.0 s per sensor, ending "
+        "where the live solve's window ended, so the replay equals the live A/M) or from another "
+        "recorded shot in which the golfer stood tall (in each of its IMU lanes the stillest 2.0 s "
+        "window, least peak |gyro|). Either window is summarised and solved, and the result "
         "replaces alignA/mountM (and sets calibrated) on this swing's pelvis/thorax bindings, "
         "matched by sensor serial — applied after --bind and --ignore-role, before analysis. A "
         "failed solve or an unmatched serial warns and leaves the binding as recorded. The "
         "per-sensor record goes to result.json and runmeta.json as `trunkCalibration`.",
-        "standTallSwingDir");
+        "standTallSwingDir|trunk_ceremony.json");
     QCommandLineOption optDtl("dtl",
         "Run the down-the-line shaft tracker (dtl_shaft_tracker_design.md) beside the "
         "production analysis: pose the DTL stream, build the face-on witness from this "
@@ -728,7 +720,7 @@ int main(int argc, char **argv)
     if (cli.positionalArguments().isEmpty() || (!cli.isSet(optOut) && !cli.isSet(optWriteBack)))
         return fail("usage: swinglab_run <swing_dir> --out <run_dir> [--params f] [--trace]\n"
                     "                    [--bind <index>=<role> ...] [--ignore-role <role[,role...]>]\n"
-                    "                    [--trunk-calib-from <standTallSwingDir>]\n"
+                    "                    [--trunk-calib-from <standTallSwingDir | trunk_ceremony.json>]\n"
                     "       swinglab_run <swing_dir> --write-back");
     const QString swingDir = cli.positionalArguments().first();
 
@@ -907,14 +899,29 @@ int main(int argc, char **argv)
     QJsonObject trunkCalib;
     if (cli.isSet(optTrunkCalib)) {
         const QString stDir = cli.value(optTrunkCalib);
-        QString stErr;
-        const QJsonObject stRoot = SwingStore::load(stDir, &stErr);
-        if (stRoot.isEmpty())
-            return fail(QStringLiteral("--trunk-calib-from %1: cannot read the swing document (%2)")
-                            .arg(stDir, stErr));
-        const std::vector<StandTallLane> lanes = standTallLanes(stRoot);
-        if (lanes.empty())
-            ppWarn() << qPrintable(QStringLiteral("[swinglab] trunk-calib: %1 has no IMU lanes").arg(stDir));
+        // A file is a ceremony (trunk_ceremony.json); a directory is a stand-tall shot.
+        const bool fromCeremony = QFileInfo(stDir).isFile();
+        std::vector<StandTallLane> lanes;
+        trunk_ceremony_file::Ceremony ceremony;
+        if (fromCeremony) {
+            QFile f(stDir);
+            QString cErr;
+            if (!f.open(QIODevice::ReadOnly))
+                return fail(QStringLiteral("--trunk-calib-from %1: cannot open (%2)").arg(stDir, f.errorString()));
+            if (!trunk_ceremony_file::fromJson(f.readAll(), &ceremony, &cErr))
+                return fail(QStringLiteral("--trunk-calib-from %1: not a trunk ceremony (%2)").arg(stDir, cErr));
+            if (!trunk_ceremony_file::lastStep(ceremony, trunk_ceremony_file::stepStandTall()))
+                ppWarn() << qPrintable(QStringLiteral("[swinglab] trunk-calib: %1 has no standTall step").arg(stDir));
+        } else {
+            QString stErr;
+            const QJsonObject stRoot = SwingStore::load(stDir, &stErr);
+            if (stRoot.isEmpty())
+                return fail(QStringLiteral("--trunk-calib-from %1: cannot read the swing document (%2)")
+                                .arg(stDir, stErr));
+            lanes = standTallLanes(stRoot);
+            if (lanes.empty())
+                ppWarn() << qPrintable(QStringLiteral("[swinglab] trunk-calib: %1 has no IMU lanes").arg(stDir));
+        }
 
         QJsonObject sensors;
         QSet<QString> usedSerials;
@@ -925,32 +932,72 @@ int main(int argc, char **argv)
             ++nTrunk;
             const QString serial = QString::fromStdString(window.formatOf(b.source).device_serial);
             const QString key = serial.isEmpty() ? QStringLiteral("(source %1)").arg(int(b.source)) : serial;
+            const imu_calibration::TrunkSensor sensor = b.role == SegmentRole::Pelvis
+                ? imu_calibration::TrunkSensor::Pelvis : imu_calibration::TrunkSensor::Thorax;
             QJsonObject rec{ { "role", segmentRoleName(b.role) }, { "matched", false }, { "applied", false } };
-            const auto lane = std::find_if(lanes.begin(), lanes.end(), [&](const StandTallLane &L) {
-                return !serial.isEmpty() && L.serial == serial;
-            });
-            if (lane == lanes.end()) {
-                ppWarn() << qPrintable(QStringLiteral("[swinglab] trunk-calib: %1 binding on sensor %2 has no lane "
-                                                      "in the stand-tall shot — left as recorded")
-                                           .arg(segmentRoleName(b.role), key));
-                sensors.insert(key, rec);
-                continue;
+            imu_calibration::TrunkAlignment al;
+            if (fromCeremony) {
+                const trunk_ceremony_file::Lane *cl = trunk_ceremony_file::laneBySerial(ceremony, serial);
+                trunk_ceremony_file::StandTallReplay rp;
+                if (cl && cl->instrument == trunk_ceremony_file::instrumentWitmotion())
+                    rp = trunk_ceremony_file::replayStandTall(ceremony, *cl, sensor);
+                if (!rp.found) {
+                    ppWarn() << qPrintable(QStringLiteral("[swinglab] trunk-calib: %1 binding on sensor %2 has %3 "
+                                                          "in the ceremony — left as recorded")
+                                               .arg(segmentRoleName(b.role), key,
+                                                    cl ? QStringLiteral("no standTall step") : QStringLiteral("no lane")));
+                    sensors.insert(key, rec);
+                    continue;
+                }
+                usedSerials.insert(serial);
+                al = rp.solve.alignment;
+                const trunk_stand_tall::Slice &sl = rp.solve.slice;
+                rec["standTallRole"] = cl->role;
+                rec["window"] = QJsonObject{
+                    { "step", rp.stepIndex }, { "windowEndUs", double(rp.windowEndUs) },
+                    { "t0Us", sl.hi > sl.lo ? double(cl->tUs[sl.lo]) : 0.0 },
+                    { "t1Us", sl.hi > sl.lo ? double(cl->tUs[sl.hi - 1]) : 0.0 },
+                    { "samplesReceived", sl.w.samplesReceived }, { "samplesExpected", sl.w.samplesExpected },
+                    { "shorterThanSpan", sl.shorterThanSpan }, { "rateHz", cl->configuredRateHz } };
+                // The live record, beside the replay's: they should agree exactly.
+                const QVariantMap live = ceremony.steps[size_t(rp.stepIndex)].result
+                                             .value(sensor == imu_calibration::TrunkSensor::Pelvis
+                                                        ? QStringLiteral("pelvis") : QStringLiteral("thorax")).toMap();
+                if (!live.isEmpty())
+                    rec["live"] = QJsonObject{ { "valid", live.value(QStringLiteral("valid")).toBool() },
+                                               { "alignA", QJsonArray::fromVariantList(live.value(QStringLiteral("alignA")).toList()) },
+                                               { "mountM", QJsonArray::fromVariantList(live.value(QStringLiteral("mountM")).toList()) } };
+            } else {
+                const auto lane = std::find_if(lanes.begin(), lanes.end(), [&](const StandTallLane &L) {
+                    return !serial.isEmpty() && L.serial == serial;
+                });
+                if (lane == lanes.end()) {
+                    ppWarn() << qPrintable(QStringLiteral("[swinglab] trunk-calib: %1 binding on sensor %2 has no lane "
+                                                          "in the stand-tall shot — left as recorded")
+                                               .arg(segmentRoleName(b.role), key));
+                    sensors.insert(key, rec);
+                    continue;
+                }
+                usedSerials.insert(serial);
+                const StillestWindow sw = stillestWindow(*lane, kStandTallSpanS);
+                if (sw.shorterThanSpan)
+                    ppWarn() << qPrintable(QStringLiteral("[swinglab] trunk-calib: sensor %1's stand-tall lane is shorter "
+                                                          "than %2 s — the whole lane is used").arg(key).arg(kStandTallSpanS));
+                al = imu_calibration::solveTrunkSegment(sw.w, sensor);
+                rec["standTallRole"] = segmentRoleName(SegmentRole(lane->role));
+                rec["window"] = QJsonObject{
+                    { "t0Us", double(lane->tUs[sw.lo]) }, { "t1Us", double(lane->tUs[sw.hi - 1]) },
+                    { "samplesReceived", sw.w.samplesReceived }, { "samplesExpected", sw.w.samplesExpected },
+                    { "peakGyroDps", double(sw.peakGyroDps) }, { "rateHz", lane->rateHz } };
             }
-            usedSerials.insert(serial);
-            const StillestWindow sw = stillestWindow(*lane, kStandTallSpanS);
-            if (sw.shorterThanSpan)
-                ppWarn() << qPrintable(QStringLiteral("[swinglab] trunk-calib: sensor %1's stand-tall lane is shorter "
-                                                      "than %2 s — the whole lane is used").arg(key).arg(kStandTallSpanS));
-            const imu_calibration::TrunkAlignment al = imu_calibration::solveTrunkSegment(
-                sw.w, b.role == SegmentRole::Pelvis ? imu_calibration::TrunkSensor::Pelvis
-                                                    : imu_calibration::TrunkSensor::Thorax);
             const imu_calibration::TrunkSolveRecord &r = al.record;
             rec["matched"]       = true;
-            rec["standTallRole"] = segmentRoleName(SegmentRole(lane->role));
             rec["valid"]         = al.valid;
             rec["failure"]       = r.failure;
             rec["deltaTier"]     = r.deltaTier;
             rec["sigmaDeltaDeg"] = double(r.sigmaDeltaDeg);
+            rec["alignA"]        = QJsonArray::fromVariantList(trunk_stand_tall::quatList(al.A));
+            rec["mountM"]        = QJsonArray::fromVariantList(trunk_stand_tall::quatList(al.M));
             rec["residuals"] = QJsonObject{
                 { "sampleFraction",        double(r.sampleFraction) },
                 { "maxAbsGyroDps",         double(r.maxAbsGyroDps) },
@@ -959,10 +1006,6 @@ int main(int argc, char **argv)
                 { "faceFromHorizontalDeg", double(r.faceFromHorizontalDeg) },
                 { "samplesOk", r.samplesOk }, { "stillOk", r.stillOk }, { "gravityOk", r.gravityOk },
                 { "longAxisOk", r.longAxisOk }, { "faceOk", r.faceOk } };
-            rec["window"] = QJsonObject{
-                { "t0Us", double(lane->tUs[sw.lo]) }, { "t1Us", double(lane->tUs[sw.hi - 1]) },
-                { "samplesReceived", sw.w.samplesReceived }, { "samplesExpected", sw.w.samplesExpected },
-                { "peakGyroDps", double(sw.peakGyroDps) }, { "rateHz", lane->rateHz } };
             const QString line = QStringLiteral(
                 "[swinglab] trunk-calib: %1 %2 %3%4 — samples %5 gyro %6 dps gravity %7 % long axis %8 deg "
                 "face %9 deg, %10 (sigma %11 deg)")
@@ -977,6 +1020,7 @@ int main(int argc, char **argv)
                 b.mountM = al.M;
                 b.anatCalibrated = true;
                 b.calibrated     = true;
+                b.trunkCalib     = trunk_stand_tall::provenanceFrom(al);   // §6.8, as the live solve records it
                 rec["applied"] = true;
                 ++nApplied;
                 ppInfo() << qPrintable(line);
@@ -988,15 +1032,24 @@ int main(int argc, char **argv)
         if (nTrunk == 0)
             ppWarn() << qPrintable(QStringLiteral("[swinglab] trunk-calib: this swing has no pelvis/thorax binding — "
                                                   "nothing to calibrate (use --bind to name them)"));
-        // Stand-tall lanes recorded under a trunk role that no trunk binding here asked for —
-        // usually a sensor swap between the two shots, worth seeing in the record.
+        // Trunk lanes in the source that no trunk binding here asked for — usually a sensor swap
+        // between the source and this swing, worth seeing in the record.
         QJsonArray unmatched;
-        for (const StandTallLane &L : lanes)
-            if (!usedSerials.contains(L.serial)
-                && (L.role == int(SegmentRole::Pelvis) || L.role == int(SegmentRole::Thorax)))
-                unmatched.append(QJsonObject{ { "serial", L.serial },
-                                              { "role", segmentRoleName(SegmentRole(L.role)) } });
-        trunkCalib = QJsonObject{ { "source", stDir }, { "windowS", kStandTallSpanS },
+        if (fromCeremony) {
+            for (const trunk_ceremony_file::Lane &L : ceremony.lanes)
+                if (!usedSerials.contains(L.serial)
+                    && (L.role == QLatin1String("pelvis") || L.role == QLatin1String("thorax")))
+                    unmatched.append(QJsonObject{ { "serial", L.serial }, { "role", L.role } });
+        } else {
+            for (const StandTallLane &L : lanes)
+                if (!usedSerials.contains(L.serial)
+                    && (L.role == int(SegmentRole::Pelvis) || L.role == int(SegmentRole::Thorax)))
+                    unmatched.append(QJsonObject{ { "serial", L.serial },
+                                                  { "role", segmentRoleName(SegmentRole(L.role)) } });
+        }
+        trunkCalib = QJsonObject{ { "source", stDir },
+                                  { "sourceKind", fromCeremony ? QStringLiteral("trunkCeremony") : QStringLiteral("standTallShot") },
+                                  { "windowS", kStandTallSpanS },
                                   { "trunkBindings", nTrunk }, { "applied", nApplied },
                                   { "sensors", sensors }, { "unmatchedStandTallLanes", unmatched } };
     }

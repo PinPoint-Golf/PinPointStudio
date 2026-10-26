@@ -10,7 +10,12 @@ rem The stand-tall swing is the FALLBACK route (no ceremony yet): its stillest 2
 rem and chest bindings of every shot. "-" = the ceremony ran, so each shot keeps its saved calibration.
 rem
 rem Reads C:\PinPointStudio\Mark-Liversedge\<session> and writes ONLY to
-rem C:\PinPointStudio\scratch\trunk-hw\<session>\{dense,bound,unbound,refuse}\<swing>.
+rem C:\PinPointStudio\scratch\trunk-hw\<session>\{dense,bound,unbound,armunbound,fullswing,refuse}\<swing>.
+rem Six passes (design section 13): dense (every frame posed, for the hop); bound; trunk unbound
+rem (--ignore-role pelvis,thorax); arm unbound (--ignore-role leadForearm,leadHand: the wG3
+rem ignored, the camera arm); fullswing (bound with the sequence curve left uncut, address to
+rem finish rather than P4..P8, for the signed-chart check of section 8.4 and the
+rem plot_fullswing.py sheets); refuse.
 rem Needs swinglab_run built from a tree that has the trunk flags (studio-build.cmd tool).
 setlocal enabledelayedexpansion
 set SESSION=%~1
@@ -28,13 +33,16 @@ if not "%STAND%"=="-" (
   set CALIB=--trunk-calib-from "%SRCDIR%\%STAND%"
 )
 if not exist "%RI%\swinglab_run.exe" ( echo no swinglab_run in %RI% & exit /b 4 )
-for %%P in (dense bound unbound refuse) do if not exist "%OUT%\%%P" mkdir "%OUT%\%%P"
+for %%P in (dense bound unbound armunbound fullswing refuse) do if not exist "%OUT%\%%P" mkdir "%OUT%\%%P"
+> "%OUT%\fullswing-params.json" echo {"sequence":{"throughP8":false}}
 echo == trunk-hw %SESSION% stand=%STAND% %DATE% %TIME% > "%OUT%\trunk-hw.log"
 for /d %%W in ("%SRCDIR%\swing_*") do (
   echo == %%~nxW >> "%OUT%\trunk-hw.log"
   "%RI%\swinglab_run.exe" "%%W" --out "%OUT%\dense\%%~nxW" --full-window >> "%OUT%\trunk-hw.log" 2>&1
   "%RI%\swinglab_run.exe" "%%W" --out "%OUT%\bound\%%~nxW" !CALIB! >> "%OUT%\trunk-hw.log" 2>&1
   "%RI%\swinglab_run.exe" "%%W" --out "%OUT%\unbound\%%~nxW" --ignore-role pelvis,thorax >> "%OUT%\trunk-hw.log" 2>&1
+  "%RI%\swinglab_run.exe" "%%W" --out "%OUT%\armunbound\%%~nxW" !CALIB! --ignore-role leadForearm,leadHand >> "%OUT%\trunk-hw.log" 2>&1
+  "%RI%\swinglab_run.exe" "%%W" --out "%OUT%\fullswing\%%~nxW" !CALIB! --params "%OUT%\fullswing-params.json" >> "%OUT%\trunk-hw.log" 2>&1
   "%RI%\swinglab_run.exe" "%%W" --out "%OUT%\refuse\%%~nxW" --refuse-orientation >> "%OUT%\trunk-hw.log" 2>&1
 )
 echo == end %DATE% %TIME% >> "%OUT%\trunk-hw.log"
