@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home mockup</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box}
+body{margin:0;background:#0D1012;color:#E6EBED;font:14px/1.45 'Hanken Grotesk',system-ui,sans-serif}
+a{color:#8FB0FF;text-decoration:none}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+.app{display:flex;min-height:100vh}
+.rail{width:88px;flex:none;background:#111518;border-right:1px solid #232A2F;display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:8px}
+.av{width:32px;height:32px;border-radius:50%;background:#1F2A3F;border:1px solid #5B8CFF;color:#8FB0FF;display:flex;align-items:center;justify-content:center;font:500 10px 'Geist Mono',monospace}
+.div{width:24px;height:1px;background:#2A3237;margin:8px 0}
+.rb{width:72px;padding:8px 0;border-radius:8px;display:flex;flex-direction:column;align-items:center;gap:3px;color:#9AA6AC;font-size:11px}
+.rb .ic{font-size:17px;line-height:1}
+.rb.on{background:#1C2433;color:#E6EBED}
+main{flex:1;padding:28px 40px 40px;display:flex;flex-direction:column;gap:28px;max-width:1300px}
+.start{display:flex;background:#151A1D;border:1px solid #252D32;border-radius:14px}
+.start .l{flex:3;padding:26px 28px;display:flex;flex-direction:column;gap:16px;justify-content:center}
+.cap{font:11px 'Geist Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#9AA6AC}
+h1{margin:0;font-size:30px;font-weight:600;letter-spacing:-.01em}
+.muted{color:#9AA6AC}
+.btn{display:inline-flex;align-items:center;gap:10px;background:#5B8CFF;color:#0B0F18;font-weight:700;padding:13px 22px;border-radius:10px;font-size:15px}
+.start .r{flex:2;padding:22px 24px;border-left:1px solid #252D32;background:#13181B;border-radius:0 14px 14px 0;display:flex;flex-direction:column;gap:10px}
+.crow{display:flex;align-items:center;gap:10px}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.full{background:#5B8CFF}.half{background:#34507F}.none{border:1.5px solid #7D8A90}
+.crow .k{flex:1}.crow .d{font:11px 'Geist Mono',monospace;color:#9AA6AC}
+h2{margin:0;font-size:20px;font-weight:600}
+.table{border:1px solid #20272B;border-radius:12px;overflow:hidden;background:#111619}
+.grid{display:grid;grid-template-columns:28px 160px minmax(120px,1fr) 56px 64px minmax(200px,1.3fr) 120px;align-items:center;column-gap:16px;padding:0 18px}
+.hdr{height:38px;font-size:12px;color:#9AA6AC;border-bottom:1px solid #20272B}
+.arow{height:48px;border-bottom:1px solid #1A2024}
+.arow .n{font-weight:600;font-size:15px}
+.track{height:6px;background:#1E2529;border-radius:3px}
+.fill{height:6px;border-radius:3px}
+.sc{font:15px 'Geist Mono',monospace;text-align:right}
+.tr{font:12px 'Geist Mono',monospace}
+.wo{text-align:right;font-size:12px;font-weight:600}
+.chev{color:#9AA6AC;font-size:12px;display:inline-block}
+.items{padding:2px 18px 12px 62px;border-bottom:1px solid #1A2024}
+.irow{display:grid;grid-template-columns:minmax(180px,1.2fr) 70px minmax(240px,1.5fr) 80px 130px;align-items:center;column-gap:16px;height:40px;border-top:1px solid #1A2024}
+.irow .f{font:12px 'Geist Mono',monospace}
+.prac{justify-self:end;display:inline-flex;align-items:center;gap:8px;background:#1C2433;border:1px solid #34425E;border-radius:8px;padding:6px 12px;font-weight:600;color:#E6EBED}
+.new{justify-self:end;font-size:12px;font-weight:600;color:#F6D2B2;background:#3A2716;padding:3px 9px;border-radius:999px}
+.foot{padding-top:10px;font-size:13px}
+.sess{background:#151A1D;border:1px solid #252D32;border-radius:12px}
+.srow{display:grid;grid-template-columns:120px 80px 1fr 1.2fr;gap:12px;padding:13px 18px;border-bottom:1px solid #232A2F}
+.srow:last-child{border-bottom:0}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="rail">
+    <div class="av">ML</div>
+    <div class="div"></div>
+    <div class="rb on"><span class="ic">⌂</span>Home</div>
+    <div class="rb"><span class="ic">▤</span>Sessions</div>
+    <div class="rb"><span class="ic">◎</span>Work-ons</div>
+    <div class="rb"><span class="ic">⋈</span>Swing model</div>
+    <div style="flex:1"></div>
+    <div class="div"></div>
+    <div class="rb"><span class="ic">⚙</span>Settings</div>
+  </nav>
+  <main>
+    <section class="start">
+      <div class="l">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <span class="cap">New session</span>
+          <h1>Hit some shots</h1>
+          <span class="muted">Every shot is assessed against the swing model.</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px">
+          <span class="btn">▶&nbsp;Start session</span>
+          <span class="muted" style="font-size:13px">Club: <b style="color:#E6EBED;font-weight:600">7 iron</b> ▾</span>
+        </div>
+        <span class="muted" style="font-size:13px">Last session Mon 26 Oct · 22 shots</span>
+      </div>
+      <div class="r">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-weight:600">What this rig can measure</b><a style="font-size:12px">Rig ▸</a></div>
+        <div class="crow"><span class="dot full"></span><span class="k">Body motion &amp; sequence</span><span class="d">FO · DTL · 150 fps</span></div>
+        <div class="crow"><span class="dot full"></span><span class="k">Shaft &amp; swing plane</span><span class="d">FO · DTL</span></div>
+        <div class="crow"><span class="dot full"></span><span class="k">Pelvis &amp; thorax rotation</span><span class="d">2 × IMU</span></div>
+        <div class="crow"><span class="dot half"></span><span class="k">Ground force</span><span class="d">estimated · IMU + video</span></div>
+        <div class="crow"><span class="dot none"></span><span class="k muted">Lead wrist</span><a style="font-size:12px">Connect sensor</a></div>
+        <div class="crow"><span class="dot none"></span><span class="k muted">Ball launch</span><a style="font-size:12px">Connect launch monitor</a></div>
+        <a style="font-size:13px;padding-top:8px;border-top:1px solid #232A2F">▯&nbsp; Add iPhone as a camera</a>
+      </div>
+    </section>
+
+    <section style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:16px">
+        <h2>Your swing by area</h2>
+        <span class="muted" style="font-size:13px">from 180 swings over 6 sessions</span>
+        <a style="margin-left:auto;font-size:13px">All work-ons ▸</a>
+      </div>
+      <div class="table" id="areas">
+        <div class="grid hdr"><span></span><span>Area</span><span>Rating</span><span style="text-align:right">Score</span><span>Trend</span><span>Biggest fault</span><span style="text-align:right">Work-ons</span></div>
+      </div>
+    </section>
+
+    <section style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><h2>Recent sessions</h2><a style="font-size:13px">All sessions ▸</a></div>
+      <div class="sess">
+        <div class="srow"><b style="font-weight:600">Mon 26 Oct</b><span class="mono muted" style="font-size:12px">22 shots</span><span style="color:#C4CDD1">Open assessment</span><span class="mono muted" style="font-size:12px">Hip stall not confirmed</span></div>
+        <div class="srow"><b style="font-weight:600">Sat 24 Oct</b><span class="mono muted" style="font-size:12px">38 shots</span><span style="color:#C4CDD1">Focus · Early extension</span><span class="mono" style="font-size:12px;color:#8FB0FF">Pelvis toward ball −1.2 cm</span></div>
+        <div class="srow"><b style="font-weight:600">Wed 21 Oct</b><span class="mono muted" style="font-size:12px">22 shots</span><span style="color:#C4CDD1">Open assessment</span><span class="mono" style="font-size:12px;color:#F0A469">New: Hip stall</span></div>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+const G = {Ideal:'#8FB0FF', Good:'#8FB0FF', Watch:'#E8C27A', Action:'#F0954A', NotMeasured:'#7D8A90'};
+const areas = [
+  ['Setup',88,'+2','Ball position','',[]],
+  ['Sequence',81,'+1','—','',[]],
+  ['Finish',79,'±0','—','',[]],
+  ['Lateral motion',74,'±0','Sway off the ball','',[]],
+  ['Release',63,'−1','Flip','',[]],
+  ['Impact',58,'+3','Hands behind ball','',[]],
+  ['Arms & club',52,'−2','Over the top','1 active',[
+    ['Over the top','16/22','shaft above plane at P6 · 9° · ≤ 4°','Action','practise'],
+    ['Steep shaft at P6','12/22','shaft angle P6 · 58° · 45–52°','Watch',''],
+    ['Early arm release','6/22','lead arm–shaft angle P5','Watch','']]],
+  ['Posture',46,'+5','Early extension','1 active · 1 new',[
+    ['Early extension','17/22','pelvis → ball · 6.9 cm · ≤ 3.0','Action','practise'],
+    ['Hip stall','9/22','pelvis rotation velocity at P6','Watch','new'],
+    ['Loss of posture','8/22','spine angle change P4→P7 · 7° · ≤ 5°','Watch','']]]
+];
+const open = new Set((location.hash.slice(1)||'Posture').split(',').map(decodeURIComponent));
+const tbl = document.getElementById('areas');
+const fillCol = s => s >= 60 ? '#5B8CFF' : s >= 45 ? '#E8C27A' : '#F0954A';
+const trCol = t => t[0]==='+' ? '#8FB0FF' : t[0]==='−' ? '#F0A469' : '#9AA6AC';
+for (const [n,s,t,f,wo,items] of areas) {
+  const o = open.has(n);
+  const r = document.createElement('div'); r.className='grid arow';
+  r.innerHTML = `<span class="chev" style="transform:rotate(${o?90:0}deg)">▶</span><span class="n">${n.replace('&','&amp;')}</span>
+    <div class="track"><div class="fill" style="width:${s}%;background:${fillCol(s)}"></div></div>
+    <span class="sc">${s}</span><span class="tr" style="color:${trCol(t)}">${t}</span>
+    <span style="color:#C4CDD1">${f}</span><span class="wo" style="color:${wo.includes('new')?'#F0A469':'#8FB0FF'}">${wo}</span>`;
+  tbl.appendChild(r);
+  if (o && items.length) {
+    const box = document.createElement('div'); box.className='items';
+    for (const [a,b,c,g,act] of items) {
+      const ir = document.createElement('div'); ir.className='irow';
+      const action = act==='practise' ? '<span class="prac">▶ Practise</span>' : act==='new' ? '<span class="new">New</span>' : '<span></span>';
+      ir.innerHTML = `<span style="font-weight:500">${a}</span><span class="f" style="color:#C4CDD1">${b}</span><span class="f muted">${c}</span><span style="font-size:12px;font-weight:600;color:${G[g]}">${g}</span>${action}`;
+      box.appendChild(ir);
+    }
+    const ft = document.createElement('div'); ft.className='foot'; ft.innerHTML = `<a>All of ${n.toLowerCase().replace('&','&amp;')} ▸</a>`;
+    box.appendChild(ft); tbl.appendChild(box);
+  }
+}
+const bf = document.createElement('div'); bf.className='grid arow'; bf.style.borderBottom='0';
+bf.innerHTML = `<span></span><span class="n" style="color:#9AA6AC">Ball flight</span><span class="muted" style="grid-column:span 4">not measured with this rig · <a>Connect launch monitor</a></span><span></span>`;
+tbl.appendChild(bf);
+</script>
+</body>
+</html>
