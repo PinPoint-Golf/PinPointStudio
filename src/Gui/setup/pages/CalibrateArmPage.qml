@@ -34,6 +34,13 @@
 //            indicator read it there).
 // Recalibrate (the status column's button) begins a fresh run; the outcome is dropped from the
 // draft as the run's done goes false (below), so Continue closes at once.
+//
+// TRUNK + ARM (trunk_imu_sequence_grf_design.md §6.7, §16.2 W2.2): when the trunk group is also in
+// the session, the trunk ceremony's recording starts HERE, at the arm's Calibrate step, so the trunk
+// sensors record through the arm routine (pose 0 is a candidate for the arm-to-chest heading, §3.7):
+// trunkCeremony.begin() and stepStart("armRoutine") on a fresh run, stepEnd("armRoutine") when the
+// run completes or the page is left. The trunk routine (CalibrateTrunkPage) then continues that
+// recording rather than beginning another. With no trunk sensor in the session nothing is recorded.
 import QtQuick
 import PinPointStudio
 
@@ -68,7 +75,27 @@ WizardPage {
 
     function enter(direction) {
         if (page.draft.outcome("arm").done) calibFlow.showCompleted()
-        else                                calibFlow.begin()
+        else {
+            _ceremonyArmStart()
+            calibFlow.begin()
+        }
+    }
+    function leave(reason) { _ceremonyArmEnd() }
+
+    // The trunk ceremony recorder (trunk_ceremony_recorder.h), through the context — named as the
+    // context object is, so lint W5 checks the members used here.
+    readonly property var trunkCeremony: page.ctx.trunkCeremony
+    function _ceremonyArmStart() {
+        if (!trunkCeremony || !page.ctx.groups.trunk.inSession) return
+        // A trunk calibration already done in this visit holds its own ceremony (ended, waiting for
+        // the session); a fresh arm run must not drop it.
+        if (trunkCeremony.pendingWrite && page.draft.outcome("trunk").done) return
+        if (!trunkCeremony.recording) trunkCeremony.begin()
+        trunkCeremony.stepStart("armRoutine")
+    }
+    function _ceremonyArmEnd() {
+        if (trunkCeremony && trunkCeremony.recording && trunkCeremony.currentStep === "armRoutine")
+            trunkCeremony.stepEnd("armRoutine")
     }
 
     ImuCalibrationFlow {
@@ -80,7 +107,10 @@ WizardPage {
         // R3: bound EXPLICITLY — the flow has no activity of its own.
         active:       page.active
 
-        onCompleted: page.draft.recordOutcome("arm", page.ctx.groups.arm.routine, page._outcomeDevices())
+        onCompleted: {
+            page.draft.recordOutcome("arm", page.ctx.groups.arm.routine, page._outcomeDevices())
+            page._ceremonyArmEnd()
+        }
     }
 
     // A done that goes away while the page is up is a Recalibrate (begin() clears it) or a lost

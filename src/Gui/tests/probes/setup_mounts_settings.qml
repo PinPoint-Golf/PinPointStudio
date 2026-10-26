@@ -1,16 +1,20 @@
-// END-TO-END: SETTINGS ▸ IMUs ON ROLES (session-setup refactor, Stage 3).
+// END-TO-END: MOUNTS — READ-ONLY IN SETTINGS ▸ IMUs, SET IN SESSION SETUP (Stage 3; W2.2, 26 Oct).
 //
-// tst_setup_mounts.qml proves the mount picker over a fake manager; it cannot see the real
-// ImuManager, the real settings file, or what this build's first launch did to them (the
-// one-time imu/placement → imu/roles migration). This drives the real app:
+// tst_setup_mounts.qml proves both over a fake manager; it cannot see the real ImuManager, the real
+// settings file, or what this build's first launch did to them (the one-time imu/placement →
+// imu/roles migration). This drives the real app:
 //
-//   wait for the IMU list → open Settings ▸ IMUs → log the stored roles, the legacy placement
-//   view and the manager's rolesInSession → for every device row, log the mount it shows, its
-//   combo's option labels with their enabled state, and its "Live test" heading → log the
-//   summary → check no shown text carries a slot letter.
+//   wait for the IMU list → open Settings ▸ IMUs → log the stored roles, the legacy placement view
+//   and the manager's rolesInSession → for every device row, log and check its read-only mount line
+//   ("Worn as: <mount> (set in session setup)" / "Not worn (set in session setup)") against the
+//   manager's roleForDevice, and that no row carries a mount picker → log the summary → then the ONE
+//   place a mount is set: the session-setup shell's context (the Sensors page's picker is
+//   ctx.offeredMounts) — log every device's offered mounts with their holders → check no shown text
+//   or option carries a slot letter.
 //
-// ⚠ READ-ONLY. It presses nothing: no Scan, no Connect, no Test, no mount pick, no calibration,
-// so it connects to no sensor and plays no sound. It writes nothing to settings.
+// ⚠ READ-ONLY. It presses nothing: no Scan, no Connect, no Test, no mount pick, no calibration, and it
+// never opens session setup (it only reads the shell's context), so it connects to no sensor and
+// plays no sound. It writes nothing to settings.
 //
 // Run it against a COPY of the settings file first (Qt reads $XDG_CONFIG_HOME/PinPointStudio/
 // PinPointStudio.ini when XDG_CONFIG_HOME is set — ppSettings() is IniFormat/UserScope):
@@ -40,6 +44,7 @@ Item {
     function check(ok, what) {
         log((ok ? "PASS " : "FAIL ") + what)
         if (!ok) failures += 1
+        return ok
     }
     function finish() {
         log(failures === 0 ? "RESULT PASS" : ("RESULT FAIL (" + failures + ")"))
@@ -115,44 +120,57 @@ Item {
                 + " sessionEnabled " + d.sessionEnabled + " roleForDevice '" + imuManager.roleForDevice(d.id) + "'")
         }
 
-        const rows = findAll(panel, function(o) {
-            return o.imuData !== undefined && o.mountLabel !== undefined && o.refusal !== undefined
-        })
+        const rows = findAll(panel, function(o) { return o.imuData !== undefined && o.mountLine !== undefined })
         check(rows.length === list.length, "one row per enumerated device (" + rows.length + " of " + list.length + ")")
+        check(findAll(panel, function(o) { return o.placementOptions !== undefined || o.currentRole !== undefined }).length === 0,
+              "no mount picker left in Settings ▸ IMUs")
         for (let r = 0; r < rows.length; ++r) {
             const row = rows[r]
-            const combos = findAll(row, function(o) { return o.placementOptions !== undefined && o.currentRole !== undefined })
-            if (combos.length !== 1) { check(false, "row " + row.imuData.id + " has one mount picker"); continue }
-            const c = combos[0]
-            log("row " + row.imuData.id + " shows '" + c.displayText + "' (currentRole '" + c.currentRole
-                + "', mountLabel '" + row.mountLabel + "')")
-            for (let k = 0; k < c.placementOptions.length; ++k)
-                log("    option " + k + " '" + c.placementOptions[k].label + "' value '" + c.placementOptions[k].value
-                    + "' " + (c.itemEnabledFn(k) ? "enabled" : "GREYED"))
-            const expected = row.mountLabel !== "" ? row.mountLabel : ImuMounts.unassignedLabel
-            check(c.displayText === expected,
-                  "row " + row.imuData.id + " shows its mount: '" + c.displayText + "' vs '" + expected + "'")
+            const shownLine = findAll(row, function(o) { return o.objectName === "imuMountLine" })
+            const label = ImuMounts.deviceMountLabel(row.imuData.vendor === "hackmotion",
+                                                     imuManager.roleForDevice(row.imuData.id))
+            const expected = label !== "" ? "Worn as: " + label + " (set in session setup)"
+                                          : "Not worn (set in session setup)"
+            const got = shownLine.length === 1 ? shownLine[0].text : "(none)"
+            log("row " + row.imuData.id + " shows '" + got + "'")
+            check(got === expected, "row " + row.imuData.id + " shows its mount read-only: '" + got + "' vs '" + expected + "'")
             const live = findAll(row, function(o) { return typeof o.text === "string" && o.text.indexOf("Live test — ") === 0 })
             if (live.length > 0) log("    heading '" + live[0].text + "'")
         }
 
+        // The picker: session setup's context, read without opening setup.
+        const shell = findAll(rootItem(), function(o) { return o.presets !== undefined && o.canHeaderForward !== undefined
+                                                              && o.ctx !== undefined && o.flow !== undefined })
+        const pickerTexts = []
+        if (!check(shell.length === 1, "the session-setup shell is there to read")) { finish(); return }
+        const ctx = shell[0].ctx
+        const devs = ctx.devices
+        for (let i = 0; i < devs.length; ++i) {
+            const opts = ctx.offeredMounts(devs[i])
+            log("picker " + devs[i].id + " (" + (devs[i].roleLabel || "no mount") + ") offers "
+                + json(opts.map(function(o) { return o.label + (o.taken ? " — held by " + o.holderName : "") })))
+            for (let k = 0; k < opts.length; ++k) pickerTexts.push(opts[k].label)
+        }
+        log("ImuMounts.offeredRoles " + json(ImuMounts.offeredRoles) + " — the trunk included: "
+            + (ImuMounts.isOffered("pelvis") && ImuMounts.isOffered("thorax")))
+        check(ImuMounts.isOffered("pelvis") && ImuMounts.isOffered("thorax"), "the trunk mounts are offered (W2.2)")
+
         const summary = findAll(panel, function(o) {
             return o.visible && typeof o.text === "string"
-                   && (o.text.indexOf("Assigned: ") === 0 || o.text.indexOf("Missing: ") === 0
+                   && (o.text.indexOf("Assigned: ") === 0 || o.text.indexOf("Not worn: ") === 0
                        || o.text === "No placements assigned")
         })
         for (let m = 0; m < summary.length; ++m) log("summary '" + summary[m].text + "'")
 
-        // Every shown string, plus every picker's option labels (the popup rows exist only open).
+        // Every shown string, plus every option the picker would offer.
         const shown = []
         findAll(panel, function(o) {
             if (!o.visible) return false
             if (typeof o.text === "string" && o.text !== "") shown.push(o.text)
             if (typeof o.displayText === "string" && o.displayText !== "") shown.push(o.displayText)
-            if (o.placementOptions !== undefined)
-                for (let k = 0; k < o.placementOptions.length; ++k) shown.push(o.placementOptions[k].label)
             return false
         })
+        for (let k = 0; k < pickerTexts.length; ++k) shown.push(pickerTexts[k])
         const offenders = shown.filter(function(t) {
             for (let p = 0; p < slotPatterns.length; ++p) if (slotPatterns[p].test(t)) return true
             return false

@@ -74,6 +74,16 @@ void ImuIoWorker::processSample(const RawSample &in)
     const double rateHz = winMs > 0 ? double(m_packetMs.size()) * 1000.0 / double(winMs)
                                     : 0.0;
 
+    // |gyro|, peak over the trailing kGyroPeakWindowUs (LiveSample::gyroPeakDps). A transport
+    // stall empties the window by age, so the peak is never older than the window.
+    const float gyroMagDps = std::sqrt(gxDps * gxDps + gyDps * gyDps + gzDps * gzDps);
+    while (!m_gyroPeak.empty() && m_gyroPeak.back().second <= gyroMagDps)
+        m_gyroPeak.pop_back();
+    m_gyroPeak.emplace_back(nowUs, gyroMagDps);
+    while (m_gyroPeak.front().first < nowUs - kGyroPeakWindowUs)
+        m_gyroPeak.pop_front();
+    const float gyroPeakDps = m_gyroPeak.front().second;
+
     // IMU impact auto-trigger (shot detection P1) — raw inertial magnitudes
     // plus the fused orientation; the shaft lies along sensor +Y
     // (imu_frame_contract.md), world +Z up.
@@ -81,7 +91,7 @@ void ImuIoWorker::processSample(const RawSample &in)
         const QVector3D shaftWorld = qRaw.rotatedVector(QVector3D(0, 1, 0));
         pinpoint::ImpactSample s;
         s.accelMag     = std::sqrt(ax * ax + ay * ay + az * az);
-        s.gyroMag      = std::sqrt(gxDps * gxDps + gyDps * gyDps + gzDps * gzDps);
+        s.gyroMag      = gyroMagDps;
         s.clubVertical = std::fabs(shaftWorld.z());
         s.t_us         = nowUs;
         const pinpoint::ImpactResult r = m_impact.push(s);
@@ -105,6 +115,7 @@ void ImuIoWorker::processSample(const RawSample &in)
     m_live.eulerPitch = in.eulerPitch;
     m_live.eulerYaw   = in.eulerYaw;
     m_live.angularVelocityDps = m_velDps;
+    m_live.gyroPeakDps = gyroPeakDps;
     m_live.dataRateHz = rateHz;
     ++m_live.seq;
 

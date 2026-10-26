@@ -728,6 +728,7 @@ qt_add_executable(PinPointStudio
     # an ImuDeviceBase with no metaobject.
     src/Gui/imu/imu_device.h
     src/Gui/imu/hm_instance.h                src/Gui/imu/hm_instance.cpp
+    src/Gui/imu/trunk_ceremony_recorder.h    src/Gui/imu/trunk_ceremony_recorder.cpp
     src/Gui/media/transcription_controller.h src/Gui/media/transcription_controller.cpp
     src/Gui/media/tts_controller.h           src/Gui/media/tts_controller.cpp
     src/Gui/media/film_controller.h          src/Gui/media/film_controller.cpp

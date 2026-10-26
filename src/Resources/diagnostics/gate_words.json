@@ -120,6 +120,14 @@
       "golfer": "a single face-on camera cannot measure how far you turn; a down-the-line camera or a body sensor can"
     },
     {
+      "id": "body.pelvisFaceIn",
+      "golfer": "the hip sensor read a backward lean at address, so it is probably worn label-in; turn it label-out"
+    },
+    {
+      "id": "body.thoraxFaceIn",
+      "golfer": "the chest sensor read a backward lean at address, so it is probably worn label-in; turn it label-out"
+    },
+    {
       "id": "body.xFactorStretchTop",
       "golfer": "we could not find the top of the swing to measure from"
     },

@@ -595,18 +595,8 @@ Item {
             verify(ctx().groups.trunk.inSession)
             verify(ctx().groups.trunk.complete)
             verify(!ctx().groups.arm.inSession)
-            compare(flow().plan, ["goals", "cameras", "ball", "imus", "ready"], "no arm steps without an arm sensor")
-            // The two commented TRUNK lines of SetupSteps.qml, registered from here.
-            var ct = createTemporaryObject(descComp, tc, {
-                key: "calibrateTrunk", title: "Calibrate trunk", eyebrow: "CALIBRATE TRUNK", group: "sensors",
-                instrumentGroup: "trunk", after: "checkArm", page: Qt.resolvedUrl("support/pages/ExtraPage.qml"),
-                applies: function(c, dr) { return c.groups.trunk.inSession },
-                gate:    function(c, dr) { return dr.outcome("trunk").done } })
-            var ck = createTemporaryObject(descComp, tc, {
-                key: "checkTrunk", title: "Check trunk", eyebrow: "CHECK TRUNK", group: "sensors",
-                instrumentGroup: "trunk", after: "calibrateTrunk", page: Qt.resolvedUrl("support/pages/ExtraPage.qml"),
-                applies: function(c, dr) { return c.groups.trunk.inSession } })
-            shell.steps.extensions = [ct, ck]
+            // The trunk steps are registered (W2.2): the trunk group brings them, after the arm's
+            // place and before Ready; no arm steps without an arm sensor.
             compare(flow().plan, ["goals", "cameras", "ball", "imus", "calibrateTrunk", "checkTrunk", "ready"])
             compare(shell.steps.instrumentGroups, ["arm", "trunk"])
         }

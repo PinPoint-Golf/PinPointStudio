@@ -21,6 +21,8 @@
 #include <QObject>
 #include <QQuaternion>
 #include <QStringList>
+
+#include <memory>
 #include <QTimer>
 
 #include <wrist/sample.h>      // wr_unit — the cable-fixed unit ordering
@@ -41,7 +43,7 @@
 
 class HmSessionWorker;
 class QThread;
-namespace pinpoint { class EventBuffer; }
+namespace pinpoint { class EventBuffer; struct ImuSampleTap; }
 
 // ---------------------------------------------------------------------------
 // HmUnit — one of the wG3's two sensor units, as the viz components see it
@@ -510,6 +512,9 @@ public:
     HmUnit  *unitPalm()           const { return m_palm; }
     QObject *unitLowerArmObject() const { return m_lowerArm; }
     QObject *unitPalmObject()     const { return m_palm; }
+    // The trunk ceremony recorder's tap on one unit's lane (HmSessionWorker::ceremonyTap; unit is a
+    // wr_unit). Null only for an out-of-range unit.
+    std::shared_ptr<pinpoint::ImuSampleTap> ceremonyTap(int unit) const;
 
     double presenceAngleDeg()      const { return m_presenceAngleDeg; }
     int    calibrationPhase()      const { return m_calibrationPhase; }

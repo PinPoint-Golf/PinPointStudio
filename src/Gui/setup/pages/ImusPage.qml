@@ -26,9 +26,10 @@
 //   - each row shows its MOUNT by name. A remembered mount is confirmed, not asked again (mounts
 //     are settings and stick); a sensor that is in the session with no mount gets the question
 //     "Where is this sensor worn?" in the row, and "change" reopens it for a mounted one. The
-//     choices are the Settings ▸ IMUs combo's (ImuMounts, the manager's one-claim rule): a mount
-//     another sensor holds is greyed and names its holder; a refusal leaves the mount as it was
-//     and says who holds it, in the page;
+//     choices are ImuMounts' offered mounts under the manager's one-claim rule: a mount another
+//     sensor holds is greyed and names its holder; a refusal leaves the mount as it was and says
+//     who holds it, in the page. THIS IS THE ONE PLACE A MOUNT IS SET OR CHANGED (Mark, 26 Oct):
+//     Settings ▸ IMUs shows it read-only, so a mounted sensor's question also offers "Not worn";
 //   - a mount whose sensor the scan cannot see is its own row, "<Mount> — <name> (not found)",
 //     with today's "power it on and Scan" (D6, reworded from slot to mount);
 //   - Connect is the paced connect in ImuManager (one call; a wG3 connects once, D4). The primary
@@ -82,9 +83,10 @@ WizardPage {
     // The device whose mount the coach is changing ("" = none): its row shows the question.
     property string _changing: ""
 
-    // Pick a mount for a sensor (the question's choices call this). Exactly one write.
-    // DECISION(stage5b): the question offers mounts only, no "Unassigned": a sensor not wanted
-    // this session is switched off with the row's Enable; a mount is taken away in Settings ▸ IMUs.
+    // Pick a mount for a sensor (the question's choices call this). Exactly one write; role "" is
+    // "Not worn" (the mount taken away — offered only to a mounted sensor, since this page is the one
+    // place mounts are set, W2.2). A sensor not wanted for THIS session only is switched off with the
+    // row's Enable instead: its mount stays for the next one.
     function chooseMount(deviceId, role) {
         var r = {}
         for (var k in _refusals) if (k !== deviceId) r[k] = _refusals[k]
@@ -123,7 +125,8 @@ WizardPage {
             heading: qsTr("Attaching your motion sensors")
             // DECISION(stage5b): today's body said the positions were "specific to this session
             // type"; they are the sensors' own mounts now, remembered from one session to the next.
-            body:    qsTr("Switch each sensor on before stepping up. Each sensor below shows where it is worn — confirm it, or choose a place for a new one — then pair them. Change mounts any time in Settings → IMUs.")
+            // W2.2: this page is the one place a mount is set (Settings ▸ IMUs shows it read-only).
+            body:    qsTr("Switch each sensor on before stepping up. Each sensor below shows where it is worn — confirm it, change it, or choose a place for a new one — then pair them. Mounts are remembered from one session to the next.")
         }
 
         // ── Scan header ─────────────────────────────────────────────
@@ -217,7 +220,10 @@ WizardPage {
                     // depends on both; offeredMounts is not reactive on its own).
                     readonly property var _options: {
                         var _dep = page.ctx.devices
-                        return page.ctx.offeredMounts(_dev)
+                        var opts = page.ctx.offeredMounts(_dev)
+                        if (_dep.length >= 0 && devRow._mounted)
+                            opts.push({ role: "", label: qsTr("Not worn"), holder: "", holderName: "", taken: false })
+                        return opts
                     }
 
                     SetupCheckRow {

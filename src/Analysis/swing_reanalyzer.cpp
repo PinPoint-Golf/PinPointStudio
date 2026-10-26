@@ -101,6 +101,8 @@ ImuSegmentBinding parseBinding(const QJsonObject& b, SourceId source)
     bind.mountGravityErrorDeg  = b[QStringLiteral("mountGravityErrorDeg")].toDouble();
     bind.calibratedAtUtc       = b[QStringLiteral("calibratedAt")].toString();
     bind.calibAgeSec           = b[QStringLiteral("calibAgeSec")].toDouble(-1.0);
+    // Optional (trunk design §6.8): absent on every arm binding and every swing before W2.
+    bind.trunkCalib            = readTrunkCalibProvenance(b);
     // ⚠ WHICH INSTRUMENT — and the fallback is not belt-and-braces, it is the only
     // answer for swings analysed before this key was written. Getting it wrong is
     // silent: the conjugate is skipped and every wrist sign inverts while the curve

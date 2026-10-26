@@ -103,7 +103,9 @@ Item {
     // The app's live wrist-angle computer, handed to the context (SetupContext.liveWrist says why
     // the context cannot name it itself). Read here, where `liveWrist` is the context property.
     readonly property var _appLiveWrist: liveWrist
-    SetupContext { id: ctxObj;   draft: draftObj; liveWrist: root._appLiveWrist }
+    // The trunk ceremony recorder, likewise (SetupContext.trunkCeremony).
+    readonly property var _appTrunkCeremony: trunkCeremony
+    SetupContext { id: ctxObj;   draft: draftObj; liveWrist: root._appLiveWrist; trunkCeremony: root._appTrunkCeremony }
     SetupDraft   { id: draftObj; ctx: ctxObj }
     SetupSteps   { id: stepsObj }
 

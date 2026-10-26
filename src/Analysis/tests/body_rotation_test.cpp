@@ -283,6 +283,113 @@ int main()
         CHECK("but the turns themselves still land", find(series, "pelvisRotation") != nullptr);
     }
 
+    // ── 6. The IMU's SIGNED twins (trunk design defect 2) ──────────────────────────────────────
+    // With a pelvis IMU bound the two-camera stage steps aside for the pelvis, so the signed series
+    // hip_stall's rate reads has to come from here. Lead-relative: for a right-hander (lead = left)
+    // opening is +Z, so a yaw of −30° at the top (turned away) reads −30 and +20° at impact (open)
+    // reads +20; a left-hander's same numbers are the mirror. The magnitude beside it is unchanged.
+    {
+        const PoseTrack2D t = turningTrack(45.0, 88.0, 40.0, 25.0);
+        std::vector<int64_t> grid;
+        std::vector<double>  hip, chest;
+        for (const PoseFrame2D &f : t.frames) {
+            grid.push_back(f.t_us);
+            const bool atTop = f.t_us >= 800000 && f.t_us < 1000000;
+            const bool past  = f.t_us >= 1150000;
+            hip.push_back(atTop ? -30.0 : past ? 20.0 : 0.0);
+            chest.push_back(atTop ? -80.0 : past ? 10.0 : 0.0);
+        }
+        const auto run = [&](bool leadIsLeft, bool withThorax) {
+            FusedStreams fs;
+            fs.timeGrid = grid;
+            fs.segments.push_back(yawStream(SegmentRole::Pelvis, grid, hip));
+            if (withThorax) fs.segments.push_back(yawStream(SegmentRole::Thorax, grid, chest));
+            return buildBodyRotationSeries(trackBodyRotation(t, fs, kW, kH, leadIsLeft, ladder()), ladder());
+        };
+
+        const auto rh = run(true, true);
+        const MetricSeries *ps = find(rh, "pelvisRotationSigned");
+        const MetricSeries *ts = find(rh, "thoraxRotationSigned");
+        CHECK("pelvisRotationSigned from the pelvis IMU", ps != nullptr);
+        CHECK("thoraxRotationSigned from the thorax IMU", ts != nullptr);
+        double v = 0.0;
+        CHECK("signed pelvis at the top ≈ −30 (closed, right-hander)",
+              sampleAt(ps, Phase::Top, v) && near(v, -30.0, 0.5));
+        CHECK("signed pelvis at impact ≈ +20 (open)", sampleAt(ps, Phase::Impact, v) && near(v, 20.0, 0.5));
+        CHECK("signed thorax at the top ≈ −80", sampleAt(ts, Phase::Top, v) && near(v, -80.0, 0.5));
+        CHECK("signed thorax at impact ≈ +10", sampleAt(ts, Phase::Impact, v) && near(v, 10.0, 0.5));
+        CHECK("the magnitude beside it is still |turn| (20 at impact)",
+              sampleAt(find(rh, "pelvisRotation"), Phase::Impact, v) && near(v, 20.0, 0.5));
+        CHECK("the IMU signed series claims no error budget (design §8.2 not built)",
+              ps && !ps->sigma.has_value() && ts && !ts->sigma.has_value());
+
+        const auto lh = run(false, true);
+        CHECK("left-hander: the same yaw reads the mirror (+30 at the top)",
+              sampleAt(find(lh, "pelvisRotationSigned"), Phase::Top, v) && near(v, 30.0, 0.5));
+        CHECK("left-hander: thorax mirrored too (−10 at impact)",
+              sampleAt(find(lh, "thoraxRotationSigned"), Phase::Impact, v) && near(v, -10.0, 0.5));
+
+        const auto pelvisOnly = run(true, false);
+        CHECK("pelvis IMU alone: the signed pelvis, no signed thorax",
+              find(pelvisOnly, "pelvisRotationSigned") && !find(pelvisOnly, "thoraxRotationSigned"));
+
+        // With no DTL the IMU route's refusal is final, and the chest's covers its signed twin.
+        FusedStreams fs;
+        fs.timeGrid = grid;
+        fs.segments.push_back(yawStream(SegmentRole::Pelvis, grid, hip));
+        const BodyRotationResult r = trackBodyRotation(t, fs, kW, kH, true, ladder());
+        bool covered = false, pelvisRefused = false;
+        for (const GateRecord &g : bodyRotationGates(r, fs, /*dtlCamera*/ false, /*triangulatedOn*/ true)) {
+            if (g.subject == QLatin1String("pelvisRotation")) pelvisRefused = true;
+            if (g.subject == QLatin1String("thoraxRotation") && g.covers.contains(QStringLiteral("thoraxRotationSigned")))
+                covered = true;
+        }
+        CHECK("no thorax IMU, no DTL: the chest refusal covers thoraxRotationSigned", covered);
+        CHECK("…and the measured pelvis is not refused", !pelvisRefused);
+    }
+
+    // ── 7. AN IMU-ONLY JOB: no camera, so no pose track and a 0×0 frame (trunk design §8.3) ────
+    // The worn session's capture is trunk sensors alone. BodyRotationStage::run hands this
+    // producer exactly what such a job gives it — an EMPTY pose track and w = h = 0, the stage no
+    // longer reading cameraSources.front() off an empty list — and all four turn series must land
+    // from the IMU tier on the stream grid. This is the stage's own call, asserted here because
+    // analysis_pipeline.cpp (where the stage lives, file-local) is not built into the test tree.
+    {
+        std::printf("\n--- IMU-only job: empty pose track, 0x0 frame ---\n");
+        std::vector<int64_t> grid;
+        std::vector<double>  hip, chest;
+        for (int64_t t = 0; t <= 1600000; t += 5000) {
+            grid.push_back(t);
+            const bool atTop = t >= 800000 && t < 1000000;
+            const bool past  = t >= 1150000;
+            hip.push_back(atTop ? -30.0 : past ? 20.0 : 0.0);
+            chest.push_back(atTop ? -80.0 : past ? 10.0 : 0.0);
+        }
+        FusedStreams fs;
+        fs.timeGrid = grid;
+        fs.segments.push_back(yawStream(SegmentRole::Pelvis, grid, hip));
+        fs.segments.push_back(yawStream(SegmentRole::Thorax, grid, chest));
+
+        const BodyRotationResult r = trackBodyRotation(PoseTrack2D{}, fs, /*w*/ 0, /*h*/ 0, true, ladder());
+        CHECK("IMU-only: the result is valid", r.valid);
+        CHECK("IMU-only: the grid is the stream grid", r.grid == grid);
+        const auto series = buildBodyRotationSeries(r, ladder());
+        const MetricSeries *pm = find(series, "pelvisRotation");
+        const MetricSeries *ps = find(series, "pelvisRotationSigned");
+        const MetricSeries *tm = find(series, "thoraxRotation");
+        const MetricSeries *ts = find(series, "thoraxRotationSigned");
+        CHECK("IMU-only: pelvisRotation", pm != nullptr);
+        CHECK("IMU-only: pelvisRotationSigned", ps != nullptr);
+        CHECK("IMU-only: thoraxRotation", tm != nullptr);
+        CHECK("IMU-only: thoraxRotationSigned", ts != nullptr);
+        double v = 0.0;
+        CHECK("IMU-only: pelvis magnitude at the top ≈ 30", sampleAt(pm, Phase::Top, v) && near(v, 30.0, 0.5));
+        CHECK("IMU-only: signed pelvis at the top ≈ −30", sampleAt(ps, Phase::Top, v) && near(v, -30.0, 0.5));
+        CHECK("IMU-only: signed thorax at impact ≈ +10", sampleAt(ts, Phase::Impact, v) && near(v, 10.0, 0.5));
+        CHECK("IMU-only: no gate refuses either measured segment",
+              bodyRotationGates(r, fs, /*dtlCamera*/ false, /*triangulatedOn*/ true).empty());
+    }
+
     // ── The two-camera route (trackBodyRotationTriangulated) ────────────────────────────────
     {
         std::printf("\n--- triangulated: skeleton3d bearings ---\n");
@@ -333,6 +440,62 @@ int main()
         const auto onlyThorax = buildBodyRotationSeries(trackBodyRotationTriangulated(in, true, ph, false, true), ph);
         CHECK("an IMU-measured pelvis is not overwritten, and no separation from half a pair",
               !find(onlyThorax, "pelvisRotation") && find(onlyThorax, "thoraxRotation") && !find(onlyThorax, "xFactor"));
+
+        // The chest's signed twin from the same route (2026-10-26): the shoulder line's signed
+        // bearing, lead-relative, with its magnitude's per-sample σ.
+        {
+            const MetricSeries *tm = find(series, "thoraxRotation");
+            const MetricSeries *ts = find(series, "thoraxRotationSigned");
+            CHECK("thoraxRotationSigned lands from the two cameras", tm && ts);
+            CHECK("signed thorax at the top ≈ −90° (closed, right-hander)",
+                  ts && at(ts, Phase::Top) && std::fabs(at(ts, Phase::Top)->value + 90.0) < 0.5);
+            CHECK("…and the magnitude beside it ≈ +90°", tm && at(tm, Phase::Top) && std::fabs(at(tm, Phase::Top)->value - 90.0) < 0.5);
+            CHECK("signed thorax through the strike is open (> 0 after impact)",
+                  r.thoraxSigned.turn.value.size() > 1 && r.thoraxSigned.turn.value.back() > 25.0);
+            CHECK("the signed thorax carries σ, propagated, the magnitude's own",
+                  ts && tm && ts->sigma && tm->sigma && *ts->sigma == *tm->sigma
+                  && ts->sigmaKind == uint8_t(SigmaKind::Propagated) && at(ts, Phase::Top) && at(tm, Phase::Top)
+                  && at(ts, Phase::Top)->sigma && *at(ts, Phase::Top)->sigma == *at(tm, Phase::Top)->sigma
+                  && at(ts, Phase::Top)->sigmaKind == uint8_t(SigmaKind::Propagated));
+            CHECK("the route tags it Triangulated", r.thoraxSigned.tier == RotationTier::Triangulated);
+            const auto lhT = buildBodyRotationSeries(trackBodyRotationTriangulated(in, /*leadIsLeft*/ false, ph, false, true), ph);
+            const MetricSeries *tsl = find(lhT, "thoraxRotationSigned");
+            CHECK("left-handed golfer: the signed thorax is mirrored (≈ +90° at the top)",
+                  tsl && at(tsl, Phase::Top) && std::fabs(at(tsl, Phase::Top)->value - 90.0) < 0.5);
+            CHECK("pelvis only asked for: no signed thorax",
+                  !find(buildBodyRotationSeries(trackBodyRotationTriangulated(in, true, ph, true, false), ph),
+                        "thoraxRotationSigned"));
+
+            // A thorax refusal on this route takes its signed twin down with it.
+            TriangulatedTurnInput lateT = in;
+            for (size_t i = 0; i < lateT.t_us.size(); ++i) if (lateT.t_us[i] < 400000) lateT.thoraxBearing[i] = std::numeric_limits<double>::quiet_NaN();
+            bool refusedCovers = false;
+            for (const GateRecord &g : trackBodyRotationTriangulated(lateT, true, ph, false, true).gates)
+                if (g.subject == QLatin1String("thoraxRotation") && g.covers.contains(QStringLiteral("thoraxRotationSigned")))
+                    refusedCovers = true;
+            CHECK("a refused shoulder line covers thoraxRotationSigned", refusedCovers);
+
+            // AN IMU-BOUND THORAX STILL WINS. The stage's own merge (BodyRotationTriangulatedStage:
+            // wantThorax = no thoraxRotation yet; a key already written is skipped), replayed here
+            // because analysis_pipeline.cpp is not built into the test tree.
+            std::vector<double> chest;
+            for (int64_t t : in.t_us) chest.push_back(t >= 800000 && t < 1000000 ? -80.0 : 0.0);
+            FusedStreams fs;
+            fs.timeGrid = in.t_us;
+            fs.segments.push_back(yawStream(SegmentRole::Thorax, in.t_us, chest));
+            std::vector<MetricSeries> merged = buildBodyRotationSeries(trackBodyRotation(PoseTrack2D{}, fs, 0, 0, true, ph), ph);
+            const bool wantPelvis = !find(merged, "pelvisRotation"), wantThorax = !find(merged, "thoraxRotation");
+            CHECK("IMU thorax: the stage asks the cameras for the pelvis only", wantPelvis && !wantThorax);
+            for (MetricSeries &m : buildBodyRotationSeries(trackBodyRotationTriangulated(in, true, ph, wantPelvis, wantThorax), ph))
+                if (!find(merged, m.key.toLatin1().constData())) merged.push_back(std::move(m));
+            const MetricSeries *tsImu = find(merged, "thoraxRotationSigned");
+            int nSigned = 0;
+            for (const MetricSeries &m : merged) if (m.key == QLatin1String("thoraxRotationSigned")) ++nSigned;
+            CHECK("IMU thorax: one thoraxRotationSigned, the IMU's (−80 at the top, no σ)",
+                  nSigned == 1 && tsImu && at(tsImu, Phase::Top) && std::fabs(at(tsImu, Phase::Top)->value + 80.0) < 0.5
+                  && !tsImu->sigma.has_value());
+            CHECK("…while the cameras still fill the signed pelvis", find(merged, "pelvisRotationSigned") != nullptr);
+        }
         // No usable frame near Address ⇒ refuse rather than reference the wrong zero.
         TriangulatedTurnInput late = in;
         for (size_t i = 0; i < late.t_us.size(); ++i) if (late.t_us[i] < 400000) late.pelvisBearing[i] = std::numeric_limits<double>::quiet_NaN();

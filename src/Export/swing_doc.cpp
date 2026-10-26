@@ -475,8 +475,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
     // recorded swing with the exact anatomical transforms the app used.
     if (!a.bindings.empty()) {
         QJsonArray binds;
-        for (const BindingRecord &b : a.bindings)
-            binds.append(QJsonObject{
+        for (const BindingRecord &b : a.bindings) {
+            QJsonObject bo{
                 { QStringLiteral("serial"),   b.serial },
                 { QStringLiteral("role"),     int(b.role) },
                 { QStringLiteral("roleName"), segmentRoleName(b.role) },
@@ -497,7 +497,12 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
                 // per-stream fallback when a swing is re-read, so without this key a
                 // re-analysed HackMotion swing would skip the raw-quaternion conjugate
                 // and invert every wrist sign. See BindingRecord::hackMotion.
-                { QStringLiteral("hackMotion"),           b.hackMotion } });
+                { QStringLiteral("hackMotion"),           b.hackMotion } };
+            // The trunk stand-tall solve, when it set A/M (trunk design §6.8): calibrationSource
+            // + trunkSolve, both absent otherwise (trunk_calib_provenance.h).
+            writeTrunkCalibProvenance(bo, b.trunkCalib);
+            binds.append(bo);
+        }
         o[QStringLiteral("bindings")] = binds;
     }
 

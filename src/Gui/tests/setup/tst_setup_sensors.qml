@@ -103,7 +103,11 @@ Item {
             d.walkTo("imus")
             verify(d.mountQuestionShown("WT-N"), "no mount question for a found sensor with none")
             var opts = d.mountOptions("WT-N")
-            compare(opts.map(function(o) { return o.text }), ["Lead forearm", "Lead hand", "Lead upper arm"])
+            // Every offered mount — the arm's and, since W2.2, the trunk's; no "Not worn" for a sensor
+            // that has no mount to take away.
+            compare(opts.map(function(o) { return o.text }),
+                    ["Lead forearm", "Lead hand", "Lead upper arm",
+                     "Hip sensor (belt, lower back)", "Chest sensor (vest, between the shoulder blades)"])
             verify(opts.every(function(o) { return !o.taken }))
             var row = d.imuRows()[0]
             compare(row.label, "WT901BLE WT-N")

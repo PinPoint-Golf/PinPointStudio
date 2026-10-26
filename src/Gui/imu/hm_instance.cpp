@@ -975,6 +975,11 @@ HmInstance::HistoryResult HmInstance::takeHistoryResult()
     return m_worker->takeHistoryResult();
 }
 
+std::shared_ptr<pinpoint::ImuSampleTap> HmInstance::ceremonyTap(int unit) const
+{
+    return m_worker ? m_worker->ceremonyTap(unit) : nullptr;
+}
+
 void HmInstance::beginCalibration()
 {
     QMetaObject::invokeMethod(m_worker, &HmSessionWorker::beginCalibration,

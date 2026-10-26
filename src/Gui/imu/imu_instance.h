@@ -26,19 +26,22 @@
 #include <QQuaternion>
 #include <QStringList>
 #include <QTimer>
+#include <QVariantMap>
 #include <QVector3D>
 
 #include <memory>
 
 #include "device_enumerator.h"
 #include "imu_device.h"
+#include "trunk_calib_provenance.h"
 #include "types.h"
 #include "wt9011dcl_ble.h"
 
 class ImuIoWorker;
 class QThread;
 struct ImuRawRecordQueue;   // imu_instance.cpp — dev raw recording hand-off
-namespace pinpoint { class EventBuffer; }
+struct ImuStandTallRing;    // imu_instance.cpp — the last few seconds, for calibrateTrunk()
+namespace pinpoint { class EventBuffer; struct ImuSampleTap; }   // imu_sample_tap.h — the ceremony recorder's
 
 // Manages the BLE connection lifecycle and live data for a single IMU device.
 // Created and owned by ImuManager; one instance per selected device.
@@ -68,6 +71,20 @@ class ImuInstance : public ImuDeviceBase
     Q_PROPERTY(int     batteryPercent  READ batteryPercent  NOTIFY batteryPercentChanged)
     Q_PROPERTY(int     gimbalDropCount READ gimbalDropCount NOTIFY gimbalDropCountChanged)
     Q_PROPERTY(float angularVelocityDps READ angularVelocityDps NOTIFY angularVelocityDpsChanged)
+    // The stillness and mount the trunk routine waits on (TrunkRoutine.qml), both from the RAW
+    // sensor frame. gyroDps: |device gyro| at its peak over the last 250 ms
+    // (ImuIoWorker::kGyroPeakWindowUs), so a jerk between two 100 ms polls is not missed.
+    // longAxisFromUpDeg: the angle between sensor +Y (the long axis, pointing away from the USB end) and up, from the live accel —
+    // the stand-tall gate's own definition (solveTrunkSegment, kTrunkLongAxisMaxFromUpDeg), here
+    // instantaneous rather than over the 2 s window.
+    Q_PROPERTY(float gyroDps           READ gyroDps           NOTIFY gyroDpsChanged)
+    Q_PROPERTY(float longAxisFromUpDeg READ longAxisFromUpDeg NOTIFY longAxisFromUpDegChanged)
+    // The live trunk heading (°, (−180, 180]) the trunk routine's turn steps start and end on
+    // (TrunkRoutine.qml; design §16.2, 26 Oct): the D13 heading of q_anat·x̂, A·q·M with this
+    // sensor's own calibration (trunk_angles::liveHeadingDeg — what checkTrunkTurn reads). NaN when
+    // the sensor is not anatomically calibrated or the reading is not finite (a filter fault):
+    // no reading, never zero. Refreshed with anatQuat, on the 60 Hz display tick.
+    Q_PROPERTY(double trunkHeadingDeg READ trunkHeadingDeg NOTIFY quatChanged)
     Q_PROPERTY(QString     deviceId          READ deviceId          CONSTANT)
     Q_PROPERTY(QString     deviceDescription READ deviceDescription CONSTANT)
     Q_PROPERTY(QStringList logEntries        READ logEntries        CONSTANT)
@@ -94,6 +111,10 @@ class ImuInstance : public ImuDeviceBase
     // check a setup page must use rather than re-deriving it from the three properties above
     // (design §4.11, finding F1). Same NOTIFY as its inputs, which all change together.
     Q_PROPERTY(bool        fullyCalibrated READ fullyCalibrated NOTIFY anatCalibratedChanged)
+    // The trunk stand-tall solve that set A/M (calibrateTrunk below), in calibrateTrunk's own
+    // keys plus "calibratedAt" — EMPTY unless the current calibration came from it. For a
+    // routine restoring its finished state on backward navigation.
+    Q_PROPERTY(QVariantMap trunkCalibration READ trunkCalibration NOTIFY anatCalibratedChanged)
 
 public:
     // ioThread is the ImuManager-owned shared IMU I/O thread: the BLE driver
@@ -138,6 +159,9 @@ public:
     int     batteryPercent()    const override { return m_batteryPercent; }
     int     gimbalDropCount()   const { return m_gimbalDropCount; }
     float   angularVelocityDps() const { return m_angularVelocityDps; }
+    float   gyroDps()            const { return m_gyroDps; }
+    float   longAxisFromUpDeg()  const { return m_longAxisFromUpDeg; }
+    double  trunkHeadingDeg()    const;
     bool        calibrated()          const { return m_calibrated; }
     bool        calibrationAngleValid() const { return m_calibrationAngleValid; }
     bool        zeroing()       const { return m_zeroing; }
@@ -154,6 +178,21 @@ public:
     // until calibrated; cleared with the calibration). Persisted into saved
     // shots so SwingLab can filter a corpus by calibration freshness.
     QDateTime   calibratedAtUtc() const { return m_calibratedAtUtc; }
+    // Set only while A/M come from the trunk stand-tall solve (design §6.8): the δ tier, σ_δ and
+    // the gate residuals, snapshotted onto every shot's binding by shot_processor.cpp.
+    pinpoint::TrunkCalibProvenance trunkCalibProvenance() const { return m_trunkProv; }
+    QVariantMap trunkCalibration() const { return m_trunkRecord; }
+
+    // The trunk ceremony recorder's tap on this sensor's samples (TrunkCeremonyRecorder, design
+    // §16.2 W2.1c): off until the recorder starts it; then every sample, with the stamp and the
+    // ImuSample the EventBuffer would get. Never null; outlives the instance if the recorder holds it.
+    std::shared_ptr<pinpoint::ImuSampleTap> ceremonyTap() const { return m_ceremonyTap; }
+    // The identifier this sensor's lane is registered (and its swing.json source.serial written)
+    // under: the serial number, else the device id. What a ceremony lane is matched by.
+    QString laneSerial() const
+    {
+        return m_device.imuCapabilities.serialNumber.isEmpty() ? m_deviceId : m_device.imuCapabilities.serialNumber;
+    }
 
     // The two-part mount-gate thresholds (see .claude/calibration.md): gravity
     // catches flips, long-axis deviation catches strap rotation. BOTH must pass.
@@ -161,8 +200,14 @@ public:
     static constexpr double kMountGravityErrorMaxDeg = 25.0;
     // Composite "is calibrated" — anatomical transform valid AND both mount
     // checks within threshold. This is what saved shots record as `calibrated`.
+    // ⚠ The two mount checks are the ARM routines' (strap rotation, arm-down gravity). A trunk
+    // solve has its own mount gates — long axis within 35° of up, face within 40° of horizontal
+    // (imu_frame_contract.md §5) — and is applied only when they all pass, so a trunk
+    // calibration is fully calibrated by construction; the arm thresholds are not applied to it.
     bool fullyCalibrated() const override
     {
+        if (m_anatCalibrated && m_trunkProv.present)
+            return true;
         return m_anatCalibrated
             && m_mountDeviationDeg    <= kMountDeviationMaxDeg
             && m_mountGravityErrorDeg <= kMountGravityErrorMaxDeg;
@@ -238,6 +283,35 @@ public:
 
     Q_INVOKABLE void    beginZeroing();
 
+    // ── Trunk stand-tall solve (trunk_imu_sequence_grf_design.md §6.3 step 1, §16.2 W2.1a) ──
+    // role: "pelvis" (hip sensor) | "thorax" (chest sensor). Summarises the LAST 2 s of this
+    // sensor's own samples (trunk_stand_tall::latest — call it as the hold bar fills; the golfer
+    // must have been still for the whole 2 s) and runs imu_calibration::solveTrunkSegment.
+    // A and M are applied ONLY when the solve is valid; then anatCalibrated, fullyCalibrated and
+    // calibrated all read true and the record rides on every later shot's binding
+    // (trunkCalibProvenance). An invalid solve changes NOTHING on the instance — a previous
+    // calibration, if any, stays — so a routine that must not inherit one clears it first
+    // (clearFunctionalCalibration + clearCalibration, as WitmotionArmRoutine._reset does).
+    // An unknown role returns { valid: false, failure: "…" } and touches nothing.
+    //
+    // Returned keys (stable — the trunk routine, W2.2, reads them):
+    //   valid (bool)            every gate passed, so A/M were applied
+    //   applied (bool)          == valid (spelled out for the reader)
+    //   failure (string)        golfer-facing, names the sensor and the cause; "" when valid
+    //   role (string)           as passed; deviceId (string)
+    //   samplesOk, stillOk, gravityOk, longAxisOk, faceOk            (bool) the gates
+    //   sampleFraction, maxAbsGyroDps, gravityErrPct,
+    //   longAxisFromUpDeg, faceFromHorizontalDeg                      (double) their residuals
+    //   deltaTier (string, "δ0"), sigmaDeltaDeg (double)              design §6.5
+    //   samplesReceived, samplesExpected (int), windowS (double, 2), shorterThanSpan (bool:
+    //     the sensor has not streamed for the whole 2 s, e.g. it has just connected)
+    //   alignA, mountM ([w, x, y, z])  what the solve produced — applied only when valid
+    //   calibratedAt (string, ISO 8601 UTC)  present only when applied
+    //   windowEndUs (int64, EventBuffer::nowMicros)  the instant the 2 s window ended — the
+    //     ceremony file's stand-tall replay ends its window there (trunk_ceremony_file.h)
+    //   serial (string)         laneSerial(), what the ceremony lane and the binding are keyed by
+    Q_INVOKABLE QVariantMap calibrateTrunk(const QString &role);
+
 signals:
     // stateLabelChanged / imuConnectedChanged / busyChanged / batteryPercentChanged /
     // dataRateHzChanged / logEntryAdded now live on ImuDeviceBase — declaring them
@@ -250,6 +324,8 @@ signals:
     void outputRateHzChanged();
     void gimbalDropCountChanged();
     void angularVelocityDpsChanged();
+    void gyroDpsChanged();
+    void longAxisFromUpDegChanged();
     void calibratedChanged();
     void anatCalibratedChanged();
     void zeroingChanged();
@@ -325,6 +401,8 @@ private:
     quint64 m_lastSeq        = 0;     // last snapshot seq consumed
     quint64 m_seqBase        = 0;     // seq at connection (per-connection totals)
     float   m_lastSentVelDps = 0.0f;
+    float   m_lastSentGyroDps = 0.0f;
+    float   m_lastSentLongAxisDeg = 0.0f;
     double  m_lastSentRateHz = 0.0;
 
     // State
@@ -347,6 +425,8 @@ private:
     // property reads and the calibration flow's 100 ms polls stay cheap).
     double m_dataRateHz = 0.0;
     float  m_angularVelocityDps = 0.0f;
+    float  m_gyroDps            = 0.0f;
+    float  m_longAxisFromUpDeg  = 180.0f;   // no sample yet: not upright
 
     // Dev raw recording (PINPOINT_IMU_RECORD_DIR). The I/O-thread data lambda appends
     // to m_rawRecorder's pending list (a short mutex, no disk); m_rawRecordTimer drains
@@ -357,6 +437,15 @@ private:
     QString                            m_rawRecordPath;
     quint64                            m_rawRecordSamples = 0;
     QTimer                             m_rawRecordTimer;
+
+    // The last few seconds of samples, for calibrateTrunk(). Filled by the I/O-thread data lambda
+    // under a short mutex, read on the GUI thread only when a solve runs. Its own ring, not the
+    // EventBuffer's: the buffer writes only while Capturing, and session setup — where the
+    // ceremony runs — need not be capturing.
+    std::shared_ptr<ImuStandTallRing>  m_standTallRing;
+    // The ceremony recorder's tap (ceremonyTap above): the same lambda pushes to it, a relaxed
+    // load per sample while it is off.
+    std::shared_ptr<pinpoint::ImuSampleTap> m_ceremonyTap;
 
     // Zeroing confirmation — settle-timer approach (no hardware ACK on WT901)
     // Future devices that emit ImuBase::zeroingConfirmed() take precedence over settle.
@@ -382,6 +471,9 @@ private:
     double      m_mountDeviationDeg = 0.0;              // |solved M vs nominal| (precise mode)
     double      m_mountGravityErrorDeg = 0.0;          // arm-down gravity vs anatomical up (flip check)
     QDateTime   m_calibratedAtUtc;                     // wallclock of last calibration (invalid = never)
+    pinpoint::TrunkCalibProvenance m_trunkProv;         // present only while A/M are the trunk solve's
+    QVariantMap m_trunkRecord;                          // calibrateTrunk's map for that solve; else empty
+    void        clearTrunkProvenance();                 // every other calibration path calls this
 
     // Log throttle — summary every 10 s
     QTimer  m_logTimer;

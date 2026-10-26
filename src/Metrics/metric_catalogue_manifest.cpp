@@ -668,8 +668,8 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:hips_under_rotated_at_top") },
     });
 
-    // ⚠ THE SIGNED READING, WHICH NOTHING PRODUCES YET — and it is a separate series rather
-    // than a mode of the one above, because it is a different quantity with a different domain.
+    // ⚠ THE SIGNED READING — and it is a separate series rather than a mode of the one above,
+    // because it is a different quantity with a different domain.
     //
     // hip_stall used to rest on a RATE over the magnitude series, and that measure was wrong in a
     // way no corridor could fix. `pelvisRotation` is deliberately the unsigned magnitude of turn
@@ -683,10 +683,11 @@ void installMetricManifest(MetricCatalogue &cat)
     //
     // A LEVEL off the magnitude series is still sound — hips_closed_at_impact and the rest stay
     // where they are. It is the DERIVATIVE that the fold destroys, and only a signed series can
-    // carry one. A bound pelvis IMU could deliver it honestly; the camera cannot, because a
-    // cosine carries no sign and body_rotation.h refuses to manufacture one from the phase ladder.
-    // So this sits on the roadmap with one characteristic blocked on it, which is exactly what the
-    // roadmap is for.
+    // carry one. A single camera cannot, because a cosine carries no sign and body_rotation.h
+    // refuses to manufacture one from the phase ladder. Two routes can: the two-camera fit (live
+    // 1 Oct) and a bound pelvis IMU (live 26 Oct, trunk design defect 2 — the two-camera stage
+    // steps aside for any segment an IMU measured, so until the IMU rung was built a worn hip
+    // sensor took hip_stall's only producer away).
     cat.addDescriptor({
         .key = QStringLiteral("pelvisRotationSigned"),
         .type = MetricType::TimeSeries,
@@ -706,8 +707,9 @@ void installMetricManifest(MetricCatalogue &cat)
             "Read as a RATE through the strike: an efficient downswing has the pelvis still "
             "turning open as the club arrives, and a stall is that rate collapsing. The magnitude "
             "series cannot answer this — it folds at the square-up, so its derivative changes sign "
-            "exactly where the reading matters. Needs a bound pelvis IMU: a face-on camera "
-            "estimates turn from the collapse of the hip span, and a cosine carries no sign."),
+            "exactly where the reading matters. Needs a bound pelvis IMU or the face-on and "
+            "down-the-line cameras together: one face-on camera sees only the collapse of the hip "
+            "span, and a cosine carries no sign."),
         // ⚠ LEAD-RELATIVE, AND MIRRORING IS THE PRODUCER'S JOB. The sign conventions doc's one
         // invariant above all its rules: a sign's meaning never changes with handedness, and
         // whatever transform holds that fixed belongs to the producer, never the reader. Said as
@@ -725,10 +727,12 @@ void installMetricManifest(MetricCatalogue &cat)
         .signNegative = QStringLiteral("the pelvis turned toward the TRAIL side — closed"),
         .phases = { P::Delivery, P::Impact },
         .routes = {
+            // LIVE 26 Oct 2026 (body_rotation.cpp fillFromImu): trunk design D13's turn projection,
+            // signed and mirrored for a left-hander at the producer. No σ yet (design §8.2).
             via("pelvisImu", RM::Inertial, Direct, { .imuRoles = { R::Pelvis } },
                 QStringLiteral("the pelvis medio-lateral axis carried into world by q_anat and "
                                "projected into the horizontal plane, keeping the sign that the "
-                               "magnitude convention discards"), PLANNED),
+                               "magnitude convention discards")),
             // LIVE 1 Oct 2026: the hip line's signed bearing from the two-camera skeleton fit — the
             // first producer this series has had, and the reason hip_stall can be assessed at all.
             via("faceOn+dtl", RM::Triangulated, Estimated,
@@ -773,6 +777,54 @@ void installMetricManifest(MetricCatalogue &cat)
         .usedBy = { QStringLiteral("characteristic:abbreviated_finish"),
                     QStringLiteral("characteristic:short_backswing"),
                     QStringLiteral("characteristic:over_rotation_at_top") },
+    });
+
+    // The chest's signed twin (trunk design §8.1 / §8.3: `rot.thorax.turn.series`), the mirror of
+    // pelvisRotationSigned above — same sign convention, same reason for being a separate series,
+    // and the same two routes: a bound thorax IMU, then the two-camera fit's shoulder bearing (the
+    // stage steps aside for a segment an IMU measured). Without the camera rung every two-camera,
+    // no-sensor rig read "Partly" on the setup closing page for a reading nothing consumes yet.
+    cat.addDescriptor({
+        .key = QStringLiteral("thoraxRotationSigned"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Thorax rotation (signed)"),
+        .shortLabel = QStringLiteral("Chest turn ±"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Body rotation"),
+        // moss beside thoraxRotation's mint, as coral sits beside pelvisRotation's crimson: one hue
+        // family per segment, and no two curves in the group share a colour.
+        .color = QStringLiteral("moss"),
+        .description = QStringLiteral(
+            "Chest (thorax) turn about the body's vertical axis relative to address, SIGNED and "
+            "LEAD-RELATIVE: positive is turned toward the lead side (open), negative toward the "
+            "trail side (closed), passing through zero as the chest squares up rather than folding "
+            "at it. The same physical quantity as Thorax rotation, keeping the direction the "
+            "magnitude reading throws away. A back-mounted sensor reads spine rotation at T2–T5; "
+            "the two cameras read the shoulder line."),
+        .howToRead = QStringLiteral(
+            "Read as a curve: negative through the backswing (the chest turned away), crossing zero "
+            "as it squares up coming down and positive through the strike. Its rate through impact "
+            "is meaningful where the magnitude's is not, because the magnitude folds at the "
+            "square-up. Needs a bound thorax IMU or the face-on and down-the-line cameras "
+            "together: one face-on camera sees only the collapse of the shoulder span, and a "
+            "cosine carries no sign."),
+        // LEAD-RELATIVE, mirrored by the producer — see pelvisRotationSigned.
+        .signPositive = QStringLiteral("the chest turned toward the LEAD side — open"),
+        .signNegative = QStringLiteral("the chest turned toward the TRAIL side — closed"),
+        .phases = { P::Delivery, P::Impact },
+        .routes = {
+            // LIVE 26 Oct 2026 (body_rotation.cpp fillFromImu), as pelvisImu. No σ yet (design §8.2).
+            via("thoraxImu", RM::Inertial, Direct, { .imuRoles = { R::Thorax } },
+                QStringLiteral("the thorax medio-lateral axis carried into world by q_anat and "
+                               "projected into the horizontal plane, keeping the sign that the "
+                               "magnitude convention discards")),
+            // LIVE 26 Oct 2026 (body_rotation.cpp trackBodyRotationTriangulated): the shoulder line's
+            // signed bearing, filled beside thoraxRotation with its per-sample σ.
+            via("faceOn+dtl", RM::Triangulated, Estimated,
+                { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the shoulder line's signed bearing from the two-camera skeleton fit, "
+                               "lead-relative — the second camera's placement is assumed until it "
+                               "is calibrated")) },
     });
 
     cat.addDescriptor({

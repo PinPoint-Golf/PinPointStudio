@@ -22,6 +22,7 @@
 #include <QQmlEngine>
 #include <QQuaternion>
 #include <QTimer>
+#include <QVariantMap>
 
 // BodyPoseAdapter — converts 17 COCO keypoints from a face-on CameraInstance
 // into per-bone parent-local quaternions for BodyVizView's kinematic chain.
@@ -80,6 +81,14 @@ public:
     bool        mirroredSource() const  { return m_mirroredSource; }
     void        setMirroredSource(bool m) { if (m_mirroredSource == m) return; m_mirroredSource = m; emit mirroredSourceChanged(); }
     bool        active() const          { return m_active; }
+
+    // The trunk on the avatar (BodyVizView useTrunkOverride; trunk_imu_sequence_grf_design.md §6.7).
+    // Both take trunk-world q_anat (imu_frame_contract.md §5); the maths is viz_frame.h's, pinned by
+    // viz_frame_test. trunkBones returns the parent-local node rotations by node name: hips, spine,
+    // spine1, spine2, leftUpLeg, leftLeg, rightUpLeg, rightLeg.
+    Q_INVOKABLE QVariantMap trunkBones(const QQuaternion &pelvisAnat, const QQuaternion &thoraxAnat) const;
+    // A golfer-relative turn about the vertical (+ = away from the target) as a trunk-world q_anat.
+    Q_INVOKABLE QQuaternion trunkTurn(double awayDeg, bool rightHanded) const;
 
     QQuaternion hipsRotation()          const { return m_hips; }
     QQuaternion leftUpLegRotation()     const { return m_leftUpLeg; }

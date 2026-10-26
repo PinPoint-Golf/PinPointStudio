@@ -59,6 +59,11 @@ QtObject {
     // DECISION(stage5b): wired by the host, not defaulted here, for that reason; null in a host
     // that has no Check page (the engine tests' FlowShell).
     property var liveWrist: null
+    // The trunk ceremony recorder (TrunkCeremonyRecorder, trunk_ceremony_recorder.h): the calibrate
+    // pages bracket their steps on it, and a visit left without a session discards what it holds
+    // (discardTrunkCeremony below). Wired by the host for the same reason as liveWrist; null in a host
+    // with no calibrate pages.
+    property var trunkCeremony: null
 
     // ScreenSettings sub-panel indices for the issues' "→ Open … settings" links (wizard l.37–38).
     readonly property int settingsPanelCameras: 3
@@ -649,10 +654,18 @@ QtObject {
             imuMgr.setSessionImuEnabled(devList[j].id, settings.imuExcluded.indexOf(devList[j].id) < 0)
     }
 
+    // The ceremony recorded in this visit is the session's only when the session starts (the recorder
+    // writes it then). Setup left any other way — Cancel, ‹ from the first step — or a new visit
+    // opened over one never finished, drops it unwritten (trunk_imu_sequence_grf_design.md §16.2 W2.2).
+    function discardTrunkCeremony() {
+        if (trunkCeremony && (trunkCeremony.recording || trunkCeremony.pendingWrite)) trunkCeremony.discard()
+    }
+
     // Release every device setup may have connected (wizard l.194–201): the paced queue first, so
     // nothing reconnects behind the teardown; then cameras (stopCapture also drops capture intent,
     // which releases the microphone); then sensors (BLE battery).
     function releaseDevices() {
+        discardTrunkCeremony()
         imuMgr.cancelPacedConnect()
         cameraMgr.stopCapture()
         cameraMgr.disconnectAll()

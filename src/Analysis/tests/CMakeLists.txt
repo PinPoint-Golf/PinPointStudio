@@ -576,6 +576,14 @@ pp_add_test(imu_refusion_check_test
     INCLUDE ${SRC}/IMU
     STD 20)
 
+# W2.4 wiring: the fuser resamples a Witmotion lane on its re-timed instants
+# (imu_retime.h) and a HackMotion lane on its stamps, byte-identical to before. Over a
+# real SwingWindow on RamPayloadSource, so it compiles the fuser and swing_window.cpp.
+pp_add_test(imu_fuser_retime_test
+    SOURCES imu_fuser_retime_test.cpp ${SRC}/IMU/imu_vision_fuser.cpp ${SRC}/Buffer/swing_window.cpp
+    INCLUDE ${SRC}/IMU
+    STD 20)
+
 # --- Capture data-integrity check (frame-timestamp holes) --------------------
 # Pure-function test over the per-lane judge; the SwingWindow wrapper is a
 # two-line enumeration over the same enumerator imu_refusion_check uses.
@@ -590,6 +598,26 @@ pp_add_test(capture_integrity_check_test
 find_package(Qt6 REQUIRED COMPONENTS Bluetooth)
 pp_add_test(imu_driver_frame_test
     SOURCES imu_driver_frame_test.cpp
+            imu_test_stubs.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+            ${SRC}/IMU/wt9011dcl_ble.cpp
+            ${SRC}/IMU/ble_imu_transport.cpp
+            ${SRC}/IMU/wt9011dcl_base.cpp
+            ${SRC}/IMU/imu_base.cpp
+            ${SRC}/IMU/eskf_orientation_filter.cpp
+    INCLUDE ${SRC}/IMU ${SRC}/Core
+            ${PP_THIRD}/imu_ekf_compat ${PP_THIRD}/imu_ekf ${EIGEN_DIR}
+    LINK    Qt6::Bluetooth
+    STD 20  AUTOMOC)
+
+# --- The trunk turn check from the device's bytes (26 Oct regression) ---------
+# 0x61 frames → the REAL driver fusion (Madgwick and ESKF) → the ceremony tap → a lane → the
+# stand-tall solve → the turn check. The ESKF diverged to NaN when the sensors were handled, every
+# turn then read 0.0°; tests that hand the check a ready-made quaternion series could not see it.
+# Same driver sources and stubs as imu_driver_frame_test; the trunk headers are header-only.
+pp_add_test(trunk_turn_path_test
+    SOURCES trunk_turn_path_test.cpp
             imu_test_stubs.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp

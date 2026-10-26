@@ -17,6 +17,7 @@
  */
 
 #include "body_pose_adapter.h"
+#include "../cameras/viz_frame.h"
 #include <QVariantList>
 #include <QVariantMap>
 #include <cmath>
@@ -64,6 +65,28 @@ BodyPoseAdapter::BodyPoseAdapter(QObject *parent) : QObject(parent)
 
     m_timer.setInterval(kIntervalMs);
     connect(&m_timer, &QTimer::timeout, this, &BodyPoseAdapter::onTimerTick);
+}
+
+// ── The trunk (viz_frame.h) ───────────────────────────────────────────────────
+
+QVariantMap BodyPoseAdapter::trunkBones(const QQuaternion &pelvisAnat, const QQuaternion &thoraxAnat) const
+{
+    const pinpoint::viz::TrunkAvatarBones b = pinpoint::viz::trunkAvatarBones(pelvisAnat, thoraxAnat);
+    return {
+        { QStringLiteral("hips"),       QVariant::fromValue(b.hips) },
+        { QStringLiteral("spine"),      QVariant::fromValue(b.spine) },
+        { QStringLiteral("spine1"),     QVariant::fromValue(b.spine1) },
+        { QStringLiteral("spine2"),     QVariant::fromValue(b.spine2) },
+        { QStringLiteral("leftUpLeg"),  QVariant::fromValue(b.leftUpLeg) },
+        { QStringLiteral("leftLeg"),    QVariant::fromValue(b.leftLeg) },
+        { QStringLiteral("rightUpLeg"), QVariant::fromValue(b.rightUpLeg) },
+        { QStringLiteral("rightLeg"),   QVariant::fromValue(b.rightLeg) },
+    };
+}
+
+QQuaternion BodyPoseAdapter::trunkTurn(double awayDeg, bool rightHanded) const
+{
+    return pinpoint::viz::trunkGolferTurn(awayDeg, rightHanded);
 }
 
 // ── poseSource wiring ─────────────────────────────────────────────────────────

@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "types.h"
+#include "../IMU/trunk_calib_provenance.h"   // TrunkCalibProvenance
 // DeviceClockStats — the camera clock → host clock mapping recorded on every stream
 // (event_buffer_design.md §9).
 #include "device_clock_mapper.h"
@@ -152,6 +153,7 @@ struct SwingImuDeviceInfo {
     double      mountGravityErrorDeg  = 0.0;
     QString     calibratedAtUtc;          // ISO8601; empty = never calibrated
     double      calibAgeSec = -1.0;       // age at shot time; -1 = never calibrated
+    TrunkCalibProvenance trunkCalib;      // present only when A/M came from the trunk solve (§6.8)
 
     // HackMotion only: measured palm-minus-lower-arm skew, microseconds — the
     // SESSION MEDIAN, not a mean and never one record's reading. A single record's

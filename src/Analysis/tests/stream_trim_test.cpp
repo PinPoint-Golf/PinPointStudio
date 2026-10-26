@@ -51,12 +51,12 @@ static void check(bool c, const char *label)
 namespace {
 
 // ⚠ THE NUMBER OF NON-SAMPLE FIELDS ON SegmentStream, i.e. every member that is
-// NOT one of the three per-sample vectors (qAnat, gyroDps, accelG). Today: `role`
-// and `hackMotion`. If you add a field to SegmentStream, bump this, set it in
+// NOT one of the three per-sample vectors (qAnat, gyroDps, accelG). Today: `role`,
+// `hackMotion` and `clock`. If you add a field to SegmentStream, bump this, set it in
 // populate() and assert it in checkCarried() — the compile-time assert below only
 // catches a change in the struct's SIZE, which a bool packed into existing padding
 // would slip past, so the three lists are what actually keep this honest.
-constexpr int kNonSampleFields = 2;
+constexpr int kNonSampleFields = 3;
 
 // ⚠ THE TRIPWIRE, AND IT IS A COMPILE ERROR RATHER THAN A FAILING ASSERT.
 // A structured binding must name EVERY member of an aggregate, so adding a field
@@ -71,8 +71,8 @@ constexpr int kNonSampleFields = 2;
 inline void segmentStreamMemberCountTripwire()
 {
     const SegmentStream s{};
-    const auto &[role, qAnat, gyroDps, accelG, hackMotion] = s;
-    (void)role; (void)qAnat; (void)gyroDps; (void)accelG; (void)hackMotion;
+    const auto &[role, qAnat, gyroDps, accelG, hackMotion, clock] = s;
+    (void)role; (void)qAnat; (void)gyroDps; (void)accelG; (void)hackMotion; (void)clock;
 }
 
 // A stream with EVERY non-sample field set away from its default, so that a field
@@ -83,6 +83,9 @@ SegmentStream populate(size_t n)
     // --- non-sample fields: all non-default (see kNonSampleFields) --------------
     s.role       = SegmentRole::LeadHand;   // default is Unknown
     s.hackMotion = true;                    // default is false
+    s.clock.retimed     = true;             // default is false (the whole LaneClock rides along)
+    s.clock.periodUs    = 5035.9;
+    s.clock.lostSamples = 8;
     // --- per-sample fields ------------------------------------------------------
     for (size_t i = 0; i < n; ++i) {
         s.qAnat.push_back(QQuaternion(1.0f, float(i), 0.0f, 0.0f));
@@ -100,6 +103,8 @@ void checkCarried(const SegmentStream &t, const char *what)
     check(t.role == SegmentRole::LeadHand, label);
     std::snprintf(label, sizeof(label), "%s: hackMotion carried", what);
     check(t.hackMotion, label);
+    std::snprintf(label, sizeof(label), "%s: clock carried", what);
+    check(t.clock.retimed && t.clock.periodUs == 5035.9 && t.clock.lostSamples == 8, label);
 }
 
 FusedStreams grid(size_t n)

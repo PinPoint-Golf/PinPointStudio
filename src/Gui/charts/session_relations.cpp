@@ -295,6 +295,8 @@ QString sameQuantityPartner(const QString &key)
         { QStringLiteral("clubAngularSpeed"),     QStringLiteral("clubheadSpeed") },
         { QStringLiteral("pelvisRotation"),       QStringLiteral("pelvisRotationSigned") },
         { QStringLiteral("pelvisRotationSigned"), QStringLiteral("pelvisRotation") },
+        { QStringLiteral("thoraxRotation"),       QStringLiteral("thoraxRotationSigned") },
+        { QStringLiteral("thoraxRotationSigned"), QStringLiteral("thoraxRotation") },
         { QStringLiteral("xFactor"),              QStringLiteral("xFactorStretch") },
         { QStringLiteral("xFactorStretch"),       QStringLiteral("xFactor") },
         { QStringLiteral("stanceWidth"),          QStringLiteral("stanceWidthMm") },

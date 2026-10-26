@@ -649,6 +649,9 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                     deviceObj[QStringLiteral("calibAgeSec")]          = dev.calibAgeSec;
                     if (!dev.calibratedAtUtc.isEmpty())
                         deviceObj[QStringLiteral("calibratedAt")]     = dev.calibratedAtUtc;
+                    // The trunk stand-tall solve, when it set A/M (trunk design §6.8) — the
+                    // same two keys as analysis.bindings[], absent otherwise.
+                    writeTrunkCalibProvenance(deviceObj, dev.trunkCalib);
                 }
                 // HackMotion only: the two units' blocks are NOT paired as
                 // simultaneous (see SwingImuDeviceInfo::skewUs) — recorded

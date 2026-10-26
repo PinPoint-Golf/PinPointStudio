@@ -30,6 +30,25 @@ namespace pinpoint { class SwingWindow; }
 
 namespace pinpoint::analysis {
 
+// HOW A LANE'S SAMPLES WERE DATED before they were resampled onto the grid —
+// provenance (design §7.1 step 1, W2.4). A Witmotion lane is stamped at HOST
+// ARRIVAL, in bursts of 8 about every 30 ms, so the fuser re-times it (sample
+// index × the stream's own fitted period, on the lower envelope of the
+// arrivals; imu_retime.h) and resamples on THOSE times. The arrivals stay in
+// the window untouched; this records what was derived from them. A HackMotion
+// lane is dated by its own clock fit upstream and is never re-timed here.
+struct LaneClock {
+    bool   retimed       = false;   // true: dated by imu_retime; false: the stamps as recorded
+    double periodUs      = 0.0;     // the fitted sample period (0 = not re-timed)
+    double nominalHz     = 0.0;     // the configured rate, for comparison
+    double residualP50Us = 0.0;     // arrival − retimed: how late the arrivals were
+    double residualP95Us = 0.0;
+    double residualMaxUs = 0.0;
+    int    lossEvents    = 0;       // inferred, with lostSamples in all
+    int    lostSamples   = 0;
+    int    segments      = 0;       // separately anchored runs (a gap over 250 ms re-anchors)
+};
+
 // One segment's anatomical-orientation stream, sampled on the shared TimeGrid.
 struct SegmentStream {
     SegmentRole role = SegmentRole::Unknown;
@@ -59,6 +78,10 @@ struct SegmentStream {
     // rather than a raw accelerometer vector (hm_sample_convert.h:36-42). Anything
     // that thresholds or pools accelG across lanes has to look here first.
     bool                     hackMotion = false;
+
+    // How this lane's samples were dated (above). Provenance only: nothing
+    // downstream branches on it; the times it describes are already in the grid.
+    LaneClock                clock;
 };
 
 // The orientation slice of the fusion layer: every bound IMU resampled onto one
@@ -84,6 +107,13 @@ public:
     // resampled (slerp) via SwingWindow::interpolateImu. Bindings whose role is
     // Unknown or that have < 2 in-window samples are skipped. Returns an empty grid
     // if nothing is fusable.
+    //
+    // ⚠ A WITMOTION LANE IS RESAMPLED ON ITS RE-TIMED SAMPLE INSTANTS, NOT ITS
+    // ARRIVAL STAMPS (W2.4; imu_retime.h). Every lane that is not a HackMotion is
+    // re-timed — index × its own fitted period on the lower envelope of the
+    // arrivals — and the grid, the slerp and the re-fusion all read those times.
+    // A lane whose arrivals follow no one clock (imu_retime refuses it) keeps its
+    // stamps. SegmentStream::clock records which, with the fit.
     //
     // q_raw(t) is normally the STORED live-fused quaternion. When `refusion` is non-null
     // (SwingLab filter.refuse — validation §5.3.1), orientation is instead RE-DERIVED offline

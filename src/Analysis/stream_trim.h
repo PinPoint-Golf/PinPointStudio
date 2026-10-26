@@ -75,6 +75,7 @@ inline FusedStreams trimStreams(const FusedStreams &in, int64_t fromUs, int64_t 
         // stream_trim_test's populated fixture at the same time as adding it here.
         t.role       = s.role;
         t.hackMotion = s.hackMotion;
+        t.clock      = s.clock;
         t.qAnat.assign(s.qAnat.begin() + long(a), s.qAnat.begin() + long(b));
         if (s.gyroDps.size() == in.timeGrid.size())
             t.gyroDps.assign(s.gyroDps.begin() + long(a), s.gyroDps.begin() + long(b));

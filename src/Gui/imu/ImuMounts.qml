@@ -40,8 +40,10 @@ QtObject {
         leadForearm:  qsTr("Lead forearm"),
         leadHand:     qsTr("Lead hand"),
         leadUpperArm: qsTr("Lead upper arm"),
-        pelvis:       qsTr("Pelvis (belt, sacrum)"),
-        thorax:       qsTr("Thorax (vest, upper back)")
+        // The golfer's names for the trunk mounts (session_wizard_refactor_design.md §4.1, trunk
+        // design §16.2 W2.2): where the sensor is worn, not the segment's anatomy.
+        pelvis:       qsTr("Hip sensor (belt, lower back)"),
+        thorax:       qsTr("Chest sensor (vest, between the shoulder blades)")
     })
 
     // A wG3 is one assignment that fills two roles, fixed by its cable (lower arm → leadForearm,
@@ -52,29 +54,32 @@ QtObject {
     // ── Which mounts are OFFERED ─────────────────────────────────────────────────────────────
     //
     // ⚠ THE ONE SWITCH. A mount is offered only if its instrument group has a calibrate step
-    // (design §4.12). The arm has one. The TRUNK DOES NOT YET: there is no pelvis/thorax
-    // ceremony (trunk_imu_sequence_grf_design.md §6.3), and the trunk analysis path has never run
-    // (§1) — offering these mounts now would feed it sensors nobody calibrated, and its first
-    // run would be on garbage. The day the trunk calibrate step is registered, flip this to
-    // true and nothing else: the Settings picker, its "Missing" summary and every later page
-    // take the offered set from here. (Stage 4's step registry replaces this flag with
-    // "groups that have a calibrate step".)
+    // (design §4.12). The arm has one; the TRUNK has one since W2.2 (trunk_imu_sequence_grf_design.md
+    // §16.2: SetupSteps' calibrateTrunk / checkTrunk, the ceremony of §6.3), registered in the same
+    // change that turned this on. Session setup's Sensors page takes the offered set from here; it
+    // is the one place a mount is set (Mark, 26 Oct: Settings ▸ IMUs shows the mount, read-only).
     //
-    // A sensor already HOLDING a trunk role (a hand-edited settings file) is still shown with
-    // its mount by every reader below; not offered means not ASKED FOR, never hidden.
-    //
-    // DEV SEAM: PINPOINT_DEV_TRUNK_MOUNTS=1 (main.cpp, context property devTrunkMounts) turns
-    // it on for a hardware measurement session (trunk design §16 step 2) — offered with no
-    // ceremony, on purpose, by someone who knows. Unset (and in every test, which has no such
-    // context property) it stays false. Still a plain property: tests assign it directly.
-    property bool trunkMountsOffered: typeof devTrunkMounts !== "undefined" && devTrunkMounts === true
+    // A sensor holding a mount that is NOT offered is still shown with it by every reader below;
+    // not offered means not ASKED FOR, never hidden. Still a plain property: tests assign it.
+    property bool trunkMountsOffered: true
 
     readonly property var offeredRoles: trunkMountsOffered ? allRoles : armRoles
 
     function isOffered(role) { return offeredRoles.indexOf(role) >= 0 }
 
+    // The SHORT names, for one-line lists (Settings ▸ IMUs summary): the trunk mounts without their
+    // placement hints, which belong where the mount is chosen (the Sensors page), not in a summary.
+    readonly property var _shortLabels: ({
+        leadForearm:  qsTr("Lead forearm"),
+        leadHand:     qsTr("Lead hand"),
+        leadUpperArm: qsTr("Lead upper arm"),
+        pelvis:       qsTr("Hip sensor"),
+        thorax:       qsTr("Chest sensor")
+    })
+
     // "" for "" (unassigned) and for a name this build does not know.
     function label(role) { return role && _labels[role] !== undefined ? _labels[role] : "" }
+    function shortLabel(role) { return role && _shortLabels[role] !== undefined ? _shortLabels[role] : "" }
 
     // The mount a DEVICE shows, from the role it was assigned (imuManager.roleForDevice): a wG3
     // answers "leadForearm" for its pair, which is shown as the pair.

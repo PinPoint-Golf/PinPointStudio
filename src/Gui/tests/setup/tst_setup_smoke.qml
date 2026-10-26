@@ -38,6 +38,7 @@ Item {
         Component { id: navComp;       FakeNav {} }
         Component { id: lmComp;        FakeLaunchMonitor {} }
         Component { id: appLogComp;    FakeAppLog {} }
+        Component { id: ceremonyComp;  FakeTrunkCeremony {} }
 
         property var wiz: null
         property var fx: null
@@ -117,7 +118,8 @@ Item {
                 sessionController: createTemporaryObject(sessionComp, tc),
                 navController:     createTemporaryObject(navComp, tc),
                 launchMonitor:     createTemporaryObject(lmComp, tc),
-                appLog:            createTemporaryObject(appLogComp, tc)
+                appLog:            createTemporaryObject(appLogComp, tc),
+                trunkCeremony:     createTemporaryObject(ceremonyComp, tc)
             }
         }
 

@@ -156,6 +156,21 @@ int main()
         for (int i = 0; i < 400; ++i)
             wr.processSample(mk(rclk.step(), 1, 0, 0, 0, 0, 0, 1, 0, 0, 0));
         CHECK_NEAR("data rate at 200 Hz feed", wr.snapshot().dataRateHz, 200.0, 5.0);
+
+        // Gyro peak (the trunk hold's stillness signal): |gyro| at its peak over the trailing
+        // 250 ms — one 3-4-12 °/s jerk (|g| = 13) holds the peak for the window, then lets go.
+        ImuIoWorker wg;
+        Clock gclk;
+        for (int i = 0; i < 100; ++i)
+            wg.processSample(mk(gclk.step(), 1, 0, 0, 0, 0, 0, 1, 0.3f, 0, 0));
+        CHECK_NEAR("gyro peak: still", wg.snapshot().gyroPeakDps, 0.3, 1e-5);
+        wg.processSample(mk(gclk.step(), 1, 0, 0, 0, 0, 0, 1, 3.f, 4.f, 12.f));
+        for (int i = 0; i < 49; ++i)                 // 245 ms later: still in the window
+            wg.processSample(mk(gclk.step(), 1, 0, 0, 0, 0, 0, 1, 0.3f, 0, 0));
+        CHECK_NEAR("gyro peak: a jerk holds for the window", wg.snapshot().gyroPeakDps, 13.0, 1e-4);
+        for (int i = 0; i < 2; ++i)                  // 255 ms: out of it
+            wg.processSample(mk(gclk.step(), 1, 0, 0, 0, 0, 0, 1, 0.3f, 0, 0));
+        CHECK_NEAR("gyro peak: then lets go", wg.snapshot().gyroPeakDps, 0.3, 1e-5);
     }
 
     // ===== 2. Snapshot coherence under cross-thread hammering =====

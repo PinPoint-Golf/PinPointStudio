@@ -110,7 +110,8 @@ std::vector<QString> BodyRotationProvider::provides() const
 {
     return { QStringLiteral("pelvisRotation"), QStringLiteral("thoraxRotation"),
              QStringLiteral("xFactor"),        QStringLiteral("xFactorStretch"),
-             QStringLiteral("pelvisRotationSigned") };   // the two-camera route, 1 Oct 2026
+             QStringLiteral("pelvisRotationSigned"),     // the two-camera route, 1 Oct 2026; the pelvis IMU, 26 Oct
+             QStringLiteral("thoraxRotationSigned") };   // the thorax IMU and the two-camera route, 26 Oct 2026
 }
 
 // ----------------------------------------------------------------------- ClubDeliveryProvider

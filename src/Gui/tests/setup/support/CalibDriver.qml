@@ -51,6 +51,7 @@ Item {
     Component { id: lmComp;        FakeLaunchMonitor {} }
     Component { id: appLogComp;    FakeAppLog {} }
     Component { id: guideComp;     FakeGuide {} }
+    Component { id: ceremonyComp;  FakeTrunkCeremony {} }
     // PpCameraFrame (session setup's camera rows and Ball frame) reads these two.
     Component {
         id: shotReplayComp
@@ -378,7 +379,8 @@ Item {
             launchMonitor:     lmComp.createObject(drv),
             appLog:            appLogComp.createObject(drv),
             shotReplay:        shotReplayComp.createObject(drv),
-            shotProcessor:     shotProcessorComp.createObject(drv)
+            shotProcessor:     shotProcessorComp.createObject(drv),
+            trunkCeremony:     ceremonyComp.createObject(drv)
         }
     }
     // setup: "witmotion2" | "witmotion3" | "hackmotion" | "none"

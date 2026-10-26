@@ -28,8 +28,8 @@
 // the sensor issues are new because the per-type slot table they came from is gone (§4.12). Each
 // new string is marked DECISION(stage4), and Stage 6 re-baselines Ready's golden tables on purpose.
 //
-// Adding a step (§4.10): one descriptor here, one page file. The trunk work adds the two lines
-// marked TRUNK below. A step can also be added from outside through `extensions` (test N17).
+// Adding a step (§4.10): one descriptor here, one page file — the two marked TRUNK below are the
+// worked example. A step can also be added from outside through `extensions` (test N17).
 import QtQuick
 import PinPointStudio
 
@@ -236,12 +236,36 @@ QtObject {
             page: "pages/CheckArmPage.qml"
             applies: function(ctx, draft) { return ctx.groups.arm.inSession }
         },
-        // ── TRUNK — the two lines the trunk work adds (trunk_imu_sequence_grf_design.md §6.3, §6.7; design §4.10).
-        // Registering them is ALSO what offers the trunk mounts (§4.12): flip
-        // ImuMounts.trunkMountsOffered in the same change until the two are wired together.
-        //
-        // StepDescriptor { key: "calibrateTrunk"; title: qsTr("Calibrate trunk"); eyebrow: Theme.caps(qsTr("Calibrate trunk")); group: "sensors"; instrumentGroup: "trunk"; page: "pages/CalibrateTrunkPage.qml"; applies: function(ctx, draft) { return ctx.groups.trunk.inSession }; gate: function(ctx, draft) { return draft.outcome("trunk").done } },
-        // StepDescriptor { key: "checkTrunk"; title: qsTr("Check trunk"); eyebrow: Theme.caps(qsTr("Check trunk")); group: "sensors"; instrumentGroup: "trunk"; page: "pages/CheckTrunkPage.qml"; applies: function(ctx, draft) { return ctx.groups.trunk.inSession } },
+        // ── TRUNK (trunk_imu_sequence_grf_design.md §6.3, §6.7, §16.2 W2.2; design §4.10). Registering
+        // these is ALSO what offers the trunk mounts (§4.12): ImuMounts.trunkMountsOffered went true in
+        // the same change. The arm steps come first (§6.7: with a wG3, its routine, then the trunk's).
+        StepDescriptor {
+            key: "calibrateTrunk"; title: qsTr("Calibrate trunk"); eyebrow: Theme.caps(qsTr("Calibrate trunk")); group: "sensors"
+            instrumentGroup: "trunk"
+            page: "pages/CalibrateTrunkPage.qml"
+            // §4.12: the trunk group is in the session — a present, session-enabled device holds
+            // pelvis or thorax. Hardware only.
+            applies: function(ctx, draft) { return ctx.groups.trunk.inSession }
+            gate:    function(ctx, draft) { return draft.outcome("trunk").done }
+            // As the arm's, suppressed when the sensors step was skipped.
+            issues: function(ctx, draft) {
+                if (draft.state("imus") === "skipped" || draft.outcome("trunk").done) return []
+                return [{ text: qsTr("Trunk sensor calibration not completed — return to the Calibrate trunk step"), panel: -1 }]
+            }
+            summary: function(ctx, draft) {
+                var done = draft.outcome("trunk").done
+                return { label: qsTr("Trunk calibration"), good: done,
+                         value: done ? qsTr("Hip and chest sensors calibrated")
+                              : draft.state("calibrateTrunk") === "skipped" ? qsTr("Skipped — trunk sensors not calibrated")
+                                                                           : qsTr("Not calibrated") }
+            }
+        },
+        StepDescriptor {
+            key: "checkTrunk"; title: qsTr("Check trunk"); eyebrow: Theme.caps(qsTr("Check trunk")); group: "sensors"
+            instrumentGroup: "trunk"
+            page: "pages/CheckTrunkPage.qml"
+            applies: function(ctx, draft) { return ctx.groups.trunk.inSession }
+        },
         StepDescriptor {
             key: "ready"; title: qsTr("Ready"); eyebrow: Theme.caps(qsTr("Ready")); group: "ready"
             page: "pages/ReadyPage.qml"

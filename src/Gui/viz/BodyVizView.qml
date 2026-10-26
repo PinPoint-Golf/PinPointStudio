@@ -388,6 +388,126 @@ Item {
         root._restartArmSlerp()
     }
 
+    // ── Trunk override — the trunk guide and the live trunk check ─────────────
+    // (trunk_imu_sequence_grf_design.md §6.7 "Demonstrate, then verify"; imu_frame_contract.md §5, §6)
+    //
+    // Both rotations are trunk-world q_anat, exactly what a calibrated hip / chest sensor gives
+    // (anatQuat): +X the golfer's right, +Y anterior, +Z up, identity at stand tall. The hips take
+    // the pelvis; the spine takes the thorax RELATIVE TO THE PELVIS, spread over Spine / Spine1 /
+    // Spine2 by bone length, so Spine2 (the chest, where the sensor sits) carries the thorax exactly.
+    // The legs stay planted. The bones come from BodyPoseAdapter.trunkBones — viz_frame.h's
+    // trunkAvatarBones, pinned by viz_frame_test.
+    //
+    // ⚠ FRAMES ARE THE TRAP (§6.7, "Rendering traps"). The trunk world reaches this avatar through
+    // the Rx(−90°) basis change AND Ry(180°) (the avatar faces the camera), on top of each bone's GLB
+    // rest rotation. The basis change alone turns the right way and bends the avatar BACKWARD; that is
+    // why the maths is in C++ under a golden test rather than here.
+    //
+    // No handedness here: the avatar is the golfer, and a q_anat already turns the way the golfer
+    // turned. Handedness enters only where a golfer-relative ANGLE becomes a q_anat — trunkTurn().
+    property bool       useTrunkOverride:       false
+    property quaternion hipsOverrideRotation:   Qt.quaternion(1, 0, 0, 0)   // pelvis q_anat
+    property quaternion thoraxOverrideRotation: Qt.quaternion(1, 0, 0, 0)   // thorax q_anat (absolute)
+
+    // A golfer-relative turn about the vertical (degrees, + = AWAY from the target) as a q_anat:
+    // about −Z for a right-hander, +Z for a left-hander (pinpoint_sign_conventions.md).
+    function trunkTurn(awayDeg) { return adapter.trunkTurn(awayDeg, root.rightHanded) }
+
+    // The trunk's slerp, the arm's pattern (animateLeadArm, above): when animateTrunk is true a
+    // change of either override starts a stall-clamped FrameAnimation from the pose ON SHOW to the
+    // new one; trunkAnimFinished() when it lands. ONE clock for both segments, so "finished" means
+    // the whole motion. Unlike the arm, ONE retarget captures BOTH segments' current pose before the
+    // clock restarts: when both overrides change in the same turn, the second handler must not read
+    // the clock the first one just zeroed as "at the start" for a segment that had finished.
+    property bool animateTrunk:      false
+    property int  trunkAnimDuration: 1500
+    signal trunkAnimFinished()
+
+    property quaternion _hipsFrom:   Qt.quaternion(1, 0, 0, 0)
+    property quaternion _hipsTo:     Qt.quaternion(1, 0, 0, 0)
+    property quaternion _thoraxFrom: Qt.quaternion(1, 0, 0, 0)
+    property quaternion _thoraxTo:   Qt.quaternion(1, 0, 0, 0)
+    property real       _trunkP:     1.0
+    property real       _trunkT:     1.0
+
+    // Shows a trunk pose with no motion (anchors from == to, as resetArmAnimation does).
+    function resetTrunkAnimation(hipsQ, thoraxQ) {
+        _trunkAnim.stop()
+        _hipsFrom = hipsQ;   _hipsTo = hipsQ
+        _thoraxFrom = thoraxQ; _thoraxTo = thoraxQ
+        _trunkP = 1.0; _trunkT = 1.0
+    }
+    // Holds the motion where it is (no trunkAnimFinished()).
+    function stopTrunkAnimation() { _trunkAnim.stop() }
+    // Runs the clock again towards the current overrides — a motion whose targets did not change
+    // still takes trunkAnimDuration and still reports finished.
+    function retargetTrunk() {
+        root._hipsFrom   = root._slerp(root._hipsFrom,   root._hipsTo,   root._trunkT)
+        root._thoraxFrom = root._slerp(root._thoraxFrom, root._thoraxTo, root._trunkT)
+        root._hipsTo     = root.hipsOverrideRotation
+        root._thoraxTo   = root.thoraxOverrideRotation
+        root._trunkP = 0.0
+        root._trunkT = 0.0
+        _trunkAnim.restart()
+    }
+    onHipsOverrideRotationChanged:   if (root.animateTrunk) retargetTrunk()
+    onThoraxOverrideRotationChanged: if (root.animateTrunk) retargetTrunk()
+
+    FrameAnimation {
+        id: _trunkAnim
+        running: false
+        onTriggered: {
+            const dt = Math.min(frameTime, 1 / 30)      // a stall pauses the guide, never skips it
+            root._trunkP = Math.min(1.0, root._trunkP + dt * 1000 / Math.max(1, root.trunkAnimDuration))
+            const p = root._trunkP                      // InOutCubic, as the arm
+            root._trunkT = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2
+            if (root._trunkP >= 1.0) {
+                stop()
+                root.trunkAnimFinished()
+            }
+        }
+    }
+
+    readonly property quaternion _hipsShown: root.animateTrunk && root._trunkT < 1.0
+        ? root._slerp(root._hipsFrom, root._hipsTo, root._trunkT) : root.hipsOverrideRotation
+    readonly property quaternion _thoraxShown: root.animateTrunk && root._trunkT < 1.0
+        ? root._slerp(root._thoraxFrom, root._thoraxTo, root._trunkT) : root.thoraxOverrideRotation
+    // The node rotations under the override — null when it is off (the nodes keep their own).
+    readonly property var _trunkBones: root.useTrunkOverride
+        ? adapter.trunkBones(root._hipsShown, root._thoraxShown) : null
+
+    // ── Crossed arms (trunk design §6.3 step 2: the forearms folded on the chest) ──
+    // The trunk guide's turns are shown with the arms folded, on the arm overrides: the host binds
+    // the lead/trail arm and forearm overrides to the crossedLead*/crossedTrail* pairs below. Both
+    // arms are posed — the forearms level across the lower chest, the left one lower and nearer the
+    // body, the right one higher and in front, so they stack rather than pass through each other,
+    // each hand tucked behind the opposite elbow — and both ride on Spine2, so they turn with the chest.
+    //
+    // DERIVATION — the HackMotion poses' method (above), on the same live chain:
+    //   upperArm_world = spineRest ⊗ spine2Rest ⊗ shoulderRest ⊗ upperArm_local, and
+    //   forearm_local  = conj(upperArm_world) ⊗ forearm_world.
+    // The upper arm is the hanging rotation (0.7071, 0.7071, 0, 0) pre-rotated in WORLD space by the
+    // shortest arc taking (0,−1,0) to the elbow direction — flexed forward 45° (left) / 48° (right),
+    // abducted 6° / 8° — so the bone keeps its hanging roll. forearm_world has +Y from the elbow
+    // toward a point beside the opposite elbow — left (−0.20, 1.25, 0.07), right (+0.20, 1.29, 0.11)
+    // — and its DORSAL face (−Z, the OrientationTab side) forward, palm to the body. The right arm
+    // is derived in the left-arm form on the mirrored target, then mirrored (w, x, y, z) →
+    // (w, x, −y, −z). Checked against the chain, not by eye: left elbow (0.211, 1.242, 0.131), wrist
+    // (−0.062, 1.247, 0.090); right elbow (−0.220, 1.253, 0.140), wrist (0.054, 1.277, 0.120).
+    // ⚠ SET BY RENDERING (build/run-me/w2-renders): a forearm aimed at the opposite SHOULDER — the
+    // first try — cannot reach it short of the hand: forearm plus hand is ~0.45 m and the hand stuck
+    // out past the shoulder. Level forearms with the elbows out read as folded arms from face-on and
+    // through the turn.
+    readonly property quaternion crossedLeftArmQuat:      Qt.quaternion(0.6375641, 0.6675157, -0.2662437,  0.2775773)
+    readonly property quaternion crossedLeftForeArmQuat:  Qt.quaternion(0.4944592, 0.7067574,  0.3947576,  0.3164974)
+    readonly property quaternion crossedRightArmQuat:     Qt.quaternion(0.6401652, 0.6492606,  0.2843182, -0.2963316)
+    readonly property quaternion crossedRightForeArmQuat: Qt.quaternion(0.5216434, 0.7053894, -0.3374644, -0.3412209)
+    // The same pair named the way the overrides are (lead = left for a right-hander).
+    readonly property quaternion crossedLeadArmQuat:      root.rightHanded ? crossedLeftArmQuat      : crossedRightArmQuat
+    readonly property quaternion crossedLeadForeArmQuat:  root.rightHanded ? crossedLeftForeArmQuat  : crossedRightForeArmQuat
+    readonly property quaternion crossedTrailArmQuat:     root.rightHanded ? crossedRightArmQuat     : crossedLeftArmQuat
+    readonly property quaternion crossedTrailForeArmQuat: root.rightHanded ? crossedRightForeArmQuat : crossedLeftForeArmQuat
+
     // ── Loading state ─────────────────────────────────────────────────────────
     // Each RuntimeLoader reports Success (2), Loading (1), or Error (3).
     // Tally successes so we can show a progress indicator until all 19 segments load.
@@ -475,7 +595,7 @@ Item {
         Node {
             id: hipsNode
             position: Qt.vector3d(0, 0.9979, 0)
-            rotation: adapter.hipsRotation
+            rotation: root._trunkBones ? root._trunkBones.hips : adapter.hipsRotation
 
             JointMarker {}
             RuntimeLoader {
@@ -487,7 +607,7 @@ Item {
             Node {
                 id: spineNode
                 position: Qt.vector3d(0, 0.0992, -0.0123)
-                rotation: Qt.quaternion(0.9982, -0.0607, 0, 0)
+                rotation: root._trunkBones ? root._trunkBones.spine : Qt.quaternion(0.9982, -0.0607, 0, 0)
 
                 JointMarker {}
                 RuntimeLoader {
@@ -498,6 +618,7 @@ Item {
                 Node {
                     id: spine1Node
                     position: Qt.vector3d(0, 0.1173, 0)
+                    rotation: root._trunkBones ? root._trunkBones.spine1 : Qt.quaternion(1, 0, 0, 0)
 
                     JointMarker {}
                     RuntimeLoader {
@@ -508,7 +629,7 @@ Item {
                     Node {
                         id: spine2Node
                         position: Qt.vector3d(0, 0.1346, 0)
-                        rotation: Qt.quaternion(0.9983, 0.0577, 0, 0)
+                        rotation: root._trunkBones ? root._trunkBones.spine2 : Qt.quaternion(0.9983, 0.0577, 0, 0)
 
                         JointMarker {}
                         RuntimeLoader {
@@ -772,7 +893,7 @@ Item {
                 id: leftUpLegNode
                 position: Qt.vector3d(0.0912, -0.0666, -0.0006)
                 visible:  adapter.leftUpLegVisible
-                rotation: adapter.leftUpLegRotation
+                rotation: root._trunkBones ? root._trunkBones.leftUpLeg : adapter.leftUpLegRotation
 
                 JointMarker {}
                 RuntimeLoader {
@@ -784,7 +905,7 @@ Item {
                     id: leftLegNode
                     position: Qt.vector3d(0, 0.4060, 0)
                     visible:  adapter.leftLegVisible
-                    rotation: adapter.leftLegRotation
+                    rotation: root._trunkBones ? root._trunkBones.leftLeg : adapter.leftLegRotation
 
                     JointMarker {}
                     RuntimeLoader {
@@ -812,7 +933,7 @@ Item {
                 id: rightUpLegNode
                 position: Qt.vector3d(-0.0913, -0.0666, -0.0006)
                 visible:  adapter.rightUpLegVisible
-                rotation: adapter.rightUpLegRotation
+                rotation: root._trunkBones ? root._trunkBones.rightUpLeg : adapter.rightUpLegRotation
 
                 JointMarker {}
                 RuntimeLoader {
@@ -824,7 +945,7 @@ Item {
                     id: rightLegNode
                     position: Qt.vector3d(0, 0.4060, 0)
                     visible:  adapter.rightLegVisible
-                    rotation: adapter.rightLegRotation
+                    rotation: root._trunkBones ? root._trunkBones.rightLeg : adapter.rightLegRotation
 
                     JointMarker {}
                     RuntimeLoader {

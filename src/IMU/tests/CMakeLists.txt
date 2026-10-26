@@ -118,6 +118,17 @@ pp_add_test(hm_capture_provenance_test
     NO_QT
     STD 20)
 
+# W2.4: a Witmotion lane dated by its own sample clock (imu_retime.h). Synthetic
+# bursts on a connection-event grid with a slow device clock, losses of a whole
+# batch and of single samples, a stall, and lanes that must be refused. Pure header,
+# no Qt. Run by hand with recording directories as arguments to replay real
+# PINPOINT_IMU_RECORD_DIR files; ctest never passes any, so it never needs the share.
+pp_add_test(imu_retime_test
+    SOURCES imu_retime_test.cpp
+    INCLUDE ${IMU}
+    NO_QT
+    STD 20)
+
 # The inter-unit skew aggregation. Pure because the statistic it computes decides
 # whether the application tells a coach their sensor is misbehaving — and the first
 # version of that check was wrong in a way no test would have caught: it warned on
@@ -148,5 +159,25 @@ pp_add_test(hm_skew_stats_test
 # the analysis layer, which does not link the vendor library, can include it.
 pp_add_test(hm_unit_id_test
     SOURCES hm_unit_id_test.cpp
+    INCLUDE ${IMU}
+    STD 20)
+
+# The live trunk stand-tall solve (trunk_imu_sequence_grf_design.md §16.2 W2.1a): the window
+# ImuInstance::calibrateTrunk() takes from its own sample ring (the last 2 s, by host arrival),
+# its summary (shared with swinglab --trunk-calib-from), the solve's verdict and golfer-facing
+# failure on synthetic still / tilted / upside-down / short / moving / stale samples, the
+# QVariantMap keys the trunk routine reads, and the binding provenance swing.json carries.
+# Header-only: imu_calibration.h + trunk_stand_tall.h + trunk_calib_provenance.h; Qt Core/Gui.
+pp_add_test(trunk_stand_tall_test
+    SOURCES trunk_stand_tall_test.cpp
+    INCLUDE ${IMU}
+    STD 20)
+
+# ── The trunk ceremony file (trunk_imu_sequence_grf_design.md §16.2 W2.1c) ───
+# pinpoint.trunk_ceremony/1 written, read back and replayed: the stand-tall solve and the turn
+# checks must give the live A/M and records exactly. Header-only: trunk_ceremony_file.h (+ the
+# solve, the turn check, the stand-tall window); Qt Core/Gui.
+pp_add_test(trunk_ceremony_file_test
+    SOURCES trunk_ceremony_file_test.cpp
     INCLUDE ${IMU}
     STD 20)

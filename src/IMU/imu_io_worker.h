@@ -43,6 +43,7 @@
 #include <QObject>
 #include <QQuaternion>
 #include <deque>
+#include <utility>
 
 #include "impact_detector.h"
 #include "types.h"            // pinpoint::SourceId / kInvalidSourceId
@@ -78,9 +79,18 @@ public:
         float  gyroX = 0.f, gyroY = 0.f, gyroZ = 0.f;      // RAW sensor frame, °/s
         float  eulerRoll = 0.f, eulerPitch = 0.f, eulerYaw = 0.f;  // device, display-only
         float  angularVelocityDps = 0.f;
+        // |device gyro| (the RAW gyro above), as its PEAK over the trailing kGyroPeakWindowUs of
+        // samples: the stillness signal for a hold (TrunkRoutine). Every sample counts, so a jerk
+        // between two GUI polls is not missed; and it is the device's own rate, not a difference of
+        // fused quaternions over host-arrival gaps (angularVelocityDps, which reads 4–5 °/s p95 and
+        // up to ~30 °/s on a sensor lying untouched on a desk).
+        float  gyroPeakDps = 0.f;
         double dataRateHz = 0.0;
         quint64 seq = 0;
     };
+
+    // The window gyroPeakDps takes its peak over (host-arrival time).
+    static constexpr qint64 kGyroPeakWindowUs = 250'000;
 
     explicit ImuIoWorker(QObject *parent = nullptr);
 
@@ -116,6 +126,9 @@ private:
     qint64      m_prevSampleUs = -1;
     float       m_velDps = 0.f;
     std::deque<qint64> m_packetMs;          // rolling 1 s rate window
+    // Rolling peak of |gyro| over kGyroPeakWindowUs: a monotonic (non-increasing) queue of
+    // {arrival µs, |gyro| °/s} — the front is the window's peak.
+    std::deque<std::pair<qint64, float>> m_gyroPeak;
 
     // Cross-thread state, guarded by m_mutex.
     mutable QMutex m_mutex;

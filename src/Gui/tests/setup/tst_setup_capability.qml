@@ -81,10 +81,16 @@ TestCase {
     // trunkRise (Spine & tilt, face-on: the +1 measured), armHang + headPitch + headRise (Arms/Head, down
     // the line) and lowPointFromAttack (Club delivery, #92), 21–22 Oct. From the posture-chart tree (22–23
     // Oct, uncommitted): spineBackLine + hipDepthButt (Spine & tilt / Pelvis & lateral, down the line only).
+    // 26 Oct 2026: Body … of 18 → of 19. thoraxRotationSigned joined Body rotation with an IMU rung and
+    // a two-camera rung, as pelvisRotationSigned: one face-on camera has neither (9 of 19, U > 0), and a
+    // two-camera rig with no trunk sensors estimates it — "Recorded, 5 of 18 estimated" → "Recorded, 6 of
+    // 19 estimated" (U = 0, E 5 → 6).
+    // pelvisRotationSigned's pelvis-IMU rung went live, so with trunk sensors both signed twins are
+    // measured and "Recorded, 1 of 18 estimated" (the two-camera estimate) becomes "Measured".
     readonly property var expected: ({
         "1 face-on only": [
             "Wrist — Partly, 1 of 11 · no wrist sensor",
-            "Body turn and posture — Partly, 9 of 18 · no trunk sensors · no down-the-line camera",
+            "Body turn and posture — Partly, 9 of 19 · no trunk sensors · no down-the-line camera",
             "Setup and stance — Partly, 18 of 26 · no down-the-line camera",
             "Sequence and tempo — Recorded, 17 of 19 estimated · no wrist sensor · no trunk sensors",
             "Club — Partly, 9 of 22 · no launch monitor · no down-the-line camera · estimated from the camera",
@@ -92,7 +98,7 @@ TestCase {
         ],
         "2 face-on + wG3": [
             "Wrist — Partly, 9 of 11 · no upper-arm sensor",
-            "Body turn and posture — Partly, 9 of 18 · no trunk sensors · no down-the-line camera",
+            "Body turn and posture — Partly, 9 of 19 · no trunk sensors · no down-the-line camera",
             "Setup and stance — Partly, 18 of 26 · no down-the-line camera",
             "Sequence and tempo — Recorded, 14 of 19 estimated · no trunk sensors · no down-the-line camera",
             "Club — Partly, 9 of 22 · no launch monitor · no down-the-line camera · estimated from the camera",
@@ -100,7 +106,7 @@ TestCase {
         ],
         "3 face-on + two Witmotions": [
             "Wrist — Partly, 6 of 11 · no upper-arm sensor",
-            "Body turn and posture — Partly, 9 of 18 · no trunk sensors · no down-the-line camera",
+            "Body turn and posture — Partly, 9 of 19 · no trunk sensors · no down-the-line camera",
             "Setup and stance — Partly, 18 of 26 · no down-the-line camera",
             "Sequence and tempo — Recorded, 14 of 19 estimated · no trunk sensors · no down-the-line camera",
             "Club — Partly, 9 of 22 · no launch monitor · no down-the-line camera · estimated from the camera",
@@ -108,7 +114,7 @@ TestCase {
         ],
         "4 two cameras + trunk": [
             "Wrist — Partly, 1 of 11 · no wrist sensor",
-            "Body turn and posture — Recorded, 1 of 18 estimated",
+            "Body turn and posture — Measured",
             "Setup and stance — Measured",
             "Sequence and tempo — Recorded, 9 of 19 estimated · no wrist sensor",
             "Club — Partly, 12 of 22 · no launch monitor · estimated from the cameras",
@@ -116,7 +122,7 @@ TestCase {
         ],
         "5 everything + launch monitor": [
             "Wrist — Partly, 9 of 11 · no upper-arm sensor",
-            "Body turn and posture — Recorded, 1 of 18 estimated",
+            "Body turn and posture — Measured",
             "Setup and stance — Measured",
             "Sequence and tempo — Recorded, 5 of 19 estimated",
             "Club — Recorded, 2 of 22 estimated",
@@ -132,7 +138,7 @@ TestCase {
         ],
         "7 two cameras, no sensors": [
             "Wrist — Partly, 1 of 11 · no wrist sensor",
-            "Body turn and posture — Recorded, 5 of 18 estimated · no trunk sensors",
+            "Body turn and posture — Recorded, 6 of 19 estimated · no trunk sensors",
             "Setup and stance — Measured",
             "Sequence and tempo — Recorded, 17 of 19 estimated · no wrist sensor · no trunk sensors",
             "Club — Partly, 12 of 22 · no launch monitor · estimated from the cameras",

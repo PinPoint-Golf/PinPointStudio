@@ -88,18 +88,71 @@ inline constexpr float kNominalArmMount[4]  = { 0.5f, -0.5f, -0.5f, -0.5f };
 inline constexpr float kNominalHandMount[4] = { 0.4388f, 0.6054f, 0.4965f, -0.4409f };
 
 // Trunk stand-tall gates (solveTrunkSegment; imu_frame_contract.md §5 "Trunk segments",
-// trunk_imu_sequence_grf_design.md §6.3). Mount: the long (USB) axis within this many degrees of
-// up, the face normal within this many of horizontal. Sensor health: |f̄| within ± this % of 1 g,
+// trunk_imu_sequence_grf_design.md §6.3). Mount: the long axis (sensor +Y, away from the USB end)
+// within this many degrees of up, the face normal within this many of horizontal. Sensor health: |f̄| within ± this % of 1 g,
 // the mean gyro under this on every axis, and at least this fraction of the expected samples.
 inline constexpr float kTrunkLongAxisMaxFromUpDeg     = 35.0f;
 inline constexpr float kTrunkFaceMaxFromHorizontalDeg = 40.0f;
-inline constexpr float kTrunkGravityTolPct            = 2.0f;
+// Gravity seated on the W0 desk session (design §17.4): one unit reads |f| +1.74 % lying still, a
+// margin of 0.26 % to the old ±2 % guess, and its error at stand tall is unmeasured. The solve reads
+// gravity's DIRECTION only, never its size, so this gate exists only to catch a broken unit; ±3 %
+// still does that.
+inline constexpr float kTrunkGravityTolPct            = 3.0f;
 inline constexpr float kTrunkStillGyroMaxDps          = 0.5f;
 inline constexpr float kTrunkMinSampleFraction        = 0.95f;
-// Mount yaw about the spine (δ) at tier δ0 — "USB up, label out" fixes it to about this 1σ
+// Mount yaw about the spine (δ) at tier δ0 — "USB down, label out" fixes it to about this 1σ
 // until the swings refine it (design §6.5). Stand tall cannot see δ at all.
 inline constexpr float kTrunkMountYawSigmaDeg         = 10.0f;
+
+// Trunk turn checks (checkTrunkTurn, trunk_ceremony.h; design §6.3 steps 2 "Turn away" and 3 "Turn
+// through"). Design guesses, NOT desk measurements: §17.4 leaves them to be seated in the W2 hardware
+// run. The turn's world axis within this many degrees of vertical on both sensors; the chest's turn
+// at least this far from the step's start. The hips at least half the chest's gate: §6.7 has the hips
+// turning about half the chest (45° to 90°), so a golfer who just reaches the chest gate reaches about
+// this, and below it a few degrees of pelvic tilt during the turn already moves the axis estimate by
+// atan(tilt/turn), near the axis gate (6° of tilt over 30° of turn is 11°). The same range is "enough
+// turn to judge" a sensor's sense and the chest-over-hips order. Chest over hips must exceed the ratio
+// (§6.3: "chest turns more than hips (catches swapped sensors)").
+inline constexpr float kTrunkTurnAxisMaxFromVerticalDeg = 15.0f;
+inline constexpr float kTrunkTurnChestMinRangeDeg       = 60.0f;
+inline constexpr float kTrunkTurnHipsMinRangeDeg        = 30.0f;
+inline constexpr float kTrunkTurnChestOverHipsMin       = 1.0f;
 } // namespace calib
+
+// --- The trunk calibration routine's live gates (src/Gui/calibration/TrunkRoutine.qml) ------------
+//
+// The routine runs in QML, so it MIRRORS these as named properties (the angles and the stillness)
+// and `defaultPace` entries (the durations); session_setup_lint_test W11 fails when a mirror and its
+// constant differ. Design §16.2 (26 Oct, second real-sensor run): a turn step is taught facing the
+// screen, then started and ended by the sensors — never a timed window the golfer must read while
+// turned away. None of these is a verdict: checkTrunkTurn (calib::kTrunkTurn*) judges the recorded
+// step; these only decide when the step's recording begins and ends.
+namespace trunkRoutine {
+// Still: each trunk sensor's ImuInstance::gyroDps (|device gyro|, its peak over 250 ms) at or under
+// this. W0 desk: 250 ms peak p99 ≤ 0.6 °/s; a person standing still sways a few °/s; putting a
+// sensor on, adjusting it or stepping is tens of °/s. The same rule gates stand tall's `ready`.
+inline constexpr float kStillGyroDps    = 10.0f;
+// A turn step arms (its recording begins) after both sensors have been still this long without a
+// break, after the demonstration: the golfer is at address, facing the screen. stand tall's `ready`.
+inline constexpr int   kArmStillMs      = 1000;
+// The turn has STARTED once the chest's live heading is this far from its heading at arming. Well
+// clear of the heading wander of a golfer standing still with arms crossed (sway and breathing, a
+// few degrees), and a third of the chest's 60° range gate, so any turn the check could pass starts
+// long before it reaches the gate.
+inline constexpr float kTurnStartDeg    = 20.0f;
+// …and has RETURNED once, after starting, the chest is back within this of its armed heading with
+// both sensors still for kReturnStillMs: the golfer faces the screen again, so the verdict can be
+// read. A golfer coming back to face a screen lands within ten degrees or so; 5° below the start
+// threshold so a reading hovering at one cannot satisfy both.
+inline constexpr float kTurnReturnDeg   = 15.0f;
+// gyroDps is already a 250 ms peak, so this is about a second after the last movement — longer than
+// the pause at the end of a turn's way back, shorter than a golfer waits before wondering.
+inline constexpr int   kReturnStillMs   = 750;
+// A turn that started but never came back (no return within this from the start) is ended and
+// checked anyway: a slow turn out and back is 4–8 s, a pause at the top a few more. A turn that
+// never starts has no limit — the routine waits, saying so, as stand tall's `ready` does.
+inline constexpr int   kTurnTimeoutMs   = 20000;
+} // namespace trunkRoutine
 
 // --- HackMotion frame reconciliation (src/IMU/hm_frame.h) --------------------------
 //
@@ -993,6 +1046,11 @@ inline constexpr double       kTriScaleFrac  = 0.10;    // bodyRotation.triScale
 inline constexpr double       kTriScaleFracCalibrated = 0.03;
 // A body line shorter than this in the horizontal plane (m) has no bearing worth reading.
 inline constexpr double       kTriMinBaselineM = 0.08;
+// The face-in cue (trunk design §6.3, W2.1d): a trunk sensor's forward bend at address below this
+// reads as a lean BACKWARD — a sensor worn label-in. Real addresses bend +15–25° (pelvis) and
+// +30–45° (chest), so a face-in sensor reads −15° to −45°; −5° keeps ten degrees of margin. A design
+// value: no worn session has measured it yet.
+inline constexpr double       kFaceInBendDeg = -5.0;    // bodyRotation.faceInBendDeg
 } // namespace bodyRotation
 
 // --- Kinematic sequence (src/Kinematics/segment_rates.h) -----------------------

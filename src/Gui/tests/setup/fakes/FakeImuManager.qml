@@ -5,7 +5,7 @@
 //   Witmotion  "<devId>"          → "leadForearm" | "leadHand" | "leadUpperArm" | …
 //   HackMotion "<devId>#lowerArm" → "leadForearm", "<devId>#palm" → "leadHand"
 // The tests place devices with assign(id, letter) below — a test shorthand (A leadForearm,
-// B leadHand, C leadUpperArm) written straight onto appSettings.imuRoles; the real class's
+// B leadHand, C leadUpperArm, P pelvis, T thorax) written straight onto appSettings.imuRoles; the real class's
 // derived imuPlacement view is read-only (Stage 5c), and the real ImuManager has no …ForSlot
 // methods or setPlacementForDevice any more — neither does this.
 // The resolvers follow the real ladder (imu_manager.cpp): an enumerated (present) and
@@ -102,7 +102,9 @@ QtObject {
     function _ownerOf(key) { return _isHmKey(key) ? key.substring(0, key.lastIndexOf("#")) : key }
 
     // ── Role resolvers (Q_INVOKABLE in the real class) ───────────────────
-    readonly property var _slotRoles: ({ A: "leadForearm", B: "leadHand", C: "leadUpperArm" })
+    // P / T: the trunk mounts (pelvis, thorax), a test shorthand like the arm letters.
+    readonly property var _slotRoles: ({ A: "leadForearm", B: "leadHand", C: "leadUpperArm",
+                                         P: "pelvis", T: "thorax" })
     function _roleOfSlot(slot) { return _slotRoles[slot] || "" }
 
     function placementKeyForRole(role) {

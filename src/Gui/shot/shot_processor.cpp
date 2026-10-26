@@ -1358,6 +1358,9 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
                 b.calibAgeSec     = imu->calibratedAtUtc()
                                         .msecsTo(QDateTime::currentDateTimeUtc()) / 1000.0;
             }
+            // The trunk stand-tall solve's δ tier, σ_δ and gate residuals, when it set A/M
+            // (trunk design §6.8); not present for an arm calibration.
+            b.trunkCalib = imu->trunkCalibProvenance();
             job.imuBindings.push_back(b);
         }
 
@@ -1840,6 +1843,7 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
                         info.calibAgeSec     = imu->calibratedAtUtc()
                                                    .msecsTo(QDateTime::currentDateTimeUtc()) / 1000.0;
                     }
+                    info.trunkCalib = imu->trunkCalibProvenance();   // trunk design §6.8
                     break;
                 }
             }

@@ -506,6 +506,24 @@ struct ImuResampleStage : AnalysisStage {
             ImuVisionFuser::gridHzForWindow(*ctx.window, ctx.job.imuBindings);
         ctx.streams = ImuVisionFuser::fuse(*ctx.window, ctx.job.imuBindings, gridHz,
                                            ctx.doRefuse ? &refusion : nullptr);
+        // One line per host-stamped lane: how its samples were dated (W2.4, imu_retime.h).
+        for (const SegmentStream &ss : ctx.streams.segments) {
+            if (ss.hackMotion) continue;   // dated by its own clock fit upstream
+            const LaneClock &c = ss.clock;
+            const QString line = c.retimed
+                ? QStringLiteral("[ImuRetime] %1 re-timed: period %2 us (%3 Hz, configured %4), "
+                                 "arrival - retimed p50 %5 / p95 %6 / max %7 ms, loss %8 event(s) "
+                                 "%9 sample(s), %10 segment(s)")
+                      .arg(segmentRoleName(ss.role)).arg(c.periodUs, 0, 'f', 2)
+                      .arg(1.0e6 / c.periodUs, 0, 'f', 3).arg(c.nominalHz, 0, 'g', 4)
+                      .arg(c.residualP50Us / 1e3, 0, 'f', 1).arg(c.residualP95Us / 1e3, 0, 'f', 1)
+                      .arg(c.residualMaxUs / 1e3, 0, 'f', 1).arg(c.lossEvents).arg(c.lostSamples)
+                      .arg(c.segments)
+                : QStringLiteral("[ImuRetime] %1 NOT re-timed (arrivals follow no one sample clock: "
+                                 "p95 %2 ms) — resampled on its arrival stamps")
+                      .arg(segmentRoleName(ss.role)).arg(c.residualP95Us / 1e3, 0, 'f', 1);
+            ppInfo() << line.toUtf8().constData();
+        }
     }
 };
 
@@ -1439,6 +1457,11 @@ struct UpperBodyMetricsStage : AnalysisStage {
 //      in the image. canRun therefore admits either input — refusing because the
 //      ideal sensor is absent would produce nothing on every swing this product
 //      actually records.
+//
+//      A bound Pelvis / Thorax stream also gives pelvisRotationSigned /
+//      thoraxRotationSigned here (trunk design defect 2): BodyRotationTriangulated
+//      steps aside for every segment an IMU measured, so on a worn swing this is
+//      the only producer of the signed pelvis turn hip_stall's rate reads.
 struct BodyRotationStage : AnalysisStage {
     QString name() const override { return QStringLiteral("BodyRotation"); }
     StageDecl decl() const override { return D({ kPose2d, kStreams, kSeg }, {}, { kSeries }); }
@@ -1456,10 +1479,21 @@ struct BodyRotationStage : AnalysisStage {
     }
     void run(AnalysisContext &ctx) override
     {
-        const pinpoint::FormatDescriptor &fd = ctx.window->formatOf(ctx.job.cameraSources.front());
-        const auto *cfmt = std::get_if<pinpoint::CameraFormat>(&fd.format);
-        const int w = cfmt ? int(cfmt->width) : 0;
-        const int h = cfmt ? int(cfmt->height) : 0;
+        // AN IMU-ONLY JOB HAS NO CAMERA TO SIZE (trunk design §8.3). canRun admits a trunk IMU on
+        // its own, and such a job's cameraSources is EMPTY — front() on it was undefined behaviour,
+        // a crash on the worn session's own capture. The frame size only scales a face-on pose
+        // track, and without a face-on camera there is none (PoseStage gates on the same
+        // placement), so 0×0 is the honest size: trackBodyRotation reads the IMU tier and adopts
+        // the stream grid when the pose grid is empty. hasCamera(FaceOn) implies a non-empty
+        // cameraSources (CaptureCapabilities::fromJob).
+        int w = 0, h = 0;
+        if (ctx.window && ctx.caps.hasCamera(CameraPlacement::FaceOn)) {
+            const pinpoint::FormatDescriptor &fd = ctx.window->formatOf(ctx.job.cameraSources.front());
+            if (const auto *cfmt = std::get_if<pinpoint::CameraFormat>(&fd.format)) {
+                w = int(cfmt->width);
+                h = int(cfmt->height);
+            }
+        }
 
         const BodyRotationConfig brCfg = BodyRotationConfig::fromOverrides(ctx.job.tuningOverrides);
         const BodyRotationResult br =
@@ -1858,6 +1892,7 @@ struct BindingsStage : AnalysisStage {
             rec.mountGravityErrorDeg = b.mountGravityErrorDeg;
             rec.calibratedAtUtc      = b.calibratedAtUtc;
             rec.calibAgeSec          = b.calibAgeSec;
+            rec.trunkCalib           = b.trunkCalib;
             rec.hackMotion           = b.hackMotion;
             ctx.detail->bindings.push_back(std::move(rec));
         }
@@ -3236,7 +3271,7 @@ struct Skeleton3DStage : AnalysisStage {
                 QStringList covers;
                 if (haveDtl)
                     for (const char *k : { "pelvisRotation", "pelvisRotationSigned", "thoraxRotation",
-                                           "xFactor", "xFactorStretch" }) {
+                                           "thoraxRotationSigned", "xFactor", "xFactorStretch" }) {
                         bool measured = false;
                         for (const MetricSeries &m : ctx.detail->series)
                             if (m.key == QLatin1String(k)) { measured = true; break; }
@@ -3264,10 +3299,10 @@ struct Skeleton3DStage : AnalysisStage {
 // 13h. Body rotation from the TWO-CAMERA fit — the catalogue's "faceOn+dtl" route
 //      (body_rotation.h trackBodyRotationTriangulated). skeleton3d gives the hip and shoulder lines
 //      a bearing in the horizontal plane, which a single face-on view never could; this stage turns
-//      them into pelvisRotation / thoraxRotation / pelvisRotationSigned / xFactor / xFactorStretch
-//      for every segment NO IMU measured (BodyRotationStage ran first and wrote what the IMUs gave).
-//      A frame counts only when both of a line's joints were measured or constrained by the fit —
-//      never merely inferred. An ESTIMATE until a measured two-camera calibration reaches skeleton3d:
+//      them into pelvisRotation / thoraxRotation / pelvisRotationSigned / thoraxRotationSigned /
+//      xFactor / xFactorStretch for every segment NO IMU measured (BodyRotationStage ran first and
+//      wrote what the IMUs gave). A frame counts only when both of a line's joints were measured or
+//      constrained by the fit — never merely inferred. An ESTIMATE until a measured two-camera calibration reaches skeleton3d:
 //      the σ's camera-scale term says so, and shrinks when one does.
 struct BodyRotationTriangulatedStage : AnalysisStage {
     QString name() const override { return QStringLiteral("BodyRotationTriangulated"); }

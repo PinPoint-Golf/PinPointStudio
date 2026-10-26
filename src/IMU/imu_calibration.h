@@ -53,10 +53,13 @@ namespace imu_calibration {
 // orientation, so this is a KNOWN FIXED CONSTANT (no per-session strap solve).
 //
 // Derived from the desk-characterisation sensor->case map (docs/reference/imu_axis_reference.md:
-//   sensor +X = device-right, +Y = USB-end, +Z = face-normal) + the strap
+//   sensor +X = device-right, +Y = long axis AWAY from the USB end, +Z = face-normal; until
+//   26 Oct 2026 the reference's words said +Y = USB end, wrongly — its measured column never did)
+//   + the strap
 // convention, with axis SIGNS pinned by the measured arm-down gravity:
 //   e_y (long, distal / DOWN)     = sensor +X   (accel-up at arm-down = sensor -X)
-//   e_z (anterior / abduction)    = sensor +Y   (USB-end points anterior)
+//   e_z (anterior / abduction)    = sensor +Y   (+Y points AWAY from the USB end, so with the USB
+//                                                 forward sensor +Y points backward — see 26 Oct note)
 //   e_x (medio-lateral / flexion) = e_y x e_z   = sensor +Z
 // → M (anatomical-body -> sensor-body) = (0.5, -0.5, -0.5, -0.5).
 //
@@ -162,17 +165,20 @@ inline Alignment solveSegment(const QQuaternion &refRaw,
 //   e_y = the INWARD face normal, sensor −Z (label out), made orthogonal to e_z;
 //   e_x = e_y × e_z;  M = fromAxes(e_x, e_y, e_z), so M·v_anat = v_sensor;
 //   A = Rz(ψ)·L — L the smallest rotation taking the filter's own up q̄·e_z onto +Z (≈ identity
-//   for Madgwick, ≈ Rx(180°) for ESKF, §7: solved, never assumed), ψ the yaw about +Z taking
+//   for both filters since the 26 Oct ESKF fix; ≈ Rx(180°) in ESKF swings captured before it,
+//   §7: solved, never assumed), ψ the yaw about +Z taking
 //   L·q̄·e_y (horizontal by construction) onto +Y.
 // At stand tall q_anat = A·q̄·M is the identity; after it q_anat is the true segment orientation
 // in the stance frame. The mount tilt (kyphosis, sacral slope) is absorbed exactly; the mount YAW
 // about the spine (δ) is invisible to standing still and is assumed zero (tier δ0, σ_δ = 10°).
 //
 // ⚠ WHAT STAND TALL CANNOT CATCH: a sensor turned face-in (label against the body) with the USB
-// end still up reads the same gravity as a correct one — the two differ only by a rotation about
+// end still down reads the same gravity as a correct one — the two differ only by a rotation about
 // up, which gravity does not see and the fusion yaw is arbitrary about. It solves, passes every
-// gate here, and puts the stance frame 180° about +Z. The turn-away step (design §6.3 step 2,
-// "away on both") is what rejects it.
+// gate here, and puts the stance frame 180° about +Z. The turns cannot see it either (an upright turn
+// is about that same axis; checkTrunkTurn, trunk_ceremony.h, passes it by design): the first address,
+// where a forward bend reads negative, is the check (design §6.3 "Face-in cannot be caught by stand
+// tall or the turns").
 
 enum class TrunkSensor { Pelvis, Thorax };
 
@@ -190,7 +196,7 @@ struct TrunkSolveRecord {
     bool  samplesOk  = false;         // ≥ kTrunkMinSampleFraction of the expected samples
     bool  stillOk    = false;         // mean gyro < kTrunkStillGyroMaxDps on every axis
     bool  gravityOk  = false;         // |f̄| = 1 g ± kTrunkGravityTolPct %
-    bool  longAxisOk = false;         // the USB axis within kTrunkLongAxisMaxFromUpDeg of up
+    bool  longAxisOk = false;         // sensor +Y (the long axis, away from the USB end) within kTrunkLongAxisMaxFromUpDeg of up
     bool  faceOk     = false;         // the face normal within kTrunkFaceMaxFromHorizontalDeg of horizontal
     float sampleFraction        = 0.0f;   // received / expected
     float maxAbsGyroDps         = 0.0f;   // max over the axes of |mean gyro|
@@ -210,8 +216,8 @@ struct TrunkAlignment {
 };
 
 namespace detail {
-// The smallest rotation taking u onto world +Z, in double precision. Antiparallel (the ESKF world,
-// whose up is −Z) has no unique smallest rotation: 180° about +X, any horizontal axis being as
+// The smallest rotation taking u onto world +Z, in double precision. Antiparallel (the pre-26-Oct
+// ESKF world, whose up could be −Z) has no unique smallest rotation: 180° about +X, any horizontal axis being as
 // good — the yaw ψ applied after it fixes the heading either way.
 inline QQuaternion rotationOntoUp(const QVector3D &uIn)
 {
@@ -263,16 +269,15 @@ inline TrunkAlignment solveTrunkSegment(const StandTallWindow &w, TrunkSensor se
     // cannot judge the mount, so it is not blamed on the mount. The face before the long axis: the
     // face normal is perpendicular to the long axis, so its elevation never exceeds the long axis's
     // angle from up — a face failure (> 40°) always fails the long axis too (> 35°), and only this
-    // order lets "faces the wrong way" (a sensor lying flat) be told apart from "upside down or on
-    // its side" (the long axis alone).
+    // order lets "lying flat" be told apart from "upside down or on its side" (the long axis alone).
     if (!r.samplesOk)
         r.failure = who + QStringLiteral(" dropped samples — move closer or check the battery");
     else if (!r.stillOk || !r.gravityOk)
         r.failure = who + QStringLiteral(" moved — hold still and try again");
     else if (!r.faceOk)
-        r.failure = who + QStringLiteral(" faces the wrong way — label out, against your back");
+        r.failure = who + QStringLiteral(" is lying flat — wear it upright: USB down, label facing out");
     else if (!r.longAxisOk)
-        r.failure = who + QStringLiteral(": turn it USB-up, label out");
+        r.failure = who + QStringLiteral(": turn it USB-down, label out");
 
     // ── The solve (computed whenever the geometry allows, so a rejected record still says what it
     //    would have been) ──
@@ -285,7 +290,7 @@ inline TrunkAlignment solveTrunkSegment(const StandTallWindow &w, TrunkSensor se
     QVector3D ey = inward - QVector3D::dotProduct(inward, ez) * ez;
     if (ey.length() < 1e-4f) {        // face normal along up: no anterior to take
         if (r.failure.isEmpty())
-            r.failure = who + QStringLiteral(" faces the wrong way — label out, against your back");
+            r.failure = who + QStringLiteral(" is lying flat — wear it upright: USB down, label facing out");
         return out;
     }
     ey.normalize();

@@ -5,6 +5,8 @@
 //   animate() records the target and emits finished() after `ms` (already scaled by the
 //           routine's pace) — or on finish() — unless `stall` is set, when it never does
 //   cancel() stops a pending finish; no finished()
+//   trunkPose() / trunkAnimate() — the trunk routine's members (CalibrationGuide.qml), recorded as
+//           { name, hips, chest, crossed, ms }; trunkAnimate finishes as animate() does
 import QtQuick
 
 QtObject {
@@ -49,6 +51,22 @@ QtObject {
         log.push({ name: "cancel", t: Date.now() })
         cancels += 1
         _timer.stop(); inFlight = false; animating = false
+    }
+    property real hipsTargetDeg:  0
+    property real chestTargetDeg: 0
+    property bool armsCrossed:    false
+    function trunkPose(hipsDeg, chestDeg, crossed) {
+        log.push({ name: "trunkPose", hips: hipsDeg, chest: chestDeg, crossed: crossed === true, t: Date.now() })
+        _timer.stop(); inFlight = false; animating = false
+        hipsTargetDeg = hipsDeg; chestTargetDeg = chestDeg; armsCrossed = crossed === true
+    }
+    function trunkAnimate(hipsDeg, chestDeg, crossed, ms) {
+        log.push({ name: "trunkAnimate", hips: hipsDeg, chest: chestDeg, crossed: crossed === true, ms: ms,
+                   t: Date.now() })
+        animating = true; inFlight = true
+        hipsTargetDeg = hipsDeg; chestTargetDeg = chestDeg; armsCrossed = crossed === true
+        _timer.interval = Math.max(1, ms)
+        if (!stall) _timer.restart()
     }
     // Ends the animation in flight now (the test's hand on the clock).
     function finish() {

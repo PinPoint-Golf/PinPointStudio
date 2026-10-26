@@ -96,6 +96,7 @@
 #include "reanalysis_controller.h"
 #include "../Pose/pose_runner.h"
 #include "live_wrist_angles.h"
+#include "trunk_ceremony_recorder.h"
 #include "markup_controller.h"
 #include "markup_image_provider.h"
 
@@ -434,6 +435,17 @@ int main(int argc, char *argv[])
                                             &sessionController, &shotModel);
     cameraManager.setShotProcessor(&shotProcessor);   // teardown stop-barrier
     imuManager.setShotProcessor(&shotProcessor);      // same barrier for IMU deselect
+
+    // The trunk ceremony recorder (trunk_imu_sequence_grf_design.md §16.2 W2.1c): records the trunk
+    // sensors (and a worn wG3) through session setup's calibration and writes trunk_ceremony.json
+    // into the session folder when the session starts. Declared after imuManager and shotProcessor
+    // so it is destroyed first.
+    TrunkCeremonyRecorder     trunkCeremony(&imuManager, &athleteController);
+    trunkCeremony.setSessionDirResolver([&sessionController, &shotProcessor]() {
+        return sessionController.running() ? shotProcessor.activeSessionDir() : QString();
+    });
+    QObject::connect(&sessionController, &SessionController::sessionStarted,
+                     &trunkCeremony, [&trunkCeremony](int) { trunkCeremony.onSessionStarted(); });
 
     // The launch monitor. Constructed unconditionally: with nothing configured it
     // holds an inert connector reporting Disabled, so QML can bind to it without
@@ -940,6 +952,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);
     engine.rootContext()->setContextProperty(QStringLiteral("navController"),     &navController);
     engine.rootContext()->setContextProperty(QStringLiteral("imuManager"),       &imuManager);
+    engine.rootContext()->setContextProperty(QStringLiteral("trunkCeremony"),    &trunkCeremony);
     engine.rootContext()->setContextProperty(QStringLiteral("launchMonitor"),   &launchMonitorController);
     engine.rootContext()->setContextProperty(QStringLiteral("controller"),       &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("ttsController"),    &ttsController);
@@ -954,13 +967,8 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("updateController"),   &updateController);
     engine.rootContext()->setContextProperty(QStringLiteral("cudaRuntime"),        &cudaRuntime);
     engine.rootContext()->setContextProperty(QStringLiteral("appLog"),             &appLog);
-    // Dev seam, read once: PINPOINT_DEV_TRUNK_MOUNTS=1 makes the mount pickers offer the trunk
-    // roles before the trunk calibrate step exists (trunk IMU design §16 step 2 — a measurement
-    // session, not a feature). ImuMounts.trunkMountsOffered binds to it; unset, it is false and
-    // nothing changes.
-    engine.rootContext()->setContextProperty(QStringLiteral("devTrunkMounts"),
-                                             qEnvironmentVariable("PINPOINT_DEV_TRUNK_MOUNTS")
-                                                 == QLatin1String("1"));
+    // (The PINPOINT_DEV_TRUNK_MOUNTS dev seam went with W2.2: the trunk mounts are offered because the
+    // trunk calibrate step exists — ImuMounts.trunkMountsOffered.)
 
     // H3 — the PPCP session import engine. A context property and not a QML
     // type because libppcp is an OPTIONAL dependency (H0): a build without it

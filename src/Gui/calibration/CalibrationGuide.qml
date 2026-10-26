@@ -27,6 +27,11 @@
 //   signal finished()
 //   hmUpperArm, hmForePose0, hmForePose1, hmRaiseDeg   — the HackMotion poses
 //   property bool useGuideCamera
+//   function trunkPose(hipsDeg, chestDeg, armsCrossed)          the trunk routine's poses
+//   function trunkAnimate(hipsDeg, chestDeg, armsCrossed, ms)   (TrunkRoutine.qml); finished()
+// The trunk angles are GOLFER-RELATIVE turns from address, in degrees: + is AWAY from the target
+// (toward the top), − toward it. Which way that is in the scene is the view's business (its
+// rightHanded), never the routine's. armsCrossed: the forearms folded on the chest (§6.3 step 2).
 // The test stand-in (tests/setup/fakes/FakeGuide.qml) has the same members. A routine
 // keeps its OWN stage ("introUp", "raise", …): the guide reports only "finished".
 //
@@ -36,6 +41,12 @@
 //     leadForeArmOverrideRotation: guide.foreTarget   (identity for a Witmotion — the host)
 //     animateLeadArm:              guide.animating
 //     useGuideCamera:              guide.useGuideCamera
+// and, on the trunk page (CalibrateTrunkPage.qml),
+//     useTrunkOverride:        true
+//     hipsOverrideRotation:    guide.hipsTarget
+//     thoraxOverrideRotation:  guide.thoraxTarget
+//     animateTrunk:            guide.trunkAnimating
+//     lead/trail arm overrides: the view's crossedLead*/crossedTrail* while guide.armsCrossed
 // and registers itself with `guide.view = <the view>` when it is created. A layout switch
 // creates a new view, which registers in its turn (the old one is destroyed and `view`
 // drops to null with it).
@@ -103,8 +114,60 @@ QtObject {
     function cancel() {
         _inFlight = false
         _swappedInFlight = false
+        _trunkInFlight = false
         if (view) view.resetArmAnimation(armTarget, foreTarget)
+        if (view) view.stopTrunkAnimation()
         animating = false
+    }
+
+    // ── The trunk poses (trunk_imu_sequence_grf_design.md §6.7, "Demonstrate, then verify") ──
+    // Golfer-relative degrees in; the view turns them into q_anat by ITS handedness
+    // (BodyVizView.trunkTurn: a right-hander turns away about −Z) and draws them through the same
+    // binding as the live sensors (BodyVizView useTrunkOverride).
+    property real hipsTargetDeg:  0
+    property real chestTargetDeg: 0
+    property bool armsCrossed:    false
+
+    // The q_anat the view binds (see the header), and its trunk slerp flag.
+    readonly property quaternion hipsTarget:   _turn(hipsTargetDeg)
+    readonly property quaternion thoraxTarget: _turn(chestTargetDeg)
+    property bool trunkAnimating: false
+    function _turn(deg) { return view ? view.trunkTurn(deg) : Qt.quaternion(1, 0, 0, 0) }
+
+    // Show a trunk pose at once (= BodyVizView.resetTrunkAnimation, then the targets).
+    function trunkPose(hipsDeg, chestDeg, crossed) {
+        _trunkInFlight = false
+        trunkAnimating = false
+        if (view) view.resetTrunkAnimation(_turn(hipsDeg), _turn(chestDeg))
+        hipsTargetDeg  = hipsDeg
+        chestTargetDeg = chestDeg
+        armsCrossed    = crossed === true
+    }
+    // Turn to a trunk pose over `ms`, from the pose on show; finished() when the view's trunk slerp
+    // lands (trunkAnimFinished). As animate(): trunkAnimating goes true BEFORE the targets move,
+    // because the view starts its slerp on the target change. A motion to the pose already shown
+    // still runs the clock (retargetTrunk), so every trunkAnimate() reports exactly one finished().
+    function trunkAnimate(hipsDeg, chestDeg, crossed, ms) {
+        armsCrossed    = crossed === true
+        if (view) view.trunkAnimDuration = Math.max(1, ms)
+        _trunkInFlight = true
+        trunkAnimating = true
+        var unchanged  = hipsDeg === hipsTargetDeg && chestDeg === chestTargetDeg
+        hipsTargetDeg  = hipsDeg
+        chestTargetDeg = chestDeg
+        if (unchanged && view) view.retargetTrunk()
+    }
+    // True between trunkAnimate() and its end (or cancel()): only a motion this adapter started is
+    // reported, so a stray trunkAnimFinished() is never a finish.
+    property bool _trunkInFlight: false
+
+    property Connections _viewTrunkFinished: Connections {
+        target:  guide.view
+        enabled: guide.active && guide._trunkInFlight
+        function onTrunkAnimFinished() {
+            guide._trunkInFlight = false
+            guide.finished()
+        }
     }
 
     onActiveChanged: if (!active) cancel()
@@ -118,15 +181,16 @@ QtObject {
     // pose it shows IS the motion's end, and a replay would restart the guide the user follows.
     property bool _swappedInFlight: false
     onViewChanged: {
-        if (view !== null && _inFlight) _swappedInFlight = true
+        if (view !== null && (_inFlight || _trunkInFlight)) _swappedInFlight = true
         _finishSwapped()
     }
     onReadyChanged: _finishSwapped()
     function _finishSwapped() {
         if (!_swappedInFlight || !ready) return
         _swappedInFlight = false
-        if (!_inFlight || !active) return
+        if ((!_inFlight && !_trunkInFlight) || !active) return
         _inFlight = false
+        _trunkInFlight = false
         animating = false
         finished()
     }

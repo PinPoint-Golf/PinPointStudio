@@ -87,7 +87,7 @@ int main()
         // sequence is read from (pelvis / thorax / leadArm / club — segment_rates.h); the
         // Sequence itself went from planned to live the same day.
         // 104 -> 105 on 2026-09-23 with handPathLoop, the down-the-line hand loop over the top reads.
-        checkEqI(static_cast<int>(cat.all().size()), 126, "descriptor count == 126");   // +spineBackLine, +hipDepthButt (2026-10-22, the silhouette pair at every P-frame, posture_chart_design.md §10 stage 4a)   // +headRise (2026-10-22, standing up going back from down the line, posture_metrics_design.md §4.5)   // +trunkRise, +armHang, +headPitch (2026-10-21, posture_metrics_design.md §3)   // +lowPointFromAttack (2026-10-21, issue #92: the low point the monitor's attack angle implies)   // +ksOrderShare, +ksTimingSpread (2026-10-14: the session sequence-consistency readings, planned)   // +8 sequence node readings (2026-10-14: arm/club peak times, four peak speeds, two reversals)   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
+        checkEqI(static_cast<int>(cat.all().size()), 127, "descriptor count == 127");   // +thoraxRotationSigned (2026-10-26, trunk design defect 2: the chest's signed twin, thorax IMU)   // +spineBackLine, +hipDepthButt (2026-10-22, the silhouette pair at every P-frame, posture_chart_design.md §10 stage 4a)   // +headRise (2026-10-22, standing up going back from down the line, posture_metrics_design.md §4.5)   // +trunkRise, +armHang, +headPitch (2026-10-21, posture_metrics_design.md §3)   // +lowPointFromAttack (2026-10-21, issue #92: the low point the monitor's attack angle implies)   // +ksOrderShare, +ksTimingSpread (2026-10-14: the session sequence-consistency readings, planned)   // +8 sequence node readings (2026-10-14: arm/club peak times, four peak speeds, two reversals)   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
                                "clubheadPeakLead",
@@ -131,7 +131,7 @@ int main()
 
     // 2. Type / group / scored filtering.
     {
-        checkEqI(countType(cat, MetricType::TimeSeries),  57, "TimeSeries count");   // +spineBackLine, +hipDepthButt (2026-10-22)   // +headRise (2026-10-22)   // +trunkRise (2026-10-21)   // +trailForearmAngle (2026-10-08)   // +shaftLie (2026-10-01)   // +4 segment angular speeds (2026-09-17)   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
+        checkEqI(countType(cat, MetricType::TimeSeries),  58, "TimeSeries count");   // +thoraxRotationSigned (2026-10-26)   // +spineBackLine, +hipDepthButt (2026-10-22)   // +headRise (2026-10-22)   // +trunkRise (2026-10-21)   // +trailForearmAngle (2026-10-08)   // +shaftLie (2026-10-01)   // +4 segment angular speeds (2026-09-17)   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
         // 26, not 28: `shoulderAlignment` and `hipAlignment` were both PointInTime and both retired
         // as duplicates of a series the catalogue already carries.
         // 45 -> 47 on 2026-09-14, both PLANNED and both the honest replacement for a measure that
@@ -156,7 +156,7 @@ int main()
         checkEqI(static_cast<int>(cat.query(hq).size()), 5, "group 'Head' == 5");   // +headRise (2026-10-22)   // +headPitch (2026-10-21)
 
         MetricQuery brq; brq.group = QStringLiteral("Body rotation");
-        checkEqI(static_cast<int>(cat.query(brq).size()), 8, "group 'Body rotation' == 8");   // +shoulderPlaneAngle3d   // +pelvisRotationSigned
+        checkEqI(static_cast<int>(cat.query(brq).size()), 9, "group 'Body rotation' == 9");   // +thoraxRotationSigned (2026-10-26)   // +shoulderPlaneAngle3d   // +pelvisRotationSigned
 
         // Arm geometry (trail elbow height, swing width, arm-to-torso) is its own group rather
         // than being filed under wrist and forearm, which would mislabel it in the directory.
@@ -309,10 +309,35 @@ int main()
                   == MetricAvailability::Unavailable,
               "…and a separation cannot be had from half a pair");
 
-        // The signed series' IMU rung is still planned, so an IMU alone gives nothing…
-        check(cat.resolve(QStringLiteral("pelvisRotationSigned"), pelvisImu).state
-                  == MetricAvailability::Unavailable,
-              "pelvisRotationSigned's IMU rung is still planned: the pelvis IMU alone gives nothing");
+        // The signed series' IMU rung is LIVE (2026-10-26, trunk design defect 2): the two-camera
+        // stage steps aside for an IMU-measured pelvis, so with the rung planned a worn hip sensor
+        // took hip_stall's only producer away. The pelvis IMU alone now Measures it…
+        {
+            const MetricAvailability a = cat.resolve(QStringLiteral("pelvisRotationSigned"), pelvisImu);
+            check(a.state == MetricAvailability::Measured && a.routeId == QStringLiteral("pelvisImu"),
+                  "a bound pelvis IMU Measures pelvisRotationSigned (pelvisImu, Direct)");
+            ShotContext worn = wristShot({ SegmentRole::Pelvis }, /*faceOn*/ true);
+            worn.hasDtl = true;
+            check(cat.resolve(QStringLiteral("pelvisRotationSigned"), worn).routeId == QStringLiteral("pelvisImu"),
+                  "…and the IMU outranks the two-camera fit when both are there");
+            // The chest's signed twin, the same two rungs: the thorax IMU, then the two cameras.
+            check(cat.resolve(QStringLiteral("thoraxRotationSigned"), pelvisImu).state
+                      == MetricAvailability::Unavailable,
+                  "thoraxRotationSigned: nothing from a hip sensor and one face-on camera");
+            ShotContext chestImu = wristShot({ SegmentRole::Thorax }, /*faceOn*/ true);
+            const MetricAvailability t = cat.resolve(QStringLiteral("thoraxRotationSigned"), chestImu);
+            check(t.state == MetricAvailability::Measured && t.routeId == QStringLiteral("thoraxImu"),
+                  "a bound thorax IMU Measures thoraxRotationSigned (thoraxImu, Direct)");
+            ShotContext chestWorn = wristShot({ SegmentRole::Thorax }, /*faceOn*/ true);
+            chestWorn.hasDtl = true;
+            check(cat.resolve(QStringLiteral("thoraxRotationSigned"), chestWorn).routeId == QStringLiteral("thoraxImu"),
+                  "…and the thorax IMU outranks the two-camera fit when both are there");
+            ShotContext pairOnly = wristShot({}, /*faceOn*/ true);
+            pairOnly.hasDtl = true;
+            const MetricAvailability tp = cat.resolve(QStringLiteral("thoraxRotationSigned"), pairOnly);
+            check(tp.state == MetricAvailability::Bridged && tp.routeId == QStringLiteral("faceOn+dtl"),
+                  "two cameras estimate thoraxRotationSigned off the skeleton fit (Bridged, faceOn+dtl)");
+        }
         // …and the two-camera fit ESTIMATES it (live 2026-10-01, body_rotation.h triangulated route).
         {
             ShotContext pair = wristShot({}, /*faceOn*/ true);

@@ -22,6 +22,7 @@
 #include <QVector3D>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 // Trunk readings from a trunk q_anat (trunk design D13): PROJECTIONS OF SEGMENT AXES, not Cardan
 // angles, so there is no sequence dependence at large turn and they match the coaches' vocabulary.
@@ -58,6 +59,25 @@ inline double turnHeadingRad(const QQuaternion &qAnat)
 inline double turnFromRad(const QQuaternion &qAnat, const QQuaternion &qRef)
 {
     return wrapPi(turnHeadingRad(qAnat) - turnHeadingRad(qRef));
+}
+
+// The LIVE heading (°, (−180, 180], turnHeadingRad in degrees) of one trunk q_anat, for the
+// calibration routine's turn detector (TrunkRoutine.qml via ImuInstance::trunkHeadingDeg; design
+// §16.2, 26 Oct). NaN — "no reading", never a number to act on — when the quaternion is not finite
+// (a filter fault can leave one), has no length, or when the medio-lateral axis stands within about
+// 3° of vertical, where its horizontal heading is noise. The caller differences two readings and
+// wraps the difference (turnFromRad's rule).
+inline double liveHeadingDeg(const QQuaternion &qAnat)
+{
+    constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+    const double w = qAnat.scalar(), x = qAnat.x(), y = qAnat.y(), z = qAnat.z();
+    if (!std::isfinite(w) || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return kNaN;
+    const double n = std::sqrt(w * w + x * x + y * y + z * z);
+    if (!(n > 1e-6)) return kNaN;
+    const QVector3D ml = qAnat.normalized().rotatedVector(QVector3D(1.0f, 0.0f, 0.0f));
+    const double h = std::hypot(double(ml.x()), double(ml.y()));
+    if (!std::isfinite(h) || h < 0.05) return kNaN;          // sin 3° ≈ 0.05
+    return std::atan2(double(ml.y()), double(ml.x())) * 57.29577951308232;
 }
 
 // Obliquity / side bend (rad): elevation of the medio-lateral axis q·x̂ above horizontal, RAW sign

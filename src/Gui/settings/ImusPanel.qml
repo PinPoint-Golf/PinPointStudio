@@ -87,20 +87,17 @@ Item {
         // Every branch below on this flag exists because one of those is true.
         readonly property bool isHackMotion: imuData.vendor === "hackmotion"
 
-        // The mount this device holds, by name ("" when unassigned) — shown truthfully even
-        // for a role the picker does not offer (ImuMounts.trunkMountsOffered).
+        // The mount this device holds, by name ("" when it has none) — shown truthfully whatever
+        // the pickers offer. roleForDevice() is Q_INVOKABLE and not reactive: the roles map is
+        // READ AS A VALUE first (a bare statement would be dropped with its dependency).
         readonly property string mountLabel: {
             var roles = appSettings.imuRoles
             return roles ? ImuMounts.deviceMountLabel(isHackMotion, imuManager.roleForDevice(imuData.id)) : ""
         }
-
-        // Why the last mount pick was refused ("" = it was not). Cleared by the next pick
-        // and by any change to the roles map (the holder may just have let go).
-        property string refusal: ""
-        Connections {
-            target: appSettings
-            function onImuRolesChanged() { imuRow.refusal = "" }
-        }
+        // The row's read-only mount line. Mounts are set in session setup only (Mark, 26 Oct).
+        readonly property string mountLine: mountLabel !== ""
+                                            ? qsTr("Worn as: %1 (set in session setup)").arg(mountLabel)
+                                            : qsTr("Not worn (set in session setup)")
 
         // Capabilities strip cell model — reactive to live battery data.
         readonly property var capsCells: {
@@ -286,13 +283,16 @@ Item {
                     Layout.bottomMargin: Theme.gap(12)
                     spacing: Theme.gap(16)
 
-                    // ── Placement selector ───────────────────────────────────
+                    // ── The mount: read-only (Mark, 26 Oct; trunk design §16.2 W2.2) ──
+                    // Where the sensor is worn is set in ONE place, session setup's Sensors page
+                    // (pages/ImusPage.qml), where the golfer confirms or changes it before each
+                    // session. Here it is shown, never edited.
                     ColumnLayout {
                         spacing: Theme.gap(4)
                         Layout.alignment: Qt.AlignTop
 
                         Text {
-                            text:                qsTr("Placement")
+                            text:                qsTr("Mount")
                             font.family:         Theme.fontData
                             font.pixelSize:      Theme.fontSzMicro
                             font.letterSpacing:  Theme.trackingMicro
@@ -300,159 +300,14 @@ Item {
                             color:               Theme.colorText3
                         }
 
-                        PpComboBox {
-                            id: placementCombo
-                            implicitWidth: Theme.sp(200)
-
-                            // Mounts BY NAME (ImuMounts), keyed by role (design §4.13).
-                            //
-                            // A HackMotion's SEGMENTS are not the coach's to
-                            // choose — the wG3 is one peripheral carrying two
-                            // units on a cable (wire block 0 the lower arm,
-                            // block 1 the palm), fixed by the wiring — but
-                            // whether it is assigned at all IS. So its combo
-                            // offers exactly two states: Unassigned, and
-                            // "Lead forearm + hand" as one choice (value
-                            // "leadForearm", the only non-empty role
-                            // setRoleForDevice() accepts for it; the manager
-                            // writes BOTH unit keys — "<deviceId>#lowerArm" →
-                            // leadForearm, "<deviceId>#palm" → leadHand — in one
-                            // call). A Witmotion is offered every OFFERED mount
-                            // (ImuMounts.offeredRoles — the trunk waits for its
-                            // calibration; see the switch there).
-
-                            // The role this row's device holds now, in the settings
-                            // spelling; "" when unassigned. Read through the manager,
-                            // which owns the keying rule (bare id vs. unit keys).
-                            readonly property string currentRole: {
-                                var roles = appSettings.imuRoles
-                                return roles ? imuManager.roleForDevice(imuData.id) : ""
-                            }
-
-                            readonly property var placementOptions: {
-                                var opts = [ { label: ImuMounts.unassignedLabel, value: "" } ]
-                                var offered = imuRow.isHackMotion ? ["leadForearm"] : ImuMounts.offeredRoles
-                                for (var i = 0; i < offered.length; ++i)
-                                    opts.push(placementCombo._option(offered[i]))
-                                // ⚠ A HELD MOUNT THAT IS NOT OFFERED IS STILL SHOWN. A
-                                // trunk role is not offered until the trunk can be
-                                // calibrated, but a sensor can hold one already (a
-                                // hand-edited settings file); reading it as "Unassigned"
-                                // would be a lie, and choosing Unassigned would then
-                                // silently look like a no-op.
-                                var cur = placementCombo.currentRole
-                                if (cur !== "" && offered.indexOf(cur) < 0)
-                                    opts.push(placementCombo._option(cur))
-                                return opts
-                            }
-
-                            // One entry. A mount another sensor holds is greyed (see
-                            // itemEnabledFn) AND says who holds it, so the coach knows
-                            // which row to change instead of guessing.
-                            function _option(role) {
-                                var name = imuRow.isHackMotion && role === "leadForearm"
-                                         ? ImuMounts.hackMotionLabel
-                                         : (ImuMounts.label(role) || role)
-                                var holder = imuRow.isHackMotion && role === "leadForearm"
-                                           ? (placementCombo.holderOf("leadForearm") || placementCombo.holderOf("leadHand"))
-                                           : placementCombo.holderOf(role)
-                                return { label: holder === "" ? name
-                                                              : qsTr("%1 — held by %2").arg(name).arg(placementCombo.nameOf(holder)),
-                                         value: role, holder: holder }
-                            }
-
-                            model: placementOptions.map(function(o) { return o.label })
-
-                            // Device id of ANOTHER sensor whose claim on `role` would make
-                            // ImuManager refuse this row's (setRoleForDevice → claimRole,
-                            // imu_role_map.cpp), else "". Placement KEYS, not device ids:
-                            // a wG3 holds its roles under "<id>#lowerArm"/"<id>#palm", so
-                            // a device-keyed check would never see them and a Witmotion
-                            // could be put straight on top of one.
-                            //
-                            // ⚠ ONLY AN ENUMERATED, SESSION-ENABLED OWNER BLOCKS — the
-                            // manager's own rule, so a greyed entry is exactly one the
-                            // manager would refuse. A claim whose device the enumerator
-                            // cannot see is stale (a dead or replaced sensor) with no row
-                            // here to unassign it from; greying on it would be a lockout
-                            // with no UI path out. Assignment displaces such claims.
-                            function holderOf(role) {
-                                if (!role) return ""
-                                var roles = appSettings.imuRoles
-                                var list  = imuManager.imuDeviceList
-                                for (var key in roles) {
-                                    if (roles[key] !== role) continue
-                                    var ownerId = key.indexOf("#") >= 0 ? key.substring(0, key.indexOf("#")) : key
-                                    if (ownerId === imuData.id) continue
-                                    for (var i = 0; i < list.length; ++i)
-                                        if (list[i].id === ownerId && list[i].sessionEnabled !== false)
-                                            return ownerId
-                                }
-                                return ""
-                            }
-                            // The holder as the golfer may read it — the manager's remembered-name
-                            // rule (alias, else description, never a raw "{…}" id; Stage 5d).
-                            function nameOf(deviceId) { return imuManager.displayNameForDevice(deviceId) }
-
-                            // Disable mounts another present, enabled sensor holds. A
-                            // HackMotion's one choice needs BOTH roles (_option folds
-                            // the palm's holder in), which is also what keeps two
-                            // instruments off one arm.
-                            itemEnabledFn: function(index) {
-                                var o = placementCombo.placementOptions[index]
-                                return !o || o.holder === undefined || o.holder === ""
-                            }
-
-                            // What the roles map says for THIS row, as an index into
-                            // the options. Imperative, because a ComboBox drops a
-                            // currentIndex binding the first time the user picks.
-                            function _syncFromMap() {
-                                var saved = placementCombo.currentRole
-                                for (var i = 0; i < placementOptions.length; i++) {
-                                    if (placementOptions[i].value === saved) { currentIndex = i; return }
-                                }
-                                currentIndex = 0
-                            }
-
-                            Component.onCompleted: _syncFromMap()
-                            // The options are rebuilt whenever a holder, an alias or the
-                            // offered set changes; the selection is re-derived each time.
-                            onModelChanged:        _syncFromMap()
-                            onCurrentRoleChanged:  _syncFromMap()
-
-                            onActivated: (idx) => {
-                                var role = placementOptions[idx].value
-                                imuRow.refusal = ""
-                                // ⚠ THE MANAGER CAN SAY NO, and the combo has already moved.
-                                // A refusal (one claim per role; the holder is named by
-                                // roleRefused, handled below) leaves the roles map — and so
-                                // currentRole — unchanged, so nothing would move it back:
-                                // snap it to the real state here.
-                                if (!imuManager.setRoleForDevice(imuData.id, role))
-                                    placementCombo._syncFromMap()
-                            }
-
-                            Connections {
-                                target: imuManager
-                                function onRoleRefused(deviceId, role, holderId) {
-                                    if (deviceId !== imuData.id) return
-                                    imuRow.refusal = qsTr("%1 is held by %2. Unassign or disable it first.")
-                                                         .arg(ImuMounts.label(role) || role)
-                                                         .arg(placementCombo.nameOf(holderId))
-                                    placementCombo._syncFromMap()
-                                }
-                            }
-                        }
-
-                        // Why the last pick did not stick — in the panel, never a dialog.
                         Text {
-                            visible:          imuRow.refusal !== ""
-                            text:             imuRow.refusal
-                            font.family:      Theme.fontData
-                            font.pixelSize:   Theme.fontSzMicro
-                            color:            Theme.colorWarn
-                            wrapMode:         Text.WordWrap
-                            Layout.maximumWidth: placementCombo.implicitWidth
+                            objectName: "imuMountLine"
+                            text:       imuRow.mountLine
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            color:          imuRow.mountLabel !== "" ? Theme.colorText2 : Theme.colorText3
+                            wrapMode:       Text.WordWrap
+                            Layout.maximumWidth: Theme.sp(260)
                         }
                     }
 
@@ -1411,7 +1266,7 @@ Item {
             }
 
             Text {
-                text: qsTr("All enumerated IMU devices are listed below. Assign each to a body placement, configure the output rate, and use the Test panel to verify orientation before a session.")
+                text: qsTr("All enumerated IMU devices are listed below. Each shows where it is worn — set in session setup, on the Sensors step. Configure the output rate here, and use the Test panel to verify orientation before a session.")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
                 font.weight:    Theme.fontBodyWeight
@@ -1529,7 +1384,8 @@ Item {
                 id: summaryRect
                 Layout.fillWidth: true
                 Layout.leftMargin: Theme.gap(26)
-                height:  Theme.sp(40)
+                // One line normally; taller only when a narrow window wraps a list.
+                Layout.preferredHeight: Math.max(Theme.sp(40), summaryRow.implicitHeight + 2 * Theme.gap(12))
                 color:   Theme.colorBg2
                 radius:  Theme.radius
                 border.width: 1
@@ -1544,19 +1400,23 @@ Item {
 
                 // Mounts BY NAME, in picker order. Reads only the roles map's VALUES,
                 // never its keys, so a wG3's two unit keys count as the two mounts they
-                // fill. "Assigned" is every role claimed, offered or not (a hand-edited
-                // trunk role is still shown); "Missing" is the OFFERED mounts nobody
-                // claims (ImuMounts.offeredRoles — the trunk is not asked for yet).
+                // fill. "Assigned" is every role claimed, offered or not; "Not worn" is the
+                // OFFERED mounts nobody claims (ImuMounts.offeredRoles). Not a warning: no
+                // mount is required (session_wizard_refactor_design.md §4.12), and since the
+                // trunk mounts are offered (W2.2) a wrist-only setup leaves two of them unworn.
                 readonly property var assignedRoles: {
                     var held = Object.values(appSettings.imuRoles)
                     return ImuMounts.allRoles.filter(function(r) { return held.indexOf(r) >= 0 })
                 }
-                readonly property var assignedPlacements: assignedRoles.map(function(r) { return ImuMounts.label(r) })
+                // The SHORT names (ImuMounts.shortLabel): a one-line summary has no room for the
+                // trunk mounts' placement hints, which the Sensors page shows where they are chosen.
+                readonly property var assignedPlacements: assignedRoles.map(function(r) { return ImuMounts.shortLabel(r) })
                 readonly property var missingPlacements: ImuMounts.offeredRoles
                     .filter(function(r) { return summaryRect.assignedRoles.indexOf(r) < 0 })
-                    .map(function(r) { return ImuMounts.label(r) })
+                    .map(function(r) { return ImuMounts.shortLabel(r) })
 
                 RowLayout {
+                    id: summaryRow
                     anchors.fill:    parent
                     anchors.margins: Theme.gap(12)
                     spacing:         Theme.gap(16)
@@ -1572,6 +1432,9 @@ Item {
 
                     Rectangle { width: 1; height: Theme.sp(14); color: Theme.colorBorderStrong; opacity: 0.4 }
 
+                    // The two lists SHARE the row, each in proportion to its length, and wrap
+                    // within their share rather than run into each other: both stay readable at
+                    // any window width (the box grows to the taller list).
                     Text {
                         text:  summaryRect.assignedPlacements.length > 0
                                    ? qsTr("Assigned: ") + summaryRect.assignedPlacements.join(qsTr(" · "))
@@ -1579,15 +1442,25 @@ Item {
                         color:          Theme.colorText2
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
-                        Layout.fillWidth: true
+                        wrapMode:       Text.WordWrap
+                        Layout.fillWidth:               true
+                        Layout.preferredWidth:          0
+                        Layout.minimumWidth:            0
+                        Layout.horizontalStretchFactor: Math.max(1, text.length)
                     }
 
                     Text {
                         visible:        summaryRect.missingPlacements.length > 0
-                        text:           qsTr("Missing: ") + summaryRect.missingPlacements.join(qsTr(" · "))
-                        color:          Theme.colorWarn
+                        text:           qsTr("Not worn: ") + summaryRect.missingPlacements.join(qsTr(" · "))
+                        color:          Theme.colorText3
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
+                        wrapMode:       Text.WordWrap
+                        horizontalAlignment: Text.AlignRight
+                        Layout.fillWidth:               true
+                        Layout.preferredWidth:          0
+                        Layout.minimumWidth:            0
+                        Layout.horizontalStretchFactor: Math.max(1, text.length)
                     }
                 }
             }

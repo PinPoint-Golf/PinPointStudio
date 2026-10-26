@@ -19,11 +19,13 @@
 #include "imu_vision_fuser.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstring>
 #include <utility>
 
 #include "imu_calibration.h"   // toAnatomical (shared A*q*M)
+#include "imu_retime.h"        // W2.4: a Witmotion lane dated by its own sample clock
 #include "imu_sample.h"
 #include "swing_window.h"
 #include "format_descriptor.h"            // ImuFormat (nominal rate)
@@ -34,25 +36,133 @@ namespace pinpoint::analysis {
 
 namespace {
 
-// Re-derive a source's orientation offline from its raw accel+gyro under `cfg` (warm-started from the
-// stored quat at the first sample), returning (t_us, q_refused) pairs aligned to the source's samples.
-// The nominal cadence is taken from the IMU format so dt matches the live ImuBase::fuseRawImu exactly.
-std::vector<std::pair<int64_t, QQuaternion>>
-refuseSource(const SwingWindow &window, SourceId src, const pinpoint::RefuseConfig &cfg)
+// A lane's samples on the instants they are resampled at: the re-timed ones (W2.4).
+// Empty when the lane is read through the window on its recorded stamps.
+struct DatedLane {
+    std::vector<int64_t>   tUs;    // strictly increasing
+    std::vector<ImuSample> rows;
+};
+
+// The lane's configured rate (0 = unknown).
+double nominalHzOf(const SwingWindow &window, SourceId src)
 {
-    std::vector<pinpoint::RefuseSample> samples;
+    if (const auto *imf = std::get_if<ImuFormat>(&window.formatOf(src).format))
+        return double(imf->sample_rate_hz);
+    return 0.0;
+}
+
+// ⚠ RE-TIME A HOST-STAMPED LANE, AND ONLY THAT. A Witmotion sample is stamped at
+// host ARRIVAL (EventBuffer::nowMicros), in bursts of 8 about every 30 ms, so its
+// stamp dates it to within a burst; imu_retime.h dates it by the device's own
+// sample clock instead. The window keeps the arrivals untouched — this is a
+// derived timeline, recomputed on every fusion, never written back. A HackMotion
+// lane is dated upstream by its own clock fit and never comes here.
+DatedLane retimeLane(const SwingWindow &window, SourceId src, LaneClock &clock)
+{
+    DatedLane lane;
+    std::vector<int64_t> arrival;
     const std::vector<IndexEntry> entries = window.entriesFor(src);
-    samples.reserve(entries.size());
+    arrival.reserve(entries.size());
+    lane.rows.reserve(entries.size());
     for (const IndexEntry &e : entries) {
         const SourceRing::ReadHandle h = window.payloadOf(e);
-        if (!h.data || h.bytes < sizeof(ImuSample))
+        if (!h.data || h.bytes != sizeof(ImuSample))
             continue;
         ImuSample s{};
         std::memcpy(&s, h.data, sizeof(ImuSample));
-        samples.push_back(pinpoint::RefuseSample{ e.timestamp_us,
+        lane.rows.push_back(s);
+        arrival.push_back(e.timestamp_us);
+    }
+    const double nominalHz = nominalHzOf(window, src);
+    const imu_retime::RetimeResult fit = imu_retime::retimeArrivals(arrival, nominalHz);
+    clock.nominalHz     = nominalHz;
+    clock.residualP50Us = fit.residualP50Us;
+    clock.residualP95Us = fit.residualP95Us;
+    clock.residualMaxUs = fit.residualMaxUs;
+    clock.lossEvents    = fit.lossEvents;
+    clock.lostSamples   = fit.lostSamples;
+    clock.segments      = int(fit.segments.size());
+    if (!fit.applied || lane.rows.size() < 2)
+        return {};   // not one sample clock: read through the window on the stamps as recorded
+    clock.retimed  = true;
+    clock.periodUs = fit.periodUs;
+    lane.tUs = fit.retimedUs;
+    return lane;
+}
+
+// Interpolate a dated lane at `target_us` — the SAME arithmetic as
+// SwingWindow::interpolateImu (lerp accel/gyro, shortest-arc slerp, nlerp when
+// nearly identical), on the lane's own instants. False outside them, as there.
+bool interpolateDated(const DatedLane &lane, int64_t target_us, ImuSample &o)
+{
+    const auto after = std::upper_bound(lane.tUs.begin(), lane.tUs.end(), target_us);
+    if (after == lane.tUs.end() || after == lane.tUs.begin())
+        return false;
+    const std::size_t ni = std::size_t(after - lane.tUs.begin());
+    const std::size_t pi = ni - 1;
+    const ImuSample &p = lane.rows[pi];
+    const ImuSample &n = lane.rows[ni];
+    const int64_t denom = lane.tUs[ni] - lane.tUs[pi];
+    if (denom == 0) { o = p; return true; }
+    const float t = static_cast<float>(target_us - lane.tUs[pi]) / static_cast<float>(denom);
+
+    o.accel_x = p.accel_x + t * (n.accel_x - p.accel_x);
+    o.accel_y = p.accel_y + t * (n.accel_y - p.accel_y);
+    o.accel_z = p.accel_z + t * (n.accel_z - p.accel_z);
+    o.gyro_x  = p.gyro_x  + t * (n.gyro_x  - p.gyro_x);
+    o.gyro_y  = p.gyro_y  + t * (n.gyro_y  - p.gyro_y);
+    o.gyro_z  = p.gyro_z  + t * (n.gyro_z  - p.gyro_z);
+
+    float pw = p.quat_w, px = p.quat_x, py = p.quat_y, pz = p.quat_z;
+    float nw = n.quat_w, nx = n.quat_x, ny = n.quat_y, nz = n.quat_z;
+    float dot = pw*nw + px*nx + py*ny + pz*nz;
+    if (dot < 0.0f) { nw=-nw; nx=-nx; ny=-ny; nz=-nz; dot=-dot; }
+    if (dot > 0.9995f) {
+        const float rw = pw + t*(nw-pw), rx = px + t*(nx-px);
+        const float ry = py + t*(ny-py), rz = pz + t*(nz-pz);
+        const float len = std::sqrt(rw*rw + rx*rx + ry*ry + rz*rz);
+        o.quat_w = rw/len; o.quat_x = rx/len; o.quat_y = ry/len; o.quat_z = rz/len;
+    } else {
+        const float theta0    = std::acos(dot);
+        const float sinTheta0 = std::sin(theta0);
+        const float s0 = std::sin((1.0f - t) * theta0) / sinTheta0;
+        const float s1 = std::sin(t * theta0)          / sinTheta0;
+        o.quat_w = s0*pw + s1*nw; o.quat_x = s0*px + s1*nx;
+        o.quat_y = s0*py + s1*ny; o.quat_z = s0*pz + s1*nz;
+    }
+    return true;
+}
+
+// Re-derive a source's orientation offline from its raw accel+gyro under `cfg` (warm-started from the
+// stored quat at the first sample), returning (t_us, q_refused) pairs aligned to the source's samples.
+// The nominal cadence is taken from the IMU format so dt matches the live ImuBase::fuseRawImu exactly.
+// A re-timed lane (`dated` non-empty) is re-fused on its re-timed instants.
+std::vector<std::pair<int64_t, QQuaternion>>
+refuseSource(const SwingWindow &window, SourceId src, const pinpoint::RefuseConfig &cfg,
+             const DatedLane &dated)
+{
+    std::vector<pinpoint::RefuseSample> samples;
+    auto add = [&samples](int64_t t, const ImuSample &s) {
+        samples.push_back(pinpoint::RefuseSample{ t,
                                                   s.accel_x, s.accel_y, s.accel_z,
                                                   s.gyro_x,  s.gyro_y,  s.gyro_z,
                                                   s.quat_w,  s.quat_x,  s.quat_y, s.quat_z });
+    };
+    if (!dated.tUs.empty()) {
+        samples.reserve(dated.tUs.size());
+        for (std::size_t i = 0; i < dated.tUs.size(); ++i)
+            add(dated.tUs[i], dated.rows[i]);
+    } else {
+        const std::vector<IndexEntry> entries = window.entriesFor(src);
+        samples.reserve(entries.size());
+        for (const IndexEntry &e : entries) {
+            const SourceRing::ReadHandle h = window.payloadOf(e);
+            if (!h.data || h.bytes < sizeof(ImuSample))
+                continue;
+            ImuSample s{};
+            std::memcpy(&s, h.data, sizeof(ImuSample));
+            add(e.timestamp_us, s);
+        }
     }
     std::vector<std::pair<int64_t, QQuaternion>> seq;
     if (samples.size() < 2)
@@ -208,6 +318,8 @@ FusedStreams ImuVisionFuser::fuse(const SwingWindow &window,
     struct Bound {
         const ImuSegmentBinding *b;
         std::vector<std::pair<int64_t, QQuaternion>> refused;   // empty unless filter.refuse is on
+        DatedLane dated;     // the re-timed lane (W2.4); empty: read through the window
+        LaneClock clock;
     };
     std::vector<Bound> bound;
     int64_t gridStart = window.startTimestampUs();
@@ -218,9 +330,17 @@ FusedStreams ImuVisionFuser::fuse(const SwingWindow &window,
         const std::vector<IndexEntry> entries = window.entriesFor(b.source);
         if (entries.size() < 2)
             continue;
-        gridStart = std::max(gridStart, entries.front().timestamp_us);
-        gridEnd   = std::min(gridEnd,   entries.back().timestamp_us);
-        Bound bb{ &b, {} };
+        Bound bb{ &b, {}, {}, {} };
+        bool hmLane = b.hackMotion;
+        if (const auto *imf = std::get_if<ImuFormat>(&window.formatOf(b.source).format))
+            hmLane = hmLane || imf->device == DeviceKind::IMU_HackMotion;
+        if (!hmLane)
+            bb.dated = retimeLane(window, b.source, bb.clock);
+        // The coverage is the lane's samples on the instants they are resampled at.
+        gridStart = std::max(gridStart, bb.dated.tUs.empty() ? entries.front().timestamp_us
+                                                             : bb.dated.tUs.front());
+        gridEnd   = std::min(gridEnd,   bb.dated.tUs.empty() ? entries.back().timestamp_us
+                                                             : bb.dated.tUs.back());
         // ⚠ NEVER RE-FUSE A HACKMOTION LANE. refuseSource() re-runs Madgwick from the
         // recorded accel+gyro, but a wG3's accel column is GRAVITY-REMOVED linear
         // acceleration (hm_sample_convert.h:36-42), not the raw accelerometer vector
@@ -231,7 +351,7 @@ FusedStreams ImuVisionFuser::fuse(const SwingWindow &window,
         // Same reasoning imu_refusion_check.h applies to this device, for the same
         // physical reason.
         if (refusion && !b.hackMotion)
-            bb.refused = refuseSource(window, b.source, *refusion);
+            bb.refused = refuseSource(window, b.source, *refusion, bb.dated);
         bound.push_back(std::move(bb));
     }
     if (bound.empty() || gridEnd <= gridStart)
@@ -247,6 +367,7 @@ FusedStreams ImuVisionFuser::fuse(const SwingWindow &window,
         SegmentStream s;
         s.role       = bd.b->role;
         s.hackMotion = bd.b->hackMotion;
+        s.clock      = bd.clock;
         s.qAnat.reserve(out.timeGrid.size());
         s.gyroDps.reserve(out.timeGrid.size());
         s.accelG.reserve(out.timeGrid.size());
@@ -271,8 +392,11 @@ FusedStreams ImuVisionFuser::fuse(const SwingWindow &window,
             ImuSample smp{};
             QQuaternion qAnat;
             QVector3D   gyro, accel;
-            if (window.interpolateImu(bd.b->source, t,
-                                      reinterpret_cast<std::byte *>(&smp), sizeof(smp))) {
+            const bool have = bd.dated.tUs.empty()
+                ? window.interpolateImu(bd.b->source, t,
+                                        reinterpret_cast<std::byte *>(&smp), sizeof(smp))
+                : interpolateDated(bd.dated, t, smp);
+            if (have) {
                 // q_raw: the re-fused orientation when filter.refuse is on, else the stored quat.
                 QQuaternion qRaw = bd.refused.empty()
                     ? QQuaternion(smp.quat_w, smp.quat_x, smp.quat_y, smp.quat_z)

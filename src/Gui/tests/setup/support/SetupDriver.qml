@@ -17,7 +17,8 @@
 // A function that looks for something the current page does not show throws, so a case cannot
 // pass on nothing.
 //
-// Step keys: "goals","cameras","framing","triangulate","ball","imus","calibrateArm","checkArm","ready".
+// Step keys: "goals","cameras","framing","triangulate","ball","imus","calibrateArm","checkArm",
+// "calibrateTrunk","checkTrunk","ready".
 import QtQuick
 import PinPointStudio
 import "../fakes"
@@ -44,6 +45,18 @@ Item {
     property var lm:        null
     property var appLogFake: null
     property var journal:   null
+    property var ceremony:  null     // FakeTrunkCeremony, the "trunkCeremony" context property
+
+    // The trunk routine's pace on the Calibrate trunk page (TESTS ONLY, lint W7): set on each new
+    // page BEFORE it is activated (SetupFlow sets `page` before `active`), as CalibDriver paces the
+    // arm flow. null = the routine's own (real) pace.
+    property var trunkPace: null
+
+    // The golfer who turns the fake trunk sensors when a turn step arms (TrunkGolfer.qml): the turn
+    // steps end on the sensors, not a timer. Attached to each Calibrate trunk page's routine; a case
+    // sets `golfer.enabled = false` (no turn) or `golfer.scripts` (its own turns).
+    TrunkGolfer { id: trunkGolfer }
+    readonly property alias golfer: trunkGolfer
 
     // The shell (named `wizard` so the cases read the same against both shells).
     property var wizard: null
@@ -60,7 +73,7 @@ Item {
     readonly property int screenWizard:   10
 
     readonly property var stepKeys: ["goals", "cameras", "framing", "triangulate", "ball", "imus",
-                                     "calibrateArm", "checkArm", "ready"]
+                                     "calibrateArm", "checkArm", "calibrateTrunk", "checkTrunk", "ready"]
 
     Component { id: imuMgrComp;    FakeImuManager {} }
     Component { id: camMgrComp;    FakeCameraManager {} }
@@ -70,6 +83,7 @@ Item {
     Component { id: navComp;       FakeNav {} }
     Component { id: lmComp;        FakeLaunchMonitor {} }
     Component { id: appLogComp;    FakeAppLog {} }
+    Component { id: ceremonyComp;  FakeTrunkCeremony {} }
     // N17's test page (support/pages/ExtraPage.qml) reports to `pageJournal`.
     Component { id: journalComp;   PageJournal {} }
     // PpCameraFrame (the camera rows' thumbnails, the Ball frame) reads `shotReplay`…
@@ -119,19 +133,24 @@ Item {
         lm         = lmComp.createObject(drv)
         appLogFake = appLogComp.createObject(drv)
         journal    = journalComp.createObject(drv)
+        ceremony   = ceremonyComp.createObject(drv)
         _shotReplay = shotReplayComp.createObject(drv)
         _shotProcessor = shotProcessorComp.createObject(drv)
         shellCalls = []
         emitted = []
         wizard = null
+        trunkGolfer.reset()
+        trunkGolfer.routine = null
     }
 
     function tearDown() {
+        trunkGolfer.routine = null
         if (wizard) harness.destroyNow(wizard)
         wizard = null
-        var objs = [imu, cams, athlete, liveWrist, session, nav, lm, appLogFake, journal, _shotReplay, _shotProcessor]
+        var objs = [imu, cams, athlete, liveWrist, session, nav, lm, appLogFake, journal, ceremony, _shotReplay, _shotProcessor]
         for (var i = 0; i < objs.length; ++i) if (objs[i]) objs[i].destroy()
-        imu = cams = athlete = liveWrist = session = nav = lm = appLogFake = journal = _shotReplay = _shotProcessor = null
+        imu = cams = athlete = liveWrist = session = nav = lm = appLogFake = journal = ceremony = _shotReplay = _shotProcessor = null
+        trunkPace = null
     }
 
     function _create() {
@@ -147,15 +166,23 @@ Item {
             appLog:            appLogFake,
             shotReplay:        _shotReplay,
             shotProcessor:     _shotProcessor,
-            pageJournal:       journal
+            pageJournal:       journal,
+            trunkCeremony:     ceremony
         }, host, { width: host.width, height: host.height, visible: false })
         if (!w) throw new Error("SetupDriver: ScreenSessionSetup failed to instantiate")
+        w.flow.pageChanged.connect(_onPageChanged)
         w.cancelled.connect(_onCancelled)
         w.sessionStartRequested.connect(_onSessionStartRequested)
         w.exitRequested.connect(_onExitRequested)
         w.navigateToSettings.connect(_onNavigateToSettings)
         wizard = w
         return w
+    }
+
+    function _onPageChanged() {
+        var p = wizard ? wizard.flow.page : null
+        if (p !== null && p.stepKey === "calibrateTrunk" && trunkPace !== null) p.routine.pace = trunkPace
+        trunkGolfer.routine = p !== null && p.stepKey === "calibrateTrunk" ? p.routine : null
     }
 
     // Main shows exactly one StackLayout child: the shell is visible iff it is current.

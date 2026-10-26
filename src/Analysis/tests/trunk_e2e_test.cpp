@@ -22,7 +22,7 @@
 // the frame that consumer assumed, so all of them passed.
 //
 // Here nothing is built in the consumer's frame. A synthetic body stands tall, bends to address and
-// swings; two sensors ride it at ARBITRARY mounts (the nominal "USB up, label out" plus a tilt of up
+// swings; two sensors ride it at ARBITRARY mounts (the nominal "USB down, label out" plus a tilt of up
 // to 20° and, in §c, a mount yaw δ about the spine); the fusion world has an arbitrary heading and
 // is Madgwick's (gravity seed → identity) or ESKF's (180° about X). From that we generate what the
 // device and the filter would hand us — raw sensor→world quaternions, sensor-frame gyro from the
@@ -45,6 +45,15 @@
 //   §d  a left-hander's mirrored swing: the same lead-relative rates and turn magnitudes.
 //   §e  a fusion-yaw drift between stand tall and the swing changes nothing measured from address.
 //   §f  the gates on chain-generated windows, and the one mis-mount stand tall cannot see.
+//   §g  design defect 2: the IMU's signed turns (pelvisRotationSigned, thoraxRotationSigned) read the
+//       truth with the lead-relative sign, mirror for a left-hander, and carry the P6→P7 rate
+//       hip_stall's measure (m_pelvisRotRateP6P7) reads — on a hip sensor alone too.
+//   §h  design §8.4, the signed chart: pelvis, chest and a wG3 forearm, through segment_rates, cross
+//       zero once at the top with the same polarity (− going back, + coming down), peak positive in
+//       order, both hands, every mount above; and a left-hander analysed as right-handed is caught.
+//   §i  design §6.3 / W2.1d, the face-in cue: a sensor worn label-in reads its address bend backward,
+//       and body_rotation puts a DOWNGRADED record (body.pelvisFaceIn / body.thoraxFaceIn) on that
+//       sensor's readings only — kept and shown, never refused — on every swing's own address.
 //
 // Own main()/CHECK, no fixture. The skeleton3d term is evaluated in the test, in its own types
 // (skeleton3d_rig.h), exactly as skeleton3d_fit.cpp writes it — the fit itself needs cameras.
@@ -52,6 +61,7 @@
 #include "../../IMU/imu_calibration.h"
 #include "../../IMU/trunk_angles.h"
 #include "../../IMU/imu_vision_fuser.h"
+#include "../../IMU/hm_frame.h"
 #include "../../Body/body_rotation.h"
 #include "../../Kinematics/segment_rates.h"
 #include "../../Timeline/phase_segmenter.h"
@@ -180,8 +190,8 @@ TrunkMotion thoraxMotion(double bend = 40.0) { return { bend, bend, 92.0, 3.79, 
 enum class TurnAxis { Spine, WorldVertical };
 
 // How a sensor sits on its segment: M⁻¹ = Rz(δ)·Rx(pitch)·Ry(roll)·extra·M_nom⁻¹, the extra being a
-// mis-mount (face-in = Rz(180°), USB down = Ry(180°)). M_nom = Rx(−90°): segment +Z = sensor +Y
-// (USB end up), +Y = sensor −Z (label out), +X = sensor +X.
+// mis-mount (face-in = Rz(180°), USB up = Ry(180°)). M_nom = Rx(−90°): segment +Z = sensor +Y
+// (pointing away from the USB end, which is down), +Y = sensor −Z (label out), +X = sensor +X.
 struct Mount {
     double pitchDeg = 0, rollDeg = 0, yawDeg = 0;
     SQ     extra;
@@ -679,11 +689,11 @@ int main()
     std::printf("-- f. the gates --\n");
     {
         Rig up = base;
-        up.pelMount.extra = ry(180);            // USB end DOWN, label still out
+        up.pelMount.extra = ry(180);            // USB end UP, label still out
         const Run U = build(up);
-        CHECK("f: USB-down hip sensor rejected", !U.pel.al.valid);
-        CHECK("f: …\"Hip sensor: turn it USB-up, label out\"",
-              U.pel.al.record.failure == QStringLiteral("Hip sensor: turn it USB-up, label out"));
+        CHECK("f: USB-up hip sensor rejected", !U.pel.al.valid);
+        CHECK("f: …\"Hip sensor: turn it USB-down, label out\"",
+              U.pel.al.record.failure == QStringLiteral("Hip sensor: turn it USB-down, label out"));
         CHECK("f: …and the chest sensor beside it still solves", U.thx.al.valid);
 
         Rig mv = base;
@@ -698,7 +708,7 @@ int main()
         CHECK("f: 80 % of the samples rejected, hip sensor named",
               !Sh.pel.al.valid && Sh.pel.al.record.failure == QStringLiteral("Hip sensor dropped samples — move closer or check the battery"));
 
-        // FACE-IN: label against the back, USB still up. Gravity cannot tell it from the right mount
+        // FACE-IN: label against the back, USB still down. Gravity cannot tell it from the right mount
         // (they differ by a rotation about up), so stand tall solves it — 180° about the spine.
         // Turn and the S-I rate are a rotation about that same axis and read CORRECTLY; the
         // sagittal and lateral readings flip: the address forward bend reads as a backward bend.
@@ -716,6 +726,433 @@ int main()
                    trunk_angles::siRateDps(R.thx.stream.gyroDps[idxAt(base.thx.peakS)]), 0.01);
         CHECK_NEAR("f: face-in: the address forward bend reads BACKWARD (deg)",
                    trunk_angles::forwardBendRad(Fi.thx.stream.qAnat[iAddr]) * kR2D, -40.0, 0.01);
+    }
+
+    // ── §g the signed turn and hip_stall's reading on a worn swing (design defect 2) ──────────
+    // BodyRotationTriangulated steps aside for every segment an IMU measured, so on a worn swing
+    // the signed pelvis turn m_pelvisRotRateP6P7 (→ sig_hipStall → hip_stall) reads has to come from
+    // the IMU route. The measure is a rate: the curve's ±kWindowHalfUs median at P7 less that at P6,
+    // over the time between (measure_sample.h) — reproduced here on the emitted series.
+    std::printf("-- g. signed turn and the hip_stall rate (defect 2) --\n");
+    {
+        constexpr double kDeliveryS = 4.05;   // P6, the shaft parallel coming down
+        const auto ladderWithP6 = [](const Run &run) {
+            std::vector<PhaseEvent> ph = run.phases;
+            ph.push_back({ Phase::Delivery, us(kDeliveryS), 1.f });
+            return ph;
+        };
+        const auto findKey = [](const std::vector<MetricSeries> &all, const char *key) -> const MetricSeries * {
+            for (const MetricSeries &m : all)
+                if (m.key == QLatin1String(key)) return &m;
+            return nullptr;
+        };
+        const auto medianAt = [](const MetricSeries *m, double s) {
+            std::vector<double> v;
+            if (m)
+                for (size_t i = 0; i < m->t_us.size(); ++i)
+                    if (std::llabs(m->t_us[i] - us(s)) <= pinpoint::tuned::sampler::kWindowHalfUs)
+                        v.push_back(m->value[i]);
+            std::sort(v.begin(), v.end());
+            return v.empty() ? std::nan("") : v[v.size() / 2];
+        };
+        const auto rateP6P7 = [&](const MetricSeries *m) {
+            return (medianAt(m, kImpactS) - medianAt(m, kDeliveryS)) / (kImpactS - kDeliveryS);
+        };
+        // The truth, signed and lead-relative: D13's turn of the TRUE orientation from address; the
+        // right-hander's opening is +Z, so it stands as it is.
+        const auto truthTurn = [&](const SensorRun &sr, double s) {
+            return turnFromAddrDeg(sr.qTrue[idxAt(s)], sr.qTrue[iAddr]);
+        };
+
+        const std::vector<PhaseEvent> ph = ladderWithP6(R);
+        const std::vector<MetricSeries> series = buildBodyRotationSeries(rot, ph);
+        const MetricSeries *ps = findKey(series, "pelvisRotationSigned");
+        const MetricSeries *ts = findKey(series, "thoraxRotationSigned");
+        CHECK("g: both signed series emitted, from the IMU tier",
+              ps && ts && rot.pelvisSigned.tier == RotationTier::Imu && rot.thoraxSigned.tier == RotationTier::Imu);
+        CHECK_NEAR("g: signed pelvis at the top = the truth (deg)", turnAt(rot.pelvisSigned, kTopS),
+                   truthTurn(R.pel, kTopS), 0.5);
+        CHECK_NEAR("g: signed thorax at the top = the truth (deg)", turnAt(rot.thoraxSigned, kTopS),
+                   truthTurn(R.thx, kTopS), 0.5);
+        CHECK("g: closed (negative) at the top, open (positive) at impact — pelvis",
+              turnAt(rot.pelvisSigned, kTopS) < -20.0 && turnAt(rot.pelvisSigned, kImpactS) > 10.0);
+        CHECK("g: …and thorax", turnAt(rot.thoraxSigned, kTopS) < -40.0 && turnAt(rot.thoraxSigned, kImpactS) > 0.0);
+        CHECK_NEAR("g: |signed| = the magnitude series at impact (deg)", std::fabs(turnAt(rot.pelvisSigned, kImpactS)),
+                   turnAt(rot.pelvis, kImpactS), 1e-6);
+
+        const double rate = rateP6P7(ps);
+        const double truthRate = (truthTurn(R.pel, kImpactS) - truthTurn(R.pel, kDeliveryS)) / (kImpactS - kDeliveryS);
+        std::printf("    m_pelvisRotRateP6P7 on the IMU series %.1f °/s (truth %.1f)\n", rate, truthRate);
+        CHECK("g: m_pelvisRotRateP6P7 is assessable (both ends read)", std::isfinite(rate));
+        CHECK_NEAR("g: …and reads the pelvis still opening into impact, as the truth (°/s)", rate, truthRate, 1.0);
+        CHECK("g: …positive — a pelvis turning through square is not a stall", rate > 100.0);
+
+        // A left-hander's mirrored swing: the same lead-relative numbers (the mirror is the producer's).
+        Rig l = base;
+        l.leftHanded = true;
+        const Run L = build(l);
+        const BodyRotationResult rl = rotation(L);
+        const std::vector<MetricSeries> lSeries = buildBodyRotationSeries(rl, ladderWithP6(L));
+        CHECK_NEAR("g: left-hander: signed pelvis at the top = the right-hander's (deg)",
+                   turnAt(rl.pelvisSigned, kTopS), turnAt(rot.pelvisSigned, kTopS), 0.01);
+        CHECK_NEAR("g: left-hander: signed thorax at impact = the right-hander's (deg)",
+                   turnAt(rl.thoraxSigned, kImpactS), turnAt(rot.thoraxSigned, kImpactS), 0.01);
+        CHECK_NEAR("g: left-hander: the P6→P7 rate = the right-hander's (°/s)",
+                   rateP6P7(findKey(lSeries, "pelvisRotationSigned")), rate, 0.01);
+
+        // One sensor at a time: the hip sensor alone still feeds hip_stall; the chest alone gives
+        // its own signed twin and no pelvis one.
+        for (int k = 0; k < 2; ++k) {
+            FusedStreams one;
+            one.timeGrid = R.grid;
+            one.segments = { k == 0 ? R.pel.stream : R.thx.stream };
+            const std::vector<MetricSeries> s1 =
+                buildBodyRotationSeries(trackBodyRotation(PoseTrack2D {}, one, 1000, 1000, true, ph), ph);
+            if (k == 0) {
+                CHECK("g: hip sensor alone: pelvisRotationSigned, no thoraxRotationSigned",
+                      findKey(s1, "pelvisRotationSigned") && !findKey(s1, "thoraxRotationSigned"));
+                CHECK_NEAR("g: hip sensor alone: the same P6→P7 rate (°/s)",
+                           rateP6P7(findKey(s1, "pelvisRotationSigned")), rate, 0.01);
+            } else {
+                CHECK("g: chest sensor alone: thoraxRotationSigned, no pelvisRotationSigned",
+                      findKey(s1, "thoraxRotationSigned") && !findKey(s1, "pelvisRotationSigned"));
+            }
+        }
+    }
+
+    // ── §h the signed chart: trunk and wG3 arm cross zero together at the top (design §8.4) ───
+    // Since b699d505 the sequence curves are SIGNED: the trunk S-I rate natively (axialFromImu, lead-
+    // relative by `leadIsLeft`), the arm IMU against its own swing plane (signAgainstPlane, a reversal
+    // only where the arm slows — 93c1e4c8) and then turned over as a whole so the downswing reads +
+    // (orientDownswingPositive). Two independent sign rules meet on one chart, so a trunk curve upside
+    // down against the arm would read as a sequence fault. The convention (pinpoint_sign_conventions.md,
+    // "Turn RATES are signed"; kSignedArmClub): opening / towards the target is POSITIVE — every curve
+    // negative going back, crossing zero once near the top, one positive hump coming down.
+    //
+    // THE ARM IS A wG3 FOREARM, composed as imu_vision_fuser.cpp composes a HackMotion lane: the device
+    // streams WORLD→BODY in its own frame and its gyro in its own frame; the fuser conjugates the quat
+    // and calls toAnatomical(A = identity, q_hm*, M = hm_frame::mountM()) — the selected candidate — and
+    // rotates the gyro by M⁻¹; role LeadForearm (hm_binding_recon.h, the lower-arm unit), hackMotion set.
+    // In segment_rates the wG3 is `armImu` by the fallback (no LeadUpperArm is worn with it) and takes
+    // swingFromImu's GYRO branch: ω less its roll about e_y, signed against the carried plane normal.
+    // Nothing there dispatches on hackMotion, so a Witmotion forearm takes the same lines; what differs
+    // is upstream (the conjugate, the frame constant), which is why the lane is built the wG3's way.
+    //
+    // The forearm swings about an inclined, world-fixed plane normal while it rolls (supinates going
+    // back, pronates 90° coming down) — the roll moves the swing vector around the segment frame, so
+    // the normal has to be CARRIED for the sign to hold. Synthetic timing (truth, printed below): the
+    // pelvis reverses 91 ms before the arms' top (3.80 s), the chest 37 ms before, the forearm 13 ms
+    // after; peaks pelvis 3.98 s < chest 4.01 s < forearm 4.05 s, impact 4.10 s.
+    std::printf("-- h. the signed chart: pelvis, chest and wG3 forearm cross zero together (§8.4) --\n");
+    {
+        // The forearm's swing angle about its plane normal: the TrunkMotion form (smoothstep closing
+        // through the backswing, a tanh opening whose rate peaks at 833 °/s, 50 ms before impact).
+        const TrunkMotion armSwing { 0.0, 0.0, 120.0, 3.83, 150.0, 4.05, 0.09 };
+        const auto armRollDeg = [](double t) {
+            return 50.0 * smooth((t - kAddressS) / (kTopS - kAddressS)) - 90.0 * smooth((t - kTopS) / (kFollowEndS - kTopS));
+        };
+        const SQ plane   = (rz(-35) * rx(55)).normalized();   // an inclined swing plane, arbitrary heading
+        const SQ hmWorld = rz(123);                           // the wG3's own world heading
+        // A left-hander's swing: the mirror across the stance's Y–Z plane (rotation axis (x, −y, −z)).
+        const auto mirror = [](const SQ &q) { return SQ { q.w, q.x, -q.y, -q.z }; };
+        const auto wg3Forearm = [&](const std::vector<int64_t> &grid, bool leftHanded) {
+            const std::function<SQ(double)> qt = [&](double t) {
+                const SQ q = (plane * rx(armSwing.psiDeg(t)) * ry(armRollDeg(t))).normalized();
+                return leftHanded ? mirror(q) : q;
+            };
+            const QQuaternion M = pinpoint::hm_frame::mountM(), Minv = M.conjugated();
+            SegmentStream s;
+            s.role       = SegmentRole::LeadForearm;
+            s.hackMotion = true;
+            for (int64_t tu : grid) {
+                const double t = double(tu) * 1e-6;
+                // What the device sends: q_hm (world→body), so that q_hm*·M = W·q_true; gyro_s = M·ω_body.
+                const QQuaternion qHm   = (toQt(hmWorld) * toQt(qt(t)) * Minv).normalized().conjugated();
+                const QVector3D   gyroS = M.rotatedVector(toQt(bodyRateDps(qt, t)));
+                // …and the fuser's composition of a HackMotion lane, line for line.
+                s.qAnat.push_back(imu_calibration::toAnatomical(QQuaternion(), qHm.conjugated(), M));
+                s.gyroDps.push_back(Minv.rotatedVector(gyroS));
+                s.accelG.push_back(QVector3D());   // gravity-removed on a wG3; segment_rates does not read it
+            }
+            return s;
+        };
+        // Where ψ' (φ' for the arm) crosses zero, negative → positive, before the downswing's peak.
+        const auto truthCross = [](const TrunkMotion &m) {
+            double lo = 3.5, hi = 3.95;
+            for (int it = 0; it < 80; ++it) {
+                const double mid = 0.5 * (lo + hi);
+                (m.psiRateDps(mid) < 0.0 ? lo : hi) = mid;
+            }
+            return 0.5 * (lo + hi);
+        };
+        // The emitted curve's zero crossings from 100 ms after address to impact (it is exactly 0 before
+        // the takeaway): how many, the first one's instant (linear between the bracketing samples), and
+        // the sign either side of it.
+        struct Crossing { int count = 0; double tS = std::nan(""); int before = 0, after = 0; };
+        const auto crossingOf = [](const MetricSeries &m) {
+            Crossing c;
+            int lastSign = 0;
+            size_t lastI = 0;
+            for (size_t i = 0; i < m.t_us.size() && i < m.value.size(); ++i) {
+                const double ts = double(m.t_us[i]) * 1e-6;
+                if (ts < kAddressS + 0.1 || ts > kImpactS || m.value[i] == 0.0) continue;
+                const int sgn = m.value[i] > 0.0 ? 1 : -1;
+                if (lastSign != 0 && sgn != lastSign) {
+                    if (++c.count == 1) {
+                        const double v0 = m.value[lastI], v1 = m.value[i];
+                        const double t0 = double(m.t_us[lastI]) * 1e-6, t1 = ts;
+                        c.tS     = t0 + (t1 - t0) * (-v0) / (v1 - v0);
+                        c.before = lastSign;
+                        c.after  = sgn;
+                    }
+                }
+                lastSign = sgn;
+                lastI    = i;
+            }
+            return c;
+        };
+        const auto ratesFor = [](const Run &run, const FusedStreams &fs, bool leadIsLeft) {
+            SegmentRatesInputs in;
+            in.streams    = &fs;
+            in.leadIsLeft = leadIsLeft;
+            in.phases     = &run.phases;
+            in.impactUs   = us(kImpactS);
+            return buildSegmentRates(in, SegmentRatesConfig {});
+        };
+        const auto streamsFor = [&](const Run &run) {
+            FusedStreams fs;
+            fs.timeGrid = run.grid;
+            fs.segments = { run.pel.stream, run.thx.stream, wg3Forearm(run.grid, run.rig.leftHanded) };
+            return fs;
+        };
+
+        const double tP = truthCross(base.pel), tT = truthCross(base.thx), tA = truthCross(armSwing);
+        std::printf("    truth: zero crossings pelvis %.4f s, chest %.4f s, forearm %.4f s (arms' top %.4f); "
+                    "peaks %.3f / %.3f / %.3f s, forearm %.0f °/s\n",
+                    tP, tT, tA, kTopS, base.pel.peakS, base.thx.peakS, armSwing.peakS, armSwing.peakRateDps());
+
+        // THE TOLERANCES. The trunk's crossing is read off a symmetric smoothing of a rate that passes
+        // through zero cleanly: one sample (5 ms). The arm's sign is HELD until the rate along the plane
+        // normal clears 15 × gyroNoiseDps (30 °/s) on the far side, so its curve reads −|ω⊥| a little past
+        // the true reversal and then steps to +30 °/s, and the 25 ms smoothing window spreads that step:
+        // one derivative window (25 ms). TOGETHER: the synthetic truth spreads the three crossings over
+        // tA − tP (the hips lead the transition); allowed that plus the arm's 25 ms.
+        const double tolTrunkS = 0.005, tolArmS = 0.025;
+        const double spreadMaxS = (tA - tP) + tolArmS;
+
+        struct MountCase { const char *name; std::function<void(Rig &)> set; };
+        const MountCase mounts[] = {
+            { "tilted mounts", [](Rig &) {} },
+            { "δ = 10°", [](Rig &r) { r.pelMount.yawDeg = 10.0; r.thxMount.yawDeg = 10.0; } },
+            { "ESKF + 17° drift", [](Rig &r) { r.eskf = true; r.driftDeg = 17.0; } },
+            { "face-in chest", [](Rig &r) { r.thxMount.extra = rz(180); } },
+        };
+        SegmentRatesResult rhNominal, lhNominal;
+        for (int lh = 0; lh < 2; ++lh) {
+            for (const MountCase &mc : mounts) {
+                Rig rg = base;
+                mc.set(rg);
+                rg.leftHanded = lh != 0;
+                const Run run = build(rg);
+                const FusedStreams fs = streamsFor(run);
+                const SegmentRatesResult res = ratesFor(run, fs, !rg.leftHanded);
+                if (&mc == &mounts[0]) (lh ? lhNominal : rhNominal) = res;
+
+                const Crossing cp = crossingOf(res.pelvis.series), ct = crossingOf(res.thorax.series),
+                               ca = crossingOf(res.leadArm.series);
+                const KsNode *np = res.sequence.node(SeqSegment::Pelvis), *nt = res.sequence.node(SeqSegment::Thorax),
+                             *na = res.sequence.node(SeqSegment::LeadArm);
+                const char *hand = lh ? "LH" : "RH";
+                const auto pol = [](const Crossing &c) { return c.before < 0 && c.after > 0 ? "−→+" : c.before > 0 && c.after < 0 ? "+→−" : "?"; };
+                std::printf("    %s %-17s crossings pelvis %.4f %s, chest %.4f %s, forearm %.4f %s s (×%d/%d/%d); "
+                            "spread %.0f ms; peaks %.3f < %.3f < %.3f s (%.0f / %.0f / %.0f °/s)\n",
+                            hand, mc.name, cp.tS, pol(cp), ct.tS, pol(ct), ca.tS, pol(ca), cp.count, ct.count, ca.count,
+                            (std::max({ cp.tS, ct.tS, ca.tS }) - std::min({ cp.tS, ct.tS, ca.tS })) * 1e3,
+                            np ? np->tPeakUs * 1e-6 : 0.0, nt ? nt->tPeakUs * 1e-6 : 0.0, na ? na->tPeakUs * 1e-6 : 0.0,
+                            np ? np->peakDps : 0.0, nt ? nt->peakDps : 0.0, na ? na->peakDps : 0.0);
+
+                char lbl[140];
+                std::snprintf(lbl, sizeof lbl, "h: %s %s: routes pelvisImu / thoraxImu / leadArmImus (the wG3 forearm)", hand, mc.name);
+                CHECK(lbl, run.pel.al.valid && run.thx.al.valid && res.pelvis.routeId == QLatin1String("pelvisImu")
+                               && res.thorax.routeId == QLatin1String("thoraxImu")
+                               && res.leadArm.routeId == QLatin1String("leadArmImus"));
+                std::snprintf(lbl, sizeof lbl, "h: %s %s: each curve crosses zero ONCE, address+100 ms → impact", hand, mc.name);
+                CHECK(lbl, cp.count == 1 && ct.count == 1 && ca.count == 1);
+                std::snprintf(lbl, sizeof lbl, "h: %s %s: crossings at the truth (trunk ±5 ms, forearm ±25 ms)", hand, mc.name);
+                CHECK(lbl, std::fabs(cp.tS - tP) <= tolTrunkS && std::fabs(ct.tS - tT) <= tolTrunkS
+                               && std::fabs(ca.tS - tA) <= tolArmS);
+                std::snprintf(lbl, sizeof lbl, "h: %s %s: together at the top (spread ≤ %.0f ms), pelvis ≤ chest ≤ forearm",
+                              hand, mc.name, spreadMaxS * 1e3);
+                CHECK(lbl, std::max({ cp.tS, ct.tS, ca.tS }) - std::min({ cp.tS, ct.tS, ca.tS }) <= spreadMaxS
+                               && cp.tS <= ct.tS && ct.tS <= ca.tS);
+                std::snprintf(lbl, sizeof lbl, "h: %s %s: one polarity — negative going back, positive coming down", hand, mc.name);
+                CHECK(lbl, cp.before < 0 && cp.after > 0 && ct.before < 0 && ct.after > 0 && ca.before < 0 && ca.after > 0);
+                std::snprintf(lbl, sizeof lbl, "h: %s %s: peaks placed, positive, pelvis < chest < forearm", hand, mc.name);
+                CHECK(lbl, np && nt && na && np->placed && nt->placed && na->placed && np->peakDps > 0.0
+                               && nt->peakDps > 0.0 && na->peakDps > 0.0 && np->tPeakUs < nt->tPeakUs
+                               && nt->tPeakUs < na->tPeakUs);
+            }
+        }
+        // The forearm is handedness-free by construction (its sign is the swing's own); the mirror must
+        // not move it. Nominal mounts, every sample.
+        {
+            const std::vector<double> &a = rhNominal.leadArm.series.value, &b = lhNominal.leadArm.series.value;
+            double dMax = a.size() == b.size() && !a.empty() ? 0.0 : 1e9;
+            for (size_t i = 0; i < std::min(a.size(), b.size()); ++i) dMax = std::max(dMax, std::fabs(a[i] - b[i]));
+            CHECK_NEAR("h: the left-hander's forearm curve = the right-hander's (max |Δ| °/s)", dMax, 0.0, 0.01);
+            const KsNode *n0 = rhNominal.sequence.node(SeqSegment::LeadArm), *n1 = lhNominal.sequence.node(SeqSegment::LeadArm);
+            CHECK_NEAR("h: …forearm peak, 3 % of the truth's 833 °/s (windowed mean)", n0 ? n0->peakDps : 0.0,
+                       armSwing.peakRateDps(), 0.03 * armSwing.peakRateDps());
+            CHECK_NEAR("h: …forearm peak instant (ms), one sample", n1 ? n1->tPeakUs * 1e-3 : 0.0, armSwing.peakS * 1e3, 5.0);
+        }
+
+        // THE FAILURE THIS CHECK EXISTS FOR. A left-hander analysed as right-handed (`leadIsLeft` wrong:
+        // a profile or session handedness slip). The trunk's sign comes from `leadIsLeft`, the arm's from
+        // its own swing, so only the trunk turns over: pelvis and chest read + going back and − coming
+        // down while the forearm still reads − → +. A chart with all four nodes judged from that would
+        // be a sequence fault the golfer never made; the polarity check above sees it.
+        {
+            Rig rg = base;
+            rg.leftHanded = true;
+            const Run run = build(rg);
+            const FusedStreams fs = streamsFor(run);
+            const SegmentRatesResult res = ratesFor(run, fs, /*leadIsLeft (wrong)*/ true);
+            const Crossing cp = crossingOf(res.pelvis.series), ct = crossingOf(res.thorax.series),
+                           ca = crossingOf(res.leadArm.series);
+            const KsNode *np = res.sequence.node(SeqSegment::Pelvis), *nt = res.sequence.node(SeqSegment::Thorax);
+            std::printf("    LH analysed as RH: pelvis %.4f %s, chest %.4f %s, forearm %.4f %s; trunk nodes %s %.0f / %s %.0f °/s\n",
+                        cp.tS, cp.before > 0 ? "+→−" : "−→+", ct.tS, ct.before > 0 ? "+→−" : "−→+",
+                        ca.tS, ca.before > 0 ? "+→−" : "−→+",
+                        np && np->placed ? "placed" : "unplaced", np ? np->peakDps : 0.0,
+                        nt && nt->placed ? "placed" : "unplaced", nt ? nt->peakDps : 0.0);
+            CHECK("h: LH analysed as RH: the trunk turns over (+ going back, − coming down)…",
+                  cp.before > 0 && cp.after < 0 && ct.before > 0 && ct.after < 0);
+            CHECK("h: …while the forearm does not (− → +), so the polarity check fails it",
+                  ca.before < 0 && ca.after > 0
+                      && !(cp.before < 0 && cp.after > 0 && ct.before < 0 && ct.after > 0 && ca.before < 0 && ca.after > 0));
+        }
+    }
+
+    // ── §i the face-in cue at address (design §6.3, W2.1d) ───────────────────────────────────
+    // §f showed stand tall and the turns cannot see a sensor worn label-in; the address bend's sign
+    // can. Each swing checks its own address (a per-swing analysis cannot see the session's first).
+    std::printf("-- i. the face-in cue at address --\n");
+    {
+        const auto faceIn = [](const BodyRotationResult &res) {
+            std::vector<const GateRecord *> out;
+            for (const GateRecord &g : res.gates)
+                if (g.gate == QLatin1String("body.pelvisFaceIn") || g.gate == QLatin1String("body.thoraxFaceIn"))
+                    out.push_back(&g);
+            return out;
+        };
+        const auto hasSeries = [](const std::vector<MetricSeries> &all, const char *key) {
+            for (const MetricSeries &m : all)
+                if (m.key == QLatin1String(key)) return true;
+            return false;
+        };
+
+        // The right mount: forward bends read, no cue.
+        CHECK_NEAR("i: right mount: hip address bend read (deg)", rot.pelvisAddressBendDeg, 20.0, 0.5);
+        CHECK_NEAR("i: right mount: chest address bend read (deg)", rot.thoraxAddressBendDeg, 40.0, 0.5);
+        CHECK("i: right mount: no face-in record", faceIn(rot).empty());
+
+        // A face-in CHEST at a 40° address: one record, on the chest only, downgraded.
+        Rig fc = base;
+        fc.thxMount.extra = rz(180);
+        const Run Fc = build(fc);
+        const BodyRotationResult rfc = rotation(Fc);
+        const std::vector<const GateRecord *> gc = faceIn(rfc);
+        CHECK_NEAR("i: face-in chest: its address bend reads backward (deg)", rfc.thoraxAddressBendDeg, -40.0, 0.5);
+        CHECK("i: face-in chest: exactly one record, body.thoraxFaceIn on thoraxRotation",
+              gc.size() == 1 && gc[0]->gate == QLatin1String("body.thoraxFaceIn")
+                  && gc[0]->subject == QLatin1String("thoraxRotation"));
+        CHECK("i: …DOWNGRADED (shown with its warning), not refused or withheld",
+              gc.size() == 1 && gc[0]->effect == GateEffect::Downgraded);
+        CHECK("i: …covers the chest's signed turn and the separation, nothing of the hips or the KS",
+              gc.size() == 1 && gc[0]->covers.contains(QStringLiteral("thoraxRotationSigned"))
+                  && gc[0]->covers.contains(QStringLiteral("xFactor")) && gc[0]->covers.contains(QStringLiteral("xFactorStretch"))
+                  && !gc[0]->covers.contains(QStringLiteral("pelvisRotation")) && !gc[0]->covers.contains(QStringLiteral("pelvisRotationSigned"))
+                  && !gc[0]->covers.contains(QStringLiteral("ks.thorax")));
+        CHECK_NEAR("i: …its evidence carries the bend it compared (deg)",
+                   gc.size() == 1 ? gc[0]->evidence.value(QStringLiteral("bendDeg")).toDouble() : 0.0, -40.0, 0.5);
+        CHECK_NEAR("i: …and the limit (deg)",
+                   gc.size() == 1 ? gc[0]->evidence.value(QStringLiteral("limitDeg")).toDouble() : 0.0, -5.0, 1e-9);
+        CHECK_NEAR("i: face-in chest: the hip sensor beside it still reads forward (deg)", rfc.pelvisAddressBendDeg, 20.0, 0.5);
+        // Shown, never hidden: every reading is still emitted, and the turn is still the truth.
+        const std::vector<MetricSeries> sfc = buildBodyRotationSeries(rfc, Fc.phases);
+        CHECK("i: face-in chest: every reading still emitted (turn, signed, separation)",
+              hasSeries(sfc, "thoraxRotation") && hasSeries(sfc, "thoraxRotationSigned")
+                  && hasSeries(sfc, "xFactor") && hasSeries(sfc, "xFactorStretch"));
+        CHECK_NEAR("i: face-in chest: its turn at the top = the right mount's (deg)",
+                   turnAt(rfc.thorax, kTopS), turnAt(rot.thorax, kTopS), 0.01);
+        // The stage's gate list carries it, with no refusal beside it.
+        const std::vector<GateRecord> stage = bodyRotationGates(rfc, Fc.fs, false, false);
+        bool stageHas = false, stageRefuses = false;
+        for (const GateRecord &g : stage) {
+            stageHas = stageHas || g.gate == QLatin1String("body.thoraxFaceIn");
+            stageRefuses = stageRefuses || g.effect == GateEffect::Refused;
+        }
+        CHECK("i: face-in chest: bodyRotationGates hands the record on, refusing nothing", stageHas && !stageRefuses);
+
+        // A face-in PELVIS: the hips only.
+        Rig fp = base;
+        fp.pelMount.extra = rz(180);
+        const Run Fp = build(fp);
+        const BodyRotationResult rfp = rotation(Fp);
+        const std::vector<const GateRecord *> gp = faceIn(rfp);
+        CHECK_NEAR("i: face-in pelvis: its address bend reads backward (deg)", rfp.pelvisAddressBendDeg, -20.0, 0.5);
+        CHECK("i: face-in pelvis: exactly one record, body.pelvisFaceIn on pelvisRotation, downgraded",
+              gp.size() == 1 && gp[0]->gate == QLatin1String("body.pelvisFaceIn")
+                  && gp[0]->subject == QLatin1String("pelvisRotation") && gp[0]->effect == GateEffect::Downgraded);
+        CHECK("i: …covering the hips' signed turn and the separation, not the chest's",
+              gp.size() == 1 && gp[0]->covers.contains(QStringLiteral("pelvisRotationSigned"))
+                  && gp[0]->covers.contains(QStringLiteral("xFactor"))
+                  && !gp[0]->covers.contains(QStringLiteral("thoraxRotationSigned")));
+
+        // Both worn label-in: one record each.
+        Rig fb = base;
+        fb.pelMount.extra = rz(180);
+        fb.thxMount.extra = rz(180);
+        const BodyRotationResult rfb = rotation(build(fb));   // named: faceIn() points into it
+        const std::vector<const GateRecord *> gb = faceIn(rfb);
+        CHECK("i: both face-in: one record per sensor",
+              gb.size() == 2 && gb[0]->gate == QLatin1String("body.pelvisFaceIn") && gb[1]->gate == QLatin1String("body.thoraxFaceIn"));
+
+        // A left-hander: the bend is sagittal, so the cue is handedness-free.
+        Rig lc = base;
+        lc.leftHanded = true;
+        const BodyRotationResult rlc = rotation(build(lc));
+        CHECK("i: left-hander, right mount: no face-in record", faceIn(rlc).empty());
+        lc.thxMount.extra = rz(180);
+        const BodyRotationResult rlf = rotation(build(lc));
+        const std::vector<const GateRecord *> gl = faceIn(rlf);
+        CHECK_NEAR("i: left-hander, face-in chest: its address bend reads backward (deg)", rlf.thoraxAddressBendDeg, -40.0, 0.5);
+        CHECK("i: left-hander, face-in chest: body.thoraxFaceIn only, downgraded",
+              gl.size() == 1 && gl[0]->gate == QLatin1String("body.thoraxFaceIn") && gl[0]->effect == GateEffect::Downgraded);
+
+        // The threshold: a near-upright address on the right mount does not fire; a shallow 10° hip
+        // bend worn label-in does.
+        Rig up = base;
+        up.pel = pelvisMotion(3.0);
+        const BodyRotationResult rup = rotation(build(up));
+        CHECK_NEAR("i: near-upright hips (3°), right mount: bend read (deg)", rup.pelvisAddressBendDeg, 3.0, 0.5);
+        CHECK("i: …no face-in record", faceIn(rup).empty());
+        up.pel = pelvisMotion(10.0);
+        up.pelMount.extra = rz(180);
+        const BodyRotationResult rsh = rotation(build(up));
+        const std::vector<const GateRecord *> gs = faceIn(rsh);
+        CHECK("i: shallow hips (10°) worn label-in: body.pelvisFaceIn fires",
+              gs.size() == 1 && gs[0]->gate == QLatin1String("body.pelvisFaceIn"));
+
+        // No Address on the ladder: the reference falls back to the first sample (stand tall here),
+        // which says nothing about a mount, so nothing is read and nothing fires.
+        Run noAddr = Fc;
+        noAddr.phases.erase(std::remove_if(noAddr.phases.begin(), noAddr.phases.end(),
+                                           [](const PhaseEvent &e) { return e.phase == Phase::Address; }),
+                            noAddr.phases.end());
+        const BodyRotationResult rna = rotation(noAddr);
+        CHECK("i: no Address on the ladder: no bend read, no record (face-in chest)",
+              std::isnan(rna.thoraxAddressBendDeg) && faceIn(rna).empty());
     }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES PRESENT" : "ALL PASS", g_fail);

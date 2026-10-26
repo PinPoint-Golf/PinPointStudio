@@ -31,8 +31,10 @@
 //
 //   Tier IMU (`RotationTier::Imu`) — a bound Pelvis / Thorax segment stream. The turn is the
 //     segment's medio-lateral axis carried into world by q_anat and projected into the horizontal
-//     plane, referenced to its own address direction. This is the quantity the descriptor names,
-//     measured rather than inferred, and it is what the metric resolves as `Measured`.
+//     plane, referenced to its own address direction (trunk design D13, trunk_angles::turnFromRad).
+//     This is the quantity the descriptor names, measured rather than inferred, and it is what the
+//     metric resolves as `Measured`. The same difference, kept signed and made lead-relative, is
+//     pelvisRotationSigned / thoraxRotationSigned (trunk design defect 2).
 //
 //   Tier FORESHORTENING (`RotationTier::Foreshortening`) — a face-on camera only. As a body line
 //     turns away from the camera its image width collapses by the cosine of the turn, so
@@ -81,6 +83,7 @@
 #include <QString>
 #include <QVariantMap>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 #include "../Analysis/swing_analysis.h" // PoseTrack2D, MetricSeries, PhaseEvent, SegmentRole
@@ -110,6 +113,15 @@ struct BodyRotationConfig {
     bool    triangulated    = tuned::bodyRotation::kTriangulated;      // bodyRotation.triangulated
     int64_t triAddrMaxGapUs = tuned::bodyRotation::kTriAddrMaxGapUs;   // bodyRotation.triAddrMaxGapUs
     double  triScaleFrac    = tuned::bodyRotation::kTriScaleFrac;      // bodyRotation.triScaleFrac
+    // THE FACE-IN CUE (trunk design §6.3, W2.1d). A trunk sensor whose address forward bend
+    // (trunk_angles::forwardBendRad, D13) reads below this is probably worn label-in: a real address
+    // bends FORWARD, +15–25° at the pelvis and +30–45° at the chest (§6.2), and a sensor worn face-in
+    // (180° about the spine) reads that bend backward, −15° to −45°. −5° keeps ten degrees of margin
+    // to the shallowest real pelvis while a correct mount needs more than noise to cross it: the
+    // stand-tall solve zeroes the inclination, so a correct sensor reads below −5° only if the segment
+    // itself leans back — the sagittal sense points backward AND the whole inclination (side bend
+    // included, D13) exceeds 5° — which is not an address.
+    double  faceInBendDeg   = tuned::bodyRotation::kFaceInBendDeg;     // bodyRotation.faceInBendDeg
 
     static BodyRotationConfig fromOverrides(const QVariantMap &ov)
     {
@@ -124,6 +136,7 @@ struct BodyRotationConfig {
         apply(ov, "bodyRotation.triangulated",  c.triangulated);
         apply(ov, "bodyRotation.triAddrMaxGapUs", c.triAddrMaxGapUs);
         apply(ov, "bodyRotation.triScaleFrac",  c.triScaleFrac);
+        apply(ov, "bodyRotation.faceInBendDeg", c.faceInBendDeg);
         return c;
     }
 };
@@ -151,19 +164,28 @@ struct BodyRotationResult {
     RotationChannel thorax;                    // thoraxRotation   °
     MetricChannel   xFactor;                   // thorax − pelvis  °
     MetricChannel   xFactorStretch;            // xFactor(t) − xFactor(Top)  °
-    // pelvisRotationSigned — LEAD-RELATIVE, + open (toward the lead side), crossing zero at the
-    // square-up instead of folding there. Triangulated route only: a cosine carries no sign, and the
-    // IMU's signed reading is still PLANNED. Its σ rides in pelvisSigned.sigmaPerSample's twin below.
+    // pelvisRotationSigned / thoraxRotationSigned — LEAD-RELATIVE, + open (toward the lead side),
+    // crossing zero at the square-up instead of folding there. Each from its segment's bound IMU, else
+    // the two-camera fit — the same route as its magnitude twin, and its σ per sample with it (the
+    // triangulated route only). The IMU route carries no σ: design §8.2's budget is not built.
     RotationChannel pelvisSigned;
+    RotationChannel thoraxSigned;
     int64_t triGapUs = -1;                     // Triangulated: frames further apart than this are a gap
 
     double addrHipSpanPx = 0.0, addrShoulderSpanPx = 0.0;
+    // The IMU tier's forward bend at THIS swing's address (°, D13, anterior +), per trunk sensor; NaN
+    // when no sensor is bound or the ladder found no Address within addrWindowUs of a stream sample.
+    // What the face-in cue (body.pelvisFaceIn / body.thoraxFaceIn) compared.
+    double pelvisAddressBendDeg = std::numeric_limits<double>::quiet_NaN();
+    double thoraxAddressBendDeg = std::numeric_limits<double>::quiet_NaN();
     bool   valid = false;                      // at least one segment produced a turn curve
 
     // Trust stage 6: the gates this route decided. trackBodyRotationTriangulated records its own
     // refusals (body.rotation, by code) and both routes record a stretch with no Top to measure from
-    // (body.xFactorStretchTop). The IMU route's "no sensor" refusal needs to know whether the
-    // two-camera route can still fill the segment, so the stage asks bodyRotationGates for it.
+    // (body.xFactorStretchTop). The IMU route records the face-in cue (body.pelvisFaceIn /
+    // body.thoraxFaceIn, Downgraded: the readings stay, shown and judged, with the warning). The IMU
+    // route's "no sensor" refusal needs to know whether the two-camera route can still fill the
+    // segment, so the stage asks bodyRotationGates for it.
     std::vector<GateRecord> gates;
 };
 
@@ -179,8 +201,8 @@ BodyRotationResult trackBodyRotation(const PoseTrack2D &pose, const FusedStreams
                                      const std::vector<PhaseEvent> &phases,
                                      const BodyRotationConfig &cfg = {});
 
-// Emit pelvisRotation / thoraxRotation / xFactor / xFactorStretch. A channel that could not be
-// produced is simply absent — never a curve of zeros.
+// Emit pelvisRotation / thoraxRotation / pelvisRotationSigned / thoraxRotationSigned / xFactor /
+// xFactorStretch. A channel that could not be produced is simply absent — never a curve of zeros.
 std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
                                                   const std::vector<PhaseEvent> &phases);
 
@@ -199,7 +221,8 @@ std::vector<GateRecord> bodyRotationGates(const BodyRotationResult &res, const F
 // foreshortening tier never had. Turn is that bearing against its own value at Address:
 //
 //   pelvisRotation / thoraxRotation   |Δbearing| — the magnitude convention every corridor asks for
-//   pelvisRotationSigned              leadSign · Δbearing, + open, crossing zero at the square-up
+//   pelvisRotationSigned /            leadSign · Δbearing, + open, crossing zero at the square-up
+//   thoraxRotationSigned              (each with its magnitude twin's per-sample σ)
 //   xFactor / xFactorStretch          as the IMU route: thorax − pelvis, less its value at the Top
 //
 // σ per sample, in quadrature: the bearing's own σ from the fit (the two joints' posterior position

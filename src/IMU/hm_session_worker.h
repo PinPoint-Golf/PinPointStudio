@@ -30,6 +30,7 @@
 #include <atomic>
 #include <deque>
 #include <limits>
+#include <memory>
 #include <vector>
 
 // nowUs() is spelled inline below, so the buffer's clock has to be complete here
@@ -40,6 +41,7 @@
 #include "ble_imu_transport.h"
 #include "hm_capture_provenance.h"  // the pure window arithmetic behind Phase B′
 #include "hm_session_types.h"       // ReferenceAnchor / HistoryResult — what this measures
+#include "imu_sample_tap.h"          // the trunk ceremony recorder's tap (W2.1c)
 
 // ---------------------------------------------------------------------------
 // HmSessionWorker — the I/O-thread resident
@@ -142,6 +144,16 @@ public:
 
     // Callable from any thread.
     Snapshot snapshot() const;
+
+    // The trunk ceremony recorder's tap on one unit's lane (trunk_imu_sequence_grf_design.md §6.7:
+    // with a wG3 worn, the ceremony records its lanes too; §16.2 W2.1c). Created with the worker and
+    // never replaced, so the pointer is safe to read from any thread; the recorder starts and stops
+    // it. Fed from writeSample() with the stamp and ImuSample the ring would get — but whether or
+    // not a session is capturing, since the ceremony runs in setup, before capture starts.
+    std::shared_ptr<pinpoint::ImuSampleTap> ceremonyTap(int unit) const
+    {
+        return (unit >= 0 && unit < WR_UNIT_COUNT) ? m_ceremonyTaps[unit] : nullptr;
+    }
 
     // ── Deferred history (Phase E) ──────────────────────────────────────────
     // reserveHistory() must run ON the I/O thread (it is a wr_session_* call) and
@@ -324,6 +336,9 @@ private:
     pinpoint::EventBuffer *m_buffer = nullptr;
     pinpoint::SourceId     m_sourceIds[WR_UNIT_COUNT] =
         { pinpoint::kInvalidSourceId, pinpoint::kInvalidSourceId };
+    // ceremonyTap() — const after construction.
+    std::shared_ptr<pinpoint::ImuSampleTap> m_ceremonyTaps[WR_UNIT_COUNT] =
+        { std::make_shared<pinpoint::ImuSampleTap>(), std::make_shared<pinpoint::ImuSampleTap>() };
 
     // Cumulative counters. They live here rather than in m_snap because
     // drainLive() rebuilds the snapshot from scratch each pass and would

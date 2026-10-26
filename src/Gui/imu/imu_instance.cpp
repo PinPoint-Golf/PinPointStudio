@@ -24,7 +24,10 @@
 #include "imu_calibration.h"
 #include "imu_io_worker.h"
 #include "imu_sample.h"
+#include "imu_sample_tap.h"
 #include "source_descriptor.h"
+#include "trunk_angles.h"
+#include "trunk_stand_tall.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -41,6 +44,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <vector>
 
 // Dev raw recording (PINPOINT_IMU_RECORD_DIR): the hand-off between the I/O-thread
@@ -52,6 +56,46 @@ struct ImuRawRecordQueue
     std::atomic<bool>                      active { false };
     QMutex                                 mutex;
     std::vector<ImuIoWorker::RawSample>    pending;   // guarded by mutex
+};
+
+// The last kCapacity samples as the EventBuffer would store them (makeImuSample: raw sensor
+// frame, the same values a recorded lane carries, so the live and offline stand-tall solves read
+// the same numbers), stamped with the same host-arrival time. Producer: the I/O-thread data
+// lambda; consumer: calibrateTrunk() on the GUI thread, which copies it out oldest-first.
+struct ImuStandTallRing
+{
+    // ≥ the 2 s window at the fastest selectable rate (200 Hz), with room for the arrival
+    // bursts at its edges. 16 KB + 5 KB per sensor.
+    static constexpr size_t kCapacity = 640;
+
+    QMutex                            mutex;
+    std::vector<qint64>               tUs  = std::vector<qint64>(kCapacity, 0);   // guarded by mutex
+    std::vector<pinpoint::ImuSample>  rows = std::vector<pinpoint::ImuSample>(kCapacity);
+    size_t                            next  = 0;   // slot the next sample goes in
+    size_t                            count = 0;   // valid samples, ≤ kCapacity
+
+    void push(const ImuIoWorker::RawSample &in)
+    {
+        QMutexLocker lock(&mutex);
+        tUs[next]  = in.nowUs;
+        rows[next] = pinpoint::makeImuSample(in.ax, in.ay, in.az, in.gx, in.gy, in.gz,
+                                             in.qw, in.qx, in.qy, in.qz);
+        next = (next + 1) % kCapacity;
+        if (count < kCapacity) ++count;
+    }
+
+    void copyOut(std::vector<int64_t> &t, std::vector<pinpoint::ImuSample> &r)
+    {
+        QMutexLocker lock(&mutex);
+        t.clear(); r.clear();
+        t.reserve(count); r.reserve(count);
+        const size_t first = (next + kCapacity - count) % kCapacity;
+        for (size_t k = 0; k < count; ++k) {
+            const size_t i = (first + k) % kCapacity;
+            t.push_back(int64_t(tUs[i]));
+            r.push_back(rows[i]);
+        }
+    }
 };
 
 namespace {
@@ -99,6 +143,8 @@ ImuInstance::ImuInstance(const Device &device,
     , m_device(device)
     , m_deviceId(device.id)
     , m_deviceDescription(device.description)
+    , m_standTallRing(std::make_shared<ImuStandTallRing>())
+    , m_ceremonyTap(std::make_shared<pinpoint::ImuSampleTap>())
 {
     // Host the driver and the hot-path worker on the shared IMU I/O thread:
     // the QLowEnergyController is created inside connectToDevice(), which runs
@@ -153,7 +199,8 @@ ImuInstance::ImuInstance(const Device &device,
     // euler accessors are same-thread reads (dispatchCombinedPacket sets them
     // before emitting quaternionUpdated).
     connect(m_imu, &WT9011DCL_Base::quaternionUpdated, m_worker,
-            [imu = m_imu, worker = m_worker, rec = m_rawRecorder](const WT9011DCL_Base::QuaternionData &q) {
+            [imu = m_imu, worker = m_worker, rec = m_rawRecorder, ring = m_standTallRing,
+             tap = m_ceremonyTap](const WT9011DCL_Base::QuaternionData &q) {
                 const auto a = imu->accelData();
                 const auto g = imu->gyroData();
                 const auto e = imu->eulerData();
@@ -164,6 +211,11 @@ ImuInstance::ImuInstance(const Device &device,
                 in.gx = g.x; in.gy = g.y; in.gz = g.z;
                 in.eulerRoll = e.roll; in.eulerPitch = e.pitch; in.eulerYaw = e.yaw;
                 worker->processSample(in);
+                ring->push(in);   // calibrateTrunk()'s window (a short mutex, no allocation)
+                // The trunk ceremony recorder (W2.1c): the same stamp and sample, while it records.
+                if (tap->isActive())
+                    tap->push(in.nowUs, pinpoint::makeImuSample(in.ax, in.ay, in.az, in.gx, in.gy, in.gz,
+                                                                in.qw, in.qx, in.qy, in.qz));
                 // Dev raw recording: the SAME stamp the EventBuffer gets, queued for the
                 // GUI-thread flush — never a disk write on this thread.
                 if (rec && rec->active.load(std::memory_order_acquire)) {
@@ -259,7 +311,7 @@ ImuInstance::ImuInstance(const Device &device,
     });
 
     // 60 Hz display tick — the ONLY emitter of the high-rate change signals
-    // (quat/euler, accel, angular velocity, data rate). The hot path lives on
+    // (quat/euler, accel, angular velocity, gyro peak, long axis, data rate). The hot path lives on
     // the I/O thread; this copies its latest LiveSample into the QML-facing
     // members (display-frame accel remap happens here: sensor X→X, Z→Y, −Y→Z)
     // and emits. Consumers that poll between ticks (calibration flow) read
@@ -286,12 +338,28 @@ ImuInstance::ImuInstance(const Device &device,
         m_accelZ = -snap.accelY;
         m_angularVelocityDps = snap.angularVelocityDps;
         m_dataRateHz         = snap.dataRateHz;
+        m_gyroDps            = snap.gyroPeakDps;
+        {   // Sensor +Y (the long axis, away from the USB end) from up, raw frame — solveTrunkSegment's longAxisFromUpDeg.
+            const float aLen = std::sqrt(snap.accelX * snap.accelX + snap.accelY * snap.accelY
+                                         + snap.accelZ * snap.accelZ);
+            m_longAxisFromUpDeg = aLen > 1e-6f
+                ? qRadiansToDegrees(std::acos(qBound(-1.0f, snap.accelY / aLen, 1.0f)))
+                : 180.0f;
+        }
 
         emit quatChanged();
         emit accelChanged();
         if (qAbs(m_angularVelocityDps - m_lastSentVelDps) > 0.5f) {
             m_lastSentVelDps = m_angularVelocityDps;
             emit angularVelocityDpsChanged();
+        }
+        if (qAbs(m_gyroDps - m_lastSentGyroDps) > 0.1f) {
+            m_lastSentGyroDps = m_gyroDps;
+            emit gyroDpsChanged();
+        }
+        if (qAbs(m_longAxisFromUpDeg - m_lastSentLongAxisDeg) > 0.5f) {
+            m_lastSentLongAxisDeg = m_longAxisFromUpDeg;
+            emit longAxisFromUpDegChanged();
         }
         if (qAbs(m_dataRateHz - m_lastSentRateHz) > 0.1) {
             m_lastSentRateHz = m_dataRateHz;
@@ -342,6 +410,12 @@ ImuInstance::ImuInstance(const Device &device,
                 .arg(d.temperature, 5, 'f', 1));
     });
 
+}
+
+double ImuInstance::trunkHeadingDeg() const
+{
+    if (!m_anatCalibrated) return std::numeric_limits<double>::quiet_NaN();
+    return trunk_angles::liveHeadingDeg(m_anatQuat);
 }
 
 ImuInstance::~ImuInstance()
@@ -685,6 +759,7 @@ void ImuInstance::setFunctionalCalibration(const QQuaternion &refRaw,
     m_mountM         = a.M;
     m_anatCalibrated = true;
     m_calibratedAtUtc = QDateTime::currentDateTimeUtc();
+    clearTrunkProvenance();   // A/M are no longer the trunk solve's
 
     // Mis-mount check: angle between the solved mounting and the expected nominal.
     // δM = M_solved * conj(M_nominal); rotation angle = 2*acos(|w|).
@@ -717,6 +792,7 @@ void ImuInstance::setNominalCalibration(const QQuaternion &refRaw, bool handMoun
     m_alignA = (refRaw * m_mountM).conjugated().normalized();
     m_anatCalibrated    = true;
     m_calibratedAtUtc   = QDateTime::currentDateTimeUtc();
+    clearTrunkProvenance();   // A/M are no longer the trunk solve's
     m_mountDeviationDeg = 0.0;   // nominal = no fine-tune applied
 
     // Gravity-direction (flip) check: express the current arm-down accelerometer
@@ -763,6 +839,7 @@ void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phi
         m_alignA = (refRaw * m_mountM).conjugated().normalized();
         m_anatCalibrated    = true;
         m_calibratedAtUtc   = QDateTime::currentDateTimeUtc();
+        clearTrunkProvenance();   // A/M are no longer the trunk solve's
         m_mountDeviationDeg = std::abs(phiDeg);
         ppWarn() << "[ImuInstance]" << m_deviceDescription
                  << "— precise refine REJECTED (phi" << phiDeg << "deg too large); kept nominal";
@@ -781,6 +858,7 @@ void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phi
     m_alignA = (refRaw * m_mountM).conjugated().normalized();
     m_anatCalibrated   = true;
     m_calibratedAtUtc  = QDateTime::currentDateTimeUtc();
+    clearTrunkProvenance();   // A/M are no longer the trunk solve's
     m_mountDeviationDeg = std::abs(phiDeg);
 
     ppWarn() << "[ImuInstance]" << m_deviceDescription
@@ -798,11 +876,103 @@ void ImuInstance::clearFunctionalCalibration()
 {
     m_anatCalibrated  = false;
     m_calibratedAtUtc = QDateTime();
+    clearTrunkProvenance();   // A/M are no longer the trunk solve's
     m_alignA = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
     m_mountM = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
     m_worker->setAnatomical(m_alignA, m_mountM, false);
     emit anatCalibratedChanged();
     emit quatChanged();
+}
+
+void ImuInstance::clearTrunkProvenance()
+{
+    m_trunkProv   = pinpoint::TrunkCalibProvenance();
+    m_trunkRecord.clear();
+}
+
+QVariantMap ImuInstance::calibrateTrunk(const QString &role)
+{
+    // Trunk design §6.3 step 1 / §16.2 W2.1a: the live stand-tall solve. The window summary is
+    // trunk_stand_tall::summarise — the same arithmetic swinglab --trunk-calib-from replays.
+    const QString r = role.trimmed().toLower();
+    imu_calibration::TrunkSensor sensor;
+    if (r == QLatin1String("pelvis"))
+        sensor = imu_calibration::TrunkSensor::Pelvis;
+    else if (r == QLatin1String("thorax"))
+        sensor = imu_calibration::TrunkSensor::Thorax;
+    else {
+        ppWarn() << "[ImuInstance]" << m_deviceDescription << "— calibrateTrunk: unknown role"
+                 << role << "(pelvis | thorax) — nothing solved";
+        return QVariantMap{ { QStringLiteral("valid"), false }, { QStringLiteral("applied"), false },
+                            { QStringLiteral("role"), role }, { QStringLiteral("deviceId"), m_deviceId },
+                            { QStringLiteral("failure"),
+                              QStringLiteral("Unknown trunk role \"%1\" (pelvis or thorax)").arg(role) } };
+    }
+
+    std::vector<int64_t>            tUs;
+    std::vector<pinpoint::ImuSample> rows;
+    m_standTallRing->copyOut(tUs, rows);
+    const int64_t tEndUs = int64_t(pinpoint::EventBuffer::nowMicros());
+    const trunk_stand_tall::LiveSolve s = trunk_stand_tall::solveLatest(tUs, rows, tEndUs, m_outputRateHz, sensor);
+    const imu_calibration::TrunkAlignment &al = s.alignment;
+    const imu_calibration::TrunkSolveRecord &rec = al.record;
+
+    QVariantMap out = trunk_stand_tall::toVariantMap(s);
+    out.insert(QStringLiteral("role"),     r);
+    out.insert(QStringLiteral("deviceId"), m_deviceId);
+    out.insert(QStringLiteral("applied"),  al.valid);
+    out.insert(QStringLiteral("serial"),   laneSerial());
+    out.insert(QStringLiteral("windowEndUs"), qint64(tEndUs));   // the ceremony replay ends its window here
+
+    const QString line = QStringLiteral(
+        "— trunk stand-tall (%1): %2%3 — samples %4/%5 (%6) gyro %7 dps gravity %8 % long axis %9 deg "
+        "face %10 deg, %11 sigma %12 deg")
+        .arg(r, al.valid ? QStringLiteral("VALID") : QStringLiteral("INVALID"),
+             rec.failure.isEmpty() ? QString() : QStringLiteral(" (") + rec.failure + QStringLiteral(")"))
+        .arg(s.slice.w.samplesReceived).arg(s.slice.w.samplesExpected)
+        .arg(double(rec.sampleFraction), 0, 'f', 3).arg(double(rec.maxAbsGyroDps), 0, 'f', 2)
+        .arg(double(rec.gravityErrPct), 0, 'f', 2).arg(double(rec.longAxisFromUpDeg), 0, 'f', 1)
+        .arg(double(rec.faceFromHorizontalDeg), 0, 'f', 1).arg(rec.deltaTier)
+        .arg(double(rec.sigmaDeltaDeg), 0, 'f', 1);
+
+    if (!al.valid) {
+        // Never applied: the instance keeps whatever calibration it had (see the header).
+        ppWarn() << "[ImuInstance]" << m_deviceDescription << qPrintable(line + QStringLiteral(" — NOT applied"));
+        appendLog(timestamp() + QStringLiteral("  Trunk stand-tall (%1) failed: %2").arg(r, rec.failure));
+        return out;
+    }
+
+    m_alignA          = al.A;
+    m_mountM          = al.M;
+    m_anatCalibrated  = true;
+    m_calibratedAtUtc = QDateTime::currentDateTimeUtc();
+    // The arm routines' two mount measures do not apply to a trunk sensor (its own mount gates
+    // passed, or the solve would not be valid); 0 = not measured, as before any calibration.
+    m_mountDeviationDeg    = 0.0;
+    m_mountGravityErrorDeg = 0.0;
+    m_trunkProv = trunk_stand_tall::provenanceFrom(al);
+    out.insert(QStringLiteral("calibratedAt"), m_calibratedAtUtc.toString(Qt::ISODateWithMs));
+    m_trunkRecord = out;
+
+    // The legacy two-pose flag too, so `calibrated` reads true like every other calibrated
+    // sensor. Its arm-down/T-pose quaternions mean nothing for a trunk sensor: identity, and the
+    // transform with them — anatCalibrated takes precedence wherever both are read (ArmVizView).
+    m_calibrated            = true;
+    m_calibrationAngleValid = true;
+    m_calibArmDown   = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    m_calibArmTPose  = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    m_calibTransform = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+
+    ppInfo() << "[ImuInstance]" << m_deviceDescription << qPrintable(line + QStringLiteral(" — applied"));
+    appendLog(timestamp() + QStringLiteral("  Trunk stand-tall (%1) applied (long axis %2° from up, face %3°).")
+                                .arg(r).arg(double(rec.longAxisFromUpDeg), 0, 'f', 1)
+                                .arg(double(rec.faceFromHorizontalDeg), 0, 'f', 1));
+
+    m_worker->setAnatomical(m_alignA, m_mountM, m_anatCalibrated);
+    emit calibratedChanged();
+    emit anatCalibratedChanged();
+    emit quatChanged();
+    return out;
 }
 
 void ImuInstance::setOutputRateHz(int hz)

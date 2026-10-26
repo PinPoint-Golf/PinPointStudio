@@ -1,57 +1,58 @@
-// Stage 3 — Settings ▸ IMUs on roles: the mount picker by name (design §4.12, §4.13, §8a).
+// Mounts by name: set in ONE place, shown everywhere (design §4.12, §4.13; trunk design §16.2 W2.2).
 //
-// Hosts the REAL ImusPanel over FakeImuManager (whose setRoleForDevice follows
-// imu_role_map.cpp claimRole rule for rule, roleRefused included) and the real AppSettings over
-// a scratch QSettings. What the panel reads from its context, inventoried from the file:
-//   imuManager  — imuDeviceList, instances, imuCount, imuScanActive, imuScanError, instanceFor,
-//                 roleForDevice, setRoleForDevice, roleRefused (+ setImuAlias / setSelected /
-//                 rescanImu / setOrientationFilter, only on presses these cases do not make)
-//   appSettings — imuRoles, imuExcluded, imuOutputRateHz and the global IMU toggles (root context)
-//   ImuMounts   — the singleton under test alongside the panel (labels, offered set)
-// No sensor is connected here, so the test panel's ImuVizView never loads.
+// Since Mark's call of 26 Oct the Settings ▸ IMUs Placement combo is gone: each Settings row shows its
+// mount as a read-only line, and session setup's Sensors page (pages/ImusPage.qml) is the one place a
+// mount is set or changed. The combo's cases (Stage 3's M1–M9) moved with it — to the picker, here
+// and in tst_setup_sensors.qml (MQ1 offered mounts, MQ2 one write, MQ3 greyed holder, MQ4 refusal,
+// MQ5 the wG3's pair, MQ7 change, AN5 a holder never named by its id).
 //
-//   M1 a Witmotion row offers exactly the offered mounts + Unassigned, and no slot letter is
-//      visible anywhere in the panel
-//   M2 choosing a mount calls setRoleForDevice(id, role) once and the row shows it
-//   M3 a mount held by another present, enabled sensor is greyed and names the holder
-//   M4 a refused write snaps the combo back and the panel names the holder
-//   M5 a wG3 offers Unassigned and "Lead forearm + hand" only; choosing it fills both roles, and
-//      a Witmotion's forearm and hand entries are then greyed (no dual instrument on the arm)
-//   M6 a sensor holding pelvis shows "Pelvis…" although pelvis is not offered
-//   M7 the summary lists assigned and missing mounts by name
-//   M8 flipping ImuMounts.trunkMountsOffered offers the trunk mounts (the one-line promise)
-//   M9 a holder is never named by its raw "{…}" device id (Stage 5d): its seeded alias
-//      ("<description> <id>") reads as the description, in the greyed entry and the refusal
+// Settings hosts the REAL ImusPanel over the SetupDriver's FakeImuManager and the real AppSettings
+// over a scratch QSettings; the picker is the real shell (support/SetupDriver.qml). No sensor is
+// connected on the Settings side, so the panel's ImuVizView never loads.
+//
+//   S1 Settings: every row shows "Worn as: <mount> (set in session setup)" or "Not worn (set in
+//      session setup)" — a Witmotion, a wG3's pair, a trunk mount — and no row offers a picker
+//   S2 the line follows the roles map live (a mount set or taken away in setup reads at once)
+//   S3 the summary lists the worn and the unworn mounts by name, the trunk's included
+//   S4 no slot letter anywhere in the panel
+//   P1 the picker offers every offered mount — the arm's and the trunk's, by their §4.1 names — and a
+//      wG3 only its pair; no slot letter (was M1 + M8)
+//   P2 choosing the two trunk mounts writes each once and brings the trunk steps (was M8)
+//   P3 "Not worn" takes a mount away (was the combo's Unassigned): offered only to a mounted sensor
+//   P4 a held mount the pickers do not offer is still shown, in Settings and in the picker row (was M6)
 //
 // Every case asserts in cleanup() that no unexpected warning was emitted.
 import QtQuick
 import QtTest
 import PinPointStudio
-import "fakes"
+import "support"
 
 Item {
     id: root
-
-    // Never lose the window's LAST View3D (View3DKeepAlive.qml).
-    View3DKeepAlive { }
-    width: 1100
+    width: 1400
     height: 1400
 
-    Item { id: host; anchors.fill: parent }
+    readonly property var _testLog: testLog
+
+    Item { id: host; width: 1400; height: 900 }
+    Item { id: panelHost; y: 900; width: 1100; height: 1400 }
+    SetupDriver { id: drv; host: host; testCase: tc; testLog: root._testLog }
 
     TestCase {
         id: tc
         name: "SetupMounts"
         when: windowShown
 
-        Component { id: imuMgrComp; FakeImuManager {} }
-
-        property var imu: null
+        readonly property var d: drv
+        readonly property int wrist: SessionController.Wrist
         property var panel: null
 
         readonly property var armLabels: ["Lead forearm", "Lead hand", "Lead upper arm"]
-        readonly property string pelvisLabel: "Pelvis (belt, sacrum)"
-        readonly property string thoraxLabel: "Thorax (vest, upper back)"
+        readonly property string hipLabel:   "Hip sensor (belt, lower back)"
+        readonly property string chestLabel: "Chest sensor (vest, between the shoulder blades)"
+        // The Settings summary's one-line lists use the short names (ImuMounts.shortLabel).
+        readonly property string hipShort:   "Hip sensor"
+        readonly property string chestShort: "Chest sensor"
         readonly property var slotPatterns: [/\b[A-D] —/, /A \+ B/, /\bSlot [A-D]\b/, /\bIMU [A-D]\b/]
 
         // ── Helpers ──────────────────────────────────────────────────────────
@@ -64,34 +65,24 @@ Item {
             return out
         }
         function rows() {
-            return findAll(panel, function(o) {
-                return o.imuData !== undefined && o.mountLabel !== undefined && o.refusal !== undefined
-            })
+            return findAll(panel, function(o) { return o.imuData !== undefined && o.mountLine !== undefined })
         }
         function rowFor(id) {
             var rs = rows()
             for (var i = 0; i < rs.length; ++i) if (rs[i].imuData.id === id) return rs[i]
             return null
         }
-        function comboOf(row) {
-            var c = findAll(row, function(o) { return o.placementOptions !== undefined && o.currentRole !== undefined })
-            return c.length === 1 ? c[0] : null
+        // The line the row SHOWS (the Text, not the property behind it).
+        function mountLineShown(id) {
+            var t = findAll(rowFor(id), function(o) { return o.objectName === "imuMountLine" })
+            return t.length === 1 && t[0].visible ? t[0].text : null
         }
-        function labels(combo) { return combo.placementOptions.map(function(o) { return o.label }) }
-        function indexOfValue(combo, role) {
-            for (var i = 0; i < combo.placementOptions.length; ++i)
-                if (combo.placementOptions[i].value === role) return i
-            return -1
-        }
-        // Every string the panel shows: visible items' `text`, plus every combo's option labels
-        // (the popup rows exist only while it is open).
         function shownTexts() {
             var out = []
             findAll(panel, function(o) {
                 if (!o.visible) return false
                 if (typeof o.text === "string" && o.text !== "") out.push(o.text)
                 if (typeof o.displayText === "string" && o.displayText !== "") out.push(o.displayText)
-                if (o.placementOptions !== undefined) out = out.concat(labels(o))
                 return false
             })
             return out
@@ -101,295 +92,180 @@ Item {
             for (var i = 0; i < ts.length; ++i) if (ts[i].indexOf(prefix) === 0) return ts[i]
             return null
         }
-        function assertNoSlotLetters(where) {
-            var ts = shownTexts()
-            for (var i = 0; i < ts.length; ++i)
-                for (var p = 0; p < slotPatterns.length; ++p)
-                    verify(!slotPatterns[p].test(ts[i]),
-                           where + ": slot letter in shown text \"" + ts[i] + "\" (" + slotPatterns[p] + ")")
-        }
         function makePanel() {
-            panel = harness.createWithContext("ImusPanel", { imuManager: imu }, host,
-                                              { width: host.width, height: host.height })
+            panel = harness.createWithContext("ImusPanel", { imuManager: d.imu }, panelHost,
+                                              { width: panelHost.width, height: panelHost.height })
             verify(panel !== null, "ImusPanel failed to instantiate over the fake")
             return panel
         }
-        // Picks option `idx` the way a coach does: open the popup, click the row.
-        function pick(combo, idx) {
-            combo.popup.open()
-            tryVerify(function() { return combo.popup.opened }, 3000, "combo popup never opened")
-            var lv = combo.popup.contentItem
-            var d = null
-            tryVerify(function() { d = lv.itemAtIndex(idx); return d !== null && d.width > 0 }, 3000,
-                      "popup row " + idx + " not built")
-            // One frame for the overlay to place the popup; until then a click misses it.
-            // (waitForRendering would cost its full timeout whenever nothing redraws.)
-            waitForItemPolished(lv)
-            wait(50)
-            mouseClick(d)
-            return d
-        }
-        function closePopup(combo) {
-            if (combo.popup.opened) combo.popup.close()
-            tryVerify(function() { return !combo.popup.visible }, 3000)
-        }
+        function setRoleCalls() { return d.imu.callsNamed("setRoleForDevice") }
 
         function init() {
-            _t0 = testLog.elapsedMs()
             testLog.reset()
             if (Qt.platform.pluginName === "offscreen")
                 testLog.expect("^Populating font family aliases took \\d+ ms\\. Replace uses of missing font family \"Sans Serif\"")
-            ImuMounts.trunkMountsOffered = false
-            appSettings.imuRoles = ({})
-            appSettings.imuAlias = ({})
-            appSettings.imuExcluded = []
-            imu = createTemporaryObject(imuMgrComp, tc)
+            ImuMounts.trunkMountsOffered = true
+            d.setUp()
         }
-        property real _t0: 0
         function cleanup() {
-            console.info("[mounts] took " + Math.round(testLog.elapsedMs() - _t0) + " ms")
             if (panel) harness.destroyNow(panel)
             panel = null
-            ImuMounts.trunkMountsOffered = false
+            d.tearDown()
+            ImuMounts.trunkMountsOffered = true
             appSettings.imuRoles = ({})
             var w = testLog.takeWarnings()
             compare(w.length, 0, "unexpected warnings (" + w.length + "):\n" + w.join("\n"))
         }
 
-        // ── M1 ───────────────────────────────────────────────────────────────
-        function test_M1_witmotionOffersOfferedMountsNoLetters() {
-            imu.addWitmotion("WT-1", "Wrist sensor")
-            imu.addWitmotion("WT-2", "")
+        // ── S1 ───────────────────────────────────────────────────────────────
+        function test_S1_settingsShowsTheMountReadOnly() {
+            d.imu.addWitmotion("WT-1", "Wrist sensor")
+            d.imu.addWitmotion("WT-2", "")
+            d.imu.addWitmotion("WT-P", "")
+            d.imu.addHackMotion("HM-1", "wG3")
+            verify(d.imu.setRoleForDevice("WT-1", "leadUpperArm"))
+            verify(d.imu.setRoleForDevice("WT-P", "pelvis"))
+            verify(d.imu.setRoleForDevice("HM-1", "leadForearm"))
             makePanel()
-            compare(rows().length, 2)
-            var c = comboOf(rowFor("WT-1"))
-            verify(c !== null)
-            compare(labels(c), ["— Unassigned —"].concat(armLabels))
-            compare(c.placementOptions.map(function(o) { return o.value }),
-                    ["", "leadForearm", "leadHand", "leadUpperArm"])
-            compare(c.currentIndex, 0)
-            compare(c.displayText, "— Unassigned —")
-            for (var i = 0; i < c.count; ++i) verify(c.itemEnabledFn(i), "option " + i + " greyed with nothing assigned")
-            assertNoSlotLetters("M1, nothing assigned")
-            // …and with mounts held, including the wG3-shaped pair that used to read "A + B".
-            imu.addHackMotion("HM-1", "wG3")
-            verify(imu.setRoleForDevice("HM-1", "leadForearm"))
-            verify(imu.setRoleForDevice("WT-1", "leadUpperArm"))
-            tryVerify(function() { return rowFor("HM-1") !== null })
-            assertNoSlotLetters("M1, three mounts held")
-            console.info("[M1] " + JSON.stringify(shownTexts().filter(function(t) { return /Lead|Missing|Assigned|Live test/.test(t) }))
-)
+            compare(rows().length, 4)
+            compare(mountLineShown("WT-1"), "Worn as: Lead upper arm (set in session setup)")
+            compare(mountLineShown("WT-2"), "Not worn (set in session setup)")
+            compare(mountLineShown("WT-P"), "Worn as: " + hipLabel + " (set in session setup)")
+            compare(mountLineShown("HM-1"), "Worn as: Lead forearm + hand (set in session setup)")
+            // Nothing in a row can set a mount: no picker, no Unassigned entry.
+            compare(findAll(panel, function(o) { return o.placementOptions !== undefined || o.currentRole !== undefined }).length,
+                    0, "a mount picker is left in Settings")
+            verify(shownTexts().every(function(t) { return t.indexOf("Unassigned") < 0 }), "an Unassigned entry in Settings")
+            // The Live test heading still names the mount.
+            verify(shownTexts().indexOf("Live test — " + hipLabel + " — WT901BLE WT-P") >= 0,
+                   JSON.stringify(shownTexts().filter(function(t) { return t.indexOf("Live test") === 0 })))
         }
 
-        // ── M2 ───────────────────────────────────────────────────────────────
-        function test_M2_choosingAMountWritesTheRole() {
-            imu.addWitmotion("WT-1", "Wrist sensor")
+        // ── S2 ───────────────────────────────────────────────────────────────
+        function test_S2_lineFollowsTheRolesMap() {
+            d.imu.addWitmotion("WT-1", "")
             makePanel()
-            var row = rowFor("WT-1"), c = comboOf(row)
-            var idx = indexOfValue(c, "leadHand")
-            pick(c, idx)
-            tryCompare(c.popup, "visible", false)
-            var calls = imu.callsNamed("setRoleForDevice")
-            compare(calls.length, 1, JSON.stringify(calls))
-            compare(calls[0].args, ["WT-1", "leadHand"])
-            compare(appSettings.imuRoles["WT-1"], "leadHand")
-            compare(c.currentIndex, idx)
-            compare(c.displayText, "Lead hand")
-            compare(row.mountLabel, "Lead hand")
-            compare(textStartingWith("Live test — "), "Live test — Lead hand — WT901BLE WT-1")
-            // Back to Unassigned through the same path.
-            pick(c, 0)
-            tryCompare(c.popup, "visible", false)
-            compare(imu.countCalls("setRoleForDevice"), 2)
-            compare(appSettings.imuRoles["WT-1"], undefined)
-            compare(c.displayText, "— Unassigned —")
-            compare(textStartingWith("Live test — "), "Live test — WT901BLE WT-1")
+            compare(mountLineShown("WT-1"), "Not worn (set in session setup)")
+            verify(d.imu.setRoleForDevice("WT-1", "thorax"))
+            compare(mountLineShown("WT-1"), "Worn as: " + chestLabel + " (set in session setup)")
+            verify(d.imu.setRoleForDevice("WT-1", "leadHand"))
+            compare(mountLineShown("WT-1"), "Worn as: Lead hand (set in session setup)")
+            verify(d.imu.setRoleForDevice("WT-1", ""))
+            compare(mountLineShown("WT-1"), "Not worn (set in session setup)")
+            // Settings wrote nothing.
+            compare(setRoleCalls().length, 3)
         }
 
-        // ── M3 ───────────────────────────────────────────────────────────────
-        function test_M3_heldMountIsGreyedAndNamesTheHolder() {
-            imu.addWitmotion("WT-1", "Wrist sensor")
-            imu.addWitmotion("WT-2", "")
-            verify(imu.setRoleForDevice("WT-1", "leadForearm"))
-            makePanel()
-            var c = comboOf(rowFor("WT-2"))
-            var idx = indexOfValue(c, "leadForearm")
-            compare(labels(c)[idx], "Lead forearm — held by Wrist sensor")
-            verify(!c.itemEnabledFn(idx), "a held mount is offered as if free")
-            verify(c.itemEnabledFn(indexOfValue(c, "leadHand")))
-            // The holder's own row offers it plainly, as its current choice.
-            var own = comboOf(rowFor("WT-1"))
-            compare(labels(own)[indexOfValue(own, "leadForearm")], "Lead forearm")
-            compare(own.displayText, "Lead forearm")
-            // The greyed row is inert in the real popup: a click writes nothing.
-            var before = imu.countCalls("setRoleForDevice")
-            var d = pick(c, idx)
-            verify(!d.enabled, "the popup row for a held mount is enabled")
-            closePopup(c)
-            compare(imu.countCalls("setRoleForDevice"), before)
-            compare(c.currentIndex, 0)
-            // No alias → the holder is named by its description. (A device-list change rebuilds
-            // the rows, as the real QVariantList model does, so the combo is found again.)
-            imu._devices[0].alias = ""
-            imu._touchDevices()
-            c = comboOf(rowFor("WT-2"))
-            compare(labels(c)[idx], "Lead forearm — held by WT901BLE WT-1")
-            // Disabled for the session, the holder no longer blocks (the manager's own rule).
-            imu.setSessionImuEnabled("WT-1", false)
-            c = comboOf(rowFor("WT-2"))
-            verify(c.itemEnabledFn(idx), "a disabled holder still greys the mount")
-            compare(labels(c)[idx], "Lead forearm")
-        }
-
-        // ── M9 ───────────────────────────────────────────────────────────────
-        function test_M9_holderNeverNamedByARawId() {
-            var uuid = "{767a6a67-14b5-1705-bb58-9ebea6e89014}"
-            imu.addWitmotion(uuid, "")                      // description "WT901BLE {…}"
-            imu.addWitmotion("WT-2", "")
-            var al = {}
-            al["WT901BLE " + uuid + "|" + uuid] = "WT901BLE " + uuid + " " + uuid   // the seeded alias
-            appSettings.imuAlias = al
-            verify(imu.setRoleForDevice(uuid, "leadForearm"))
-            makePanel()
-            var c = comboOf(rowFor("WT-2"))
-            var idx = indexOfValue(c, "leadForearm")
-            compare(labels(c)[idx], "Lead forearm — held by WT901BLE")
-            verify(!imu.setRoleForDevice("WT-2", "leadForearm"))      // refused → the panel names the holder
-            compare(rowFor("WT-2").refusal, "Lead forearm is held by WT901BLE. Unassign or disable it first.")
-            var re = /\{[0-9a-f-]{36}\}/i
-            var holderTexts = shownTexts().filter(function(t) { return t.indexOf("held by") >= 0 })
-            verify(holderTexts.length >= 2, JSON.stringify(holderTexts))
-            holderTexts.forEach(function(t) { verify(!re.test(t), "a raw device id in \"" + t + "\"") })
-        }
-
-        // ── M4 ───────────────────────────────────────────────────────────────
-        // The greying makes a refusal rare (it takes a holder that appears between the popup
-        // opening and the click), so the activation is driven directly: what is under test is
-        // what the panel does when the manager says no.
-        function test_M4_refusedWriteSnapsBackAndNamesTheHolder() {
-            imu.addWitmotion("WT-1", "Wrist sensor")
-            imu.addWitmotion("WT-2", "")
-            verify(imu.setRoleForDevice("WT-2", "leadUpperArm"))
-            verify(imu.setRoleForDevice("WT-1", "leadForearm"))
-            makePanel()
-            var row = rowFor("WT-2"), c = comboOf(row)
-            compare(c.displayText, "Lead upper arm")
-            var spy = createTemporaryQmlObject("import QtTest; SignalSpy { signalName: \"roleRefused\" }", tc)
-            spy.target = imu
-            var idx = indexOfValue(c, "leadForearm")
-            c.currentIndex = idx
-            c.activated(idx)
-            compare(spy.count, 1)
-            compare(spy.signalArguments[0][0], "WT-2")
-            compare(spy.signalArguments[0][1], "leadForearm")
-            compare(spy.signalArguments[0][2], "WT-1")
-            compare(appSettings.imuRoles["WT-2"], "leadUpperArm", "a refused write changed the map")
-            compare(c.currentIndex, indexOfValue(c, "leadUpperArm"), "the combo did not snap back")
-            compare(c.displayText, "Lead upper arm")
-            compare(row.refusal, "Lead forearm is held by Wrist sensor. Unassign or disable it first.")
-            compare(textStartingWith("Lead forearm is held by"),
-                    "Lead forearm is held by Wrist sensor. Unassign or disable it first.")
-            // The note goes once the map moves (here: the holder lets go).
-            verify(imu.setRoleForDevice("WT-1", ""))
-            compare(row.refusal, "")
-            compare(textStartingWith("Lead forearm is held by"), null)
-        }
-
-        // ── M5 ───────────────────────────────────────────────────────────────
-        function test_M5_wg3OffersThePairAndBlocksTheArm() {
-            imu.addHackMotion("HM-1", "wG3 strap")
-            imu.addWitmotion("WT-1", "Wrist sensor")
-            makePanel()
-            var hc = comboOf(rowFor("HM-1"))
-            compare(labels(hc), ["— Unassigned —", "Lead forearm + hand"])
-            pick(hc, 1)
-            tryCompare(hc.popup, "visible", false)
-            var calls = imu.callsNamed("setRoleForDevice")
-            compare(calls.length, 1)
-            compare(calls[0].args, ["HM-1", "leadForearm"])
-            compare(appSettings.imuRoles["HM-1#lowerArm"], "leadForearm")
-            compare(appSettings.imuRoles["HM-1#palm"], "leadHand")
-            compare(hc.displayText, "Lead forearm + hand")
-            compare(rowFor("HM-1").mountLabel, "Lead forearm + hand")
-            compare(textStartingWith("Live test — "), "Live test — Lead forearm + hand — HackMotion wG3 HM-1")
-            var wc = comboOf(rowFor("WT-1"))
-            var fi = indexOfValue(wc, "leadForearm"), hi = indexOfValue(wc, "leadHand"), ui = indexOfValue(wc, "leadUpperArm")
-            verify(!wc.itemEnabledFn(fi), "forearm free on a Witmotion while the wG3 holds it")
-            verify(!wc.itemEnabledFn(hi), "hand free on a Witmotion while the wG3 holds it")
-            verify(wc.itemEnabledFn(ui))
-            compare(labels(wc)[fi], "Lead forearm — held by wG3 strap")
-            compare(labels(wc)[hi], "Lead hand — held by wG3 strap")
-            // And the reverse: a Witmotion on the hand greys the wG3's only choice.
-            verify(imu.setRoleForDevice("HM-1", ""))
-            verify(imu.setRoleForDevice("WT-1", "leadHand"))
-            verify(!hc.itemEnabledFn(1), "the wG3 pair is free while a Witmotion holds the hand")
-            compare(labels(hc)[1], "Lead forearm + hand — held by Wrist sensor")
-        }
-
-        // ── M6 ───────────────────────────────────────────────────────────────
-        function test_M6_heldTrunkMountShownTruthfully() {
-            imu.addWitmotion("WT-1", "Belt sensor")
-            appSettings.imuRoles = ({ "WT-1": "pelvis" })   // as a hand-edited settings file would
-            makePanel()
-            verify(!ImuMounts.isOffered("pelvis"))
-            var row = rowFor("WT-1"), c = comboOf(row)
-            compare(c.displayText, pelvisLabel)
-            compare(row.mountLabel, pelvisLabel)
-            compare(labels(c), ["— Unassigned —"].concat(armLabels).concat([pelvisLabel]))
-            compare(textStartingWith("Live test — "), "Live test — " + pelvisLabel + " — WT901BLE WT-1")
-            // Unassigning works and the not-offered mount leaves the list with it.
-            pick(c, 0)
-            tryCompare(c.popup, "visible", false)
-            compare(appSettings.imuRoles["WT-1"], undefined)
-            compare(labels(c), ["— Unassigned —"].concat(armLabels))
-            compare(c.displayText, "— Unassigned —")
-        }
-
-        // ── M7 ───────────────────────────────────────────────────────────────
-        function test_M7_summaryByName() {
-            imu.addWitmotion("WT-1", "")
-            imu.addWitmotion("WT-2", "")
+        // ── S3 ───────────────────────────────────────────────────────────────
+        function test_S3_summaryByName() {
+            d.imu.addWitmotion("WT-1", "")
+            d.imu.addWitmotion("WT-2", "")
             makePanel()
             compare(textStartingWith("No placements assigned"), "No placements assigned")
-            compare(textStartingWith("Missing: "), "Missing: Lead forearm · Lead hand · Lead upper arm")
-            verify(imu.setRoleForDevice("WT-2", "leadHand"))
-            verify(imu.setRoleForDevice("WT-1", "leadForearm"))
-            compare(textStartingWith("Assigned: "), "Assigned: Lead forearm · Lead hand")
-            compare(textStartingWith("Missing: "), "Missing: Lead upper arm")
-            verify(imu.setRoleForDevice("WT-1", "leadUpperArm"))
-            compare(textStartingWith("Assigned: "), "Assigned: Lead hand · Lead upper arm")
-            compare(textStartingWith("Missing: "), "Missing: Lead forearm")
-            verify(imu.setRoleForDevice("WT-1", "leadForearm"))
-            imu.addWitmotion("WT-3", "")
-            verify(imu.setRoleForDevice("WT-3", "leadUpperArm"))
-            compare(textStartingWith("Assigned: "), "Assigned: Lead forearm · Lead hand · Lead upper arm")
-            compare(textStartingWith("Missing: "), null)
-            // A held trunk role is listed as assigned; it is not "missing" when unheld (not offered).
-            appSettings.imuRoles = ({ "WT-1": "leadForearm", "WT-2": "thorax" })
-            compare(textStartingWith("Assigned: "), "Assigned: Lead forearm · " + thoraxLabel)
-            compare(textStartingWith("Missing: "), "Missing: Lead hand · Lead upper arm")
+            compare(textStartingWith("Not worn: "),
+                    "Not worn: Lead forearm · Lead hand · Lead upper arm · " + hipShort + " · " + chestShort)
+            verify(d.imu.setRoleForDevice("WT-2", "pelvis"))
+            verify(d.imu.setRoleForDevice("WT-1", "thorax"))
+            compare(textStartingWith("Assigned: "), "Assigned: " + hipShort + " · " + chestShort)
+            compare(textStartingWith("Not worn: "), "Not worn: Lead forearm · Lead hand · Lead upper arm")
+            appSettings.imuRoles = ({ "WT-1": "leadForearm", "WT-2": "leadHand", "X": "leadUpperArm",
+                                      "Y": "pelvis", "Z": "thorax" })
+            compare(textStartingWith("Not worn: "), null)
         }
 
-        // ── M8 ───────────────────────────────────────────────────────────────
-        function test_M8_theOneSwitchOffersTheTrunk() {
-            imu.addWitmotion("WT-1", "")
-            imu.addHackMotion("HM-1", "")
+        // ── S4 ───────────────────────────────────────────────────────────────
+        function test_S4_noSlotLetters() {
+            d.imu.addWitmotion("WT-1", "Wrist sensor")
+            d.imu.addHackMotion("HM-1", "wG3")
+            verify(d.imu.setRoleForDevice("HM-1", "leadForearm"))
+            verify(d.imu.setRoleForDevice("WT-1", "leadUpperArm"))
             makePanel()
-            var c = comboOf(rowFor("WT-1")), hc = comboOf(rowFor("HM-1"))
-            compare(labels(c), ["— Unassigned —"].concat(armLabels))
-            compare(textStartingWith("Missing: "), "Missing: Lead forearm · Lead hand · Lead upper arm")
-            ImuMounts.trunkMountsOffered = true
-            compare(labels(c), ["— Unassigned —"].concat(armLabels).concat([pelvisLabel, thoraxLabel]))
-            compare(textStartingWith("Missing: "),
-                    "Missing: Lead forearm · Lead hand · Lead upper arm · " + pelvisLabel + " · " + thoraxLabel)
-            // The wG3 still has exactly its one assignment: its cable decides, not the offered set.
-            compare(labels(hc), ["— Unassigned —", "Lead forearm + hand"])
-            // And a trunk mount can then be chosen like any other.
-            pick(c, indexOfValue(c, "thorax"))
-            tryCompare(c.popup, "visible", false)
-            compare(appSettings.imuRoles["WT-1"], "thorax")
-            compare(c.displayText, thoraxLabel)
-            assertNoSlotLetters("M8")
+            var ts = shownTexts()
+            for (var i = 0; i < ts.length; ++i)
+                for (var p = 0; p < slotPatterns.length; ++p)
+                    verify(!slotPatterns[p].test(ts[i]), "slot letter in shown text \"" + ts[i] + "\"")
+        }
+
+        // ── P1 ───────────────────────────────────────────────────────────────
+        function test_P1_pickerOffersArmAndTrunkByName() {
+            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addWitmotion("WT-N", "", true)
+            d.imu.addHackMotion("HM-1", "")
+            d.imu.connectDevice("HM-1")
+            d.open(wrist)
+            d.walkTo("imus")
+            compare(d.mountOptions("WT-N").map(function(o) { return o.text }),
+                    armLabels.concat([hipLabel, chestLabel]))
+            compare(d.mountOptions("WT-N").map(function(o) { return o.role }),
+                    ["leadForearm", "leadHand", "leadUpperArm", "pelvis", "thorax"])
+            compare(d.mountOptions("HM-1").map(function(o) { return o.text }), ["Lead forearm + hand"])
+            var all = d.mountOptions("WT-N").concat(d.mountOptions("HM-1")).map(function(o) { return o.text })
+            for (var i = 0; i < all.length; ++i)
+                for (var p = 0; p < slotPatterns.length; ++p)
+                    verify(!slotPatterns[p].test(all[i]), "slot letter in option \"" + all[i] + "\"")
+        }
+
+        // ── P2 ───────────────────────────────────────────────────────────────
+        function test_P2_trunkMountsBringTheTrunkSteps() {
+            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addWitmotion("WT-P", "", true)
+            d.addWitmotion("WT-T", "", true)
+            d.open(wrist)
+            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "ready"])
+            d.walkTo("imus")
+            var n0 = setRoleCalls().length
+            d.chooseMount("WT-P", "pelvis")
+            // The chest mount is greyed on no one: the hip sensor holds only its own.
+            verify(!d.mountOptions("WT-T").filter(function(o) { return o.role === "thorax" })[0].taken)
+            compare(d.mountOptions("WT-T").filter(function(o) { return o.role === "pelvis" })[0].text,
+                    hipLabel + " — held by WT901BLE WT-P")
+            d.chooseMount("WT-T", "thorax")
+            var calls = setRoleCalls().slice(n0)
+            compare(calls.map(function(c) { return c.args }), [["WT-P", "pelvis"], ["WT-T", "thorax"]])
+            compare(d.imuRows()[0].label, hipLabel + " — WT901BLE WT-P")
+            compare(d.imuRows()[1].label, chestLabel + " — WT901BLE WT-T")
+            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "calibrateTrunk", "checkTrunk", "ready"])
+            verify(d.ctx.groups.trunk.complete)
+        }
+
+        // ── P3 ───────────────────────────────────────────────────────────────
+        function test_P3_notWornTakesTheMountAway() {
+            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.addWitmotion("WT-N", "", true)
+            d.addWitmotion("WT-A", "A", true)
+            d.open(wrist)
+            d.walkTo("imus")
+            // Not offered to a sensor with no mount to take away.
+            verify(d.mountOptions("WT-N").every(function(o) { return o.role !== "" }), "Not worn offered unmounted")
+            d.clickChangeMount("WT-A")
+            var nw = d.mountOptions("WT-A").filter(function(o) { return o.role === "" })
+            compare(nw.length, 1)
+            compare(nw[0].text, "Not worn")
+            var n0 = setRoleCalls().length
+            d.chooseMount("WT-A", "")
+            compare(setRoleCalls().slice(n0).map(function(c) { return c.args }), [["WT-A", ""]])
+            compare(appSettings.imuRoles["WT-A"], undefined)
+            compare(d.imuRows()[1].sub, "NO MOUNT — IT SITS OUT THIS SESSION")
+            verify(!d.plan().some(function(k) { return k === "calibrateArm" }), "arm steps with no arm mount")
+            // …and Settings reads it.
+            makePanel()
+            compare(mountLineShown("WT-A"), "Not worn (set in session setup)")
+        }
+
+        // ── P4 ───────────────────────────────────────────────────────────────
+        function test_P4_heldMountNotOfferedIsStillShown() {
+            ImuMounts.trunkMountsOffered = false
+            d.imu.addWitmotion("WT-1", "Belt sensor")
+            appSettings.imuRoles = ({ "WT-1": "pelvis" })   // as a hand-edited settings file would
+            verify(!ImuMounts.isOffered("pelvis"))
+            makePanel()
+            compare(mountLineShown("WT-1"), "Worn as: " + hipLabel + " (set in session setup)")
+            compare(textStartingWith("Assigned: "), "Assigned: " + hipShort)
+            d.imu.connectDevice("WT-1")
+            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.open(wrist)
+            d.walkTo("imus")
+            compare(d.imuRows()[0].label, hipLabel + " — Belt sensor")
         }
     }
 }

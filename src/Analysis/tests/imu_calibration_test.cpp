@@ -17,6 +17,7 @@
 // the Phase 1.3 unification, where both sites are touched.
 
 #include "../../IMU/imu_calibration.h"
+#include "../../IMU/trunk_ceremony.h"
 #include "../../Wrist/wrist_angles.h"
 
 #include <QQuaternion>
@@ -24,6 +25,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 
 using namespace imu_calibration;
 using pinpoint::analysis::WristAngles;
@@ -197,7 +199,7 @@ int main()
     }
 
     // -- G. solveTrunkSegment — the trunk's Z-up, stance-headed solve (imu_frame_contract.md §5
-    //    "Trunk segments"). The sensor at its nominal mount, "USB end up, label facing out": segment
+    //    "Trunk segments"). The sensor at its nominal mount, "USB end down, label facing out": segment
     //    +Z (superior) = sensor +Y, +Y (anterior) = sensor −Z, +X (right) = sensor +X, so
     //    M = fromAxes(X, −Z, Y) = Rx(−90°). Standing tall the true segment is the identity in the
     //    stance frame, so the fused raw quaternion is W·M⁻¹ for the filter's world W.
@@ -259,14 +261,14 @@ int main()
         }
         // G4. gates — each failure names the sensor and the cause.
         {
-            // Upside down (USB end down): the long axis is 180° from up.
+            // Upside down (USB end up — sensor +Y points away from it): the long axis is 180° from up.
             const QQuaternion upside = (mNom * QQuaternion::fromAxisAndAngle(Y, 180)).normalized();
             const TrunkAlignment u = solveTrunkSegment(window(I, upside), TrunkSensor::Pelvis);
-            checkBool("USB down: rejected", u.valid, false);
-            checkBool("USB down: long-axis gate fails", u.record.longAxisOk, false);
-            checkNear("USB down: long axis from up", u.record.longAxisFromUpDeg, 180.0, 0.01);
-            checkBool("USB down: \"Hip sensor: turn it USB-up, label out\"",
-                      u.record.failure == QStringLiteral("Hip sensor: turn it USB-up, label out"), true);
+            checkBool("USB up: rejected", u.valid, false);
+            checkBool("USB up: long-axis gate fails", u.record.longAxisOk, false);
+            checkNear("USB up: long axis from up", u.record.longAxisFromUpDeg, 180.0, 0.01);
+            checkBool("USB up: \"Hip sensor: turn it USB-down, label out\"",
+                      u.record.failure == QStringLiteral("Hip sensor: turn it USB-down, label out"), true);
 
             // Lying flat, label to the sky: the face normal is vertical.
             StandTallWindow flat = window(I, mNom);
@@ -274,8 +276,8 @@ int main()
             const TrunkAlignment f = solveTrunkSegment(flat, TrunkSensor::Thorax);
             checkBool("lying flat: rejected", f.valid, false);
             checkNear("lying flat: face from horizontal", f.record.faceFromHorizontalDeg, 90.0, 0.01);
-            checkBool("lying flat: \"Chest sensor faces the wrong way …\"",
-                      f.record.failure == QStringLiteral("Chest sensor faces the wrong way — label out, against your back"), true);
+            checkBool("lying flat: \"Chest sensor is lying flat …\"",
+                      f.record.failure == QStringLiteral("Chest sensor is lying flat — wear it upright: USB down, label facing out"), true);
 
             // Moving: 2 °/s of mean gyro.
             StandTallWindow mv = window(I, mNom);
@@ -289,14 +291,21 @@ int main()
             mv.meanGyroDps = QVector3D(0.4f, -0.4f, 0.4f);
             checkBool("0.4 °/s bias: valid", solveTrunkSegment(mv, TrunkSensor::Pelvis).valid, true);
 
-            // |f̄| 3 % off 1 g.
+            // |f̄| 4 % off 1 g: outside the ±3 % gate seated on the W0 desk session (design §17.4).
             StandTallWindow heavy = window(I, mNom);
-            heavy.meanAccelG *= 1.03f;
+            heavy.meanAccelG *= 1.04f;
             const TrunkAlignment h = solveTrunkSegment(heavy, TrunkSensor::Thorax);
-            checkBool("|f| = 1.03 g: rejected", h.valid, false);
-            checkNear("|f| = 1.03 g: error %", h.record.gravityErrPct, 3.0, 1e-3);
+            checkBool("|f| = 1.04 g: rejected", h.valid, false);
+            checkNear("|f| = 1.04 g: error %", h.record.gravityErrPct, 4.0, 1e-3);
             checkBool("|f|: \"Chest sensor moved …\"",
                       h.record.failure == QStringLiteral("Chest sensor moved — hold still and try again"), true);
+            // The W0 unit that reads +1.74 % lying still (f4907bae), and 2.5 %: both pass the seated gate.
+            StandTallWindow w0unit = window(I, mNom);
+            w0unit.meanAccelG *= 1.0174f;
+            checkBool("|f| = 1.0174 g (W0 unit): valid", solveTrunkSegment(w0unit, TrunkSensor::Pelvis).valid, true);
+            w0unit = window(I, mNom);
+            w0unit.meanAccelG *= 0.975f;
+            checkBool("|f| = 0.975 g: valid", solveTrunkSegment(w0unit, TrunkSensor::Pelvis).valid, true);
 
             // A short window: 80 % of the expected samples.
             StandTallWindow shortW = window(I, mNom);
@@ -307,16 +316,298 @@ int main()
             checkBool("samples: \"Chest sensor dropped samples …\"",
                       s.record.failure == QStringLiteral("Chest sensor dropped samples — move closer or check the battery"), true);
 
-            // FACE-IN (label against the body, USB still up) is INVISIBLE to stand tall: it reads the
+            // FACE-IN (label against the body, USB still down) is INVISIBLE to stand tall: it reads the
             // same gravity, solves, and passes every gate here, with the stance frame 180° about +Z.
-            // The turn-away step rejects it (design §6.3 step 2). Pinned so nobody mistakes the pass
-            // for a check.
+            // The turns cannot see it either (§H); the first address does (design §6.3 "Face-in cannot
+            // be caught by stand tall or the turns"). Pinned so nobody mistakes the pass for a check.
             const QQuaternion faceIn = (mNom * QQuaternion::fromAxisAndAngle(Z, 180)).normalized();
             const TrunkAlignment fi = solveTrunkSegment(window(I, faceIn), TrunkSensor::Thorax);
             checkBool("face-in: stand tall cannot see it (valid)", fi.valid, true);
             checkQuat("face-in: solved M is 180° about the spine from the truth", fi.M,
                       (faceIn * QQuaternion::fromAxisAndAngle(Z, 180)).normalized(), 1e-4f);
         }
+    }
+
+    // -- H. checkTrunkTurn — the ceremony's turn checks (trunk_imu_sequence_grf_design.md §6.3 steps 2
+    //    "Turn away" and 3 "Turn through", §16.2 W2.1b). A synthetic upright body, built here from first
+    //    principles: standing tall the true pelvis and thorax are the identity in the stance frame, and
+    //    a standing turn is the segment rotated about vertical (or a tilted axis) by peak·p(t), with
+    //    p(t) = sin²(2πt) over the step — away and back, twice. The hips turn half the chest (§6.7: hips
+    //    about 45°, chest about 90°). Each sensor sits on its segment through a mount M_true (anat → sensor);
+    //    the fusion reports q_raw = W·q_true·M_true⁻¹ for the filter's world W; the stand-tall solve sees
+    //    q_true = I. Right-hander: away is −Z, through +Z; a left-hander the reverse
+    //    (pinpoint_sign_conventions.md "Trunk IMU readings").
+    std::printf("\n-- H. checkTrunkTurn (trunk turn away / turn through) --\n");
+    {
+        const QQuaternion mNom = QQuaternion::fromAxisAndAngle(X, -90);   // USB down, label out (§G)
+        const QQuaternion eskf = QQuaternion::fromAxisAndAngle(X, 180);
+        const QQuaternion W    = QQuaternion::fromAxisAndAngle(Z, 37);    // an arbitrary fusion heading
+        // Realistic mounts: the belt pouch leans 12° on the sacrum; the vest pocket 20° on a kyphotic
+        // back with 8° of roll. Stand tall absorbs both (§G3).
+        const QQuaternion mHip   = (mNom * QQuaternion::fromAxisAndAngle(X, 12)).normalized();
+        const QQuaternion mChest = (mNom * QQuaternion::fromAxisAndAngle(X, -20)
+                                    * QQuaternion::fromAxisAndAngle(Y, 8)).normalized();
+        const QQuaternion flip   = QQuaternion::fromAxisAndAngle(Y, 180);  // USB up (as §G4)
+        constexpr int kN = 1600;                                            // 8 s at 200 Hz
+
+        const auto standTall = [&](const QQuaternion &world, const QQuaternion &mStand, TrunkSensor who) {
+            StandTallWindow w;
+            w.meanQuat   = (world * mStand.conjugated()).normalized();
+            w.meanAccelG = mStand.rotatedVector(Z);
+            w.samplesReceived = w.samplesExpected = 400;
+            return solveTrunkSegment(w, who);
+        };
+        // One sensor's step: stand tall on mStand, then the turn worn on mTurn (the same mount unless the
+        // sensor was re-seated between the steps).
+        const auto step = [&](const QQuaternion &world, const QQuaternion &mStand, const QQuaternion &mTurn,
+                              TrunkSensor who, const QVector3D &axis, float peakDeg, int sign) {
+            const TrunkAlignment t = standTall(world, mStand, who);
+            TrunkTurnSeries s;
+            s.A = t.A;
+            s.M = t.M;
+            s.qRaw.reserve(kN);
+            for (int k = 0; k < kN; ++k) {
+                const double sn = std::sin(2.0 * 3.14159265358979323846 * k / (kN - 1));
+                const QQuaternion qTrue = QQuaternion::fromAxisAndAngle(axis, float(sign * peakDeg * sn * sn));
+                s.qRaw.push_back((world * qTrue * mTurn.conjugated()).normalized());
+            }
+            return s;
+        };
+        const auto sgnOf = [](TrunkTurnDirection d, bool lh) { return (d == TrunkTurnDirection::Away ? -1 : 1) * (lh ? -1 : 1); };
+        const auto msgIs = [](const char *label, const QString &got, const char *want) {
+            const bool ok = got == QString::fromUtf8(want);
+            std::printf("  [%s] %-34s got \"%s\"\n", ok ? "PASS" : "FAIL", label, got.toUtf8().constData());
+            if (!ok) { std::printf("         want \"%s\"\n", want); ++g_fail; }
+        };
+
+        // H1. Correct mounts pass, away and through, both hands; one in an ESKF world.
+        for (const bool lh : { false, true }) {
+            for (const TrunkTurnDirection d : { TrunkTurnDirection::Away, TrunkTurnDirection::Through }) {
+                const int sg = sgnOf(d, lh);
+                const QQuaternion world = (lh && d == TrunkTurnDirection::Through) ? (eskf * W).normalized() : W;
+                const TrunkTurnRecord r = checkTrunkTurn(step(world, mHip, mHip, TrunkSensor::Pelvis, Z, 45, sg),
+                                                         step(world, mChest, mChest, TrunkSensor::Thorax, Z, 90, sg),
+                                                         d, lh);
+                char tag[24];
+                std::snprintf(tag, sizeof tag, "%s %s", lh ? "LH" : "RH", d == TrunkTurnDirection::Away ? "away" : "through");
+                char lbl[64];
+                std::snprintf(lbl, sizeof lbl, "%s: valid", tag);                checkBool(lbl, r.valid, true);
+                std::snprintf(lbl, sizeof lbl, "%s: no failure text", tag);      checkBool(lbl, r.failure.isEmpty(), true);
+                std::snprintf(lbl, sizeof lbl, "%s: expected sign", tag);        checkNear(lbl, r.expectedSign, sg, 0);
+                std::snprintf(lbl, sizeof lbl, "%s: chest range", tag);          checkNear(lbl, r.thorax.rangeDeg, 90.0, 0.05);
+                std::snprintf(lbl, sizeof lbl, "%s: hip range", tag);            checkNear(lbl, r.pelvis.rangeDeg, 45.0, 0.05);
+                std::snprintf(lbl, sizeof lbl, "%s: chest D13 turn signed", tag); checkNear(lbl, r.thorax.turnDeg, 90.0 * sg, 0.05);
+                std::snprintf(lbl, sizeof lbl, "%s: chest S-I turn signed", tag); checkNear(lbl, r.thorax.siTurnDeg, 90.0 * sg, 0.05);
+                std::snprintf(lbl, sizeof lbl, "%s: hip S-I turn signed", tag);  checkNear(lbl, r.pelvis.siTurnDeg, 45.0 * sg, 0.05);
+                std::snprintf(lbl, sizeof lbl, "%s: chest axis from vertical", tag); checkNear(lbl, r.thorax.axisFromVerticalDeg, 0.0, 0.1);
+                std::snprintf(lbl, sizeof lbl, "%s: hip axis from vertical", tag);   checkNear(lbl, r.pelvis.axisFromVerticalDeg, 0.0, 0.1);
+                std::snprintf(lbl, sizeof lbl, "%s: chest over hips", tag);      checkNear(lbl, r.chestOverHips, 2.0, 0.01);
+            }
+        }
+
+        // H2. A sensor upside down relative to its stand-tall solve (re-seated USB-up between the steps):
+        //     its segment up points down, so the S-I turn — the KS rate's sign (D3) — reads backwards. The
+        //     message names that sensor and the cause, as §6.3 words it.
+        {
+            const TrunkTurnRecord c = checkTrunkTurn(
+                step(W, mHip, mHip, TrunkSensor::Pelvis, Z, 45, -1),
+                step(W, mChest, (mChest * flip).normalized(), TrunkSensor::Thorax, Z, 90, -1),
+                TrunkTurnDirection::Away, false);
+            checkBool("chest re-seated USB-up: rejected", c.valid, false);
+            checkBool("  chest sense fails", c.thorax.senseOk, false);
+            checkBool("  hip sense passes", c.pelvis.senseOk, true);
+            checkNear("  chest S-I turn reads +90 (backwards)", c.thorax.siTurnDeg, 90.0, 0.05);
+            checkBool("  not the golfer's wrong way", c.wrongWay, false);
+            msgIs("  step message", c.failure,
+                  "Chest sensor reads the turn backwards — check it sits USB-down, label facing out");
+            msgIs("  chest's own message", c.thorax.failure,
+                  "Chest sensor reads the turn backwards — check it sits USB-down, label facing out");
+            msgIs("  cause: backwards (the routine goes back to stand tall)", c.cause, "backwards");
+
+            const TrunkTurnRecord h = checkTrunkTurn(
+                step(W, mHip, (mHip * flip).normalized(), TrunkSensor::Pelvis, Z, 45, -1),
+                step(W, mChest, mChest, TrunkSensor::Thorax, Z, 90, -1),
+                TrunkTurnDirection::Through, true);                       // LH through = −Z
+            checkBool("LH, hip re-seated USB-up: rejected", h.valid, false);
+            msgIs("  step message", h.failure,
+                  "Hip sensor reads the turn backwards — check it sits USB-down, label facing out");
+
+            const TrunkTurnRecord b = checkTrunkTurn(
+                step(W, mHip, (mHip * flip).normalized(), TrunkSensor::Pelvis, Z, 45, -1),
+                step(W, mChest, (mChest * flip).normalized(), TrunkSensor::Thorax, Z, 90, -1),
+                TrunkTurnDirection::Away, false);
+            msgIs("both re-seated USB-up", b.failure,
+                  "Hip and chest sensors read the turn backwards — check they sit USB-down, label facing out");
+            msgIs("  cause", b.cause, "backwards");
+
+            // Upside down at stand tall AND the turns: stand tall rejects it (the long-axis gate, §G4), and
+            // its solve absorbs the flip exactly, so the turns read it right. Pinned: the turn check is not
+            // what catches this case.
+            const QQuaternion upside = (mChest * flip).normalized();
+            checkBool("USB-up throughout: stand tall rejects",
+                      standTall(W, upside, TrunkSensor::Thorax).valid, false);
+            const TrunkTurnRecord u = checkTrunkTurn(step(W, mHip, mHip, TrunkSensor::Pelvis, Z, 45, -1),
+                                                     step(W, upside, upside, TrunkSensor::Thorax, Z, 90, -1),
+                                                     TrunkTurnDirection::Away, false);
+            checkBool("  …its solve reads the turn right", u.thorax.senseOk, true);
+        }
+
+        // H3. Swapped: the chest sensor in the belt pouch and the hip sensor in the vest.
+        {
+            const TrunkTurnRecord s = checkTrunkTurn(step(W, mChest, mChest, TrunkSensor::Pelvis, Z, 90, -1),
+                                                     step(W, mHip, mHip, TrunkSensor::Thorax, Z, 45, -1),
+                                                     TrunkTurnDirection::Away, false);
+            checkBool("swapped: rejected", s.valid, false);
+            checkBool("  order fails", s.orderOk, false);
+            checkNear("  chest over hips", s.chestOverHips, 0.5, 0.01);
+            msgIs("  step message", s.failure, "Hip and chest sensors look swapped");
+            msgIs("  cause", s.cause, "swapped");
+        }
+
+        // H4. Too little turn.
+        {
+            const TrunkTurnRecord c = checkTrunkTurn(step(W, mHip, mHip, TrunkSensor::Pelvis, Z, 22, -1),
+                                                     step(W, mChest, mChest, TrunkSensor::Thorax, Z, 45, -1),
+                                                     TrunkTurnDirection::Away, false);
+            checkBool("chest 45°: rejected", c.valid, false);
+            checkBool("  chest range fails", c.thorax.rangeOk, false);
+            msgIs("  step message", c.failure, "Chest turned too little — turn further, as if to the top, and back");
+            msgIs("  cause", c.cause, "range");
+
+            const TrunkTurnRecord h = checkTrunkTurn(step(W, mHip, mHip, TrunkSensor::Pelvis, Z, 20, 1),
+                                                     step(W, mChest, mChest, TrunkSensor::Thorax, Z, 90, 1),
+                                                     TrunkTurnDirection::Through, false);
+            checkBool("hips 20°: rejected", h.valid, false);
+            checkBool("  hip range fails", h.pelvis.rangeOk, false);
+            checkBool("  chest range passes", h.thorax.rangeOk, true);
+            msgIs("  step message", h.failure, "Hips turned too little — let them turn with your chest");
+
+            const TrunkTurnRecord n = checkTrunkTurn(step(W, mHip, mHip, TrunkSensor::Pelvis, Z, 5, 1),
+                                                     step(W, mChest, mChest, TrunkSensor::Thorax, Z, 12, 1),
+                                                     TrunkTurnDirection::Through, false);
+            msgIs("barely turned (12°/5°)", n.failure, "Cross your arms and turn further toward the target, and back");
+        }
+
+        // H5. The turn about a tilted axis: 20° from vertical fails on both sensors; 10° passes.
+        {
+            const QVector3D tilt20(0.0f, float(std::sin(20.0 * 3.14159265358979323846 / 180.0)),
+                                   float(std::cos(20.0 * 3.14159265358979323846 / 180.0)));
+            const TrunkTurnRecord t = checkTrunkTurn(step(W, mHip, mHip, TrunkSensor::Pelvis, tilt20, 45, -1),
+                                                     step(W, mChest, mChest, TrunkSensor::Thorax, tilt20, 90, -1),
+                                                     TrunkTurnDirection::Away, false);
+            checkBool("axis tilted 20°: rejected", t.valid, false);
+            checkNear("  chest axis from vertical", t.thorax.axisFromVerticalDeg, 20.0, 0.1);
+            checkNear("  hip axis from vertical", t.pelvis.axisFromVerticalDeg, 20.0, 0.1);
+            checkBool("  chest axis fails", t.thorax.axisOk, false);
+            msgIs("  step message", t.failure,
+                  "Hip and chest sensors turned on a tilt — stand tall and turn level, without leaning");
+
+            const QVector3D tilt10(float(std::sin(10.0 * 3.14159265358979323846 / 180.0)), 0.0f,
+                                   float(std::cos(10.0 * 3.14159265358979323846 / 180.0)));
+            const TrunkTurnRecord ok = checkTrunkTurn(step(W, mHip, mHip, TrunkSensor::Pelvis, tilt10, 45, -1),
+                                                      step(W, mChest, mChest, TrunkSensor::Thorax, tilt10, 90, -1),
+                                                      TrunkTurnDirection::Away, false);
+            checkBool("axis tilted 10°: valid", ok.valid, true);
+            checkNear("  chest axis from vertical", ok.thorax.axisFromVerticalDeg, 10.0, 0.1);
+
+            // Only the chest on a tilt (a loose vest pocket): the message names the chest.
+            const TrunkTurnRecord one = checkTrunkTurn(step(W, mHip, mHip, TrunkSensor::Pelvis, Z, 45, -1),
+                                                       step(W, mChest, mChest, TrunkSensor::Thorax, tilt20, 90, -1),
+                                                       TrunkTurnDirection::Away, false);
+            msgIs("chest alone on a tilt", one.failure,
+                  "Chest sensor turned on a tilt — stand tall and turn level, without leaning");
+        }
+
+        // H6. FACE-IN PASSES, by design (§6.3 "Face-in cannot be caught by stand tall or the turns"): it is
+        //     a 180° error about the spine, and an upright turn is about that same axis. The first address
+        //     is the check (W2.1d). Asserted so nobody mistakes the pass for a missed check.
+        {
+            const QQuaternion inHip   = (mHip * QQuaternion::fromAxisAndAngle(Z, 180)).normalized();
+            const QQuaternion inChest = (mChest * QQuaternion::fromAxisAndAngle(Z, 180)).normalized();
+            for (const TrunkTurnDirection d : { TrunkTurnDirection::Away, TrunkTurnDirection::Through }) {
+                const int sg = sgnOf(d, false);
+                const TrunkTurnRecord f = checkTrunkTurn(step(W, inHip, inHip, TrunkSensor::Pelvis, Z, 45, sg),
+                                                         step(W, inChest, inChest, TrunkSensor::Thorax, Z, 90, sg),
+                                                         d, false);
+                checkBool(d == TrunkTurnDirection::Away ? "face-in both, away: PASSES (by design)"
+                                                        : "face-in both, through: PASSES (by design)", f.valid, true);
+                checkNear("  chest D13 turn", f.thorax.turnDeg, 90.0 * sg, 0.05);
+                checkNear("  chest S-I turn", f.thorax.siTurnDeg, 90.0 * sg, 0.05);
+            }
+        }
+
+        // H7. Mount yaw δ: the solve assumes δ = 0 (tier δ0), and the turn is δ-immune (§6.2).
+        {
+            const QQuaternion dHip   = (mHip * QQuaternion::fromAxisAndAngle(Z, -40)).normalized();
+            const QQuaternion dChest = (mChest * QQuaternion::fromAxisAndAngle(Z, 25)).normalized();
+            const TrunkTurnRecord r = checkTrunkTurn(step(W, dHip, dHip, TrunkSensor::Pelvis, Z, 45, 1),
+                                                     step(W, dChest, dChest, TrunkSensor::Thorax, Z, 90, 1),
+                                                     TrunkTurnDirection::Away, true);   // LH away = +Z
+            checkBool("δ chest 25°, hips −40°: valid", r.valid, true);
+            checkNear("  chest range", r.thorax.rangeDeg, 90.0, 0.05);
+            checkNear("  hip range", r.pelvis.rangeDeg, 45.0, 0.05);
+            checkBool("  no cause when valid", r.cause.isEmpty(), true);
+        }
+
+        // H8. The golfer turned the other way (or the hand is set wrong): both sensors agree, so neither
+        //     is blamed.
+        {
+            const TrunkTurnRecord w = checkTrunkTurn(step(W, mHip, mHip, TrunkSensor::Pelvis, Z, 45, 1),
+                                                     step(W, mChest, mChest, TrunkSensor::Thorax, Z, 90, 1),
+                                                     TrunkTurnDirection::Away, false);
+            checkBool("RH turned through when asked away: wrong way", w.wrongWay, true);
+            checkBool("  rejected", w.valid, false);
+            checkBool("  chest not blamed", w.thorax.failure.isEmpty(), true);
+            msgIs("  step message", w.failure, "You turned toward the target — turn away from it, as if to the top");
+            msgIs("  cause", w.cause, "wrongWay");
+            const TrunkTurnRecord t = checkTrunkTurn(step(W, mHip, mHip, TrunkSensor::Pelvis, Z, 45, 1),
+                                                     step(W, mChest, mChest, TrunkSensor::Thorax, Z, 90, 1),
+                                                     TrunkTurnDirection::Through, true);   // LH through = −Z
+            msgIs("LH turned away when asked through", t.failure,
+                  "You turned away from the target — turn toward it this time");
+        }
+
+        // H9. No data from a sensor.
+        {
+            TrunkTurnSeries empty;
+            const TrunkTurnRecord e = checkTrunkTurn(empty, step(W, mChest, mChest, TrunkSensor::Thorax, Z, 90, -1),
+                                                     TrunkTurnDirection::Away, false);
+            checkBool("hip series empty: rejected", e.valid, false);
+            msgIs("  step message", e.failure, "Hip sensor sent no data — check it is switched on and connected");
+        }
+    }
+
+    // §I. The live trunk heading (trunk_angles::liveHeadingDeg — ImuInstance::trunkHeadingDeg, the
+    //     trunk routine's turn start/return; design §16.2, 26 Oct). It must be checkTrunkTurn's D13
+    //     turn, and "no reading" (NaN) whenever the quaternion cannot give one.
+    {
+        std::printf("\n§I live trunk heading\n");
+        const QVector3D Z(0, 0, 1), X(1, 0, 0);
+        checkNear("identity: heading 0", trunk_angles::liveHeadingDeg(QQuaternion()), 0.0, 1e-4);
+        checkNear("yaw +30 about +Z", trunk_angles::liveHeadingDeg(QQuaternion::fromAxisAndAngle(Z, 30)), 30.0, 1e-3);
+        checkNear("yaw −90 about +Z (RH away)", trunk_angles::liveHeadingDeg(QQuaternion::fromAxisAndAngle(Z, -90)), -90.0, 1e-3);
+        // The same as the D13 turn the check reads, through a forward bend (the address) too.
+        const QQuaternion bent = QQuaternion::fromAxisAndAngle(X, 35);
+        const QQuaternion turned = QQuaternion::fromAxisAndAngle(Z, -70) * bent;
+        checkNear("bent 35° then turned −70°: the D13 turn",
+                  trunk_angles::liveHeadingDeg(turned) - trunk_angles::liveHeadingDeg(bent),
+                  trunk_angles::turnFromRad(turned, bent) * 57.29577951308232, 1e-3);
+        // A quaternion off unit length (a cached product) reads the same.
+        const QQuaternion q60 = QQuaternion::fromAxisAndAngle(Z, 60);
+        checkNear("scaled ×3: unchanged",
+                  trunk_angles::liveHeadingDeg(QQuaternion(3 * q60.scalar(), 3 * q60.x(), 3 * q60.y(), 3 * q60.z())),
+                  60.0, 1e-3);
+        // No reading: a filter fault's NaN / inf, a zero quaternion, the medio-lateral axis vertical.
+        const float nan = std::numeric_limits<float>::quiet_NaN();
+        const float inf = std::numeric_limits<float>::infinity();
+        checkBool("NaN component: no reading", std::isnan(trunk_angles::liveHeadingDeg(QQuaternion(nan, 0, 0, 0))), true);
+        checkBool("inf component: no reading", std::isnan(trunk_angles::liveHeadingDeg(QQuaternion(1, inf, 0, 0))), true);
+        checkBool("zero quaternion: no reading", std::isnan(trunk_angles::liveHeadingDeg(QQuaternion(0, 0, 0, 0))), true);
+        const QVector3D Y(0, 1, 0);
+        checkBool("x̂ vertical (rolled 90°): no reading",
+                  std::isnan(trunk_angles::liveHeadingDeg(QQuaternion::fromAxisAndAngle(Y, -90))), true);
+        checkBool("x̂ 10° from vertical: a reading",
+                  std::isfinite(trunk_angles::liveHeadingDeg(QQuaternion::fromAxisAndAngle(Y, -80))), true);
     }
 
     std::printf("\n=== %s (%d assert failures) ===\n",

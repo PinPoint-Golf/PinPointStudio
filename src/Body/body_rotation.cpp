@@ -18,6 +18,8 @@
 
 #include "body_rotation.h"
 
+#include "../IMU/trunk_angles.h"   // D13: the turn is the ML axis heading from address
+
 #include <QVector3D>
 
 #include <algorithm>
@@ -36,8 +38,8 @@ constexpr double kEps      = 1e-9;
 constexpr int kLShoulder = 5, kRShoulder = 6, kLHip = 11, kRHip = 12;
 
 
-// Wrap an angle difference into (−π, π]. Used only by the IMU tier, where the projected axis
-// direction is a true angle and can cross the branch cut.
+// Wrap an angle difference into (−π, π]. Used by the triangulated tier, where a bearing is a true
+// angle and can cross the branch cut (the IMU tier wraps through trunk_angles::turnFromRad).
 double wrapPi(double a)
 {
     while (a >  kPi) a -= 2.0 * kPi;
@@ -81,35 +83,108 @@ double wrapPi(double a)
 
 // ── The IMU tier ───────────────────────────────────────────────────────────────────────────────
 //
-// The segment's medio-lateral axis is anatomical +X (imu_frame_contract.md §5: every segment shares
-// the solveSegment construction, e_x = the flexion / medio-lateral axis). Carried into world by
-// q_anat and projected into the horizontal plane — world is Z-up, so the horizontal plane is world
-// XY — its direction angle IS the segment's axial orientation. Referenced to its own address
-// direction and reported as a magnitude, the same convention the camera tier uses, so the two
-// tiers are interchangeable to every reader.
-void fillFromImu(RotationChannel &out, const SegmentStream &seg, const std::vector<int64_t> &timeGrid,
-                 int64_t addressUs)
+// The segment's medio-lateral axis is anatomical +X (imu_frame_contract.md §5 "Trunk segments":
+// solveTrunkSegment keeps a gravity-aligned, Z-up, stance-headed world, segment +X the golfer's
+// right). Carried into world by q_anat and projected into the horizontal plane — world XY — its
+// heading IS the segment's axial orientation, and the change of that heading from its own address
+// value is the turn: trunk design D13's projection, trunk_angles::turnFromRad, so this module and
+// every other trunk reader share one definition.
+//
+// Two readings from the one difference d (rad, positive about +Z):
+//   `mag`  |d| — the magnitude convention the corridors and the triangulated tier use.
+//   `sgn`  leadSign·d — LEAD-RELATIVE, + open (pinpoint_sign_conventions.md "Trunk IMU readings"):
+//          the trunk frame is the same for both hands, so +Z is opening for a right-hander and
+//          closing for a left-hander, and the mirror is the producer's (design D15). This is the
+//          series a rate through impact can be taken from (hip_stall): it crosses zero at the
+//          square-up where |d| folds.
+// No σ: the IMU error budget (design §8.2) is not built, so the channel leaves it unset rather than
+// claiming a perfect measurement.
+void fillFromImu(RotationChannel &mag, RotationChannel &sgn, const SegmentStream &seg,
+                 const std::vector<int64_t> &timeGrid, int64_t addressUs, double leadSign)
 {
     if (seg.qAnat.size() != timeGrid.size() || timeGrid.empty())
         return;
-
-    const auto axisAngle = [&](size_t i) {
-        const QVector3D ml = seg.qAnat[i].rotatedVector(QVector3D(1.0f, 0.0f, 0.0f));
-        return std::atan2(double(ml.y()), double(ml.x()));
-    };
 
     // The address reference index: nearest grid sample to the Address instant, or the first sample
     // when the ladder never found one.
     size_t addrIdx = 0;
     if (addressUs >= 0)
         addrIdx = size_t(nearestIndex(timeGrid, addressUs));
-    const double a0 = axisAngle(addrIdx);
+    const QQuaternion &qAddr = seg.qAnat[addrIdx];
 
-    for (size_t i = 0; i < timeGrid.size(); ++i)
-        out.turn.push(timeGrid[i], std::abs(wrapPi(axisAngle(i) - a0)) * kRadToDeg);
+    for (size_t i = 0; i < timeGrid.size(); ++i) {
+        const double d = trunk_angles::turnFromRad(seg.qAnat[i], qAddr) * kRadToDeg;
+        mag.turn.push(timeGrid[i], std::abs(d));
+        sgn.turn.push(timeGrid[i], leadSign * d);
+    }
 
-    if (!out.turn.empty())
-        out.tier = RotationTier::Imu;   // sigma left unset: no error budget is propagated here
+    if (!mag.turn.empty()) {
+        mag.tier = RotationTier::Imu;
+        sgn.tier = RotationTier::Imu;
+    }
+}
+
+// ── The face-in cue (trunk design §6.3, W2.1d) ─────────────────────────────────────────────────
+//
+// A sensor worn face-in (label against the body, USB still up) is the right mount turned 180° about
+// the spine. Gravity cannot see that and neither can the ceremony's turns (an upright turn is about
+// the same axis), so stand tall solves it as valid. What it changes: the sagittal and lateral
+// readings flip sign — a 40° address bend reads −40° — while the turn, its signed twin and the S-I
+// rate still read correctly. So the check is the SIGN of the address forward bend (D13).
+//
+// EVERY SWING CHECKS ITS OWN ADDRESS. The design names the session's first address; a per-swing
+// analysis cannot see the session, and checking each swing is strictly more coverage: a sensor
+// re-seated wrong mid-session is caught on the next swing, and one put right stops warning.
+//
+// The bend is read at the stream sample nearest the ladder's Address, and only when there is one
+// within addrWindowUs: without an Address the IMU tier's reference falls back to the first sample,
+// which may be anywhere (stand tall, the walk in), and a bend read there says nothing about a mount.
+double addressBendDeg(const SegmentStream &seg, const std::vector<int64_t> &timeGrid,
+                      const std::vector<PhaseEvent> &phases, const BodyRotationConfig &cfg)
+{
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const std::optional<int64_t> addr = phaseTimeOpt(phases, Phase::Address);
+    if (!addr || seg.qAnat.size() != timeGrid.size() || timeGrid.empty())
+        return nan;
+    const size_t i = size_t(nearestIndex(timeGrid, *addr));
+    if (std::llabs(timeGrid[i] - *addr) > cfg.addrWindowUs)
+        return nan;
+    return trunk_angles::forwardBendRad(seg.qAnat[i]) * kRadToDeg;
+}
+
+// One record per face-in sensor, DOWNGRADED — never refused, never withheld (Mark: every reading is
+// shown with its ⚠). The subject is that segment's turn; it covers every reading this route made
+// from the same sensor: the signed twin and, when both halves were read, the X-factor and stretch.
+// They read correctly under a true face-in (a rotation about the spine), but the sensor is not on the
+// mount the ceremony calibrated, so they drop from Measured to Estimated and carry the cue's words.
+//
+// NOT COVERED: the KS node (ks.pelvis / ks.thorax) and the angular-speed series. The S-I rate is
+// gyro_segment · ẑ (D3), and a rotation about ẑ leaves it EXACTLY unchanged (trunk_e2e_test §f, to
+// 0.01 °/s); the node carries its own route quality and gates, and a downgrade there would demote a
+// Direct node and let §10.7 refuse ratios on a reading that is right. The readings face-in really
+// flips — forward bend and obliquity — have no IMU producer yet (spineForwardBend's trunkImus route
+// is PLANNED); when one lands it joins `covers` here.
+void recordFaceIn(BodyRotationResult &res, const BodyRotationConfig &cfg)
+{
+    const auto one = [&](bool pelvis) {
+        const double bend = pelvis ? res.pelvisAddressBendDeg : res.thoraxAddressBendDeg;
+        if (!std::isfinite(bend) || bend >= cfg.faceInBendDeg)
+            return;
+        QStringList covers;
+        const RotationChannel &sgn = pelvis ? res.pelvisSigned : res.thoraxSigned;
+        if (!sgn.turn.empty())
+            covers << (pelvis ? QStringLiteral("pelvisRotationSigned") : QStringLiteral("thoraxRotationSigned"));
+        if (!res.xFactor.empty())        covers << QStringLiteral("xFactor");
+        if (!res.xFactorStretch.empty()) covers << QStringLiteral("xFactorStretch");
+        res.gates.push_back(GateRecord{ pelvis ? PP_GATE("body.pelvisFaceIn") : PP_GATE("body.thoraxFaceIn"),
+                                        pelvis ? QStringLiteral("pelvisRotation") : QStringLiteral("thoraxRotation"),
+                                        GateEffect::Downgraded,
+                                        QVariantMap{ { QStringLiteral("bendDeg"), bend },
+                                                     { QStringLiteral("limitDeg"), cfg.faceInBendDeg } },
+                                        {}, {}, covers });
+    };
+    one(true);
+    one(false);
 }
 
 // ── The triangulated tier ──────────────────────────────────────────────────────────────────────
@@ -181,12 +256,13 @@ bool fillTriangulated(RotationChannel &mag, RotationChannel *sgn, const Triangul
     return true;
 }
 
-// The readings a trunk segment's refusal takes down with it (trust stage 6: one cascade record).
-// The separation needs both halves, so the first refused segment's record carries it.
+// The readings a trunk segment's refusal takes down with it (trust stage 6: one cascade record):
+// the segment's signed twin always — both routes fill it beside the magnitude — and the separation,
+// which needs both halves, on the first refused segment's record.
 QStringList rotationCovers(bool pelvis, bool separationStillOpen)
 {
     QStringList c;
-    if (pelvis) c << QStringLiteral("pelvisRotationSigned");
+    c << (pelvis ? QStringLiteral("pelvisRotationSigned") : QStringLiteral("thoraxRotationSigned"));
     if (separationStillOpen) c << QStringLiteral("xFactor") << QStringLiteral("xFactorStretch");
     return c;
 }
@@ -245,8 +321,8 @@ BodyRotationResult trackBodyRotationTriangulated(const TriangulatedTurnInput &in
     }
     if (wantThorax) {
         QVariantMap why;
-        if (!fillTriangulated(res.thorax, nullptr, in, in.thoraxBearing, in.thoraxSigma, addressUs, leadSign,
-                              cfg, why))
+        if (!fillTriangulated(res.thorax, &res.thoraxSigned, in, in.thoraxBearing, in.thoraxSigma, addressUs,
+                              leadSign, cfg, why))
             gates.fireCovering(PP_GATE("body.rotation"), QStringLiteral("thoraxRotation"), GateEffect::Refused,
                                rotationCovers(false, !pelvisRefused), why);
     }
@@ -284,8 +360,6 @@ BodyRotationResult trackBodyRotation(const PoseTrack2D &pose, const FusedStreams
                                      const std::vector<PhaseEvent> &phases,
                                      const BodyRotationConfig &cfg)
 {
-    Q_UNUSED(leadIsLeft)   // the magnitude convention is handedness-free by construction
-
     BodyRotationResult res;
 
     const std::vector<PoseFrame2D> &frames = pose.smoothed.empty() ? pose.frames : pose.smoothed;
@@ -303,10 +377,18 @@ BodyRotationResult trackBodyRotation(const PoseTrack2D &pose, const FusedStreams
     // A BOUND IMU OR NOTHING. There is no camera fallback any more: a channel with no stream is
     // left absent, and every measure over it reports "metric not produced on this capture" —
     // which is the truthful answer for a single face-on view and was not the one being given.
-    if (const SegmentStream *s = streams.streamFor(SegmentRole::Pelvis))
-        fillFromImu(res.pelvis, *s, streams.timeGrid, addressUs);
-    if (const SegmentStream *s = streams.streamFor(SegmentRole::Thorax))
-        fillFromImu(res.thorax, *s, streams.timeGrid, addressUs);
+    //
+    // The magnitude is handedness-free by construction; the signed twin is lead-relative, and the
+    // mirror is made here (design D15) — the same leadSign the two-camera route uses.
+    const double leadSign = leadIsLeft ? 1.0 : -1.0;
+    if (const SegmentStream *s = streams.streamFor(SegmentRole::Pelvis)) {
+        fillFromImu(res.pelvis, res.pelvisSigned, *s, streams.timeGrid, addressUs, leadSign);
+        res.pelvisAddressBendDeg = addressBendDeg(*s, streams.timeGrid, phases, cfg);
+    }
+    if (const SegmentStream *s = streams.streamFor(SegmentRole::Thorax)) {
+        fillFromImu(res.thorax, res.thoraxSigned, *s, streams.timeGrid, addressUs, leadSign);
+        res.thoraxAddressBendDeg = addressBendDeg(*s, streams.timeGrid, phases, cfg);
+    }
 
     // The IMU tier writes onto the stream time grid, which is not the pose grid. Adopt whichever
     // grid actually carries samples so the resample target is never empty.
@@ -338,6 +420,9 @@ BodyRotationResult trackBodyRotation(const PoseTrack2D &pose, const FusedStreams
         }
         recordStretchWithoutTop(res, topUs >= 0);
     }
+
+    // After the separation, so a face-in record knows whether it has an X-factor to cover.
+    recordFaceIn(res, cfg);
 
     res.valid = !res.pelvis.turn.empty() || !res.thorax.turn.empty();
     return res;
@@ -418,6 +503,7 @@ std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
     emitRotation(res.pelvis, "pelvisRotation", "Pelvis rotation");
     emitRotation(res.thorax, "thoraxRotation", "Thorax rotation");
     emitRotation(res.pelvisSigned, "pelvisRotationSigned", "Pelvis rotation (signed)");
+    emitRotation(res.thoraxSigned, "thoraxRotationSigned", "Thorax rotation (signed)");
 
     // From the triangulated route both halves carry σ, so the separation carries both in quadrature
     // (a difference of two turns is no better known than either); the IMU route stays as it was.

@@ -1316,6 +1316,16 @@ void HmSessionWorker::writeSample(const wr_sample &s)
         ++m_relAngleCount;
     }
 
+    // The trunk ceremony recorder's taps (ceremonyTap()), BEFORE the capture gate: the ceremony
+    // runs in session setup, when nothing is capturing. Only a sample with a mapped host time —
+    // the same rule as the ring below, for the same reason — and both units on one stamp, as there.
+    if (s.host_time_us != WR_TIME_UNKNOWN && !(s.flags & WR_SAMPLE_NO_FIT)) {
+        const wr_unit_sample *const tapBlocks[WR_UNIT_COUNT] = { &s.lower_arm, &s.palm };
+        for (int u = 0; u < WR_UNIT_COUNT; ++u)
+            if (m_ceremonyTaps[u]->isActive())
+                m_ceremonyTaps[u]->push(int64_t(s.host_time_us), pinpoint::hm::toImuSample(*tapBlocks[u]));
+    }
+
     if (!m_buffer || !m_buffer->isCapturing())
         return;
 

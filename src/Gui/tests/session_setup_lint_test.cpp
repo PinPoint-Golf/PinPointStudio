@@ -45,6 +45,9 @@
 //       components/PpFlowIndicator.qml, as an identifier or as a string literal that IS the key.
 //   W8  No `applies` / `gate` in setup/SetupSteps.qml mentions `sessionType` or `preset`: hardware
 //       decides which steps run (§4.12).
+//   W11 TrunkRoutine.qml's mirrored gates (its still / upright / turn properties and the turn
+//       durations in `defaultPace`) equal their constants in Core/pp_tuned_constants.h
+//       (tuned::trunkRoutine, tuned::calib) — the QML cannot read the header, so this is the guard.
 //   W9  No QML outside tests/ uses the slot-letter API (the …ForSlot shims,
 //       setPlacementForDevice, appSettings.imuPlacement), except the site in kW9Allowed
 //       (PpDataViewer.qml:96, which labels old swings). Enforced (kEnforceW9); the shims were
@@ -65,7 +68,10 @@
 #include <QVector>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
+
+#include "Core/pp_tuned_constants.h"
 
 namespace {
 
@@ -695,6 +701,10 @@ QVector<ContextObject> contextObjects()
         { QStringLiteral("launchMonitor"), QStringLiteral("launchmonitor/launch_monitor_controller.h"),
           QStringLiteral("LaunchMonitorController") },
         { QStringLiteral("appLog"),        appLogHeader,                               QString() },
+        // The trunk ceremony recorder (W2.2): the calibrate pages and TrunkRoutine hold it under the
+        // context object's own name, so every member they use is checked here.
+        { QStringLiteral("trunkCeremony"), QStringLiteral("imu/trunk_ceremony_recorder.h"),
+          QStringLiteral("TrunkCeremonyRecorder") },
         // setup/SetupContext.qml holds the managers under INJECTABLE names (so the tests can hand it
         // fakes without a child context). Same classes, same rule: a renamed handle must not be a
         // way round the private-Q_INVOKABLE check.
@@ -1313,6 +1323,47 @@ void ruleW10()
 
 // ── The rule table ────────────────────────────────────────────────────────────────────────────
 
+// ── W11 — the trunk routine's mirrored gates equal their constants ─────────────────────────────
+
+void ruleW11()
+{
+    namespace tr = pinpoint::tuned::trunkRoutine;
+    namespace tc = pinpoint::tuned::calib;
+    const QString rel = QStringLiteral("calibration/TrunkRoutine.qml");
+    QString raw;
+    if (!readText(absPath(rel), &raw)) {
+        check(false, QStringLiteral("W11 read %1").arg(rel));
+        return;
+    }
+    const QString s = strip(raw, Lang::Qml);
+    struct Mirror { const char *qml; double want; bool property; };
+    const Mirror mirrors[] = {
+        { "_stillDps",       tr::kStillGyroDps,              true  },
+        { "_uprightMaxDeg",  tc::kTrunkLongAxisMaxFromUpDeg, true  },
+        { "_turnStartDeg",   tr::kTurnStartDeg,              true  },
+        { "_turnReturnDeg",  tr::kTurnReturnDeg,             true  },
+        { "arm",             tr::kArmStillMs,                false },   // defaultPace
+        { "returnStill",     tr::kReturnStillMs,             false },
+        { "turnTimeout",     tr::kTurnTimeoutMs,             false },
+    };
+    for (const Mirror &m : mirrors) {
+        const QString name = QString::fromLatin1(m.qml);
+        const QRegularExpression re(m.property
+            ? QStringLiteral(R"(readonly\s+property\s+real\s+%1\s*:\s*([0-9][0-9.]*))").arg(name)
+            : QStringLiteral(R"((?<![\w$.])%1\s*:\s*([0-9][0-9.]*))").arg(name));
+        QStringList found;
+        auto it = re.globalMatch(s);
+        while (it.hasNext()) found << it.next().captured(1);
+        if (found.size() != 1) {
+            check(false, QStringLiteral("W11 found %1 once in %2 (found %3)").arg(name, rel).arg(found.size()));
+            continue;
+        }
+        const double got = found.first().toDouble();
+        check(std::abs(got - m.want) < 1e-6,
+              QStringLiteral("%1 %2 = %3 equals its constant %4").arg(rel, name, found.first()).arg(m.want));
+    }
+}
+
 struct Rule
 {
     const char *id;
@@ -1331,6 +1382,7 @@ const Rule kRules[] = {
     { "W8", "no step's applies/gate reads the session type or preset", ruleW8 },
     { "W9", "no QML outside the allow-list uses the slot-letter API", ruleW9 },
     { "W10", "the shell and the indicator name no step", ruleW10 },
+    { "W11", "the trunk routine's mirrored gates equal pp_tuned_constants.h", ruleW11 },
 };
 
 } // namespace

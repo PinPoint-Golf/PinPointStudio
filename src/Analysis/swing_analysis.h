@@ -35,6 +35,7 @@
 
 #include "types.h"   // pinpoint::SourceId, kInvalidSourceId
 #include "segment_role.h"            // SegmentRole, segmentRoleName, placement role names
+#include "../IMU/trunk_calib_provenance.h" // TrunkCalibProvenance (the trunk solve on a binding)
 #include "../Wrist/wrist_assessment_result.h" // PpWristFinding (Tier-2 offline assessment)
 #include "../Kinematics/kinematic_sequence.h" // KinematicSequence (segment_rates.h fills it)
 #include "../Club/dtl_shaft_track.h"  // DtlShaftTrack2D (DtlShaftStage fills it; OpenCV-free)
@@ -90,6 +91,9 @@ struct ImuSegmentBinding {
     double      mountGravityErrorDeg = 0.0;
     QString     calibratedAtUtc;       // ISO8601 wallclock; empty = never calibrated
     double      calibAgeSec = -1.0;    // age at shot time; -1 = never calibrated
+    // Present only when A/M came from the trunk stand-tall solve (trunk design §6.8): the δ tier,
+    // σ_δ and the gate residuals. Absent = an arm routine's calibration, or none.
+    TrunkCalibProvenance trunkCalib;
 
     // ⚠ THIS IS NOT THE INSTRUMENT DISCRIMINATOR §0 #8 ASKED FOR, AND PHASE F CUT.
     // That one existed to let two instruments claim ONE role simultaneously, so that
@@ -950,6 +954,7 @@ struct BindingRecord {
     double      mountGravityErrorDeg = 0.0;
     QString     calibratedAtUtc;
     double      calibAgeSec = -1.0;
+    TrunkCalibProvenance trunkCalib;          // the trunk solve, when it set A/M (see ImuSegmentBinding)
     // ⚠ PERSISTED, AND IT HAS TO BE. analysis.bindings[] takes PRECEDENCE over the
     // per-stream device.* fallback when a swing is re-analysed (swing_reanalyzer.cpp),
     // so a HackMotion swing that lost this flag on the way to disk would come back

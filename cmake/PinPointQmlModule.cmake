@@ -180,6 +180,7 @@ set(PP_QML_FILES
     src/Gui/calibration/CalibrationGuide.qml
     src/Gui/calibration/WitmotionArmRoutine.qml
     src/Gui/calibration/HackMotionArmRoutine.qml
+    src/Gui/calibration/TrunkRoutine.qml
     src/Gui/calibration/ArmCalibrationStatus.qml
     src/Gui/calibration/CameraCalibrationFlow.qml
     # Session setup's engine (design §4.2–4.8): registry, flow, hardware context, draft, the page
@@ -207,6 +208,8 @@ set(PP_QML_FILES
     src/Gui/setup/pages/ImusPage.qml
     src/Gui/setup/pages/CalibrateArmPage.qml
     src/Gui/setup/pages/CheckArmPage.qml
+    src/Gui/setup/pages/CalibrateTrunkPage.qml
+    src/Gui/setup/pages/CheckTrunkPage.qml
     src/Gui/setup/pages/ReadyPage.qml
     src/Gui/setup/parts/SetupStepIntro.qml
     src/Gui/setup/parts/SetupCheckRow.qml

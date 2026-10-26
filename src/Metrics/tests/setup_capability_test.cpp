@@ -303,11 +303,13 @@ void test_no_arm_sensor_no_arm_measurement(const MetricCatalogue &cat, const cha
 
 void test_rotation(const char *name, const std::vector<CapabilityGroup> &groups, bool expectMeasured)
 {
-    // pelvisRotationSigned is deliberately absent: its pelvis-IMU rung is planned, so it stays
-    // estimated even with the sensor (reported).
+    // The signed twins too (2026-10-26, trunk design defect 2): their IMU rungs are live, so trunk
+    // sensors measure them. Without the sensors the camera pair estimates both, as it does their
+    // magnitudes, and one face-on camera has neither — "estimated or unavailable".
     const Flat f = flatten(groups);
     bool ok = true;
-    for (const char *k : { "pelvisRotation", "thoraxRotation", "xFactor" }) {
+    for (const char *k : { "pelvisRotation", "thoraxRotation", "xFactor", "pelvisRotationSigned",
+                           "thoraxRotationSigned" }) {
         const Bucket b = f.bucket.value(QString::fromLatin1(k), Missing);
         ok &= expectMeasured ? b == Measured : (b == Estimated || b == Unavailable);
         if (b == Missing) std::printf("     %s missing from the summary\n", k);
@@ -358,6 +360,14 @@ int main()
     test_rotation(all[6].name, summary[6], false);
     test_rotation(all[3].name, summary[3], true);
     test_rotation(all[4].name, summary[4], true);
+    {
+        // The camera pair reaches the chest's signed twin as it does the pelvis's (2026-10-26): a
+        // two-camera rig with no trunk sensor estimates both, rather than missing one.
+        const Flat pair = flatten(summary[6]);
+        check(pair.bucket.value(QStringLiteral("pelvisRotationSigned"), Missing) == Estimated
+                  && pair.bucket.value(QStringLiteral("thoraxRotationSigned"), Missing) == Estimated,
+              QStringLiteral("%1: both signed turns estimated by the camera pair").arg(QString::fromLatin1(all[6].name)));
+    }
 
     std::printf("\n-- instruments stay distinguishable --\n");
     {

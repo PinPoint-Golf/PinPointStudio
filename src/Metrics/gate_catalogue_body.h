@@ -141,6 +141,32 @@ inline void appendBodyGates(std::vector<GateEntry> &c)
             { QStringLiteral("input"),          QStringLiteral("The two-camera fit handed over too few frames[ ({frames})]") } };
     }
 
+    // ── The face-in cue (body_rotation.cpp recordFaceIn; trunk design §6.3, W2.1d) ──────────────
+    // DOWNGRADED, never refused or withheld: every reading is shown with its warning. No `lift`: no
+    // other route fixes a mis-worn sensor; re-seating it does. The threshold is the record's
+    // `limitDeg` (BodyRotationConfig::faceInBendDeg, bodyRotation.faceInBendDeg).
+    const char *faceInDoc = "docs/design/trunk_imu_sequence_grf_design.md §6.3";
+    add(c, "body.pelvisFaceIn", body, "Hip sensor probably worn label-in", "sensor probably label-in",
+        QStringLiteral("The hip sensor is worn USB-down with its label facing out. Worn label-in, against the body, "
+                       "it is the right mount turned half a turn about the spine: standing tall and the turns of "
+                       "the set-up routine cannot tell the two apart. The turn and its speed still read correctly, "
+                       "but the bends read backwards, so an address that bends forward at the hips reads as a lean "
+                       "back. A real address always bends forward, so a backward lean at this swing's address means "
+                       "the sensor is probably on label-in. Its readings are kept and shown, a step lower in trust, "
+                       "with this warning: turn the sensor label-out."),
+        "At address the hip sensor read a forward bend of {bendDeg:deg}, a lean backward[ (the cue fires below {limitDeg:deg})].",
+        { GateEffect::Downgraded }, rotProd, faceInDoc);
+    add(c, "body.thoraxFaceIn", body, "Chest sensor probably worn label-in", "sensor probably label-in",
+        QStringLiteral("The chest sensor is worn USB-down with its label facing out. Worn label-in, against the body, "
+                       "it is the right mount turned half a turn about the spine: standing tall and the turns of "
+                       "the set-up routine cannot tell the two apart. The turn and its speed still read correctly, "
+                       "but the bends read backwards, so an address that bends forward from the hips reads as the "
+                       "chest leaning back. A real address always tilts the chest forward, so a backward lean at "
+                       "this swing's address means the sensor is probably on label-in. Its readings are kept and "
+                       "shown, a step lower in trust, with this warning: turn the sensor label-out."),
+        "At address the chest sensor read a forward bend of {bendDeg:deg}, a lean backward[ (the cue fires below {limitDeg:deg})].",
+        { GateEffect::Downgraded }, rotProd, faceInDoc);
+
     add(c, "body.xFactorStretchTop", body, "No top to measure from", "no top found",
         QStringLiteral("X-factor stretch is how much the separation between chest and hips grows after the top of "
                        "the backswing. Without a top on this swing's timeline there is no instant to measure it "

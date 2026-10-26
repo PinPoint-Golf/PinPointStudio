@@ -244,6 +244,7 @@ QtObject {
         _leavePage("exit")
         draft.reset(presetIndex)        // goals + per-session enablement seeded here and only here
         ctx.cancelPacedConnect()        // a queue left from the last visit must not connect into this one
+        ctx.discardTrunkCeremony()      // …nor its unfinished trunk ceremony record into this one
         isOpen = true
         suspended = false
         current = ""                    // unpin, so plan[0] is the first step that applies
