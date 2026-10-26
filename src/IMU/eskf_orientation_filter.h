@@ -30,6 +30,11 @@
 // behind a forward declaration so this header — and everything that includes
 // wt9011dcl_base.h — stays free of Eigen. All Eigen/ESKF code lives in the .cpp.
 //
+// Output convention is MadgwickFilter's: a Hamilton body→world quaternion, world +Z = up
+// (gravity reaction). The library's own world is z-down; the .cpp turns it over exactly.
+// Each update() runs the full error-state cycle — gyro, predict, gated gravity
+// correction, error injection (the library's reset()) — see the .cpp (issue #104).
+//
 // 6-axis only for now (gyro + accel): the WT901 runs without a magnetometer.
 // The underlying library does expose correctMag(); a mag correction can be added
 // in update() later without changing this interface.
@@ -59,5 +64,6 @@ private:
 
     std::unique_ptr<IMU_EKF::ESKF<float>> m_eskf;
     bool  m_initialized = false;
+    float m_trust = 1.0f;   // accelerometer trust 0..1, falls at once, recovers over time
     float m_w = 1.0f, m_x = 0.0f, m_y = 0.0f, m_z = 0.0f;
 };

@@ -121,6 +121,10 @@ public:
     // fuseRawImu), so no locking is needed.
     void setNominalSampleRateHz(int hz) { if (hz > 0) m_nominalDtS = 1.0f / static_cast<float>(hz); }
 
+    // How many times the fusion filter's output went non-finite and fuseRawImu re-seeded it
+    // (never emitting the NaN). Any thread.
+    quint64 fusionDivergences() const { return m_fusionDivergences.load(std::memory_order_relaxed); }
+
 signals:
     void connected();
     void disconnected();
@@ -167,6 +171,7 @@ private:
     // a sample taken mid-motion (wrong gravity → slow convergence). Falls back to
     // seeding unconditionally after kInitMaxSeedAttempts samples.
     int                                 m_initSeedAttempts = 0;
+    std::atomic<quint64>                m_fusionDivergences{ 0 };   // fusionDivergences()
     static constexpr float kInitAccelTolG     = pinpoint::tuned::seed::kInitAccelTolG;   // |a| within 1g ± this
     static constexpr float kInitGyroMaxRadps  = pinpoint::tuned::seed::kInitGyroMaxRadps;  // ~28 °/s
     static constexpr int   kInitMaxSeedAttempts = pinpoint::tuned::seed::kInitMaxSeedAttempts; // ~1 s @200 Hz, ~2 s @100 Hz

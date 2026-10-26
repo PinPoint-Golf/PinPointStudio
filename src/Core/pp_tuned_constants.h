@@ -49,6 +49,22 @@ namespace filter {
 // typical for consumer MEMS. The phase-adaptive schedule (validation §5.3.1) starts
 // from this as its static-phase value.
 inline constexpr float kBeta = 0.05f;
+
+// ESKF accelerometer trust (src/IMU/eskf_orientation_filter.cpp, issue #104). The vendored
+// ESKF's tilt gain is high (about 8 % of the tilt error per 200 Hz sample) where Madgwick's is
+// bounded (at most 2·kBeta rad/s), so the accelerometer is believed only while it can be reading
+// gravity alone: |‖a‖ − 1 g| and the rotation rate both small, and both held so for a moment.
+// Full trust at or under the first value, none at or over the second, linear between; trust
+// falls at once and climbs back to full over kEskfTrustRecoverS. The 1 g band clears the
+// +1.74 % a W0 desk unit reads lying still (design §17.4).
+inline constexpr float kEskfAccelFullTrustG     = 0.03f;
+inline constexpr float kEskfAccelNoTrustG       = 0.10f;
+inline constexpr float kEskfGyroFullTrustRadps  = 0.35f;   // ~20 °/s
+inline constexpr float kEskfGyroNoTrustRadps    = 1.75f;   // ~100 °/s
+inline constexpr float kEskfTrustRecoverS       = 0.25f;
+// Fully trusted, the ESKF's tilt follows gravity with this time constant (the library's own
+// tuning would follow it in 60 ms, which turns sideways accelerations straight into tilt).
+inline constexpr float kEskfTiltTauS            = 0.5f;
 } // namespace filter
 
 // --- Stillness-gated seed tolerances (src/IMU/imu_base.h) --------------------------

@@ -13,6 +13,7 @@
 #include "../../IMU/orientation_filter.h"        // MadgwickFilter (header-only)
 #include "../../IMU/eskf_orientation_filter.h"   // EskfOrientationFilter (Eigen-backed)
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 
@@ -49,7 +50,7 @@ static void dumpQuat(const char *label, const IOrientationFilter &f)
 
 // Minimal quaternion algebra to characterize a filter by the rotation RELATIVE to
 // its own seed — convention-robust, so it works regardless of each filter's absolute
-// world-frame choice (Madgwick and ESKF differ by 180° about X; see section D).
+// world-frame choice.
 struct Quat { double w, x, y, z; };
 static Quat snap(const IOrientationFilter &f) { return { f.w(), f.x(), f.y(), f.z() }; }
 static Quat conj(const Quat &q)               { return { q.w, -q.x, -q.y, -q.z }; }
@@ -131,13 +132,10 @@ int main()
     }
 
     // -- D. ESKF: seed + static stability + constant-gyro integration --
-    //   IMPORTANT CHARACTERIZATION: ESKF seeds gravity (0,0,1) as a 180°-about-X
-    //   orientation, NOT identity — a fixed frame-convention difference from Madgwick.
-    //   The two filters are runtime-swappable into the SAME downstream A·q·M, so a swap
-    //   without re-calibration would flip orientation by this 180°; per-session re-solve
-    //   of A absorbs it (docs/implementation/imu_rearchitecture.md §1.4, N1). We therefore characterize
-    //   ESKF by rotation RELATIVE to its own seed, which is convention-independent.
-    std::printf("\n-- D. ESKF (relative-to-seed; ESKF world differs from Madgwick by 180°·X) --\n");
+    //   Issue #104: the ESKF reports Madgwick's world (+Z up, Hamilton body→world). Until then
+    //   it seeded a level sensor as 180° about X (the vendored library's world is z-down) and
+    //   seeded any tilted reading wrongly (its initWithAcc predicts gravity at (−x, −y, z)).
+    std::printf("\n-- D. ESKF (Madgwick's world: a level seed is identity) --\n");
     {
         EskfOrientationFilter e;
         checkBool("ESKF uninitialised", e.initialized(), false);
@@ -145,9 +143,8 @@ int main()
         checkBool("ESKF initialised after seed", e.initialized(), true);
         dumpQuat("ESKF seed(0,0,1)", e);
         const Quat seed = snap(e);
-        checkNear("ESKF seed is 180°·X: angle°", quatAngleDeg(seed), 180.0, 0.5);
-        checkNear("ESKF seed |x| ≈ 1", std::abs(seed.x), 1.0, 1e-3);
-        checkNear("ESKF seed |w| ≈ 0", std::abs(seed.w), 0.0, 1e-3);
+        checkNear("ESKF seed(0,0,1) is identity: angle°", quatAngleDeg(seed), 0.0, 0.01);
+        checkNear("ESKF seed w = +1", seed.w, 1.0, 1e-5);
 
         EskfOrientationFilter es;
         es.initFromAccel(0, 0, 1);
@@ -155,7 +152,7 @@ int main()
         for (int i = 0; i < 400; ++i) es.update(0, 0, 1, 0, 0, 0, 0.005f);
         const Quat esFin = snap(es);
         dumpQuat("ESKF after 400 still", es);
-        checkNear("ESKF static drift° ≈ 0", quatAngleDeg(relToSeed(esSeed, esFin)), 0.0, 0.5);
+        checkNear("ESKF static drift° ≈ 0", quatAngleDeg(relToSeed(esSeed, esFin)), 0.0, 0.01);
 
         EskfOrientationFilter eg;
         eg.initFromAccel(0, 0, 1);
@@ -164,12 +161,87 @@ int main()
         const Quat egFin = snap(eg);
         const Quat egRel = relToSeed(egSeed, egFin);
         dumpQuat("ESKF Z gyro 1rad/s · 1s", eg);
-        std::printf("  [DIAG] ESKF rel-to-seed (w,x,y,z) = (%.5f, %.5f, %.5f, %.5f)\n",
-                    egRel.w, egRel.x, egRel.y, egRel.z);
-        checkNear("ESKF integrated rel-angle° ≈ 57.3", quatAngleDeg(egRel), 57.2958, 2.5);
+        checkNear("ESKF integrated rel-angle° ≈ 57.3", quatAngleDeg(egRel), 57.2958, 0.5);
         checkNear("ESKF rel rotation about +Z", egRel.z > 0 ? 1.0 : 0.0, 1.0, 0.0);
-        checkNear("ESKF rel off-axis |x| ≈ 0", std::abs(egRel.x), 0.0, 0.02);
-        checkNear("ESKF rel off-axis |y| ≈ 0", std::abs(egRel.y), 0.0, 0.02);
+        checkNear("ESKF rel off-axis |x| ≈ 0", std::abs(egRel.x), 0.0, 0.002);
+        checkNear("ESKF rel off-axis |y| ≈ 0", std::abs(egRel.y), 0.0, 0.002);
+
+        MadgwickFilter mg;
+        mg.initFromAccel(0, 0, 1);
+        for (int i = 0; i < 200; ++i) mg.update(0, 0, 0, 0, 0, 1.0f, 0.005f);
+        checkNear("ESKF == Madgwick after the same yaw°", quatAngleDeg(mul(conj(snap(mg)), egFin)), 0.0, 0.01);
+    }
+
+    // -- E. ESKF frame against Madgwick at rest, at several tilts (issue #104) --
+    //   Seeded from one reading, then held still at it: both filters must put that reading on
+    //   world +Z (the frame contract, imu_axis_reference.md §3), agree on the gravity direction
+    //   within 1°, and differ, if at all, only by a heading (a rotation about world Z).
+    //   Then a turn under the gyro to a new tilt, held: the same again, since the world must
+    //   not depend on the pose the filter was seeded in.
+    std::printf("\n-- E. ESKF vs Madgwick world frame at rest, several tilts --\n");
+    {
+        auto upInWorld = [](const Quat &q, double ax, double ay, double az, double out[3]) {
+            const Quat r = mul(mul(q, Quat{ 0, ax, ay, az }), conj(q));
+            const double n = std::sqrt(r.x * r.x + r.y * r.y + r.z * r.z);
+            out[0] = r.x / n; out[1] = r.y / n; out[2] = r.z / n;
+        };
+        const float tilts[][3] = { { 0, 0, 1 }, { 0.5f, 0.5f, 0.7071f }, { -0.97f, -0.17f, -0.16f },
+                                   { 1, 0, 0 }, { 0, -1, 0 }, { 0.3f, -0.9f, 0.3f },
+                                   { -0.6f, 0.3f, -0.74f }, { 0.05f, 0.02f, -1 } };
+        double worstUpE = 0, worstUpM = 0, worstTilt = 0, worstOffAxis = 0;
+        for (const auto &t : tilts) {
+            MadgwickFilter m;
+            EskfOrientationFilter e;
+            m.initFromAccel(t[0], t[1], t[2]);
+            e.initFromAccel(t[0], t[1], t[2]);
+            for (int i = 0; i < 400; ++i) {
+                m.update(t[0], t[1], t[2], 0, 0, 0, 0.005f);
+                e.update(t[0], t[1], t[2], 0, 0, 0, 0.005f);
+            }
+            double ue[3], um[3];
+            upInWorld(snap(e), t[0], t[1], t[2], ue);
+            upInWorld(snap(m), t[0], t[1], t[2], um);
+            const double upE = std::acos(std::min(1.0, ue[2])) * 180.0 / M_PI;
+            const double upM = std::acos(std::min(1.0, um[2])) * 180.0 / M_PI;
+            // the relative rotation e·m⁻¹ (world side) must be about world Z only
+            const Quat rel = mul(snap(e), conj(snap(m)));
+            const double offAxis = 2.0 * std::asin(std::min(1.0, std::sqrt(rel.x * rel.x + rel.y * rel.y))) * 180.0 / M_PI;
+            // gravity direction in the body frame from each filter, compared
+            const double be[3] = { 2 * (e.x() * e.z() - e.w() * e.y()), 2 * (e.y() * e.z() + e.w() * e.x()), 1 - 2 * (e.x() * e.x() + e.y() * e.y()) };
+            const double bm[3] = { 2 * (m.x() * m.z() - m.w() * m.y()), 2 * (m.y() * m.z() + m.w() * m.x()), 1 - 2 * (m.x() * m.x() + m.y() * m.y()) };
+            const double tilt = std::acos(std::min(1.0, be[0] * bm[0] + be[1] * bm[1] + be[2] * bm[2])) * 180.0 / M_PI;
+            std::printf("  [DIAG] reading (%5.2f %5.2f %5.2f): world-up err ESKF %.4f° Madgwick %.4f°, tilt ESKF-vs-Madgwick %.4f°, "
+                        "relative rotation off world Z %.4f°\n", t[0], t[1], t[2], upE, upM, tilt, offAxis);
+            worstUpE = std::max(worstUpE, upE); worstUpM = std::max(worstUpM, upM);
+            worstTilt = std::max(worstTilt, tilt); worstOffAxis = std::max(worstOffAxis, offAxis);
+        }
+        checkNear("ESKF puts the reading on world +Z°", worstUpE, 0.0, 1.0);
+        checkNear("Madgwick puts the reading on world +Z°", worstUpM, 0.0, 1.0);
+        checkNear("ESKF vs Madgwick gravity direction°", worstTilt, 0.0, 1.0);
+        checkNear("ESKF vs Madgwick differ by heading only°", worstOffAxis, 0.0, 1.0);
+
+        // Seeded level, turned 120° about body X by the gyro over 2 s, then held 3 s: the reading
+        // at the new pose must land on world +Z for both, and the two must still agree.
+        MadgwickFilter m;
+        EskfOrientationFilter e;
+        m.initFromAccel(0, 0, 1);
+        e.initFromAccel(0, 0, 1);
+        const double rate = 120.0 * M_PI / 180.0 / 2.0;   // rad/s about body X
+        double ang = 0.0;
+        for (int i = 0; i < 400; ++i) {
+            ang += rate * 0.005;
+            const float ay = float(std::sin(ang)), az = float(std::cos(ang));   // body reading of up after a turn of ang about X
+            m.update(0, ay, az, float(rate), 0, 0, 0.005f);
+            e.update(0, ay, az, float(rate), 0, 0, 0.005f);
+        }
+        const float ay = float(std::sin(ang)), az = float(std::cos(ang));
+        for (int i = 0; i < 600; ++i) { m.update(0, ay, az, 0, 0, 0, 0.005f); e.update(0, ay, az, 0, 0, 0, 0.005f); }
+        double ue[3], um[3];
+        upInWorld(snap(e), 0, ay, az, ue);
+        upInWorld(snap(m), 0, ay, az, um);
+        checkNear("turned 120°·X: ESKF reading on world +Z°", std::acos(std::min(1.0, ue[2])) * 180.0 / M_PI, 0.0, 1.0);
+        checkNear("turned 120°·X: Madgwick reading on world +Z°", std::acos(std::min(1.0, um[2])) * 180.0 / M_PI, 0.0, 1.0);
+        checkNear("turned 120°·X: ESKF == Madgwick°", quatAngleDeg(mul(conj(snap(m)), snap(e))), 0.0, 1.0);
     }
 
     std::printf("\n=== %s (%d assert failures) ===\n",

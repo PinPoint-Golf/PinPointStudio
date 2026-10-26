@@ -20,8 +20,9 @@
 
 #include "orientation_filter.h"        // MadgwickFilter (concrete)
 #include "eskf_orientation_filter.h"   // EskfOrientationFilter (concrete)
+#include "pp_debug.h"
 
-#include <cmath>                        // std::sqrt / std::abs (stillness gate)
+#include <cmath>                        // std::sqrt / std::abs (stillness gate), std::isfinite
 
 ImuBase::ImuBase(QObject *parent)
     : QObject(parent)
@@ -77,5 +78,24 @@ ImuBase::QuaternionData ImuBase::fuseRawImu(float ax, float ay, float az,
     }
     m_fusion->update(ax, ay, az, gxRad, gyRad, gzRad, dt);
 
-    return QuaternionData{ m_fusion->w(), m_fusion->x(), m_fusion->y(), m_fusion->z() };
+    QuaternionData q{ m_fusion->w(), m_fusion->x(), m_fusion->y(), m_fusion->z() };
+    if (std::isfinite(q.w) && std::isfinite(q.x) && std::isfinite(q.y) && std::isfinite(q.z))
+        return q;
+
+    // The filter diverged. A NaN is never emitted: it would reach every consumer — the ring, the
+    // EventBuffer, swing.json, a calibration's A — and, the filter's state being NaN, every sample
+    // after it too (the vendored ESKF latches NaN under sustained linear acceleration; 26 Oct the
+    // trunk ceremony read two sensors' turns as 0.0° for this). Re-seed from gravity: the tilt
+    // is right again at once; the heading restarts, as on any reconnect.
+    const quint64 n = m_fusionDivergences.fetch_add(1, std::memory_order_relaxed) + 1;
+    m_fusion->reset();
+    m_initSeedAttempts = 0;
+    const float aMag = std::sqrt(ax * ax + ay * ay + az * az);
+    if (std::isfinite(aMag) && aMag > 1e-6f)
+        m_fusion->initFromAccel(ax, ay, az);   // else identity, seeded by the next sample
+    q = QuaternionData{ m_fusion->w(), m_fusion->x(), m_fusion->y(), m_fusion->z() };
+    if (n <= 5 || n % 100 == 0)
+        ppWarn() << "[IMU] orientation filter" << m_fusion->name() << "diverged (non-finite output) —"
+                 << "re-seeded from gravity, heading restarts;" << n << "divergence(s) on this sensor so far";
+    return q;
 }
