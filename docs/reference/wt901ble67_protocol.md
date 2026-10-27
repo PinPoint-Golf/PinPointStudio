@@ -8,6 +8,61 @@ Where the SDK and protocol doc disagree, the SDK is correct. Confirmed discrepan
 
 ---
 
+## Working with the device in PinPoint — read this first (27 Oct 2026)
+
+Everything below is settled. Do not re-derive the axes or ask for desk tests: read the arm calibration code
+(`src/IMU/imu_calibration.h`, above `nominalArmMount`) and test our maths on a recording instead.
+
+**Runtime configuration (every connect, never saved to flash).** `WT9011DCL_BLE::initializeDevice()` sends
+ORIENT = 0x0001 (vertical installation), AXIS6 = 0x0001 (6-axis, no magnetometer) and RRATE, then reads ORIENT
+and AXIS6 back (`[orient]` / `[axis6]` log lines). No CALSW zeroing at connect: the device's own zero and its
+Euler output are not used for computation. Every axis fact and mount constant in PinPoint was measured with
+this configuration applied. ORIENT is WitMotion's installation-direction setting; if it is ever changed, the
+output axes may be remapped and the characterisation (below) must be redone.
+
+**Ranges and rate.** Accel ±16 g, gyro ±2000 °/s (int16, `dispatchCombinedPacket`); frames over 16 g of
+|a| are rejected as a mis-aligned lock-on. Trunk and worn sessions run at 200 Hz (RRATE 0x0B); the driver
+default is 100 Hz (0x09).
+
+**Axes (sensor body, as streamed in the 0x61 frame).** Right-handed. The accelerometer reads +1 g on the
+axis pointing **up** (gravity reaction). With the label facing you and the USB end **down**: +X your right,
++Y up (**away from the USB end**), +Z out of the label. The gyro shares the accel axes and is right-handed:
+an anticlockwise turn about the up axis reads positive (verified 27 Oct 2026 from a raw spin recording,
+`/mnt/swingdata/scratch/trunk-hw/desk/gyro-sign-20261027-072556/`). Full table and evidence:
+[`imu_axis_reference.md`](imu_axis_reference.md) §2 (corrected 26 Oct 2026; before that its words had +X/+Y
+inverted, its measured column never did).
+
+**Orientation is fused on the host,** from raw gyro + accel, in `ImuBase::fuseRawImu()`: Madgwick (default)
+or ESKF (`imu/orientationFilter`). Both report one world since the #104 fix (26 Oct 2026): +Z up, Hamilton,
+body→world, a level label-up sensor reads identity; heading is free (6-axis) and drifts (~0.1 °/s seen on a
+still sensor between steps, 27 Oct), so re-reference heading at use. A non-finite fused quaternion is never emitted
+(re-seed from gravity, logged `[IMU] orientation filter … diverged`). The device's own Euler/quaternion output
+is display-only: it proved non-rigid. Swings captured with the ESKF before #104 keep their old quaternions
+(their world depended on the seed pose and many went NaN in the downswing).
+
+**Mounts.** Every solve takes its frame from gravity and the face, so device axis words never enter the maths.
+- Arm/forearm/upper arm: watch-style, label out (lateral), USB end forward; sensor +X runs down the arm.
+  M = `kNominalArmMount` (0.5, −0.5, −0.5, −0.5), gravity-pinned against captured data.
+- Hand (dorsal): `kNominalHandMount`, solved from a characterisation capture.
+- Trunk (hip on the belt at the lower back, chest between the shoulder blades): upright, **USB end down,
+  label facing out** (the label's printing reads the right way up). Stand tall solves A and M
+  (`solveTrunkSegment`); the long-axis gate wants sensor +Y within 35° of up.
+
+**Timing.** Samples arrive over BLE in bursts of about 8 every ~30 ms (34–96 ms late), and the device clock
+runs ~0.7 % slow (198.6 Hz at a nominal 200). Analysis re-times each Witmotion lane to its own device clock
+(`src/IMU/imu_retime.h`, design §7.1); never use arrival times as sample times.
+
+**Quality.** Gyro bias ≤ 0.22 °/s at rest (no bias estimator needed); |a| at rest reads within +0.6 to +1.7 %
+of 1 g (the trunk gravity gate is ±3 %). For stillness use `ImuInstance::gyroDps` (device gyro, 250 ms peak),
+not the quaternion-difference `angularVelocityDps`, which is noisy per sample.
+
+**Tools.** `PINPOINT_IMU_RECORD_DIR=<dir>` records every raw sample (t_us, accel g, gyro °/s, fused quaternion)
+per connection to CSV (`pinpoint.imu_record/1`); `tools/trunk/trunk_hw.py` reads them. To check our maths
+against a known motion, run a recording through the real solve/check offline rather than reasoning about the
+device.
+
+---
+
 ## BLE Transport
 
 The WT901BLE67 exposes a custom UART-bridge GATT service. All communication — both commands to the device and data from it — passes through two characteristics on this service.
@@ -399,20 +454,25 @@ The device may return raw = 0 briefly after connection (ADC not ready). Retry af
 
 ## PinPoint Studio Initialisation Sequence
 
-Sent on every connect and on every `reinitialize()` call (rate change, zero button). No unlock or save is used — settings are intentionally transient.
+Sent on every connect and on every `reinitialize()` call (rate change). No unlock or save is used — settings
+are intentionally transient. Source: `WT9011DCL_BLE::initializeDevice()` (`src/IMU/wt9011dcl_ble.cpp`).
 
 ```
+(host) reset the local orientation filter — re-seeded from the first sample
 FF AA 23 01 00   ORIENT = 0x0001  vertical installation
-FF AA 24 01 00   AXIS6  = 0x0001  6-axis algorithm (gyro only)
-FF AA 03 NN 00   RRATE  = NN      output rate (default 0x09 = 100 Hz)
-FF AA 01 08 00   CALSW  = 0x0008  zero roll/pitch to current position
-FF AA 01 04 00   CALSW  = 0x0004  zero heading
-FF AA 01 00 00   CALSW  = 0x0000  return to normal mode
+FF AA 24 01 00   AXIS6  = 0x0001  6-axis algorithm (no magnetometer)
+FF AA 03 NN 00   RRATE  = NN      output rate (driver default 0x09 = 100 Hz; worn/trunk sessions 0x0B = 200 Hz)
+read-back ORIENT and AXIS6        logged as [orient] / [axis6]
 ```
 
 After this sequence, the device streams 0x61 combined frames at the configured rate.
 
-**Why no save:** Configuration is re-applied on every connect, so persisting to NVM would provide no benefit and would unnecessarily wear flash.
+CALSW zeroing (0x0008 roll/pitch, 0x0004 heading, then 0x0000) is **not** sent at connect. It exists as
+`zeroToCurrentPose()` but is vestigial: PinPoint fuses orientation on the host and calibrates in software
+(A·q·M), so the device's own zero affects nothing we compute. (Earlier versions of this document listed it in
+the connect sequence.)
+
+**Why no save:** Configuration is re-applied on every connect, so persisting to NVM would provide no benefit and would unnecessarily wear flash. (A flat-still CALSW + SAVE once corrupted sensors.)
 
 **Why no unlock:** CALSW, ORIENT, AXIS6, and RRATE writes are accepted without unlock over BLE on this firmware.
 
@@ -491,13 +551,13 @@ if (data[0] == 0x55 && data[1] == 0x71 && data[2] == 0x51) {
 
 ## WT901BLE67 Axis Mapping
 
-The 0x61 frame labels axes differently from the standard RPY convention. Confirmed experimentally:
+**Raw accel/gyro axes:** see "Working with the device in PinPoint" above and
+[`imu_axis_reference.md`](imu_axis_reference.md) §2. These are the only axes PinPoint computes with.
 
-- Roll  → X axis
-- Yaw   → Y axis  
-- −Pitch → Z axis (pitch is negated)
-
-This mapping is baked into `WT9011DCL_BLE::eulerToQuat()`. All corrections live in the driver layer; nothing above it needs to be aware of the remapping.
+**Legacy — device Euler labels only.** The 0x61 frame's Euler fields label axes differently from the
+standard RPY convention (Roll → X, Yaw → Y, −Pitch → Z), as baked into `eulerToQuat()`. That function is
+**unused** for the 0x61 path (it served the old 0x55/0x53 serial path); the Euler values are emitted for
+human-readable labels only and never feed orientation.
 
 ---
 
