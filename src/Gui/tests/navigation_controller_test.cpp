@@ -20,11 +20,13 @@
 //
 // ⚠ THE ORACLE IS THE LOCK RULE OF THE FOUR-MODES REFACTOR
 // (docs/design/ux_refactor_away_from_4_modes.md §6 Phase 1): while a session
-// runs, ONLY AppScreen::Session, SwingModel, System and Settings are reachable,
-// whatever the session type, and on every path — navigate, back, forward and
-// the Home reset. Before the refactor the allowed screen was "type + 1"; a
-// screen index computed from a session type is exactly what this suite exists
-// to catch coming back.
+// runs, ONLY AppScreen::Session, System and Settings are reachable, whatever
+// the session type, and on every path — navigate, back, forward and the Home
+// reset. Settings stays open because it is how the Swing model (Settings slot
+// 10) is reached mid-session; there is no Swing model screen (Mark, 28 Oct).
+// Before the refactor the allowed screen was "type + 1"; a screen index
+// computed from a session type is exactly what this suite exists to catch
+// coming back.
 //
 // A real SessionController drives the lock (no athlete: the club seed is
 // stubbed by session_clock_stubs.cpp, as session_clock_test does).
@@ -55,7 +57,6 @@ static const char *nameOf(int screen)
     case AppScreen::Session:    return "Session";
     case AppScreen::Sessions:   return "Sessions";
     case AppScreen::WorkOns:    return "WorkOns";
-    case AppScreen::SwingModel: return "SwingModel";
     case AppScreen::Athlete:    return "Athlete";
     case AppScreen::Athletes:   return "Athletes";
     case AppScreen::System:     return "System";
@@ -203,47 +204,45 @@ static void testSessionLock(SessionController::Type type, const char *typeName)
                 AppScreen::Session);
 
     // Allowed targets.
-    const int allowed[] = { AppScreen::SwingModel, AppScreen::System, AppScreen::Settings,
-                            AppScreen::Session };
+    const int allowed[] = { AppScreen::System, AppScreen::Settings, AppScreen::Session };
     for (int target : allowed) {
         nav.navigate(target);
         checkScreen(QStringLiteral("L8 navigate(%1) is allowed").arg(QLatin1String(nameOf(target))),
                     nav.currentIndex(), target);
     }
 
-    // History now ends ... Sessions, Session, SwingModel, System, Settings, [Session].
+    // History now ends ... Sessions, Session, System, Settings, [Session].
     // Walk back through the allowed screens, then hit Sessions, which is refused.
-    nav.back(); checkScreen(QStringLiteral("L9 back to Settings"),   nav.currentIndex(), AppScreen::Settings);
-    nav.back(); checkScreen(QStringLiteral("L10 back to System"),    nav.currentIndex(), AppScreen::System);
-    nav.back(); checkScreen(QStringLiteral("L11 back to SwingModel"), nav.currentIndex(), AppScreen::SwingModel);
-    nav.back(); checkScreen(QStringLiteral("L12 back to Session"),   nav.currentIndex(), AppScreen::Session);
+    nav.back(); checkScreen(QStringLiteral("L9 back to Settings"),  nav.currentIndex(), AppScreen::Settings);
+    nav.back(); checkScreen(QStringLiteral("L10 back to System"),   nav.currentIndex(), AppScreen::System);
+    nav.back(); checkScreen(QStringLiteral("L11 back to Session"),  nav.currentIndex(), AppScreen::Session);
 
     nav.back();
-    checkScreen(QStringLiteral("L13 back() to Sessions is refused"), nav.currentIndex(),
+    checkScreen(QStringLiteral("L12 back() to Sessions is refused"), nav.currentIndex(),
                 AppScreen::Session);
-    check(QStringLiteral("L14 ... without losing the back history"), nav.canGoBack());
-    check(QStringLiteral("L15 ... or the forward history"), nav.canGoForward());
+    check(QStringLiteral("L13 ... without losing the back history"), nav.canGoBack());
+    check(QStringLiteral("L14 ... or the forward history"), nav.canGoForward());
 
     nav.forward();
-    checkScreen(QStringLiteral("L16 forward to an allowed screen works"), nav.currentIndex(),
-                AppScreen::SwingModel);
+    checkScreen(QStringLiteral("L15 forward to an allowed screen works"), nav.currentIndex(),
+                AppScreen::System);
     nav.back();
 
     // The session ends: everything is reachable again, and the history the lock
     // protected is still there.
     session.endSession();
-    check(QStringLiteral("L17 endSession() lifts the lock"), !nav.sessionLocked());
+    check(QStringLiteral("L16 endSession() lifts the lock"), !nav.sessionLocked());
     nav.back();
-    checkScreen(QStringLiteral("L18 back() to Sessions now works"), nav.currentIndex(),
+    checkScreen(QStringLiteral("L17 back() to Sessions now works"), nav.currentIndex(),
                 AppScreen::Sessions);
     bool all = true;
     for (int i = 0; i < AppScreen::Count; ++i) {
         nav.navigate(i);
         all = all && nav.currentIndex() == i;
     }
-    check(QStringLiteral("L19 every screen is reachable after the session"), all);
+    check(QStringLiteral("L18 every screen is reachable after the session"), all);
     nav.navigateRail(AppScreen::Home);
-    check(QStringLiteral("L20 navigateRail(Home) resets again after the session"),
+    check(QStringLiteral("L19 navigateRail(Home) resets again after the session"),
           nav.currentIndex() == AppScreen::Home && !nav.canGoBack() && !nav.canGoForward());
 }
 

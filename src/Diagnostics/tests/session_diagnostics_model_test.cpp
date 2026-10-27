@@ -1836,6 +1836,40 @@ int main(int argc, char **argv)
         m2->clearFocus();
         check(m2->focusConditionId().isEmpty(), "the focus contract can be withdrawn");
         check(tiersOf(*m2) == tiersBefore, "…which also moves no tier");
+
+        // A focus ADOPTED after the fact (declared on the SessionController at session start,
+        // or on another surface's model) carries its own split: the row count now says
+        // nothing about when it was declared.
+        m2->declareFocusFrom(focusId, 2);
+        check(m2->focusConditionId() == focusId && m2->focusFromShot() == 2,
+              "an adopted focus keeps the split it was declared with");
+        const int persistsAdopted = m2->persistCount();
+        m2->declareFocusFrom(focusId, 2);
+        check(m2->persistCount() == persistsAdopted,
+              "…and adopting the focus already held writes nothing");
+        m2->declareFocusFrom(focusId, kShots + 40);
+        check(m2->focusFromShot() == kShots, "a split past the last row is clamped to the rows");
+        m2->declareFocusFrom(focusId, -3);
+        check(m2->focusFromShot() == 0, "…and one before the first row to the first");
+        m2->declareFocusFrom(focusId, 3);
+        check(tiersOf(*m2) == tiersBefore, "…none of which moves a tier");
+
+        auto m3 = freshModel();
+        m3->activateSession(dir);
+        check(m3->focusConditionId() == focusId && m3->focusFromShot() == 3,
+              "the adopted split round-trips through diagnostics.json");
+        m3->declareFocusFrom(QString(), 1);
+        check(m3->focusConditionId().isEmpty() && m3->focusFromShot() < 0,
+              "adopting an empty focus withdraws it");
+
+        auto m4 = freshModel();
+        m4->activateSession(dir);
+        check(m4->focusConditionId().isEmpty() && m4->focusFromShot() < 0,
+              "…and the withdrawal round-trips too");
+        m4->declareFocusFrom(focusId, 1);
+        m4->clearFocus();
+        check(m4->focusConditionId().isEmpty() && m4->focusFromShot() < 0,
+              "clearFocus still withdraws an adopted focus");
     }
 
     // ── 6. The fault profile: written at close, read at the next activation, inert ───

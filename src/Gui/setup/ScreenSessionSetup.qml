@@ -37,7 +37,7 @@
 // Behaviour that differs from today's wizard, all approved (§6, §10):
 //   - the header › is Continue only, disabled when Continue is; it never runs a page's primary
 //     (Connect) (F5, D2);
-//   - a trip to Settings keeps goals and per-session toggles: a visibility edge suspends and
+//   - a trip to Settings keeps the chosen focus and per-session toggles: a visibility edge suspends and
 //     resumes the flow, it does not re-seed (F4);
 //   - open() is the only reset: it cancels the paced sensor connect and starts a new draft (N13);
 //   - navigation is queued, so a double-click on Continue advances once (N19);
@@ -51,25 +51,25 @@ Item {
     id: root
 
     // ── Public API (Main.qml) ────────────────────────────────────────────────────────────────────
-    // The presets, for Main's railIndex lookup on Start: presets[type].railIndex.
-    readonly property var presets: ctxObj.presets
     // ScreenSettings sub-panel indices (the same as SetupContext's).
     readonly property int settingsPanelCameras: ctxObj.settingsPanelCameras
     readonly property int settingsPanelImus:    ctxObj.settingsPanelImus
 
     signal cancelled()                                       // Cancel: devices already released
-    // Start: devices kept. The goal keys picked, or the preset's first (§5).
-    // (The parameter is not called `goals`: W10 holds this file to no registry key.)
-    signal sessionStartRequested(int sessionType, var goalKeys)
+    // Start: devices kept. The open() request handed back with the visit's final focus:
+    // { focusConditionId: "" | id, focusLabel: "" | label } (phase 2 C2). No session type: Main
+    // starts every session as sessionController.defaultType.
+    signal sessionStartRequested(var request)
     signal cameraRecalibrateRequested()
     signal navigateToSettings(int panelIndex)                // settingsPanelCameras / settingsPanelImus
     signal exitRequested(string reason)                      // "back": ‹ on the first step; devices released
 
-    // A new visit for a preset (SessionController.Type) — the old wizard's reset(type). Everything
-    // is reset here and only here: draft, step states, goals and enablement seeded from settings,
-    // the paced sensor connect cancelled.
-    function open(preset) {
-        flowObj.open(preset)
+    // A new visit — the old wizard's reset(type). request: { focusConditionId, focusLabel }
+    // (phase 2 C2; missing = an open assessment). Everything is reset here and only here: draft,
+    // step states, the focus from the request, enablement seeded from settings, the paced sensor
+    // connect cancelled.
+    function open(request) {
+        flowObj.open(request)
         spokenPrep.prepareAll("setup opened")
     }
 
@@ -189,7 +189,7 @@ Item {
         loader:   pageLoader
 
         onCancelled:                  root.cancelled()
-        onStartRequested:             (preset, picked) => root.sessionStartRequested(preset, picked)
+        onStartRequested:             (request) => root.sessionStartRequested(request)
         onExitRequested:              (reason) => root.exitRequested(reason)
         onSettingsRequested:          (panelIndex) => root.navigateToSettings(panelIndex)
         onCameraRecalibrateRequested: root.cameraRecalibrateRequested()
@@ -242,10 +242,6 @@ Item {
                 width:  root.contentWidth
                 height: parent.height
 
-                // The preset being set up, or nothing before the first open().
-                readonly property var _preset: draftObj.preset >= 0 && draftObj.preset < ctxObj.presets.length
-                                               ? ctxObj.presets[draftObj.preset] : null
-
                 Column {
                     id: hdrInner
                     anchors {
@@ -256,28 +252,20 @@ Item {
                     }
                     spacing: Theme.gap(6)
 
-                    Row {
-                        spacing: Theme.gap(8)
-                        Text {
-                            text:           hdrBox._preset ? hdrBox._preset.icon : ""
-                            font.pixelSize: Theme.sp(20)
-                            color:          Theme.colorText2
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                        Text {
-                            text:           hdrBox._preset ? hdrBox._preset.name : ""
-                            font.family:    Theme.fontDisplay
-                            font.italic:    Theme.fontDisplayItalic
-                            font.weight: Theme.fontDisplayWeight
-                            font.pixelSize: Math.min(Theme.sp(22), Theme.fontSzDisplay)
-                            color:          Theme.colorText
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
+                    // No session type to name any more (phase 2): every session starts the same way.
+                    Text {
+                        objectName:     "setupTitle"
+                        text:           qsTr("New session")
+                        font.family:    Theme.fontDisplay
+                        font.italic:    Theme.fontDisplayItalic
+                        font.weight: Theme.fontDisplayWeight
+                        font.pixelSize: Math.min(Theme.sp(22), Theme.fontSzDisplay)
+                        color:          Theme.colorText
                     }
 
                     Text {
                         width:          parent.width
-                        text:           qsTr("Before you step up, let's make sure everything is ready. We'll confirm your goals, check your cameras, and connect your sensors — it only takes a moment.")
+                        text:           qsTr("Before you step up, let's make sure everything is ready. We'll confirm what you're working on, check your cameras, and connect your sensors — it only takes a moment.")
                         font.family:    Theme.fontBody
                         font.weight:    Theme.fontBodyWeight
                         font.pixelSize: Theme.fontSzBody2
@@ -468,8 +456,7 @@ Item {
                                     primaryBtn._offer.run()
                                     return
                                 }
-                                // The flow guards Continue (page.canContinue && the step's gate)
-                                // and refuses a comingSoon preset's Start (today's defence).
+                                // The flow guards Continue (page.canContinue && the step's gate).
                                 if (primaryBtn._start) flowObj.exit("start")
                                 else                   flowObj.next("done")
                             }

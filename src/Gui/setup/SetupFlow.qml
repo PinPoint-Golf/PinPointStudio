@@ -18,7 +18,7 @@
 
 // The session-setup flow engine (session_wizard_refactor_design.md §4.5). Non-visual. It owns the
 // plan, the current step, the navigation queue and the page lifecycle; the decisions themselves are
-// the pure functions in setup_flow.js, and the visit's state (goals, step states, outcomes) lives
+// the pure functions in setup_flow.js, and the visit's state (focus, step states, outcomes) lives
 // in the SetupDraft.
 //
 // ── Wiring (the host — the setup shell, or a test's FlowShell) ─────────────────────────────────
@@ -72,7 +72,9 @@ QtObject {
 
     // ── Signals for the shell ────────────────────────────────────────────────────────────────────
     signal cancelled()                          // exit("cancel"): devices released → go home
-    signal startRequested(int preset, var goals) // exit("start"): devices kept → start the session
+    // exit("start"): devices kept → start the session. `request` is the open() request with the
+    // visit's focus: { focusConditionId, focusLabel } (SetupDraft.startRequest()).
+    signal startRequested(var request)
     signal exitRequested(string reason)         // "back": ‹ on the first step; devices released →
                                                 // navController.back()
     // Requests a page makes of the HOST, passed straight through (not queued: neither changes the
@@ -92,7 +94,6 @@ QtObject {
     // together, and the order their bindings first evaluate in is not ours to choose.
     readonly property bool   wired:       registry !== null && ctx !== null && draft !== null
 
-    readonly property int    preset:      draft ? draft.preset : -1
     readonly property var    descriptors: registry ? registry.descriptors : []
     readonly property var    plan:        wired ? SF.plan(descriptors, ctx, draft, current) : []
     readonly property var    numbering:   SF.numbering(plan)
@@ -147,10 +148,11 @@ QtObject {
     }
 
     // ── Operations (all queued, R5) ──────────────────────────────────────────────────────────────
-    // A new visit for a preset (SessionController.Type): the draft is reset (goals and enablement
-    // seeded from settings — the ONLY place), the paced sensor connect is cancelled, every step is
-    // pending and the first step is entered.
-    function open(presetIndex)  { _request("open", presetIndex) }
+    // A new visit. request: { focusConditionId, focusLabel } (phase 2 C2; missing = an open
+    // assessment). The draft is reset (the focus from the request, enablement from settings — the
+    // ONLY place), the paced sensor connect is cancelled, every step is pending and the first step
+    // is entered.
+    function open(request)      { _request("open", request !== undefined && request !== null ? request : ({})) }
     // mark: "done" (guard: page.canContinue && descriptor.gate) | "skipped" (guard: page.canSkip).
     function next(mark)         { _request("next", mark === "skipped" ? "skipped" : "done") }
     // The previous step; on the first step, the exit: releaseDevices() + exitRequested("back").
@@ -239,10 +241,10 @@ QtObject {
         if (_queue.length > 0 && !_loading) Qt.callLater(_drain)
     }
 
-    function _applyOpen(presetIndex) {
+    function _applyOpen(request) {
         var from = current
         _leavePage("exit")
-        draft.reset(presetIndex)        // goals + per-session enablement seeded here and only here
+        draft.reset(request)            // focus + per-session enablement seeded here and only here
         ctx.cancelPacedConnect()        // a queue left from the last visit must not connect into this one
         ctx.discardTrunkCeremony()      // …nor its unfinished trunk ceremony record into this one
         isOpen = true
@@ -251,7 +253,7 @@ QtObject {
         var first = plan.length > 0 ? plan[0] : ""
         current = first
         _unloadThenLoad(first, "forward")
-        _log("open", from, first, "preset=" + presetIndex)
+        _log("open", from, first, "open", "focus=" + (draft.focusConditionId === "" ? "-" : draft.focusConditionId))
     }
 
     function _applyNext(mark) {
@@ -320,12 +322,6 @@ QtObject {
 
     function _applyExit(reason) {
         if (!isOpen) { _log("exit", current, "", reason, "refused=closed"); return }
-        // Defensive, as today (wizard l.2213): the comingSoon types are not startable; Home never
-        // opens setup for them.
-        if (reason === "start" && ctx.presets[draft.preset] !== undefined && ctx.presets[draft.preset].comingSoon) {
-            _log("exit", current, "", reason, "refused=comingSoon")
-            return
-        }
         _exit("exit", reason)
     }
 
@@ -341,7 +337,7 @@ QtObject {
         if (release) releaseDevices()
         _log(op, from, "", reason, release ? "release=1" : "release=0")
         if (reason === "cancel")      cancelled()
-        else if (reason === "start")  startRequested(draft.preset, draft.goalsForStart())
+        else if (reason === "start")  startRequested(draft.startRequest())
         else                          exitRequested("back")
     }
 

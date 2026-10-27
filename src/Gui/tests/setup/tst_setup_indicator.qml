@@ -28,8 +28,6 @@ Item {
         name: "SetupIndicator"
         when: windowShown
 
-        readonly property int wrist: SessionController.Wrist
-
         function init() {
             testLog.reset()
             // Offscreen-QPA font notice, not a QML warning — see tst_setup_smoke.qml.
@@ -57,7 +55,7 @@ Item {
             return out
         }
         readonly property var eight: [
-            ["g", "Goals", "session", "done"], ["c", "Cameras", "cameras", "done"],
+            ["g", "Focus", "session", "done"], ["c", "Cameras", "cameras", "done"],
             ["t", "Triangulate", "cameras", "skipped"], ["b", "Ball", "cameras", "pending"],
             ["i", "IMUs", "sensors", "pending"], ["k", "Calibrate", "sensors", "pending"],
             ["h", "Confirm", "sensors", "pending"], ["r", "Ready", "ready", "pending"]
@@ -236,8 +234,8 @@ Item {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addCamera("DTL1", CameraInstance.DownTheLine, true)
             d.addCameraInstance("FO1", { ballPresent: true })
-            d.open(wrist)
-            d.next(); d.next(); d.next(); d.next()       // Goals, Cameras, Framing, Triangulate done → Ball
+            d.open()
+            d.next(); d.next(); d.next(); d.next()       // Focus, Cameras, Framing, Triangulate done → Ball
             compare(d.current(), "ball")
             // The pips' numbers are the eyebrows' (one source, flow.plan).
             compare(d.stepLabel(), "STEP " + d.pip("ball").glyph + " OF 7 · BALL DETECTION")
@@ -248,15 +246,15 @@ Item {
             compare(d.stepLabel(), "STEP 4 OF 7 · TRIANGULATION")
             compare(d.state("triangulate"), "done")
             compare(d.pip("triangulate").state, "current")
-            compare(d.pip("goals").glyph, "✓")
+            compare(d.pip("intent").glyph, "✓")
         }
 
         // ── P5 (through the shell) ───────────────────────────────────────────
         function test_P5_attentionRingAndHover() {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addCameraInstance("FO1", { ballPresent: true })
-            d.open(wrist)
-            d.next(); d.next(); d.next()                 // Goals, Cameras, Framing done → Ball
+            d.open()
+            d.next(); d.next(); d.next()                 // Focus, Cameras, Framing done → Ball
             compare(d.current(), "ball")
             verify(!d.pip("cameras").attention, "attention before anything went wrong")
             d.cams.setCameraSelected("FO1", false)       // the face-on camera drops

@@ -41,7 +41,6 @@ Item {
         when: windowShown
 
         readonly property var d: drv
-        readonly property int wrist: SessionController.Wrist
 
         function init() {
             testLog.reset()
@@ -98,8 +97,8 @@ Item {
         function test_MQ1_unmountedSensorIsAsked() {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addWitmotion("WT-N", "", true)                 // found, connected, no mount
-            d.open(wrist)
-            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "ready"], "found is not wanted (§4.12)")
+            d.open()
+            compare(d.plan(), ["intent", "cameras", "framing", "ball", "imus", "ready"], "found is not wanted (§4.12)")
             d.walkTo("imus")
             verify(d.mountQuestionShown("WT-N"), "no mount question for a found sensor with none")
             var opts = d.mountOptions("WT-N")
@@ -121,7 +120,7 @@ Item {
         function test_MQ2_choosingAMountBringsTheArmSteps() {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addWitmotion("WT-N", "", true)
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             var n0 = setRoleCalls().length
             d.chooseMount("WT-N", "leadForearm")
@@ -131,7 +130,7 @@ Item {
             compare(appSettings.imuRoles["WT-N"], "leadForearm", "the mount is a setting: it sticks")
             verify(!d.mountQuestionShown("WT-N"), "the question is still open after a pick")
             compare(d.imuRows()[0].label, "Lead forearm — WT901BLE WT-N")
-            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "calibrateArm", "checkArm", "ready"])
+            compare(d.plan(), ["intent", "cameras", "framing", "ball", "imus", "calibrateArm", "checkArm", "ready"])
             verify(d.pip("calibrateArm").shown && d.pip("checkArm").shown, "the arm steps' pips did not appear")
             compare(d.stepLabel(), "STEP 5 OF 8 · MOTION SENSORS")
             // Not the minimum set (leadForearm + leadHand): the closing page will say so.
@@ -145,7 +144,7 @@ Item {
             d.imu._find("WT-A").alias = "Forearm strap"
             d.imu._touchDevices()
             d.addWitmotion("WT-N", "", true)
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             verify(d.mountQuestionShown("WT-N"))
             var opts = d.mountOptions("WT-N")
@@ -168,7 +167,7 @@ Item {
         function test_MQ4_refusedPickSnapsBack() {
             d.addWitmotion("WT-A", "A", true)
             d.addWitmotion("WT-N", "", true)
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             // The pick the page would make if its greying were stale (the holder became present and
             // enabled between the draw and the click): the manager refuses it.
@@ -190,8 +189,8 @@ Item {
         function test_MQ5_wg3OffersOnlyItsPair() {
             d.imu.addHackMotion("HM-1", "")
             d.imu.connectDevice("HM-1")
-            d.open(wrist)
-            compare(d.plan(), ["goals", "cameras", "ball", "imus", "ready"])
+            d.open()
+            compare(d.plan(), ["intent", "cameras", "ball", "imus", "ready"])
             d.walkTo("imus")
             verify(d.mountQuestionShown("HM-1"))
             var opts = d.mountOptions("HM-1")
@@ -207,7 +206,7 @@ Item {
         // ── MQ6 ─────────────────────────────────────────────────────────────
         function test_MQ6_disablingTheSensorDropsTheArmSteps() {
             d.addWg3("HM-1", true)
-            d.open(wrist)
+            d.open()
             verify(hasArmSteps())
             d.walkTo("imus")
             d.toggleImuRow("A")
@@ -227,7 +226,7 @@ Item {
         function test_MQ7_rememberedMountIsConfirmedNotAsked() {
             d.addWitmotion("WT-A", "A", true)
             d.addWitmotion("WT-B", "B", true)
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             var n0 = setRoleCalls().length
             verify(!d.mountQuestionShown("WT-A"), "a remembered mount is asked again")
@@ -249,8 +248,8 @@ Item {
             d.addWg3("HM-9", false)
             d.imu._find("HM-9").present = false              // remembered, not found this scan
             d.imu._touchDevices()
-            d.open(wrist)
-            compare(d.plan(), ["goals", "cameras", "ball", "imus", "ready"], "an absent sensor brought arm steps")
+            d.open()
+            compare(d.plan(), ["intent", "cameras", "ball", "imus", "ready"], "an absent sensor brought arm steps")
             d.walkTo("imus")
             var rows = d.imuRows()
             compare(rows.length, 1, JSON.stringify(rows))
@@ -269,7 +268,7 @@ Item {
         // ── AN1–AN4 ─────────────────────────────────────────────────────────
         function test_AN1_absentNamedByTheCoachsAlias() {
             absentWg3("Lead arm wG3")
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             compare(absentRowLabel(), "Lead forearm + hand — Lead arm wG3 (not found)")
             verify(d.readinessIssues().some(function(x) {
@@ -279,14 +278,14 @@ Item {
         }
         function test_AN2_absentSeededAliasFallsBackToTheDescription() {
             absentWg3("HackMotion wG3 " + uuid)     // what ImuManager seeds for a newly seen device
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             compare(absentRowLabel(), "Lead forearm + hand — HackMotion wG3 (not found)")
             assertNoRawIds("AN2 Sensors")
         }
         function test_AN3_absentWithNoAliasIsNamedByItsUnitKeys() {
             absentWg3()
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             compare(absentRowLabel(), "Lead forearm + hand — HackMotion wG3 (not found)")
             assertNoRawIds("AN3 Sensors")
@@ -296,7 +295,7 @@ Item {
             roles[uuid] = "leadForearm"
             appSettings.imuRoles = roles
             appSettings.imuAlias = ({})
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             compare(absentRowLabel(), "Lead forearm — sensor (not found)")
             verify(d.readinessIssues().some(function(x) {
@@ -314,7 +313,7 @@ Item {
             al[d.imu._find(uuid).description + "|" + uuid] = d.imu._find(uuid).description + " " + uuid
             appSettings.imuAlias = al
             d.addWitmotion("WT-N", "", true)
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             var fa = d.mountOptions("WT-N").filter(function(o) { return o.role === "leadForearm" })[0]
             compare(fa.text, "Lead forearm — held by WT901BLE")
@@ -328,7 +327,7 @@ Item {
         function test_AN6_noRawIdOnReady() {
             absentWg3("HackMotion wG3 " + uuid)
             d.addCamera("FO1", CameraInstance.FaceOn, true)
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             assertNoRawIds("AN6 Sensors")
             d.walkTo("ready")
@@ -340,8 +339,8 @@ Item {
         function test_NA1_noArmSensorNoArmSteps() {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addCameraInstance("FO1", { ballPresent: true })
-            d.open(wrist)
-            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "ready"])
+            d.open()
+            compare(d.plan(), ["intent", "cameras", "framing", "ball", "imus", "ready"])
             d.walkTo("imus")
             compare(d.hint(), "No sensors in this session — wrist angles will not be measured")
             compare(d.primaryLabel(), "Continue →")
@@ -361,7 +360,7 @@ Item {
             d.addWitmotion("WT-A", "A", false)
             d.addWitmotion("WT-B", "B", false)
             d.imu.connectDelayMs = 3000
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             compare(d.primaryLabel(), "Connect")
             d.clickPrimary()
@@ -387,7 +386,7 @@ Item {
         function test_OC1_linkDropAfterDoneVoidsTheOutcome() {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addWg3("HM-1", true)
-            d.open(wrist)
+            d.open()
             d.walkTo("calibrateArm")
             tryVerify(function() { return d.calibrationDone() }, 30000, "the HackMotion routine never completed")
             d.next()
@@ -405,7 +404,7 @@ Item {
         function test_OC2_recalibrateAfterDone() {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             var dev = d.addWg3("HM-1", true)
-            d.open(wrist)
+            d.open()
             d.walkTo("calibrateArm")
             tryVerify(function() { return d.calibrationDone() }, 30000, "the HackMotion routine never completed")
             d.next()

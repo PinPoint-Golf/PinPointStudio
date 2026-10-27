@@ -202,7 +202,7 @@ set(PP_QML_FILES
     # module; the parts are Setup…-prefixed because other files still declare inline CheckRow /
     # StepIntro / TogglePill components of their own.
     src/Gui/setup/ScreenSessionSetup.qml
-    src/Gui/setup/pages/GoalsPage.qml
+    src/Gui/setup/pages/IntentPage.qml
     src/Gui/setup/pages/CamerasPage.qml
     src/Gui/setup/pages/FramingPage.qml
     src/Gui/setup/pages/TriangulatePage.qml
@@ -368,7 +368,6 @@ set(PP_QML_FILES
     src/Gui/review/MetricLibrary.qml
     src/Gui/review/MetricRoute.qml
     src/Gui/diagnosticmodel/DiagnosticModel.qml
-    src/Gui/diagnosticmodel/ScreenSwingModel.qml
     src/Gui/diagnosticmodel/ModelTypeRail.qml
     src/Gui/diagnosticmodel/ModelTable.qml
     src/Gui/diagnosticmodel/ModelInspector.qml

@@ -154,6 +154,52 @@ Item {
     function _pointAtSession() {
         if (_folder(sessionDir) !== _folder(diagModel.sessionDir))
             diagModel.activateSession(sessionDir)
+        _adoptFocus()
+    }
+
+    // ── the session's focus: SessionController's, adopted ────────────────────
+    //
+    // IN A LIVE SESSION THE FOCUS BELONGS TO SessionController, NOT TO THIS MODEL. It is set at
+    // Start, before any panel need exist — the default layouts carry none — and this model does not
+    // outlive its panel: PpModeStage rebuilds it on every Capture↔Replay flip, the cast window has
+    // a second one, and activateSession() wipes the focus and re-reads whatever the file says. So
+    // each model ADOPTS the controller's focus once it holds the live folder, and again whenever
+    // the controller's changes; a declaration on any surface is written back to the controller by
+    // the body (focusController below), which is how it reaches the others. Without it, a model that
+    // came up with an empty intent wrote that over the focus at its next shot.
+    //
+    // LIVE = RUNNING, NOT REVIEWING, AND POINTED AT THE RUNNING SESSION'S OWN FOLDER — not the
+    // carousel's fallback folder once a session has ended. `running` is what keeps the adoption out
+    // of both ends: Main sets the focus BEFORE the new folder exists (a panel still on the last
+    // session must not take it), and endSession() stops the clock BEFORE it clears the focus (the
+    // finished session's focus must not be cleared on its way out).
+    readonly property bool liveSession:
+        typeof sessionController !== "undefined" && sessionController !== null
+        && typeof shotProcessor !== "undefined" && shotProcessor !== null
+        && sessionController.running
+        && !diagModel.reviewing
+        && shotProcessor.activeSessionDir !== ""
+        && _folder(sessionDir) === _folder(shotProcessor.activeSessionDir)
+    onLiveSessionChanged: _adoptFocus()
+
+    // ONLY ON A REAL DIFFERENCE, by id: re-adopting the focus already held would re-split it at
+    // today's row count. And ONLY ONCE THE MODEL HOLDS THE LIVE FOLDER — read here, never bound:
+    // the model announces its new folder before it has read that folder's intent, and an
+    // adoption then would land on rows not yet loaded and be overwritten by the file.
+    function _adoptFocus() {
+        if (!liveSession) return
+        if (_folder(diagModel.sessionDir) !== _folder(shotProcessor.activeSessionDir)) return
+        const want = sessionController.focusConditionId || ""
+        if (want === (diagModel.focusConditionId || "")) return
+        if (want === "") diagModel.clearFocus()
+        else diagModel.declareFocusFrom(want, sessionController.focusFromShot)
+    }
+    // DEFERRED: the body writes the controller's two properties one after the other, and each emits
+    // focusChanged. Adopting on the first would act on a half-written pair — revert this model's own
+    // declaration, or hand the cast the old split — so the adoption runs once both have landed.
+    Connections {
+        target: (typeof sessionController !== "undefined") ? sessionController : null
+        function onFocusChanged() { Qt.callLater(root._adoptFocus) }
     }
 
     // ORDER IS DELIBERATELY NOT PINNED between this and the `reviewing` binding above, which
@@ -432,6 +478,8 @@ Item {
         id: body
         anchors.fill: parent
         source: diagModel
+        // Where a declaration made on this panel is written back, while it is live (above).
+        focusController: root.liveSession ? sessionController : null
         onScreenRequested: (ref, cond) => root.screenRequested(ref, cond)
         onShotRequested: (dir, id) => root._pickShot(dir)
     }

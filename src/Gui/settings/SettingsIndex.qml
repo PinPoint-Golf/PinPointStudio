@@ -27,12 +27,8 @@ import PinPointStudio
 //   1  Appearance     7  Launch Monitor (placeholder — no entries yet)
 //   2  Displays       8  Storage
 //   3  Cameras        9  Archiving
-//   4  IMUs          10  Swing model (the whole content set — see below)
+//   4  IMUs          10  Swing model (the DiagnosticModel editor; the whole content set)
 //   5  Phones        11  Studio (drawn in General; appended, so 0–10 kept their numbers)
-//
-// Slot 10 is a pointer panel now: the Diagnostic Model became the Swing model SCREEN (four-modes
-// refactor, Phase 1). Its entries keep panelIndex 10, and ScreenSettings.navigateToResult turns a
-// hit on 10 into swingModelRequested("item", itemId) — Main.qml then opens that screen.
 //
 // ⚠ THESE INDICES ARE POSITIONAL IN FOUR PLACES and Phones was inserted into
 // the middle of them rather than appended: this map, ScreenSettings' nav model,
@@ -340,9 +336,7 @@ QtObject {
           label: qsTr("Save IMU streams"),                 subtitle: qsTr("Full quaternion and accelerometer data for all enabled IMUs"),
           itemId: "setting_saveImu" },
 
-        // ── Swing model (panelIndex: 10) ──────────────────────────────────────
-        //
-        // These open the Swing model screen, not a Settings panel (see the map at the top).
+        // ── Swing model (panelIndex: 10) ───────────────────────────────────────
         //
         // Metrics was panelIndex 9 and Diagnostics 10 until the metric catalogue became a VIEW
         // inside Diagnostics rather than a panel beside it. Its search entries stayed — the words
@@ -384,7 +378,7 @@ QtObject {
         // searchable while both ship — a search for "measures" should offer either.
 
         { panelIndex: 10,  panelLabel: qsTr("Swing model"),      groupLabel: qsTr("Swing diagnostics"),
-          label: qsTr("Swing model"),                 subtitle: qsTr("The whole content set as one graph — navigate and edit it in place"),
+          label: qsTr("Swing model"),                      subtitle: qsTr("The whole content set as one graph — navigate and edit it in place"),
           actions: "diagnostic model graph dag navigator content set browse edit author authoring inline table library characteristics causes measures signals causal links screens drills references",
           itemId: "" },
 

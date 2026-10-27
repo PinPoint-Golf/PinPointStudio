@@ -3,8 +3,8 @@
 // The setup tests (tests/setup/) run the shell over fakes; they cannot see the real managers, the
 // real module as the app loads it, or Main's own wiring. This drives the real app:
 //
-//   find Home and the setup shell → open setup for the Wrist preset EXACTLY as Main does (Home's
-//   startSessionRequested(Wrist): Main sets the club, calls sessionSetup.open() and navigates) →
+//   find Home and the setup shell → open setup EXACTLY as Main does (Home's
+//   startSessionRequested(request), no focus: Main sets the club, calls sessionSetup.open() and navigates) →
 //   walk every step to Ready with Continue, or Skip where a gate needs hardware → at each step log
 //   ONE "PROBE: step" line: the eyebrow, the indicator model, the footer (primary, hint, Skip,
 //   Back) → on Ready log every issue, every "What is set up" row and every "What this session will
@@ -111,7 +111,7 @@ Item {
         const elapsed = Date.now() - startedMs
         if (stage === 0) {
             home  = find(rootItem(), function(o) { return o.startSessionRequested !== undefined && o.selectedClub !== undefined })
-            shell = find(rootItem(), function(o) { return o.presets !== undefined && o.canHeaderForward !== undefined
+            shell = find(rootItem(), function(o) { return o.steps !== undefined && o.canHeaderForward !== undefined
                                                          && o.flow !== undefined && o.headerBack !== undefined })
             if ((home === null || shell === null) && elapsed < waitMs) return
             if (!check(home !== null, "Home (ScreenHome) found") || !check(shell !== null, "the setup shell (ScreenSessionSetup) found")) {
@@ -119,8 +119,8 @@ Item {
             }
             // Let the enumerator list remembered sensors before the open() seeds enablement.
             if (elapsed < waitMs) return
-            log("open: Home.startSessionRequested(Wrist) — Main's handler sets the club, opens setup, navigates")
-            home.startSessionRequested(SessionController.Wrist)
+            log("open: Home.startSessionRequested(no focus) — Main's handler sets the club, opens setup, navigates")
+            home.startSessionRequested({ focusConditionId: "", focusLabel: "" })
             stage = 1
             return
         }

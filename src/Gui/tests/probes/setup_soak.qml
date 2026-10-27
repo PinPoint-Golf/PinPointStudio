@@ -155,7 +155,7 @@ Item {
         const elapsed = Date.now() - startedMs
         if (stage === 0) {
             home  = find(rootItem(), function(o) { return o.startSessionRequested !== undefined && o.selectedClub !== undefined })
-            shell = find(rootItem(), function(o) { return o.presets !== undefined && o.canHeaderForward !== undefined
+            shell = find(rootItem(), function(o) { return o.steps !== undefined && o.canHeaderForward !== undefined
                                                          && o.flow !== undefined && o.headerBack !== undefined })
             if ((home === null || shell === null || elapsed < waitMs)) {
                 if (elapsed < waitMs + 10000) return
@@ -165,7 +165,7 @@ Item {
                         makeStep("soakCheck",     "Soak check",     "pages/CheckArmPage.qml",     "soakCalibrate")]
             shell.steps.extensions = extSteps
             log("soak steps registered: " + JSON.stringify(shell.steps.keys))
-            home.startSessionRequested(SessionController.Wrist)     // exactly as Main opens setup
+            home.startSessionRequested({ focusConditionId: "", focusLabel: "" })   // exactly as Main opens setup
             stage = 1
             return
         }

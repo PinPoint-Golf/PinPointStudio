@@ -57,6 +57,9 @@ Column {
     property string title: Theme.caps(qsTr("Work ons"))
 
     signal reviewSessionRequested(string sessionDir)
+    // TEMPORARY (Phase 4 moves Practise to Home): an opened row's "Practise" — start a session
+    // with this fault as its focus. The id is the pack condition id; the label is the row's name.
+    signal practiseRequested(string conditionId, string label)
 
     readonly property var  items:     controller ? controller.items : []
     readonly property bool updating:  controller ? controller.updating : false
@@ -410,6 +413,15 @@ Column {
                                 wrapMode:       Text.WordWrap
                                 lineHeight:     1.4
                             }
+                        }
+
+                        // TEMPORARY (Phase 4 moves Practise to Home): open the session wizard
+                        // with this fault as the focus.
+                        PpLink {
+                            objectName: "workOnPractise"
+                            text:       qsTr("Practise this in a session →")
+                            hoverTint:  false
+                            onClicked:  root.practiseRequested(rowCol.modelData.id, rowCol.modelData.name)
                         }
 
                         PpLink {

@@ -267,7 +267,6 @@ class AppSettings : public QObject
     // Distinct from imuFusionMode/imuDefaultFusionMode (the device's 6/9-axis
     // magnetometer mode). See iorientation_filter.h.
     Q_PROPERTY(QString     imuOrientationFilter   READ imuOrientationFilter   WRITE setImuOrientationFilter   NOTIFY imuOrientationFilterChanged)
-    Q_PROPERTY(QVariantMap sessionGoalsByType READ sessionGoalsByType WRITE setSessionGoalsByType NOTIFY sessionGoalsByTypeChanged)
     // Session-toolbar View state, persisted per SessionController::Type (key =
     // String(typeInt)). panels = QStringList of enabled panel keys; arrangement =
     // "tabs"|"split"|"stage"; preset = named preset or "Custom". Resolved by the
@@ -301,7 +300,6 @@ class AppSettings : public QObject
     // theme and mode — { "studio/dark/cornflower": "#5889E6" } — again only what was changed.
     Q_PROPERTY(QVariantMap metricColors         READ metricColors         WRITE setMetricColors         NOTIFY metricColorsChanged)
     Q_PROPERTY(QVariantMap metricPalette        READ metricPalette        WRITE setMetricPalette        NOTIFY metricPaletteChanged)
-    Q_PROPERTY(int         lastSessionType   READ lastSessionType   WRITE setLastSessionType   NOTIFY lastSessionTypeChanged)
 
     Q_PROPERTY(QString sessionNamingPattern  READ sessionNamingPattern  WRITE setSessionNamingPattern  NOTIFY sessionNamingPatternChanged)
     Q_PROPERTY(QString videoResolutionMode   READ videoResolutionMode   WRITE setVideoResolutionMode   NOTIFY videoResolutionModeChanged)
@@ -522,7 +520,13 @@ public:
         m_imuAlias                = ppSettings().value(QStringLiteral("imu/alias"),                QVariantMap{}).toMap();
         m_imuCalibration          = ppSettings().value(QStringLiteral("imu/calibration"),          QVariantMap{}).toMap();
 
-        m_sessionGoalsByType = ppSettings().value(QStringLiteral("session/goalsByType"), QVariantMap{}).toMap();
+        // The wizard's per-type goals and the last-chosen session type were retired with the
+        // session-type choice (27 Oct 2026: every session starts as SessionController::defaultType).
+        // Drop an old install's keys once; contains() first so a clean install writes nothing.
+        for (const QString &stale : { QStringLiteral("session/goalsByType"), QStringLiteral("session/lastType") }) {
+            if (ppSettings().contains(stale))
+                ppSettings().remove(stale);
+        }
         m_viewPanelsByType      = ppSettings().value(QStringLiteral("view/panelsByType"),      QVariantMap{}).toMap();
         m_viewArrangementByType = ppSettings().value(QStringLiteral("view/arrangementByType"), QVariantMap{}).toMap();
         m_viewPresetByType      = ppSettings().value(QStringLiteral("view/presetByType"),      QVariantMap{}).toMap();
@@ -532,7 +536,6 @@ public:
         m_chartPrefs            = ppSettings().value(QStringLiteral("view/chartPrefs"),         QVariantMap{}).toMap();
         m_metricColors          = ppSettings().value(QStringLiteral("view/metricColors"),       QVariantMap{}).toMap();
         m_metricPalette         = ppSettings().value(QStringLiteral("view/metricPalette"),      QVariantMap{}).toMap();
-        m_lastSessionType    = ppSettings().value(QStringLiteral("session/lastType"), 0).toInt();
 
         m_sessionNamingPattern  = ppSettings().value(QStringLiteral("storage/sessionNamingPattern"),  QStringLiteral("date-name-type")).toString();
         m_videoResolutionMode   = ppSettings().value(QStringLiteral("storage/videoResolutionMode"),   QStringLiteral("native")).toString();
@@ -680,7 +683,6 @@ public:
     QVariantMap impactPipRect()      const { return m_impactPipRect; }
     QVariantMap cameraAlias()        const { return m_cameraAlias; }
 
-    QVariantMap sessionGoalsByType() const { return m_sessionGoalsByType; }
     QVariantMap viewPanelsByType()      const { return m_viewPanelsByType; }
     QVariantMap viewArrangementByType() const { return m_viewArrangementByType; }
     QVariantMap viewPresetByType()      const { return m_viewPresetByType; }
@@ -690,7 +692,6 @@ public:
     QVariantMap chartPrefs()            const { return m_chartPrefs; }
     QVariantMap metricColors()          const { return m_metricColors; }
     QVariantMap metricPalette()         const { return m_metricPalette; }
-    int         lastSessionType()    const { return m_lastSessionType; }
 
     QString sessionNamingPattern()  const { return m_sessionNamingPattern; }
     QString videoResolutionMode()   const { return m_videoResolutionMode; }
@@ -1398,14 +1399,6 @@ public:
         emit imuCalibrationChanged();
     }
 
-    void setSessionGoalsByType(const QVariantMap &v)
-    {
-        if (m_sessionGoalsByType == v) return;
-        m_sessionGoalsByType = v;
-        ppSettings().setValue(QStringLiteral("session/goalsByType"), v);
-        emit sessionGoalsByTypeChanged();
-    }
-
     void setViewPanelsByType(const QVariantMap &v)
     {
         if (m_viewPanelsByType == v) return;
@@ -1476,14 +1469,6 @@ public:
         m_metricPalette = v;
         ppSettings().setValue(QStringLiteral("view/metricPalette"), v);
         emit metricPaletteChanged();
-    }
-
-    void setLastSessionType(int v)
-    {
-        if (m_lastSessionType == v) return;
-        m_lastSessionType = v;
-        ppSettings().setValue(QStringLiteral("session/lastType"), v);
-        emit lastSessionTypeChanged();
     }
 
     void setSessionNamingPattern(const QString &v)
@@ -1750,7 +1735,6 @@ signals:
     void imuOrientationFilterChanged();
     void imuAliasChanged();
     void imuCalibrationChanged();
-    void sessionGoalsByTypeChanged();
     void viewPanelsByTypeChanged();
     void viewArrangementByTypeChanged();
     void viewPresetByTypeChanged();
@@ -1760,7 +1744,6 @@ signals:
     void chartPrefsChanged();
     void metricColorsChanged();
     void metricPaletteChanged();
-    void lastSessionTypeChanged();
     void sessionNamingPatternChanged();
     void videoResolutionModeChanged();
     void videoCodecChanged();
@@ -1879,7 +1862,6 @@ private:
     QString     m_imuDefaultFusionMode    = QStringLiteral("9axis");
     QString     m_imuOrientationFilter    = QStringLiteral("Madgwick");
 
-    QVariantMap m_sessionGoalsByType;
     QVariantMap m_viewPanelsByType;
     QVariantMap m_viewArrangementByType;
     QVariantMap m_viewPresetByType;
@@ -1889,7 +1871,6 @@ private:
     QVariantMap m_chartPrefs;
     QVariantMap m_metricColors;
     QVariantMap m_metricPalette;
-    int         m_lastSessionType = 0;
 
     QString m_sessionNamingPattern  = QStringLiteral("date-name-type");
     QString m_videoResolutionMode   = QStringLiteral("native");

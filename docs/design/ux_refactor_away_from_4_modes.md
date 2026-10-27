@@ -69,18 +69,21 @@ Home                           ScreenHome (rebuilt in Phase 4)
 Session   (only while running) ScreenWrist — the one session screen
 Sessions                       a second ScreenAthleteForm instance, initialTab "sessions"
 Work-ons                       ScreenSwingDiagnostics (its FAULTS card is the work-ons list)
-Swing model                    DiagnosticModel, promoted out of Settings panel 10 into its own screen
 ── spacer ──
-Settings                       ScreenSettings (System/Developer stay beneath it, as today)
+Settings                       ScreenSettings (System/Developer stay beneath it, as today;
+                               Reference → Swing model is the DiagnosticModel editor, slot 10)
 ```
 
 - No mode buttons. No Progress page yet (out of scope; leave room in the rail).
 - A **live session** is one screen (today's `ScreenWrist`). While it runs, a **Session** rail
   button appears (*decided 27 Oct*, D7); it is the way back to the session from anywhere the lock
   allows, as the active mode button is today.
-- While a session runs, navigation is locked to **Session, Swing model, System and Settings**.
-  Swing model joins the allowed set because authoring a corridor against the live swing
-  (`DiagnosticModel.qml` l.54–58) depends on it today, through Settings.
+- While a session runs, navigation is locked to **Session, System and Settings**. Settings stays
+  open, and that is how the **Swing model** is reached mid-session: authoring a corridor against
+  the live swing (`DiagnosticModel.qml` l.54–58) depends on it.
+- **Swing model** is the DiagnosticModel editor's name wherever users see it (it was "Diagnostic
+  Model"). It stays in Settings → Reference (slot 10), and it has **no rail button** (*decided
+  28 Oct*, D14).
 - **Sessions** is muted when no golfer is selected; with no athlete the form would open as a blank
   "New athlete" form.
 - The Developer screen (`PlayPage`) stays unreachable, as today.
@@ -238,7 +241,7 @@ Line numbers are at `ab5c4d9a`.
 | Rail | `shell/PpRail.qml` l.138–198 (mode buttons), `_modeMuted` l.42–44, Settings l.213–222 | Literal indices 0–4, 8, 9, 11 and **5** (Developer, l.219). Home is also highlighted on Swing diagnostics (`|| 11`). |
 | NavigationController | `shell/navigation_controller.h/.cpp` | A context property only (`main.cpp` l.259, l.953). It has no QML type and is not in `PP_QML_SOURCES`, so the QML test modules cannot see an enum declared on it (§6 Phase 1). API: `navigate`, `navigateRail` (0 = Home clears history), `navigateHome`, `back`, `forward`; properties `currentIndex`, `canGoBack`, `canGoForward`, `sessionLocked`. No C++ unit test. `m_athletes` is unused. |
 | Sessions host | `Main.qml` l.724–749 `athleteFormScreen` | One `ScreenAthleteForm` instance serves New/Edit athlete; Sessions needs its own (§2.2). Its Sessions tab has its own review path (`onReviewSessionRequested`, l.741–744). |
-| Settings panel indices | `settings/ScreenSettings.qml` l.75–80 (`panels`), l.270, l.296 (`navIdx` 11, 12); `SettingsIndex.qml` `panelIndex: 10` ×8 (l.350–390), `panelIndex: 11` ×12 (l.452–496) | Moving DiagnosticModel out of slot 10 shifts Studio (11). Four positional lists move together (see the warning at l.263–279). `MetricRoute` (Main l.770–776) has no producer today. |
+| Settings panel indices | `settings/ScreenSettings.qml` l.75–80 (`panels`), l.270, l.296 (`navIdx` 11, 12); `SettingsIndex.qml` `panelIndex: 10` ×8 (l.350–390), `panelIndex: 11` ×12 (l.452–496) | DiagnosticModel stays in slot 10 (D14), so Studio keeps 11. Four positional lists move together if a slot ever moves (see the warning at l.263–279). `MetricRoute` (Main l.770–776) has no producer today. |
 | Session types | `session/session_controller.h` l.55–56 | `enum class Type { None=-1, Swing, Wrist, Grf, Coach }`, Q_ENUM. The value 1 is on disk (`capture.sessionType`), in folder names (`_Wrist_NN`) and in settings keys (`"1:<mode>:…"`). |
 | Wizard | `setup/SetupContext.qml` l.92–131 (`presets`), `SetupSteps.qml` l.53–63 (`goals` step), `SetupFlow.qml` l.323–328 (comingSoon refusal), l.344 (`startRequested`), `ScreenSessionSetup.qml` l.63 (`sessionStartRequested(int sessionType, var goalKeys)`), l.245–276 (preset icon + name header) | No type step. Lint rules: **W8** (no step may read the type or preset), **W10** (the shell names no step key — so do not call the new step key `focus`, which collides with QML's `focus`/`activeFocus`; use `intent`), W3, W5. |
 | Session start | `Main.qml` l.684–690 (Home → wizard), l.790–805 (wizard → session) | Saves goals and last type, navigates to the session screen **before** `start()` (afterwards the lock forbids it), `beginSessionFolder`, empties the carousel, `start(type)`, `startCapture()`. Cancel (l.780–786) clears `activeClub`. |
@@ -252,7 +255,7 @@ Line numbers are at `ab5c4d9a`.
 | Grades | `Diagnostics/norms/norm.h` l.78 | `enum class Grade { Ideal, Good, Watch, Action, NotMeasured }`. **No function grades a stored typical value.** `spreadCorridorFromRow` (`diagnostics/session_spread.h` l.144–180) rebuilds the edges from the stored band and is the nearest helper. `Theme.corridorTone()` maps Action to the fault coral (`tst_theme_bands.qml`). |
 | Focus contract | `session_diagnostics_model.h` l.175–176, 341–342 | `focusConditionId`, `focusFromShot`, `declareFocus()`, `clearFocus()`: implemented, and persisted as `intent` in `diagnostics.json`. |
 | Rig capability | `Metrics/setup_capability.h`, `review/metric_catalog.h` l.83–93, `SetupContext.qml` l.592–641 | `setupFacts` counts IMU roles only when calibrated **in this wizard visit** (always empty outside it), and cameras only when connected. Home needs its own "could measure" rule (D10). Wording: `setup_capability_rows.js` (six families; "describe, never instruct"; never "IMU"). |
-| Swing model editor | `diagnosticmodel/DiagnosticModel.qml` | Hosted as Settings panel 10 (`ScreenSettings.qml` l.603). It is self-contained (its own `ModelBrowser`) and reads `appSettings`, `currentSwing` and `athleteController`. It exposes `showMetric`/`showCharacteristic`/`showMeasure`/`scrollToItem`. Its window-wide shortcuts are unchanged by moving it. |
+| Swing model editor | `diagnosticmodel/DiagnosticModel.qml` | Hosted as Settings panel 10 (`ScreenSettings.qml` l.603). It is self-contained (its own `ModelBrowser`) and reads `appSettings`, `currentSwing` and `athleteController`. It exposes `showMetric`/`showCharacteristic`/`showMeasure`/`scrollToItem`. It stays there, renamed "Swing model" (D14). |
 | Tab bar | `src/Gui/typeset/PpTabs.qml` | Already a tab bar with an underline, a right-hand link and an aside; used by five screens, including the athlete form's Details/Sessions. |
 | Per-athlete UI state | — | **None exists.** The per-mode patterns (`viewLayoutByMode`, `sectionCollapse`) are keyed by mode or session type. |
 | Sessions list | `ScreenAthleteForm` `initialTab: "sessions"` | Reached from Home's "Show all". |
@@ -261,10 +264,10 @@ Line numbers are at `ab5c4d9a`.
 
 | Component | Verdict | Change |
 |---|---|---|
-| `NavigationController` | **Adapt** | Named `AppScreen` enum (`src/Gui/shell/app_screen.h`) from a header-only carrier in `PP_QML_SOURCES`; lock rule = Session, SwingModel, System, Settings; no `activeSessionType + 1`. |
+| `NavigationController` | **Adapt** | Named `AppScreen` enum (`src/Gui/shell/app_screen.h`) from a header-only carrier in `PP_QML_SOURCES`; lock rule = Session, System, Settings (Settings is the mid-session way to the Swing model); no `activeSessionType + 1`. |
 | `Main.qml` StackLayout | **Adapt** | Order follows the enum; drop placeholders; one session screen; a second `ScreenAthleteForm` for Sessions. |
 | The seven `+1` gates | **Adapt** | One shared "session screen is showing" test against `AppScreen.Session`. Each keeps its `sessionType` property, which still keys saved preferences (`"1:<mode>:…"`). |
-| `PpRail.qml`, `PpRailButton.qml` | **Adapt** | Home/Session (while running)/Sessions/Work-ons/Swing model; keep avatar, Settings, `attention`/muting behaviour. `PpRailButton` unchanged. |
+| `PpRail.qml`, `PpRailButton.qml` | **Adapt** | Home/Session (while running)/Sessions/Work-ons; no Swing model button (D14); keep avatar, Settings, `attention`/muting behaviour. `PpRailButton` unchanged. |
 | `ScreenWrist` | **Reuse** as *the* session screen | Rename (`ScreenSession`) in a separate, mechanical commit only (Phase 5). |
 | `ScreenSessionMode.qml` | **Delete** (Phase 1) | Dead: listed in cmake, never instantiated. It carries a `+1` gate. |
 | `ScreenSessionSetup` / `SetupContext` / `SetupSteps` / `SetupFlow` / `SetupDraft` | **Adapt** | Remove `presets` and the Goals step; add an `intent` (focus) step or first-page row; `open(request)`; `sessionStartRequested(request)`; header copy "New session". |
@@ -279,7 +282,7 @@ Line numbers are at `ab5c4d9a`.
 | `home/HmHomeTabs.qml` | **New** | `PpTabs` + `StackLayout` holding `HmSwingSummary` and `HmSwingAreas`; remembers the tab per athlete. |
 | `ScreenHome.qml` | **Adapt** | §2 → single Start; §3 → `HmHomeTabs`; §4 → `HmRigCapability` + PPCP entry + offer list + warning notice; §5 unchanged. |
 | `ScreenSwingDiagnostics` | **Adapt** | Becomes the Work-ons destination; add `groupFilter` so an area's "All of … →" opens it pre-filtered. |
-| `DiagnosticModel` | **Adapt** | Host in `ScreenSwingModel.qml` (only one instance may exist); Settings slot 10 becomes a link to it. |
+| `DiagnosticModel` | **Adapt (rename only)** | Stays the one instance, in Settings → Reference (slot 10); shown as "Swing model" wherever users see it (D14). Reached mid-session through Settings. |
 | `PpSessionReportList` | **Reuse** | Unchanged (D13). |
 | `PpCard`, `PpMeter`, `PpPips`, `PpChip`, `PpBadge`, `PpTabs` | **Update** (Phase 4a) | Per the §2.5 table. |
 | `PpExpandRow`, `PpTableRow` | **New** (Phase 4a) | Per the §2.5 table. |
@@ -447,13 +450,14 @@ Goal: the rail and stack no longer know about modes. Behaviour otherwise identic
 
 - **Enum carrier.** Add a header-only `AppScreen` enum (`src/Gui/shell/app_screen.h`, an uncreatable QObject;
   named so because QtQuick already registers `Screen`) to `PP_QML_SOURCES`, so `qml_ui` and `session_setup_ui`
-  can load QML that names `AppScreen.Session`. Values: `Home, Session, Sessions, WorkOns, SwingModel,
+  can load QML that names `AppScreen.Session`. Values: `Home, Session, Sessions, WorkOns,
   Athlete, Athletes, System, Settings, Developer, Wizard`. Home stays first:
   `navigateRail(Home)` clears history.
 - **`navigation_controller.h/.cpp`.** `navigate()` and the other methods take a `Screen`. QML
   passes ints anyway, so the probes keep working. `blockedDuringSession()` allows Session,
-  SwingModel, System and Settings. Remove the `activeSessionType() + 1` dependency, and the unused
-  `m_athletes`. Add a small C++ unit test for the lock rule.
+  System and Settings (Settings is how the Swing model is reached mid-session). Remove the
+  `activeSessionType() + 1` dependency, and the unused `m_athletes`. Add a small C++ unit test
+  for the lock rule.
 - **`Main.qml`:**
   - StackLayout children in enum order; delete the three `ScreenPlaceholder`s; one session screen
     (`ScreenWrist`); `screenNames` keyed by the enum.
@@ -470,17 +474,18 @@ Goal: the rail and stack no longer know about modes. Behaviour otherwise identic
   - `AppScreen.Sessions` → a **second** `ScreenAthleteForm` instance with `initialTab "sessions"`
     and the current athlete. It has its own review wiring and header name.
   - `AppScreen.WorkOns` → `ScreenSwingDiagnostics`.
-  - `AppScreen.SwingModel` → a thin `ScreenSwingModel.qml` hosting the only `DiagnosticModel`, and
-    forwarding `showMetric`, `showCharacteristic`, `showMeasure` and `scrollToItem`.
-- **Settings.** Slot 10 becomes a thin "Open Swing model →" panel (or an action row like System),
-  so Studio keeps index 11. The panel-10 `SettingsIndex` search hits and `MetricRoute` re-point to
-  `AppScreen.SwingModel` through a new `ScreenSettings` signal. Update the comments in
-  `DiagnosticModel.qml` l.30 and l.54–58.
+- **Settings.** Slot 10 keeps the one `DiagnosticModel`, renamed **Swing model** wherever users see
+  it: its title, the Settings nav row, the `SettingsIndex` search hits and Appearance's "Swing
+  model → Metrics". No screen of its own and no rail button (D14). The deep links are unchanged:
+  `ScreenSettings.showMetricDetail`/`showCharacteristicDetail`/`showMeasureDetail`, the panel-10
+  search hits and `MetricRoute` select slot 10 and call into the model. Update the comments in
+  `DiagnosticModel.qml` l.28 and l.54–58 (it lives in Settings → Reference → Swing model,
+  reachable mid-session because the lock leaves Settings open).
 - **`PpRail.qml`:**
   - buttons Home, Session (visible only while `sessionLocked`), Sessions (muted without a current
-    athlete), Work-ons, Swing model;
-  - `sessionLockIndex` → the bool `sessionLocked`, with Session and Swing model the only enabled
-    destinations above the spacer while locked;
+    athlete), Work-ons; no Swing model button (D14);
+  - `sessionLockIndex` → the bool `sessionLocked`, with Session the only enabled destination above
+    the spacer while locked (Settings below it stays enabled);
   - Settings highlight unchanged (Settings/System/Developer);
   - drop Home's `|| 11` highlight.
 - **Tests and probes to update:**
@@ -497,7 +502,7 @@ Goal: the rail and stack no longer know about modes. Behaviour otherwise identic
   - `tst_rail_fold.qml` needs **no** change: it tests the Diagnostic Model's own type rail.
 - **Accept when:**
   - no integer screen literals remain outside the enum (grep);
-  - a session can start, lock navigation, reach Settings and Swing model, return through the
+  - a session can start, lock navigation, reach Settings and its Swing model, return through the
     Session button, end and unlock;
   - review-a-session from Home, Swing diagnostics and the Sessions tab lands on the session
     screen;
@@ -724,6 +729,11 @@ Decided:
   one click away; the last choice remembered per athlete.
 - **D7 — Way back to a running session.** *27 Oct:* a Session rail button, visible only while a
   session runs.
+- **D14 — Where the Swing model lives.** *28 Oct (Mark):* "Swing model" is the DiagnosticModel
+  editor's name wherever users see it. It stays in Settings → Reference (slot 10) and is reached
+  mid-session through Settings, which the lock leaves open. No rail button and no screen of its
+  own: "I don't want the swing model on the main rail, that makes no sense. I just want it in the
+  settings accordion."
 - **D8 — Analysis gates on session type.** *27 Oct:* out of this refactor; tracked as task #111
   (with bug #110, re-analysis drops the wrist assessment).
 - **D13 — Recent sessions.** Unchanged in Phase 4 (`PpSessionReportList`). A restyle onto

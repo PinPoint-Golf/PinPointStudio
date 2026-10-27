@@ -2121,6 +2121,7 @@ struct NeedsWorkItem {
     QString frequency;          // "every swing" / "almost every swing" / "most swings" / "more than half your swings"
     int     trend = 0;          // +1 growing, −1 easing, 0 steady or too few sessions
     std::vector<bool> pips;     // per judged session, oldest first
+    QString conditionId;        // the row's condition id (not stored; carried for the GUI)
 };
 
 struct FocusItem {
@@ -2207,7 +2208,7 @@ namespace themes {
 inline NeedsWorkItem needsWorkItem(const SeenMostRow &r, const QString &phrase, const ThemeOptions &opt)
 {
     const int trend = r.trend == QStringLiteral("growing") ? 1 : r.trend == QStringLiteral("easing") ? -1 : 0;
-    return { themeCapitalised(phrase), r.share, themeFrequency(r.share, opt), trend, r.pips };
+    return { themeCapitalised(phrase), r.share, themeFrequency(r.share, opt), trend, r.pips, r.conditionId };
 }
 
 // The focus and "next on your list" (theme_summary.focus_view), from the stored groups.

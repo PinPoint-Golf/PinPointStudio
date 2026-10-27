@@ -35,8 +35,6 @@ Item {
         // The adapter (support/SetupDriver.qml).
         readonly property var d: drv
 
-        readonly property int wrist: SessionController.Wrist
-
         function init() {
             testLog.reset()
             // Offscreen-QPA font notice, not a QML warning — see tst_setup_smoke.qml.
@@ -97,7 +95,7 @@ Item {
                     { text: "Motion sensors skipped — no movement data will be captured", panel: -1 }
                 ],
                 rows: [
-                    { label: "Goals", value: "None — defaulting to General assessment", good: true },
+                    { label: "Focus", value: "Open assessment", good: true },
                     { label: "Cameras", value: "Face-on camera not assigned", good: false },
                     { label: "Ball detection", value: "Skipped", good: false },
                     { label: "Sensors", value: "Skipped — no motion data", good: false },
@@ -116,7 +114,7 @@ Item {
                 heading: "You're good to go", primary: "▶  Start session",
                 issues: [],
                 rows: [
-                    { label: "Goals", value: "None — defaulting to General assessment", good: true },
+                    { label: "Focus", value: "Open assessment", good: true },
                     { label: "Cameras", value: "1 camera connected", good: true },
                     { label: "Ball detection", value: "Ball detected", good: true },
                     { label: "Sensors", value: "2 sensors assigned", good: true },
@@ -140,7 +138,7 @@ Item {
                     { text: "Sensor position calibration not completed — return to the Calibrate step", panel: -1 }
                 ],
                 rows: [
-                    { label: "Goals", value: "None — defaulting to General assessment", good: true },
+                    { label: "Focus", value: "Open assessment", good: true },
                     { label: "Cameras", value: "2 cameras connected", good: true },
                     { label: "Triangulation", value: "Not confirmed", good: false },
                     { label: "Ball detection", value: "Ball detected", good: true },
@@ -164,7 +162,7 @@ Item {
                     { text: "Sensor position calibration not completed — return to the Calibrate step", panel: -1 }
                 ],
                 rows: [
-                    { label: "Goals", value: "None — defaulting to General assessment", good: true },
+                    { label: "Focus", value: "Open assessment", good: true },
                     { label: "Cameras", value: "Skipped — no video capture", good: false },
                     { label: "Ball detection", value: "Skipped", good: false },
                     { label: "Sensors", value: "3 sensors assigned · not calibrated", good: false },
@@ -185,7 +183,7 @@ Item {
                     { text: "Motion sensors skipped — no movement data will be captured", panel: -1 }
                 ],
                 rows: [
-                    { label: "Goals", value: "None — defaulting to General assessment", good: true },
+                    { label: "Focus", value: "Open assessment", good: true },
                     { label: "Cameras", value: "1 camera connected", good: true },
                     { label: "Ball detection", value: "Skipped", good: false },
                     { label: "Sensors", value: "Skipped — no motion data", good: false },
@@ -204,7 +202,7 @@ Item {
                 heading: "You're good to go", primary: "▶  Start session",
                 issues: [],
                 rows: [
-                    { label: "Goals", value: "None — defaulting to General assessment", good: true },
+                    { label: "Focus", value: "Open assessment", good: true },
                     { label: "Cameras", value: "1 camera connected", good: true },
                     { label: "Ball detection", value: "Ball detected", good: true },
                     { label: "Sensors", value: "2 sensors assigned", good: true },
@@ -227,7 +225,7 @@ Item {
                     { text: "Sensor position calibration not completed — return to the Calibrate step", panel: -1 }
                 ],
                 rows: [
-                    { label: "Goals", value: "None — defaulting to General assessment", good: true },
+                    { label: "Focus", value: "Open assessment", good: true },
                     { label: "Cameras", value: "1 camera connected", good: true },
                     { label: "Ball detection", value: "Ball detected", good: true },
                     { label: "Sensors", value: "2 sensors assigned · not connected · not calibrated", good: false },
@@ -251,7 +249,7 @@ Item {
                     { text: "Sensor position calibration not completed — return to the Calibrate step", panel: -1 }
                 ],
                 rows: [
-                    { label: "Goals", value: "None — defaulting to General assessment", good: true },
+                    { label: "Focus", value: "Open assessment", good: true },
                     { label: "Cameras", value: "1 camera connected", good: true },
                     { label: "Ball detection", value: "Skipped", good: false },
                     { label: "Sensors", value: "Some sensors not found", good: false },
@@ -275,7 +273,7 @@ Item {
                     { text: "Motion sensors skipped — no movement data will be captured", panel: -1 }
                 ],
                 rows: [
-                    { label: "Goals", value: "None — defaulting to General assessment", good: true },
+                    { label: "Focus", value: "Open assessment", good: true },
                     { label: "Cameras", value: "2 cameras connected", good: true },
                     { label: "Triangulation", value: "Not confirmed", good: false },
                     { label: "Ball detection", value: "Skipped", good: false },
@@ -298,7 +296,7 @@ Item {
                     { text: "Motion sensors skipped — no movement data will be captured", panel: -1 }
                 ],
                 rows: [
-                    { label: "Goals", value: "None — defaulting to General assessment", good: true },
+                    { label: "Focus", value: "Open assessment", good: true },
                     { label: "Cameras", value: "1 camera connected", good: true },
                     { label: "Ball detection", value: "Ball detected", good: true },
                     { label: "Sensors", value: "Skipped — no motion data", good: false },
@@ -320,7 +318,7 @@ Item {
                     { text: "Sensor position calibration not completed — return to the Calibrate step", panel: -1 }
                 ],
                 rows: [
-                    { label: "Goals", value: "None — defaulting to General assessment", good: true },
+                    { label: "Focus", value: "Open assessment", good: true },
                     { label: "Cameras", value: "Face-on camera not assigned", good: false },
                     { label: "Ball detection", value: "Skipped", good: false },
                     { label: "Sensors", value: "2 sensors assigned · not calibrated", good: false },
@@ -341,7 +339,7 @@ Item {
                     { text: "Sensor position calibration not completed — return to the Calibrate step", panel: -1 }
                 ],
                 rows: [
-                    { label: "Goals", value: "None — defaulting to General assessment", good: true },
+                    { label: "Focus", value: "Open assessment", good: true },
                     { label: "Cameras", value: "2 cameras connected", good: true },
                     { label: "Triangulation", value: "Optional — cameras fixed in place", good: true },
                     { label: "Ball detection", value: "Ball detected", good: true },
@@ -389,8 +387,8 @@ Item {
         // Walks the combination to Ready through the footer; returns what Ready shows.
         function runCombo(c) {
             setUpHardware(c)
-            d.open(wrist)
-            d.next()                                                        // Goals
+            d.open()
+            d.next()                                                        // Focus
             compare(d.current(), "cameras")
             if (c.camAct === "skip") d.skip()
             else {
@@ -452,7 +450,7 @@ Item {
         // ── R2 ───────────────────────────────────────────────────────────────
         function test_R02_readyVersusNot() {
             setUpHardware({ cams: "fo", ball: "present", imus: "wg3" })
-            d.open(wrist)
+            d.open()
             d.next()
             d.clickPrimary()                         // Connect cameras
             d.walkTo("imus")

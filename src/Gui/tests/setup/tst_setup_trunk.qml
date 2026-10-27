@@ -113,7 +113,6 @@ Item {
         when: windowShown
 
         readonly property var d: drv
-        readonly property int wrist: SessionController.Wrist
 
         Component { id: appLogComp;   FakeAppLog {} }
         Component { id: guideComp;    FakeGuide {} }
@@ -995,8 +994,8 @@ Item {
 
         function test_TP1_trunkOnlySession() {
             trunkSetup(false)
-            d.open(wrist)
-            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "calibrateTrunk", "checkTrunk", "ready"])
+            d.open()
+            compare(d.plan(), ["intent", "cameras", "framing", "ball", "imus", "calibrateTrunk", "checkTrunk", "ready"])
             d.walkTo("calibrateTrunk")
             compare(d.stepLabel(), "STEP 6 OF 8 · CALIBRATE TRUNK")
             verify(!d.headerForwardEnabled(), "Continue open before the trunk is calibrated")
@@ -1047,7 +1046,7 @@ Item {
 
         function test_TP2_backFromCheckRestoresWithoutARerun() {
             trunkSetup(false)
-            d.open(wrist)
+            d.open()
             d.walkTo("calibrateTrunk")
             waitPageDone()
             d.next()
@@ -1076,7 +1075,7 @@ Item {
 
         function test_TP3_leaveMidStepNothingFiresAfter() {
             trunkSetup(false)
-            d.open(wrist)
+            d.open()
             // Stand tall never starts: the golfer keeps moving (it waits at ready).
             d.imu.device("WT-P").gyroDps = 40
             d.walkTo("calibrateTrunk")
@@ -1107,8 +1106,8 @@ Item {
 
         function test_TP4_trunkWithWg3_recordingBeginsAtTheArmStep() {
             trunkSetup(true)
-            d.open(wrist)
-            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "calibrateArm", "checkArm",
+            d.open()
+            compare(d.plan(), ["intent", "cameras", "framing", "ball", "imus", "calibrateArm", "checkArm",
                                "calibrateTrunk", "checkTrunk", "ready"])
             d.walkTo("calibrateArm")
             compare(d.ceremony.order(), ["begin", "stepStart:armRoutine"])
@@ -1124,7 +1123,7 @@ Item {
 
         function test_TP5_leavingSetupDiscardsTheCeremony() {
             trunkSetup(false)
-            d.open(wrist)
+            d.open()
             d.walkTo("calibrateTrunk")
             tc.tryVerify(function() { return d.ceremony.recording }, 5000)
             d.cancel()
@@ -1134,7 +1133,7 @@ Item {
             // open() drops it before anything records into it.
             d.ceremony.begin()
             var n = d.ceremony.calls.length
-            d.open(wrist)
+            d.open()
             compare(d.ceremony.order().slice(n), ["discard"])
         }
 
@@ -1149,7 +1148,7 @@ Item {
             var v = row.tts ? createTemporaryObject(ttsComp, tc) : null
             d.tts = v                                   // before open(): the shell's context has it, or not
             appSettings.experimentalSpokenInstructions = row.on
-            d.open(wrist)
+            d.open()
             d.walkTo("calibrateTrunk")
             var p = trunkPage()
             verify(p !== null)
@@ -1177,13 +1176,13 @@ Item {
             var v = createTemporaryObject(ttsComp, tc)
             d.tts = v
             appSettings.experimentalSpokenInstructions = true
-            d.open(wrist)
+            d.open()
             // Created (and opened): each phrase, once, before anything else.
             compare(v.calls.map(function(c) { return c.name + ":" + c.text }), allPhrases.map(function(t) { return "prepare:" + t }))
             allPhrases.forEach(function(t) { verify(v.isPrepared(t), t) })
             compare(prepLines(), ["[Setup] spoken instructions: preparing " + JSON.stringify(allPhrases) + " (setup created, voice af_sky)"])
             // A second visit asks for nothing more: they are prepared.
-            d.open(wrist)
+            d.open()
             compare(v.count("prepare"), 3)
             // The turns speak exactly the prepared texts, and say so.
             d.walkTo("calibrateTrunk")
@@ -1204,7 +1203,7 @@ Item {
             trunkSetup(false)
             var v = createTemporaryObject(ttsComp, tc)
             d.tts = v
-            d.open(wrist)
+            d.open()
             compare(v.calls.length, 0, "prepared with the setting off: " + JSON.stringify(v.calls))
             compare(prepLines(), [])
             appSettings.experimentalSpokenInstructions = true
@@ -1222,7 +1221,7 @@ Item {
             var v = createTemporaryObject(ttsComp, tc, { ttsReady: false })
             d.tts = v
             appSettings.experimentalSpokenInstructions = true
-            d.open(wrist)
+            d.open()
             compare(v.calls.length, 0, "prepared before the voice was ready: " + JSON.stringify(v.calls))
             v.ttsReady = true
             compare(v.preparedTexts(), allPhrases)
@@ -1239,7 +1238,7 @@ Item {
             var v = createTemporaryObject(ttsComp, tc)
             d.tts = v
             appSettings.experimentalSpokenInstructions = true
-            d.open(wrist)
+            d.open()
             compare(v.count("prepare"), 3)
             // A local voice: the model reloads — ready drops, the voice changes (the cache empties),
             // ready returns → prepared again, in the new voice.
@@ -1264,7 +1263,7 @@ Item {
         function test_TP6_failBackNextThenRecalibrateMidHold() {
             trunkSetup(false)
             d.trunkPace = paced({ retry: 400000 })        // the failure stays on screen: Back from retry
-            d.open(wrist)
+            d.open()
             var P = d.imu.device("WT-P"), T = d.imu.device("WT-T")
             P.trunkScript = [{ valid: false, faceOk: false, longAxisOk: false,
                                failure: "Hip sensor is lying flat — wear it upright: USB down, label facing out" }]
@@ -1321,7 +1320,7 @@ Item {
             d.trunkPace = paced({ turnTimeout: 40000000 })
             // The golfer turns away and stays there: the step is mid-turn when he presses Back.
             d.golfer.scripts = [[{ chest: 0, gyro: 0, ms: 20 }, { chest: 50, gyro: 80, ms: 40 }, { chest: 90, gyro: 0, ms: 0 }]]
-            d.open(wrist)
+            d.open()
             d.walkTo("calibrateTrunk")
             tc.tryVerify(function() { var p = trunkPage(); return p !== null && p.routine.turnBackDue }, 40000,
                          "never told to turn back")
@@ -1349,7 +1348,7 @@ Item {
         function test_TP8_golfTermsAndTheDirection(row) {
             trunkSetup(false)
             d.athlete.currentHandedness = row.leftHanded ? "Left" : "Right"
-            d.open(wrist)
+            d.open()
             d.walkTo("calibrateTrunk")
             var p = trunkPage()
             verify(p !== null)

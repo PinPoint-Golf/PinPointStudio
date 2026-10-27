@@ -26,8 +26,6 @@ Item {
         // The adapter (support/SetupDriver.qml).
         readonly property var d: drv
 
-        readonly property int wrist: SessionController.Wrist
-
         function init() {
             testLog.reset()
             // Offscreen-QPA font notice, not a QML warning — see tst_setup_smoke.qml.
@@ -46,7 +44,7 @@ Item {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addWitmotion("WT-A", "A", true)
             d.addWitmotion("WT-B", "B", true)
-            d.open(wrist)
+            d.open()
             d.walkTo("checkArm")
             verify(d.liveWrist.active, "liveWrist not active on Check")
             d.back()
@@ -65,10 +63,10 @@ Item {
 
         // ── CK2 ──────────────────────────────────────────────────────────────
         function test_CK02_noArmVizOffCheck() {
-            d.open(wrist)
-            compare(d.current(), "goals")
+            d.open()
+            compare(d.current(), "intent")
             var n = d.armVizCount()
-            console.info("[CK2] ArmVizView instances while on Goals: " + n)
+            console.info("[CK2] ArmVizView instances while on Focus: " + n)
             compare(n, 0)
         }
     }

@@ -27,7 +27,6 @@ Item {
         when: windowShown
 
         readonly property var d: drv
-        readonly property int wrist: SessionController.Wrist
 
         function init() {
             testLog.reset()
@@ -68,10 +67,10 @@ Item {
         // ── Applicability ────────────────────────────────────────────────────
         function test_F01_appliesOnlyWithAConnectedCamera() {
             d.addCamera("FO1", CameraInstance.FaceOn, false)
-            d.open(wrist)
+            d.open()
             verify(d.plan().indexOf("framing") < 0, "framing applies with no camera connected: " + d.plan())
             d.cams.setCameraSelected("FO1", true)
-            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "ready"])
+            compare(d.plan(), ["intent", "cameras", "framing", "ball", "imus", "ready"])
             compare(d.flow.stepLabelFor("framing"), "STEP 3 OF 6 · FRAMING")
             compare(d.pip("framing").shown, true)
             // Disabled for the session: it does not record, so there is nothing to frame.
@@ -81,7 +80,7 @@ Item {
         function test_F02_impactCameraAloneDoesNotApply() {
             // The impact camera films club and ball, no body: pose never runs on it.
             d.addCamera("IMP", CameraInstance.Impact, true)
-            d.open(wrist)
+            d.open()
             verify(d.plan().indexOf("framing") < 0, "framing applies to an impact camera: " + d.plan())
             d.addCamera("DTL1", CameraInstance.DownTheLine, true)
             verify(d.plan().indexOf("framing") > 0, "framing missing with a DTL camera connected")
@@ -90,7 +89,7 @@ Item {
         // ── The verdict ──────────────────────────────────────────────────────
         function test_F03_verdictHoldThenOkThenTooTight() {
             var inst = faceOnLive(false)
-            d.open(wrist)
+            d.open()
             d.walkTo("framing")
             compare(d.current(), "framing")
             compare(row("FO1").verdict, "hold")
@@ -127,7 +126,7 @@ Item {
         // ── Pose on for the visit, put back on leave ─────────────────────────
         function test_F04_leaveRestoresPoseEnabled() {
             var inst = faceOnLive(false)
-            d.open(wrist)
+            d.open()
             d.walkTo("cameras")
             compare(inst.poseEnabled, false)
             d.next()
@@ -144,7 +143,7 @@ Item {
         }
         function test_F05_poseAlreadyOnStaysOn() {
             var inst = faceOnLive(true)
-            d.open(wrist)
+            d.open()
             d.walkTo("framing")
             compare(inst.poseEnabled, true)
             d.next()
@@ -152,7 +151,7 @@ Item {
         }
         function test_F06_suspendRestoresAndResumeReenables() {
             var inst = faceOnLive(false)
-            d.open(wrist)
+            d.open()
             d.walkTo("framing")
             compare(inst.poseEnabled, true)
             d.suspend()

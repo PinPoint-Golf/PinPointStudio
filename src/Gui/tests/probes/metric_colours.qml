@@ -202,7 +202,7 @@ Item {
                             "switching to " + Theme.aesthetic + (Theme.dark ? " dark" : " light") + " repaints "
                             + probe.key + " " + probe._before + " → " + now)
                 Theme.themeIndex = probe.startTheme
-                // Swing model → this metric.
+                // Settings → Swing model → this metric.
                 MetricRoute.open(probe.key)                           // a metric tile's own click path
                 appSettings.metricColors = ({ [probe.key]: "orchid" })
             } else if (s === 8) {
@@ -225,8 +225,8 @@ Item {
                 const tiles = probe.find(it => it.objectName && it.objectName.indexOf("paletteTile_") === 0)
                 probe.check(tiles.length === 12, "Appearance offers twelve palette tiles (" + tiles.length + ")")
                 // A measure is drawn in its metric's colour: open one that reads clubheadSpeed.
-                const dm = probe.find(it => it.objectName === "swingModelScreen")
-                probe.check(dm.length === 1, "the Swing model screen is up")
+                const dm = probe.find(it => typeof it.showMeasure === "function")
+                probe.check(dm.length === 1, "the Swing model panel is up")
                 if (dm.length === 1) dm[0].showMeasure("m_clubheadSpeedImpact")
             } else if (s === 9) {
                 const rows = probe.find(it => it.objectName === "inspectorPlotColour")

@@ -67,7 +67,7 @@ Item {
             }
         }
 
-        // Session setup, built over the fakes and opened as Main opens it (open(Wrist), then shown).
+        // Session setup, built over the fakes and opened as Main opens it (open(request), then shown).
         function makeSetup() {
             var props = {}
             for (var k in fx) props[k] = fx[k]
@@ -76,7 +76,7 @@ Item {
             wiz = harness.createWithContext("ScreenSessionSetup", props, host,
                                             { width: host.width, height: host.height, visible: false })
             verify(wiz !== null, "ScreenSessionSetup failed to instantiate over the fakes")
-            wiz.open(SessionController.Wrist)
+            wiz.open({ focusConditionId: "", focusLabel: "" })
             wiz.visible = true
             settle()
             return wiz
@@ -193,9 +193,9 @@ Item {
             var t0 = ms()
             makeSetup()
             console.info("[smoke] session setup instantiated and opened in " + Math.round(ms() - t0) + " ms")
-            compare(wiz.draft.preset, 1)
-            compare(wiz.flow.current, "goals")
-            compare(JSON.stringify(wiz.flow.plan), JSON.stringify(["goals", "cameras", "ball", "imus", "ready"]))
+            compare(wiz.draft.focusConditionId, "", "Home's Start: an open assessment")
+            compare(wiz.flow.current, "intent")
+            compare(JSON.stringify(wiz.flow.plan), JSON.stringify(["intent", "cameras", "ball", "imus", "ready"]))
             // Only the current page is alive: no calibration flow, no arm view (R2).
             verify(findCalibFlow(wiz) === null, "an ImuCalibrationFlow exists off the Calibrate page")
             verify(findArmViz(wiz) === null, "an ArmVizView exists off the Check page")
@@ -209,10 +209,10 @@ Item {
             var st = {}
             wiz.flow.plan.forEach(function(k) { st[k] = wiz.draft.state(k) })
             console.info("[smoke] visited " + JSON.stringify(seq) + " states " + JSON.stringify(st))
-            compare(JSON.stringify(seq), JSON.stringify(["goals", "cameras", "ball", "imus", "ready"]))
-            // Ball refuses "done" without a ball; the walk had to skip it. Goals, Cameras (no camera
+            compare(JSON.stringify(seq), JSON.stringify(["intent", "cameras", "ball", "imus", "ready"]))
+            // Ball refuses "done" without a ball; the walk had to skip it. Focus, Cameras (no camera
             // to connect) and the Sensors step (no sensor in the session) accept "done".
-            compare(JSON.stringify(st), JSON.stringify({ goals: "done", cameras: "done", ball: "skipped",
+            compare(JSON.stringify(st), JSON.stringify({ intent: "done", cameras: "done", ball: "skipped",
                                                          imus: "done", ready: "pending" }))
             wiz.flow.next("done"); settle()
             compare(wiz.flow.current, "ready", "next on the last step must be a no-op")

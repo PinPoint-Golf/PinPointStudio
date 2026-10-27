@@ -27,8 +27,8 @@
 // dependencies from the reads they make, so a predicate must READ what it depends on (a bare
 // `ctx.foo` statement is dropped by the compiler — memory note qml-dead-statement-bindings).
 //
-// ⚠ No applies or gate may read the session type or the preset (§4.12, lint W8): hardware
-// decides which steps run, the preset only picks goals and where Start lands.
+// ⚠ No applies or gate may read the session type or the focus (§4.12, lint W8): hardware
+// decides which steps run; the focus only rides along to Start.
 import QtQuick
 
 QtObject {

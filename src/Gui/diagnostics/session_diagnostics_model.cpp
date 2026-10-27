@@ -1429,11 +1429,20 @@ void SessionDiagnosticsModel::closeSession()
 
 void SessionDiagnosticsModel::declareFocus(const QString &conditionId)
 {
-    if (conditionId.isEmpty()) { clearFocus(); return; }
-    m_focusConditionId = conditionId;
     // The split is AFTER the shots already struck: FocusSplit::baselineEnd is the index of
     // the last baseline shot, and the shot count is exactly one past it.
-    m_focusFromShot = int(m_shots.size());
+    declareFocusFrom(conditionId, int(m_shots.size()));
+}
+
+void SessionDiagnosticsModel::declareFocusFrom(const QString &conditionId, int fromShot)
+{
+    if (conditionId.isEmpty()) { clearFocus(); return; }
+    // No validation against the pack: a focus the pack does not author is recorded and simply
+    // matches no condition. The split cannot sit outside the rows the ledger holds.
+    fromShot = std::clamp(fromShot, 0, int(m_shots.size()));
+    if (m_focusConditionId == conditionId && m_focusFromShot == fromShot) return;
+    m_focusConditionId = conditionId;
+    m_focusFromShot = fromShot;
     emit intentChanged();
     rebuild();
     persist();
@@ -5061,9 +5070,10 @@ void SessionDiagnosticsModel::buildDetail()
 void SessionDiagnosticsModel::openDetail(const QString &conditionId)
 {
     if (conditionId.isEmpty()) { closeDetail(); return; }
-    // DECLINED SILENTLY for a condition the pack does not author, exactly as declareFocus() is
-    // for one it cannot honour: the panel reads the state back off this object, so a request the
-    // model does not accept leaves the surface as it was rather than opening an empty page.
+    // DECLINED SILENTLY for a condition the pack does not author: the panel reads the state back
+    // off this object, so a request the model does not accept leaves the surface as it was rather
+    // than opening an empty page. (declareFocus() does not validate: an unknown focus is recorded
+    // and matches nothing.)
     if (!m_packProv || !m_packProv->pack().condition(conditionId)) return;
     if (m_detailConditionId == conditionId) return;
     m_detailConditionId = conditionId;

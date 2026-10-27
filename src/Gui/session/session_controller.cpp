@@ -36,6 +36,24 @@ void SessionController::setActiveClub(const QString &club)
     emit activeClubChanged();
 }
 
+void SessionController::setFocusConditionId(const QString &id)
+{
+    if (id == m_focusConditionId)
+        return;
+    m_focusConditionId = id;
+    emit focusChanged();
+}
+
+void SessionController::setFocusFromShot(int shot)
+{
+    if (shot < 0)
+        shot = 0;   // a shot index; the whole session is 0
+    if (shot == m_focusFromShot)
+        return;
+    m_focusFromShot = shot;
+    emit focusChanged();
+}
+
 // A session type is one of four things. The value indexes the QML session-type
 // list, selects the session folder's type token (ShotProcessor::beginSessionFolder
 // -> sessionTypeLabel) and gates navigation; anything outside the enum is none of
@@ -121,6 +139,8 @@ void SessionController::endSession()
         emit activeSessionTypeChanged();
     }
     setActiveClub(QString());   // next session re-seeds from the athlete's preference
+    setFocusConditionId(QString());   // the next session carries its own focus, or none
+    setFocusFromShot(0);
     // m_label keeps the final duration; the next start() restarts the clock.
 }
 

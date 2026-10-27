@@ -36,9 +36,10 @@ class NavigationController : public QObject
     Q_PROPERTY(bool canGoBack     READ canGoBack     NOTIFY historyChanged)
     Q_PROPERTY(bool canGoForward  READ canGoForward  NOTIFY historyChanged)
     // True while a session is active (clock running with a session type set).
-    // Every navigation path is then locked to AppScreen::Session, SwingModel,
-    // System and Settings, whatever the session type — enforced here,
-    // visualised in PpRail.
+    // Every navigation path is then locked to AppScreen::Session, System and
+    // Settings, whatever the session type — enforced here, visualised in PpRail.
+    // Settings stays open, which is how the Swing model (Settings slot 10) is
+    // reached mid-session.
     Q_PROPERTY(bool sessionLocked READ sessionLocked NOTIFY sessionLockedChanged)
 
 public:

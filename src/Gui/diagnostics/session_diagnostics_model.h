@@ -339,6 +339,11 @@ public:
     // struck are baseline and everything after is intervention. Declaring a focus is the
     // only thing that puts the Moved-together grade on offer at all.
     Q_INVOKABLE void declareFocus(const QString &conditionId);
+    // The same, with the split given: shots before fromShot are baseline. Clamped to
+    // [0, shotCount()]. For a focus declared elsewhere (SessionController, at session start
+    // or on another surface's model) and adopted here after the fact, when the row count now
+    // says nothing about when it was declared. Re-declaring the focus already held is a no-op.
+    Q_INVOKABLE void declareFocusFrom(const QString &conditionId, int fromShot);
     Q_INVOKABLE void clearFocus();
 
     // The session's opening question — "what is the bad shot?". Pre-arms the chains upstream

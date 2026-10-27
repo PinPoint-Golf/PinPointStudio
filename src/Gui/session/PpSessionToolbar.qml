@@ -202,10 +202,14 @@ Item {
     // Start a session: choose its on-disk folder, then start the clock + capture.
     // extend appends to today's most-recent folder (its prior swings load into the
     // carousel); otherwise a fresh "_NN" folder is created and the carousel clears.
+    // Every session starts as sessionController.defaultType, the same as the wizard's
+    // Start (Main.qml). The todaySessionDir(root.sessionType) lookups below (the
+    // extend prompt, the carousel after End) name the same type: the one session
+    // screen sets sessionType to it.
     function _beginSession(extend) {
-        shotProcessor.beginSessionFolder(root.sessionType, extend)
+        shotProcessor.beginSessionFolder(sessionController.defaultType, extend)
         shotModel.loadSessionDir(extend ? shotProcessor.activeSessionDir : "")
-        sessionController.start(root.sessionType)
+        sessionController.start(sessionController.defaultType)
         cameraManager.startCapture()
     }
 

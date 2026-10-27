@@ -26,8 +26,6 @@ Item {
         // The adapter (support/SetupDriver.qml).
         readonly property var d: drv
 
-        readonly property int wrist: SessionController.Wrist
-
         function init() {
             testLog.reset()
             // Offscreen-QPA font notice, not a QML warning — see tst_setup_smoke.qml.
@@ -53,7 +51,7 @@ Item {
         function test_D01_camerasConnect() {
             d.addCamera("FO1", CameraInstance.FaceOn, false)
             d.addCamera("DTL1", CameraInstance.DownTheLine, false)
-            d.open(wrist)
+            d.open()
             d.next()
             compare(d.current(), "cameras")
             compare(d.primaryLabel(), "Connect")
@@ -68,7 +66,7 @@ Item {
         function test_D02_cameraToggleOff() {
             d.addCamera("FO1", CameraInstance.FaceOn, false)
             d.addCamera("FO2", CameraInstance.FaceOn, false)
-            d.open(wrist)
+            d.open()
             d.next()
             var before = d.cams.countCalls("setSessionCameraEnabled")
             d.toggleCameraRow("FO2")
@@ -89,7 +87,7 @@ Item {
             d.addWitmotion("WT-A", "A", false)
             d.addWitmotion("WT-B", "B", false)
             d.addWitmotion("WT-C", "C", false)
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             compare(d.primaryLabel(), "Connect")
             // ⚠ QML Timers run on the scene graph's animation clock. Under the offscreen QPA
@@ -140,7 +138,7 @@ Item {
         // ── D4 ───────────────────────────────────────────────────────────────
         function test_D04_wg3OneDeviceOneRow() {
             d.addWg3("HM-1", false)
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             var rows = d.imuRows()
             // One row per SENSOR (§4.12): a wG3 is one peripheral with one mount, the pair.
@@ -163,7 +161,7 @@ Item {
             d.addWitmotion("WT-A", "A", false)
             d.addWitmotion("WT-B", "B", false)
             d.addWitmotion("WT-C", "C", false)
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             d.clickPrimary()
             compare(d.imu.countCalls("setSelected"), 1)
@@ -175,7 +173,7 @@ Item {
 
             // Cancel mid-queue.
             d.imu.disconnectAll()
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             var n0 = d.imu.countCalls("setSelected")
             d.clickPrimary()
@@ -190,7 +188,7 @@ Item {
         function test_D06_assignedSensorNotFound() {
             d.imu.assign("WT-X", "A")                   // placement names a sensor that is not in the list
             d.addWitmotion("WT-B", "B", false)
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             // The mount whose sensor is not found is its own row (§4.12, D6 reworded from slot
             // to mount), in its fail state, after the found sensors' rows.
@@ -217,7 +215,7 @@ Item {
 
         // ── D7 ───────────────────────────────────────────────────────────────
         function test_D07_scanButton() {
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             compare(d.scanLabel(), "Scan")
             d.imu.imuScanActive = true

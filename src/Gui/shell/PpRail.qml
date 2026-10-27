@@ -34,15 +34,15 @@ Item {
     property bool locked: false
 
     // Active-session lock (navController.sessionLocked). While set, the Session button appears and
-    // only Session and Swing model stay enabled above the spacer (Settings below it stays
-    // interactive, System beneath it). Visual affordance only — the enforcement lives in
-    // NavigationController::blockedDuringSession().
+    // only Session stays enabled above the spacer (Settings below it stays interactive, System
+    // beneath it — and the Swing model, Settings → Reference, with it). Visual affordance only —
+    // the enforcement lives in NavigationController::blockedDuringSession().
     property bool sessionLocked: false
 
     // Shared mute rule for the destinations above the spacer.
     function _muted(screen) {
         if (locked) return true
-        if (sessionLocked) return screen !== AppScreen.Session && screen !== AppScreen.SwingModel
+        if (sessionLocked) return screen !== AppScreen.Session
         return false
     }
 
@@ -141,7 +141,8 @@ Item {
         // ── Destinations ──────────────────────────────────────────────────────
         // No mode buttons: one session screen, reached through Session while it runs
         // (docs/design/ux_refactor_away_from_4_modes.md §2.2). Each button is active on its own
-        // screen only — Work-ons has its own button now, so Home no longer claims it.
+        // screen only — Work-ons has its own button now, so Home no longer claims it. The Swing
+        // model has no button: it is Settings → Reference (Mark, 28 Oct).
 
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
@@ -154,7 +155,8 @@ Item {
         }
 
         // Session — only while one runs. It is the way back to the live session from anywhere the
-        // lock allows (Swing model, Settings, System), as the active mode button used to be.
+        // lock allows (Settings, which holds the Swing model, and System), as the active mode
+        // button used to be.
         Item {
             Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true
             visible: root.sessionLocked
@@ -197,19 +199,6 @@ Item {
             onClicked: root.pageRequested(AppScreen.WorkOns)
         }
 
-        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
-
-        // Swing model — allowed during a session: authoring a corridor against the live swing
-        // depends on it (DiagnosticModel.qml, currentSwingDir).
-        PpRailButton {
-            Layout.alignment: Qt.AlignHCenter
-            iconText:  "◈"
-            labelText: qsTr("Swing model")
-            isActive:  root.currentPageIndex === AppScreen.SwingModel
-            isMuted:   root._muted(AppScreen.SwingModel)
-            attention: root.anyLocked
-            onClicked: root.pageRequested(AppScreen.SwingModel)
-        }
 
         // ── Spacer ────────────────────────────────────────────────────────────
         Item { Layout.fillHeight: true; Layout.fillWidth: true }

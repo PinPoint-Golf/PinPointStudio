@@ -83,6 +83,14 @@ QString swingsText(int fired, int total)
                       : QStringLiteral("%1 of %2 swings").arg(fired).arg(total);
 }
 
+// A condition's name as the golfer reads it: the pack label, else the fallback, else the id.
+QString packLabel(const CharacteristicPack &pack, const QString &id, const QString &fallback = QString())
+{
+    const Condition *c = pack.condition(id);
+    if (c && !c->label.isEmpty()) return c->label;
+    return fallback.isEmpty() ? id : fallback;
+}
+
 } // namespace
 
 WorkOnsController::WorkOnsController(QObject *parent)
@@ -394,9 +402,7 @@ void WorkOnsController::publish()
     const std::vector<WorkOnSummary> agg = aggregateWorkOns(std::move(sessions));
 
     const auto nameOf = [&pack](const QString &id, const QString &fallback = QString()) {
-        const Condition *c = pack.condition(id);
-        if (c && !c->label.isEmpty()) return c->label;
-        return fallback.isEmpty() ? id : fallback;
+        return packLabel(pack, id, fallback);
     };
 
     QVariantList items;
@@ -785,6 +791,8 @@ void WorkOnsController::publishSummary()
             { QStringLiteral("practiseLabel"), f.practiseLabel },
             { QStringLiteral("practise"),      f.practise },
             { QStringLiteral("reason"),        f.reason },
+            // The condition the focus starts from: the first "right now" fault's id ("" when none).
+            { QStringLiteral("focusConditionId"), f.rightNow.empty() ? QString() : f.rightNow.front().conditionId },
         };
 
         for (const DoWellItem &d : view.doWell)
@@ -807,6 +815,13 @@ void WorkOnsController::publishSummary()
         m_togetherNote = view.note;
     }
     emit summaryChanged();
+}
+
+QString WorkOnsController::conditionLabel(const QString &id) const
+{
+    if (id.isEmpty()) return QString();
+    if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
+    return packLabel(m_packProv->pack(), id);
 }
 
 void WorkOnsController::clearSummary()

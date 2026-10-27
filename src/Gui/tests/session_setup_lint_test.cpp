@@ -715,6 +715,10 @@ QVector<ContextObject> contextObjects()
         { QStringLiteral("cameraMgr"),     QStringLiteral("cameras/camera_manager.h"), QStringLiteral("CameraManager") },
         { QStringLiteral("launchMon"),     QStringLiteral("launchmonitor/launch_monitor_controller.h"),
           QStringLiteral("LaunchMonitorController") },
+        // The work-ons controller (the app's `workOns`), held by SetupContext as `workOnsSource` for
+        // the Intent step's focus choices (phase 2 C5).
+        { QStringLiteral("workOnsSource"), QStringLiteral("diagnostics/work_ons_controller.h"),
+          QStringLiteral("WorkOnsController") },
     };
 }
 

@@ -146,7 +146,7 @@ pp_add_test(session_clock_test
 
 # NavigationController — screen history and the session lock rule of the four-modes refactor
 # (ux_refactor_away_from_4_modes.md §6 Phase 1): while a session runs only AppScreen::Session,
-# SwingModel, System and Settings are reachable, whatever the session type. A real
+# System and Settings are reachable, whatever the session type. A real
 # SessionController drives the lock, with the same athlete stub as session_clock_test.
 # app_screen.h is header-only and listed so AUTOMOC sees it. Qt6::Test is for QSignalSpy.
 pp_add_test(navigation_controller_test

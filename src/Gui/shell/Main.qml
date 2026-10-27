@@ -550,7 +550,6 @@ ApplicationWindow {
         n[AppScreen.Session]    = qsTr("Session")
         n[AppScreen.Sessions]   = qsTr("Sessions")
         n[AppScreen.WorkOns]    = qsTr("Work-ons")
-        n[AppScreen.SwingModel] = qsTr("Swing model")
         n[AppScreen.Athlete]    = qsTr("New athlete")
         n[AppScreen.Athletes]   = qsTr("Athletes")
         n[AppScreen.System]     = qsTr("System")
@@ -569,15 +568,13 @@ ApplicationWindow {
         sessionsScreen.loadForEdit()
     }
 
-    // The Swing model screen's deep links (Settings' swingModelRequested, MetricRoute).
-    // Navigate first so the screen is current, then select — the same order the old
-    // Settings-panel route used.
-    function _openSwingModel(kind, ref) {
-        navController.navigate(AppScreen.SwingModel)
-        if      (kind === "metric")         swingModelScreen.showMetric(ref)
-        else if (kind === "characteristic") swingModelScreen.showCharacteristic(ref)
-        else if (kind === "measure")        swingModelScreen.showMeasure(ref)
-        else if (kind === "item" && ref)    swingModelScreen.scrollToItem(ref)
+    // Open the session wizard for a start request { focusConditionId, focusLabel } (Home's
+    // Start, a work-on's Practise). Carry Home's club pick into the session; start() (fired
+    // at wizard completion) preserves an already-set activeClub.
+    function _openSessionSetup(request) {
+        sessionController.activeClub = screenHome.selectedClub
+        sessionSetup.open(request)
+        navController.navigate(AppScreen.Wizard)
     }
 
     RowLayout {
@@ -594,7 +591,8 @@ ApplicationWindow {
             // navigate() (not navigateRail()) to preserve wizard in history.
             locked: navController.currentIndex === AppScreen.Wizard
             // While a session is active the Session button appears and only Session
-            // and Swing model stay enabled (System/Settings stay interactive).
+            // stays enabled (System/Settings stay interactive; the Swing model is
+            // Settings → Reference, so it stays reachable through Settings).
             // NavigationController enforces the same rule on every nav path.
             sessionLocked: navController.sessionLocked
 
@@ -688,15 +686,7 @@ ApplicationWindow {
                         athleteFormScreen.loadForEdit()   // force a fresh load even if uuid is unchanged
                         navController.navigate(AppScreen.Athlete)
                     }
-                    onStartSessionRequested: function(sessionTypeIndex) {
-                        // Carry the Home club pick into the session; start() (fired
-                        // at wizard completion) preserves an already-set activeClub.
-                        sessionController.activeClub = screenHome.selectedClub
-                        sessionSetup.open(sessionTypeIndex)
-                        navController.navigate(AppScreen.Wizard)
-                    }
-                    // Coming-soon cards: their placeholder screens are gone; no-op until Phase 2 removes the signal.
-                    onOpenSessionScreenRequested: function(sessionTypeIndex) {}
+                    onStartSessionRequested: function(request) { root._openSessionSetup(request) }
                     // YOUR SWING's "Swing diagnostics →": the technical layer, from its top.
                     onSwingDiagnosticsRequested: {
                         swingDiagnosticsScreen.toTop()
@@ -746,9 +736,11 @@ ApplicationWindow {
                         sessionReviewController.loadSession(sessionDir)
                         navController.navigate(AppScreen.Session)
                     }
-                }
-                ScreenSwingModel {                                         // AppScreen.SwingModel — the one Diagnostic Model
-                    id: swingModelScreen
+                    // TEMPORARY (Phase 4 moves Practise to Home): a work-on's "Practise" opens the
+                    // session wizard with that condition as the focus, the same path as Home's Start.
+                    onPractiseRequested: function(conditionId, label) {
+                        root._openSessionSetup({ focusConditionId: conditionId, focusLabel: label })
+                    }
                 }
                 ScreenAthleteForm {                                        // AppScreen.Athlete — new / edit athlete form
                     id: athleteFormScreen
@@ -793,15 +785,16 @@ ApplicationWindow {
                 ScreenSettings {                                           // AppScreen.Settings — settings
                     id: settingsScreen
                     onResourceMonitorRequested: navController.navigate(AppScreen.System)
-                    // Slot 10's button, its search hits and the show*Detail deep links.
-                    onSwingModelRequested: function(kind, ref) { root._openSwingModel(kind, ref) }
                 }
-                // Metric tile → its catalogue detail page on the Swing model screen. Navigation is
-                // owned here, so a tile (several layers inside a stage delegate, or inside the
+                // Metric tile → its catalogue detail page in Settings → Swing model. Navigation
+                // is owned here, so a tile (several layers inside a stage delegate, or inside the
                 // cast Window) just announces the key.
                 Connections {
                     target: MetricRoute
-                    function onOpenRequested(key) { root._openSwingModel("metric", key) }
+                    function onOpenRequested(key) {
+                        navController.navigate(AppScreen.Settings)
+                        settingsScreen.showMetricDetail(key)
+                    }
                 }
                 PlayPage {}                                                // AppScreen.Developer — dev-hatch only
                 ScreenSessionSetup {                                       // AppScreen.Wizard — session setup
@@ -816,20 +809,20 @@ ApplicationWindow {
                     // ‹ on the first step: the flow released the devices; go back to
                     // where setup was opened from.
                     onExitRequested: navController.back()
-                    onSessionStartRequested: function(type, goals) {
-                        var map = appSettings.sessionGoalsByType
-                        map[type.toString()] = goals
-                        appSettings.sessionGoalsByType = map
-                        appSettings.lastSessionType    = type
-                        // Navigate first: once start(type) runs, navigation is locked
-                        // to the session screen (plus Swing model/System/Settings).
+                    // The request comes back with the wizard's final focus. The focus is set only
+                    // here, at Start: Cancel and ‹-exit leave the controller's focus untouched.
+                    onSessionStartRequested: function(request) {
+                        sessionController.focusConditionId = request.focusConditionId || ""
+                        sessionController.focusFromShot    = 0
+                        // Navigate first: once start() runs, navigation is locked
+                        // to the session screen (plus System/Settings).
                         navController.navigateRail(AppScreen.Session)
                         // The wizard always starts a NEW session folder (a deliberate
                         // fresh session); the carousel begins empty. The toolbar
                         // Capture button is the path that offers extend-vs-new.
-                        shotProcessor.beginSessionFolder(type, false)
+                        shotProcessor.beginSessionFolder(sessionController.defaultType, false)
                         shotModel.loadSessionDir("")
-                        sessionController.start(type)   // session active → rail locks
+                        sessionController.start(sessionController.defaultType)   // session active → rail locks
                         cameraManager.startCapture()    // buffer capturing → SHOT arms
                     }
                     onNavigateToSettings: function(panelIndex) {

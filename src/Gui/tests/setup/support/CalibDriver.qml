@@ -437,7 +437,7 @@ Item {
 
     function releaseGuide() { flow._guide.view.loadedCount = flow._guide.view.totalSegments }
 
-    // Builds the fakes and session setup as Main hosts it (shown, then open(Wrist) from Home), and
+    // Builds the fakes and session setup as Main hosts it (shown, then open() from Home), and
     // walks it to Calibrate through the flow's own operations. The guide view exists only from the
     // Calibrate page on, so it loads after the entry; `openedAt` is when it became watchable — the
     // moment the routine's first timer can start.
@@ -461,7 +461,7 @@ Item {
         tc.verify(setup !== null, "ScreenSessionSetup failed to instantiate")
         setup.flow.pageChanged.connect(drv._onSetupPageChanged)
         flow = ghostFlow
-        setup.open(SessionController.Wrist)
+        setup.open({ focusConditionId: "", focusLabel: "" })     // Home's Start: no focus
         setup.visible = true
         _settle()
         if (opts.withPanel) _createPanel()
@@ -700,8 +700,9 @@ Item {
     // shell's suspend and resume are queued (R5): settle on them.
     function suspend() { setup.visible = false; _settle() }
     function resume()  { setup.visible = true;  _settle() }
-    // Ready → Start, as Main.qml's onSessionStartRequested does it (l.754–768): the wizard
-    // screen is left (hidden, not destroyed) and the session starts.
+    // Ready → Start, as Main.qml's onSessionStartRequested does it: the focus handed back is set
+    // on the controller, the wizard screen is left (hidden, not destroyed) and the session starts
+    // as the controller's defaultType.
     function startSession() {
         var g = 0
         while (newWiz.currentStep !== "ready" && g++ < 20) {
@@ -710,11 +711,19 @@ Item {
             if (newWiz.currentStep === b) newWiz.goNext("skipped")
         }
         tc.compare(newWiz.currentStep, "ready")
+        var request = null
+        var grab = function(r) { request = r }
+        setup.sessionStartRequested.connect(grab)
         setup.flow.exit("start")                     // Start: devices kept
         _settle()
+        setup.sessionStartRequested.disconnect(grab)
+        tc.verify(request !== null, "Start handed back no request")
+        var sc = fx.sessionController
+        sc.focusConditionId = request.focusConditionId || ""
+        sc.focusFromShot    = 0
         fx.navController.navigateRail(AppScreen.Session)
         setup.visible = false
-        fx.sessionController.start(SessionController.Wrist)
+        sc.start(sc.defaultType)
     }
     // The toolbar IMU popup opened and its Calibrate action pressed (PpImuPanel l.211).
     function enterToolbarCalibrate() {

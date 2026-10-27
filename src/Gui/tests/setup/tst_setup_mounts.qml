@@ -44,7 +44,6 @@ Item {
         when: windowShown
 
         readonly property var d: drv
-        readonly property int wrist: SessionController.Wrist
         property var panel: null
 
         readonly property var armLabels: ["Lead forearm", "Lead hand", "Lead upper arm"]
@@ -192,7 +191,7 @@ Item {
             d.addWitmotion("WT-N", "", true)
             d.imu.addHackMotion("HM-1", "")
             d.imu.connectDevice("HM-1")
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             compare(d.mountOptions("WT-N").map(function(o) { return o.text }),
                     armLabels.concat([hipLabel, chestLabel]))
@@ -210,8 +209,8 @@ Item {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addWitmotion("WT-P", "", true)
             d.addWitmotion("WT-T", "", true)
-            d.open(wrist)
-            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "ready"])
+            d.open()
+            compare(d.plan(), ["intent", "cameras", "framing", "ball", "imus", "ready"])
             d.walkTo("imus")
             var n0 = setRoleCalls().length
             d.chooseMount("WT-P", "pelvis")
@@ -224,7 +223,7 @@ Item {
             compare(calls.map(function(c) { return c.args }), [["WT-P", "pelvis"], ["WT-T", "thorax"]])
             compare(d.imuRows()[0].label, hipLabel + " — WT901BLE WT-P")
             compare(d.imuRows()[1].label, chestLabel + " — WT901BLE WT-T")
-            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "calibrateTrunk", "checkTrunk", "ready"])
+            compare(d.plan(), ["intent", "cameras", "framing", "ball", "imus", "calibrateTrunk", "checkTrunk", "ready"])
             verify(d.ctx.groups.trunk.complete)
         }
 
@@ -233,7 +232,7 @@ Item {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addWitmotion("WT-N", "", true)
             d.addWitmotion("WT-A", "A", true)
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             // Not offered to a sensor with no mount to take away.
             verify(d.mountOptions("WT-N").every(function(o) { return o.role !== "" }), "Not worn offered unmounted")
@@ -263,7 +262,7 @@ Item {
             compare(textStartingWith("Assigned: "), "Assigned: " + hipShort)
             d.imu.connectDevice("WT-1")
             d.addCamera("FO1", CameraInstance.FaceOn, true)
-            d.open(wrist)
+            d.open()
             d.walkTo("imus")
             compare(d.imuRows()[0].label, hipLabel + " — Belt sensor")
         }

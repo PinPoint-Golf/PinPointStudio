@@ -39,8 +39,6 @@ Item {
         name: "SetupFlow"
         when: windowShown
 
-        readonly property int wrist: SessionController.Wrist
-
         property var imu: null
         property var cams: null
         property var athlete: null
@@ -56,7 +54,6 @@ Item {
                 testLog.expect("^Populating font family aliases took \\d+ ms\\. Replace uses of missing font family \"Sans Serif\"")
             // The REAL AppSettings (scratch QSettings) is shared by every case in this file.
             appSettings.imuRoles           = ({})
-            appSettings.sessionGoalsByType = ({})
             appSettings.cameraExcluded     = []
             appSettings.imuExcluded        = []
             appSettings.cameraFixedInPlace = ({})
@@ -99,8 +96,9 @@ Item {
         function settle() {
             tryVerify(function() { return !shell.flow.busy }, 3000, "the flow never settled")
         }
-        function open(preset) {
-            shell.flow.open(preset === undefined ? wrist : preset)
+        // request: { focusConditionId, focusLabel } (phase 2 C2); none = Home's Start, no focus.
+        function open(request) {
+            shell.flow.open(request === undefined ? { focusConditionId: "", focusLabel: "" } : request)
             settle()
         }
         function go(mark)  { shell.flow.next(mark || "done"); settle() }
@@ -186,12 +184,12 @@ Item {
             wit("WT-B", "B", false)
             makeShell()
             open()
-            compare(flow().plan, ["goals", "cameras", "ball", "imus", "calibrateArm", "checkArm", "ready"])
-            compare(flow().current, "goals")
+            compare(flow().plan, ["intent", "cameras", "ball", "imus", "calibrateArm", "checkArm", "ready"])
+            compare(flow().current, "intent")
             for (var i = 0; i < flow().plan.length; ++i)
                 compare(draft().state(flow().plan[i]), "pending", flow().plan[i])
-            compare(flow().stepLabel, "STEP 1 OF 7 · GOALS")
-            compare(flow().page.stepLabel, "STEP 1 OF 7 · GOALS")
+            compare(flow().stepLabel, "STEP 1 OF 7 · FOCUS")
+            compare(flow().page.stepLabel, "STEP 1 OF 7 · FOCUS")
             compare(flow().stepLabelFor("calibrateArm"), "STEP 5 OF 7 · CALIBRATE")
             compare(flow().stepLabelFor("checkArm"), "STEP 6 OF 7 · CONFIRM TRACKING")
             compare(flow().steps.map(function(s) { return s.number }), [1, 2, 3, 4, 5, 6, 7])
@@ -200,8 +198,8 @@ Item {
             cam("FO", CameraInstance.FaceOn, false)
             makeShell()
             open()
-            // §4.12: no arm sensor in the session → no arm Calibrate / Check, whatever the preset.
-            compare(flow().plan, ["goals", "cameras", "ball", "imus", "ready"])
+            // §4.12: no arm sensor in the session → no arm Calibrate / Check, whatever the focus.
+            compare(flow().plan, ["intent", "cameras", "ball", "imus", "ready"])
             compare(flow().stepLabelFor("ready"), "STEP 5 OF 5 · READY")
         }
 
@@ -212,14 +210,14 @@ Item {
             open()
             go()
             compare(flow().current, "cameras")
-            compare(flow().plan, ["goals", "cameras", "framing", "ball", "imus", "ready"])
+            compare(flow().plan, ["intent", "cameras", "framing", "ball", "imus", "ready"])
             cams.setCameraSelected("DTL", true)
-            compare(flow().plan, ["goals", "cameras", "framing", "triangulate", "ball", "imus", "ready"])
+            compare(flow().plan, ["intent", "cameras", "framing", "triangulate", "ball", "imus", "ready"])
             compare(flow().page.stepLabel, "STEP 2 OF 7 · CAMERAS")
             compare(flow().stepLabelFor("triangulate"), "STEP 4 OF 7 · TRIANGULATION")
             compare(flow().stepLabelFor("ready"), "STEP 7 OF 7 · READY")
             cams.setCameraSelected("DTL", false)
-            compare(flow().plan, ["goals", "cameras", "framing", "ball", "imus", "ready"])
+            compare(flow().plan, ["intent", "cameras", "framing", "ball", "imus", "ready"])
             compare(flow().page.stepLabel, "STEP 2 OF 6 · CAMERAS")
         }
 
@@ -228,7 +226,7 @@ Item {
             makeShell()
             open()
             var p = flow().plan
-            compare(p, ["goals", "cameras", "framing", "ball", "imus", "ready"])
+            compare(p, ["intent", "cameras", "framing", "ball", "imus", "ready"])
             for (var i = 0; i < p.length - 1; ++i) {
                 compare(flow().current, p[i])
                 go("done")
@@ -383,7 +381,7 @@ Item {
             makeShell()
             var cancelled = spy(flow(), "cancelled")
             var started = spy(flow(), "startRequested")
-            var plan = ["goals", "cameras", "framing", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"]
+            var plan = ["intent", "cameras", "framing", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"]
             for (var i = 0; i < plan.length; ++i) {
                 cams.setCameraSelected("FO", true)           // the last cancel disconnected them
                 cams.setCameraSelected("DTL", true)
@@ -407,7 +405,7 @@ Item {
             compare(started.count, 0)
         }
 
-        function test_N10F_startHandsPresetAndGoals() {
+        function test_N10F_startHandsBackTheFocus() {
             faceOnWithBall(true)
             makeShell()
             var started = spy(flow(), "startRequested")
@@ -417,37 +415,43 @@ Item {
             flow().exit("start")
             settle()
             compare(started.count, 1)
-            compare(started.signalArguments[0][0], wrist)
-            compare(started.signalArguments[0][1], ["generalAssessment"], "no goals → the preset's first")
+            var r0 = started.signalArguments[0][0]
+            compare(r0.focusConditionId, "", "no focus picked → an open assessment")
+            compare(r0.focusLabel, "")
             compare(cams.countCalls("stopCapture"), s0, "Start must keep the devices")
             compare(imu.countCalls("disconnectAll"), d0)
             verify(!flow().isOpen)
 
+            // A focus picked on the Intent step rides back on the request, label and all.
             open()
-            draft().toggleGoal("impactConditions")
-            draft().toggleGoal("wristAngleTop")
+            draft().setFocus("early_extension", "Early extension")
             while (flow().current !== "ready") go("done")
             flow().exit("start")
             settle()
             compare(started.count, 2)
-            compare(started.signalArguments[1][1], ["impactConditions", "wristAngleTop"])
+            compare(started.signalArguments[1][0].focusConditionId, "early_extension")
+            compare(started.signalArguments[1][0].focusLabel, "Early extension")
 
-            // Defensive, as today: a comingSoon preset is not startable.
-            open(SessionController.Swing)
+            // The request's focus, changed in the visit: the visit's wins; the request's other
+            // fields ride along untouched.
+            open({ focusConditionId: "chicken_wing", focusLabel: "Chicken wing", from: "practise" })
+            draft().setFocus("", "")
+            while (flow().current !== "ready") go("done")
             flow().exit("start")
             settle()
-            compare(started.count, 2)
-            verify(flow().isOpen)
+            compare(started.count, 3)
+            compare(started.signalArguments[2][0].focusConditionId, "", "Open assessment chosen over the request")
+            compare(started.signalArguments[2][0].focusLabel, "")
+            compare(started.signalArguments[2][0].from, "practise")
         }
 
         function test_N11F_N12F_suspendResumeKeepsTheDraft() {
             cam("FO", CameraInstance.FaceOn, false)
             wit("WT-A", "A", false)
-            appSettings.sessionGoalsByType = ({ "1": ["wristAngleTop"] })
             makeShell()
-            open()
-            compare(draft().goals, ["wristAngleTop"], "seeded from the profile at open")
-            draft().toggleGoal("impactConditions")
+            open({ focusConditionId: "chicken_wing", focusLabel: "Chicken wing" })
+            compare(draft().focusConditionId, "chicken_wing", "seeded from the request at open")
+            draft().setFocus("early_extension", "Early extension")
             ctx().setCameraEnabled("FO", false)
             ctx().setSensorEnabled("WT-A", false)
             var en0 = cams.countCalls("setSessionCameraEnabled"), ie0 = imu.countCalls("setSessionImuEnabled")
@@ -458,15 +462,15 @@ Item {
             verify(!flow().page.active)
             verify(!flow().canHeaderForward && !flow().canHeaderBack)
             go("done")                                       // nothing navigates while hidden
-            compare(flow().current, "goals")
+            compare(flow().current, "intent")
             flow().resume()
             settle()
             verify(!flow().suspended)
             compare(journal.last("enter").arg, "resume")
             verify(flow().page.active)
             compare(journal.created, 1, "the page survives a suspend")
-            compare(draft().goals, ["wristAngleTop", "impactConditions"])
-            verify(draft().goalsInteracted)
+            compare(draft().focusConditionId, "early_extension", "the visit's pick survives a suspend")
+            compare(draft().focusLabel, "Early extension")
             compare(cams.sessionCameraExcluded, ["FO"])
             compare(imu.sessionImuExcluded, ["WT-A"])
             compare(cams.countCalls("setSessionCameraEnabled"), en0, "no re-seed on resume (F4)")
@@ -477,23 +481,23 @@ Item {
             faceOnWithBall(true)
             var a = wit("WT-A", "A", false)
             wit("WT-B", "B", false)
-            appSettings.sessionGoalsByType = ({ "1": ["wristAngleTop"] })
             imu.autoConnectOnSelect = true
             makeShell()
-            open()
-            draft().toggleGoal("impactConditions")
+            open({ focusConditionId: "chicken_wing", focusLabel: "Chicken wing" })
+            draft().setFocus("early_extension", "Early extension")
             go("done"); go("done"); go("done"); go("done")
             compare(flow().current, "imus")
             ctx().connectSensors()                           // paced: WT-A now, WT-B in 2 s
             verify(imu.pacedConnectActive)
             draft().recordOutcome("arm", "witmotion", [a])
             var q0 = imu.countCalls("cancelPacedConnect")
-            open()
-            compare(flow().current, "goals")
+            open({ focusConditionId: "over_the_top", focusLabel: "Over the top" })
+            compare(flow().current, "intent")
             var p = flow().plan
             for (var i = 0; i < p.length; ++i) compare(draft().state(p[i]), "pending", p[i])
-            compare(draft().goals, ["wristAngleTop"])
-            verify(!draft().goalsInteracted)
+            compare(draft().focusConditionId, "over_the_top", "the focus is the NEW request's, not the old visit's pick")
+            compare(draft().focusLabel, "Over the top")
+            compare(draft().requestedFocus.id, "over_the_top")
             verify(!draft().outcome("arm").recorded)
             compare(imu.countCalls("cancelPacedConnect"), q0 + 1)
             verify(!imu.pacedConnectActive)
@@ -512,13 +516,13 @@ Item {
             cams.setCameraSelected("DTL", false)
             compare(flow().current, "triangulate", "the current step is pinned")
             verify(flow().noLongerNeeded)
-            compare(flow().plan, ["goals", "cameras", "framing", "triangulate", "ball", "imus", "ready"])
+            compare(flow().plan, ["intent", "cameras", "framing", "triangulate", "ball", "imus", "ready"])
             compare(flow().stepLabel, "STEP 4 OF 7 · TRIANGULATION", "numbering never blank")
             compare(flow().page.stepLabel, "STEP 4 OF 7 · TRIANGULATION")
             verify(flow().canContinue, "nothing left to require of a step that no longer applies")
             go("done")
             compare(flow().current, "ball")
-            compare(flow().plan, ["goals", "cameras", "framing", "ball", "imus", "ready"])
+            compare(flow().plan, ["intent", "cameras", "framing", "ball", "imus", "ready"])
             compare(flow().page.stepLabel, "STEP 4 OF 6 · BALL DETECTION")
         }
 
@@ -528,7 +532,7 @@ Item {
             open()
             go("done"); go("skipped"); go("done"); go("done")
             compare(flow().current, "imus")
-            verify(flow().canGoTo("goals"))
+            verify(flow().canGoTo("intent"))
             verify(flow().canGoTo("cameras"))
             verify(!flow().canGoTo("imus"), "the current step")
             verify(!flow().canGoTo("ready"), "a future step")
@@ -566,7 +570,7 @@ Item {
             })
             shell.steps.extensions = [d]
             open()
-            compare(flow().plan, ["goals", "cameras", "framing", "ball", "dummyStep", "imus", "ready"])
+            compare(flow().plan, ["intent", "cameras", "framing", "ball", "dummyStep", "imus", "ready"])
             compare(flow().stepLabelFor("dummyStep"), "STEP 5 OF 7 · DUMMY")
             var entry = flow().steps.filter(function(s) { return s.key === "dummyStep" })[0]
             compare(entry.label, "Dummy"); compare(entry.group, "cameras"); compare(entry.number, 5)
@@ -597,7 +601,7 @@ Item {
             verify(!ctx().groups.arm.inSession)
             // The trunk steps are registered (W2.2): the trunk group brings them, after the arm's
             // place and before Ready; no arm steps without an arm sensor.
-            compare(flow().plan, ["goals", "cameras", "ball", "imus", "calibrateTrunk", "checkTrunk", "ready"])
+            compare(flow().plan, ["intent", "cameras", "ball", "imus", "calibrateTrunk", "checkTrunk", "ready"])
             compare(shell.steps.instrumentGroups, ["arm", "trunk"])
         }
 
@@ -607,16 +611,16 @@ Item {
             var n0 = setLines().length
             flow().next("done")
             flow().next("done")                              // a double-click, same turn
-            compare(flow().current, "goals", "nothing applied inside the caller's turn")
+            compare(flow().current, "intent", "nothing applied inside the caller's turn")
             settle()
             wait(50)
             compare(flow().current, "cameras")
-            compare(draft().state("goals"), "done")
+            compare(draft().state("intent"), "done")
             compare(draft().state("cameras"), "pending")
             var lines = setLines().slice(n0)
             compare(lines.length, 2, lines.join("\n"))
             verify(lines[0].indexOf("op=next") >= 0 && lines[0].indexOf("reason=dropped") >= 0, lines[0])
-            verify(lines[1].indexOf("op=next from=goals to=cameras reason=done") >= 0, lines[1])
+            verify(lines[1].indexOf("op=next from=intent to=cameras reason=done") >= 0, lines[1])
         }
 
         // ═════ Lifecycle (L) ══════════════════════════════════════════════════
@@ -653,30 +657,30 @@ Item {
             open()
             var page = flow().page
             var r = page.selfAdvance()                       // next() then reads itself
-            compare(r, "alive:goals:true", "the page was torn down inside its own handler")
+            compare(r, "alive:intent:true", "the page was torn down inside its own handler")
             compare(journal.alive, 1)
             compare(journal.count("died"), 0, "destroyed in the caller's turn")
-            compare(flow().current, "goals")
+            compare(flow().current, "intent")
             settle()
             compare(flow().current, "cameras")
-            compare(journal.trace("goals"), ["born", "active:true", "enter:forward", "leave:forward", "active:false", "died"])
+            compare(journal.trace("intent"), ["born", "active:true", "enter:forward", "leave:forward", "active:false", "died"])
         }
 
         function test_LCF_lifecycleOrdering() {
             makeShell()
             open()
-            compare(journal.trace("goals"), ["born", "active:true", "enter:forward"])
+            compare(journal.trace("intent"), ["born", "active:true", "enter:forward"])
             go("done")
-            compare(journal.trace("goals"), ["born", "active:true", "enter:forward", "leave:forward", "active:false", "died"])
+            compare(journal.trace("intent"), ["born", "active:true", "enter:forward", "leave:forward", "active:false", "died"])
             compare(journal.trace("cameras"), ["born", "active:true", "enter:forward"])
             // The next page is created only after the old one is GONE (R2): its birth follows the
             // old page's death in the sequence.
             var died = -1, born = -1
             journal.events.forEach(function(e) {
-                if (e.key === "goals" && e.ev === "died") died = e.seq
+                if (e.key === "intent" && e.ev === "died") died = e.seq
                 if (e.key === "cameras" && e.ev === "born") born = e.seq
             })
-            verify(died > 0 && born > died, "cameras born " + born + " before goals died " + died)
+            verify(died > 0 && born > died, "cameras born " + born + " before intent died " + died)
             back()
             compare(journal.trace("cameras").slice(3), ["leave:back", "active:false", "died"])
         }
@@ -723,21 +727,21 @@ Item {
             faceOnWithBall(false)
             makeShell()
             var ops = [
-                function() { flow().open(wrist) },
+                function() { flow().open({ focusConditionId: "", focusLabel: "" }) },
                 function() { flow().next("done") },
                 function() { flow().next("done") },
                 function() { flow().next("done") },
                 function() { flow().next("done") },      // refused: no ball
                 function() { flow().back() },
-                function() { flow().goTo("goals") },
+                function() { flow().goTo("intent") },
                 function() { flow().suspend() },
                 function() { flow().resume() },
                 function() { flow().exit("cancel") }
             ]
-            var want = ["op=open", "op=next from=goals to=cameras", "op=next from=cameras to=framing",
+            var want = ["op=open from=- to=intent reason=open focus=-", "op=next from=intent to=cameras", "op=next from=cameras to=framing",
                         "op=next from=framing to=ball",
-                        "refused=gate", "op=back from=ball to=framing", "op=goTo from=framing to=goals",
-                        "op=suspend", "op=resume", "op=exit from=goals to=- reason=cancel"]
+                        "refused=gate", "op=back from=ball to=framing", "op=goTo from=framing to=intent",
+                        "op=suspend", "op=resume", "op=exit from=intent to=- reason=cancel"]
             for (var i = 0; i < ops.length; ++i) {
                 var n0 = setLines().length
                 ops[i]()

@@ -871,6 +871,10 @@ int main()
               && nw.needsWork[3].frequency == QStringLiteral("more than half your swings")
               && nw.needsWork[4].text == QStringLiteral("Your d moves"),
               "needs work: skipping and dedupe, growing +1 / easing −1, 0.7 is \"most\", 0.69 \"more than half\", at most five");
+        check(nw.needsWork.size() == 5 && nw.needsWork[0].conditionId == QStringLiteral("a")
+              && nw.needsWork[1].conditionId == QStringLiteral("dupA") && nw.needsWork[2].conditionId == QStringLiteral("b")
+              && nw.needsWork[4].conditionId == QStringLiteral("d"),
+              "needs work: each item carries its row's condition id (the first of a repeated phrase)");
 
         auto theme = [](ThemeTier tier, double var, int startsAt, int trend, std::vector<ThemeMember> m) {
             SwingTheme t;
@@ -1111,6 +1115,10 @@ int main()
         check(f.reason == QStringLiteral("Picked first: it comes earliest in your swing and covers three of the things on your list."),
               "focus: the reason — earliest, and how many of the list it covers, in words");
         check(f.conditionIds == QStringList{ "a1", "a2", "a3" }, "focus: carries its group's faults");
+        check(f.rightNow.size() == 3 && f.rightNow[0].conditionId == QStringLiteral("a1") && f.rightNow[1].conditionId == QStringLiteral("a2")
+              && f.rightNow[2].conditionId == QStringLiteral("a3") && av.next.size() == 4 && av.next[0].conditionId == QStringLiteral("c1")
+              && av.next[3].conditionId == QStringLiteral("e1"),
+              "focus and next: each fault item carries its condition id");
         check(av.next.size() == 4 && av.next[0].text == QStringLiteral("You do c1") && av.next[0].trend == -1
               && av.next[0].frequency == QStringLiteral("most swings") && av.next[1].text == QStringLiteral("You do b1")
               && av.next[1].frequency == QStringLiteral("almost every swing") && av.next[2].text == QStringLiteral("You do f1")
@@ -1127,6 +1135,9 @@ int main()
         check(bv.focus.present && bv.focus.title == QStringLiteral("Label drill.dk") && bv.focus.rightNow.size() == 2
               && bv.focus.rightNow[0].text == QStringLiteral("You dup it") && bv.focus.rightNow[1].text == QStringLiteral("You do k2"),
               "focus: a group with no phrase is passed over; a repeated phrase is one right-now item");
+        check(bv.focus.rightNow.size() == 2 && bv.focus.rightNow[0].conditionId == QStringLiteral("dup1")
+              && bv.focus.rightNow[1].conditionId == QStringLiteral("k2"),
+              "focus: a repeated phrase's item carries the first condition that says it");
         check(bv.focus.aimFor == QStringList{ "You keep it wide" } && bv.focus.why == QStringLiteral("Same why. Why k2."),
               "focus: an empty or repeated aim is skipped, a repeated why told once");
         check(bv.focus.reason == QStringLiteral("Picked first: it shows up on the most of your swings and covers two of the things on your list."),

@@ -17,7 +17,7 @@
 // A function that looks for something the current page does not show throws, so a case cannot
 // pass on nothing.
 //
-// Step keys: "goals","cameras","framing","triangulate","ball","imus","calibrateArm","checkArm",
+// Step keys: "intent","cameras","framing","triangulate","ball","imus","calibrateArm","checkArm",
 // "calibrateTrunk","checkTrunk","ready".
 import QtQuick
 import PinPointStudio
@@ -57,6 +57,11 @@ Item {
     // all, as headless (the page must cope with the name being undefined). Never the real controller.
     property var tts: null
 
+    // The work-ons controller (fakes/FakeWorkOns.qml, as the app's "workOns" context property) —
+    // OPT-IN like the voice: set it before open() (useWorkOns() does) and the Intent step offers its
+    // focus choices; left null, the context has NO workOns, as headless (Open assessment only).
+    property var workOns: null
+
     // The golfer who turns the fake trunk sensors when a turn step arms (TrunkGolfer.qml): the turn
     // steps end on the sensors, not a timer. Attached to each Calibrate trunk page's routine; a case
     // sets `golfer.enabled = false` (no turn) or `golfer.scripts` (its own turns).
@@ -77,7 +82,7 @@ Item {
     readonly property int screenSettings: AppScreen.Settings
     readonly property int screenWizard:   AppScreen.Wizard
 
-    readonly property var stepKeys: ["goals", "cameras", "framing", "triangulate", "ball", "imus",
+    readonly property var stepKeys: ["intent", "cameras", "framing", "triangulate", "ball", "imus",
                                      "calibrateArm", "checkArm", "calibrateTrunk", "checkTrunk", "ready"]
 
     Component { id: imuMgrComp;    FakeImuManager {} }
@@ -89,6 +94,7 @@ Item {
     Component { id: lmComp;        FakeLaunchMonitor {} }
     Component { id: appLogComp;    FakeAppLog {} }
     Component { id: ceremonyComp;  FakeTrunkCeremony {} }
+    Component { id: workOnsComp;   FakeWorkOns {} }
     // N17's test page (support/pages/ExtraPage.qml) reports to `pageJournal`.
     Component { id: journalComp;   PageJournal {} }
     // PpCameraFrame (the camera rows' thumbnails, the Ball frame) reads `shotReplay`…
@@ -125,12 +131,12 @@ Item {
         // The REAL AppSettings (scratch QSettings) is shared by every test in the file.
         appSettings.imuRoles           = ({})
         appSettings.imuAlias           = ({})
-                appSettings.sessionGoalsByType = ({})
         appSettings.cameraExcluded     = []
         appSettings.imuExcluded        = []
         appSettings.cameraFixedInPlace = ({})
         appSettings.experimentalSpokenInstructions = false
         tts = null
+        workOns = null
         imu        = imuMgrComp.createObject(drv)
         cams       = camMgrComp.createObject(drv)
         athlete    = athleteComp.createObject(drv)
@@ -159,7 +165,21 @@ Item {
         imu = cams = athlete = liveWrist = session = nav = lm = appLogFake = journal = ceremony = _shotReplay = _shotProcessor = null
         trunkPace = null
         tts = null
+        if (workOns) workOns.destroy()
+        workOns = null
         appSettings.experimentalSpokenInstructions = false
+    }
+
+    // A FakeWorkOns for the next open(): items [{ id, name, status }], the coaching focus id
+    // ("" = none) and pack labels { id: label }. Must run before the shell is created (the first
+    // open() of a case): the context property is fixed at creation.
+    function useWorkOns(items, focusId, labels) {
+        if (wizard) throw new Error("SetupDriver.useWorkOns(): call it before the first open()")
+        if (workOns) workOns.destroy()
+        workOns = workOnsComp.createObject(drv, { items: items || [],
+                                                  focusItem: { focusConditionId: focusId || "" },
+                                                  labels: labels || ({}) })
+        return workOns
     }
 
     function _create() {
@@ -179,6 +199,7 @@ Item {
             trunkCeremony:     ceremony
         }
         if (tts) props.ttsController = tts
+        if (workOns) props.workOns = workOns
         var w = harness.createWithContext("ScreenSessionSetup", props,
                                           host, { width: host.width, height: host.height, visible: false })
         if (!w) throw new Error("SetupDriver: ScreenSessionSetup failed to instantiate")
@@ -206,18 +227,19 @@ Item {
         testCase.tryVerify(function() { return !wizard.flow.busy }, 5000, "the setup flow never settled")
     }
 
-    // ── Main.qml replicas, as Stage 5b wrote them ────────────────────────────
-    // ScreenHome.onStartSessionRequested (Main.qml), with reset → open:
+    // ── Main.qml replicas, as phase 2 wrote them ─────────────────────────────
+    // Main._openSessionSetup(request) (Home's Start, a work-on's Practise):
     //     sessionController.activeClub = screenHome.selectedClub
-    //     sessionSetup.open(sessionTypeIndex)
+    //     sessionSetup.open(request)
     //     navController.navigate(AppScreen.Wizard)
-    function open(type) {
+    // request: { focusConditionId, focusLabel }; missing = Home's Start (no focus).
+    function open(request) {
         var w = wizard || _create()
         if (nav.currentIndex === screenWizard) {    // coming from Home: the shell was hidden
             nav.currentIndex = screenHome
             _syncShell()
         }
-        w.open(type)
+        w.open(request !== undefined ? request : { focusConditionId: "", focusLabel: "" })
         nav.navigate(screenWizard)
         nav.canGoBack = true
         _syncShell()
@@ -237,21 +259,27 @@ Item {
         _syncShell()
     }
 
-    // Main.qml (onSessionStartRequested) — every session type has the one Session screen:
+    // Main.qml (onSessionStartRequested) — the request comes back with the visit's focus; no
+    // session type (every session starts as sessionController.defaultType):
+    //     sessionController.focusConditionId = request.focusConditionId || ""
+    //     sessionController.focusFromShot    = 0
     //     navController.navigateRail(AppScreen.Session)
-    function _onSessionStartRequested(type, goals) {
-        var g = []
-        for (var i = 0; i < goals.length; ++i) g.push(goals[i])
-        emitted.push({ name: "sessionStartRequested", args: [type, g], t: Date.now() })
-        var map = appSettings.sessionGoalsByType
-        map[type.toString()] = g
-        appSettings.sessionGoalsByType = map
-        appSettings.lastSessionType    = type
+    //     shotProcessor.beginSessionFolder(sessionController.defaultType, false)
+    //     shotModel.loadSessionDir("")
+    //     sessionController.start(sessionController.defaultType)
+    //     cameraManager.startCapture()
+    // The emitted args are a COPY of the request ({ focusConditionId, focusLabel, … }).
+    function _onSessionStartRequested(request) {
+        var r = {}
+        for (var k in request) r[k] = request[k]
+        emitted.push({ name: "sessionStartRequested", args: [r], t: Date.now() })
+        session.focusConditionId = request.focusConditionId || ""
+        session.focusFromShot    = 0
         nav.navigateRail(AppScreen.Session)
         nav.currentIndex = AppScreen.Session
-        _rec("shotProcessor.beginSessionFolder", [type, false])
+        _rec("shotProcessor.beginSessionFolder", [session.defaultType, false])
         _rec("shotModel.loadSessionDir", [""])
-        session.start(type)
+        session.start(session.defaultType)
         cams.startCapture()
         _syncShell()
     }
@@ -350,19 +378,16 @@ Item {
         for (var i = 0; i < p.length; ++i) out[p[i]] = state(p[i])
         return out
     }
-    // The selected chips in chip (preset) order, as SetupDriver reads them, while Goals is
-    // current; otherwise the draft's picks in that same order (the chips show the draft).
-    function selectedGoals() {
-        var chips = _goalChips(), out = []
-        if (chips.length === 0) {
-            var defs = draft.goalDefs
-            for (var d = 0; d < defs.length; ++d) if (draft.goals.indexOf(defs[d].key) >= 0) out.push(defs[d].key)
-            return out
-        }
-        for (var i = 0; i < chips.length; ++i) if (chips[i].sel) out.push(chips[i].modelData.key)
-        return out
+    // The focus: the selected chip's id while the Intent step is current (the chips show the
+    // draft, and exactly one is selected); otherwise the draft's. "" = Open assessment.
+    function focusId() {
+        var chips = _focusChips()
+        if (chips.length === 0) return draft.focusConditionId
+        var sel = chips.filter(function(c) { return c.sel })
+        if (sel.length !== 1) throw new Error("SetupDriver.focusId(): " + sel.length + " focus chips selected")
+        return sel[0].choiceId
     }
-    function sessionType() { return draft.preset }
+    function focusLabel() { return draft.focusLabel }
 
     // ── Tree walking ─────────────────────────────────────────────────────────
     function findAll(item, pred, out) {
@@ -379,9 +404,8 @@ Item {
     function _isButton(o) { return o.label !== undefined && o.primary !== undefined && o.clicked !== undefined
                                    && o.destructive !== undefined }
     function _named(name) { return find(wizard, function(o) { return o.objectName === name }) }
-    function _goalChips() {
-        return findAll(wizard, function(o) { return o.sel !== undefined && o.showLast !== undefined
-                                                    && o.modelData !== undefined })
+    function _focusChips() {
+        return findAll(wizard, function(o) { return o.objectName === "intentChoice" && o.visible })
     }
 
     function _primary() {
@@ -531,11 +555,27 @@ Item {
     function readyHeading() { return _readyText("readyHeading") }
     function readyNotice()  { return _readyText("readyNotice") }
 
-    function toggleGoal(key) {
-        _click(find(wizard, function(o) { return o.sel !== undefined && o.showLast !== undefined
-                                                 && o.modelData !== undefined && o.modelData.key === key }),
-               "goal chip " + key)
+    // ── The Intent step (focus) ──────────────────────────────────────────
+    // The chips as SHOWN, in order: { id, kind, label, sel, yourFocus }. Throws off the Intent step.
+    function focusChoices() {
+        if (current() !== "intent") throw new Error("SetupDriver.focusChoices(): not on the Intent step (on " + current() + ")")
+        return _focusChips().map(function(c) {
+            var tag = find(c, function(o) { return o.objectName === "intentYourFocus" })
+            return { id: c.choiceId, kind: c.choiceKind, label: c.choiceLabel, sel: c.sel,
+                     yourFocus: tag !== null && tag.visible }
+        })
+    }
+    // Click the chip for condition `id` ("" = Open assessment).
+    function chooseFocus(id) {
+        if (current() !== "intent") throw new Error("SetupDriver.chooseFocus(): not on the Intent step (on " + current() + ")")
+        var c = _focusChips().filter(function(o) { return o.choiceId === id })[0]
+        _click(c || null, "focus chip '" + id + "'")      // its PpPressable fills it
         settle()
+    }
+    // "No work-ons yet" under the chips: shown when Open assessment is the only choice.
+    function focusEmptyNoteShown() {
+        var t = find(flow.page, function(o) { return o.objectName === "intentEmptyNote" })
+        return t !== null && t.visible
     }
 
     // Device rows: {label, sub, ok, warn, disabled, chip, toggleOn}

@@ -57,12 +57,12 @@ Item {
             d.addCamera("FO1", CameraInstance.FaceOn, false)
             d.addWitmotion("WT-A", "A", false)
             d.addWitmotion("WT-B", "B", false)
-            d.open(wrist)
-            compare(d.plan(), ["goals", "cameras", "ball", "imus", "calibrateArm", "checkArm", "ready"])
-            compare(d.current(), "goals")
+            d.open()
+            compare(d.plan(), ["intent", "cameras", "ball", "imus", "calibrateArm", "checkArm", "ready"])
+            compare(d.current(), "intent")
             var p = d.plan()
             for (var i = 0; i < p.length; ++i) compare(d.state(p[i]), "pending", p[i])
-            compare(d.stepLabel(), "STEP 1 OF 7 · GOALS")
+            compare(d.stepLabel(), "STEP 1 OF 7 · FOCUS")
         }
 
         // ── N2 ───────────────────────────────────────────────────────────────
@@ -73,16 +73,16 @@ Item {
             // the retired wizard took them from the session type — with these the plans agreed.
             d.addWitmotion("WT-A", "A", false)
             d.addWitmotion("WT-B", "B", false)
-            d.open(wrist)
+            d.open()
             d.next()
             compare(d.current(), "cameras")
-            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "calibrateArm", "checkArm", "ready"])
+            compare(d.plan(), ["intent", "cameras", "framing", "ball", "imus", "calibrateArm", "checkArm", "ready"])
 
             d.cams.setCameraSelected("DTL1", true)          // selected from the toolbar, or Connect
-            compare(d.plan(), ["goals", "cameras", "framing", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"])
+            compare(d.plan(), ["intent", "cameras", "framing", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"])
             compare(d.stepLabel(), "STEP 2 OF 9 · CAMERAS")
             // Every page's eyebrow and every pip agree on 1..9.
-            var want = { "GOALS": 1, "CAMERAS": 2, "FRAMING": 3, "TRIANGULATION": 4, "BALL DETECTION": 5,
+            var want = { "FOCUS": 1, "CAMERAS": 2, "FRAMING": 3, "TRIANGULATION": 4, "BALL DETECTION": 5,
                          "MOTION SENSORS": 6, "CALIBRATE": 7, "CONFIRM TRACKING": 8, "READY": 9 }
             var labels = d.allStepLabels()
             compare(labels.length, 9, JSON.stringify(labels))
@@ -98,7 +98,7 @@ Item {
             }
 
             d.cams.setCameraSelected("DTL1", false)
-            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "calibrateArm", "checkArm", "ready"])
+            compare(d.plan(), ["intent", "cameras", "framing", "ball", "imus", "calibrateArm", "checkArm", "ready"])
             compare(d.stepLabel(), "STEP 2 OF 8 · CAMERAS")
             verify(!d.pip("triangulate").shown, "Triangulate pip still shown")
             compare(d.pip("ball").glyph, "4")
@@ -110,8 +110,8 @@ Item {
             d.addCameraInstance("FO1", { ballPresent: true })
             d.addWitmotion("WT-A", "A", true)
             d.addWitmotion("WT-B", "B", true)
-            d.open(wrist)
-            var route = [["goals", "next", "cameras"], ["cameras", "next", "framing"], ["framing", "next", "ball"],
+            d.open()
+            var route = [["intent", "next", "cameras"], ["cameras", "next", "framing"], ["framing", "next", "ball"],
                          ["ball", "next", "imus"],
                          ["imus", "next", "calibrateArm"], ["calibrateArm", "skip", "checkArm"],
                          ["checkArm", "next", "ready"]]
@@ -130,7 +130,7 @@ Item {
             d.addCameraInstance("FO1", { ballPresent: true })
             d.addWitmotion("WT-A", "A", true)
             d.addWitmotion("WT-B", "B", true)
-            d.open(wrist)
+            d.open()
             d.walkTo("ready")
             var plan = d.plan()
             for (var i = plan.length - 1; i > 0; --i) {
@@ -140,7 +140,7 @@ Item {
                 compare(d.current(), plan[i - 1], "Back from " + plan[i])
             }
             // Back on the first step: the footer has none; the header ‹ exits (Main.qml:641–643).
-            compare(d.current(), "goals")
+            compare(d.current(), "intent")
             verify(!d.canBack(), "footer Back shown on the first step")
             var stops = d.cams.countCalls("stopCapture"), cdis = d.cams.countCalls("disconnectAll")
             var idis = d.imu.countCalls("disconnectAll")
@@ -159,7 +159,7 @@ Item {
             d.addCamera("X1", CameraInstance.Other, false)      // keeps Cameras' Skip on offer
             d.addWitmotion("WT-A", "A", false)
             d.addWitmotion("WT-B", "B", false)
-            d.open(wrist)
+            d.open()
             d.next()
             var skips = ["cameras", "triangulate", "ball", "imus", "calibrateArm"]
             for (var i = 0; i < skips.length; ++i) {
@@ -188,7 +188,7 @@ Item {
             // Calibrate's consequence shows only when the IMUs were not skipped.
             d.imu.connectDevice("WT-A")
             d.imu.connectDevice("WT-B")
-            d.open(wrist)
+            d.open()
             d.walkTo("calibrateArm")
             d.skip()
             compare(d.state("calibrateArm"), "skipped")
@@ -203,7 +203,7 @@ Item {
         function test_N06_ballGate() {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             var inst = d.addCameraInstance("FO1", { ballPresent: false })
-            d.open(wrist)
+            d.open()
             d.walkTo("ball")
             compare(d.current(), "ball")
             d.next()
@@ -228,7 +228,7 @@ Item {
         function test_N07_calibrateGate() {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addWg3("HM-1", true)
-            d.open(wrist)
+            d.open()
             d.walkTo("calibrateArm")
             // (The guide view exists only on Calibrate, so it loads there.)
             tryVerify(function() { return d.guideReady() }, 30000, "3-D guide never loaded")
@@ -250,7 +250,7 @@ Item {
         // ── N8 ───────────────────────────────────────────────────────────────
         function test_N08_headerForwardDoesNotSkipConnect() {
             d.addCamera("FO1", CameraInstance.FaceOn, false)
-            d.open(wrist)
+            d.open()
             d.next()
             compare(d.current(), "cameras")
             compare(d.primaryLabel(), "Connect")
@@ -263,13 +263,13 @@ Item {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addWitmotion("WT-A", "A", false)
             d.addWitmotion("WT-B", "B", false)
-            d.open(wrist)
+            d.open()
             var plan = d.plan()
             for (var i = 0; i < plan.length; ++i) {
                 var key = plan[i]
                 d.cams.setCameraSelected("FO1", true)
                 d.session.activeClub = "7i"
-                d.open(wrist)
+                d.open()
                 d.walkTo(key)
                 compare(d.current(), key)
                 var queueStarted = false
@@ -298,40 +298,53 @@ Item {
         }
 
         // ── N10 ──────────────────────────────────────────────────────────────
-        function test_N10_startSendsGoals() {
+        // Start hands back the chosen focus; Main sets it on the controller BEFORE start(), and
+        // every session starts as the controller's defaultType (phase 2 C2).
+        function test_N10_startSendsFocus() {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
-            d.open(wrist)
+            d.useWorkOns([{ id: "chicken_wing", name: "Chicken wing", status: "active" }], "", {})
+            d.open()
+            compare(d.focusId(), "", "a Home Start opens on Open assessment")
             d.walkTo("ready")
             d.start()
             var ev = d.emitted.filter(function(e) { return e.name === "sessionStartRequested" })
             compare(ev.length, 1)
-            compare(ev[0].args, [wrist, ["generalAssessment"]])
+            compare(ev[0].args[0].focusConditionId, "")
+            compare(ev[0].args[0].focusLabel, "")
             compare(d.session.calls.map(function(c) { return c.name + ":" + c.args[0] }), ["start:" + wrist])
+            compare(d.session.focusConditionId, "")
             compare(d.cams.countCalls("startCapture"), 1)
             verify(!d.wizard.visible)
 
-            appSettings.sessionGoalsByType = ({})
-            d.open(wrist)
-            d.toggleGoal("impactConditions")
-            d.toggleGoal("trailWristExtension")
-            compare(d.selectedGoals(), ["impactConditions", "trailWristExtension"])
+            d.open()
+            d.chooseFocus("chicken_wing")
+            compare(d.focusId(), "chicken_wing")
             d.walkTo("ready")
             d.start()
             ev = d.emitted.filter(function(e) { return e.name === "sessionStartRequested" })
             compare(ev.length, 2)
-            compare(ev[1].args, [wrist, ["impactConditions", "trailWristExtension"]])
+            compare(ev[1].args[0].focusConditionId, "chicken_wing")
+            compare(ev[1].args[0].focusLabel, "Chicken wing")
+            compare(d.session.focusConditionId, "chicken_wing")
+            compare(d.session.focusFromShot, 0)
+            var st = d.session.calls.filter(function(c) { return c.name === "start" })
+            compare(st[1].args[0], wrist, "the defaultType, not a chosen type")
+            compare(st[1].focus, "chicken_wing", "the focus was set before start()")
         }
 
         // ── N11 ──────────────────────────────────────────────────────────────
-        function test_N11_goalsSurviveSettingsTrip() {
-            d.open(wrist)
-            d.toggleGoal("impactConditions")
-            d.toggleGoal("wristAngleTop")
-            var before = d.selectedGoals()
-            compare(before, ["wristAngleTop", "impactConditions"])
+        function test_N11_focusSurvivesSettingsTrip() {
+            d.useWorkOns([{ id: "chicken_wing", name: "Chicken wing", status: "active" },
+                          { id: "early_extension", name: "Early extension", status: "easing" }], "", {})
+            d.open()
+            d.chooseFocus("early_extension")
+            compare(d.focusId(), "early_extension")
             d.suspend()
             d.resume()
-            compare(d.selectedGoals(), before)
+            compare(d.current(), "intent")
+            compare(d.focusId(), "early_extension", "the chip shown after the trip")
+            compare(d.focusLabel(), "Early extension")
+            compare(d.hint(), "Focus: Early extension")
         }
 
         // ── N12 ──────────────────────────────────────────────────────────────
@@ -340,7 +353,7 @@ Item {
             d.addCamera("FO2", CameraInstance.FaceOn, false)
             d.addWitmotion("WT-A", "A", false)
             d.addWitmotion("WT-B", "B", false)
-            d.open(wrist)
+            d.open()
             d.next()
             d.toggleCameraRow("FO2")
             compare(d.cameraEnabled("FO2"), false)
@@ -359,10 +372,10 @@ Item {
             d.addCameraInstance("FO1", { ballPresent: false })
             d.addWitmotion("WT-A", "A", false)
             d.addWitmotion("WT-B", "B", false)
-            appSettings.sessionGoalsByType = ({ "1": ["wristAngleTop"] })
-            d.open(wrist)
-            compare(d.selectedGoals(), ["wristAngleTop"])
-            d.toggleGoal("impactConditions")
+            d.useWorkOns([{ id: "chicken_wing", name: "Chicken wing", status: "active" }], "", {})
+            d.open({ focusConditionId: "early_extension", focusLabel: "Early extension" })
+            compare(d.focusId(), "early_extension")
+            d.chooseFocus("chicken_wing")
             d.walkTo("ball")
             d.clickLearn()
             verify(d.ballLearning())
@@ -372,12 +385,12 @@ Item {
             verify(d.imuQueueActive())
             // Leave mid-visit (rail → Settings), then a new session from Home.
             d.suspend()
-            d.open(wrist)
+            d.open({ focusConditionId: "", focusLabel: "" })
             var sel0 = d.imu.countCalls("setSelected")
             var residue = {
                 current: d.current(),
                 states: d.states(),
-                goals: d.selectedGoals(),
+                focus: d.focusId(),
                 queueActive: d.imuQueueActive(),
                 ballLearning: d.ballLearning(),
                 recalibrateFlag: d.recalibrateFlagSet(),
@@ -386,10 +399,10 @@ Item {
             wait(2600)
             residue.queueConnectedAfterOpen = d.imu.countCalls("setSelected") - sel0
             var want = {
-                current: "goals",
-                states: { goals: "pending", cameras: "pending", framing: "pending", ball: "pending", imus: "pending",
+                current: "intent",
+                states: { intent: "pending", cameras: "pending", framing: "pending", ball: "pending", imus: "pending",
                           calibrateArm: "pending", checkArm: "pending", ready: "pending" },
-                goals: ["wristAngleTop"],
+                focus: "",
                 queueActive: false,
                 ballLearning: false,
                 recalibrateFlag: false,
@@ -397,8 +410,8 @@ Item {
                 queueConnectedAfterOpen: 0
             }
             console.info("[N13] residue after open(): " + JSON.stringify(residue))
-            // Today: states, current step and goals DO reset (goals to the saved set);
-            // the paced queue and the Ball "Learning…" flag do not.
+            // States, the current step and the focus reset (the focus to the NEW request's — here
+            // none — not the old visit's pick); so do the paced queue and the Ball "Learning…" flag.
             compare(residue, want)
         }
 
@@ -408,7 +421,7 @@ Item {
             d.addCamera("DTL1", CameraInstance.DownTheLine, true)
             d.addWitmotion("WT-A", "A", false)               // arm steps in both shells (see N2)
             d.addWitmotion("WT-B", "B", false)
-            d.open(wrist)
+            d.open()
             d.next()
             d.next()
             d.next()
@@ -417,7 +430,7 @@ Item {
             compare(d.current(), "triangulate", "Triangulate no longer current")
             // The new flow PINS the current step in the plan until it is left (§4.5), so the step
             // keeps its number (the retired wizard dropped it at once: "STEP  OF 7").
-            compare(d.plan(), ["goals", "cameras", "framing", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"])
+            compare(d.plan(), ["intent", "cameras", "framing", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"])
             var hint = d.hint()
             var label = d.stepLabel()
             console.info("[N14] after deselecting DTL on Triangulate: eyebrow '" + label + "', hint '" + hint
@@ -426,7 +439,7 @@ Item {
             compare(d.primaryLabel(), "Continue →")
             d.next()
             compare(d.current(), "ball")
-            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "calibrateArm", "checkArm", "ready"],
+            compare(d.plan(), ["intent", "cameras", "framing", "ball", "imus", "calibrateArm", "checkArm", "ready"],
                     "Triangulate gone from the plan once left")
             compare(d.stepLabel(), "STEP 4 OF 8 · BALL DETECTION")
             verify(/no longer needed/i.test(hint), hint)
@@ -437,7 +450,7 @@ Item {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             var a = d.addWitmotion("WT-A", "A", true)
             d.addWitmotion("WT-B", "B", true)
-            d.open(wrist)
+            d.open()
             d.walkTo("calibrateArm")
             d.skip()
             compare(d.current(), "checkArm")
@@ -455,8 +468,8 @@ Item {
         function test_N16_indicatorJumpToDoneStep() {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addCameraInstance("FO1", { ballPresent: true })
-            d.open(wrist)
-            d.next()                                     // Goals → Cameras
+            d.open()
+            d.next()                                     // Focus → Cameras
             d.next()                                     // Cameras → Framing
             d.next()                                     // Framing → Ball
             d.next()                                     // Ball → IMUs
@@ -489,7 +502,7 @@ Item {
             // nothing in the shell, the footer, the indicator or Ready is edited for it.
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addCameraInstance("FO1", { ballPresent: true })
-            d.open(wrist)
+            d.open()
             var desc = createTemporaryObject(descComp, tc, {
                 key: "dummyStep", title: "Dummy", eyebrow: "DUMMY", group: "cameras", after: "ball",
                 page: Qt.resolvedUrl("support/pages/ExtraPage.qml"),
@@ -498,7 +511,7 @@ Item {
                 summary: function(c, dr) { return { label: "Dummy", value: "ok", good: true } }
             })
             d.wizard.steps.extensions = [desc]
-            compare(d.plan(), ["goals", "cameras", "framing", "ball", "dummyStep", "imus", "ready"])
+            compare(d.plan(), ["intent", "cameras", "framing", "ball", "dummyStep", "imus", "ready"])
             // The indicator and the numbering.
             var pp = d.pip("dummyStep")
             verify(pp.shown, "no pip for the registered step")
@@ -525,7 +538,7 @@ Item {
             verify(d.summaryRows().some(function(r) { return r.label === "Dummy" }))
             // Unregistered again: gone from the plan and the indicator, nothing else touched.
             d.wizard.steps.extensions = []
-            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "ready"])
+            compare(d.plan(), ["intent", "cameras", "framing", "ball", "imus", "ready"])
             verify(!d.pip("dummyStep").shown, "the pip outlived its step")
         }
         function test_N18_trunkOnlyRolesDropArmSteps() {
@@ -534,15 +547,117 @@ Item {
 
         // ── N19 ──────────────────────────────────────────────────────────────
         function test_N19_doubleClickContinueAdvancesOnce() {
-            d.open(wrist)
-            compare(d.current(), "goals")
+            d.open()
+            compare(d.current(), "intent")
             compare(d.primaryLabel(), "Continue →")
             mouseDoubleClickSequence(d._primary())
             d.settle()                               // navigation is queued (R5)
             var after = d.current()
-            console.info("[N19] double-click Continue on Goals → " + after + " (states "
+            console.info("[N19] double-click Continue on Focus → " + after + " (states "
                          + JSON.stringify(d.states()) + ")")
             compare(after, "cameras")
+        }
+
+        // ── F: the focus picker (the Intent step, phase 2 C5) ────────────────
+        // The work-ons the fake offers: two active/easing items, one of them the coaching focus.
+        function twoWorkOns(coachId) {
+            return d.useWorkOns([{ id: "early_extension", name: "Early extension", status: "active" },
+                                 { id: "chicken_wing",    name: "Chicken wing",    status: "easing" }],
+                                coachId, { early_extension: "Early extension", chicken_wing: "Chicken wing" })
+        }
+
+        function test_F01_choicesOpenCoachingAndWorkOns() {
+            twoWorkOns("early_extension")
+            d.open()
+            compare(d.current(), "intent")
+            compare(d.focusChoices(), [
+                { id: "",                kind: "open",     label: "Open assessment", sel: true,  yourFocus: false },
+                { id: "early_extension", kind: "coaching", label: "Early extension", sel: false, yourFocus: true  },
+                { id: "chicken_wing",    kind: "workOn",   label: "Chicken wing",    sel: false, yourFocus: false }
+            ], "the coaching focus is listed once, as \"your focus\"")
+            verify(!d.focusEmptyNoteShown(), "the empty note shows beside work-ons")
+            compare(d.hint(), "Open assessment — no focus")
+
+            // Opened ON the coaching focus (a Practise of it): still one entry, and it is selected.
+            d.open({ focusConditionId: "early_extension", focusLabel: "Early extension" })
+            var c = d.focusChoices()
+            compare(c.map(function(x) { return x.id + ":" + x.kind + ":" + x.sel }),
+                    [":open:false", "early_extension:coaching:true", "chicken_wing:workOn:false"])
+            compare(d.hint(), "Focus: Early extension")
+        }
+
+        function test_F02_pickedFocusGoesOutOnStart() {
+            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            twoWorkOns("early_extension")
+            d.open()
+            d.chooseFocus("chicken_wing")
+            compare(d.focusId(), "chicken_wing")
+            compare(d.focusChoices().filter(function(x) { return x.sel }).length, 1, "single choice")
+            compare(d.hint(), "Focus: Chicken wing")
+            d.walkTo("ready")
+            compare(d.summaryRows()[0], { label: "Focus", value: "Chicken wing", good: true })
+            d.start()
+            var ev = d.emitted.filter(function(e) { return e.name === "sessionStartRequested" })
+            compare(ev.length, 1)
+            compare(ev[0].args[0].focusConditionId, "chicken_wing")
+            compare(ev[0].args[0].focusLabel, "Chicken wing")
+            compare(d.session.focusConditionId, "chicken_wing")
+
+            // The coaching focus, labelled from the pack; then back to Open assessment.
+            d.open()
+            d.chooseFocus("early_extension")
+            compare(d.focusLabel(), "Early extension")
+            d.chooseFocus("")
+            compare(d.focusId(), "")
+            compare(d.hint(), "Open assessment — no focus")
+            d.walkTo("ready")
+            compare(d.summaryRows()[0], { label: "Focus", value: "Open assessment", good: true })
+            d.start()
+            ev = d.emitted.filter(function(e) { return e.name === "sessionStartRequested" })
+            compare(ev.length, 2)
+            compare(ev[1].args[0].focusConditionId, "")
+            compare(ev[1].args[0].focusLabel, "")
+            compare(d.session.focusConditionId, "")
+        }
+
+        // Nothing to offer but Open assessment — no work-ons controller at all (headless), or one
+        // with no work-ons and no coaching focus yet: the one chip, selected, and the note.
+        function test_F03_onlyOpenAssessment_data() {
+            return [{ tag: "no workOns" }, { tag: "empty workOns", fake: true }]
+        }
+        function test_F03_onlyOpenAssessment(row) {
+            if (row.fake) d.useWorkOns([], "", {})
+            d.open()
+            compare(d.focusChoices(), [
+                { id: "", kind: "open", label: "Open assessment", sel: true, yourFocus: false }
+            ])
+            verify(d.focusEmptyNoteShown(), "no \"No work-ons yet\" note")
+            compare(d.hint(), "Open assessment — no focus")
+        }
+
+        // open() with a focus none of the lists offers (Practise on a cleared condition): it is
+        // offered as "requested", preselected, and stays on offer after another pick.
+        function test_F04_openPreselectsTheRequestedFocus() {
+            d.addCamera("FO1", CameraInstance.FaceOn, true)
+            d.useWorkOns([{ id: "chicken_wing", name: "Chicken wing", status: "active" }], "", {})
+            d.open({ focusConditionId: "x", focusLabel: "X" })
+            compare(d.focusChoices(), [
+                { id: "",             kind: "open",      label: "Open assessment", sel: false, yourFocus: false },
+                { id: "x",            kind: "requested", label: "X",               sel: true,  yourFocus: false },
+                { id: "chicken_wing", kind: "workOn",    label: "Chicken wing",    sel: false, yourFocus: false }
+            ])
+            verify(!d.focusEmptyNoteShown())
+            compare(d.hint(), "Focus: X")
+            d.chooseFocus("chicken_wing")
+            compare(d.focusChoices().map(function(x) { return x.id + ":" + x.sel }),
+                    [":false", "x:false", "chicken_wing:true"], "the requested focus is still offered")
+            d.chooseFocus("x")
+            compare(d.focusLabel(), "X")
+            d.walkTo("ready")
+            compare(d.summaryRows()[0], { label: "Focus", value: "X", good: true })
+            d.start()
+            var ev = d.emitted.filter(function(e) { return e.name === "sessionStartRequested" })
+            compare([ev[0].args[0].focusConditionId, ev[0].args[0].focusLabel], ["x", "X"])
         }
     }
 }

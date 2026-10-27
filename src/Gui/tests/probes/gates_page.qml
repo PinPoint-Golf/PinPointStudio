@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// THE GATES PAGE (docs/design/trust_and_gates_design.md §7.5, trust stage 7): the Swing model screen →
+// THE GATES PAGE (docs/design/trust_and_gates_design.md §7.5, trust stage 7): Settings → Swing model →
 // Gates. Opens the type, lets the library count run, logs the first rows, then opens one gate's details
 // and grabs the window.
 //
@@ -53,11 +53,11 @@ Item {
             probe.step += 1
             const root = probe.Window.window.contentItem
             if (probe.step === 1) {
-                navController.navigate(AppScreen.SwingModel)
+                navController.navigate(AppScreen.Settings)
             } else if (probe.step === 2) {
-                const sm = probe.find(root, i => i.objectName === "swingModelScreen")
-                if (!sm) { probe.log("no swing model screen"); Qt.exit(1); return }
-                sm.showMetric("pelvisSway")             // the Diagnostic Model, on its own screen
+                const ss = probe.find(root, i => typeof i.showMetricDetail === "function")
+                if (!ss) { probe.log("no settings screen"); Qt.exit(1); return }
+                ss.showMetricDetail("pelvisSway")       // opens Settings → Swing model
             } else if (probe.step === 3) {
                 probe.dm = probe.find(root, i => typeof i.selectFresh === "function" && i._type !== undefined)
                 if (!probe.dm) { probe.log("no diagnostic model"); Qt.exit(1); return }

@@ -26,10 +26,9 @@ Item {
     signal addAthleteRequested()
     signal athletePickerRequested()
     signal editCurrentAthleteRequested()
-    signal startSessionRequested(int sessionTypeIndex)
-    // Coming-soon types skip the session wizard and jump straight to their
-    // (placeholder) rail screen.
-    signal openSessionScreenRequested(int sessionTypeIndex)
+    // Start: open the session wizard. The request is { focusConditionId, focusLabel }; Home's
+    // Start carries no focus (an open assessment), the golfer can pick one in the wizard.
+    signal startSessionRequested(var request)
     // YOUR SWING's "Swing diagnostics →" row: open the technical layer (ScreenSwingDiagnostics),
     // where the faults and what goes together now live.
     signal swingDiagnosticsRequested()
@@ -40,10 +39,6 @@ Item {
     signal athleteSessionsRequested()
     signal studioSettingsRequested()
 
-    property int    selectedType: 1   // default to Wrist — the only startable type today
-    // Session types not yet implemented: badged "coming soon" tiles that open
-    // their placeholder screen instead of starting a session.
-    readonly property var comingSoonTypes: [0, 2, 3]
     // EMPTY, not a club. This is carried into SessionController.activeClub at session
     // start, and start() only seeds from the athlete's preferred club when activeClub is
     // empty — so a literal here becomes the session's club and silently outranks the
@@ -427,46 +422,6 @@ Item {
                 }
                 Item { width: 1; height: Theme.sp(16) }
 
-                Row {
-                    spacing: Theme.gap(20)
-                    width:   parent.width
-
-                    Repeater {
-                        model: [
-                            { icon: "◑", name: qsTr("Swing analysis"), desc: qsTr("Capture golf shots with IMUs on your spine and review your sequencing and key swing metrics to assess your swing"), img: "qrc:/assets/tiles/golfswing.png", reqCameras: 2, reqImus: 3, idx: 0, comingSoon: true },
-                            { icon: "⌖", name: qsTr("Wrist motion"),   desc: qsTr("Hit shots with IMUs on your lead wrist and hand to assess how your wrist angles impact club delivery"),              img: "qrc:/assets/tiles/grip.png",      reqCameras: 1, reqImus: 2, idx: 1 },
-                            { icon: "⇅", name: qsTr("Ground forces"),  desc: qsTr("Hit shots with IMUs on your hips to assess how you use the ground to generate power"),                              img: "qrc:/assets/tiles/feet.png",      reqCameras: 2, reqImus: 3, idx: 2, comingSoon: true },
-                            { icon: "✦", name: qsTr("AI coach"),       desc: qsTr("Work with an AI coach to hit shots and get feedback on your swing and how to improve"),                             img: "qrc:/assets/tiles/coach.png",     reqCameras: 2, reqImus: 3, idx: 3, comingSoon: true }
-                        ]
-
-                        delegate: HmTypeCard {
-                            required property var modelData
-                            width:           (parent.width - 3 * Theme.sp(20)) / 4
-                            height:          width * 1.6
-                            imageSource:     modelData.img
-                            iconText:        modelData.icon
-                            typeName:        modelData.name
-                            description:     modelData.desc
-                            camerasRequired: modelData.reqCameras
-                            camerasOptional: modelData.optCameras || false
-                            imusRequired:    modelData.reqImus
-                            camerasCount:    cameraManager.cameraList.length
-                            imusCount:       imuManager.imuEnumeratedCount
-                            comingSoon:      modelData.comingSoon || false
-                            isSelected:      root.selectedType === modelData.idx
-                            onClicked:       root.selectedType = modelData.idx
-                            onDoubleClicked: {
-                                root.selectedType = modelData.idx
-                                if (root.comingSoonTypes.indexOf(modelData.idx) !== -1)
-                                    root.openSessionScreenRequested(modelData.idx)
-                                else
-                                    root.startSessionRequested(modelData.idx)
-                            }
-                        }
-                    }
-                }
-                Item { width: 1; height: Theme.sp(20) }
-
                 // Club selector: the current athlete's bag. A wrapping Flow of chips
                 // (not PpChipGroup, a non-wrapping Row) so a full bag reflows —
                 // same chip language as the Clubs-section tab strip.
@@ -550,10 +505,7 @@ Item {
                     PpPressable {
                         id: startMa
                         hoverScale: 1.0   // full-width: brighten on hover, dip on press only
-                        onClicked:    if (root.comingSoonTypes.indexOf(root.selectedType) === -1)
-                                          root.startSessionRequested(root.selectedType)
-                                      else
-                                          root.openSessionScreenRequested(root.selectedType)
+                        onClicked:    root.startSessionRequested({ focusConditionId: "", focusLabel: "" })
                     }
                 }
             }

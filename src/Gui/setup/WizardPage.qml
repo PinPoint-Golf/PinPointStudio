@@ -42,7 +42,7 @@ Item {
     property bool   active:    false    // R3: true from just before enter() until just after leave()
     property var    flow:      null     // SetupFlow — to request navigation
     property var    ctx:       null     // SetupContext — every hardware read and device action
-    property var    draft:     null     // SetupDraft — this visit's goals, states and outcomes
+    property var    draft:     null     // SetupDraft — this visit's focus, states and outcomes
     property string stepLabel: ""       // "STEP 4 OF 8 · MOTION SENSORS", live from the plan
     // The descriptor key this page was created for. Not in the design's §4.3 list: added so a page
     // (and the log) can name itself without a lookup; nothing requires a page to read it.

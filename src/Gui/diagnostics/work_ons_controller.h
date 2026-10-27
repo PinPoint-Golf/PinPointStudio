@@ -107,7 +107,8 @@ class WorkOnsController : public QObject
     // "From N swings over M sessions" — every shot in the ledgers, every session holding one.
     Q_PROPERTY(QString summarySubtitle READ summarySubtitle NOTIFY summaryChanged)
     // "Your focus": {present, title, aimFor [string], rightNow [fault item], why, practiseLabel,
-    // practise, reason}. present is false when nothing needs work; empty before a summary.
+    // practise, reason, focusConditionId (the first rightNow fault's condition id, "" when none)}.
+    // present is false when nothing needs work; empty before a summary.
     Q_PROPERTY(QVariantMap focusItem READ focusItem NOTIFY summaryChanged)
     // "What you do well", at most three: {text, caption, sessions [bool, one per judged session]}.
     Q_PROPERTY(QVariantList doWellItems READ doWellItems NOTIFY summaryChanged)
@@ -157,6 +158,8 @@ public:
 
     // Rescan the athlete's sessions and re-derive whatever is stale. Cheap when nothing is.
     Q_INVOKABLE void refresh();
+    // A condition's name as the items show it: the pack label, else the id ("" for "").
+    Q_INVOKABLE QString conditionLabel(const QString &id) const;
 
     // Test seam, as SessionDiagnosticsModel's: scan, derive and reduce the themes inline.
     void setSynchronous(bool on) { m_synchronous = on; }
@@ -239,7 +242,8 @@ private:
     int          m_clearedCount = 0;
 
     SessionDiagnosticsModel *m_model = nullptr;   // created on first need; owned (child)
-    std::unique_ptr<pinpoint::analysis::ICharacteristicPackProvider> m_packProv;
+    // Lazily made; mutable so conditionLabel() (const) can make it on first need.
+    mutable std::unique_ptr<pinpoint::analysis::ICharacteristicPackProvider> m_packProv;
     QThreadPool m_pool;
 
     // ── Your swing ──

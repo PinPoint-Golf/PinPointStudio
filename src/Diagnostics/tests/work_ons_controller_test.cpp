@@ -351,10 +351,28 @@ static void checkSummaryShape(const WorkOnsController &c, const QJsonObject &sto
     QStringList faultTexts;
     focus = keysAre(f, { QStringLiteral("present"), QStringLiteral("title"), QStringLiteral("aimFor"),
                          QStringLiteral("rightNow"), QStringLiteral("why"), QStringLiteral("practiseLabel"),
-                         QStringLiteral("practise"), QStringLiteral("reason") })
+                         QStringLiteral("practise"), QStringLiteral("reason"), QStringLiteral("focusConditionId") })
         && f.value(QStringLiteral("present")).typeId() == QMetaType::Bool
         && f.value(QStringLiteral("aimFor")).typeId() == QMetaType::QVariantList
-        && f.value(QStringLiteral("rightNow")).typeId() == QMetaType::QVariantList;
+        && f.value(QStringLiteral("rightNow")).typeId() == QMetaType::QVariantList
+        && f.value(QStringLiteral("focusConditionId")).typeId() == QMetaType::QString;
+    // The focus condition: the first "right now" fault's id — a stored needs-work row with that
+    // fault's share and pips, in a stored focus group, with a name to show; "" with no focus.
+    const QString focusId = f.value(QStringLiteral("focusConditionId")).toString();
+    bool focusIdOk = rightNow.isEmpty() == focusId.isEmpty();
+    if (focusIdOk && !focusId.isEmpty()) {
+        const QVariantMap first = rightNow.first().toMap();
+        bool row = false, grouped = false;
+        for (const QJsonValue &rv : storedSeen) {
+            const QJsonObject r = rv.toObject();
+            if (r.value(QStringLiteral("id")).toString() != focusId) continue;
+            row = storedRowMatches(QJsonArray{ r }, first.value(QStringLiteral("sessions")).toList(),
+                                   first.value(QStringLiteral("share")).toDouble());
+        }
+        for (const QJsonValue &gv : stored.value(QStringLiteral("focusOrder")).toArray())
+            grouped = grouped || gv.toObject().value(QStringLiteral("conditionIds")).toArray().contains(QJsonValue(focusId));
+        focusIdOk = row && grouped && !c.conditionLabel(focusId).isEmpty();
+    }
     if (focus && f.value(QStringLiteral("present")).toBool()) {
         const QString reason = f.value(QStringLiteral("reason")).toString();
         focus = !f.value(QStringLiteral("title")).toString().isEmpty() && !rightNow.isEmpty()
@@ -395,8 +413,11 @@ static void checkSummaryShape(const WorkOnsController &c, const QJsonObject &sto
     std::snprintf(label, sizeof label, "%s: at most three 'do well' items", when);
     check(c.doWellItems().size() <= 3, label);
     std::snprintf(label, sizeof label, "%s: the focus is {present, title, aimFor, rightNow, why, practiseLabel, "
-                                       "practise, reason}, each 'right now' a fault item a stored row backs", when);
+                                       "practise, reason, focusConditionId}, each 'right now' a fault item a stored row backs", when);
     check(focus, label);
+    std::snprintf(label, sizeof label, "%s: focusConditionId is the first 'right now' fault's stored row, in a stored "
+                                       "focus group, with a label (\"\" when nothing is right now)", when);
+    check(focusIdOk, label);
     std::snprintf(label, sizeof label, "%s: 'next on your list' is at most four fault items a stored row backs, "
                                        "none the focus already tells", when);
     check(next, label);
@@ -465,6 +486,15 @@ int main(int argc, char **argv)
               && focus.value(QStringLiteral("title")).toString() == QStringLiteral("Club across the chest")
               && !focus.value(QStringLiteral("aimFor")).toList().value(0).toString().isEmpty(),
               "…a fault with its drill: titled by the drill, its ideal as what to aim for, the drill to practise");
+        // The focus names its condition, and conditionLabel() names it as the list does.
+        const QString focusId = focus.value(QStringLiteral("focusConditionId")).toString();
+        check(focusId == QStringLiteral("reverse_spine_p4")
+              && c.conditionLabel(focusId) == item(c, "reverse_spine_p4").value(QStringLiteral("name")).toString()
+              && !c.conditionLabel(focusId).isEmpty() && c.conditionLabel(focusId) != focusId,
+              "focusConditionId is the focus fault's condition, and conditionLabel() gives the name the list shows");
+        check(c.conditionLabel(QStringLiteral("no_such_condition")) == QStringLiteral("no_such_condition")
+              && c.conditionLabel(QString()).isEmpty(),
+              "conditionLabel() falls back to the id for a condition the pack does not know, \"\" for \"\"");
     }
     checkSummaryShape(c, themesFile(golfer), "two small sessions");
 

@@ -44,6 +44,9 @@ Item {
 
     signal backRequested()
     signal reviewSessionRequested(string sessionDir)
+    // TEMPORARY (Phase 4 moves Practise to Home): a fault row's "Practise", passed up to Main,
+    // which opens the session wizard with that condition as the focus.
+    signal practiseRequested(string conditionId, string label)
 
     readonly property string subtitle: controller ? controller.summarySubtitle : ""
 
@@ -107,6 +110,7 @@ Item {
                 title:      Theme.caps(qsTr("Faults"))
                 controller: root.controller
                 onReviewSessionRequested: (sessionDir) => root.reviewSessionRequested(sessionDir)
+                onPractiseRequested: (conditionId, label) => root.practiseRequested(conditionId, label)
             }
             Item { width: 1; height: Theme.sp(16) }
 

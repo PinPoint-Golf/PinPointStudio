@@ -69,66 +69,52 @@ QtObject {
     readonly property int settingsPanelCameras: 3
     readonly property int settingsPanelImus:    4
 
-    // ── Presets: what the session type still picks (§4.12) ──────────────────────────────────────
-    // A preset picks the goals list, the rail screen Start lands on and the type handed to
-    // sessionController.start — and nothing else. No step's applies or gate reads it (lint W8).
-    // Copied from the wizard's sessionTypes + goalDefsByType (l.247–256, 294–333), strings
-    // unchanged, indexed by SessionController.Type (0 Swing, 1 Wrist, 2 Grf, 3 Coach).
+    // ── Focus: what the session works on (the Intent step, phase 2 C5) ───────────────────────────
+    // The session type is no longer picked here: every session starts as SessionController.defaultType
+    // and the steps come from the hardware (lint W8). What the golfer chooses is a FOCUS — one
+    // condition id the session's diagnostics track from the first swing, or none (an open
+    // assessment).
     //
-    // Dropped on purpose:
-    //   - sessionTypes[].requiredCameras (Swing 2, Wrist 1, Grf 2, Coach 2) and requiredImus
-    //     (3, 2, 3, 3): nothing is "required" any more (§4.12). requiredCameras only ever changed
-    //     anything for the three comingSoon types, which Home never opens (ScreenHome.qml:30),
-    //     so for every session that can actually start the derivations below are today's.
-    //   - imuRequirements (wizard l.264–289) — the per-type slot table. What it said, for the
-    //     record (Stage 6 re-baselines Ready's golden tables R1/R3 on purpose against it):
-    //       Swing:  A Thorax (req), B Lumbar spine (req), C T12 junction (req)
-    //       Wrist:  A Forearm (req), B Hand (req), C Upper arm (optional)
-    //       Grf:    A Lead thigh (req), B Trail thigh (req), C Lumbar spine (req)
-    //       Coach:  as Swing.
-    //     Its job is now done by roles (ImuMounts) and instrument groups (`groups` below): the
-    //     Wrist row is the arm group's minimum (leadForearm + leadHand) plus the optional
-    //     leadUpperArm; the others named sensors no analysis reads and are not carried over.
-    readonly property var presets: [
-        { icon: "◑", name: qsTr("Swing Analysis"), railIndex: 1, comingSoon: true,
-          goals: [
-            { key: "generalAssessment", name: qsTr("General assessment"),  sub: Theme.caps(qsTr("Check where i'm at · identify areas to improve")) },
-            { key: "kinematicSequence", name: qsTr("Kinematic sequence"),  sub: Theme.caps(qsTr("Segment velocity order"))    },
-            { key: "xFactor",           name: qsTr("X-factor"),            sub: qsTr("HIP–SHOULDER SEPARATION")   },
-            { key: "swingTempo",        name: qsTr("Swing tempo"),          sub: qsTr("BACK : DOWN RATIO")         },
-            { key: "earlyExtension",    name: qsTr("Early extension"),      sub: Theme.caps(qsTr("Hip sway detection"))        },
-            { key: "clubPath",          name: qsTr("Club path"),            sub: Theme.caps(qsTr("In-out trend"))              },
-            { key: "wristAngles",       name: qsTr("Wrist angles"),         sub: Theme.caps(qsTr("Flexion at impact"))         }
-          ] },
-        { icon: "⌖", name: qsTr("Wrist Motion"), railIndex: 2, comingSoon: false,
-          goals: [
-            { key: "generalAssessment", name: qsTr("General assessment"),  sub: Theme.caps(qsTr("Check where i'm at · identify areas to improve")) },
-            { key: "wristAngleTop",       name: qsTr("Wrist angle at the top"),    sub: Theme.caps(qsTr("Flat / bowed / cupped at top"))     },
-            { key: "impactConditions",    name: qsTr("Impact conditions"),         sub: Theme.caps(qsTr("Flexion / extension at contact"))   },
-            { key: "wristAngleSequence",  name: qsTr("Wrist angle sequence"),      sub: Theme.caps(qsTr("Transition & arc profile"))         },
-            { key: "trailWristExtension", name: qsTr("Trail wrist extension"),     sub: Theme.caps(qsTr("Scoop / flip detection"))           }
-          ] },
-        { icon: "⇅", name: qsTr("Ground Forces"), railIndex: 3, comingSoon: true,
-          goals: [
-            { key: "generalAssessment", name: qsTr("General assessment"),  sub: Theme.caps(qsTr("Check where i'm at · identify areas to improve")) },
-            { key: "kinematicSequence", name: qsTr("Kinematic sequence"),  sub: Theme.caps(qsTr("Segment velocity order"))    },
-            { key: "xFactor",           name: qsTr("X-factor"),            sub: qsTr("HIP–SHOULDER SEPARATION")   },
-            { key: "swingTempo",        name: qsTr("Swing tempo"),          sub: qsTr("BACK : DOWN RATIO")         },
-            { key: "earlyExtension",    name: qsTr("Early extension"),      sub: Theme.caps(qsTr("Hip sway detection"))        },
-            { key: "clubPath",          name: qsTr("Club path"),            sub: Theme.caps(qsTr("In-out trend"))              },
-            { key: "wristAngles",       name: qsTr("Wrist angles"),         sub: Theme.caps(qsTr("Flexion at impact"))         }
-          ] },
-        { icon: "✦", name: qsTr("AI Coach"), railIndex: 4, comingSoon: true,
-          goals: [
-            { key: "generalAssessment", name: qsTr("General assessment"),  sub: Theme.caps(qsTr("Check where i'm at · identify areas to improve")) },
-            { key: "kinematicSequence", name: qsTr("Kinematic sequence"),  sub: Theme.caps(qsTr("Segment velocity order"))    },
-            { key: "xFactor",           name: qsTr("X-factor"),            sub: qsTr("HIP–SHOULDER SEPARATION")   },
-            { key: "swingTempo",        name: qsTr("Swing tempo"),          sub: qsTr("BACK : DOWN RATIO")         },
-            { key: "earlyExtension",    name: qsTr("Early extension"),      sub: Theme.caps(qsTr("Hip sway detection"))        },
-            { key: "clubPath",          name: qsTr("Club path"),            sub: Theme.caps(qsTr("In-out trend"))              },
-            { key: "wristAngles",       name: qsTr("Wrist angles"),         sub: Theme.caps(qsTr("Flexion at impact"))         }
-          ] }
-    ]
+    // The work-ons controller (WorkOnsController, diagnostics/work_ons_controller.h; the app's
+    // `workOns` context property). Guarded: the setup test harness has no `workOns`, and a bare
+    // reference would throw there. Named apart from the context property so this property does not
+    // resolve to itself (see liveWrist above); lint W5 checks every member used on it. Injectable.
+    property var workOnsSource: (typeof workOns !== "undefined" ? workOns : null)
+
+    // The choices, in the order the Intent page offers them:
+    //   { id, label, kind: "open" | "coaching" | "workOn", status: "" | "active" | "easing" }
+    //   - "open": Open assessment, focus "" — always first, always there;
+    //   - "coaching": the coaching summary's focus (focusItem.focusConditionId), labelled from the
+    //     pack — offered as "your focus";
+    //   - "workOn": each active or easing work-on (items: id, name), most persistent first; the
+    //     coaching focus is not listed twice (its status rides on the coaching entry).
+    // Every list may be empty: a new athlete, or the work-ons' first scan not run yet.
+    readonly property var focusChoices: {
+        var out = [{ id: "", label: qsTr("Open assessment"), kind: "open", status: "" }]
+        if (!workOnsSource) return out
+        // Read through the handle's own name, so lint W5 sees each member used.
+        var fi = workOnsSource.focusItem || ({})
+        var items = workOnsSource.items || []
+        var coachId = fi.focusConditionId ? String(fi.focusConditionId) : ""
+        var coachStatus = ""
+        for (var i = 0; i < items.length; ++i)
+            if (items[i].id === coachId) coachStatus = items[i].status || ""
+        if (coachId !== "")
+            out.push({ id: coachId, label: conditionLabel(coachId), kind: "coaching", status: coachStatus })
+        for (var j = 0; j < items.length; ++j) {
+            var it = items[j]
+            if (!it.id || it.id === coachId) continue
+            out.push({ id: String(it.id), label: it.name ? String(it.name) : String(it.id),
+                       kind: "workOn", status: it.status || "" })
+        }
+        return out
+    }
+    // A condition's golfer-facing label: the pack's, else the id itself (no work-ons controller).
+    function conditionLabel(id) {
+        if (!id) return ""
+        var l = workOnsSource ? workOnsSource.conditionLabel(id) : ""
+        return l ? String(l) : String(id)
+    }
 
     // ── Athlete ──────────────────────────────────────────────────────────────────────────────────
     // The shell header reads the name (wizard l.648); routines read handedness.

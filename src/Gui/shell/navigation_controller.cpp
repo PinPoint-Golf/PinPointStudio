@@ -42,16 +42,16 @@ bool NavigationController::sessionLocked() const
 }
 
 // While a session is active, the only reachable screens are the one Session
-// screen, the Swing model (an author argues with a corridor against the live
-// swing), System (the Resource Monitor, reached from within Settings) and
-// Settings. There is one Session screen for every session type, so the
-// session type plays no part here.
+// screen, System (the Resource Monitor, reached from within Settings) and
+// Settings. Settings stays open so the Swing model (Settings slot 10) can be
+// reached mid-session — an author argues with a corridor against the live
+// swing. There is one Session screen for every session type, so the session
+// type plays no part here.
 bool NavigationController::blockedDuringSession(int index) const
 {
     if (!sessionLocked()) return false;
     switch (index) {
     case AppScreen::Session:
-    case AppScreen::SwingModel:
     case AppScreen::System:
     case AppScreen::Settings:
         return false;

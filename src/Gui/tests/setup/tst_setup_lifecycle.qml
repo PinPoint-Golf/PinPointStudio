@@ -26,8 +26,6 @@ Item {
         // The adapter (support/SetupDriver.qml).
         readonly property var d: drv
 
-        readonly property int wrist: SessionController.Wrist
-
         function init() {
             testLog.reset()
             // Offscreen-QPA font notice, not a QML warning — see tst_setup_smoke.qml.
@@ -49,10 +47,10 @@ Item {
             d.addCameraInstance("FO1", { ballPresent: true })
             d.addWitmotion("WT-A", "A", true)
             d.addWitmotion("WT-B", "B", true)
-            d.open(wrist)
+            d.open()
             var out = {}
             var plan = d.plan()
-            compare(plan, ["goals", "cameras", "framing", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"])
+            compare(plan, ["intent", "cameras", "framing", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"])
             for (var i = 0; i < plan.length; ++i) {
                 d.walkTo(plan[i])
                 compare(d.current(), plan[i])
@@ -65,7 +63,7 @@ Item {
         function test_L01_onePageAliveAtATime() {
             var got = walkSampling(function() { return d.pageObjects() })
             console.info("[L1] live page objects per step: " + JSON.stringify(got))
-            var want = { goals: 1, cameras: 1, framing: 1, triangulate: 1, ball: 1, imus: 1, calibrateArm: 1, checkArm: 1, ready: 1 }
+            var want = { intent: 1, cameras: 1, framing: 1, triangulate: 1, ball: 1, imus: 1, calibrateArm: 1, checkArm: 1, ready: 1 }
             compare(got, want)
         }
 
@@ -79,20 +77,20 @@ Item {
 
         // ── L3 ───────────────────────────────────────────────────────────────
         function test_L03_navigationIsQueued() {
-            // Through the shell: the live Goals page requests Continue through its own `flow`
+            // Through the shell: the live Focus page requests Continue through its own `flow`
             // and goes on reading itself in the same turn (what a page handler does).
-            d.open(wrist)
+            d.open()
             var page = d.flow.page
-            compare(page.stepKey, "goals")
+            compare(page.stepKey, "intent")
             page.flow.next("done")
             var seen = page.stepKey + ":" + page.active + ":" + page.hint
-            compare(seen, "goals:true:No goals selected — defaulting to General assessment",
+            compare(seen, "intent:true:Open assessment — no focus",
                     "the page was torn down inside the caller's turn")
-            compare(d.current(), "goals", "navigation applied inside the caller's turn")
+            compare(d.current(), "intent", "navigation applied inside the caller's turn")
             compare(d.pageObjects(), 1)
             d.settle()
             compare(d.current(), "cameras")
-            compare(d.state("goals"), "done")
+            compare(d.state("intent"), "done")
             compare(d.pageObjects(), 1)
         }
 
@@ -112,9 +110,13 @@ Item {
             d.addCameraInstance("FO1", { ballPresent: true })
             d.addWitmotion("WT-C", "C", false)
             d.addWg3("HM-1", false)
-            d.open(wrist)
+            d.useWorkOns([{ id: "early_extension", name: "Early extension", status: "active" },
+                          { id: "chicken_wing", name: "Chicken wing", status: "easing" }],
+                         "early_extension", { early_extension: "Early extension" })
+            d.open()
             gate("open")
-            d.toggleGoal("impactConditions")
+            d.chooseFocus("chicken_wing")
+            gate("focus")
             d.next()
             d.clickPrimary()                         // Connect cameras
             d.next()
@@ -144,7 +146,7 @@ Item {
             gate("header arrows")
             d.start()
             gate("start")
-            d.open(wrist)
+            d.open()
             d.cancel()
             gate("cancel")
         }

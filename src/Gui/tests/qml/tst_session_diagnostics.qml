@@ -139,6 +139,18 @@ Item {
     property int    measureCalls: 0
     property string lastMeasureId: ""
 
+    // A stand-in for SessionController's focus half: the panel hands the body the real one only while
+    // the session is live (body.focusController), and the body writes a declaration back to it.
+    QtObject {
+        id: fakeController
+        property string focusConditionId: ""
+        property int    focusFromShot: 0
+        property int    idWrites: 0
+        property int    splitWrites: 0
+        onFocusConditionIdChanged: idWrites += 1
+        onFocusFromShotChanged:    splitWrites += 1
+    }
+
     readonly property var missRows: [
         { id: "slice",       name: "Slice" },
         { id: "hook",        name: "Hook" },
@@ -897,6 +909,11 @@ Item {
             probe.closeDetailCalls = 0
             probe.measureCalls = 0
             probe.lastMeasureId = ""
+            body.focusController = null
+            fakeController.focusConditionId = ""
+            fakeController.focusFromShot = 0
+            fakeController.idWrites = 0
+            fakeController.splitWrites = 0
             laidOut()
         }
         function cleanupTestCase() {
@@ -1760,6 +1777,57 @@ Item {
             mouseClick(df2)
             laidOut()
             compare(probe.clearFocusCalls, 2, "and clears")
+        }
+
+        // NEW (four-modes Phase 2, C3): IN A LIVE SESSION THE FOCUS IS SessionController's. A
+        // declaration still goes to the model first; the body then writes the model's answer back to the
+        // controller the panel handed it — the split before the id, each only on a real difference — so
+        // the other surfaces adopt it. With no controller (review, a finished session) nothing is written.
+        // The adoption half lives in PpSessionDiagnosticsPanel, which this file does not load.
+        function test_28b_aLiveDeclarationIsWrittenBackToTheController() {
+            useRegister("Analyse")
+            const s = spied(formingSource(false))
+            const declare = s.declareFocus
+            s.declareFocus = function (id) { declare(id); s.focusFromShot = 4 }   // the model's split
+            setSource(s)
+            body.focusController = fakeController
+            showTab("session")
+            park()
+            let row = shownAll(viewOf("session"), "sdSessionRow")[0]
+            intoView(row)
+            hoverRow(row)
+            mouseClick(oneShown(row, "sdSessionRowFocus"))
+            laidOut()
+            compare(probe.focusCalls, 1, "the model is asked first")
+            compare(fakeController.focusConditionId, "casting", "the focus reaches the controller")
+            compare(fakeController.focusFromShot, 4, "with the split the model recorded")
+            compare(fakeController.idWrites, 1)
+            compare(fakeController.splitWrites, 1)
+
+            // Declaring the focus already held writes nothing back.
+            body._declareFocus("casting", true)
+            compare(fakeController.idWrites, 1, "an unchanged id is not rewritten")
+            compare(fakeController.splitWrites, 1, "nor an unchanged split")
+
+            // Withdrawn on the panel: withdrawn on the controller, its split back to the default.
+            const f = spied(formingSource(false))
+            f.cards[0].focused = true
+            setSource(f)
+            park()
+            row = shownAll(viewOf("session"), "sdSessionRow")[0]
+            intoView(row)
+            hoverRow(row)
+            mouseClick(oneShown(row, "sdSessionRowFocus"))
+            laidOut()
+            compare(probe.clearFocusCalls, 1)
+            compare(fakeController.focusConditionId, "", "a clear reaches the controller")
+            compare(fakeController.focusFromShot, 0)
+
+            // Not live: the model is still asked, the controller is left alone.
+            body.focusController = null
+            body._declareFocus("casting", true)
+            compare(probe.focusCalls, 3, "the model is asked")
+            compare(fakeController.focusConditionId, "", "and nothing is written back")
         }
 
         // NEEDS-NEW-DESIGN → rewritten (F63-F64): a screened root asks for its SCREEN, never for a page,

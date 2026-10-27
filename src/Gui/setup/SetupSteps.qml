@@ -20,9 +20,9 @@
 // StepDescriptor, and in one page file under pages/ — nowhere else. Order here is the order of the
 // flow; nothing reorders it.
 //
-// ⚠ R6 / §4.12 / lint W8: no `applies` and no `gate` below may mention the session type or the
-// preset. Steps come from the hardware in the session: with no arm sensor there is no arm
-// Calibrate or Check step, whatever the session was opened as.
+// ⚠ R6 / §4.12 / lint W8: no `applies` and no `gate` below may mention the session type (or the
+// retired preset). Steps come from the hardware in the session: with no arm sensor there is no arm
+// Calibrate or Check step, whatever the session is for.
 //
 // The issue and summary texts are today's (wizard l.489–565, 1947–2015) wherever today had one;
 // the sensor issues are new because the per-type slot table they came from is gone (§4.12). Each
@@ -51,14 +51,15 @@ QtObject {
 
     readonly property list<StepDescriptor> builtIn: [
         StepDescriptor {
-            key: "goals"; title: qsTr("Goals"); eyebrow: Theme.caps(qsTr("Goals")); group: "session"
-            page: "pages/GoalsPage.qml"
-            // applies, gate: always.
+            // The session's focus (phase 2 C5): Open assessment, the coaching focus or a work-on.
+            // DECISION(phase2): the key is "intent", not "focus" — W10 would then forbid the word
+            // in the shell, where `focus` is ordinary QML (activeFocus, focus: true).
+            key: "intent"; title: qsTr("Focus"); eyebrow: Theme.caps(qsTr("Focus")); group: "session"
+            page: "pages/IntentPage.qml"
+            // applies, gate: always — "Open assessment" is a choice, so there is nothing to require.
             summary: function(ctx, draft) {
-                var n = draft.goals.length
-                return { label: qsTr("Goals"), good: true,
-                         value: n > 0 ? qsTr("%1 selected · saved to profile").arg(n)
-                                      : qsTr("None — defaulting to %1").arg(draft.defaultGoal ? draft.defaultGoal.name : "") }
+                return { label: qsTr("Focus"), good: true,
+                         value: draft.focusConditionId !== "" ? draft.focusLabel : qsTr("Open assessment") }
             }
         },
         StepDescriptor {
