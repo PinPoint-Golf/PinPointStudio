@@ -20,7 +20,7 @@
 // "Swing diagnostics →" row: every fault by its technical name with how it was measured (the
 // work-ons card, headed FAULTS), then what moves together. For the golfer who wants the detail,
 // and for their coach. The home screen's column, on its own screen in the app's stack (Main.qml,
-// screenSwingDiagnostics); "← Home" goes back to it.
+// AppScreen.WorkOns); "← Home" goes back to it.
 //
 // A fault row's "Review the … session →" link is passed up as reviewSessionRequested, which Main
 // handles exactly as it did when the work-ons sat on the home screen.

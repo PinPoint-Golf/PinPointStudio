@@ -55,7 +55,7 @@ Item {
     function stepLoadSession() {
         sessionReviewController.loadSession(probe.sessionDir)
         probe.w("session loaded: shots = " + sessionReviewController.activeShotCount)
-        navController.navigate(2)
+        navController.navigate(AppScreen.Session)
     }
     function stepFocusSwing() {
         probe.shotId = 0

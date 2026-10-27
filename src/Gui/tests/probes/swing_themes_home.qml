@@ -249,7 +249,7 @@ Item {
             if (!back) { finish(); return }
             back.clicked(null)
             after(600, () => {
-                check(drawn(summary) && !drawn(screen) && navController.currentIndex === 0,
+                check(drawn(summary) && !drawn(screen) && navController.currentIndex === AppScreen.Home,
                       "'← Home' returns to the home screen")
                 finish()
             })

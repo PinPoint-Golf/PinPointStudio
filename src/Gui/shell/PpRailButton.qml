@@ -109,6 +109,9 @@ Item {
             id: labelItem
             width:                  Theme.sp(60)
             horizontalAlignment:    Text.AlignHCenter
+            // Two-word labels ("Swing model") are wider than the button at every theme's
+            // tracking; they break onto a second line rather than spill past the rail.
+            wrapMode:               Text.WordWrap
             text:                   Theme.caps(root.labelText)
             font.family:            Theme.fontBody
             font.pixelSize:         Theme.sp(8)

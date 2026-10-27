@@ -123,7 +123,7 @@ Item {
             const c = probe.carousel()
             if (probe.step === 1) {
                 if (probe.sessionDir === "") { probe.check(false, "--probe-session given"); probe.finish(); return }
-                navController.navigate(2)                 // the Wrist screen
+                navController.navigate(AppScreen.Session)                 // the session screen
                 SessionMode.enterCapture()
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (probe.step === 2) {

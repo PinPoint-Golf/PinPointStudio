@@ -166,7 +166,7 @@ Item {
             if (s === 1) {
                 probe.startTheme = Theme.themeIndex
                 if (probe.sessionDir === "") { probe.check(false, "--probe-session given"); probe.finish(); return }
-                navController.navigate(2)
+                navController.navigate(AppScreen.Session)
                 SessionMode.enterCapture()
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (s === 2) {

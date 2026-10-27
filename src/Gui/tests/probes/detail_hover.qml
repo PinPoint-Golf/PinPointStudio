@@ -211,7 +211,7 @@ Item {
                 probe.Window.window.visibility = Window.Windowed
                 probe.Window.window.width  = parseInt(probe.arg("--probe-width", "1920"))
                 probe.Window.window.height = parseInt(probe.arg("--probe-height", "1080"))
-                navController.navigate(2)
+                navController.navigate(AppScreen.Session)
                 SessionMode.enterCapture()
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (step === 3) {

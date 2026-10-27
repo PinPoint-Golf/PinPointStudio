@@ -17,13 +17,12 @@
  */
 
 #include "navigation_controller.h"
-#include "athlete_controller.h"
 #include "session_controller.h"
 
-NavigationController::NavigationController(AthleteController *athletes,
+NavigationController::NavigationController(AthleteController * /*athletes*/,
                                            SessionController *session,
                                            QObject           *parent)
-    : QObject(parent), m_athletes(athletes), m_session(session)
+    : QObject(parent), m_session(session)
 {
     if (m_session) {
         connect(m_session, &SessionController::runningChanged,
@@ -42,14 +41,23 @@ bool NavigationController::sessionLocked() const
     return m_session && m_session->running() && m_session->activeSessionType() >= 0;
 }
 
-// While a session is active, the only reachable screens are the Resource
-// Monitor (8, reached from within Settings), Settings (9) and the active
-// session type's own screen (type + 1).
+// While a session is active, the only reachable screens are the one Session
+// screen, the Swing model (an author argues with a corridor against the live
+// swing), System (the Resource Monitor, reached from within Settings) and
+// Settings. There is one Session screen for every session type, so the
+// session type plays no part here.
 bool NavigationController::blockedDuringSession(int index) const
 {
     if (!sessionLocked()) return false;
-    return index != 8 && index != 9
-        && index != m_session->activeSessionType() + 1;
+    switch (index) {
+    case AppScreen::Session:
+    case AppScreen::SwingModel:
+    case AppScreen::System:
+    case AppScreen::Settings:
+        return false;
+    default:
+        return true;
+    }
 }
 
 void NavigationController::navigate(int index) { push(index); }
@@ -57,16 +65,23 @@ void NavigationController::navigate(int index) { push(index); }
 void NavigationController::navigateRail(int index)
 {
     // Home rail button is a hard reset — clears history rather than extending it
-    if (index == 0) { navigateHome(); return; }
+    if (index == AppScreen::Home) { navigateHome(); return; }
     push(index);
 }
 
 void NavigationController::navigateHome()
 {
-    if (blockedDuringSession(0)) return;
+    if (blockedDuringSession(AppScreen::Home)) return;
+    const bool hadHistory = !m_back.isEmpty() || !m_forward.isEmpty();
     m_back.clear();
     m_forward.clear();
-    setCurrentIndex(0);
+    // Already on Home, setCurrentIndex() announces nothing — but the cleared
+    // history still changes canGoBack/canGoForward.
+    if (m_current == AppScreen::Home) {
+        if (hadHistory) emit historyChanged();
+        return;
+    }
+    setCurrentIndex(AppScreen::Home);
 }
 
 void NavigationController::back()

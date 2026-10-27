@@ -331,7 +331,7 @@ Item {
             // nothing heavy on while the session loads
             for (const k of probe.allKeys) ViewLayout.setPanel(probe.mode, k, k === "charts")
             ViewLayout.setPanel(SessionMode.replay, "sessionDiagnostics", false)
-            navController.navigate(2)
+            navController.navigate(AppScreen.Session)
             SessionMode.enterCapture()
             sessionReviewController.loadSession(probe.sessionDir)
             probe.after(4000, () => {

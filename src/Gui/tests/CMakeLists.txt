@@ -144,6 +144,22 @@ pp_add_test(session_clock_test
     INCLUDE ${GUI} ${GUI}/athlete ${GUI}/session ${SRC} ${SRC}/Core
     LINK    Qt6::Qml Qt6::Test  AUTOMOC)
 
+# NavigationController — screen history and the session lock rule of the four-modes refactor
+# (ux_refactor_away_from_4_modes.md §6 Phase 1): while a session runs only AppScreen::Session,
+# SwingModel, System and Settings are reachable, whatever the session type. A real
+# SessionController drives the lock, with the same athlete stub as session_clock_test.
+# app_screen.h is header-only and listed so AUTOMOC sees it. Qt6::Test is for QSignalSpy.
+pp_add_test(navigation_controller_test
+    SOURCES navigation_controller_test.cpp
+            session_clock_stubs.cpp
+            ${GUI}/shell/app_screen.h
+            ${GUI}/shell/navigation_controller.cpp
+            ${GUI}/session/session_controller.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${GUI} ${GUI}/athlete ${GUI}/session ${GUI}/shell ${SRC} ${SRC}/Core
+    LINK    Qt6::Qml Qt6::Test  AUTOMOC)
+
 # Role-keyed IMU placement (session_wizard_refactor_design.md §4.13) — the pure half
 # ImuManager and AppSettings delegate to (imu_role_map): the imu/placement → imu/roles
 # migration and its marker, the derived legacy view, the owner ladder, one claim per role,

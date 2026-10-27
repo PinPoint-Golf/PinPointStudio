@@ -33,10 +33,10 @@ import PinPointStudio
 Item {
     id: root
     objectName: "trustPanel"
-    property int sessionType: -1                 // the host screen, for the active-screen gate only
+    property int sessionType: -1                 // the host's session type; < 0 = no session-screen host (always active)
     property bool framed: true
 
-    readonly property bool _screenActive: root.sessionType < 0 || navController.currentIndex === root.sessionType + 1
+    readonly property bool _screenActive: root.sessionType < 0 || navController.currentIndex === AppScreen.Session
     readonly property string sessionDir:
         (sessionReviewController.reviewActive && sessionReviewController.activeSessionId !== "")
             ? sessionReviewController.activeSessionId

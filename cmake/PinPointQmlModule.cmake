@@ -175,7 +175,6 @@ set(PP_QML_FILES
     # The mounts by name, and which of them the pickers offer (design §4.12–4.13).
     src/Gui/imu/ImuMounts.qml
     src/Gui/session/ScreenWrist.qml
-    src/Gui/session/ScreenSessionMode.qml
     src/Gui/calibration/ImuCalibrationFlow.qml
     src/Gui/calibration/CalibrationGuide.qml
     src/Gui/calibration/WitmotionArmRoutine.qml
@@ -369,6 +368,7 @@ set(PP_QML_FILES
     src/Gui/review/MetricLibrary.qml
     src/Gui/review/MetricRoute.qml
     src/Gui/diagnosticmodel/DiagnosticModel.qml
+    src/Gui/diagnosticmodel/ScreenSwingModel.qml
     src/Gui/diagnosticmodel/ModelTypeRail.qml
     src/Gui/diagnosticmodel/ModelTable.qml
     src/Gui/diagnosticmodel/ModelInspector.qml
@@ -422,6 +422,8 @@ set(PP_QML_FILES
 # The C++ types the module registers (QML_ELEMENT). Headers are listed alongside their .cpp
 # so AUTOMOC sees them.
 set(PP_QML_SOURCES
+    # The screen enum (header-only): every screen index is named from it.
+    src/Gui/shell/app_screen.h
     src/Audio/ting_player.h
     src/Audio/ting_player.cpp
     src/Video/bayer_video_item.h

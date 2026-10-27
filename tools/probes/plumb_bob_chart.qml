@@ -17,7 +17,7 @@
 //   1. sessionReviewController.loadSession(<session dir>)   — enters Loaded-session review.
 //      A session's id IS its absolute directory path (session_review_controller.h:63), so no
 //      library-root setting has to be right for this to find the swing.
-//   2. navController.navigate(sessionType + 1)              — the session screen (Wrist = 2).
+//   2. navController.navigate(AppScreen.Session)            — the one session screen.
 //   3. SessionMode.enterReplay(shotId, swingDir, false)     — promotes the swing onto the stage,
 //      which is what makes shotReplay.analysisDetail the focused swing's.
 //   4. Feeds that analysisDetail into a PRIVATE PpMetricChart instance and calls its own
@@ -65,8 +65,6 @@ Item {
     // The session dir is the swing dir's parent — loadSession() takes it verbatim.
     readonly property string sessionDir: probe.swingDir.substring(0, probe.swingDir.lastIndexOf("/"))
     readonly property string presetName: probe._arg("--probe-preset", "Plumb Bob")
-    // Wrist = 1 (screen index 2). Only affects which screen is navigated to.
-    readonly property int    sessionType: parseInt(probe._arg("--probe-session-type", "1"))
     readonly property int    stepMs:      parseInt(probe._arg("--probe-step-ms", "2500"))
 
     // The series this run reports on. The three "Plumb Bob" members plus shoulderPlaneAngle,
@@ -173,9 +171,9 @@ Item {
                 + "   activeSessionId = " + sessionReviewController.activeSessionId
                 + "   shots = " + sessionReviewController.activeShotCount)
         if (typeof navController === "undefined") return probe.miss("navController")
-        navController.navigate(probe.sessionType + 1)
+        navController.navigate(AppScreen.Session)
         probe.w("navController.currentIndex = " + navController.currentIndex
-                + " (session screen for sessionType " + probe.sessionType + ")")
+                + " (AppScreen.Session = " + AppScreen.Session + ")")
     }
 
     function stepFocusSwing() {

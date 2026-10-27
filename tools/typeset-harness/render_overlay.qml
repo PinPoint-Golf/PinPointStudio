@@ -20,7 +20,7 @@ import PinPointStudio
 //   --probe-layout full|stage|stagecam|half|third|cast     --probe-mode analyse|replay
 //   --probe-print portrait|landscape   A4 pages, grabbed at 2× (needs a dpr-2 screen)
 //   --probe-states s1,s2            sets the mock's demoState before each grab (overlay none: the body's, when it has one)
-//   --probe-themes 7,12   --probe-session <dir>   --probe-ordinal 8   --probe-nav 2
+//   --probe-themes 7,12   --probe-session <dir>   --probe-ordinal 8   --probe-nav Session
 //   --probe-out <dir>   --probe-tag <prefix>
 //   --probe-dump 1                  print each fed property (and each detail id) as "DUMP <name> <json>", then quit
 // Writes <out>/<tag>_<layout>_<aesthetic>_<light|dark>_<view>[_<state>]_{window,panel}.png
@@ -50,7 +50,13 @@ Item {
     readonly property string detailId: arg("--probe-detail", "over_the_top")
     readonly property string sessionDir: arg("--probe-session", "")
     readonly property int ordinal: parseInt(arg("--probe-ordinal", "8"))
-    readonly property int navIndex: parseInt(arg("--probe-nav", "2"))
+    // --probe-nav names an AppScreen value ("Session", "WorkOns", …) or gives its number; default Session.
+    readonly property int navIndex: {
+        const v = arg("--probe-nav", "Session")
+        if (/^[0-9]+$/.test(v)) return parseInt(v)
+        if (AppScreen[v] === undefined) { console.warn("--probe-nav: no AppScreen." + v + "; using Session"); return AppScreen.Session }
+        return AppScreen[v]
+    }
     readonly property string layout: arg("--probe-layout", "full")
     readonly property string modeName: arg("--probe-mode", "analyse")
     readonly property var states: list(arg("--probe-states", ""))

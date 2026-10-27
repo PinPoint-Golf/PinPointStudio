@@ -10,7 +10,7 @@
 //   - footer and header controls are found by objectName;
 //   - Main.qml's reactions are replicated as Stage 5b wrote them: Cancel no longer calls
 //     releaseDevices() (the flow released them before cancelled()), ‹ on the first step arrives as
-//     exitRequested("back") → navController.back(), Start reads presets[type].railIndex.
+//     exitRequested("back") → navController.back(), Start navigates to AppScreen.Session.
 //
 // Since Stage 5b every page is real: the sensor rows, their mounts, Scan, the calibration flow on
 // the Calibrate page, the Check page's Recalibrate and the Ready page are read off the live page.
@@ -72,10 +72,10 @@ Item {
     property var shellCalls: []
     property var emitted: []
 
-    // Main.qml screen indices (Main.qml:541–551).
-    readonly property int screenHome:     0
-    readonly property int screenSettings: 9
-    readonly property int screenWizard:   10
+    // Main.qml's screens, named by the AppScreen enum (src/Gui/shell/app_screen.h).
+    readonly property int screenHome:     AppScreen.Home
+    readonly property int screenSettings: AppScreen.Settings
+    readonly property int screenWizard:   AppScreen.Wizard
 
     readonly property var stepKeys: ["goals", "cameras", "framing", "triangulate", "ball", "imus",
                                      "calibrateArm", "checkArm", "calibrateTrunk", "checkTrunk", "ready"]
@@ -207,10 +207,10 @@ Item {
     }
 
     // ── Main.qml replicas, as Stage 5b wrote them ────────────────────────────
-    // ScreenHome.onStartSessionRequested (Main.qml:674–680), with reset → open:
+    // ScreenHome.onStartSessionRequested (Main.qml), with reset → open:
     //     sessionController.activeClub = screenHome.selectedClub
     //     sessionSetup.open(sessionTypeIndex)
-    //     navController.navigate(root.screenWizard)
+    //     navController.navigate(AppScreen.Wizard)
     function open(type) {
         var w = wizard || _create()
         if (nav.currentIndex === screenWizard) {    // coming from Home: the shell was hidden
@@ -228,7 +228,7 @@ Item {
     // Main.qml (ScreenSessionSetup.onCancelled) — the devices were released by the flow before cancelled():
     //     onCancelled: {
     //         sessionController.activeClub = ""
-    //         navController.navigate(root.screenHome)
+    //         navController.navigate(AppScreen.Home)
     //     }
     function _onCancelled() {
         emitted.push({ name: "cancelled", args: [], t: Date.now() })
@@ -237,8 +237,8 @@ Item {
         _syncShell()
     }
 
-    // Main.qml (onSessionStartRequested) — as before, the rail index read from `presets`:
-    //     navController.navigateRail(sessionSetup.presets[type].railIndex)
+    // Main.qml (onSessionStartRequested) — every session type has the one Session screen:
+    //     navController.navigateRail(AppScreen.Session)
     function _onSessionStartRequested(type, goals) {
         var g = []
         for (var i = 0; i < goals.length; ++i) g.push(goals[i])
@@ -247,9 +247,8 @@ Item {
         map[type.toString()] = g
         appSettings.sessionGoalsByType = map
         appSettings.lastSessionType    = type
-        var rail = wizard.presets[type].railIndex
-        nav.navigateRail(rail)
-        nav.currentIndex = rail
+        nav.navigateRail(AppScreen.Session)
+        nav.currentIndex = AppScreen.Session
         _rec("shotProcessor.beginSessionFolder", [type, false])
         _rec("shotModel.loadSessionDir", [""])
         session.start(type)
@@ -266,8 +265,8 @@ Item {
         _syncShell()
     }
 
-    // Main.qml:771–774 (unchanged):
-    //     onNavigateToSettings: { settingsScreen.activeNavIndex = panelIndex; navController.navigate(root.screenSettings) }
+    // Main.qml (ScreenSessionSetup.onNavigateToSettings):
+    //     onNavigateToSettings: { settingsScreen.activeNavIndex = panelIndex; navController.navigate(AppScreen.Settings) }
     function _onNavigateToSettings(panelIndex) {
         emitted.push({ name: "navigateToSettings", args: [panelIndex], t: Date.now() })
         nav.navigate(screenSettings)

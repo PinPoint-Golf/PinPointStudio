@@ -107,7 +107,7 @@ Item {
             probe.step += 1
             const s = probe.step
             if (s === 1) {
-                navController.navigate(2)                 // the Wrist screen: today's swings load
+                navController.navigate(AppScreen.Session)                 // the session screen: today's swings load
                 SessionMode.enterCapture()
             } else if (s === 2) {
                 probe.base = live.count

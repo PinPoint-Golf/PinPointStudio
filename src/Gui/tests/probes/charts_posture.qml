@@ -136,7 +136,7 @@ Item {
             probe.step += 1
             const root = probe.Window.window.contentItem
             if (probe.step === 1) {
-                navController.navigate(2)
+                navController.navigate(AppScreen.Session)
                 SessionMode.enterCapture()
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (probe.step === 2) {

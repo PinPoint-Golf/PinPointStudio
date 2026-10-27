@@ -30,7 +30,6 @@ Item {
     readonly property string swingDir:   probe._arg("--probe-swing", "")
     readonly property string sessionDir: probe.swingDir.substring(0, probe.swingDir.lastIndexOf("/"))
     readonly property var    presets:    probe._arg("--probe-presets", "Club & speed;Club delivery;All").split(";")
-    readonly property int    sessionType: parseInt(probe._arg("--probe-session-type", "1"))
     readonly property int    stepMs:     parseInt(probe._arg("--probe-step-ms", "2500"))
 
     function w(s) { console.warn("ICPROBE " + s) }
@@ -75,7 +74,7 @@ Item {
     function stepLoad() {
         probe.w("═══ 1. LOAD " + probe.sessionDir + " ═══")
         sessionReviewController.loadSession(probe.sessionDir)
-        navController.navigate(probe.sessionType + 1)
+        navController.navigate(AppScreen.Session)
     }
     function stepFocus() {
         probe.w("═══ 2. FOCUS " + probe.swingDir + " ═══")

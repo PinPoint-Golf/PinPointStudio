@@ -86,7 +86,7 @@ Item {
                 if (list[i].impactCapable) { cam = list[i]; break }
             if (!cam) { if (elapsed < waitMs) return; fail("a raw-Bayer (impact-capable) camera is enumerated"); return }
             log("camera " + cam.description + " " + cam.serialNumber + " index " + cam.index)
-            navController.navigateRail(9)   // Main.qml screenSettings
+            navController.navigateRail(AppScreen.Settings)
             stage = 1
             return
         }

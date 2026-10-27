@@ -29,8 +29,8 @@
 //     model is fed exactly as its header says: the session folder (the same binding as the diagnostics
 //     panel), ShotProcessor.shotProcessed → ingestShot, the carousel's re-analysis → regradeShot, and the
 //     diagnostics ledger written (SessionMode.sessionDiagnostics busy → false) → refreshDiagnostics.
-//   • THE _screenActive GATE STAYS (INVENTORY F41, cbb63aae): all four session screens live in one
-//     StackLayout, and both hosts (ScreenSessionMode, ScreenWrist) carry this panel. An invisible screen's
+//   • THE _screenActive GATE STAYS (INVENTORY F41, cbb63aae): every screen lives in one StackLayout,
+//     and the session screen (AppScreen.Session, ScreenWrist) carries this panel. An invisible screen's
 //     presenters are fed nothing: the picked swing, its detail, the span and the playhead are copied in only
 //     while this screen is the visible one, so a replay on another screen costs this one no recompute.
 //   • THE READER'S CHOICES PERSIST AS TODAY: AppSettings chartPrefs per screen type × mode (key base
@@ -59,8 +59,8 @@ Item {
 
     // Set by PpModeStage only on the muted placeholder path; the panel titles itself.
     property string title: qsTr("Charts")
-    // The screen this panel sits on (SessionController.Swing / Wrist …): the persistence key and the
-    // _screenActive gate only — the analysis never branches on it.
+    // The session type of the screen this panel sits on (SessionController.Swing / Wrist …): the persistence
+    // key only — the analysis never branches on it. The _screenActive gate tests AppScreen.Session instead.
     property int sessionType: -1
     // The tab and the preset this panel opens on until the reader picks one (a saved "view" / "preset" wins).
     // The HOST says them, so the panel never branches on the screen: the Wrist screen opens This shot on the
@@ -85,7 +85,7 @@ Item {
     property bool remembersNav: true
 
     // ── the session, its model and the presenters ──
-    readonly property bool _screenActive: navController.currentIndex === root.sessionType + 1
+    readonly property bool _screenActive: navController.currentIndex === AppScreen.Session
     readonly property string sessionDir:
         (sessionReviewController.reviewActive && sessionReviewController.activeSessionId !== "")
             ? sessionReviewController.activeSessionId

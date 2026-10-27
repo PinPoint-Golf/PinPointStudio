@@ -35,6 +35,12 @@ Item {
     // Emitted by the pinned bottom action; Main.qml jumps to the System Info
     // screen (its own screen — back returns here).
     signal resourceMonitorRequested()
+    // The Swing model (the Diagnostic Model editor) is its own screen now, reachable during a session,
+    // and this screen does not touch navController — so every way into it from here (the slot-10
+    // panel's button, a search hit, the show*Detail deep links) asks Main.qml to go there instead.
+    // kind is "open" | "metric" | "characteristic" | "measure" | "item"; ref is the metric key /
+    // condition id / measure id / SettingsIndex itemId (empty for "open").
+    signal swingModelRequested(string kind, string ref)
     // Settings → Studio (session report §7.1), for the report sheet's "add it in Settings → Studio" links.
     // Found by panel, not by number, for the reason _stackIndexOf gives.
     function openStudio() {
@@ -70,12 +76,17 @@ Item {
     function navigateToResult(entry) {
         searchInput.text = ""
         root.searchQuery  = ""
+        // Slot 10's content lives on the Swing model screen; its hits land there, not on the stub.
+        if (entry.panelIndex === root._stackIndexOf(swingModelPanel)) {
+            root.swingModelRequested("item", entry.itemId)
+            return
+        }
         root.activeNavIndex = entry.panelIndex
         Qt.callLater(function() {
             var panels = [
                 generalPanel, appearancePanel, displaysPanel,
                 camerasPanel, imusPanel, phonesPanel, microphonesPanel,
-                launchMonitorPanel, storagePanel, archivingPanel, diagnosticModelPanel,
+                launchMonitorPanel, storagePanel, archivingPanel, swingModelPanel,
                 studioPanel
             ]
             var panel = panels[entry.panelIndex]
@@ -83,42 +94,40 @@ Item {
         })
     }
 
-    // Where the Diagnostic Model sits in the stack, found rather than written down. The deep links
-    // below said `9` and went on saying it when Archiving took that slot (23 Sept), so a metric
-    // tile's click-through opened Archiving. A position looked up from the panel itself cannot drift.
+    // Where a panel sits in the stack, found rather than written down. The deep links below said
+    // `9` and went on saying it when Archiving took that slot (23 Sept), so a metric tile's
+    // click-through opened Archiving. A position looked up from the panel itself cannot drift.
     function _stackIndexOf(panel) {
         for (var i = 0; i < settingsStack.children.length; ++i)
             if (settingsStack.children[i] === panel) return i
         return 0
     }
 
-    // Deep link straight to one metric (a metric tile click-through, routed via
-    // MetricRoute). Same callLater shape as navigateToResult: the panel Loader must
-    // have instantiated before we can address it.
+    // Deep links into the Diagnostic Model. They used to switch this stack to slot 10 and call into
+    // the panel; the model is the Swing model screen now, so each one asks Main.qml to go there and
+    // select the object. Kept here (rather than deleted) because probes and older callers still
+    // address them on ScreenSettings.
+    //
+    // One metric (a metric tile click-through, routed via MetricRoute).
     function showMetricDetail(key) {
         searchInput.text = ""
         root.searchQuery = ""
-        root.activeNavIndex = root._stackIndexOf(diagnosticModelPanel)
-        Qt.callLater(function() { diagnosticModelPanel.showMetric(key) })
+        root.swingModelRequested("metric", key)
     }
 
-    // Deep link straight to one characteristic's detail page. Same callLater shape as
-    // showMetricDetail: the panel Loader must have instantiated before we can address it.
+    // One characteristic's detail page.
     function showCharacteristicDetail(conditionId) {
         searchInput.text = ""
         root.searchQuery = ""
-        root.activeNavIndex = root._stackIndexOf(diagnosticModelPanel)
-        Qt.callLater(function() { diagnosticModelPanel.showCharacteristic(conditionId) })
+        root.swingModelRequested("characteristic", conditionId)
     }
 
-    // Deep link to the MEASURE that defines a corridor. Reached from a metric's detail page: the
-    // metric catalogue says what good looks like, and this is the way to the place that decides it.
-    // Same callLater shape as its two siblings above.
+    // The MEASURE that defines a corridor. Reached from a metric's detail page: the metric
+    // catalogue says what good looks like, and this is the way to the place that decides it.
     function showMeasureDetail(measureId) {
         searchInput.text = ""
         root.searchQuery = ""
-        root.activeNavIndex = root._stackIndexOf(diagnosticModelPanel)
-        Qt.callLater(function() { diagnosticModelPanel.showMeasure(measureId) })
+        root.swingModelRequested("measure", measureId)
     }
 
     function scrollWithRetry(panel, itemId, retries) {
@@ -136,8 +145,9 @@ Item {
     // ── The fold ──────────────────────────────────────────────────────────────
     //
     // The sidenav costs 275px on every settings panel, and on the widest of them — the Diagnostic
-    // Model, three panes and a facet rail — that is the width the name column starves for. Folding it
-    // to an icon strip gives the panel back a quarter of the room it was short of.
+    // Model, three panes and a facet rail, until it became the Swing model screen — that was the
+    // width the name column starved for. Folding it to an icon strip gives a panel back a quarter of
+    // its room.
     //
     // Deliberately MANUAL. A width-driven auto-fold was the alternative and it is the wrong trade: a
     // sidenav that vanishes on its own teaches an author that the app moves things when they are not
@@ -286,7 +296,10 @@ Item {
                                 // views inside Diagnostic Model, which now answers every deep link
                                 // the two of them used to. The old panel and its hidden row are
                                 // gone, and the indices below are contiguous again.
-                                { navIdx: 10, icon: "❖", label: qsTr("Diagnostic Model"), sectionHead: qsTr("Reference"), hasBadge: false },
+                                // The model itself is now the Swing model SCREEN (rail). Slot 10 stays a
+                                // real panel — a one-line pointer with an "Open Swing model" button — so
+                                // Studio keeps 11 and none of the four positional lists has to move.
+                                { navIdx: 10, icon: "❖", label: qsTr("Swing model"),    sectionHead: qsTr("Reference"), hasBadge: false },
                                 // Not a panel: emits resourceMonitorRequested() (its own screen)
                                 // rather than switching activeNavIndex. It is an ACTION row, so its
                                 // navIdx never indexes the StackLayout — but it must not collide
@@ -600,7 +613,52 @@ Item {
                 LaunchMonitorPanel { id: launchMonitorPanel; Layout.fillWidth: true; Layout.fillHeight: true } // 7
                 StoragePanel {    id: storagePanel;    Layout.fillWidth: true; Layout.fillHeight: true }  // 8
                 ArchivingPanel {  id: archivingPanel;  Layout.fillWidth: true; Layout.fillHeight: true }  // 9
-                DiagnosticModel { id: diagnosticModelPanel; Layout.fillWidth: true; Layout.fillHeight: true }       // 10
+                // 10 — a pointer to the Swing model screen. NOT a DiagnosticModel: there is exactly one
+                // (ScreenSwingModel), since each owns a ModelBrowser with its own unsaved working copy.
+                Item {
+                    id: swingModelPanel
+                    Layout.fillWidth: true; Layout.fillHeight: true
+
+                    // Search-scroll contract (navigateToResult): nothing here to scroll to.
+                    function scrollToItem(itemId) { return true }
+
+                    ColumnLayout {
+                        x:       Theme.sp(32)
+                        y:       Theme.sp(28)
+                        width:   parent.width - Theme.sp(64)
+                        spacing: Theme.gap(20)
+
+                        Text {
+                            text:                qsTr("Reference")
+                            font.family:         Theme.fontBody
+                            font.pixelSize:      Theme.fontSzMicro
+                            font.letterSpacing:  Theme.trackingMicro
+                            font.capitalization: Theme.capsFont
+                            color:               Theme.colorText3
+                        }
+
+                        PpDisplayText {
+                            text: qsTr("Swing model")
+                        }
+
+                        Text {
+                            text: qsTr("The swing model — characteristics, measures, corridors and the links between them — has its own screen, on the rail.")
+                            font.family:      Theme.fontBody
+                            font.pixelSize:   Theme.fontSzBody2
+                            font.weight:      Theme.fontBodyWeight
+                            color:            Theme.colorText3
+                            wrapMode:         Text.WordWrap
+                            Layout.fillWidth: true
+                        }
+
+                        PpButton {
+                            objectName: "openSwingModelButton"
+                            label:      qsTr("Open Swing model")
+                            primary:    true
+                            onClicked:  root.swingModelRequested("open", "")
+                        }
+                    }
+                }
                 StudioPanel {     id: studioPanel;     Layout.fillWidth: true; Layout.fillHeight: true }  // 11 (drawn in General)
             }
         }

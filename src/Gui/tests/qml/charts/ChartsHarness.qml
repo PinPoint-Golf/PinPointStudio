@@ -38,7 +38,7 @@ Item {
     id: h
     anchors.fill: parent
 
-    property int sessionType: 1                  // a screen index (1 is SessionController.Wrist's); the persistence key and the gate
+    property int sessionType: 1                  // the host's session type (1 is SessionController.Wrist): the persistence key
     property string defaultTab: "shot"           // the host's opening tab
     property string defaultPreset: ""            // the host's opening preset (ScreenWrist passes "Wrist & forearm")
     property var panel: null
@@ -73,7 +73,7 @@ Item {
         }
         function stop() { active = false; shotId = -1 }
     }
-    QtObject { id: fakeNav; property int currentIndex: 2 }
+    QtObject { id: fakeNav; property int currentIndex: AppScreen.Session }   // the gate: the session screen is up
     ListModel { id: carouselShots }
     QtObject {
         id: fakeReview

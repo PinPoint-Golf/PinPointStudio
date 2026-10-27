@@ -20,9 +20,14 @@
 #include <QList>
 #include <QObject>
 
+#include "app_screen.h"
+
 class AthleteController;
 class SessionController;
 
+// Screen history (back/forward) and the session lock. Every index is an AppScreen value
+// (app_screen.h); the invokables take int because QML passes enum values as ints and the
+// probes call navigate(n).
 class NavigationController : public QObject
 {
     Q_OBJECT
@@ -31,11 +36,13 @@ class NavigationController : public QObject
     Q_PROPERTY(bool canGoBack     READ canGoBack     NOTIFY historyChanged)
     Q_PROPERTY(bool canGoForward  READ canGoForward  NOTIFY historyChanged)
     // True while a session is active (clock running with a session type set).
-    // Every navigation path is then locked to System (8), Settings (9) and the
-    // active session type's screen — enforced here, visualised in PpRail.
+    // Every navigation path is then locked to AppScreen::Session, SwingModel,
+    // System and Settings, whatever the session type — enforced here,
+    // visualised in PpRail.
     Q_PROPERTY(bool sessionLocked READ sessionLocked NOTIFY sessionLockedChanged)
 
 public:
+    // `athletes` is accepted for main.cpp's sake and not kept: nothing here reads it.
     explicit NavigationController(AthleteController *athletes,
                                   SessionController *session,
                                   QObject           *parent = nullptr);
@@ -61,10 +68,9 @@ private:
     void setCurrentIndex(int index);
     bool blockedDuringSession(int index) const;
 
-    AthleteController *m_athletes;
     SessionController *m_session;
 
-    int        m_current  = 0;
+    int        m_current  = AppScreen::Home;
     QList<int> m_back;
     QList<int> m_forward;
 

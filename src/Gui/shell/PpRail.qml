@@ -26,27 +26,30 @@ Item {
     // 60 % wider than the theme token; implicitWidth lets RowLayout size us correctly
     implicitWidth: Math.ceil(Theme.railWidth * 1.6)
 
-    // Reflects contentStack.currentIndex in Main.qml
-    property int  currentPageIndex: 0
+    // Reflects contentStack.currentIndex in Main.qml (an AppScreen value)
+    property int  currentPageIndex: AppScreen.Home
 
-    // When true, only System and Settings are interactive; all other buttons are muted.
+    // Wizard lock: while true every destination above the spacer is muted; Settings stays
+    // interactive (System sits beneath it).
     property bool locked: false
 
-    // Active-session lock: the rail/stack index of the running session type
-    // (-1 = no session). While set, every mode button except this index is
-    // muted (System/Settings stay interactive). Visual affordance only — the
-    // enforcement lives in NavigationController::blockedDuringSession().
-    property int sessionLockIndex: -1
+    // Active-session lock (navController.sessionLocked). While set, the Session button appears and
+    // only Session and Swing model stay enabled above the spacer (Settings below it stays
+    // interactive, System beneath it). Visual affordance only — the enforcement lives in
+    // NavigationController::blockedDuringSession().
+    property bool sessionLocked: false
 
-    // Shared mute rule for the mode buttons (Home/Swing/Wrist/GRF/Coach/Play).
-    function _modeMuted(idx) {
-        return locked || (sessionLockIndex >= 0 && sessionLockIndex !== idx)
+    // Shared mute rule for the destinations above the spacer.
+    function _muted(screen) {
+        if (locked) return true
+        if (sessionLocked) return screen !== AppScreen.Session && screen !== AppScreen.SwingModel
+        return false
     }
 
     // True whenever the rail is locked (wizard open or a session active) — i.e.
     // some buttons are muted. Enabled buttons tint amber (attention) in this
     // state and revert to the standard scheme once everything is interactive.
-    readonly property bool anyLocked: locked || (sessionLockIndex >= 0)
+    readonly property bool anyLocked: locked || sessionLocked
 
     // Emitted whenever a nav button is pressed; caller sets contentStack.currentIndex
     signal pageRequested(int index)
@@ -118,10 +121,10 @@ Item {
             }
 
             PpPressable {
-                // Athlete picker (index 7) is unreachable while the wizard is
-                // open or a session is active.
+                // Athlete picker (AppScreen.Athletes) is unreachable while the
+                // wizard is open or a session is active.
                 id:             railAvatarPress
-                enabled:        !root.locked && root.sessionLockIndex < 0
+                enabled:        !root.locked && !root.sessionLocked
                 confirmOnClick: true
                 onClicked:      root.avatarClicked()
             }
@@ -135,30 +138,51 @@ Item {
         }
         Item { Layout.preferredHeight: Theme.sp(12); Layout.fillWidth: true }
 
-        // ── Mode buttons (pages 0–4) ──────────────────────────────────────────
+        // ── Destinations ──────────────────────────────────────────────────────
+        // No mode buttons: one session screen, reached through Session while it runs
+        // (docs/design/ux_refactor_away_from_4_modes.md §2.2). Each button is active on its own
+        // screen only — Work-ons has its own button now, so Home no longer claims it.
 
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "⌂"
             labelText: qsTr("Home")
-            // Stays highlighted on Swing diagnostics (11), which opens from Home.
-            isActive:  root.currentPageIndex === 0
-                       || root.currentPageIndex === 11
-            isMuted:   root._modeMuted(0)
+            isActive:  root.currentPageIndex === AppScreen.Home
+            isMuted:   root._muted(AppScreen.Home)
             attention: root.anyLocked
-            onClicked: root.pageRequested(0)
+            onClicked: root.pageRequested(AppScreen.Home)
+        }
+
+        // Session — only while one runs. It is the way back to the live session from anywhere the
+        // lock allows (Swing model, Settings, System), as the active mode button used to be.
+        Item {
+            Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true
+            visible: root.sessionLocked
+        }
+
+        PpRailButton {
+            Layout.alignment: Qt.AlignHCenter
+            visible:   root.sessionLocked
+            iconText:  "▶"
+            labelText: qsTr("Session")
+            isActive:  root.currentPageIndex === AppScreen.Session
+            isMuted:   root._muted(AppScreen.Session)
+            attention: root.anyLocked
+            onClicked: root.pageRequested(AppScreen.Session)
         }
 
         Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
 
+        // Sessions — the current golfer's sessions. Muted with no golfer, as the avatar's edit is:
+        // with no athlete the form would open as a blank "New athlete" form.
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "◑"
-            labelText: qsTr("Swing")
-            isActive:  root.currentPageIndex === 1
-            isMuted:   root._modeMuted(1)
+            labelText: qsTr("Sessions")
+            isActive:  root.currentPageIndex === AppScreen.Sessions
+            isMuted:   root._muted(AppScreen.Sessions) || !athleteController.hasCurrentAthlete
             attention: root.anyLocked
-            onClicked: root.pageRequested(1)
+            onClicked: root.pageRequested(AppScreen.Sessions)
         }
 
         Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
@@ -166,35 +190,25 @@ Item {
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "⌖"
-            labelText: qsTr("Wrist")
-            isActive:  root.currentPageIndex === 2
-            isMuted:   root._modeMuted(2)
+            labelText: qsTr("Work-ons")
+            isActive:  root.currentPageIndex === AppScreen.WorkOns
+            isMuted:   root._muted(AppScreen.WorkOns)
             attention: root.anyLocked
-            onClicked: root.pageRequested(2)
+            onClicked: root.pageRequested(AppScreen.WorkOns)
         }
 
         Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
 
+        // Swing model — allowed during a session: authoring a corridor against the live swing
+        // depends on it (DiagnosticModel.qml, currentSwingDir).
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
-            iconText:  "⇅"
-            labelText: qsTr("GRF")
-            isActive:  root.currentPageIndex === 3
-            isMuted:   root._modeMuted(3)
+            iconText:  "◈"
+            labelText: qsTr("Swing model")
+            isActive:  root.currentPageIndex === AppScreen.SwingModel
+            isMuted:   root._muted(AppScreen.SwingModel)
             attention: root.anyLocked
-            onClicked: root.pageRequested(3)
-        }
-
-        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
-
-        PpRailButton {
-            Layout.alignment: Qt.AlignHCenter
-            iconText:  "✦"
-            labelText: qsTr("Coach")
-            isActive:  root.currentPageIndex === 4
-            isMuted:   root._modeMuted(4)
-            attention: root.anyLocked
-            onClicked: root.pageRequested(4)
+            onClicked: root.pageRequested(AppScreen.SwingModel)
         }
 
         // ── Spacer ────────────────────────────────────────────────────────────
@@ -207,18 +221,18 @@ Item {
         }
         Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
 
-        // Settings always active — allowed during wizard. Stays highlighted on
-        // the Developer (5) and Resource Monitor (8) screens, which now live
-        // under Settings.
+        // Settings always active — allowed during the wizard and a session. Stays
+        // highlighted on the Developer and System (resource monitor) screens, which
+        // live under Settings.
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "⚙"
             labelText: qsTr("Settings")
-            isActive:  root.currentPageIndex === 9
-                       || root.currentPageIndex === 8
-                       || root.currentPageIndex === 5
+            isActive:  root.currentPageIndex === AppScreen.Settings
+                       || root.currentPageIndex === AppScreen.System
+                       || root.currentPageIndex === AppScreen.Developer
             attention: root.anyLocked
-            onClicked: root.pageRequested(9)
+            onClicked: root.pageRequested(AppScreen.Settings)
         }
 
         Item { Layout.preferredHeight: Theme.sp(16); Layout.fillWidth: true }

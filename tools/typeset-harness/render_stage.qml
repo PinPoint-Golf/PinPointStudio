@@ -6,7 +6,7 @@ import PinPointStudio
 // render_stage.sh). Draws nothing of its own: for each theme × layout × panel it sets ViewLayout so
 // that panel shows in the requested arrangement, with the timeline and carousel on, waits, then grabs
 // the window and the panel's stage card (title strip included). Use it for step 1's "before" renders.
-//   --probe-session <dir> --probe-ordinal 8 --probe-mode analyse|replay --probe-nav 2
+//   --probe-session <dir> --probe-ordinal 8 --probe-mode analyse|replay --probe-nav Session
 //   --probe-themes 12,7 --probe-layouts full,half,third --probe-panels camera,charts,...
 //   --probe-settle 3000 --probe-out <dir> --probe-tag audit
 // Writes <out>/<tag>_<mode>_<layout>_<aesthetic>_<light|dark>_<panel>_{window,panel}.png
@@ -26,7 +26,13 @@ Item {
     readonly property int ordinal: parseInt(arg("--probe-ordinal", "8"))
     readonly property string modeName: arg("--probe-mode", "analyse")
     readonly property int settle: parseInt(arg("--probe-settle", "3000"))
-    readonly property int navIndex: parseInt(arg("--probe-nav", "2"))
+    // --probe-nav names an AppScreen value ("Session", "WorkOns", …) or gives its number; default Session.
+    readonly property int navIndex: {
+        const v = arg("--probe-nav", "Session")
+        if (/^[0-9]+$/.test(v)) return parseInt(v)
+        if (AppScreen[v] === undefined) { console.warn("--probe-nav: no AppScreen." + v + "; using Session"); return AppScreen.Session }
+        return AppScreen[v]
+    }
     readonly property var allKeys: ["sessionDiagnostics", "camera", "swing3d", "launchMonitor", "charts", "table", "markup"]
     property var jobs: []
     property int startTheme: 0

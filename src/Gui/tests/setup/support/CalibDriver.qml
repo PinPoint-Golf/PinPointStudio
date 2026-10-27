@@ -712,7 +712,7 @@ Item {
         tc.compare(newWiz.currentStep, "ready")
         setup.flow.exit("start")                     // Start: devices kept
         _settle()
-        fx.navController.navigateRail(setup.presets[SessionController.Wrist].railIndex)
+        fx.navController.navigateRail(AppScreen.Session)
         setup.visible = false
         fx.sessionController.start(SessionController.Wrist)
     }

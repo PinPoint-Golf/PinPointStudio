@@ -32,7 +32,6 @@ Runs ~20 s (6 steps × 2500 ms + teardown), then `Qt.quit()`s itself.
 |---|---|
 | `--probe-swing <abs swing dir>` | `/mnt/swingdata/corpus/swings/2026-08-18_Mark-Liversedge_Wrist_01/swing_0001` |
 | `--probe-preset <name>` | `Plumb Bob` |
-| `--probe-session-type <n>` | `1` (Wrist → screen index 2) |
 | `--probe-step-ms <n>` | `2500` |
 
 The app parses no `QCommandLineParser`, so unknown flags are inert — every arg is read ad hoc

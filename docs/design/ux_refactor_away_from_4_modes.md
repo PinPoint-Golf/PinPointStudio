@@ -261,9 +261,9 @@ Line numbers are at `ab5c4d9a`.
 
 | Component | Verdict | Change |
 |---|---|---|
-| `NavigationController` | **Adapt** | Named `Screen` enum from a header-only carrier in `PP_QML_SOURCES`; lock rule = Session, SwingModel, System, Settings; no `activeSessionType + 1`. |
+| `NavigationController` | **Adapt** | Named `AppScreen` enum (`src/Gui/shell/app_screen.h`) from a header-only carrier in `PP_QML_SOURCES`; lock rule = Session, SwingModel, System, Settings; no `activeSessionType + 1`. |
 | `Main.qml` StackLayout | **Adapt** | Order follows the enum; drop placeholders; one session screen; a second `ScreenAthleteForm` for Sessions. |
-| The seven `+1` gates | **Adapt** | One shared "session screen is showing" test against `Screen.Session`. Each keeps its `sessionType` property, which still keys saved preferences (`"1:<mode>:…"`). |
+| The seven `+1` gates | **Adapt** | One shared "session screen is showing" test against `AppScreen.Session`. Each keeps its `sessionType` property, which still keys saved preferences (`"1:<mode>:…"`). |
 | `PpRail.qml`, `PpRailButton.qml` | **Adapt** | Home/Session (while running)/Sessions/Work-ons/Swing model; keep avatar, Settings, `attention`/muting behaviour. `PpRailButton` unchanged. |
 | `ScreenWrist` | **Reuse** as *the* session screen | Rename (`ScreenSession`) in a separate, mechanical commit only (Phase 5). |
 | `ScreenSessionMode.qml` | **Delete** (Phase 1) | Dead: listed in cmake, never instantiated. It carries a `+1` gate. |
@@ -445,9 +445,9 @@ only. `qml_ui` is in the default suite; `session_setup_ui` is opt-in
 
 Goal: the rail and stack no longer know about modes. Behaviour otherwise identical.
 
-- **Enum carrier.** Add a header-only `Screen` enum (`Q_NAMESPACE` + `QML_NAMED_ELEMENT(Screen)` +
-  `Q_ENUM_NS`, or an uncreatable QObject) to `PP_QML_SOURCES`, so `qml_ui` and `session_setup_ui`
-  can load QML that names `Screen.Session`. Values: `Home, Session, Sessions, WorkOns, SwingModel,
+- **Enum carrier.** Add a header-only `AppScreen` enum (`src/Gui/shell/app_screen.h`, an uncreatable QObject;
+  named so because QtQuick already registers `Screen`) to `PP_QML_SOURCES`, so `qml_ui` and `session_setup_ui`
+  can load QML that names `AppScreen.Session`. Values: `Home, Session, Sessions, WorkOns, SwingModel,
   Athlete, Athletes, System, Settings, Developer, Wizard`. Home stays first:
   `navigateRail(Home)` clears history.
 - **`navigation_controller.h/.cpp`.** `navigate()` and the other methods take a `Screen`. QML
@@ -457,24 +457,24 @@ Goal: the rail and stack no longer know about modes. Behaviour otherwise identic
 - **`Main.qml`:**
   - StackLayout children in enum order; delete the three `ScreenPlaceholder`s; one session screen
     (`ScreenWrist`); `screenNames` keyed by the enum.
-  - `sessionScreenActive` (l.368–369) and the quit-dialog text (l.211–213) use `Screen.Session`.
-  - `onSessionStartRequested` navigates to `Screen.Session` instead of `presets[type].railIndex`.
-  - Every `onReviewSessionRequested` targets `Screen.Session`: Home, Swing diagnostics, and the
+  - `sessionScreenActive` (l.368–369) and the quit-dialog text (l.211–213) use `AppScreen.Session`.
+  - `onSessionStartRequested` navigates to `AppScreen.Session` instead of `presets[type].railIndex`.
+  - Every `onReviewSessionRequested` targets `AppScreen.Session`: Home, Swing diagnostics, and the
     athlete form's Sessions tab.
   - `onOpenSessionScreenRequested` (from Home's coming-soon cards) becomes a no-op until Phase 2
     removes the signal.
-- **The seven `+1` gates** (§3) compare against `Screen.Session` through one shared helper.
+- **The seven `+1` gates** (§3) compare against `AppScreen.Session` through one shared helper.
   Delete `ScreenSessionMode.qml` (dead) and its cmake entry. The panels keep their `sessionType`
   property for preference keys.
 - **New hosts:**
-  - `Screen.Sessions` → a **second** `ScreenAthleteForm` instance with `initialTab "sessions"`
+  - `AppScreen.Sessions` → a **second** `ScreenAthleteForm` instance with `initialTab "sessions"`
     and the current athlete. It has its own review wiring and header name.
-  - `Screen.WorkOns` → `ScreenSwingDiagnostics`.
-  - `Screen.SwingModel` → a thin `ScreenSwingModel.qml` hosting the only `DiagnosticModel`, and
+  - `AppScreen.WorkOns` → `ScreenSwingDiagnostics`.
+  - `AppScreen.SwingModel` → a thin `ScreenSwingModel.qml` hosting the only `DiagnosticModel`, and
     forwarding `showMetric`, `showCharacteristic`, `showMeasure` and `scrollToItem`.
 - **Settings.** Slot 10 becomes a thin "Open Swing model →" panel (or an action row like System),
   so Studio keeps index 11. The panel-10 `SettingsIndex` search hits and `MetricRoute` re-point to
-  `Screen.SwingModel` through a new `ScreenSettings` signal. Update the comments in
+  `AppScreen.SwingModel` through a new `ScreenSettings` signal. Update the comments in
   `DiagnosticModel.qml` l.30 and l.54–58.
 - **`PpRail.qml`:**
   - buttons Home, Session (visible only while `sessionLocked`), Sessions (muted without a current
@@ -531,7 +531,7 @@ Goal: the rail and stack no longer know about modes. Behaviour otherwise identic
     `focusLabel` in the request.
 - **`Main.qml` `onSessionStartRequested`:**
   1. set `sessionController.focusConditionId` from the request;
-  2. `navigate(Screen.Session)`;
+  2. `navigate(AppScreen.Session)`;
   3. `beginSessionFolder(default, false)`;
   4. `loadSessionDir("")`;
   5. `start()`;

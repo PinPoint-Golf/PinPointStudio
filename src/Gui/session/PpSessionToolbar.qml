@@ -35,7 +35,7 @@ Item {
     implicitHeight: Theme.sp(60)
 
     // Session type of the hosting screen (SessionController::Type, 0–3).
-    // Set by ScreenSessionMode / ScreenWrist; passed to sessionController.start()
+    // Set by the session screen (ScreenWrist); passed to sessionController.start()
     // so the session lock knows which type owns the running session.
     property int sessionType: -1
 

@@ -16,8 +16,8 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Wrist Motion screen (contentStack index 2). Hosts the persistent session
-// toolbar, then a View-driven layout: an optional timeline rail, the centre
+// The session screen (contentStack index AppScreen.Session; its sessionType is
+// Wrist). Hosts the persistent session toolbar, then a View-driven layout: an optional timeline rail, the centre
 // stage (camera tiles today; charts/table land later), and an
 // optional shot carousel. Which panels show, and how the stage packs them, is
 // owned by the toolbar's View control (ViewLayout, per session type). The
@@ -26,8 +26,7 @@
 //
 // Replay and Analyse use the Transit timeline, in one of two orientations
 // (appSettings.timelineOrientation): HORIZONTAL in the top rail, VERTICAL in a
-// fixed-width panel to the LEFT of the stage. Kept in lockstep with
-// ScreenSessionMode. Capture has no timeline (RmTimelineChart is resource-monitor only).
+// fixed-width panel to the LEFT of the stage. Capture has no timeline (RmTimelineChart is resource-monitor only).
 
 import QtQuick
 import QtQuick.Layouts
@@ -41,11 +40,11 @@ Item {
     readonly property bool _transitMode: SessionMode.mode === SessionMode.replay
                                          || SessionMode.mode === SessionMode.analyse
     readonly property bool _vertical:    appSettings.timelineOrientation === "vertical"
-    // All session screens stay alive in the StackLayout (this one at index Wrist+1).
+    // Every screen stays alive in the StackLayout (this one at index AppScreen.Session).
     // The transit timeline's stationLayout recompute is heavy and fires on every
     // shotReplay span change, so keep it UNLOADED unless this screen is visible —
     // otherwise an off-screen timeline re-lays-out on every swing reload.
-    readonly property bool _screenActive: navController.currentIndex === SessionController.Wrist + 1
+    readonly property bool _screenActive: navController.currentIndex === AppScreen.Session
 
     // THE focused swing — the active replay, else the carousel's selection. One definition, because
     // three panels here bind it (data viewer, markup, and the app-wide `currentSwing` below) and it

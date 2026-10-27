@@ -166,7 +166,7 @@ Item {
             for (const k of ["camera", "swing3d", "launchMonitor", "charts", "table", "markup", "trust"]) ViewLayout.setPanel(SessionMode.analyse, k, false)
             ViewLayout.setPanel(SessionMode.analyse, "sessionDiagnostics", true)
             ViewLayout.setArrangement(SessionMode.analyse, "tabs")
-            navController.navigate(2)
+            navController.navigate(AppScreen.Session)
             SessionMode.enterCapture()
             sessionReviewController.loadSession(probe.sessionDir)
             probe.after(4000, () => {

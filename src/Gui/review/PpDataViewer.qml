@@ -31,11 +31,11 @@ Item {
 
     readonly property bool hasSwing: root.swingDir !== "" && src.loaded
 
-    // All session screens live in the StackLayout simultaneously (the session screen
-    // sits at index sessionType+1), so without this gate EVERY swing reload re-parsed
-    // swing.json in all of them — 3 invisible viewers doing ~230 ms of work each on
-    // the UI thread. Only the visible screen feeds its source. Mirrors PpCameraTiles.
-    readonly property bool _screenActive: navController.currentIndex === root.sessionType + 1
+    // Every screen lives in the StackLayout simultaneously (the session screen sits at
+    // index AppScreen.Session), so without this gate a swing reload re-parsed swing.json
+    // while the viewer was invisible (~230 ms each on the UI thread). Only the visible
+    // session screen feeds its source. Mirrors PpCameraTiles.
+    readonly property bool _screenActive: navController.currentIndex === AppScreen.Session
     // Left gutter for the control-row labels so REGION / SEGMENT / RESOLVES TO and
     // their wrapped chip rows all hang-indent to the same edge.
     readonly property int ctrlGutter: Theme.sp(82)

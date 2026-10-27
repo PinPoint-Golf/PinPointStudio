@@ -1,6 +1,7 @@
 // Fake navController — the members Main.qml uses (back, forward, navigate, navigateRail,
-// currentIndex, canGoBack, canGoForward, sessionLocked). Calls are recorded.
+// navigateHome, currentIndex, canGoBack, canGoForward, sessionLocked). Calls are recorded.
 import QtQuick
+import PinPointStudio
 
 QtObject {
     property int  currentIndex:  0
@@ -14,4 +15,5 @@ QtObject {
     function forward()          { _rec("forward", []) }
     function navigate(idx)      { _rec("navigate", [idx]); currentIndex = idx }
     function navigateRail(idx)  { _rec("navigateRail", [idx]) }
+    function navigateHome()     { _rec("navigateHome", []); currentIndex = AppScreen.Home }
 }

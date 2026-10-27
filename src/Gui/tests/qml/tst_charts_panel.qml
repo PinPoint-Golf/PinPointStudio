@@ -126,7 +126,7 @@ Item {
             hn.defaultTab = "shot"
             hn.defaultPreset = ""
             SessionMode.autoReturnToCapture = false
-            hn.nav.currentIndex = hn.sessionType + 1
+            hn.nav.currentIndex = AppScreen.Session
             hn.replay.seeks = 0; hn.replay.lastSeekUs = -1; hn.replay.scrubs = 0
             hn.unpick()
             fresh({}, 8)
@@ -428,11 +428,11 @@ Item {
             compare(hn.body.overlay, false); compare(hn.body.against, "none"); compare(hn.body.tab, "shot")
             useMode("Analyse")
             compare(hn.body.overlay, true); compare(hn.body.against, "median"); compare(hn.body.tab, "session")
-            // another screen keeps its own too
-            hn.sessionType = 2; hn.nav.currentIndex = 3
+            // another session type keeps its own too (same session screen, its own saved prefs)
+            hn.sessionType = 2
             fresh({}, 8)
             compare(hn.body.overlay, false); compare(hn.body.tab, "shot")
-            hn.sessionType = 1; hn.nav.currentIndex = 2
+            hn.sessionType = 1
             // a rebuild (the stage, or a restart) puts them back
             fresh({}, 8)
             compare(hn.body.overlay, true); compare(hn.body.against, "median"); compare(hn.body.tab, "session")
@@ -528,10 +528,10 @@ Item {
 
         // ── the _screenActive gate (F41): an invisible screen is fed nothing ──
         function test_20_an_invisible_screen_follows_no_replay() {
-            hn.nav.currentIndex = 0                              // another screen is up
+            hn.nav.currentIndex = AppScreen.Home                 // another screen is up
             hn.pick(3); settle()
             compare(hn.body.tShot.ordinal, 8, "the hidden panel still holds shot 8")
-            hn.nav.currentIndex = hn.sessionType + 1              // back on this screen: it catches up
+            hn.nav.currentIndex = AppScreen.Session              // back on the session screen: it catches up
             settle()
             compare(hn.body.tShot.ordinal, 3)
         }

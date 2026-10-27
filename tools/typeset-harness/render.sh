@@ -15,7 +15,7 @@
 #   --states s1,s2            sets the mock's demoState before each grab; file names gain _<state>
 #   --screen normal|tall|mark|<file.json>    1680×1050 | 1680×2600 | 2560×1560 (Mark's window)
 #   --ordinal <n>             the shot (default 8)
-#   --nav <n>                 the app screen (Main.qml screen index: 1 Swing, 2 Wrist; default 2)
+#   --nav <screen>            the app screen: an AppScreen name (Session, WorkOns, …) or its number; default Session
 #   --feed p1,p2  --tab-prop <p>  --target <t>   override the profile
 #   --dump                    write the fed properties (and the detail) as JSON to $TYPESET_OUT/<tag>_data/, then quit
 #   --timeout <s>             default 500
@@ -24,7 +24,7 @@
 #     or  $TYPESET_OUT/<tag>_print-<orient>_<aesthetic>_<light|dark>_p<N>.png   (A4 at 2×)
 # The full app log is kept at $TYPESET_OUT/logs/<tag>_<layout>.log; the console shows probe lines and QML errors.
 H=${0:A:h}; source $H/lib.sh
-PROFILE=diagnostics SLOT=a THEMES=7,12 MODE=analyse STATES="" SCREEN=normal ORDINAL=8 TIMEOUT=500 DUMP="" NAV=2
+PROFILE=diagnostics SLOT=a THEMES=7,12 MODE=analyse STATES="" SCREEN=normal ORDINAL=8 TIMEOUT=500 DUMP="" NAV=Session
 O_VIEWS="" O_DETAIL="" O_FEED="" O_TAB="" O_TARGET="" O_FEED_SET="" O_TAB_SET=""
 while [[ $1 == --* ]]; do
   case $1 in

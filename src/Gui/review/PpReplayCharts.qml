@@ -32,10 +32,10 @@ Item {
     // persist its collapsible-section state per screen+mode. Set by the host screen.
     property int sessionType: -1
 
-    // All session screens live in the StackLayout at once (this screen is at index
-    // sessionType+1). Without this gate every shotReplay span/position change re-ran
-    // the chart maths in all 4 — 3 invisible. Only the visible screen's chart reacts.
-    readonly property bool _screenActive: navController.currentIndex === root.sessionType + 1
+    // Every screen lives in the StackLayout at once (the session screen is at index
+    // AppScreen.Session). Without this gate every shotReplay span/position change re-ran
+    // the chart maths while it was invisible. Only the visible session screen's chart reacts.
+    readonly property bool _screenActive: navController.currentIndex === AppScreen.Session
 
     readonly property var  _detail: root._screenActive ? shotReplay.analysisDetail : null
     readonly property var  _series: (_detail && _detail.series) ? _detail.series : []

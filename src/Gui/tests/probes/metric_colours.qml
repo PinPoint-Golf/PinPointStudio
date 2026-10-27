@@ -133,7 +133,7 @@ Item {
                 const u1 = Theme.metricColorName("not.a.metric"), u2 = Theme.metricColorName("not.a.metric")
                 probe.check(u1 !== "" && u1 === u2, "an uncatalogued key gets one stable name (" + u1 + ")")
                 if (probe.sessionDir === "") { probe.check(false, "--probe-session given"); probe.finish(); return }
-                navController.navigate(2)
+                navController.navigate(AppScreen.Session)
                 SessionMode.enterCapture()
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (s === 2) {
@@ -202,7 +202,7 @@ Item {
                             "switching to " + Theme.aesthetic + (Theme.dark ? " dark" : " light") + " repaints "
                             + probe.key + " " + probe._before + " → " + now)
                 Theme.themeIndex = probe.startTheme
-                // Settings → Diagnostic Model → this metric.
+                // Swing model → this metric.
                 MetricRoute.open(probe.key)                           // a metric tile's own click path
                 appSettings.metricColors = ({ [probe.key]: "orchid" })
             } else if (s === 8) {
@@ -225,8 +225,8 @@ Item {
                 const tiles = probe.find(it => it.objectName && it.objectName.indexOf("paletteTile_") === 0)
                 probe.check(tiles.length === 12, "Appearance offers twelve palette tiles (" + tiles.length + ")")
                 // A measure is drawn in its metric's colour: open one that reads clubheadSpeed.
-                const dm = probe.find(it => typeof it.showMeasure === "function")
-                probe.check(dm.length === 1, "the Diagnostic Model panel is up")
+                const dm = probe.find(it => it.objectName === "swingModelScreen")
+                probe.check(dm.length === 1, "the Swing model screen is up")
                 if (dm.length === 1) dm[0].showMeasure("m_clubheadSpeedImpact")
             } else if (s === 9) {
                 const rows = probe.find(it => it.objectName === "inspectorPlotColour")

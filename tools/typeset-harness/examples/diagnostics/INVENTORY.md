@@ -500,7 +500,7 @@ These were found by grepping all of `src`; matches inside comments are noted.
 
 | Location | Uses | What it needs from the new panel |
 |---|---|---|
-| `src/Gui/session/ScreenWrist.qml:157` | `sessionDiagnosticsDelegate: Component { PpSessionDiagnosticsPanel {} }` (the Wrist screen; probes navigate here with `navController.navigate(2)`) | `PpSessionDiagnosticsPanel` stays the delegate. |
+| `src/Gui/session/ScreenWrist.qml:157` | `sessionDiagnosticsDelegate: Component { PpSessionDiagnosticsPanel {} }` (the Wrist screen; probes navigate here with `navController.navigate(AppScreen.Session)`) | `PpSessionDiagnosticsPanel` stays the delegate. |
 | `src/Gui/session/ScreenSessionMode.qml:147` | the same delegate | Same. |
 | `src/Gui/session/PpModeStage.qml:46,79-80,113-118,122-134` | Loads the delegate in a `PpStageCard`; reads `panel.cardAside`; sets `panel.framed=false` | `P` must keep `framed` (alias) and `cardAside`. |
 | `src/Gui/shot/PpSessionDiagnosticsWindow.qml:129-136` | The cast: `PpSessionDiagnosticsPanel { interactive: win.interactive; remembersNav: false }` | `interactive` alias; add `surface: "cast"` (§0.5) and decide on auto-closing vs persistent (S27-S28). |

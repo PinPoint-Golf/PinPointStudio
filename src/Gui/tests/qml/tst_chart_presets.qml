@@ -145,7 +145,7 @@ Item {
             SessionMode.chartsNav = null
             appSettings.chartPrefs = ({})
             appSettings.sectionCollapse = ({})
-            hn.nav.currentIndex = hn.sessionType + 1
+            hn.nav.currentIndex = AppScreen.Session
             hn.unpick()
             fresh({}, 8)
         }

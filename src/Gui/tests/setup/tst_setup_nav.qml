@@ -288,7 +288,7 @@ Item {
                 verify(!d.imuQueueActive(), key + ": queue still active")
                 compare(d.session.activeClub, "", key + ": activeClub")
                 var last = d.nav.calls[d.nav.calls.length - 1]
-                compare([last.name, last.args[0]], ["navigate", d.screenHome], key + ": navigation")
+                compare([last.name, last.args[0]], ["navigate", AppScreen.Home], key + ": navigation")
                 verify(!d.wizard.visible, key + ": wizard still showing")
                 if (queueStarted) {
                     wait(2600)                       // past the queue's next 2 s tick

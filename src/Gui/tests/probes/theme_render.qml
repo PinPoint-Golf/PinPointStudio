@@ -74,14 +74,14 @@ Item {
         })
     }
     function showScreen(name, then) {
-        if (name === "home") { navController.navigate(0); after(1200, then) }
-        else if (name === "diagnostics") { navController.navigate(11); after(1500, then) }
-        else if (name === "settings") { navController.navigate(9); after(1200, then) }
-        else if (name === "athletes") { navController.navigate(7); after(1200, then) }
-        else if (name === "setup") { navController.navigate(10); after(2000, then) }
-        else if (name === "system") { navController.navigate(8); after(1200, then) }
+        if (name === "home") { navController.navigate(AppScreen.Home); after(1200, then) }
+        else if (name === "diagnostics") { navController.navigate(AppScreen.WorkOns); after(1500, then) }
+        else if (name === "settings") { navController.navigate(AppScreen.Settings); after(1200, then) }
+        else if (name === "athletes") { navController.navigate(AppScreen.Athletes); after(1200, then) }
+        else if (name === "setup") { navController.navigate(AppScreen.Wizard); after(2000, then) }
+        else if (name === "system") { navController.navigate(AppScreen.System); after(1200, then) }
         else if (name === "wrist" || name === "wristreplay") {
-            navController.navigate(2)
+            navController.navigate(AppScreen.Session)
             if (name === "wrist") SessionMode.enterAnalyse()
             after(3500, then)
         } else { probe.log("unknown screen " + name); then() }
@@ -101,7 +101,7 @@ Item {
             for (const sc of probe.screens) for (const t of probe.themes) probe.jobs.push({ theme: t, screen: sc })
             const needSession = probe.screens.some(s => s.startsWith("wrist"))
             if (!needSession) { probe.next(); return }
-            navController.navigate(2)
+            navController.navigate(AppScreen.Session)
             SessionMode.enterCapture()
             sessionReviewController.loadSession(probe.sessionDir)
             probe.after(4000, () => {

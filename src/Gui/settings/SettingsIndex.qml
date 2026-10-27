@@ -27,8 +27,12 @@ import PinPointStudio
 //   1  Appearance     7  Launch Monitor (placeholder — no entries yet)
 //   2  Displays       8  Storage
 //   3  Cameras        9  Archiving
-//   4  IMUs          10  Diagnostic Model (the whole content set)
+//   4  IMUs          10  Swing model (the whole content set — see below)
 //   5  Phones        11  Studio (drawn in General; appended, so 0–10 kept their numbers)
+//
+// Slot 10 is a pointer panel now: the Diagnostic Model became the Swing model SCREEN (four-modes
+// refactor, Phase 1). Its entries keep panelIndex 10, and ScreenSettings.navigateToResult turns a
+// hit on 10 into swingModelRequested("item", itemId) — Main.qml then opens that screen.
 //
 // ⚠ THESE INDICES ARE POSITIONAL IN FOUR PLACES and Phones was inserted into
 // the middle of them rather than appended: this map, ScreenSettings' nav model,
@@ -336,7 +340,9 @@ QtObject {
           label: qsTr("Save IMU streams"),                 subtitle: qsTr("Full quaternion and accelerometer data for all enabled IMUs"),
           itemId: "setting_saveImu" },
 
-        // ── Diagnostic Model (panelIndex: 10) ──────────────────────────────────
+        // ── Swing model (panelIndex: 10) ──────────────────────────────────────
+        //
+        // These open the Swing model screen, not a Settings panel (see the map at the top).
         //
         // Metrics was panelIndex 9 and Diagnostics 10 until the metric catalogue became a VIEW
         // inside Diagnostics rather than a panel beside it. Its search entries stayed — the words
@@ -347,47 +353,47 @@ QtObject {
         // "glossary" or "over the top" is asking about content that still exists. Left at 9 they
         // would open a panel with no row highlighted in the sidenav, which reads as a bug.
 
-        { panelIndex: 10,  panelLabel: qsTr("Diagnostic Model"), groupLabel: qsTr("Swing diagnostics"),
+        { panelIndex: 10,  panelLabel: qsTr("Swing model"),      groupLabel: qsTr("Swing diagnostics"),
           label: qsTr("Swing diagnostics"),                subtitle: qsTr("Named faults and their causes — what each costs the golfer"),
           actions: "diagnostics characteristics faults causes diagnosis library swing early extension loss of posture over the top casting scooping sway slide hanging back chicken wing flying elbow reverse spine s-posture c-posture ball position stance width alignment tempo sequence x-factor",
           itemId: "" },
 
-        { panelIndex: 10,  panelLabel: qsTr("Diagnostic Model"), groupLabel: qsTr("Reference"),
+        { panelIndex: 10,  panelLabel: qsTr("Swing model"),      groupLabel: qsTr("Reference"),
           label: qsTr("Measures and corridors"),           subtitle: qsTr("What the app can read, and what good looks like for each"),
           actions: "metric metrics catalogue directory reference normative corridor tour wrist bow cup hinge roll elbow clubhead hand speed lag stance foot flare toe heel",
           itemId: "" },
 
-        { panelIndex: 10,  panelLabel: qsTr("Diagnostic Model"), groupLabel: qsTr("Swing diagnostics"),
+        { panelIndex: 10,  panelLabel: qsTr("Swing model"),      groupLabel: qsTr("Swing diagnostics"),
           label: qsTr("Physical screens"),                 subtitle: qsTr("Causes the app cannot measure — which screens would explain the most"),
           actions: "screen screening physical mobility hip internal rotation thoracic rotation pelvic disassociation core stability balance ankle dorsiflexion shoulder flexion wrist mobility",
           itemId: "" },
 
-        { panelIndex: 10,  panelLabel: qsTr("Diagnostic Model"), groupLabel: qsTr("Swing diagnostics"),
+        { panelIndex: 10,  panelLabel: qsTr("Swing model"),      groupLabel: qsTr("Swing diagnostics"),
           label: qsTr("Drills"),                           subtitle: qsTr("What a golfer does about a characteristic, and what it is trying to change"),
           actions: "drill drills practice rehearsal feel gate towel step pump hold the finish low point standoff",
           itemId: "" },
 
-        { panelIndex: 10,  panelLabel: qsTr("Diagnostic Model"), groupLabel: qsTr("Swing diagnostics"),
+        { panelIndex: 10,  panelLabel: qsTr("Swing model"),      groupLabel: qsTr("Swing diagnostics"),
           label: qsTr("Glossary"),                         subtitle: qsTr("What a coaching term means — search by the word you were taught"),
           actions: "glossary terms vocabulary jargon flip flipping ott over the top standing up early release casting shank chunk fat thin slice hook pull push block",
           itemId: "" },
 
-        // ── Diagnostic Model, continued ───────────────────────────────────────
+        // ── Swing model, continued ────────────────────────────────────────────
         //
         // The same content set as Diagnostics above, one screen instead of eight views. Both are
         // searchable while both ship — a search for "measures" should offer either.
 
-        { panelIndex: 10,  panelLabel: qsTr("Diagnostic Model"), groupLabel: qsTr("Swing diagnostics"),
-          label: qsTr("Diagnostic model"),                 subtitle: qsTr("The whole content set as one graph — navigate and edit it in place"),
+        { panelIndex: 10,  panelLabel: qsTr("Swing model"),      groupLabel: qsTr("Swing diagnostics"),
+          label: qsTr("Swing model"),                 subtitle: qsTr("The whole content set as one graph — navigate and edit it in place"),
           actions: "diagnostic model graph dag navigator content set browse edit author authoring inline table library characteristics causes measures signals causal links screens drills references",
           itemId: "" },
 
-        { panelIndex: 10,  panelLabel: qsTr("Diagnostic Model"), groupLabel: qsTr("Swing diagnostics"),
+        { panelIndex: 10,  panelLabel: qsTr("Swing model"),      groupLabel: qsTr("Swing diagnostics"),
           label: qsTr("Causal links"),                     subtitle: qsTr("Every edge between conditions — relation, strength and the evidence behind it"),
           actions: "causal link links edge edges cause causes corroborates excludes strength evidence tier citation acyclic cycle relation",
           itemId: "" },
 
-        { panelIndex: 10,  panelLabel: qsTr("Diagnostic Model"), groupLabel: qsTr("Swing diagnostics"),
+        { panelIndex: 10,  panelLabel: qsTr("Swing model"),      groupLabel: qsTr("Swing diagnostics"),
           label: qsTr("Signals"),                          subtitle: qsTr("What each condition is detected by — the test, its direction and the measure it reads"),
           actions: "signal signals detection detected by test direction threshold measure reads",
           itemId: "" },

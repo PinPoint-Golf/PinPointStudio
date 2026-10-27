@@ -33,7 +33,13 @@ Item {
     readonly property string panelPath: arg("--probe-variant", "")
     readonly property string sessionDir: arg("--probe-session", "")
     readonly property int ordinal: parseInt(arg("--probe-ordinal", "8"))
-    readonly property int navIndex: parseInt(arg("--probe-nav", "2"))
+    // --probe-nav names an AppScreen value ("Session", "WorkOns", …) or gives its number; default Session.
+    readonly property int navIndex: {
+        const v = arg("--probe-nav", "Session")
+        if (/^[0-9]+$/.test(v)) return parseInt(v)
+        if (AppScreen[v] === undefined) { console.warn("--probe-nav: no AppScreen." + v + "; using Session"); return AppScreen.Session }
+        return AppScreen[v]
+    }
     readonly property string target: arg("--probe-target", "sdBody")
     readonly property string panelKey: arg("--probe-panel-key",
         target.indexOf("key:") === 0 ? target.slice(4) : (target === "sdBody" ? "sessionDiagnostics" : ""))

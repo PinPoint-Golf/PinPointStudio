@@ -372,7 +372,7 @@ Item {
                         }
                         Text {
                             Layout.fillWidth: true
-                            text:           qsTr("Each metric is always drawn in one of these. Retune one for this theme here; choose a metric's colour in Diagnostic Model → Metrics.")
+                            text:           qsTr("Each metric is always drawn in one of these. Retune one for this theme here; choose a metric's colour in Swing model → Metrics.")
                             wrapMode:       Text.WordWrap
                             font.family:    Theme.fontData
                             font.pixelSize: Theme.fontSzMicro

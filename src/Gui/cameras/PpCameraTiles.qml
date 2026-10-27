@@ -53,11 +53,11 @@ Item {
     // one loaded shotReplay carries the video across the Review↔Analyse mode toggle.
     readonly property bool _replay: SessionMode.mode !== SessionMode.capture
 
-    // All session screens stay instantiated in the StackLayout, but a disk-replay
-    // stream has ONE QMediaPlayer with ONE sink — so only the ACTIVE screen may
-    // create replay tiles (else hidden screens steal the sink and the visible one
-    // shows nothing). The session screen sits at StackLayout index sessionType + 1.
-    readonly property bool _screenActive: navController.currentIndex === root.sessionType + 1
+    // Every screen stays instantiated in the StackLayout, but a disk-replay stream
+    // has ONE QMediaPlayer with ONE sink — so only a VISIBLE session screen may
+    // create replay tiles (else a hidden host steals the sink and the visible one
+    // shows nothing). The session screen sits at StackLayout index AppScreen.Session.
+    readonly property bool _screenActive: navController.currentIndex === AppScreen.Session
     readonly property bool _replayHere: _replay && _screenActive
 
     // Replay tiles are instantiated one event-loop turn AFTER _replayHere goes true.

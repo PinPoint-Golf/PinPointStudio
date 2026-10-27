@@ -134,7 +134,7 @@ Item {
                     if (!ViewLayout.isPanelOn(m, "sessionDiagnostics"))
                         ViewLayout.setPanel(m, "sessionDiagnostics", true)
                 }
-                navController.navigate(2)                 // the Wrist screen
+                navController.navigate(AppScreen.Session)                 // the session screen
                 SessionMode.enterCapture()
                 probe.check(cameraManager.ballCueEnabled === true, "ball ting ON on Capture")
                 sessionReviewController.loadSession(probe.sessionDir)

@@ -29,7 +29,6 @@ Item {
     readonly property string swingDir:   probe._arg("--probe-swing", "")
     readonly property string sessionDir: probe.swingDir.substring(0, probe.swingDir.lastIndexOf("/"))
     readonly property string groupName:  probe._arg("--probe-group", "Club & speed")
-    readonly property int    sessionType: parseInt(probe._arg("--probe-session-type", "1"))
     readonly property int    stepMs:     parseInt(probe._arg("--probe-step-ms", "2500"))
 
     function w(s) { console.warn("LIEPROBE " + s) }
@@ -74,7 +73,7 @@ Item {
         probe.w("═══ 1. LOAD " + probe.sessionDir + " ═══")
         sessionReviewController.loadSession(probe.sessionDir)
         probe.w("reviewActive=" + sessionReviewController.reviewActive + " shots=" + sessionReviewController.activeShotCount)
-        navController.navigate(probe.sessionType + 1)
+        navController.navigate(AppScreen.Session)
     }
     function stepFocus() {
         probe.w("═══ 2. FOCUS " + probe.swingDir + " ═══")

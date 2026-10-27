@@ -78,7 +78,7 @@ Item {
             // The enumerator lists remembered sensors without a scan; give it a moment.
             if (imuManager.imuDeviceList.length === 0 && elapsed < waitMs) return
             log("imuDeviceList " + imuManager.imuDeviceList.length + " device(s) after " + elapsed + " ms")
-            navController.navigateRail(9)   // Main.qml screenSettings
+            navController.navigateRail(AppScreen.Settings)
             stage = 1
             return
         }
