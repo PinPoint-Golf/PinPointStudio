@@ -35,6 +35,8 @@
 #include <QThread>
 #include <QTimer>
 
+#include <algorithm>
+
 // ---------------------------------------------------------------------------
 // Kokoro model download URLs
 //
@@ -72,6 +74,12 @@ TtsController::TtsController(AppSettings *settings, QObject *parent)
     , m_downloader(new ModelDownloader(this))
 {
     m_workerThread->setObjectName(QStringLiteral("TtsWorkerThread"));
+
+    // A dispatched synthesis that never starts (an engine that dropped it without a word) must not
+    // stall every later one behind it.
+    m_dispatchWatchdog.setSingleShot(true);
+    m_dispatchWatchdog.setInterval(20000);
+    connect(&m_dispatchWatchdog, &QTimer::timeout, this, &TtsController::onDispatchTimeout);
 
     // Cloud-fallback availability is gated on the Azure key being configured; the
     // cloudFallbackTts preference selects the backend (see applyCloudFallbackPref).
@@ -166,27 +174,219 @@ void TtsController::setVoice(const QString &voice)
     if (m_voice == voice)
         return;
     m_voice = voice;
-    emit voiceChanged();
 
-    if (!m_usingCloudTts && modelFilesExist())
-        triggerModelLoad();
+    // The prepared phrases are in the old voice (the cloud speaks in its one fixed voice, so there it
+    // changes nothing); and the model reload (ttsReady false) happens BEFORE voiceChanged, so a host
+    // re-preparing on it waits for ttsReady instead of synthesising in the old voice under the new
+    // voice's key.
+    if (!m_usingCloudTts) {
+        invalidatePrepared("voice changed");
+        if (modelFilesExist())
+            triggerModelLoad();
+    }
+    emit voiceChanged();
+}
+
+// The cloud engine (AzureTTSEngine) speaks in one fixed voice whatever `voice` says.
+TtsPhraseKey TtsController::phraseKey(const QString &trimmedText) const
+{
+    return m_usingCloudTts ? TtsPhraseKey{ QStringLiteral("cloud"), QString(), trimmedText }
+                           : TtsPhraseKey{ QStringLiteral("local"), m_voice, trimmedText };
 }
 
 void TtsController::speak(const QString &text)
 {
-    if (text.trimmed().isEmpty() || !m_ttsReady || m_ttsActive)
-        return;
     const QString t = text.trimmed();
-    QMetaObject::invokeMethod(m_worker, [this, t]() {
-        m_worker->synthesise(t);
-    }, Qt::QueuedConnection);
+    if (t.isEmpty() || m_ttsActive)
+        return;
+    const TtsPhraseKey key = phraseKey(t);
+
+    // Prepared: play the cached audio now — no synthesis.
+    if (const PreparedAudio *a = m_prepared.find(key)) {
+        QElapsedTimer clock;
+        clock.start();
+        const bool hadReplay = !m_lastAudioCache.isEmpty();
+        m_lastAudioCache  = a->pcm;
+        m_lastAudioFormat = a->format;
+        m_audioOutput->writeAudio(a->pcm, a->format);
+        m_lastTtsLatencyMs = clock.elapsed();
+        ppInfo() << qUtf8Printable(QStringLiteral("[TTS] speak \"%1\" from cache").arg(t));
+        if (!hadReplay)
+            emit canReplayChanged();
+        // Queued: the caller has returned from speak() before it hears the latency.
+        QMetaObject::invokeMethod(this, [this]() { emit lastTtsLatencyMsChanged(); }, Qt::QueuedConnection);
+        return;
+    }
+
+    if (!m_ttsReady)
+        return;
+
+    // Being prepared right now: play it as it arrives (and still cache it).
+    const quint64 gen = m_prepared.generation();
+    if (m_job && m_job->key == key && m_job->generation == gen && !m_job->play) {
+        m_job->speakClock.start();
+        beginPlaying(*m_job);
+        ppInfo() << qUtf8Printable(QStringLiteral("[TTS] speak \"%1\" while it is being prepared — playing as it arrives").arg(t));
+        return;
+    }
+    for (TtsJob &j : m_jobs) {
+        if (j.key == key && j.generation == gen && !j.play) {
+            j.play = true;
+            j.speakClock.start();
+            setActive(true);
+            ppInfo() << qUtf8Printable(QStringLiteral("[TTS] speak \"%1\" queued to be prepared — playing as it arrives").arg(t));
+            return;
+        }
+    }
+
+    TtsJob job;
+    job.text       = t;
+    job.key        = key;
+    job.generation = gen;
+    job.play       = true;
+    job.speakClock.start();
+    m_jobs.append(job);
+    setActive(true);
+    ppInfo() << qUtf8Printable(QStringLiteral("[TTS] speak \"%1\" not prepared — synthesising now").arg(t));
+    pumpJobs();
+}
+
+void TtsController::prepare(const QString &text)
+{
+    const QString t = text.trimmed();
+    if (t.isEmpty())
+        return;
+    if (!m_ttsReady) {
+        ppInfo() << qUtf8Printable(QStringLiteral("[TTS] prepare \"%1\" skipped: voice not ready").arg(t));
+        return;
+    }
+    const TtsPhraseKey key = phraseKey(t);
+    if (!m_prepared.beginPrepare(key))
+        return;   // already cached, or already being prepared
+    TtsJob job;
+    job.text       = t;
+    job.key        = key;
+    job.generation = m_prepared.generation();
+    job.prepare    = true;
+    m_jobs.append(job);
+    pumpJobs();
+}
+
+bool TtsController::isPrepared(const QString &text) const
+{
+    const QString t = text.trimmed();
+    return !t.isEmpty() && m_prepared.contains(phraseKey(t));
 }
 
 void TtsController::stopSpeaking()
 {
-    QMetaObject::invokeMethod(m_worker, [this]() {
-        m_worker->stop();
-    }, Qt::QueuedConnection);
+    // What is already written to the output stops too: a prepared phrase is written whole at speak()
+    // and never sets ttsActive, so without this it would play on — and a line spoken next would wait
+    // behind it (TrunkRoutine's turn-back cue cuts off its start cue this way).
+    m_audioOutput->clearPending();
+    // Waiting speeches go; waiting prepares stay. A queued speak of a phrase being prepared just
+    // stops being played.
+    for (int i = m_jobs.size() - 1; i >= 0; --i) {
+        if (!m_jobs[i].play) continue;
+        if (m_jobs[i].prepare) m_jobs[i].play = false;
+        else                   m_jobs.removeAt(i);
+    }
+    if (m_job && m_job->play) {
+        if (m_job->prepare) {
+            // A prepare that was also being played: stop playing it, keep synthesising it.
+            m_job->play = false;
+        } else {
+            m_job->aborted = true;
+            QMetaObject::invokeMethod(m_worker, [this]() {
+                m_worker->stop();
+            }, Qt::QueuedConnection);
+            return;   // ttsActive drops when the worker reports the synthesis finished
+        }
+    }
+    setActive(false);
+}
+
+void TtsController::beginPlaying(TtsJob &job)
+{
+    job.play = true;
+    setActive(true);
+    if (!job.started)
+        return;   // onSynthesisStarted takes over the replay buffer
+    const bool hadReplay = !m_lastAudioCache.isEmpty();
+    m_lastAudioCache  = job.pcm;
+    m_lastAudioFormat = job.format;
+    if (!job.pcm.isEmpty())
+        m_audioOutput->writeAudio(job.pcm, job.format);
+    if (hadReplay != !m_lastAudioCache.isEmpty())
+        emit canReplayChanged();
+}
+
+void TtsController::setActive(bool on)
+{
+    if (m_ttsActive == on)
+        return;
+    m_ttsActive = on;
+    emit ttsActiveChanged();
+}
+
+// One synthesis at a time: the next waiting job goes to the worker once the last has finished and
+// the model is ready. A waiting PREPARE from before a voice/backend change is dropped (its phrase
+// is re-prepared by the host); a waiting SPEAK is re-keyed to the voice now.
+void TtsController::pumpJobs()
+{
+    while (!m_job && !m_jobs.isEmpty() && m_ttsReady) {
+        TtsJob job = m_jobs.takeFirst();
+        if (job.generation != m_prepared.generation()) {
+            if (!job.play)
+                continue;
+            job.key        = phraseKey(job.text);
+            job.generation = m_prepared.generation();
+            job.prepare    = job.prepare && m_prepared.beginPrepare(job.key);
+        }
+        job.synthClock.start();
+        m_job = job;
+        const QString t = job.text;
+        QMetaObject::invokeMethod(m_worker, [this, t]() {
+            m_worker->synthesise(t);
+        }, Qt::QueuedConnection);
+        m_dispatchWatchdog.start();
+    }
+}
+
+void TtsController::onDispatchTimeout()
+{
+    if (!m_job || m_job->started)
+        return;
+    ppWarn() << qUtf8Printable(QStringLiteral("[TTS] \"%1\" never started synthesising — dropped").arg(m_job->text));
+    if (m_job->prepare)
+        m_prepared.abandon(m_job->key, m_job->generation);
+    const bool wasPlay = m_job->play;
+    m_job.reset();
+    if (wasPlay && !std::any_of(m_jobs.cbegin(), m_jobs.cend(), [](const TtsJob &j) { return j.play; }))
+        setActive(false);
+    pumpJobs();
+}
+
+void TtsController::dropJobs(const char *why)
+{
+    m_dispatchWatchdog.stop();
+    if (m_job || !m_jobs.isEmpty())
+        ppInfo() << "[TTS] dropped" << (m_jobs.size() + (m_job ? 1 : 0)) << "synthesis job(s):" << why;
+    m_job.reset();
+    m_jobs.clear();
+    setActive(false);
+}
+
+void TtsController::invalidatePrepared(const char *why)
+{
+    const bool had = m_prepared.size() > 0;
+    m_prepared.invalidate();
+    // Waiting prepares are for the old voice; a waiting speak is re-keyed when it is dispatched.
+    for (int i = m_jobs.size() - 1; i >= 0; --i)
+        if (!m_jobs[i].play) m_jobs.removeAt(i);
+    if (had)
+        ppInfo() << "[TTS] prepared phrases cleared:" << why;
+    emit preparedChanged();
 }
 
 void TtsController::toggleTtsBackend()
@@ -248,6 +448,14 @@ void TtsController::replayLastAudio()
 
 void TtsController::onAudioReady(const QByteArray &data, const QAudioFormat &format)
 {
+    if (!m_job) {
+        ppWarn() << "[TTS] audio with no synthesis in flight — dropped";
+        return;
+    }
+    m_job->format = format;
+    m_job->pcm.append(data);
+    if (!m_job->play || m_job->aborted)
+        return;   // a prepare: kept, never played; or stopped: its tail is not played either
     m_lastAudioFormat = format;
     m_lastAudioCache.append(data);
     m_audioOutput->writeAudio(data, format);
@@ -259,6 +467,7 @@ void TtsController::onModelReady()
         return;  // Kokoro loaded on CPU; Azure switch is pending — don't signal ready yet
     m_ttsReady = true;
     emit ttsReadyChanged();
+    pumpJobs();
 }
 
 void TtsController::onModelFailed(const QString &error)
@@ -284,26 +493,65 @@ void TtsController::onBackendChanged(const QString &backend)
 
 void TtsController::onSynthesisStarted()
 {
+    if (!m_job) {
+        ppWarn() << "[TTS] a synthesis started with none in flight";
+        return;
+    }
+    m_dispatchWatchdog.stop();
+    m_job->started = true;
+    if (!m_job->play)
+        return;
     const bool hadCache = !m_lastAudioCache.isEmpty();
     m_lastAudioCache.clear();
     m_ttsStartTimer.restart();
-    m_ttsActive = true;
-    emit ttsActiveChanged();
     if (hadCache)
         emit canReplayChanged();
 }
 
 void TtsController::onSynthesisFinished()
 {
-    if (m_ttsStartTimer.isValid()) {
-        m_lastTtsLatencyMs = m_ttsStartTimer.elapsed();
-        m_ttsStartTimer.invalidate();
-        emit lastTtsLatencyMsChanged();
+    if (!m_job) {
+        ppWarn() << "[TTS] a synthesis finished with none in flight";
+        return;
     }
-    m_ttsActive = false;
-    emit ttsActiveChanged();
-    if (!m_lastAudioCache.isEmpty())
-        emit canReplayChanged();
+    m_dispatchWatchdog.stop();
+    TtsJob job = *m_job;
+    m_job.reset();
+    const qint64 synthMs = job.synthClock.isValid() ? job.synthClock.elapsed() : -1;
+
+    if (job.prepare) {
+        if (!job.aborted && !job.pcm.isEmpty()
+            && m_prepared.store(job.key, PreparedAudio{ job.pcm, job.format }, job.generation)) {
+            ppInfo() << qUtf8Printable(QStringLiteral("[TTS] prepared \"%1\" in %2 ms").arg(job.text).arg(synthMs));
+            emit preparedChanged();
+        } else {
+            m_prepared.abandon(job.key, job.generation);
+            ppInfo() << qUtf8Printable(QStringLiteral("[TTS] prepare \"%1\" not kept (%2)")
+                                           .arg(job.text,
+                                                job.generation != m_prepared.generation() ? QStringLiteral("voice changed meanwhile")
+                                                : job.pcm.isEmpty()                        ? QStringLiteral("no audio")
+                                                                                           : QStringLiteral("stopped")));
+        }
+    }
+
+    if (job.play) {
+        m_ttsStartTimer.invalidate();
+        m_lastTtsLatencyMs = job.speakClock.isValid() ? job.speakClock.elapsed() : synthMs;
+        if (job.aborted)
+            ppInfo() << qUtf8Printable(QStringLiteral("[TTS] speak \"%1\" stopped").arg(job.text));
+        else if (!job.prepare)
+            ppInfo() << qUtf8Printable(QStringLiteral("[TTS] speak \"%1\" synthesised now (%2 ms)").arg(job.text).arg(m_lastTtsLatencyMs));
+        else
+            ppInfo() << qUtf8Printable(QStringLiteral("[TTS] speak \"%1\" played as it was prepared (%2 ms)").arg(job.text).arg(m_lastTtsLatencyMs));
+        emit lastTtsLatencyMsChanged();
+        if (!m_lastAudioCache.isEmpty())
+            emit canReplayChanged();
+    }
+    if (job.play || job.aborted) {
+        if (!std::any_of(m_jobs.cbegin(), m_jobs.cend(), [](const TtsJob &j) { return j.play; }))
+            setActive(false);
+    }
+    pumpJobs();
 }
 
 void TtsController::onTtsError(const QString &message)
@@ -335,6 +583,10 @@ void TtsController::switchToAzure(const QString &apiKey)
         emit downloadingChanged();
     }
 
+    // The worker (and anything it was synthesising) goes; the prepared audio was the local voice's.
+    dropJobs("switching to cloud speech");
+    invalidatePrepared("switching to cloud speech");
+
     // Shut down the Kokoro worker thread.
     m_workerThread->quit();
     m_workerThread->wait();
@@ -355,6 +607,9 @@ void TtsController::switchToKokoro()
     m_usingCloudTts = false;
     m_ttsReady = false;
     emit ttsReadyChanged();
+
+    dropJobs("switching to local speech");
+    invalidatePrepared("switching to local speech");
 
     m_workerThread->quit();
     m_workerThread->wait();

@@ -56,6 +56,13 @@ public:
         m_buffer.append(data);
     }
 
+    // Drops what has not reached the sink yet (AudioOutput::clearPending).
+    void clear()
+    {
+        QMutexLocker lock(&m_mutex);
+        m_buffer.clear();
+    }
+
     qint64 bytesAvailable() const override
     {
         QMutexLocker lock(&m_mutex);
@@ -240,6 +247,12 @@ void AudioOutput::writeAudio(const QByteArray &data, const QAudioFormat &)
 {
     if (m_playbackDevice)
         m_playbackDevice->appendData(data);
+}
+
+void AudioOutput::clearPending()
+{
+    if (m_playbackDevice)
+        m_playbackDevice->clear();
 }
 
 void AudioOutput::onSinkStateChanged(QAudio::State qtState)

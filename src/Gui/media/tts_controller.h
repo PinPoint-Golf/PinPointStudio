@@ -22,6 +22,11 @@
 #include <QObject>
 #include <QStringList>
 #include <QThread>
+#include <QTimer>
+
+#include <optional>
+
+#include "tts_phrase_cache.h"
 
 class AppSettings;
 class AudioOutput;
@@ -45,6 +50,18 @@ class TtsWorker;
 //   ttsController.downloadStatus   // human-readable status string
 //   ttsController.voices           // string list of available voices
 //   ttsController.voice            // current voice name (read/write)
+//   ttsController.prepare("Turn back to address.")   // synthesise now, play later
+//   ttsController.isPrepared("Turn back to address.") // its audio is cached for this voice
+//
+// PREPARED PHRASES (27 Oct 2026, Mark: "the phrases should be prepared in advance, ideally when the
+// session setup is instantiated — makes no sense to do it at the last minute"). prepare(text)
+// synthesises WITHOUT playing into a small cache keyed by (backend, voice, text) — tts_phrase_cache.h;
+// speak(text) of a prepared phrase plays the cached audio at once, with no synthesis; any other text
+// is synthesised as before. A voice or backend change empties the cache (the hosts re-prepare when
+// ttsReady comes back; preparedChanged fires). Syntheses run ONE AT A TIME through a small job queue
+// (the Azure engine would otherwise overlap replies): a speak() queued behind a prepare waits for it,
+// and a speak() of the phrase being prepared plays it as it arrives. canReplay / replayLastAudio
+// replay the last thing SPOKEN — a prepare never touches it.
 
 class TtsController : public QObject
 {
@@ -79,6 +96,11 @@ public:
     qint64      lastTtsLatencyMs()          const { return m_lastTtsLatencyMs; }
 
     Q_INVOKABLE void speak(const QString &text);
+    // Synthesise `text` into the phrase cache without playing it. Idempotent: a phrase already
+    // cached, or being prepared, for this voice is left alone. Ignored while !ttsReady.
+    Q_INVOKABLE void prepare(const QString &text);
+    // True when `text`'s audio is cached for the current voice and backend (speak plays it at once).
+    Q_INVOKABLE bool isPrepared(const QString &text) const;
     Q_INVOKABLE void stopSpeaking();
     Q_INVOKABLE void replayLastAudio();
     Q_INVOKABLE void toggleTtsBackend();
@@ -98,6 +120,8 @@ signals:
     void cloudTtsFallbackAvailableChanged();
     void voiceChanged();
     void lastTtsLatencyMsChanged();
+    // A phrase was stored in, or the cache was emptied of, prepared audio.
+    void preparedChanged();
 
 private slots:
     void onModelReady();
@@ -127,6 +151,29 @@ private:
     void    connectWorkerSignals();
     void    switchToAzure(const QString &apiKey);
     void    switchToKokoro();
+
+    // ── Prepared phrases and the synthesis queue ──
+    struct PreparedAudio { QByteArray pcm; QAudioFormat format; };
+    struct TtsJob {
+        QString       text;
+        TtsPhraseKey  key;
+        quint64       generation = 0;
+        bool          prepare = false;   // store the audio in the phrase cache
+        bool          play    = false;   // write the audio to the output as it arrives
+        bool          started = false;
+        bool          aborted = false;   // stopSpeaking() cut it short: never cached
+        QByteArray    pcm;
+        QAudioFormat  format;
+        QElapsedTimer synthClock;        // dispatch → finished
+        QElapsedTimer speakClock;        // speak() → finished (the latency the golfer hears)
+    };
+    TtsPhraseKey phraseKey(const QString &trimmedText) const;
+    void    pumpJobs();
+    void    beginPlaying(TtsJob &job);
+    void    setActive(bool on);
+    void    dropJobs(const char *why);
+    void    invalidatePrepared(const char *why);
+    void    onDispatchTimeout();
 
     // True when the Azure TTS key is configured.
     bool    ttsKeyPresent() const;
@@ -158,4 +205,9 @@ private:
     QAudioFormat  m_lastAudioFormat;
     QElapsedTimer m_ttsStartTimer;
     qint64        m_lastTtsLatencyMs = 0;
+
+    TtsPhraseCache<PreparedAudio> m_prepared;
+    QList<TtsJob>                 m_jobs;          // waiting, oldest first
+    std::optional<TtsJob>         m_job;           // dispatched to the worker
+    QTimer                        m_dispatchWatchdog;
 };

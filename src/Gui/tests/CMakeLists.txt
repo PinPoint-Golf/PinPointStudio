@@ -181,6 +181,12 @@ pp_add_test(paced_connect_queue_test
     INCLUDE ${GUI} ${SRC}
     LINK    Qt6::Test  AUTOMOC)
 
+# TtsController's prepared phrases (media/tts_phrase_cache.h, 27 Oct 2026): the (backend, voice, text)
+# key, idempotent prepare, invalidation on a voice/backend change, LRU capacity. Header-only, no audio.
+pp_add_test(tts_phrase_cache_test
+    SOURCES tts_phrase_cache_test.cpp
+    INCLUDE ${GUI} ${SRC})
+
 # ShotListModel's ledger — the carousel's ordinals, its reload from disk, and the
 # write-through of the user's review.  Distinct from shot_list_model_test above,
 # which covers shotSummary() only: this one puts real swing.json documents on disk

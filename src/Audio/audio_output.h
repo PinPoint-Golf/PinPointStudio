@@ -79,6 +79,9 @@ public:
 
     void  setVolume(qreal volume);   // 0.0–1.0
     qreal volume() const;
+    // Drops the audio written but not yet played: what is still queued stops at once (the sink's own
+    // few ms of buffer aside). The output stays started; the next writeAudio() plays as usual.
+    void  clearPending();
 
 public slots:
     void writeAudio(const QByteArray &data, const QAudioFormat &format) override;
