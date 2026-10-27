@@ -10,56 +10,127 @@ Where the SDK and protocol doc disagree, the SDK is correct. Confirmed discrepan
 
 ## Working with the device in PinPoint — read this first (27 Oct 2026)
 
-Everything below is settled. Do not re-derive the axes or ask for desk tests: read the arm calibration code
-(`src/IMU/imu_calibration.h`, above `nominalArmMount`) and test our maths on a recording instead.
+This section is the practical summary: what you need to know before writing code that touches a WT901BLE67,
+or before deciding that one is misbehaving. Most of it was learned the hard way, first during a long week
+getting the arm sensors right and again during the trunk-sensor week in October 2026. It is all settled.
 
-**Runtime configuration (every connect, never saved to flash).** `WT9011DCL_BLE::initializeDevice()` sends
-ORIENT = 0x0001 (vertical installation), AXIS6 = 0x0001 (6-axis, no magnetometer) and RRATE, then reads ORIENT
-and AXIS6 back (`[orient]` / `[axis6]` log lines). No CALSW zeroing at connect: the device's own zero and its
-Euler output are not used for computation. Every axis fact and mount constant in PinPoint was measured with
-this configuration applied. ORIENT is WitMotion's installation-direction setting; if it is ever changed, the
-output axes may be remapped and the characterisation (below) must be redone.
+**If a reading looks wrong, suspect our code before the sensor.** The device's axes, its handedness and its
+configuration have been measured and re-checked several times. The quickest way to find a fault is to record
+a known movement and run that recording through our own calculations (see "Tools" at the end), not to
+re-characterise the device by hand. The arm calibration code in `src/IMU/imu_calibration.h` (the comment above
+`nominalArmMount`) is the reference for how the sensor really behaves on a body.
 
-**Ranges and rate.** Accel ±16 g, gyro ±2000 °/s (int16, `dispatchCombinedPacket`); frames over 16 g of
-|a| are rejected as a mis-aligned lock-on. Trunk and worn sessions run at 200 Hz (RRATE 0x0B); the driver
-default is 100 Hz (0x09).
+### How PinPoint configures the sensor
 
-**Axes (sensor body, as streamed in the 0x61 frame).** Right-handed. The accelerometer reads +1 g on the
-axis pointing **up** (gravity reaction). With the label facing you and the USB end **down**: +X your right,
-+Y up (**away from the USB end**), +Z out of the label. The gyro shares the accel axes and is right-handed:
-an anticlockwise turn about the up axis reads positive (verified 27 Oct 2026 from a raw spin recording,
-`/mnt/swingdata/scratch/trunk-hw/desk/gyro-sign-20261027-072556/`). Full table and evidence:
-[`imu_axis_reference.md`](imu_axis_reference.md) §2 (corrected 26 Oct 2026; before that its words had +X/+Y
-inverted, its measured column never did).
+Every time a sensor connects, the app sends it the same three settings and then reads two of them back to
+confirm they were accepted (`WT9011DCL_BLE::initializeDevice()`; the confirmations appear in the app log as
+`[orient]` and `[axis6]` lines):
 
-**Orientation is fused on the host,** from raw gyro + accel, in `ImuBase::fuseRawImu()`: Madgwick (default)
-or ESKF (`imu/orientationFilter`). Both report one world since the #104 fix (26 Oct 2026): +Z up, Hamilton,
-body→world, a level label-up sensor reads identity; heading is free (6-axis) and drifts (~0.1 °/s seen on a
-still sensor between steps, 27 Oct), so re-reference heading at use. A non-finite fused quaternion is never emitted
-(re-seed from gravity, logged `[IMU] orientation filter … diverged`). The device's own Euler/quaternion output
-is display-only: it proved non-rigid. Swings captured with the ESKF before #104 keep their old quaternions
-(their world depended on the seed pose and many went NaN in the downswing).
+- **Vertical installation** (ORIENT = 1). WitMotion lets you tell the sensor whether it is lying flat or
+  standing on its end. We always use "vertical", because on the arm and the trunk it is worn upright.
+- **6-axis mode** (AXIS6 = 1). The sensor ignores its magnetometer. A golf club, the simulator frame and the
+  building's steel all distort the magnetic field, and the magnetometer reacts too slowly for a swing anyway.
+- **Output rate** (RRATE). 200 samples a second for worn and trunk sessions; the driver's default is 100.
 
-**Mounts.** Every solve takes its frame from gravity and the face, so device axis words never enter the maths.
-- Arm/forearm/upper arm: watch-style, label out (lateral), USB end forward; sensor +X runs down the arm.
-  M = `kNominalArmMount` (0.5, −0.5, −0.5, −0.5), gravity-pinned against captured data.
-- Hand (dorsal): `kNominalHandMount`, solved from a characterisation capture.
-- Trunk (hip on the belt at the lower back, chest between the shoulder blades): upright, **USB end down,
-  label facing out** (the label's printing reads the right way up). Stand tall solves A and M
-  (`solveTrunkSegment`); the long-axis gate wants sensor +Y within 35° of up.
+These settings are never saved into the sensor's own memory: they are simply sent again on every connection.
+Saving is unnecessary, wears the flash, and once (combined with the sensor's built-in calibration) corrupted
+a sensor. We also do not use the sensor's built-in "zero" calibration any more: as explained below, we work
+out orientation ourselves, so the sensor's own zero point affects nothing.
 
-**Timing.** Samples arrive over BLE in bursts of about 8 every ~30 ms (34–96 ms late), and the device clock
-runs ~0.7 % slow (198.6 Hz at a nominal 200). Analysis re-times each Witmotion lane to its own device clock
-(`src/IMU/imu_retime.h`, design §7.1); never use arrival times as sample times.
+Everything we know about the axes was measured with these settings in force. If someone ever changes the
+installation setting, the sensor may report its axes differently, and the measurements would have to be
+redone.
 
-**Quality.** Gyro bias ≤ 0.22 °/s at rest (no bias estimator needed); |a| at rest reads within +0.6 to +1.7 %
-of 1 g (the trunk gravity gate is ±3 %). For stillness use `ImuInstance::gyroDps` (device gyro, 250 ms peak),
-not the quaternion-difference `angularVelocityDps`, which is noisy per sample.
+### What the sensor measures
 
-**Tools.** `PINPOINT_IMU_RECORD_DIR=<dir>` records every raw sample (t_us, accel g, gyro °/s, fused quaternion)
-per connection to CSV (`pinpoint.imu_record/1`); `tools/trunk/trunk_hw.py` reads them. To check our maths
-against a known motion, run a recording through the real solve/check offline rather than reasoning about the
-device.
+The sensor reports three accelerations (in g, up to ±16 g) and three rotation rates (in degrees per second, up
+to ±2000 °/s). The driver throws away any frame whose acceleration exceeds 16 g, because that only happens
+when it has latched onto the wrong bytes of the Bluetooth stream.
+
+The **accelerometer** reads +1 g along whichever axis is pointing **up** when the sensor is still. (This feels
+backwards, since gravity pulls down, but it is how all such sensors work: they measure the push that holds
+them up.)
+
+The **axes**, picturing the sensor standing on its end with the label facing you and the **USB end at the
+bottom**:
+
+- **+X** points to your right;
+- **+Y** points up, away from the USB end;
+- **+Z** points out of the label, towards you.
+
+So the label's printing reads the right way up when the USB end is at the bottom, and that is the sensor's
+natural "upright" pose. Until 26 Oct 2026 the axis reference described +X and +Y the other way round. Its
+measured numbers were always right; only the words were wrong. The full table and the evidence are in
+[`imu_axis_reference.md`](imu_axis_reference.md) §2.
+
+The **gyroscope** uses the same three axes and follows the right-hand rule: a turn anticlockwise (seen from
+above) about whichever axis points up reads as a positive rate. This was confirmed on 27 Oct 2026 from a
+recording of the sensor turned by hand in known directions (kept in
+`/mnt/swingdata/scratch/trunk-hw/desk/gyro-sign-20261027-072556/`).
+
+### How PinPoint works out orientation
+
+The sensor can report its own orientation, but we don't use it: it turned out to be distorted, by up to 50° on
+some joints, and it breaks down when the sensor points straight up or down. Instead the app takes the raw
+accelerometer and gyro readings and combines them itself, in `ImuBase::fuseRawImu()`. This "fusion" uses the
+gyro to follow fast movement and the accelerometer to keep track of which way is up.
+
+There are two fusion methods, chosen in Settings → IMUs: **Madgwick** (the default) and **ESKF**. Since the fix
+for issue #104 on 26 Oct 2026 they report orientation the same way: world "up" is +Z, and a sensor lying flat
+with its label up reads as no rotation at all. Before that fix the ESKF version never used the accelerometer
+properly; it drifted, its idea of "up" depended on how the sensor happened to be lying when it started, and it
+usually broke down completely during the downswing. Swings recorded with the old ESKF keep their old
+(often broken) orientation. If fusion ever produces an impossible value now, the app restarts it from gravity
+and logs `[IMU] orientation filter … diverged`.
+
+Because the magnetometer is off, nothing tells the sensor which way is north. Its sense of **heading** (which
+way it is facing around the vertical) is only relative, and it slowly drifts: about 0.1 °/s was seen on a still
+sensor on 27 Oct. So anything that measures a turn should measure it from a recent starting point, not from
+the moment the sensor connected.
+
+### Wearing the sensor
+
+How the sensor sits on the body is handled by calibration, which works out the sensor's mounting from gravity
+and from the direction the label faces. That is why the axis words above never appear in the calculations.
+Each body position still has a standard way of wearing the sensor:
+
+- **Arm (forearm or upper arm):** like a watch, label facing outward, USB end pointing forward. The sensor's +X
+  then runs down the arm. The mounting is a fixed constant (`kNominalArmMount`), checked against gravity in
+  real recordings.
+- **Hand (back of the hand):** a fixed constant (`kNominalHandMount`), worked out from a recorded calibration.
+- **Trunk:** the hip sensor on the belt at the lower back, the chest sensor between the shoulder blades, both
+  upright with the **USB end down and the label facing out**. The calibration routine's stand-tall step solves
+  the exact mounting, and refuses if the sensor's long axis is more than 35° from vertical (usually meaning it
+  is upside down or lying flat).
+
+### Timing
+
+Samples don't arrive one at a time. Over Bluetooth they come in bursts of about 8, roughly every 30 ms, so a
+sample can reach the app 34–96 ms after it was measured. The sensor's own clock also runs about 0.7 % slow: set
+to 200 a second, it delivers about 198.6. So the arrival time is never the sample time. Before analysis, each
+sensor's stream is re-timed to its own clock (`src/IMU/imu_retime.h`, design §7.1), which brings sample
+times to within about 1–2 ms.
+
+### How good the readings are at rest
+
+At rest the gyro reads at most 0.22 °/s, small enough that we don't correct for it. The accelerometer reads
+between 0.6 % and 1.7 % above 1 g, which is why the trunk calibration accepts anything within ±3 % of 1 g.
+
+To decide whether a sensor is **still**, use the gyro (`ImuInstance::gyroDps`, the largest rate over the last
+quarter second). Don't use `angularVelocityDps`, which is derived from successive orientations and is noisy
+from one sample to the next.
+
+### Tools
+
+Start the app with `PINPOINT_IMU_RECORD_DIR=<folder>` and it writes every raw sample from every connected
+sensor to a CSV file in that folder: the time, the three accelerations, the three rotation rates and the fused
+orientation. A new file starts with each connection and is closed when the app quits.
+`tools/trunk/trunk_hw.py` reads these files.
+
+To check whether our calculations handle a movement correctly, record the movement, then run the recording
+through the real calibration and checking code offline (on 27 Oct a small program fed the spin recording
+through `solveTrunkSegment` and `checkTrunkTurn` and showed the turn direction was scored correctly). That
+answers the question directly, without anyone having to repeat the desk tests.
 
 ---
 
