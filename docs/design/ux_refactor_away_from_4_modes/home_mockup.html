@@ -49,6 +49,13 @@ h2{margin:0;font-size:20px;font-weight:600}
 .sess{background:#151A1D;border:1px solid #252D32;border-radius:12px}
 .srow{display:grid;grid-template-columns:120px 80px 1fr 1.2fr;gap:12px;padding:13px 18px;border-bottom:1px solid #232A2F}
 .srow:last-child{border-bottom:0}
+
+.card{border:1px solid #20272B;border-radius:12px;overflow:hidden;background:#111619}
+.ch{display:grid;column-gap:14px;padding:10px 18px;font-size:12px;color:#9AA6AC;border-bottom:1px solid #1A2024}
+.cr{display:grid;column-gap:14px;align-items:center;padding:0 18px;border-bottom:1px solid #1A2024}
+.seg{display:flex;gap:2px}.seg i{width:7px;height:6px;border-radius:1px;background:#232B30;display:block}
+.pips{display:flex;gap:3px;justify-content:flex-end}.pips i{width:6px;height:6px;border-radius:50%;display:block}
+.tag{white-space:nowrap;font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px}
 </style>
 </head>
 <body>
@@ -91,11 +98,15 @@ h2{margin:0;font-size:20px;font-weight:600}
     </section>
 
     <section style="display:flex;flex-direction:column;gap:12px">
-      <div style="display:flex;align-items:baseline;gap:16px">
-        <h2>Your swing by area</h2>
-        <span class="muted" style="font-size:13px">from 180 swings over 6 sessions</span>
-        <a style="margin-left:auto;font-size:13px">All work-ons ▸</a>
+      <div style="display:flex;align-items:flex-end;gap:16px;border-bottom:1px solid #20272B">
+        <div role="tablist" style="display:flex;gap:28px">
+          <span role="tab" id="tabC" style="padding:0 2px 10px;font-size:20px;font-weight:600;color:#9AA6AC">Coaching</span>
+          <span role="tab" id="tabS" aria-selected="true" style="padding:0 2px 10px;font-size:20px;font-weight:600;color:#E6EBED;border-bottom:2px solid #5B8CFF;margin-bottom:-1px">Your swing</span>
+        </div>
+        <span class="muted" style="font-size:13px;padding-bottom:12px">from 180 swings over 6 sessions</span>
+        <a style="margin-left:auto;font-size:13px;padding-bottom:12px">All work-ons ▸</a>
       </div>
+      <div id="coach" style="display:none;flex-direction:column;gap:16px"></div>
       <div class="table" id="areas">
         <div class="grid hdr"><span></span><span>Area</span><span>Rating</span><span style="text-align:right">Score</span><span>Trend</span><span>Biggest fault</span><span style="text-align:right">Work-ons</span></div>
       </div>
@@ -129,6 +140,12 @@ const areas = [
     ['Hip stall','9/22','pelvis rotation velocity at P6','Watch','new'],
     ['Loss of posture','8/22','spine angle change P4→P7 · 7° · ≤ 5°','Watch','']]]
 ];
+if (location.hash==='#coaching') {
+  document.getElementById('areas').style.display='none';
+  document.getElementById('coach').style.display='flex';
+  const c=document.getElementById('tabC'), y=document.getElementById('tabS');
+  c.style.cssText=y.style.cssText; y.style.cssText='padding:0 2px 10px;font-size:20px;font-weight:600;color:#9AA6AC';
+}
 const open = new Set((location.hash.slice(1)||'Posture').split(',').map(decodeURIComponent));
 const tbl = document.getElementById('areas');
 const fillCol = s => s >= 60 ? '#5B8CFF' : s >= 45 ? '#E8C27A' : '#F0954A';
@@ -156,6 +173,38 @@ for (const [n,s,t,f,wo,items] of areas) {
 const bf = document.createElement('div'); bf.className='grid arow'; bf.style.borderBottom='0';
 bf.innerHTML = `<span></span><span class="n" style="color:#9AA6AC">Ball flight</span><span class="muted" style="grid-column:span 4">not measured with this rig · <a>Connect launch monitor</a></span><span></span>`;
 tbl.appendChild(bf);
+
+(function(){
+const segs=(sh,c)=>'<span class="seg">'+Array.from({length:10},(_,i)=>`<i style="${i<Math.round(sh*10)?'background:'+c:''}"></i>`).join('')+'</span>';
+const pips=(m,c)=>'<span class="pips">'+m.map(x=>`<i style="${x?'background:'+c:'border:1px solid #5E6A70'}"></i>`).join('')+'</span>';
+const tag=t=>t===1?'<span class="tag" style="color:#F6D2B2;background:#3A2716">↑ growing</span>':t===-1?'<span class="tag" style="color:#CFE0FF;background:#1C2433">↓ easing</span>':'';
+const amber='#E8C27A', blue='#5B8CFF';
+const rn=[['Your trail leg straightens going back',1,'almost every swing',0,[1,1,1,1]],['Your hips sway away from the target going back',.6,'more than half your swings',1,[0,1,1,1,1]]];
+const well=[['You keep your arms wide at the top',.9,'in the ideal range on almost every swing',[1,1,1,1,1]],['Your head stays centred going back',.9,'in the ideal range on almost every swing',[1,1,1,1,1]],['The club keeps speeding up into the ball',1,'in the ideal range on every swing',[1,1,1,1,1]]];
+const next=[['Your hands come over the top coming down',1,'almost every swing',0,[1,1,1,1],1],['You lean toward the target at the top',.9,'almost every swing',0,[1,1,1,1,1]],['Your hips are still speeding up after the ball',.9,'most swings',0,[1,1,1]],['Your body turns in the wrong order coming down',.7,'most swings',-1,[1,1,1]]];
+const g1='grid-template-columns:minmax(0,1fr) 96px 250px 80px';
+let h=`<div class="card">
+ <div style="display:flex;align-items:center;gap:16px;padding:16px 18px;border-bottom:1px solid #1A2024">
+  <span style="color:#8FB0FF;font-size:16px">◎</span><span class="cap">Your focus</span>
+  <span style="font-size:18px;font-weight:600">Trail hip load and hold</span>
+  <span class="muted" style="font-size:13px">covers 2 things on your list · comes earliest in your swing</span>
+  <span class="prac" style="margin-left:auto">▶ Practise</span></div>
+ <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)">
+  <div style="border-right:1px solid #1A2024"><div class="ch" style="grid-template-columns:1fr">Aim for</div>
+   ${['Your trail knee keeps its flex going back','Your hips turn in place going back'].map(a=>`<div class="cr" style="grid-template-columns:18px 1fr;height:48px"><span style="color:#8FB0FF">✓</span><span>${a}</span></div>`).join('')}</div>
+  <div><div class="ch" style="${g1}"><span>Right now</span><span>How often</span><span></span><span style="text-align:right">Sessions</span></div>
+   ${rn.map(r=>`<div class="cr" style="${g1};height:48px"><span>${r[0]}</span>${segs(r[1],amber)}<span style="display:flex;gap:8px;align-items:center;font-size:12px;color:#9AA6AC">${r[2]} ${tag(r[3])}</span>${pips(r[4],'#9AA6AC')}</div>`).join('')}</div>
+ </div>
+ <div style="display:flex;align-items:center;gap:12px;padding:13px 18px;color:#C4CDD1"><span class="chev">▶</span>Why it matters · how to practise</div>
+</div>`;
+const g2='grid-template-columns:18px minmax(0,1fr) 96px 80px';
+const list=(title,col,rows,good)=>`<div class="card"><div class="ch" style="${g2};padding:12px 18px"><span></span><span style="color:${col};font-weight:600">${title}</span><span>How often</span><span style="text-align:right">Sessions</span></div>
+ ${rows.map(r=>`<div class="cr" style="${g2};min-height:56px;padding:8px 18px"><span style="width:10px;height:10px;border-radius:50%;${good?'background:'+blue:'border:2px solid '+amber};box-sizing:border-box;display:block"></span>
+  <span style="display:flex;flex-direction:column;gap:2px"><span style="display:flex;align-items:center;gap:8px">${r[0]} ${!good&&r[5]?'<span class="tag" style="color:#CFE0FF;background:#1C2433;border:1px solid #34425E">Next</span>':''}</span><span style="font-size:12px;color:#9AA6AC;display:flex;gap:8px;align-items:center">${r[2]} ${good?'':tag(r[3])}</span></span>
+  ${segs(r[1],good?blue:amber)}${pips(good?r[3]:r[4],good?blue:'#9AA6AC')}</div>`).join('')}</div>`;
+h+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${list('What you do well','#8FB0FF',well,true)}${list('Next on your list',amber,next,false)}</div>`;
+document.getElementById('coach').innerHTML=h;
+})();
 </script>
 </body>
 </html>

@@ -9,7 +9,8 @@ goal, the files it touches, what it reuses, what it adds, the tests that must ch
 acceptance checks. Phases are ordered so that each one ships on its own and leaves the app working.
 
 Visual reference (for humans): the Design canvas "PinPoint Studio — UX restructure", board
-**1 · Home** — https://claude.ai/code/artifact/06edc700-742b-4dd3-9f5e-01136988bced. Claude Code
+**1a · Home — Coaching tab** and **1b · Home — Your swing tab** —
+https://claude.ai/code/artifact/06edc700-742b-4dd3-9f5e-01136988bced. Claude Code
 cannot open it, and it predates the decisions in this document (it shows swing phases, not pack
 groups). **The authoritative visual reference is the PNGs in
 `docs/design/ux_refactor_away_from_4_modes/`** (Appendix A), rendered to match this document.
@@ -76,7 +77,27 @@ Three sections, top to bottom (wireframe in Appendix A.1):
    "last session" line. Right: **What this rig can measure** — one row per capability group,
    live/estimated/missing, with a "connect …" link on a gap, and the existing "Add iPhone as a
    camera" (PPCP pairing) entry.
-2. **Your swing by area** — the new centrepiece. One row per area, collapsed by default except the
+2. **Two tabs: Coaching | Your swing.** One tab bar (title-sized labels, underline on the
+   selected tab, the `summarySubtitle` evidence line and "All work-ons ▸" on the same baseline).
+   Both tabs read the same `workOns` controller and the same evidence; they answer different
+   questions, so neither replaces the other.
+
+   **Coaching** — *what to do next*, in the golfer's words. Today's YOUR SWING content (the
+   same `workOns` strings: `focusItem`, `doWellItems`, `nextItems`), **redrawn in the new visual
+   language** (§2.5), not the current card style. See `03_home_coaching.png`:
+   - **Your focus** card: header row (focus icon · YOUR FOCUS · title · reason in one line ·
+     **Practise**); below it two side-by-side tables, *Aim for* (tick rows) and *Right now* (fault
+     rows: text · how-often meter · frequency words + trend tag · session pips); then a collapsed
+     expand row **"Why it matters · how to practise"** holding the two paragraphs. The long text is
+     no longer shown by default.
+   - **What you do well** and **Next on your list**: two table cards side by side, same row
+     grammar (mark · text with frequency words beneath · how-often meter · session pips); "Next"
+     tag on the first item; trend tags (↑ growing / ↓ easing) beside the frequency words.
+   - No figures, no P-positions, no claims about cause — the golfer layer's rules from
+     `home_themes_design.md` still hold; only the presentation changes.
+
+   **Your swing** — *how the whole swing stands*, by area. The rest of this item describes it.
+   One row per area, collapsed by default except the
    weakest. Columns: chevron · area · rating bar · score · trend · biggest fault · work-ons count.
    Expanding a row lists that area's conditions (top 3–5 by impact) with: name · share of swings
    (`fired/assessable`) · typical value vs corridor · grade · one action:
@@ -85,13 +106,15 @@ Three sections, top to bottom (wireframe in Appendix A.1):
    - any other Watch/Action item → **Make work-on** *(D3)*;
    - a footer link **"All of <area> →"** opens Swing diagnostics filtered to that group.
 
-   The table replaces YOUR SWING (`HmSwingSummary`, `HmFocus`) on Home. It steers to the area of
-   most need while showing the whole swing ("your setup is nearly perfect; the work is in your
-   release").
+   It steers to the area of most need while showing the whole swing ("your setup is nearly
+   perfect; the work is in your release").
+
+   Default tab: **Coaching** (D6); the last tab chosen is remembered per athlete.
 3. **Recent sessions** — the existing `PpSessionReportList`, unchanged.
 
-Removed from Home: the 4-type card grid (`HmTypeCard`), the device-readiness block (folded into
-the capability panel), YOUR SWING.
+Removed from Home: the 4-type card grid (`HmTypeCard`) and the device-readiness block (folded
+into the capability panel). YOUR SWING stays, as the Coaching tab. Naming: the old section
+heading "Your swing" now names the area tab; the summary's tab is "Coaching".
 
 ### 2.4 Starting a session
 
@@ -104,6 +127,51 @@ the capability panel), YOUR SWING.
   keep using the panel's existing `_declareFocus` path (`PpSessionDiagnosticsBody.qml` l.123).
 - Session **goals** (`presets[].goals`, `appSettings.sessionGoalsByType`) are retired. "General
   assessment" becomes "no focus"; the other goals were pre-diagnostics placeholders.
+
+### 2.5 Visual language (applies beyond Home)
+
+> **This is a new aesthetic, not a restyle of one screen.** Table cards with hairline rows,
+> expandable rows, title-size text tabs, the 10-segment how-often meter, trend tags, monospace
+> figures and quiet section chrome replace the current card-and-pill look (compare
+> `coaching_existing.png` with `03_home_coaching.png`). It will extend across the app — session,
+> review, work-on and settings screens — so Home is only its first user.
+>
+> **Consequence: shared GUI components and theme tokens may need to change, not just be
+> wrapped.** `PpCard`, `PpMeter`, `PpPips`, `PpChip`, `PpBadge`, `PpRailButton`,
+> `PpSegmentedControl`, `PpMicro`/`PpDisplayText` and `Theme.qml` are used well beyond Home, and
+> the six theme aesthetics (instrument, editorial, studio, vector, terrain, links) must all carry
+> the new look. Changing a shared component therefore changes other screens. Treat that as
+> intended, but make it visible: every change to an existing shared component or token is listed
+> in its PR with the screens it affects, and checked with before/after `theme_render` and
+> `typeset_gallery` captures in every theme.
+
+Its parts are built once as shared components in `src/Gui/components/`. Both Home tabs, the area table and Recent
+sessions use only these:
+
+| Component | What it is | Used by |
+|---|---|---|
+| `PpTableCard` | Bordered card (radius 12, `colorBg2`-level ground) with an optional header row of column captions; children are rows separated by hairlines | every table on Home |
+| `PpTableRow` | Fixed-height row (48; 56 with a second line) on a column template shared with its card's header | areas, fault/strength lists, sessions |
+| `PpExpandRow` | `PpTableRow` with a chevron that rotates 90° and reveals a child block; keyboard-operable; `Accessible.role: Button`, expanded state exposed | areas, "Why it matters · how to practise" |
+| `PpHowOften` | 10-segment meter, 7×6 segments, 2 px gap; fault colour or strength colour; always paired with frequency words (colour is never the only channel) | Coaching lists |
+| `PpRatingBar` | 6-px track with fill by score band | area table |
+| `PpTrendTag` | Pill: "↑ growing" (`colorWarnLight`/`colorWarn`), "↓ easing" (`colorAccentLight`/`colorAccent`); numeric variant ("+5", "−2") in `fontData` for the area table | both tabs |
+| `PpSessionPips` | One dot per judged session, latest `maxPips`, hollow for a session that did not show it | Coaching lists (wrap `PpPips` if it fits) |
+| `PpTabBar` | Title-size text tabs with a 2-px accent underline, aside text and a right-aligned link on the same baseline | Home; later the session and review screens |
+
+For each row above, decide per component, and record the decision in the Phase 4a PR:
+
+1. **Update the existing component** when it is the same idea in the old look (e.g. `PpPips` →
+   session pips, `PpMeter` → how-often meter, `PpCard` → table card ground). Preferred: the old
+   look then retires everywhere at once rather than two looks living side by side.
+2. **Add a new component** only when no existing one is the same idea (`PpExpandRow`,
+   `PpTabBar`, probably `PpTableRow`).
+3. **Never fork** a near-copy of an existing component for Home alone.
+
+Theme tokens: add what the look needs (e.g. row height, hairline colour, segment size, tab
+underline) to `Theme.qml` for **all six aesthetics**, rather than hard-coding values in
+components. Existing token values may move where the new look needs them to; list every moved
+value in the PR.
 
 ## 3. What the code has today (findings)
 
@@ -146,7 +214,10 @@ the capability panel), YOUR SWING.
 | `PpMeter`, `PpChip`/`PpBadge`, `PpLink`, `PpPressable`, `PpMicro`, `PpDivider` | **Reuse** | Rating bar, state chips, links, rows, captions. |
 | `HmTypeCard` | **Delete** (Phase 5) | |
 | `ScreenPlaceholder` uses for Swing/GRF/Coach | **Delete** (Phase 1) | |
-| `HmSwingSummary`, `HmFocus` | **Retire from Home** (Phase 4); delete or re-home in Phase 5 per D4 | |
+| `HmSwingSummary`, `HmFocus` | **Adapt** — same controller bindings and states (reading / updating / nothing yet), new layout built from the §2.5 components | `HmFocus` gains Practise (`practiseRequested(conditionId)`) and the collapsed why/how row. |
+| §2.5 shared components | **New** in `src/Gui/components/` | Built in Phase 4a before the Home screens use them. |
+| `swingSummaryView` (`focusItem`) | **Adapt** | Add `focusConditionId` — the condition the focus contract should declare (the theme's root/first `rightNow` condition). Words unchanged. |
+| `home/HmHomeTabs.qml` | **New** | Tab bar + `StackLayout` holding `HmSwingSummary` and `HmSwingAreas`; remembers the tab per athlete. `PpSegmentedControl` is the fallback if a plain tab bar fights the theme. |
 | `HmGoesTogether` | **Keep** in Swing diagnostics | |
 | `presets[].railIndex`, `presets[].goals`, `appSettings.sessionGoalsByType`, `appSettings.lastSessionType` | **Delete** (Phase 2) | Migrate settings silently (ignore unknown keys). |
 
@@ -315,20 +386,34 @@ resolver picks from rig capability, otherwise it is a constant.
 - `home/HmRigCapability.qml`: one row per `setupSummary()` group for the currently connected kit;
   extract the "facts from current devices" part of `SetupContext.qml` (l.587–625) into a small
   shared helper so Home and the wizard compute identical facts. Keep the PPCP pairing entry.
+- **4a — shared components and tokens first** (§2.5): update or add each component per the
+  §2.5 decision rule, add tokens to all six aesthetics, give each component a `tst_*.qml` and a
+  gallery entry in the `typeset_gallery`/`theme_render` probes. Because existing components
+  change, capture `theme_render` **before and after** in every theme and list each affected
+  screen in the PR. 4a ships on its own (with Home still on its old layout) so any regression
+  elsewhere is isolated from the Home rebuild.
+- `home/HmHomeTabs.qml` (on `PpTabBar`): tabs **Coaching** and **Your swing** (`HmSwingAreas`);
+  default Coaching (D6); last tab per athlete.
+- Re-lay `HmSwingSummary.qml` and `HmFocus.qml` on the §2.5 components to match
+  `03_home_coaching.png`; keep every binding to `workOns` and every state. `HmFocus` gains
+  Practise → `practiseRequested(focusItem.focusConditionId)`; add `focusConditionId` to
+  `focusItem` in `swingSummaryView` (no recompute, words unchanged).
 - `ScreenHome.qml`: §2 → Start (one button + club picker + last session line); §3 →
-  `HmSwingAreas`; §4 → `HmRigCapability`; §5 unchanged. Wire `practiseRequested` →
+  `HmHomeTabs`; §4 → `HmRigCapability`; §5 unchanged. Wire `practiseRequested` →
   `startSessionRequested({focusConditionId})`; `allInAreaRequested` → new
   `swingDiagnosticsRequested(group)` → `ScreenSwingDiagnostics.groupFilter`.
-- Probes to update/replace: `tests/probes/work_ons_home.qml`, `tests/probes/swing_themes_home.qml`;
-  add `tests/qml/tst_swing_areas.qml` driving `HmSwingAreas` with a fake controller.
-- Accept when: a screenshot of Home matches `02_home_weakest_expanded.png` in layout and
-  proportion (compare side by side and list any differences in the PR); Appendix A.1/A.2 are
+- Probes: update `tests/probes/swing_themes_home.qml` for the new layout (same strings,
+  select the Coaching tab first); update `tests/probes/work_ons_home.qml`; add
+  `tests/qml/tst_swing_areas.qml` driving `HmSwingAreas` with a fake controller and
+  `tests/qml/tst_home_tabs.qml` (default tab, switching, per-athlete memory).
+- Accept when: screenshots of Home match `03_home_coaching.png` (Coaching tab) and
+  `02_home_weakest_expanded.png` (Your swing tab) in layout and proportion (compare side by side and list any differences in the PR); Appendix A.1/A.2 are
   reproduced in every theme (`theme_render` probe); keyboard can
   expand/collapse rows and reach every action; no figure appears without its unit and corridor.
 
 ### Phase 5 — Clean-up
 
-Delete `HmTypeCard.qml`; delete or re-home `HmSwingSummary.qml`/`HmFocus.qml` (D4); remove dead
+Delete `HmTypeCard.qml`; remove dead
 `Theme`/asset references (`qrc:/assets/tiles/*.png` used only by the type cards); remove the
 `comingSoonTypes` logic in `ScreenHome`; update `home_themes_design.md` and
 `session_wizard_refactor_design.md` to point here. Rename `ScreenWrist` → `ScreenSession` as a
@@ -347,9 +432,10 @@ separate mechanical commit.
   "New"; no Add/Make buttons. If adoption is wanted, add an athlete-level
   `<athlete>/work_on_choices.json` (`adopted`, `dismissed` sets) consulted only for display and
   ordering — never for detection.
-- **D4 — "Your focus" and "What you do well".** The approved Home drops both: strengths are high
-  areas, the focus is the Practise button. Keep the components for a possible session-start
-  suggestion, or delete in Phase 5.
+- **D4 — "Your focus" and "What you do well".** *Decided 27 Oct:* kept, as the Coaching tab.
+- **D6 — Default tab.** Coaching (what to do next) by default; Your swing (the holistic view)
+  one click away; the last choice remembered per athlete. Alternative: open on Your swing for a
+  coach-led athlete.
 - **D5 — Rail width.** The current rail is an icon column with labels beneath; the approved
   mockup shows a wider labelled rail. Phase 1 keeps the current rail; widening is cosmetic and can
   follow.
@@ -371,8 +457,10 @@ removing `sessionType` from the analysis pipeline; mobile layouts.
 
 | File | Shows |
 |---|---|
-| `ux_refactor_away_from_4_modes/01_home_collapsed.png` | Home, every area collapsed |
-| `ux_refactor_away_from_4_modes/02_home_weakest_expanded.png` | Home as first shown: the weakest area (Posture) expanded, with Practise on the active work-on and "New" on a newly listed one (D3 default) |
+| `ux_refactor_away_from_4_modes/03_home_coaching.png` | Home on the **Coaching** tab (the default): today's YOUR SWING content redrawn in the §2.5 visual language, why/how collapsed |
+| `ux_refactor_away_from_4_modes/01_home_collapsed.png` | Home on the **Your swing** tab, every area collapsed |
+| `ux_refactor_away_from_4_modes/02_home_weakest_expanded.png` | **Your swing** tab as first shown: the weakest area (Posture) expanded, with Practise on the active work-on and "New" on a newly listed one (D3 default) |
+| `ux_refactor_away_from_4_modes/coaching_existing.png` | **Before**: today's YOUR SWING, for comparison only — do not build to it |
 | `ux_refactor_away_from_4_modes/home_mockup.html` | The static page the PNGs were rendered from (1440 px wide, 2× scale) |
 
 How to read them:
@@ -402,7 +490,8 @@ Content max width: `Theme.contentWidth(width)` as other screens.
 │      │ │                                              │ ▯ Add iPhone as a camera            │ │
 │      │ └──────────────────────────────────────────────┴─────────────────────────────────────┘ │
 │      │                                                                                         │
-│      │ Your swing by area   from 180 swings over 6 sessions             All work-ons ▸         │
+│      │ Coaching   [Your swing]   from 180 swings over 6 sessions        All work-ons ▸         │
+│      │ ─────────  ══════════                                                                   │
 │      │ ┌───────────────────────────────────────────────────────────────────────────────────┐ │
 │      │ │    Area           Rating                 Score  Trend  Biggest fault     Work-ons │ │
 │      │ │ ▸  Setup          ██████████████████▒▒    88     +2    Ball position             │ │
