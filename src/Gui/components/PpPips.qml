@@ -17,8 +17,9 @@
  */
 
 // A row of session pips, oldest first. `marks` are the summary's seen/unseen bools; `ticks` are
-// PpTickRun's { state } and win when there are any. Callers keep their own latest-N slicing, so
-// every row on a card can share one width.
+// PpTickRun's { state } and win when there are any. `maxPips` keeps the latest N of them (0 = all),
+// so a caller no longer slices its own; a card that lines its rows up still sizes its pip column to
+// the widest row. Size and gap are the theme's pipSize / pipGap.
 
 pragma ComponentBehavior: Bound
 
@@ -32,15 +33,22 @@ Row {
     property var   ticks:     []
     property color tone:      Theme.colorText3
     property color cleanTone: Theme.colorGood
-    property int   size:      Theme.sp(6)
-    property int   gap:       Theme.sp(4)
+    property int   size:      Theme.sp(Theme.pipSize)
+    property int   gap:       Theme.sp(Theme.pipGap)
+    property int   maxPips:   0     // 0 = every session; otherwise the latest N
     readonly property bool useTicks: pips.ticks !== null && pips.ticks !== undefined && pips.ticks.length > 0
+    // What is drawn: the winning list, cut to the latest maxPips.
+    readonly property var shown: {
+        const all = (pips.useTicks ? pips.ticks : pips.marks) || []
+        return pips.maxPips > 0 && all.length > pips.maxPips ? all.slice(all.length - pips.maxPips) : all
+    }
 
     spacing: pips.gap
     Repeater {
-        model: pips.useTicks ? pips.ticks : pips.marks
+        model: pips.shown
         PpPip {
             required property var modelData
+            objectName: "pip"
             kind:      pips.useTicks ? modelData.state : (modelData ? "seen" : "unseen")
             tone:      pips.tone
             cleanTone: pips.cleanTone

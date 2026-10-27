@@ -24,9 +24,12 @@
 //   easing       a down arrow, green: a fault that is fading
 //   unconfirmed  a dashed ring and dot, grey and untinted: placed on evidence no recent session
 //                could renew
+//   dot          a filled 10-px dot, accent: a strength (a table row's mark)
+//   ring         a 2-px ring, amber: a fault (a table row's mark)
 //
-// Every kind but unconfirmed sits on a faint fill of its tone. Only the kind's own glyph is
-// loaded, so a badge draws exactly what its inline original drew.
+// Every kind but unconfirmed sits on a faint fill of its tone, unless `plain` drops it: a table
+// row's bare ✓, dot or ring. Only the kind's own glyph is loaded, so a badge draws exactly what its
+// inline original drew.
 
 pragma ComponentBehavior: Bound
 
@@ -39,19 +42,52 @@ Rectangle {
 
     property string kind: "check"
     property color  tone: kind === "check" || kind === "easing" ? Theme.colorGood
-                        : kind === "target"                     ? Theme.colorAccent
+                        : kind === "target" || kind === "dot"   ? Theme.colorAccent
+                        : kind === "ring"                       ? Theme.colorAttention
                         :                                         Theme.colorText3
     property int    size: Theme.sp(20)
+    property bool   plain: false     // no fill circle: the glyph alone
+
+    // The row marks' own size, centred in the badge and never larger than it.
+    readonly property int markSize: Math.min(badge.size, Theme.sp(10))
 
     width: badge.size; height: width; radius: width / 2
-    color: badge.kind === "unconfirmed" ? "transparent" : Qt.alpha(badge.tone, Theme.dark ? 0.16 : 0.12)
+    color: badge.plain || badge.kind === "unconfirmed" ? "transparent" : Qt.alpha(badge.tone, Theme.dark ? 0.16 : 0.12)
 
     Loader {
         anchors.fill: parent
         sourceComponent: badge.kind === "target"      ? targetGlyph
                        : badge.kind === "easing"      ? easingGlyph
                        : badge.kind === "unconfirmed" ? unconfirmedGlyph
+                       : badge.kind === "dot"         ? dotGlyph
+                       : badge.kind === "ring"        ? ringGlyph
                        :                                checkGlyph
+    }
+
+    // A strength: a filled dot in the tone.
+    Component {
+        id: dotGlyph
+        Item {
+            Rectangle {
+                objectName: "badgeDot"
+                anchors.centerIn: parent
+                width: badge.markSize; height: width; radius: width / 2
+                color: badge.tone
+            }
+        }
+    }
+    // A fault: a 2-px ring in the tone, empty inside.
+    Component {
+        id: ringGlyph
+        Item {
+            Rectangle {
+                objectName: "badgeRing"
+                anchors.centerIn: parent
+                width: badge.markSize; height: width; radius: width / 2
+                color: "transparent"
+                border.width: Math.max(1.5, Theme.sp(2)); border.color: badge.tone
+            }
+        }
     }
 
     Component {

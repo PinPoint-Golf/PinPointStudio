@@ -35,7 +35,7 @@ Item {
     property string kind:      "seen"
     property color  tone:      Theme.colorText3
     property color  cleanTone: Theme.colorGood
-    property int    size:      Theme.sp(6)
+    property int    size:      Theme.sp(Theme.pipSize)
 
     width: pip.size; height: pip.size
 

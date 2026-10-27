@@ -39,11 +39,13 @@
 // Clicking it opens the row in place: what the fault costs, the readings behind the row, the
 // drill where the pack authors one, and a way into the session that last showed it. One row open
 // at a time. Wide, a row is one line with its meters and pips in columns; narrow, two lines.
+// Each row is a PpExpandRow (the shared expand row: its chevron, hover wash, focus ring and
+// Space / Return toggle), its head one hand-placed cell; the list keeps `openId` and answers the
+// row's toggled(), so opening one closes the other. Rows are separated by colorHairline.
 //
 // Every string about a fault is WorkOnsController's. This file positions and paints.
 
 import QtQuick
-import QtQuick.Shapes
 import PinPointStudio
 
 Column {
@@ -197,7 +199,10 @@ Column {
             Repeater {
                 model: root.showAll ? root.items : root.items.slice(0, root.collapsedCount)
 
-                Column {
+                // A row is an expand row: the head below is its one cell, the opened detail its
+                // detail. One row open at a time, so the list owns `expanded` (autoToggle off) and
+                // answers the row's toggled().
+                PpExpandRow {
                     id: rowCol
                     required property var modelData
                     required property int index
@@ -207,17 +212,27 @@ Column {
                     objectName: "workOnRow"
                     width: parent.width
 
-                    Rectangle {     // hairline between rows
-                        visible: rowCol.index > 0
-                        width: parent.width; height: 1
-                        color: Theme.colorBorder
-                    }
+                    topRule:          rowCol.index > 0      // hairline between rows
+                    padH:             0                     // the card's padding is the row's
+                    hoverBleed:       root.cardPad - 1      // the hover wash reaches the card's edges
+                    rowHeight:        head.height
+                    chevronSide:      "right"
+                    chevronCentreY:   head.nameMidY
+                    expanded:         rowCol.open
+                    autoToggle:       false
+                    accessibleName:   rowCol.modelData.name
+                    pressObjectName:  "workOnPress"
+                    detailIndent:     root.textIndent
+                    detailRightInset: root.chevronW
+                    onToggled:        root.openId = rowCol.open ? "" : rowCol.modelData.id
 
                     Item {
                         id: head
-                        width:  parent.width
+                        width:  rowCol.width
                         // One line: the name's line, padded. Two: the name, then the meter's line.
                         readonly property real lineH: Theme.fontSzBody * 1.3
+                        // The name's first line's middle: the badge, chip and chevron sit on it.
+                        readonly property real nameMidY: nameText.y + lineH / 2
                         readonly property real meterLineY: root.oneLine ? 0 : nameText.y + nameText.height + Theme.sp(6)
                         height: root.oneLine ? Math.max(nameText.height, Theme.sp(18)) + 2 * root.rowPad
                                              : meterLineY + Theme.sp(18) + root.rowPad
@@ -241,7 +256,7 @@ Column {
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzBody
                             font.weight:    Theme.fontBodyWeight
-                            color:          rowPress.containsMouse ? Theme.colorAccent : Theme.colorText
+                            color:          rowCol.hovered ? Theme.colorAccent : Theme.colorText
                             wrapMode:       Text.WordWrap
                             lineHeight:     1.3
                         }
@@ -287,125 +302,18 @@ Column {
                                 gap:       root.pipGap
                             }
                         }
-
-                        // Open / closed.
-                        Shape {
-                            id: chevron
-                            readonly property int s: Theme.sp(10)
-                            width: s; height: s
-                            x: head.width - s
-                            y: Math.round(nameText.y + head.lineH / 2 - s / 2)
-                            rotation: rowCol.open ? 90 : 0
-                            preferredRendererType: Shape.CurveRenderer
-                            ShapePath {
-                                strokeColor: rowCol.open ? Theme.colorText2 : Theme.colorText3
-                                strokeWidth: Math.max(1.2, Theme.sp(1.3)); fillColor: "transparent"
-                                capStyle: ShapePath.RoundCap; joinStyle: ShapePath.RoundJoin
-                                startX: chevron.s * 0.32; startY: chevron.s * 0.12
-                                PathLine { x: chevron.s * 0.70; y: chevron.s * 0.5 }
-                                PathLine { x: chevron.s * 0.32; y: chevron.s * 0.88 }
-                            }
-                        }
-
-                        MouseArea {
-                            id: rowPress
-                            objectName: "workOnPress"
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape:  Qt.PointingHandCursor
-                            onClicked:    root.openId = rowCol.open ? "" : rowCol.modelData.id
-                        }
                     }
 
                     // ── The row, opened ─────────────────────────────────────────
-                    Column {
-                        objectName: "workOnDetail"
-                        visible: rowCol.open
-                        x:       root.textIndent
-                        width:   parent.width - root.textIndent - root.chevronW
-                        spacing: Theme.gap(10)
+                    detail: Component {
+                        Column {
+                            objectName: "workOnDetail"
+                            spacing: Theme.gap(10)
 
-                        Text {
-                            width:          Math.min(parent.width, Theme.sp(720))
-                            visible:        text !== ""
-                            text:           rowCol.modelData.consequence
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Theme.fontBodyWeight
-                            color:          Theme.colorText2
-                            wrapMode:       Text.WordWrap
-                            lineHeight:     1.4
-                        }
-
-                        Item { width: 1; height: Theme.sp(2) }
-
-                        PpFact { width: parent.width; label: Theme.caps(qsTr("Now"));    text: rowCol.modelData.statusText }
-                        PpFact { width: parent.width; label: Theme.caps(qsTr("Latest")); text: rowCol.modelData.latestText }
-                        PpFact {
-                            width: parent.width
-                            label: Theme.caps(qsTr("Swings"))
-                            text:  rowCol.modelData.coverageText !== ""
-                                   ? qsTr("%1 · %2").arg(rowCol.modelData.countText).arg(rowCol.modelData.coverageText)
-                                   : rowCol.modelData.countText
-                        }
-                        // The pips' key, counted over every session.
-                        PpFact {
-                            width: parent.width
-                            label: Theme.caps(qsTr("Sessions"))
-                            Repeater {
-                                model: [
-                                    { state: "fired",         words: qsTr("%1 showed it") },
-                                    { state: "clean",         words: qsTr("%1 clean") },
-                                    { state: "notAssessable", words: qsTr("%1 not measured") }
-                                ]
-                                Row {
-                                    required property var modelData
-                                    readonly property int n: root.tickCount(rowCol.modelData.ticks, modelData.state)
-                                    visible: n > 0
-                                    spacing: Theme.gap(6)
-                                    height: Math.ceil(body2Metrics.height * 1.35)
-                                    PpPip {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        kind:      parent.modelData.state
-                                        tone:      root.tone
-                                        cleanTone: root.toneEasing
-                                        size:      root.pipSize
-                                    }
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: parent.modelData.words.arg(parent.n)
-                                        font.family:    Theme.fontBody
-                                        font.pixelSize: Theme.fontSzBody2
-                                        font.weight:    Theme.fontBodyWeight
-                                        color:          Theme.colorText2
-                                    }
-                                }
-                            }
-                        }
-                        PpFact { width: parent.width; label: Theme.caps(qsTr("Linked")); text: rowCol.modelData.causedByText }
-
-                        // The drill, set in: what to do about it.
-                        PpInset {
-                            visible: rowCol.modelData.drillLabel !== ""
-                            width:   Math.min(parent.width, Theme.sp(720))
-                            Row {
-                                spacing: Theme.gap(10)
-                                PpMicro {
-                                    anchors.baseline: drillName.baseline
-                                    text: Theme.caps(qsTr("Try"))
-                                }
-                                Text {
-                                    id: drillName
-                                    text: rowCol.modelData.drillLabel
-                                    font.family:    Theme.fontBody
-                                    font.pixelSize: Theme.fontSzBody
-                                    font.weight:    Theme.fontBodyWeight
-                                    color:          Theme.colorAccent
-                                }
-                            }
                             Text {
-                                width: parent.width
-                                text:  rowCol.modelData.drillInstruction
+                                width:          Math.min(parent.width, Theme.sp(720))
+                                visible:        text !== ""
+                                text:           rowCol.modelData.consequence
                                 font.family:    Theme.fontBody
                                 font.pixelSize: Theme.fontSzBody2
                                 font.weight:    Theme.fontBodyWeight
@@ -413,26 +321,104 @@ Column {
                                 wrapMode:       Text.WordWrap
                                 lineHeight:     1.4
                             }
-                        }
 
-                        // TEMPORARY (Phase 4 moves Practise to Home): open the session wizard
-                        // with this fault as the focus.
-                        PpLink {
-                            objectName: "workOnPractise"
-                            text:       qsTr("Practise this in a session →")
-                            hoverTint:  false
-                            onClicked:  root.practiseRequested(rowCol.modelData.id, rowCol.modelData.name)
-                        }
+                            Item { width: 1; height: Theme.sp(2) }
 
-                        PpLink {
-                            objectName: "workOnReview"
-                            visible:    rowCol.modelData.sessionDir !== ""
-                            text:       qsTr("Review the %1 session →").arg(rowCol.modelData.sessionLabel)
-                            hoverTint:  false
-                            onClicked:  root.reviewSessionRequested(rowCol.modelData.sessionDir)
-                        }
+                            PpFact { width: parent.width; label: Theme.caps(qsTr("Now"));    text: rowCol.modelData.statusText }
+                            PpFact { width: parent.width; label: Theme.caps(qsTr("Latest")); text: rowCol.modelData.latestText }
+                            PpFact {
+                                width: parent.width
+                                label: Theme.caps(qsTr("Swings"))
+                                text:  rowCol.modelData.coverageText !== ""
+                                       ? qsTr("%1 · %2").arg(rowCol.modelData.countText).arg(rowCol.modelData.coverageText)
+                                       : rowCol.modelData.countText
+                            }
+                            // The pips' key, counted over every session.
+                            PpFact {
+                                width: parent.width
+                                label: Theme.caps(qsTr("Sessions"))
+                                Repeater {
+                                    model: [
+                                        { state: "fired",         words: qsTr("%1 showed it") },
+                                        { state: "clean",         words: qsTr("%1 clean") },
+                                        { state: "notAssessable", words: qsTr("%1 not measured") }
+                                    ]
+                                    Row {
+                                        required property var modelData
+                                        readonly property int n: root.tickCount(rowCol.modelData.ticks, modelData.state)
+                                        visible: n > 0
+                                        spacing: Theme.gap(6)
+                                        height: Math.ceil(body2Metrics.height * 1.35)
+                                        PpPip {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            kind:      parent.modelData.state
+                                            tone:      root.tone
+                                            cleanTone: root.toneEasing
+                                            size:      root.pipSize
+                                        }
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: parent.modelData.words.arg(parent.n)
+                                            font.family:    Theme.fontBody
+                                            font.pixelSize: Theme.fontSzBody2
+                                            font.weight:    Theme.fontBodyWeight
+                                            color:          Theme.colorText2
+                                        }
+                                    }
+                                }
+                            }
+                            PpFact { width: parent.width; label: Theme.caps(qsTr("Linked")); text: rowCol.modelData.causedByText }
 
-                        Item { width: 1; height: Theme.sp(10) }
+                            // The drill, set in: what to do about it.
+                            PpInset {
+                                visible: rowCol.modelData.drillLabel !== ""
+                                width:   Math.min(parent.width, Theme.sp(720))
+                                Row {
+                                    spacing: Theme.gap(10)
+                                    PpMicro {
+                                        anchors.baseline: drillName.baseline
+                                        text: Theme.caps(qsTr("Try"))
+                                    }
+                                    Text {
+                                        id: drillName
+                                        text: rowCol.modelData.drillLabel
+                                        font.family:    Theme.fontBody
+                                        font.pixelSize: Theme.fontSzBody
+                                        font.weight:    Theme.fontBodyWeight
+                                        color:          Theme.colorAccent
+                                    }
+                                }
+                                Text {
+                                    width: parent.width
+                                    text:  rowCol.modelData.drillInstruction
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody2
+                                    font.weight:    Theme.fontBodyWeight
+                                    color:          Theme.colorText2
+                                    wrapMode:       Text.WordWrap
+                                    lineHeight:     1.4
+                                }
+                            }
+
+                            // TEMPORARY (Phase 4 moves Practise to Home): open the session wizard
+                            // with this fault as the focus.
+                            PpLink {
+                                objectName: "workOnPractise"
+                                text:       qsTr("Practise this in a session →")
+                                hoverTint:  false
+                                onClicked:  root.practiseRequested(rowCol.modelData.id, rowCol.modelData.name)
+                            }
+
+                            PpLink {
+                                objectName: "workOnReview"
+                                visible:    rowCol.modelData.sessionDir !== ""
+                                text:       qsTr("Review the %1 session →").arg(rowCol.modelData.sessionLabel)
+                                hoverTint:  false
+                                onClicked:  root.reviewSessionRequested(rowCol.modelData.sessionDir)
+                            }
+
+                            Item { width: 1; height: Theme.sp(10) }
+                        }
                     }
                 }
             }
@@ -444,7 +430,7 @@ Column {
                 width:   parent.width
                 height:  visible ? Theme.sp(44) : 0
 
-                Rectangle { width: parent.width; height: 1; color: Theme.colorBorder }
+                Rectangle { width: parent.width; height: 1; color: Theme.colorHairline }
 
                 PpLink {
                     objectName: "workOnsMore"

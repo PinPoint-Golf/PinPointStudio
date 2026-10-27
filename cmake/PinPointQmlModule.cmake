@@ -80,6 +80,9 @@ set(PP_QML_FILES
     # The coaching-card pieces (design system §13), shared by home and the session panels.
     src/Gui/components/PpCardShell.qml
     src/Gui/components/PpCard.qml
+    src/Gui/components/PpTableRow.qml
+    src/Gui/components/PpExpandRow.qml
+    src/Gui/components/PpBandBar.qml
     src/Gui/components/PpStageCard.qml
     src/Gui/components/PpPopoverCard.qml
     src/Gui/components/PpMicro.qml

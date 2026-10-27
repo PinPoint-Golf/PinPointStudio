@@ -92,7 +92,9 @@ QtObject {
     // railActiveBar, capsHeadings, heroSize, trackingMicro, trackingLabel, trackingData, microSize,
     // spacingScale, cardRule, heroRule, heroTinted, gradientTitlesAllowed, chartGrid,
     // chartGridOpacity, chartBaseline, chartBaselineOpacity, chartFrame, chartCurveWidth,
-    // chartMarkerHollow, typeset (a block of typeset roles, §15.3 — see _typesetDefault). Optional keys may
+    // chartMarkerHollow, typeset (a block of typeset roles, §15.3 — see _typesetDefault), and the table and
+    // mark geometry (tableRadius, rowH, rowH2, itemRowH, tableHeaderH, rowPadH, itemIndent, colorHairline,
+    // meterSeg*, colorMeterUnlit, pipSize, pipGap, bandBarH, tabUnderline, fontSzTab, capDot). Optional keys may
     // also sit in a mode block when they differ between light and dark (Folio's chart greys).
     readonly property var _themes: ({
         instrument: {
@@ -719,6 +721,58 @@ QtObject {
     readonly property int  cardRule:   _v("cardRule", 3)
     readonly property int  heroRule:   _v("heroRule", 4)
     readonly property bool heroTinted: _v("heroTinted", true)
+
+    // ── Tables, rows and marks (the §2.5 visual language) ────────────────────
+    // A table card is a hairline box of fixed-height rows on a shared column template; the marks
+    // in its rows are the how-often meter, the session pips, the band bar and the capability dot.
+    // Every size here is in design pixels: a component wraps it in sp(). These are NEW tokens —
+    // nothing drew from them before — so each default is the design's (ux_refactor_away_from_4_modes
+    // A.3) in every theme, and a theme lists one only where it differs.
+    readonly property int tableRadius:  _v("tableRadius", radiusLg)   // a table card's corner
+    readonly property int rowH:         _v("rowH", 48)                // a table row
+    readonly property int rowH2:        _v("rowH2", 56)               // a row with a second line
+    readonly property int itemRowH:     _v("itemRowH", 40)            // an expanded area's item row
+    readonly property int tableHeaderH: _v("tableHeaderH", 38)        // a table card's caption row
+    readonly property int rowPadH:      _v("rowPadH", 18)             // a row's horizontal padding
+    readonly property int itemIndent:   _v("itemIndent", 62)          // an item row's indent under its expand row
+    // The hairline between rows: the border at 0.6 of its own alpha, as PpDivider draws it — fainter
+    // than a card's edge. colorBorder is already translucent, so this scales its alpha rather than
+    // replacing it.
+    readonly property color colorHairline: _v("colorHairline",
+        Qt.rgba(colorBorder.r, colorBorder.g, colorBorder.b, colorBorder.a * 0.6))
+    // The how-often meter (PpMeter): ten segments, each meterSegW × meterSegH, meterSegGap apart.
+    readonly property int meterSegW:      _v("meterSegW", 7)
+    readonly property int meterSegH:      _v("meterSegH", 6)
+    readonly property int meterSegGap:    _v("meterSegGap", 2)
+    readonly property int meterSegRadius: _v("meterSegRadius", 1)
+    // An unlit segment, and the ground of any count or share mark (an empty band bar, an unclear band).
+    readonly property color colorMeterUnlit: _v("colorMeterUnlit", colorBorderMid)
+    // Session pips (PpPips / PpPip).
+    readonly property int pipSize: _v("pipSize", 6)
+    readonly property int pipGap:  _v("pipGap", 3)
+    // The area band bar (PpBandBar).
+    readonly property int bandBarH: _v("bandBarH", 6)
+    // Title-size tabs (PpTabs size "title"): the current tab's accent underline and the label size,
+    // between fontSzHeading and fontSzDisplay. Design pixels like the rest of this block (sp() it).
+    readonly property int tabUnderline: _v("tabUnderline", 2)
+    readonly property int fontSzTab:    _v("fontSzTab", 22)
+    // A capability row's dot.
+    readonly property int capDot: _v("capDot", 8)
+
+    // A numeric trend figure ("+2", "−1", "±0"): up is better, down worse, none quiet. The figure is
+    // printed with its sign, so colour is never the only channel.
+    function trendTone(n) {
+        return n > 0 ? colorGood : n < 0 ? colorWarn : colorText3
+    }
+    // A habit band's colour (an area's band bar, its legend): a habit is the fault coral, never the
+    // alarm red (13.2); occasional is amber; clean is the accent; unclear (and anything else — no
+    // band is never a pass) is the unlit ground.
+    function bandTone(band) {
+        return band === "habit"      ? colorWarn
+             : band === "occasional" ? colorAttention
+             : band === "clean"      ? colorGood       // the corridor ramp's in-range colour (corridorTone, strengthColor), not the accent: in an amber-accent theme the accent reads as a fault
+             :                         colorMeterUnlit
+    }
 
     // ── Charts ───────────────────────────────────────────────────────────────
     // The plot's furniture, kept recessive so the data reads first. The original charts each chose

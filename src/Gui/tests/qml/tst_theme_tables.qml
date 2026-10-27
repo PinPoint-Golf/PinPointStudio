@@ -109,6 +109,48 @@ TestCase {
         compare(String(Theme.themeInfo(11).dot).toUpperCase(), "#C85C6A")
     }
 
+    // The table and mark geometry (the §2.5 visual language). These are new tokens — nothing drew
+    // from them before — so every theme gets the design's default (ux_refactor_away_from_4_modes A.3)
+    // until a theme is judged and sets its own; the colours derive from the theme's own borders.
+    readonly property var tableTokens: ({
+        rowH: 48, rowH2: 56, itemRowH: 40, tableHeaderH: 38, rowPadH: 18, itemIndent: 62,
+        meterSegW: 7, meterSegH: 6, meterSegGap: 2, meterSegRadius: 1,
+        pipSize: 6, pipGap: 3, bandBarH: 6, tabUnderline: 2, fontSzTab: 22, capDot: 8
+    })
+    function test_tableTokensInEveryTheme() {
+        for (let i = 0; i < Theme.themeCount; ++i) {
+            Theme.themeIndex = i
+            const where = Theme.aesthetic + (Theme.dark ? " dark" : " light")
+            for (const k in tableTokens) compare(Theme[k], tableTokens[k], where + ": " + k)
+            compare(Theme.tableRadius, Theme.radiusLg, where + ": tableRadius")
+            verify(same(Theme.colorMeterUnlit, Theme.colorBorderMid), where + ": colorMeterUnlit")
+            // The hairline is the border at 0.6 of its own alpha: same ink, fainter.
+            const b = Theme.colorBorder, h = Theme.colorHairline
+            fuzzyCompare(h.r, b.r, 0.01, where + ": hairline r"); fuzzyCompare(h.g, b.g, 0.01, where + ": hairline g")
+            fuzzyCompare(h.b, b.b, 0.01, where + ": hairline b"); fuzzyCompare(h.a, b.a * 0.6, 0.01, where + ": hairline alpha")
+            verify(h.a > 0 && h.a < b.a, where + ": hairline fainter than the border")
+            // The tab label sits between a heading and a display title.
+            verify(Theme.fontSzTab > 16 && Theme.fontSzTab < 34, where + ": fontSzTab")
+        }
+    }
+
+    // A trend figure's colour, and a habit band's: the status family, never the alarm red.
+    function test_trendAndBandTones() {
+        for (let i = 0; i < Theme.themeCount; ++i) {
+            Theme.themeIndex = i
+            const where = Theme.aesthetic + (Theme.dark ? " dark" : " light")
+            verify(same(Theme.trendTone(5), Theme.colorGood), where + ": trend up")
+            verify(same(Theme.trendTone(-2), Theme.colorWarn), where + ": trend down")
+            verify(same(Theme.trendTone(0), Theme.colorText3), where + ": no trend")
+            verify(same(Theme.bandTone("habit"), Theme.colorWarn), where + ": habit is the fault coral")
+            verify(!same(Theme.bandTone("habit"), Theme.colorError), where + ": habit is never the alarm red")
+            verify(same(Theme.bandTone("occasional"), Theme.colorAttention), where + ": occasional")
+            verify(same(Theme.bandTone("clean"), Theme.colorGood), where + ": clean")
+            verify(same(Theme.bandTone("unclear"), Theme.colorMeterUnlit), where + ": unclear")
+            verify(same(Theme.bandTone("anything"), Theme.colorMeterUnlit), where + ": no band is never a pass")
+        }
+    }
+
     function test_folio() {
         for (const i of [12, 13]) {
             Theme.themeIndex = i

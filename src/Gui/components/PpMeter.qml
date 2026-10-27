@@ -16,8 +16,10 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// How often, as ten rounded segments: a share of 0..1 lights round(share × 10) of them in the
-// tone. The segment count carries the reading, so colour is never the only channel.
+// How often, as ten segments: a share of 0..1 lights round(share × 10) of them in the tone; the
+// rest are Theme.colorMeterUnlit. The segment count carries the reading, so colour is never the
+// only channel. Geometry is the theme's (meterSegW × meterSegH, meterSegGap apart, meterSegRadius
+// corners) — a segment is part of the mark, so its gap scales with sp(), not with gap().
 
 pragma ComponentBehavior: Bound
 
@@ -31,13 +33,16 @@ Row {
     property color tone: Theme.colorAccent
     readonly property int filled: Math.max(0, Math.min(10, Math.round(share * 10)))
 
-    spacing: Theme.gap(3)
+    spacing: Theme.sp(Theme.meterSegGap)
     Repeater {
         model: 10
         Rectangle {
             required property int index
-            width: Theme.sp(9); height: Theme.sp(6); radius: height / 2
-            color: index < meter.filled ? meter.tone : Theme.colorBorderMid
+            objectName: "meterSegment"
+            width:  Theme.sp(Theme.meterSegW)
+            height: Theme.sp(Theme.meterSegH)
+            radius: Math.min(height / 2, Theme.sp(Theme.meterSegRadius))
+            color:  index < meter.filled ? meter.tone : Theme.colorMeterUnlit
         }
     }
 }
