@@ -153,6 +153,12 @@ pp_add_test(diagnostic_ledger_test SOURCES diagnostic_ledger_test.cpp)
 # weights, easing/cleared, and work_ons.json round-trip. Header-only.
 pp_add_test(work_ons_test SOURCES work_ons_test.cpp)
 
+# Swing areas (swing_areas.h) — Home's "Your swing" tab, areas rated by habit counts: the four bands
+# and their boundaries, what counts (Movement/Delivery; ball flight's Outcomes only with launch-monitor
+# evidence), the trend against the newest substantive session, area and item order, the top fault and
+# the work-on words. Header-only, no pack.
+pp_add_test(swing_areas_test SOURCES swing_areas_test.cpp)
+
 # Swing themes (swing_themes.h) — the home screen's two-layer summary: the hand-written linear
 # algebra against numpy's values (eigensolver, varimax, Hungarian, ranks, percentiles), mt19937_64
 # and the per-replicate seeds, planted two-factor data recovered with the right members and tiers

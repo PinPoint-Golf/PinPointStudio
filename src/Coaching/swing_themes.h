@@ -2092,11 +2092,13 @@ inline SwingSummaryLines swingSummaryLines(const SwingThemes &st, const ThemePhr
 //               a solo group); and the reason it was chosen — "Picked first: it comes earliest in
 //               your swing" when no group starts earlier, else "Picked first: it shows up on the
 //               most of your swings", then " and covers N of the things on your list" when it says
-//               two or more (N in words to nine), then ".". present = false when nothing needs work.
+//               two or more (N in words to nine), then "."; reasonShort the same clauses on one line,
+//               "covers N things on your list · comes earliest in your swing" (N in digits, the count
+//               only at two or more). present = false when nothing needs work.
 //   next        every other needs-work fault, group by group in focus order, a phrase told once
 //               (the focus's included), at most maxNext.
-//   doWell      at most maxDoWell: the capitalised `golferWell`, a caption from the share, a pip per
-//               judged session. A row whose families touch ANY member of a theme shown below (its
+//   doWell      at most maxDoWell: the capitalised `golferWell`, a caption from the share (and the
+//               share itself), a pip per judged session. A row whose families touch ANY member of a theme shown below (its
 //               family, else its id — every member, not only the two named) is dropped; then an
 //               empty or already-said phrase is skipped.
 //   needsWork   at most maxSeenMost: the capitalised `golfer`, the share and its frequency words,
@@ -2113,6 +2115,7 @@ struct DoWellItem {
     QString text;               // "Your lead heel stays down going back"
     QString caption;            // "In the ideal range on almost every swing"
     std::vector<bool> pips;     // per judged session, oldest first
+    double  share = 0.0;        // the row's recency-weighted in-band share, 0..1 — what the caption words
 };
 
 struct NeedsWorkItem {
@@ -2133,6 +2136,11 @@ struct FocusItem {
     QString practiseLabel;                  // drill label ("" for solo)
     QString practise;                       // drill instruction ("" for solo)
     QString reason;                         // "Picked first: it comes earliest in your swing and covers two of …."
+    // The same two clauses on one line, for a place with no room for the sentence: the count first
+    // (digits) when it covers two or more, then why — "covers 2 things on your list · comes earliest in
+    // your swing", or "shows up on the most of your swings" alone. Words, not a new judgement: made
+    // beside `reason` from the same two facts, so the two cannot disagree.
+    QString reasonShort;
     QStringList conditionIds;               // the group's, in its order
 };
 
@@ -2262,10 +2270,15 @@ inline void focusView(const SwingThemes &st, const ThemePhrases &ph, const Theme
         const auto placed = [](int when) { return when > 0 ? when : kThemeFocusUnplaced; };
         int earliest = kThemeFocusUnplaced;
         for (const FocusGroup &g : st.focusOrder) earliest = std::min(earliest, placed(g.when));
-        f.reason = placed(chosen->when) == earliest ? QStringLiteral("Picked first: it comes earliest in your swing")
-                                                    : QStringLiteral("Picked first: it shows up on the most of your swings");
+        const QString why = placed(chosen->when) == earliest ? QStringLiteral("comes earliest in your swing")
+                                                             : QStringLiteral("shows up on the most of your swings");
+        f.reason = QStringLiteral("Picked first: it ") + why;
+        f.reasonShort = why;
         const int n = int(f.rightNow.size());
-        if (n >= 2) f.reason += QStringLiteral(" and covers %1 of the things on your list").arg(themeCountWords(n));
+        if (n >= 2) {
+            f.reason += QStringLiteral(" and covers %1 of the things on your list").arg(themeCountWords(n));
+            f.reasonShort = QStringLiteral("covers %1 things on your list · %2").arg(n).arg(why);
+        }
         f.reason += QLatin1Char('.');
     }
 
@@ -2332,7 +2345,7 @@ inline SwingSummaryView swingSummaryView(const SwingThemes &st, const ThemePhras
         const QString phrase = ph.well ? ph.well(r.conditionId) : QString();
         if (phrase.isEmpty() || told.contains(phrase)) continue;
         told.append(phrase);
-        v.doWell.push_back({ themeCapitalised(phrase), themeWellCaption(r.share, opt), r.pips });
+        v.doWell.push_back({ themeCapitalised(phrase), themeWellCaption(r.share, opt), r.pips, r.share });
     }
 
     told.clear();

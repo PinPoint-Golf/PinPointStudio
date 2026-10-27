@@ -23,6 +23,8 @@
 
 #include "../../Coaching/work_ons.h"
 
+#include <QJsonArray>
+
 #include <cstdio>
 #include <vector>
 
@@ -291,6 +293,75 @@ int main()
               "…beside the v3 fields they explain");
     }
 
+    // ── Schema 3: the evidence carries its measure and the typical over EVERY assessed reading ──
+    {
+        check(kWorkOnSchemaVersion == 3 && kWorkOnRuleVersion == 4,
+              "schema 3 (evidence typical) under rule 4: a schema bump, not a rule bump");
+        const QHash<QString, WorkOnClass> cls{ { "a", M } };
+        // `a` fires on six of nine (a pattern) reading 6..11, and is clean on three reading 0, 1, 2.
+        std::vector<ShotRecord> shots = sessionOf({ plan("a", { 1,1,1,1,1,1,0,0,0 }), plan("quiet", rep(0, 8)),
+                                                    plan("mixed", rep(0, 8)) });
+        for (size_t i = 0; i < shots.size(); ++i)
+            shots[i].rows[0].value = i < 6 ? 6.0 + double(i) : double(i) - 6.0;
+        shots[3].rows[2].corridorHi = 4.0;      // `mixed`: another club's corridor on one shot
+        SessionWorkOns s = reduceSessionWorkOns(shots, conditionLedgers(shots, flatOpts()), cls, {});
+        s.sessionId = QStringLiteral("2026-10-27_x_01");
+
+        const WorkOnEntry *a = s.entry("a");
+        const WorkOnEvidence *ea = s.evidenceFor("a"), *eq = s.evidenceFor("quiet"), *em = s.evidenceFor("mixed");
+        check(a && a->hasTypical && near(a->typicalValue, 8.5, 1e-9),
+              "the entry keeps the median of its FIRED readings (6..11 -> 8.5)");
+        check(ea && ea->hasTypical && near(ea->typicalValue, 7.0, 1e-9) && ea->measureId == QStringLiteral("a.measure")
+                  && near(ea->corridorLo, -2.0, 1e-12) && near(ea->corridorHi, 2.0, 1e-12)
+                  && ea->corridorShape == CorridorShape::TwoSided,
+              "the evidence states the median of ALL assessed readings (0,1,2,6..11 -> 7), its measure and corridor");
+        check(eq && eq->hasTypical && near(eq->typicalValue, 1.0, 1e-9) && !s.entry("quiet"),
+              "a quiet condition that never fired and was never listed still has a typical reading");
+        check(em && !em->hasTypical && em->measureId == QStringLiteral("mixed.measure"),
+              "two corridors: no typical reading across them, but the measure is still named");
+
+        bool ok = false;
+        const QJsonObject json = toJson(s);
+        const SessionWorkOns back = sessionWorkOnsFromJson(json, &ok);
+        const WorkOnEvidence *ba = back.evidenceFor("a"), *bq = back.evidenceFor("quiet"), *bm = back.evidenceFor("mixed");
+        check(ok && ba && bq && bm && ba->measureId == ea->measureId && ba->hasTypical
+                  && near(ba->typicalValue, ea->typicalValue, 1e-12) && near(ba->corridorLo, ea->corridorLo, 1e-12)
+                  && near(ba->corridorHi, ea->corridorHi, 1e-12) && ba->corridorShape == ea->corridorShape
+                  && bq->hasTypical && near(bq->typicalValue, 1.0, 1e-12),
+              "schema 3: the evidence's measure, typical and corridor round-trip");
+        check(bm && !bm->hasTypical && bm->measureId == em->measureId && bm->corridorShape == CorridorShape::Unknown,
+              "…and a row without a typical reading comes back without one");
+        check(back.entry("a") && near(back.entry("a")->typicalValue, 8.5, 1e-12), "…beside the entry's fired median");
+
+        bool absent = false;
+        for (const QJsonValue &v : json.value(QStringLiteral("evidence")).toArray()) {
+            const QJsonObject o = v.toObject();
+            if (o.value(QStringLiteral("id")).toString() == QStringLiteral("mixed"))
+                absent = !o.contains(QStringLiteral("typicalValue")) && !o.contains(QStringLiteral("corridorLo"))
+                      && !o.contains(QStringLiteral("corridorShape"));
+        }
+        check(absent, "nothing to say is written as an absent key, never a zero");
+
+        // An absent key in a schema-3 file reads as not present.
+        QJsonObject bare = json;
+        QJsonArray rows;
+        for (const QJsonValue &v : json.value(QStringLiteral("evidence")).toArray()) {
+            QJsonObject o = v.toObject();
+            o.remove(QStringLiteral("measureId"));
+            o.remove(QStringLiteral("typicalValue"));
+            rows.append(o);
+        }
+        bare[QStringLiteral("evidence")] = rows;
+        const SessionWorkOns nb = sessionWorkOnsFromJson(bare, &ok);
+        check(ok && nb.evidenceFor("a") && nb.evidenceFor("a")->measureId.isEmpty() && !nb.evidenceFor("a")->hasTypical,
+              "absent evidence keys read as not present");
+
+        QJsonObject v2 = json;
+        v2[QStringLiteral("schemaVersion")] = 2;
+        sessionWorkOnsFromJson(v2, &ok);
+        check(!ok, "a schema-2 record is refused, so the catch-up re-reduces it");
+    }
+
     // ── Rule v4: swing order when no link can be tested ─────────────────────────
     {
         check(near(workOnSwingPosOfPhase("P1"), 1.0, 1e-12) && near(workOnSwingPosOfPhase("P4"), 4.0, 1e-12)
@@ -523,6 +594,46 @@ int main()
         }
 
         check(aggregateWorkOns({}).empty(), "no sessions, no work-ons");
+    }
+
+    // ── Every assessed condition: the areas' aggregate beside the list's ────────
+    {
+        const QHash<QString, WorkOnClass> cls{ { "listed", M }, { "quiet", M }, { "out", X } };
+        const qint64 day = 86'400'000LL, t0 = 1'700'000'000'000LL;
+        const std::vector<SessionWorkOns> ss = {
+            reduce({ plan("listed", rep(1, 10)), plan("quiet", rep(0, 10)), plan("out", rep(1, 10)) }, cls, {}, "e1", t0),
+            reduce({ plan("listed", rep(1, 10)), plan("quiet", { 0,0,0,0,0,0,0,0,1,0 }), plan("out", rep(-1, 10)) },
+                   cls, {}, "e2", t0 + day),
+        };
+        const std::vector<WorkOnSummary> list  = aggregateWorkOns(ss);
+        const std::vector<WorkOnSummary> every = aggregateConditions(ss);
+        check(list.size() == 1 && list[0].id == QStringLiteral("listed"),
+              "the list's aggregate still holds only what some session listed");
+        const WorkOnSummary *l = find(every, "listed"), *q = find(every, "quiet"), *o = find(every, "out");
+        check(every.size() == 3 && l && q && o,
+              "the every-condition aggregate also holds the evidence-only ids, the excluded outcome included");
+        if (l && q && o && !list.empty()) {
+            const WorkOnSummary &d = list[0];
+            check(near(l->score, d.score, 1e-12) && near(l->weightedFired, d.weightedFired, 1e-12)
+                      && near(l->weightedAssessable, d.weightedAssessable, 1e-12) && l->swingsFired == d.swingsFired
+                      && l->swingsAssessable == d.swingsAssessable && l->status == d.status
+                      && l->sessionsListed == d.sessionsListed && l->hasLatest == d.hasLatest
+                      && l->latestSessionId == d.latestSessionId && l->history.size() == d.history.size(),
+                  "a listed condition's summary is the same in both");
+            check(o->sessionsListed == 0 && !o->hasLatest && o->status == WorkOnStatus::Active && o->sessionsPattern == 1,
+                  "a never-listed pattern reads Active: sessionsListed, not the status, says it was never a work-on");
+            check(o->hasLatestEvidence && o->latestEvidenceSessionId == QStringLiteral("e1")
+                      && o->latestEvidence.state == SessionEvidence::Pattern && o->history.size() == 2
+                      && o->history[1].state == SessionEvidence::NotMeasured,
+                  "latestEvidence is the newest session that ASSESSED it, not the newest session");
+            check(q->hasLatestEvidence && q->latestEvidenceSessionId == QStringLiteral("e2") && q->latestEvidence.fired == 1
+                      && q->latestEvidence.hasTypical && q->swingsFired == 1 && q->swingsAssessable == 20,
+                  "…and carries that session's typical reading; the swing counts span every session");
+            check(l->hasLatestEvidence && l->latestEvidenceSessionId == QStringLiteral("e2")
+                      && l->latestEvidence.measureId == QStringLiteral("listed.measure"),
+                  "a listed condition has its latest evidence too");
+        }
+        check(aggregateConditions({}).empty(), "no sessions, no conditions");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

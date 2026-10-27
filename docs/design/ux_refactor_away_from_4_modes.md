@@ -359,7 +359,31 @@ every assessed condition.** So:
 - **`workOn`:** derive it only when `sessionsListed > 0`. A never-listed Pattern would otherwise
   read "active".
 
-### 5.2 Score and trend — **D1 open; to be decided before Phase 3** (Mark, 27 Oct)
+### 5.2 Rating and trend — **D1 decided: habit counts** (Mark, 28 Oct)
+
+**The rule.** An area is rated by counting its conditions in four frequency bands. There is no
+0–100 score. Per condition, `share` = recency-weighted fired / assessable (the work-ons
+aggregate's `weightedFired / weightedAssessable`). The bands, as constants in `AreaOptions`:
+
+- **habit**: share ≥ 0.5, the Coaching layer's own bar ("more than half your swings", the
+  same threshold "Right now" uses);
+- **occasional**: 0.15 ≤ share < 0.5;
+- **clean**: share < 0.15 **and** Wilson upper bound < 0.35;
+- **not yet clear**: everything else measured.
+
+The row reads "4 habits · 12 clean" over a bar split into the four bands. Areas are ordered by
+habits, then occasional, then the worst share. Trend = habits gained or cleared against the
+same counts without the newest substantive session ("−1 habit"). Counted conditions: Movement
+and Delivery classes. For ballFlight (all Outcome), its Outcome conditions are counted. Why:
+every number traces to a named fault; one habit and four read differently (the worst-condition
+rule floored both); clean conditions cannot dilute a habit (the mean rule could); and the habit
+bar is Coaching's, so the two tabs cannot disagree. On Mark's library: Posture 4 habits,
+Sequence 4, Lateral 2, Arms & club 2, Impact 1, Finish 1, Setup 0, Release 0.
+
+**D9 decided: typical = median of ALL judged readings** for the evidence record, so a clean
+condition shows in range and the grade means something. Work-on entries keep their fired-median.
+
+The research numbers that led to this decision follow.
 
 The provisional rule was `score = round(100 × (1 − max_c p_c))`, with `p_c = WorkOnSummary.score`
 (the Wilson lower bound on recency-weighted fired/assessable), over Movement and Delivery
@@ -695,9 +719,6 @@ Goal: the rail and stack no longer know about modes. Behaviour otherwise identic
 
 Open:
 
-- **D1 — Area score rule.** *To be decided before Phase 3* (Mark, 27 Oct). Real-library numbers
-  and the options are in §5.2. This decision also settles the ballFlight row and the shape of the
-  rating column.
 - **D2 — Row order.** As approved: descending score, weakest at the bottom and expanded.
   Alternative: fixed address-to-finish order (setup, posture, lateral, sequence, arms & club,
   release, impact, finish). Make it one constant. Revisit with D1: if most scores floor,
@@ -708,8 +729,6 @@ Open:
   athlete-level `<athlete>/work_on_choices.json` (`adopted` and `dismissed` sets), consulted only
   for display and ordering, never for detection. Note that the Coaching focus can be a condition
   that was never a work-on (§2.4).
-- **D9 — What "typical" means for unlisted conditions.** The median of fired readings (as
-  entries) or of all assessed readings. Settle it in Phase 3 (§5.1).
 - **D10 — What Home's "could measure" means.** Cameras assigned and enabled but not connected;
   sensors present and enabled but not calibrated this visit. Shown as live, or as estimated? Settle
   it at the start of Phase 4.
@@ -724,6 +743,8 @@ Open:
 
 Decided:
 
+- **D1 — Area rating.** *28 Oct:* habit counts, no 0–100 score (§5.2).
+- **D9 — Typical value for unlisted conditions.** *28 Oct:* median of all judged readings (§5.2).
 - **D4 — "Your focus" and "What you do well".** *27 Oct:* kept, as the Coaching tab.
 - **D6 — Default tab.** Coaching (what to do next) by default; Your swing (the holistic view)
   one click away; the last choice remembered per athlete.

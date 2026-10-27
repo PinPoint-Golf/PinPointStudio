@@ -39,6 +39,25 @@
 
 namespace pinpoint::analysis {
 
+// WHAT A CONDITION IS, for the list: Fault and Setup are movements, Delivery fills a short list, the
+// rest is never listed. One function, so the session's list and Home's areas (swing_areas_pack.h)
+// classify by the same rule.
+//
+// HELD BACK (Condition::reportHold): a reading not trusted enough to headline anything is never a
+// work-on — not here, so not on the home screen and not in the report, and "work-on 1" stays one
+// habit everywhere. The row still grades and still shows on the panel; only the list leaves it out.
+inline WorkOnClass workOnClassFor(const Condition &c)
+{
+    if (!c.reportHold.isEmpty()) return WorkOnClass::Excluded;
+    switch (c.kind) {
+    case ConditionKind::Fault:
+    case ConditionKind::Setup:    return WorkOnClass::Movement;
+    case ConditionKind::Delivery: return WorkOnClass::Delivery;
+    default: break;
+    }
+    return WorkOnClass::Excluded;
+}
+
 inline SessionWorkOns sessionWorkOnsForPack(const CharacteristicPack *pack, const std::vector<ShotRecord> &shots,
                                             const std::vector<ConditionLedger> &ledgers,
                                             const WorkOnOptions &opt = WorkOnOptions())
@@ -48,21 +67,7 @@ inline SessionWorkOns sessionWorkOnsForPack(const CharacteristicPack *pack, cons
     WorkOnCauses causes;
     WorkOnSharedEvidence shared;
     if (pack) {
-        for (const Condition &c : pack->conditions) {
-            WorkOnClass cls = WorkOnClass::Excluded;
-            switch (c.kind) {
-            case ConditionKind::Fault:
-            case ConditionKind::Setup:    cls = WorkOnClass::Movement; break;
-            case ConditionKind::Delivery: cls = WorkOnClass::Delivery; break;
-            default: break;
-            }
-            // HELD BACK (Condition::reportHold): a reading not trusted enough to headline anything
-            // is never a work-on — not here, so not on the home screen and not in the report, and
-            // "work-on 1" stays one habit everywhere. The row still grades and still shows on the
-            // panel; only the list leaves it out.
-            if (!c.reportHold.isEmpty()) cls = WorkOnClass::Excluded;
-            classOf.insert(c.id, cls);
-        }
+        for (const Condition &c : pack->conditions) classOf.insert(c.id, workOnClassFor(c));
         for (const Edge &e : pack->edges)
             if (e.type == EdgeType::Causes) {
                 causes.emplace_back(e.from, e.to);

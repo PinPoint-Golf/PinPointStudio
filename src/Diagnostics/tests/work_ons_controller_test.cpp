@@ -29,6 +29,10 @@
 // proves the reduction; this proves the plumbing, on ledgers whose rows carry real core.json
 // measure ids with a planted co-movement.
 //
+// And Home's "Your swing" areas (swing_areas.h, built in publish() from the same records): the
+// shape QML binds to, the display order, the grade beside a typical value, and the newest session.
+// swing_areas_test proves the counting; this proves the plumbing and the words.
+//
 // The sessions are LEDGERS ON DISK with empty swing folders beside them: the model loads the
 // rows, finds nothing to back-fill, and no swing document is ever read — the catch-up path for
 // a library that already has its ledgers, which is the one the app meets first.
@@ -44,8 +48,10 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLocale>
 #include <QTemporaryDir>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <random>
@@ -336,12 +342,15 @@ static void checkSummaryShape(const WorkOnsController &c, const QJsonObject &sto
     const QJsonArray storedSeen = stored.value(QStringLiteral("seenMost")).toArray();
     for (const QVariant &v : c.doWellItems()) {
         const QVariantMap m = v.toMap();
-        well = well && keysAre(m, { QStringLiteral("text"), QStringLiteral("caption"), QStringLiteral("sessions") })
+        const double share = m.value(QStringLiteral("share")).toDouble();
+        well = well && keysAre(m, { QStringLiteral("text"), QStringLiteral("caption"), QStringLiteral("share"),
+                                    QStringLiteral("sessions") })
+            && m.value(QStringLiteral("share")).typeId() == QMetaType::Double && share >= 0.0 && share <= 1.0
             && !m.value(QStringLiteral("text")).toString().isEmpty()
             && m.value(QStringLiteral("text")).toString().at(0).isUpper()
             && m.value(QStringLiteral("caption")).toString().startsWith(QStringLiteral("In the ideal range on "))
             && isPips(m.value(QStringLiteral("sessions")))
-            && storedRowMatches(storedWell, m.value(QStringLiteral("sessions")).toList());
+            && storedRowMatches(storedWell, m.value(QStringLiteral("sessions")).toList(), share);
     }
     // The focus: every key, always; when present a title, at least one fault right now, each aim
     // a capitalised phrase, the drill's words together or not at all, and the reason a sentence.
@@ -351,7 +360,8 @@ static void checkSummaryShape(const WorkOnsController &c, const QJsonObject &sto
     QStringList faultTexts;
     focus = keysAre(f, { QStringLiteral("present"), QStringLiteral("title"), QStringLiteral("aimFor"),
                          QStringLiteral("rightNow"), QStringLiteral("why"), QStringLiteral("practiseLabel"),
-                         QStringLiteral("practise"), QStringLiteral("reason"), QStringLiteral("focusConditionId") })
+                         QStringLiteral("practise"), QStringLiteral("reason"), QStringLiteral("reasonShort"),
+                         QStringLiteral("focusConditionId") })
         && f.value(QStringLiteral("present")).typeId() == QMetaType::Bool
         && f.value(QStringLiteral("aimFor")).typeId() == QMetaType::QVariantList
         && f.value(QStringLiteral("rightNow")).typeId() == QMetaType::QVariantList
@@ -375,7 +385,14 @@ static void checkSummaryShape(const WorkOnsController &c, const QJsonObject &sto
     }
     if (focus && f.value(QStringLiteral("present")).toBool()) {
         const QString reason = f.value(QStringLiteral("reason")).toString();
+        // The short reason: the same clauses, never the sentence — non-empty, no "Picked first", no
+        // full stop, and its "why" clause the sentence's own.
+        const QString shortReason = f.value(QStringLiteral("reasonShort")).toString();
+        const QString why = shortReason.section(QStringLiteral(" · "), -1);
         focus = !f.value(QStringLiteral("title")).toString().isEmpty() && !rightNow.isEmpty()
+            && !shortReason.isEmpty() && !shortReason.startsWith(QStringLiteral("Picked")) && !shortReason.endsWith(QLatin1Char('.'))
+            && reason.startsWith(QStringLiteral("Picked first: it ") + why)
+            && (rightNow.size() < 2) == !shortReason.contains(QStringLiteral(" · "))
             && f.value(QStringLiteral("practise")).toString().isEmpty() == f.value(QStringLiteral("practiseLabel")).toString().isEmpty()
             && reason.startsWith(QStringLiteral("Picked first: it ")) && reason.endsWith(QLatin1Char('.'));
         for (const QVariant &a : aimFor)
@@ -408,12 +425,14 @@ static void checkSummaryShape(const WorkOnsController &c, const QJsonObject &sto
             && m.value(QStringLiteral("trend")).typeId() == QMetaType::Int && trend >= -1 && trend <= 1;
     }
     char label[256];
-    std::snprintf(label, sizeof label, "%s: every 'do well' item is {text, caption, sessions}, its pips a stored row's", when);
+    std::snprintf(label, sizeof label, "%s: every 'do well' item is {text, caption, share, sessions}, its share in 0..1 and "
+                                       "its share and pips a stored row's", when);
     check(well, label);
     std::snprintf(label, sizeof label, "%s: at most three 'do well' items", when);
     check(c.doWellItems().size() <= 3, label);
     std::snprintf(label, sizeof label, "%s: the focus is {present, title, aimFor, rightNow, why, practiseLabel, "
-                                       "practise, reason, focusConditionId}, each 'right now' a fault item a stored row backs", when);
+                                       "practise, reason, reasonShort, focusConditionId}, each 'right now' a fault item a "
+                                       "stored row backs, and a present focus has a short reason", when);
     check(focus, label);
     std::snprintf(label, sizeof label, "%s: focusConditionId is the first 'right now' fault's stored row, in a stored "
                                        "focus group, with a label (\"\" when nothing is right now)", when);
@@ -425,6 +444,122 @@ static void checkSummaryShape(const WorkOnsController &c, const QJsonObject &sto
     check(together, label);
     std::snprintf(label, sizeof label, "%s: the note is said exactly when nothing goes together", when);
     check(c.togetherItems().isEmpty() != c.togetherNote().isEmpty(), label);
+}
+
+// ── The areas ────────────────────────────────────────────────────────────────────────────
+
+static QVariantMap area(const WorkOnsController &c, const char *group)
+{
+    for (const QVariant &v : c.areaItems())
+        if (v.toMap().value(QStringLiteral("group")).toString() == QLatin1String(group)) return v.toMap();
+    return {};
+}
+
+static QVariantMap areaItem(const QVariantMap &a, const char *id)
+{
+    for (const QVariant &v : a.value(QStringLiteral("items")).toList())
+        if (v.toMap().value(QStringLiteral("conditionId")).toString() == QLatin1String(id)) return v.toMap();
+    return {};
+}
+
+static QStringList areaGroups(const WorkOnsController &c)
+{
+    QStringList out;
+    for (const QVariant &v : c.areaItems()) out << v.toMap().value(QStringLiteral("group")).toString();
+    return out;
+}
+
+// What Home's "Your swing" QML binds to: exactly these keys on every area and every item, the values in range,
+// and the two orders — areas measurable first and by habits, items habits first, then occasional,
+// then the rest, by share within each — and a grade exactly when there is a typical value (every
+// fixture here grades against a stored corridor).
+static void checkAreasShape(const WorkOnsController &c, const char *when)
+{
+    static const QStringList bands{ QStringLiteral("habit"), QStringLiteral("occasional"),
+                                    QStringLiteral("clean"), QStringLiteral("unclear") };
+    static const QStringList grades{ QStringLiteral("ideal"), QStringLiteral("good"),
+                                     QStringLiteral("watch"), QStringLiteral("action") };
+    static const QStringList workOns{ QString(), QStringLiteral("active"), QStringLiteral("easing"), QStringLiteral("new") };
+    const auto rank = [](const QString &band) {
+        return band == QLatin1String("habit") ? 0 : band == QLatin1String("occasional") ? 1 : 2;
+    };
+
+    bool areaKeys = true, itemKeys = true, values = true, areaOrder = true, itemOrder = true, gradeIff = true;
+    bool seenUnmeasurable = false;
+    int lastHabits = 1 << 30;
+    for (const QVariant &av : c.areaItems()) {
+        const QVariantMap a = av.toMap();
+        areaKeys = areaKeys && keysAre(a, { QStringLiteral("group"), QStringLiteral("label"), QStringLiteral("measurable"),
+                                            QStringLiteral("measured"), QStringLiteral("habits"), QStringLiteral("occasional"),
+                                            QStringLiteral("clean"), QStringLiteral("unclear"), QStringLiteral("habitTrend"),
+                                            QStringLiteral("hasTrend"), QStringLiteral("topFault"), QStringLiteral("topFaultId"),
+                                            QStringLiteral("workOnsActive"), QStringLiteral("workOnsNew"), QStringLiteral("items") });
+        const bool measurable = a.value(QStringLiteral("measurable")).toBool();
+        const int habits = a.value(QStringLiteral("habits")).toInt();
+        const int counted = habits + a.value(QStringLiteral("occasional")).toInt() + a.value(QStringLiteral("clean")).toInt()
+                          + a.value(QStringLiteral("unclear")).toInt();
+        const QVariantList items = a.value(QStringLiteral("items")).toList();
+        values = values && !a.value(QStringLiteral("label")).toString().isEmpty()
+            && a.value(QStringLiteral("measured")).toInt() == counted
+            && int(items.size()) <= std::min(counted, 5)
+            && a.value(QStringLiteral("topFaultId")).toString().isEmpty() == a.value(QStringLiteral("topFault")).toString().isEmpty()
+            && (a.value(QStringLiteral("hasTrend")).toBool() || a.value(QStringLiteral("habitTrend")).toInt() == 0)
+            && a.value(QStringLiteral("workOnsNew")).toInt() <= a.value(QStringLiteral("workOnsActive")).toInt()
+            && (measurable || (counted == 0 && items.isEmpty()));
+        // Measurable first, by habits; then the unmeasurable ones.
+        if (!measurable) seenUnmeasurable = true;
+        else {
+            areaOrder = areaOrder && !seenUnmeasurable && habits <= lastHabits;
+            lastHabits = habits;
+        }
+
+        int lastRank = -1;
+        double lastShare = 2.0;
+        for (const QVariant &iv : items) {
+            const QVariantMap it = iv.toMap();
+            itemKeys = itemKeys && keysAre(it, { QStringLiteral("conditionId"), QStringLiteral("label"), QStringLiteral("golfer"),
+                                                 QStringLiteral("band"), QStringLiteral("share"), QStringLiteral("fired"),
+                                                 QStringLiteral("assessable"), QStringLiteral("measureId"), QStringLiteral("hasTypical"),
+                                                 QStringLiteral("typical"), QStringLiteral("corridorLo"), QStringLiteral("corridorHi"),
+                                                 QStringLiteral("corridorShape"), QStringLiteral("unit"), QStringLiteral("grade"),
+                                                 QStringLiteral("workOn"), QStringLiteral("sessionsListed") });
+            const QString band = it.value(QStringLiteral("band")).toString();
+            const double share = it.value(QStringLiteral("share")).toDouble();
+            const int fired = it.value(QStringLiteral("fired")).toInt(), assessable = it.value(QStringLiteral("assessable")).toInt();
+            values = values && bands.contains(band) && share >= 0.0 && share <= 1.0
+                && assessable > 0 && fired >= 0 && fired <= assessable
+                && !it.value(QStringLiteral("label")).toString().isEmpty()
+                && workOns.contains(it.value(QStringLiteral("workOn")).toString())
+                // A work-on word only for something ever listed; a CLEARED one was listed and reads "".
+                && (it.value(QStringLiteral("workOn")).toString().isEmpty() || it.value(QStringLiteral("sessionsListed")).toInt() > 0);
+            const bool typical = it.value(QStringLiteral("hasTypical")).toBool();
+            const QString grade = it.value(QStringLiteral("grade")).toString();
+            gradeIff = gradeIff && (typical ? grades.contains(grade) : grade.isEmpty())
+                && typical == !it.value(QStringLiteral("corridorShape")).toString().isEmpty();
+            const int r = rank(band);
+            itemOrder = itemOrder && (r > lastRank || (r == lastRank && share <= lastShare));
+            lastRank = r;
+            lastShare = share;
+        }
+    }
+
+    char label[256];
+    std::snprintf(label, sizeof label, "%s: every area is {group, label, measurable, measured, habits, occasional, clean, "
+                                       "unclear, habitTrend, hasTrend, topFault, topFaultId, workOnsActive, workOnsNew, items}", when);
+    check(areaKeys, label);
+    std::snprintf(label, sizeof label, "%s: every item is {conditionId, label, golfer, band, share, fired, assessable, "
+                                       "measureId, hasTypical, typical, corridorLo, corridorHi, corridorShape, unit, grade, "
+                                       "workOn, sessionsListed}", when);
+    check(itemKeys, label);
+    std::snprintf(label, sizeof label, "%s: the counts add up, at most five items, a band word, share in 0..1, "
+                                       "a work-on word only when it was ever listed (cleared reads \"\")", when);
+    check(values, label);
+    std::snprintf(label, sizeof label, "%s: areas measurable first, most habits first; unmeasurable ones last", when);
+    check(areaOrder, label);
+    std::snprintf(label, sizeof label, "%s: items habits, then occasional, then the rest, by share within each", when);
+    check(itemOrder, label);
+    std::snprintf(label, sizeof label, "%s: a grade (ideal | good | watch | action) exactly when there is a typical value", when);
+    check(gradeIff, label);
 }
 
 int main(int argc, char **argv)
@@ -447,6 +582,8 @@ int main(int argc, char **argv)
 
     WorkOnsController c;
     c.setSynchronous(true);
+    int areasSignals = 0;
+    QObject::connect(&c, &WorkOnsController::areasChanged, [&areasSignals] { ++areasSignals; });
     c.setAthleteDir(golfer);
 
     // ── Catch-up: neither session was ever "ended" ──────────────────────────────
@@ -521,6 +658,72 @@ int main(int argc, char **argv)
           "every row counts against the same swings; the ones it could not be judged on are said apart");
     check(!sway.value(QStringLiteral("drillLabel")).toString().isEmpty(), "sway carries the pack's drill");
 
+    // ── The areas ───────────────────────────────────────────────────────────────
+    //
+    // s1: the reverse spine, sway and the pull fire on all ten; s2: the spine and the ball position
+    // fire, sway is quiet. The pull reads only a launch-monitor key, so ball flight is shown.
+    checkAreasShape(c, "two small sessions");
+    check(areasSignals > 0, "publishing the list announces the areas (areasChanged)");
+    {
+        const int before = areasSignals;
+        c.refresh();
+        check(areasSignals > before, "…and every publish does, a refresh with nothing new included");
+    }
+    check(areaGroups(c) == QStringList{ "setup", "posture", "ballFlight", "lateral",
+                                        "sequence", "armsAndClub", "release", "impact", "finish" },
+          "area order: one habit each, tied on share, address to finish; then the occasional; then the unmeasured "
+          "in address-to-finish order");
+    {
+        const QVariantMap posture = area(c, "posture"), lateral = area(c, "lateral"), setup = area(c, "setup");
+        check(lateral.value(QStringLiteral("label")).toString() == QStringLiteral("Lateral motion")
+              && posture.value(QStringLiteral("label")).toString() == QStringLiteral("Posture"),
+              "area labels are conditionGroupLabel's: 'Lateral motion', 'Posture'");
+        check(posture.value(QStringLiteral("habits")).toInt() == 1 && posture.value(QStringLiteral("measured")).toInt() == 1
+              && posture.value(QStringLiteral("topFaultId")).toString() == QStringLiteral("reverse_spine_p4")
+              && posture.value(QStringLiteral("topFault")).toString() == QStringLiteral("Reverse spine angle at P4"),
+              "posture: one habit, its top fault named by the pack label");
+        check(lateral.value(QStringLiteral("habits")).toInt() == 0 && lateral.value(QStringLiteral("occasional")).toInt() == 1,
+              "lateral: sway on half the swings, the older half faded, is occasional");
+        check(posture.value(QStringLiteral("hasTrend")).toBool() && posture.value(QStringLiteral("habitTrend")).toInt() == 0
+              && setup.value(QStringLiteral("habitTrend")).toInt() == 1 && lateral.value(QStringLiteral("habitTrend")).toInt() == -1,
+              "trend against the counts without s2: posture steady, the ball position a new habit, sway cleared as one");
+        check(!area(c, "sequence").value(QStringLiteral("measurable")).toBool()
+              && area(c, "sequence").value(QStringLiteral("items")).toList().isEmpty()
+              && !area(c, "sequence").value(QStringLiteral("hasTrend")).toBool(),
+              "an area nothing assessed is unmeasurable, with no items and no trend");
+
+        const QVariantMap spineItem = areaItem(posture, "reverse_spine_p4"), swayItem = areaItem(lateral, "sway"),
+                          ballItem = areaItem(setup, "ball_back");
+        check(spineItem.value(QStringLiteral("band")).toString() == QStringLiteral("habit")
+              && spineItem.value(QStringLiteral("fired")).toInt() == 20 && spineItem.value(QStringLiteral("assessable")).toInt() == 20
+              && spineItem.value(QStringLiteral("workOn")).toString() == QStringLiteral("active")
+              && spineItem.value(QStringLiteral("sessionsListed")).toInt() == 2,
+              "the spine: a habit, 20 of 20 swings, an active work-on listed twice");
+        check(spineItem.value(QStringLiteral("hasTypical")).toBool() && spineItem.value(QStringLiteral("typical")).toDouble() == 6.0
+              && spineItem.value(QStringLiteral("corridorShape")).toString() == QStringLiteral("twoSided")
+              && spineItem.value(QStringLiteral("grade")).toString() == QStringLiteral("watch"),
+              "…typically 6 against a two-sided −2..2 band: ON the fault line (3σ) grades watch, as grade() does");
+        check(swayItem.value(QStringLiteral("band")).toString() == QStringLiteral("occasional")
+              && swayItem.value(QStringLiteral("typical")).toDouble() == 1.0
+              && swayItem.value(QStringLiteral("grade")).toString() == QStringLiteral("ideal")
+              && swayItem.value(QStringLiteral("workOn")).toString() == QStringLiteral("easing"),
+              "sway: its newest session's readings, all of them (D9), are inside the band — ideal; the work-on easing");
+        check(ballItem.value(QStringLiteral("workOn")).toString() == QStringLiteral("new")
+              && setup.value(QStringLiteral("workOnsNew")).toInt() == 1 && setup.value(QStringLiteral("workOnsActive")).toInt() == 1,
+              "the ball position, listed only in the newest session, is a new work-on");
+    }
+
+    // ── The newest session ──────────────────────────────────────────────────────
+    {
+        const QVariantMap last = c.lastSession();
+        const QDate d = QDateTime::fromMSecsSinceEpoch(t0 + day).date();
+        const QString want = QLocale::c().toString(d, d.year() == QDate::currentDate().year()
+                                                          ? QStringLiteral("ddd d MMM") : QStringLiteral("ddd d MMM yyyy"));
+        check(keysAre(last, { QStringLiteral("label"), QStringLiteral("shots") })
+              && last.value(QStringLiteral("label")).toString() == want && last.value(QStringLiteral("shots")).toInt() == 10,
+              "lastSession is {label, shots}: s2's day with its weekday ('Mon 26 Oct'), and its 10 shots");
+    }
+
     // ── A current record is left alone ──────────────────────────────────────────
     const double w1 = writtenAt(golfer, QStringLiteral("s1")), w2 = writtenAt(golfer, QStringLiteral("s2"));
     c.refresh();
@@ -576,8 +779,15 @@ int main(int argc, char **argv)
           && c.togetherItems().isEmpty() && c.togetherNote().isEmpty()
           && !QFile::exists(WorkOnsController::themesPath(other)),
           "…and so does the summary, with no file written into a folder with no sessions");
+    check(c.areaItems().isEmpty() && c.lastSession().isEmpty(),
+          "…and so do the areas and the newest session: no rows for a library with nothing in it");
     c.setAthleteDir(golfer);
     check(c.items().size() == 2 && c.sessionCount() == 4, "…and coming back reads the records without deriving");
+    checkAreasShape(c, "four sessions, back again");
+    check(areaItem(area(c, "lateral"), "sway").value(QStringLiteral("sessionsListed")).toInt() == 1
+          && areaItem(area(c, "lateral"), "sway").value(QStringLiteral("workOn")).toString().isEmpty(),
+          "sway, cleared off the list, is still listed once but is no longer a work-on");
+    check(c.lastSession().value(QStringLiteral("shots")).toInt() == 10, "…and the newest session is s4's again");
 
     // ══ The swing summary, threaded ══════════════════════════════════════════════════════
     //
@@ -626,6 +836,12 @@ int main(int argc, char **argv)
               "…its title the drill's label, how to practise the drill's instruction, and what to aim for");
         check(focus.value(QStringLiteral("reason")).toString() == QStringLiteral("Picked first: it comes earliest in your swing."),
               "…chosen because it comes earliest (the only group), and covering one thing, it says no more");
+        check(focus.value(QStringLiteral("reasonShort")).toString() == QStringLiteral("comes earliest in your swing"),
+              "…and its short reason is that clause alone");
+        checkAreasShape(t, "three sessions, threaded");
+        check(area(t, "lateral").value(QStringLiteral("measurable")).toBool()
+              && !areaItem(area(t, "lateral"), "sway").isEmpty(),
+              "the threaded catch-up publishes the areas too: sway is in lateral motion");
         check(t.summarySubtitle() == QStringLiteral("From 90 swings over 3 sessions"),
               "the subtitle: 'From 90 swings over 3 sessions'");
         checkSummaryShape(t, themesFile(themed), "three sessions");

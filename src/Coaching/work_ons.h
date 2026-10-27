@@ -27,6 +27,9 @@
 //   aggregateWorkOns()      every session's record for one golfer -> the WORK ONS list on the
 //                           home screen: which faults keep coming back, which are easing, and
 //                           which have gone.
+//   aggregateConditions()   the same arithmetic over EVERY condition any session assessed, listed
+//                           or not — what Home's "Your swing" areas count (swing_areas.h). The
+//                           list's own aggregate is unchanged by it.
 //
 // THE SESSION LEDGER answers "what keeps happening in THIS session". This answers "what keeps
 // happening to THIS GOLFER", and it is built so the second question cannot outrun the first:
@@ -72,7 +75,12 @@ namespace pinpoint::analysis {
 // work_ons.json's shape, and the selection rule that filled it. Two numbers because they
 // change for different reasons: a new field is a new schema, a new ordering is a new rule.
 // 2: every entry carries `reasons` (which rule placed it) and the record says `linksTestable`.
-inline constexpr int kWorkOnSchemaVersion = 2;
+// 3: every EVIDENCE row carries its driving measure and, under the one-corridor rule, the median of
+// ALL its assessed readings and the corridor they were graded against (WorkOnEvidence, D9 of
+// ux_refactor_away_from_4_modes.md §5.2) — so an area can quote and grade a condition that never
+// made a list. A schema bump and not a rule bump: the catch-up re-reduces each session from its
+// diagnostics.json, the fingerprint is untouched and the swing themes are not recomputed.
+inline constexpr int kWorkOnSchemaVersion = 3;
 // 2: a symptom goes behind its cause only when the session's swings SUPPORT the link (see
 // linkSupported); an authored link they cannot test is named (mayFollow) but does not demote.
 // 3: the golfer's list puts SHARP work-ons first (WorkOnSummary::sharp), as every session's does.
@@ -258,6 +266,56 @@ struct WorkOnReasons {
     double                swingPos = kWorkOnSwingPosSession;
 };
 
+// THE TYPICAL READING, one rule for both of its readers, so the work-on card and the area row cannot
+// drift apart. A median is stated only when every reading that goes into it was graded against ONE
+// corridor: a mixed-club session grades one measure against several, and a median across them is a
+// number no corridor describes. A COMPOSITE's reading is its z, which is never shown
+// (posture_metrics_design.md §8): no typical value to quote, so the card and the report say how
+// often, not how far. A non-finite reading voids it as well. Once void, it stays void — the order
+// rows arrive in cannot bring a median back.
+//
+// Two populations, chosen by the caller (D9, ux_refactor_away_from_4_modes.md §5.2):
+//   WorkOnEntry     the FIRED readings — how far out it goes when it goes. A typical value past the
+//                   corridor by construction, which is what a work-on card wants to say.
+//   WorkOnEvidence  EVERY ASSESSED reading, fired or clean — where the golfer usually is. A clean
+//                   condition then reads inside its corridor and a grade against it means something.
+//
+// Fed one row at a time, so the evidence pass is ONE sweep over the session's rows rather than a
+// linear rowFor() per condition per shot.
+struct WorkOnTypical {
+    bool          haveCorridor = false;   // the first usable row's corridor has been taken
+    bool          sameCorridor = true;    // false: a later corridor disagreed, or a row was unusable
+    double        corridorLo = 0.0;
+    double        corridorHi = 0.0;
+    CorridorShape corridorShape = CorridorShape::Unknown;
+    std::vector<double> values;
+
+    void add(const ConditionRow &r)
+    {
+        if (!sameCorridor) return;
+        if (!std::isfinite(r.value) || r.composite.present()) { sameCorridor = false; return; }
+        if (!haveCorridor) {
+            corridorLo    = r.corridorLo;
+            corridorHi    = r.corridorHi;
+            corridorShape = r.corridorShape;
+            haveCorridor  = true;
+        } else if (std::fabs(r.corridorLo - corridorLo) > 1e-9
+                   || std::fabs(r.corridorHi - corridorHi) > 1e-9
+                   || r.corridorShape != corridorShape) {
+            sameCorridor = false;
+            return;
+        }
+        values.push_back(r.value);
+    }
+    // A corridor with no band (None) or none recorded (Unknown) has nothing to state a reading against.
+    bool has() const
+    {
+        return sameCorridor && haveCorridor && !values.empty()
+            && corridorShape != CorridorShape::None && corridorShape != CorridorShape::Unknown;
+    }
+    double typical() const { return medianOf(values); }
+};
+
 // One fault a session says to work on.
 struct WorkOnEntry {
     QString     id;
@@ -294,6 +352,18 @@ struct WorkOnEvidence {
     SessionEvidence state = SessionEvidence::NotMeasured;
     int             fired = 0, assessable = 0;
     double          excess = 0.0;
+
+    // Schema 3. The ledger's driving measure, and the typical reading over EVERY ASSESSED shot — fired
+    // and clean alike (D9; WorkOnTypical above) — stated only under the one-corridor, non-composite
+    // rule. The corridor is the one those readings were graded against, and is set (and written) only
+    // with the typical value: without one it would name a band nothing here was read against. An
+    // absent key in the file is "not present", never zero.
+    QString         measureId;
+    bool            hasTypical   = false;
+    double          typicalValue = 0.0;
+    double          corridorLo   = 0.0;
+    double          corridorHi   = 0.0;
+    CorridorShape   corridorShape = CorridorShape::Unknown;
 };
 
 // One session's record — what work_ons.json holds.
@@ -427,11 +497,42 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
         if (!s.club.isEmpty() && !out.clubs.contains(s.club)) out.clubs.append(s.club);
     }
 
+    // The evidence's typical reading (D9): every ASSESSED row, in one sweep of the session's rows.
+    // rowFor()'s rule holds — a shot's first row for a condition is that shot's row.
+    QHash<QString, WorkOnTypical> assessedTypical;
+    {
+        QSet<QString> seenThisShot;
+        for (const ShotRecord &s : shots) {
+            seenThisShot.clear();
+            for (const ConditionRow &r : s.rows) {
+                if (seenThisShot.contains(r.conditionId)) continue;
+                seenThisShot.insert(r.conditionId);
+                if (r.state == ShotState::NotAssessable) continue;
+                assessedTypical[r.conditionId].add(r);
+            }
+        }
+    }
+
     QSet<QString> patternSet;
     for (const ConditionLedger &l : ledgers) {
         const SessionEvidence ev = sessionEvidence(l, opt);
         if (ev == SessionEvidence::NotMeasured) continue;
-        out.evidence.push_back({ l.id, ev, l.fired, l.assessable, l.firingExcess });
+        WorkOnEvidence e;
+        e.id         = l.id;
+        e.state      = ev;
+        e.fired      = l.fired;
+        e.assessable = l.assessable;
+        e.excess     = l.firingExcess;
+        e.measureId  = l.drivingMeasureId;
+        const auto typ = assessedTypical.constFind(l.id);
+        if (typ != assessedTypical.constEnd() && typ->has()) {
+            e.hasTypical    = true;
+            e.typicalValue  = typ->typical();
+            e.corridorLo    = typ->corridorLo;
+            e.corridorHi    = typ->corridorHi;
+            e.corridorShape = typ->corridorShape;
+        }
+        out.evidence.push_back(std::move(e));
         if (ev == SessionEvidence::Pattern) patternSet.insert(l.id);
     }
 
@@ -480,33 +581,24 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
         c.e.reasons.excess    = l.firingExcess;
         c.e.reasons.swingPos  = swingPosOf.value(l.id, kWorkOnSwingPosSession);
 
-        // The typical reading, under the one-corridor rule above.
-        std::vector<double> values;
-        bool sameCorridor = true, haveCorridor = false;
-        for (const ShotRecord &s : shots) {
-            const ConditionRow *r = rowFor(s, l.id);
-            if (!r || r->state != ShotState::Fired) continue;
-            // A COMPOSITE's reading is its z, which is never shown (posture_metrics_design.md §8): no
-            // typical value to quote, so the card and the report say how often, not how far.
-            if (!std::isfinite(r->value) || r->composite.present()) { sameCorridor = false; break; }
-            if (!haveCorridor) {
-                c.e.corridorLo = r->corridorLo;
-                c.e.corridorHi = r->corridorHi;
-                c.e.corridorShape = r->corridorShape;
-                haveCorridor = true;
-            } else if (std::fabs(r->corridorLo - c.e.corridorLo) > 1e-9
-                       || std::fabs(r->corridorHi - c.e.corridorHi) > 1e-9
-                       || r->corridorShape != c.e.corridorShape) {
-                sameCorridor = false;
-                break;
+        // The typical reading on the FIRINGS, under the one-corridor rule (WorkOnTypical). The
+        // corridor is kept from the first usable firing even when the median is refused, as it
+        // always was; it is written to the file only with the median.
+        {
+            WorkOnTypical typ;
+            for (const ShotRecord &s : shots) {
+                const ConditionRow *r = rowFor(s, l.id);
+                if (r && r->state == ShotState::Fired) typ.add(*r);
             }
-            values.push_back(r->value);
-        }
-        if (sameCorridor && haveCorridor && !values.empty()
-            && c.e.corridorShape != CorridorShape::None
-            && c.e.corridorShape != CorridorShape::Unknown) {
-            c.e.hasTypical   = true;
-            c.e.typicalValue = medianOf(values);
+            if (typ.haveCorridor) {
+                c.e.corridorLo    = typ.corridorLo;
+                c.e.corridorHi    = typ.corridorHi;
+                c.e.corridorShape = typ.corridorShape;
+            }
+            if (typ.has()) {
+                c.e.hasTypical   = true;
+                c.e.typicalValue = typ.typical();
+            }
         }
 
         // THE CARD ROW'S ORDER, minus history. Magnitude first, the bound to settle a near-tie,
@@ -629,6 +721,13 @@ struct WorkOnSummary {
     WorkOnEntry latest;                 // from the newest session that listed it
     QString     latestSessionId;
 
+    // The evidence row from the newest session that ASSESSED it, listed or not — so its typical
+    // reading and corridor are the newest the record holds, not the newest LISTING's (which can be
+    // months older than the counts beside it). Schema 3; what an area item quotes and grades.
+    bool           hasLatestEvidence = false;
+    WorkOnEvidence latestEvidence;
+    QString        latestEvidenceSessionId;
+
     // The newest listing fired as a SHARP pattern (Condition::sharp). The entry's excess is the
     // median rowStrength over its firings, and every firing of a sharp condition reads exactly
     // kDiagSharpExcess — past any corridor excess a real reading reaches — so the median is that
@@ -636,9 +735,17 @@ struct WorkOnSummary {
     bool sharp() const { return hasLatest && latest.excess >= kDiagSharpExcess; }
 };
 
+// WHICH CONDITIONS THE AGGREGATE SUMMARISES. One body, two id sets, so the list and the areas are
+// the same arithmetic and cannot disagree about a condition they both hold.
+enum class WorkOnScope {
+    Listed,          // ids some session LISTED — the work-ons list (aggregateWorkOns)
+    EveryAssessed,   // ...and every id some session's evidence holds, of every class (aggregateConditions)
+};
+
 // Sessions in any order; they are sorted here by start time, then id.
-inline std::vector<WorkOnSummary> aggregateWorkOns(std::vector<SessionWorkOns> sessions,
-                                                   const WorkOnOptions &opt = WorkOnOptions())
+inline std::vector<WorkOnSummary> aggregateWorkOnsIn(std::vector<SessionWorkOns> sessions,
+                                                     WorkOnScope scope,
+                                                     const WorkOnOptions &opt = WorkOnOptions())
 {
     std::stable_sort(sessions.begin(), sessions.end(),
                      [](const SessionWorkOns &a, const SessionWorkOns &b) {
@@ -659,27 +766,49 @@ inline std::vector<WorkOnSummary> aggregateWorkOns(std::vector<SessionWorkOns> s
     }
 
     // First-listed order: the stable identity of the set, as conditionLedgers() keeps for shots.
+    // EveryAssessed appends the ids only evidence holds, first-assessed. (The sort below ends on
+    // the id, so this order decides nothing in the output; it only has to be deterministic.)
     std::vector<QString> order;
     QSet<QString> seen;
     for (const SessionWorkOns &s : sessions)
         for (const WorkOnEntry &e : s.entries)
             if (!seen.contains(e.id)) { seen.insert(e.id); order.push_back(e.id); }
+    if (scope == WorkOnScope::EveryAssessed)
+        for (const SessionWorkOns &s : sessions)
+            for (const WorkOnEvidence &e : s.evidence)
+                if (!seen.contains(e.id)) { seen.insert(e.id); order.push_back(e.id); }
+
+    // id -> evidence row, per session. evidenceFor() is a linear scan, and the every-condition
+    // aggregate asks it conditions × sessions times — 126 × 10 × ~100 string compares today, ten
+    // times that on a 100-session library, on the GUI thread.
+    std::vector<QHash<QString, int>> evidenceAt(static_cast<size_t>(n));
+    for (int i = 0; i < n; ++i) {
+        const std::vector<WorkOnEvidence> &ev = sessions[size_t(i)].evidence;
+        QHash<QString, int> &at = evidenceAt[size_t(i)];
+        at.reserve(int(ev.size()));
+        for (int k = int(ev.size()) - 1; k >= 0; --k) at.insert(ev[size_t(k)].id, k);   // first row wins, as evidenceFor()
+    }
 
     std::vector<WorkOnSummary> out;
     out.reserve(order.size());
     for (const QString &id : order) {
         WorkOnSummary w;
         w.id = id;
+        const WorkOnEvidence *newestEvidence = nullptr;
         for (int i = 0; i < n; ++i) {
             const SessionWorkOns &s = sessions[size_t(i)];
             WorkOnPoint p;
             p.sessionId = s.sessionId;
             p.startMs   = s.startMs;
-            if (const WorkOnEvidence *ev = s.evidenceFor(id)) {
+            const auto at = evidenceAt[size_t(i)].constFind(id);
+            if (at != evidenceAt[size_t(i)].constEnd()) {
+                const WorkOnEvidence *ev = &s.evidence[size_t(*at)];
                 p.state      = ev->state;
                 p.fired      = ev->fired;
                 p.assessable = ev->assessable;
                 p.excess     = ev->excess;
+                newestEvidence = ev;
+                w.latestEvidenceSessionId = s.sessionId;
             }
             if (const WorkOnEntry *e = s.entry(id)) {
                 p.listed = true;
@@ -704,6 +833,10 @@ inline std::vector<WorkOnSummary> aggregateWorkOns(std::vector<SessionWorkOns> s
                 w.latestConclusiveIndex = i;
             }
             w.history.push_back(std::move(p));
+        }
+        if (newestEvidence) {
+            w.hasLatestEvidence = true;
+            w.latestEvidence    = *newestEvidence;
         }
 
         w.score = wilsonLowerBound(w.weightedFired, w.weightedAssessable, opt.wilsonZ);
@@ -734,6 +867,27 @@ inline std::vector<WorkOnSummary> aggregateWorkOns(std::vector<SessionWorkOns> s
         return a.id < b.id;
     });
     return out;
+}
+
+// THE WORK-ONS LIST: every condition some session listed. Its output is what the home screen's
+// list and clearedCount are built from, and the every-condition sibling below must never move it.
+inline std::vector<WorkOnSummary> aggregateWorkOns(std::vector<SessionWorkOns> sessions,
+                                                   const WorkOnOptions &opt = WorkOnOptions())
+{
+    return aggregateWorkOnsIn(std::move(sessions), WorkOnScope::Listed, opt);
+}
+
+// EVERY CONDITION ANY SESSION ASSESSED — listed or not, of every class (Outcome, Capacity and the
+// held-back ones included; a reader classifies). The same per-condition arithmetic as the list, so a
+// listed condition's summary here is the one the list holds. Two cautions for a reader:
+//   - status is computed from evidence alone, so a NEVER-LISTED pattern reads Active. Whether
+//     something is a work-on is sessionsListed > 0, not the status;
+//   - history, score and the swing counts are present for every id, latestEvidence for every id,
+//     `latest` only for a listed one.
+inline std::vector<WorkOnSummary> aggregateConditions(std::vector<SessionWorkOns> sessions,
+                                                      const WorkOnOptions &opt = WorkOnOptions())
+{
+    return aggregateWorkOnsIn(std::move(sessions), WorkOnScope::EveryAssessed, opt);
 }
 
 // ── Serialisation — work_ons.json ───────────────────────────────────────────────
@@ -808,6 +962,14 @@ inline QJsonObject toJson(const SessionWorkOns &s)
         o[QStringLiteral("fired")]      = e.fired;
         o[QStringLiteral("assessable")] = e.assessable;
         o[QStringLiteral("excess")]     = e.excess;
+        // Schema 3. Absent, not empty or zero, when there is nothing to say.
+        if (!e.measureId.isEmpty()) o[QStringLiteral("measureId")] = e.measureId;
+        if (e.hasTypical) {
+            o[QStringLiteral("typicalValue")]  = e.typicalValue;
+            o[QStringLiteral("corridorLo")]    = e.corridorLo;
+            o[QStringLiteral("corridorHi")]    = e.corridorHi;
+            o[QStringLiteral("corridorShape")] = corridorShapeToString(e.corridorShape);
+        }
         evidence.append(o);
     }
 
@@ -891,6 +1053,14 @@ inline SessionWorkOns sessionWorkOnsFromJson(const QJsonObject &root, bool *ok =
         e.fired      = o.value(QStringLiteral("fired")).toInt();
         e.assessable = o.value(QStringLiteral("assessable")).toInt();
         e.excess     = o.value(QStringLiteral("excess")).toDouble();
+        e.measureId  = o.value(QStringLiteral("measureId")).toString();
+        e.hasTypical = o.contains(QStringLiteral("typicalValue"));
+        if (e.hasTypical) {
+            e.typicalValue  = o.value(QStringLiteral("typicalValue")).toDouble();
+            e.corridorLo    = o.value(QStringLiteral("corridorLo")).toDouble();
+            e.corridorHi    = o.value(QStringLiteral("corridorHi")).toDouble();
+            e.corridorShape = corridorShapeFromString(o.value(QStringLiteral("corridorShape")).toString());
+        }
         s.evidence.push_back(std::move(e));
     }
     return s;

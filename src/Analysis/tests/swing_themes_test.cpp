@@ -848,6 +848,9 @@ int main()
               && vw.doWell[3].caption == QStringLiteral("In the ideal range on almost every swing")
               && vw.doWell[4].caption == QStringLiteral("In the ideal range on most swings"),
               "captions: 0.994 and 0.9 are \"almost every\", 0.899 is \"most\"");
+        check(vw.doWell.size() == 5 && vw.doWell[0].share == 1.0 && vw.doWell[2].share == 0.994
+              && vw.doWell[4].share == 0.899,
+              "do well: each item carries its row's share, the number its caption words");
 
         auto seen = [](const char *id, double share, const char *trend, std::vector<bool> pips) {
             SeenMostRow r;
@@ -1114,6 +1117,8 @@ int main()
         check(f.why == QStringLiteral("Why a1. Why a2. Why a3."), "focus: the golferWhy sentences joined by one space");
         check(f.reason == QStringLiteral("Picked first: it comes earliest in your swing and covers three of the things on your list."),
               "focus: the reason — earliest, and how many of the list it covers, in words");
+        check(f.reasonShort == QStringLiteral("covers 3 things on your list · comes earliest in your swing"),
+              "focus: the short reason — the same two clauses on one line, the count first, in digits");
         check(f.conditionIds == QStringList{ "a1", "a2", "a3" }, "focus: carries its group's faults");
         check(f.rightNow.size() == 3 && f.rightNow[0].conditionId == QStringLiteral("a1") && f.rightNow[1].conditionId == QStringLiteral("a2")
               && f.rightNow[2].conditionId == QStringLiteral("a3") && av.next.size() == 4 && av.next[0].conditionId == QStringLiteral("c1")
@@ -1142,6 +1147,8 @@ int main()
               "focus: an empty or repeated aim is skipped, a repeated why told once");
         check(bv.focus.reason == QStringLiteral("Picked first: it shows up on the most of your swings and covers two of the things on your list."),
               "focus: not the earliest group, so the reason is how often it shows up");
+        check(bv.focus.reasonShort == QStringLiteral("covers 2 things on your list · shows up on the most of your swings"),
+              "focus: the short reason says how often, too");
         check(bv.next.size() == 1 && bv.next[0].text == QStringLiteral("You do m1"),
               "next: a phrase the focus already says is not told again; an empty phrase never");
 
@@ -1154,6 +1161,8 @@ int main()
               && cv.focus.practise.isEmpty() && cv.focus.aimFor == QStringList{ "You keep q1" }
               && cv.focus.reason == QStringLiteral("Picked first: it comes earliest in your swing.") && cv.next.empty(),
               "solo focus: its golferWell as the title, no drill, and the reason without a count");
+        check(cv.focus.reasonShort == QStringLiteral("comes earliest in your swing"),
+              "solo focus: the short reason is the one clause, no count");
 
         // Ten faults under one drill: the count in digits.
         SwingThemes d;

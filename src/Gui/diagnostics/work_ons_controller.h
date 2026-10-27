@@ -35,7 +35,7 @@
 #include <vector>
 
 class SessionDiagnosticsModel;
-namespace pinpoint::analysis { class ICharacteristicPackProvider; }
+namespace pinpoint::analysis { class ICharacteristicPackProvider; struct CharacteristicPack; }
 
 // WORK ONS — the list of the faults a golfer keeps producing (FAULTS, on the Swing diagnostics
 // screen that the home screen's YOUR SWING opens), and the thing that keeps each session's record
@@ -98,6 +98,28 @@ class WorkOnsController : public QObject
     Q_PROPERTY(int sessionCount READ sessionCount NOTIFY itemsChanged)
     Q_PROPERTY(int sessionsFound READ sessionsFound NOTIFY itemsChanged)
     Q_PROPERTY(bool updating READ updating NOTIFY updatingChanged)
+    // The newest session with a current record: {label "Mon 26 Oct" (the year too when not this
+    // one), shots}. Empty with none. The queue derives newest first, so during a catch-up this is
+    // the library's newest session as soon as that one record is current.
+    Q_PROPERTY(QVariantMap lastSession READ lastSession NOTIFY itemsChanged)
+
+    // ── Your swing: the areas ──
+    // One row per area of the swing (swing_areas.h, docs/design/ux_refactor_away_from_4_modes.md
+    // §5), in display order, rated by HOW MANY OF ITS FAULTS ARE HABITS — no 0–100 score. Built in
+    // publish() from the same records as `items`, so it moves with the list, not with the themes.
+    // Empty before the first publish and while no session has a record. Each area:
+    //   {group (token), label ("Lateral motion"), measurable, measured, habits, occasional, clean,
+    //    unclear, habitTrend (habits now − without the newest substantive session), hasTrend,
+    //    topFault (label, "" when none), topFaultId, workOnsActive, workOnsNew, items [item]}
+    // Each item, habits first, then occasional, then the rest, by share within each, at most five:
+    //   {conditionId, label, golfer, band ("habit" | "occasional" | "clean" | "unclear"), share (0..1,
+    //    recency-weighted), fired, assessable (unweighted swings), measureId, hasTypical, typical,
+    //    corridorLo, corridorHi, corridorShape, unit, grade, workOn ("active" | "easing" | "new" | ""),
+    //    sessionsListed}
+    // `grade` is the typical value graded against its stored corridor under `gradePolicy`, in the
+    // panel's tokens ("ideal" | "good" | "watch" | "action", for Theme.corridorTone/corridorWord);
+    // "" when there is no typical value or no corridor to read it against.
+    Q_PROPERTY(QVariantList areaItems READ areaItems NOTIFY areasChanged)
 
     // ── Your swing ──
     // Every string final (swingSummaryView); HmSwingSummary.qml, HmFocus.qml and (in Swing
@@ -107,10 +129,13 @@ class WorkOnsController : public QObject
     // "From N swings over M sessions" — every shot in the ledgers, every session holding one.
     Q_PROPERTY(QString summarySubtitle READ summarySubtitle NOTIFY summaryChanged)
     // "Your focus": {present, title, aimFor [string], rightNow [fault item], why, practiseLabel,
-    // practise, reason, focusConditionId (the first rightNow fault's condition id, "" when none)}.
-    // present is false when nothing needs work; empty before a summary.
+    // practise, reason, reasonShort, focusConditionId (the first rightNow fault's condition id, ""
+    // when none)}. reasonShort is the reason's two clauses on one line: "covers 2 things on your
+    // list · comes earliest in your swing". present is false when nothing needs work; empty before
+    // a summary.
     Q_PROPERTY(QVariantMap focusItem READ focusItem NOTIFY summaryChanged)
-    // "What you do well", at most three: {text, caption, sessions [bool, one per judged session]}.
+    // "What you do well", at most three: {text, caption, share (0..1, the in-band share the caption
+    // words), sessions [bool, one per judged session]}.
     Q_PROPERTY(QVariantList doWellItems READ doWellItems NOTIFY summaryChanged)
     // "Next on your list", at most four fault items: the needs-work faults the focus does not
     // cover, in the order they would come up.
@@ -144,6 +169,8 @@ public:
     int  sessionCount() const { return int(m_records.size()); }
     int  sessionsFound() const { return m_sessionsFound; }
     bool updating() const { return m_scanning || m_deriving || !m_queue.isEmpty(); }
+    QVariantMap  lastSession() const { return m_lastSession; }
+    QVariantList areaItems() const { return m_areaItems; }
 
     QString      summarySubtitle() const { return m_summarySubtitle; }
     QVariantMap  focusItem() const { return m_focusItem; }
@@ -176,6 +203,7 @@ signals:
     void itemsChanged();
     void updatingChanged();
     void summaryChanged();
+    void areasChanged();
 
 private:
     struct Scanned {
@@ -192,6 +220,8 @@ private:
     void onModelSettled();
     void finishDerive();
     void publish();
+    void publishAreas(const pinpoint::analysis::CharacteristicPack &pack,
+                      const std::vector<pinpoint::analysis::SessionWorkOns> &sessions);
     SessionDiagnosticsModel *model();
 
     // ── Your swing ──
@@ -240,6 +270,8 @@ private:
 
     QVariantList m_items;
     int          m_clearedCount = 0;
+    QVariantMap  m_lastSession;
+    QVariantList m_areaItems;          // publish()'s, stored: QML reads it many times per frame
 
     SessionDiagnosticsModel *m_model = nullptr;   // created on first need; owned (child)
     // Lazily made; mutable so conditionLabel() (const) can make it on first need.

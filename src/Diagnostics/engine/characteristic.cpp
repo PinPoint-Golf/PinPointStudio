@@ -82,7 +82,7 @@ const Row<Direction> kDirections[] = {
 const Row<ConditionGroup> kGroups[] = {
     { ConditionGroup::Setup,       "setup",       "Setup" },
     { ConditionGroup::Posture,     "posture",     "Posture" },
-    { ConditionGroup::Lateral,     "lateral",     "Lateral" },
+    { ConditionGroup::Lateral,     "lateral",     "Lateral motion" },
     { ConditionGroup::ArmsAndClub, "armsAndClub", "Arms & club" },
     { ConditionGroup::Release,     "release",     "Release" },
     { ConditionGroup::Sequence,    "sequence",    "Sequence" },

@@ -19,6 +19,9 @@
 #include "work_ons_controller.h"
 
 #include "session_diagnostics_model.h"
+#include "session_spread.h"
+
+#include "../../Coaching/swing_areas_pack.h"
 
 #include "../../Diagnostics/packs/characteristic_pack.h"
 #include "../../Diagnostics/packs/drill_pack.h"
@@ -74,6 +77,33 @@ QString dayLabel(qint64 ms)
     const QDate d = QDateTime::fromMSecsSinceEpoch(ms).date();
     return QLocale::c().toString(d, d.year() == QDate::currentDate().year()
                                         ? QStringLiteral("d MMM") : QStringLiteral("d MMM yyyy"));
+}
+
+// "Mon 26 Oct" — the session's day with its weekday, the year only when it is not this one.
+QString weekdayLabel(qint64 ms)
+{
+    if (ms <= 0) return QString();
+    const QDate d = QDateTime::fromMSecsSinceEpoch(ms).date();
+    return QLocale::c().toString(d, d.year() == QDate::currentDate().year()
+                                        ? QStringLiteral("ddd d MMM") : QStringLiteral("ddd d MMM yyyy"));
+}
+
+// THE GRADE A VALUE EARNS against a corridor, off the edges the session panel draws its bands from
+// (session_spread.h spreadBands) — so the word beside an area item's typical value is the band its
+// dot would sit in there. Boundaries as grade() has them: ON an edge is the inner band (|z| ≤ max).
+// An OPEN side does not grade, and grade() calls a ceiling's low tail Ideal; so does this. "" when
+// there is no corridor to read the value against. The panel's tokens, which Theme.corridorTone and
+// corridorWord take.
+QString gradeOnCorridor(const SpreadCorridor &c, double v)
+{
+    if (!c.known || !std::isfinite(v)) return QString();
+    const auto past = [&c, v](double lo, double hi) {
+        return (!c.lowOpen && v < lo) || (!c.highOpen && v > hi);
+    };
+    if (past(c.faultLo,  c.faultHi))  return gradeName(Grade::Action);
+    if (past(c.signalLo, c.signalHi)) return gradeName(Grade::Watch);
+    if (past(c.idealLo,  c.idealHi))  return gradeName(Grade::Good);
+    return gradeName(Grade::Ideal);
 }
 
 // A COUNT of swings, never a percentage — recurrenceText()'s rule, one level up.
@@ -392,13 +422,31 @@ void WorkOnsController::publish()
     std::vector<SessionWorkOns> sessions;
     QHash<QString, QString> dirOf;      // session id -> dir
     QSet<QString> substantive;          // sessions that could say something about something
+    const SessionWorkOns *newest = nullptr;
     for (auto it = m_records.constBegin(); it != m_records.constEnd(); ++it) {
-        sessions.push_back(it.value());
-        dirOf.insert(it.value().sessionId, it.key());
-        if (it.value().substantive()) substantive.insert(it.value().sessionId);
+        const SessionWorkOns &r = it.value();
+        sessions.push_back(r);
+        dirOf.insert(r.sessionId, it.key());
+        if (r.substantive()) substantive.insert(r.sessionId);
+        // The newest by when it was played — the aggregate's own order (start, then id).
+        if (!newest || r.startMs > newest->startMs || (r.startMs == newest->startMs && r.sessionId > newest->sessionId))
+            newest = &r;
     }
     int totalSwings = 0;
     for (const SessionWorkOns &s : sessions) totalSwings += s.shotCount;
+
+    m_lastSession.clear();
+    if (newest)
+        m_lastSession = QVariantMap{
+            { QStringLiteral("label"), weekdayLabel(newest->startMs) },
+            { QStringLiteral("shots"), newest->shotCount },
+        };
+
+    // The areas first, while `sessions` is still whole: summariseAreas copies what it sorts. One call —
+    // the every-condition aggregate, and the same again without the newest substantive session for the
+    // trend — per publish, on this thread; the aggregate's per-session evidence index keeps it linear.
+    publishAreas(pack, sessions);
+
     const std::vector<WorkOnSummary> agg = aggregateWorkOns(std::move(sessions));
 
     const auto nameOf = [&pack](const QString &id, const QString &fallback = QString()) {
@@ -520,6 +568,74 @@ void WorkOnsController::publish()
     m_items = items;
     m_clearedCount = cleared;
     emit itemsChanged();
+    emit areasChanged();
+}
+
+// The areas of "Your swing" (swing_areas.h), every string final but the grade's colour. Built from
+// the records, not the themes, so it is current whenever the list is. No session with a record: no
+// rows at all — eight areas reading "not measured" would blame a rig for a library with nothing in it.
+void WorkOnsController::publishAreas(const CharacteristicPack &pack, const std::vector<SessionWorkOns> &sessions)
+{
+    m_areaItems.clear();
+    if (sessions.empty()) return;
+
+    const GradePolicy policy = gradePolicyByName(m_gradePolicy);
+    for (const AreaSummary &a : summariseAreasForPack(&pack, sessions)) {
+        ConditionGroup g;
+        const QString label = conditionGroupFromName(a.group, g) ? conditionGroupLabel(g) : a.group;
+
+        QVariantList items;
+        items.reserve(qsizetype(a.items.size()));
+        for (const AreaItem &it : a.items) {
+            // THE SAME EDGES the work-on row's corridor words come from (spreadCorridorFromRow): the
+            // stored band is the policy's Ideal band, and the rest is recovered from it.
+            QString grade;
+            if (it.hasTypical) {
+                ConditionRow band;
+                band.corridorLo    = it.corridorLo;
+                band.corridorHi    = it.corridorHi;
+                band.corridorShape = corridorShapeFromString(it.corridorShape);
+                grade = gradeOnCorridor(spreadCorridorFromRow(band, policy), it.typical);
+            }
+            items.append(QVariantMap{
+                { QStringLiteral("conditionId"),    it.conditionId },
+                { QStringLiteral("label"),          it.label },
+                { QStringLiteral("golfer"),         it.golfer },
+                { QStringLiteral("band"),           areaBandToString(it.band) },
+                { QStringLiteral("share"),          it.share },
+                { QStringLiteral("fired"),          it.fired },
+                { QStringLiteral("assessable"),     it.assessable },
+                { QStringLiteral("measureId"),      it.measureId },
+                { QStringLiteral("hasTypical"),     it.hasTypical },
+                { QStringLiteral("typical"),        it.typical },
+                { QStringLiteral("corridorLo"),     it.corridorLo },
+                { QStringLiteral("corridorHi"),     it.corridorHi },
+                { QStringLiteral("corridorShape"),  it.corridorShape },
+                { QStringLiteral("unit"),           it.unit },
+                { QStringLiteral("grade"),          grade },
+                { QStringLiteral("workOn"),         it.workOn },
+                { QStringLiteral("sessionsListed"), it.sessionsListed },
+            });
+        }
+
+        m_areaItems.append(QVariantMap{
+            { QStringLiteral("group"),         a.group },
+            { QStringLiteral("label"),         label },
+            { QStringLiteral("measurable"),    a.measurable },
+            { QStringLiteral("measured"),      a.measured },
+            { QStringLiteral("habits"),        a.habits },
+            { QStringLiteral("occasional"),    a.occasional },
+            { QStringLiteral("clean"),         a.clean },
+            { QStringLiteral("unclear"),       a.unclear },
+            { QStringLiteral("habitTrend"),    a.habitTrend },
+            { QStringLiteral("hasTrend"),      a.hasTrend },
+            { QStringLiteral("topFault"),      a.topFaultId.isEmpty() ? QString() : packLabel(pack, a.topFaultId) },
+            { QStringLiteral("topFaultId"),    a.topFaultId },
+            { QStringLiteral("workOnsActive"), a.workOnsActive },
+            { QStringLiteral("workOnsNew"),    a.workOnsNew },
+            { QStringLiteral("items"),         items },
+        });
+    }
 }
 
 // ── Your swing ──────────────────────────────────────────────────────────────────────────
@@ -791,6 +907,7 @@ void WorkOnsController::publishSummary()
             { QStringLiteral("practiseLabel"), f.practiseLabel },
             { QStringLiteral("practise"),      f.practise },
             { QStringLiteral("reason"),        f.reason },
+            { QStringLiteral("reasonShort"),   f.reasonShort },
             // The condition the focus starts from: the first "right now" fault's id ("" when none).
             { QStringLiteral("focusConditionId"), f.rightNow.empty() ? QString() : f.rightNow.front().conditionId },
         };
@@ -799,6 +916,7 @@ void WorkOnsController::publishSummary()
             m_doWellItems.append(QVariantMap{
                 { QStringLiteral("text"),     d.text },
                 { QStringLiteral("caption"),  d.caption },
+                { QStringLiteral("share"),    d.share },
                 { QStringLiteral("sessions"), pips(d.pips) },
             });
         for (const NeedsWorkItem &n : view.next)
