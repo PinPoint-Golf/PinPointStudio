@@ -68,7 +68,10 @@ Item {
     // A new visit for a preset (SessionController.Type) — the old wizard's reset(type). Everything
     // is reset here and only here: draft, step states, goals and enablement seeded from settings,
     // the paced sensor connect cancelled.
-    function open(preset) { flowObj.open(preset) }
+    function open(preset) {
+        flowObj.open(preset)
+        spokenPrep.prepareAll("setup opened")
+    }
 
     // The app header's ‹ / ›. ‹ on the first step exits (devices released, exitRequested("back")).
     readonly property bool canHeaderBack:    flowObj.canHeaderBack
@@ -106,6 +109,75 @@ Item {
     // The trunk ceremony recorder, likewise (SetupContext.trunkCeremony).
     readonly property var _appTrunkCeremony: trunkCeremony
     SetupContext { id: ctxObj;   draft: draftObj; liveWrist: root._appLiveWrist; trunkCeremony: root._appTrunkCeremony }
+
+    // ── Spoken instructions, PREPARED IN ADVANCE (EXPERIMENTAL) ──────────────────────────────────
+    // Mark, 27 Oct 2026: "the phrases should be prepared in advance, ideally when the session setup
+    // is instantiated — makes no sense to do it at the last minute (but then we also need to account
+    // for the setting being switched on/off)". With AppSettings.experimentalSpokenInstructions on and
+    // the app's voice (TtsController) ready, every phrase a step's routine may speak — the steps'
+    // `spokenPhrases`, read from the registry without naming a step (R1) — is handed to
+    // ttsController.prepare(), which synthesises it into its cache without playing it; the routine's
+    // speak() then plays at once. When: this shell is created; a visit opens; the setting goes ON; the
+    // voice becomes ready (its model still loading at creation); the voice changes (the controller
+    // empties its cache; a local voice reloads, so ready drops and comes back). The setting going OFF
+    // does nothing (the cache is simply not used). Only phrases not already prepared are asked for,
+    // and prepare() is itself idempotent. Driven by one binding (`trigger`), not a Connections: this
+    // object has no `active` to gate one on (lint W1), and it is wired for as long as the shell lives.
+    // No ttsController in this context (tests, headless) → nothing.
+    readonly property var _appVoice: typeof ttsController !== "undefined" ? ttsController : null
+    QtObject {
+        id: spokenPrep
+        // Named as the context object is, so lint W5 checks every member used below.
+        property var ttsController: root._appVoice
+        readonly property bool wanted: ctxObj.settings ? ctxObj.settings.experimentalSpokenInstructions === true : false
+        // Every phrase in the registry, once each.
+        readonly property var phrases: {
+            var ds = stepsObj.descriptors, out = []
+            for (var i = 0; i < ds.length; ++i) {
+                var ps = ds[i].spokenPhrases || []
+                for (var j = 0; j < ps.length; ++j)
+                    if (out.indexOf(ps[j]) < 0) out.push(ps[j])
+            }
+            return out
+        }
+        // Changes whenever a prepare may be due: on/off, ready, the voice, the phrases.
+        readonly property string trigger: !wanted || !ttsController ? ""
+            : (ttsController.ttsReady === true ? "up" : "loading") + "|" + ttsController.voice + "|" + phrases.join("|")
+        // What the last trigger saw, to name why a prepare is asked for in the log.
+        property var _was: ({ on: false, voiceUp: false, voice: "" })
+        function _now() {
+            return { on: wanted, voiceUp: !!ttsController && ttsController.ttsReady === true,
+                     voice: ttsController ? String(ttsController.voice) : "" }
+        }
+        property bool _live: false          // creation is "setup created", not a change
+        onTriggerChanged: {
+            if (!_live) return
+            var now = _now(), was = _was
+            _was = now
+            prepareAll(now.on && !was.on       ? "setting switched on"
+                     : now.voiceUp && !was.voiceUp ? "voice ready"
+                     : now.voice !== was.voice ? "voice changed"
+                                               : "phrases changed")
+        }
+
+        function prepareAll(why) {
+            if (!wanted || !ttsController || ttsController.ttsReady !== true) return
+            var asked = []
+            for (var i = 0; i < phrases.length; ++i)
+                if (ttsController.isPrepared(phrases[i]) !== true) {
+                    ttsController.prepare(phrases[i])
+                    asked.push(phrases[i])
+                }
+            if (asked.length > 0)
+                appLog.info("Setup", "spoken instructions: preparing " + JSON.stringify(asked) + " (" + why
+                            + ", voice " + ttsController.voice + ")")
+        }
+        Component.onCompleted: {
+            _was = _now()
+            _live = true
+            prepareAll("setup created")
+        }
+    }
     SetupDraft   { id: draftObj; ctx: ctxObj }
     SetupSteps   { id: stepsObj }
 

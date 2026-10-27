@@ -181,6 +181,9 @@ set(PP_QML_FILES
     src/Gui/calibration/WitmotionArmRoutine.qml
     src/Gui/calibration/HackMotionArmRoutine.qml
     src/Gui/calibration/TrunkRoutine.qml
+    # The routines' spoken instructions (.pragma library, imported relatively by TrunkRoutine and
+    # SetupSteps; the ONE place their words live — prepared in advance by the setup shell).
+    src/Gui/calibration/spoken_instructions.js
     src/Gui/calibration/ArmCalibrationStatus.qml
     src/Gui/calibration/CameraCalibrationFlow.qml
     # Session setup's engine (design §4.2–4.8): registry, flow, hardware context, draft, the page

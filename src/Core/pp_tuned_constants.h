@@ -140,6 +140,20 @@ inline constexpr int   kArmStillMs      = 1000;
 // few degrees), and a third of the chest's 60° range gate, so any turn the check could pass starts
 // long before it reaches the gate.
 inline constexpr float kTurnStartDeg    = 20.0f;
+// The golfer has turned ENOUGH, and is told to come back ("Turn back to address.", and the status),
+// once the chest's live turn from its armed heading reaches this. He is facing away, so the cue is the
+// only way he knows (Mark's fourth real-sensor run, 27 Oct: the line spoken at kTurnStartDeg came far
+// too early). The chest gate (calib::kTrunkTurnChestMinRangeDeg, 60°) plus a 10° margin: the live
+// heading is a fused yaw from an armed heading that follows drift (kArmDriftFollowDps), the check
+// reads the anatomical turn from the step's first sample, and the two can differ by a few degrees;
+// the golfer's reaction to the cue only adds turn (at 30 °/s, half a second is 15° more), so a cue at
+// 70° lands a peak of 80°+ — clear of the gate, well inside the guide's 90°. Earlier fails the gate
+// on a golfer who obeys at once; later keeps him straining at the top. A golfer who stops short of it
+// (both sensors still, kStillGyroDps, for kReturnStillMs, beyond kTurnStartDeg) is told to come back
+// then, and the check judges that turn as it is.
+inline constexpr float kTurnBackCueDeg  = 70.0f;
+static_assert(kTurnBackCueDeg > calib::kTrunkTurnChestMinRangeDeg,
+              "the turn-back cue must come after the chest's range gate, or obeying it fails the check");
 // …and has RETURNED once, after starting, the chest is back within this of its armed heading with
 // both sensors still for kReturnStillMs: the golfer faces the screen again, so the verdict can be
 // read. A golfer coming back to face a screen lands within ten degrees or so; 5° below the start
@@ -152,6 +166,15 @@ inline constexpr int   kReturnStillMs   = 750;
 // checked anyway: a slow turn out and back is 4–8 s, a pause at the top a few more. A turn that
 // never starts has no limit — the routine waits, saying so, as stand tall's `ready` does.
 inline constexpr int   kTurnTimeoutMs   = 20000;
+// While ARMED and both sensors are still (kStillGyroDps), the armed heading FOLLOWS the chest's live
+// heading at up to this rate (°/s), so the slow creep of a fused heading cannot add up to
+// kTurnStartDeg during a long wait and start a turn the golfer never made. Mark's third real-sensor
+// run (27 Oct): the heading crept about 0.1 °/s while he stood still, which is 20° in a little over
+// three minutes. 0.5 °/s is five times that creep; a golfer's turn, even a slow one, is tens of °/s
+// and outruns it at once (a 5 °/s turn still starts within about 4.5 s), and the follow stops anyway
+// while the gyro says he is moving. A RATE, not a re-take of the heading whenever the turn is small:
+// a re-take would also swallow a slow turn tick by tick, and it would never start.
+inline constexpr float kArmDriftFollowDps = 0.5f;
 } // namespace trunkRoutine
 
 // --- HackMotion frame reconciliation (src/IMU/hm_frame.h) --------------------------

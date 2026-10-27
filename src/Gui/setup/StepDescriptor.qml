@@ -62,4 +62,9 @@ QtObject {
     property var issues:  function(ctx, draft) { return [] }
     // The closing page's row: { label, value, good }, or null for a step with no row.
     property var summary: function(ctx, draft) { return null }
+    // The instructions this step's routine may SPEAK (EXPERIMENTAL, AppSettings
+    // .experimentalSpokenInstructions) — the routine's own list, from calibration/spoken_instructions.js.
+    // The shell (ScreenSessionSetup) has ttsController prepare every listed phrase in advance, so the
+    // routine's speak plays at once. Text, character for character as spoken; [] = says nothing.
+    property var spokenPhrases: []
 }

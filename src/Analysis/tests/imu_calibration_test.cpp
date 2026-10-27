@@ -471,7 +471,7 @@ int main()
                                                      TrunkTurnDirection::Away, false);
             checkBool("chest 45°: rejected", c.valid, false);
             checkBool("  chest range fails", c.thorax.rangeOk, false);
-            msgIs("  step message", c.failure, "Chest turned too little — turn further, as if to the top, and back");
+            msgIs("  step message", c.failure, "Chest turned too little — make a fuller backswing turn, then turn back to address");
             msgIs("  cause", c.cause, "range");
 
             const TrunkTurnRecord h = checkTrunkTurn(step(W, mHip, mHip, TrunkSensor::Pelvis, Z, 20, 1),
@@ -485,7 +485,8 @@ int main()
             const TrunkTurnRecord n = checkTrunkTurn(step(W, mHip, mHip, TrunkSensor::Pelvis, Z, 5, 1),
                                                      step(W, mChest, mChest, TrunkSensor::Thorax, Z, 12, 1),
                                                      TrunkTurnDirection::Through, false);
-            msgIs("barely turned (12°/5°)", n.failure, "Cross your arms and turn further toward the target, and back");
+            msgIs("barely turned (12°/5°)", n.failure,
+                  "Hardly any turn — arms crossed, make a fuller follow-through turn, then turn back to address");
         }
 
         // H5. The turn about a tilted axis: 20° from vertical fails on both sensors; 10° passes.
@@ -558,13 +559,31 @@ int main()
             checkBool("RH turned through when asked away: wrong way", w.wrongWay, true);
             checkBool("  rejected", w.valid, false);
             checkBool("  chest not blamed", w.thorax.failure.isEmpty(), true);
-            msgIs("  step message", w.failure, "You turned toward the target — turn away from it, as if to the top");
+            // In golf terms (Mark, 27 Oct): the turn he made, the turn wanted, and the trail shoulder.
+            msgIs("  step message", w.failure,
+                  "That was a follow-through turn — make your backswing turn: right shoulder back, away from the target.");
             msgIs("  cause", w.cause, "wrongWay");
             const TrunkTurnRecord t = checkTrunkTurn(step(W, mHip, mHip, TrunkSensor::Pelvis, Z, 45, 1),
                                                      step(W, mChest, mChest, TrunkSensor::Thorax, Z, 90, 1),
                                                      TrunkTurnDirection::Through, true);   // LH through = −Z
-            msgIs("LH turned away when asked through", t.failure,
-                  "You turned away from the target — turn toward it this time");
+            checkBool("LH made a backswing turn when asked follow-through: wrong way", t.wrongWay, true);
+            msgIs("  step message", t.failure,
+                  "That was a backswing turn — make your follow-through turn: left shoulder through, toward the target.");
+            // The other two: a right-hander's backswing turn on the follow-through step, a left-hander's
+            // follow-through turn on the backswing step — the trail shoulder named by the hand.
+            const TrunkTurnRecord rt = checkTrunkTurn(step(W, mHip, mHip, TrunkSensor::Pelvis, Z, 45, -1),
+                                                      step(W, mChest, mChest, TrunkSensor::Thorax, Z, 90, -1),
+                                                      TrunkTurnDirection::Through, false);  // RH through = +Z
+            checkBool("RH made a backswing turn when asked follow-through: wrong way", rt.wrongWay, true);
+            msgIs("  step message", rt.failure,
+                  "That was a backswing turn — make your follow-through turn: right shoulder through, toward the target.");
+            const TrunkTurnRecord la = checkTrunkTurn(step(W, mHip, mHip, TrunkSensor::Pelvis, Z, 45, -1),
+                                                      step(W, mChest, mChest, TrunkSensor::Thorax, Z, 90, -1),
+                                                      TrunkTurnDirection::Away, true);      // LH away = +Z
+            checkBool("LH made a follow-through turn when asked backswing: wrong way", la.wrongWay, true);
+            msgIs("  step message", la.failure,
+                  "That was a follow-through turn — make your backswing turn: left shoulder back, away from the target.");
+            msgIs("  cause", la.cause, "wrongWay");
         }
 
         // H9. No data from a sensor.

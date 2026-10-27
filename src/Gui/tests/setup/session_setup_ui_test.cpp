@@ -32,10 +32,12 @@
 //   testLog   — every QtWarningMsg / QtCriticalMsg, so each test can assert in cleanup()
 //               that loading and driving the wizard produced no warning it did not expect.
 //               A binding failing at runtime has no build error; this is what catches it.
-//   harness   — createWithContext() / destroyNow().
+//   harness   — createWithContext() / destroyNow(), and the window grabs and the offscreen render
+//               host (offscreenHost() / renderOffscreen()) the render checks and review renders use.
 
 #include <QtQuickTest>
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileInfo>
@@ -51,9 +53,15 @@
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlEngine>
+#include <QQuickGraphicsDevice>
 #include <QQuickItem>
+#include <QQuickRenderControl>
+#include <QQuickRenderTarget>
 #include <QQuickWindow>
 #include <QRegularExpression>
+#include <rhi/qrhi.h>
+
+#include <memory>
 #include <QSettings>
 #include <QTemporaryDir>
 
@@ -335,6 +343,71 @@ public:
         const QRect  px(qRound(r.x() * dpr), qRound(r.y() * dpr), qRound(r.width() * dpr), qRound(r.height() * dpr));
         return QVariant::fromValue(win.copy(px.intersected(win.rect())));
     }
+    // ── An OFFSCREEN render host: the 3-D guide drawn headless (27 Oct 2026) ──
+    // Under the offscreen QPA the test window never presents a frame (needsRender in
+    // tst_setup_guide_render.qml): an ItemGrabResult never calls back, grabWindow() crashes, and a
+    // HIDDEN window's grabWindow() (Qt's grabOffscreen) draws the 2-D scene but never a View3D. A
+    // QQuickRenderControl window rendering into a texture of its OWN QRhi draws both, with no window
+    // on anybody's screen — so review renders of the guide need neither a windowed run nor a free
+    // desktop. A scene parented to offscreenHost(w, h) (its content item) is drawn by
+    // renderOffscreen() into a QImage (saveImage / imageStats take it). One host at a time; asking
+    // for another size replaces it, so whatever was parented to the old one must be reparented or
+    // destroyed first. Metal only (macOS): elsewhere offscreenHost() returns null and a caller
+    // skips. Needs QT_QUICK_BACKEND=rhi, as every 3-D check here does.
+    Q_INVOKABLE QQuickItem *offscreenHost(int w, int h)
+    {
+        if (m_off && m_off->size == QSize(w, h)) return m_off->win->contentItem();
+        m_off.reset();
+        auto host = std::make_unique<OffscreenHost>();
+        host->size = QSize(w, h);
+        QRhiMetalInitParams params;
+        host->rhi.reset(QRhi::create(QRhi::Metal, &params));
+        if (!host->rhi) { qWarning("offscreenHost: no Metal QRhi on this platform"); return nullptr; }
+        host->rc  = std::make_unique<QQuickRenderControl>();
+        host->win = std::make_unique<QQuickWindow>(host->rc.get());
+        host->win->setGraphicsDevice(QQuickGraphicsDevice::fromRhi(host->rhi.get()));
+        if (!host->rc->initialize()) { qWarning("offscreenHost: QQuickRenderControl::initialize failed"); return nullptr; }
+        host->tex.reset(host->rhi->newTexture(QRhiTexture::RGBA8, host->size, 1,
+                                              QRhiTexture::RenderTarget | QRhiTexture::UsedAsTransferSource));
+        host->ds.reset(host->rhi->newRenderBuffer(QRhiRenderBuffer::DepthStencil, host->size, 1));
+        if (!host->tex->create() || !host->ds->create()) { qWarning("offscreenHost: render target failed"); return nullptr; }
+        QRhiTextureRenderTargetDescription desc{ QRhiColorAttachment(host->tex.get()) };
+        desc.setDepthStencilBuffer(host->ds.get());
+        host->rt.reset(host->rhi->newTextureRenderTarget(desc));
+        host->rp.reset(host->rt->newCompatibleRenderPassDescriptor());
+        host->rt->setRenderPassDescriptor(host->rp.get());
+        if (!host->rt->create()) { qWarning("offscreenHost: render target failed"); return nullptr; }
+        host->win->setRenderTarget(QQuickRenderTarget::fromRhiRenderTarget(host->rt.get()));
+        host->win->setGeometry(0, 0, w, h);
+        host->win->contentItem()->setSize(QSizeF(w, h));
+        QQmlEngine::setObjectOwnership(host->win->contentItem(), QQmlEngine::CppOwnership);
+        m_off = std::move(host);
+        return m_off->win->contentItem();
+    }
+    // Draws the host's scene `frames` times (a View3D sets up on its first frame and draws on a later
+    // one) and returns the last frame as a QImage; an invalid QVariant without a host.
+    Q_INVOKABLE QVariant renderOffscreen(int frames = 3)
+    {
+        if (!m_off) return QVariant();
+        QImage img;
+        for (int f = 0; f < std::max(1, frames); ++f) {
+            QCoreApplication::processEvents();
+            m_off->rc->polishItems();
+            m_off->rc->beginFrame();
+            m_off->rc->sync();
+            m_off->rc->render();
+            QRhiReadbackResult rb;
+            QRhiResourceUpdateBatch *u = m_off->rhi->nextResourceUpdateBatch();
+            u->readBackTexture(m_off->tex.get(), &rb);
+            m_off->rc->commandBuffer()->resourceUpdate(u);
+            m_off->rc->endFrame();
+            img = QImage(reinterpret_cast<const uchar *>(rb.data.constData()), rb.pixelSize.width(),
+                         rb.pixelSize.height(), QImage::Format_RGBA8888_Premultiplied).copy();
+            if (m_off->rhi->isYUpInFramebuffer()) img = img.flipped(Qt::Vertical);
+        }
+        return QVariant::fromValue(img);
+    }
+
     // Where the render checks save their grabs: $SETUP_GUIDE_GRABS, or "" (save nothing).
     Q_INVOKABLE QString grabDir() const { return qEnvironmentVariable("SETUP_GUIDE_GRABS"); }
     Q_INVOKABLE bool saveImage(const QVariant &image, const QString &path) const
@@ -366,8 +439,22 @@ public:
     }
 
 private:
+    // offscreenHost()'s render-control window and its target. Torn down window first, QRhi last.
+    struct OffscreenHost {
+        QSize size;
+        std::unique_ptr<QRhi> rhi;
+        std::unique_ptr<QQuickRenderControl> rc;
+        std::unique_ptr<QQuickWindow> win;
+        std::unique_ptr<QRhiTexture> tex;
+        std::unique_ptr<QRhiRenderBuffer> ds;
+        std::unique_ptr<QRhiTextureRenderTarget> rt;
+        std::unique_ptr<QRhiRenderPassDescriptor> rp;
+        ~OffscreenHost() { rt.reset(); rp.reset(); ds.reset(); tex.reset(); win.reset(); rc.reset(); rhi.reset(); }
+    };
+
     QQmlEngine   *m_engine = nullptr;
     SetupTestLog *m_log    = nullptr;
+    std::unique_ptr<OffscreenHost> m_off;
 };
 
 class SessionSetupUiTestSetup : public QObject

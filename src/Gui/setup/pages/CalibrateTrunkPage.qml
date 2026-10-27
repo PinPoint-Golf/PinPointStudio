@@ -33,6 +33,24 @@
 // the same useTrunkOverride binding the live check draws the sensors with, the crossed arms on the
 // arm overrides.
 //
+// GOLF TERMS AND AN UNMISTAKABLE DIRECTION (Mark, third real-sensor run, 27 Oct: "the instructions and
+// the avatar need to be much much more clear — it's not clear at all which way I am supposed to turn —
+// would be better to use golfing terms — backswing turn and follow-through turn make much more
+// sense"). The steps are "Backswing turn" and "Follow-through turn"; the status says what to do NOW
+// and never "turn back" before the turn has started. The avatar stays FACE-ON, as in every other
+// calibration ceremony (Mark, 27 Oct: "all other calibration ceremonies have the avatar face on … Yes
+// there is a mirroring issue, but that's why we use prompts related to the golf swing"): the golf
+// terms carry the direction, not the camera. A view from behind and above was tried on review sheets
+// and rejected.
+//
+// THE STATUS FOLLOWS THE VOICE (Mark, fourth real-sensor run, 27 Oct: "I need to know when to start the
+// turn and when to come back"): "START YOUR BACKSWING TURN" the moment the step is armed, and "TURN BACK
+// TO ADDRESS" only when the routine's turn-back cue fires (turnBackDue: he has turned enough, or stopped
+// at the top) — not when the turn starts. With Settings → "Speak calibration instructions" on, the
+// routine says the same two cues through the app's ttsController, and nothing else is ever spoken
+// (TrunkRoutine.qml says why). No ttsController in this context (tests, headless) → no voice: the
+// routine skips and logs it.
+//
 // Lifecycle (R8):
 //   enter     — a recorded trunk outcome that still holds (both sensors fullyCalibrated) shows
 //               complete with no re-run (restore); otherwise a fresh run (begin).
@@ -59,6 +77,9 @@ WizardPage {
     // The recorder (trunk_ceremony_recorder.h), through the context — named as the context object
     // is, so lint W5 checks the members the routine uses.
     readonly property var trunkCeremony: page.ctx.trunkCeremony
+    // The app's voice (TtsController), when this context has one — not under a name the routine's own
+    // `ttsController` property would shadow.
+    readonly property var _voice: typeof ttsController !== "undefined" ? ttsController : null
     // The two sensor UNITS the routine calibrates, and the draft's outcome is checked against.
     readonly property var _segments: ({ pelvis: page.ctx.roles.pelvis.unit, thorax: page.ctx.roles.thorax.unit })
     function _outcomeDevices() {
@@ -88,6 +109,8 @@ WizardPage {
         segments:      page._segments
         rightHanded:   !page.ctx.leftHanded
         trunkCeremony: page.trunkCeremony
+        speakInstructions: page.ctx.settings ? page.ctx.settings.experimentalSpokenInstructions === true : false
+        ttsController:     page._voice
 
         onCompleted: page.draft.recordOutcome("trunk", "witmotion", page._outcomeDevices())
     }
@@ -117,12 +140,12 @@ WizardPage {
                                                                         || _sub === "turning"))
     readonly property string _instruction: {
         switch (_stage) {
-        case "intro":       return qsTr("Watch the guide. You will stand tall, then turn away and turn through, about a minute in all.")
+        case "intro":       return qsTr("Watch the guide. You will stand tall, then make a backswing turn and a follow-through turn, about a minute in all.")
         case "standTall":   return _sub === "ready"
                                    ? qsTr("Put the sensors on — hip on your belt, chest in the vest pocket, USB down, label out — and stand tall. It starts by itself when you're still.")
                                    : qsTr("Stand tall, toes to the stick, arms relaxed. Hold still.")
-        case "turnAway":    return qsTr("Cross your arms. Turn away as if to the top, then come back to face the screen.")
-        case "turnThrough": return qsTr("Cross your arms. Turn toward the target, then come back to face the screen.")
+        case "turnAway":    return qsTr("Arms crossed, make a slow backswing turn — then turn back to address.")
+        case "turnThrough": return qsTr("Arms crossed, make a slow follow-through turn — then turn back to address.")
         case "done":        return qsTr("Both sensors are calibrated and both turns read the right way.")
         default:            return ""
         }
@@ -136,11 +159,16 @@ WizardPage {
         }
         if (_turnStage) {
             if (_sub === "demo")    return Theme.caps(qsTr("Watch the guide"))
-            if (_sub === "arming")  return qsTr("HOLD STILL, FACING THE SCREEN")
-            if (_sub === "armed")   return _stage === "turnAway" ? qsTr("TURN AWAY NOW") : qsTr("TURN THROUGH NOW")
-            if (_sub === "turning") return qsTr("NOW COME BACK TO FACE THE SCREEN")
+            // What to do NOW, as the voice says it: start, then "turn back" only at the turn-back cue
+            // (Mark, 27 Oct: it "tells me to turn … then before I have moved tells me to turn back").
+            if (_sub === "arming")  return qsTr("HOLD STILL AT ADDRESS, FACING THE SCREEN")
+            if (_sub === "armed" || (_sub === "turning" && !trunkRoutine.turnBackDue))
+                return _stage === "turnAway" ? qsTr("START YOUR BACKSWING TURN")
+                                             : qsTr("START YOUR FOLLOW-THROUGH TURN")
+            if (_sub === "turning") return qsTr("TURN BACK TO ADDRESS")
             if (_sub === "returned" || _sub === "timeout") return Theme.caps(qsTr("Checking"))
-            if (_sub === "passed")  return Theme.caps(qsTr("Turn checked"))
+            if (_sub === "passed")  return _stage === "turnAway" ? Theme.caps(qsTr("Backswing turn checked"))
+                                                                 : Theme.caps(qsTr("Follow-through turn checked"))
             if (_sub === "retry")   return Theme.caps(qsTr("Once more"))
         }
         if (_stage === "intro") return Theme.caps(qsTr("Watch the guide"))
@@ -211,8 +239,8 @@ WizardPage {
                 spacing: Theme.gap(6)
                 Repeater {
                     model: [{ key: "standTall",   label: qsTr("Stand tall") },
-                            { key: "turnAway",    label: qsTr("Turn away") },
-                            { key: "turnThrough", label: qsTr("Turn through") }]
+                            { key: "turnAway",    label: qsTr("Backswing turn") },
+                            { key: "turnThrough", label: qsTr("Follow-through turn") }]
                     delegate: Text {
                         required property var modelData
                         readonly property int _at: ["standTall", "turnAway", "turnThrough"].indexOf(page._stage)

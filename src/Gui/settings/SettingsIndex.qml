@@ -75,6 +75,12 @@ QtObject {
           label: qsTr("AI coaching on session end"),      subtitle: qsTr("Automatically generate a Claude observation"),
           itemId: "setting_aiCoaching" },
 
+        { panelIndex: 0, panelLabel: qsTr("General"),    groupLabel: qsTr("Session behaviour"),
+          label: qsTr("Speak calibration instructions (experimental)"),
+          subtitle: qsTr("Says when to start each turn and when to turn back to address, so you needn't look at the screen."),
+          actions: "experimental speak spoken voice TTS text to speech calibration instructions turn back address trunk",
+          itemId: "setting_spokenInstructions" },
+
         { panelIndex: 0, panelLabel: qsTr("General"),    groupLabel: qsTr("Motion capture"),
           label: qsTr("Motion capture quality"),          subtitle: qsTr("Detail level for pose and swing tracking during analysis"),
           actions: "motion capture quality pose tracking model low medium high detail accuracy",

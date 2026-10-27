@@ -36,6 +36,29 @@
 //        no check, no verdict — a sway under the start threshold and a lost reading change nothing
 //   TR16 motion while arming does not arm (the moving sensor named), nor does a missing turn reading;
 //        still again → armed
+//   TR17 Mark's third run (27 Oct): a fused heading creeping while the golfer stands still at address
+//        does not start a turn (the armed heading follows it) — and a turn the gyro calls still, but
+//        faster than the creep, still starts
+//   ── The turn's two cues, and the EXPERIMENTAL spoken instructions (Mark, 27 Oct, fourth run: "I need
+//      to know when to start the turn and when to come back — there is no other way to know"; TTS
+//      "we ONLY use it for INSTRUCTIONS"); the voice is a FakeTts that only records — never a sound ──
+//   TR18 each step says its START line the moment it arms, and "Turn back to address." once, when the
+//        chest has turned ≥ 70° — never at the start (20°) — cutting the start line off first; the
+//        cue, the lines and the voice's latency are logged
+//   TR19 failures and retries (stand tall, a short turn, a turn read backwards): each turn ATTEMPT says
+//        its start line once at arming and the turn-back once — nothing on a verdict, failure, retry,
+//        demo or stand tall
+//   TR20 the setting off: nothing said, nothing logged; no voice / not ready: nothing said, each cue's
+//        skip logged with its reason; busy: the start line skipped, the turn-back stops the voice and
+//        waits for it
+//   TR21 leave or Recalibrate after it was said: the speech is stopped; never stopped when nothing
+//        was said (the voice is the app's)
+//   TR22 the routine's spokenPhrases are exactly the three lines it speaks; a voice that has them
+//        prepared is logged "(prepared)", one that has not "(not prepared — synthesising now)"
+//   TR23 the turn-back cue's rule: none at 20–69° while still turning; at 70°; at a top the golfer
+//        STOPS at short of 70° (both sensors still for returnStill); once per attempt
+//   TR24 a start line still being synthesised when the turn-back is due: stopped, and the turn-back
+//        said the moment the voice reports it has stopped — while the golfer is still out
 //   TP1  trunk-only session: the plan, the routine on the page, the outcome, Check's one line of
 //        numbers and the live figure turning with them (W2.3), Ready's "Trunk calibration" row, the
 //        recorder's calls
@@ -44,8 +67,26 @@
 //   TP4  trunk + wG3: the arm steps first; the recording begins at the arm's Calibrate step and the
 //        trunk routine continues it (no second begin)
 //   TP5  setup left without a session (Cancel) discards the ceremony; a new visit discards a stale one
-//   TP7  leave mid-turn (turning) with Back: the open turn step is closed; Next runs it all again
-//        in the same recording
+//   TP7  leave mid-turn (turning, told to turn back) with Back: the open turn step is closed; Next runs
+//        it all again in the same recording
+//   TP8  golf terms and the direction, RH and LH (Mark, 27 Oct: "backswing turn and follow-through
+//        turn make much more sense"): the step titles, each step's one instruction and its status
+//        through demo → arming → armed → turning — "START YOUR … TURN" armed and mid-turn, "TURN BACK
+//        TO ADDRESS" only once the routine's turn-back cue has fired, never before; the
+//        guide's avatar FACE-ON throughout, as in every other calibration ceremony (Mark, 27 Oct: "all
+//        other calibration ceremonies have the avatar face on … that's why we use prompts related to
+//        the golf swing") — the default camera, unrotated, in front of the avatar
+//   TP9  the page: the setting (AppSettings.experimentalSpokenInstructions) and the app's voice reach
+//        the routine; with no ttsController in the context at all it runs, silent, and says why
+//   ── Spoken phrases PREPARED IN ADVANCE by the setup shell (Mark, 27 Oct: "prepared in advance,
+//      ideally when the session setup is instantiated … account for the setting being switched on/off") ──
+//   TP10 setting on when setup is created: each phrase prepared once, before any turn; the turns' speaks
+//        are the same texts and are logged "(prepared)"
+//   TP11 setting off at creation: nothing prepared; switched on → prepared once; off and on again →
+//        nothing more (already prepared)
+//   TP12 the voice not ready at creation (model still loading): nothing; ready → prepared once
+//   TP13 the voice changes: prepared again — a local voice (ready drops, then returns) and a change
+//        while the voice stays ready
 //   TP6  Mark's 26 Oct path: stand tall fails (retry), Back to Sensors, Next to Calibrate trunk, the
 //        sensors upright and still → the solve passes and the run completes; then Recalibrate
 //        mid-hold → the same
@@ -79,6 +120,7 @@ Item {
         Component { id: ceremonyComp; FakeTrunkCeremony {} }
         Component { id: instComp;     FakeImuInstance {} }
         Component { id: golferComp;   TrunkGolfer {} }
+        Component { id: ttsComp;      FakeTts {} }
 
         // The scaled clock: × 0.05, the sampling tick kept at 20 ms (CalibDriver.scaledPaceExtra).
         readonly property var pace: ({ scale: 0.05, tick: 400 })
@@ -105,9 +147,11 @@ Item {
             cer   = createTemporaryObject(ceremonyComp, tc)
             pel   = createTemporaryObject(instComp, tc, { deviceId: "WT-P", imuConnected: true })
             tho   = createTemporaryObject(instComp, tc, { deviceId: "WT-T", imuConnected: true })
-            r = harness.createWithContext("TrunkRoutine", { appLog: log }, null, {
-                guide: guide, segments: { pelvis: pel, thorax: tho }, trunkCeremony: cer,
-                rightHanded: opts.leftHanded !== true, active: true, pace: paced(opts.pace) })
+            var init = { guide: guide, segments: { pelvis: pel, thorax: tho }, trunkCeremony: cer,
+                         rightHanded: opts.leftHanded !== true, active: true, pace: paced(opts.pace) }
+            if (opts.speak !== undefined) init.speakInstructions = opts.speak
+            if (opts.tts) init.ttsController = opts.tts
+            r = harness.createWithContext("TrunkRoutine", { appLog: log }, null, init)
             verify(r !== null, "TrunkRoutine failed to instantiate")
             golfer = createTemporaryObject(golferComp, tc, { routine: r })
             completedCount = 0
@@ -133,7 +177,7 @@ Item {
         // The routine's timers and connections, by name (TrunkRoutine.qml).
         readonly property var timerNames: ["_introTimer", "_readyTimer", "_settleTimer", "_holdTimer", "_demoPauseTimer",
                                            "_armTimer", "_turnTimer", "_nextTimer", "_retryTimer"]
-        readonly property var connNames:  ["_guideFinished", "_pelvisLink", "_thoraxLink"]
+        readonly property var connNames:  ["_guideFinished", "_pelvisLink", "_thoraxLink", "_ttsLatency", "_ttsIdle"]
 
         function init() {
             testLog.reset()
@@ -238,16 +282,16 @@ Item {
         function test_TR3_turnFailureRepeatsTheTurn() {
             hostRoutine({ pace: { retry: 4000 } })
             cer.turnScript = [{ valid: false, cause: "range",
-                                failure: "Chest turned too little — turn further, as if to the top, and back" }]
+                                failure: "Chest turned too little — make a fuller backswing turn, then turn back to address" }]
             r.begin()
             waitFor(function() { return r.substage === "retry" }, 5000, "no retry after the failed turn")
             compare(r.stage, "turnAway")
-            compare(r.message, "Chest turned too little — turn further, as if to the top, and back")
+            compare(r.message, "Chest turned too little — make a fuller backswing turn, then turn back to address")
             compare(r.messageKind, "warn")
             // The verdict, then the turn re-arms by itself — no demo again; the verdict stays on screen.
             waitFor(function() { return r.substage === "arming" }, 5000, "the failed turn did not re-arm")
             compare(r.stage, "turnAway")
-            compare(r.message, "Chest turned too little — turn further, as if to the top, and back")
+            compare(r.message, "Chest turned too little — make a fuller backswing turn, then turn back to address")
             waitDone()
             var afterRetry = stageShape().slice(stageShape().indexOf("stage=turnAway step=retry turn=fail cause=range"))
             compare(afterRetry.slice(0, 6), ["stage=turnAway step=retry turn=fail cause=range",
@@ -295,11 +339,17 @@ Item {
             compare(completedCount, 1)
         }
 
+        // The failures are checkTrunkTurn's own words (trunk_ceremony.h; imu_calibration_test H8 pins
+        // all four), in golf terms: the turn made, the turn wanted, the trail shoulder by the hand.
         function test_TR5_wrongWayHintsAtTheHand_data() {
-            return [{ tag: "right-handed, away", leftHanded: false, at: 0, stage: "turnAway",
-                      failure: "You turned toward the target — turn away from it, as if to the top" },
-                    { tag: "left-handed, through", leftHanded: true, at: 1, stage: "turnThrough",
-                      failure: "You turned away from the target — turn toward it this time" }]
+            return [{ tag: "right-handed, backswing", leftHanded: false, at: 0, stage: "turnAway",
+                      failure: "That was a follow-through turn — make your backswing turn: right shoulder back, away from the target." },
+                    { tag: "left-handed, backswing", leftHanded: true, at: 0, stage: "turnAway",
+                      failure: "That was a follow-through turn — make your backswing turn: left shoulder back, away from the target." },
+                    { tag: "right-handed, follow-through", leftHanded: false, at: 1, stage: "turnThrough",
+                      failure: "That was a backswing turn — make your follow-through turn: right shoulder through, toward the target." },
+                    { tag: "left-handed, follow-through", leftHanded: true, at: 1, stage: "turnThrough",
+                      failure: "That was a backswing turn — make your follow-through turn: left shoulder through, toward the target." }]
         }
         function test_TR5_wrongWayHintsAtTheHand(row) {
             hostRoutine({ leftHanded: row.leftHanded, pace: { retry: 4000 } })
@@ -311,8 +361,8 @@ Item {
             waitFor(function() { return r.substage === "retry" }, 5000, "no retry")
             compare(r.stage, row.stage)
             var hint = row.leftHanded
-                ? "Turned the way the guide showed? This golfer is set up as left-handed — if that is wrong, change it in the golfer's profile, then Recalibrate."
-                : "Turned the way the guide showed? This golfer is set up as right-handed — if that is wrong, change it in the golfer's profile, then Recalibrate."
+                ? "Set up as a left-handed golfer — if that is wrong, change it in the golfer's profile, then Recalibrate."
+                : "Set up as a right-handed golfer — if that is wrong, change it in the golfer's profile, then Recalibrate."
             compare(r.message, row.failure + "\n" + hint)
             compare(r.messageKind, "warn")
             waitDone()
@@ -564,7 +614,7 @@ Item {
             // Away: out to 90° and stays there, still. The check then reads too little (scripted).
             golfer.scripts = [[{ chest: 0, gyro: 0, ms: 20 }, { chest: 50, gyro: 80, ms: 40 }, { chest: 90, gyro: 0, ms: 0 }]]
             cer.turnScript = [{ valid: false, cause: "range",
-                                failure: "Chest turned too little — turn further, as if to the top, and back" }]
+                                failure: "Chest turned too little — make a fuller backswing turn, then turn back to address" }]
             var t0 = 0, t1 = 0
             r.substageChanged.connect(function() {
                 if (r.substage === "turning" && t0 === 0) t0 = Date.now()
@@ -576,7 +626,7 @@ Item {
             var to = turnLines("stage=turnAway step=timeout")
             compare(to, ["stage=turnAway step=timeout peak=90.0deg turn=-90.0deg"])
             compare(cer.order().slice(-2), ["checkTurn:away", "stepEnd:turnAway"])
-            compare(r.message, "Chest turned too little — turn further, as if to the top, and back")
+            compare(r.message, "Chest turned too little — make a fuller backswing turn, then turn back to address")
             // It re-arms where the golfer stands (still), and the next turn passes.
             waitDone()
             compare(cer.count("checkTurn"), 3)
@@ -592,13 +642,13 @@ Item {
             var t0 = Date.now()
             wait(700)
             compare(r.stage, "turnAway"); compare(r.substage, "armed")
-            compare(r.waitReason, "Waiting for you to turn")
+            compare(r.waitReason, "Waiting for your backswing turn")
             compare(cer.count("checkTurn"), 0, "a turn that never started was checked")
             compare(r.message, "")
             var lines = waitLines().filter(function(l) { return l.indexOf("wait step=armed") >= 0 })
             var elapsed = Date.now() - t0
             verify(lines.length >= 2 && lines.length <= Math.ceil(elapsed / 200) + 2, lines.length + " lines in " + elapsed + " ms")
-            verify(lines[0].indexOf("turn=0.0deg peak=0.0deg — Waiting for you to turn") >= 0, lines[0])
+            verify(lines[0].indexOf("turn=0.0deg peak=0.0deg — Waiting for your backswing turn") >= 0, lines[0])
             // A sway under the start threshold changes nothing.
             tho.headingDeg = -12; tho.gyroDps = 15
             wait(200)
@@ -646,6 +696,282 @@ Item {
                     2000, "never armed once still")
             compare(cer.order().filter(function(o) { return o === "stepStart:turnAway" }).length, 1)
             waitDone()
+        }
+
+        function test_TR17_armedDriftDoesNotStartATurn() {
+            hostRoutine({ pace: { waitLog: 400000 } })
+            golfer.enabled = false
+            r.begin()
+            waitFor(function() { return r.substage === "armed" }, 5000, "never armed")
+            // The fused heading creeps the way a backswing turn goes while the golfer stands still at
+            // address (gyro 2 °/s: sway, under the still gate): 25° in 3.75 s here, which at the tests'
+            // × 0.05 is 0.33 °/s of routine time — under the 0.5 °/s follow, and 5° past the 20° start
+            // without it (the 26 Oct routine "started" this turn).
+            var h0 = tho.headingDeg, creep = []
+            for (var i = 1; i <= 25; ++i) creep.push({ heading: h0 - i, gyro: 2, ms: 150 })
+            tho.play(creep)
+            waitFor(function() { return !tho.playing }, 8000, "the creep never finished")
+            wait(100)
+            compare(r.substage, "armed", "a creeping heading started a turn nobody made")
+            verify(Math.abs(r.turnDeg) < 2, "the armed heading did not follow the creep: turn " + r.turnDeg)
+            compare(r.waitReason, "Waiting for your backswing turn")
+            compare(cer.count("checkTurn"), 0)
+            // A turn the gyro calls still but faster than any creep (40° in 0.5 s = 4 °/s of routine
+            // time) outruns the follow and starts.
+            var h1 = tho.headingDeg, turn = []
+            for (var j = 1; j <= 20; ++j) turn.push({ heading: h1 - 2 * j, gyro: 2, ms: 25 })
+            tho.play(turn)
+            waitFor(function() { return r.substage === "turning" }, 3000, "a slow turn never started")
+            compare(r.stage, "turnAway")
+        }
+
+        // ═════ The turn's cues and the EXPERIMENTAL spoken instructions (TR18–TR24) ═══
+        readonly property string startAway:    "Start your backswing turn."
+        readonly property string startThrough: "Start your follow-through turn."
+        readonly property string turnBack:     "Turn back to address."
+        readonly property var    allPhrases:   [startAway, startThrough, turnBack]
+        function speakLines() { return log.matching("trunk speak", "Calib") }
+        function cueLines() { return log.matching("trunk cue", "Calib") }
+        function voice(props) { return createTemporaryObject(ttsComp, tc, props || {}) }
+        // Every call on the voice, with where the routine was at that instant and the chest's |turn|
+        // then: [{ name, text, at, deg }].
+        function listen(v) {
+            var heard = []
+            v.called.connect(function(name, text) {
+                heard.push({ name: name, text: text, at: r.stage + "/" + r.substage, deg: Math.abs(r.turnDeg) })
+            })
+            return heard
+        }
+        function said(heard) {
+            return heard.map(function(h) { return h.name + (h.text !== "" ? ":" + h.text : "") + "@" + h.at })
+        }
+
+        function test_TR18_startAtArmingTurnBackAtSeventyDegrees() {
+            var v = voice()
+            hostRoutine({ speak: true, tts: v })
+            var heard = listen(v)
+            // The voice reports each synthesis's latency once it has spoken (the real one's
+            // onSynthesisFinished) — each a different number, so each is a change.
+            var lat = [380, 12, 420, 9]
+            v.called.connect(function(name) { if (name === "speak") { var ms = lat.shift(); Qt.callLater(function() { v.finish(ms) }) } })
+            r.begin()
+            waitDone()
+            // The default golfer: out through 15, 45, 75, 90° and back. Start at arming; turn-back at
+            // 75° (the first reading ≥ 70), the start line cut off first — never at the start (45°).
+            compare(said(heard), ["speak:" + startAway + "@turnAway/armed",
+                                  "stopSpeaking@turnAway/turning", "speak:" + turnBack + "@turnAway/turning",
+                                  "speak:" + startThrough + "@turnThrough/armed",
+                                  "stopSpeaking@turnThrough/turning", "speak:" + turnBack + "@turnThrough/turning"])
+            var backs = heard.filter(function(h) { return h.text === turnBack })
+            backs.forEach(function(h) { verify(h.deg >= 70, "turn-back said at " + h.deg + "°") })
+            // In the log: each cue and why, the line (here not prepared: no shell prepared it), the
+            // voice's latency when it arrives.
+            compare(cueLines().map(function(l) { return l.replace(/=-?[0-9.]+deg/g, "=#") }),
+                    ["[Calib] trunk cue turnBack reached 70deg at turn=# peak=#",
+                     "[Calib] trunk cue turnBack reached 70deg at turn=# peak=#"])
+            compare(speakLines(), ["[Calib] trunk speak cue=start \"Start your backswing turn.\" (not prepared — synthesising now)",
+                                   "[Calib] trunk speak cue=start latency=380ms",
+                                   "[Calib] trunk speak cue=turnBack stops the voice first (the start line)",
+                                   "[Calib] trunk speak cue=turnBack \"Turn back to address.\" (not prepared — synthesising now)",
+                                   "[Calib] trunk speak cue=turnBack latency=12ms",
+                                   "[Calib] trunk speak cue=start \"Start your follow-through turn.\" (not prepared — synthesising now)",
+                                   "[Calib] trunk speak cue=start latency=420ms",
+                                   "[Calib] trunk speak cue=turnBack stops the voice first (the start line)",
+                                   "[Calib] trunk speak cue=turnBack \"Turn back to address.\" (not prepared — synthesising now)",
+                                   "[Calib] trunk speak cue=turnBack latency=9ms"])
+            var lines = log.lines
+            var first = lines.indexOf("[Calib] trunk speak cue=start \"Start your backswing turn.\" (not prepared — synthesising now)")
+            verify(first > 0 && lines[first - 1].indexOf("trunk stage=turnAway step=armed") >= 0,
+                   lines.slice(Math.max(0, first - 2), first + 1).join("\n"))
+            var cue = lines.indexOf(cueLines()[0])
+            verify(lines[cue + 1] === "[Calib] trunk speak cue=turnBack stops the voice first (the start line)", lines[cue + 1])
+            compare(golfer.turns, 2)
+            compare(completedCount, 1)
+        }
+
+        function test_TR19_eachTurnAttemptSaysItsCuesOnceNothingElseSpeaks() {
+            var v = voice()
+            hostRoutine({ speak: true, tts: v, pace: { retry: 4000 } })
+            var heard = listen(v)
+            // Stand tall fails once; the backswing turn reads too little; the follow-through turn reads
+            // backwards (→ stand tall again, then both turns again).
+            pel.trunkScript = [{ valid: false, stillOk: false,
+                                 failure: "Hip sensor moved during stand tall — hold still and try again" }]
+            cer.turnScript = [{ valid: false, cause: "range", failure: "Chest turned too little — make a fuller backswing turn, then turn back to address" },
+                              {},
+                              { valid: false, cause: "backwards", failure: "Chest sensor reads the turn backwards — check it sits USB-down, label facing out" }]
+            r.begin()
+            waitDone()
+            compare(golfer.turns, 5)
+            var attempt = function(stage, start) {
+                return ["speak:" + start + "@" + stage + "/armed", "stopSpeaking@" + stage + "/turning",
+                        "speak:" + turnBack + "@" + stage + "/turning"]
+            }
+            compare(said(heard), [].concat(attempt("turnAway", startAway),          // too little
+                                           attempt("turnAway", startAway),          // its retry
+                                           attempt("turnThrough", startThrough),    // backwards
+                                           attempt("turnAway", startAway),          // after stand tall again
+                                           attempt("turnThrough", startThrough)))
+            compare(speakLines().filter(function(l) { return l.indexOf("\"") >= 0 }).length, 10)
+            compare(cueLines().length, 5)
+            compare(completedCount, 1)
+        }
+
+        function test_TR20_settingOffOrNoReadyVoiceSaysNothing_data() {
+            var twice = function(lines) { return lines.concat(lines) }
+            return [{ tag: "setting off",      speak: false, ready: true,  active: false, lines: [], calls: [] },
+                    { tag: "setting off, no voice", speak: false, none: true, lines: [], calls: [] },
+                    { tag: "voice not ready",  speak: true,  ready: false, active: false, calls: [],
+                      lines: twice(["[Calib] trunk speak cue=start skipped: voice not ready",
+                                    "[Calib] trunk speak cue=turnBack skipped: voice not ready"]) },
+                    // Busy (something else speaking): the start line waits for nobody — skipped; the
+                    // turn-back has priority — it stops the voice, then waits for it to stop (it never
+                    // does here, so it is never said).
+                    { tag: "voice busy",       speak: true,  ready: true,  active: true,
+                      calls: ["stopSpeaking", "stopSpeaking"],
+                      lines: twice(["[Calib] trunk speak cue=start skipped: voice busy",
+                                    "[Calib] trunk speak cue=turnBack stops the voice first (busy)",
+                                    "[Calib] trunk speak cue=turnBack waits for the voice to stop"]) },
+                    { tag: "no voice",         speak: true,  none: true, calls: [],
+                      lines: twice(["[Calib] trunk speak cue=start skipped: no voice (text-to-speech is not available)",
+                                    "[Calib] trunk speak cue=turnBack skipped: no voice (text-to-speech is not available)"]) }]
+        }
+        function test_TR20_settingOffOrNoReadyVoiceSaysNothing(row) {
+            var v = row.none ? null : voice({ ttsReady: row.ready, ttsActive: row.active })
+            hostRoutine({ speak: row.speak, tts: v })
+            r.begin()
+            waitDone()
+            compare(golfer.turns, 2)
+            if (v) compare(v.calls.map(function(c) { return c.name }), row.calls)
+            if (v) compare(v.count("speak"), 0, "the voice was asked to speak: " + JSON.stringify(v.calls))
+            compare(speakLines(), row.lines)
+            // The cues fire all the same (the page's status follows them), setting on or off.
+            compare(cueLines().length, 2)
+            // The start skip right at arming.
+            if (row.lines.length > 0) {
+                var lines = log.lines
+                var at = lines.indexOf(row.lines[0])
+                verify(lines[at - 1].indexOf("trunk stage=turnAway step=armed") >= 0, lines[at - 1])
+            }
+            compare(completedCount, 1)
+        }
+
+        function test_TR21_leaveOrRecalibrateStopsWhatWasSaid() {
+            var v = voice()
+            // The golfer turns away and stays there: the step is mid-turn, both lines said.
+            hostRoutine({ speak: true, tts: v, pace: { turnTimeout: 400000 } })
+            golfer.scripts = [[{ chest: 0, gyro: 0, ms: 20 }, { chest: 50, gyro: 80, ms: 40 }, { chest: 90, gyro: 0, ms: 0 }]]
+            r.begin()
+            waitFor(function() { return r.turnBackDue }, 5000, "never told to turn back")
+            compare(v.spoken(), [startAway, turnBack])
+            // Recalibrate: the old run's speech stops, the new run begins (nothing said yet).
+            r.begin()
+            compare(v.calls.map(function(c) { return c.name }), ["speak", "stopSpeaking", "speak", "stopSpeaking"])
+            // The new run's backswing turn (the default golfer): both lines once more; then leave.
+            waitFor(function() { return v.spoken().length === 4 }, 5000, "the new run never turned")
+            compare(r.stage, "turnAway")
+            compare(v.spoken(), [startAway, turnBack, startAway, turnBack])
+            r.active = false
+            compare(v.calls.map(function(c) { return c.name }),
+                    ["speak", "stopSpeaking", "speak", "stopSpeaking", "speak", "stopSpeaking", "speak", "stopSpeaking"])
+            wait(300)
+            compare(v.calls.length, 8, "the voice was called after leave")
+            // Nothing said → nothing stopped: a leave never cuts the app's voice off for nothing.
+            var w = voice()
+            golfer.routine = null
+            pel.stopPlay(); tho.stopPlay()
+            harness.destroyNow(r)
+            r = harness.createWithContext("TrunkRoutine", { appLog: log }, null, {
+                guide: guide, segments: { pelvis: pel, thorax: tho }, trunkCeremony: cer,
+                speakInstructions: true, ttsController: w, active: true, pace: paced() })
+            r.begin()
+            waitFor(function() { return r.stage === "standTall" }, 5000, "never reached stand tall")
+            r.begin()
+            r.active = false
+            compare(w.calls.length, 0, JSON.stringify(w.calls))
+        }
+
+        function test_TR22_spokenPhrasesAreTheLinesAndThePreparedOnesAreLogged() {
+            var v = voice()
+            hostRoutine({ speak: true, tts: v })
+            compare(r.spokenPhrases, allPhrases)
+            r.spokenPhrases.forEach(function(t) { v.prepare(t) })
+            allPhrases.forEach(function(t) { verify(v.isPrepared(t), t) })
+            r.begin()
+            waitDone()
+            compare(v.spoken(), [startAway, turnBack, startThrough, turnBack])
+            compare(speakLines().filter(function(l) { return l.indexOf("\"") >= 0 }),
+                    ["[Calib] trunk speak cue=start \"Start your backswing turn.\" (prepared)",
+                     "[Calib] trunk speak cue=turnBack \"Turn back to address.\" (prepared)",
+                     "[Calib] trunk speak cue=start \"Start your follow-through turn.\" (prepared)",
+                     "[Calib] trunk speak cue=turnBack \"Turn back to address.\" (prepared)"])
+            compare(completedCount, 1)
+        }
+
+        function test_TR23_theTurnBackCueRule_data() {
+            // chest (°) out from the armed heading; gyro (°/s, both sensors) — the default hips are half.
+            return [
+                // Still turning through 30–65° (held well past returnStill): no cue; then 75° → the cue.
+                { tag: "moving through 20-69, then 70+",
+                  frames: [{ chest: 0, gyro: 0, ms: 20 }, { chest: 30, gyro: 60, ms: 60 }, { chest: 50, gyro: 60, ms: 60 },
+                           { chest: 65, gyro: 40, ms: 200 }, { chest: 75, gyro: 40, ms: 60 }, { chest: 40, gyro: 80, ms: 40 },
+                           { chest: 3, gyro: 0, ms: 0 }],
+                  quietUntil: 320, why: "reached 70deg at turn=75.0deg" },
+                // He stops at 48° (both still) and can go no further: told to come back from there.
+                { tag: "stopped at the top short of 70",
+                  frames: [{ chest: 0, gyro: 0, ms: 20 }, { chest: 30, gyro: 60, ms: 60 }, { chest: 48, gyro: 40, ms: 60 },
+                           { chest: 48, gyro: 0, ms: 300 }, { chest: 20, gyro: 80, ms: 40 }, { chest: 3, gyro: 0, ms: 0 }],
+                  quietUntil: 140, why: "stopped at the top at 48.0deg turn=48.0deg" },
+                // Past 70° and held there still: one cue (reached), not a second for the still top.
+                { tag: "past 70 and still at the top",
+                  frames: [{ chest: 0, gyro: 0, ms: 20 }, { chest: 50, gyro: 80, ms: 40 }, { chest: 90, gyro: 0, ms: 300 },
+                           { chest: 40, gyro: 80, ms: 40 }, { chest: 3, gyro: 0, ms: 0 }],
+                  quietUntil: 50, why: "reached 70deg at turn=90.0deg" }]
+        }
+        function test_TR23_theTurnBackCueRule(row) {
+            var v = voice()
+            hostRoutine({ speak: true, tts: v, pace: { turnTimeout: 40000000 } })
+            var heard = listen(v)
+            golfer.scripts = [row.frames]
+            var armedAt = 0, cueAt = 0, dueAt = []
+            r.substageChanged.connect(function() { if (r.substage === "armed" && armedAt === 0) armedAt = Date.now() })
+            r.turnBackDueChanged.connect(function() {
+                if (r.turnBackDue) { if (cueAt === 0) cueAt = Date.now(); dueAt.push(r.stage + "/" + r.substage) }
+            })
+            r.begin()
+            waitFor(function() { return r.stage === "turnThrough" }, 8000, "the backswing turn never finished")
+            // One cue on the backswing turn, while turning, after the quiet stretch, and why.
+            compare(dueAt.filter(function(a) { return a.indexOf("turnAway/") === 0 }), ["turnAway/turning"])
+            verify(cueAt - armedAt >= row.quietUntil, "the cue came " + (cueAt - armedAt) + " ms after arming, before "
+                                                       + row.quietUntil + " ms")
+            var cue = cueLines()[0].replace(" turn=-", " turn=")
+            verify(cue.indexOf("[Calib] trunk cue turnBack " + row.why) === 0, cue)
+            compare(said(heard).slice(0, 3), ["speak:" + startAway + "@turnAway/armed", "stopSpeaking@turnAway/turning",
+                                              "speak:" + turnBack + "@turnAway/turning"])
+            compare(v.spoken().filter(function(t) { return t === turnBack }).length, 1, "the turn-back said more than once")
+            compare(turnLines("stage=turnAway step=returned").length, 1)
+        }
+
+        function test_TR24_aStartLineStillPlayingIsCutOffByTheTurnBack() {
+            var v = voice()
+            // A start line not prepared in advance: the voice is busy synthesising it (ttsActive) when the
+            // golfer, quick, is already out past 70° and stays there.
+            v.called.connect(function(name, text) { if (name === "speak" && text !== turnBack) v.ttsActive = true })
+            hostRoutine({ speak: true, tts: v, pace: { turnTimeout: 40000000 } })
+            var heard = listen(v)
+            golfer.scripts = [[{ chest: 0, gyro: 0, ms: 20 }, { chest: 50, gyro: 80, ms: 40 }, { chest: 90, gyro: 0, ms: 0 }]]
+            r.begin()
+            waitFor(function() { return r.turnBackDue }, 5000, "never told to turn back")
+            // Stopped; the turn-back waits for the voice to say it has stopped.
+            compare(said(heard), ["speak:" + startAway + "@turnAway/armed", "stopSpeaking@turnAway/turning"])
+            wait(100)
+            compare(v.count("speak"), 1, "spoken over a voice that had not stopped")
+            v.ttsActive = false                         // the real one, once its worker reports the abort
+            compare(said(heard), ["speak:" + startAway + "@turnAway/armed", "stopSpeaking@turnAway/turning",
+                                  "speak:" + turnBack + "@turnAway/turning"])
+            compare(speakLines().slice(1), ["[Calib] trunk speak cue=turnBack stops the voice first (the start line)",
+                                            "[Calib] trunk speak cue=turnBack waits for the voice to stop",
+                                            "[Calib] trunk speak cue=turnBack \"Turn back to address.\" (not prepared — synthesising now)"])
         }
 
         // ═════ The pages (TP) ═════════════════════════════════════════════════
@@ -812,6 +1138,129 @@ Item {
             compare(d.ceremony.order().slice(n), ["discard"])
         }
 
+        function test_TP9_theSettingAndTheAppVoiceReachTheRoutine_data() {
+            return [{ tag: "on, voice",        on: true,  tts: true,  spoken: 2, skipped: "" },
+                    { tag: "off, voice",       on: false, tts: true,  spoken: 0, skipped: "" },
+                    { tag: "on, no voice at all (headless)", on: true, tts: false, spoken: 0,
+                      skipped: "no voice (text-to-speech is not available)" }]
+        }
+        function test_TP9_theSettingAndTheAppVoiceReachTheRoutine(row) {
+            trunkSetup(false)
+            var v = row.tts ? createTemporaryObject(ttsComp, tc) : null
+            d.tts = v                                   // before open(): the shell's context has it, or not
+            appSettings.experimentalSpokenInstructions = row.on
+            d.open(wrist)
+            d.walkTo("calibrateTrunk")
+            var p = trunkPage()
+            verify(p !== null)
+            compare(p.routine.speakInstructions, row.on)
+            verify(p.routine.ttsController === v, "the routine's voice is not the context's ttsController")
+            waitPageDone()
+            // On: the shell prepared the lines when it was created (TP10), then each turn said its two.
+            if (v) compare(v.calls.map(function(c) { return c.name + ":" + c.text }),
+                           row.spoken === 2 ? ["prepare:" + startAway, "prepare:" + startThrough, "prepare:" + turnBack,
+                                               "speak:" + startAway, "stopSpeaking:", "speak:" + turnBack,
+                                               "speak:" + startThrough, "stopSpeaking:", "speak:" + turnBack] : [])
+            var skips = d.appLogFake.matching("skipped", "Calib")
+            var skip = function(cue) { return "[Calib] trunk speak cue=" + cue + " skipped: " + row.skipped }
+            compare(skips, row.skipped === "" ? [] : [skip("start"), skip("turnBack"), skip("start"), skip("turnBack")])
+            // The setting is live: off now, and a Recalibrate's turns say nothing more.
+            appSettings.experimentalSpokenInstructions = false
+            compare(p.routine.speakInstructions, false)
+        }
+
+        // ── Prepared in advance by the shell (TP10–TP13) ──
+        function prepLines() { return d.appLogFake.matching("spoken instructions", "Setup") }
+
+        function test_TP10_settingOnPreparesEachPhraseWhenSetupIsCreated() {
+            trunkSetup(false)
+            var v = createTemporaryObject(ttsComp, tc)
+            d.tts = v
+            appSettings.experimentalSpokenInstructions = true
+            d.open(wrist)
+            // Created (and opened): each phrase, once, before anything else.
+            compare(v.calls.map(function(c) { return c.name + ":" + c.text }), allPhrases.map(function(t) { return "prepare:" + t }))
+            allPhrases.forEach(function(t) { verify(v.isPrepared(t), t) })
+            compare(prepLines(), ["[Setup] spoken instructions: preparing " + JSON.stringify(allPhrases) + " (setup created, voice af_sky)"])
+            // A second visit asks for nothing more: they are prepared.
+            d.open(wrist)
+            compare(v.count("prepare"), 3)
+            // The turns speak exactly the prepared texts, and say so.
+            d.walkTo("calibrateTrunk")
+            var p = trunkPage()
+            compare(p.routine.spokenPhrases, v.preparedTexts())
+            waitPageDone()
+            compare(v.spoken(), [startAway, turnBack, startThrough, turnBack])
+            compare(v.calls[0].name, "prepare")
+            var lines = d.appLogFake.matching("trunk speak cue=", "Calib").filter(function(l) { return l.indexOf("\"") >= 0 })
+            compare(lines, ["[Calib] trunk speak cue=start \"Start your backswing turn.\" (prepared)",
+                            "[Calib] trunk speak cue=turnBack \"Turn back to address.\" (prepared)",
+                            "[Calib] trunk speak cue=start \"Start your follow-through turn.\" (prepared)",
+                            "[Calib] trunk speak cue=turnBack \"Turn back to address.\" (prepared)"])
+            compare(v.count("prepare"), 3)
+        }
+
+        function test_TP11_settingOffAtCreationThenSwitchedOn() {
+            trunkSetup(false)
+            var v = createTemporaryObject(ttsComp, tc)
+            d.tts = v
+            d.open(wrist)
+            compare(v.calls.length, 0, "prepared with the setting off: " + JSON.stringify(v.calls))
+            compare(prepLines(), [])
+            appSettings.experimentalSpokenInstructions = true
+            compare(v.preparedTexts(), allPhrases)
+            compare(prepLines(), ["[Setup] spoken instructions: preparing " + JSON.stringify(allPhrases) + " (setting switched on, voice af_sky)"])
+            // Off: nothing (the cache is simply unused). On again: already prepared, nothing asked.
+            appSettings.experimentalSpokenInstructions = false
+            appSettings.experimentalSpokenInstructions = true
+            compare(v.count("prepare"), 3)
+            compare(v.calls.length, 3)
+        }
+
+        function test_TP12_voiceNotReadyAtCreationPreparesWhenReady() {
+            trunkSetup(false)
+            var v = createTemporaryObject(ttsComp, tc, { ttsReady: false })
+            d.tts = v
+            appSettings.experimentalSpokenInstructions = true
+            d.open(wrist)
+            compare(v.calls.length, 0, "prepared before the voice was ready: " + JSON.stringify(v.calls))
+            v.ttsReady = true
+            compare(v.preparedTexts(), allPhrases)
+            allPhrases.forEach(function(t) { verify(v.isPrepared(t), t) })
+            compare(prepLines(), ["[Setup] spoken instructions: preparing " + JSON.stringify(allPhrases) + " (voice ready, voice af_sky)"])
+            // Ready flickering again asks for nothing: still prepared.
+            v.ttsReady = false
+            v.ttsReady = true
+            compare(v.count("prepare"), 3)
+        }
+
+        function test_TP13_aVoiceChangePreparesAgain() {
+            trunkSetup(false)
+            var v = createTemporaryObject(ttsComp, tc)
+            d.tts = v
+            appSettings.experimentalSpokenInstructions = true
+            d.open(wrist)
+            compare(v.count("prepare"), 3)
+            // A local voice: the model reloads — ready drops, the voice changes (the cache empties),
+            // ready returns → prepared again, in the new voice.
+            v.ttsReady = false
+            v.voice = "bf_emma"
+            compare(v.count("prepare"), 3, "prepared while the voice was not ready")
+            verify(!v.isPrepared(turnBack))
+            v.ttsReady = true
+            compare(v.count("prepare"), 6)
+            allPhrases.forEach(function(t) { verify(v.isPrepared(t), t) })
+            // A change while the voice stays ready (no reload): the cache empties → prepared again at once.
+            v.voice = "bm_george"
+            compare(v.count("prepare"), 9)
+            allPhrases.forEach(function(t) { verify(v.isPrepared(t), t) })
+            compare(v.preparedTexts(), allPhrases.concat(allPhrases, allPhrases))
+            var lines = prepLines()
+            compare(lines.slice(1), ["[Setup] spoken instructions: preparing " + JSON.stringify(allPhrases) + " (voice ready, voice bf_emma)",
+                                     "[Setup] spoken instructions: preparing " + JSON.stringify(allPhrases) + " (voice changed, voice bm_george)"])
+            compare(v.count("speak"), 0)
+        }
+
         function test_TP6_failBackNextThenRecalibrateMidHold() {
             trunkSetup(false)
             d.trunkPace = paced({ retry: 400000 })        // the failure stays on screen: Back from retry
@@ -874,10 +1323,11 @@ Item {
             d.golfer.scripts = [[{ chest: 0, gyro: 0, ms: 20 }, { chest: 50, gyro: 80, ms: 40 }, { chest: 90, gyro: 0, ms: 0 }]]
             d.open(wrist)
             d.walkTo("calibrateTrunk")
-            tc.tryVerify(function() { var p = trunkPage(); return p !== null && p.routine.substage === "turning" }, 40000,
-                         "never turning")
+            tc.tryVerify(function() { var p = trunkPage(); return p !== null && p.routine.turnBackDue }, 40000,
+                         "never told to turn back")
+            compare(trunkPage().routine.substage, "turning")
             var status = d.find(d.flow.page, function(o) { return o.objectName === "trunkStatus" })
-            compare(status.text, "NOW COME BACK TO FACE THE SCREEN")
+            compare(status.text, "TURN BACK TO ADDRESS")
             d.back()
             compare(d.current(), "imus")
             compare(d.ceremony.order().slice(-1), ["stepEnd:turnAway"])
@@ -890,6 +1340,74 @@ Item {
             waitPageDone()
             compare(d.ceremony.count("begin"), 1)
             compare(d.ceremony.order().slice(n), passOrder.slice(1))
+        }
+
+        function test_TP8_golfTermsAndTheDirection_data() {
+            return [{ tag: "right-handed", leftHanded: false },
+                    { tag: "left-handed",  leftHanded: true }]
+        }
+        function test_TP8_golfTermsAndTheDirection(row) {
+            trunkSetup(false)
+            d.athlete.currentHandedness = row.leftHanded ? "Left" : "Right"
+            d.open(wrist)
+            d.walkTo("calibrateTrunk")
+            var p = trunkPage()
+            verify(p !== null)
+            var named = function(n) { return d.find(p, function(o) { return o.objectName === n }) }
+            compare(named("trunkStep_turnAway").text.slice(3), "Backswing turn")
+            compare(named("trunkStep_turnThrough").text.slice(3), "Follow-through turn")
+            // The guide view and its 3-D camera. Face-on, as every ceremony: the camera at the view's
+            // default position in front of the avatar, unrotated (looking along −Z at the avatar's
+            // front), and the arm ceremonies' guide-camera branch not taken. The View3D leaves its
+            // `camera` unset (the scene's one camera); the orbit controller holds it by name.
+            var view = d.find(p, function(o) { return o.useTrunkOverride !== undefined && o.defaultCameraPosition !== undefined })
+            verify(view !== null, "no guide view")
+            var orbit = d.find(view, function(o) { return o.origin !== undefined && o.camera !== undefined && o.camera !== null })
+            verify(orbit !== null, "no 3-D camera in the guide view")
+            var faceOn = function() {
+                var c = orbit.camera, q = c.rotation, at = c.position, dp = view.defaultCameraPosition
+                return !view.useGuideCamera
+                    && Math.abs(Math.abs(q.scalar) - 1) < 1e-6
+                    && Math.abs(at.x - dp.x) < 1e-6 && Math.abs(at.y - dp.y) < 1e-6 && Math.abs(at.z - dp.z) < 1e-6
+                    && at.z > 0
+            }
+            var cam = function() { var c = orbit.camera; return JSON.stringify([c.position, c.rotation]) }
+            verify(faceOn(), "the guide is not face-on at the start: " + cam())
+            // Every status the golfer is shown, with where the routine was when it was shown — and
+            // whether the avatar was face-on there.
+            var seen = [], notFaceOn = []
+            var record = function() {
+                var r = p.routine
+                if (r.stage !== "turnAway" && r.stage !== "turnThrough") return
+                seen.push({ at: r.stage + "/" + r.substage, due: r.turnBackDue, status: named("trunkStatus").text,
+                            instruction: named("trunkInstruction").text })
+                if (!faceOn()) notFaceOn.push(r.stage + "/" + r.substage + " " + cam())
+            }
+            // Read once the change has settled (callLater): a handler on substageChanged can run before
+            // the page's status binding has seen the same change.
+            p.routine.substageChanged.connect(function() { Qt.callLater(record) })
+            p._statusChanged.connect(function() { Qt.callLater(record) })
+            p.routine.turnBackDueChanged.connect(function() { Qt.callLater(record) })
+            waitPageDone()
+            // "Turn back" is shown only once the routine's turn-back cue has fired (turned enough).
+            var early = seen.filter(function(x) { return /TURN BACK|COME BACK/i.test(x.status) && !(/\/turning$/.test(x.at) && x.due) })
+            compare(JSON.stringify(early), "[]", "turn back shown before the turn-back cue")
+            var at = function(where) { return seen.filter(function(x) { return x.at === where }).map(function(x) { return x.status }) }
+            var last = function(a) { return a.length > 0 ? a[a.length - 1] : "(not seen)" }
+            compare(last(at("turnAway/arming")),     "HOLD STILL AT ADDRESS, FACING THE SCREEN")
+            compare(last(at("turnAway/armed")),      "START YOUR BACKSWING TURN")
+            // Mid-turn, before the cue: still the start; then, at the cue, turn back.
+            compare(at("turnAway/turning")[0],       "START YOUR BACKSWING TURN")
+            compare(last(at("turnAway/turning")),    "TURN BACK TO ADDRESS")
+            compare(last(at("turnThrough/armed")),   "START YOUR FOLLOW-THROUGH TURN")
+            compare(at("turnThrough/turning")[0],    "START YOUR FOLLOW-THROUGH TURN")
+            compare(last(at("turnThrough/turning")), "TURN BACK TO ADDRESS")
+            var instr = function(stage) { return seen.filter(function(x) { return x.at.indexOf(stage + "/") === 0 })[0].instruction }
+            compare(instr("turnAway"),    "Arms crossed, make a slow backswing turn — then turn back to address.")
+            compare(instr("turnThrough"), "Arms crossed, make a slow follow-through turn — then turn back to address.")
+            // Face-on through every turn substage (demo, arming, armed, turning, verdict) and after.
+            compare(JSON.stringify(notFaceOn), "[]", "the guide left face-on during the turns")
+            verify(faceOn(), "the guide is not face-on at the end: " + cam())
         }
     }
 }

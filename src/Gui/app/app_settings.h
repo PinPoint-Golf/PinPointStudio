@@ -162,6 +162,12 @@ class AppSettings : public QObject
     Q_PROPERTY(bool    acousticShotDetectionEnabled READ acousticShotDetectionEnabled WRITE setAcousticShotDetectionEnabled NOTIFY acousticShotDetectionEnabledChanged)
     Q_PROPERTY(double  acousticSensitivity         READ acousticSensitivity         WRITE setAcousticSensitivity         NOTIFY acousticSensitivityChanged)
     Q_PROPERTY(bool    aiCoachingOnSessionEnd      READ aiCoachingOnSessionEnd      WRITE setAiCoachingOnSessionEnd      NOTIFY aiCoachingOnSessionEndChanged)
+    // EXPERIMENTAL (27 Oct 2026), default off: a calibration routine SPEAKS its golfer instructions
+    // through ttsController — today the trunk routine's turn cues: "Start your backswing turn." /
+    // "Start your follow-through turn." when a turn step arms, "Turn back to address." when the golfer
+    // has turned enough (TrunkRoutine.qml). Mark's rule: text-to-speech is used ONLY for instructions —
+    // never verdicts, statuses or failures. Settings → General → Session behaviour.
+    Q_PROPERTY(bool    experimentalSpokenInstructions READ experimentalSpokenInstructions WRITE setExperimentalSpokenInstructions NOTIFY experimentalSpokenInstructionsChanged)
     // Force cloud fallback for each AI subsystem even when a local GPU is present
     // (user preference; the relevant API key must be configured). See the
     // controllers' applyCloudFallbackPref() slots and GeneralPanel.qml.
@@ -466,6 +472,7 @@ public:
         m_acousticShotDetectionEnabled = ppSettings().value(QStringLiteral("General/acousticShotDetectionEnabled"), true).toBool();
         m_acousticSensitivity       = ppSettings().value(QStringLiteral("General/acousticSensitivity"),       0.5).toDouble();
         m_aiCoachingOnSessionEnd    = ppSettings().value(QStringLiteral("General/aiCoachingOnSessionEnd"),    true).toBool();
+        m_experimentalSpokenInstructions = ppSettings().value(QStringLiteral("Experimental/spokenInstructions"), false).toBool();
         m_cloudFallbackStt          = ppSettings().value(QStringLiteral("General/cloudFallbackStt"),          false).toBool();
         m_cloudFallbackTts          = ppSettings().value(QStringLiteral("General/cloudFallbackTts"),          false).toBool();
         m_cloudFallbackLlm          = ppSettings().value(QStringLiteral("General/cloudFallbackLlm"),          false).toBool();
@@ -638,6 +645,7 @@ public:
     bool    acousticShotDetectionEnabled() const { return m_acousticShotDetectionEnabled; }
     double  acousticSensitivity()       const { return m_acousticSensitivity; }
     bool    aiCoachingOnSessionEnd()    const { return m_aiCoachingOnSessionEnd; }
+    bool    experimentalSpokenInstructions() const { return m_experimentalSpokenInstructions; }
     bool    cloudFallbackStt()          const { return m_cloudFallbackStt; }
     bool    cloudFallbackTts()          const { return m_cloudFallbackTts; }
     bool    cloudFallbackLlm()          const { return m_cloudFallbackLlm; }
@@ -1033,6 +1041,14 @@ public:
         m_aiCoachingOnSessionEnd = v;
         ppSettings().setValue(QStringLiteral("General/aiCoachingOnSessionEnd"), v);
         emit aiCoachingOnSessionEndChanged();
+    }
+
+    void setExperimentalSpokenInstructions(bool v)
+    {
+        if (m_experimentalSpokenInstructions == v) return;
+        m_experimentalSpokenInstructions = v;
+        ppSettings().setValue(QStringLiteral("Experimental/spokenInstructions"), v);
+        emit experimentalSpokenInstructionsChanged();
     }
 
     void setCloudFallbackStt(bool v)
@@ -1688,6 +1704,7 @@ signals:
     void acousticShotDetectionEnabledChanged();
     void acousticSensitivityChanged();
     void aiCoachingOnSessionEndChanged();
+    void experimentalSpokenInstructionsChanged();
     void cloudFallbackSttChanged();
     void cloudFallbackTtsChanged();
     void cloudFallbackLlmChanged();
@@ -1812,6 +1829,7 @@ private:
     bool    m_acousticShotDetectionEnabled = true;
     double  m_acousticSensitivity       = 0.5;   // 0 = least sensitive, 1 = most
     bool    m_aiCoachingOnSessionEnd    = true;
+    bool    m_experimentalSpokenInstructions = false;
     bool    m_cloudFallbackStt          = false;
     bool    m_cloudFallbackTts          = false;
     bool    m_cloudFallbackLlm          = false;

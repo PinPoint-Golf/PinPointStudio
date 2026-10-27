@@ -705,6 +705,9 @@ QVector<ContextObject> contextObjects()
         // context object's own name, so every member they use is checked here.
         { QStringLiteral("trunkCeremony"), QStringLiteral("imu/trunk_ceremony_recorder.h"),
           QStringLiteral("TrunkCeremonyRecorder") },
+        // The app's voice (TtsController): TrunkRoutine holds it under the context object's own name
+        // for its one EXPERIMENTAL spoken instruction (27 Oct 2026), so every member it uses is checked.
+        { QStringLiteral("ttsController"), QStringLiteral("media/tts_controller.h"), QStringLiteral("TtsController") },
         // setup/SetupContext.qml holds the managers under INJECTABLE names (so the tests can hand it
         // fakes without a child context). Same classes, same rule: a renamed handle must not be a
         // way round the private-Q_INVOKABLE check.
@@ -1342,6 +1345,8 @@ void ruleW11()
         { "_uprightMaxDeg",  tc::kTrunkLongAxisMaxFromUpDeg, true  },
         { "_turnStartDeg",   tr::kTurnStartDeg,              true  },
         { "_turnReturnDeg",  tr::kTurnReturnDeg,             true  },
+        { "_turnBackCueDeg", tr::kTurnBackCueDeg,            true  },
+        { "_armDriftFollowDps", tr::kArmDriftFollowDps,      true  },
         { "arm",             tr::kArmStillMs,                false },   // defaultPace
         { "returnStill",     tr::kReturnStillMs,             false },
         { "turnTimeout",     tr::kTurnTimeoutMs,             false },

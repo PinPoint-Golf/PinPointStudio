@@ -114,7 +114,7 @@ WizardPage {
 
             Text {
                 width:          parent.width
-                text:           qsTr("Turn freely, as if to the top and through. Turning away must read positive, and the chest must turn further than the hips. If it doesn't, go back and recalibrate.")
+                text:           qsTr("Make a few backswing and follow-through turns. A backswing turn must read positive, and the chest must turn further than the hips. If it doesn't, go back and recalibrate.")
                 font.family:    Theme.fontBody
                 font.weight:    Theme.fontBodyWeight
                 font.pixelSize: Theme.fontSzBody2

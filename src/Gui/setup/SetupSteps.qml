@@ -32,6 +32,7 @@
 // worked example. A step can also be added from outside through `extensions` (test N17).
 import QtQuick
 import PinPointStudio
+import "../calibration/spoken_instructions.js" as Spoken
 
 QtObject {
     id: registry
@@ -243,6 +244,8 @@ QtObject {
             key: "calibrateTrunk"; title: qsTr("Calibrate trunk"); eyebrow: Theme.caps(qsTr("Calibrate trunk")); group: "sensors"
             instrumentGroup: "trunk"
             page: "pages/CalibrateTrunkPage.qml"
+            // TrunkRoutine's spoken instruction(s), the same array it speaks from (prepared in advance).
+            spokenPhrases: Spoken.trunk
             // §4.12: the trunk group is in the session — a present, session-enabled device holds
             // pelvis or thorax. Hardware only.
             applies: function(ctx, draft) { return ctx.groups.trunk.inSession }

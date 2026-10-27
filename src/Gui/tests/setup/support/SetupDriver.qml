@@ -52,6 +52,11 @@ Item {
     // arm flow. null = the routine's own (real) pace.
     property var trunkPace: null
 
+    // The voice (fakes/FakeTts.qml, as the app's "ttsController" context property) — OPT-IN: set it
+    // before open() and the shell's context has a ttsController; left null, the context has NONE at
+    // all, as headless (the page must cope with the name being undefined). Never the real controller.
+    property var tts: null
+
     // The golfer who turns the fake trunk sensors when a turn step arms (TrunkGolfer.qml): the turn
     // steps end on the sensors, not a timer. Attached to each Calibrate trunk page's routine; a case
     // sets `golfer.enabled = false` (no turn) or `golfer.scripts` (its own turns).
@@ -124,6 +129,8 @@ Item {
         appSettings.cameraExcluded     = []
         appSettings.imuExcluded        = []
         appSettings.cameraFixedInPlace = ({})
+        appSettings.experimentalSpokenInstructions = false
+        tts = null
         imu        = imuMgrComp.createObject(drv)
         cams       = camMgrComp.createObject(drv)
         athlete    = athleteComp.createObject(drv)
@@ -151,11 +158,13 @@ Item {
         for (var i = 0; i < objs.length; ++i) if (objs[i]) objs[i].destroy()
         imu = cams = athlete = liveWrist = session = nav = lm = appLogFake = journal = ceremony = _shotReplay = _shotProcessor = null
         trunkPace = null
+        tts = null
+        appSettings.experimentalSpokenInstructions = false
     }
 
     function _create() {
         // Hidden at creation, as in Main's StackLayout before Home navigates to it.
-        var w = harness.createWithContext("ScreenSessionSetup", {
+        var props = {
             imuManager:        imu,
             cameraManager:     cams,
             athleteController: athlete,
@@ -168,7 +177,10 @@ Item {
             shotProcessor:     _shotProcessor,
             pageJournal:       journal,
             trunkCeremony:     ceremony
-        }, host, { width: host.width, height: host.height, visible: false })
+        }
+        if (tts) props.ttsController = tts
+        var w = harness.createWithContext("ScreenSessionSetup", props,
+                                          host, { width: host.width, height: host.height, visible: false })
         if (!w) throw new Error("SetupDriver: ScreenSessionSetup failed to instantiate")
         w.flow.pageChanged.connect(_onPageChanged)
         w.cancelled.connect(_onCancelled)

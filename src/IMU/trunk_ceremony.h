@@ -29,8 +29,15 @@
 #include "imu_calibration.h"
 #include "trunk_angles.h"
 
-// The trunk ceremony's turn checks (trunk_imu_sequence_grf_design.md §6.3 steps 2 "Turn away" and
-// 3 "Turn through"; §16.2 W2.1b). Checks, not solves: nothing here changes A or M.
+// The trunk ceremony's turn checks (trunk_imu_sequence_grf_design.md §6.3 steps 2 and 3; §16.2 W2.1b).
+// Checks, not solves: nothing here changes A or M.
+//
+// ⚠ GOLF TERMS FOR THE GOLFER (Mark, third real-sensor run, 27 Oct: "it's not clear at all which way I
+// am supposed to turn — would be better to use golfing terms, backswing turn and follow-through turn
+// make much more sense"). In the code a step is Away / Through (the design's words); every message a
+// golfer reads says "backswing turn" (Away) or "follow-through turn" (Through), "address" for where he
+// stands facing the screen, and names the trail shoulder — right for a right-hander, left for a
+// left-hander — when it says which way to turn.
 //
 // Kept apart from imu_calibration.h because that header is the A·q·M solve, included by the live
 // write path and the fuser; the turn check is ceremony-only, needs a whole step's series and the D13
@@ -206,10 +213,10 @@ inline TrunkTurnRecord checkTrunkTurn(const TrunkTurnSeries &pelvis, const Trunk
     out.wrongWay = judged(out.pelvis) && judged(out.thorax)
                    && !worldRight(out.pelvis) && !worldRight(out.thorax);
 
-    // ── Per-sensor messages (name the sensor and the cause, §6.3) ──
+    // ── Per-sensor messages (name the sensor and the cause, §6.3), in golf terms (the header) ──
     const QString turnFurther = away
-        ? QStringLiteral("turn further, as if to the top, and back")
-        : QStringLiteral("turn further toward the target, and back");
+        ? QStringLiteral("make a fuller backswing turn, then turn back to address")
+        : QStringLiteral("make a fuller follow-through turn, then turn back to address");
     const auto sensorFailure = [&](TrunkTurnSensorRecord &r, const QString &who, bool chest) {
         if (r.samples < 2)
             r.failure = who + QStringLiteral(" sent no data — check it is switched on and connected");
@@ -237,10 +244,17 @@ inline TrunkTurnRecord checkTrunkTurn(const TrunkTurnSeries &pelvis, const Trunk
     else if (out.thorax.samples < 2)
         fail(out.thorax.failure, "noData");
     else if (std::max(out.pelvis.rangeDeg, out.thorax.rangeDeg) < judgeDeg)
-        fail(QStringLiteral("Cross your arms and ") + turnFurther, "tooLittle");
-    else if (out.wrongWay)
-        fail(away ? QStringLiteral("You turned toward the target — turn away from it, as if to the top")
-                  : QStringLiteral("You turned away from the target — turn toward it this time"), "wrongWay");
+        fail(QStringLiteral("Hardly any turn — arms crossed, ") + turnFurther, "tooLittle");
+    else if (out.wrongWay) {
+        // The golfer made the OTHER turn: say which one he made, which one is wanted, and how — by the
+        // trail shoulder, the one that goes back in a backswing and through in a follow-through.
+        const QString trail = leftHanded ? QStringLiteral("left") : QStringLiteral("right");
+        fail(away ? QStringLiteral("That was a follow-through turn — make your backswing turn: %1 shoulder back, "
+                                   "away from the target.").arg(trail)
+                  : QStringLiteral("That was a backswing turn — make your follow-through turn: %1 shoulder through, "
+                                   "toward the target.").arg(trail),
+             "wrongWay");
+    }
     else if (bothBackwards)
         fail(QStringLiteral("Hip and chest sensors read the turn backwards — check they sit USB-down, label facing out"),
              "backwards");

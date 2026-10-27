@@ -512,6 +512,66 @@ Item {
                 }
             }
 
+            // Speak calibration instructions (EXPERIMENTAL, 27 Oct 2026) — the trunk routine says when to
+            // start each turn and when to turn back to address, through ttsController. Instructions
+            // only: nothing else is ever spoken (Mark's rule; TrunkRoutine.qml).
+            RowLayout {
+                objectName: "setting_spokenInstructions"
+                Layout.fillWidth: true
+                spacing: Theme.gap(16)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.gap(3)
+
+                    Text {
+                        Layout.fillWidth: true
+                        text:           qsTr("Speak calibration instructions (experimental)")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text:           qsTr("Says when to start each turn and when to turn back to address, so you needn't look at the screen.")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                        wrapMode:       Text.WordWrap
+                    }
+                }
+
+                Rectangle {
+                    id: spokenInstructionsToggle
+                    Layout.alignment: Qt.AlignVCenter
+                    width:  Theme.sp(34)
+                    height: Theme.sp(18)
+                    radius: Theme.sp(9)
+                    color:  checked ? Theme.colorAccent : Theme.colorBg3
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+                    property bool checked: appSettings.experimentalSpokenInstructions
+
+                    Rectangle {
+                        width:  Theme.sp(12)
+                        height: Theme.sp(12)
+                        radius: Theme.sp(6)
+                        color:  "white"
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: spokenInstructionsToggle.checked ? parent.width - width - Theme.sp(3) : Theme.sp(3)
+                        Behavior on x { NumberAnimation { duration: 120 } }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape:  Qt.PointingHandCursor
+                        onClicked:    appSettings.experimentalSpokenInstructions = !appSettings.experimentalSpokenInstructions
+                    }
+                }
+            }
+
             PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
             // ── Group 3 — Motion capture ──────────────────────────────────────

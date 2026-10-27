@@ -27,15 +27,17 @@
 //                failure names the sensor (the C++ record's own words), stays on screen for `retry`,
 //                and stand tall begins again at ready — it waits for upright and still again, never a
 //                blind re-run on a timer.
-//   turnAway     demo: the guide turns away (hips 45°, chest 90°) and back, with ONE short instruction,
+//   turnAway     the BACKSWING TURN (golfer-facing words: below).
+//                demo: the guide turns away (hips 45°, chest 90°) and back, with ONE short instruction,
 //                while the golfer faces the screen — everything to read is read here.
 //                arming: both sensors still (gyroDps, `ready`'s rule) for `arm` → armed: the step's
 //                recording begins NOW (stepStart), at address, never at the demo.
 //                armed → turning: the chest's live heading (ImuInstance.trunkHeadingDeg) `_turnStartDeg`
-//                from its armed heading. turning → returned: back within `_turnReturnDeg` of it with
+//                from its armed heading. Within turning, the TURN-BACK CUE (turnBackDue) once he has
+//                turned enough (below). turning → returned: back within `_turnReturnDeg` of it with
 //                both sensors still for `returnStill` — the golfer faces the screen again. Then stepEnd
 //                and the recorder's checkTurn("away"), and the verdict on screen.
-//   turnThrough  the same toward the target, checkTurn("through").
+//   turnThrough  the FOLLOW-THROUGH TURN: the same toward the target, checkTurn("through").
 //   done         both turns passed: the A/M from stand tall stand, completed() once.
 //   failed       a trunk sensor is missing or dropped its link: Recalibrate starts again.
 //
@@ -57,7 +59,45 @@
 // but never comes back is ended and checked after `turnTimeout`; a turn that never starts waits —
 // shown on screen and logged once per `waitLog`, as stand tall's `ready` waits. A reading that is
 // not finite (a filter fault) counts as no reading: it neither starts, returns nor arms.
+// While armed and still, the armed heading FOLLOWS slow drift (at most `_armDriftFollowDps`): Mark's
+// third run (27 Oct) saw the fused heading creep ~0.1 °/s, which over a long wait adds up to the start
+// threshold and "starts" a turn nobody made — the page then said turn back before he had moved.
 // Every gate here mirrors pp_tuned_constants.h tuned::trunkRoutine (lint W11 holds them equal).
+//
+// ── GOLF TERMS FOR THE GOLFER (Mark, 27 Oct) ──
+// "Away" / "through" are the design's words and stay in the code. Everything the golfer reads says
+// BACKSWING TURN (away) and FOLLOW-THROUGH TURN (through), "address" for where he stands facing the
+// screen, and the trail shoulder when it says which way (trunk_ceremony.h; CalibrateTrunkPage).
+//
+// ── THE TWO CUES OF A TURN: when to start, and when to come back (Mark, fourth real-sensor run, 27 Oct:
+// "I need to know when to start the turn and when to come back — there is no other way to know") ──
+// The golfer faces away while he turns, so each turn attempt gives him two cues, on screen (the page's
+// status) and — with the setting on — spoken:
+//   START       the moment the step is ARMED (still at address, the recording begun): "Start your
+//               backswing turn." / "Start your follow-through turn." Every attempt, a retry too.
+//   TURN BACK   once per attempt, when he has turned ENOUGH: the chest's |live turn| reaches
+//               `_turnBackCueDeg` (70°, the chest gate plus a margin — tuned::trunkRoutine::
+//               kTurnBackCueDeg says why), OR the turn has started and he has STOPPED at the top short
+//               of it — both sensors still (`_stillReasons`, kStillGyroDps) for `returnStill` without
+//               a break, still beyond `_turnStartDeg` — whichever comes first: "Turn back to address."
+//               (`turnBackDue` goes true, and the page's status with it). The stopped-short branch keeps
+//               a golfer who cannot reach 70° from standing at the top for ever; the check then judges
+//               the turn he made, honestly. The cue only TELLS him: the step still ends when the
+//               sensors say he is back (or at the timeout), and checkTurn() still judges it.
+// The 26 Oct routine said its one line the instant the turn STARTED (20°): far too early — Mark's
+// fourth run heard it at 20.8° and went on to 99°.
+//
+// SPOKEN, EXPERIMENTAL (Mark, 27 Oct: "we ONLY use it for INSTRUCTIONS"): with `speakInstructions` on
+// (AppSettings.experimentalSpokenInstructions, default off) each cue is said through `ttsController`.
+// Those three lines are the ONLY things ever spoken: no verdict, status, failure, demo or stand tall.
+// The start line is skipped (the reason logged) with no voice, or one not ready or already speaking.
+// The turn-back line has PRIORITY: it stops whatever is still playing — a fast golfer can reach 70°
+// before the start line ends — and is said at once, or as soon as the voice reports it has stopped.
+// Leaving (stop) or Recalibrate (begin) stops what was said. The lines are PREPARED IN ADVANCE (Mark,
+// 27 Oct): their words live in spoken_instructions.js, listed as `spokenPhrases` here and on the step's
+// descriptor, and the setup shell has ttsController synthesise them when setup is created / the
+// setting goes on / the voice is ready or changes — so each cue plays cached audio at once. Each speak
+// line in the log names the cue, says whether it was prepared, and the voice's latency follows.
 //
 // The ceremony file (W2.1c): the routine brackets each step on the recorder — stepStart("standTall")
 // … attachResult × 2 … stepEnd, stepStart("turnAway") … checkTurn … stepEnd, and so on — and calls
@@ -71,6 +111,7 @@
 // pace. ⚠ R3: every Timer.running and Connections.enabled below is ANDed with `active`; active going
 // false is stop("inactive"). Every stage change and every entry point is ONE app-log line (R10).
 import QtQuick
+import "spoken_instructions.js" as Spoken
 
 QtObject {
     id: r
@@ -83,6 +124,13 @@ QtObject {
     // TrunkCeremonyRecorder (trunk_ceremony_recorder.h). Named as the context object is, so lint W5
     // checks every member used below against its header. null = nothing recorded and no turn check.
     property var  trunkCeremony: null
+    // The EXPERIMENTAL spoken instructions (header): on → each turn's start and turn-back cues are said.
+    property bool speakInstructions: false
+    // The voice: TtsController (media/tts_controller.h — speak, stopSpeaking, ttsReady, ttsActive,
+    // lastTtsLatencyMs), named as the context object is so lint W5 checks every member used below
+    // against its header. The host hands it in; tests hand in a FakeTts that only records. null = no
+    // voice (headless): nothing is spoken, and the skip is logged.
+    property var  ttsController: null
 
     // Every duration, in ms, and `scale` (1 in the app; tests set it, lint W7).
     readonly property var defaultPace: ({
@@ -128,6 +176,8 @@ QtObject {
     // peak; NaN = no reading / not armed).
     readonly property real   turnDeg:     _turnDeg
     readonly property real   turnPeakDeg: _turnPeakDeg
+    // A turn: the TURN-BACK cue has fired in this attempt (header) — the golfer is told to come back.
+    readonly property bool   turnBackDue: _turnBackDue
     // Why the routine is waiting, one line per reason — stand tall's ready and hold ("Chest sensor isn't
     // upright", "Hip sensor is moving"), a turn's arming (the same, or no turn reading) and a turn
     // that has not started ("Waiting for you to turn…"). "" when nothing holds it up.
@@ -155,11 +205,18 @@ QtObject {
     property real   _turnMs: 0             // a turn: since it started (the timeout's clock)
     property real   _armMs: 0              // a turn: still, unbroken, while arming
     property real   _backMs: 0             // a turn: back and still, unbroken, after it started
+    property real   _topMs: 0              // a turn: still beyond the start, unbroken, before the cue
     property real   _turnRef: NaN          // a turn: the chest's heading at arming
     property real   _turnDeg: NaN
     property real   _turnPeakDeg: NaN
     property string _anim: ""             // the guide's demonstration: "out" | "pause" | "back" | ""
     property string _retryTo: ""           // after a failed turn: "standTall" | "away" | "through"
+    property bool   _turnBackDue: false    // the turn-back cue has fired, once per armed attempt
+    property bool   _saidStart: false      // this attempt's start line was said: the turn-back cuts it off
+    property bool   _turnBackPending: false // the turn-back line waits for the voice to stop (it had to stop)
+    property bool   _spoke: false          // something was said since begin(): stop() silences it
+    property bool   _awaitLatency: false   // said; its synthesis latency is logged when it arrives
+    property string _latencyCue: ""        // …and which cue it was
 
     // Still enough to start, and to time the hold: each sensor's gyroDps (|device gyro|, its peak over
     // the last 250 ms — imu_instance.h). The stillness that counts is calibrateTrunk's own gate (the
@@ -179,11 +236,26 @@ QtObject {
     // reasons there.
     readonly property real _turnStartDeg: 20.0
     readonly property real _turnReturnDeg: 15.0
+    // The turn-back cue fires once the chest's |live turn| reaches this (°):
+    // tuned::trunkRoutine::kTurnBackCueDeg, the reason there (lint W11).
+    readonly property real _turnBackCueDeg: 70.0
+    // While armed and still, the armed heading follows the live one at up to this (°/s, routine time):
+    // tuned::trunkRoutine::kArmDriftFollowDps, the reason there (lint W11).
+    readonly property real _armDriftFollowDps: 0.5
     // Upright: sensor +Y (away from the USB end, so the USB end down) within the stand-tall gate of
     // up (kTrunkLongAxisMaxFromUpDeg, 35°, pp_tuned_constants.h — keep the two equal). A sensor within it also passes the face gate (40°).
     readonly property real _uprightMaxDeg: 35.0
 
     readonly property var _ourSteps: ["standTall", "turnAway", "turnThrough"]
+
+    // The lines ever spoken (header): each turn step's start cue, and the turn-back cue.
+    function _startLine() {
+        return _stage === "turnAway" ? Spoken.trunkStartBackswing : Spoken.trunkStartFollowThrough
+    }
+    readonly property string _turnBackLine: Spoken.trunkTurnBack
+    // Every line this routine may speak — the same array its step descriptor lists, so the setup
+    // shell prepares exactly these in advance (spoken_instructions.js; ScreenSessionSetup).
+    readonly property var spokenPhrases: Spoken.trunk
 
     function _log(text) { appLog.info("Calib", "trunk " + text) }
     // ONE line per transition (R10): the stage, the step within it, and why.
@@ -199,8 +271,10 @@ QtObject {
     // so a stale A/M must not be there to inherit), the recording begun unless one runs already.
     function begin() {
         _log("begin")
-        // A Recalibrate mid-step: the open step ends here, not at the next step of its name.
+        // A Recalibrate mid-step: the open step ends here, not at the next step of its name; and
+        // whatever was said for the run it replaces stops.
         if (_running) _closeStep()
+        _stopSpeech()
         _reset()
         _running = true
         var missing = _missingSensor()
@@ -219,6 +293,7 @@ QtObject {
         _anim = ""
         _running = false
         if (guide) guide.cancel()
+        _stopSpeech()
         _closeStep()
         if (!calibrationDone) _resetState()
         _log("stop reason=" + reason + " stage=" + was)
@@ -280,6 +355,10 @@ QtObject {
         _waitReason = ""
         _clearTurn()
         _retryTo = ""
+        _turnBackDue = false
+        _saidStart = false
+        _turnBackPending = false
+        _awaitLatency = false
         standTallResult = ({})
         turnResults = ({})
         calibrationDone = false
@@ -404,6 +483,7 @@ QtObject {
         _turnMs = 0
         _armMs = 0
         _backMs = 0
+        _topMs = 0
         _turnRef = NaN
         _turnDeg = NaN
         _turnPeakDeg = NaN
@@ -441,10 +521,22 @@ QtObject {
         _turnPeakDeg = 0
         _turnMs = 0
         _backMs = 0
+        _topMs = 0
+        _turnBackDue = false               // a new attempt: its cues are due again
+        _saidStart = false
+        _turnBackPending = false
         if (trunkCeremony) trunkCeremony.stepStart(name)
         _waitLogMs = 0
         _go(name, "armed", "heading=" + _fmt(_turnRef))
-        _waitReason = qsTr("Waiting for you to turn")
+        _waitReason = _waitingForTurn()
+        // The START cue: he is at address, facing the screen, and may turn now.
+        _speak("start", _startLine())
+    }
+
+    // What an armed step waits for, in golf terms.
+    function _waitingForTurn() {
+        return _stage === "turnAway" ? qsTr("Waiting for your backswing turn")
+                                     : qsTr("Waiting for your follow-through turn")
     }
 
     // One tick of an armed or turning step: the live turn, then start / return / timeout.
@@ -458,16 +550,26 @@ QtObject {
             if (isFinite(d) && Math.abs(d) >= _turnStartDeg) {
                 _waitReason = ""
                 _go(_stage, "turning", "started peak=" + _fmt(_turnPeakDeg))
+                _turnBackTick(interval, d)     // a fast turn can be past the cue on its first reading
                 return
             }
-            // Nothing has started: keep waiting, saying so (on screen, and the numbers once per waitLog).
-            var why = isFinite(d) ? qsTr("Waiting for you to turn")
+            // Nothing has started. Still: the armed heading follows the live one at most
+            // `_armDriftFollowDps` (routine time — `interval` is scaled ms), so a fused heading creeping
+            // while the golfer stands at address never adds up to a start; a turn outruns it at once,
+            // and the follow stops while he moves (W11; kArmDriftFollowDps says why a rate).
+            if (isFinite(d) && _stillReasons().length === 0) {
+                var cap = _armDriftFollowDps * interval / (1000 * _p.scale)
+                _turnRef = _wrap180(_turnRef + Math.max(-cap, Math.min(cap, d)))
+            }
+            // Keep waiting, saying so (on screen, and the numbers once per waitLog).
+            var why = isFinite(d) ? _waitingForTurn()
                                   : qsTr("Chest sensor gives no turn reading — waiting for one")
             _waitTick(interval, [why], "turn=" + _fmt(d) + " peak=" + _fmt(_turnPeakDeg))
             return
         }
-        // Turning: back within the return gate and both sensors still, unbroken, ends it; so does the
-        // timeout. A tick with no reading is not "back".
+        // Turning: the turn-back cue, once; then back within the return gate and both sensors still,
+        // unbroken, ends it; so does the timeout. A tick with no reading is not "back".
+        _turnBackTick(interval, d)
         _turnMs += interval
         var back = isFinite(d) && Math.abs(d) <= _turnReturnDeg && _stillReasons().length === 0
         _backMs = back ? _backMs + interval : 0
@@ -480,10 +582,80 @@ QtObject {
         }
     }
 
+    // The TURN-BACK cue (header), once per attempt, on a turning tick: the chest's |turn| has reached
+    // `_turnBackCueDeg`, or the golfer has stopped at the top short of it — both sensors still for
+    // `returnStill` without a break, still beyond `_turnStartDeg` (a turn on its way back in under the
+    // start is not "at the top"). A tick with no reading is neither.
+    function _turnBackTick(interval, d) {
+        if (_turnBackDue) return
+        var a = Math.abs(d)
+        var out = isFinite(d) && a >= _turnStartDeg
+        _topMs = out && _stillReasons().length === 0 ? _topMs + interval : 0
+        if (isFinite(d) && a >= _turnBackCueDeg)
+            _cueTurnBack("reached " + Number(_turnBackCueDeg).toFixed(0) + "deg at turn=" + _fmt(d))
+        else if (_topMs >= _ms("returnStill"))
+            _cueTurnBack("stopped at the top at " + _fmt(a) + " turn=" + _fmt(d))
+    }
+
+    function _cueTurnBack(why) {
+        _turnBackDue = true
+        _log("cue turnBack " + why + " peak=" + _fmt(_turnPeakDeg))
+        _speak("turnBack", _turnBackLine)
+    }
+
+    // The EXPERIMENTAL spoken instructions (header): a cue's line, only with the setting on and a voice
+    // that is ready; otherwise skipped, the reason logged. The START line is skipped too while the voice
+    // is speaking (TtsController.speak drops a line then). The TURN-BACK line has priority: whatever is
+    // still playing — this attempt's start line (a cached line plays without the voice reading active,
+    // so it is stopped whenever it was said), or anything else — is stopped, and the line said now, or
+    // as soon as the voice reports it has stopped (_ttsIdle). The log line names the cue and says
+    // whether its words were prepared in advance; how long they took to reach the speaker is logged
+    // when the voice reports it (_ttsLatency).
+    function _speak(cue, text) {
+        if (!speakInstructions) return
+        var turnBack = cue === "turnBack"
+        var why = !ttsController                    ? "no voice (text-to-speech is not available)"
+                : ttsController.ttsReady !== true   ? "voice not ready"
+                : !turnBack && ttsController.ttsActive === true ? "voice busy"
+                : ""
+        if (why !== "") { _log("speak cue=" + cue + " skipped: " + why); return }
+        if (turnBack && (_saidStart || ttsController.ttsActive === true)) {
+            _log("speak cue=" + cue + " stops the voice first" + (_saidStart ? " (the start line)" : " (busy)"))
+            ttsController.stopSpeaking()
+            if (ttsController.ttsActive === true) {
+                _turnBackPending = true
+                _log("speak cue=" + cue + " waits for the voice to stop")
+                return
+            }
+        }
+        _say(cue, text)
+    }
+
+    function _say(cue, text) {
+        // Prepared in advance (the setup shell asked ttsController to, ScreenSessionSetup) → it plays
+        // at once; not prepared → it is synthesised now and arrives late by that.
+        var prepared = ttsController.isPrepared(text) === true
+        _log("speak cue=" + cue + " \"" + text + "\" (" + (prepared ? "prepared" : "not prepared — synthesising now") + ")")
+        _spoke = true
+        _awaitLatency = true
+        _latencyCue = cue
+        if (cue === "start") _saidStart = true
+        ttsController.speak(text)
+    }
+
+    // Leave or Recalibrate: silence what this run said (only then — the voice is the app's).
+    function _stopSpeech() {
+        _awaitLatency = false
+        _turnBackPending = false
+        if (!_spoke) return
+        _spoke = false
+        if (ttsController) ttsController.stopSpeaking()
+    }
+
     function _handHint() {
         return rightHanded
-            ? qsTr("Turned the way the guide showed? This golfer is set up as right-handed — if that is wrong, change it in the golfer's profile, then Recalibrate.")
-            : qsTr("Turned the way the guide showed? This golfer is set up as left-handed — if that is wrong, change it in the golfer's profile, then Recalibrate.")
+            ? qsTr("Set up as a right-handed golfer — if that is wrong, change it in the golfer's profile, then Recalibrate.")
+            : qsTr("Set up as a left-handed golfer — if that is wrong, change it in the golfer's profile, then Recalibrate.")
     }
 
     // The turn is over (returned, or timed out): the recorder judges the whole step, from arming to
@@ -665,6 +837,29 @@ QtObject {
             // A failed turn re-arms by itself (no demo again, no click); the verdict stays on screen.
             if (r._retryTo === "standTall") r._startStandTall()
             else                            r._armTurn(r._retryTo)
+        }
+    }
+
+    // The spoken line's synthesis latency, logged once when the voice reports it (EXPERIMENTAL).
+    property Connections _ttsLatency: Connections {
+        target:  r.ttsController
+        enabled: r.active && r._running && r._awaitLatency
+        function onLastTtsLatencyMsChanged() {
+            r._awaitLatency = false
+            r._log("speak cue=" + r._latencyCue + " latency=" + Math.round(Number(r.ttsController.lastTtsLatencyMs)) + "ms")
+        }
+    }
+
+    // The turn-back line that had to stop the voice first: said when the voice reports it has stopped —
+    // while the golfer is still out on that turn (once he is back, it is no longer an instruction).
+    property Connections _ttsIdle: Connections {
+        target:  r.ttsController
+        enabled: r.active && r._running && r._turnBackPending
+        function onTtsActiveChanged() {
+            if (r.ttsController.ttsActive === true) return
+            r._turnBackPending = false
+            if (r._sub === "turning") r._say("turnBack", r._turnBackLine)
+            else                      r._log("speak cue=turnBack dropped: the turn ended before the voice stopped")
         }
     }
 
