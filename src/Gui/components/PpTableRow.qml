@@ -76,8 +76,10 @@ Item {
             if (t.isTableCard === true) return t
         return null
     }
-    function columnX(i)     { const L = row.layout[i + row.columnOffset]; return L ? L.x : 0 }
-    function columnWidth(i) { const L = row.layout[i + row.columnOffset]; return L ? L.width : 0 }
+    // A caller may hand a layout that is not an array (nothing yet); read it through this.
+    function _layout()      { return row.layout || [] }
+    function columnX(i)     { const L = row._layout()[i + row.columnOffset]; return L ? L.x : 0 }
+    function columnWidth(i) { const L = row._layout()[i + row.columnOffset]; return L ? L.width : 0 }
 
     width:          parent ? parent.width : 0
     implicitHeight: Theme.sp(row.secondLine ? Theme.rowH2 : Theme.rowH)
@@ -107,11 +109,19 @@ Item {
         x: row.padH
         width:  Math.max(0, row.width - 2 * row.padH)
         height: row.height
-        onChildrenChanged: row._place()
+        onChildrenChanged: if (row._built) row._place()
     }
-    onLayoutChanged:       row._place()
-    onColumnOffsetChanged: row._place()
-    onCentreCellsChanged:  row._place()
+    onLayoutChanged:       if (row._built) row._place()
+    onColumnOffsetChanged: if (row._built) row._place()
+    onCentreCellsChanged:  if (row._built) row._place()
+
+    // The cells are placed once the row is complete, never while it is being built. Placing reads
+    // `layout`, and reading it while the cells are still being added forces the caller's `layout:`
+    // binding to run early — in a Repeater delegate, before the delegate's context can resolve the
+    // ids around it ("Cannot read property … of undefined"). A binding that fails that way has
+    // captured nothing, so it never runs again and the row is left with no template at all.
+    property bool _built: false
+    Component.onCompleted: { row._built = true; row._place() }
 
     // Bind each cell that has a column to that column. The bindings read the layout, so a template
     // that changes width moves the cells without another pass.
@@ -120,9 +130,9 @@ Item {
         for (let i = 0; i < kids.length; ++i) {
             const k = kids[i]
             const idx = i + row.columnOffset
-            if (!row.layout[idx]) continue
+            if (!row._layout()[idx]) continue
             k.x = Qt.binding(function () {
-                const L = row.layout[idx]
+                const L = row._layout()[idx]
                 if (!L) return 0
                 return Math.round(L.align === "right"  ? L.x + L.width - k.width
                                 : L.align === "center" ? L.x + (L.width - k.width) / 2

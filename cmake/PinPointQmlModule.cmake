@@ -143,6 +143,11 @@ set(PP_QML_FILES
     # is its own screen, ScreenSwingDiagnostics, opened from the summary's link.
     src/Gui/home/HmSwingSummary.qml
     src/Gui/home/HmFocus.qml
+    # Home's tabs and the area table (four-modes refactor, Phase 4).
+    src/Gui/home/HmHomeTabs.qml
+    src/Gui/home/HmSwingAreas.qml
+    src/Gui/home/HmAreaRow.qml
+    src/Gui/home/HmRigCapability.qml
     src/Gui/home/HmGoesTogether.qml
     src/Gui/home/ScreenSwingDiagnostics.qml
     # H6 — "Pair to my phone": the PPCP-RV pairing code as a QR, in a modal
@@ -194,6 +199,7 @@ set(PP_QML_FILES
     # The closing page's "What this session will record" wording (.pragma library, imported
     # relatively by SetupContext; the ONE place that wording lives).
     src/Gui/setup/setup_capability_rows.js
+    src/Gui/setup/capability_facts.js
     src/Gui/setup/StepDescriptor.qml
     src/Gui/setup/WizardPage.qml
     src/Gui/setup/SetupSteps.qml

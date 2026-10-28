@@ -16,9 +16,10 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// SWING DIAGNOSTICS — the technical layer under YOUR SWING, reached from the home screen's
-// "Swing diagnostics →" row: every fault by its technical name with how it was measured (the
-// work-ons card, headed FAULTS), then what moves together. For the golfer who wants the detail,
+// SWING DIAGNOSTICS — the technical layer under Home's tabs, reached from the rail's Work-ons and
+// Home's "All work-ons ▸" (every work-on), or an area's "All of <area> ▸" (that area's: groupFilter):
+// every fault by its technical name with how it was measured (the work-ons card, headed FAULTS),
+// then what moves together. For the golfer who wants the detail,
 // and for their coach. The home screen's column, on its own screen in the app's stack (Main.qml,
 // AppScreen.WorkOns); "← Home" goes back to it.
 //
@@ -42,13 +43,22 @@ Item {
     // The faults card, for a harness to open a row.
     readonly property alias faults: faultsCard
 
+    // One swing area's work-ons (its ConditionGroup token, from Home's "All of <area> ▸"), or ""
+    // for every one. Main sets it on the way in; the rail's Work-ons clears it.
+    property string groupFilter: ""
+
     signal backRequested()
     signal reviewSessionRequested(string sessionDir)
-    // TEMPORARY (Phase 4 moves Practise to Home): a fault row's "Practise", passed up to Main,
-    // which opens the session wizard with that condition as the focus.
-    signal practiseRequested(string conditionId, string label)
 
     readonly property string subtitle: controller ? controller.summarySubtitle : ""
+    // The filtered area's name, from the controller's own areas; the token itself if it has none.
+    readonly property string groupLabel: {
+        if (root.groupFilter === "" || !root.controller) return ""
+        const areas = root.controller.areaItems || []
+        for (let i = 0; i < areas.length; ++i)
+            if (areas[i].group === root.groupFilter) return String(areas[i].label)
+        return root.groupFilter
+    }
 
     // Back to the top: Main calls it when the home screen's link opens the screen afresh.
     function toTop() { flick.contentY = 0 }
@@ -103,14 +113,39 @@ Item {
             }
             Item { width: 1; height: Theme.sp(16) }
 
+            // ── The area filter ──────────────────────────────────────────────
+            // Said whenever the list is narrowed, with the way back to every work-on.
+            Row {
+                objectName: "workOnsFilterLine"
+                visible: root.groupFilter !== ""
+                height:  visible ? Theme.sp(28) : 0
+                spacing: Theme.gap(6)
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text:           qsTr("Showing %1 ·").arg(root.groupLabel)
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody2
+                    font.weight:    Theme.fontBodyWeight
+                    color:          Theme.colorText2
+                }
+                PpLink {
+                    objectName: "workOnsShowAll"
+                    anchors.verticalCenter: parent.verticalCenter
+                    text:        qsTr("show all")
+                    pressMargin: Theme.sp(6)
+                    onClicked:   root.groupFilter = ""
+                }
+            }
+            Item { width: 1; height: Theme.sp(8); visible: root.groupFilter !== "" }
+
             // ── Faults ───────────────────────────────────────────────────────
             HmWorkOns {
                 id: faultsCard
-                width:      mainCol.width
-                title:      Theme.caps(qsTr("Faults"))
-                controller: root.controller
+                width:       mainCol.width
+                title:       Theme.caps(qsTr("Faults"))
+                controller:  root.controller
+                groupFilter: root.groupFilter
                 onReviewSessionRequested: (sessionDir) => root.reviewSessionRequested(sessionDir)
-                onPractiseRequested: (conditionId, label) => root.practiseRequested(conditionId, label)
             }
             Item { width: 1; height: Theme.sp(16) }
 

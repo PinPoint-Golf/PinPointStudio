@@ -41,6 +41,7 @@
 import QtQuick
 import PinPointStudio
 import "setup_capability_rows.js" as CapRows
+import "capability_facts.js" as CapFacts
 
 QtObject {
     id: ctx
@@ -575,23 +576,15 @@ QtObject {
     // nothing — setup_capability.h). DECISION(stage4): `hackMotion` is true only when the wG3 holds
     // the arm AND its outcome holds, because contextForSetup adds LeadForearm + LeadHand for it on
     // its own; and faceOn/dtl mean enabled AND connected, not merely assigned.
-    readonly property var setupFacts: {
-        var r = ctx.roles, g = ctx.groups, defs = ctx.groupDefs
-        var out = []
-        var hm = false
-        for (var grp in defs) {
-            var oc = ctx.draft ? ctx.draft.outcome(grp) : null
-            if (!oc || !oc.done) continue
-            var rl = defs[grp].roles
-            for (var i = 0; i < rl.length; ++i) if (r[rl[i]].inSession) out.push(rl[i])
-            if (grp === "arm" && g.arm.routine === "hackmotion") hm = true
-        }
-        // DECISION(stage5c): a skipped Cameras step records no video (its issue says so), so
-        // its cameras do not count, connected or not.
-        var camsSkipped = ctx.draft !== null && ctx.draft.state("cameras") === "skipped"
-        return { faceOn: ctx.faceOnConnected && !camsSkipped, dtl: ctx.dtlConnected && !camsSkipped,
-                 imuRoles: out, hackMotion: hm, launchMonitor: ctx.launchMonitorConfigured }
-    }
+    readonly property var setupFacts: CapFacts.facts(ctx._capabilityInput, "wizard")
+    // What capability_facts.js reads (the rule itself lives there, shared with Home's
+    // HmRigCapability, which passes these same derivations in "home" mode — D10: connected now,
+    // no calibration gate). Gathered once, so the bindings above and below depend on each input.
+    readonly property var _capabilityInput: ({
+        faceOn: ctx.faceOn, dtl: ctx.dtl, roles: ctx.roles, groups: ctx.groups,
+        groupDefs: ctx.groupDefs, launchMonitor: ctx.launchMonitorConfigured,
+        lmName: ctx.launchMonitorName, draft: ctx.draft
+    })
 
     // The closing page's "What this session will record" (§4.14): the catalogue's per-group answer
     // for setupFacts (MetricCatalog.setupSummary — the resolver, nothing re-implemented), rolled
@@ -603,29 +596,13 @@ QtObject {
     // The same setup without the launch monitor — only when one is configured — so the rows can
     // tell a family the launch monitor alone measures (CapRows "Whose word it is").
     readonly property var capabilitySummaryWithoutLm: {
-        var f = ctx.setupFacts
-        if (!f.launchMonitor) return null
-        return _catalog.setupSummary({ faceOn: f.faceOn, dtl: f.dtl, imuRoles: f.imuRoles,
-                                       hackMotion: f.hackMotion, launchMonitor: false })
+        var f = CapFacts.factsWithoutLm(ctx.setupFacts)
+        return f === null ? null : _catalog.setupSummary(f)
     }
-    readonly property var capability: {
-        var g = ctx.groups, r = ctx.roles, f = ctx.setupFacts
-        var oc = ctx.draft ? ctx.draft.outcome("arm") : null
-        // A camera's state for the reasons (Stage 5c): "connected" when the session will record
-        // it (setupFacts), "unconnected" when one is assigned but is not, "absent" when none is.
-        var cam = function(recorded, assigned) {
-            return recorded ? "connected" : (assigned.length > 0 ? "unconnected" : "absent")
-        }
-        return CapRows.rows(ctx.capabilitySummary, {
-            armInSession:  g.arm.inSession,
-            armCalibrated: oc !== null && oc.done,
-            upperArmHeld:  r.leadUpperArm.inSession,
-            cameraCount:   (f.faceOn ? 1 : 0) + (f.dtl ? 1 : 0),
-            faceOn:        cam(f.faceOn, ctx.faceOn),
-            dtl:           cam(f.dtl, ctx.dtl),
-            lmName:        ctx.launchMonitorName
-        }, ctx.capabilitySummaryWithoutLm)
-    }
+    readonly property var capability:
+        CapRows.rows(ctx.capabilitySummary,
+                     CapFacts.rowContext(ctx._capabilityInput, ctx.setupFacts, "wizard"),
+                     ctx.capabilitySummaryWithoutLm)
 
     // ── Session lifecycle ────────────────────────────────────────────────────────────────────────
     // A new session inherits the GLOBAL enablement afresh (wizard l.576–586). Called once per visit,

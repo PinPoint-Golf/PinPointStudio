@@ -2,12 +2,12 @@
 //
 // work_ons_test proves the reductions and work_ons_controller_test the catch-up; neither can
 // see whether the app draws the list, opens a row, or offers the way into a session. The list
-// lives on the Swing diagnostics screen, opened from the home screen's YOUR SWING. This drives
-// the real app:
+// lives on the Swing diagnostics screen, opened from Home's tab bar ("All work-ons ▸"). This
+// drives the real app:
 //
-//   wait for the catch-up and the swing summary (its "Swing diagnostics →" link is drawn with
-//   it) → click the link → the list has rows → each row is drawn → opening one shows its detail
-//   and the "review the session" link.
+//   wait for the catch-up and the swing summary → press Home's "All work-ons ▸" → Swing
+//   diagnostics opens on every work-on → the list has rows → each row is drawn → opening one
+//   shows its detail and the "review the session" link.
 //
 // Point the app at a folder of sessions that is NOT the library (PINPOINT_WORKONS_DIR), so the
 // catch-up writes its work_ons.json files there:
@@ -68,13 +68,17 @@ Item {
         }
     }
 
-    // The list is on the Swing diagnostics screen: get there the golfer's way.
+    // The list is on the Swing diagnostics screen: get there the golfer's way, Home's
+    // "All work-ons ▸" (HmHomeTabs: homeAllWorkOns, the chip of its PpTabs homeTabBar).
     property var screen: null
     function openDiagnostics() {
-        const link = find(rootItem(), "diagnosticsLink")
-        check(link !== null && drawn(link), "the home screen draws the 'Swing diagnostics →' link")
-        if (!link) { finish(); return }
-        link.clicked(null)
+        const bar = find(rootItem(), "homeTabBar")
+        const chip = find(rootItem(), "homeAllWorkOns")
+        check(bar !== null && chip !== null && drawn(chip) && chip.text !== "",
+              "Home's tab bar draws 'All work-ons ▸'" + (chip ? " (" + chip.text + ")" : ""))
+        if (!bar || !chip) { finish(); return }
+        // What the chip's press and its accessible action both do.
+        bar.chipActivated()
         opened.start()
     }
     Timer {
@@ -82,8 +86,9 @@ Item {
         interval: 600
         onTriggered: {
             probe.screen = probe.find(probe.rootItem(), "swingDiagnosticsScreen")
-            probe.check(probe.screen !== null && probe.drawn(probe.screen), "the link opens the Swing diagnostics screen")
+            probe.check(probe.screen !== null && probe.drawn(probe.screen), "'All work-ons ▸' opens the Swing diagnostics screen")
             if (!probe.screen) { probe.finish(); return }
+            probe.check(probe.screen.groupFilter === "", "…on every work-on, not one area")
             probe.inspect()
         }
     }

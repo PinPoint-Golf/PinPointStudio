@@ -1,4 +1,4 @@
-// END-TO-END: THE HOME SCREEN'S "YOUR SWING" AND THE SWING DIAGNOSTICS SCREEN UNDER IT.
+// END-TO-END: THE HOME SCREEN'S COACHING TAB AND THE SWING DIAGNOSTICS SCREEN UNDER IT.
 //
 // swing_themes_test proves the reduction, swing_themes_golden_test holds it to the Python
 // reference, and work_ons_controller_test proves the catch-up writes and reads swing_themes.json
@@ -7,13 +7,14 @@
 //
 //   wait for the work-ons catch-up and the summary → log the focus, "what you do well", "next on
 //   your list" and "what goes together" →
-//   HOME: the focus card is drawn with its title, at least one aim, at least one "right now"
-//   fault, and how to practise when it has a drill → "do well" has 1..3 items, each drawn →
-//   "next" is drawn with as many delegates as it has items, the first (only) wearing NEXT → no
-//   drawn text in YOUR SWING is technical (no P-position, no degrees, no fault's technical name)
-//   or causal (because / cause / due to / leads to) → the work-ons are no longer on the home
-//   screen →
-//   click "Swing diagnostics →": the screen is drawn, the home is not, its Faults card (headed in
+//   HOME: select the Coaching tab (homeTabs) → the focus card is drawn with its title, at least
+//   one aim, at least one "right now" fault → open "Why it matters · how to practise" and how to
+//   practise is drawn when it has a drill → "do well" has 1..3 items, each drawn → "next" is drawn
+//   with as many delegates as it has items, the first (only) wearing NEXT → no drawn text on the
+//   COACHING tab is technical (no P-position, no degrees, no fault's technical name) or causal
+//   (because / cause / due to / leads to) — the Your swing tab shows pack labels and figures by
+//   design, so it is not checked → the work-ons are no longer on the home screen →
+//   follow the tab bar's "All work-ons ▸": the screen is drawn, the home is not, its Faults card (headed in
 //   the theme's own case) draws a row per work-on (five at most until "more"), and "what goes
 //   together" draws an item each with its
 //   first half and where it starts, or its note → no causal words there either →
@@ -24,8 +25,8 @@
 //   PINPOINT_WORKONS_DIR=<athlete dir> QT_QPA_PLATFORM=offscreen PinPointStudio \
 //       --probe-qml <abs path to this file> [--probe-png <abs path>] [--probe-png-section <abs path>]
 //       [--probe-png-diagnostics <abs path>]
-// --probe-png grabs the whole home column (YOUR SWING above DEVICES, as the golfer sees it);
-// --probe-png-section the summary alone; --probe-png-diagnostics the Swing diagnostics column.
+// --probe-png grabs the whole home column (the tabs and the Coaching tab, as the golfer sees it);
+// --probe-png-section the Coaching tab alone; --probe-png-diagnostics the Swing diagnostics column.
 // Each on the theme's own background. Exit 0 = PASS, 1 = FAIL; "PROBE:" lines say why.
 // build/run-me/verify-swing-themes.sh wraps it.
 //
@@ -101,8 +102,17 @@ Item {
                          && workOns.summaryReady && !workOns.summaryUpdating
             if (!done && probe.waited < 960) return      // 4 minutes
             running = false
-            probe.inspectHome()
+            probe.showCoaching()
         }
+    }
+
+    // Home opens on the athlete's last tab; this probe reads the Coaching tab.
+    property var tabs: null
+    function showCoaching() {
+        tabs = find(rootItem(), "homeTabs")
+        check(tabs !== null, "Home has its tabs")
+        if (tabs) tabs.select("coaching")
+        after(400, inspectHome)
     }
 
     // ── The home screen ──────────────────────────────────────────────────────────────────
@@ -145,8 +155,11 @@ Item {
         }
         if (note !== "") log("  note: " + note)
 
-        summary = find(rootItem(), "swingSummary")
-        check(summary !== null && drawn(summary), "the home screen draws the summary")
+        const coaching = tabs ? find(tabs, "homeTabCoaching") : null
+        check(tabs !== null && tabs.current === "coaching" && coaching !== null && drawn(coaching),
+              "the Coaching tab is showing")
+        summary = find(coaching || rootItem(), "swingSummary")
+        check(summary !== null && drawn(summary), "the Coaching tab draws the summary")
         if (!summary) { finish(); return }
 
         // ── The focus ──
@@ -161,6 +174,13 @@ Item {
               "every 'aim for' line is drawn, at least one (" + aims.length + " of " + (focus.aimFor || []).length + ")")
         check(nows.length >= 1 && nows.length === (focus.rightNow || []).length && nows.every(drawn),
               "every 'right now' fault is drawn, at least one (" + nows.length + " of " + (focus.rightNow || []).length + ")")
+        // Why it matters · how to practise is closed by default: open it, then look.
+        const whyRow = card ? find(card, "focusWhyRow") : null
+        if (focus.why !== "" || focus.practise !== "") {
+            check(whyRow !== null && drawn(whyRow) && !whyRow.expanded,
+                  "'Why it matters · how to practise' is drawn, closed")
+            if (whyRow) whyRow.expanded = true
+        }
         const practise = card ? find(card, "focusPractise") : null
         if (focus.practise !== "")
             check(practise !== null && drawn(practise) && practise.text === focus.practise,
@@ -180,29 +200,31 @@ Item {
             check(chips[0] && chips.slice(1).every(c => !c), "the first on the list, and only it, wears NEXT")
         }
 
-        // ── A golfer's words ──
+        // ── A golfer's words: the Coaching tab only (Your swing shows pack labels and figures) ──
         const names = (workOns.items || []).map(it => it.name || "")
-        const texts = drawnTexts(summary, [])
+        const texts = drawnTexts(coaching, [])
         const tech = texts.map(t => [t, technical(t, names)]).filter(p => p[1] !== "")
-        check(texts.length > 0 && tech.length === 0, "no drawn text in YOUR SWING is technical (" + texts.length + " texts)"
+        check(texts.length > 0 && tech.length === 0, "no drawn text on the Coaching tab is technical (" + texts.length + " texts)"
               + (tech.length ? (": " + tech.map(p => "'" + p[0] + "' has " + p[1]).join(" | ")) : ""))
         const causal = texts.filter(saysCause)
-        check(causal.length === 0, "no drawn text in YOUR SWING says because / cause / due to / leads to"
+        check(causal.length === 0, "no drawn text on the Coaching tab says because / cause / due to / leads to"
               + (causal.length ? (": " + causal.join(" | ")) : ""))
 
         // ── The faults moved off the home screen ──
-        const column = summary.parent
+        const column = tabs.parent
         check(column !== null && all(column, "workOnsEmpty").length === 0 && all(column, "workOnRow").length === 0,
               "the home column no longer holds the work-ons")
-        const link = find(summary, "diagnosticsLink")
-        check(link !== null && drawn(link), "the 'Swing diagnostics →' link is drawn")
+        // The way into them is the tab bar's "All work-ons ▸".
+        const bar = find(tabs, "homeTabBar")
+        const allLink = find(tabs, "homeAllWorkOns")
+        check(bar !== null && allLink !== null && drawn(allLink), "the tab bar's 'All work-ons ▸' is drawn")
 
         const shots = []
         if (png !== "" && column) shots.push({ item: column, path: png })
-        if (pngSection !== "") shots.push({ item: summary, path: pngSection })
+        if (pngSection !== "") shots.push({ item: coaching, path: pngSection })
         grabNext(shots, () => {
-            if (!link) { finish(); return }
-            link.clicked(null)
+            if (!bar || !allLink) { finish(); return }
+            bar.chipActivated()
             after(600, inspectDiagnostics)
         })
     }
@@ -210,7 +232,7 @@ Item {
     // ── Swing diagnostics ────────────────────────────────────────────────────────────────
     function inspectDiagnostics() {
         const screen = find(rootItem(), "swingDiagnosticsScreen")
-        check(screen !== null && drawn(screen), "the link opens the Swing diagnostics screen")
+        check(screen !== null && drawn(screen), "'All work-ons ▸' opens the Swing diagnostics screen")
         check(!drawn(summary), "…in place of the home screen")
         if (!screen) { finish(); return }
 

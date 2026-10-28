@@ -463,6 +463,10 @@ void WorkOnsController::publish()
         m[QStringLiteral("id")]        = w.id;
         m[QStringLiteral("name")]      = nameOf(w.id, w.name);
         m[QStringLiteral("status")]    = workOnStatusToString(w.status);
+        // The swing area it belongs to: the pack's ConditionGroup token, the same token as an
+        // areaItems entry's `group`, so Swing diagnostics can show one area's work-ons ("" when the
+        // pack no longer holds the condition).
+        m[QStringLiteral("group")]     = cond ? conditionGroupName(cond->group) : QString();
         // SWINGS, AND ONE DENOMINATOR FOR EVERY ROW: every swing in the golfer's sessions. A
         // per-fault denominator ("26 of 26" beside "41 of 55") reads as two different histories;
         // the swings this fault could not be judged on are said in the detail instead.

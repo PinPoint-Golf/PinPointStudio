@@ -599,6 +599,8 @@ ApplicationWindow {
             onPageRequested: function(index) {
                 // The Sessions screen draws the current athlete; refresh it on the way in.
                 if (index === AppScreen.Sessions) root._showSessions()
+                // The rail's Work-ons is every work-on: drop an area Home narrowed it to.
+                if (index === AppScreen.WorkOns) swingDiagnosticsScreen.groupFilter = ""
                 if (navController.currentIndex === AppScreen.Wizard)
                     navController.navigate(index)   // preserves wizard in back-history
                 else
@@ -687,8 +689,10 @@ ApplicationWindow {
                         navController.navigate(AppScreen.Athlete)
                     }
                     onStartSessionRequested: function(request) { root._openSessionSetup(request) }
-                    // YOUR SWING's "Swing diagnostics →": the technical layer, from its top.
-                    onSwingDiagnosticsRequested: {
+                    // Home's "All of <area> ▸" (group = the area's token) and "All work-ons ▸" (""):
+                    // Swing diagnostics on that area, or on every work-on, from its top.
+                    onSwingDiagnosticsRequested: function(group) {
+                        swingDiagnosticsScreen.groupFilter = group
                         swingDiagnosticsScreen.toTop()
                         navController.navigate(AppScreen.WorkOns)
                     }
@@ -726,7 +730,7 @@ ApplicationWindow {
                         navController.navigate(AppScreen.Settings)
                     }
                 }
-                ScreenSwingDiagnostics {                                   // AppScreen.WorkOns — from the rail and Home's YOUR SWING
+                ScreenSwingDiagnostics {                                   // AppScreen.WorkOns — from the rail and Home's tabs
                     id: swingDiagnosticsScreen
                     // "← Home": to Home itself, wherever the screen was reached from since.
                     onBackRequested: navController.navigate(AppScreen.Home)
@@ -735,11 +739,6 @@ ApplicationWindow {
                     onReviewSessionRequested: function(sessionDir) {
                         sessionReviewController.loadSession(sessionDir)
                         navController.navigate(AppScreen.Session)
-                    }
-                    // TEMPORARY (Phase 4 moves Practise to Home): a work-on's "Practise" opens the
-                    // session wizard with that condition as the focus, the same path as Home's Start.
-                    onPractiseRequested: function(conditionId, label) {
-                        root._openSessionSetup({ focusConditionId: conditionId, focusLabel: label })
                     }
                 }
                 ScreenAthleteForm {                                        // AppScreen.Athlete — new / edit athlete form

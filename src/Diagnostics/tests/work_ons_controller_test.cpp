@@ -657,6 +657,18 @@ int main(int argc, char **argv)
           && spine.value(QStringLiteral("coverageText")).toString().isEmpty(),
           "every row counts against the same swings; the ones it could not be judged on are said apart");
     check(!sway.value(QStringLiteral("drillLabel")).toString().isEmpty(), "sway carries the pack's drill");
+    {
+        // Every work-on names its swing area by the areas' own token (Swing diagnostics filters on it).
+        QStringList areaGroups;
+        for (const QVariant &v : c.areaItems()) areaGroups << v.toMap().value(QStringLiteral("group")).toString();
+        bool grouped = true;
+        for (const QVariant &v : c.items()) {
+            const QVariantMap m = v.toMap();
+            const QString g = m.value(QStringLiteral("group")).toString();
+            if (!m.contains(QStringLiteral("group")) || g.isEmpty() || !areaGroups.contains(g)) grouped = false;
+        }
+        check(grouped, "every work-on carries its area's group token");
+    }
 
     // ── The areas ───────────────────────────────────────────────────────────────
     //

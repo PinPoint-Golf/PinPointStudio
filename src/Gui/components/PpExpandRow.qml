@@ -54,6 +54,8 @@ Item {
     property real      detailRightInset: 0
 
     property string chevronSide:    "left"
+    // A row that cannot open (an area this rig does not measure) shows no chevron.
+    property bool   showChevron:    true
     property real   chevronCentreY: -1
     property string accessibleName: ""
     // A name for the press area, for a probe to find and click (HmWorkOns' "workOnPress").
@@ -133,6 +135,7 @@ Item {
         width: s; height: s
         x: xrow.chevronSide === "right" ? xrow.width - header.padH - s : header.padH
         y: Math.round((xrow.chevronCentreY >= 0 ? xrow.chevronCentreY : header.height / 2) - s / 2)
+        visible: xrow.showChevron
         rotation: xrow.expanded ? 90 : 0
         preferredRendererType: Shape.CurveRenderer
         ShapePath {

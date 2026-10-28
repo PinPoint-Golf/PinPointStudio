@@ -58,12 +58,20 @@ Column {
     // The card's heading: "FAULTS" in the Swing diagnostics screen.
     property string title: Theme.caps(qsTr("Work ons"))
 
-    signal reviewSessionRequested(string sessionDir)
-    // TEMPORARY (Phase 4 moves Practise to Home): an opened row's "Practise" — start a session
-    // with this fault as its focus. The id is the pack condition id; the label is the row's name.
-    signal practiseRequested(string conditionId, string label)
+    // One swing area's work-ons: an item's `group` (the pack's ConditionGroup token, the areas'
+    // own) must match. "" lists every work-on.
+    property string groupFilter: ""
 
-    readonly property var  items:     controller ? controller.items : []
+    signal reviewSessionRequested(string sessionDir)
+
+    readonly property var  allItems:  controller ? controller.items : []
+    readonly property var  items: {
+        const all = root.allItems
+        if (root.groupFilter === "") return all
+        return all.filter(it => it.group === root.groupFilter)
+    }
+    // A new filter starts the list closed and folded.
+    onGroupFilterChanged: { root.openId = ""; root.showAll = false }
     readonly property bool updating:  controller ? controller.updating : false
     readonly property int  cleared:   controller ? controller.clearedCount : 0
     property string openId: ""
@@ -187,7 +195,9 @@ Column {
                     anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                     width: parent.width
                     text: root.updating ? qsTr("Reading your sessions…")
-                                        : qsTr("Nothing yet. A fault is listed once it recurs across a session's shots.")
+                        : root.groupFilter !== "" && root.allItems.length > 0
+                            ? qsTr("No work-ons in this area.")
+                            : qsTr("Nothing yet. A fault is listed once it recurs across a session's shots.")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
                     font.weight:    Theme.fontBodyWeight
@@ -398,15 +408,6 @@ Column {
                                     wrapMode:       Text.WordWrap
                                     lineHeight:     1.4
                                 }
-                            }
-
-                            // TEMPORARY (Phase 4 moves Practise to Home): open the session wizard
-                            // with this fault as the focus.
-                            PpLink {
-                                objectName: "workOnPractise"
-                                text:       qsTr("Practise this in a session →")
-                                hoverTint:  false
-                                onClicked:  root.practiseRequested(rowCol.modelData.id, rowCol.modelData.name)
                             }
 
                             PpLink {

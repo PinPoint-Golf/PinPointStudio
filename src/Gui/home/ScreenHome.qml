@@ -16,6 +16,17 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+// HOME (ux_refactor_away_from_4_modes §2.3, Appendix A.1). No golfer yet: the first-run
+// onboarding. A golfer selected, top to bottom:
+//   1. Start — one table card: left, a new session (Start session, the club, the last session);
+//      right, what this rig can measure (HmRigCapability), with the phone pairing entry, a phone's
+//      offered sessions and the first device warning;
+//   2. HmHomeTabs — Coaching | Your swing;
+//   3. Recent sessions — PpSessionReportList, with "All sessions ▸".
+// D12: no identity row and no "PinPoint Studio" hero — the rail's avatar shows and switches the
+// golfer. The contour background (PpTopoBackground) stays behind the first-run onboarding only; the
+// mockup's ground under a golfer's Home is flat.
+
 import QtQuick
 import QtQuick.Layouts
 import PinPointStudio
@@ -26,15 +37,17 @@ Item {
     signal addAthleteRequested()
     signal athletePickerRequested()
     signal editCurrentAthleteRequested()
-    // Start: open the session wizard. The request is { focusConditionId, focusLabel }; Home's
-    // Start carries no focus (an open assessment), the golfer can pick one in the wizard.
+    // Start: open the session wizard. The request is { focusConditionId, focusLabel }: Home's
+    // Start carries no focus (an open assessment, the golfer can pick one in the wizard); a
+    // work-on's Practise on the Coaching or Your swing tab carries its condition.
     signal startSessionRequested(var request)
-    // YOUR SWING's "Swing diagnostics →" row: open the technical layer (ScreenSwingDiagnostics),
-    // where the faults and what goes together now live.
-    signal swingDiagnosticsRequested()
+    // Swing diagnostics (the Work-ons screen), showing one area's work-ons — `group` is the area's
+    // ConditionGroup token — or every work-on when it is "".
+    signal swingDiagnosticsRequested(string group)
     // The Sessions section (session report, docs/design/session_report_design.md §8.0): a row's "Open
-    // session"; "Show all N sessions" (the golfer page's Sessions tab); a missing detail's link to where it
-    // is entered — Settings → Studio, or the golfer's own page.
+    // session"; "All sessions ▸" / "Show all N sessions" (the golfer page's Sessions tab); a missing
+    // detail's link to where it is entered — Settings → Studio, or the golfer's own page. Settings →
+    // Studio is also the rig pane's "Rig ▸".
     signal reviewSessionRequested(string sessionDir)
     signal athleteSessionsRequested()
     signal studioSettingsRequested()
@@ -43,7 +56,7 @@ Item {
     // start, and start() only seeds from the athlete's preferred club when activeClub is
     // empty — so a literal here becomes the session's club and silently outranks the
     // preference whenever onAthMapChanged hasn't resolved one (no current athlete, or an
-    // empty bag, which also hides the CLUB row so it can't be corrected).
+    // empty bag, which also hides the club picker so it can't be corrected).
     property string selectedClub: ""
 
     property var athMap: {
@@ -56,7 +69,7 @@ Item {
     }
 
     // The current athlete's bag (canonical ids, vocabulary order). Empty when
-    // there's no athlete or an emptied bag — the CLUB row hides in that case.
+    // there's no athlete or an emptied bag — the club picker hides in that case.
     // Re-evaluates on every club commit via athletesChanged.
     readonly property var clubModel: {
         void athleteController.athletes
@@ -76,26 +89,19 @@ Item {
         if (pref !== "") root.selectedClub = pref
     }
 
-    // The pairing panel.  A Popup parented to Overlay.overlay, so it covers the
-    // whole window from here without Main.qml having to host it.
-    PpcpPairDialog {
-        id: pairDialog
+    readonly property bool hasGolfer: athleteController.hasCurrentAthlete
+
+    // The last session, from the work-ons' records: { label, shots }, or empty.
+    readonly property var lastSession: (typeof workOns !== "undefined" && workOns) ? workOns.lastSession : ({})
+    readonly property string lastSessionText: {
+        var s = root.lastSession || {}
+        if (!s.label) return ""
+        var n = s.shots || 0
+        return n === 1 ? qsTr("Last session %1 · 1 shot").arg(s.label)
+                       : qsTr("Last session %1 · %2 shots").arg(s.label).arg(n)
     }
 
-    // ⛔ H10 — RV-6 guided pairing (PPCP-RV §11) WAS INSTANTIATED HERE and is
-    // withdrawn with its button; see the note further down where the button
-    // was.  Restoring it is:
-    //
-    //     PpcpGuidedPairDialog {
-    //         id: guidedDialog
-    //         onPairingCodeRequested: pairDialog.open()
-    //     }
-    //
-    // It is a separate dialogue from PpcpPairDialog rather than a mode of it,
-    // deliberately: that one exists to show a code, and §11's screen must not
-    // acquire a control that shows one.  The two paths meet only where 11.9d
-    // sends a failed guided attempt to the code — which is an offer of a
-    // DIFFERENT path and never a retry (11.9c).
+    // The device warning in the rig pane reads resourceMonitor; keep it current while Home shows.
     Component.onCompleted: resourceMonitor.refresh()
 
     onVisibleChanged: if (visible && typeof workOns !== "undefined") workOns.refresh()
@@ -109,17 +115,19 @@ Item {
 
     Rectangle { anchors.fill: parent; color: Theme.colorBg }
 
-    // Ambient theme-reactive contour field over the solid background. Subtle by
-    // default; pauses when off-screen / backgrounded; respects reduced-motion.
-    // Hover lifts the terrain under the cursor; click/tap sends a ripple.
+    // Ambient theme-reactive contour field over the solid background, behind the first-run
+    // onboarding only (a golfer's Home is flat ground, as the mockup draws it). Subtle by default;
+    // pauses when hidden or backgrounded; respects reduced-motion. Hover lifts the terrain under the
+    // cursor; click/tap sends a ripple.
     PpTopoBackground {
         id: topo
         anchors.fill: parent
+        visible:   !root.hasGolfer
         colorLow:  Theme.gradientWarm
         colorMid:  Theme.gradientWarmLit
         colorHigh: Theme.gradientCool
         accentColor: Theme.colorAccent
-        animated:  !appSettings.reduceMotion
+        animated:  !appSettings.reduceMotion && visible
         hoverPoint: topoHover.hovered
             ? Qt.point(topoHover.point.position.x / width,
                        topoHover.point.position.y / height)
@@ -135,8 +143,7 @@ Item {
         // Pointer handlers live on the Flickable, not the screen root: the
         // full-bleed Flickable sits above the fixed background and intercepts
         // presses for flick-detection, so root-level handlers never see a
-        // completed tap (the holding screens have no Flickable, so root works
-        // there). Hosted here they share the viewport coordinate space the
+        // completed tap. Hosted here they share the viewport coordinate space the
         // background uses. HoverHandler never blocks; TapHandler's DragThreshold
         // keeps only a passive grab, so cards/buttons still get their clicks and
         // a vertical drag flicks the list instead of spawning a ripple.
@@ -154,13 +161,15 @@ Item {
         Column {
             id: mainCol
             anchors.horizontalCenter: parent.horizontalCenter
-            width:   Theme.contentWidth(parent.width)
+            // HOME'S OWN WIDTH RULE: about 90 % of the area with a golfer (the mockup's column), so
+            // the Start card's two panes and the tables have room. Theme.contentWidth() (70 %) is the
+            // rest of the app's and stays as it is; the first-run onboarding keeps it.
+            width:   root.hasGolfer ? Math.round(parent.width * 0.9) : Theme.contentWidth(parent.width)
             spacing: 0
 
-            Item { width: 1; height: Theme.sp(48) }
+            Item { width: 1; height: root.hasGolfer ? Theme.sp(28) : Theme.sp(48) }
 
-            // ── Section 1: Athlete identity ──────────────────────────────────
-
+            // ── First run: no golfer yet ─────────────────────────────────────
             // No athlete state
             Column {
                 visible: !athleteController.hasCurrentAthlete
@@ -313,436 +322,180 @@ Item {
                 }
             }
 
-            // Has athlete: compact identity row
-            Item {
-                visible: athleteController.hasCurrentAthlete
-                height:  visible ? 52 : 0
-                width:   parent.width
-
-                Rectangle {
-                    id: avatarCircle
-                    width: Theme.sp(52); height: Theme.sp(52); radius: Theme.sp(26)
-                    anchors.left:           parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    color:        Theme.colorAccentLight
-                    border.width: 1
-                    border.color: avatarPress.containsMouse ? Theme.colorAccent : Theme.colorAccentMid
-                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text:           athleteController.currentInitials
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.sp(16)
-                        color:          Theme.colorAccent
-                    }
-
-                    // Click the athlete avatar to edit the current athlete's profile.
-                    PpPressable {
-                        id:        avatarPress
-                        onClicked: root.editCurrentAthleteRequested()
-                    }
-                }
-
-                Column {
-                    anchors.left:           avatarCircle.right
-                    anchors.leftMargin:     16
-                    anchors.right:          switchLink.left
-                    anchors.rightMargin:    12
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: Theme.gap(3)
-
-                    Text {
-                        width:          parent.width
-                        text:           athleteController.currentName
-                        font.family:    Theme.fontDisplay
-                        font.italic:    Theme.fontDisplayItalic
-                        font.weight: Theme.fontDisplayWeight
-                        font.pixelSize: Math.min(Theme.fontSzDisplay, 24)
-                        color:          Theme.colorText
-                        elide:          Text.ElideRight
-                    }
-
-                    Text {
-                        width: parent.width
-                        text: {
-                            var m   = root.athMap
-                            var hcp = Theme.formatHandicap(m.handicap)
-                            var sc  = (m.sessionCount !== undefined)
-                                          ? m.sessionCount + " sessions" : "0 sessions"
-                            return athleteController.currentHandedness + " · " + hcp + " · " + sc
-                        }
-                        font.family:        Theme.fontData
-                        font.pixelSize:     Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingData
-                        color:              Theme.colorText3
-                        elide:              Text.ElideRight
-                    }
-                }
-
-                Text {
-                    id: switchLink
-                    anchors.right:          parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    text:           qsTr("Switch →")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    color:          Theme.colorAccent
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape:  Qt.PointingHandCursor
-                        onClicked:    root.athletePickerRequested()
-                    }
-                }
-            }
-
-            // ── Section 2: Session launcher ──────────────────────────────────
-            Column {
-                visible: athleteController.hasCurrentAthlete
-                height:  visible ? implicitHeight : 0
-                width:   parent.width
-                spacing: 0
-
-                Item { width: 1; height: Theme.sp(40) }
-
-                // Banner — the hero title size (twice display, except where a theme sets its own).
-                PpDisplayText {
-                    text:           qsTr("PinPoint Studio")
-                    pixelSize:      Theme.fontSzHero
-                }
-                Item { width: 1; height: Theme.sp(20) }
-
-                Text {
-                    text:               Theme.caps(qsTr("New session"))
-                    font.family:        Theme.fontData
-                    font.pixelSize:     Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                    color:              Theme.colorText3
-                }
-                Item { width: 1; height: Theme.sp(16) }
-
-                // Club selector: the current athlete's bag. A wrapping Flow of chips
-                // (not PpChipGroup, a non-wrapping Row) so a full bag reflows —
-                // same chip language as the Clubs-section tab strip.
-                Column {
-                    width:   parent.width
-                    spacing: Theme.gap(8)
-                    visible: root.clubModel.length > 0
-
-                    Text {
-                        text:               Theme.caps(qsTr("Club"))
-                        font.family:        Theme.fontData
-                        font.pixelSize:     Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingMicro
-                        color:              Theme.colorText3
-                    }
-
-                    Flow {
-                        width:   parent.width
-                        spacing: Theme.gap(6)
-
-                        Repeater {
-                            model: root.clubModel
-
-                            Rectangle {
-                                required property string modelData
-
-                                readonly property bool _sel: modelData === root.selectedClub
-
-                                height:  Theme.sp(28)
-                                width:   clubChipLabel.implicitWidth + Theme.sp(24)
-                                radius:  Theme.radius
-                                color:   _sel                    ? Theme.colorAccentLight
-                                       : clubChipMa.containsMouse ? Theme.colorBg2
-                                       :                            Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
-                                border.width: 1
-                                border.color: _sel                    ? Theme.colorAccent
-                                            : clubChipMa.containsMouse ? Theme.colorAccentMid
-                                            :                            Theme.colorBorderStrong
-                                Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-                                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                                Text {
-                                    id: clubChipLabel
-                                    anchors.centerIn: parent
-                                    text:           ClubFormat.display(modelData)
-                                    font.family:    Theme.fontBody
-                                    font.pixelSize: Theme.fontSzBody
-                                    font.weight:    _sel ? Font.Normal : Theme.fontBodyWeight
-                                    color:          _sel ? Theme.colorAccent : Theme.colorText2
-                                }
-
-                                PpPressable {
-                                    id: clubChipMa
-                                    onClicked: root.selectedClub = modelData
-                                }
-                            }
-                        }
-                    }
-                }
-                Item { width: 1; height: Theme.sp(20); visible: root.clubModel.length > 0 }
-
-                Rectangle {
-                    width:  parent.width
-                    height: Theme.sp(44)
-                    radius: Theme.radius
-                    // Filled CTA: brighten on hover, dip on press. No hover grow —
-                    // it's full-width, so scaling up would bulge past the content
-                    // margins; the PpPressable press-dip (scale DOWN) stays in bounds.
-                    color:  startMa.containsMouse ? Qt.lighter(Theme.colorAccent, 1.08) : Theme.colorAccent
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text:           qsTr("▶  Start session")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.sp(14)
-                        font.weight:    Font.Normal
-                        color:          Theme.dark ? Theme.colorBg : "#FFFFFF"
-                    }
-
-                    PpPressable {
-                        id: startMa
-                        hoverScale: 1.0   // full-width: brighten on hover, dip on press only
-                        onClicked:    root.startSessionRequested({ focusConditionId: "", focusLabel: "" })
-                    }
-                }
-            }
-
-            // ── Section 3: Your swing ────────────────────────────────────────
+            // ── 1. Start ─────────────────────────────────────────────────────
             //
-            // The athlete's swing in plain words and pictures, led by the one thing to practise:
-            // the focus, what they do well, what is next on their list, and the way into Swing
-            // diagnostics — the faults by name and what goes together, on their own screen
-            // (docs/design/home_themes_design.md). About the athlete, so it sits under the
-            // athlete's launcher and above the hardware. Read off WorkOnsController's catch-up,
-            // re-run whenever the home screen comes back into view (onVisibleChanged) — a
-            // session may have ended since.
-            Item { width: 1; height: Theme.sp(44); visible: swingSummary.visible }
-
-            HmSwingSummary {
-                id: swingSummary
-                visible: athleteController.hasCurrentAthlete
+            // One table card, two panes: a new session on the left, what this rig can measure on the
+            // right. Stacked, the rig under the session, where the column is too narrow for both.
+            PpCard {
+                id: startCard
+                objectName: "homeStartCard"
+                visible: root.hasGolfer
                 height:  visible ? implicitHeight : 0
-                onDiagnosticsRequested: root.swingDiagnosticsRequested()
-            }
-
-            // ── Section 4: Device readiness ──────────────────────────────────
-            Item { width: 1; height: Theme.sp(44) }
-
-            Item {
-                width:  parent.width
-                height: Theme.sp(34)
-
-                Text {
-                    anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                    text:               Theme.caps(qsTr("Devices"))
-                    font.family:        Theme.fontData
-                    font.pixelSize:     Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                    color:              Theme.colorText3
-                }
-
-                // ── Pairing, PPCP-RV §4 ────────────────────────────────────
-                //
-                // The whole of it, on this screen.  What used to be here — a
-                // "PAIR A DEVICE" heading, a status line, a paragraph, a raw
-                // IP:port list, two buttons and a table of 16-hex pairing
-                // handles — was visible on every launch whether or not anybody
-                // had a phone, because the panel keyed off the listener being
-                // up and the listener is always up.  It is now one button, and
-                // it opens PpcpPairDialog.
-                //
-                // Beside DEVICES because that is where the result appears: pair
-                // a phone, the phone's cameras join the list below.  Hidden
-                // entirely on a build without libppcp and OpenSSL, where there
-                // is no `ppcpHost` context property at all (H0 — a build with
-                // no PPCP must still be a working application).
-                PpButton {
-                    id: pairButton
-                    objectName: "pairPhoneButton"
-                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                    visible: (typeof ppcpHost !== "undefined") && ppcpHost !== null
-                             && ppcpHost.listening
-                    label:   qsTr("Pair to my phone")
-                    // Held while the dialog it owns is open — the toolbar-pill
-                    // convention, so the button stays visibly the source of the
-                    // thing covering the screen.
-                    onClicked: pairDialog.open()
-
-                    // Drawn, not a glyph: PpButton.glyph is a character in
-                    // Theme.fontSymbol, and neither Apple Symbols nor Segoe UI
-                    // Symbol has a QR or a phone.  PpButton's `icon` slot hands
-                    // it contentColor, so it tracks the theme with the label.
-                    icon: Component { PpQrGlyph {} }
-                }
-
-                // ⛔ H10's "Pair without a code" button was HERE and is
-                // withdrawn until RT-20c has run.  RV-6 is built and the
-                // dialog, the controller and `guidedAvailable` are all intact
-                // — what is missing is the one test that proves the path does
-                // what it exists to do, and 9g forbids claiming otherwise.
-                // RT-20c needs PinPointCapture's acceptor and a relay between
-                // the two, and neither exists yet, so until then this is the
-                // least-proven path in the product and does not belong on the
-                // home screen.  Restore this block and the PpcpGuidedPairDialog
-                // above to bring it back; nothing else was removed.
-            }
-            Item { width: 1; height: 12 }
-
-            // Empty devices state
-            Item {
-                visible: resourceMonitor.devices.length === 0
-                height:  visible ? 40 : 0
                 width:   parent.width
+                table:   true
 
-                Text {
-                    anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                    text:           qsTr("No devices detected. Connect a camera or IMU to get started.")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Theme.fontBodyWeight
-                    color:          Theme.colorText3
-                }
-            }
-
-            // Device rows — inline, no card chrome
-            Repeater {
-                model: resourceMonitor.devices
+                readonly property int  panePad: Theme.gap(28)
+                readonly property bool stacked: width < Theme.sp(760)
+                readonly property int  leftW:   stacked ? width : Math.round(width * 0.6)
 
                 Item {
-                    required property var modelData
-                    property var d: modelData
-                    width:  mainCol.width
-                    height: Theme.sp(40)
+                    id: startBody
+                    width:  startCard.width
+                    height: startCard.stacked
+                            ? startPane.implicitHeight + rigPane.implicitHeight + 4 * startCard.panePad + 1
+                            : Math.max(startPane.implicitHeight, rigPane.implicitHeight) + 2 * startCard.panePad
 
-                    Rectangle {
-                        anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-                        height: 1
-                        color:  Theme.colorBorder
-                    }
+                    // ── New session ──
+                    Column {
+                        id: startPane
+                        x: startCard.panePad
+                        y: startCard.panePad
+                        width: startCard.leftW - 2 * startCard.panePad
+                        spacing: 0
 
-                    Row {
-                        anchors.fill: parent
-                        spacing:      0
+                        Item { width: 1; height: Theme.sp(8); visible: !startCard.stacked }
+                        Text {
+                            text:               Theme.caps(qsTr("New session"))
+                            font.family:        Theme.fontData
+                            font.pixelSize:     Theme.fontSzMicro
+                            font.letterSpacing: Theme.trackingMicro
+                            color:              Theme.colorText3
+                        }
+                        Item { width: 1; height: Theme.sp(10) }
+                        PpDisplayText {
+                            width:    parent.width
+                            text:     qsTr("Hit some shots")
+                            wrapMode: Text.WordWrap
+                        }
+                        Item { width: 1; height: Theme.sp(10) }
+                        Text {
+                            width:          parent.width
+                            text:           qsTr("Every shot is assessed against the swing model.")
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody
+                            font.weight:    Theme.fontBodyWeight
+                            color:          Theme.colorText2
+                            wrapMode:       Text.WordWrap
+                        }
+                        Item { width: 1; height: Theme.sp(20) }
 
-                        Item {
-                            id: dotItem
-                            property var d: parent.parent.d
-                            width:  Theme.sp(20)
-                            height: parent.height
+                        // Start session, and the club beside it.
+                        Flow {
+                            width:   parent.width
+                            spacing: Theme.gap(20)
 
-                            Rectangle {
-                                width: Theme.sp(6); height: Theme.sp(6); radius: Theme.sp(3)
-                                anchors.centerIn: parent
-                                color: {
-                                    var d = dotItem.d
-                                    if (d.status === "streaming" || d.status === "connected") return Theme.colorGood
-                                    if (d.hasWarning || d.status === "stalled") return Theme.colorWarn
-                                    return Theme.colorBorderStrong
+                            PpButton {
+                                id: startButton
+                                objectName: "homeStartButton"
+                                primary: true
+                                label:   qsTr("Start session")
+                                glyph:   "▶"
+                                height:  Theme.sp(40)
+                                width:   implicitWidth + Theme.sp(16)
+                                onClicked: root.startSessionRequested({ focusConditionId: "", focusLabel: "" })
+                            }
+
+                            // The club: the current athlete's bag, as a compact picker. Hidden with
+                            // an empty bag (no club to pick; the session then takes the athlete's
+                            // preference, see selectedClub).
+                            Row {
+                                visible: root.clubModel.length > 0
+                                height:  startButton.height
+                                spacing: Theme.gap(8)
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text:           qsTr("Club:")
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody
+                                    font.weight:    Theme.fontBodyWeight
+                                    color:          Theme.colorText2
+                                }
+                                PpComboBox {
+                                    id: clubPicker
+                                    objectName: "homeClubPicker"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width:     Theme.sp(150)
+                                    model:     root.clubModel
+                                    displayFn: function (id) { return ClubFormat.display(id) }
+                                    currentIndex: root.clubModel.indexOf(root.selectedClub)
+                                    onActivated: function (index) {
+                                        root.selectedClub = root.clubModel[index]
+                                        // The control set currentIndex itself; follow selectedClub again.
+                                        clubPicker.currentIndex = Qt.binding(function () {
+                                            return root.clubModel.indexOf(root.selectedClub)
+                                        })
+                                    }
                                 }
                             }
                         }
 
+                        Item { width: 1; height: Theme.sp(18); visible: lastSessionLine.visible }
                         Text {
-                            width:             parent.width - Theme.sp(20) - Theme.sp(80)
-                            height:            parent.height
-                            text:              parent.parent.d.name
-                            font.family:       Theme.fontBody
-                            font.pixelSize:    Theme.fontSzBody
-                            color:             Theme.colorText
-                            elide:             Text.ElideRight
-                            verticalAlignment: Text.AlignVCenter
+                            id: lastSessionLine
+                            objectName: "homeLastSession"
+                            visible:        root.lastSessionText !== ""
+                            width:          parent.width
+                            text:           root.lastSessionText
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody
+                            font.weight:    Theme.fontBodyWeight
+                            color:          Theme.colorText3
+                            elide:          Text.ElideRight
                         }
+                    }
 
-                        Text {
-                            width:  Theme.sp(80)
-                            height: parent.height
-                            text: {
-                                var d = parent.parent.d
-                                if (d.kind === "Camera")
-                                    return d.status === "streaming" ? d.dataRateHz.toFixed(0) + " fps" : qsTr("idle")
-                                // ⛔ A PHONE HAS NO RATE OF ITS OWN, and this cell
-                                // used to claim "0 Hz" for one. `phones()` sets
-                                // dataRateHz to 0 deliberately — "a phone is not a
-                                // Source; its CAMERAS carry the bytes, and claiming
-                                // a rate here would be inventing a second number
-                                // for the same bytes". So the slot shows the one
-                                // fact about a phone that belongs on this row:
-                                // WHICH PATH it is on (design §6.1).
-                                if (d.kind === "Phone" && d.status === "connected")
-                                    return d.transport === "cable" ? qsTr("Cable")
-                                         : d.transport === "wifi"  ? qsTr("Wi-Fi")
-                                         :                            qsTr("connected")
-                                // ⚠ AND A LAUNCH MONITOR HAS NO RATE EITHER — the
-                                // same trap as the phone above. One JSON object per
-                                // shot is not a stream, and "0 Hz" would be a number
-                                // invented for a device that never sends one. The
-                                // shot count is the fact this row can carry.
-                                if (d.kind === "LaunchMonitor")
-                                    return d.shots === 1 ? qsTr("1 shot")
-                                                         : qsTr("%1 shots").arg(d.shots || 0)
-                                return d.status === "connected" ? d.dataRateHz.toFixed(0) + " Hz" : qsTr("disconnected")
-                            }
-                            font.family:         Theme.fontData
-                            font.pixelSize:      Theme.fontSzMicro
-                            font.letterSpacing:  Theme.trackingData
-                            color: {
-                                var d = parent.parent.d
-                                // The cable reads as the better path, not as an
-                                // alert: accent for cable, ordinary good for the
-                                // radio. ⚠ Wi-Fi is the normal case and must not
-                                // look like a fault.
-                                if (d.kind === "Phone" && d.status === "connected"
-                                    && d.transport === "cable") return Theme.colorAccent
-                                return (d.status === "streaming" || d.status === "connected")
-                                           ? Theme.colorGood : Theme.colorText3
-                            }
-                            horizontalAlignment: Text.AlignRight
-                            verticalAlignment:   Text.AlignVCenter
-                        }
+                    // The pane rule: vertical between the panes, horizontal when stacked.
+                    Rectangle {
+                        x:      startCard.stacked ? 0 : startCard.leftW
+                        y:      startCard.stacked ? startPane.y + startPane.implicitHeight + startCard.panePad : 0
+                        width:  startCard.stacked ? startBody.width : 1
+                        height: startCard.stacked ? 1 : startBody.height
+                        color:  Theme.colorHairline
+                    }
+
+                    // ── What this rig can measure ──
+                    HmRigCapability {
+                        id: rigPane
+                        x: startCard.stacked ? startCard.panePad : startCard.leftW + 1 + startCard.panePad
+                        y: startCard.stacked ? startPane.y + startPane.implicitHeight + 2 * startCard.panePad + 1
+                                             : startCard.panePad
+                        width: startCard.stacked ? startCard.width - 2 * startCard.panePad
+                                                 : startCard.width - startCard.leftW - 1 - 2 * startCard.panePad
+                        onStudioSettingsRequested: root.studioSettingsRequested()
                     }
                 }
             }
 
-            // ── The sessions a connected capture device is offering ─────────
+            // ── 2. Coaching | Your swing ─────────────────────────────────────
             //
-            // In the DEVICES area on purpose: an offer is a fact about a
-            // connected device, and it belongs beside the device it came from.
-            // Unlike the pairing panel that used to sit above it, this one is
-            // already silent when it has nothing to say — `visible: offerCount
-            // > 0` — so it is not part of what the home screen was cluttered
-            // with, and it is the only route to a device's recorded sessions.
-            // On a build without libppcp there is no controller and it never
-            // appears (H0).
-            PpcpOfferList {
-                width: mainCol.width
-            }
+            // The golfer's swing, read off WorkOnsController's catch-up (re-run whenever Home comes
+            // back into view, onVisibleChanged — a session may have ended since). Practise opens the
+            // wizard with that condition as the focus; "All of <area> ▸" and "All work-ons ▸" open
+            // Swing diagnostics, on that area or on everything.
+            Item { width: 1; height: Theme.sp(40); visible: homeTabs.visible }
 
-            // Warning notice (first warning only)
-            Item {
-                visible: resourceMonitor.warnings.length > 0
-                height:  visible ? (warnNotice.implicitHeight + 12) : 0
+            HmHomeTabs {
+                id: homeTabs
+                visible: root.hasGolfer
+                height:  visible ? implicitHeight : 0
                 width:   parent.width
-
-                RmWarningNotice {
-                    id: warnNotice
-                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                    message: resourceMonitor.warnings.length > 0 ? resourceMonitor.warnings[0] : ""
-                }
+                onPractiseRequested: (conditionId, label) =>
+                    root.startSessionRequested({ focusConditionId: conditionId, focusLabel: label })
+                onAllInAreaRequested: (group) => root.swingDiagnosticsRequested(group)
+                onAllWorkOnsRequested: root.swingDiagnosticsRequested("")
             }
 
-            // ── Section 5: Sessions ──────────────────────────────────────────
+            // ── 3. Recent sessions ───────────────────────────────────────────
             //
             // The current golfer's sessions, newest ten, each with its report: Open session, Report
             // (or Make / Remake report), Email to the golfer (docs/design/session_report_design.md
-            // §8.0). The live session sits at the top with Open session only. "Show all N sessions"
-            // is the golfer page's Sessions tab. Last on the screen: it is the archive, read after
-            // the work of today is set up.
+            // §8.0). The live session sits at the top with Open session only. "All sessions ▸", like
+            // the list's own "Show all N sessions", is the golfer page's Sessions tab. Last on the
+            // screen: it is the archive, read after the work of today is set up.
             Column {
                 objectName: "homeSessionsSection"
-                visible: athleteController.hasCurrentAthlete
+                visible: root.hasGolfer
                 height:  visible ? implicitHeight : 0
                 width:   parent.width
                 spacing: 0
@@ -750,16 +503,28 @@ Item {
                 Item { width: 1; height: Theme.sp(44) }
                 Item {
                     width:  parent.width
-                    height: Theme.sp(34)
+                    height: Theme.sp(40)
                     Text {
-                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                        text:               Theme.caps(qsTr("Sessions"))
-                        font.family:        Theme.fontData
-                        font.pixelSize:     Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingMicro
-                        color:              Theme.colorText3
+                        anchors { left: parent.left; verticalCenter: parent.verticalCenter
+                                  right: allSessionsLink.left; rightMargin: Theme.gap(12) }
+                        text:           qsTr("Recent sessions")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.sp(Theme.fontSzTab)
+                        font.weight:    Font.DemiBold
+                        color:          Theme.colorText
+                        elide:          Text.ElideRight
+                    }
+                    PpLink {
+                        id: allSessionsLink
+                        objectName: "homeAllSessions"
+                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                        text:        qsTr("All sessions ▸")
+                        font.pixelSize: Theme.fontSzBody
+                        pressMargin: Theme.sp(6)
+                        onClicked:   root.athleteSessionsRequested()
                     }
                 }
+                Item { width: 1; height: Theme.sp(8) }
                 PpSessionReportList {
                     objectName: "homeSessionList"
                     width: parent.width

@@ -288,6 +288,12 @@ class AppSettings : public QObject
     // (e.g. "1:1:scope"), value = bool (true = collapsed). Read/written by
     // PpDataViewer and PpMetricChart so each screen+mode remembers its layout.
     Q_PROPERTY(QVariantMap sectionCollapse      READ sectionCollapse      WRITE setSectionCollapse      NOTIFY sectionCollapseChanged)
+    // Home's view, per athlete. Key = athlete uuid, value = { tab: "coaching"|"swing",
+    // expanded: [area group…], expandedSeen: bool }. UI state, so it lives here on this machine
+    // and not in the athlete record (which syncs over the share). HmHomeTabs reads/writes `tab`,
+    // HmSwingAreas `expanded` and `expandedSeen`; each reads the map ONCE and writes a modified
+    // copy back (a QVariantMap property read is a deep copy).
+    Q_PROPERTY(QVariantMap homeViewByAthlete    READ homeViewByAthlete    WRITE setHomeViewByAthlete    NOTIFY homeViewByAthleteChanged)
     // Metric-chart display controls + series selections, persisted per screen+mode
     // so Replay and Analyse each remember their own chart. Key =
     // "<sessionTypeInt>:<modeInt>:<field>" (e.g. "1:1:split"); value is a bool for
@@ -533,6 +539,7 @@ public:
         m_viewLayoutByMode      = ppSettings().value(QStringLiteral("view/layoutByMode"),      QVariantMap{}).toMap();
         m_dataRegionByType      = ppSettings().value(QStringLiteral("view/dataRegionByType"),  QVariantMap{}).toMap();
         m_sectionCollapse       = ppSettings().value(QStringLiteral("view/sectionCollapse"),   QVariantMap{}).toMap();
+        m_homeViewByAthlete     = ppSettings().value(QStringLiteral("home/viewByAthlete"),     QVariantMap{}).toMap();
         m_chartPrefs            = ppSettings().value(QStringLiteral("view/chartPrefs"),         QVariantMap{}).toMap();
         m_metricColors          = ppSettings().value(QStringLiteral("view/metricColors"),       QVariantMap{}).toMap();
         m_metricPalette         = ppSettings().value(QStringLiteral("view/metricPalette"),      QVariantMap{}).toMap();
@@ -689,6 +696,7 @@ public:
     QVariantMap viewLayoutByMode()      const { return m_viewLayoutByMode; }
     QVariantMap dataRegionByType()      const { return m_dataRegionByType; }
     QVariantMap sectionCollapse()       const { return m_sectionCollapse; }
+    QVariantMap homeViewByAthlete()     const { return m_homeViewByAthlete; }
     QVariantMap chartPrefs()            const { return m_chartPrefs; }
     QVariantMap metricColors()          const { return m_metricColors; }
     QVariantMap metricPalette()         const { return m_metricPalette; }
@@ -1447,6 +1455,14 @@ public:
         emit sectionCollapseChanged();
     }
 
+    void setHomeViewByAthlete(const QVariantMap &v)
+    {
+        if (m_homeViewByAthlete == v) return;
+        m_homeViewByAthlete = v;
+        ppSettings().setValue(QStringLiteral("home/viewByAthlete"), v);
+        emit homeViewByAthleteChanged();
+    }
+
     void setChartPrefs(const QVariantMap &v)
     {
         if (m_chartPrefs == v) return;
@@ -1741,6 +1757,7 @@ signals:
     void viewLayoutByModeChanged();
     void dataRegionByTypeChanged();
     void sectionCollapseChanged();
+    void homeViewByAthleteChanged();
     void chartPrefsChanged();
     void metricColorsChanged();
     void metricPaletteChanged();
@@ -1868,6 +1885,7 @@ private:
     QVariantMap m_viewLayoutByMode;
     QVariantMap m_dataRegionByType;
     QVariantMap m_sectionCollapse;
+    QVariantMap m_homeViewByAthlete;
     QVariantMap m_chartPrefs;
     QVariantMap m_metricColors;
     QVariantMap m_metricPalette;

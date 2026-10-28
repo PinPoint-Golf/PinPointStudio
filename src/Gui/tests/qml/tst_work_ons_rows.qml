@@ -23,14 +23,14 @@ import PinPointStudio
 // HmWorkOns on PpExpandRow, loaded for real with a stand-in controller. What it presses is what
 // the work_ons_home probe asserts in the running app — a row starts closed, a click opens its
 // detail in place, opening another closes the first — plus what the probe cannot reach without a
-// library: the keyboard, the five-row fold, and the temporary Practise link's signal.
+// library: the keyboard, the five-row fold, the review link's signal and the area filter.
 Item {
     id: probe
     width: 900; height: 900
 
-    function item(id, name, sessionDir) {
+    function item(id, name, sessionDir, group) {
         return {
-            id: id, name: name, status: "active", unconfirmed: false, lastSeenText: "",
+            id: id, name: name, group: group, status: "active", unconfirmed: false, lastSeenText: "",
             countText: "9 of 22 swings", swingsFired: 9, swingsTotal: 22,
             ticks: [ { state: "fired" }, { state: "clean" }, { state: "notAssessable" } ],
             consequence: "What it costs.", statusText: "Active", latestText: "Latest",
@@ -42,12 +42,12 @@ Item {
     QtObject {
         id: fake
         property var  items: [
-            probe.item("ee", "Early extension", "/s/a"),
-            probe.item("hs", "Hip stall",       "/s/b"),
-            probe.item("lp", "Loss of posture", ""),
-            probe.item("ott", "Over the top",   "/s/c"),
-            probe.item("fl", "Flip",            "/s/d"),
-            probe.item("sw", "Sway",            "/s/e")
+            probe.item("ee", "Early extension", "/s/a", "posture"),
+            probe.item("hs", "Hip stall",       "/s/b", "sequence"),
+            probe.item("lp", "Loss of posture", "",     "posture"),
+            probe.item("ott", "Over the top",   "/s/c", "armsAndClub"),
+            probe.item("fl", "Flip",            "/s/d", "release"),
+            probe.item("sw", "Sway",            "/s/e", "lateral")
         ]
         property bool updating: false
         property int  clearedCount: 0
@@ -55,14 +55,12 @@ Item {
         property int  sessionsFound: 3
     }
 
-    property var practised: []
     property string reviewed: ""
 
     HmWorkOns {
         id: list
         width: 860
         controller: fake
-        onPractiseRequested: (conditionId, label) => probe.practised = [conditionId, label]
         onReviewSessionRequested: (dir) => probe.reviewed = dir
     }
 
@@ -88,7 +86,7 @@ Item {
         function init() {
             list.openId = ""
             list.showAll = false
-            probe.practised = []
+            list.groupFilter = ""
             probe.reviewed = ""
         }
 
@@ -141,13 +139,25 @@ Item {
             compare(list.openId, "")
         }
 
-        function test_practise_and_review_say_which_fault() {
+        function test_review_says_which_fault() {
             const r = rows()[1]
             findChild(r, "workOnPress").clicked(null)
-            findChild(r, "workOnPractise").clicked(null)
-            compare(probe.practised, ["hs", "Hip stall"])
+            // Practise lives on Home now: the row offers none.
+            compare(findChild(r, "workOnPractise"), null)
             findChild(r, "workOnReview").clicked(null)
             compare(probe.reviewed, "/s/b")
+        }
+
+        function test_the_area_filter_lists_that_area_only() {
+            list.groupFilter = "posture"
+            compare(rows().length, 2)
+            compare(list.items.map(it => it.id), ["ee", "lp"])
+            verify(!drawn(findChild(list, "workOnsMore")))
+            list.groupFilter = "impact"
+            compare(rows().length, 0)
+            verify(drawn(findChild(list, "workOnsEmpty")))
+            list.groupFilter = ""
+            compare(rows().length, 5)
         }
 
         function test_the_more_link_is_there() {

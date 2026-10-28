@@ -16,26 +16,25 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// YOUR FOCUS — the one thing to practise, first on the home screen and drawn as its hero: the
-// summary's card with a heavier amber rule, a faint amber wash on the surface and an amber
-// hairline, and the drill's name as a display-size headline.
+// YOUR FOCUS — the one thing to practise, first on Home's Coaching tab, as a table card in the
+// §2.5 visual language (docs/design/ux_refactor_away_from_4_modes/03_home_coaching.png):
 //
-//   AIM FOR          the ideal, ticked green            | RIGHT NOW   the faults it covers, each with
-//                                                       |             the summary's meter, frequency
-//                                                       |             words and session pips
-//   WHY IT MATTERS   a sentence or two
-//   HOW TO PRACTISE  the drill, set in
-//   why this one     one quiet line: the honest reason it was chosen
+//   header      focus mark · YOUR FOCUS · the drill's title · the short reason · Practise
+//   captions    Aim for            | Right now      How often                     Sessions
+//   rows        ✓ the ideal        | the fault      meter · frequency words + trend   pips
+//   expand row  ▸ Why it matters · how to practise   (closed: the two paragraphs inside)
 //
-// The two columns sit on the same split as the two cards below the focus, so the page keeps one
-// grid; each AIM FOR line faces the RIGHT NOW line it answers. Narrow, they stack.
+// The aims and the faults share one row grid, split by a hairline: each AIM FOR line faces the
+// RIGHT NOW line it answers, and a row is as tall as the taller of the two. Where one list is
+// longer, the other side of its extra rows is left empty.
 //
 // Every string is WorkOnsController's (swingSummaryView's focus, docs/design/home_themes_design.md):
 //   focusItem { present, title, aimFor [string], rightNow [{ text, share, frequency, trend,
-//               sessions: [bool…] }], why, practiseLabel, practise, reason }
+//               sessions: [bool…] }], why, practiseLabel, practise, reason, reasonShort,
+//               focusConditionId }
 // The title is the drill's label (for a fault with no drill, its ideal); practiseLabel repeats it
 // and is not drawn twice. Not drawn when present is false — nothing on the list yet. Positions and
-// paints only.
+// paints only; Practise is passed up (practiseRequested) for the screen to open the wizard with.
 
 import QtQuick
 import PinPointStudio
@@ -45,52 +44,55 @@ Item {
     objectName: "focusCard"
 
     property var controller: (typeof workOns !== "undefined") ? workOns : null
-    // The gap between the two cards under the focus, so the columns land on their split.
+    // Kept for callers that still set it; the card no longer lines up with the cards below it.
     property int gridGap: Theme.sp(16)
+
+    // Practise: open the wizard with this focus.
+    signal practiseRequested(string conditionId, string label)
 
     // null when there is no focus: before the first summary, and when nothing needs work.
     readonly property var focusItem: controller && controller.focusItem && controller.focusItem.present === true
                                      ? controller.focusItem : null
     readonly property var aimFor:   focusItem ? (focusItem.aimFor   || []) : []
     readonly property var rightNow: focusItem ? (focusItem.rightNow || []) : []
+    readonly property string conditionId: focusItem ? (focusItem.focusConditionId || "") : ""
+    readonly property string reasonShort: focusItem ? (focusItem.reasonShort || focusItem.reason || "") : ""
+    readonly property bool hasWhyHow: focusItem !== null
+                                      && ((focusItem.why || "") !== "" || (focusItem.practise || "") !== "")
 
-    readonly property color tone:     Theme.colorAccent
-    readonly property color toneGood: Theme.colorGood
-
-    readonly property int padX:       Theme.gap(20)
-    readonly property int padY:       Theme.gap(24)
-    readonly property int badgeSize:  Theme.sp(20)
-    readonly property int textIndent: badgeSize + Theme.sp(12)
-    readonly property int innerWidth: width - 2 * padX
-    readonly property bool stacked:   width < Theme.sp(640)
-    // Side by side: each column is the card below it, less its padding.
-    readonly property real colW:      stacked ? innerWidth : (width - gridGap) / 2 - 2 * padX
-    // Body-relative x of the RIGHT NOW column: the right-hand card's content edge.
-    readonly property real col2X:     stacked ? 0 : (width + gridGap) / 2
-    readonly property real lineH:     Theme.fontSzBody * 1.3
-    readonly property int  itemGap:   Theme.gap(16)
+    // The focus mark's tone, the aims' and the faults'.
+    readonly property color tone:      Theme.colorAccent
+    readonly property color toneGood:  Theme.colorGood
+    readonly property color toneFault: Theme.colorAttention
 
     readonly property int maxPips: 8
-    function latestPips(marks) {
-        const m = marks || []
-        return m.length > root.maxPips ? m.slice(m.length - root.maxPips) : m
-    }
-    readonly property int pipCount: {
-        let n = 1
-        for (const it of root.rightNow) n = Math.max(n, Math.min(root.maxPips, (it.sessions || []).length))
-        return n
-    }
-    readonly property int pipsWidth: pipCount * Theme.sp(6) + (pipCount - 1) * Theme.sp(4)
+    readonly property int markW:   Theme.sp(20)
 
     function capitalised(s) { s = String(s); return s.length ? s.charAt(0).toUpperCase() + s.slice(1) : s }
 
     visible: focusItem !== null
-    implicitHeight: visible ? body.y + body.implicitHeight + padY : 0
+    implicitHeight: visible ? focusTable.implicitHeight : 0
 
     // ════════════════════════════════════════════════════════════════════════
-    // Pieces — the summary's are shared (components/Pp*); the prose is this card's own
+    // Pieces
     // ════════════════════════════════════════════════════════════════════════
 
+    // A sentence-case caption, as PpCard draws its column captions.
+    component Caption: Text {
+        elide:          Text.ElideRight
+        font.family:    Theme.fontBody
+        font.pixelSize: Theme.fontSzBody2
+        font.weight:    Theme.fontBodyWeight
+        color:          Theme.colorText3
+    }
+    component Line: Text {
+        font.family:    Theme.fontBody
+        font.pixelSize: Theme.fontSzBody
+        font.weight:    Theme.fontBodyWeight
+        color:          Theme.colorText
+        wrapMode:       Text.WordWrap
+        lineHeight:     1.2
+    }
     component Prose: Text {
         font.family:    Theme.fontBody
         font.pixelSize: Theme.fontSzBody
@@ -104,251 +106,262 @@ Item {
     // The card
     // ════════════════════════════════════════════════════════════════════════
 
-    // The hero shell: the surface, an amber wash and hairline, and the heavier 4 px top rule.
-    PpCardShell {
-        anchors.fill: parent
-        hero: true
-        tone: root.tone
-    }
+    PpCard {
+        id: focusTable
+        width: root.width
+        table: true
 
-    PpMicro {
-        id: label
-        x: root.padX; y: root.padY
-        text:  Theme.caps(qsTr("Your focus"))
-        color: root.tone
-    }
-    Text {
-        id: headline
-        objectName: "focusTitle"
-        x: root.padX
-        y: label.y + label.implicitHeight + Theme.sp(10)
-        width: root.innerWidth
-        text:  root.focusItem ? root.focusItem.title : ""
-        font.family:    Theme.fontDisplay
-        font.pixelSize: Theme.fontSzDisplay
-        font.weight:    Theme.fontBodyWeight
-        color:          Theme.colorText
-        wrapMode:       Text.WordWrap
-        lineHeight:     1.15
-    }
+        // The aims-and-faults grid: on the card's content box, like any table row.
+        readonly property var gridLayout: focusTable.resolveColumns([
+            { title: qsTr("Aim for"),   fill: 1.0 },
+            { title: qsTr("Right now"), fill: 0.5 },
+            { title: qsTr("How often"), fill: 0.8 },
+            { title: qsTr("Sessions"),  width: Theme.sp(80), align: "right" }])
+        // Where the two halves part: half a column gap before "Right now".
+        readonly property real splitX: focusTable.rowPad + (focusTable.gridLayout.length > 1
+                                       ? focusTable.gridLayout[1].x - focusTable.columnGap / 2 : 0)
 
-    Column {
-        id: body
-        x: root.padX
-        y: headline.y + headline.height + Theme.sp(24)
-        width: root.innerWidth
-        spacing: Theme.gap(24)
-
-        // ── AIM FOR | RIGHT NOW ──────────────────────────────────────────────
+        // ── The header: mark · YOUR FOCUS · title · reason · Practise ─────────
         Item {
-            id: pair
-            width:  parent.width
-            readonly property real aimH: aimCol.y + aimCol.implicitHeight
-            readonly property real nowH: nowCol.y + nowCol.implicitHeight
-            height: root.stacked ? nowBlock.y + pair.nowH : Math.max(aimH, nowH)
+            id: header
+            width:  focusTable.width
+            height: Theme.sp(Theme.rowH) + Theme.sp(16)
 
-            // AIM FOR
-            Item {
-                id: aimBlock
-                width: root.colW
-                PpMicro { id: aimLabel; text: Theme.caps(qsTr("Aim for")); color: root.toneGood }
-                Column {
-                    id: aimCol
-                    y: aimLabel.implicitHeight + Theme.sp(14)
-                    width: root.colW
-                    spacing: root.itemGap
-                    Repeater {
-                        model: root.aimFor
-                        Item {
-                            objectName: "focusAim"
-                            required property var modelData
-                            // The words as drawn — what a probe reads.
-                            readonly property string plainText: root.capitalised(modelData)
-                            width:  aimCol.width
-                            required property int index
-                            // Side by side, each line keeps the pitch of the fault it faces.
-                            readonly property Item facing: root.stacked ? null : nowRepeater.itemAt(index)
-                            height: facing ? Math.max(aimText.height, facing.height) : aimText.height
-                            PpBadge { kind: "check"; tone: root.toneGood; y: Math.round(root.lineH / 2 - height / 2) }
-                            Text {
-                                id: aimText
-                                x: root.textIndent
-                                width: parent.width - root.textIndent
-                                text:  root.capitalised(parent.modelData)
-                                font.family:    Theme.fontBody
-                                font.pixelSize: Theme.fontSzBody
-                                font.weight:    Theme.fontBodyWeight
-                                color:          Theme.colorText
-                                wrapMode:       Text.WordWrap
-                                lineHeight:     1.3
-                            }
-                        }
-                    }
-                }
+            readonly property int pad: focusTable.rowPad
+            readonly property int gapS: Theme.gap(12)
+            // What the title and the reason share: the row less the mark, the label and Practise.
+            readonly property real room: header.width - 2 * header.pad - mark.width - label.implicitWidth
+                                         - 3 * header.gapS
+                                         - (practise.visible ? practise.width + header.gapS : 0)
+
+            PpBadge {
+                id: mark
+                x: header.pad
+                anchors.verticalCenter: parent.verticalCenter
+                kind:  "target"
+                plain: true
+                tone:  root.tone
+                size:  root.markW
             }
-
-            // The split, a hairline down the middle where the two cards below part.
-            Rectangle {
-                visible: !root.stacked
-                x: Math.round(root.width / 2 - root.padX)
-                y: 0
-                width: 1; height: pair.height
-                color: Theme.colorBorder
+            PpMicro {
+                id: label
+                x: mark.x + mark.width + header.gapS
+                anchors.baseline: headline.baseline
+                text: Theme.caps(qsTr("Your focus"))
             }
-
-            // RIGHT NOW
-            Item {
-                id: nowBlock
-                x: root.col2X
-                y: root.stacked ? pair.aimH + Theme.sp(22) : 0
-                width: root.colW
-                PpMicro { id: nowLabel; text: Theme.caps(qsTr("Right now")); color: root.tone }
-                PpMicro {
-                    anchors.baseline: nowLabel.baseline
-                    x: root.colW - implicitWidth
-                    text: Theme.caps(qsTr("Sessions"))
-                    font.letterSpacing: Theme.trackingData
-                }
-                Column {
-                    id: nowCol
-                    y: nowLabel.implicitHeight + Theme.sp(14)
-                    width: root.colW
-                    spacing: root.itemGap
-                    Repeater {
-                        id: nowRepeater
-                        model: root.rightNow
-                        Item {
-                            id: fault
-                            objectName: "focusNow"
-                            required property var modelData
-                            // The words as drawn — what a probe reads.
-                            readonly property string itemText:      root.capitalised(modelData.text)
-                            readonly property string frequencyText: modelData.frequency
-                            readonly property string plainText:     itemText + " — " + frequencyText
-                            readonly property int    pipCount:      (modelData.sessions || []).length
-                            width:  nowCol.width
-                            height: faultCol.implicitHeight
-                            PpBadge { kind: "target"; tone: root.tone; y: Math.round(root.lineH / 2 - height / 2) }
-                            Column {
-                                id: faultCol
-                                x: root.textIndent
-                                width: parent.width - root.textIndent
-                                spacing: Theme.gap(4)
-                                Text {
-                                    id: nowHead
-                                    // The chip's room, when it has had to move up to this line.
-                                    width: parent.width - (nowChip.visible && !nowRow.chipFits
-                                                           ? nowChip.width + Theme.sp(12) : 0)
-                                    readonly property real lineCentre: lineCount > 0 ? implicitHeight / lineCount / 2
-                                                                                     : implicitHeight / 2
-                                    text:  root.capitalised(fault.modelData.text)
-                                    font.family:    Theme.fontBody
-                                    font.pixelSize: Theme.fontSzBody
-                                    font.weight:    Theme.fontBodyWeight
-                                    color:          Theme.colorText
-                                    wrapMode:       Text.WordWrap
-                                    lineHeight:     1.3
-                                }
-                                Item {
-                                    id: nowRow
-                                    width:  parent.width
-                                    height: Theme.sp(18)
-                                    // As the cards below: the trend follows the frequency words, and
-                                    // where this narrower column has no room for it, it moves up to the
-                                    // headline's line at the right edge rather than over the pips.
-                                    readonly property bool chipFits:
-                                        meter.width + freq.implicitWidth + nowChip.width
-                                        + Theme.sp(10) + Theme.sp(8) + Theme.sp(8) + root.pipsWidth <= width
-                                    PpMeter {
-                                        id: meter
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        share: fault.modelData.share
-                                        tone:  root.tone
-                                    }
-                                    Text {
-                                        id: freq
-                                        anchors { left: meter.right; leftMargin: Theme.gap(10)
-                                                  verticalCenter: parent.verticalCenter }
-                                        width: Math.min(implicitWidth, parent.width - meter.width - Theme.sp(10)
-                                                                       - root.pipsWidth - Theme.sp(8))
-                                        elide: Text.ElideRight
-                                        text: fault.modelData.frequency
-                                        font.family:    Theme.fontBody
-                                        font.pixelSize: Theme.fontSzBody2
-                                        font.weight:    Theme.fontBodyWeight
-                                        color:          Theme.colorText3
-                                    }
-                                    PpChip {
-                                        id: nowChip
-                                        x: nowRow.chipFits ? freq.x + freq.width + Theme.sp(8) : nowRow.width - width
-                                        y: nowRow.chipFits ? Math.round((nowRow.height - height) / 2)
-                                                           : -nowRow.y + Math.round(nowHead.lineCentre - height / 2)
-                                        trend: fault.modelData.trend
-                                    }
-                                    PpPips {
-                                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                        marks: root.latestPips(fault.modelData.sessions)
-                                        tone:  root.tone
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Rectangle { width: parent.width; height: 1; color: Theme.colorBorder }
-
-        // ── WHY IT MATTERS ───────────────────────────────────────────────────
-        Column {
-            width: parent.width
-            spacing: Theme.gap(10)
-            visible: root.focusItem !== null && root.focusItem.why !== ""
-            PpMicro { text: Theme.caps(qsTr("Why it matters")) }
-            Prose {
-                objectName: "focusWhy"
-                width: Math.min(parent.width, Theme.sp(720))
-                text:  root.focusItem ? root.focusItem.why : ""
-            }
-        }
-
-        // ── HOW TO PRACTISE ──────────────────────────────────────────────────
-        // Set in, with the drill's own mark: an amber bar down the inset's left edge.
-        PpInset {
-            visible: root.focusItem !== null && root.focusItem.practise !== ""
-            width:   parent.width
-            tone:    root.tone
-            bar:     true
-            padX:    Theme.sp(18)
-            padY:    Theme.sp(16)
-            spacing: Theme.gap(8)
-            PpMicro { text: Theme.caps(qsTr("How to practise")) }
             Text {
-                objectName: "focusPractise"
-                width: Math.min(parent.width, Theme.sp(760))
-                text:  root.focusItem ? root.focusItem.practise : ""
+                id: headline
+                objectName: "focusTitle"
+                x: label.x + label.implicitWidth + header.gapS
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.max(0, Math.min(implicitWidth, header.room))
+                elide: Text.ElideRight
+                text:  root.focusItem ? root.focusItem.title : ""
+                font.family:    Theme.fontBody
+                font.pixelSize: Theme.fontSzHeading
+                font.weight:    Font.DemiBold
+                color:          Theme.colorText
+            }
+            // Why this one, in a line: "covers 2 things on your list · comes earliest in your swing".
+            Text {
+                id: reason
+                objectName: "focusReason"
+                x: headline.x + headline.width + header.gapS
+                anchors.baseline: headline.baseline
+                readonly property real room: header.room - headline.width - header.gapS
+                width:   Math.max(0, Math.min(implicitWidth, room))
+                visible: text !== "" && room >= Theme.sp(60)
+                elide:   Text.ElideRight
+                text:    root.reasonShort
+                font.family:    Theme.fontBody
+                font.pixelSize: Theme.fontSzBody2
+                font.weight:    Theme.fontBodyWeight
+                color:          Theme.colorText3
+            }
+            PpButton {
+                id: practise
+                objectName: "focusPracticeButton"
+                anchors { right: parent.right; rightMargin: header.pad; verticalCenter: parent.verticalCenter }
+                visible: root.conditionId !== ""
+                glyph:   "▶"
+                label:   qsTr("Practise")
+                onClicked: root.practiseRequested(root.conditionId, root.focusItem ? root.focusItem.title : "")
+            }
+        }
+
+        // ── Aim for | Right now ──────────────────────────────────────────────
+        Item {
+            id: grid
+            width:  focusTable.width
+            height: gridCol.implicitHeight
+
+            Column {
+                id: gridCol
+                width: parent.width
+
+                // The captions. The card draws the hairline above them; the first row draws the one
+                // under them.
+                PpTableRow {
+                    id: capRow
+                    layout: focusTable.gridLayout
+                    height: Theme.sp(Theme.tableHeaderH)
+                    hoverEnabled: false
+                    Caption { text: qsTr("Aim for");   width: Math.min(implicitWidth, capRow.columnWidth(0)) }
+                    Caption { text: qsTr("Right now"); width: Math.min(implicitWidth, capRow.columnWidth(1)) }
+                    Caption { text: qsTr("How often"); width: Math.min(implicitWidth, capRow.columnWidth(2)) }
+                    Caption { text: qsTr("Sessions");  width: Math.min(implicitWidth, capRow.columnWidth(3)) }
+                }
+
+                Repeater {
+                    model: Math.max(root.aimFor.length, root.rightNow.length)
+                    PpTableRow {
+                        id: pairRow
+                        required property int index
+                        readonly property bool hasAim:   index < root.aimFor.length
+                        readonly property bool hasFault: index < root.rightNow.length
+                        readonly property var  aim:      hasAim   ? root.aimFor[index]   : ""
+                        readonly property var  fault:    hasFault ? root.rightNow[index] : null
+                        layout: focusTable.gridLayout
+                        hoverEnabled: false
+                        topRule: true
+                        // Wrapped words make the row grow; never below the table row.
+                        height: Math.max(Theme.sp(Theme.rowH),
+                                         Math.max(aimCell.height, faultText.height) + Theme.sp(18))
+
+                        // Aim for: a tick and the ideal.
+                        Item {
+                            id: aimCell
+                            objectName: pairRow.hasAim ? "focusAim" : ""
+                            // The words as drawn — what a probe reads.
+                            readonly property string plainText: root.capitalised(pairRow.aim)
+                            visible: pairRow.hasAim
+                            width:  pairRow.columnWidth(0)
+                            height: aimText.height
+                            PpBadge {
+                                kind:  "check"
+                                plain: true
+                                tone:  root.toneGood
+                                size:  root.markW
+                                y: Math.round((aimText.lineCount > 1 ? aimText.height / aimText.lineCount
+                                                                     : aimText.height) / 2 - height / 2)
+                            }
+                            Line {
+                                id: aimText
+                                x: root.markW + focusTable.columnGap
+                                width: Math.max(0, parent.width - x)
+                                text:  aimCell.plainText
+                            }
+                        }
+
+                        // Right now: the fault…
+                        Line {
+                            id: faultText
+                            objectName: pairRow.hasFault ? "focusNow" : ""
+                            // The words as drawn — what a probe reads.
+                            readonly property string itemText:      pairRow.fault ? root.capitalised(pairRow.fault.text) : ""
+                            readonly property string frequencyText: pairRow.fault ? pairRow.fault.frequency : ""
+                            readonly property string plainText:     itemText + " — " + frequencyText
+                            readonly property int    pipCount:      pairRow.fault ? (pairRow.fault.sessions || []).length : 0
+                            visible: pairRow.hasFault
+                            width: pairRow.columnWidth(1)
+                            text:  itemText
+                        }
+                        // …how often, in segments and in words, and which way it is going…
+                        Row {
+                            visible: pairRow.hasFault
+                            width: pairRow.columnWidth(2)
+                            spacing: Theme.gap(12)
+                            PpMeter {
+                                id: meter
+                                anchors.verticalCenter: parent.verticalCenter
+                                share: pairRow.fault ? pairRow.fault.share : 0
+                                tone:  root.toneFault
+                            }
+                            Caption {
+                                id: freq
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: Math.min(implicitWidth, Math.max(0, parent.width - meter.width - parent.spacing
+                                                                        - (trendChip.visible ? trendChip.width + parent.spacing : 0)))
+                                text:  pairRow.fault ? pairRow.fault.frequency : ""
+                                color: Theme.colorText3
+                            }
+                            PpChip {
+                                id: trendChip
+                                anchors.verticalCenter: parent.verticalCenter
+                                trend: pairRow.fault ? pairRow.fault.trend : 0
+                            }
+                        }
+                        // …and the sessions that saw it.
+                        PpPips {
+                            visible: pairRow.hasFault
+                            marks:   pairRow.fault ? pairRow.fault.sessions : []
+                            maxPips: root.maxPips
+                            tone:    Theme.colorText2
+                        }
+                    }
+                }
+            }
+
+            // The split, a hairline down the grid where the aims and the faults part.
+            Rectangle {
+                x: Math.round(focusTable.splitX)
+                width: 1; height: grid.height
+                color: Theme.colorHairline
+            }
+        }
+
+        // ── Why it matters · how to practise ─────────────────────────────────
+        PpExpandRow {
+            id: whyRow
+            objectName: "focusWhyRow"
+            visible: root.hasWhyHow
+            accessibleName: qsTr("Why it matters, how to practise")
+            layout: focusTable.resolveColumns([{ width: root.markW }, { fill: true }])
+            detailIndent: focusTable.rowPad + root.markW + focusTable.columnGap
+            detailRightInset: focusTable.rowPad
+            Item { width: 1; height: 1 }        // the chevron's column
+            Text {
+                width: whyRow.headerRow.columnWidth(1)
+                elide: Text.ElideRight
+                text:  qsTr("Why it matters · how to practise")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody
                 font.weight:    Theme.fontBodyWeight
-                color:          Theme.colorText
-                wrapMode:       Text.WordWrap
-                lineHeight:     1.45
+                color:          Theme.colorText2
             }
-        }
+            detail: Component {
+                Column {
+                    topPadding:    Theme.sp(4)
+                    bottomPadding: Theme.sp(20)
+                    spacing: Theme.gap(16)
 
-        // ── Why this one ─────────────────────────────────────────────────────
-        Text {
-            objectName: "focusReason"
-            visible: text !== ""
-            width:   parent.width
-            text:    root.focusItem ? root.focusItem.reason : ""
-            font.family:    Theme.fontBody
-            font.pixelSize: Theme.fontSzBody2
-            font.weight:    Theme.fontBodyWeight
-            font.italic:    true
-            color:          Theme.colorText3
-            wrapMode:       Text.WordWrap
+                    // WHY IT MATTERS
+                    Column {
+                        width: parent.width
+                        spacing: Theme.gap(6)
+                        visible: root.focusItem !== null && (root.focusItem.why || "") !== ""
+                        Caption { text: qsTr("Why it matters") }
+                        Prose {
+                            objectName: "focusWhy"
+                            width: Math.min(parent.width, Theme.sp(760))
+                            text:  root.focusItem ? (root.focusItem.why || "") : ""
+                        }
+                    }
+                    // HOW TO PRACTISE
+                    Column {
+                        width: parent.width
+                        spacing: Theme.gap(6)
+                        visible: root.focusItem !== null && (root.focusItem.practise || "") !== ""
+                        Caption { text: qsTr("How to practise") }
+                        Prose {
+                            objectName: "focusPractise"
+                            width: Math.min(parent.width, Theme.sp(760))
+                            text:  root.focusItem ? (root.focusItem.practise || "") : ""
+                            color: Theme.colorText
+                        }
+                    }
+                }
+            }
         }
     }
 }
