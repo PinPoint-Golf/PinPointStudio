@@ -156,6 +156,8 @@ Item {
             isActive:  root.currentPageIndex === AppScreen.Session
             isMuted:   root._muted(AppScreen.Session)
             attention: root.anyLocked
+            // Glows while a session is being captured, back to normal once it ends.
+            recording: typeof sessionController !== "undefined" && sessionController.running
             onClicked: root.pageRequested(AppScreen.Session)
         }
 

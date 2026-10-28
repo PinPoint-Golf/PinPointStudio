@@ -17,6 +17,7 @@
  */
 
 import QtQuick
+import QtQuick.Shapes
 import PinPointStudio
 
 Item {
@@ -29,6 +30,9 @@ Item {
     // When the rail is locked, enabled (non-muted) buttons tint their glyph and
     // label with the attention colour to draw the eye to what's still clickable.
     property bool   attention: false
+    // A capture is in progress: a soft recording-red glow breathes behind the glyph until it
+    // ends (Live's button, while sessionController.running).
+    property bool   recording: false
 
     readonly property bool _attn: attention && !isMuted
 
@@ -80,6 +84,52 @@ Item {
                 opacity: (root.isActive && Theme.railActiveBar) ? 1 : 0
                 Behavior on opacity {
                     NumberAnimation { duration: Theme.durationNormal; easing.type: Easing.OutCubic }
+                }
+            }
+
+            // Recording glow — a radial halo in the recording's red behind the glyph, fading in
+            // when a capture starts and out when it ends, breathing gently while it runs (held
+            // steady under reduceMotion).
+            Item {
+                anchors.fill: parent
+                opacity: root.recording ? 1 : 0
+                visible: opacity > 0
+                Behavior on opacity {
+                    NumberAnimation { duration: Theme.durationSlow; easing.type: Easing.OutCubic }
+                }
+
+                Shape {
+                    id: glow
+                    anchors.centerIn: parent
+                    width:   parent.width * 0.86
+                    height:  width
+                    preferredRendererType: Shape.CurveRenderer
+
+                    ShapePath {
+                        strokeColor: "transparent"
+                        fillGradient: RadialGradient {
+                            centerX: glow.width / 2;  centerY: glow.height / 2
+                            focalX:  centerX;         focalY:  centerY
+                            centerRadius: glow.width / 2
+                            GradientStop { position: 0.0;  color: Qt.alpha(Theme.colorError, 0.70) }
+                            GradientStop { position: 0.45; color: Qt.alpha(Theme.colorError, 0.36) }
+                            GradientStop { position: 1.0;  color: Qt.alpha(Theme.colorError, 0.0) }
+                        }
+                        PathAngleArc {
+                            centerX: glow.width / 2;  centerY: glow.height / 2
+                            radiusX: glow.width / 2;  radiusY: glow.height / 2
+                            startAngle: 0;            sweepAngle: 360
+                        }
+                    }
+
+                    // Breathes between 0.55 and 1 while recording.
+                    SequentialAnimation on opacity {
+                        running: root.recording && !Theme.reduceMotion
+                        loops:   Animation.Infinite
+                        onRunningChanged: if (!running) glow.opacity = 1
+                        NumberAnimation { to: 0.55; duration: 1100; easing.type: Easing.InOutSine }
+                        NumberAnimation { to: 1;    duration: 1100; easing.type: Easing.InOutSine }
+                    }
                 }
             }
 
