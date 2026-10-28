@@ -41,7 +41,10 @@
 // limit, needs no tool to open, and restores by copying back even without this application.
 //
 // RESTORE: copy every file back over the stubs, verify each byte for byte, and only then remove
-// the marker. The archive copy is kept: deleting it is the user's call.
+// the marker. The archive copy is kept: deleting it is the user's call. The session's report/
+// folder is the exception: it was never thinned, so the library's copy is at least as new as the
+// archive's — a send or a remake made while archived lives only there — and a file of it the
+// library still holds is left alone.
 
 #include <QString>
 
@@ -68,6 +71,9 @@ using Progress = std::function<bool(int done, int total)>;
 
 QString markerPath(const QString &sessionDir);                 // <session>/archived.json
 bool    isArchived(const QString &sessionDir);
+// Every file under a folder, hidden ones included, in bytes: what it takes on disk (the Archiving
+// tab's sizes and the session list's). Walks the tree; call it off the GUI thread.
+qint64  folderBytes(const QString &dir);
 QString archivePathFor(const QString &sessionDir, const QString &archiveRoot);
 
 Result archive(const QString &sessionDir, const QString &archiveRoot, const Options &opt = {},

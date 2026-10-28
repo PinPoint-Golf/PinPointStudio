@@ -340,15 +340,43 @@ static R::PhotoDecision photoDecisionFor(const QVariantMap &athlete, const QDate
     return R::photoRule(dob, sessionDate, athlete.value(QStringLiteral("photosApproved")).toBool());
 }
 
+// The studio's stamp and the photo rule's answer for this athlete and session: inputsStamp(), and the
+// copy fingerprintFunction() hands to another thread.
+static QString inputsStampOf(const QString &studioStamp, const QVariantMap &athlete, const QString &sessionDir)
+{
+    const R::PhotoDecision p = photoDecisionFor(athlete, dateOfFolder(sessionDir));
+    return studioStamp + QStringLiteral("|photos:%1:%2").arg(p.included ? 1 : 0).arg(int(p.reason));
+}
+
 QString SessionReportModel::inputsStamp(const QString &sessionDir) const
 {
-    const R::PhotoDecision p = photoDecisionFor(athleteFor(sessionDir), dateOfFolder(sessionDir));
-    return (m_studio ? m_studio->stamp() : QString()) + QStringLiteral("|photos:%1:%2").arg(p.included ? 1 : 0).arg(int(p.reason));
+    return inputsStampOf(m_studio ? m_studio->stamp() : QString(), athleteFor(sessionDir), sessionDir);
 }
 
 QString SessionReportModel::fingerprintOf(const QString &sessionDir) const
 {
     return M::reportFingerprint(sessionDir, kWorkOnRuleVersion, contentStamp(), inputsStamp(sessionDir));
+}
+
+M::ReportFingerprintFn SessionReportModel::fingerprintFunction() const
+{
+    // athleteFor(dir)'s folder lookup, done for every athlete now: the first whose sanitised name is
+    // the folder's wins, as there.
+    QHash<QString, QVariantMap> byFolder;
+    if (m_athletes) {
+        for (const QVariant &v : m_athletes->athletes()) {
+            const QVariantMap a = v.toMap();
+            const QString n = a.value(QStringLiteral("name")).toString();
+            if (n.isEmpty()) continue;
+            const QString folder = pinpoint::SwingPaths::sanitise(n);
+            if (!byFolder.contains(folder))
+                byFolder.insert(folder, m_athletes->reportDetails(a.value(QStringLiteral("uuid")).toString()));
+        }
+    }
+    return [studio = m_studio ? m_studio->stamp() : QString(), content = contentStamp(), byFolder](const QString &dir) {
+        const QVariantMap athlete = byFolder.value(QFileInfo(QFileInfo(dir).absolutePath()).fileName());
+        return M::reportFingerprint(dir, kWorkOnRuleVersion, content, inputsStampOf(studio, athlete, dir));
+    };
 }
 
 QVariantMap SessionReportModel::state(const QString &sessionDir) const

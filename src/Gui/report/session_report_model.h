@@ -58,6 +58,7 @@
 #include <QString>
 #include <QVariantMap>
 
+#include <functional>
 #include <memory>
 
 class StudioProfile;
@@ -112,6 +113,9 @@ public:
     // The fingerprint state() compares against — the work-on record's recipe (rule version, content
     // stamp, each swing document) plus inputsStamp(). Public for the probes and the tests.
     QString fingerprintOf(const QString &sessionDir) const;
+    // fingerprintOf() with its inputs (the studio, the athletes, the content stamp) copied now, for a
+    // thread that may not touch this model: the archiver keeps a current report current (S-D6).
+    std::function<QString(const QString &sessionDir)> fingerprintFunction() const;
 
 signals:
     void busyChanged();

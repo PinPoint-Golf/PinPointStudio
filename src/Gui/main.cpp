@@ -355,6 +355,8 @@ int main(int argc, char *argv[])
     sessionReport.setStudioProfile(&studioProfile);
     sessionReport.setAthleteController(&athleteController);
     sessionReportList.setReportModel(&sessionReport);
+    // Archive and restore re-stamp a report that was current, so it still reads current (S-D6).
+    archiveController.setReportFingerprint([&sessionReport] { return sessionReport.fingerprintFunction(); });
     {
         const auto athleteDir = [&appSettings, &athleteController]() -> QString {
             const QString forced = qEnvironmentVariable("PINPOINT_WORKONS_DIR");
@@ -373,9 +375,12 @@ int main(int argc, char *argv[])
         // "Live" means a session is RUNNING, as the work-ons pause reads it — not merely that the
         // carousel holds a session's shots: at launch the carousel restores the golfer's latest
         // session, and that session must still offer its report.
-        const auto followLive = [&sessionReportList, &sessionReviewController, &sessionController] {
-            sessionReportList.setLiveSessionDir(sessionController.activeSessionType() >= 0
-                                                    ? sessionReviewController.liveSessionDir() : QString());
+        // The archiver is told the same folder: the running session is never archived under it.
+        const auto followLive = [&sessionReportList, &archiveController, &sessionReviewController, &sessionController] {
+            const QString live = sessionController.activeSessionType() >= 0 ? sessionReviewController.liveSessionDir()
+                                                                             : QString();
+            sessionReportList.setLiveSessionDir(live);
+            archiveController.setLiveSessionDir(live);
         };
         QObject::connect(&sessionReviewController, &SessionReviewController::liveSessionDirChanged,
                          &sessionReportList, followLive);

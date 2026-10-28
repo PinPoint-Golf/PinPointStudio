@@ -27,12 +27,20 @@
 //   2026-10-20_G_03   5 swings at 14:00, no record, a report opened in Mail
 //   2026-10-20_G_04   no swings: not a session
 // and the report state through report_meta.h, as SessionReportModel::state() will give it.
+//
+// The Sessions screen's half (sessions_screen_redesign.md, Phase 1) runs over a second golfer, H:
+// folder sizes, the archived marker, the club / report / archived filters and the search alone and
+// together, the filter labels' counts against what clicking them shows, the short report words — and a
+// real archive and restore (SessionArchiver into a temp archive location) keeping a current report
+// current (S-D6). The live guard on SessionReviewController::trashSession is not here: that controller
+// needs the shot model, the settings and the athlete controller.
 
 #include "report/session_report_list_model.h"
 #include "report/report_mailer.h"
 #include "report/mail_credentials.h"
 #include "report/report_meta.h"
 #include "../../Coaching/work_ons.h"
+#include "../../Export/session_archiver.h"
 #include "../../Export/swing_doc.h"
 
 #include <QCoreApplication>
@@ -41,7 +49,9 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QGuiApplication>
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QTemporaryDir>
 #include <QThread>
 
@@ -124,7 +134,8 @@ static void writeRecord(const QString &dir, const QString &id, const QString &na
 
 static QString fp(const QString &dir) { return reportFingerprint(dir, 4, QStringLiteral("content"), QStringLiteral("inputs")); }
 
-static void writeReport(const QString &dir, bool current, qint64 preparedMs, qint64 sendMs = 0)
+static void writeReport(const QString &dir, bool current, qint64 preparedMs, qint64 sendMs = 0,
+                        const QString &sendMethod = QStringLiteral("mail-app"))
 {
     const QString pdf = QStringLiteral("2026-10-20_G_session-report.pdf");
     touch(reportDir(dir) + QLatin1Char('/') + pdf, QByteArray(2048, 'x'));
@@ -135,7 +146,7 @@ static void writeReport(const QString &dir, bool current, qint64 preparedMs, qin
     m.sha256      = fileSha256(reportDir(dir) + QLatin1Char('/') + pdf);
     m.sizeBytes   = 2048;
     m.fingerprint = current ? fp(dir) : QStringLiteral("0123456789abcdef");
-    if (sendMs) m.sends.append({ sendMs, QStringLiteral("mail-app"), m.sha256 });
+    if (sendMs) m.sends.append({ sendMs, sendMethod, m.sha256 });
     writeReportMeta(dir, m);
 }
 
@@ -149,7 +160,32 @@ static QVariantMap stateOf(const QString &dir)
              {QStringLiteral("words"), reportStateWords(st, m)},
              {QStringLiteral("pdfPath"), m ? reportPdfPath(dir, *m) : QString()},
              {QStringLiteral("sizeBytes"), double(m ? m->sizeBytes : 0)},
-             {QStringLiteral("preparedMs"), double(m ? m->preparedMs : 0)} };
+             {QStringLiteral("preparedMs"), double(m ? m->preparedMs : 0)},
+             {QStringLiteral("lastSend"), m && !m->sends.isEmpty()
+                  ? QVariantMap{ {QStringLiteral("ms"), double(m->sends.last().ms)},
+                                 {QStringLiteral("method"), m->sends.last().method} } : QVariantMap{}},
+             {QStringLiteral("sentDiffers"), m ? sentDiffers(*m) : false} };
+}
+
+// n swings as the app writes them (a real document, a summary, a thumbnail), for the archiver.
+static void makeDocSession(const QString &dir, int n, qint64 startMs)
+{
+    for (int i = 1; i <= n; ++i) {
+        const QString id = QStringLiteral("swing_%1").arg(i, 4, 10, QLatin1Char('0'));
+        const QString sd = dir + QLatin1Char('/') + id;
+        QDir().mkpath(sd);
+        const QJsonObject manifest{
+            { "schema", "pinpoint.swing/2" },
+            { "clock", QJsonObject{ { "t0_us", 0 }, { "wallclock",
+                QDateTime::fromMSecsSinceEpoch(startMs + qint64(i) * 60'000).toUTC().toString(Qt::ISODateWithMs) } } },
+            { "swing", QJsonObject{ { "index", i }, { "id", id } } },
+            { "streams", QJsonArray{ QJsonObject{ { "kind", "video" }, { "alias", "Face-On" }, { "file", "Face-On.mp4" } } } },
+            { "thumbnail", QJsonObject{ { "file", "thumb.jpg" } } } };
+        pinpoint::SwingDocWriter::writeSwingJson(sd, manifest, nullptr);
+        pinpoint::SwingDocWriter::updateReview(sd, 3, QString(), QStringLiteral("7 IRON"));
+        touch(sd + QStringLiteral("/Face-On.mp4"), QByteArray(64 * 1024, char('a' + i)));
+        touch(sd + QStringLiteral("/thumb.jpg"), QByteArray(1024, 't'));
+    }
 }
 
 static QVariant role(const SessionReportListModel &m, int row, int role) { return m.data(m.index(row), role); }
@@ -344,6 +380,281 @@ int main(int argc, char **argv)
         check(mailer.lastAction() == QLatin1String("copy:nick@example.com"), "copyText recorded (dry run: clipboard untouched)");
         mailer.reveal(pdf);
         check(mailer.lastAction().startsWith(QLatin1String("reveal:")), "reveal recorded (dry run: no Finder)");
+    }
+
+    // ── The Sessions screen ─────────────────────────────────────────────────────────────────
+    const QString hLib = tmp.filePath(QStringLiteral("H"));
+    const QString h1 = hLib + QStringLiteral("/2026-10-01_H_01");   // 7 iron · current, sent by the app
+    const QString h2 = hLib + QStringLiteral("/2026-10-02_H_01");   // Driver, 7 iron · DTL · out of date
+    const QString h3 = hLib + QStringLiteral("/2026-10-03_H_01");   // Driver · no report · work-on goal
+    const QString h4 = hLib + QStringLiteral("/2026-10-04_H_01");   // 7 iron · current · ARCHIVED
+    const QString h5 = hLib + QStringLiteral("/2026-10-05_H_01");   // 7 iron · current, handed to Mail
+    makeSession(h1, 3, at(10, 1, 9, 0), { QStringLiteral("7 IRON") }, { QStringLiteral("faceOn") });
+    makeSession(h2, 4, at(10, 2, 9, 0), { QStringLiteral("DRIVER"), QStringLiteral("7 IRON") },
+                { QStringLiteral("faceOn"), QStringLiteral("dtl") });
+    makeSession(h3, 3, at(10, 3, 9, 0), { QStringLiteral("DRIVER") }, { QStringLiteral("faceOn") });
+    makeSession(h4, 5, at(10, 4, 9, 0), { QStringLiteral("7 IRON") }, { QStringLiteral("faceOn") });
+    makeSession(h5, 3, at(10, 5, 9, 0), { QStringLiteral("7 IRON") }, { QStringLiteral("faceOn") });
+    writeRecord(h3, QStringLiteral("early_extension"), QStringLiteral("Early extension"), pinpoint::analysis::kWorkOnRuleVersion);
+    writeReport(h1, /*current=*/true,  at(10, 1, 12, 0), at(10, 21, 18, 40), QStringLiteral("smtp"));
+    writeReport(h2, /*current=*/false, at(10, 2, 12, 0));
+    writeReport(h4, /*current=*/true,  at(10, 4, 12, 0));
+    writeReport(h5, /*current=*/true,  at(10, 5, 12, 0), at(10, 5, 18, 0));
+    touch(pinpoint::SessionArchiver::markerPath(h4), "{}");
+
+    SessionReportListModel sl;
+    sl.setSynchronous(true);
+    sl.setStateFunction(stateOf);
+    sl.setGoalResolver([](const QString &id) {
+        return id == QLatin1String("early_extension") ? QStringLiteral("Stop the early extension") : QString();
+    });
+    sl.setAthleteDir(hLib);
+    const auto rowOf = [&](const QString &dir) {
+        for (int i = 0; i < sl.count(); ++i)
+            if (role(sl, i, R::DirRole).toString() == QFileInfo(dir).absoluteFilePath()) return i;
+        return -1;
+    };
+    // The shown rows' dirs in rank order — and the ranks must run 0, 1, 2… down the list.
+    const auto shown = [&] {
+        QStringList out;
+        int expect = 0;
+        for (int i = 0; i < sl.count(); ++i) {
+            const int rank = role(sl, i, R::ShownRankRole).toInt();
+            if (rank < 0) continue;
+            if (rank != expect++) return QStringList{ QStringLiteral("ranks out of order") };
+            out << QFileInfo(role(sl, i, R::DirRole).toString()).fileName().left(10);
+        }
+        return out;
+    };
+    const auto days = [](std::initializer_list<int> ds) {
+        QStringList out;
+        for (int d : ds) out << QStringLiteral("2026-10-%1").arg(d, 2, 10, QLatin1Char('0'));
+        return out;
+    };
+
+    std::printf("sessions screen: rows\n");
+    check(sl.count() == 5, "five sessions for H");
+    {
+        bool sizes = true;
+        for (int i = 0; i < sl.count(); ++i)
+            sizes = sizes && role(sl, i, R::SessionBytesRole).toDouble() > 0
+                    && qint64(role(sl, i, R::SessionBytesRole).toDouble())
+                           == pinpoint::SessionArchiver::folderBytes(role(sl, i, R::DirRole).toString());
+        check(sizes, "sessionBytes: every row > 0, the folder's every file");
+        const double before = role(sl, rowOf(h1), R::SessionBytesRole).toDouble();
+        touch(h1 + QStringLiteral("/swing_0001/Face-On.mp4"), QByteArray(10000, 'v'));
+        sl.refresh();
+        check(role(sl, rowOf(h1), R::SessionBytesRole).toDouble() == before + 10000, "sessionBytes grows with the content");
+    }
+    check(role(sl, rowOf(h4), R::ArchivedRole).toBool() && !role(sl, rowOf(h1), R::ArchivedRole).toBool(),
+          "archived: from the archived.json marker");
+    check(sl.rowFor(h2).value(QStringLiteral("clubs")).toString() == QLatin1String("Driver, 7 iron"),
+          "the joined clubs string is unchanged");
+    check(role(sl, rowOf(h1), R::StateShortRole).toString() == QLatin1String("Sent 21 Oct"),
+          "stateShort: sent by the app → Sent 21 Oct (the day, no time)");
+    check(role(sl, rowOf(h2), R::StateShortRole).toString() == QLatin1String("Out of date"), "stateShort: Out of date");
+    check(role(sl, rowOf(h3), R::StateShortRole).toString() == QLatin1String("No report"), "stateShort: No report");
+    check(role(sl, rowOf(h4), R::StateShortRole).toString() == QLatin1String("Ready"), "stateShort: Ready");
+    check(role(sl, rowOf(h5), R::StateShortRole).toString() == QLatin1String("Ready")
+          && role(sl, rowOf(h5), R::StateWordsRole).toString().startsWith(QLatin1String("Opened in Mail")),
+          "stateShort: handed to Mail is not a send → Ready (the full words keep Opened in Mail)");
+    {
+        // Remade after the send: the PDF on disk is not the one that went.
+        auto m = readReportMeta(h1);
+        m->sha256 = QStringLiteral("remade");
+        writeReportMeta(h1, *m);
+        sl.refreshState(h1);
+        check(role(sl, rowOf(h1), R::StateShortRole).toString() == QLatin1String("Ready"), "stateShort: remade after a send → Ready");
+        m->sha256 = m->sends.last().sha256;
+        writeReportMeta(h1, *m);
+        sl.refreshState(h1);
+    }
+
+    std::printf("sessions screen: filters\n");
+    check(shown() == days({ 5, 3, 2, 1 }) && !sl.showArchived(), "default: archived hidden, the rest newest first");
+    sl.setShowArchived(true);
+    check(shown() == days({ 5, 4, 3, 2, 1 }), "showArchived: the archived session back in its place");
+    sl.setShowArchived(false);
+    sl.setClubFilter(QStringLiteral("Driver"));
+    check(shown() == days({ 3, 2 }), "club Driver");
+    sl.setClubFilter(QStringLiteral("7 iron"));
+    check(shown() == days({ 5, 2, 1 }), "club 7 iron");
+    sl.setClubFilter(QString());
+    sl.setReportFilter(QStringLiteral("ready"));
+    check(shown() == days({ 5, 1 }), "report ready: current, sent or not");
+    sl.setReportFilter(QStringLiteral("stale"));
+    check(shown() == days({ 2 }), "report stale");
+    sl.setReportFilter(QStringLiteral("none"));
+    check(shown() == days({ 3 }), "report none");
+    sl.setReportFilter(QString());
+    sl.setSearch(QStringLiteral("  EARLY "));
+    check(shown() == days({ 3 }) && sl.search() == QLatin1String("EARLY"), "search: work-on goal, case-insensitive, trimmed");
+    sl.setSearch(QStringLiteral("driver"));
+    check(shown() == days({ 3, 2 }), "search: clubs");
+    sl.setSearch(QStringLiteral("nothing like it"));
+    check(shown().isEmpty() && sl.shownCount() == 0, "search: no match, nothing shown");
+    sl.setSearch(QString());
+    sl.setClubFilter(QStringLiteral("7 iron"));
+    sl.setReportFilter(QStringLiteral("ready"));
+    check(shown() == days({ 5, 1 }), "7 iron AND ready");
+    sl.setShowArchived(true);
+    check(shown() == days({ 5, 4, 1 }), "7 iron AND ready AND archived shown");
+    sl.toggleDevice(QStringLiteral("dtl"));
+    check(shown().isEmpty(), "…AND DTL: none");
+    sl.setReportFilter(QStringLiteral("stale"));
+    check(shown() == days({ 2 }), "7 iron AND stale AND DTL");
+    sl.setSearch(QStringLiteral("driver"));
+    check(shown() == days({ 2 }), "…AND search driver");
+    sl.setSearch(QStringLiteral("early"));
+    check(shown().isEmpty(), "…AND search early: none");
+    sl.clearDeviceFilter(); sl.setClubFilter(QString()); sl.setReportFilter(QString()); sl.setSearch(QString());
+    sl.setShowArchived(false);
+    check(shown() == days({ 5, 3, 2, 1 }), "every filter cleared");
+
+    std::printf("sessions screen: counts\n");
+    // Each label against what clicking it shows, under a few states of the other filters.
+    const auto countsHold = [&](const char *label) {
+        bool ok = true;
+        const QVariantMap rc = sl.reportCounts();
+        const QString keepReport = sl.reportFilter();
+        for (const QString &b : { QStringLiteral("none"), QStringLiteral("stale"), QStringLiteral("ready") }) {
+            sl.setReportFilter(b);
+            ok = ok && rc.value(b).toInt() == sl.shownSavedCount();
+        }
+        sl.setReportFilter(keepReport);
+        const QVariantList cc = sl.clubCounts();
+        const QString keepClub = sl.clubFilter();
+        for (const QVariant &v : cc) {
+            sl.setClubFilter(v.toMap().value(QStringLiteral("club")).toString());
+            ok = ok && v.toMap().value(QStringLiteral("count")).toInt() == sl.shownSavedCount();
+        }
+        sl.setClubFilter(keepClub);
+        const int ac = sl.archivedCount();
+        const bool keepArch = sl.showArchived();
+        sl.setShowArchived(false);
+        const int without = sl.shownSavedCount();
+        sl.setShowArchived(true);
+        ok = ok && ac == sl.shownSavedCount() - without;
+        sl.setShowArchived(keepArch);
+        for (const QVariant &v : sl.availableDevices()) {
+            const QString id = v.toMap().value(QStringLiteral("id")).toString();
+            if (sl.deviceFilter().contains(id)) continue;
+            sl.toggleDevice(id);
+            ok = ok && v.toMap().value(QStringLiteral("count")).toInt() == sl.shownSavedCount();
+            sl.toggleDevice(id);
+        }
+        check(ok, label);
+    };
+    {
+        const QVariantMap rc = sl.reportCounts();
+        check(rc.value("none").toInt() == 1 && rc.value("stale").toInt() == 1 && rc.value("ready").toInt() == 2,
+              "reportCounts: none 1, stale 1, ready 2 (the archived one not counted while hidden)");
+        const QVariantList cc = sl.clubCounts();
+        check(cc.size() == 2 && cc[0].toMap().value("club") == "7 iron" && cc[0].toMap().value("count").toInt() == 3
+              && cc[1].toMap().value("club") == "Driver" && cc[1].toMap().value("count").toInt() == 2,
+              "clubCounts: most sessions first");
+        check(sl.archivedCount() == 1, "archivedCount: 1");
+    }
+    countsHold("no filter: every label equals what clicking it shows");
+    sl.setClubFilter(QStringLiteral("Driver"));
+    countsHold("club Driver: labels hold");
+    {
+        const QVariantMap rc = sl.reportCounts();
+        check(rc.value("none").toInt() == 1 && rc.value("stale").toInt() == 1 && rc.value("ready").toInt() == 0,
+              "club Driver: report counts follow it");
+    }
+    sl.setReportFilter(QStringLiteral("ready"));
+    {
+        const QVariantList cc = sl.clubCounts();
+        bool hasDriver = false;
+        for (const QVariant &v : cc)
+            if (v.toMap().value("club") == "Driver") hasDriver = v.toMap().value("count").toInt() == 0;
+        check(hasDriver, "the chosen club stays listed at 0, so it can be switched off");
+    }
+    countsHold("club Driver AND ready: labels hold");
+    sl.setClubFilter(QString());
+    sl.setShowArchived(true);
+    countsHold("ready AND archived shown: labels hold");
+    check(sl.archivedCount() == 1, "archivedCount counts under the other filters");
+    sl.setReportFilter(QString());
+    sl.setSearch(QStringLiteral("iron"));
+    sl.toggleDevice(QStringLiteral("faceOn"));
+    countsHold("search iron AND Face-on AND archived shown: labels hold");
+    sl.clearDeviceFilter(); sl.setSearch(QString()); sl.setShowArchived(false);
+    {
+        int swings = 0; double bytes = 0;
+        for (int i = 0; i < sl.count(); ++i)
+            if (role(sl, i, R::ShownRankRole).toInt() >= 0) {
+                swings += role(sl, i, R::SwingsRole).toInt();
+                bytes  += role(sl, i, R::SessionBytesRole).toDouble();
+            }
+        check(sl.shownSwings() == 13 && swings == 13 && sl.shownBytes() == bytes && bytes > 0,
+              "shownSwings / shownBytes: totals over the shown rows (3+4+3+3)");
+    }
+    {
+        // The live row: shown under every filter, counted in none.
+        sl.setLiveSessionDir(h3);
+        sl.setReportFilter(QStringLiteral("ready"));
+        sl.setSearch(QStringLiteral("nothing like it"));
+        check(shown() == days({ 3 }) && role(sl, 0, R::IsLiveRole).toBool(), "the live row is always shown");
+        sl.setSearch(QString());
+        check(sl.reportCounts().value("none").toInt() == 0, "the live row is not counted");
+        countsHold("live row present: labels hold over the saved sessions");
+        sl.setReportFilter(QString());
+        sl.setLiveSessionDir(QString());
+    }
+
+    std::printf("sessions screen: archive and restore keep a current report current (S-D6)\n");
+    {
+        const QString archiveRoot = tmp.filePath(QStringLiteral("archive"));
+        QDir().mkpath(archiveRoot);
+        const QString a = tmp.filePath(QStringLiteral("I/2026-10-06_I_01"));   // current: kept current
+        const QString b = tmp.filePath(QStringLiteral("I/2026-10-07_I_01"));   // stale: stays stale
+        const QString c = tmp.filePath(QStringLiteral("I/2026-10-08_I_01"));   // control: plain archive
+        makeDocSession(a, 3, at(10, 6, 9, 0));
+        makeDocSession(b, 3, at(10, 7, 9, 0));
+        makeDocSession(c, 3, at(10, 8, 9, 0));
+        writeReport(a, true, at(10, 6, 12, 0));
+        writeReport(b, false, at(10, 7, 12, 0));
+        writeReport(c, true, at(10, 8, 12, 0));
+        const ReportFingerprintFn fpFn = [](const QString &d) { return fp(d); };
+        const auto stateIs = [](const QString &d) { return stateOf(d).value(QStringLiteral("state")).toString(); };
+        check(stateIs(a) == QLatin1String("current") && stateIs(b) == QLatin1String("stale"), "before: current and stale");
+
+        const QByteArray identityBefore = swingsIdentity(a);
+        const auto ra = keepReportCurrent(a, fpFn, [&] { return pinpoint::SessionArchiver::archive(a, archiveRoot); });
+        check(ra.ok && pinpoint::SessionArchiver::isArchived(a), "archived for real (verified copy, stubs, marker)");
+        check(swingsIdentity(a) != identityBefore, "the stubs moved the swings' identity");
+        check(stateIs(a) == QLatin1String("current"), "…and the report still reads current");
+        const auto rb = keepReportCurrent(b, fpFn, [&] { return pinpoint::SessionArchiver::archive(b, archiveRoot); });
+        check(rb.ok && stateIs(b) == QLatin1String("stale"), "an out-of-date report stays out of date");
+        const auto rc = pinpoint::SessionArchiver::archive(c, archiveRoot);
+        check(rc.ok && stateIs(c) == QLatin1String("stale"), "control: without the re-stamp, archiving reads out of date");
+
+        SessionReportListModel il;
+        il.setSynchronous(true);
+        il.setStateFunction(stateOf);
+        il.setShowArchived(true);
+        il.setAthleteDir(tmp.filePath(QStringLiteral("I")));
+        bool allArchived = il.count() == 3;
+        for (int i = 0; i < il.count(); ++i) allArchived = allArchived && il.data(il.index(i), R::ArchivedRole).toBool();
+        check(allArchived, "the list sees the archiver's own marker");
+        check(il.rowFor(a).value(QStringLiteral("stateShort")).toString() == QLatin1String("Ready"), "the list reads it Ready");
+
+        // A send made while archived lives only in the library's record; restore must not undo it.
+        auto m = readReportMeta(a);
+        m->sends.append({ at(10, 23, 9, 0), QStringLiteral("smtp"), m->sha256 });
+        writeReportMeta(a, *m);
+        const auto r2 = keepReportCurrent(a, fpFn, [&] { return pinpoint::SessionArchiver::restore(a); });
+        check(r2.ok && !pinpoint::SessionArchiver::isArchived(a), "restored for real");
+        check(stateIs(a) == QLatin1String("current"), "…and the report still reads current");
+        const auto after = readReportMeta(a);
+        check(after && after->sends.size() == 1 && after->sends.last().ms == at(10, 23, 9, 0),
+              "the send recorded while archived survives the restore (report/ is not copied back over)");
+        il.refresh();
+        check(!il.rowFor(a).value(QStringLiteral("archived")).toBool()
+              && il.rowFor(a).value(QStringLiteral("stateShort")).toString() == QLatin1String("Sent 23 Oct"),
+              "the list: not archived, Sent 23 Oct");
     }
 
     std::printf("%s (%d failed)\n", g_fail ? "FAIL" : "PASS", g_fail);

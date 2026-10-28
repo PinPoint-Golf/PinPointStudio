@@ -58,6 +58,7 @@
 #include <QVariantMap>
 #include <QVector>
 
+#include <functional>
 #include <optional>
 
 namespace pinpoint::report {
@@ -218,6 +219,40 @@ inline ReportState reportState(const QString &sessionDir, const std::optional<Re
 inline bool sentDiffers(const ReportMeta &m)
 {
     return !m.sends.isEmpty() && m.sends.last().sha256 != m.sha256;
+}
+
+// A session's fingerprint as the report model computes it now (SessionReportModel::fingerprintFunction):
+// its inputs copied on the model's thread, so the function touches only the file system and an
+// archive worker may call it.
+using ReportFingerprintFn = std::function<QString(const QString &sessionDir)>;
+
+// The record's fingerprint replaced, everything else (the note, the send log) kept.
+inline bool restampReportFingerprint(const QString &sessionDir, const QString &fingerprint)
+{
+    std::optional<ReportMeta> m = readReportMeta(sessionDir);
+    if (!m) return false;
+    if (m->fingerprint == fingerprint) return true;
+    m->fingerprint = fingerprint;
+    return writeReportMeta(sessionDir, *m);
+}
+
+// A REWRITE THAT CHANGES HOW THE SWINGS ARE STORED, NOT WHAT THEY SAY (sessions_screen_redesign.md
+// S-D6). Archiving thins each swing to a stub and restoring brings the full document back; both move
+// every document's size and mtime, so swingsIdentity — and the fingerprint with it — moves while every
+// sentence of the report still holds. A report that was current before `rewrite` is re-stamped after it
+// succeeds; one already out of date stays so, and a failed rewrite re-stamps nothing. `rewrite` returns
+// something with `ok` (SessionArchiver::Result); with no fingerprint function it simply runs.
+template <typename Rewrite>
+auto keepReportCurrent(const QString &sessionDir, const ReportFingerprintFn &fingerprint, Rewrite &&rewrite)
+{
+    bool current = false;
+    if (fingerprint) {
+        const std::optional<ReportMeta> m = readReportMeta(sessionDir);
+        current = m && reportState(sessionDir, m, fingerprint(sessionDir)) == ReportState::Current;
+    }
+    auto r = rewrite();
+    if (r.ok && current) restampReportFingerprint(sessionDir, fingerprint(sessionDir));
+    return r;
 }
 
 // The row's state words (§8.0), plain text, never a badge: "No report" · "Report prepared 20 Oct" ·

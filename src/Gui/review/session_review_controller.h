@@ -115,9 +115,9 @@ public:
 
     // Move a whole saved session folder to the OS trash (recoverable there — the
     // same recovery path as the carousel's per-shot trash) and rebuild the list.
-    // No-op (false) for the live row or a path that can't be trashed; if the
-    // trashed session was being reviewed, falls back to live. Returns true on
-    // success.
+    // No-op (false) for the live row, the live session's own folder (logged) or a
+    // path that can't be trashed; if the trashed session was being reviewed,
+    // falls back to live. Returns true on success.
     Q_INVOKABLE bool trashSession(const QString &sessionId);
 
 public slots:

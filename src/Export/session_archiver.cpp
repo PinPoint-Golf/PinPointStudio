@@ -153,6 +153,14 @@ QString markerPath(const QString &sessionDir) { return sessionDir + QStringLiter
 
 bool isArchived(const QString &sessionDir) { return QFileInfo::exists(markerPath(sessionDir)); }
 
+qint64 folderBytes(const QString &dir)
+{
+    qint64 total = 0;
+    QDirIterator it(dir, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+    while (it.hasNext()) { it.next(); total += it.fileInfo().size(); }
+    return total;
+}
+
 QString archivePathFor(const QString &sessionDir, const QString &archiveRoot)
 {
     const QFileInfo s(QDir::cleanPath(sessionDir));
@@ -283,7 +291,12 @@ Result restore(const QString &sessionDirIn, const Progress &progress)
     while (it.hasNext()) {
         const QString abs = it.next();
         if (it.fileName().endsWith(QLatin1String(".partial"))) continue;
-        files << base.relativeFilePath(abs);
+        const QString rel = base.relativeFilePath(abs);
+        // The report was never thinned: the library's copy is the newer (a send recorded while
+        // archived is in its log only), so the archive's never overwrites it.
+        if (rel.startsWith(QLatin1String("report/")) && QFileInfo::exists(sessionDir + QLatin1Char('/') + rel))
+            continue;
+        files << rel;
     }
     files.sort();
 

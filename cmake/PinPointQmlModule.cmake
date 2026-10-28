@@ -81,6 +81,9 @@ set(PP_QML_FILES
     src/Gui/components/PpCardShell.qml
     src/Gui/components/PpCard.qml
     src/Gui/components/PpTableRow.qml
+    src/Gui/components/PpRowAction.qml
+    src/Gui/components/PpConfirm.qml
+    src/Gui/components/PpCheckRow.qml
     src/Gui/components/PpExpandRow.qml
     src/Gui/components/PpBandBar.qml
     src/Gui/components/PpStageCard.qml
@@ -389,7 +392,6 @@ set(PP_QML_FILES
     src/Gui/diagnosticmodel/ModelTools.qml
     src/Gui/diagnosticmodel/ModelBarButton.qml
     src/Gui/diagnosticmodel/ModelEnumField.qml
-    src/Gui/diagnosticmodel/ModelConfirm.qml
     src/Gui/diagnosticmodel/ModelPolicyPicker.qml
     src/Gui/diagnosticmodel/ModelUnsaved.qml
     src/Gui/diagnosticmodel/ModelCorridorPlot.qml
@@ -417,8 +419,11 @@ set(PP_QML_FILES
     src/Gui/report/PpWristPage.qml
     src/Gui/report/PpReportAbout.qml
     src/Gui/report/PpReportPrintHost.qml
-    src/Gui/report/PpSessionReportRow.qml
     src/Gui/report/PpSessionReportList.qml
+    src/Gui/report/PpSessionsTableRow.qml
+    src/Gui/report/PpSessionRowMenu.qml
+    src/Gui/report/PpSessionsSelectionBar.qml
+    src/Gui/report/PpSessionBulkJobs.qml
     src/Gui/report/PpReportSheet.qml
     # Settings → Studio (the studio and its one coach) and the in-app file picker it chooses a logo with.
     src/Gui/settings/StudioPanel.qml

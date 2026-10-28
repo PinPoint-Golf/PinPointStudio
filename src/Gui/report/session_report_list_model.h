@@ -49,6 +49,12 @@
 // sessions that used every chosen device, the live one always. The rows stay where they are — the report
 // states are asked and answered by row — and each says where it falls among those shown (shownRank, -1
 // when filtered out), so Home's "first ten" are the first ten that pass.
+//
+// THE SESSIONS SCREEN'S FILTERS (sessions_screen_redesign.md §2.1) narrow the same way, beside the device
+// filter and ANDed with it: a club, a report state, archived sessions hidden unless asked for, and a search
+// over work-on 1 and the clubs. Each filter's label counts (reportCounts, clubCounts, archivedCount, and the
+// device chips) are taken over the saved sessions the OTHER filters pass, so a label is what clicking it
+// would show. The live row is never filtered out and never counted.
 
 #include <QString>
 #include <QStringList>
@@ -71,6 +77,23 @@ class SessionReportListModel : public DeviceFilterModel
     // True while a scan is running (the first one included). The list says "Reading sessions…" only
     // while it has no rows to show.
     Q_PROPERTY(bool scanning READ scanning NOTIFY scanningChanged)
+    // A club's display label ("7 iron"), "" for all: sessions that hit it.
+    Q_PROPERTY(QString clubFilter READ clubFilter WRITE setClubFilter NOTIFY clubFilterChanged)
+    // "" | "none" | "stale" | "ready" (current, sent or not). A row whose state is not asked yet passes "" only.
+    Q_PROPERTY(QString reportFilter READ reportFilter WRITE setReportFilter NOTIFY reportFilterChanged)
+    // Archived sessions (SessionArchiver's marker) are hidden unless this is on.
+    Q_PROPERTY(bool showArchived READ showArchived WRITE setShowArchived NOTIFY showArchivedChanged)
+    // Case-insensitive, over work-on 1 as shown (the goal) and the clubs; "" for all. No notes yet (S-D2).
+    Q_PROPERTY(QString search READ search WRITE setSearch NOTIFY searchChanged)
+    // The filter labels. { none, stale, ready }: saved sessions per report state.
+    Q_PROPERTY(QVariantMap reportCounts READ reportCounts NOTIFY countsChanged)
+    // [{ club, count }], most sessions first, then by name; the chosen club always listed.
+    Q_PROPERTY(QVariantList clubCounts READ clubCounts NOTIFY countsChanged)
+    // Archived sessions that showArchived would add.
+    Q_PROPERTY(int archivedCount READ archivedCount NOTIFY countsChanged)
+    // Over the rows shown, the live one included: the header's "10 sessions · 202 swings · 14.6 GB".
+    Q_PROPERTY(int shownSwings READ shownSwings NOTIFY countsChanged)
+    Q_PROPERTY(double shownBytes READ shownBytes NOTIFY countsChanged)
 public:
     enum Role {
         DirRole = Qt::UserRole + 1, DateLabelRole, SessionOfDayRole, ClubsRole, SwingsRole, DevicesRole,
@@ -83,6 +106,10 @@ public:
         // The device tokens behind DevicesRole's labels, same order (the filter's ids); and the row's
         // place among those the device filter shows, -1 when it is filtered out.
         DeviceTokensRole, ShownRankRole,
+        // The Sessions screen (sessions_screen_redesign.md): the folder's size on disk; whether it is
+        // archived; the report cell's short words — "No report", "Out of date", "Ready", "Sent 21 Oct"
+        // (sent by the app and still the PDF on disk) — empty until the state is asked.
+        SessionBytesRole, ArchivedRole, StateShortRole,
     };
     Q_ENUM(Role)
 
@@ -114,6 +141,20 @@ public:
     int shownCount() const;
     bool scanning() const { return m_scanning; }
 
+    QString clubFilter() const { return m_clubFilter; }
+    void    setClubFilter(const QString &club);
+    QString reportFilter() const { return m_reportFilter; }
+    void    setReportFilter(const QString &filter);
+    bool    showArchived() const { return m_showArchived; }
+    void    setShowArchived(bool on);
+    QString search() const { return m_search; }
+    void    setSearch(const QString &text);
+    QVariantMap  reportCounts() const;
+    QVariantList clubCounts() const;
+    int     archivedCount() const;
+    int     shownSwings() const;
+    double  shownBytes() const;
+
     Q_INVOKABLE void refresh();
     // A row as a map (QML's delegates have the roles; the sheet and the probes want one row by dir).
     Q_INVOKABLE QVariantMap rowFor(const QString &sessionDir) const;
@@ -126,14 +167,18 @@ public:
         QString     dateLabel;          // "Tue 20 Oct 2026"
         int         sessionOfDay = 0;   // 1-based, in start order within the day
         QString     clubs;              // "7 iron, Driver"
+        QStringList clubList;           // the same labels, one each
         int         swings = 0;
         QStringList devices;            // display labels, the drawer's order and words
         QStringList deviceTokens;       // their session_summary.h tokens, same order
         bool        workOnKnown = false;
         QString     workOn1Id, workOn1;
         bool        isLive = false;
+        qint64      sessionBytes = 0;   // the folder on disk, every file
+        bool        archived = false;   // SessionArchiver's marker
         QString     state;              // "none" | "current" | "stale"; empty until asked
         QString     stateWords;
+        QString     stateShort;         // StateShortRole's words
         QString     pdfPath;
         qint64      sizeBytes  = 0;
         qint64      preparedMs = 0;
@@ -150,6 +195,10 @@ public slots:
 signals:
     void countChanged();
     void scanningChanged();
+    void clubFilterChanged();
+    void reportFilterChanged();
+    void showArchivedChanged();
+    void searchChanged();
     // A scan has been applied (its rows are in; their states may still be arriving).
     void refreshed();
 
@@ -158,7 +207,12 @@ protected:
     void applyDeviceFilter() override;
 
 private:
-    void rerank();                          // m_shownRank from m_rows and the filter
+    // The filters a saved row fails, one bit each, so a count can leave its own filter out.
+    enum FilterBit { DeviceBit = 1, ClubBit = 2, ReportBit = 4, ArchivedBit = 8, SearchBit = 16 };
+    int  failedFilters(const Row &r) const;
+    bool rerank();                          // m_shownRank from m_rows and the filters; true when a rank moved
+    void refilter();                        // a filter changed: re-rank in place and say so
+    void statesLanded();                    // report states arrived: the report filter and counts move
     void applyScan(int generation, QVector<Row> rows);
     void askStates();
     void applyState(int row);
@@ -166,6 +220,10 @@ private:
 
     QString        m_athleteDir;
     QString        m_liveDir;
+    QString        m_clubFilter;
+    QString        m_reportFilter;
+    QString        m_search;
+    bool           m_showArchived = false;
     QVector<Row>   m_rows;
     QVector<int>   m_shownRank;             // per row: its place among those shown, -1 when filtered out
     StateFn        m_stateFn;

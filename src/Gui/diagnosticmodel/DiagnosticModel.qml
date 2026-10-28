@@ -1933,10 +1933,10 @@ Item {
     // ── The two prompts ───────────────────────────────────────────────────────
     //
     // Same structure, deliberately different colour. One is a call to act and loses nothing; the
-    // other destroys saved work. See ModelConfirm.qml for why that distinction is drawn rather than
+    // other destroys saved work. See components/PpConfirm.qml for why that distinction is drawn rather than
     // assumed.
 
-    ModelConfirm {
+    PpConfirm {
         id: saveConfirm
         parent: root
         tone:   "attention"
@@ -1954,7 +1954,7 @@ Item {
         }
     }
 
-    ModelConfirm {
+    PpConfirm {
         id: resetConfirm
         parent: root
         tone:   "error"

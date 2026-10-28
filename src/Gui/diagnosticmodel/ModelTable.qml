@@ -36,6 +36,13 @@ import PinPointStudio
 // dropped a caret into it, so navigating paid for editing. So: a click selects, and a click on a
 // row that is ALREADY selected edits. See the handler at the foot of the cell delegate for the
 // full reasoning and what it costs.
+//
+// SELECTION DIFFERS FROM THE SESSIONS TABLE ON PURPOSE (sessions_screen_redesign.md S-D1). Here a plain
+// click REPLACES the selection (it drives the inspector's "current" row), Ctrl/⌘-click toggles, and
+// shift-click replaces the selection with the range from `selectedId`. The Sessions table
+// (report/PpSessionReportList.qml) is a list acted on in batches with no current-item pane: there a
+// plain click TOGGLES and shift-click ADDS the range from its own anchor. Do not "fix" one to match
+// the other.
 Item {
     id: root
 
@@ -651,7 +658,7 @@ Item {
             // it would be built once per cell — eight columns' worth of hidden chips per row, for
             // one that can ever show — and "the name" is not reliably cell zero anyway: a
             // cross-type search result puts `Type` there and the name second.
-            Rectangle {
+            PpRowAction {
                 id: graphChip
 
                 // Never over an open editor. The editor owns the row while it is up, and a control
@@ -663,51 +670,24 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 x: root._flexColumnRight - width - Theme.sp(10)
 
-                width:  graphChipText.implicitWidth + Theme.sp(14)
-                height: Theme.sp(20)
-                radius: Theme.radius
-                color:  graphPress.containsMouse ? Theme.colorAccentLight : Theme.colorBg3
-                border.width: 1
-                border.color: graphPress.containsMouse ? Theme.colorAccent : Theme.colorBorderMid
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
                 // The word the Table/Graph toggle already uses, not a glyph — there is nothing to
-                // learn, and no font-coverage gamble on a symbol for "network". The shortcut rides
-                // in the tooltip, so the mouse path teaches the keyboard one.
-                Text {
-                    id: graphChipText
-                    anchors.centerIn: parent
-                    text:                qsTr("Graph")
-                    font.family:         Theme.fontBody
-                    font.pixelSize:      Theme.fontSzMicro
-                    font.weight:         Theme.fontBodyWeight
-                    font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Theme.capsFont
-                    color: graphPress.containsMouse ? Theme.colorAccent : Theme.colorText2
-                }
+                // learn, and no font-coverage gamble on a symbol for "network".
+                text:    qsTr("Graph")
+                tooltip: qsTr("Show in graph  ·  G")
 
-                ToolTip.visible: graphPress.containsMouse
-                ToolTip.text:    qsTr("Show in graph  ·  G")
-                ToolTip.delay:   400
-
-                PpPressable {
-                    id: graphPress
-                    hoverScale: 1.0
-                    enabled:    graphChip.visible
-                    onClicked: {
-                        var id = rowItem.modelData.id
-                        // Selects exactly as a plain click on the row would, THEN asks for the
-                        // picture. Two steps rather than one because the graph centres on the
-                        // selection: asking without selecting first would draw whatever was
-                        // selected before, which on a hovered row is another row entirely — the
-                        // pointer over one thing and the canvas showing another.
-                        root.endEdit()
-                        root.selectedId = id
-                        root.selection  = [ id ]
-                        listView.currentIndex = rowItem.index
-                        root.activated(id)
-                        root.graphRequested(id)
-                    }
+                onClicked: {
+                    var id = rowItem.modelData.id
+                    // Selects exactly as a plain click on the row would, THEN asks for the
+                    // picture. Two steps rather than one because the graph centres on the
+                    // selection: asking without selecting first would draw whatever was
+                    // selected before, which on a hovered row is another row entirely — the
+                    // pointer over one thing and the canvas showing another.
+                    root.endEdit()
+                    root.selectedId = id
+                    root.selection  = [ id ]
+                    listView.currentIndex = rowItem.index
+                    root.activated(id)
+                    root.graphRequested(id)
                 }
             }
 

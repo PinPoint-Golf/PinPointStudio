@@ -7,7 +7,9 @@
 # mail hand-off's half that needs no mail app (report_mailer.cpp: validation, PINPOINT_MAIL_DRYRUN);
 # platformCompose is the test's own, so no platform file is linked. report_mailer.cpp also sends over
 # SMTP (report_smtp_test covers that), so the SMTP files come along, with the password store's portable
-# half only — its platform half is the test's own too.
+# half only — its platform half is the test's own too. The Sessions screen's half: sizes, the archived
+# marker, the filters and their counts, the short report words, and a real archive / restore through
+# SessionArchiver keeping a current report current.
 find_package(Qt6 REQUIRED COMPONENTS Network)
 pp_add_test(report_list_test
     SOURCES report_list_test.cpp
@@ -18,6 +20,7 @@ pp_add_test(report_list_test
             ${GUI}/report/smtp_client.cpp
             ${GUI}/report/mail_credentials.cpp
             ${SRC}/Export/swing_doc.cpp
+            ${SRC}/Export/session_archiver.cpp
             ${SRC}/Export/swing_paths.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/pp_log_stream.cpp

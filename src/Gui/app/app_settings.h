@@ -121,6 +121,9 @@ class AppSettings : public QObject
     // model clears it again, because an install back on the standard has not been warned about
     // leaving it. Persisted, or the warning would be a warning every session, which is no warning.
     Q_PROPERTY(bool diagnosticsBaseModelWarningAck READ diagnosticsBaseModelWarningAck WRITE setDiagnosticsBaseModelWarningAck NOTIFY diagnosticsBaseModelWarningAckChanged)
+    // Whether the Sessions screen's hint line ("Click a row to select or deselect · …") has done its
+    // job: set the first time anything is selected there, and the line stays hidden after.
+    Q_PROPERTY(bool sessionsHintSeen READ sessionsHintSeen WRITE setSessionsHintSeen NOTIFY sessionsHintSeenChanged)
     // Whether the Settings sidenav is folded to its icon strip. Persisted and applied to EVERY
     // settings panel: a fold that resets on every visit is a fold you re-do forever.
     Q_PROPERTY(bool settingsNavCollapsed READ settingsNavCollapsed WRITE setSettingsNavCollapsed NOTIFY settingsNavCollapsedChanged)
@@ -412,6 +415,8 @@ public:
                                                       QStringList()).toStringList();
         m_diagnosticsBaseModelWarningAck =
             ppSettings().value(QStringLiteral("ui/diagnosticsBaseModelWarningAck"), false).toBool();
+        m_sessionsHintSeen =
+            ppSettings().value(QStringLiteral("ui/sessionsHintSeen"), false).toBool();
         m_settingsNavCollapsed =
             ppSettings().value(QStringLiteral("ui/settingsNavCollapsed"), false).toBool();
         m_diagnosticsInspectorCollapsed =
@@ -607,6 +612,7 @@ public:
     QString sessionDiagnosticsCadence() const { return m_sessionDiagnosticsCadence; }
     QStringList diagnosticsNormSetsOff() const { return m_diagnosticsNormSetsOff; }
     bool    diagnosticsBaseModelWarningAck() const { return m_diagnosticsBaseModelWarningAck; }
+    bool    sessionsHintSeen() const { return m_sessionsHintSeen; }
     bool    settingsNavCollapsed() const { return m_settingsNavCollapsed; }
     bool    diagnosticsInspectorCollapsed() const { return m_diagnosticsInspectorCollapsed; }
     bool    diagnosticsFacetsCollapsed() const { return m_diagnosticsFacetsCollapsed; }
@@ -837,6 +843,14 @@ public:
         m_diagnosticsBaseModelWarningAck = v;
         ppSettings().setValue(QStringLiteral("ui/diagnosticsBaseModelWarningAck"), v);
         emit diagnosticsBaseModelWarningAckChanged();
+    }
+
+    void setSessionsHintSeen(bool v)
+    {
+        if (m_sessionsHintSeen == v) return;
+        m_sessionsHintSeen = v;
+        ppSettings().setValue(QStringLiteral("ui/sessionsHintSeen"), v);
+        emit sessionsHintSeenChanged();
     }
 
     void setSettingsNavCollapsed(bool v)
@@ -1647,6 +1661,7 @@ signals:
     void sessionDiagnosticsCadenceChanged();
     void diagnosticsNormSetsOffChanged();
     void diagnosticsBaseModelWarningAckChanged();
+    void sessionsHintSeenChanged();
     void settingsNavCollapsedChanged();
     void diagnosticsInspectorCollapsedChanged();
     void diagnosticsFacetsCollapsedChanged();
@@ -1767,6 +1782,7 @@ private:
     QString m_sessionDiagnosticsCadence = QStringLiteral("bandwidth");
     QStringList m_diagnosticsNormSetsOff;
     bool        m_diagnosticsBaseModelWarningAck = false;
+    bool        m_sessionsHintSeen = false;
     bool        m_settingsNavCollapsed = false;
     bool        m_diagnosticsInspectorCollapsed = false;
     bool        m_diagnosticsFacetsCollapsed = false;

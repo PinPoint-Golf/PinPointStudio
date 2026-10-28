@@ -298,6 +298,13 @@ bool SessionReviewController::trashSession(const QString &sessionId)
 {
     if (sessionId.isEmpty())             // the live row has no on-disk session
         return false;
+    // The live session's own folder, named by its path: its shots are on the carousel and a session
+    // may still be writing into it. Refused here, not only hidden in the views.
+    const QString live = liveSessionDir();
+    if (!live.isEmpty() && QDir::cleanPath(QFileInfo(sessionId).absoluteFilePath()) == QDir::cleanPath(live)) {
+        ppWarn() << "[SessionReviewController] refused: the live session cannot be trashed:" << sessionId;
+        return false;
+    }
     // Move the whole session folder to the OS trash (recoverable there). On
     // failure keep everything in place — the files are still on disk.
     // ⚠ SwingPaths::trashPath, not QFile::moveToTrash — see its note: a

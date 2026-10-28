@@ -1,6 +1,7 @@
 # Sessions screen redesign
 
-Status: **design + build plan, not started.** Written 28 Oct 2026 against `5ac84d14`. Follows
+Status: **design + build plan; being built.** Written 28 Oct 2026 against `5ac84d14`; corrected
+against `04f84e5b` the same day (§8 — read it first, it overrides the sections above where they differ). Follows
 `ux_refactor_away_from_4_modes.md` and uses its §2.5 visual language and shared components.
 
 How to use with Claude Code: one phase per fresh session (§6). **Look at the two PNGs in
@@ -37,7 +38,7 @@ Full-width table, top to bottom:
    - **Club** dropdown (All, then the clubs present).
    - **Show archived (N)** checkbox, right-aligned. Archived sessions are hidden by default.
 3. **The table** — a `PpCard { table: true }` with a caption row and one `PpTableRow` per session,
-   52 px high, hairline dividers. Columns:
+   `Theme.rowH` high, hairline dividers. Columns:
 
    | Column | Content | Notes |
    |---|---|---|
@@ -46,7 +47,7 @@ Full-width table, top to bottom:
    | Swings | count, monospace, right-aligned | |
    | Recorded with | `PpDeviceTags`, one pill per device | |
    | Work-on | work-on 1's goal, elided; "No habits to work on" / "—" as today | flexible column |
-   | Report | state word + its one next action: *No report · Make* / *Out of date · Remake* / *Ready · 8.1 MB · Email*; sending progress and errors replace this cell in place | no action on a 1-swing session (`CanReportRole`) |
+   | Report | state word + its one next action: *No report · Make* / *Out of date · Remake* / *Ready · 8.1 MB · Email*; sending progress and errors replace this cell in place | no action when the session cannot report (`CanReportRole`: ≥ 3 swings and not live) |
    | ⋯ | row menu | |
 
 4. **Hint line** under the table, quiet: *Click a row to select or deselect · Shift-click for a
@@ -120,7 +121,7 @@ Restore · — · Delete… The menu acts on **its row only**, never the selecti
 | Export… | options sheet: cameras (`swingExporter.camerasForShots`), include JSON | same sheet over the union of cameras; **one zip per session**, queued (the exporter is single-job: `busy`) | `sessionReviewController.swingDirsForSession(id)` → `swingExporter.exportShots(dirs, videos, includeJson)` |
 | Show in Finder | as today | — | |
 | Archive / Restore | confirm sheet stating what archiving keeps and frees | one confirm with totals; runs in turn | `archiveController.archiveSession/restoreSession` (worker thread, one at a time; `busy`, `progress`, `status`) |
-| Delete… | confirm: "Move Mon 5 Oct to the Trash? Its 31 swings and report go with it. You can put it back from the Trash." | one confirm listing count, swings and size | `sessionReviewController.trashSession(id)` (OS trash, recoverable). The live session cannot be deleted. |
+| Delete… | confirm: "Move Mon 5 Oct to the Trash? Its 31 swings and report go with it. You can put it back from the Trash." | one confirm listing count, swings and size | `sessionReviewController.trashSession(id)` (the library's `.pinpoint-trash`, kept for `trashRetentionDays`, 0 = forever). The live session cannot be deleted. |
 
 Never delete without a confirm; never archive or delete the live session; a bulk job stops between
 sessions on Cancel.
@@ -157,7 +158,7 @@ sessions on Cancel.
 
 ## 5. Mockup notes
 
-- Rail in the PNGs is the current one: Home · Live · Sessions · Work-ons · Swing model · Settings.
+- Rail in the PNGs is stale: the rail is now Home · Live · Sessions · Settings (`16aa865c`). Ignore it.
 - `01_…` shows three rows selected (Mon 5 Oct, Tue 18 Aug · 2, Tue 18 Aug · 1), the pointer over
   Tue 18 Aug · 2 with its Review chip visible, and the selection bar.
 - `02_…` shows no selection, Review visible on the hovered Thu 8 Oct row and its ⋯ menu open.
@@ -194,3 +195,42 @@ per session.
   PDFs. Revisit if coaches ask for a digest.
 - **S-D4** Archived rows when shown: same table, dimmed, Report cell reads "Archived", menu offers
   Restore; Review still works if the archive keeps the kept swings (check `SessionArchiver`).
+
+## 8. Corrections and decisions (28 Oct, audit against `04f84e5b`)
+
+Decisions (Mark, 28 Oct):
+
+- **S-D5 Report cell.** Short state + one action as §2.1, but a sent report reads "Sent 21 Oct" in
+  place of "Ready". Today's full `stateWords` ("Sent 21 Oct 18:40", "Opened in Mail…", "Report
+  prepared…") become the cell's tooltip. "Open old report", "Remake" on a current report and "add
+  *X*'s email" move to the ⋯ menu. Nothing today's row offered is lost.
+- **S-D6 Archive keeps the report current.** Archiving rewrites each swing as a stub, which changes
+  the `swingsIdentity` hash (`report/report_meta.h`), so a current report used to read "Out of date"
+  after archive and again after restore. Archive and restore now re-stamp the identity when the
+  report was current before.
+- **S-D7 Build.** All three phases in one run, one commit at the end, after Mark has judged the
+  result.
+
+Corrections:
+
+- **Live guard.** Neither `trashSession` nor `archiveSession` refused the live session (only `""`).
+  Both now refuse it in C++, and the screen never offers it.
+- **Delete** goes to the library's `.pinpoint-trash`, not the OS Trash; the confirm says so and names
+  the retention.
+- **S-D4, archived rows.** Opening an archived session in Review starts a full restore
+  (`archivedSessionOpened` → `archiveController.restoreSession`, main.cpp). Review on an archived row
+  reads "Restore and review" and its tooltip says so.
+- **Archive** needs `appSettings.archiveLocation`; with none set the action is disabled and its
+  tooltip points to Settings → Archiving.
+- **Tests.** `tests/qml/tst_session_report.qml` is the printed report's layout test, not the list;
+  nothing covered the list. Phases 2 and 3 add `tst_sessions_selection.qml` (run by ctest `qml_ui`).
+- **No shared menu or confirm existed.** The row menu follows the Popup + `PpPopoverCard` pattern of
+  `session/PpSessionDrawer.qml`; the confirm is `diagnosticmodel/ModelConfirm.qml` moved to
+  `components/PpConfirm.qml`; Export reuses `shot/PpExportOptionsSheet.qml` (no new sheet); the
+  checkbox is its `CheckRow` lifted to `components/PpCheckRow.qml`.
+- **Shift-click.** ModelTable's shift-click *replaces* the selection with the range from
+  `selectedId`; here it *adds* the range from this table's own anchor. Deliberate (S-D1).
+- **Bulk jobs** live in QML (`report/PpSessionBulkJobs.qml`): every backend is already a single-job
+  QML-facing controller. `archiveController` has no ok/error signal — the queue watches `busy` and
+  reads `status`. The exporter has no cancel; Cancel stops before the next session.
+- `PpSessionReportList`'s `limit` / `showAll` path was dead (Home no longer lists sessions); removed.

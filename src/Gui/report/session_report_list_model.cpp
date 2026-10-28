@@ -22,6 +22,7 @@
 #include "session_report_model.h"
 #include "../review/session_summary.h"
 #include "../../Coaching/work_ons.h"
+#include "../../Export/session_archiver.h"
 #include "../../Export/swing_doc.h"
 
 #include <QDate>
@@ -50,6 +51,31 @@ QString wordsFor(const QString &state)
     using namespace pinpoint::report;
     if (state == QLatin1String("stale")) return reportStateWords(ReportState::Stale, std::nullopt);
     return reportStateWords(ReportState::None, std::nullopt);
+}
+
+// The report cell's words (S-D5): the state in one or two words, a sent report by the day it went. "Sent"
+// is the app's own send only (the server took it) and only while the PDF on disk is the one that went;
+// a hand-off to Mail is not a send (report_meta.h), so that report reads Ready, its full words in the
+// tooltip.
+QString shortWordsFor(const QString &state, const QVariantMap &st)
+{
+    if (state == QLatin1String("stale"))   return QStringLiteral("Out of date");
+    if (state != QLatin1String("current")) return QStringLiteral("No report");
+    const QVariantMap last = st.value(QStringLiteral("lastSend")).toMap();
+    if (last.value(QStringLiteral("method")).toString() == QLatin1String("smtp")
+        && !st.value(QStringLiteral("sentDiffers")).toBool()) {
+        const qint64 ms = qint64(last.value(QStringLiteral("ms")).toDouble());
+        return QStringLiteral("Sent ") + QLocale::c().toString(QDateTime::fromMSecsSinceEpoch(ms).date(),
+                                                                 QStringLiteral("d MMM"));
+    }
+    return QStringLiteral("Ready");
+}
+
+// The report filter's name for a state: "ready" covers current, sent or not. Empty until asked.
+QString reportBucket(const QString &state)
+{
+    if (state == QLatin1String("current")) return QStringLiteral("ready");
+    return state;   // "none" | "stale" | ""
 }
 
 // The record's ordering rule is the only one this list may quote: a record from an older rule is
@@ -145,23 +171,38 @@ int SessionReportListModel::shownCount() const
     return int(std::count_if(m_shownRank.cbegin(), m_shownRank.cend(), [](int r) { return r >= 0; }));
 }
 
+// The saved sessions the other filters pass: the device chips count over these, like every other label.
 QVector<QStringList> SessionReportListModel::savedDeviceSets() const
 {
     QVector<QStringList> out;
     for (const Row &r : m_rows)
-        if (!r.isLive)
+        if (!r.isLive && (failedFilters(r) & ~DeviceBit) == 0)
             out.append(r.deviceTokens);
     return out;
 }
 
-void SessionReportListModel::rerank()
+int SessionReportListModel::failedFilters(const Row &r) const
 {
+    int failed = 0;
+    if (!passesDeviceFilter(r.deviceTokens))                                          failed |= DeviceBit;
+    if (!m_clubFilter.isEmpty() && !r.clubList.contains(m_clubFilter))                failed |= ClubBit;
+    if (!m_reportFilter.isEmpty() && reportBucket(r.state) != m_reportFilter)         failed |= ReportBit;
+    if (!m_showArchived && r.archived)                                                failed |= ArchivedBit;
+    if (!m_search.isEmpty() && !r.workOn1.contains(m_search, Qt::CaseInsensitive)
+        && !r.clubs.contains(m_search, Qt::CaseInsensitive))                          failed |= SearchBit;
+    return failed;
+}
+
+bool SessionReportListModel::rerank()
+{
+    const QVector<int> before = m_shownRank;
     m_shownRank.resize(m_rows.size());
     int next = 0;
     for (int i = 0; i < m_rows.size(); ++i) {
         const Row &r = m_rows.at(i);
-        m_shownRank[i] = (r.isLive || passesDeviceFilter(r.deviceTokens)) ? next++ : -1;
+        m_shownRank[i] = (r.isLive || failedFilters(r) == 0) ? next++ : -1;
     }
+    return m_shownRank != before;
 }
 
 // In place, never a reset: a delegate under the pointer stays put (applyScan's reason).
@@ -169,6 +210,111 @@ void SessionReportListModel::applyDeviceFilter()
 {
     rerank();
     if (!m_rows.isEmpty()) emit dataChanged(index(0), index(int(m_rows.size()) - 1), { ShownRankRole });
+}
+
+void SessionReportListModel::refilter()
+{
+    applyDeviceFilter();
+    emit availableDevicesChanged();
+    emit countsChanged();
+}
+
+void SessionReportListModel::statesLanded()
+{
+    // Only the report filter reads the state: the ranks move under it alone, the counts always.
+    if (rerank() && !m_rows.isEmpty())
+        emit dataChanged(index(0), index(int(m_rows.size()) - 1), { ShownRankRole });
+    if (!m_reportFilter.isEmpty()) emit availableDevicesChanged();
+    emit countsChanged();
+}
+
+void SessionReportListModel::setClubFilter(const QString &club)
+{
+    if (m_clubFilter == club) return;
+    m_clubFilter = club;
+    refilter();
+    emit clubFilterChanged();
+}
+
+void SessionReportListModel::setReportFilter(const QString &filter)
+{
+    if (m_reportFilter == filter) return;
+    m_reportFilter = filter;
+    refilter();
+    emit reportFilterChanged();
+}
+
+void SessionReportListModel::setShowArchived(bool on)
+{
+    if (m_showArchived == on) return;
+    m_showArchived = on;
+    refilter();
+    emit showArchivedChanged();
+}
+
+void SessionReportListModel::setSearch(const QString &text)
+{
+    const QString t = text.trimmed();
+    if (m_search == t) return;
+    m_search = t;
+    refilter();
+    emit searchChanged();
+}
+
+QVariantMap SessionReportListModel::reportCounts() const
+{
+    int none = 0, stale = 0, ready = 0;
+    for (const Row &r : m_rows) {
+        if (r.isLive || (failedFilters(r) & ~ReportBit) != 0) continue;
+        const QString b = reportBucket(r.state);
+        if (b == QLatin1String("none"))       ++none;
+        else if (b == QLatin1String("stale")) ++stale;
+        else if (b == QLatin1String("ready")) ++ready;
+    }
+    return { {QStringLiteral("none"), none}, {QStringLiteral("stale"), stale}, {QStringLiteral("ready"), ready} };
+}
+
+QVariantList SessionReportListModel::clubCounts() const
+{
+    QHash<QString, int> n;
+    if (!m_clubFilter.isEmpty()) n.insert(m_clubFilter, 0);      // a chosen club can always be switched off
+    for (const Row &r : m_rows) {
+        if (r.isLive || (failedFilters(r) & ~ClubBit) != 0) continue;
+        for (const QString &c : r.clubList) ++n[c];
+    }
+    QVector<QPair<QString, int>> sorted;
+    for (auto it = n.cbegin(); it != n.cend(); ++it) sorted.append({ it.key(), it.value() });
+    std::sort(sorted.begin(), sorted.end(), [](const auto &a, const auto &b) {
+        return a.second != b.second ? a.second > b.second : a.first < b.first;
+    });
+    QVariantList out;
+    for (const auto &p : sorted)
+        out.append(QVariantMap{ {QStringLiteral("club"), p.first}, {QStringLiteral("count"), p.second} });
+    return out;
+}
+
+int SessionReportListModel::archivedCount() const
+{
+    int n = 0;
+    for (const Row &r : m_rows)
+        if (!r.isLive && r.archived && (failedFilters(r) & ~ArchivedBit) == 0) ++n;
+    return n;
+}
+
+int SessionReportListModel::shownSwings() const
+{
+    int n = 0;
+    for (int i = 0; i < m_rows.size(); ++i)
+        if (m_shownRank.value(i, -1) >= 0) n += m_rows.at(i).swings;
+    return n;
+}
+
+double SessionReportListModel::shownBytes() const
+{
+    qint64 n = 0;
+    for (int i = 0; i < m_rows.size(); ++i)
+        if (m_shownRank.value(i, -1) >= 0) n += m_rows.at(i).sessionBytes;
+    return double(n);
 }
 
 QVariant SessionReportListModel::data(const QModelIndex &index, int role) const
@@ -198,6 +344,9 @@ QVariant SessionReportListModel::data(const QModelIndex &index, int role) const
     case PreparedMsRole:   return double(r.preparedMs);
     case DeviceTokensRole: return r.deviceTokens;
     case ShownRankRole:    return m_shownRank.value(index.row(), -1);
+    case SessionBytesRole: return double(r.sessionBytes);
+    case ArchivedRole:     return r.archived;
+    case StateShortRole:   return r.stateShort;
     default:               return {};
     }
 }
@@ -210,7 +359,8 @@ QHash<int, QByteArray> SessionReportListModel::roleNames() const
              {StateWordsRole, "stateWords"}, {PdfPathRole, "pdfPath"}, {SizeBytesRole, "sizeBytes"},
              {SessionMsRole, "sessionMs"}, {WorkOnKnownRole, "workOnKnown"}, {StateKnownRole, "stateKnown"},
              {SentDiffersRole, "sentDiffers"}, {PreparedMsRole, "preparedMs"},
-             {DeviceTokensRole, "deviceTokens"}, {ShownRankRole, "shownRank"} };
+             {DeviceTokensRole, "deviceTokens"}, {ShownRankRole, "shownRank"},
+             {SessionBytesRole, "sessionBytes"}, {ArchivedRole, "archived"}, {StateShortRole, "stateShort"} };
 }
 
 QVariantMap SessionReportListModel::rowFor(const QString &sessionDir) const
@@ -292,8 +442,8 @@ QVector<SessionReportListModel::Row> SessionReportListModel::scan(const QString 
         r.dateLabel = QLocale::c().toString(QDateTime::fromMSecsSinceEpoch(r.sortMs).date(),
                                             QStringLiteral("ddd d MMM yyyy"));
         // The drawer joins clubs with " · ", which on this line is already the separator between facts.
-        r.clubs = sum.clubMix;
-        r.clubs.replace(QStringLiteral(" · "), QStringLiteral(", "));
+        r.clubList = sum.clubMix.split(QStringLiteral(" · "), Qt::SkipEmptyParts);
+        r.clubs    = r.clubList.join(QStringLiteral(", "));
         r.deviceTokens = sum.devices;
         for (const QString &t : sum.devices) r.devices.append(pinpoint::deviceLabel(t));
 
@@ -301,6 +451,10 @@ QVector<SessionReportListModel::Row> SessionReportListModel::scan(const QString 
         r.workOnKnown = w.known;
         r.workOn1Id   = w.id;
         r.workOn1     = w.name;
+
+        // Every file, an archived session's stubs included: what the folder takes, not what it held.
+        r.sessionBytes = pinpoint::SessionArchiver::folderBytes(sessionDir);
+        r.archived     = pinpoint::SessionArchiver::isArchived(sessionDir);
         out.append(r);
     }
 
@@ -339,7 +493,7 @@ void SessionReportListModel::applyScan(int generation, QVector<Row> rows)
     for (Row &r : rows) {
         const auto it = previous.constFind(r.dir);
         if (it == previous.cend()) continue;
-        r.state = it->state; r.stateWords = it->stateWords; r.pdfPath = it->pdfPath;
+        r.state = it->state; r.stateWords = it->stateWords; r.stateShort = it->stateShort; r.pdfPath = it->pdfPath;
         r.sizeBytes = it->sizeBytes; r.preparedMs = it->preparedMs; r.sentDiffers = it->sentDiffers;
     }
 
@@ -386,7 +540,9 @@ void SessionReportListModel::askStates()
 {
     const int gen = m_stateGeneration;
     const int end = m_synchronous ? int(m_rows.size()) : std::min(int(m_rows.size()), m_stateCursor + kStatesPerTurn);
+    const int from = m_stateCursor;
     for (; m_stateCursor < end; ++m_stateCursor) applyState(m_stateCursor);
+    if (m_stateCursor > from) statesLanded();
     if (m_stateCursor < m_rows.size())
         QTimer::singleShot(0, this, [this, gen] { if (gen == m_stateGeneration) askStates(); });
 }
@@ -400,18 +556,19 @@ void SessionReportListModel::applyState(int row)
     if (r.state.isEmpty()) r.state = QStringLiteral("none");
     r.stateWords  = st.value(QStringLiteral("words")).toString();
     if (r.stateWords.isEmpty()) r.stateWords = wordsFor(r.state);
+    r.stateShort  = shortWordsFor(r.state, st);
     r.pdfPath     = st.value(QStringLiteral("pdfPath")).toString();
     r.sizeBytes   = qint64(st.value(QStringLiteral("sizeBytes")).toDouble());
     r.preparedMs  = qint64(st.value(QStringLiteral("preparedMs")).toDouble());
     r.sentDiffers = st.value(QStringLiteral("sentDiffers")).toBool();
     const QModelIndex ix = index(row);
     emit dataChanged(ix, ix, { StateRole, StateWordsRole, PdfPathRole, SizeBytesRole, StateKnownRole,
-                               SentDiffersRole, PreparedMsRole });
+                               SentDiffersRole, PreparedMsRole, StateShortRole });
 }
 
 void SessionReportListModel::refreshState(const QString &sessionDir)
 {
     const QString abs = QFileInfo(sessionDir).absoluteFilePath();
     for (int i = 0; i < m_rows.size(); ++i)
-        if (m_rows.at(i).dir == abs) { applyState(i); return; }
+        if (m_rows.at(i).dir == abs) { applyState(i); statesLanded(); return; }
 }

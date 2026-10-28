@@ -70,7 +70,8 @@ public:
     int     trashEntries() const { return m_trashEntries; }
 
     Q_INVOKABLE void refresh();                          // re-scan sessions, space and trash
-    Q_INVOKABLE void archiveSession(const QString &sessionDir);
+    // False when it did not start: the live session (refused, logged), or a job already running.
+    Q_INVOKABLE bool archiveSession(const QString &sessionDir);
     Q_INVOKABLE void restoreSession(const QString &sessionDir);
     Q_INVOKABLE void emptyTrash();                       // everything in the library trash, now
     Q_INVOKABLE void cancel();                           // stop between files
@@ -78,19 +79,33 @@ public:
     // no-op while its setting is 0 / no archive location is set.
     Q_INVOKABLE void runHousekeeping();
 
+    // The running session's folder (main.cpp's, as the session list is told it); empty when none.
+    // Archiving it is refused, by hand or by housekeeping.
+    void setLiveSessionDir(const QString &dir);
+    // SessionReportModel::fingerprintFunction, asked on this thread as each job starts: archive and
+    // restore keep a report that was current, current (S-D6, report_meta.h keepReportCurrent).
+    void setReportFingerprint(std::function<std::function<QString(const QString &)>()> snapshot)
+    {
+        m_fingerprint = std::move(snapshot);
+    }
+
 signals:
     void changed();
     void sessionRestored(const QString &sessionDir);     // the review re-opens it, now complete
 
 private:
     struct Scan;
-    void startJob(const QString &what, std::function<QString(ArchiveController *self,
+    bool startJob(const QString &what, std::function<QString(ArchiveController *self,
                                                                 std::shared_ptr<std::atomic_bool>)> job,
                   const QString &restoredDir = {});
     void applyScan(const Scan &scan);
     void setProgress(double p, const QString &status);
+    bool isLive(const QString &sessionDir) const;
+    std::function<QString(const QString &)> reportFingerprint() const;
 
     AppSettings *m_settings = nullptr;
+    QString      m_liveDir;
+    std::function<std::function<QString(const QString &)>()> m_fingerprint;
     QVariantList m_sessions;
     bool    m_busy = false;
     QString m_status;

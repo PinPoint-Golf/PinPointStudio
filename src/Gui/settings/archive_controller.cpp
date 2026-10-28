@@ -21,6 +21,7 @@
 #include "../app/app_settings.h"
 #include "../../Core/pp_debug.h"
 #include "../../Export/session_archiver.h"
+#include "../report/report_meta.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -43,13 +44,7 @@ struct SessionRow {
     bool    archived = false;
 };
 
-qint64 dirBytes(const QString &dir)
-{
-    qint64 total = 0;
-    QDirIterator it(dir, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
-    while (it.hasNext()) { it.next(); total += it.fileInfo().size(); }
-    return total;
-}
+using pinpoint::SessionArchiver::folderBytes;
 
 // A session folder is named "<yyyy-MM-dd>_<athlete>_<type>_<nn>"; the date is its day. A folder
 // named otherwise falls back to its modification time.
@@ -80,7 +75,7 @@ QList<SessionRow> scanSessions(const QString &root)
             s.name = session;
             s.athlete = athlete;
             s.dateMs = sessionDateMs(dir);
-            s.bytes = dirBytes(dir);
+            s.bytes = folderBytes(dir);
             s.swings = swings;
             s.archived = pinpoint::SessionArchiver::isArchived(dir);
             out << s;
@@ -187,7 +182,7 @@ void ArchiveController::refresh()
             std::reverse(swings.begin(), swings.end());
             for (const QString &sw : swings) {
                 if (s.swingsMeasured >= 30) break;
-                bytes += dirBytes(row.dir + QLatin1Char('/') + sw);
+                bytes += folderBytes(row.dir + QLatin1Char('/') + sw);
                 ++s.swingsMeasured;
             }
             if (s.swingsMeasured >= 30) break;
@@ -195,7 +190,7 @@ void ArchiveController::refresh()
         s.swingBytes = s.swingsMeasured > 0 ? double(bytes) / s.swingsMeasured : 0.0;
         for (const QString &e : listTrash(root)) {
             ++s.trashEntries;
-            s.trashBytes += QFileInfo(e).isDir() ? double(dirBytes(e)) : double(QFileInfo(e).size());
+            s.trashBytes += QFileInfo(e).isDir() ? double(folderBytes(e)) : double(QFileInfo(e).size());
         }
     }));
 }
@@ -207,11 +202,26 @@ void ArchiveController::setProgress(double p, const QString &status)
     emit changed();
 }
 
-void ArchiveController::startJob(const QString &what,
+void ArchiveController::setLiveSessionDir(const QString &dir)
+{
+    m_liveDir = dir.isEmpty() ? QString() : QDir::cleanPath(QFileInfo(dir).absoluteFilePath());
+}
+
+bool ArchiveController::isLive(const QString &sessionDir) const
+{
+    return !m_liveDir.isEmpty() && QDir::cleanPath(QFileInfo(sessionDir).absoluteFilePath()) == m_liveDir;
+}
+
+pinpoint::report::ReportFingerprintFn ArchiveController::reportFingerprint() const
+{
+    return m_fingerprint ? m_fingerprint() : pinpoint::report::ReportFingerprintFn();
+}
+
+bool ArchiveController::startJob(const QString &what,
                                  std::function<QString(ArchiveController *, std::shared_ptr<std::atomic_bool>)> job,
                                  const QString &restoredDir)
 {
-    if (m_busy) return;
+    if (m_busy) return false;
     m_busy = true;
     m_progress = 0.0;
     m_status = what;
@@ -232,6 +242,7 @@ void ArchiveController::startJob(const QString &what,
         refresh();
     });
     m_watcher.setFuture(QtConcurrent::run([this, job, abort]() -> QString { return job(this, abort); }));
+    return true;
 }
 
 namespace {
@@ -248,22 +259,30 @@ pinpoint::SessionArchiver::Progress reporter(std::shared_ptr<std::atomic_bool> a
 }
 } // namespace
 
-void ArchiveController::archiveSession(const QString &sessionDir)
+bool ArchiveController::archiveSession(const QString &sessionDir)
 {
-    if (!m_settings) return;
+    if (!m_settings) return false;
+    // The running session is still being written: its swings are not to be thinned under it.
+    if (isLive(sessionDir)) {
+        ppWarn() << "[Archive] refused: the live session cannot be archived:" << sessionDir;
+        return false;
+    }
     const QString location = m_settings->archiveLocation();
     const bool keepRaw = m_settings->archiveKeepRaw();
     const QString name = QFileInfo(sessionDir).fileName();
-    startJob(tr("Archiving %1…").arg(name), [sessionDir, location, keepRaw, name](ArchiveController *self,
-                                                                                std::shared_ptr<std::atomic_bool> abort) {
+    const pinpoint::report::ReportFingerprintFn fp = reportFingerprint();
+    return startJob(tr("Archiving %1…").arg(name), [sessionDir, location, keepRaw, name, fp](ArchiveController *self,
+                                                                                    std::shared_ptr<std::atomic_bool> abort) {
         QPointer<ArchiveController> p(self);
         auto post = [p](double v, QString s) {
             QMetaObject::invokeMethod(p, [p, v, s] { if (p) p->setProgress(v, s); }, Qt::QueuedConnection);
         };
         pinpoint::SessionArchiver::Options opt;
         opt.keepRaw = keepRaw;
-        const auto r = pinpoint::SessionArchiver::archive(sessionDir, location, opt,
-                                                          reporter(abort, QStringLiteral("Archiving"), name, post));
+        const auto r = pinpoint::report::keepReportCurrent(sessionDir, fp, [&] {
+            return pinpoint::SessionArchiver::archive(sessionDir, location, opt,
+                                                      reporter(abort, QStringLiteral("Archiving"), name, post));
+        });
         if (!r.ok) {
             ppWarn() << "[Archive] archiving" << sessionDir << "failed:" << r.error;
             return QObject::tr("%1 was not archived: %2").arg(name, r.error);
@@ -276,14 +295,16 @@ void ArchiveController::archiveSession(const QString &sessionDir)
 void ArchiveController::restoreSession(const QString &sessionDir)
 {
     const QString name = QFileInfo(sessionDir).fileName();
-    startJob(tr("Restoring %1…").arg(name), [sessionDir, name](ArchiveController *self,
+    const pinpoint::report::ReportFingerprintFn fp = reportFingerprint();
+    startJob(tr("Restoring %1…").arg(name), [sessionDir, name, fp](ArchiveController *self,
                                                                std::shared_ptr<std::atomic_bool> abort) {
         QPointer<ArchiveController> p(self);
         auto post = [p](double v, QString s) {
             QMetaObject::invokeMethod(p, [p, v, s] { if (p) p->setProgress(v, s); }, Qt::QueuedConnection);
         };
-        const auto r = pinpoint::SessionArchiver::restore(sessionDir,
-                                                          reporter(abort, QStringLiteral("Restoring"), name, post));
+        const auto r = pinpoint::report::keepReportCurrent(sessionDir, fp, [&] {
+            return pinpoint::SessionArchiver::restore(sessionDir, reporter(abort, QStringLiteral("Restoring"), name, post));
+        });
         if (!r.ok) {
             ppWarn() << "[Archive] restoring" << sessionDir << "failed:" << r.error;
             return QObject::tr("%1 was not restored: %2").arg(name, r.error);
@@ -321,6 +342,8 @@ void ArchiveController::runHousekeeping()
     const bool keepRaw     = m_settings->archiveKeepRaw();
     if (root.isEmpty()) return;
     const bool canArchive = !location.isEmpty() && QFileInfo(location).isDir();
+    const QString liveDir  = m_liveDir;
+    const pinpoint::report::ReportFingerprintFn fp = canArchive ? reportFingerprint() : pinpoint::report::ReportFingerprintFn();
     if (retention <= 0 && (!canArchive || (afterDays <= 0 && floorGb <= 0))) {
         refresh();
         return;   // nothing is switched on: not even a status line
@@ -339,6 +362,11 @@ void ArchiveController::runHousekeeping()
         if (canArchive && (afterDays > 0 || floorGb > 0)) {
             pinpoint::SessionArchiver::Options opt;
             opt.keepRaw = keepRaw;
+            const auto archiveOne = [&](const QString &dir) {
+                return pinpoint::report::keepReportCurrent(dir, fp, [&] {
+                    return pinpoint::SessionArchiver::archive(dir, location, opt);
+                }).ok;
+            };
             // Today's sessions are never touched: one may still be recording.
             const qint64 today = QDate::currentDate().startOfDay().toMSecsSinceEpoch();
             QList<SessionRow> sessions = scanSessions(root);   // newest first
@@ -348,8 +376,8 @@ void ArchiveController::runHousekeeping()
                 const qint64 cutoff = QDate::currentDate().addDays(-afterDays).startOfDay().toMSecsSinceEpoch();
                 for (SessionRow &s : sessions) {
                     if (abort->load()) break;
-                    if (s.archived || s.dateMs >= today || s.dateMs >= cutoff) continue;
-                    if (pinpoint::SessionArchiver::archive(s.dir, location, opt).ok) { s.archived = true; ++archived; }
+                    if (s.archived || s.dateMs >= today || s.dateMs >= cutoff || s.dir == liveDir) continue;
+                    if (archiveOne(s.dir)) { s.archived = true; ++archived; }
                 }
             }
             // 3. Below the floor: the oldest first, until there is room again or nothing is left.
@@ -358,8 +386,8 @@ void ArchiveController::runHousekeeping()
                     if (abort->load()) break;
                     QStorageInfo si(root);
                     if (si.bytesAvailable() >= qint64(floorGb) * 1024 * 1024 * 1024) break;
-                    if (it->archived || it->dateMs >= today) continue;
-                    if (pinpoint::SessionArchiver::archive(it->dir, location, opt).ok) { it->archived = true; ++archived; }
+                    if (it->archived || it->dateMs >= today || it->dir == liveDir) continue;
+                    if (archiveOne(it->dir)) { it->archived = true; ++archived; }
                 }
             }
             if (archived) done << QObject::tr("%1 sessions archived").arg(archived);
