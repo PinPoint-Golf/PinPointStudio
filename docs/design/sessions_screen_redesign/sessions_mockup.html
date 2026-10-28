@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sessions mockup</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box}
+body{margin:0;background:#0D1012;color:#E6EBED;font:14px/1.45 'Hanken Grotesk',system-ui,sans-serif}
+a{color:#8FB0FF;text-decoration:none}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+.app{position:relative;display:flex;width:1440px;height:1000px}
+.rail{width:88px;flex:none;background:#111518;border-right:1px solid #232A2F;display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:8px}
+.av{width:32px;height:32px;border-radius:50%;background:#1F2A3F;border:1px solid #5B8CFF;color:#8FB0FF;display:flex;align-items:center;justify-content:center;font:500 10px 'Geist Mono',monospace}
+.dv{width:24px;height:1px;background:#2A3237;margin:8px 0}
+.rb{width:72px;padding:8px 0;border-radius:8px;display:flex;flex-direction:column;align-items:center;gap:3px;color:#9AA6AC;font-size:11px}
+.rb .ic{font-size:17px;line-height:1}.rb.on{background:#1C2433;color:#E6EBED}
+main{flex:1;min-width:0;padding:28px 36px 96px;display:flex;flex-direction:column;gap:18px}
+.chip{border:1px solid #2A3237;color:#C4CDD1;border-radius:999px;padding:4px 10px;font-size:13px}
+.chip.on{background:#1C2433;border-color:#34425E;color:#CFE0FF}
+.seg{display:flex;border:1px solid #2A3237;border-radius:8px;overflow:hidden;font-size:13px}
+.seg span{padding:4px 12px;color:#9AA6AC;border-left:1px solid #2A3237}.seg span:first-child{border-left:0;background:#1C2433;color:#E6EBED}
+.card{border:1px solid #20272B;border-radius:12px;overflow:hidden;background:#111619}
+.g{display:grid;grid-template-columns:250px 110px 64px 250px minmax(0,1fr) 170px 40px;align-items:center;column-gap:12px;padding:0 14px}
+.hdr{height:38px;font-size:12px;color:#9AA6AC;border-bottom:1px solid #20272B;padding-left:17px}
+.row{height:52px;border-bottom:1px solid #1A2024;border-left:3px solid transparent}
+.row.sel{border-left-color:#5B8CFF;background:#18233A}
+.row.hov{background:#141A1E}.row.sel.hov{background:#1B2842}
+.kit{font:11px 'Geist Mono',monospace;color:#C4CDD1;border:1px solid #2E373C;border-radius:999px;padding:1px 8px}
+.rev{margin-left:auto;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;border:1px solid #34425E;background:#1C2433;color:#E6EBED;font-size:12px;font-weight:600}
+.btn{border:1px solid #2E373C;border-radius:8px;padding:8px 14px;color:#E6EBED}
+.btn.pri{background:#1C2433;border-color:#34425E;font-weight:600}
+.btn.del{color:#F0A469;border-color:#6A4528}
+.menu{position:absolute;width:230px;background:#171D21;border:1px solid #2E373C;border-radius:10px;padding:6px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;flex-direction:column;font-size:13px}
+.menu span{padding:8px 10px;color:#E6EBED}.menu hr{border:0;height:1px;background:#232A2F;margin:4px 0}
+.cursor{position:absolute;width:0;height:0;border-left:7px solid #fff;border-top:5px solid transparent;border-bottom:13px solid transparent;transform:rotate(-20deg);filter:drop-shadow(0 1px 1px #000)}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <nav class="rail">
+    <div class="av">ML</div><div class="dv"></div>
+    <div class="rb"><span class="ic">⌂</span>Home</div>
+    <div class="rb"><span class="ic">◉</span>Live</div>
+    <div class="rb on"><span class="ic">▤</span>Sessions</div>
+    <div class="rb"><span class="ic">◎</span>Work-ons</div>
+    <div class="rb"><span class="ic">⋈</span>Swing model</div>
+    <div style="flex:1"></div><div class="dv"></div>
+    <div class="rb"><span class="ic">⚙</span>Settings</div>
+  </nav>
+  <main>
+    <header style="display:flex;align-items:baseline;gap:16px">
+      <h1 style="margin:0;font-size:26px;font-weight:600">Sessions</h1>
+      <span class="mono" style="color:#9AA6AC;font-size:12px">10 sessions · 202 swings · 14.6 GB</span>
+      <span style="margin-left:auto;display:flex;align-items:center;gap:8px;background:#151A1D;border:1px solid #2A3237;border-radius:8px;padding:7px 12px;width:280px;color:#7D8A90">⌕&nbsp; Search work-ons, clubs, notes</span>
+    </header>
+    <div style="display:flex;align-items:center;gap:20px">
+      <div style="display:flex;align-items:center;gap:6px"><span class="mono" style="font-size:11px;color:#9AA6AC;margin-right:4px">RECORDED WITH</span>
+        <span class="chip on">Face-on 9</span><span class="chip">DTL 5</span><span class="chip">HackMotion 2</span><span class="chip">GC Quad 5</span></div>
+      <div class="seg"><span>All reports</span><span>None 7</span><span>Out of date 2</span><span>Ready 1</span></div>
+      <span style="color:#9AA6AC;font-size:13px">Club: All ▾</span>
+      <span style="margin-left:auto;color:#9AA6AC;font-size:13px">☐ Show archived (3)</span>
+    </div>
+    <div class="card" id="tbl">
+      <div class="g hdr"><span>Date ▾</span><span>Club</span><span style="text-align:right">Swings</span><span>Recorded with</span><span>Work-on</span><span>Report</span><span></span></div>
+    </div>
+    <div style="display:flex;gap:18px;padding:0 3px;font-size:12px;color:#7D8A90"><span>Click a row to select or deselect</span><span>Shift-click for a range</span><span>Hover for Review, or double-click, to open in Live</span><span>Esc clears</span></div>
+  </main>
+</div>
+<script>
+const S=[
+ ['Tue 20 Oct 2026','7 iron',19,['Face-on','GC Quad'],'Lean slightly away from the target at the top','none'],
+ ['Tue 13 Oct 2026','7 iron',1,['Face-on','DTL'],'—','none'],
+ ['Thu 8 Oct 2026','7 iron',32,['Face-on','DTL'],'Let your chest reach full speed before the ball','none'],
+ ['Wed 7 Oct 2026','7 iron',50,['Face-on','DTL'],'Let your hips reach full speed well before the ball','none'],
+ ['Mon 5 Oct 2026','Gap wedge',31,['Face-on','DTL','GC Quad'],'Let your hips reach full speed well before the ball','stale'],
+ ['Wed 9 Sep 2026','6 iron',7,['Face-on'],'Let your chest reach full speed before the ball','none'],
+ ['Tue 18 Aug 2026 · 2','7 iron',6,['Face-on','HackMotion','GC Quad'],'Turn your hips in place going back','stale'],
+ ['Tue 18 Aug 2026 · 1','7 iron',5,['Face-on','HackMotion','GC Quad'],'Lean slightly away from the target at the top','ready'],
+ ['Tue 4 Aug 2026','7 iron, Driver',26,['GC Quad'],'No habits to work on','none'],
+ ['Sat 4 Jul 2026','7 iron',15,['Face-on','DTL'],'Let your hips reach full speed well before the ball','none']];
+const R={none:['No report','#7D8A90','Make'],stale:['Out of date','#E8C27A','Remake'],ready:['Ready · 8.1 MB','#8FB0FF','Email']};
+const st=location.hash.slice(1);
+const sel=st==='menu'?[]:[4,6,7], hov=st==='menu'?2:6;
+const t=document.getElementById('tbl');
+S.forEach((s,i)=>{const r=document.createElement('div');r.className='g row'+(sel.includes(i)?' sel':'')+(i===hov?' hov':'');
+ r.innerHTML=`<span style="display:flex;align-items:center;gap:8px"><b style="font-weight:600">${s[0]}</b>${i===hov?'<span class="rev">▶ Review</span>':''}</span><span style="color:#C4CDD1">${s[1]}</span><span class="mono" style="text-align:right;font-size:13px;color:#C4CDD1">${s[2]}</span><span style="display:flex;gap:4px">${s[3].map(k=>`<span class="kit">${k}</span>`).join('')}</span><span style="color:#C4CDD1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s[4]}</span><span style="display:flex;gap:10px;font-size:13px"><span style="color:${R[s[5]][1]}">${R[s[5]][0]}</span>${s[2]>1?`<a>${R[s[5]][2]}</a>`:''}</span><span style="color:#9AA6AC;font-size:18px;text-align:center">⋯</span>`;
+ t.appendChild(r);});
+const app=document.getElementById('app');
+const rowTop=i=>t.offsetTop+38+i*52;
+if(st==='menu'){
+ const m=document.createElement('div');m.className='menu';m.style.right='60px';m.style.top=(rowTop(2)+46)+'px';
+ m.innerHTML='<span>Review in Live</span><hr><span>Make report</span><span style="color:#7D8A90">Email to Mark · make report first</span><span>Copy address</span><hr><span>Export…</span><span>Show in Finder</span><span>Archive</span><hr><span style="color:#F0A469">Delete…</span>';
+ app.appendChild(m);
+} else {
+ const b=document.createElement('div');
+ b.style.cssText='position:absolute;left:124px;right:36px;bottom:24px;height:56px;background:#171D21;border:1px solid #34425E;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;align-items:center;gap:10px;padding:0 16px';
+ b.innerHTML='<b style="font-weight:600">3 selected</b><span class="mono" style="color:#9AA6AC;font-size:12px">3.6 GB · 2 reports out of date</span><a>Clear</a><span style="flex:1"></span><span class="btn pri">Make / remake reports</span><span class="btn">Email to Mark</span><span class="btn">Export…</span><span class="btn">Archive</span><span class="btn del">Delete…</span>';
+ app.appendChild(b);
+ const c=document.createElement('div');c.className='cursor';c.style.left='300px';c.style.top=(rowTop(6)+22)+'px';app.appendChild(c);
+}
+</script>
+</body>
+</html>
