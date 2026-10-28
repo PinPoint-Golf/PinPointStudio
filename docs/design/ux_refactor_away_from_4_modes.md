@@ -515,6 +515,12 @@ Goal: the rail and stack no longer know about modes. Behaviour otherwise identic
     the spacer while locked (Settings below it stays enabled);
   - Settings highlight unchanged (Settings/System/Developer);
   - drop Home's `|| 11` highlight.
+- **Changed (Mark, 28 Oct, after Phase 5): no session lock.** The rail's Session button is now
+  **Live**, always shown, and opens the session screen. A running session locks nothing:
+  `sessionLocked` and `blockedDuringSession()` are gone, and `NavigationController` holds history only.
+  Two guards remain. The athlete picker will not switch or delete a golfer while a session runs,
+  because that session's swings are being saved to the current golfer. Home's Start (and a work-on's
+  Practise) goes to Live while a session runs, rather than opening the wizard over it.
 - **Tests and probes to update:**
   - `tst_charts_panel.qml` and `tst_chart_presets.qml` + `charts/ChartsHarness.qml`: drive the
     gate with the Session index. At l.432 keep the index on Session while changing `sessionType`.

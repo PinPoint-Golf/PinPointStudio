@@ -547,7 +547,7 @@ ApplicationWindow {
     readonly property var screenNames: {
         var n = {}
         n[AppScreen.Home]       = qsTr("Home")
-        n[AppScreen.Session]    = qsTr("Session")
+        n[AppScreen.Session]    = qsTr("Live")
         n[AppScreen.Sessions]   = qsTr("Sessions")
         n[AppScreen.WorkOns]    = qsTr("Work-ons")
         n[AppScreen.Athlete]    = qsTr("New athlete")
@@ -569,6 +569,8 @@ ApplicationWindow {
     // Start, a work-on's Practise). Carry Home's club pick into the session; start() (fired
     // at wizard completion) preserves an already-set activeClub.
     function _openSessionSetup(request) {
+        // A session is already running: Start is the way back to it, never a second one.
+        if (sessionController.running) { navController.navigateRail(AppScreen.Session); return }
         sessionController.activeClub = screenHome.selectedClub
         sessionSetup.open(request)
         navController.navigate(AppScreen.Wizard)
@@ -587,14 +589,9 @@ ApplicationWindow {
             // the setup flow. System and Settings remain accessible and use
             // navigate() (not navigateRail()) to preserve wizard in history.
             locked: navController.currentIndex === AppScreen.Wizard
-            // While a session is active the Session button appears and only Session
-            // stays enabled (System/Settings stay interactive; the Swing model is
-            // Settings → Reference, so it stays reachable through Settings).
-            // NavigationController enforces the same rule on every nav path.
-            sessionLocked: navController.sessionLocked
 
             onPageRequested: function(index) {
-                // The Sessions screen draws the current athlete; refresh it on the way in.
+                // The Sessions screen opens at the top.
                 if (index === AppScreen.Sessions) root._showSessions()
                 // The rail's Work-ons is every work-on: drop an area Home narrowed it to.
                 if (index === AppScreen.WorkOns) swingDiagnosticsScreen.groupFilter = ""
@@ -789,15 +786,13 @@ ApplicationWindow {
                     onSessionStartRequested: function(request) {
                         sessionController.focusConditionId = request.focusConditionId || ""
                         sessionController.focusFromShot    = 0
-                        // Navigate first: once start() runs, navigation is locked
-                        // to the session screen (plus System/Settings).
                         navController.navigateRail(AppScreen.Session)
                         // The wizard always starts a NEW session folder (a deliberate
                         // fresh session); the carousel begins empty. The toolbar
                         // Capture button is the path that offers extend-vs-new.
                         shotProcessor.beginSessionFolder(sessionController.defaultType, false)
                         shotModel.loadSessionDir("")
-                        sessionController.start(sessionController.defaultType)   // session active → rail locks
+                        sessionController.start(sessionController.defaultType)
                         cameraManager.startCapture()    // buffer capturing → SHOT arms
                     }
                     onNavigateToSettings: function(panelIndex) {

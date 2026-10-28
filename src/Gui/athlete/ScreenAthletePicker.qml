@@ -30,6 +30,10 @@ Item {
 
     property string selectedUuid: athleteController.currentUuid
 
+    // A running session's swings are being saved to the current golfer, so the golfer cannot be
+    // switched (or deleted) until it ends. The rail has no session lock; this is the one guard.
+    readonly property bool sessionRunning: typeof sessionController !== "undefined" && sessionController.running
+
     property var filteredAthletes: {
         const q = searchField.text.trim().toLowerCase()
         if (q === "") return athleteController.athletes
@@ -205,6 +209,19 @@ Item {
             // ── Action row ───────────────────────────────────────────────────
             Item { width: 1; height: Theme.sp(20) }
 
+            Text {
+                objectName: "pickerSessionRunning"
+                visible:  root.sessionRunning
+                width:    parent.width
+                text:     qsTr("A session is running for %1. End it to switch or delete a golfer.")
+                              .arg(athleteController.currentName)
+                font.family:    Theme.fontBody
+                font.pixelSize: Theme.fontSzBody2
+                color:          Theme.colorWarn
+                wrapMode:       Text.WordWrap
+                bottomPadding:  Theme.sp(10)
+            }
+
             RowLayout {
                 width:   parent.width
                 spacing: Theme.gap(8)
@@ -226,7 +243,7 @@ Item {
                 PpButton {
                     label:       qsTr("Delete athlete")
                     destructive: true
-                    enabled:     root.selectedUuid !== ""
+                    enabled:     root.selectedUuid !== "" && !root.sessionRunning
                     onClicked: {
                         athleteController.deleteAthlete(root.selectedUuid)
                         root.selectedUuid = ""
@@ -240,7 +257,7 @@ Item {
                         return found ? qsTr("Select %1 ↗").arg(found.name) : qsTr("Select athlete ↗")
                     }
                     primary: true
-                    enabled: root.selectedUuid !== ""
+                    enabled: root.selectedUuid !== "" && !root.sessionRunning
                     onClicked: {
                         athleteController.selectAthlete(root.selectedUuid)
                         root.athleteSelected(root.selectedUuid)

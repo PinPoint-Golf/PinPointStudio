@@ -34,7 +34,7 @@
  "src/Gui/shell/Main.qml": "The application window (ApplicationWindow, created hidden then positioned on the chosen display): rail + header + screen stack (Home, Swing, Wrist, Ground forces, Coach, Developer, athletes, System, Settings), session-in-progress quit confirmation, about dialog, update banner, notification host, cast window and debounced geometry persistence.",
  "src/Gui/shell/PlayPage.qml": "Developer-hatch container (Main.qml: 'screenPlay — dev-hatch only') with a TabBar over CapturePage (IMU), AudioPage, CoachPage (AI) and VideoPage (Pose).",
  "src/Gui/shell/PpHeader.qml": "Top header bar: screen name after a separator, back/forward, version pill (About on Linux/Windows), analysing badge, and a centred device-detect cluster shown only on session screens; fullscreen toggle.",
- "src/Gui/shell/PpRail.qml": "Left navigation rail (Home, Swing, Wrist, GRF, Coach, Settings) of PpRailButtons plus the athlete avatar; locks to System and Settings only while a session screen is active.",
+ "src/Gui/shell/PpRail.qml": "Left navigation rail (Home, Live, Sessions, Work-ons, Settings) of PpRailButtons plus the athlete avatar; locks only while the session wizard is open.",
  "src/Gui/shell/PpRailButton.qml": "One rail button: icon and label, active/muted/attention states.",
  "src/Gui/viz/ArmVizView.qml": "3-D rigid Y-bot arm (upper arm, forearm, hand as bone-local GLBs) driven by IMU quaternions, with orbit camera (drag/scroll) and orientation tabs.",
  "src/Gui/viz/BodyVizView.qml": "3-D full Y-bot body assembled from bone-local GLBs and driven by a pose source (optionally mirrored), with joint markers, lead-arm highlight, loading progress and orbit camera.",

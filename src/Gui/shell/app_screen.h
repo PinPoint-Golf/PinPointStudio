@@ -30,8 +30,7 @@
 // Home stays first: NavigationController::navigateRail(Home) is the history-clearing reset.
 //
 // There is no Swing model screen: the DiagnosticModel editor (called "Swing model" wherever users
-// see it) lives in Settings → Reference (slot 10), reached mid-session through Settings, which the
-// session lock leaves open. No rail button (Mark, 28 Oct).
+// see it) lives in Settings → Reference (slot 10). No rail button (Mark, 28 Oct).
 class AppScreen : public QObject
 {
     Q_OBJECT
@@ -41,8 +40,8 @@ class AppScreen : public QObject
 public:
     enum Value {
         Home = 0,
-        Session,     // the one live/review session screen (ScreenWrist)
-        Sessions,    // the current athlete's sessions (a ScreenAthleteForm on its Sessions tab)
+        Session,     // the one live/review session screen (ScreenWrist); the rail's Live
+        Sessions,    // the current athlete's sessions (ScreenSessions)
         WorkOns,     // ScreenSwingDiagnostics
         Athlete,     // ScreenAthleteForm: new / edit athlete
         Athletes,    // ScreenAthletePicker

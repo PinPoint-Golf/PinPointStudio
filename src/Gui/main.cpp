@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
     // for why identity (a stable id) is the whole mechanism.
     NotificationCenter      notificationCenter;
     SessionController       sessionController(&athleteController);
-    NavigationController    navController(&athleteController, &sessionController);
+    NavigationController    navController;
     // In-app updater façade: Linux AppImage engine, WinSparkle on Windows, Sparkle on
     // macOS (all behind this one QML context property). Constructed on all platforms
     // for QML uniformity; inert ("unsupported"/"devbuild") in a dev/build-tree run or

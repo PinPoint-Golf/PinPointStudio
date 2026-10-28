@@ -288,8 +288,8 @@ Item {
                                 // the two of them used to. The old panel and its hidden row are
                                 // gone, and the indices below are contiguous again.
                                 // Slot 10 is the Swing model (the DiagnosticModel editor's name). It lives
-                                // here, not on the rail (Mark, 28 Oct); the session lock leaves Settings
-                                // open, so it is reachable mid-session.
+                                // here, not on the rail (Mark, 28 Oct); like every screen, it is reachable
+                                // mid-session.
                                 { navIdx: 10, icon: "❖", label: qsTr("Swing model"),    sectionHead: qsTr("Reference"), hasBadge: false },
                                 // Not a panel: emits resourceMonitorRequested() (its own screen)
                                 // rather than switching activeNavIndex. It is an ACTION row, so its

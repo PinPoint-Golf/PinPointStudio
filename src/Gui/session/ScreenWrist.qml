@@ -58,7 +58,7 @@ Item {
     //
     // NOT gated on _screenActive, and that is the whole point rather than an oversight. Every
     // reader of this is BY DEFINITION on another screen — the Diagnostic Model panel lives in
-    // Settings, which the session lock deliberately leaves reachable — so clearing it when this
+    // Settings, reachable mid-session — so clearing it when this
     // screen stops being the visible one clears it exactly when somebody goes to look. It shipped
     // that way for one build and the column was never once on screen.
     //

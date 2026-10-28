@@ -27,7 +27,7 @@ import PinPointStudio
 
 // Settings → Reference → Swing model (Settings slot 10; "Swing model" is this editor's name wherever
 // users see it — it was "Diagnostic Model"). Not on the rail (Mark, 28 Oct): it is reached
-// mid-session through Settings, which the session lock leaves open. One shell, three panes: type
+// mid-session through Settings, like every screen. One shell, three panes: type
 // rail → table → relationship inspector, with a trail of the chain you walked.
 //
 // It REPLACED an earlier Diagnostics panel, which is now deleted. That one read the pack as saved
@@ -53,9 +53,8 @@ Item {
         // seam the two above use, so the façade never learns what a session screen is — it is
         // handed a path and reads a phase grid off it.
         //
-        // The session lock leaves Settings reachable while a session runs (NavigationController
-        // permits Session, System and Settings), and this panel lives in Settings → Reference, which
-        // is what makes this worth binding: an author can have a swing on the session stage and this
+        // Settings is reachable while a session runs, and this panel lives in Settings → Reference,
+        // which is what makes this worth binding: an author can have a swing on the session stage and this
         // panel open at the same time, and that is exactly when a corridor is worth arguing with.
         currentSwingDir: currentSwing.swingDir
         // The athlete's two demographic fields, raw. The BAND is derived inside the façade from the

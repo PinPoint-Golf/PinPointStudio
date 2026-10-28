@@ -1,5 +1,5 @@
 // Fake navController — the members Main.qml uses (back, forward, navigate, navigateRail,
-// navigateHome, currentIndex, canGoBack, canGoForward, sessionLocked). Calls are recorded.
+// navigateHome, currentIndex, canGoBack, canGoForward). Calls are recorded.
 import QtQuick
 import PinPointStudio
 
@@ -7,7 +7,6 @@ QtObject {
     property int  currentIndex:  0
     property bool canGoBack:     false
     property bool canGoForward:  false
-    property bool sessionLocked: false
 
     property var calls: []
     function _rec(name, args) { calls.push({ name: name, args: args, t: Date.now() }) }

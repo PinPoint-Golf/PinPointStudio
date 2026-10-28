@@ -36,7 +36,7 @@ Item {
 
     // Session type of the hosting screen (SessionController::Type, 0–3).
     // Set by the session screen (ScreenWrist); passed to sessionController.start()
-    // so the session lock knows which type owns the running session.
+    // so the controller knows which type owns the running session.
     property int sessionType: -1
 
     // Mode-switch labels, indexed by SessionMode.mode (capture/review/analyse).

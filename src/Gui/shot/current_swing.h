@@ -27,8 +27,8 @@
 // It exists because "the focused swing" was a QML expression rather than a fact. ScreenWrist
 // computes `shotReplay.swingDir !== "" ? … : carousel.selectedCard.swingDir` — the active replay,
 // else the carousel's selection — and that expression is reachable only from inside that screen's
-// own scope. Everything on another screen (the Diagnostic Model panel in Settings, which the
-// session lock deliberately leaves reachable) could see the replay half through the `shotReplay`
+// own scope. Everything on another screen (the Diagnostic Model panel in Settings, reachable
+// mid-session) could see the replay half through the `shotReplay`
 // context property and none of the selection half, so it saw nothing whenever a swing was merely
 // SELECTED rather than playing, which is most of the time.
 //

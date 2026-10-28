@@ -382,7 +382,9 @@ Item {
                                 id: startButton
                                 objectName: "homeStartButton"
                                 primary: true
-                                label:   qsTr("Start session")
+                                // A running session: Start goes back to it (Main._openSessionSetup).
+                                label:   (typeof sessionController !== "undefined" && sessionController.running)
+                                         ? qsTr("Back to the session") : qsTr("Start session")
                                 glyph:   "▶"
                                 height:  Theme.sp(40)
                                 width:   implicitWidth + Theme.sp(16)

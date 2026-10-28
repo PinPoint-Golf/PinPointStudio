@@ -33,23 +33,13 @@ Item {
     // interactive (System sits beneath it).
     property bool locked: false
 
-    // Active-session lock (navController.sessionLocked). While set, the Session button appears and
-    // only Session stays enabled above the spacer (Settings below it stays interactive, System
-    // beneath it — and the Swing model, Settings → Reference, with it). Visual affordance only —
-    // the enforcement lives in NavigationController::blockedDuringSession().
-    property bool sessionLocked: false
-
     // Shared mute rule for the destinations above the spacer.
-    function _muted(screen) {
-        if (locked) return true
-        if (sessionLocked) return screen !== AppScreen.Session
-        return false
-    }
+    function _muted(screen) { return locked }
 
-    // True whenever the rail is locked (wizard open or a session active) — i.e.
-    // some buttons are muted. Enabled buttons tint amber (attention) in this
-    // state and revert to the standard scheme once everything is interactive.
-    readonly property bool anyLocked: locked || sessionLocked
+    // True while the wizard locks the rail — i.e. some buttons are muted. Enabled buttons tint
+    // amber (attention) in this state and revert to the standard scheme once everything is
+    // interactive.
+    readonly property bool anyLocked: locked
 
     // Emitted whenever a nav button is pressed; caller sets contentStack.currentIndex
     signal pageRequested(int index)
@@ -122,9 +112,10 @@ Item {
 
             PpPressable {
                 // Athlete picker (AppScreen.Athletes) is unreachable while the
-                // wizard is open or a session is active.
+                // wizard is open. A running session locks nothing here: the picker
+                // itself refuses to switch golfer until it ends.
                 id:             railAvatarPress
-                enabled:        !root.locked && !root.sessionLocked
+                enabled:        !root.locked
                 confirmOnClick: true
                 onClicked:      root.avatarClicked()
             }
@@ -139,7 +130,7 @@ Item {
         Item { Layout.preferredHeight: Theme.sp(12); Layout.fillWidth: true }
 
         // ── Destinations ──────────────────────────────────────────────────────
-        // No mode buttons: one session screen, reached through Session while it runs
+        // No mode buttons: one session screen, the rail's Live, always there
         // (docs/design/ux_refactor_away_from_4_modes.md §2.2). Each button is active on its own
         // screen only — Work-ons has its own button now, so Home no longer claims it. The Swing
         // model has no button: it is Settings → Reference (Mark, 28 Oct).
@@ -154,19 +145,14 @@ Item {
             onClicked: root.pageRequested(AppScreen.Home)
         }
 
-        // Session — only while one runs. It is the way back to the live session from anywhere the
-        // lock allows (Settings, which holds the Swing model, and System), as the active mode
-        // button used to be.
-        Item {
-            Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true
-            visible: root.sessionLocked
-        }
+        // Live — the session screen, always available: the running session, a past one opened
+        // for review, or the cameras before a session starts.
+        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
 
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
-            visible:   root.sessionLocked
             iconText:  "▶"
-            labelText: qsTr("Session")
+            labelText: qsTr("Live")
             isActive:  root.currentPageIndex === AppScreen.Session
             isMuted:   root._muted(AppScreen.Session)
             attention: root.anyLocked
@@ -210,7 +196,7 @@ Item {
         }
         Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
 
-        // Settings always active — allowed during the wizard and a session. Stays
+        // Settings always active — allowed during the wizard. Stays
         // highlighted on the Developer and System (resource monitor) screens, which
         // live under Settings.
         PpRailButton {

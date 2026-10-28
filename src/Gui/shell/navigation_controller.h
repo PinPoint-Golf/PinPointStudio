@@ -22,10 +22,7 @@
 
 #include "app_screen.h"
 
-class AthleteController;
-class SessionController;
-
-// Screen history (back/forward) and the session lock. Every index is an AppScreen value
+// Screen history (back/forward). Every index is an AppScreen value
 // (app_screen.h); the invokables take int because QML passes enum values as ints and the
 // probes call navigate(n).
 class NavigationController : public QObject
@@ -35,23 +32,15 @@ class NavigationController : public QObject
     Q_PROPERTY(int  currentIndex  READ currentIndex  NOTIFY currentIndexChanged)
     Q_PROPERTY(bool canGoBack     READ canGoBack     NOTIFY historyChanged)
     Q_PROPERTY(bool canGoForward  READ canGoForward  NOTIFY historyChanged)
-    // True while a session is active (clock running with a session type set).
-    // Every navigation path is then locked to AppScreen::Session, System and
-    // Settings, whatever the session type — enforced here, visualised in PpRail.
-    // Settings stays open, which is how the Swing model (Settings slot 10) is
-    // reached mid-session.
-    Q_PROPERTY(bool sessionLocked READ sessionLocked NOTIFY sessionLockedChanged)
+    // No session lock: a running session leaves every screen reachable, and the rail's Live
+    // is the way back to it (Mark, 28 Oct).
 
 public:
-    // `athletes` is accepted for main.cpp's sake and not kept: nothing here reads it.
-    explicit NavigationController(AthleteController *athletes,
-                                  SessionController *session,
-                                  QObject           *parent = nullptr);
+    explicit NavigationController(QObject *parent = nullptr);
 
     int  currentIndex()  const;
     bool canGoBack()     const;
     bool canGoForward()  const;
-    bool sessionLocked() const;
 
     Q_INVOKABLE void navigate(int index);
     Q_INVOKABLE void navigateRail(int index);
@@ -62,14 +51,10 @@ public:
 signals:
     void currentIndexChanged();
     void historyChanged();
-    void sessionLockedChanged();
 
 private:
     void push(int index);
     void setCurrentIndex(int index);
-    bool blockedDuringSession(int index) const;
-
-    SessionController *m_session;
 
     int        m_current  = AppScreen::Home;
     QList<int> m_back;
