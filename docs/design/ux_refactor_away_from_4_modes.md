@@ -744,8 +744,6 @@ Open:
 - **D11 — One token source for the new look.** `Theme` tokens or `PpTypeset` roles. `PpTabs`
   already draws from PpTypeset, which defines hairlines, inks and figure fonts. Settle it at the
   start of Phase 4a.
-- **D12 — Home's identity row and first-run onboarding.** The mockups have neither. Keep a slim
-  identity row, or rely on the rail avatar; the no-athlete onboarding must survive either way.
 - **D5 — Rail width.** The current rail is an icon column with labels beneath; the approved
   mockup shows a wider labelled rail. Phase 1 keeps the current rail; widening is cosmetic and can
   follow.
@@ -754,6 +752,9 @@ Decided:
 
 - **D1 — Area rating.** *28 Oct:* habit counts, no 0–100 score (§5.2).
 - **D9 — Typical value for unlisted conditions.** *28 Oct:* median of all judged readings (§5.2).
+- **D12 — Home's identity row and first-run onboarding.** *28 Oct (Mark, after Phase 5):* the old
+  header is back above the Start card — the identity row (avatar, name and details, Switch →) and
+  the "PinPoint Studio" banner. The first-run onboarding is unchanged.
 - **D4 — "Your focus" and "What you do well".** *27 Oct:* kept, as the Coaching tab.
 - **D6 — Default tab.** Coaching (what to do next) by default; Your swing (the holistic view)
   one click away; the last choice remembered per athlete.

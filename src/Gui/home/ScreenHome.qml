@@ -18,13 +18,14 @@
 
 // HOME (ux_refactor_away_from_4_modes §2.3, Appendix A.1). No golfer yet: the first-run
 // onboarding. A golfer selected, top to bottom:
+//   0. The header — the identity row (avatar, name and details, Switch →) and the "PinPoint Studio"
+//      banner (D12, kept);
 //   1. Start — one table card: left, a new session (Start session, the club, the last session);
 //      right, what this rig can measure (HmRigCapability), with the phone pairing entry, a phone's
 //      offered sessions and the first device warning;
 //   2. HmHomeTabs — Coaching | Your swing.
 // The golfer's sessions are the rail's Sessions (ScreenSessions), not repeated here.
-// D12: no identity row and no "PinPoint Studio" hero — the rail's avatar shows and switches the
-// golfer. The contour background (PpTopoBackground) stays behind the first-run onboarding only; the
+// The contour background (PpTopoBackground) stays behind the first-run onboarding only; the
 // mockup's ground under a golfer's Home is flat.
 
 import QtQuick
@@ -35,6 +36,7 @@ Item {
     id: root
 
     signal addAthleteRequested()
+    signal athletePickerRequested()
     signal editCurrentAthleteRequested()
     // Start: open the session wizard. The request is { focusConditionId, focusLabel }: Home's
     // Start carries no focus (an open assessment, the golfer can pick one in the wizard); a
@@ -314,6 +316,115 @@ Item {
                     color:               Theme.colorText3
                     horizontalAlignment: Text.AlignHCenter
                 }
+            }
+
+            // ── Header: who's on, and the banner ─────────────────────────────
+            //
+            // D12 (Mark, 28 Oct): the old Home's identity row and "PinPoint Studio" banner, back as
+            // they were. The avatar edits the golfer; Switch → opens the picker.
+            Item {
+                objectName: "homeIdentityRow"
+                visible: root.hasGolfer
+                height:  visible ? Theme.sp(52) : 0
+                width:   parent.width
+
+                Rectangle {
+                    id: avatarCircle
+                    width: Theme.sp(52); height: Theme.sp(52); radius: Theme.sp(26)
+                    anchors.left:           parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    color:        Theme.colorAccentLight
+                    border.width: 1
+                    border.color: avatarPress.containsMouse ? Theme.colorAccent : Theme.colorAccentMid
+                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text:           athleteController.currentInitials
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.sp(16)
+                        color:          Theme.colorAccent
+                    }
+
+                    // Click the athlete avatar to edit the current athlete's profile.
+                    PpPressable {
+                        id:        avatarPress
+                        onClicked: root.editCurrentAthleteRequested()
+                    }
+                }
+
+                Column {
+                    anchors.left:           avatarCircle.right
+                    anchors.leftMargin:     16
+                    anchors.right:          switchLink.left
+                    anchors.rightMargin:    12
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.gap(3)
+
+                    Text {
+                        width:          parent.width
+                        text:           athleteController.currentName
+                        font.family:    Theme.fontDisplay
+                        font.italic:    Theme.fontDisplayItalic
+                        font.weight:    Theme.fontDisplayWeight
+                        font.pixelSize: Math.min(Theme.fontSzDisplay, 24)
+                        color:          Theme.colorText
+                        elide:          Text.ElideRight
+                    }
+
+                    Text {
+                        width: parent.width
+                        // The count is the rail's Sessions list's (sessionReportList, already pointed at
+                        // this golfer's folder), not the registry's sessionCount, which nothing updates.
+                        text: {
+                            var m   = root.athMap
+                            var hcp = Theme.formatHandicap(m.handicap)
+                            var n   = (typeof sessionReportList !== "undefined" && sessionReportList)
+                                          ? sessionReportList.count : 0
+                            var sc  = n === 1 ? qsTr("1 session") : qsTr("%1 sessions").arg(n)
+                            return athleteController.currentHandedness + " · " + hcp + " · " + sc
+                        }
+                        font.family:        Theme.fontData
+                        font.pixelSize:     Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingData
+                        color:              Theme.colorText3
+                        elide:              Text.ElideRight
+                    }
+                }
+
+                Text {
+                    id: switchLink
+                    objectName: "homeSwitchLink"
+                    anchors.right:          parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    text:           qsTr("Switch →")
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody2
+                    color:          Theme.colorAccent
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape:  Qt.PointingHandCursor
+                        onClicked:    root.athletePickerRequested()
+                    }
+                }
+            }
+
+            Column {
+                visible: root.hasGolfer
+                height:  visible ? implicitHeight : 0
+                width:   parent.width
+                spacing: 0
+
+                Item { width: 1; height: Theme.sp(40) }
+
+                // Banner — the hero title size (twice display, except where a theme sets its own).
+                PpDisplayText {
+                    objectName: "homeBanner"
+                    text:       qsTr("PinPoint Studio")
+                    pixelSize:  Theme.fontSzHero
+                }
+                Item { width: 1; height: Theme.sp(28) }
             }
 
             // ── 1. Start ─────────────────────────────────────────────────────

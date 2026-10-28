@@ -673,6 +673,8 @@ ApplicationWindow {
                         athleteFormScreen.editUuid = ""
                         navController.navigate(AppScreen.Athlete)
                     }
+                    // The header's Switch →: the picker, as the rail's avatar opens it.
+                    onAthletePickerRequested: navController.navigateRail(AppScreen.Athletes)
                     // Tapping the home avatar edits the current athlete's profile.
                     onEditCurrentAthleteRequested: {
                         athleteFormScreen.editUuid = athleteController.currentUuid
