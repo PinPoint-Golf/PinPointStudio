@@ -27,26 +27,6 @@ Item {
     signal cancelled()
     signal saved(string uuid)
     signal savedAndStarted(string uuid)
-    // The Sessions tab (session report §8.0): a row's "Open session", and a missing studio detail's link.
-    signal reviewSessionRequested(string sessionDir)
-    signal studioSettingsRequested()
-    // Which tab the page opens on: "details" (the form) or "sessions". Set before navigating here.
-    property string initialTab: "details"
-    // The tab on screen. Sessions exists for a saved golfer only: a new golfer has no sessions.
-    property string tab: "details"
-    readonly property bool sessionsTab: root.tab === "sessions" && root.editUuid !== ""
-    // Main.qml sets editUuid, then initialTab, then calls loadForEdit(); a caller that sets only
-    // initialTab on an already-open golfer is answered here. Either way it is spent on use.
-    // A golfer newly opened lands on Details unless initialTab says otherwise; re-loading the SAME golfer
-    // (Main.qml's explicit loadForEdit after setting initialTab) keeps the tab already chosen.
-    onInitialTabChanged: if (root.initialTab !== "details" && root.editUuid !== "") root._applyInitialTab()
-    property string _loadedUuid: ""
-    function _applyInitialTab() {
-        if (root.editUuid !== "" && root.initialTab === "sessions") root.tab = "sessions"
-        else if (root.editUuid !== root._loadedUuid || root.editUuid === "") root.tab = "details"
-        root.initialTab = "details"
-        root._loadedUuid = root.editUuid
-    }
 
     // ── Form state ────────────────────────────────────────────────────────────
     property bool   nameError:      false
@@ -163,7 +143,6 @@ Item {
     }
 
     function loadForEdit() {
-        root._applyInitialTab()
         if (editUuid === "") { resetForm(); return }
 
         const a = athleteController.athletes.find(function(x) { return x.uuid === editUuid })
@@ -277,67 +256,10 @@ Item {
             }
             Item { width: 1; height: 6 }
 
-            // ── Tabs: Details (the form) and Sessions (a saved golfer's) ──────
-            Item { visible: root.editUuid !== ""; width: 1; height: Theme.sp(8) }
-            PpTabs {
-                id: formTabs
-                objectName: "athleteFormTabs"
-                visible: root.editUuid !== ""
-                width:   parent.width
-                height:  visible ? implicitHeight : 0
-                roles:   formTs
-                tabs:    [{ key: "details", label: qsTr("Details") }, { key: "sessions", label: qsTr("Sessions") }]
-                current: root.sessionsTab ? "sessions" : "details"
-                onTabActivated: function (key) { root.tab = key }
-            }
-            Item { visible: root.editUuid !== ""; width: 1; height: Theme.sp(16) }
-
-            // ── Sessions ─────────────────────────────────────────────────────
-            // The list builds its own rows and links (agent K's PpSessionReportList); its requests
-            // leave through this screen's signals, which Main.qml handles.
-            //
-            // The list (sessionReportList) is the CURRENT golfer's — main.cpp points it at their library
-            // folder. A golfer opened from the picker may not be current, and their tab must not show
-            // somebody else's sessions, so it says so and offers the one press that fixes it.
-            readonly property bool _listIsThisGolfer: root.editUuid !== "" && root.editUuid === athleteController.currentUuid
-            PpSessionReportList {
-                id: sessionList
-                objectName: "athleteSessionList"
-                visible: root.sessionsTab && parent._listIsThisGolfer
-                width:   parent.width
-                limit:   0
-            }
-            Column {
-                objectName: "athleteSessionsNotCurrent"
-                visible: root.sessionsTab && !parent._listIsThisGolfer
-                width:   parent.width
-                spacing: Theme.gap(8)
-                Text {
-                    width: parent.width
-                    text: qsTr("%1's sessions are listed here when %2 is the golfer on Home.")
-                            .arg(nameField.text.trim()).arg(root.firstWord(nameField.text))
-                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                    color: Theme.colorText3; wrapMode: Text.WordWrap
-                }
-                PpLink {
-                    text: qsTr("Make %1 the golfer on Home").arg(root.firstWord(nameField.text))
-                    onClicked: athleteController.selectAthlete(root.editUuid)
-                }
-            }
-            Connections {
-                target: sessionList
-                ignoreUnknownSignals: true
-                function onReviewSessionRequested(dir) { root.reviewSessionRequested(dir) }
-                function onStudioSettingsRequested() { root.studioSettingsRequested() }
-                // "add Nick's email": the address lives on this page, one tab over.
-                function onGolferDetailsRequested() { root.tab = "details"; reportEmailField.forceActiveFocus() }
-            }
-
             Column {
                 id: detailsCol
                 width:   parent.width
                 spacing: 0
-                visible: !root.sessionsTab
 
                 Text {
                     width:          parent.width
@@ -1158,7 +1080,4 @@ Item {
             }   // detailsCol
         }
     }
-
-    // Declared last: children are destroyed in creation order, and the tabs read it to the end.
-    PpTypeset { id: formTs }
 }

@@ -17,7 +17,7 @@
  */
 
 // ONE SESSION, WITH ITS REPORT (docs/design/session_report_design.md §8.0) — a row of PpSessionReportList,
-// on Home and on the golfer page's Sessions tab alike.
+// on the rail's Sessions screen (ScreenSessions).
 //
 //   Tue 20 Oct 2026 · Session 3                    7 iron · 10 swings  (Face-on) (DTL) (GC Quad)
 //   Work-on 1: Keep the flex in your trail knee                    Opened in Mail 20 Oct 18:40

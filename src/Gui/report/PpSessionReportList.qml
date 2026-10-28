@@ -16,9 +16,8 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// THE GOLFER'S SESSIONS, EACH WITH ITS REPORT (docs/design/session_report_design.md §8.0) — Home's
-// Sessions section (limit 10, then "Show all N sessions") and the golfer page's Sessions tab (limit 0,
-// every session). One PpSessionReportRow per session, over SessionReportListModel (`sessionReportList`).
+// THE GOLFER'S SESSIONS, EACH WITH ITS REPORT (docs/design/session_report_design.md §8.0) — the rail's
+// Sessions screen (ScreenSessions, limit 0: every session; a limit adds "Show all N sessions"). One PpSessionReportRow per session, over SessionReportListModel (`sessionReportList`).
 //
 // THIS OWNS what the rows only ask for:
 //   · the report sheet (PpReportSheet), one for the whole list, opened on the row that asked
@@ -43,8 +42,8 @@
 // entered (Settings → Studio; the golfer's own page).
 //
 // RECORDED WITH. The carousel drawer's device filter (PpDeviceFilterBar) heads the list, and each row
-// tags what recorded it (PpDeviceTags). The filter is the model's, so Home and the golfer page share it;
-// rows it leaves out are hidden in place (shownRank -1), and Home's ten are the first ten it keeps.
+// tags what recorded it (PpDeviceTags). The filter is the model's, so it outlives the screen;
+// rows it leaves out are hidden in place (shownRank -1), and a limit's rows are the first it keeps.
 
 import QtQuick
 import PinPointStudio
@@ -110,7 +109,7 @@ Column {
     property string _emailAfterMake: ""
 
     // Sending it from the app: set up, the session whose confirm is open, and the one this list is sending
-    // (a list sends one at a time; the other list — Home or the golfer page — leaves its result alone).
+    // (a list sends one at a time; any other list leaves its result alone).
     readonly property bool sendReady: !!(root.mailer && root.mailer.sendConfigured)
     readonly property bool sendBusy:  !!(root.mailer && root.mailer.sending)
     property string _confirmDir: ""

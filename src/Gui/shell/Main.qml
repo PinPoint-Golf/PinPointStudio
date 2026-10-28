@@ -559,13 +559,10 @@ ApplicationWindow {
         return n
     }
 
-    // The Sessions screen shows the CURRENT athlete. Refreshed every time it is
-    // opened (rail or Home's "Show all"), since the athlete may have changed, or
-    // saved a session, since it was last drawn.
+    // The Sessions screen (the rail's) is the CURRENT golfer's list, which follows the golfer by
+    // itself; it opens at the top.
     function _showSessions() {
-        sessionsScreen.editUuid   = athleteController.currentUuid
-        sessionsScreen.initialTab = "sessions"
-        sessionsScreen.loadForEdit()
+        sessionsScreen.toTop()
     }
 
     // Open the session wizard for a start request { focusConditionId, focusLabel } (Home's
@@ -620,9 +617,7 @@ ApplicationWindow {
             PpHeader {
                 id: appHeader
                 Layout.fillWidth: true
-                // Two ScreenAthleteForm slots: Athlete names itself by whether it is
-                // creating or editing; Sessions is always "Sessions" (screenNames) —
-                // the rail mutes it with no golfer, so it never shows a blank form.
+                // Athlete names itself by whether it is creating or editing.
                 screenName: navController.currentIndex === AppScreen.Athlete
                             ? (athleteFormScreen.editUuid === "" ? qsTr("New athlete")
                                                                  : qsTr("Edit athlete"))
@@ -695,31 +690,15 @@ ApplicationWindow {
                         swingDiagnosticsScreen.toTop()
                         navController.navigate(AppScreen.WorkOns)
                     }
-                    // The Sessions section (session report §8.0): the same load the work-ons' review link
-                    // uses, then the screen that draws a loaded session; "Show all" is the Sessions
-                    // screen; a missing studio detail opens Settings → Studio.
-                    onReviewSessionRequested: function(sessionDir) {
-                        sessionReviewController.loadSession(sessionDir)
-                        navController.navigate(AppScreen.Session)
-                    }
-                    onAthleteSessionsRequested: {
-                        root._showSessions()
-                        navController.navigate(AppScreen.Sessions)
-                    }
+                    // The rig pane's "Rig ▸" opens Settings → Studio.
                     onStudioSettingsRequested: {
                         settingsScreen.openStudio()
                         navController.navigate(AppScreen.Settings)
                     }
                 }
                 ScreenWrist {}                                             // AppScreen.Session — the one session screen
-                ScreenAthleteForm {                                        // AppScreen.Sessions — the current golfer's sessions
-                    // A SECOND form instance: one Item cannot fill two stack slots, and New/Edit
-                    // athlete (athleteFormScreen) keeps its own state. It always shows the current
-                    // golfer on its Sessions tab, refreshed by root._showSessions() on the way in.
+                ScreenSessions {                                           // AppScreen.Sessions — the current golfer's sessions, from the rail
                     id: sessionsScreen
-                    onCancelled: navController.back()
-                    onSaved: navController.back()          // an edit made on its Details tab
-                    onSavedAndStarted: navController.navigate(AppScreen.Athletes)
                     onReviewSessionRequested: function(sessionDir) {
                         sessionReviewController.loadSession(sessionDir)
                         navController.navigate(AppScreen.Session)
@@ -727,6 +706,12 @@ ApplicationWindow {
                     onStudioSettingsRequested: {
                         settingsScreen.openStudio()
                         navController.navigate(AppScreen.Settings)
+                    }
+                    // A missing address or photo approval: the golfer's own page.
+                    onGolferDetailsRequested: {
+                        athleteFormScreen.editUuid = athleteController.currentUuid
+                        athleteFormScreen.loadForEdit()
+                        navController.navigate(AppScreen.Athlete)
                     }
                 }
                 ScreenSwingDiagnostics {                                   // AppScreen.WorkOns — from the rail and Home's tabs
@@ -757,14 +742,6 @@ ApplicationWindow {
                         else         navController.navigate(AppScreen.Athletes)
                     }
                     onSavedAndStarted: { athleteFormScreen.editUuid = ""; navController.navigate(AppScreen.Athletes) }
-                    onReviewSessionRequested: function(sessionDir) {
-                        sessionReviewController.loadSession(sessionDir)
-                        navController.navigate(AppScreen.Session)
-                    }
-                    onStudioSettingsRequested: {
-                        settingsScreen.openStudio()
-                        navController.navigate(AppScreen.Settings)
-                    }
                 }
                 ScreenAthletePicker {                                      // AppScreen.Athletes — athlete picker
                     onAthleteSelected:     navController.navigate(AppScreen.Home)

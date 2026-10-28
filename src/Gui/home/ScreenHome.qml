@@ -21,8 +21,8 @@
 //   1. Start — one table card: left, a new session (Start session, the club, the last session);
 //      right, what this rig can measure (HmRigCapability), with the phone pairing entry, a phone's
 //      offered sessions and the first device warning;
-//   2. HmHomeTabs — Coaching | Your swing;
-//   3. Recent sessions — PpSessionReportList, with "All sessions ▸".
+//   2. HmHomeTabs — Coaching | Your swing.
+// The golfer's sessions are the rail's Sessions (ScreenSessions), not repeated here.
 // D12: no identity row and no "PinPoint Studio" hero — the rail's avatar shows and switches the
 // golfer. The contour background (PpTopoBackground) stays behind the first-run onboarding only; the
 // mockup's ground under a golfer's Home is flat.
@@ -43,12 +43,7 @@ Item {
     // Swing diagnostics (the Work-ons screen), showing one area's work-ons — `group` is the area's
     // ConditionGroup token — or every work-on when it is "".
     signal swingDiagnosticsRequested(string group)
-    // The Sessions section (session report, docs/design/session_report_design.md §8.0): a row's "Open
-    // session"; "All sessions ▸" / "Show all N sessions" (the golfer page's Sessions tab); a missing
-    // detail's link to where it is entered — Settings → Studio, or the golfer's own page. Settings →
-    // Studio is also the rig pane's "Rig ▸".
-    signal reviewSessionRequested(string sessionDir)
-    signal athleteSessionsRequested()
+    // The rig pane's "Rig ▸": Settings → Studio.
     signal studioSettingsRequested()
 
     // EMPTY, not a club. This is carried into SessionController.activeClub at session
@@ -483,57 +478,6 @@ Item {
                     root.startSessionRequested({ focusConditionId: conditionId, focusLabel: label })
                 onAllInAreaRequested: (group) => root.swingDiagnosticsRequested(group)
                 onAllWorkOnsRequested: root.swingDiagnosticsRequested("")
-            }
-
-            // ── 3. Recent sessions ───────────────────────────────────────────
-            //
-            // The current golfer's sessions, newest ten, each with its report: Open session, Report
-            // (or Make / Remake report), Email to the golfer (docs/design/session_report_design.md
-            // §8.0). The live session sits at the top with Open session only. "All sessions ▸", like
-            // the list's own "Show all N sessions", is the golfer page's Sessions tab. Last on the
-            // screen: it is the archive, read after the work of today is set up.
-            Column {
-                objectName: "homeSessionsSection"
-                visible: root.hasGolfer
-                height:  visible ? implicitHeight : 0
-                width:   parent.width
-                spacing: 0
-
-                Item { width: 1; height: Theme.sp(44) }
-                Item {
-                    width:  parent.width
-                    height: Theme.sp(40)
-                    Text {
-                        anchors { left: parent.left; verticalCenter: parent.verticalCenter
-                                  right: allSessionsLink.left; rightMargin: Theme.gap(12) }
-                        text:           qsTr("Recent sessions")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.sp(Theme.fontSzTab)
-                        font.weight:    Font.DemiBold
-                        color:          Theme.colorText
-                        elide:          Text.ElideRight
-                    }
-                    PpLink {
-                        id: allSessionsLink
-                        objectName: "homeAllSessions"
-                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        text:        qsTr("All sessions ▸")
-                        font.pixelSize: Theme.fontSzBody
-                        pressMargin: Theme.sp(6)
-                        onClicked:   root.athleteSessionsRequested()
-                    }
-                }
-                Item { width: 1; height: Theme.sp(8) }
-                PpSessionReportList {
-                    objectName: "homeSessionList"
-                    width: parent.width
-                    limit: 10
-                    onShowAll:                 root.athleteSessionsRequested()
-                    onReviewSessionRequested:  (dir) => root.reviewSessionRequested(dir)
-                    onStudioSettingsRequested: root.studioSettingsRequested()
-                    // The golfer's details live on their own page (the address, the photo approval).
-                    onGolferDetailsRequested:  root.editCurrentAthleteRequested()
-                }
             }
 
             Item { width: 1; height: 60 }

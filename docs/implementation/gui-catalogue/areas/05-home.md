@@ -221,7 +221,7 @@ The home screen. First run: welcome/onboarding (add an athlete, connect a camera
 *(description written for this catalogue — the file has no header comment)*
 
 - **Properties:** `string selectedClub`, `var athMap`, `readonly var clubModel`, `readonly bool hasGolfer`, `readonly var lastSession`, `readonly string lastSessionText`
-- **Signals:** `addAthleteRequested()`, `editCurrentAthleteRequested()`, `startSessionRequested(var request)`, `swingDiagnosticsRequested(string group)`, `reviewSessionRequested(string sessionDir)`, `athleteSessionsRequested()`, `studioSettingsRequested()`
+- **Signals:** `addAthleteRequested()`, `editCurrentAthleteRequested()`, `startSessionRequested(var request)`, `swingDiagnosticsRequested(string group)`, `studioSettingsRequested()`
 - **Uses:** `ClubFormat`, `HmHomeTabs`, `HmRigCapability`, `PpButton`, `PpCard`, `PpComboBox`, `PpDisplayText`, `PpLink`, `PpSessionReportList`, `PpTopoBackground`
 - **Used by (1):** `Main`
 - **Exercised by tests/tools:** `setup_walk`

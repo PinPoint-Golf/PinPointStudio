@@ -105,6 +105,7 @@ set(PP_QML_FILES
     src/Gui/shell/PpAnalysingBadge.qml
     src/Gui/shell/PlayPage.qml
     src/Gui/athlete/ScreenAthleteForm.qml
+    src/Gui/athlete/ScreenSessions.qml
     src/Gui/athlete/AthleteClubsSection.qml
     src/Gui/athlete/ScreenAthletePicker.qml
     src/Gui/components/PpTextField.qml

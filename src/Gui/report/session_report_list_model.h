@@ -19,7 +19,7 @@
 #pragma once
 
 // ONE GOLFER'S SESSIONS, EACH WITH ITS REPORT STATE (docs/design/session_report_design.md §8.0) — the
-// list at the foot of Home and on the golfer page's Sessions tab. Context property `sessionReportList`.
+// list on the rail's Sessions screen (ScreenSessions). Context property `sessionReportList`.
 //
 // A row is one session folder that holds at least one swing:
 //   "Tue 20 Oct 2026 · Session 3"   the SESSION date (the first swing's wall-clock, local time) and the
