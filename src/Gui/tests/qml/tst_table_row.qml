@@ -21,7 +21,7 @@ import QtTest
 import PinPointStudio
 
 // PpTableRow, loaded for real, outside a card: a row that is given its template, a row that has
-// none (its cells stay where the caller put them — HmWorkOns' rows rely on it), and the row's own
+// none (its cells stay where the caller put them — a hand-placed cell relies on it), and the row's own
 // furniture (height, padding, hover, rule). Inside a table card it is pressed in tst_table_card.
 Item {
     id: probe

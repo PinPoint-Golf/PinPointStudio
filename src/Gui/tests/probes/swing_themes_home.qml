@@ -13,20 +13,16 @@
 //   with as many delegates as it has items, the first (only) wearing NEXT → no drawn text on the
 //   COACHING tab is technical (no P-position, no degrees, no fault's technical name) or causal
 //   (because / cause / due to / leads to) — the Your swing tab shows pack labels and figures by
-//   design, so it is not checked → the work-ons are no longer on the home screen →
-//   follow the tab bar's "All work-ons ▸": the screen is drawn, the home is not, its Faults card (headed in
-//   the theme's own case) draws a row per work-on (five at most until "more"), and "what goes
-//   together" draws an item each with its
-//   first half and where it starts, or its note → no causal words there either →
-//   click "← Home": the home is back.
+//   design, so it is not checked → the Matchups tab draws "faults that travel together": an item
+//   each with its first half and where it starts, or its note → no causal words there either.
 //
 // Point the app at a folder of sessions that is NOT the library (PINPOINT_WORKONS_DIR), so the
 // catch-up writes its work_ons.json and swing_themes.json files there:
 //   PINPOINT_WORKONS_DIR=<athlete dir> QT_QPA_PLATFORM=offscreen PinPointStudio \
 //       --probe-qml <abs path to this file> [--probe-png <abs path>] [--probe-png-section <abs path>]
-//       [--probe-png-diagnostics <abs path>]
+//       [--probe-png-matchups <abs path>]
 // --probe-png grabs the whole home column (the tabs and the Coaching tab, as the golfer sees it);
-// --probe-png-section the Coaching tab alone; --probe-png-diagnostics the Swing diagnostics column.
+// --probe-png-section the Coaching tab alone; --probe-png-matchups the Matchups tab.
 // Each on the theme's own background. Exit 0 = PASS, 1 = FAIL; "PROBE:" lines say why.
 // build/run-me/verify-swing-themes.sh wraps it.
 //
@@ -46,7 +42,7 @@ Item {
     }
     readonly property string png:            arg("--probe-png", "")
     readonly property string pngSection:     arg("--probe-png-section", "")
-    readonly property string pngDiagnostics: arg("--probe-png-diagnostics", "")
+    readonly property string pngMatchups: arg("--probe-png-matchups", "")
 
     function log(s) { console.warn("PROBE: " + s) }
     property int failures: 0
@@ -210,72 +206,44 @@ Item {
         check(causal.length === 0, "no drawn text on the Coaching tab says because / cause / due to / leads to"
               + (causal.length ? (": " + causal.join(" | ")) : ""))
 
-        // ── The faults moved off the home screen ──
+        // ── The old work-ons list is gone from the home screen ──
         const column = tabs.parent
         check(column !== null && all(column, "workOnsEmpty").length === 0 && all(column, "workOnRow").length === 0,
-              "the home column no longer holds the work-ons")
-        // The way into them is the tab bar's "All work-ons ▸".
-        const bar = find(tabs, "homeTabBar")
-        const allLink = find(tabs, "homeAllWorkOns")
-        check(bar !== null && allLink !== null && drawn(allLink), "the tab bar's 'All work-ons ▸' is drawn")
+              "the home column holds no work-ons list")
 
         const shots = []
         if (png !== "" && column) shots.push({ item: column, path: png })
         if (pngSection !== "") shots.push({ item: coaching, path: pngSection })
         grabNext(shots, () => {
-            if (!bar || !allLink) { finish(); return }
-            bar.chipActivated()
-            after(600, inspectDiagnostics)
+            tabs.select("matchups")
+            after(600, inspectMatchups)
         })
     }
 
-    // ── Swing diagnostics ────────────────────────────────────────────────────────────────
-    function inspectDiagnostics() {
-        const screen = find(rootItem(), "swingDiagnosticsScreen")
-        check(screen !== null && drawn(screen), "'All work-ons ▸' opens the Swing diagnostics screen")
-        check(!drawn(summary), "…in place of the home screen")
-        if (!screen) { finish(); return }
-
-        // The heading's case is the theme's (Theme.caps: FAULTS where headings are capitals, "Faults"
-        // in a sentence-case theme such as Folio), so the probe asks the theme, not a spelling.
-        const faultsTitle = Theme.caps("Faults")
-        check(screen.faults && screen.faults.title === faultsTitle,
-              "its faults card is headed " + faultsTitle + " (" + (screen.faults ? screen.faults.title : "none") + ")")
-        const items = workOns.items || []
-        const rows = all(screen, "workOnRow")
-        check(rows.length >= 1 && rows.length === Math.min(items.length, 5) && rows.every(drawn),
-              "FAULTS draws a row per work-on, five at most until 'more' (" + rows.length + " of " + items.length + ")")
-
+    // ── Matchups ─────────────────────────────────────────────────────────────────────────
+    function inspectMatchups() {
+        const page = find(tabs, "homeTabMatchups")
+        check(page !== null && drawn(page), "the Matchups tab is drawn")
         const together = workOns.togetherItems
-        const card = find(screen, "goesTogether")
-        check(card !== null && drawn(card), "the 'what goes together' card is drawn")
+        const card = page ? find(page, "goesTogether") : null
+        check(card !== null && drawn(card), "the 'faults that travel together' card is drawn")
         const togetherItems = card ? all(card, "togetherItem") : [], noteItems = card ? all(card, "togetherNote") : []
         check(togetherItems.length === together.length && togetherItems.every(drawn),
-              "every 'goes together' item is drawn (" + togetherItems.length + " of " + together.length + ")")
+              "every 'travel together' item is drawn (" + togetherItems.length + " of " + together.length + ")")
         const noteDrawn = noteItems.length === 1 && drawn(noteItems[0])
         check(noteItems.length === 1 && noteDrawn === (together.length === 0),
               together.length === 0 ? "the note is drawn" : "no note is drawn beside the items")
         const whole = togetherItems.filter(t => t.firstText !== "" && t.startWordsText !== "")
         check(togetherItems.length === 0 ? noteDrawn : whole.length === togetherItems.length,
-              "every 'goes together' item has its first half and where it starts, or the note is drawn ("
+              "every 'travel together' item has its first half and where it starts, or the note is drawn ("
               + whole.length + " of " + togetherItems.length + ")")
         const causal = drawnTexts(card, []).filter(saysCause)
-        check(causal.length === 0, "nothing in 'what goes together' says because / cause / due to / leads to"
+        check(causal.length === 0, "nothing on Matchups says because / cause / due to / leads to"
               + (causal.length ? (": " + causal.join(" | ")) : ""))
 
-        const back = find(screen, "diagnosticsBack")
-        check(back !== null && drawn(back), "'← Home' is drawn")
         const shots = []
-        if (pngDiagnostics !== "" && card) shots.push({ item: card.parent, path: pngDiagnostics })
-        grabNext(shots, () => {
-            if (!back) { finish(); return }
-            back.clicked(null)
-            after(600, () => {
-                check(drawn(summary) && !drawn(screen) && navController.currentIndex === AppScreen.Home,
-                      "'← Home' returns to the home screen")
-                finish()
-            })
-        })
+        if (pngMatchups !== "" && card) shots.push({ item: page, path: pngMatchups })
+        grabNext(shots, finish)
     }
 
     // Runs `fn` once, `ms` from now.

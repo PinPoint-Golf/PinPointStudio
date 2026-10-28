@@ -129,7 +129,7 @@ Top header bar: screen name after a separator, back/forward, version pill (About
 ### PpRail
 `src/Gui/shell/PpRail.qml` · 227 lines · root `Item`
 
-Left navigation rail (Home, Live, Sessions, Work-ons, Settings) of PpRailButtons plus the athlete avatar; locks only while the session wizard is open.  
+Left navigation rail (Home, Live, Sessions, Settings) of PpRailButtons plus the athlete avatar; locks only while the session wizard is open.  
 *(description written for this catalogue — the file has no header comment)*
 
 - **Properties:** `int currentPageIndex`, `bool locked`, `int sessionLockIndex`, `readonly bool anyLocked`

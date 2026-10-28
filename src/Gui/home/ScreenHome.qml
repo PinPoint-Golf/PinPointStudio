@@ -23,7 +23,7 @@
 //   1. Start — one table card: left, a new session (Start session, the club, the last session);
 //      right, what this rig can measure (HmRigCapability), with the phone pairing entry, a phone's
 //      offered sessions and the first device warning;
-//   2. HmHomeTabs — Coaching | Your swing.
+//   2. HmHomeTabs — Coaching | Your swing | Matchups; a fault opens its detail in place.
 // The golfer's sessions are the rail's Sessions (ScreenSessions), not repeated here.
 // The contour background (PpTopoBackground) stays behind the first-run onboarding only; the
 // mockup's ground under a golfer's Home is flat.
@@ -42,9 +42,8 @@ Item {
     // Start carries no focus (an open assessment, the golfer can pick one in the wizard); a
     // work-on's Practise on the Coaching or Your swing tab carries its condition.
     signal startSessionRequested(var request)
-    // Swing diagnostics (the Work-ons screen), showing one area's work-ons — `group` is the area's
-    // ConditionGroup token — or every work-on when it is "".
-    signal swingDiagnosticsRequested(string group)
+    // An open fault's "Review the … session →" (Coaching or Your swing): that session, in Live.
+    signal reviewSessionRequested(string sessionDir)
     // The rig pane's "Rig ▸": Settings → Studio.
     signal studioSettingsRequested()
 
@@ -574,12 +573,12 @@ Item {
                 }
             }
 
-            // ── 2. Coaching | Your swing ─────────────────────────────────────
+            // ── 2. Coaching | Your swing | Matchups ──────────────────────────
             //
             // The golfer's swing, read off WorkOnsController's catch-up (re-run whenever Home comes
             // back into view, onVisibleChanged — a session may have ended since). Practise opens the
-            // wizard with that condition as the focus; "All of <area> ▸" and "All work-ons ▸" open
-            // Swing diagnostics, on that area or on everything.
+            // wizard with that condition as the focus; a fault opens its detail in place, and its
+            // "Review the … session →" opens that session in Live.
             Item { width: 1; height: Theme.sp(40); visible: homeTabs.visible }
 
             HmHomeTabs {
@@ -589,8 +588,7 @@ Item {
                 width:   parent.width
                 onPractiseRequested: (conditionId, label) =>
                     root.startSessionRequested({ focusConditionId: conditionId, focusLabel: label })
-                onAllInAreaRequested: (group) => root.swingDiagnosticsRequested(group)
-                onAllWorkOnsRequested: root.swingDiagnosticsRequested("")
+                onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
             }
 
             Item { width: 1; height: 60 }

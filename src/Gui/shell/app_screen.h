@@ -42,7 +42,6 @@ public:
         Home = 0,
         Session,     // the one live/review session screen (ScreenWrist); the rail's Live
         Sessions,    // the current athlete's sessions (ScreenSessions)
-        WorkOns,     // ScreenSwingDiagnostics
         Athlete,     // ScreenAthleteForm: new / edit athlete
         Athletes,    // ScreenAthletePicker
         System,      // ScreenResourceMonitor

@@ -320,7 +320,7 @@ static bool isFaultItem(const QVariant &v, const QJsonArray &storedSeen)
     const QString freq = m.value(QStringLiteral("frequency")).toString();
     const int trend = m.value(QStringLiteral("trend")).toInt();
     return keysAre(m, { QStringLiteral("text"), QStringLiteral("share"), QStringLiteral("frequency"),
-                        QStringLiteral("trend"), QStringLiteral("sessions") })
+                        QStringLiteral("trend"), QStringLiteral("sessions"), QStringLiteral("conditionId") })
         && !m.value(QStringLiteral("text")).toString().isEmpty()
         && m.value(QStringLiteral("text")).toString().at(0).isUpper()
         && m.value(QStringLiteral("share")).typeId() == QMetaType::Double
@@ -332,7 +332,7 @@ static bool isFaultItem(const QVariant &v, const QJsonArray &storedSeen)
                             m.value(QStringLiteral("share")).toDouble());
 }
 
-// The shape of every item the home screen and Swing diagnostics read: exactly the keys
+// The shape of every item the home screen reads: exactly the keys
 // HmFocus.qml, HmSwingSummary.qml and HmGoesTogether.qml bind to, the values in range, and each
 // card's per-session pips those of a stored row (one per judged session).
 static void checkSummaryShape(const WorkOnsController &c, const QJsonObject &stored, const char *when)
@@ -658,7 +658,7 @@ int main(int argc, char **argv)
           "every row counts against the same swings; the ones it could not be judged on are said apart");
     check(!sway.value(QStringLiteral("drillLabel")).toString().isEmpty(), "sway carries the pack's drill");
     {
-        // Every work-on names its swing area by the areas' own token (Swing diagnostics filters on it).
+        // Every work-on names its swing area by the areas' own token (Home places it in its area by it).
         QStringList areaGroups;
         for (const QVariant &v : c.areaItems()) areaGroups << v.toMap().value(QStringLiteral("group")).toString();
         bool grouped = true;
@@ -749,10 +749,8 @@ int main(int argc, char **argv)
           && !record(golfer, QStringLiteral("s3")).isEmpty(), "the new session is recorded and the old ones are not rewritten");
     check(item(c, "sway").isEmpty() && c.clearedCount() == 1, "sway quiet twice running is cleared off the list");
     check(item(c, "ball_back").value(QStringLiteral("statusText")).toString().startsWith(QStringLiteral("Not measured since"))
-          && item(c, "ball_back").value(QStringLiteral("unconfirmed")).toBool()
-          && item(c, "ball_back").value(QStringLiteral("lastSeenText")).toString().startsWith(QStringLiteral("last seen "))
-          && !item(c, "reverse_spine_p4").value(QStringLiteral("unconfirmed")).toBool(),
-          "a fault the newest session could not measure says so, is flagged unconfirmed, and stays");
+          && !item(c, "reverse_spine_p4").value(QStringLiteral("statusText")).toString().startsWith(QStringLiteral("Not measured since")),
+          "a fault the newest session could not measure says so, and stays");
 
     // ── A session that changed, and a record from another rule ──────────────────
     QDir().mkpath(golfer + QStringLiteral("/s2/swing_0011"));      // a swing arrived

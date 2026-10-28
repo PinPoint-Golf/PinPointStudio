@@ -521,6 +521,15 @@ Goal: the rail and stack no longer know about modes. Behaviour otherwise identic
   Two guards remain. The athlete picker will not switch or delete a golfer while a session runs,
   because that session's swings are being saved to the current golfer. Home's Start (and a work-on's
   Practise) goes to Live while a session runs, rather than opening the wizard over it.
+- **Changed (Mark, 28 Oct, after Phase 5): no Work-ons, no Swing diagnostics screen.** The rail
+  is Home, Live, Sessions and Settings. A fault on Home opens its detail **in place**, under its
+  row (`HmFaultDetail`): what it costs, Now / Latest / Swings / Sessions / Linked, the drill, and
+  "Review the … session →". That holds for Coaching's focus ("Right now") and "Next on your list",
+  and for an open area's items on Your swing, which now lists every condition in the area (no cap
+  of five). `ScreenSwingDiagnostics`, `HmWorkOns`, `AppScreen.WorkOns`, "All work-ons ▸" and "All
+  of <area> ▸" are gone. What goes together moved to a third Home tab, **Matchups**: today the
+  faults that travel together; later also pairs that work together (e.g. a closed face with an
+  open chest at impact).
 - **Tests and probes to update:**
   - `tst_charts_panel.qml` and `tst_chart_presets.qml` + `charts/ChartsHarness.qml`: drive the
     gate with the Session index. At l.432 keep the index on Session while changing `sessionType`.

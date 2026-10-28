@@ -22,6 +22,9 @@
 //
 //   chevron · Area · Habits · Trend · Biggest fault · Work-ons
 //
+// An open area lists every one of its conditions, and each opens its detail in place (HmAreaRow,
+// HmFaultDetail).
+//
 // Paint-only: every row is WorkOnsController.areaItems. Before the first areas land it says it is
 // reading; with no session to read it says "Nothing yet"; a recompute after that leaves the table
 // standing and says nothing (HmSwingSummary's states).
@@ -49,7 +52,8 @@ Column {
                                  ? athleteController.currentUuid : ""
 
     signal practiseRequested(string conditionId, string label)
-    signal allInAreaRequested(string group)
+    // An open fault's "Review the … session →".
+    signal reviewSessionRequested(string sessionDir)
 
     readonly property var  areas:      root.controller && root.controller.areaItems ? root.controller.areaItems : []
     readonly property bool ready:      root.areas.length > 0
@@ -165,11 +169,12 @@ Column {
             HmAreaRow {
                 required property var modelData
                 area:       modelData
+                controller: root.controller
                 autoToggle: false
                 expanded:   root.isOpen(String(modelData.group))
                 onToggled:  root.toggle(String(modelData.group))
                 onPractiseRequested:  (conditionId, label) => root.practiseRequested(conditionId, label)
-                onAllInAreaRequested: (group) => root.allInAreaRequested(group)
+                onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
             }
         }
     }

@@ -112,7 +112,7 @@ inline bool areaConditionCounts(const QString &group, WorkOnClass cls, bool outc
 inline constexpr double kAreaHabitShare      = 0.5;    // "more than half your swings" (Coaching's presentShare)
 inline constexpr double kAreaOccasionalShare = 0.15;
 inline constexpr double kAreaCleanUpper      = 0.35;   // clean also needs the Wilson UPPER bound under this
-inline constexpr int    kAreaMaxItems        = 5;
+inline constexpr int    kAreaMaxItems        = 5;      // the default; Home lists every item (WorkOnsController)
 
 struct AreaOptions {
     double habitShare      = kAreaHabitShare;

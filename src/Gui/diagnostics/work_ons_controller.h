@@ -37,8 +37,8 @@
 class SessionDiagnosticsModel;
 namespace pinpoint::analysis { class ICharacteristicPackProvider; struct CharacteristicPack; }
 
-// WORK ONS — the list of the faults a golfer keeps producing (FAULTS, on the Swing diagnostics
-// screen that the home screen's YOUR SWING opens), and the thing that keeps each session's record
+// WORK ONS — the list of the faults a golfer keeps producing (each opened in place under its row on
+// Home's Coaching and Your swing tabs, HmFaultDetail), and the thing that keeps each session's record
 // of them current (docs/design/work_ons_design.md). The context property `workOns`.
 //
 // ONE MECHANISM FOR "END OF SESSION" AND FOR CATCH-UP, because they are the same problem. A
@@ -93,6 +93,8 @@ class WorkOnsController : public QObject
 
     // Active and easing work-ons, most persistent first; every string final.
     Q_PROPERTY(QVariantList items READ items NOTIFY itemsChanged)
+    // Bumped with every publish: a QML binding on faultDetail() reads it to follow the records.
+    Q_PROPERTY(int detailsRevision READ detailsRevision NOTIFY itemsChanged)
     Q_PROPERTY(int clearedCount READ clearedCount NOTIFY itemsChanged)
     // Sessions with a current record / sessions found. They differ while catching up.
     Q_PROPERTY(int sessionCount READ sessionCount NOTIFY itemsChanged)
@@ -111,7 +113,8 @@ class WorkOnsController : public QObject
     //   {group (token), label ("Lateral motion"), measurable, measured, habits, occasional, clean,
     //    unclear, habitTrend (habits now − without the newest substantive session), hasTrend,
     //    topFault (label, "" when none), topFaultId, workOnsActive, workOnsNew, items [item]}
-    // Each item, habits first, then occasional, then the rest, by share within each, at most five:
+    // Each item, habits first, then occasional, then the rest, by share within each — every one (Home
+    // lists them all, each opening in place):
     //   {conditionId, label, golfer, band ("habit" | "occasional" | "clean" | "unclear"), share (0..1,
     //    recency-weighted), fired, assessable (unweighted swings), measureId, hasTypical, typical,
     //    corridorLo, corridorHi, corridorShape, unit, grade, workOn ("active" | "easing" | "new" | ""),
@@ -122,10 +125,10 @@ class WorkOnsController : public QObject
     Q_PROPERTY(QVariantList areaItems READ areaItems NOTIFY areasChanged)
 
     // ── Your swing ──
-    // Every string final (swingSummaryView); HmSwingSummary.qml, HmFocus.qml and (in Swing
-    // diagnostics) HmGoesTogether.qml position and paint. A fault item, wherever it appears, is
+    // Every string final (swingSummaryView); HmSwingSummary.qml, HmFocus.qml and (Home's Matchups
+    // tab) HmGoesTogether.qml position and paint. A fault item, wherever it appears, is
     // {text, share (0..1), frequency, trend (+1 growing, −1 easing, 0), sessions [bool, one per
-    // judged session]}.
+    // judged session], conditionId (what its row opens with faultDetail())}.
     // "From N swings over M sessions" — every shot in the ledgers, every session holding one.
     Q_PROPERTY(QString summarySubtitle READ summarySubtitle NOTIFY summaryChanged)
     // "Your focus": {present, title, aimFor [string], rightNow [fault item], why, practiseLabel,
@@ -165,6 +168,13 @@ public:
     void    setPaused(bool on);
 
     QVariantList items() const { return m_items; }
+    int  detailsRevision() const { return m_detailsRevision; }
+    // ONE condition's detail, as Home opens it in place (HmFaultDetail) — for EVERY condition any
+    // session assessed, not only the listed work-ons: a listed one's is its `items` entry exactly;
+    // any other's has the same keys, its "Latest" from the newest session that assessed it.
+    // Empty when no session assessed it. One map, not a map of them all: a QVariantMap property
+    // read is a deep copy, and every fault row on Home asks.
+    Q_INVOKABLE QVariantMap faultDetail(const QString &conditionId) const { return m_details.value(conditionId); }
     int  clearedCount() const { return m_clearedCount; }
     int  sessionCount() const { return int(m_records.size()); }
     int  sessionsFound() const { return m_sessionsFound; }
@@ -269,6 +279,8 @@ private:
     int         m_sessionsFound = 0;
 
     QVariantList m_items;
+    QHash<QString, QVariantMap> m_details;   // conditionId -> faultDetail()
+    int          m_detailsRevision = 0;
     int          m_clearedCount = 0;
     QVariantMap  m_lastSession;
     QVariantList m_areaItems;          // publish()'s, stored: QML reads it many times per frame

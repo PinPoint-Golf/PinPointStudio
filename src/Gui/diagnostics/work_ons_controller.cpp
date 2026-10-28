@@ -31,6 +31,7 @@
 #include "../../Core/pp_debug.h"
 #include "../../Export/swing_store.h"
 
+#include <limits>
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDate>
@@ -447,33 +448,29 @@ void WorkOnsController::publish()
     // trend — per publish, on this thread; the aggregate's per-session evidence index keeps it linear.
     publishAreas(pack, sessions);
 
+    // Every condition any session assessed, for the details Home opens in place; then the list.
+    const std::vector<WorkOnSummary> every = aggregateConditions(sessions);
     const std::vector<WorkOnSummary> agg = aggregateWorkOns(std::move(sessions));
 
     const auto nameOf = [&pack](const QString &id, const QString &fallback = QString()) {
         return packLabel(pack, id, fallback);
     };
 
-    QVariantList items;
-    int cleared = 0;
-    for (const WorkOnSummary &w : agg) {
-        if (w.status == WorkOnStatus::Cleared) { ++cleared; continue; }
-
+    // One condition's summary in words: a work-on row, or the detail of any condition.
+    const auto describe = [&](const WorkOnSummary &w) {
         const Condition *cond = pack.condition(w.id);
         QVariantMap m;
         m[QStringLiteral("id")]        = w.id;
         m[QStringLiteral("name")]      = nameOf(w.id, w.name);
         m[QStringLiteral("status")]    = workOnStatusToString(w.status);
         // The swing area it belongs to: the pack's ConditionGroup token, the same token as an
-        // areaItems entry's `group`, so Swing diagnostics can show one area's work-ons ("" when the
+        // areaItems entry's `group`, so a work-on can be placed in its area ("" when the
         // pack no longer holds the condition).
         m[QStringLiteral("group")]     = cond ? conditionGroupName(cond->group) : QString();
         // SWINGS, AND ONE DENOMINATOR FOR EVERY ROW: every swing in the golfer's sessions. A
         // per-fault denominator ("26 of 26" beside "41 of 55") reads as two different histories;
         // the swings this fault could not be judged on are said in the detail instead.
         m[QStringLiteral("countText")] = swingsText(w.swingsFired, totalSwings);
-        // The same two numbers, for the row's ten-segment meter.
-        m[QStringLiteral("swingsFired")] = w.swingsFired;
-        m[QStringLiteral("swingsTotal")] = totalSwings;
         const int unjudged = std::max(0, totalSwings - w.swingsAssessable);
         m[QStringLiteral("coverageText")] =
             unjudged == 0 ? QString() : QStringLiteral("not measurable on %1 of them").arg(unjudged);
@@ -512,36 +509,38 @@ void WorkOnsController::publish()
         else if (unmeasuredSince && lastConclusive)
             statusText = QStringLiteral("Not measured since %1").arg(dayLabel(lastConclusive->startMs));
         m[QStringLiteral("statusText")] = statusText;
-        // Ranked on evidence the newest sessions could not renew. The row says so where it is
-        // read, because a high place on old evidence must not pass for a fresh finding.
-        const bool unconfirmed = w.status == WorkOnStatus::Active && unmeasuredSince && lastConclusive;
-        m[QStringLiteral("unconfirmed")]  = unconfirmed;
-        m[QStringLiteral("lastSeenText")] = unconfirmed
-            ? QStringLiteral("last seen %1").arg(dayLabel(lastConclusive->startMs)) : QString();
 
-        // The latest session that listed it: the count, and the reading where one can be stated.
-        QString latestText;
-        if (w.hasLatest) {
-            const WorkOnEntry &e = w.latest;
+        // The latest session that listed it — or, for one never listed, the newest that assessed
+        // it: the count, and the reading where one can be stated.
+        const auto latestLine = [&](const QString &sessionId, int fired, int assessable, bool hasTypical,
+                                    const QString &measureId, double typical, double lo, double hi,
+                                    CorridorShape shape) {
             qint64 when = 0;
-            for (const WorkOnPoint &p : w.history) if (p.sessionId == w.latestSessionId) when = p.startMs;
-            latestText = QStringLiteral("%1 · %2").arg(dayLabel(when), recurrenceText(e.fired, e.assessable));
-            if (e.hasTypical) {
-                const Measure *mm = pack.measure(e.measureId);
+            for (const WorkOnPoint &p : w.history) if (p.sessionId == sessionId) when = p.startMs;
+            QString text = QStringLiteral("%1 · %2").arg(dayLabel(when), recurrenceText(fired, assessable));
+            if (hasTypical) {
+                const Measure *mm = pack.measure(measureId);
                 const QString unit = mm ? mm->unit : QString();
                 // THE SAME SENTENCE THE PANEL PRINTS (session_spread.h spreadCorridorWords): the pass
                 // band and the fault line. This used to quote the stored Ideal band as "at most
                 // 4.3", which is neither edge the session panel draws nor where anything fires.
                 ConditionRow band;
-                band.corridorLo    = e.corridorLo;
-                band.corridorHi    = e.corridorHi;
-                band.corridorShape = e.corridorShape;
+                band.corridorLo    = lo;
+                band.corridorHi    = hi;
+                band.corridorShape = shape;
                 const SpreadCorridor sc = spreadCorridorFromRow(band, gradePolicyByName(m_gradePolicy));
                 const QString corridor = sc.known ? spreadCorridorWords(sc, unit) : QString();
                 if (!corridor.isEmpty())
-                    latestText += QStringLiteral(" · typically %1 against %2")
-                                      .arg(withUnit(fmtNumber(e.typicalValue), unit), corridor);
+                    text += QStringLiteral(" · typically %1 against %2")
+                                .arg(withUnit(fmtNumber(typical), unit), corridor);
             }
+            return text;
+        };
+        QString latestText;
+        if (w.hasLatest) {
+            const WorkOnEntry &e = w.latest;
+            latestText = latestLine(w.latestSessionId, e.fired, e.assessable, e.hasTypical, e.measureId,
+                                    e.typicalValue, e.corridorLo, e.corridorHi, e.corridorShape);
             QStringList causes, maybe;
             for (const QString &c : e.causedBy)  causes << nameOf(c);
             for (const QString &c : e.mayFollow) maybe  << nameOf(c);
@@ -551,6 +550,10 @@ void WorkOnsController::publish()
                 lines << QStringLiteral("May follow from %1 — these swings cannot show it")
                              .arg(maybe.join(QStringLiteral(", ")));
             m[QStringLiteral("causedByText")] = lines.join(QStringLiteral(" · "));
+        } else if (w.hasLatestEvidence) {
+            const WorkOnEvidence &e = w.latestEvidence;
+            latestText = latestLine(w.latestEvidenceSessionId, e.fired, e.assessable, e.hasTypical, e.measureId,
+                                    e.typicalValue, e.corridorLo, e.corridorHi, e.corridorShape);
         }
         m[QStringLiteral("latestText")] = latestText;
 
@@ -565,11 +568,29 @@ void WorkOnsController::publish()
         // Where to go and look: the newest session in which it was a pattern.
         m[QStringLiteral("sessionDir")]   = lastPattern ? dirOf.value(lastPattern->sessionId) : QString();
         m[QStringLiteral("sessionLabel")] = lastPattern ? dayLabel(lastPattern->startMs) : QString();
+        return m;
+    };
 
+    QVariantList items;
+    int cleared = 0;
+    QHash<QString, QVariantMap> details;
+    for (const WorkOnSummary &w : every) {
+        // A status read off evidence alone: a never-listed pattern would say Active. Only the list
+        // speaks of work-on status, so a condition that is not on it says nothing in that line.
+        QVariantMap m = describe(w);
+        if (w.sessionsListed == 0) m[QStringLiteral("statusText")] = QString();
+        details.insert(w.id, m);
+    }
+    for (const WorkOnSummary &w : agg) {
+        if (w.status == WorkOnStatus::Cleared) { ++cleared; continue; }
+        const QVariantMap m = describe(w);
+        details.insert(w.id, m);        // a listed one's detail is its row, exactly
         items.append(m);
     }
 
     m_items = items;
+    m_details = details;
+    ++m_detailsRevision;
     m_clearedCount = cleared;
     emit itemsChanged();
     emit areasChanged();
@@ -584,7 +605,11 @@ void WorkOnsController::publishAreas(const CharacteristicPack &pack, const std::
     if (sessions.empty()) return;
 
     const GradePolicy policy = gradePolicyByName(m_gradePolicy);
-    for (const AreaSummary &a : summariseAreasForPack(&pack, sessions)) {
+    // Every condition in an area, not the first kAreaMaxItems: Home's open area is the only list
+    // of them now, each opening in place (Mark, 28 Oct).
+    AreaOptions opt;
+    opt.maxItems = std::numeric_limits<int>::max();
+    for (const AreaSummary &a : summariseAreasForPack(&pack, sessions, opt)) {
         ConditionGroup g;
         const QString label = conditionGroupFromName(a.group, g) ? conditionGroupLabel(g) : a.group;
 
@@ -893,6 +918,8 @@ void WorkOnsController::publishSummary()
                 { QStringLiteral("frequency"), n.frequency },
                 { QStringLiteral("trend"),     n.trend },
                 { QStringLiteral("sessions"),  pips(n.pips) },
+                // So Home's row can open the fault's detail in place (its work-on's `id`).
+                { QStringLiteral("conditionId"), n.conditionId },
             };
         };
 

@@ -16,12 +16,11 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// WHAT GOES TOGETHER — the swing themes (docs/design/home_themes_design.md), in the Swing
-// diagnostics screen (ScreenSwingDiagnostics.qml) under the faults: one card in YOUR SWING's family,
+// MATCHUPS — the swing themes (docs/design/home_themes_design.md), the body of Home's Matchups tab
+// (HmHomeTabs): today the faults that travel together; later also pairs that work together (Mark,
+// 28 Oct). One card in YOUR SWING's family,
 // a row per pair: a signal-strength mark for how firmly it holds, the two halves joined by a
-// connector, and a six-stop swing timeline showing where the pair first shows. It lived on the home
-// screen until the home became focus-led; what moves together is for the golfer who wants the
-// detail, and for their coach.
+// connector, and a six-stop swing timeline showing where the pair first shows.
 //
 // Every string is WorkOnsController's (swingSummaryView):
 //   togetherItems  [{ tier "firm"|"probably"|"possibly", first ("When …", or the one part),
@@ -71,7 +70,7 @@ Column {
             width: root.width
             height: implicitHeight
             tone:  root.toneTogether
-            title: Theme.caps(qsTr("What goes together"))
+            title: Theme.caps(qsTr("Faults that travel together"))
 
             Text {
                 width: togetherCard.innerWidth

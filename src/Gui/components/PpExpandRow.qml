@@ -28,14 +28,14 @@
 //   detail        a Component, loaded under the header when the row is created and shown while
 //                 expanded; `detailIndent` / `detailRightInset` narrow it
 //   chevronSide   "left" (in the row's left padding, the area table's) or "right" (at the row's
-//                 right edge, the work-ons list's); `chevronCentreY` centres it on a line of the
+//                 right edge, in a trailing column of its own: Home's fault rows); `chevronCentreY` centres it on a line of the
 //                 header's own rather than the header's middle
 //
 // Keyboard-operable: the row takes focus on Tab, shows a focus ring, and toggles on Space, Return
 // or Enter. Accessible.Button, its expanded state exposed as checked (QML has no expanded state of
 // its own) and in the description.
 //
-// The chevron is HmWorkOns' (where it was drawn inline): two strokes, round caps, colorText3 closed
+// The chevron is the old work-ons list's (where it was drawn inline): two strokes, round caps, colorText3 closed
 // and colorText2 open.
 
 import QtQuick
@@ -54,11 +54,12 @@ Item {
     property real      detailRightInset: 0
 
     property string chevronSide:    "left"
-    // A row that cannot open (an area this rig does not measure) shows no chevron.
+    // A row that cannot open (an area this rig does not measure) shows no chevron. A row with no
+    // detail never opens: no chevron, no press, no hand cursor.
     property bool   showChevron:    true
     property real   chevronCentreY: -1
     property string accessibleName: ""
-    // A name for the press area, for a probe to find and click (HmWorkOns' "workOnPress").
+    // A name for the press area, for a probe to find and click (a fault row's "faultPress").
     property string pressObjectName: ""
 
     // The header row.
@@ -76,6 +77,10 @@ Item {
     readonly property bool  hovered:    press.containsMouse
     default property alias cells: header.cells
 
+    // The header's columns, as PpTableRow's: cells bind to these.
+    function columnX(i)     { return header.columnX(i) }
+    function columnWidth(i) { return header.columnWidth(i) }
+
     function activate() {
         if (xrow.autoToggle) xrow.expanded = !xrow.expanded
         xrow.toggled()
@@ -85,7 +90,7 @@ Item {
     implicitHeight: header.height + (xrow.expanded && detailLoader.item ? detailLoader.height : 0)
     height:         implicitHeight
 
-    activeFocusOnTab: true
+    activeFocusOnTab: xrow.detail !== null
     Keys.onPressed: (event) => {
         if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             if (!event.isAutoRepeat) xrow.activate()
@@ -110,6 +115,7 @@ Item {
         x: -header.hoverBleed
         width:  header.width + 2 * header.hoverBleed
         height: header.height
+        enabled:      xrow.detail !== null
         hoverEnabled: true
         cursorShape:  Qt.PointingHandCursor
         onClicked:    xrow.activate()
@@ -135,7 +141,7 @@ Item {
         width: s; height: s
         x: xrow.chevronSide === "right" ? xrow.width - header.padH - s : header.padH
         y: Math.round((xrow.chevronCentreY >= 0 ? xrow.chevronCentreY : header.height / 2) - s / 2)
-        visible: xrow.showChevron
+        visible: xrow.showChevron && xrow.detail !== null
         rotation: xrow.expanded ? 90 : 0
         preferredRendererType: Shape.CurveRenderer
         ShapePath {

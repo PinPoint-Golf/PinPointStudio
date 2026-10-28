@@ -49,6 +49,20 @@ Item {
 
     // Practise: open the wizard with this focus.
     signal practiseRequested(string conditionId, string label)
+    // An open fault's "Review the … session →".
+    signal reviewSessionRequested(string sessionDir)
+
+    // A condition's detail (WorkOnsController.faultDetail: any condition a session measured, a
+    // listed work-on or not), or null. Reads detailsRevision so the binding follows each publish.
+    function faultFor(conditionId) {
+        const c = root.controller
+        if (!c || !conditionId || typeof c.faultDetail !== "function") return null
+        if (c.detailsRevision < 0) return null
+        const d = c.faultDetail(conditionId)
+        return d && d.id ? d : null
+    }
+    // The "Right now" fault open in place ("" when none): one at a time.
+    property string openId: ""
 
     // null when there is no focus: before the first summary, and when nothing needs work.
     readonly property var focusItem: controller && controller.focusItem && controller.focusItem.present === true
@@ -116,7 +130,8 @@ Item {
             { title: qsTr("Aim for"),   fill: 1.0 },
             { title: qsTr("Right now"), fill: 0.5 },
             { title: qsTr("How often"), fill: 0.8 },
-            { title: qsTr("Sessions"),  width: Theme.sp(80), align: "right" }])
+            { title: qsTr("Sessions"),  width: Theme.sp(80), align: "right" },
+            { title: "",                width: Theme.sp(10) }])           // a fault row's chevron
         // Where the two halves part: half a column gap before "Right now".
         readonly property real splitX: focusTable.rowPad + (focusTable.gridLayout.length > 1
                                        ? focusTable.gridLayout[1].x - focusTable.columnGap / 2 : 0)
@@ -214,19 +229,37 @@ Item {
 
                 Repeater {
                     model: Math.max(root.aimFor.length, root.rightNow.length)
-                    PpTableRow {
+                    PpExpandRow {
                         id: pairRow
                         required property int index
                         readonly property bool hasAim:   index < root.aimFor.length
                         readonly property bool hasFault: index < root.rightNow.length
                         readonly property var  aim:      hasAim   ? root.aimFor[index]   : ""
                         readonly property var  fault:    hasFault ? root.rightNow[index] : null
+                        readonly property string faultId: fault ? (fault.conditionId || "") : ""
+                        // The fault's detail, which the row opens to; null when no session measured it.
+                        readonly property var  workOn:   root.faultFor(faultId)
                         layout: focusTable.gridLayout
-                        hoverEnabled: false
                         topRule: true
                         // Wrapped words make the row grow; never below the table row.
-                        height: Math.max(Theme.sp(Theme.rowH),
-                                         Math.max(aimCell.height, faultText.height) + Theme.sp(18))
+                        rowHeight: Math.max(Theme.sp(Theme.rowH),
+                                            Math.max(aimCell.height, faultText.height) + Theme.sp(18))
+                        chevronSide: "right"
+                        expanded:    root.openId !== "" && root.openId === pairRow.faultId
+                        autoToggle:  false
+                        onToggled:   root.openId = pairRow.expanded ? "" : pairRow.faultId
+                        accessibleName:  pairRow.fault ? String(pairRow.fault.text) : ""
+                        pressObjectName: "faultPress"
+                        detailIndent:     pairRow.columnX(1) + pairRow.padH
+                        detailRightInset: pairRow.padH
+                        detail: pairRow.workOn ? focusDetail : null
+                        Component {
+                            id: focusDetail
+                            HmFaultDetail {
+                                item: pairRow.workOn
+                                onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
+                            }
+                        }
 
                         // Aim for: a tick and the ideal.
                         Item {

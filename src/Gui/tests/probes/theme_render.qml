@@ -25,7 +25,7 @@ import PinPointStudio
 // settings, with a screen big enough for the window:
 //   XDG_CONFIG_HOME=<scratch> QT_QPA_PLATFORM='offscreen:configfile=<json: one 1680×1050 screen>' \
 //       PinPointStudio --probe-qml <this file> --probe-themes … --probe-screens … --probe-out <dir>
-//   --probe-themes 0,1,12,13   --probe-screens home,diagnostics,settings,wrist
+//   --probe-themes 0,1,12,13   --probe-screens home,settings,wrist
 //   --probe-out <dir>   [--probe-session <dir> --probe-ordinal N]   (wrist needs a session)
 // Writes <out>/<aesthetic>_<light|dark>_<screen>.png
 Item {
@@ -75,7 +75,6 @@ Item {
     }
     function showScreen(name, then) {
         if (name === "home") { navController.navigate(AppScreen.Home); after(1200, then) }
-        else if (name === "diagnostics") { navController.navigate(AppScreen.WorkOns); after(1500, then) }
         else if (name === "settings") { navController.navigate(AppScreen.Settings); after(1200, then) }
         else if (name === "athletes") { navController.navigate(AppScreen.Athletes); after(1200, then) }
         else if (name === "setup") { navController.navigate(AppScreen.Wizard); after(2000, then) }

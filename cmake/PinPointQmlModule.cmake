@@ -137,10 +137,9 @@ set(PP_QML_FILES
     # of the home screen.  This is where H3's deleted "File -> Import Session…"
     # menu item went: no menus, no dialogs, and the user never picks a file.
     src/Gui/home/PpcpOfferList.qml
-    src/Gui/home/HmWorkOns.qml
-    # The athlete's swing in plain words, led by one focus (home_themes_design.md); the
-    # technical layer under it — the faults (HmWorkOns, headed FAULTS) and what goes together —
-    # is its own screen, ScreenSwingDiagnostics, opened from the summary's link.
+    # The athlete's swing in plain words, led by one focus (home_themes_design.md); a fault opens
+    # its detail in place (HmFaultDetail), on Coaching and on Your swing.
+    src/Gui/home/HmFaultDetail.qml
     src/Gui/home/HmSwingSummary.qml
     src/Gui/home/HmFocus.qml
     # Home's tabs and the area table (four-modes refactor, Phase 4).
@@ -148,8 +147,8 @@ set(PP_QML_FILES
     src/Gui/home/HmSwingAreas.qml
     src/Gui/home/HmAreaRow.qml
     src/Gui/home/HmRigCapability.qml
+    # Home's Matchups tab: what travels together.
     src/Gui/home/HmGoesTogether.qml
-    src/Gui/home/ScreenSwingDiagnostics.qml
     # H6 — "Pair to my phone": the PPCP-RV pairing code as a QR, in a modal
     # opened by the one button in the DEVICES heading.  It replaced
     # PpcpPairPanel.qml, which was an always-visible inline section; the

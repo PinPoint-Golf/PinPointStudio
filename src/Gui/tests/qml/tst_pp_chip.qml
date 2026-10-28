@@ -22,7 +22,7 @@ import PinPointStudio
 
 // The chip's trend case is the trend tag — "↑ growing" in the fault coral, "↓ easing" in the accent,
 // body face semibold, a tinted pill with no outline — and ONLY the trend case: a chip that sets its
-// own words (NEXT, ● Live, a device tag, HmWorkOns' own "↓ easing") keeps the mono pill.
+// own words (NEXT, ● Live, a device tag, the work-ons' own "↓ easing") keeps the mono pill.
 Item {
     id: probe
     width: 400; height: 200
@@ -31,7 +31,7 @@ Item {
     PpChip { id: easing;  trend: -2 }
     PpChip { id: none }
     PpChip { id: words;   text: "NEXT"; tone: Theme.colorAccent }
-    PpChip { id: ownEasing; text: qsTr("↓ easing"); tone: Theme.colorGood }   // HmWorkOns' form
+    PpChip { id: ownEasing; text: qsTr("↓ easing"); tone: Theme.colorGood }   // the work-ons' form
 
 
     TestCase {

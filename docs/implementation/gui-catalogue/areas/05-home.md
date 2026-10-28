@@ -217,7 +217,7 @@ The home screen: onboarding, athlete/club selection and the Start card, the 'you
 ### ScreenHome
 `src/Gui/home/ScreenHome.qml` · 782 lines · root `Item` · 4 hard-coded colour(s)
 
-The home screen. First run: welcome/onboarding (add an athlete, connect a camera, pair IMUs, read the docs). Thereafter, as `docs/design/ux_refactor_away_from_4_modes.md` §2.3 lays it out: a header (the golfer's avatar, name and details with Switch →, and the "PinPoint Studio" banner), a Start card (Start session, club picker, last session, and what this rig can measure), and the Coaching | Your swing tabs over the work-ons. The session list is the rail's Sessions. There are no session-type cards any more: every session starts the same way, with an optional focus.  
+The home screen. First run: welcome/onboarding (add an athlete, connect a camera, pair IMUs, read the docs). Thereafter, as `docs/design/ux_refactor_away_from_4_modes.md` §2.3 lays it out: a header (the golfer's avatar, name and details with Switch →, and the "PinPoint Studio" banner), a Start card (Start session, club picker, last session, and what this rig can measure), and the Coaching | Your swing | Matchups tabs, where a fault opens its detail in place. The session list is the rail's Sessions. There are no session-type cards any more: every session starts the same way, with an optional focus.  
 *(description written for this catalogue — the file has no header comment)*
 
 - **Properties:** `string selectedClub`, `var athMap`, `readonly var clubModel`, `readonly bool hasGolfer`, `readonly var lastSession`, `readonly string lastSessionText`

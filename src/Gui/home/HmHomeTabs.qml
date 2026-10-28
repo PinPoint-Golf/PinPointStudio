@@ -16,23 +16,24 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Home's two views of the swing, under one title-size tab bar
+// Home's three views of the swing, under one title-size tab bar
 // (docs/design/ux_refactor_away_from_4_modes.md §2.3, 03_home_coaching.png):
 //
 //   Coaching     HmSwingSummary — what to do next, in the golfer's words (the default, D6)
 //   Your swing   HmSwingAreas — how the whole swing stands, area by area
+//   Matchups     HmGoesTogether — what travels together: today faults that move together; later
+//                also pairs that work together (Mark, 28 Oct)
 //
-// The bar carries the evidence line (controller.summarySubtitle) straight after the tabs and
-// "All work-ons ▸" at the right, on the labels' baseline. The tab last chosen is remembered per
-// athlete in appSettings.homeViewByAthlete[uuid].tab ("coaching" | "swing"); HmSwingAreas keeps
-// its own keys in the same entry. The map is read once per write and a modified copy written back
-// (a QVariantMap property read is a deep copy).
+// A fault on Coaching or Your swing opens its detail in place (HmFaultDetail); there is no page
+// behind Home. The bar carries the evidence line (controller.summarySubtitle) straight after the
+// tabs. The tab last chosen is remembered per athlete in appSettings.homeViewByAthlete[uuid].tab
+// ("coaching" | "swing" | "matchups"); HmSwingAreas keeps its own keys in the same entry. The map is
+// read once per write and a modified copy written back (a QVariantMap property read is a deep copy).
 //
-// Signals go up to ScreenHome: Practise from either tab, "All of <area>" from the area table, and
-// "All work-ons ▸".
+// Signals go up to ScreenHome: Practise, and an open fault's "Review the … session →".
 //
-// objectNames: homeTabs (this), homeTabBar (the PpTabs), homeAllWorkOns (its chip), homeTabCoaching
-// and homeTabSwing (the two pages).
+// objectNames: homeTabs (this), homeTabBar (the PpTabs), homeTabCoaching, homeTabSwing and
+// homeTabMatchups (the three pages).
 
 import QtQuick
 import QtQuick.Layouts
@@ -49,10 +50,9 @@ Column {
                                  ? athleteController.currentUuid : ""
 
     signal practiseRequested(string conditionId, string label)
-    signal allInAreaRequested(string group)
-    signal allWorkOnsRequested()
+    signal reviewSessionRequested(string sessionDir)
 
-    readonly property var tabKeys: ["coaching", "swing"]
+    readonly property var tabKeys: ["coaching", "swing", "matchups"]
     // The tab showing. Read from the settings for each athlete; "coaching" when none was chosen.
     property string current: "coaching"
 
@@ -97,22 +97,20 @@ Column {
         roles:  homeTs
         size:   "title"
         noteAfterTabs: true
-        tabs: [{ key: "coaching", label: qsTr("Coaching") }, { key: "swing", label: qsTr("Your swing") }]
+        tabs: [{ key: "coaching", label: qsTr("Coaching") }, { key: "swing", label: qsTr("Your swing") },
+               { key: "matchups", label: qsTr("Matchups") }]
         current: root.current
         // The evidence both tabs read: "From N swings over M sessions".
         note: root.controller && root.controller.summarySubtitle ? root.controller.summarySubtitle : ""
-        chip: qsTr("All work-ons ▸")
-        chipObjectName: "homeAllWorkOns"
         onTabActivated: (key) => root.select(key)
-        onChipActivated: root.allWorkOnsRequested()
     }
 
     StackLayout {
         id: pages
         width: root.width
-        currentIndex: root.current === "swing" ? 1 : 0
-        // As tall as the page showing, not the taller of the two.
-        height: currentIndex === 1 ? swingPage.implicitHeight : coachingPage.implicitHeight
+        currentIndex: Math.max(0, root.tabKeys.indexOf(root.current))
+        // As tall as the page showing, not the tallest.
+        height: [coachingPage, swingPage, matchupsPage][currentIndex].implicitHeight
 
         Item {
             id: coachingPage
@@ -123,6 +121,7 @@ Column {
                 width: coachingPage.width
                 controller: root.controller
                 onPractiseRequested: (conditionId, label) => root.practiseRequested(conditionId, label)
+                onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
             }
         }
         Item {
@@ -136,7 +135,17 @@ Column {
                 settings:    root.settings
                 athleteUuid: root.athleteUuid
                 onPractiseRequested: (conditionId, label) => root.practiseRequested(conditionId, label)
-                onAllInAreaRequested: (group) => root.allInAreaRequested(group)
+                onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
+            }
+        }
+        Item {
+            id: matchupsPage
+            objectName: "homeTabMatchups"
+            implicitHeight: matchups.implicitHeight
+            HmGoesTogether {
+                id: matchups
+                width: matchupsPage.width
+                controller: root.controller
             }
         }
     }

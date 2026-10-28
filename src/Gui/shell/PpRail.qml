@@ -132,8 +132,8 @@ Item {
         // ── Destinations ──────────────────────────────────────────────────────
         // No mode buttons: one session screen, the rail's Live, always there
         // (docs/design/ux_refactor_away_from_4_modes.md §2.2). Each button is active on its own
-        // screen only — Work-ons has its own button now, so Home no longer claims it. The Swing
-        // model has no button: it is Settings → Reference (Mark, 28 Oct).
+        // screen. No Work-ons button: Home's tabs carry the faults, each opening in place (Mark,
+        // 28 Oct). The Swing model has no button either: it is Settings → Reference.
 
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
@@ -171,18 +171,6 @@ Item {
             isMuted:   root._muted(AppScreen.Sessions) || !athleteController.hasCurrentAthlete
             attention: root.anyLocked
             onClicked: root.pageRequested(AppScreen.Sessions)
-        }
-
-        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
-
-        PpRailButton {
-            Layout.alignment: Qt.AlignHCenter
-            iconText:  "⌖"
-            labelText: qsTr("Work-ons")
-            isActive:  root.currentPageIndex === AppScreen.WorkOns
-            isMuted:   root._muted(AppScreen.WorkOns)
-            attention: root.anyLocked
-            onClicked: root.pageRequested(AppScreen.WorkOns)
         }
 
 

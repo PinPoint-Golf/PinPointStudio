@@ -20,10 +20,11 @@
 //
 //   header   chevron · area · habits (a PpBandBar of the four counts and "N habits") · trend ·
 //            biggest fault · work-ons ("1 active · 1 new")
-//   detail   the area's items at Theme.itemIndent, one Theme.itemRowH row each: the condition, how
-//            many swings it fired on of those that assessed it, the typical value with its unit and
-//            corridor, the grade word, and an action — Practise on an active or easing work-on, a
-//            "New" tag on a newly listed one, nothing otherwise; then "All of <area> →".
+//   detail   every one of the area's items at Theme.itemIndent, one Theme.itemRowH row each: the
+//            condition, how many swings it fired on of those that assessed it, the typical value
+//            with its unit and corridor, the grade word, and an action — Practise on an active or
+//            easing work-on, a "New" tag on a newly listed one, nothing otherwise. Every item opens
+//            in place (HmFaultDetail, its chevron at the right), one at a time.
 //
 // `area` is one of WorkOnsController.areaItems (swing_areas.h AreaSummary, every string final):
 //   { group, label, measurable, measured, habits, occasional, clean, unclear, habitTrend, hasTrend,
@@ -52,9 +53,23 @@ PpExpandRow {
     objectName: "areaRow"
 
     property var area: ({})
+    // The work-ons controller: an item opens to its faultDetail().
+    property var controller: null
+    // The item open in place ("" when none): one at a time.
+    property string openItem: ""
 
     signal practiseRequested(string conditionId, string label)
-    signal allInAreaRequested(string group)
+    signal reviewSessionRequested(string sessionDir)
+
+    // A condition's detail (WorkOnsController.faultDetail: any condition a session measured, a
+    // listed work-on or not), or null. Reads detailsRevision so the binding follows each publish.
+    function faultFor(conditionId) {
+        const c = areaRow.controller
+        if (!c || !conditionId || typeof c.faultDetail !== "function") return null
+        if (c.detailsRevision < 0) return null
+        const d = c.faultDetail(conditionId)
+        return d && d.id ? d : null
+    }
 
     // ── The words as drawn (what a probe reads) ─────────────────────────────
     readonly property string group:      areaRow.area && areaRow.area.group ? String(areaRow.area.group) : ""
@@ -115,7 +130,8 @@ PpExpandRow {
     readonly property int itemGap: Theme.gap(16)
     function itemLayout(w) {
         const cols = [{ fill: 1.2 }, { width: Theme.sp(56) }, { fill: 1.4 },
-                      { width: Theme.sp(72) }, { width: Theme.sp(112), align: "right" }]
+                      { width: Theme.sp(72) }, { width: Theme.sp(112), align: "right" },
+                      { width: Theme.sp(10) }]                          // the chevron's
         let fixed = 0, weights = 0
         for (const c of cols) { if (c.fill) weights += c.fill; else fixed += c.width }
         const spare = Math.max(0, w - fixed - areaRow.itemGap * (cols.length - 1))
@@ -243,23 +259,39 @@ PpExpandRow {
 
             Repeater {
                 model: areaRow.items
-                PpTableRow {
+                PpExpandRow {
                     id: itemRow
                     objectName: "areaItemRow"
                     required property var modelData
                     // The words as drawn.
                     readonly property string conditionId: itemRow.modelData.conditionId || ""
+                    // Its detail, which it opens to; null when no session measured it.
+                    readonly property var fault: areaRow.faultFor(itemRow.conditionId)
                     readonly property string label:       itemRow.modelData.label || ""
                     readonly property string countText:   (itemRow.modelData.fired || 0) + "/" + (itemRow.modelData.assessable || 0)
                     readonly property string typicalText: areaRow.typicalText(itemRow.modelData)
                     readonly property string gradeWord:   Theme.corridorWord(itemRow.modelData.grade || "")
 
                     width: parent ? parent.width : 0
-                    implicitHeight: Theme.sp(Theme.itemRowH)
+                    rowHeight: Theme.sp(Theme.itemRowH)
                     padH: 0
                     topRule: true
-                    hoverEnabled: false
                     layout: areaRow.itemLayout(itemRow.width)
+                    chevronSide: "right"
+                    expanded:    areaRow.openItem !== "" && areaRow.openItem === itemRow.conditionId
+                    autoToggle:  false
+                    onToggled:   areaRow.openItem = itemRow.expanded ? "" : itemRow.conditionId
+                    accessibleName:  itemRow.label
+                    pressObjectName: "faultPress"
+                    detailRightInset: Theme.sp(10) + areaRow.itemGap
+                    detail: itemRow.fault ? faultDetail : null
+                    Component {
+                        id: faultDetail
+                        HmFaultDetail {
+                            item: itemRow.fault
+                            onReviewSessionRequested: (dir) => areaRow.reviewSessionRequested(dir)
+                        }
+                    }
 
                     Text {                      // the condition; the golfer's phrase on hover
                         width: itemRow.columnWidth(0)
@@ -299,7 +331,7 @@ PpExpandRow {
                     }
                     Item {                      // the action
                         width:  itemRow.columnWidth(4)
-                        height: itemRow.height
+                        height: itemRow.rowHeight
                         PpButton {
                             objectName: "areaPractise"
                             visible: areaRow.practisable(itemRow.modelData)
@@ -316,17 +348,6 @@ PpExpandRow {
                             tone: Theme.colorAttention
                         }
                     }
-                }
-            }
-
-            Item {
-                width:  parent ? parent.width : 0
-                height: Theme.sp(Theme.itemRowH)
-                PpLink {
-                    objectName: "areaAllLink"
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("All of %1 →").arg(areaRow.areaLabel.toLowerCase())
-                    onClicked: areaRow.allInAreaRequested(areaRow.group)
                 }
             }
         }

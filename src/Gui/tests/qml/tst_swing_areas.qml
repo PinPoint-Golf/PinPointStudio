@@ -79,7 +79,6 @@ Item {
     }
 
     property var practised: []
-    property string allIn: ""
 
     HmSwingAreas {
         id: areas
@@ -88,7 +87,6 @@ Item {
         settings:    store
         athleteUuid: "a"
         onPractiseRequested:  (conditionId, label) => probe.practised = [conditionId, label]
-        onAllInAreaRequested: (group) => probe.allIn = group
     }
 
     TestCase {
@@ -117,7 +115,6 @@ Item {
             areas.settings = null
             areas.settings = store                  // re-reads the (empty) store
             probe.practised = []
-            probe.allIn = ""
             fake.areaItems = probe.fixture
             waitForRendering(areas)
         }
@@ -249,14 +246,6 @@ Item {
             compare(ee.typicalText, "6.9 cm · 0.0–3.0")
             compare(hs.typicalText, "")             // no typical: nothing printed
             compare(lp.typicalText, "7.0° · ≤ 5.0") // a ceiling grades its high edge only
-        }
-
-        function test_the_all_link_names_the_area() {
-            const link = all(row("posture"), "areaAllLink")[0]
-            verify(link.visible)
-            compare(link.text, "All of posture →")
-            link.clicked(null)
-            compare(probe.allIn, "posture")
         }
 
         function test_the_keyboard_opens_a_row() {

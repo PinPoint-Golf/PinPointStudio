@@ -46,7 +46,7 @@ Item {
             }
         }
 
-        // Owned: the caller binds expanded and answers toggled(), as HmWorkOns does.
+        // Owned: the caller binds expanded and answers toggled(), as Home's fault rows do.
         PpExpandRow {
             id: owned
             property bool open: false

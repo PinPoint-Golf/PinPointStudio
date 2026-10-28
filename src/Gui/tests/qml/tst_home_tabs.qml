@@ -24,7 +24,7 @@ import PinPointStudio
 //
 // The design (ux_refactor_away_from_4_modes §2.3, D6): Home opens on Coaching; the tab last chosen
 // is remembered PER ATHLETE in homeViewByAthlete[uuid].tab, without disturbing the area table's own
-// keys in the same entry; the bar's "All work-ons ▸" asks for every work-on. The Coaching tab is
+// keys in the same entry; the bar has three tabs (Matchups the third) and no chip. The Coaching tab is
 // HmSwingSummary + HmFocus re-laid on the table components, so this also pins what those must
 // still do: Practise passes the focus up, and why/how is one click down rather than on the page.
 Item {
@@ -78,7 +78,6 @@ Item {
         athleteUuid: "athlete-a"
     }
 
-    SignalSpy { id: allSpy;      target: tabs; signalName: "allWorkOnsRequested" }
     SignalSpy { id: practiseSpy; target: tabs; signalName: "practiseRequested" }
 
     TestCase {
@@ -106,7 +105,6 @@ Item {
             fakeSettings.homeViewByAthlete = {}
             tabs.athleteUuid = ""
             tabs.athleteUuid = "athlete-a"
-            allSpy.clear()
             practiseSpy.clear()
             const row = all(tabs, "focusWhyRow")[0]
             if (row) row.expanded = false
@@ -186,14 +184,13 @@ Item {
             verify(one(tabs, "homeTabSwing").visible)
         }
 
-        // ── the chip ──
-        function test_all_work_ons_chip_asks_for_every_work_on() {
-            const chip = one(tabs, "homeAllWorkOns")
-            verify(drawn(chip))
-            compare(chip.text, "All work-ons ▸")
-            mouseClick(chip)
-            compare(allSpy.count, 1)
-            compare(tabs.current, "coaching", "the chip does not switch tabs")
+        // ── the tabs ──
+        function test_three_tabs_and_no_chip() {
+            compare(all(tabs, "sdTab").map((t) => t.key).join(","), "coaching,swing,matchups")
+            compare(one(tabs, "homeTabBar").chip, "", "no 'All work-ons': a fault opens in place")
+            mouseClick(tabOf("matchups"))
+            compare(tabs.current, "matchups")
+            verify(one(tabs, "homeTabMatchups").visible)
         }
 
         // ── the Coaching tab: HmFocus and HmSwingSummary on the table components ──

@@ -549,7 +549,6 @@ ApplicationWindow {
         n[AppScreen.Home]       = qsTr("Home")
         n[AppScreen.Session]    = qsTr("Live")
         n[AppScreen.Sessions]   = qsTr("Sessions")
-        n[AppScreen.WorkOns]    = qsTr("Work-ons")
         n[AppScreen.Athlete]    = qsTr("New athlete")
         n[AppScreen.Athletes]   = qsTr("Athletes")
         n[AppScreen.System]     = qsTr("System")
@@ -593,8 +592,6 @@ ApplicationWindow {
             onPageRequested: function(index) {
                 // The Sessions screen opens at the top.
                 if (index === AppScreen.Sessions) root._showSessions()
-                // The rail's Work-ons is every work-on: drop an area Home narrowed it to.
-                if (index === AppScreen.WorkOns) swingDiagnosticsScreen.groupFilter = ""
                 if (navController.currentIndex === AppScreen.Wizard)
                     navController.navigate(index)   // preserves wizard in back-history
                 else
@@ -682,12 +679,11 @@ ApplicationWindow {
                         navController.navigate(AppScreen.Athlete)
                     }
                     onStartSessionRequested: function(request) { root._openSessionSetup(request) }
-                    // Home's "All of <area> ▸" (group = the area's token) and "All work-ons ▸" (""):
-                    // Swing diagnostics on that area, or on every work-on, from its top.
-                    onSwingDiagnosticsRequested: function(group) {
-                        swingDiagnosticsScreen.groupFilter = group
-                        swingDiagnosticsScreen.toTop()
-                        navController.navigate(AppScreen.WorkOns)
+                    // An open fault's "Review the … session →": the review picker's own load, then
+                    // the screen that draws a loaded session.
+                    onReviewSessionRequested: function(sessionDir) {
+                        sessionReviewController.loadSession(sessionDir)
+                        navController.navigate(AppScreen.Session)
                     }
                     // The rig pane's "Rig ▸" opens Settings → Studio.
                     onStudioSettingsRequested: {
@@ -711,17 +707,6 @@ ApplicationWindow {
                         athleteFormScreen.editUuid = athleteController.currentUuid
                         athleteFormScreen.loadForEdit()
                         navController.navigate(AppScreen.Athlete)
-                    }
-                }
-                ScreenSwingDiagnostics {                                   // AppScreen.WorkOns — from the rail and Home's tabs
-                    id: swingDiagnosticsScreen
-                    // "← Home": to Home itself, wherever the screen was reached from since.
-                    onBackRequested: navController.navigate(AppScreen.Home)
-                    // A fault's way into the session that last showed it: the review
-                    // picker's own load, then the screen that draws a loaded session.
-                    onReviewSessionRequested: function(sessionDir) {
-                        sessionReviewController.loadSession(sessionDir)
-                        navController.navigate(AppScreen.Session)
                     }
                 }
                 ScreenAthleteForm {                                        // AppScreen.Athlete — new / edit athlete form

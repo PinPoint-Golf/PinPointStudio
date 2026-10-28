@@ -27,7 +27,8 @@
 //                      ten-step meter of how often it holds, one pip per session
 //   Next on your list  a table card in the same grammar: a fault ring, the phrase with how often
 //                      in words beneath (and a trend tag when there is one), the meter, the pips;
-//                      the first wears a "Next" tag
+//                      the first wears a "Next" tag. A fault opens in place (HmFaultDetail): what
+//                      it costs, where it stands, the drill, the way into its session
 //
 // No metrics, no figures, no P-positions, no claims about cause — a golfer reads this. Colour is
 // never the only channel: the meter carries a count of segments, and each has words beside it.
@@ -57,6 +58,20 @@ Column {
 
     // The focus card's Practise.
     signal practiseRequested(string conditionId, string label)
+    // An open fault's "Review the … session →", here or on the focus card.
+    signal reviewSessionRequested(string sessionDir)
+
+    // A condition's detail (WorkOnsController.faultDetail: any condition a session measured, a
+    // listed work-on or not), or null. Reads detailsRevision so the binding follows each publish.
+    function faultFor(conditionId) {
+        const c = root.controller
+        if (!c || !conditionId || typeof c.faultDetail !== "function") return null
+        if (c.detailsRevision < 0) return null
+        const d = c.faultDetail(conditionId)
+        return d && d.id ? d : null
+    }
+    // The Next on your list fault open in place ("" when none): one at a time.
+    property string openId: ""
 
     readonly property var    doWell:    controller ? controller.doWellItems    : []
     readonly property var    needsWork: controller ? controller.nextItems      : []
@@ -79,7 +94,9 @@ Column {
     // ── Shared geometry ──────────────────────────────────────────────────────
     readonly property int cardGap: Theme.gap(16)
     readonly property int markW:   Theme.sp(20)
-    // Both cards' column template: mark · words · how often · sessions.
+    // Both cards' column template: mark · words · how often · sessions. A fault row on the half-width
+    // Next card draws no chevron (a column for one would squeeze the words): its wash and hand cursor
+    // say it opens.
     readonly property var columns: [
         { width: root.markW },
         { fill: true },
@@ -183,6 +200,7 @@ Column {
             controller: root.controller
             gridGap:    root.cardGap
             onPractiseRequested: (conditionId, label) => root.practiseRequested(conditionId, label)
+            onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
         }
 
         // ── What you do well | next on your list ─────────────────────────────
@@ -278,19 +296,37 @@ Column {
 
                 Repeater {
                     model: root.needsWork
-                    PpTableRow {
+                    PpExpandRow {
                         id: workItem
                         objectName: "nextItem"
                         required property var modelData
                         required property int index
+                        readonly property string faultId: workItem.modelData.conditionId || ""
+                        // Its detail, which it opens to; null when no session measured it.
+                        readonly property var    fault:   root.faultFor(workItem.faultId)
                         // The words as drawn — what a probe reads.
                         readonly property string itemText:      root.capitalised(workItem.modelData.text)
                         readonly property string frequencyText: workItem.modelData.frequency
                         readonly property string plainText:     itemText + " — " + frequencyText
                         readonly property int    pipCount:      (workItem.modelData.sessions || []).length
                         secondLine: true
-                        hoverEnabled: false
-                        height: Math.max(Theme.sp(Theme.rowH2), workWords.implicitHeight + Theme.sp(18))
+                        rowHeight: Math.max(Theme.sp(Theme.rowH2), workWords.implicitHeight + Theme.sp(18))
+                        showChevron: false
+                        expanded:    root.openId !== "" && root.openId === workItem.faultId
+                        autoToggle:  false
+                        onToggled:   root.openId = workItem.expanded ? "" : workItem.faultId
+                        accessibleName:  workItem.itemText
+                        pressObjectName: "faultPress"
+                        detailIndent:     workItem.columnX(1) + workItem.padH
+                        detailRightInset: workItem.padH
+                        detail: workItem.fault ? nextDetail : null
+                        Component {
+                            id: nextDetail
+                            HmFaultDetail {
+                                item: workItem.fault
+                                onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
+                            }
+                        }
 
                         PpBadge { kind: "ring"; plain: true; tone: root.toneWork; size: root.markW }
                         Column {
