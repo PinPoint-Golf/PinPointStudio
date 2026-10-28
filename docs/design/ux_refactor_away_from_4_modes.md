@@ -1,6 +1,9 @@
 # UX refactor away from 4 modes
 
-Status: **design + build plan, not started.** Written 26 Oct 2026 against `91c6cac4`. A research
+Status: **Phases 1–4 implemented** (commits `785f1c2f`, `a45ffdf0`, `2cab28f2`, `f24da90d`,
+`20615b8e`). **Phase 5 is done but not yet committed**, apart from the `ScreenWrist` →
+`ScreenSession` rename, which is left for its own mechanical commit after Mark's review.
+Written 26 Oct 2026 against `91c6cac4`. A research
 pass on 27 Oct at `ab5c4d9a` checked every claim against the code and corrected this document;
 its findings are folded in below (§3 and §9 hold the evidence). Since `91c6cac4`, only
 `src/Gui/setup/` has changed among the files Phase 1–2 touch (trunk-IMU commits `c154d3cf`,

@@ -29,7 +29,7 @@ Item {
     property bool showVersionPill: false
     property bool isFullscreen: false
 
-    // True while a session screen (Swing/Wrist/GRF/Coach) is current — set by
+    // True while the session screen (AppScreen.Session) is current — set by
     // Main.qml. Gates the centred DETECT cluster, which only makes sense during
     // a live Capture session.
     property bool sessionScreenActive: false

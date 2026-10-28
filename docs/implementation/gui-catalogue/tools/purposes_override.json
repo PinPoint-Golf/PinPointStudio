@@ -11,8 +11,7 @@
  "src/Gui/components/PpTextField.qml": "Themed single-line text input (a styled TextField) with a hasError state.",
  "src/Gui/components/PpTopoBackground.qml": "Animated topographic contour-line background (noise-driven contours in three tone colours), used behind home, session-mode and placeholder screens.",
  "src/Gui/components/PpUnitToggle.qml": "Compact segmented toggle between units (e.g. cm/ft-in, kg/lb). Emits selectionChanged.",
- "src/Gui/home/HmTypeCard.qml": "Home-screen card for one session type (image or icon, name, description, required cameras/IMUs). Emits clicked / doubleClicked.",
- "src/Gui/home/ScreenHome.qml": "The home screen. First run: welcome/onboarding (add an athlete, connect a camera, pair IMUs, read the docs). Thereafter: athlete and club selection, the session-type cards (HmTypeCard, incl. 'coming soon' types that skip the wizard), the swing summary with a 'Swing diagnostics' link, and PPCP phone offers/pairing.",
+ "src/Gui/home/ScreenHome.qml": "The home screen. First run: welcome/onboarding (add an athlete, connect a camera, pair IMUs, read the docs). Thereafter, as docs/design/ux_refactor_away_from_4_modes.md §2.3 lays it out: a Start card (Start session, club picker, last session, and what this rig can measure), the Coaching | Your swing tabs over the work-ons, and the session list.",
  "src/Gui/imu/CapturePage.qml": "IMU capture page: scan/connect, Viz and Log tabs, Arm and Body 3-D views (persistent ImuVizView/ArmVizView/BodyVizView bound to the first active IMU), Zero and Save Log. Hosted by PlayPage (dev hatch).",
  "src/Gui/media/AudioPage.qml": "Audio page (dev hatch): live speech-to-text transcript pane (CPU, GPU or Azure cloud) and a text-to-speech pane, in a vertical SplitView; model-download progress.",
  "src/Gui/media/CoachPage.qml": "AI Coach chat page: local LLM or cloud (Gemini) backend toggle, download/loading overlay, latency badge, chat transcript, voice-in and voice-out toggles. Hosted by PlayPage (dev hatch).",
@@ -37,7 +36,6 @@
  "src/Gui/shell/PpHeader.qml": "Top header bar: screen name after a separator, back/forward, version pill (About on Linux/Windows), analysing badge, and a centred device-detect cluster shown only on session screens; fullscreen toggle.",
  "src/Gui/shell/PpRail.qml": "Left navigation rail (Home, Swing, Wrist, GRF, Coach, Settings) of PpRailButtons plus the athlete avatar; locks to System and Settings only while a session screen is active.",
  "src/Gui/shell/PpRailButton.qml": "One rail button: icon and label, active/muted/attention states.",
- "src/Gui/shell/ScreenPlaceholder.qml": "'Coming soon' placeholder screen (icon, title) with an opt-in topographic ambient background — on for the Swing/GRF/Coach rail holding screens, off for inert Settings sub-panels.",
  "src/Gui/viz/ArmVizView.qml": "3-D rigid Y-bot arm (upper arm, forearm, hand as bone-local GLBs) driven by IMU quaternions, with orbit camera (drag/scroll) and orientation tabs.",
  "src/Gui/viz/BodyVizView.qml": "3-D full Y-bot body assembled from bone-local GLBs and driven by a pose source (optionally mirrored), with joint markers, lead-arm highlight, loading progress and orbit camera.",
  "src/Gui/viz/ImuVizView.qml": "3-D View3D of a single IMU as a labelled cube (Top/Bottom/Front/Back/Left/Right faces) driven by the fused quaternion of its controller, with the Z-up IMU world to Y-up scene basis change applied on a parent node."

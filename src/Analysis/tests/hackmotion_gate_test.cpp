@@ -63,7 +63,6 @@ constexpr int kHmKeyCount = 3;
 ShotContext wristShot(bool hackMotion)
 {
     ShotContext c;
-    c.sessionType   = 1;                                   // Wrist
     c.imuRoles      = { SegmentRole::LeadForearm, SegmentRole::LeadHand };
     c.tier          = ReconstructionTier::Mono3DPlusImu;
     c.hasHackMotion = hackMotion;
@@ -111,7 +110,6 @@ void test_bound_roles_alone_do_not_open_the_gate()
     // otherwise a three-Witmotion rig would silently claim the measured rungs.
     const MetricCatalogue cat = makeMetricCatalogue();
     ShotContext everyRole;
-    everyRole.sessionType = 1;
     everyRole.imuRoles    = { SegmentRole::LeadForearm, SegmentRole::LeadHand,
                               SegmentRole::LeadUpperArm, SegmentRole::Thorax,
                               SegmentRole::Pelvis };
@@ -160,7 +158,6 @@ void test_forearm_rotation_is_produced_by_either_vendor()
     // device requirement from its hm. twin.
     const MetricCatalogue cat = makeMetricCatalogue();
     ShotContext foreOnly;
-    foreOnly.sessionType = 1;
     foreOnly.imuRoles    = { SegmentRole::LeadForearm };
     foreOnly.tier        = ReconstructionTier::Mono3DPlusImu;
 

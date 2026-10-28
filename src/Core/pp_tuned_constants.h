@@ -238,26 +238,8 @@ inline constexpr int kCandidateUnset = -1;
 inline constexpr int kCandidate = 1;
 } // namespace hmframe
 
-// --- Swing scoring bands + deadbands (src/Analysis/swing_scorer.cpp) ----------------
+// --- Wrist scoring: resemblance centres + uncertainty budget (src/Wrist) -------------
 namespace scoring {
-// Deadband + bounded falloff (design §B.1): |z| ≤ kZIn ⇒ 100; ramps to ~0 at kZOut.
-inline constexpr double kZIn       = 1.0;
-inline constexpr double kZOut      = 3.0;
-inline constexpr double kFalloffPow = 2.0;
-
-// PROVISIONAL Wrist (session type 1) reference bands — μ, σ, oneSidedDir, weight.
-// See docs/reference/wristmetrics.md; locked against HackMotion in Corpus 2.
-namespace bands {
-inline constexpr double kFlexExtMu = 15.0, kFlexExtSigma = 12.0, kFlexExtWeight = 0.45;
-inline constexpr int    kFlexExtOneSided = +1;   // penalise BELOW μ (cupping)
-inline constexpr double kRadUlnMu  = 0.0,  kRadUlnSigma  = 12.0, kRadUlnWeight  = 0.15;
-inline constexpr int    kRadUlnOneSided = 0;     // two-sided
-inline constexpr double kPronationMu = 0.0, kPronationSigma = 25.0, kPronationWeight = 0.20;
-inline constexpr int    kPronationOneSided = 0;  // two-sided
-inline constexpr double kArmFlexionMu = 5.0, kArmFlexionSigma = 12.0, kArmFlexionWeight = 0.20;
-inline constexpr int    kArmFlexionOneSided = -1; // penalise ABOVE μ (bent lead arm)
-} // namespace bands
-
 // PROVISIONAL per-archetype lead-wrist FE resemblance centres (design §B.0a; validation
 // §5.6/§6.3). Flexion-positive, neutral-relative degrees, sampled at Top and Impact. v1
 // scores FE only. σ_p is the pattern's COACHING TOLERANCE (its natural spread), NOT sensor

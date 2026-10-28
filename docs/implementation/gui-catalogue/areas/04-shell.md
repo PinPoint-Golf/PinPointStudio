@@ -1,7 +1,7 @@
 # Shell
 
 *Directory:* `src/Gui/shell/`  
-*11 components · 2,663 lines of QML*
+*11 components · 2,663 lines of QML when catalogued; `ScreenPlaceholder` (the holding screens for the old Swing/GRF/Coach modes) has since been deleted*
 
 The application window and chrome: Main.qml, rail, header, about dialog, update banner, detect cluster, analysing badge, and the dev-hatch PlayPage.
 
@@ -19,7 +19,6 @@ The application window and chrome: Main.qml, rail, header, about dialog, update 
 | [PpRail](#pprail) | 227 | `Item` | 1 | 3 |  |
 | [PpRailButton](#pprailbutton) | 137 | `Item` | 1 | 1 |  |
 | [PpUpdateBanner](#ppupdatebanner) | 184 | `Item` | 1 | 1 |  |
-| [ScreenPlaceholder](#screenplaceholder) | 89 | `Item` | 1 | 2 |  |
 
 ### MacAboutMenu
 `src/Gui/shell/MacAboutMenu.qml` · 53 lines · root `Labs.MenuBar`
@@ -44,7 +43,7 @@ The application window (ApplicationWindow, created hidden then positioned on the
 
 - **Properties:** `readonly bool sessionScreenActive`, `readonly int screenHome`, `readonly int screenSwing`, `readonly int screenWrist`, `readonly int screenGrf`, `readonly int screenCoach`, `readonly int screenPlay`, `readonly int screenNewAthlete`, `readonly int screenAthletes`, `readonly int screenSystem`, `readonly int screenSettings`, `readonly int screenWizard`, `readonly int screenSwingDiagnostics`, `readonly var screenNames`
 - **Functions:** `toggleFullscreen()`
-- **Uses:** `MacAboutMenu`, `MetricRoute`, `PlayPage`, `PpAboutDialog`, `PpHeader`, `PpNotificationHost`, `PpPressable`, `PpRail`, `PpSessionDiagnosticsWindow`, `PpUpdateBanner`, `ScreenAthleteForm`, `ScreenAthletePicker`, `ScreenHome`, `ScreenPlaceholder`, `ScreenResourceMonitor`, `ScreenSessionSetup` (+6)
+- **Uses:** `MacAboutMenu`, `MetricRoute`, `PlayPage`, `PpAboutDialog`, `PpHeader`, `PpNotificationHost`, `PpPressable`, `PpRail`, `PpSessionDiagnosticsWindow`, `PpUpdateBanner`, `ScreenAthleteForm`, `ScreenAthletePicker`, `ScreenHome`, `ScreenResourceMonitor`, `ScreenSessionSetup` (+6)
 - **Used by (2):** `DisplaysPanel`, `SettingsIndex`
 - **Exercised by tests/tools:** `setup_walk`
 
@@ -162,12 +161,3 @@ One rail button: icon and label, active/muted/attention states.
 - **Uses:** `PpButton`
 - **Used by (1):** `Main`
 
-### ScreenPlaceholder
-`src/Gui/shell/ScreenPlaceholder.qml` · 89 lines · root `Item`
-
-'Coming soon' placeholder screen (icon, title) with an opt-in topographic ambient background — on for the Swing/GRF/Coach rail holding screens, off for inert Settings sub-panels.  
-*(description written for this catalogue — the file has no header comment)*
-
-- **Properties:** `string iconText`, `string titleText`, `bool ambientBackground`
-- **Uses:** `PpDisplayText`, `PpTopoBackground`
-- **Used by (1):** `Main`

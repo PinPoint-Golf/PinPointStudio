@@ -3,6 +3,11 @@
 Status: in the app (home screen, YOUR SWING), 9 Oct 2026. The prototype in tools/themes/ is the
 reference the C++ is tested against.
 
+**Note, 28 Oct 2026.** Home is now laid out as `ux_refactor_away_from_4_modes.md` §2.3 describes:
+a Start card, then two tabs, **Coaching** and **Your swing**. The golfer layer this document
+designs is the Coaching tab. The rule below that Home shows no metrics or figures now applies to
+the Coaching tab only; the Your swing tab shows each swing area with its figures and corridors.
+
 ## Purpose
 
 The home screen tells a golfer, in their own words, what their swing is doing. It does not show

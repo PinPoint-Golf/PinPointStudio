@@ -20,8 +20,6 @@
 
 #include "app_settings.h"
 
-#include "../Analysis/swing_analysis.h"   // SegmentRole + segmentRoleName
-
 #include <algorithm>
 
 ShotReplayController::ShotReplayController(AppSettings *appSettings, QObject *parent)
@@ -119,97 +117,4 @@ void ShotReplayController::onAborted()
     m_swingDir.clear();
     refreshAnalysisDetail();
     emit activeChanged();
-}
-
-QVariantMap ShotReplayController::shotContext(int sessionType) const
-{
-    // Face-on / down-the-line perspective values (swing.json setup.perspective); see
-    // disk_replay_source and camera_instance.h (None 0, DownTheLine 1, FaceOn 2, Other 3, Impact 4).
-    constexpr int kPerspectiveFaceOn = 2;
-    constexpr int kPerspectiveDtl    = 1;
-
-    QVariantMap ctx;
-    const QVariantMap d = m_source->analysisDetail();
-
-    // The reconstruction tier the shot was analysed at (drives normative-band lookup).
-    if (d.contains(QStringLiteral("tier")))
-        ctx.insert(QStringLiteral("tier"), d.value(QStringLiteral("tier")).toInt());
-
-    // A face-on camera: pose only runs on a face-on stream, so an analysisDetail
-    // pose2d block implies one; also accept an explicit face-on stream.
-    bool faceOn = d.contains(QStringLiteral("pose2d"));
-    if (!faceOn) {
-        for (const ReplayStreamInfo &s : m_source->streams())
-            if (s.perspective == kPerspectiveFaceOn) { faceOn = true; break; }
-    }
-    ctx.insert(QStringLiteral("hasFaceOn"), faceOn);
-
-    // A second camera down the target line. Two tests, in that order, and the second is the
-    // interesting one:
-    //
-    //   · an explicit down-the-line stream — the same walk the face-on test makes, one value over;
-    //   · ROUTE EVIDENCE. A trunk node in `analysis.kinematicSequence` whose `routeId` is
-    //     "faceOn+dtl" could only have been produced by pairing the two views
-    //     (kinematic_sequence_design.md §5.2), so a swing carrying one HAS a down-the-line camera
-    //     whatever its `setup` block says. The 2026-06-11 session carries no `setup` at all and
-    //     names its second camera only in the stream alias, which this side cannot see; without
-    //     this clause the metrics directory would go on telling the owner of such a swing that it
-    //     "needs a down-the-line camera" beside a reading taken from one.
-    //
-    // ctx is a plain map: metric_catalog.cpp reads `hasDtl` straight into ShotContext.
-    bool dtl = false;
-    for (const ReplayStreamInfo &s : m_source->streams())
-        if (s.perspective == kPerspectiveDtl) { dtl = true; break; }
-    if (!dtl) {
-        const QVariantList ksNodes = d.value(QStringLiteral("kinematicSequence"))
-                                         .toMap().value(QStringLiteral("nodes")).toList();
-        for (const QVariant &nv : ksNodes)
-            // faceOn+dtl (the pair, the fused club) and faceOn+dtl3d (the skeleton's lead arm).
-            if (nv.toMap().value(QStringLiteral("routeId")).toString()
-                    .startsWith(QStringLiteral("faceOn+dtl"), Qt::CaseInsensitive)) { dtl = true; break; }
-    }
-    ctx.insert(QStringLiteral("hasDtl"), dtl);
-
-    // Club / ball tracks — present AND valid in the analysis detail.
-    ctx.insert(QStringLiteral("hasClubTrack"),
-               d.value(QStringLiteral("club")).toMap().value(QStringLiteral("valid")).toBool());
-    ctx.insert(QStringLiteral("hasBallTrack"),
-               d.value(QStringLiteral("ball")).toMap().value(QStringLiteral("valid")).toBool());
-
-    // IMU roles bound + calibrated this shot — from the persisted analysis.bindings[]
-    // (present on the disk path; role names round-trip through roleFromName()).
-    QVariantList roles;
-    const QVariantList bindings = d.value(QStringLiteral("bindings")).toList();
-    for (const QVariant &bv : bindings) {
-        const int r = bv.toMap().value(QStringLiteral("role"), 0).toInt();
-        const pinpoint::analysis::SegmentRole role =
-            static_cast<pinpoint::analysis::SegmentRole>(r);
-        if (role == pinpoint::analysis::SegmentRole::Unknown)
-            continue;
-        roles.append(pinpoint::analysis::segmentRoleName(role));
-    }
-    ctx.insert(QStringLiteral("imuRoles"), roles);
-
-    // A launch monitor reported this shot. Read from the PRESENCE OF ITS METRICS rather
-    // than from the top-level "launchMonitor" block, because that block is not part of
-    // analysisDetail and this is the only document view we hold here. It is also the more
-    // honest test: what makes the readings resolve is that they are in `metrics[]`, so
-    // asking the same question the resolver will ask cannot disagree with it.
-    // A HackMotion measured this shot's wrist — same test, same reason. `bindings[]`
-    // above carries roles but not instruments, and a wG3's roles are indistinguishable
-    // from a pair of Witmotions'; the `hm.` prefix is what says which. Asking the
-    // question the resolver will ask keeps the two from disagreeing.
-    bool hasLm = false, hasHm = false;
-    for (const QVariant &sv : d.value(QStringLiteral("series")).toList()) {
-        const QString key = sv.toMap().value(QStringLiteral("key")).toString();
-        if (key.startsWith(QStringLiteral("lm."))) hasLm = true;
-        if (key.startsWith(QStringLiteral("hm."))) hasHm = true;
-        if (hasLm && hasHm) break;
-    }
-    ctx.insert(QStringLiteral("hasLaunchMonitor"), hasLm);
-    ctx.insert(QStringLiteral("hasHackMotion"),    hasHm);
-
-    ctx.insert(QStringLiteral("sessionType"), sessionType);
-    // archetype/club/shape: not derivable from swing.json today → catalogue defaults.
-    return ctx;
 }

@@ -163,9 +163,9 @@ QtObject {
         return fo && dl
     }
 
-    // Every ENABLED camera is connected and at least one face-on is (l.420–432). Today's extra
-    // clause, "≥1 down-the-line when the type requires two cameras", is dropped (§4.12); it only
-    // ever applied to the comingSoon types.
+    // Every ENABLED camera is connected and at least one face-on is (l.420–432). The old extra
+    // clause, "≥1 down-the-line when the type requires two cameras", is dropped (§4.12): no session
+    // requires two cameras any more.
     readonly property bool camsAllConnected: {
         var cams = ctx.cameraList, fo = 0
         for (var i = 0; i < cams.length; ++i) {

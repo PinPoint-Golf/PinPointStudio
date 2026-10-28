@@ -194,7 +194,7 @@ Item {
     //
     // A phaseSample's `band` reaches this plot in two spellings. The chart's own is
     // good / attention / warn (ChartMetrics.bandAtNearest's, and the summary's); the scorer's is
-    // green / yellow / red (swing_analysis.h PhaseSample::band, swing_scorer.cpp bandSubScore).
+    // green / yellow / red (swing_analysis.h PhaseSample::band; the old scorer that also read it is gone).
     // Today's producers emit neither — every curve is unscored, its corridor lives in the
     // diagnostics norm set (metric_channel.h) — so on a current swing every band is "".
     //

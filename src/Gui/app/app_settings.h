@@ -267,17 +267,10 @@ class AppSettings : public QObject
     // Distinct from imuFusionMode/imuDefaultFusionMode (the device's 6/9-axis
     // magnetometer mode). See iorientation_filter.h.
     Q_PROPERTY(QString     imuOrientationFilter   READ imuOrientationFilter   WRITE setImuOrientationFilter   NOTIFY imuOrientationFilterChanged)
-    // Session-toolbar View state, persisted per SessionController::Type (key =
-    // String(typeInt)). panels = QStringList of enabled panel keys; arrangement =
-    // "tabs"|"split"|"stage"; preset = named preset or "Custom". Resolved by the
-    // ViewLayout.qml singleton. Distinct from main/secondaryDisplayMode (monitor).
-    Q_PROPERTY(QVariantMap viewPanelsByType      READ viewPanelsByType      WRITE setViewPanelsByType      NOTIFY viewPanelsByTypeChanged)
-    Q_PROPERTY(QVariantMap viewArrangementByType READ viewArrangementByType WRITE setViewArrangementByType NOTIFY viewArrangementByTypeChanged)
-    Q_PROPERTY(QVariantMap viewPresetByType      READ viewPresetByType      WRITE setViewPresetByType      NOTIFY viewPresetByTypeChanged)
     // Session-stage layout, persisted per session MODE (key = String(mode): 0=Capture,
     // 1=Review, 2=Analyse) rather than per session type. Value = { panels: QStringList,
-    // arrangement: "tabs"|"split"|"stage" }. Resolved by the ViewLayout.qml singleton;
-    // supersedes the per-type view{Panels,Arrangement,Preset}ByType maps above.
+    // arrangement: "tabs"|"split"|"stage" }. Resolved by the ViewLayout.qml singleton.
+    // Distinct from main/secondaryDisplayMode (monitor).
     Q_PROPERTY(QVariantMap viewLayoutByMode      READ viewLayoutByMode      WRITE setViewLayoutByMode      NOTIFY viewLayoutByModeChanged)
     // Active data-viewer region preset, persisted per SessionController::Type (key
     // = String(typeInt)) so each mode remembers its default lens. Value is a region
@@ -529,13 +522,14 @@ public:
         // The wizard's per-type goals and the last-chosen session type were retired with the
         // session-type choice (27 Oct 2026: every session starts as SessionController::defaultType).
         // Drop an old install's keys once; contains() first so a clean install writes nothing.
-        for (const QString &stale : { QStringLiteral("session/goalsByType"), QStringLiteral("session/lastType") }) {
+        // The per-type view{Panels,Arrangement,Preset}ByType maps went the same way (superseded by
+        // view/layoutByMode).
+        for (const QString &stale : { QStringLiteral("session/goalsByType"), QStringLiteral("session/lastType"),
+                                      QStringLiteral("view/panelsByType"), QStringLiteral("view/arrangementByType"),
+                                      QStringLiteral("view/presetByType") }) {
             if (ppSettings().contains(stale))
                 ppSettings().remove(stale);
         }
-        m_viewPanelsByType      = ppSettings().value(QStringLiteral("view/panelsByType"),      QVariantMap{}).toMap();
-        m_viewArrangementByType = ppSettings().value(QStringLiteral("view/arrangementByType"), QVariantMap{}).toMap();
-        m_viewPresetByType      = ppSettings().value(QStringLiteral("view/presetByType"),      QVariantMap{}).toMap();
         m_viewLayoutByMode      = ppSettings().value(QStringLiteral("view/layoutByMode"),      QVariantMap{}).toMap();
         m_dataRegionByType      = ppSettings().value(QStringLiteral("view/dataRegionByType"),  QVariantMap{}).toMap();
         m_sectionCollapse       = ppSettings().value(QStringLiteral("view/sectionCollapse"),   QVariantMap{}).toMap();
@@ -690,9 +684,6 @@ public:
     QVariantMap impactPipRect()      const { return m_impactPipRect; }
     QVariantMap cameraAlias()        const { return m_cameraAlias; }
 
-    QVariantMap viewPanelsByType()      const { return m_viewPanelsByType; }
-    QVariantMap viewArrangementByType() const { return m_viewArrangementByType; }
-    QVariantMap viewPresetByType()      const { return m_viewPresetByType; }
     QVariantMap viewLayoutByMode()      const { return m_viewLayoutByMode; }
     QVariantMap dataRegionByType()      const { return m_dataRegionByType; }
     QVariantMap sectionCollapse()       const { return m_sectionCollapse; }
@@ -1407,30 +1398,6 @@ public:
         emit imuCalibrationChanged();
     }
 
-    void setViewPanelsByType(const QVariantMap &v)
-    {
-        if (m_viewPanelsByType == v) return;
-        m_viewPanelsByType = v;
-        ppSettings().setValue(QStringLiteral("view/panelsByType"), v);
-        emit viewPanelsByTypeChanged();
-    }
-
-    void setViewArrangementByType(const QVariantMap &v)
-    {
-        if (m_viewArrangementByType == v) return;
-        m_viewArrangementByType = v;
-        ppSettings().setValue(QStringLiteral("view/arrangementByType"), v);
-        emit viewArrangementByTypeChanged();
-    }
-
-    void setViewPresetByType(const QVariantMap &v)
-    {
-        if (m_viewPresetByType == v) return;
-        m_viewPresetByType = v;
-        ppSettings().setValue(QStringLiteral("view/presetByType"), v);
-        emit viewPresetByTypeChanged();
-    }
-
     void setViewLayoutByMode(const QVariantMap &v)
     {
         if (m_viewLayoutByMode == v) return;
@@ -1751,9 +1718,6 @@ signals:
     void imuOrientationFilterChanged();
     void imuAliasChanged();
     void imuCalibrationChanged();
-    void viewPanelsByTypeChanged();
-    void viewArrangementByTypeChanged();
-    void viewPresetByTypeChanged();
     void viewLayoutByModeChanged();
     void dataRegionByTypeChanged();
     void sectionCollapseChanged();
@@ -1879,9 +1843,6 @@ private:
     QString     m_imuDefaultFusionMode    = QStringLiteral("9axis");
     QString     m_imuOrientationFilter    = QStringLiteral("Madgwick");
 
-    QVariantMap m_viewPanelsByType;
-    QVariantMap m_viewArrangementByType;
-    QVariantMap m_viewPresetByType;
     QVariantMap m_viewLayoutByMode;
     QVariantMap m_dataRegionByType;
     QVariantMap m_sectionCollapse;

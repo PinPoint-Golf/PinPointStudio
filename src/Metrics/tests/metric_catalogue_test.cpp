@@ -46,7 +46,6 @@ static int countType(const MetricCatalogue &cat, MetricType t)
 static ShotContext wristShot(std::vector<SegmentRole> roles, bool faceOn = false, bool club = false)
 {
     ShotContext c;
-    c.sessionType  = 1;               // Wrist
     c.imuRoles     = std::move(roles);
     c.hasFaceOn    = faceOn;
     c.hasClubTrack = club;
@@ -212,22 +211,12 @@ int main()
         check(cat.resolve(QStringLiteral("forearmPronation"), full).state == MetricAvailability::Measured,
               "roll Measured with upper-arm added");
 
-        // ANALYSIS IS AGNOSTIC OF SESSION TYPE. This block used to assert the opposite — that a
-        // Swing-session shot lost the wrist metrics with the reason "produced in Wrist Motion
-        // sessions only" — and that behaviour is deliberately gone. A session type is what the
-        // operator meant to capture; the sensors are what was captured, and only the sensors may
-        // decide. The assertion is now that the answer does NOT move with the session.
-        for (const int type : { -1, 0, 1, 2, 7 }) {
-            ShotContext any = core; any.sessionType = type;
-            check(cat.resolve(QStringLiteral("leadWristFlexExt"), any).state
-                      == MetricAvailability::Measured,
-                  "wrist Measured whatever the session, given the sensors");
-        }
-        ShotContext noImu = wristShot({});
-        noImu.sessionType = 1;
+        // ANALYSIS IS AGNOSTIC OF SESSION TYPE: ShotContext no longer carries one, so only the
+        // sensors decide. Without them the wrist metric is Unavailable.
+        const ShotContext noImu = wristShot({});
         check(cat.resolve(QStringLiteral("leadWristFlexExt"), noImu).state
                   == MetricAvailability::Unavailable,
-              "and Unavailable without them, even in a Wrist session");
+              "and Unavailable without the sensors");
     }
 
     // 3b. resolve() — Summary scores (ScoreProvider).
@@ -238,12 +227,8 @@ int main()
         check(cat.resolve(QStringLiteral("wristResemblance"), core).state == MetricAvailability::Measured,
               "wristResemblance Measured on a Wrist shot with forearm+hand");
 
-        ShotContext swing = core; swing.sessionType = 0;
-        check(cat.resolve(QStringLiteral("wristScore"), swing).state == MetricAvailability::Measured,
-              "wristScore follows the IMUs, not the session");
-
         // swingScore is aspirational — no live scorer, always Unavailable.
-        const MetricAvailability sw = cat.resolve(QStringLiteral("swingScore"), swing);
+        const MetricAvailability sw = cat.resolve(QStringLiteral("swingScore"), core);
         check(sw.state == MetricAvailability::Unavailable, "swingScore Unavailable (no live scorer)");
         check(sw.reason.contains(QStringLiteral("scorer")), "swingScore reason names the missing scorer");
     }

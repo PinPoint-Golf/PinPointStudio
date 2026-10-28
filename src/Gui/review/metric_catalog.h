@@ -36,7 +36,7 @@
 // in the constructor (makeMetricCatalogue) and read-only thereafter.
 //
 // A `shotCtx` QVariantMap parameterises per-shot availability + normative resolution. Shape (all
-// optional): { tier:int, sessionType:int, imuRoles:[roleName…], hasFaceOn, hasDtl, hasClubTrack,
+// optional): { tier:int, imuRoles:[roleName…], hasFaceOn, hasDtl, hasClubTrack,
 // hasBallTrack, hasLaunchMonitor, hasHackMotion, archetype, club, shape }. roleName here is
 // segmentRoleName() ("LeadForearm") — NOT the persisted setup spelling setupSummary() takes. Omit it (or pass {}) for the context-free directory view;
 // pass a shot's capability (or the studio's configured capability) to drive availability chips.
@@ -67,7 +67,7 @@ public:
     QVariantList groups() const;
     QVariantList types() const;
 
-    // Directory list. filters: { type?, group?, scored?, availableOnly?, sessionType? }.
+    // Directory list. filters: { type?, group?, scored?, availableOnly? }.
     // With availableOnly + a non-empty shotCtx, Unavailable metrics are dropped.
     Q_INVOKABLE QVariantList query(const QVariantMap &filters,
                                    const QVariantMap &shotCtx = {}) const;

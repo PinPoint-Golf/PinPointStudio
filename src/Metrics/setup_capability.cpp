@@ -115,7 +115,7 @@ ShotContext contextForSetup(const SetupFacts &facts)
     c.hasDtl    = facts.dtlCamera;
 
     // CAMERA PRODUCTS. A ShotContext built from a recording sets these from the analysis
-    // (`club.valid`, `ball.valid` — ShotReplayController::shotContext). Before a swing nothing is
+    // (`club.valid`, `ball.valid`). Before a swing nothing is
     // known, and both trackers run on the face-on stream, so the honest prior is "expected when the
     // face-on camera is present". A swing whose track fails is the review's business, not setup's.
     c.hasClubTrack = facts.faceOnCamera;
@@ -141,11 +141,6 @@ ShotContext contextForSetup(const SetupFacts &facts)
     // planned setup mirrors that rule and no more. It gates nothing today either way: every rung in
     // the manifest leaves minTier at Angles2D (depth is stated as the dtlCamera device instead).
     c.tier = c.imuRoles.empty() ? ReconstructionTier::Angles2D : ReconstructionTier::Mono3DPlusImu;
-
-    // SESSION TYPE stays "none". No descriptor and no provider may read it (metric_providers.h,
-    // metric_catalogue_manifest.cpp), and a setup is not a session type — the flow is one flow
-    // (design §4.12).
-    c.sessionType = -1;
 
     // BAND stays at its defaults: archetype, club and shape steer normative resolution, not
     // availability, and none of them is known before a swing.

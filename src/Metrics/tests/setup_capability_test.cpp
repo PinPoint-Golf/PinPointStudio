@@ -186,7 +186,6 @@ void test_context_mirrors_the_setup(const MetricCatalogue &)
           "a wG3 supplies LeadForearm + LeadHand");
     check(c.hasHackMotion, "a wG3 opens the HackMotion axis");
     check(c.tier == ReconstructionTier::Mono3DPlusImu, "IMU roles ⇒ Mono3DPlusImu, as the analysis sets it");
-    check(c.sessionType == -1, "sessionType is never set");
 
     const ShotContext none = contextForSetup(SetupFacts{});
     check(!none.hasClubTrack && !none.hasBallTrack, "no face-on camera ⇒ no club or ball track");

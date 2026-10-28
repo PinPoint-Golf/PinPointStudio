@@ -47,7 +47,6 @@ import PinPointStudio
 Item {
     id: root
 
-    property int    sessionType: -1
     // Focused swing dir (replay, else carousel selection) — host binds this.
     property string targetSwingDir: ""
     // True only for the visible session screen's panel (host passes _screenActive).

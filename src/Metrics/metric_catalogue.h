@@ -39,7 +39,6 @@ struct MetricQuery {
     std::optional<MetricType> type;
     QString                   group;                  // empty = any
     std::optional<bool>       scored;
-    std::optional<int>        sessionType;
     bool                      availableOnly = false;  // needs a ShotContext to evaluate
 };
 

@@ -104,7 +104,6 @@ set(PP_QML_FILES
     src/Gui/shell/PpDetectCluster.qml
     src/Gui/shell/PpAnalysingBadge.qml
     src/Gui/shell/PlayPage.qml
-    src/Gui/shell/ScreenPlaceholder.qml
     src/Gui/athlete/ScreenAthleteForm.qml
     src/Gui/athlete/AthleteClubsSection.qml
     src/Gui/athlete/ScreenAthletePicker.qml
@@ -175,7 +174,6 @@ set(PP_QML_FILES
     src/Gui/settings/ArchivingPanel.qml
     src/Gui/settings/LaunchMonitorPanel.qml
     src/Gui/settings/SettingsIndex.qml
-    src/Gui/home/HmTypeCard.qml
     src/Gui/media/CoachPage.qml
     src/Gui/session/PpSessionToolbar.qml
     src/Gui/cameras/PpCameraPanel.qml

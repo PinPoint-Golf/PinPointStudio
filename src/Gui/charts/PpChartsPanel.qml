@@ -59,8 +59,8 @@ Item {
 
     // Set by PpModeStage only on the muted placeholder path; the panel titles itself.
     property string title: qsTr("Charts")
-    // The session type of the screen this panel sits on (SessionController.Swing / Wrist …): the persistence
-    // key only — the analysis never branches on it. The _screenActive gate tests AppScreen.Session instead.
+    // The persistence key of the screen this panel sits on (SessionController.Wrist on the one session screen):
+    // a key only — the analysis never branches on it. The _screenActive gate tests AppScreen.Session instead.
     property int sessionType: -1
     // The tab and the preset this panel opens on until the reader picks one (a saved "view" / "preset" wins).
     // The HOST says them, so the panel never branches on the screen: the Wrist screen opens This shot on the

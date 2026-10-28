@@ -7,6 +7,7 @@
 - **The closing page says what is mounted and what that does to the recording** (§4.14).
 
 The stage plan in §8 is replaced by §8a.
+**Amended 28 October** by `ux_refactor_away_from_4_modes.md` §2.4. Sessions no longer have a type picked on Home, so the wizard's `presets` and its **Goals** step are gone. In their place is an optional **Focus** step (step key `intent`, `pages/IntentPage.qml`): open assessment, or one condition to work on, carried into the session as `sessionController.focusConditionId`. Wherever this document talks about goals, presets or the session type choosing them, read the Focus step instead.
 **Owner:** Mark.
 **Who does the work:** Fable orchestrates, reviews and runs the tests. Opus agents write the code, one work item each.
 **Protected files:** `src/Gui/session/ScreenSessionWizard.qml` and `src/Gui/calibration/ImuCalibrationFlow.qml` (memory note `do-not-touch-the-session-wizard`). The refactor session is the approval context for changing them. Each stage in §8 is shown with its test run before the next stage starts.

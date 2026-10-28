@@ -35,8 +35,7 @@
 // μ_p/σ_p are PROVISIONAL (pp_tuned_constants.h, externally anchored to HackMotion
 // tour ranges) and re-seated at Corpus 2. σ_p is coaching tolerance, never sensor
 // noise; measurement uncertainty is a separate interval filled by the uncertainty
-// pass (§B.7), left unset here. Replaces SwingScorer for the Wrist session;
-// SwingScorer remains the Swing/GRF adherence model.
+// pass (§B.7), left unset here.
 
 #include "../Analysis/swing_analysis.h"
 

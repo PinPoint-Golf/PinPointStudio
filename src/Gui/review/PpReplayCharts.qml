@@ -28,8 +28,8 @@ import PinPointStudio
 Item {
     id: root
 
-    // Screen session type (Swing/Wrist/GRF/Coach), forwarded to the chart so it can
-    // persist its collapsible-section state per screen+mode. Set by the host screen.
+    // The host screen's persistence key (SessionController.Wrist on the one session screen),
+    // forwarded to the chart so it can persist its collapsible-section state per screen+mode.
     property int sessionType: -1
 
     // Every screen lives in the StackLayout at once (the session screen is at index

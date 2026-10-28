@@ -59,13 +59,12 @@ QString stateName(MetricAvailability::State s)
 }
 
 // Build a ShotContext from the QML shotCtx map. An empty map yields the context-free default
-// (sessionType −1, no sensors) — used by the directory "all" view where availableOnly is off.
+// (no sensors) — used by the directory "all" view where availableOnly is off.
 ShotContext contextFromMap(const QVariantMap &m)
 {
     ShotContext c;
     if (m.contains(QStringLiteral("tier")))
         c.tier = static_cast<ReconstructionTier>(m.value(QStringLiteral("tier")).toInt());
-    c.sessionType  = m.value(QStringLiteral("sessionType"), -1).toInt();
     c.hasFaceOn    = m.value(QStringLiteral("hasFaceOn")).toBool();
     c.hasDtl       = m.value(QStringLiteral("hasDtl")).toBool();
     c.hasClubTrack = m.value(QStringLiteral("hasClubTrack")).toBool();
@@ -199,8 +198,6 @@ QVariantList MetricCatalog::query(const QVariantMap &filters, const QVariantMap 
     q.group = filters.value(QStringLiteral("group")).toString();
     if (filters.contains(QStringLiteral("scored")))
         q.scored = filters.value(QStringLiteral("scored")).toBool();
-    if (filters.contains(QStringLiteral("sessionType")))
-        q.sessionType = filters.value(QStringLiteral("sessionType")).toInt();
     q.availableOnly = filters.value(QStringLiteral("availableOnly")).toBool();
 
     // Free-text search. Applied HERE rather than in MetricQuery: the catalogue's query is a

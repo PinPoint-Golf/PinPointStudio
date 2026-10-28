@@ -16,11 +16,11 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// The session screen (contentStack index AppScreen.Session; its sessionType is
-// Wrist). Hosts the persistent session toolbar, then a View-driven layout: an optional timeline rail, the centre
+// The session screen (contentStack index AppScreen.Session; every session opens here, and its
+// sessionType, Wrist, is only the persistence key). Hosts the persistent session toolbar, then a View-driven layout: an optional timeline rail, the centre
 // stage (camera tiles today; charts/table land later), and an
 // optional shot carousel. Which panels show, and how the stage packs them, is
-// owned by the toolbar's View control (ViewLayout, per session type). The
+// owned by the toolbar's View control (ViewLayout). The
 // toolbar's device panels run calibration entirely in-panel, so this screen
 // neither exposes nor routes any calibrate request.
 //
@@ -189,7 +189,6 @@ Item {
                 // visible screen's panel drives the shared markupController (panelActive).
                 markupDelegate: Component {
                     PpMarkupPanel {
-                        sessionType: SessionController.Wrist
                         panelActive: root._screenActive
                         targetSwingDir: root._focusedSwingDir
                     }
@@ -197,8 +196,7 @@ Item {
             }
         }
 
-        // Session-shot carousel — keys mirror the Wrist goal vocabulary
-        // (goalDefsByType[1]); the stub model supplies placeholder values. The replay
+        // Session-shot carousel — one card per shot of the session. The replay
         // transport (play/step/speed) rides in the carousel's top strip for Replay and
         // Analyse — both drive the loaded swing's playhead; Capture has no replay so it
         // stays hidden there. Works even when the timeline panel is hidden.

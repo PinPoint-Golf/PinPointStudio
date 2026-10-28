@@ -629,8 +629,8 @@ ApplicationWindow {
                             : (root.screenNames[navController.currentIndex] || "")
                 // Shown app-wide so its click target (the About dialog) is always reachable.
                 showVersionPill: true
-                // Session screens (Swing/Wrist/GRF/Coach) gate the centred DETECT
-                // cluster the header hosts during live Capture.
+                // The session screen gates the centred DETECT cluster the header
+                // hosts during live Capture.
                 sessionScreenActive: root.sessionScreenActive
                 isFullscreen: root.visibility === Window.FullScreen
                 onFullscreenToggleRequested: root.toggleFullscreen()
@@ -681,7 +681,6 @@ ApplicationWindow {
                         athleteFormScreen.editUuid = ""
                         navController.navigate(AppScreen.Athlete)
                     }
-                    onAthletePickerRequested: navController.navigate(AppScreen.Athletes)
                     // Tapping the home avatar edits the current athlete's profile.
                     onEditCurrentAthleteRequested: {
                         athleteFormScreen.editUuid = athleteController.currentUuid

@@ -35,7 +35,6 @@ Item {
     id: root
 
     signal addAthleteRequested()
-    signal athletePickerRequested()
     signal editCurrentAthleteRequested()
     // Start: open the session wizard. The request is { focusConditionId, focusLabel }: Home's
     // Start carries no focus (an open assessment, the golfer can pick one in the wizard); a

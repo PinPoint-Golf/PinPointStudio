@@ -264,9 +264,6 @@ pp_add_test(pipeline_test
     INCLUDE ${SRC}/Core   # pp_debug.h, and the log it now really carries
     STD 20)
 
-# --- Banded weighted-geometric-mean scorer (Swing/GRF adherence) -------------
-pp_add_test(swing_scorer_test SOURCES swing_scorer_test.cpp ${ANALYSIS}/swing_scorer.cpp)
-
 # --- Per-archetype resemblance scorer + uncertainty interval (Wrist, §B.0a/§B.7)
 pp_add_test(wrist_resemblance_test SOURCES wrist_resemblance_test.cpp
     ${SRC}/Wrist/wrist_resemblance.cpp ${SRC}/Wrist/score_uncertainty.cpp)
@@ -282,7 +279,7 @@ pp_add_test(pose_crop_test SOURCES pose_crop_test.cpp)
 # and the ordered producer pool (N = 4 bitwise-identical to N = 1, fetch serial and
 # in order, bounded window, exceptions joined). Fakes only — no ORT, no OpenCV.
 pp_add_test(pose_pipeline_test SOURCES pose_pipeline_test.cpp NO_QT)
-pp_add_test(tuning_overrides_test SOURCES tuning_overrides_test.cpp ${ANALYSIS}/swing_scorer.cpp
+pp_add_test(tuning_overrides_test SOURCES tuning_overrides_test.cpp
                                           ${SRC}/Wrist/reference_bands.cpp ${NORM_SRC}
                                   INCLUDE ${NORM_INC})
 pp_norm_env(tuning_overrides_test)

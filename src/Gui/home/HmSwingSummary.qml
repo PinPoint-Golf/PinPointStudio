@@ -55,9 +55,6 @@ Column {
     // The controller. Passed in rather than reached for, so a harness can drive the component.
     property var controller: (typeof workOns !== "undefined") ? workOns : null
 
-    // Kept for compatibility: the "Swing diagnostics →" row it came from is gone (the tab bar's
-    // "All work-ons ▸" replaces it). Never emitted.
-    signal diagnosticsRequested()
     // The focus card's Practise.
     signal practiseRequested(string conditionId, string label)
 

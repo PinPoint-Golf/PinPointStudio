@@ -423,13 +423,15 @@ picker with recent cards and searchable list. New athlete form with Required /
 Recommended / Optional field grouping. Athlete avatar in rail with initials.
 
 **Home screen:**  
-Single scrollable column with three sections: athlete identity, session launcher
-(with type cards and club selector), and device readiness. Welcome state when no
-athlete exists.
+A Start card (Start session, club selector, last session, and what this rig can
+measure), then two tabs, Coaching and Your swing, then recent sessions
+(`docs/design/ux_refactor_away_from_4_modes.md` §2.3). There are no session type
+cards. Welcome state when no athlete exists.
 
 **Session setup:**  
-Five-step session wizard (`ScreenSessionWizard`): session type, cameras, IMU setup,
-verify, ready. Session type cards with camera/IMU requirement indicators.
+Session setup (`ScreenSessionSetup`): an optional Focus step, then cameras, IMUs,
+calibration, checks and ready, with steps chosen by the hardware present. There is no
+session type step.
 
 **Devices and sensors:**  
 Camera manager with multi-camera enumeration, pylon/Aravis/GenTL SDK support,
@@ -514,9 +516,9 @@ it promises.
 This persona is the closest match to the current design's implicit user and is
 served best overall.
 
-The **Home screen session launcher** with type cards showing camera/IMU requirements
-is exactly right for this persona. They understand the sensor requirements, they
-will read the requirement indicators, and they will feel informed making the choice.
+The **Home screen Start card**, with its list of what the rig can measure, is
+exactly right for this persona. They understand the sensors, they will read what is
+live, estimated or missing, and they will feel informed before they start.
 
 The **session wizard** five-step flow (type → cameras → IMU setup → verify → ready)
 is correctly scoped. This persona has the patience and technical literacy to work
@@ -602,17 +604,13 @@ professional installation, this persona will be lost here. The guided first-sess
 mode (explaining what calibration is, why it matters, and providing a step-by-step
 visual guide) is not yet implemented.
 
-**The session type cards use terminology this persona cannot interpret yet.** "Ground
-forces" and "kinematic sequence" are concepts they will learn over time, but seeing
-them on day one without explanation is alienating. Each type card needs two to three
-lines of plain English description of what the session will show them.
-
-**Note:** The current `HmTypeCard.qml` *does* have a `description` property and the
-Home screen *does* populate it with descriptions ("Capture golf shots with IMUs on
-your spine and review your sequencing..."). This is a correct implementation. The gap
-is that the session wizard's type selection step does not currently carry these
-descriptions through — when the wizard confirms the selected type, the plain-language
-description should remain visible.
+**Home no longer asks this persona to choose a session type.** The four session-type
+cards, with their "Ground forces" and "kinematic sequence" wording, are gone
+(`docs/design/ux_refactor_away_from_4_modes.md` §2.3). Home now has one **Start
+session** button and a plain list of what the rig can measure, and the wizard's
+optional Focus step offers "open assessment" or one thing to work on, in golfer
+words. The need this section raised still holds for that list and for the Focus
+step: every line should say, in plain English, what the session will show them.
 
 **There is no mechanism for adapting AI Coach output to skill level.** When the AI
 Coach is implemented, this persona must receive plain-language, encouraging coaching.

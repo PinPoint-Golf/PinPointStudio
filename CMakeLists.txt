@@ -1092,16 +1092,6 @@ qt_add_resources(PinPointStudio "app_fonts"
     FILES ${PP_FONT_FILES}
 )
 
-qt_add_resources(PinPointStudio "app_tiles"
-    PREFIX "/assets/tiles"
-    BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/tiles"
-    FILES
-        src/Resources/tiles/golfswing.png
-        src/Resources/tiles/grip.png
-        src/Resources/tiles/feet.png
-        src/Resources/tiles/coach.png
-)
-
 qt_add_resources(PinPointStudio "app_body"
     PREFIX "/assets/body"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/body"
@@ -2941,8 +2931,6 @@ target_sources(PinPointStudio PRIVATE
     src/Club/ball_anchor.cpp
     src/Timeline/event_refine.h
     src/Timeline/event_refine.cpp
-    src/Analysis/swing_scorer.h
-    src/Analysis/swing_scorer.cpp
     src/Wrist/wrist_resemblance.h
     src/Wrist/wrist_resemblance.cpp
     src/Wrist/score_uncertainty.h
@@ -3293,7 +3281,6 @@ if(PINPOINT_BUILD_TOOLS)
         src/Timeline/phase_segmenter.cpp
         src/Timeline/phase_signals.cpp
         src/Wrist/metric_extractor.cpp
-        src/Analysis/swing_scorer.cpp
         src/Wrist/wrist_resemblance.cpp
         src/Wrist/score_uncertainty.cpp
         # Tier-2 wrist assessment (offline known-groups, ShotAnalysisJob::runAssessment)

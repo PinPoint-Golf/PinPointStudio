@@ -1,16 +1,15 @@
 # Home
 
 *Directory:* `src/Gui/home/`  
-*11 components · 3,756 lines of QML*
+*11 components · 3,756 lines of QML when catalogued; `HmTypeCard` (the four session-type cards) has since been deleted — see `docs/design/ux_refactor_away_from_4_modes.md` §2.3*
 
-The home screen: onboarding, athlete/club/session-type selection, the 'your swing' summary (focus, work-ons, goes-together), swing-diagnostics page, and PPCP phone pairing/offers.
+The home screen: onboarding, athlete/club selection and the Start card, the 'your swing' summary (focus, work-ons, goes-together), swing-diagnostics page, and PPCP phone pairing/offers.
 
 | Component | Lines | Root | Used by | Uses | Notes |
 |---|---:|---|---:|---:|---|
 | [HmFocus](#hmfocus) | 355 | `Item` | 1 | 7 | 1 local comp. |
 | [HmGoesTogether](#hmgoestogether) | 240 | `Column` | 1 | 4 |  |
 | [HmSwingSummary](#hmswingsummary) | 428 | `Column` | 1 | 9 |  |
-| [HmTypeCard](#hmtypecard) | 270 | `Rectangle` | 1 | 0 |  |
 | [HmWorkOns](#hmworkons) | 459 | `Column` | 1 | 10 |  |
 | [PpQrGlyph](#ppqrglyph) | 126 | `Canvas` | 1 | 0 |  |
 | [PpcpGuidedPairDialog](#ppcpguidedpairdialog) | 377 | `Popup` | 0 | 1 | ⚠ unreferenced |
@@ -88,19 +87,9 @@ The home screen: onboarding, athlete/club/session-type selection, the 'your swin
 > …
 
 - **Properties:** `var controller`, `readonly var doWell`, `readonly var needsWork`, `readonly string subtitle`, `readonly bool ready`, `readonly bool updating`, `readonly bool catchingUp`, `readonly int maxPips`, `readonly int pipCount`, `readonly bool stacked`, `readonly color toneWell`, `readonly color toneWork`, `readonly int cardPad`, `readonly int cardGap` … (+5 more)
-- **Signals:** `diagnosticsRequested()`
+- **Signals:** `practiseRequested(string conditionId, string label)`
 - **Functions:** `latestPips(marks)`, `capitalised(s)`
 - **Uses:** `HmFocus`, `PpBadge`, `PpCard`, `PpCardNote`, `PpChip`, `PpLink`, `PpMeter`, `PpMicro`, `PpPips`
-- **Used by (1):** `ScreenHome`
-
-### HmTypeCard
-`src/Gui/home/HmTypeCard.qml` · 270 lines · root `Rectangle` · 1 hard-coded colour(s)
-
-Home-screen card for one session type (image or icon, name, description, required cameras/IMUs). Emits clicked / doubleClicked.  
-*(description written for this catalogue — the file has no header comment)*
-
-- **Properties:** `string imageSource`, `string iconText`, `real iconSize`, `string typeName`, `string description`, `int camerasRequired`, `int imusRequired`, `int camerasCount`, `int imusCount`, `bool camerasOptional`, `bool camerasMet`, `bool imusMet`, `bool isSelected`, `bool comingSoon`
-- **Signals:** `clicked()`, `doubleClicked()`
 - **Used by (1):** `ScreenHome`
 
 ### HmWorkOns
@@ -228,12 +217,12 @@ Home-screen card for one session type (image or icon, name, description, require
 ### ScreenHome
 `src/Gui/home/ScreenHome.qml` · 782 lines · root `Item` · 4 hard-coded colour(s)
 
-The home screen. First run: welcome/onboarding (add an athlete, connect a camera, pair IMUs, read the docs). Thereafter: athlete and club selection, the session-type cards (HmTypeCard, incl. 'coming soon' types that skip the wizard), the swing summary with a 'Swing diagnostics' link, and PPCP phone offers/pairing.  
+The home screen. First run: welcome/onboarding (add an athlete, connect a camera, pair IMUs, read the docs). Thereafter, as `docs/design/ux_refactor_away_from_4_modes.md` §2.3 lays it out: a Start card (Start session, club picker, last session, and what this rig can measure), the Coaching | Your swing tabs over the work-ons, and the session list. There are no session-type cards any more: every session starts the same way, with an optional focus.  
 *(description written for this catalogue — the file has no header comment)*
 
-- **Properties:** `int selectedType`, `readonly var comingSoonTypes`, `string selectedClub`, `var athMap`, `readonly var clubModel`
-- **Signals:** `addAthleteRequested()`, `athletePickerRequested()`, `editCurrentAthleteRequested()`, `startSessionRequested(int sessionTypeIndex)`, `openSessionScreenRequested(int sessionTypeIndex)`, `swingDiagnosticsRequested()`
-- **Uses:** `ClubFormat`, `HmSwingSummary`, `HmTypeCard`, `PpButton`, `PpDisplayText`, `PpPressable`, `PpQrGlyph`, `PpTopoBackground`, `PpcpOfferList`, `PpcpPairDialog`, `RmWarningNotice`
+- **Properties:** `string selectedClub`, `var athMap`, `readonly var clubModel`, `readonly bool hasGolfer`, `readonly var lastSession`, `readonly string lastSessionText`
+- **Signals:** `addAthleteRequested()`, `editCurrentAthleteRequested()`, `startSessionRequested(var request)`, `swingDiagnosticsRequested(string group)`, `reviewSessionRequested(string sessionDir)`, `athleteSessionsRequested()`, `studioSettingsRequested()`
+- **Uses:** `ClubFormat`, `HmHomeTabs`, `HmRigCapability`, `PpButton`, `PpCard`, `PpComboBox`, `PpDisplayText`, `PpLink`, `PpSessionReportList`, `PpTopoBackground`
 - **Used by (1):** `Main`
 - **Exercised by tests/tools:** `setup_walk`
 

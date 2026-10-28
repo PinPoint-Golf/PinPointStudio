@@ -26,10 +26,9 @@
 //
 // DECISION(stage5a): the two-camera branches of today's panel are not carried: the "Down-the-line
 // camera" placeholder row and the "Down-the-line camera not assigned" hint (l.964–965, 2081–2082)
-// and the two-view intro text (l.982) applied only when the session type required two cameras —
-// the three comingSoon types, which Home never opens. Nothing is "required" any more (§4.12), and
-// SetupContext.camsAllConnected already dropped the same clause in Stage 4. For every session
-// that can be opened, the page is today's.
+// and the two-view intro text (l.982) applied only when the session type required two cameras,
+// and no session does any more (§4.12): there is one kind of session, and SetupContext.
+// camsAllConnected already dropped the same clause in Stage 4.
 import QtQuick
 import QtQuick.Layouts
 import PinPointStudio

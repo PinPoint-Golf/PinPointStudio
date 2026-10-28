@@ -29,7 +29,7 @@
 // (session_wizard_refactor_design.md §4.14). The closing page of session setup tells the golfer
 // what is mounted and what that does to the recording. The catalogue already knows this per metric
 // through its route ladders; the only missing piece was a ShotContext built from the PLANNED setup
-// rather than from a recorded swing (ShotReplayController::shotContext). This file is that piece
+// rather than from a recorded swing. This file is that piece
 // and a per-group roll-up over the existing resolver — it re-implements no availability rule.
 //
 // Pure: Qt Core only, no QML, no settings, no devices. The caller (the setup flow, through the

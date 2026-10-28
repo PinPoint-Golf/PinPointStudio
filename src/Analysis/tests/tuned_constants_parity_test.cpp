@@ -46,21 +46,6 @@ int main()
           && t::calib::kNominalHandMount[2] == 0.4965f && t::calib::kNominalHandMount[3] == -0.4409f,
           "calib::kNominalHandMount == (0.4388,0.6054,0.4965,-0.4409)");
 
-    check(t::scoring::kZIn == 1.0 && t::scoring::kZOut == 3.0 && t::scoring::kFalloffPow == 2.0,
-          "scoring deadbands == (1,3,2)");
-    check(t::scoring::bands::kFlexExtMu == 15.0 && t::scoring::bands::kFlexExtSigma == 12.0
-          && t::scoring::bands::kFlexExtOneSided == +1 && t::scoring::bands::kFlexExtWeight == 0.45,
-          "scoring FlexExt == (15,12,+1,0.45)");
-    check(t::scoring::bands::kRadUlnMu == 0.0 && t::scoring::bands::kRadUlnSigma == 12.0
-          && t::scoring::bands::kRadUlnOneSided == 0 && t::scoring::bands::kRadUlnWeight == 0.15,
-          "scoring RadUln == (0,12,0,0.15)");
-    check(t::scoring::bands::kPronationMu == 0.0 && t::scoring::bands::kPronationSigma == 25.0
-          && t::scoring::bands::kPronationOneSided == 0 && t::scoring::bands::kPronationWeight == 0.20,
-          "scoring Pronation == (0,25,0,0.20)");
-    check(t::scoring::bands::kArmFlexionMu == 5.0 && t::scoring::bands::kArmFlexionSigma == 12.0
-          && t::scoring::bands::kArmFlexionOneSided == -1 && t::scoring::bands::kArmFlexionWeight == 0.20,
-          "scoring ArmFlexion == (5,12,-1,0.20)");
-
     check(t::sampler::kWindowHalfUs == 15000 && t::sampler::kGimbalThresholdDeg == 75.0
           && t::sampler::kMinValidSamples == 1, "sampler == (15000,75,1)");
 
