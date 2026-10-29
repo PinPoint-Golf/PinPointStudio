@@ -136,9 +136,9 @@ inline QString captureDeviceLabel(CaptureDevice d)
     switch (d) {
     case CaptureDevice::FaceOnCamera:  return QStringLiteral("Face-on camera");
     case CaptureDevice::DtlCamera:     return QStringLiteral("Down-the-line camera");
-    case CaptureDevice::WristImus:     return QStringLiteral("Wrist IMUs");
+    case CaptureDevice::WristImus:     return QStringLiteral("Wrist motion sensors");
     case CaptureDevice::HackMotion:    return QStringLiteral("HackMotion");
-    case CaptureDevice::BodyImus:      return QStringLiteral("Body IMUs");
+    case CaptureDevice::BodyImus:      return QStringLiteral("Body motion sensors");
     case CaptureDevice::ClubTrack:     return QStringLiteral("Club tracking");
     case CaptureDevice::ClubSensor:    return QStringLiteral("Club sensor");
     case CaptureDevice::BallTrack:     return QStringLiteral("Ball tracking");

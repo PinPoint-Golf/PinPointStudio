@@ -291,7 +291,7 @@ Item {
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           qsTr("Detects impact from the strike sound, fused with the IMU and vision modalities")
+                        text:           qsTr("Detects impact from the strike sound, fused with the motion sensor and vision modalities")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3

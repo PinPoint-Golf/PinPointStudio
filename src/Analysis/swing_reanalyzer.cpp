@@ -1003,7 +1003,7 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
     // only phase landmarks). Refuse only when NEITHER is present — that path would
     // return a degenerate result the caller would write back over the original.
     if (ls.job.sessionType == 1 && ls.job.imuBindings.empty() && ls.job.faceOnCameraCount == 0) {
-        out.error = QStringLiteral("No IMU calibration and no face-on camera were saved with this "
+        out.error = QStringLiteral("No motion sensor calibration and no face-on camera were saved with this "
                                    "shot, so it can't be re-analysed.");
         return out;
     }

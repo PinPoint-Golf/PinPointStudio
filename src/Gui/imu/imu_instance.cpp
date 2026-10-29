@@ -1097,7 +1097,7 @@ void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
     case WT9011DCL_BLE::State::Scanning:
         setStateLabel(QStringLiteral("Scanning…"));
         if (!m_busy) { m_busy = true; emit busyChanged(); }
-        appendLog(timestamp() + "  Scanning for IMU devices…");
+        appendLog(timestamp() + "  Scanning for motion sensors…");
         break;
 
     case WT9011DCL_BLE::State::Connecting:
@@ -1127,7 +1127,7 @@ void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
         if (m_gimbalDropCount != 0) { m_gimbalDropCount = 0; emit gimbalDropCountChanged(); }
         m_logTimer.start(kLogIntervalMs);
         m_gimbalPollTimer.start();
-        appendLog(timestamp() + "  IMU ready — receiving data");
+        appendLog(timestamp() + "  Motion sensor ready — receiving data");
         // Poke the device to start streaming.
         setOutputRateHz(m_outputRateHz);
         startRawRecording();   // dev-only (PINPOINT_IMU_RECORD_DIR); no-op when unset

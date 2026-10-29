@@ -136,13 +136,13 @@ void installMetricManifest(MetricCatalogue &cat)
             "Read it as a headline, then drill into the individual wrist metrics to see what moved "
             "it. Higher is closer to the reference; a low score points you at whichever checkpoint "
             "fell outside its band — most often a cupped lead wrist at the top. It needs the "
-            "lead-forearm and lead-hand IMUs and is produced only in a Wrist Motion session."),
+            "lead-forearm and lead-hand motion sensors and is produced only in a Wrist Motion session."),
         .signPositive = QString(),
         .signNegative = QString(),
         .routes = {
             via("wristImus", RM::Inertial, Direct, { .imuRoles = { R::LeadForearm, R::LeadHand } },
                 QStringLiteral("rolled up from the lead-wrist checkpoints the forearm and hand "
-                               "IMUs measure")) },
+                               "motion sensors measure")) },
         .usedBy = { QStringLiteral("review:verdict"),
                     QStringLiteral("shotlist:score") },
     });
@@ -167,13 +167,13 @@ void installMetricManifest(MetricCatalogue &cat)
             "you how decisively. When the top two are within a few points the result is flagged "
             "'blended' — the player sits between styles. Use it to read a player's natural pattern "
             "before coaching toward or away from it. v1 scores lead-wrist flex/extension only; it "
-            "needs the lead-forearm and lead-hand IMUs."),
+            "needs the lead-forearm and lead-hand motion sensors."),
         .signPositive = QString(),
         .signNegative = QString(),
         .routes = {
             via("wristImus", RM::Inertial, Direct, { .imuRoles = { R::LeadForearm, R::LeadHand } },
                 QStringLiteral("scored from the lead-wrist flex/extension the forearm and hand "
-                               "IMUs measure")) },
+                               "motion sensors measure")) },
         .usedBy = { QStringLiteral("review:verdict") },
     });
 
@@ -218,7 +218,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .color = QStringLiteral("crimson"),
         .description = QStringLiteral(
             "The bow/cup axis of the lead wrist — how flexed (bowed, +) or cupped (extended, −) it "
-            "is relative to address — from the fused forearm and hand IMUs (first Cardan component "
+            "is relative to address — from the fused forearm and hand motion sensors (first Cardan component "
             "of q_forearm⁻¹·q_hand about the hand's medio-lateral axis). Of the three wrist motions "
             "this is the one that most directly shapes the clubface, which is why it carries the "
             "highest weight in the wrist score."),
@@ -227,7 +227,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "the Top and Impact: a good move bows the wrist through transition so impact sits "
             "roughly 15–30° more flexed than address, while a cupped top tends to leave the face "
             "open. Restricting this axis costs more clubhead speed than the others, so treat a "
-            "cupping trend as a priority. Wrist Motion session; needs the lead-forearm and hand IMUs."),
+            "cupping trend as a priority. Wrist Motion session; needs the lead-forearm and hand motion sensors."),
         .flexPositive = true,
         .signPositive = QStringLiteral("flexion — the lead wrist bowed"),
         .signNegative = QStringLiteral("extension — the lead wrist cupped"),
@@ -236,7 +236,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("wristImus", RM::Inertial, Direct, { .imuRoles = { R::LeadForearm, R::LeadHand } },
                 QStringLiteral("the first Cardan axis of the forearm-to-hand rotation, from the "
-                               "two IMU orientations")) },
+                               "two motion sensor orientations")) },
         .usedBy = { QStringLiteral("assessment:wrist"),
                     QStringLiteral("chart:review"),
                     QStringLiteral("score:wrist"),
@@ -264,8 +264,8 @@ void installMetricManifest(MetricCatalogue &cat)
             "WRIST AT THE TOP IS RADIAL, so a set backswing reads NEGATIVE relative to address and a "
             "large negative value at the top is normal and desirable — the grid that once expected "
             "+38 there was the vendor's sign. Better players hold less deviation into impact, where lower handicaps show "
-            "noticeably less wandering. This is the least reliable IMU axis (~5° typical error), so "
-            "trust the shape of the trend over any single value. Needs the lead-forearm and hand IMUs."),
+            "noticeably less wandering. This is the least reliable motion sensor axis (~5° typical error), so "
+            "trust the shape of the trend over any single value. Needs the lead-forearm and hand motion sensors."),
         .flexPositive = true,
         .signPositive = QStringLiteral("ulnar deviation — toward the little finger, the wrist UN-cocked"),
         .signNegative = QStringLiteral("radial deviation — toward the thumb, the wrist cocked or hinged"),
@@ -274,7 +274,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("wristImus", RM::Inertial, Direct, { .imuRoles = { R::LeadForearm, R::LeadHand } },
                 QStringLiteral("the second Cardan axis of the forearm-to-hand rotation, from the "
-                               "two IMU orientations")) },
+                               "two motion sensor orientations")) },
         .usedBy = { QStringLiteral("assessment:wrist"),
                     QStringLiteral("chart:review"),
                     QStringLiteral("score:wrist"),
@@ -305,7 +305,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "+ is pronated, − is supinated; through the strike the lead forearm rolls toward "
             "square. There is no published tour benchmark, so read it as a trend and as a matched "
             "pair with bow/cup — a player short on bow may compensate with roll, and vice versa. It "
-            "needs the lead-forearm, hand and upper-arm IMUs (the upper-arm gives the forearm a "
+            "needs the lead-forearm, hand and upper-arm motion sensors (the upper-arm gives the forearm a "
             "reference to rotate against)."),
         .flexPositive = true,
         .signPositive = QStringLiteral("pronation — the lead forearm rolled toward face-down"),
@@ -345,7 +345,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "0° is a perfectly straight arm; larger values mean more bend. A near-straight lead arm "
             "through impact is the goal. A chicken-wing — rising flexion into and past impact — "
             "usually signals an early release or a stalling body and shows up here as a growing "
-            "value. It needs the lead-forearm, hand and upper-arm IMUs."),
+            "value. It needs the lead-forearm, hand and upper-arm motion sensors."),
         .flexPositive = true,
         .signPositive = QStringLiteral("elbow flexion — a more bent lead arm; 0° is straight"),
         .signNegative = QString(),
@@ -354,7 +354,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("wristImus", RM::Inertial, Direct,
                 { .imuRoles = { R::LeadForearm, R::LeadHand, R::LeadUpperArm } },
-                QStringLiteral("the elbow angle between the upper-arm and forearm IMUs")) },
+                QStringLiteral("the elbow angle between the upper-arm and forearm motion sensors")) },
         .usedBy = { QStringLiteral("assessment:wrist"),
                     QStringLiteral("chart:review"),
                     QStringLiteral("score:wrist"),
@@ -403,7 +403,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "forearm actually took, so it is NOT confined to ±180° and a reading past half a turn is "
             "not an error. The top of the backswing lands close to that half turn — around 150–180° "
             "on our own captures — so a swing that turns a little further reads 190°, and folding "
-            "that back to −170° would be the mistake. Needs the lead-forearm IMU only."),
+            "that back to −170° would be the mistake. Needs the lead-forearm motion sensor only."),
         .flexPositive = true,
         .signPositive = QStringLiteral("pronation — the lead forearm rolled toward face-down, "
                                        "measured as travel from address"),
@@ -417,7 +417,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("wristImus", RM::Inertial, Direct, { .imuRoles = { R::LeadForearm } },
                 QStringLiteral("the axial twist of the forearm about its own long axis, referenced "
-                               "to address, from one forearm IMU")) },
+                               "to address, from one forearm motion sensor")) },
         // The six forearm-roll conditions read this as an ADDITIONAL route beside forearmPronation
         // (m_leadForearmRotation_p2/_p4/_p7, 15 Oct 2026) — monitored on placeholder corridors that
         // cannot fire until a directed capture fixes the sign.
@@ -457,7 +457,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .color = QStringLiteral("cornflower"),
         .description = QStringLiteral(
             "The bow/cup axis of the lead wrist, measured by a HackMotion wG3 rather than by our "
-            "own forearm-and-hand IMUs. The twin of `leadWristFlexExt`, computed by the identical "
+            "own forearm-and-hand motion sensors. The twin of `leadWristFlexExt`, computed by the identical "
             "decomposition from the device's two units, and the reference that says whether our own "
             "wrist estimate is right."),
         .howToRead = QStringLiteral(
@@ -493,7 +493,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .color = QStringLiteral("lavender"),
         .description = QStringLiteral(
             "The hinge (or 'cock') of the lead wrist, measured by a HackMotion wG3 rather than by "
-            "our own forearm-and-hand IMUs. The twin of `leadWristRadUln`, computed by the identical "
+            "our own forearm-and-hand motion sensors. The twin of `leadWristRadUln`, computed by the identical "
             "decomposition from the device's two units."),
         .howToRead = QStringLiteral(
             "Read exactly as `leadWristRadUln`: + is ulnar, − is radial, and the cock at the top is RADIAL "
@@ -584,7 +584,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "side. The trail wrist typically cups going back, reaching around 45° at the top, and "
             "retains some of that cup deep into the downswing. Read as a change from address. "
             "This is an APPARENT camera-plane angle rather than an anatomical one — a trail-side "
-            "hand and forearm IMU would measure the true wrist angle, and the rig does not carry "
+            "hand and forearm motion sensor would measure the true wrist angle, and the rig does not carry "
             "one — so read it for shape and change rather than as a clinical number."),
         // flexPositive = FALSE: the stored sign is extension-positive. The lead wrist stores
         // flexion-positive, and the two differ because the hands are mirror images seen from the
@@ -624,7 +624,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .color = QStringLiteral("crimson"),
         .description = QStringLiteral(
             "How far the pelvis has turned about the body's vertical axis relative to address — the "
-            "engine of the swing's rotational power. It is taken from the pelvis IMU as the pelvis "
+            "engine of the swing's rotational power. It is taken from the pelvis motion sensor as the pelvis "
             "medio-lateral axis projected into the horizontal plane, so it isolates true axial turn "
             "from sway or tilt."),
         .howToRead = QStringLiteral(
@@ -632,7 +632,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "top and is already re-rotating to about 35–45° open by impact — the pelvis leading the "
             "chest open is a hallmark of an efficient downswing. THE NUMBER IS A MAGNITUDE OF "
             "TURN AWAY FROM ADDRESS, so it is positive at the top and positive again at impact and "
-            "passes through zero as the body squares up. With a pelvis IMU bound this is measured "
+            "passes through zero as the body squares up. With a pelvis motion sensor bound this is measured "
             "directly; with only a face-on camera it is ESTIMATED from the collapse of the hip "
             "span in the image, which is honest but weakest near square — read small values with "
             "the stated uncertainty rather than at face value."),
@@ -652,7 +652,7 @@ void installMetricManifest(MetricCatalogue &cat)
         // one view is not one of them. See body_rotation.cpp for the arithmetic.
         .routes = {
             via("pelvisImu", RM::Inertial, Direct, { .imuRoles = { R::Pelvis } },
-                QStringLiteral("measured directly from the pelvis IMU")),
+                QStringLiteral("measured directly from the pelvis motion sensor")),
             // LIVE 1 Oct 2026 (body_rotation.h trackBodyRotationTriangulated): skeleton3d's two-camera
             // fit. ESTIMATED, not Direct, until a measured calibration reaches skeleton3d — the DTL
             // camera's placement is assumed, and its σ carries a camera-scale term for that.
@@ -707,7 +707,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "Read as a RATE through the strike: an efficient downswing has the pelvis still "
             "turning open as the club arrives, and a stall is that rate collapsing. The magnitude "
             "series cannot answer this — it folds at the square-up, so its derivative changes sign "
-            "exactly where the reading matters. Needs a bound pelvis IMU or the face-on and "
+            "exactly where the reading matters. Needs a bound pelvis motion sensor or the face-on and "
             "down-the-line cameras together: one face-on camera sees only the collapse of the hip "
             "span, and a cosine carries no sign."),
         // ⚠ LEAD-RELATIVE, AND MIRRORING IS THE PRODUCER'S JOB. The sign conventions doc's one
@@ -753,14 +753,14 @@ void installMetricManifest(MetricCatalogue &cat)
         .color = QStringLiteral("mint"),
         .description = QStringLiteral(
             "How far the chest (thorax) has turned about the vertical axis relative to address, "
-            "from the thorax IMU. Together with pelvis rotation it defines the body's coil and how "
+            "from the thorax motion sensor. Together with pelvis rotation it defines the body's coil and how "
             "the upper body unwinds into the ball."),
         .howToRead = QStringLiteral(
             "Read at the Top and Impact; the shoulders typically reach around 90° of turn at the "
             "top of a full swing. The relationship between chest and pelvis turn — how much the "
             "chest outruns the pelvis going back, and how the pelvis leads coming down — is where "
             "the power story lives (see X-factor). A MAGNITUDE OF TURN from address, measured "
-            "from a thorax IMU when one is bound and otherwise estimated from the collapse of the "
+            "from a thorax motion sensor when one is bound and otherwise estimated from the collapse of the "
             "shoulder span in the face-on image. A full shoulder turn sits near the top of what "
             "that estimate can resolve, which is why the corridor over it is wide."),
         .signPositive = QStringLiteral("turn away from address — a MAGNITUDE, so positive at the top and again at impact"),
@@ -769,7 +769,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .card = { .readAt = { { P::Top, {} }, { P::Impact, {} } }, .peak = false },
         .routes = {
             via("thoraxImu", RM::Inertial, Direct, { .imuRoles = { R::Thorax } },
-                QStringLiteral("measured directly from the thorax IMU")),
+                QStringLiteral("measured directly from the thorax motion sensor")),
             via("faceOn+dtl", RM::Triangulated, Estimated,
                 { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("the shoulder line's bearing from the two-camera skeleton fit — the "
@@ -805,7 +805,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "Read as a curve: negative through the backswing (the chest turned away), crossing zero "
             "as it squares up coming down and positive through the strike. Its rate through impact "
             "is meaningful where the magnitude's is not, because the magnitude folds at the "
-            "square-up. Needs a bound thorax IMU or the face-on and down-the-line cameras "
+            "square-up. Needs a bound thorax motion sensor or the face-on and down-the-line cameras "
             "together: one face-on camera sees only the collapse of the shoulder span, and a "
             "cosine carries no sign."),
         // LEAD-RELATIVE, mirrored by the producer — see pelvisRotationSigned.
@@ -845,7 +845,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "separation (TPI), but more is not automatically better — it has to be separation the "
             "player can actually use going down. Pair it with X-factor stretch, which captures how "
             "much the gap grows early in the downswing. It is the difference of the two turn "
-            "magnitudes, so it inherits the weaker of them: with no trunk IMUs both halves are "
+            "magnitudes, so it inherits the weaker of them: with no trunk motion sensors both halves are "
             "camera estimates and the separation carries both uncertainties."),
         .signPositive = QStringLiteral("the chest turned further than the pelvis"),
         .signNegative = QStringLiteral("the pelvis turned further than the chest"),
@@ -911,7 +911,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "Read per side at the Top and Impact; amplitudes of roughly 50° on the lead hip and 40° "
             "on the trail hip are typical references. Restricted rotation on one side often forces "
             "a compensation elsewhere in the chain, so this is as much a physical-screening tool as "
-            "a swing metric. Planned: needs a pelvis IMU plus thigh IMUs."),
+            "a swing metric. Planned: needs a pelvis motion sensor plus thigh motion sensors."),
         .signPositive = QStringLiteral("internal rotation of that hip"),
         .signNegative = QStringLiteral("external rotation"),
         .phases = { P::Top, P::Impact },
@@ -919,7 +919,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("pelvisThighImus", RM::Inertial, Direct,
                 { .imuRoles = { R::Pelvis, R::LeadThigh, R::TrailThigh } },
-                QStringLiteral("the thigh-against-pelvis twist — thigh IMUs we do not place "
+                QStringLiteral("the thigh-against-pelvis twist — thigh motion sensors we do not place "
                                "today, and no producer for it"), PLANNED) },
     });
 
@@ -970,7 +970,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the trunk's hinge over the ball, seen square-on from down the "
                                "line")),
             via("trunkImus", RM::Inertial, Direct, { .imuRoles = { R::Pelvis, R::Thorax } },
-                QStringLiteral("thorax-relative-pelvis flexion from the two trunk IMUs — "
+                QStringLiteral("thorax-relative-pelvis flexion from the two trunk motion sensors — "
                                "sagittal, so the face-on camera cannot stand in"), PLANNED) },
         .usedBy = { QStringLiteral("characteristic:posture_too_upright"),
                     QStringLiteral("characteristic:posture_too_bent"),
@@ -2025,8 +2025,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .phases = { P::Impact },
         .routes = {
             via("phases", RM::Derived, Direct, { },
-                QStringLiteral("timed off the segmented phase ladder, whatever produced it — an "
-                               "IMU-only swing and a camera-only swing both qualify, and the "
+                QStringLiteral("timed off the segmented phase ladder, whatever produced it — a "
+                               "motion-sensor-only swing and a camera-only swing both qualify, and the "
                                "producer refuses a ladder it does not trust")) },
     });
 
@@ -2059,8 +2059,8 @@ void installMetricManifest(MetricCatalogue &cat)
         // Address→Top — is that norm's citation. It was the manifest's only inline corridor.
         .routes = {
             via("phases", RM::Derived, Direct, { },
-                QStringLiteral("timed off the segmented phase ladder, whatever produced it — an "
-                               "IMU-only swing and a camera-only swing both qualify, and the "
+                QStringLiteral("timed off the segmented phase ladder, whatever produced it — a "
+                               "motion-sensor-only swing and a camera-only swing both qualify, and the "
                                "producer refuses a ladder it does not trust")) },
         .usedBy = { QStringLiteral("characteristic:transition_rush") },
     });
@@ -2089,7 +2089,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "separates them from amateurs is not those means but that their timing repeats within "
             "half the spread. Every node carries a timing uncertainty, and the order is declared "
             "only when the gaps exceed it — a single face-on camera often cannot resolve the pelvis "
-            "against the chest, and the sequence says so rather than guessing; a pelvis or chest IMU "
+            "against the chest, and the sequence says so rather than guessing; a pelvis or chest motion sensor "
             "measures those nodes directly."),
         .signPositive = QString(),
         .signNegative = QString(),
@@ -2149,14 +2149,14 @@ void installMetricManifest(MetricCatalogue &cat)
             "SIGNED so that opening toward the lead side is positive. It is the first link of the "
             "kinematic sequence: an efficient downswing fires the hips first and hands their speed "
             "up the chain, and this curve's peak — when it comes and how big it is — is that "
-            "firing. The same physical quantity whichever sensor produced it: a pelvis IMU's gyro, "
+            "firing. The same physical quantity whichever sensor produced it: a pelvis motion sensor's gyro, "
             "or the face-on camera's estimate from how the hip line foreshortens."),
         .howToRead = QStringLiteral(
             "Read the PEAK and its timing: professionals peak around 480 °/s roughly 87 ms before "
             "impact and are already slowing as the club arrives — the pelvis decelerating before "
             "the ball is the professional signature, present or absent rather than large or small. "
             "Positive is opening toward the target. The face-on estimate is weakest as the hips "
-            "pass square to the camera, and its uncertainty band says so; a pelvis IMU measures it "
+            "pass square to the camera, and its uncertainty band says so; a pelvis motion sensor measures it "
             "directly."),
         .signPositive = QStringLiteral("the pelvis turning toward the LEAD side — opening"),
         .signNegative = QStringLiteral("the pelvis turning toward the TRAIL side — closing"),
@@ -2210,13 +2210,13 @@ void installMetricManifest(MetricCatalogue &cat)
             "SIGNED so that opening toward the lead side is positive. The second link of the "
             "kinematic sequence — the chest takes the pelvis's speed and adds to it — and the one "
             "amateurs most often fire out of order, after the arm. Same quantity from a thorax "
-            "IMU or from the face-on camera's estimate off the shoulder line."),
+            "motion sensor or from the face-on camera's estimate off the shoulder line."),
         .howToRead = QStringLiteral(
             "Professionals peak around 730 °/s roughly 68 ms before impact, about 250 °/s above "
             "their pelvis peak and a hair after it. Read whether the chest peaks BEFORE the arm; "
             "that order is the categorical finding. The chest squares to a face-on camera close to "
             "where it peaks, which is exactly where the camera estimate has the least to say — "
-            "expect this node to read unresolved from one camera, and measured from a chest IMU."),
+            "expect this node to read unresolved from one camera, and measured from a chest motion sensor."),
         .signPositive = QStringLiteral("the chest turning toward the LEAD side — opening"),
         .signNegative = QStringLiteral("the chest turning toward the TRAIL side — closing"),
         .phases = { P::Transition, P::Delivery, P::Impact },
@@ -2255,7 +2255,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "angular speed of the shoulder-to-wrist line, with any roll about the arm's own axis "
             "left out. The third link of the kinematic sequence, and the one that hands speed to "
             "the club. From the face-on camera it is the arm's image angle de-projected through "
-            "the swing-plane ellipse the club track fits; from a lead-arm IMU it is the gyro's "
+            "the swing-plane ellipse the club track fits; from a lead-arm motion sensor it is the gyro's "
             "component across the arm."),
         .howToRead = QStringLiteral(
             "Professionals peak around 980 °/s about 65 ms before impact, close behind the chest. "
@@ -2519,7 +2519,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "the sequence could place the peak."),
         .howToRead = QStringLiteral(
             "Professionals peak the pelvis around 480 °/s. Read it against the chest's peak: each link "
-            "should be faster than the one before it. A pelvis IMU measures it; the camera estimates "
+            "should be faster than the one before it. A pelvis motion sensor measures it; the camera estimates "
             "it, and the two are not compared with each other."),
         .signPositive = QStringLiteral("a faster peak — a speed, never negative"),
         .signNegative = QString(),
@@ -2542,7 +2542,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "the sequence could place the peak."),
         .howToRead = QStringLiteral(
             "Professionals peak the chest around 730 °/s, about one and a half times their pelvis. A "
-            "chest barely faster than the hips is speed the chain did not add. A thorax IMU measures "
+            "chest barely faster than the hips is speed the chain did not add. A thorax motion sensor measures "
             "it; the camera estimates it."),
         .signPositive = QStringLiteral("a faster peak — a speed, never negative"),
         .signNegative = QString(),

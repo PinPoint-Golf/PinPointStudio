@@ -472,7 +472,7 @@ Item {
         function test_CH11_notReadyAtBegin_data() {
             return [
                 // l.549–550
-                { tag: "notConnected", msg: "The wrist sensor is not connected. Connect it on the IMUs "
+                { tag: "notConnected", msg: "The wrist sensor is not connected. Connect it on the Sensors "
                   + "step, then tap Recalibrate." },
                 // l.554–556
                 { tag: "notStreaming", msg: "The wrist sensor is connected but not streaming, and the "
@@ -718,7 +718,7 @@ Item {
             verify(drv.flow.isHackMotion, "a wG3-keyed forearm was not taken for a HackMotion")
             tryVerify(function() { return drv.stage() === "hmStopped" }, sp.hmStart + 2000,
                       "never stopped (stage " + drv.stage() + ")")
-            compare(drv.message(), "The wrist sensor is not connected. Connect it on the IMUs "
+            compare(drv.message(), "The wrist sensor is not connected. Connect it on the Sensors "
                     + "step, then tap Recalibrate.")
             compare(drv.messageKind(), "error")
         }

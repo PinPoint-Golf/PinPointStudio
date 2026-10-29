@@ -1854,7 +1854,7 @@ void SessionReportModel::build()
         if (isReport && m_studio) {
             QVariantList steps = m_studio->practiceSteps();
             while (steps.size() > kPracticeCap) steps.removeLast();
-            if (!steps.isEmpty()) practice = QVariantMap{ { QStringLiteral("title"), QStringLiteral("How to practise a change") }, { QStringLiteral("steps"), steps } };
+            if (!steps.isEmpty()) practice = QVariantMap{ { QStringLiteral("title"), QStringLiteral("How to practice a change") }, { QStringLiteral("steps"), steps } };
         }
         map[QStringLiteral("practice")] = practice;
         map[QStringLiteral("numbers")] = numbersOf(x, perSwingIds, isReport);
@@ -1988,7 +1988,7 @@ void SessionReportModel::build()
             const QVariantList glossary{
                 QVariantList{ QStringLiteral("Habit"), QStringLiteral("something that showed on most swings — at least 3, and often enough that it is not chance") },
                 QVariantList{ QStringLiteral("Target range"), QStringLiteral("where a good ball-striker's swing usually is at that point") },
-                QVariantList{ QStringLiteral("Work-on"), QStringLiteral("a habit you can practise your way out of, in the order to work on it") },
+                QVariantList{ QStringLiteral("Work-on"), QStringLiteral("a habit you can practice your way out of, in the order to work on it") },
                 QVariantList{ QStringLiteral("P1 … P10"), QStringLiteral("the ten positions of the swing, from address (P1) through the top (P4) and impact (P7) to the finish (P10)") } };
             map[QStringLiteral("about")] = QVariantMap{
                 { QStringLiteral("dates"), W::aboutDates(x.sessionDate, x.preparedDate) },

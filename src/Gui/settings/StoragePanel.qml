@@ -1068,13 +1068,13 @@ Item {
 
                     Text {
                         Layout.fillWidth: true
-                        text:           qsTr("Save IMU streams")
+                        text:           qsTr("Save motion sensor streams")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           qsTr("Full quaternion and accelerometer data for all enabled IMUs")
+                        text:           qsTr("Full quaternion and accelerometer data for all enabled motion sensors")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3

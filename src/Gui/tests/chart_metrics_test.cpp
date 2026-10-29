@@ -1856,7 +1856,7 @@ int main()
         checkStr("amateur signature sentence", cm.sequenceVerdictText(v), "arm peaks before chest");
         v.insert(QStringLiteral("verdict"), QStringLiteral("unresolved"));
         checkStr("unresolved names the upgrade, not a number", cm.sequenceVerdictText(v),
-                 "order not resolved at this fidelity — add a pelvis IMU or a second camera");
+                 "order not resolved at this fidelity — add a pelvis motion sensor or a second camera");
         v.insert(QStringLiteral("verdict"), QStringLiteral("other"));
         checkStr("other", cm.sequenceVerdictText(v), "out of order");
         v.insert(QStringLiteral("routeSummary"), QStringLiteral("direct"));

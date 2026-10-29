@@ -65,7 +65,7 @@ Item {
                   action: "", count: 3,
                   rows: [
                       probe.field("goal", "Work-on title", "text", goalValue, [], goalIssues),
-                      probe.field("cue", "Feel to practise", "prose",
+                      probe.field("cue", "Feel to practice", "prose",
                                   "Feel your belt buckle tip down towards the ball.", [], []),
                       probe.field("picture.kind", "Picture", "enum", "change",
                                   [ { value: "", label: "Not set" },

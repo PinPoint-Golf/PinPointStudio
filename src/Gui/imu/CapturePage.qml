@@ -77,7 +77,7 @@ Item {
             spacing: Theme.gap(12)
 
             Label {
-                text: qsTr("IMU")
+                text: qsTr("Motion sensor")
                 color: Theme.colorText
                 font.family: Theme.fontBody
                 font.pixelSize: Theme.fontSzHeading
@@ -483,7 +483,7 @@ Item {
 
                 Label {
                     anchors.centerIn: parent
-                    text:  qsTr("Select an IMU above")
+                    text:  qsTr("Select a motion sensor above")
                     color: Theme.colorText3
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody

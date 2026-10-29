@@ -269,7 +269,7 @@ Item {
                                 // did. Draw order is this list's order; navIdx is only the stack slot.
                                 { navIdx: 11, icon: "✎", label: qsTr("Studio"),        sectionHead: "",               hasBadge: false },
                                 { navIdx: 3, icon: "⊙", label: qsTr("Cameras"),        sectionHead: qsTr("Hardware"), hasBadge: true  },
-                                { navIdx: 4, icon: "⌖", label: qsTr("IMUs"),           sectionHead: "",               hasBadge: true  },
+                                { navIdx: 4, icon: "⌖", label: qsTr("Motion Sensors"), sectionHead: "",               hasBadge: true  },
                                 // Phones sits in Hardware and not at the end, so the
                                 // indices below all moved up by one. They are
                                 // positional in four places — this model, the

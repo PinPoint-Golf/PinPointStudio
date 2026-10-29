@@ -119,7 +119,7 @@ Item {
 
         PpMicro {
             anchors { left: parent.left; leftMargin: Theme.gap(15); verticalCenter: parent.verticalCenter }
-            text: root.mode === "calibrate" ? Theme.caps(qsTr("Calibrate sensors")) : Theme.caps(qsTr("IMUs"))
+            text: root.mode === "calibrate" ? Theme.caps(qsTr("Calibrate sensors")) : Theme.caps(qsTr("Motion sensors"))
             color: root.mode === "calibrate" ? Theme.colorAttention : Theme.colorText3
         }
         PpMicro {
@@ -205,7 +205,7 @@ Item {
                 id: noImus
                 anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
                           leftMargin: Theme.gap(15); rightMargin: Theme.gap(15) }
-                text: qsTr("No IMUs found — Scan to look again.")
+                text: qsTr("No motion sensors found — Scan to look again.")
             }
         }
     }

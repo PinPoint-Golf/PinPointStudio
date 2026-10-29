@@ -156,7 +156,7 @@ Item {
             card.tracePoints = []
             const l = label()
             verify(l.visible)
-            verify(l.text !== "IMU ONLY")
+            verify(l.text !== "MOTION SENSOR ONLY")
         }
 
         // ── a real IMU shot does say IMU ────────────────────────────────────────
@@ -166,7 +166,7 @@ Item {
             card.tracePoints = [ Qt.point(0.0, 0.5), Qt.point(0.5, 0.2), Qt.point(1.0, 0.6) ]
             const l = label()
             verify(l.visible)
-            compare(l.text, "IMU ONLY")
+            compare(l.text, "MOTION SENSOR ONLY")
         }
 
         // ── the ⚠ appears only on a shot that has one ───────────────────────────
@@ -191,7 +191,7 @@ Item {
             verify(t.indexOf("1 hole") >= 0)
             verify(t.indexOf("1 holes") < 0)          // singular, for one hole
             verify(t.indexOf("during the swing") >= 0)
-            verify(t.indexOf("IMU data integrity") < 0)   // it did not find that
+            verify(t.indexOf("Motion sensor data integrity") < 0)   // it did not find that
             verify(t.indexOf("not included in the session assessment") >= 0)
         }
 
@@ -247,7 +247,7 @@ Item {
             card.dataWarning       = true
             card.dataWarningDetail = ({ capture: false, imu: true, worstMaxDeg: 14.2 })
             const t = card.dataWarningText
-            verify(t.indexOf("IMU data integrity") >= 0)
+            verify(t.indexOf("Motion sensor data integrity") >= 0)
             verify(t.indexOf("cannot be re-analysed") >= 0)
             verify(t.indexOf("Frames were lost") < 0)     // it did not find that
         }
@@ -258,7 +258,7 @@ Item {
                                         worstHoleMs: 40.0, preImpact: true, worstMaxDeg: 9.1 })
             const t = card.dataWarningText
             verify(t.indexOf("Frames were lost") >= 0)
-            verify(t.indexOf("IMU data integrity") >= 0)
+            verify(t.indexOf("Motion sensor data integrity") >= 0)
         }
 
         // ── the tooltip never states a fact it was not given ────────────────────

@@ -147,7 +147,7 @@ WizardPage {
                             visible:        modelData.panel >= 0
                             text:           modelData.panel === page.ctx.settingsPanelCameras
                                                 ? qsTr("→ Open camera settings")
-                                                : qsTr("→ Open IMU settings")
+                                                : qsTr("→ Open motion sensor settings")
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2
                             color:          linkMa.containsMouse ? Theme.colorText : Theme.colorAccent

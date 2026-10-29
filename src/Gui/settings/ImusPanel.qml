@@ -1262,11 +1262,11 @@ Item {
             }
 
             PpDisplayText {
-                text: qsTr("IMUs")
+                text: qsTr("Motion Sensors")
             }
 
             Text {
-                text: qsTr("All enumerated IMU devices are listed below. Each shows where it is worn — set in session setup, on the Sensors step. Configure the output rate here, and use the Test panel to verify orientation before a session.")
+                text: qsTr("All enumerated motion sensors are listed below. Each shows where it is worn — set in session setup, on the Sensors step. Configure the output rate here, and use the Test panel to verify orientation before a session.")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
                 font.weight:    Theme.fontBodyWeight
@@ -1368,7 +1368,7 @@ Item {
                     visible:        imuManager.imuDeviceList.length === 0
                     text:           imuManager.imuScanError !== ""
                                         ? qsTr("Bluetooth discovery error: %1").arg(imuManager.imuScanError)
-                                        : qsTr("No IMU devices found. Click Scan to search for BLE devices.")
+                                        : qsTr("No motion sensors found. Click Scan to search for BLE devices.")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
                     font.weight:    Theme.fontBodyWeight
@@ -1469,7 +1469,7 @@ Item {
 
             // ── Global IMU settings ────────────────────────────────────────
             Text {
-                text:                qsTr("Global IMU settings")
+                text:                qsTr("Global motion sensor settings")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
@@ -1685,7 +1685,7 @@ Item {
                 }
 
                 Text {
-                    text: qsTr("Software sensor-fusion algorithm used to derive orientation from the raw gyroscope + accelerometer. Applies to all IMUs and takes effect immediately.")
+                    text: qsTr("Software sensor-fusion algorithm used to derive orientation from the raw gyroscope + accelerometer. Applies to all motion sensors and takes effect immediately.")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
                     font.weight:    Theme.fontBodyWeight

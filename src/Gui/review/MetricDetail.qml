@@ -103,7 +103,7 @@ Item {
         var roles = (r && r.imuRoles) ? r.imuRoles : []
         if (roles.length > 0) {
             var names = roles.map(_humanRole)
-            out.push(names.join(" + ") + (roles.length > 1 ? qsTr(" IMUs") : qsTr(" IMU")))
+            out.push(names.join(" + ") + (roles.length > 1 ? qsTr(" motion sensors") : qsTr(" motion sensor")))
         }
         if (r.faceOnCamera)  out.push(qsTr("Face-on camera"))
         if (r.dtlCamera)     out.push(qsTr("Down-the-line camera"))

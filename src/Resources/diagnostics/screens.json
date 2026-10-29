@@ -112,7 +112,7 @@
       "passCriterion": "At least 60 degrees of extension and 60 of flexion, with radial and ulnar deviation broadly symmetric between sides.",
       "passAtLeast": 60.0,
       "unit": "°",
-      "note": "The lead wrist has to hold a position under load through impact; a restriction is why some golfers cannot hold one however much they practise."
+      "note": "The lead wrist has to hold a position under load through impact; a restriction is why some golfers cannot hold one however much they practice."
     },
     {
       "id": "screen.coreStability",

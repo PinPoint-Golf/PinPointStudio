@@ -342,7 +342,7 @@ PpExpandRow {
                             visible: areaRow.practisable(itemRow.modelData)
                             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                             glyph: "▶"
-                            label: qsTr("Practise")
+                            label: qsTr("Practice")
                             onClicked: areaRow.practiseRequested(itemRow.conditionId, itemRow.label)
                         }
                         PpChip {

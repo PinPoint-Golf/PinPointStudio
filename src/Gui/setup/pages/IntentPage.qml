@@ -65,7 +65,7 @@ WizardPage {
 
     function _sub(c) {
         if (c.kind === "open")      return Theme.caps(qsTr("Look at everything"))
-        if (c.kind === "requested") return Theme.caps(qsTr("Picked to practise"))
+        if (c.kind === "requested") return Theme.caps(qsTr("Picked to practice"))
         var status = c.status === "easing" ? qsTr("Easing") : c.status === "active" ? qsTr("Active") : ""
         if (c.kind === "coaching")
             return Theme.caps(status !== "" ? qsTr("From your swing summary · %1").arg(status)

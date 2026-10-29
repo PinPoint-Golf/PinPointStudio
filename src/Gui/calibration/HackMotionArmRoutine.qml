@@ -388,7 +388,7 @@ QtObject {
         // all (a wG3 holds the forearm but the scan has not found it) is the same plain case —
         // returning silently left the step waiting on nothing.
         if (!dev || !dev.imuConnected) {
-            _hmStop("error", qsTr("The wrist sensor is not connected. Connect it on the IMUs "
+            _hmStop("error", qsTr("The wrist sensor is not connected. Connect it on the Sensors "
                                   + "step, then tap Recalibrate."))
             return
         }

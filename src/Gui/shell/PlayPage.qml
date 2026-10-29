@@ -33,7 +33,7 @@ Item {
             background: Rectangle { color: Theme.colorBg2 }
 
             Repeater {
-                model: [qsTr("IMU"), qsTr("Audio"), qsTr("AI"), qsTr("Pose")]
+                model: [qsTr("Motion sensor"), qsTr("Audio"), qsTr("AI"), qsTr("Pose")]
                 delegate: TabButton {
                     required property string modelData
                     required property int index

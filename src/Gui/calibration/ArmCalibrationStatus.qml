@@ -350,7 +350,7 @@ Item {
         font.family:    Theme.fontBody
         font.pixelSize: Theme.fontSzMicro
         color:          Theme.colorWarn
-        text:           qsTr("No wrist sensor assigned to slot A. Return to the IMUs step to assign one.")
+        text:           qsTr("No wrist sensor assigned to slot A. Return to the Sensors step to assign one.")
     }
 
     // ⚠ WITMOTION ONLY, like the mount validation that sets it. A HackMotion

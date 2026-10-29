@@ -561,7 +561,7 @@ Item {
             PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
             // ── How to practise ──────────────────────────────────────────────
-            SectionHead { text: Theme.caps(qsTr("How to practise a change — page 8 of every report")) }
+            SectionHead { text: Theme.caps(qsTr("How to practice a change — page 8 of every report")) }
             SettingRow {
                 id: stepsCol
                 objectName: "setting_studioPractice"

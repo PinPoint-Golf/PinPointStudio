@@ -897,9 +897,9 @@ int main(int argc, char **argv)
         // one, and the body IMUs move up to what would IMPROVE it — they measure the turn outright.
         check(rowKeys("needsTags", "Down-the-line camera").contains(QStringLiteral("pelvisRotation")),
               "pelvisRotation needs the second camera of the pair that estimates it");
-        check(rowKeys("improvesTags", "Body IMUs").contains(QStringLiteral("pelvisRotation")),
+        check(rowKeys("improvesTags", "Body motion sensors").contains(QStringLiteral("pelvisRotation")),
               "…and the body IMUs are what would improve on it");
-        check(!rowKeys("needsTags", "Body IMUs").contains(QStringLiteral("pelvisRotation")),
+        check(!rowKeys("needsTags", "Body motion sensors").contains(QStringLiteral("pelvisRotation")),
               "…not what it needs, now that two cameras deliver an estimate");
 
         // A metric that still HAS two rungs, so the two-answer behaviour itself stays covered.
@@ -999,8 +999,8 @@ int main(int argc, char **argv)
             const int ib = needsOrder.indexOf(QString::fromLatin1(b));
             return ia >= 0 && ib >= 0 && ia < ib;
         };
-        check(before("Wrist IMUs", "Face-on camera"), "IMUs lead the Needs rail");
-        check(before("Body IMUs", "Face-on camera"), "…both of them");
+        check(before("Wrist motion sensors", "Face-on camera"), "IMUs lead the Needs rail");
+        check(before("Body motion sensors", "Face-on camera"), "…both of them");
         check(before("Face-on camera", "Down-the-line camera"), "…then the views");
         check(before("Down-the-line camera", "Club tracking"),
               "…then what the cameras find in them");

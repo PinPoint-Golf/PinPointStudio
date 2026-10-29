@@ -1217,7 +1217,7 @@
       "sigmaLo": 5.0,
       "unit": "°",
       "source": "heuristic",
-      "citation": "ESTIMATE, carried over from m_spineBendLoss when that measure was re-windowed to the transition and re-sensed to a maximum. The numbers were never seated against a corpus on either measure, and the quantity has no producer yet, so re-seating now would be inventing precision twice over. What did change is what mu=0 MEANS: on the old minimum it was the address bend never being lost across the whole downswing; here it is the address bend being held, not exceeded, between P5 and P6. Re-seat when a down-the-line or trunk-IMU route lands."
+      "citation": "ESTIMATE, carried over from m_spineBendLoss when that measure was re-windowed to the transition and re-sensed to a maximum. The numbers were never seated against a corpus on either measure, and the quantity has no producer yet, so re-seating now would be inventing precision twice over. What did change is what mu=0 MEANS: on the old minimum it was the address bend never being lost across the whole downswing; here it is the address bend being held, not exceeded, between P5 and P6. Re-seat when a down-the-line or trunk motion-sensor route lands."
     },
     {
       "measure": "m_axisTiltAtTop",
@@ -2163,7 +2163,7 @@
       "sigmaLo": 2.5,
       "unit": "°",
       "source": "heuristic",
-      "citation": "NOT GRADED: the measure is HELD from 2026-10-22 until the trunk IMUs corroborate it (core.json gapReason; trunk_imu_sequence_grf_design.md §8.8). The row stays so the reading can be shown. CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 127, mean -7.3 SD 1.8 (z of the mean -2.9); Nick n 28, mean -8.2 SD 2.2 (z of the mean -3.3); Jess n 23, mean +2.0 SD 1.7 (z of the mean +0.8). No backswing forward-bend row exists to seat it from; carried from m_spineBendLossDown's 2.5° (Mark's 5° line for bend lost on the way down) to the top, both sides. Unchecked whether the down-the-line bend reading changes at the top on a good swing merely because the shoulder midpoint moves as the shoulders turn, which would put the centre off 0. No golfer's data behind it. docs/research/data/posture/posture_composites_2026-10-22.md"
+      "citation": "NOT GRADED: the measure is HELD from 2026-10-22 until the trunk motion sensors corroborate it (core.json gapReason; trunk_imu_sequence_grf_design.md §8.8). The row stays so the reading can be shown. CHECKED AGAINST THE V3 MEASUREMENT 2026-10-22 AND KEPT AS AUTHORED (heuristic): three golfers of unknown standard cannot seat a good-swing norm, so the measured spread is recorded, not adopted. Mark n 127, mean -7.3 SD 1.8 (z of the mean -2.9); Nick n 28, mean -8.2 SD 2.2 (z of the mean -3.3); Jess n 23, mean +2.0 SD 1.7 (z of the mean +0.8). No backswing forward-bend row exists to seat it from; carried from m_spineBendLossDown's 2.5° (Mark's 5° line for bend lost on the way down) to the top, both sides. Unchecked whether the down-the-line bend reading changes at the top on a good swing merely because the shoulder midpoint moves as the shoulders turn, which would put the centre off 0. No golfer's data behind it. docs/research/data/posture/posture_composites_2026-10-22.md"
     },
     {
       "measure": "m_headRiseBackDtl",

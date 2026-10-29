@@ -54,7 +54,7 @@ QtObject {
                        .arg(Math.round(d.worstHoleMs)).arg(where))
         }
         if (d.imu)
-            parts.push(qsTr("IMU data integrity check failed — the recorded motion data is "
+            parts.push(qsTr("Motion sensor data integrity check failed — the recorded motion data is "
                             + "inconsistent (orientation re-fusion mismatch), so this shot "
                             + "cannot be re-analysed."))
         if (d.capture || d.imu)

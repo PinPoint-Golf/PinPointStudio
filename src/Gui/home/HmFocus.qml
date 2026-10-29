@@ -199,7 +199,7 @@ Item {
                 anchors { right: parent.right; rightMargin: header.pad; verticalCenter: parent.verticalCenter }
                 visible: root.conditionId !== ""
                 glyph:   "▶"
-                label:   qsTr("Practise")
+                label:   qsTr("Practice")
                 onClicked: root.practiseRequested(root.conditionId, root.focusItem ? root.focusItem.title : "")
             }
         }
@@ -348,7 +348,7 @@ Item {
             id: whyRow
             objectName: "focusWhyRow"
             visible: root.hasWhyHow
-            accessibleName: qsTr("Why it matters, how to practise")
+            accessibleName: qsTr("Why it matters, how to practice")
             layout: focusTable.resolveColumns([{ width: root.markW }, { fill: true }])
             detailIndent: focusTable.rowPad + root.markW + focusTable.columnGap
             detailRightInset: focusTable.rowPad
@@ -356,7 +356,7 @@ Item {
             Text {
                 width: whyRow.headerRow.columnWidth(1)
                 elide: Text.ElideRight
-                text:  qsTr("Why it matters · how to practise")
+                text:  qsTr("Why it matters · how to practice")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody
                 font.weight:    Theme.fontBodyWeight
@@ -385,7 +385,7 @@ Item {
                         width: parent.width
                         spacing: Theme.gap(6)
                         visible: root.focusItem !== null && (root.focusItem.practise || "") !== ""
-                        Caption { text: qsTr("How to practise") }
+                        Caption { text: qsTr("How to practice") }
                         Prose {
                             objectName: "focusPractise"
                             width: Math.min(parent.width, Theme.sp(760))

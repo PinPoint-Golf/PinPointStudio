@@ -80,7 +80,7 @@ inline QString deviceLabel(const QString &token)
     if (token == QLatin1String("impact"))     return QStringLiteral("Impact cam");
     if (token == QLatin1String("camera"))     return QStringLiteral("Camera");
     if (token == QLatin1String("hackmotion")) return QStringLiteral("HackMotion");
-    if (token == QLatin1String("imu"))        return QStringLiteral("IMU");
+    if (token == QLatin1String("imu"))        return QStringLiteral("Motion sensor");
     if (token == QLatin1String("lm:gcquad"))  return QStringLiteral("GC Quad");
     if (token == QLatin1String("lm:gspro"))   return QStringLiteral("GSPro");
     if (token.startsWith(QLatin1String("lm:"))) return QStringLiteral("Launch monitor");

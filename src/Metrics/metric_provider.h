@@ -117,7 +117,7 @@ inline QStringList missingForRequirement(const MetricRequirement &req, const Sho
         if (!ctx.hasRole(r))
             roles << segmentRoleName(r);
     if (!roles.isEmpty())
-        missing << (roles.join(QStringLiteral(" + ")) + QStringLiteral(" IMU"));
+        missing << (roles.join(QStringLiteral(" + ")) + QStringLiteral(" motion sensor"));
 
     if (static_cast<int>(ctx.tier) < static_cast<int>(req.minTier))
         missing << QStringLiteral("a higher reconstruction tier");

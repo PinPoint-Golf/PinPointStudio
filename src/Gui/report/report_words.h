@@ -687,9 +687,9 @@ inline QString linkWords(int grade, const QString &cause, const QString &effect,
 inline QString notListedResult(const QString &linkedName, int linkedRank)
 {
     if (!linkedName.isEmpty())
-        return QStringLiteral("A result, not a movement to practise: the coaching model links it to %1 (work-on %2). Work on that, "
+        return QStringLiteral("A result, not a movement to practice: the coaching model links it to %1 (work-on %2). Work on that, "
                               "and this may follow.").arg(low1(linkedName)).arg(linkedRank);
-    return QStringLiteral("A result, not a movement to practise. It is what the club or ball did, and it changes when the movements behind it do.");
+    return QStringLiteral("A result, not a movement to practice. It is what the club or ball did, and it changes when the movements behind it do.");
 }
 inline QString notListedOverCap(int cap)
 {
@@ -697,7 +697,7 @@ inline QString notListedOverCap(int cap)
 }
 inline QString notListedBallWatch()
 {
-    return QStringLiteral("Something the ball did, not a movement to practise. It is on the watch list until it repeats often enough to call a habit.");
+    return QStringLiteral("Something the ball did, not a movement to practice. It is on the watch list until it repeats often enough to call a habit.");
 }
 inline QString notListedName(const QString &name, int fired, int judged) { return QStringLiteral("%1 (%2)").arg(name, gridCount(fired, judged)); }
 

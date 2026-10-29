@@ -403,7 +403,7 @@ WizardPage {
 
         // Settings deep-link
         Text {
-            text:           qsTr("→ Open IMU settings")
+            text:           qsTr("→ Open motion sensor settings")
             font.family:    Theme.fontBody
             font.pixelSize: Theme.fontSzBody2
             color:          Theme.colorAccent

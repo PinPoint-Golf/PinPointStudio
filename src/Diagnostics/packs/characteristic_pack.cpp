@@ -596,7 +596,7 @@ std::vector<ReportContentGap> reportContentGaps(const CharacteristicPack &pack,
             { "golferWell", c.golferWell, "what the golfer does when they are clear of it" },
             { "golferWhy",  c.golferWhy,  "what it costs the shot" },
             { "goal",       c.goal,       "the work-on page's title" },
-            { "cue",        c.cue,        "the feel to practise" },
+            { "cue",        c.cue,        "the feel to practice" },
             { "check",      c.check,      "how to see it without the studio" },
         };
         for (const auto &w : words)

@@ -231,46 +231,46 @@ QtObject {
 
         // ── IMUs (panelIndex: 4) ──────────────────────────────────────────────
 
-        { panelIndex: 4, panelLabel: qsTr("IMUs"),        groupLabel: qsTr("Global IMU settings"),
+        { panelIndex: 4, panelLabel: qsTr("Motion Sensors"), groupLabel: qsTr("Global motion sensor settings"),
           label: qsTr("Auto-connect on session start"),    subtitle: qsTr("Connects all enabled devices before recording begins"),
-          actions: "enumerated devices hardware",
+          actions: "enumerated devices hardware IMU",
           itemId: "setting_imuAutoConnect" },
 
-        { panelIndex: 4, panelLabel: qsTr("IMUs"),        groupLabel: qsTr("Global IMU settings"),
+        { panelIndex: 4, panelLabel: qsTr("Motion Sensors"), groupLabel: qsTr("Global motion sensor settings"),
           label: qsTr("Auto-reconnect on signal loss"),    subtitle: qsTr("Attempts reconnect if the BLE link drops during a session"),
           itemId: "setting_imuAutoReconnect" },
 
-        { panelIndex: 4, panelLabel: qsTr("IMUs"),        groupLabel: qsTr("Global IMU settings"),
+        { panelIndex: 4, panelLabel: qsTr("Motion Sensors"), groupLabel: qsTr("Global motion sensor settings"),
           label: qsTr("Save calibration to device flash"), subtitle: qsTr("Persists zero-orientation and mag calibration across power cycles"),
           itemId: "setting_imuFlash" },
 
-        { panelIndex: 4, panelLabel: qsTr("IMUs"),        groupLabel: qsTr("Global IMU settings"),
+        { panelIndex: 4, panelLabel: qsTr("Motion Sensors"), groupLabel: qsTr("Global motion sensor settings"),
           label: qsTr("Use 9-axis fusion by default"),     subtitle: qsTr("Magnetometer-aided orientation"),
           itemId: "setting_imuFusion" },
 
-        { panelIndex: 4, panelLabel: qsTr("IMUs"),        groupLabel: qsTr("IMU device settings"),
-          label: qsTr("IMU body placement"),               subtitle: qsTr("Assign each IMU to a body segment"),
-          actions: "Placement body thorax lumbar spine shoulder wrist hand segment A B C D",
+        { panelIndex: 4, panelLabel: qsTr("Motion Sensors"), groupLabel: qsTr("Motion sensor device settings"),
+          label: qsTr("Motion sensor body placement"),     subtitle: qsTr("Assign each motion sensor to a body segment"),
+          actions: "IMU Placement body thorax lumbar spine shoulder wrist hand segment A B C D",
           itemId: "" },
 
-        { panelIndex: 4, panelLabel: qsTr("IMUs"),        groupLabel: qsTr("IMU device settings"),
-          label: qsTr("IMU output rate"),                  subtitle: qsTr("Set the data rate for each IMU device in Hz"),
-          actions: "Output rate Hz 50 100 200 500",
+        { panelIndex: 4, panelLabel: qsTr("Motion Sensors"), groupLabel: qsTr("Motion sensor device settings"),
+          label: qsTr("Motion sensor output rate"),        subtitle: qsTr("Set the data rate for each motion sensor in Hz"),
+          actions: "IMU Output rate Hz 50 100 200 500",
           itemId: "" },
 
-        { panelIndex: 4, panelLabel: qsTr("IMUs"),        groupLabel: qsTr("IMU device settings"),
-          label: qsTr("IMU fusion algorithm"),             subtitle: qsTr("Choose between 6-axis and 9-axis magnetometer-aided fusion"),
-          actions: "Fusion 9-axis 6-axis magnetometer gyro algorithm",
+        { panelIndex: 4, panelLabel: qsTr("Motion Sensors"), groupLabel: qsTr("Motion sensor device settings"),
+          label: qsTr("Motion sensor fusion algorithm"),   subtitle: qsTr("Choose between 6-axis and 9-axis magnetometer-aided fusion"),
+          actions: "IMU Fusion 9-axis 6-axis magnetometer gyro algorithm",
           itemId: "" },
 
-        { panelIndex: 4, panelLabel: qsTr("IMUs"),        groupLabel: qsTr("IMU device settings"),
-          label: qsTr("IMU mount orientation"),            subtitle: qsTr("Specify whether the device is mounted horizontally or vertically"),
-          actions: "Mount orientation horizontal vertical",
+        { panelIndex: 4, panelLabel: qsTr("Motion Sensors"), groupLabel: qsTr("Motion sensor device settings"),
+          label: qsTr("Motion sensor mount orientation"),  subtitle: qsTr("Specify whether the device is mounted horizontally or vertically"),
+          actions: "IMU Mount orientation horizontal vertical",
           itemId: "" },
 
-        { panelIndex: 4, panelLabel: qsTr("IMUs"),        groupLabel: qsTr("IMU test panel"),
-          label: qsTr("Test IMU connection"),              subtitle: qsTr("Verify orientation and live sensor data from a connected device"),
-          actions: "Test Connect Disconnect Zero orientation Calibrate magnetometer Save to flash Scan Euler angles roll pitch yaw battery calibration",
+        { panelIndex: 4, panelLabel: qsTr("Motion Sensors"), groupLabel: qsTr("Motion sensor test panel"),
+          label: qsTr("Test motion sensor connection"),    subtitle: qsTr("Verify orientation and live sensor data from a connected device"),
+          actions: "IMU Test Connect Disconnect Zero orientation Calibrate magnetometer Save to flash Scan Euler angles roll pitch yaw battery calibration",
           itemId: "" },
 
         // ── Phones (panelIndex: 5) ────────────────────────────────────────────
@@ -282,7 +282,7 @@ QtObject {
         // ── Microphone (panelIndex: 6) ────────────────────────────────────────
 
         { panelIndex: 6, panelLabel: qsTr("Microphone"),  groupLabel: qsTr("Shot detection"),
-          label: qsTr("Use microphone for shot detection"), subtitle: qsTr("Detect impact from the strike sound, fused with IMU and vision"),
+          label: qsTr("Use microphone for shot detection"), subtitle: qsTr("Detect impact from the strike sound, fused with motion sensors and vision"),
           actions: "acoustic audio onset enable disable sound",
           itemId: "setting_acousticShotDetection" },
 
@@ -333,7 +333,7 @@ QtObject {
           itemId: "setting_savePose" },
 
         { panelIndex: 8, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
-          label: qsTr("Save IMU streams"),                 subtitle: qsTr("Full quaternion and accelerometer data for all enabled IMUs"),
+          label: qsTr("Save motion sensor streams"),       subtitle: qsTr("Full quaternion and accelerometer data for all enabled motion sensors"),
           itemId: "setting_saveImu" },
 
         // ── Swing model (panelIndex: 10) ───────────────────────────────────────
@@ -474,8 +474,8 @@ QtObject {
           actions: "coach name title email reply-to phone photo",
           itemId: "setting_studioCoachName" },
         { panelIndex: 11, panelLabel: qsTr("Studio"), groupLabel: qsTr("Report"),
-          label: qsTr("How to practise a change"),         subtitle: qsTr("The four steps on page 8 of every report"),
-          actions: "practise practice steps drills page 8 report text",
+          label: qsTr("How to practice a change"),         subtitle: qsTr("The four steps on page 8 of every report"),
+          actions: "practice practise steps drills page 8 report text",
           itemId: "setting_studioPractice" },
         { panelIndex: 11, panelLabel: qsTr("Studio"), groupLabel: qsTr("Email"),
           label: qsTr("Report email subject and message"), subtitle: qsTr("The email that carries the report, with {first} {date} {coach} {studio}"),

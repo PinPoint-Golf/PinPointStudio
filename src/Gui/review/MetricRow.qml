@@ -56,7 +56,7 @@ Item {
     // Compact producer tag text.
     function _srcName(s) {
         switch (s) {
-        case "imu":    return qsTr("IMU")
+        case "imu":    return qsTr("Sensor")
         case "camera": return Theme.caps(qsTr("Cam"))
         case "club":   return Theme.caps(qsTr("Club"))
         case "ball":   return Theme.caps(qsTr("Ball"))

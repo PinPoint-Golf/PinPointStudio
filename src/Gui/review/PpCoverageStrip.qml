@@ -66,7 +66,7 @@ Column {
     function nameOf(lbl) { var i = lbl.indexOf(" · "); return i < 0 ? lbl : lbl.substring(i + 3) }
     function kindGlyph(k) {
         switch (k) {
-            case "IMU":    return "◉"
+            case "Motion sensor": return "◉"
             case "Metric": return "∿"
             case "Pose":   return "◆"
             case "Club":   return "▮"

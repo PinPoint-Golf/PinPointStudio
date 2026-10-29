@@ -1203,7 +1203,7 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
             { QStringLiteral("numbersOnly"), false }, { QStringLiteral("dof"), d.id }, { QStringLiteral("key"), d.key },
             { QStringLiteral("name"), d.name }, { QStringLiteral("sub"), d.sub }, { QStringLiteral("source"), d.source },
             { QStringLiteral("confidence"), d.conf }, { QStringLiteral("pips"), pips(d.conf) },
-            { QStringLiteral("sourceText"), d.source.isEmpty() ? QString() : d.source + QLatin1Char(' ') + pips(d.conf) },
+            { QStringLiteral("sourceText"), d.source.isEmpty() ? QString() : QString(d.source).replace(QLatin1String("IMU"), QLatin1String("motion sensor")) + QLatin1Char(' ') + pips(d.conf) },
             { QStringLiteral("short"), shortName(d.id) },
             { QStringLiteral("poleTop"), d.poleTop }, { QStringLiteral("poleBottom"), d.poleBottom },
             { QStringLiteral("poleTopText"), d.poleTop.isEmpty() ? QString() : QStringLiteral("↑ ") + d.poleTop },

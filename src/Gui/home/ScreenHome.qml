@@ -188,7 +188,7 @@ Item {
 
                 Text {
                     width:          parent.width
-                    text:           qsTr("An open-source workshop for understanding the golf swing — cameras, IMUs, and ground forces working together to show you what's actually happening.")
+                    text:           qsTr("An open-source workshop for understanding the golf swing — cameras, motion sensors, and ground forces working together to show you what's actually happening.")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody
                     font.weight:    Theme.fontBodyWeight
@@ -246,7 +246,7 @@ Item {
                     Repeater {
                         model: [
                             { icon: "⊞", title: qsTr("Connect a camera"), desc: qsTr("Basler or GenTL over USB3") },
-                            { icon: "⌖", title: qsTr("Pair wrist IMUs"),   desc: qsTr("Lead and trail hand sensors") },
+                            { icon: "⌖", title: qsTr("Pair wrist motion sensors"),   desc: qsTr("Lead and trail hand sensors") },
                             { icon: "↗", title: qsTr("Read the docs"),     desc: qsTr("Setup guides and hardware") }
                         ]
 

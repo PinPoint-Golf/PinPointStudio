@@ -1199,7 +1199,7 @@ QString ChartMetrics::sequenceVerdictText(const QVariantMap &ks) const
     if (verdict == QLatin1String("other"))
         return QStringLiteral("out of order");
     if (verdict == QLatin1String("unresolved"))
-        return QStringLiteral("order not resolved at this fidelity — add a pelvis IMU or a second camera");
+        return QStringLiteral("order not resolved at this fidelity — add a pelvis motion sensor or a second camera");
     return QString();
 }
 

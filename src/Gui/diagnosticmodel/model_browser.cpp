@@ -480,9 +480,9 @@ QStringList deviceLabels(const std::vector<CaptureDevice> &devices)
         switch (d) {
         case CaptureDevice::FaceOnCamera:  out << QObject::tr("Face-on camera");       break;
         case CaptureDevice::DtlCamera:     out << QObject::tr("Down-the-line camera"); break;
-        case CaptureDevice::WristImus:     out << QObject::tr("Wrist IMUs");           break;
+        case CaptureDevice::WristImus:     out << QObject::tr("Wrist motion sensors"); break;
         case CaptureDevice::HackMotion:    out << QObject::tr("HackMotion");           break;
-        case CaptureDevice::BodyImus:      out << QObject::tr("Body IMUs");            break;
+        case CaptureDevice::BodyImus:      out << QObject::tr("Body motion sensors");  break;
         case CaptureDevice::ClubTrack:     out << QObject::tr("Club tracking");        break;
         case CaptureDevice::ClubSensor:    out << QObject::tr("Club sensor");          break;
         case CaptureDevice::BallTrack:     out << QObject::tr("Ball tracking");        break;
@@ -3354,7 +3354,7 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
            tr("one sentence: what it costs the shot"));
         rf("goal", tr("Work-on title"), QStringLiteral("text"), c->goal, {},
            tr("an instruction, at most 60 characters — “Keep the flex in your trail knee”"));
-        rf("cue", tr("Feel to practise"), QStringLiteral("prose"), c->cue, {},
+        rf("cue", tr("Feel to practice"), QStringLiteral("prose"), c->cue, {},
            tr("one feel or swing thought, never a promise"));
         rf("check", tr("Check at home"), QStringLiteral("prose"), c->check, {},
            tr("how to see it without the studio: camera, position, what to look for"));
@@ -3670,7 +3670,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         // is a work-on page with nothing to practise, and the note says so.
         sections.append(section(tr("Drills"), drills,
                                 drills.isEmpty()
-                                    ? tr("None yet — its work-on page would have nothing to practise.")
+                                    ? tr("None yet — its work-on page would have nothing to practice.")
                                     : QString(),
                                 QStringLiteral("list"), QStringLiteral("drill")));
 
@@ -5483,7 +5483,7 @@ QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const
             what    = tr("Work-on title → %1").arg(text);
         } else if (field == QStringLiteral("cue")) {
             c->cue = text;
-            what   = tr("Feel to practise edited");
+            what   = tr("Feel to practice edited");
         } else if (field == QStringLiteral("check")) {
             c->check = text;
             what     = tr("Check at home edited");

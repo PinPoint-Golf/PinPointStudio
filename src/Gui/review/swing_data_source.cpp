@@ -98,15 +98,15 @@ RolePresentation rolePresentation(int role)
 {
     using R = pinpoint::analysis::SegmentRole;
     switch (R(role)) {
-    case R::Pelvis:       return { QStringLiteral("IMU · Pelvis"),         QStringLiteral("Pelvis"), QStringLiteral("teal")    };
-    case R::Thorax:       return { QStringLiteral("IMU · Thorax"),         QStringLiteral("Thorax"), QStringLiteral("blue")    };
-    case R::T12:          return { QStringLiteral("IMU · T12"),            QStringLiteral("T12"),    QStringLiteral("blue")    };
-    case R::LeadUpperArm: return { QStringLiteral("IMU · Lead upper-arm"), QStringLiteral("L-Arm"),  QStringLiteral("purple2") };
-    case R::LeadForearm:  return { QStringLiteral("IMU · Lead forearm"),   QStringLiteral("L-Fore"), QStringLiteral("purple")  };
-    case R::LeadHand:     return { QStringLiteral("IMU · Lead hand"),      QStringLiteral("L-Hand"), QStringLiteral("coral")   };
-    case R::TrailThigh:   return { QStringLiteral("IMU · Trail thigh"),    QStringLiteral("T-Thigh"),QStringLiteral("teal")    };
-    case R::LeadThigh:    return { QStringLiteral("IMU · Lead thigh"),     QStringLiteral("L-Thigh"),QStringLiteral("teal")    };
-    case R::Club:         return { QStringLiteral("IMU · Club"),           QStringLiteral("Club"),   QStringLiteral("coral")   };
+    case R::Pelvis:       return { QStringLiteral("Motion sensor · Pelvis"),         QStringLiteral("Pelvis"), QStringLiteral("teal")    };
+    case R::Thorax:       return { QStringLiteral("Motion sensor · Thorax"),         QStringLiteral("Thorax"), QStringLiteral("blue")    };
+    case R::T12:          return { QStringLiteral("Motion sensor · T12"),            QStringLiteral("T12"),    QStringLiteral("blue")    };
+    case R::LeadUpperArm: return { QStringLiteral("Motion sensor · Lead upper-arm"), QStringLiteral("L-Arm"),  QStringLiteral("purple2") };
+    case R::LeadForearm:  return { QStringLiteral("Motion sensor · Lead forearm"),   QStringLiteral("L-Fore"), QStringLiteral("purple")  };
+    case R::LeadHand:     return { QStringLiteral("Motion sensor · Lead hand"),      QStringLiteral("L-Hand"), QStringLiteral("coral")   };
+    case R::TrailThigh:   return { QStringLiteral("Motion sensor · Trail thigh"),    QStringLiteral("T-Thigh"),QStringLiteral("teal")    };
+    case R::LeadThigh:    return { QStringLiteral("Motion sensor · Lead thigh"),     QStringLiteral("L-Thigh"),QStringLiteral("teal")    };
+    case R::Club:         return { QStringLiteral("Motion sensor · Club"),           QStringLiteral("Club"),   QStringLiteral("coral")   };
     case R::Unknown:      break;
     }
     return {};
@@ -344,7 +344,7 @@ void SwingDataSource::reload()
             s.ref  = st.value(QStringLiteral("alias")).toString();
             if (s.ref.isEmpty()) s.ref = st.value(QStringLiteral("source")).toObject()
                                             .value(QStringLiteral("serial")).toString();
-            s.label = QStringLiteral("IMU · ") + s.ref;
+            s.label = QStringLiteral("Motion sensor · ") + s.ref;
             QString shortName = s.ref; shortName.remove(QStringLiteral(" Sensor"));
             s.header = shortName;
             s.unit = QStringLiteral("deg/s");

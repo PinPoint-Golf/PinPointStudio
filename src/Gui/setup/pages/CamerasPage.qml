@@ -92,7 +92,7 @@ WizardPage {
             width:   parent.width
             eyebrow: page.stepLabel
             heading: qsTr("Connecting your cameras")
-            body:    qsTr("Every connected camera records this session alongside your IMU data. Enable and connect the cameras below — analysis uses the face-on view, so make sure at least one camera is assigned to it.")
+            body:    qsTr("Every connected camera records this session alongside your motion sensor data. Enable and connect the cameras below — analysis uses the face-on view, so make sure at least one camera is assigned to it.")
         }
 
         Column {

@@ -658,7 +658,7 @@ Item {
         DevicePill {
             id: imuPill
             glyph: "⦿"                 // ⦿
-            title: Theme.caps(qsTr("IMUs"))
+            title: Theme.caps(qsTr("Motion sensors"))
             active: imuPopup.opened
             status: root.imuStatus
             valueText: root.imuTotal === 0 ? qsTr("none")

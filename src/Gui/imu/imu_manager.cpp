@@ -79,7 +79,7 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
     }
     if (m_appSettings) {
         // Keep the session list consistent with global changes made mid-session
-        // in Settings → IMUs: globally disabling a device disables it for this
+        // in Settings → Motion Sensors: globally disabling a device disables it for this
         // session too (and disconnects it), and vice versa. Deliberate session
         // overrides of UNCHANGED devices are preserved (diff-based).
         //
@@ -650,7 +650,7 @@ QString ImuManager::placementKeyForRole(const QString &role) const
             ppWarn() << "[ImuManager] role" << role << "is claimed by more than one enabled,"
                         " present sensor (" << r.enabledKeys.join(QStringLiteral(", "))
                      << ") — using" << r.enabledKeys.first()
-                     << ". Disable or unassign one in Settings → IMUs.";
+                     << ". Disable or unassign one in Settings → Motion Sensors.";
         }
     }
     return r.key;
@@ -715,7 +715,7 @@ QObject *ImuManager::instanceForRole(const QString &role) const
             ppWarn() << "[ImuManager] role" << role << "is held by bare device id" << key
                      << "for a HackMotion — that key names the peripheral, not one of its two"
                         " units, so no unit can be resolved. Reassign the device in"
-                        " Settings → IMUs (one wG3 fills the lead forearm and hand).";
+                        " Settings → Motion Sensors (one wG3 fills the lead forearm and hand).";
         }
         return nullptr;
     }
@@ -814,7 +814,7 @@ QString ImuManager::saveLog()
         if (entry.instance)
             paths.append(entry.instance->saveLog());
     }
-    return paths.isEmpty() ? QStringLiteral("No active IMU instances") : paths.join(QStringLiteral("\n"));
+    return paths.isEmpty() ? QStringLiteral("No active motion sensors") : paths.join(QStringLiteral("\n"));
 }
 
 void ImuManager::zeroAll()
@@ -971,14 +971,14 @@ void ImuManager::migrateHackMotionPlacement(const Device &device)
         ppWarn() << "[ImuManager]" << device.id << "— persisted HackMotion role" << m.bareRole
                  << "cannot be migrated: one wG3 fills the lead forearm (lower arm) and lead"
                     " hand (palm), and no other pair is defined. Left unresolved — reassign it"
-                    " in Settings → IMUs.";
+                    " in Settings → Motion Sensors.";
         return;
     case HmMigration::Blocked:
         ppWarn() << "[ImuManager]" << device.id
                  << "— cannot migrate HackMotion placement: the palm unit needs leadHand, which"
                     " is already held by" << m.holderId
                  << ". Left on the old bare-device-id key and therefore unresolved — unassign"
-                    " that sensor in Settings → IMUs, then reassign the wG3.";
+                    " that sensor in Settings → Motion Sensors, then reassign the wG3.";
         return;
     case HmMigration::Migrated:
         writeRoles(m.roles);
@@ -1000,7 +1000,7 @@ void ImuManager::claimArmForHackMotion(const QString &deviceId)
     case HmArmClaim::Held:
         ppInfo() << "[ImuManager]" << deviceId
                  << "— HackMotion has no mount and the lead arm is held by" << c.holderId
-                 << "; it sits out. Assign it in Settings → IMUs to use it instead.";
+                 << "; it sits out. Assign it in Settings → Motion Sensors to use it instead.";
         return;
     case HmArmClaim::Claimed:
         writeRoles(c.roles);

@@ -199,7 +199,7 @@ Rectangle {
             // announced it as an IMU swing. The rule was written for the monitor and
             // never extended to the case underneath it.
             text:           card.deviceOnly ? Theme.caps(qsTr("Monitor only"))
-                          : card.sawMotion  ? Theme.caps(qsTr("IMU only"))
+                          : card.sawMotion  ? Theme.caps(qsTr("Motion sensor only"))
                           :                   Theme.caps(qsTr("Not recorded"))
             font.family:    Theme.fontData
             font.pixelSize: Theme.fontSzMicro

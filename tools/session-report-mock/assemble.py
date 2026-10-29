@@ -321,12 +321,12 @@ for c in d["cards"]:
     k = cond[c["id"]]["kind"]
     if k in ("delivery", "outcome"):
         par = [e["from"] for e in pack["edges"] if e["type"] == "causes" and e["to"] == c["id"] and e["from"] in wo_ids_]
-        why = "A result, not a movement to practise" + (f": the coaching model links it to {cond[par[0]]['label'].lower()} (work-on {wo_rank(par[0])}). Fix that, and it should follow." if par else ". It is what the club or ball did, and it changes when the movements behind it do.")
+        why = "A result, not a movement to practice" + (f": the coaching model links it to {cond[par[0]]['label'].lower()} (work-on {wo_rank(par[0])}). Fix that, and it should follow." if par else ". It is what the club or ball did, and it changes when the movements behind it do.")
         not_listed.append({"name": f"{row_name(c['id'])} ({c['fired']} of {c['assessable']})", "why": why})
 for x in ball_ids[:2]:
     if cond[x]["kind"] == "outcome":
         m = marks_of(x)
-        not_listed.append({"name": f"{row_name(x)} ({count_of(m)})", "why": "Something the ball did, not a movement to practise. It is on the watch list until it repeats often enough to call a habit."})
+        not_listed.append({"name": f"{row_name(x)} ({count_of(m)})", "why": "Something the ball did, not a movement to practice. It is on the watch list until it repeats often enough to call a habit."})
 # ── each work-on in depth: EVERY sentence from a template over model + pack fields ──
 # PROPOSED pack field on a measure: `golferName` (what the number is, in the golfer's words) and
 # `golferSign` (+1: report the value as it is; -1: report its magnitude, the words carry the sign).
@@ -629,7 +629,7 @@ report = {
               "timeline": timeline, "timelineNote": timeline_note},
     "workOns": deep,
     "checks": checks,
-    "practice": {"title": "How to practise a change",
+    "practice": {"title": "How to practice a change",
                  "steps": [
                      {"head": "Rehearse without a ball", "body": "Slow swings, ten at a time, feeling the change. This is where the new move is learned."},
                      {"head": "Small swings with a ball", "body": "Half swings at half speed. Keep the feel; ignore where the ball goes."},
@@ -645,7 +645,7 @@ report = {
         "notChecked": not_checked,
         "words": [("Habit", "something that showed on most swings — at least 3, and often enough that it is not chance"),
                   ("Target range", "where a good ball-striker's swing usually is at that point"),
-                  ("Work-on", "a habit you can practise your way out of, in the order to work on it"),
+                  ("Work-on", "a habit you can practice your way out of, in the order to work on it"),
                   ("P1 … P10", "the ten positions of the swing, from address (P1) through the top (P4) and impact (P7) to the finish (P10)")],
     },
 }
