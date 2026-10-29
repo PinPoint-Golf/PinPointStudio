@@ -1859,6 +1859,78 @@ void installMetricManifest(MetricCatalogue &cat)
         .usedBy = { QStringLiteral("chart:review") },
     });
 
+    // The hand plane: the plane through the ball's target line and the hands, as one smooth curve
+    // (shaft_plane_curve.h). Where the shaft points along the target line it IS the shaft's plane,
+    // which is why its frames fill swingPlaneCurve there; drawn on its own it shows where the hands
+    // went against where the shaft pointed (Mark, 29 Oct). A chart reading only.
+    cat.addDescriptor({
+        .key = QStringLiteral("handPlaneCurve"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Hand plane"),
+        .shortLabel = QStringLiteral("Hands ~"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("crimson"),
+        .description = QStringLiteral(
+            "The angle to the ground of the plane through the ball's target line and the hands, at "
+            "every moment from address to just after impact. At address the shaft runs from the "
+            "ball to the hands, so it starts on the swing plane curve; at the top, where the shaft "
+            "points along the target line, it is the swing plane. Hands that move out toward the "
+            "ball from the top steepen it — the over-the-top move — even when the club drops back "
+            "under them before delivery."),
+        .howToRead = QStringLiteral(
+            "Degrees above the ground; higher is more upright. Read it beside the swing plane "
+            "curve: a hand plane above the shaft's in the downswing is the club lying back under "
+            "hands that came over the top. Seen from down the line, from the ball the tracker found "
+            "there; a camera well off the target line tilts the whole curve."),
+        .signPositive = QStringLiteral("hands on a more upright plane"),
+        .signNegative = QStringLiteral("hands on a flatter plane"),
+        .phases = { P::ArmParallelDown },
+        .card = { .readAt = { { P::Address, QStringLiteral("ADDRESS") }, { P::Top, QStringLiteral("TOP") },
+                              { P::ArmParallelDown, QStringLiteral("P5") }, { P::Impact, QStringLiteral("IMPACT") } },
+                  .peak = false, .delta = false, .rate = false, .curve = true },
+        .routes = {
+            via("dtl", RM::Projected, Direct, { .dtlCamera = true, .clubTrack = true },
+                QStringLiteral("the image line from the down-the-line ball to the grip; the shaft "
+                               "track supplies both")) },
+        .usedBy = { QStringLiteral("chart:review") },
+    });
+
+    // How much steeper the hands come down than they went up, at the same height: the hand plane's
+    // two halves against each other over 40–70 % of the hands' rise (shaft_plane_curve.h). The
+    // over-the-top move in degrees of plane, beside handPathLoop's distance.
+    cat.addDescriptor({
+        .key = QStringLiteral("handPlaneSteepening"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Hand plane steepening"),
+        .shortLabel = QStringLiteral("Hands steepen"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("crimson"),
+        .description = QStringLiteral(
+            "How much steeper the plane through the ball line and the hands is coming down than "
+            "going up, compared at the same hand height. Hands that shift out toward the ball from "
+            "the top come down on a steeper plane than they went up on — the over-the-top move as a "
+            "plane angle."),
+        .howToRead = QStringLiteral(
+            "Positive means the hands came down on a steeper plane than they went up on — over the "
+            "top; negative means flatter, the shallowing move. It is the median between 40 % and "
+            "70 % of the hands' rise, where neither the loop at the top nor the convergence at the "
+            "ball decides it. CAUTION: a down-the-line camera off the target line adds a few "
+            "degrees to every swing — on 29 Oct three golfers read +3 to +6 — so compare swings "
+            "and golfers on the same camera rather than reading a small positive number as over "
+            "the top."),
+        .signPositive = QStringLiteral("the hands came down on a steeper plane — over the top"),
+        .signNegative = QStringLiteral("the hands came down on a flatter plane"),
+        .phases = { P::Top },
+        .card = { .readAt = { { P::Top, {} } } },
+        .routes = {
+            via("dtl", RM::Projected, Direct, { .dtlCamera = true, .clubTrack = true },
+                QStringLiteral("the hand plane's downswing half against its backswing half, at the "
+                               "same height in the down-the-line image")) },
+        .usedBy = { QStringLiteral("chart:review") },
+    });
+
     // The transition delta, and the reason it is a separate key from swingPlane
     // above: this is not a plane ANGLE, it is the CHANGE in one between two windows,
     // and it comes off the face-on camera rather than down-the-line. Over the top is

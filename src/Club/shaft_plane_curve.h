@@ -117,6 +117,87 @@ inline double viewPlaneInclSigmaDeg(const fusion::Camera &cam, double theta, dou
     return 0.5 * std::fabs(viewPlaneInclDeg(cam, theta + s) - viewPlaneInclDeg(cam, theta - s));
 }
 
+// THE HAND PLANE — the plane through the ball's target line and the hands (Mark, 29 Oct 2026: "the
+// hand path moves forward at the top towards the ball which obviously steepens the plane — that is
+// how we diagnose over the top. Can that be fused or taken into account?").
+//
+// Down the line, the plane through the ball line and a point is the view plane of the image line
+// from the ball to that point, so it is the same view-plane angle as the shaft's, read off the
+// image direction ball → grip. Two things make it the shaft curve's partner:
+//   · at address the shaft runs from the ball to the hands, so the two are the same plane;
+//   · wherever the shaft lies ALONG the target line — the top, and the end-on stretch after it,
+//     where the shaft plane is undefined — the plane through the ball line that holds the shaft is
+//     the plane through the ball line and the hands, because a line parallel to the ball line lies
+//     in every plane through it that holds one of its points. The hands are seen there; the shaft
+//     is not.
+// So the hand frames fill the shaft curve exactly where the shaft frames go quiet (their weight is
+// the shaft frame's missing share, 1 − q), and as their own curve they show where the hands go:
+// a downswing that comes down on a steeper hand plane than it went up on is the over-the-top move,
+// which the shaft alone hides when the club re-routes under the hands before delivery.
+inline double handPlaneInclDeg(const fusion::Camera &cam, double gx, double gy, double bx, double by)
+{
+    return viewPlaneInclDeg(cam, std::atan2(gy - by, gx - bx));
+}
+
+// … and its σ: a grip placed to ±sigmaPx at distance d turns the image angle by sigmaPx / d.
+inline double handPlaneInclSigmaDeg(const fusion::Camera &cam, double gx, double gy, double bx, double by,
+                                    double sigmaPx)
+{
+    const double d = std::hypot(gx - bx, gy - by);
+    if (!(d > 0)) return kNan;
+    return viewPlaneInclSigmaDeg(cam, std::atan2(gy - by, gx - bx), std::atan(sigmaPx / d) * 180.0 / kPi);
+}
+
+// How much steeper the hands come down than they went up, at the same hand height: the median hand
+// plane over 40–70 % of the hands' rise in the downswing, less the same in the backswing — the
+// band handPathLoop reads, for the same reason (near the top every swing loops, near the ball every
+// swing converges). Height is the grip's image row, so it needs no ruler.
+struct HandFrame { int64_t t_us = 0; double gripY = kNan, inclDeg = kNan; };
+struct Steepening { bool ok = false; double deg = kNan, sigmaDeg = kNan; int nUp = 0, nDown = 0; };
+
+inline Steepening handPlaneSteepening(const std::vector<HandFrame> &fr, int64_t takeawayUs, int64_t topUs,
+                                      int64_t impactUs, double lo = 0.4, double hi = 0.7, double minRisePx = 40.0)
+{
+    Steepening out;
+    auto median = [](std::vector<double> v) {
+        std::sort(v.begin(), v.end());
+        const size_t n = v.size();
+        return n ? (n % 2 ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2])) : kNan;
+    };
+    std::vector<double> addrY;
+    double topY = kNan;
+    for (const HandFrame &f : fr) {
+        if (!std::isfinite(f.gripY)) continue;
+        if (f.t_us < takeawayUs) addrY.push_back(f.gripY);
+        else if (f.t_us <= topUs + 30000) topY = std::isfinite(topY) ? std::min(topY, f.gripY) : f.gripY;
+    }
+    if (addrY.size() > 5) addrY.erase(addrY.begin(), addrY.end() - 5);   // the last of the hold
+    const double y0 = median(addrY);
+    const double rise = y0 - topY;
+    if (!std::isfinite(rise) || rise < minRisePx) return out;
+    std::vector<double> up, down;
+    for (const HandFrame &f : fr) {
+        if (!std::isfinite(f.gripY) || !std::isfinite(f.inclDeg)) continue;
+        const double frac = (y0 - f.gripY) / rise;
+        if (frac < lo || frac > hi) continue;
+        if (f.t_us >= takeawayUs && f.t_us < topUs) up.push_back(f.inclDeg);
+        else if (f.t_us >= topUs && f.t_us <= impactUs) down.push_back(f.inclDeg);
+    }
+    out.nUp = int(up.size()); out.nDown = int(down.size());
+    if (out.nUp < 3 || out.nDown < 3) return out;
+    const double mu = median(up), md = median(down);
+    // σ of each median from its own spread (1.2533 · 1.4826 · MAD / √n).
+    auto seMed = [&](const std::vector<double> &v, double m) {
+        std::vector<double> d;
+        for (double x : v) d.push_back(std::fabs(x - m));
+        return 1.2533 * 1.4826 * median(d) / std::sqrt(double(v.size()));
+    };
+    out.deg = md - mu;
+    out.sigmaDeg = std::hypot(seMed(up, mu), seMed(down, md));
+    out.ok = true;
+    return out;
+}
+
 namespace detail {
 // Solve A x = b for SPD A (dense, row-major K×K) by Cholesky; also returns diag(A⁻¹) when asked.
 inline bool choleskySolve(std::vector<double> A, int K, const std::vector<double> &b,

@@ -97,6 +97,7 @@ constexpr int kShaftFusionStageVersion = 8;   // 2: the address plane and delive
                                               // 6: per-frame direction σ, plane inclination σ by block bootstrap,
                                               //    address-plane σ (shaft uncertainty design, 2026-10-01)
                                               // 7: the stage also publishes swingPlaneCurve (shaft_plane_curve.h) (2026-10-29)
+                                              // 8: handPlaneCurve and handPlaneSteepening; the hands fill swingPlaneCurve where the shaft is end-on (2026-10-29)
 // skeleton3d — kSkeleton3DStageVersion: the rigid, jointed skeleton fitted to both poses, the
 //           shaft, the feet and any IMUs (Skeleton3DStage, skeleton3d/; swing_3d_viz_design.md).
 //           Stamped; never reused — recomputed from the reused poses on every re-analysis.

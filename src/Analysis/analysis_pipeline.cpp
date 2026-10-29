@@ -2598,29 +2598,56 @@ struct ShaftFusionStage : AnalysisStage {
         // fused, else the tracker's own. Not the fused u_z itself — at address the face-on track
         // coasts and that direction is poor, which bridged Nick's whole address on 29 Oct.
         // Stretches with no well-conditioned frame are bridged and marked invalid (drawn dashed).
+        //
+        // handPlaneCurve — the plane through the ball line and the hands, from the same frames'
+        // grip and the down-the-line ball. Every frame with a grip enters it, the end-on ones
+        // included. Its frames also enter swingPlaneCurve, each with the weight its own frame's
+        // shaft did NOT have (1 − q): nothing where the shaft is well seen, everything where it
+        // points along the line — the top and the stretch after it, which on Mark's swings is
+        // 130 of the 177 ms from the top to P5 (29 Oct). handPlaneSteepening reads the hand
+        // curve's two halves against each other at the same hand height.
         {
             const fusion::Camera cd = fusion::dtlCamera(cfg.dtlYawDeg, cfg.dtlPitchDeg, cfg.dtlRollDeg);
-            std::vector<planecurve::Obs> obs;
+            const bool haveBall = dt.ball.found && std::isfinite(dt.ball.x) && std::isfinite(dt.ball.y);
+            constexpr double kGripSigmaPx = 4.0;   // the pose grip's placement, frame to frame
+            std::vector<planecurve::Obs> obs, handObs;
+            std::vector<planecurve::HandFrame> handFrames;
             for (const DtlSample &s : dt.samples) {
-                if (!dtlMeasured(s.tier) || !std::isfinite(s.thetaRad) || !std::isfinite(s.sigmaThetaDeg)) continue;
-                planecurve::Obs o;
-                o.t_us     = s.t_us - dt.clockOffsetUs;
-                o.inclDeg  = planecurve::viewPlaneInclDeg(cd, s.thetaRad);
-                o.sigmaDeg = planecurve::viewPlaneInclSigmaDeg(cd, s.thetaRad, s.sigmaThetaDeg);
-                const auto f = std::lower_bound(t.samples.begin(), t.samples.end(), o.t_us,
-                                                [](const fusion::Sample3D &x, int64_t tt) { return x.t_us < tt; });
-                const double rho = (f != t.samples.end() && f->t_us == o.t_us && std::isfinite(f->rhoD)) ? f->rhoD
-                                 : std::isfinite(s.rhoPred) ? s.rhoPred : 1.0;
-                o.cond = rho * rho * std::fabs(std::sin(s.thetaRad));
-                obs.push_back(o);
+                const int64_t tUs = s.t_us - dt.clockOffsetUs;
+                double shaftQ = 0.0;
+                if (dtlMeasured(s.tier) && std::isfinite(s.thetaRad) && std::isfinite(s.sigmaThetaDeg)) {
+                    planecurve::Obs o;
+                    o.t_us     = tUs;
+                    o.inclDeg  = planecurve::viewPlaneInclDeg(cd, s.thetaRad);
+                    o.sigmaDeg = planecurve::viewPlaneInclSigmaDeg(cd, s.thetaRad, s.sigmaThetaDeg);
+                    const auto f = std::lower_bound(t.samples.begin(), t.samples.end(), o.t_us,
+                                                    [](const fusion::Sample3D &x, int64_t tt) { return x.t_us < tt; });
+                    const double rho = (f != t.samples.end() && f->t_us == o.t_us && std::isfinite(f->rhoD)) ? f->rhoD
+                                     : std::isfinite(s.rhoPred) ? s.rhoPred : 1.0;
+                    o.cond = rho * rho * std::fabs(std::sin(s.thetaRad));
+                    shaftQ = std::clamp(o.cond, 0.0, 1.0);
+                    obs.push_back(o);
+                }
+                if (!haveBall || !std::isfinite(s.gripPx.x()) || !std::isfinite(s.gripPx.y())) continue;
+                planecurve::Obs h;
+                h.t_us     = tUs;
+                h.inclDeg  = planecurve::handPlaneInclDeg(cd, s.gripPx.x(), s.gripPx.y(), dt.ball.x, dt.ball.y);
+                h.sigmaDeg = planecurve::handPlaneInclSigmaDeg(cd, s.gripPx.x(), s.gripPx.y(), dt.ball.x, dt.ball.y,
+                                                               kGripSigmaPx);
+                h.cond     = 1.0;
+                handObs.push_back(h);
+                handFrames.push_back({ tUs, s.gripPx.y(), h.inclDeg });
+                h.cond     = 1.0 - shaftQ;
+                obs.push_back(h);
             }
+            std::sort(obs.begin(), obs.end(), [](const planecurve::Obs &a, const planecurve::Obs &b) { return a.t_us < b.t_us; });
             int64_t fromUs = backFromUs;
             if (const auto ad = ctx.seg.eventFor(Phase::Address); ad && ad->t_us < topUs) fromUs = ad->t_us;
-            const planecurve::Curve pc = planecurve::fitCurve(obs, fromUs, impactUs + 40000, planecurve::Config{});
-            if (pc.fitted && pc.t_us.size() >= 2) {
+            const auto publishCurve = [&ctx](const planecurve::Curve &pc, const QString &key, const QString &label) {
+                if (!pc.fitted || pc.t_us.size() < 2) return;
                 MetricSeries m;
-                m.key   = QStringLiteral("swingPlaneCurve");
-                m.label = QStringLiteral("Swing plane curve");
+                m.key   = key;
+                m.label = label;
                 m.unit  = QStringLiteral("°");
                 m.t_us  = pc.t_us;
                 m.value = pc.inclDeg;
@@ -2636,9 +2663,33 @@ struct ShaftFusionStage : AnalysisStage {
                     m.sigmaKind = uint8_t(SigmaKind::Propagated);
                 }
                 ctx.seriesOut().push_back(std::move(m));
+            };
+            const planecurve::Curve pc = planecurve::fitCurve(obs, fromUs, impactUs + 40000, planecurve::Config{});
+            publishCurve(pc, QStringLiteral("swingPlaneCurve"), QStringLiteral("Swing plane curve"));
+            const planecurve::Curve hc = planecurve::fitCurve(handObs, fromUs, impactUs + 40000, planecurve::Config{});
+            publishCurve(hc, QStringLiteral("handPlaneCurve"), QStringLiteral("Hand plane"));
+            const PhaseEvent *tk = ctx.seg.eventFor(Phase::Takeaway);
+            const planecurve::Steepening st = (tk && tk->t_us < topUs)
+                ? planecurve::handPlaneSteepening(handFrames, tk->t_us, topUs, impactUs) : planecurve::Steepening{};
+            if (st.ok) {
+                MetricSeries m;
+                m.key   = QStringLiteral("handPlaneSteepening");
+                m.label = QStringLiteral("Hand plane steepening");
+                m.unit  = QStringLiteral("°");
+                PhaseSample ps{ Phase::Top, topUs, st.deg, QString() };
+                if (std::isfinite(st.sigmaDeg) && st.sigmaDeg > 0) {
+                    ps.sigma = st.sigmaDeg; ps.sigmaKind = uint8_t(SigmaKind::Propagated);
+                    m.sigma = st.sigmaDeg;  m.sigmaKind = ps.sigmaKind;
+                }
+                m.phaseSamples.push_back(ps);
+                ctx.seriesOut().push_back(std::move(m));
             }
             ppInfo() << "[WristAnalysis] swing plane curve:" << pc.n << "frames," << pc.nRejected << "rejected,"
-                     << (pc.fitted ? QStringLiteral("scale %1").arg(pc.scale, 0, 'f', 2) : QStringLiteral("not fitted"));
+                     << (pc.fitted ? QStringLiteral("scale %1").arg(pc.scale, 0, 'f', 2) : QStringLiteral("not fitted"))
+                     << "| hand plane:" << (haveBall ? QStringLiteral("%1 frames").arg(hc.n) : QStringLiteral("no DTL ball"))
+                     << "| steepening" << (st.ok ? QStringLiteral("%1 ± %2° (%3 up, %4 down)").arg(st.deg, 0, 'f', 1)
+                                                       .arg(st.sigmaDeg, 0, 'f', 1).arg(st.nUp).arg(st.nDown)
+                                                 : QStringLiteral("not read"));
         }
         // THE FUSION'S GATE RECORDS (trust stage 6). A half of swingPlane whose plane FITTED but
         // scattered too widely to be a plane is refused, one record per half: the downswing above

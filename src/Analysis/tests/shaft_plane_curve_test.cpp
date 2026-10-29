@@ -116,6 +116,36 @@ int main()
     std::vector<Obs> few(obs.begin(), obs.begin() + 5);
     check(!fitCurve(few, from, to, Config{}).fitted, "five frames is no curve");
 
+    // ── 3. the hand plane ───────────────────────────────────────────────────────────────────
+    {
+        const fusion::Camera cd = fusion::dtlCamera(0.0, 0.0, 0.0);
+        // At address the shaft runs from the ball to the grip, so the hand plane is the shaft's.
+        const double bx = 520, by = 880, gx = 344, gy = 638;
+        const double shaftTheta = std::atan2(by - gy, bx - gx);   // grip → head, the tracker's sense
+        check(std::fabs(handPlaneInclDeg(cd, gx, gy, bx, by) - viewPlaneInclDeg(cd, shaftTheta)) < 1e-9,
+              "at address the hand plane is the shaft's plane");
+        // Hands that move out toward the ball at the same height steepen it.
+        check(handPlaneInclDeg(cd, gx + 30, gy, bx, by) > handPlaneInclDeg(cd, gx, gy, bx, by),
+              "hands moved out toward the ball line steepen the hand plane");
+        check(handPlaneInclSigmaDeg(cd, gx, gy, bx, by, 4.0) > 0.0, "the hand plane carries a sigma");
+
+        // Steepening: hands rise 300 px; going up the plane reads 60°, coming down 66°.
+        std::vector<HandFrame> fr;
+        const int64_t tk = 100000, top = 900000, imp = 1200000;
+        for (int64_t t = 0; t < tk; t += 5000) fr.push_back({ t, 600.0, 55.0 });
+        for (int64_t t = tk; t < top; t += 5000)
+            fr.push_back({ t, 600.0 - 300.0 * double(t - tk) / double(top - tk), 60.0 });
+        for (int64_t t = top; t <= imp; t += 5000)
+            fr.push_back({ t, 300.0 + 300.0 * double(t - top) / double(imp - top), 66.0 });
+        const Steepening st = handPlaneSteepening(fr, tk, top, imp);
+        std::printf("    steepening %.2f ± %.2f (%d up, %d down)\n", st.deg, st.sigmaDeg, st.nUp, st.nDown);
+        check(st.ok && std::fabs(st.deg - 6.0) < 1e-9, "the hands coming down 6 degrees steeper read +6");
+        check(st.nUp > 3 && st.nDown > 3, "and both halves are read over 40-70 % of the rise only");
+        std::vector<HandFrame> flat(fr);
+        for (HandFrame &f : flat) f.gripY = 600.0;
+        check(!handPlaneSteepening(flat, tk, top, imp).ok, "hands that never rise are not read");
+    }
+
     std::printf(g_fail ? "FAILED (%d)\n" : "ALL PASSED\n", g_fail);
     return g_fail ? 1 : 0;
 }

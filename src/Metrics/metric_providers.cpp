@@ -178,7 +178,8 @@ std::vector<QString> DtlShaftLieProvider::provides() const
 
 std::vector<QString> ShaftFusionProvider::provides() const
 {
-    return { QStringLiteral("swingPlane"), QStringLiteral("swingPlaneAngle"), QStringLiteral("swingPlaneCurve") };
+    return { QStringLiteral("swingPlane"), QStringLiteral("swingPlaneAngle"), QStringLiteral("swingPlaneCurve"),
+             QStringLiteral("handPlaneCurve"), QStringLiteral("handPlaneSteepening") };
 }
 
 // ------------------------------------------------------------------ KinematicSequenceProvider

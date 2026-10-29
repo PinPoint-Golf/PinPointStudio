@@ -2367,7 +2367,8 @@ std::vector<GateRecord> faceOnTrackGates(const ShaftTrack2D& track, const ShaftV
                             // the sequence's club node: no track, no camera club channel to time
                             QStringLiteral("ks.club") };
         if (dtlCamera) covers << QStringLiteral("swingPlane") << QStringLiteral("swingPlaneAngle")
-                              << QStringLiteral("swingPlaneCurve") << QStringLiteral("shaftLie");
+                              << QStringLiteral("swingPlaneCurve") << QStringLiteral("handPlaneCurve")
+                              << QStringLiteral("handPlaneSteepening") << QStringLiteral("shaftLie");
         log.fireCovering(PP_GATE("club.trackRefused"), QStringLiteral("track.club"), GateEffect::Refused,
                          covers, ev);
         return log.take();
