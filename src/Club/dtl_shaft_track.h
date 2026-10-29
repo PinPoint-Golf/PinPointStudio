@@ -304,7 +304,7 @@ struct DtlBall {
     double  x = dtl::kNan, y = dtl::kNan;   // image px
     QString reason;
     // Which cue answered. "none" when there is no ball — a first-class outcome.
-    QString source = QStringLiteral("none");        // "bright" | "shadow" | "none"
+    QString source = QStringLiteral("none");        // "bright" | "shadow" | "contrast" | "none"
     // The shadow cue's own numbers, recorded whether or not it supplied the
     // verdict: the crescent's centroid (the ball centre is radiusPx ABOVE it),
     // how much brightness that patch regained once the ball had gone, the radius

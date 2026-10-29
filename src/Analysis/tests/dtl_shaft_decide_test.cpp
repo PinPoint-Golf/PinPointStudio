@@ -649,13 +649,15 @@ int main()
         check(!amb.found && amb.reason.contains(QStringLiteral("ambiguous shadow candidates")),
               "T8A: two launch-vanishing candidates of similar rise ⇒ NO ball, and both are named");
 
-        // And where a bright ball exists as well, brightness still decides.
+        // And where a bright ball exists as well, brightness still decides. The
+        // bright ball sits where an address shaft points (grip→ball 66° below
+        // the horizontal), because since 29 Oct the prior refuses anywhere else.
         Scene s4 = makeScene(n);
         for (int i = 0; i < n; ++i) {
             cv::Mat m = baseScene();
-            drawBlownMat(m, 200, 258, 315, 318);                 // mat clear of the bright ball
-            cv::circle(m, cv::Point(175, 285), 7, cv::Scalar(250), -1);
-            if (i >= 25) cv::circle(m, cv::Point(175, 285), 10, cv::Scalar(110), -1);
+            drawBlownMat(m, 238, 258, 315, 318);                 // mat clear of the bright ball
+            cv::circle(m, cv::Point(215, 285), 7, cv::Scalar(250), -1);
+            if (i >= 25) cv::circle(m, cv::Point(215, 285), 10, cv::Scalar(110), -1);
             if (i < 25) drawBallShadow(m, bx, by, R, 90);
             s4.frames[size_t(i)] = m;
         }
@@ -665,10 +667,65 @@ int main()
                     int(both.found), both.source.toUtf8().constData(), both.x, both.y,
                     both.shadowX, both.shadowY);
         check(both.found && both.source == QStringLiteral("bright")
-              && std::hypot(both.x - 175.0, both.y - 285.0) < 4.0,
+              && std::hypot(both.x - 215.0, both.y - 285.0) < 4.0,
               "T8A: with a bright ball present the BRIGHT cue wins, unchanged");
         check(std::isfinite(both.shadowX) && std::isfinite(both.launchRise),
               "T8A: … and the shadow cue's own answer is still recorded, so the two can be compared");
+    }
+
+    // ── T8D a dim mat: the ball is only LOCALLY bright, and a decoy vanishes too ─
+    // Mark's 7 Oct scene, in miniature: a dark mat, a ball ~90 grey levels above
+    // it that never reaches the bright cue's 230, and the simulator's own ball on
+    // the screen — brighter, compact, and it ALSO vanishes at launch, which is
+    // exactly what the bright cue's permanence-with-launch test cannot refuse.
+    // What refuses it is where it is: grip→decoy is 27° below the horizontal, not
+    // a shaft's direction at address.
+    std::printf("\n=== T8D: a dim mat — the contrast cue finds the ball, the direction refuses the decoy ===\n");
+    {
+        const int n = 40;
+        const double bx = 230.0, by = 290.0;      // grip→ball 62° below the horizontal
+        const double dx = 300.0, dy = 232.0;      // grip→decoy 27°
+        Scene s = makeScene(n);
+        for (int i = 0; i < n; ++i) {
+            cv::Mat m = baseScene();
+            cv::rectangle(m, cv::Point(0, 0), cv::Point(319, 40), cv::Scalar(254), -1);     // the lit screen
+            cv::rectangle(m, cv::Point(150, 215), cv::Point(319, 319), cv::Scalar(60), -1);   // the dark mat (and the dark band below the screen)
+            if (i < 25) {
+                cv::circle(m, cv::Point(int(bx), int(by)), 7, cv::Scalar(150), -1);           // the ball, dim
+                cv::circle(m, cv::Point(int(dx), int(dy)), 7, cv::Scalar(252), -1);           // the screen's ball
+            }
+            s.frames[size_t(i)] = m;
+        }
+        // The decoy is above the ankle line in this scene's joints, so lift the
+        // ankles to let the DIRECTION be the only thing that can refuse it.
+        for (auto &j : s.an.joints) { j[6].y = 220.0; j[7].y = 220.0; }
+        std::vector<int> addr, post, away, aft;
+        for (int i = 0; i < 20; ++i) addr.push_back(i);
+        for (int i = 5; i < 21; ++i) away.push_back(i);
+        for (int i = 30; i < n; ++i) { post.push_back(i); aft.push_back(i); }
+
+        const DtlBall b = dtlFindBall(srcOf(s), addr, post, away, aft, s.an, W, H, kNan, testCfg());
+        std::printf("       found=%d source=%s at (%.1f, %.1f) — %s\n", int(b.found),
+                    b.source.toUtf8().constData(), b.x, b.y, b.reason.toUtf8().constData());
+        check(b.found && b.source == QStringLiteral("contrast"),
+              "T8D: the ball is found, and the CONTRAST cue is what found it");
+        check(b.found && std::hypot(b.x - bx, b.y - by) < 3.0, "T8D: at the planted ball, not the decoy");
+
+        // The control: with the direction gate off, the decoy is what the bright
+        // cue reports — the failure this gate exists for, reproduced.
+        DtlShaftConfig off = testCfg();
+        off.ball.dirMinDeg = off.ball.dirMaxDeg = 0.0;
+        const DtlBall d = dtlFindBall(srcOf(s), addr, post, away, aft, s.an, W, H, kNan, off);
+        std::printf("       gate off: found=%d source=%s at (%.1f, %.1f) — %s\n", int(d.found),
+                    d.source.toUtf8().constData(), d.x, d.y, d.reason.toUtf8().constData());
+        check(d.found && d.source == QStringLiteral("bright") && std::hypot(d.x - dx, d.y - dy) < 3.0,
+              "T8D control: without the direction gate the bright cue takes the screen's ball");
+
+        // And the contrast cue switched off leaves the dim ball honestly unfound.
+        DtlShaftConfig noC = testCfg();
+        noC.ball.contrastMin = 0.0;
+        const DtlBall none = dtlFindBall(srcOf(s), addr, post, away, aft, s.an, W, H, kNan, noC);
+        check(!none.found, "T8D: with the contrast cue off there is no ball, not the decoy");
     }
 
     // ── T8B the club-away window when the ladder is short ───────────────────

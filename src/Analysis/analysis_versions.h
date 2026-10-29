@@ -77,17 +77,19 @@ constexpr int kImpactStageVersion = 1;
 //           Stamped; never reused — it is recomputed from the reused poses and face-on
 //           shaft on every re-analysis. Bump when dtl_shaft_* changes its output.
 constexpr int kDtlPoseStageVersion  = 2;   // 2: posed on schedule B (P2 − 50 … P8 + 150 ms dense, backswing ÷2, rest ÷4) (2026-10-06)
-constexpr int kDtlShaftStageVersion = 5;   // 2: HELD / OCCLUDED_WRIST / OCCLUDED_ROW tiers, END_ON before quarantine,
+constexpr int kDtlShaftStageVersion = 6;   // 2: HELD / OCCLUDED_WRIST / OCCLUDED_ROW tiers, END_ON before quarantine,
                                            //    band-edge runs, one drawn length, late escapes refused (2026-10-02)
                                            // 3: per-frame σθ and gross risk (shaft uncertainty design, 2026-10-01)
                                            // 4: a refused late escape is never HELD (2026-10-03)
                                            // 5: a corridor escape along the lead arm is refused; after impact the track
                                            //    keeps its direction or ends, and is drawn at the measured run (2026-10-05)
+                                           // 6: the ball prior adds the address shaft's direction (35–75° below the
+                                           //    horizontal, outward); a third, local-contrast ball cue (2026-10-29)
 // shaftFusion — kShaftFusionStageVersion: the fused 3-D shaft (ShaftFusionStage,
 //           shaft_fusion.h). Stamped; never reused — it is a few microseconds of
 //           arithmetic on two tracks that are already in hand. Bump when
 //           shaft_fusion.h changes its output.
-constexpr int kShaftFusionStageVersion = 7;   // 2: the address plane and deliveryVsAddressDeg (2026-09-21)
+constexpr int kShaftFusionStageVersion = 8;   // 2: the address plane and deliveryVsAddressDeg (2026-09-21)
                                               // 3: the backswing plane fitted from ADDRESS (not takeaway) (2026-09-29)
                                               // 4: the DTL camera's roll, offset and calibrated flag in club3d.camera (2026-10-02)
                                               // 5: §3.2a — the η(t) curve, the DTL anchor and the reflected band, each switched;

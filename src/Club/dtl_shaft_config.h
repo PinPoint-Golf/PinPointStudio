@@ -324,6 +324,23 @@ struct DtlShaftConfig {
         // construction: at a 316–338 px grip→ball distance a 6 px error in the
         // centre is 0.6° in θ_ball, inside a ±20° gate.
         double shadowToCentreR = 1.0;
+
+        // ── where a ball can be: the address shaft's direction ───────────────
+        // grip→ball IS the address shaft in this view (the head is at the ball),
+        // so the ball prior refuses any candidate whose grip→ball angle below the
+        // horizontal, outward, is not a shaft's. MEASURED, 29 Oct, every library
+        // swing with a DTL ball: real balls 46–55°; the impostors 28–31° (the
+        // simulator's own ball on the screen) and 86–91° (a shadow by the trail
+        // foot). Equal bounds switch the gate off.
+        double dirMinDeg = 35.0;
+        double dirMaxDeg = 75.0;
+        // ── the CONTRAST cue, for a dim mat ──────────────────────────────────
+        // How far above its own 31×31 neighbourhood a ball must image. MEASURED,
+        // Mark 7 Oct: the ball sits 84–108 above a dark mat that never lets it
+        // reach the bright cue's 230; the hands' glove and the shaft's own
+        // highlights are what else clears 25 there, and the prior removes them.
+        // 0 switches the cue off.
+        double contrastMin = 25.0;
     } ball;
 
     // ── the solve (§5.8) ─────────────────────────────────────────────────────
@@ -496,6 +513,9 @@ struct DtlShaftConfig {
         tn::apply(ov, "shaft.dtl.ball.shadowDrop",       c.ball.shadowDrop);
         tn::apply(ov, "shaft.dtl.ball.shadowLaunchRise", c.ball.shadowLaunchRise);
         tn::apply(ov, "shaft.dtl.ball.shadowToCentreR",  c.ball.shadowToCentreR);
+        tn::apply(ov, "shaft.dtl.ball.dirMinDeg",        c.ball.dirMinDeg);
+        tn::apply(ov, "shaft.dtl.ball.dirMaxDeg",        c.ball.dirMaxDeg);
+        tn::apply(ov, "shaft.dtl.ball.contrastMin",      c.ball.contrastMin);
         tn::apply(ov, "shaft.dtl.evAbsFloor",          c.evAbsFloor);
         tn::apply(ov, "shaft.dtl.evAbsFloorDif",       c.evAbsFloorDif);
         tn::apply(ov, "shaft.dtl.contrastKsz",         c.contrastKsz);
@@ -550,6 +570,7 @@ inline QString dtlConfigHash(const DtlShaftConfig& c)
     n(c.ball.stillDeg); i(c.ball.stillMaxUs);
     n(c.ball.shadowMatMin); n(c.ball.shadowDrop); n(c.ball.shadowLaunchRise);
     n(c.ball.shadowToCentreR);
+    n(c.ball.dirMinDeg); n(c.ball.dirMaxDeg); n(c.ball.contrastMin);
     n(c.omegaBaseDegPerFrame); n(c.kSmooth); n(c.grid);
     n(c.wE2); n(c.wBand); n(c.bandTol); n(c.evRay); n(c.supRay); n(c.revRatio); n(c.lineConfRay);
     n(c.minLenFrac); n(c.snapRhoMin);

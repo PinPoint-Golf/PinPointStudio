@@ -155,21 +155,40 @@ Channel sweepChannel(const cv::Mat& img32, double gx, double gy,
 // the direction hips→grip. "Between the feet" is the face-on sentence and §2
 // finding 5 is what porting it costs. ONE prior, shared by both cues — the two
 // answers have to be about the same place or they cannot be compared.
+//
+// … and the grip→ball DIRECTION is a shaft's at address. The ball is where the
+// clubhead is, so grip→ball IS the address shaft in the image, and that has a
+// narrow range of angles below the horizontal, outward. MEASURED, 29 Oct, every
+// library swing with a DTL ball: the real balls read 46–55° (Mark, Jess, Nick,
+// Chris); the impostors read 28–31° (the simulator's own ball on the screen,
+// which also "vanishes at launch") and 86–91° (a shadow beside the trail foot
+// on Mark's 7 Oct mat, all 20 shadow answers there). dirMinDeg/dirMaxDeg sit
+// well outside the real spread on both sides; equal bounds switch it off.
 struct BallPrior {
     bool   ok = false;
     double ankleX = 0, ankleY = 0, dirOut = 1.0, gripOut = 0.0;
+    double gripX = 0, gripY = 0, dirMinDeg = 0, dirMaxDeg = 0;
+    double dirDeg(double bx, double by) const
+    {
+        return std::atan2(by - gripY, (bx - gripX) * dirOut) * 180.0 / kPi;
+    }
     bool inside(double bx, double by, int frameH) const
     {
         if (by <= ankleY - 0.02 * double(frameH)) return false;   // above the ankle line
         if ((bx - ankleX) * dirOut <= gripOut)    return false;   // not beyond the grip, on the golfer's side
+        if (dirMaxDeg > dirMinDeg) {                               // not where an address shaft points
+            const double a = dirDeg(bx, by);
+            if (a < dirMinDeg || a > dirMaxDeg) return false;
+        }
         return true;
     }
 };
 
-BallPrior buildBallPrior(const std::vector<int>& addr, const DtlAnchors& anchors)
+BallPrior buildBallPrior(const std::vector<int>& addr, const DtlAnchors& anchors,
+                         const DtlShaftConfig& cfg)
 {
     BallPrior p;
-    double ankleY = 0, ankleX = 0, hipX = 0, gripX = 0;
+    double ankleY = 0, ankleX = 0, hipX = 0, gripX = 0, gripY = 0;
     int nA = 0, nH = 0, nG = 0;
     for (const int i : addr) {
         if (i < int(anchors.joints.size()) && anchors.joints[size_t(i)].size() >= 8) {
@@ -180,12 +199,17 @@ BallPrior buildBallPrior(const std::vector<int>& addr, const DtlAnchors& anchors
             const cv::Point2d& rh = anchors.joints[size_t(i)][3];
             if (finPt(lh) && finPt(rh)) { hipX += 0.5 * (lh.x + rh.x); ++nH; }
         }
-        if (i < int(anchors.gx.size()) && fin(anchors.gx[size_t(i)])) { gripX += anchors.gx[size_t(i)]; ++nG; }
+        if (i < int(anchors.gx.size()) && i < int(anchors.gy.size())
+            && fin(anchors.gx[size_t(i)]) && fin(anchors.gy[size_t(i)])) {
+            gripX += anchors.gx[size_t(i)]; gripY += anchors.gy[size_t(i)]; ++nG;
+        }
     }
     if (!nA || !nH || !nG) return p;
-    ankleY /= nA; ankleX /= nA; hipX /= nH; gripX /= nG;
+    ankleY /= nA; ankleX /= nA; hipX /= nH; gripX /= nG; gripY /= nG;
     p.ok = true;
     p.ankleX = ankleX; p.ankleY = ankleY;
+    p.gripX = gripX; p.gripY = gripY;
+    p.dirMinDeg = cfg.ball.dirMinDeg; p.dirMaxDeg = cfg.ball.dirMaxDeg;
     p.dirOut  = (gripX >= hipX) ? 1.0 : -1.0;      // hips → grip, horizontally
     p.gripOut = (gripX - ankleX) * p.dirOut;       // how far out the grip sits
     return p;
@@ -490,6 +514,96 @@ ShadowCue shadowBallCue(const FrameSource& frameAt,
     return out;
 }
 
+// ── cue 3: the ball as a LOCALLY bright compact blob ─────────────────────────
+// The bright cue's 230 is absolute, and on a dim mat the ball never reaches it:
+// MEASURED, Mark's 7 Oct session, the ball images ~90 grey levels above a dark
+// green mat and nowhere near 230, so the bright cue's only candidate there was
+// the simulator's ball on the screen. This cue asks the same three questions on
+// LOCAL contrast — brighter than its own 31×31 neighbourhood, compact, round —
+// inside the same prior (which now includes the address-shaft direction), and
+// keeps the bright cue's permanence-with-launch test in contrast terms: still
+// there through three quarters of the hold, gone after impact. It is consulted
+// only where the other two found nothing, and abstains on a tie.
+struct ContrastCue {
+    bool    found = false;
+    double  x = 0, y = 0;
+    QString reason;
+};
+ContrastCue contrastBallCue(const FrameSource& frameAt, const std::vector<int>& addr,
+                            const std::vector<int>& postFramesIn, const cv::Mat& med8,
+                            const BallPrior& prior, int frameW, int frameH,
+                            const DtlShaftConfig& cfg)
+{
+    ContrastCue out;
+    if (!(cfg.ball.contrastMin > 0.0)) { out.reason = QStringLiteral("contrast cue: off"); return out; }
+    const std::vector<int> post = thinTo(postFramesIn, 9);
+    if (post.empty()) { out.reason = QStringLiteral("contrast cue: no post-impact frames"); return out; }
+    cv::Mat local;  cv::medianBlur(med8, local, 31);
+    cv::Mat diff;   cv::subtract(med8, local, diff, cv::noArray(), CV_16S);
+    cv::Mat mask = cv::Mat::zeros(med8.rows, med8.cols, CV_8U);
+    for (int r = 0; r < med8.rows; ++r)
+        for (int c = 0; c < med8.cols; ++c)
+            if (double(diff.at<short>(r, c)) >= cfg.ball.contrastMin && prior.inside(double(c), double(r), frameH))
+                mask.at<uchar>(r, c) = 255;
+    cv::Mat lab, stats, cent;
+    const int n = cv::connectedComponentsWithStats(mask, lab, stats, cent, 8, CV_32S);
+
+    // Area scales with the frame as the shadow cue's does: 15–600 px at 512 wide
+    // (a ball of radius 7–14 px at 654 wide is 150–600 px).
+    const double s = (frameW > 0) ? (double(frameW) / 512.0) * (double(frameW) / 512.0) : 1.0;
+    struct Cand { double x, y, hold; };
+    std::vector<Cand> kept;
+    int nCand = 0;
+    for (int j = 1; j < n; ++j) {
+        const double A = double(stats.at<int>(j, cv::CC_STAT_AREA));
+        if (A < 15.0 * s || A > 600.0 * s) continue;
+        const double bw = double(stats.at<int>(j, cv::CC_STAT_WIDTH));
+        const double bh = double(stats.at<int>(j, cv::CC_STAT_HEIGHT));
+        if (bw <= 0.0 || bh <= 0.0 || std::max(bw, bh) / std::min(bw, bh) > 2.2) continue;
+        ++nCand;
+        const double cx = cent.at<double>(j, 0), cy = cent.at<double>(j, 1);
+        const double r = std::max(2.0, 0.6 * std::sqrt(A / kPi));
+        const double bg = double(local.at<uchar>(int(std::lround(cy)), int(std::lround(cx))));
+        const auto contrastOver = [&](const std::vector<int>& idx) {
+            std::vector<double> v;
+            for (const int i : idx) {
+                const cv::Mat g = frameAt(i);
+                if (g.empty()) continue;
+                cv::Mat g32; g.convertTo(g32, CV_32F);
+                const double m = discMean(g32, cx, cy, r);
+                if (fin(m)) v.push_back(m - bg);
+            }
+            return v;
+        };
+        const std::vector<double> hold = contrastOver(addr);
+        if (hold.size() < 3) continue;
+        const double holdMed = pctOf(hold, 50.0);
+        if (holdMed < cfg.ball.contrastMin) continue;
+        if (pctOf(hold, 25.0) < 0.6 * holdMed) continue;            // flickers through the hold
+        const std::vector<double> after = contrastOver(post);
+        if (after.empty() || pctOf(after, 50.0) >= 0.5 * holdMed) continue;   // it never left
+        kept.push_back({ cx, cy, holdMed });
+    }
+    if (kept.empty()) {
+        out.reason = QStringLiteral("contrast cue: %1 candidate(s), none passed permanence-with-launch").arg(nCand);
+        return out;
+    }
+    std::sort(kept.begin(), kept.end(), [](const Cand& a, const Cand& b) {
+        if (a.hold != b.hold) return a.hold > b.hold;
+        if (a.y != b.y) return a.y < b.y;
+        return a.x < b.x;
+    });
+    if (kept.size() > 1 && kept[0].hold < 1.5 * kept[1].hold) {
+        out.reason = QStringLiteral("contrast cue: %1 candidates passed — ambiguous, no ball").arg(int(kept.size()));
+        return out;
+    }
+    out.found = true; out.x = kept[0].x; out.y = kept[0].y;
+    out.reason = QStringLiteral("contrast cue: address-stable, gone after impact, %1 above its surround, "
+                                "grip→ball %2°")
+                     .arg(kept[0].hold, 0, 'f', 0).arg(prior.dirDeg(kept[0].x, kept[0].y), 0, 'f', 0);
+    return out;
+}
+
 } // namespace
 
 // ── the DTL ball (§4.3, §5.5) ────────────────────────────────────────────────
@@ -511,7 +625,7 @@ DtlBall dtlFindBall(const FrameSource& frameAt,
     if (med32.empty()) { out.reason = QStringLiteral("address-hold median unavailable"); return out; }
     cv::Mat med8; med32.convertTo(med8, CV_8U);
 
-    const BallPrior prior = buildBallPrior(addr, anchors);
+    const BallPrior prior = buildBallPrior(addr, anchors, cfg);
     if (!prior.ok) { out.reason = QStringLiteral("no address pose to anchor the ball prior"); return out; }
 
     // The ball is 42.7 mm. The scene scale is L̂_D / the club's own length, which
@@ -554,7 +668,14 @@ DtlBall dtlFindBall(const FrameSource& frameAt,
                          .arg(bright.reason);
         return out;
     }
-    out.reason = QStringLiteral("%1; %2").arg(bright.reason, shadow.reason);
+    const ContrastCue contrast = contrastBallCue(frameAt, addr, postFramesIn, med8, prior, frameW, frameH, cfg);
+    if (contrast.found) {
+        out.found = true; out.source = QStringLiteral("contrast");
+        out.x = contrast.x; out.y = contrast.y;
+        out.reason = QStringLiteral("%1; bright cue: %2; %3").arg(contrast.reason, bright.reason, shadow.reason);
+        return out;
+    }
+    out.reason = QStringLiteral("%1; %2; %3").arg(bright.reason, shadow.reason, contrast.reason);
     return out;
 }
 

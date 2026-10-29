@@ -1415,6 +1415,12 @@ As face-on, the ball at address and impact is the best witness. From behind it h
 3. If more than one patch passes, the clearest must beat the next by 1.5×, or the cue abstains.
 4. The ball's centre is placed one radius above the crescent.
 
+**The address-shaft direction, and the contrast cue** (29 Oct 2026). The ball is where the clubhead sits at address, so the line from the grip to the ball *is* the address shaft in the image. The ball region therefore also requires the grip-to-ball direction to be one a shaft can have at address: 35–75° below the horizontal, outward (`shaft.dtl.ball.dirMinDeg` / `dirMaxDeg`; equal values switch it off). Measured across the library, real balls read 46–55°. The two impostors it removes read 28–31° (the simulator's own ball on the screen, which also "vanishes at launch") and 86–91° (a shadow by the trail foot on Mark's 7 Oct mat, every shadow answer in that session).
+
+Where neither cue finds a ball, a third one runs: the **contrast cue**. It looks for the same compact round blob, but by *local* contrast (at least `shaft.dtl.ball.contrastMin` = 25 grey levels above its own 31×31 neighbourhood) rather than the bright cue's absolute 230. It keeps the same permanence-with-launch test in contrast terms, and needs a 1.5× winner. On a dim mat the ball images ~90 levels above the mat and never reaches 230, which left the bright cue with nothing but the screen's ball.
+
+Swings whose ball is unchanged produce a track identical frame for frame. On Mark's 7 Oct swings the right ball also fixes the address hold: the ball gate now holds the solve on the shaft (58°) instead of the trouser leg (102–109°). L̂_D goes from 212 px to 317 px.
+
 **The DTL club length L̂_D.**
 
 - With a ball: the median grip-to-ball distance at address, divided by the address ρ̂_D.
