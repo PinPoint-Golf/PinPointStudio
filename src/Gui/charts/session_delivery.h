@@ -76,7 +76,7 @@
 //   7. THE STRONGER PATH FIT is the larger |r| of path ~ P6 plane and path ~ steepening, among fits that
 //      hold; when neither holds, the larger |r| is the one said refused.
 //   8. "STEEPEST THIRD": the tertiles (quantile7 at 1/3, 2/3) of the fitted reading over the shots handed
-//      in that carry it — the session in v1 (§6.1 says the library; that needs the per-golfer cache).
+//      in that carry it — the fits' pool, the golfer's day (decision 13; §6.1 says the library: across days the camera moves).
 //   9. FIGURES. Plane angles whole degrees; the monitor's path, face, attack, lie and loft one decimal
 //      (its own resolution, and the design's words: "path went 4.3° left"); our camera's whole degrees;
 //      a fit's slope one decimal, r two, scatter one; a middle half's ± one decimal. U+2212 minus.
@@ -90,16 +90,25 @@
 //  12. THE SESSION'S BAND (§4.7) is a box per position, P1..P7, of the shots' swing plane curve (shown from
 //      kDeliverySessionBandShots shots); the session figure already draws the curves' middle half on its
 //      own clock. "Varies most" names the widest middle half; "steadiest" the narrowest.
+//  13. THE FITS POOL THE GOLFER'S DAY (§4.4, §8.2 as revised 29 Oct): this session's shots and the golfer's other
+//      sessions on the same date — one camera set-up, so the uncalibrated camera's offset cancels — read from their
+//      swing_phasegrid.json alone (deliveryInputFromPhaseGrid; the presenter never opens a sibling swing document). The
+//      sentences say the pool ("On your 16 shots with the monitor on 20 Oct (3 sessions), …"); a day of one session
+//      keeps the session's wording. The shot's place (decision 8) is over the same pool; the usual, the band, the slot
+//      and the shapes stay the session's.
 
 #include "session_series_types.h"
 #include "../typeset/box_stats.h"
 
+#include <QJsonObject>
 #include <QString>
 #include <QStringList>
 
 #include <array>
 #include <cmath>
 #include <vector>
+
+namespace pinpoint::analysis { struct SwingPhaseGrid; }
 
 namespace pinpoint::charts {
 
@@ -146,6 +155,8 @@ struct DeliveryShotInput {
     int     ordinal = 0;
     int     shotId  = -1;
     QString swingDir, club;
+    QString session;                                  // the session folder's name ("2026-10-20_Jess-Ratcliffe_Wrist_02")
+    bool    thisSession = true;                       // false: another session of the golfer's day (decision 13)
     bool    leftHanded = false;                       // the words mirror (§4.6); the snapshot carries none today
 
     std::array<double, kDeliveryPositions> plane;     // swingPlaneCurve at P1..P7
@@ -174,6 +185,26 @@ struct DeliveryShotInput {
 
 // From the Charts snapshot's shot, through the measure engine's sampler (see the header note).
 DeliveryShotInput deliveryInputFromShot(const ShotSeries &shot);
+// The same reading off a phase grid: the sampler's output, which is what swing_phasegrid.json holds. A shot read from its
+// sidecar and the same shot read from the snapshot agree, position for position (the same phase ids, the same values).
+pinpoint::analysis::SwingPhaseGrid deliveryPhaseGridOf(const ShotSeries &shot);   // the grid deliveryInputFromShot reads
+DeliveryShotInput deliveryInputFromGrid(const pinpoint::analysis::SwingPhaseGrid &grid);
+// A swing_phasegrid.json's root (decision 13: the day's other sessions are read from these alone). `read` false when the
+// sidecar's schema or reduction is not this build's: then nothing is read, never a number. No posMs, no curve.
+DeliveryShotInput deliveryInputFromPhaseGrid(const QJsonObject &root, const QString &swingDir, bool *read = nullptr);
+
+// ── The golfer's day (decision 13) ─────────────────────────────────────────────────────────────
+
+struct DeliveryDay {
+    QString date;                                     // "2026-10-20"; "" unknown
+    int     sessions = 1;                             // session folders in the pool with a reading, this one included
+    std::vector<DeliveryShotInput> others;            // the day's other sessions' shots (thisSession false)
+    int     staleGrids = 0;                           // of `others`: sidecars older than their swing document
+};
+// The fit's pool: the session's shots, then the day's others.
+std::vector<DeliveryShotInput> deliveryPool(const std::vector<DeliveryShotInput> &shots, const DeliveryDay *day);
+// What the pool is, for the sentences: "on 20 Oct (3 sessions)"; "" for a day of one session (the wording stays).
+QString deliveryPoolWords(const DeliveryDay *day);
 
 // Decision 5 on two curves (ms from impact, value, valid; an empty valid = all measured). `fromMs`: P1's instant.
 std::vector<DeliverySpan> deliveryHandsSpans(const std::vector<double> &tMs, const std::vector<double> &curve,
@@ -238,8 +269,8 @@ struct DeliveryFits {
 };
 DeliveryFits deliveryFits(const std::vector<DeliveryShotInput> &shots);
 
-// The fit as words. `noun`: what is counted ("shots"; the report's "swings").
-QString deliveryFitSentence(const DeliveryFit &f, const QString &noun = QStringLiteral("shots"));
+// The fit as words. `noun`: what is counted ("shots"; the report's "swings"); `pool`: deliveryPoolWords ("" one session).
+QString deliveryFitSentence(const DeliveryFit &f, const QString &noun = QStringLiteral("shots"), const QString &pool = QString());
 QString deliveryAttackSentence(const DeliveryFit &f);   // "" unless it holds
 
 struct DeliveryPlace {
@@ -312,8 +343,10 @@ DeliveryHead deliveryHead(const DeliveryShotInput &in, const std::vector<Deliver
 
 struct DeliveryTrust { QStringList lines; };
 // `shots`: the session, for what the monitor never gave; `shot` may be null (Session).
+// `day`: the fits' pool beyond the session (may be null).
 DeliveryTrust deliveryTrust(const std::vector<DeliveryShotInput> &shots, const DeliveryShotInput *shot,
-                            const DeliveryFits &fits, const QString &noun = QStringLiteral("shots"));
+                            const DeliveryFits &fits, const QString &noun = QStringLiteral("shots"),
+                            const DeliveryDay *day = nullptr);
 
 // ── The views ──────────────────────────────────────────────────────────────────────────────────
 
@@ -324,7 +357,9 @@ struct DeliveryShotView {
     DeliveryHead  head;
     DeliveryStory story;
     DeliverySlot  slot;
-    DeliveryFits  fits;            // the session's
+    DeliveryFits  fits;            // the day's (decision 13)
+    int     poolShots = 0;         // shots in the fits' pool
+    QString poolWords;             // "on 20 Oct (3 sessions)" | ""
     bool    flightAvailable = false;
     QString flightText;            // the fit's sentence (shown or refused)
     QString attackText;
@@ -334,15 +369,19 @@ struct DeliveryShotView {
     DeliveryShape shape;
     DeliveryTrust trust;
 };
-// One shot against its session (`shots` may be empty: no fit, no usual).
-DeliveryShotView deliveryShot(const DeliveryShotInput &in, const std::vector<DeliveryShotInput> &shots);
+// One shot against its session (`shots` may be empty: no fit, no usual). The fits and the shot's place are over the
+// golfer's day (`day` may be null: the session alone); the usual is the session's.
+DeliveryShotView deliveryShot(const DeliveryShotInput &in, const std::vector<DeliveryShotInput> &shots,
+                              const DeliveryDay *day = nullptr);
 
 struct DeliverySessionView {
     bool    available = false;
     int     shots = 0;             // shots with the plane or a monitor delivery reading
     int     planeShots = 0, monitorShots = 0;
     QString head;
-    DeliveryFits fits;
+    DeliveryFits fits;             // the day's (decision 13)
+    int     poolShots = 0;
+    QString poolWords;
     DeliveryUsual usual;
     DeliveryBand band;
     DeliveryVaries varies;
@@ -351,8 +390,9 @@ struct DeliverySessionView {
     QString shapeLine;             // "Pull, slight fade on 5 of 8 shots" | ""
     DeliveryTrust trust;
 };
+// The band, the usual and the shapes are the session's; the fits are over the golfer's day (`day` may be null).
 DeliverySessionView deliverySession(const std::vector<DeliveryShotInput> &shots,
-                                    const QString &noun = QStringLiteral("shots"));
+                                    const QString &noun = QStringLiteral("shots"), const DeliveryDay *day = nullptr);
 
 // The figures (decision 9): "59°", "−4.3°", "-".
 QString deliveryDeg(double v);     // whole degrees

@@ -146,7 +146,7 @@ address line is under the plane.
 | swing 7 | 59 | 72 | 68 | 67 | 65 | 61 | +11.7 | −4.3 | −5.4 |
 | swing 26 | 57 | 60 | 64 | 62 | 58 | 58 | +2.6 | +3.5 | −0.9 |
 
-The same golfer, the same session: the hands came down 9° steeper on swing 7, the delivery plane was 7°
+The same golfer, the same session: the hands came down 9° steeper on swing 7, the delivery plane was 6°
 steeper at P6, and the path was 8° further left with an attack 4.5° steeper. That pair is the section's whole
 argument in one line.
 
@@ -191,7 +191,7 @@ page in the session report.
 ```
 ┌───────────────────────────────────────────────────────────────────────────────────────────┐
 │ Club delivery                                                                    ▾ fold    │
-│ Your hands came down 12° steeper than they went up, and the path went 4.3° left.           │  head
+│ At P6 your plane was 65°, in your steepest third, and the path went 4.3° left.             │  head
 │                                                                                            │
 │ Plane     set on 59° · 13° steeper at P3 · peaked at the top · delivered at 61°, 2° above  │  the plane story
 │           where you set it. Hands 12° steeper coming down.                                 │  (§5.1)
@@ -238,9 +238,12 @@ The section's reason to exist (§2.2).
 
 - **What is fitted:** per golfer, over the shots the section can see that have both readings: monitor path
   against the swing plane at P6, and against the hand-plane steepening; monitor attack against the plane at P6.
-  Least squares, slope, intercept, r, the residual scatter and n. In v1 that is **the session** (the charts'
-  snapshot is one session; every monitor set in §2.2 is a single session anyway). A fit over the golfer's whole
-  library needs a per-golfer cache the charts do not have yet (§8.2).
+  Least squares, slope, intercept, r, the residual scatter and n. In v1 that is **the golfer's day**: this
+  session and the golfer's other sessions on the same date, read from their `swing_phasegrid.json` files (small,
+  and they already carry the plane and the `lm.*` values). A day is one camera set-up, so the uncalibrated
+  camera's offset cancels, and it is the only pool that lets Jess's and Nick's 20 Oct shots (three and two
+  session folders, at most 10 monitor shots in any one) reach 12. Mark's 5 Oct set is one session. A fit across
+  days mixes camera set-ups and needs the camera calibration first (§8.2).
 - **What is shown:** the fit with the larger |r| for path, as a sentence ("each degree steeper at P6 moves your
   path 0.9° left") and a small scatter (this golfer's shots as dots, this shot ringed, the fitted line). The
   attack sentence follows when its own fit holds.
@@ -380,8 +383,8 @@ decisions.
 1. **Shoulder plane definition.** Ball through the trail shoulder (66–68° on everyone), as measured in §2.3.
    Named the shoulder plane, not the shoulder line, which reads as shoulder alignment to the target. The base of
    the neck (Hogan's pane, higher, a wider slot) is not used.
-2. **The fit's scope.** v1 fits over the session (§4.4). Library-wide or per-club fits need a per-golfer cache
-   and are later work.
+2. **The fit's scope.** v1 fits over the golfer's day, one camera set-up (§4.4): a session alone leaves Jess and
+   Nick under 12 monitor shots. Fits across days, or per club, wait for the camera calibration.
 3. **Replay.** The section's head sits under the glance cards; it does not replace them.
 4. **Release.** Lag at P6 and where the club passes the hands is its own later section, with clubhead speed.
 5. **Commits.** Each stage is committed and pushed when its tests pass, so the cabin PC pulls rather than

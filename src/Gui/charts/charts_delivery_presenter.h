@@ -81,12 +81,19 @@
 //  FLIGHT = { available, text (the fit's sentence: shown, refused or too few), attackText ("" unless its fit holds),
 //             thisLine ("This one: 65° at P6, your steepest third → path −4.3°." | the fit's prediction, said as one),
 //             fit: FIT (the stronger path fit, decision 7), attack: FIT, fits: { pathP6: FIT, pathSteep: FIT, attackP6: FIT },
-//             place: { known, third (−1|0|1), words }, scatter: SCATTER }
+//             place: { known, third (−1|0|1), words }, scatter: SCATTER,
+//             pool: { date ("2026-10-20" | ""), sessions (this one included), shots, otherShots, words ("on 20 Oct (3 sessions)" |
+//                     "" for a day of one session), staleGrids (other sessions' sidecars older than their swing) } }
+//           The fits, the place and the scatter are over THE GOLFER'S DAY (session_delivery.h decision 13): this session's
+//           shots and the golfer's other sessions on the same date — sibling folders under the golfer folder whose names
+//           start with the same yyyy-MM-dd — read from each swing's swing_phasegrid.json on the worker (never a sibling's
+//           swing document), cached per session folder until the day's folders change.
 //  FIT    = { key ("path~planeP6" | "path~steepening" | "attack~planeP6"), x ("planeP6"|"steepening"), y ("path"|"attack"),
 //             xLabel ("Swing plane at P6" | "Hand plane steepening"), yLabel ("Club path (monitor)" | "Attack angle (monitor)"),
 //             n, slope, intercept, r, sd (| null), slopeText ("−0.92"), rText ("−0.80"), sdText ("±1.4°" | ""), holds,
 //             verdict ("shown"|"weak"|"wrongSign"|"tooFew"|"none"), why }
-//  SCATTER = { xLabel, yLabel, unit ("°"), holds, points: [{ ordinal, swingDir, x, y, picked }], picked: { x, y } | null
+//  SCATTER = { xLabel, yLabel, unit ("°"), holds, points: [{ ordinal, swingDir, x, y, thisSession (false: another session of
+//             the day), session (its folder name), picked }], picked: { x, y } | null
 //             (This shot, even with no monitor: x only, y null), line: { x0, y0, x1, y1 } | null (only when the fit holds),
 //             xLo, xHi, yLo, yHi (| null with no point) }
 //  IMPACT = { key ("lie"|"lean"|"attack"), text, source ("monitor"|"camera"|"both"), value (| null), face (| null; lie: °,
@@ -102,7 +109,7 @@
 //            wide (q3 − q1 | null), half, halfText ("±1.5°" | ""), picked (this shot's value | null), values: [per shot, null unread] }] },
 //    varies: { has, tightest, loosest (tags | ""), tightHalf, looseHalf (| null), words },
 //    usual: { address, shoulders, steepening (| null), addressText, shouldersText, steepeningText },
-//    flight: FLIGHT (every shot in the scatter, the picked one ringed; thisLine ""),
+//    flight: FLIGHT (the day's pool, as This shot's; the picked one ringed; thisLine ""),
 //    shapes: { marks: [{ ordinal, swingDir, available, start, curve, word, picked }], line ("Pull, slight fade on 5 of 8 shots" | "") },
 //    trust: TRUST }
 //

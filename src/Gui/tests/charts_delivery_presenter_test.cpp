@@ -24,12 +24,22 @@
 //   · every documented key of choices, thisShot and session, with the values the core gives;
 //   · plotLayers: the picked shot's address line, shoulder plane, slot and the hands' stretch (This shot), the
 //     session's medians and no stretch (Session) — the scope switch;
-//   · seekUsFor, the playhead's standfirst, a shot from its own detail, an empty model, the report's payload.
+//   · seekUsFor, the playhead's standfirst, a shot from its own detail, an empty model, the report's payload;
+//   · the golfer's day (session_delivery.h decision 13): a temp golfer folder with a sibling session of the same date,
+//     its swings as swing_phasegrid.json files only (written by the app's own savePhaseGrid), is pooled into the fit
+//     and the scatter, another date is not; a shot read from its sidecar agrees with the same shot read from the
+//     snapshot; the day is cached until its folders change.
 
 #include "charts/charts_delivery_presenter.h"
 #include "charts/session_delivery.h"
 #include "charts/session_series_types.h"
+#include "Diagnostics/measures/measure_sample.h"
 
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonDocument>
+#include <QTemporaryDir>
 #include <QTest>
 
 #include <cmath>
@@ -337,6 +347,108 @@ private slots:
         QVERIFY(t.value(QStringLiteral("flight")).toMap().value(QStringLiteral("thisLine")).toString()
                     .contains(QStringLiteral("on your fit, a plane like this goes with a path about")));
         QCOMPARE(layerOf(layersOf(p), QStringLiteral("hands")).value(QStringLiteral("t0")).toDouble(), kHandsFromMs);
+    }
+
+    void golfersDay()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        const QString golfer = tmp.filePath(QStringLiteral("Golfer"));
+        const QString cur = golfer + QStringLiteral("/2026-10-20_Golfer_Wrist_01");
+        const QString sib = golfer + QStringLiteral("/2026-10-20_Golfer_Wrist_02");
+        const QString other = golfer + QStringLiteral("/2026-10-21_Golfer_Wrist_01");
+        // a sibling's swing as its sidecar alone (no swing document; one gets a stand-in document of another size)
+        const auto writeGrid = [](const QString &session, int folder, int i, bool staleDoc) {
+            const QString dir = session + QStringLiteral("/swing_%1").arg(folder, 4, 10, QLatin1Char('0'));
+            QDir().mkpath(dir);
+            pinpoint::analysis::SwingPhaseGrid g = deliveryPhaseGridOf(*makeShot(i));
+            g.sessionId = QFileInfo(session).fileName();
+            g.ordinal = folder;
+            QFile f(dir + QStringLiteral("/swing_phasegrid.json"));
+            if (!f.open(QIODevice::WriteOnly)) return false;
+            f.write(QJsonDocument(pinpoint::analysis::savePhaseGrid(g, 1234, 5678)).toJson(QJsonDocument::Compact));
+            if (staleDoc) { QFile d(dir + QStringLiteral("/swing.ppsw")); if (d.open(QIODevice::WriteOnly)) d.write("x"); }
+            return true;
+        };
+        QVERIFY(QDir().mkpath(cur));
+        for (int k = 1; k <= 8; ++k) QVERIFY(writeGrid(sib, k, 6 + k, k == 1));     // shots 7..14 of the fit's line
+        for (int k = 1; k <= 8; ++k) QVERIFY(writeGrid(other, k, k, false));        // another date: never pooled
+
+        // a shot read from its sidecar agrees with the same shot read from the snapshot
+        {
+            QFile f(sib + QStringLiteral("/swing_0003/swing_phasegrid.json"));
+            QVERIFY(f.open(QIODevice::ReadOnly));
+            bool ok = false;
+            const DeliveryShotInput a = deliveryInputFromPhaseGrid(QJsonDocument::fromJson(f.readAll()).object(), QStringLiteral("x"), &ok);
+            const DeliveryShotInput b = deliveryInputFromShot(*makeShot(9));
+            QVERIFY(ok);
+            for (int p = 0; p < kDeliveryPositions; ++p) {
+                QCOMPARE(a.plane[size_t(p)], b.plane[size_t(p)]);
+                QCOMPARE(a.hands[size_t(p)], b.hands[size_t(p)]);
+            }
+            QCOMPARE(a.steepening, b.steepening);
+            QCOMPARE(a.shoulderPlane, b.shoulderPlane);
+            QCOMPARE(a.lmPath, b.lmPath);
+            QCOMPARE(a.lmAttack, b.lmAttack);
+            QCOMPARE(a.planeSigma, b.planeSigma);
+            QCOMPARE(a.session, QStringLiteral("2026-10-20_Golfer_Wrist_02"));
+        }
+
+        // this session: shots 1..6 (too few alone)
+        auto snap = std::make_shared<SessionSnapshot>();
+        snap->sessionDir = cur;
+        for (int i = 1; i <= 6; ++i) {
+            auto s = makeShot(i);
+            s->swingDir = cur + QStringLiteral("/swing_%1").arg(i, 4, 10, QLatin1Char('0'));
+            snap->shots.push_back(s);
+        }
+        ChartsDeliveryPresenter p;
+        p.setSynchronous(true);
+        p.setSnapshot(snap);
+        p.setPickedSwingDir(snap->shots[5]->swingDir);
+        const QVariantMap flight = p.thisShot().value(QStringLiteral("flight")).toMap();
+        const QVariantMap fit = flight.value(QStringLiteral("fit")).toMap();
+        QCOMPARE(fit.value(QStringLiteral("n")).toInt(), 14);
+        QVERIFY(fit.value(QStringLiteral("holds")).toBool());
+        QCOMPARE(flight.value(QStringLiteral("text")).toString(),
+                 QStringLiteral("On your 14 shots with the monitor on 20 Oct (2 sessions), each degree steeper at P6 moves your path 0.9° left."));
+        const QVariantMap pool = flight.value(QStringLiteral("pool")).toMap();
+        QCOMPARE(pool.value(QStringLiteral("date")).toString(), QStringLiteral("2026-10-20"));
+        QCOMPARE(pool.value(QStringLiteral("sessions")).toInt(), 2);
+        QCOMPARE(pool.value(QStringLiteral("shots")).toInt(), 14);
+        QCOMPARE(pool.value(QStringLiteral("otherShots")).toInt(), 8);
+        QCOMPARE(pool.value(QStringLiteral("staleGrids")).toInt(), 1);
+        const QVariantList pts = flight.value(QStringLiteral("scatter")).toMap().value(QStringLiteral("points")).toList();
+        QCOMPARE(pts.size(), 14);
+        int mine = 0, theirs = 0, picked = 0;
+        for (const QVariant &v : pts) {
+            const QVariantMap m = v.toMap();
+            QVERIFY(!m.value(QStringLiteral("session")).toString().startsWith(QStringLiteral("2026-10-21")));
+            if (m.value(QStringLiteral("thisSession")).toBool()) ++mine;
+            else { ++theirs; QCOMPARE(m.value(QStringLiteral("session")).toString(), QStringLiteral("2026-10-20_Golfer_Wrist_02")); }
+            if (m.value(QStringLiteral("picked")).toBool()) { ++picked; QVERIFY(m.value(QStringLiteral("thisSession")).toBool()); }
+        }
+        QCOMPARE(mine, 6);
+        QCOMPARE(theirs, 8);
+        QCOMPARE(picked, 1);
+        // the session view's flight is the same pool; its band stays the session's
+        const QVariantMap s = p.session();
+        QCOMPARE(s.value(QStringLiteral("flight")).toMap().value(QStringLiteral("fit")).toMap().value(QStringLiteral("n")).toInt(), 14);
+        QCOMPARE(s.value(QStringLiteral("headText")).toString(),
+                 QStringLiteral("Your path follows your plane: steeper at P6 by a degree, 0.9° further left (14 shots on 20 Oct, 2 sessions)."));
+        QCOMPARE(s.value(QStringLiteral("band")).toMap().value(QStringLiteral("n")).toInt(), 6);
+        // the report's page pools the same day
+        QCOMPARE(deliverySessionReportPayload(*snap).value(QStringLiteral("flight")).toMap().value(QStringLiteral("fit")).toMap()
+                     .value(QStringLiteral("n")).toInt(), 14);
+
+        // cached per day: a sidecar gone from inside a swing folder is not re-read while the day's folders stand …
+        QVERIFY(QFile::remove(sib + QStringLiteral("/swing_0002/swing_phasegrid.json")));
+        p.setPickedSwingDir(snap->shots[0]->swingDir);
+        QCOMPARE(p.thisShot().value(QStringLiteral("flight")).toMap().value(QStringLiteral("fit")).toMap().value(QStringLiteral("n")).toInt(), 14);
+        // … and a new session folder on the day re-reads it
+        QVERIFY(QDir().mkpath(golfer + QStringLiteral("/2026-10-20_Golfer_Wrist_03")));
+        p.setPickedSwingDir(snap->shots[1]->swingDir);
+        QCOMPARE(p.thisShot().value(QStringLiteral("flight")).toMap().value(QStringLiteral("fit")).toMap().value(QStringLiteral("n")).toInt(), 13);
     }
 
     // The asynchronous path: one coalesced job, delivered by a queued call.

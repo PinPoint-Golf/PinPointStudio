@@ -23,9 +23,17 @@
 #include "session_delivery.h"
 #include "session_series_model.h"
 
+#include "../../Core/pp_debug.h"
+
 #include <QCoreApplication>
 #include <QDeadlineTimer>
+#include <QDate>
 #include <QDir>
+#include <QElapsedTimer>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMetaObject>
 #include <QMutex>
 #include <QMutexLocker>
@@ -42,6 +50,13 @@ namespace pinpoint::charts::deliveryview {
 struct CacheEntry {
     std::weak_ptr<const ShotSeries> shot;
     DeliveryShotInput in;
+};
+
+// The golfer's day beyond this session (session_delivery.h decision 13): its other sessions' shots, read off their
+// swing_phasegrid.json files, keyed by the session folder and stamped by the day's sibling folders and their mtimes.
+struct DayEntry {
+    QString stamp;
+    DeliveryDay day;           // `sessions` counts the OTHER sessions with a reading; the job adds this one
 };
 
 } // namespace pinpoint::charts::deliveryview
@@ -63,6 +78,7 @@ struct ChartsDeliveryPresenter::Result {
 struct ChartsDeliveryPresenter::Worker {
     QMutex mutex;                                      // held for a whole job
     QHash<const ShotSeries *, CacheEntry> cache;
+    QHash<QString, DayEntry> days;                     // by the cleaned session folder
 };
 
 namespace {
@@ -152,6 +168,110 @@ std::shared_ptr<ShotSeries> deliveryShotFromDetail(const QVariantMap &d, const Q
     return sh;
 }
 
+// ── the golfer's day ────────────────────────────────────────────────────────────────────────
+
+// The session folder the snapshot is (its own, else its first shot's parent, else the picked shot's).
+QString sessionDirOf(const SessionSnapshot &snap, const QString &picked)
+{
+    if (!snap.sessionDir.trimmed().isEmpty()) return cleanDir(snap.sessionDir);
+    if (!snap.shots.empty() && !snap.shots.front()->swingDir.isEmpty()) return cleanDir(QFileInfo(snap.shots.front()->swingDir).absolutePath());
+    return picked.isEmpty() ? QString() : cleanDir(QFileInfo(picked).absolutePath());
+}
+
+// The day's sibling session folders: under the golfer folder, the same "yyyy-MM-dd" prefix, not this one.
+QStringList daySiblings(const QString &sessionDir, QString *date)
+{
+    const QFileInfo fi(sessionDir);
+    const QString name = fi.fileName();
+    const QString d = name.left(10);
+    if (date) *date = QDate::fromString(d, QStringLiteral("yyyy-MM-dd")).isValid() ? d : QString();
+    if (!date || date->isEmpty()) return {};
+    QStringList out;
+    const QDir golfer(fi.absolutePath());
+    for (const QString &n : golfer.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name))
+        if (n != name && n.startsWith(d)) out << golfer.filePath(n);
+    return out;
+}
+
+QString dayStamp(const QStringList &siblings)
+{
+    QStringList parts;
+    for (const QString &s : siblings) parts << QStringLiteral("%1@%2").arg(QFileInfo(s).fileName()).arg(QFileInfo(s).lastModified().toMSecsSinceEpoch());
+    return parts.join(QLatin1Char('|'));
+}
+
+// Read the siblings' sidecars — never a swing document (a 28 MB parse froze the GUI once): each swing's
+// swing_phasegrid.json, its staleness judged by a stat of the document beside it.
+DeliveryDay readDay(const QStringList &siblings, const QString &date)
+{
+    DeliveryDay day;
+    day.date = date;
+    day.sessions = 0;
+    QElapsedTimer t;
+    t.start();
+    int files = 0, unread = 0;
+    for (const QString &sd : siblings) {
+        const QDir dir(sd);
+        bool any = false;
+        for (const QString &sw : dir.entryList({ QStringLiteral("swing_*") }, QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+            const QString swingDir = dir.filePath(sw);
+            QFile f(QDir(swingDir).filePath(QStringLiteral("swing_phasegrid.json")));
+            if (!f.open(QIODevice::ReadOnly)) continue;
+            ++files;
+            const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+            bool ok = false;
+            DeliveryShotInput in = deliveryInputFromPhaseGrid(root, swingDir, &ok);
+            if (!ok) { ++unread; continue; }
+            if (!in.hasPlane() && !in.hasMonitor()) continue;
+            in.session = QFileInfo(sd).fileName();
+            in.thisSession = false;
+            if (in.ordinal <= 0) in.ordinal = SessionSeriesModel::folderShotId(swingDir);
+            in.shotId = SessionSeriesModel::folderShotId(swingDir);
+            const QJsonObject src = root.value(QStringLiteral("source")).toObject();
+            for (const QString &doc : { QStringLiteral("swing.ppsw"), QStringLiteral("swing.json") }) {
+                const QFileInfo di(QDir(swingDir).filePath(doc));
+                if (!di.exists()) continue;
+                if (di.size() != src.value(QStringLiteral("size")).toVariant().toLongLong()
+                    || di.lastModified().toMSecsSinceEpoch() != src.value(QStringLiteral("mtime_ms")).toVariant().toLongLong())
+                    ++day.staleGrids;
+                break;
+            }
+            day.others.push_back(std::move(in));
+            any = true;
+        }
+        if (any) ++day.sessions;
+    }
+    ppInfo() << "[Charts] delivery day" << date << ":" << siblings.size() << "other sessions," << files << "phase grids,"
+             << day.others.size() << "shots read," << unread << "of another schema," << day.staleGrids << "older than their swing,"
+             << t.elapsed() << "ms";
+    return day;
+}
+
+// The day, through the worker's cache: re-read only when the day's sibling folders change.
+DeliveryDay dayOf(ChartsDeliveryPresenter::Worker *w, const QString &sessionDir)
+{
+    QString date;
+    const QStringList siblings = sessionDir.isEmpty() ? QStringList{} : daySiblings(sessionDir, &date);
+    DeliveryDay day;
+    day.sessions = 0;   // the other sessions with a reading; this one is added below
+    if (!siblings.isEmpty()) {
+        const QString stamp = dayStamp(siblings);
+        if (w) {
+            auto it = w->days.find(sessionDir);
+            if (it == w->days.end() || it->stamp != stamp) {
+                if (w->days.size() > 8) w->days.clear();
+                it = w->days.insert(sessionDir, DayEntry{ stamp, readDay(siblings, date) });
+            }
+            day = it->day;
+        } else {
+            day = readDay(siblings, date);
+        }
+    }
+    day.date = date;
+    day.sessions += 1;   // this session
+    return day;
+}
+
 // ── the job's context ───────────────────────────────────────────────────────────────────────
 
 struct Ctx {
@@ -167,6 +287,7 @@ struct Ctx {
     bool hasPick = false;
     DeliveryShotView view;
     DeliverySessionView sess;
+    DeliveryDay day;                             // the golfer's other sessions on this date (decision 13)
     std::array<qint64, kPos> pUs{};
 };
 
@@ -187,7 +308,7 @@ QVariantMap fitMap(const DeliveryFit &f)
              { QStringLiteral("holds"), f.holds }, { QStringLiteral("verdict"), f.verdict }, { QStringLiteral("why"), f.why } };
 }
 
-// The scatter: the fit's own points (the session's shots with both readings), the picked one marked.
+// The scatter: the fit's own points (the day's shots with both readings, this session's marked), the picked one ringed.
 QVariantMap scatterMap(const DeliveryFit &f, const std::vector<DeliveryShotInput> &inputs, const DeliveryShotInput *pick)
 {
     QVariantList pts;
@@ -200,6 +321,7 @@ QVariantMap scatterMap(const DeliveryFit &f, const std::vector<DeliveryShotInput
         span(xl, xh, x); span(yl, yh, y);
         pts.append(QVariantMap{ { QStringLiteral("ordinal"), s.ordinal }, { QStringLiteral("swingDir"), s.swingDir },
                                 { QStringLiteral("x"), x }, { QStringLiteral("y"), y },
+                                { QStringLiteral("thisSession"), s.thisSession }, { QStringLiteral("session"), s.session },
                                 { QStringLiteral("picked"), !pickDir.isEmpty() && cleanDir(s.swingDir) == pickDir } });
     }
     QVariant picked = nullv();
@@ -219,10 +341,16 @@ QVariantMap scatterMap(const DeliveryFit &f, const std::vector<DeliveryShotInput
 
 QVariantMap flightMap(bool available, const QString &text, const QString &attackText, const QString &thisLine,
                       const DeliveryFits &fits, const DeliveryPlace &place,
-                      const std::vector<DeliveryShotInput> &inputs, const DeliveryShotInput *pick)
+                      const std::vector<DeliveryShotInput> &inputs, const DeliveryDay &day, const DeliveryShotInput *pick)
 {
     const DeliveryFit &f = fits.path();
+    const std::vector<DeliveryShotInput> pool = deliveryPool(inputs, &day);
     return { { QStringLiteral("available"), available }, { QStringLiteral("text"), text },
+             { QStringLiteral("pool"), QVariantMap{ { QStringLiteral("date"), day.date }, { QStringLiteral("sessions"), day.sessions },
+                                                    { QStringLiteral("shots"), int(pool.size()) },
+                                                    { QStringLiteral("otherShots"), int(day.others.size()) },
+                                                    { QStringLiteral("words"), deliveryPoolWords(&day) },
+                                                    { QStringLiteral("staleGrids"), day.staleGrids } } },
              { QStringLiteral("attackText"), attackText }, { QStringLiteral("thisLine"), thisLine },
              { QStringLiteral("fit"), fitMap(f) }, { QStringLiteral("attack"), fitMap(fits.attackP6) },
              { QStringLiteral("fits"), QVariantMap{ { QStringLiteral("pathP6"), fitMap(fits.pathP6) },
@@ -230,7 +358,7 @@ QVariantMap flightMap(bool available, const QString &text, const QString &attack
                                                     { QStringLiteral("attackP6"), fitMap(fits.attackP6) } } },
              { QStringLiteral("place"), QVariantMap{ { QStringLiteral("known"), place.known }, { QStringLiteral("third"), place.third },
                                                      { QStringLiteral("words"), place.words } } },
-             { QStringLiteral("scatter"), scatterMap(f, inputs, pick) } };
+             { QStringLiteral("scatter"), scatterMap(f, pool, pick) } };
 }
 
 QVariantMap shapeMap(const DeliveryShape &s)
@@ -373,7 +501,7 @@ void buildThisShot(Ctx &c, ChartsDeliveryPresenter::Result &R)
     out.insert(QStringLiteral("story"), storyMap(v.story, c.pick, c.pUs));
     out.insert(QStringLiteral("slot"), slotMap(v.slot));
     out.insert(QStringLiteral("flight"), flightMap(v.flightAvailable, v.flightText, v.attackText, v.thisLine, v.fits, v.place,
-                                                   c.inputs, &c.pick));
+                                                   c.inputs, c.day, &c.pick));
     out.insert(QStringLiteral("impact"), impactMap(v.impact));
     out.insert(QStringLiteral("shape"), shapeMap(v.shape));
     out.insert(QStringLiteral("trust"), trustMap(v.trust));
@@ -386,8 +514,8 @@ void buildThisShot(Ctx &c, ChartsDeliveryPresenter::Result &R)
 }
 
 // The session map (Charts' Session, and the report's page with no picked shot).
-QVariantMap sessionMapOf(const std::vector<DeliveryShotInput> &inputs, const DeliverySessionView &sv, int pickedIndex,
-                         const DeliveryShotInput *pick, const QString &noun = QStringLiteral("shots"))
+QVariantMap sessionMapOf(const std::vector<DeliveryShotInput> &inputs, const DeliverySessionView &sv, const DeliveryDay &day,
+                         int pickedIndex, const DeliveryShotInput *pick, const QString &noun = QStringLiteral("shots"))
 {
     QVariantMap out;
     const int n = int(inputs.size());
@@ -433,7 +561,7 @@ QVariantMap sessionMapOf(const std::vector<DeliveryShotInput> &inputs, const Del
         { QStringLiteral("steepeningText"), W::figSigned(sv.usual.steepening, QStringLiteral("°")) } });
     DeliveryPlace none;
     out.insert(QStringLiteral("flight"), flightMap(sv.fits.path().n > 0, sv.flightText, sv.attackText, QString(), sv.fits, none,
-                                                   inputs, pick));
+                                                   inputs, day, pick));
     QVariantList marks;
     for (size_t i = 0; i < inputs.size() && i < sv.shapes.size(); ++i) {
         const DeliveryShape &sh = sv.shapes[i];
@@ -555,13 +683,14 @@ static std::shared_ptr<ChartsDeliveryPresenter::Result> computeDelivery(ChartsDe
     }
     c.hasPick = c.shot && hasDelivery(c.pick);
 
-    c.sess = deliverySession(c.inputs);
-    if (c.shot) c.view = deliveryShot(c.pick, c.inputs);
+    c.day = dayOf(&w, sessionDirOf(*c.snap, want));
+    c.sess = deliverySession(c.inputs, QStringLiteral("shots"), &c.day);
+    if (c.shot) c.view = deliveryShot(c.pick, c.inputs, &c.day);
     c.pUs = positionUs(c.shot.get());
 
     R->available = c.ready > 0 || c.hasPick;
     buildThisShot(c, *R);
-    R->session = sessionMapOf(c.inputs, c.sess, c.index, c.shot ? &c.pick : nullptr);
+    R->session = sessionMapOf(c.inputs, c.sess, c.day, c.index, c.shot ? &c.pick : nullptr);
     R->plotLayers = plotLayersOf(c);
     buildChoices(c, *R);
     return R;
@@ -571,8 +700,9 @@ QVariantMap deliverySessionReportPayload(const SessionSnapshot &snapshot, const 
 {
     const QString many = noun.trimmed().isEmpty() ? QStringLiteral("shots") : noun.trimmed();
     const std::vector<DeliveryShotInput> inputs = readInputs(nullptr, snapshot);
-    const DeliverySessionView sv = deliverySession(inputs, many);
-    return sessionMapOf(inputs, sv, -1, nullptr, many);
+    const DeliveryDay day = dayOf(nullptr, sessionDirOf(snapshot, QString()));
+    const DeliverySessionView sv = deliverySession(inputs, many, &day);
+    return sessionMapOf(inputs, sv, day, -1, nullptr, many);
 }
 
 // ── the object ──────────────────────────────────────────────────────────────────────────────

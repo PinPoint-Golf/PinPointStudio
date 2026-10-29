@@ -27,7 +27,9 @@
 //   · lie → face on a 7-iron (Nick, the monitor's lie and loft), a driver (the lie barely matters) and the camera's
 //     fallback (shaftLie P1 → P7, the club's factory loft);
 //   · the monitor first: a shot with lm.attackAngle says the monitor's; one without says the camera's;
-//   · the hands' stretches of the curve (decision 5) and the sampler on a synthetic shot.
+//   · the hands' stretches of the curve (decision 5) and the sampler on a synthetic shot;
+//   · the golfer's day (decision 13): Jess's 20 Oct, split over her three sessions as in the library, reproduces her
+//     n 16 fit and is shown; Nick's day is refused; Mark's 5 Oct (one session) keeps the session's words.
 
 #include "charts/session_delivery.h"
 #include "charts/session_series_types.h"
@@ -66,6 +68,7 @@ std::vector<Row> loadRows()
         row.swing = r.value(QStringLiteral("swing")).toString();
         DeliveryShotInput &in = row.in;
         in.swingDir = row.session + QLatin1Char('/') + row.swing;
+        in.session = row.session;
         in.shotId = row.swing.mid(6).toInt();
         in.club = r.value(QStringLiteral("club")).toString();
         in.nominalLoft = deliveryNominalLoft(in.club);
@@ -416,6 +419,80 @@ private slots:
         QCOMPARE(int(deliveryHandsSpans(t, c, valid, t, h, {}, -280.0).size()), 0);
         // nothing before P1 (address: the shaft carries it)
         QCOMPARE(int(deliveryHandsSpans(t, c, {}, t, h, {}, -210.0).size()), 0);
+    }
+
+    // Decision 13: the fits pool the golfer's day — this session, plus the day's other sessions.
+    void dayPool()
+    {
+        // `current`: this session's shots; the day's others, as the presenter reads them (thisSession false)
+        const auto split = [&](const std::vector<DeliveryShotInput> &all, const QString &current, std::vector<DeliveryShotInput> &shots,
+                               DeliveryDay &day) {
+            QStringList sessions;
+            for (const DeliveryShotInput &s : all) {
+                if (!sessions.contains(s.session)) sessions << s.session;
+                if (s.session == current) { shots.push_back(s); shots.back().ordinal = int(shots.size()); }
+                else { day.others.push_back(s); day.others.back().thisSession = false; }
+            }
+            day.date = current.left(10);
+            day.sessions = int(sessions.size());
+        };
+        // Jess: Wrist_01 alone has 7 monitor shots with the plane — too few; her day has 16, and the fit is §2.2's
+        std::vector<DeliveryShotInput> jess;
+        DeliveryDay jessDay;
+        split(m_jess, QStringLiteral("2026-10-20_Jess-Ratcliffe_Wrist_01"), jess, jessDay);
+        QCOMPARE(jessDay.sessions, 3);
+        QCOMPARE(int(jess.size()), 9);
+        QCOMPARE(int(jessDay.others.size()), 14);
+        QCOMPARE(deliveryFits(jess).pathP6.n, 7);
+        QCOMPARE(deliveryFits(jess).pathP6.verdict, QStringLiteral("tooFew"));
+        const DeliveryFits jf = deliveryFits(deliveryPool(jess, &jessDay));
+        QCOMPARE(jf.pathP6.n, 16);
+        QCOMPARE(dp2(jf.pathP6.slope), -59);
+        QCOMPARE(dp2(jf.pathP6.r), -63);
+        QVERIFY(jf.pathP6.holds);
+        QCOMPARE(deliveryPoolWords(&jessDay), QStringLiteral("on 20 Oct (3 sessions)"));
+        const DeliverySessionView js = deliverySession(jess, QStringLiteral("shots"), &jessDay);
+        QCOMPARE(js.flightText, QStringLiteral("On your 16 shots with the monitor on 20 Oct (3 sessions), each degree steeper at P6 moves "
+                                               "your path 0.6° left."));
+        QCOMPARE(js.head, QStringLiteral("Your path follows your plane: steeper at P6 by a degree, 0.6° further left (16 shots on 20 Oct, "
+                                         "3 sessions)."));
+        QCOMPARE(js.shots, 9);   // the band, the usual and the shapes stay the session's
+        const DeliveryShotView jv = deliveryShot(jess.front(), jess, &jessDay);
+        QCOMPARE(jv.poolShots, 23);
+        QVERIFY(jv.flightText.startsWith(QStringLiteral("On your 16 shots with the monitor on 20 Oct (3 sessions)")));
+        QVERIFY(jv.trust.lines.join(QLatin1Char('\n')).contains(QStringLiteral("The fits pool your day, on 20 Oct (3 sessions)")));
+        // the same session alone says so in the session's words
+        QCOMPARE(deliverySession(jess).flightText,
+                 QStringLiteral("12 shots with the monitor are needed to see how your path follows your plane; this session has 7."));
+
+        // Nick: his day (Wrist_03 with 01 and 02) is §2.2's 17 shots, refused
+        std::vector<DeliveryShotInput> nick;
+        DeliveryDay nickDay;
+        split(m_nick, QStringLiteral("2026-10-20_Nick-Henn_Wrist_03"), nick, nickDay);
+        const DeliveryFits nf = deliveryFits(deliveryPool(nick, &nickDay));
+        QCOMPARE(nf.pathP6.n, 17);
+        QCOMPARE(dp2(nf.pathP6.slope), -33);
+        QCOMPARE(dp2(nf.pathP6.r), -22);
+        QVERIFY(!nf.pathP6.holds);
+        QCOMPARE(deliverySession(nick, QStringLiteral("shots"), &nickDay).head,
+                 QStringLiteral("On your 17 shots on 20 Oct (3 sessions) your path doesn't follow your plane (r −0.22) — the cause is elsewhere."));
+        // too few over a day: Nick's Wrist_02 with Wrist_01 (no monitor) — 7 shots
+        std::vector<DeliveryShotInput> n2;
+        DeliveryDay n2Day;
+        std::vector<DeliveryShotInput> n12;
+        for (const DeliveryShotInput &s : m_nick) if (!s.session.endsWith(QLatin1String("_03"))) n12.push_back(s);
+        split(n12, QStringLiteral("2026-10-20_Nick-Henn_Wrist_02"), n2, n2Day);
+        QCOMPARE(deliveryFitSentence(deliveryFits(deliveryPool(n2, &n2Day)).path(), QStringLiteral("shots"), deliveryPoolWords(&n2Day)),
+                 QStringLiteral("12 shots with the monitor are needed to see how your path follows your plane; you have 7 on 20 Oct (2 sessions)."));
+
+        // Mark 5 Oct is one session: a day of one keeps the session's wording and numbers
+        DeliveryDay one;
+        one.date = QStringLiteral("2026-10-05");
+        QCOMPARE(deliveryPoolWords(&one), QString());
+        const DeliverySessionView mk = deliverySession(m_mark, QStringLiteral("shots"), &one);
+        QCOMPARE(mk.fits.pathP6.n, 28);
+        QCOMPARE(dp2(mk.fits.pathP6.slope), -92);
+        QCOMPARE(mk.head, QStringLiteral("Your path follows your plane: steeper at P6 by a degree, 0.9° further left (28 shots)."));
     }
 
     // deliveryInputFromShot through the sampler: a flat curve about each position reads its value; the monitor's and the

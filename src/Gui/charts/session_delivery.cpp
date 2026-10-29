@@ -23,7 +23,10 @@
 
 #include <QHash>
 #include <QJsonArray>
+#include <QFileInfo>
 #include <QJsonObject>
+#include <QLocale>
+#include <QDate>
 #include <QRegularExpression>
 
 #include <algorithm>
@@ -237,12 +240,8 @@ std::vector<DeliverySpan> deliveryHandsSpans(const std::vector<double> &tMs, con
     return out;
 }
 
-DeliveryShotInput deliveryInputFromShot(const ShotSeries &shot)
+pa::SwingPhaseGrid deliveryPhaseGridOf(const ShotSeries &shot)
 {
-    DeliveryShotInput in;
-    in.ordinal = shot.ordinal; in.shotId = shot.shotId; in.swingDir = shot.swingDir; in.club = shot.club;
-    in.nominalLoft = deliveryNominalLoft(shot.club);
-
     // The shot's series for the keys, as the analysis block spells them, so the ONE sampler (buildPhaseGrid)
     // reads them exactly as it reads swing.json; a non-finite curve value goes over as a bridged sample.
     QJsonArray phases, metrics;
@@ -271,11 +270,25 @@ DeliveryShotInput deliveryInputFromShot(const ShotSeries &shot)
         QJsonObject mo{ { QStringLiteral("key"), k }, { QStringLiteral("unit"), m->unit },
                         { QStringLiteral("t_us"), t }, { QStringLiteral("value"), v }, { QStringLiteral("phaseSamples"), samples } };
         if (anyInvalid) mo.insert(QStringLiteral("valid"), valid);
+        if (fin(m->sigma) && m->sigma > 0.0) {
+            mo.insert(QStringLiteral("sigma"), m->sigma);
+            if (m->sigmaKind >= 0) mo.insert(QStringLiteral("sigmaKind"), m->sigmaKind);
+        }
         metrics.append(mo);
     }
-    const pa::SwingPhaseGrid grid = pa::buildPhaseGrid(
+    pa::SwingPhaseGrid grid = pa::buildPhaseGrid(
         QJsonObject{ { QStringLiteral("phases"), phases }, { QStringLiteral("metrics"), metrics } }, pa::PhaseGridConfig{});
+    grid.swingDir = shot.swingDir;
+    grid.club = shot.club;
+    grid.ordinal = shot.ordinal;
+    return grid;
+}
 
+DeliveryShotInput deliveryInputFromGrid(const pa::SwingPhaseGrid &grid)
+{
+    DeliveryShotInput in;
+    in.ordinal = grid.ordinal; in.swingDir = grid.swingDir; in.club = grid.club; in.session = grid.sessionId;
+    in.nominalLoft = deliveryNominalLoft(grid.club);
     const auto at = [&](const QString &key, int phase) {
         const pa::MetricPhaseGrid *g = grid.metric(key);
         const pa::PhaseGridValue *v = g ? g->at(static_cast<pa::Phase>(phase)) : nullptr;
@@ -293,10 +306,8 @@ DeliveryShotInput deliveryInputFromShot(const ShotSeries &shot)
         const int ph = deliveryPhaseIds()[size_t(p)];
         in.plane[size_t(p)] = at(QStringLiteral("swingPlaneCurve"), ph);
         in.hands[size_t(p)] = at(QStringLiteral("handPlaneCurve"), ph);
-        for (const PhaseMark &pm : shot.phases)
-            if (pm.phase == ph) { in.posMs[size_t(p)] = double(pm.tUs - (shot.impactUs >= 0 ? shot.impactUs : 0)) / 1000.0; break; }
     }
-    if (const MetricSeries *m = shot.metric(QStringLiteral("swingPlaneCurve"))) in.planeSigma = m->sigma;
+    if (const pa::MetricPhaseGrid *g = grid.metric(QStringLiteral("swingPlaneCurve"))) in.planeSigma = g->seriesSigma;
     in.steepening    = instant(QStringLiteral("handPlaneSteepening"), pa::Phase::Top);
     in.shoulderPlane = instant(QStringLiteral("shoulderPlane"), pa::Phase::Address);
     in.lieP1         = at(QStringLiteral("shaftLie"), int(pa::Phase::Address));
@@ -312,6 +323,35 @@ DeliveryShotInput deliveryInputFromShot(const ShotSeries &shot)
     in.lmLoft        = instant(QStringLiteral("lm.dynamicLoft"), pa::Phase::Impact);
     in.lmLie         = instant(QStringLiteral("lm.lieAngle"), pa::Phase::Impact);
     in.lmLowPoint    = instant(QStringLiteral("lm.lowPointAhead"), pa::Phase::Impact);
+    return in;
+}
+
+DeliveryShotInput deliveryInputFromPhaseGrid(const QJsonObject &root, const QString &swingDir, bool *read)
+{
+    // THE SIDECAR'S OWN LOADER (loadPhaseGrid), handed the sidecar's own guard: the guard against the swing document is
+    // the caller's to state (it stats the document, never opens it); a sidecar of another schema or reduction reads
+    // as nothing, never as a number.
+    const QJsonObject src = root.value(QStringLiteral("source")).toObject();
+    pa::PhaseGridConfig cfg;
+    bool ok = false;
+    pa::SwingPhaseGrid grid = pa::loadPhaseGrid(root, src.value(QStringLiteral("size")).toVariant().toLongLong(),
+                                                src.value(QStringLiteral("mtime_ms")).toVariant().toLongLong(), &ok, cfg);
+    if (read) *read = ok;
+    if (!ok) { DeliveryShotInput none; none.swingDir = swingDir; return none; }
+    grid.swingDir = swingDir;
+    DeliveryShotInput in = deliveryInputFromGrid(grid);
+    in.shotId = in.ordinal;
+    return in;
+}
+
+DeliveryShotInput deliveryInputFromShot(const ShotSeries &shot)
+{
+    DeliveryShotInput in = deliveryInputFromGrid(deliveryPhaseGridOf(shot));
+    in.ordinal = shot.ordinal; in.shotId = shot.shotId; in.swingDir = shot.swingDir;
+    in.session = shot.swingDir.trimmed().isEmpty() ? QString() : QFileInfo(QFileInfo(shot.swingDir).absolutePath()).fileName();
+    for (int p = 0; p < kDeliveryPositions; ++p)
+        for (const PhaseMark &pm : shot.phases)
+            if (pm.phase == deliveryPhaseIds()[size_t(p)]) { in.posMs[size_t(p)] = double(pm.tUs - (shot.impactUs >= 0 ? shot.impactUs : 0)) / 1000.0; break; }
 
     // The curve as drawn, and where the hands carry it (decision 5).
     std::vector<double> ct, cv, ht, hv;
@@ -505,20 +545,42 @@ DeliveryFits deliveryFits(const std::vector<DeliveryShotInput> &shots)
     return f;
 }
 
-QString deliveryFitSentence(const DeliveryFit &f, const QString &noun)
+QString deliveryFitSentence(const DeliveryFit &f, const QString &noun, const QString &pool)
 {
+    const QString on = pool.isEmpty() ? QString() : QStringLiteral(" ") + pool;
     if (f.verdict == QLatin1String("none") || f.n == 0)
-        return QStringLiteral("No %1 in this session has both the monitor's path and the plane.").arg(one(noun));
+        return pool.isEmpty() ? QStringLiteral("No %1 in this session has both the monitor's path and the plane.").arg(one(noun))
+                              : QStringLiteral("No %1 %2 has both the monitor's path and the plane.").arg(one(noun), pool);
     if (f.verdict == QLatin1String("tooFew"))
-        return QStringLiteral("%1 %2 with the monitor are needed to see how your path follows your plane; this session has %3.")
-            .arg(kDeliveryFitMinShots).arg(noun).arg(f.n);
+        return QStringLiteral("%1 %2 with the monitor are needed to see how your path follows your plane; %3.")
+            .arg(kDeliveryFitMinShots).arg(noun, pool.isEmpty() ? QStringLiteral("this session has %1").arg(f.n)
+                                                                : QStringLiteral("you have %1 %2").arg(f.n).arg(pool));
     if (!f.holds)
-        return QStringLiteral("On your %1 %2 your path doesn't follow %3 (r %4) — the cause is elsewhere.")
-            .arg(f.n).arg(noun, xNoun(f.x), W::fig(f.r, 2));
+        return QStringLiteral("On your %1 %2%3 your path doesn't follow %4 (r %5) — the cause is elsewhere.")
+            .arg(f.n).arg(noun, on, xNoun(f.x), W::fig(f.r, 2));
     const QString per = f.x == DeliveryX::Steepening ? QStringLiteral("each degree more your hands steepen")
                                                      : QStringLiteral("each degree steeper at P6");
-    return QStringLiteral("On your %1 %2 with the monitor, %3 moves your path %4 %5.")
-        .arg(f.n).arg(noun, per, absDeg1(f.slope), f.slope < 0 ? QStringLiteral("left") : QStringLiteral("right"));
+    return QStringLiteral("On your %1 %2 with the monitor%3, %4 moves your path %5 %6.")
+        .arg(f.n).arg(noun, on, per, absDeg1(f.slope), f.slope < 0 ? QStringLiteral("left") : QStringLiteral("right"));
+}
+
+std::vector<DeliveryShotInput> deliveryPool(const std::vector<DeliveryShotInput> &shots, const DeliveryDay *day)
+{
+    std::vector<DeliveryShotInput> pool = shots;
+    if (day) {
+        pool.reserve(shots.size() + day->others.size());
+        for (const DeliveryShotInput &s : day->others) { pool.push_back(s); pool.back().thisSession = false; }
+    }
+    return pool;
+}
+
+QString deliveryPoolWords(const DeliveryDay *day)
+{
+    if (!day || day->sessions <= 1) return QString();
+    const QDate d = QDate::fromString(day->date, QStringLiteral("yyyy-MM-dd"));
+    const QString when = d.isValid() ? QStringLiteral("on ") + QLocale(QLocale::English).toString(d, QStringLiteral("d MMM"))
+                                     : QStringLiteral("on the day");
+    return QStringLiteral("%1 (%2 sessions)").arg(when).arg(day->sessions);
 }
 
 QString deliveryAttackSentence(const DeliveryFit &f)
@@ -780,7 +842,7 @@ DeliveryHead deliveryHead(const DeliveryShotInput &in, const std::vector<Deliver
 }
 
 DeliveryTrust deliveryTrust(const std::vector<DeliveryShotInput> &shots, const DeliveryShotInput *shot,
-                            const DeliveryFits &fits, const QString &noun)
+                            const DeliveryFits &fits, const QString &noun, const DeliveryDay *day)
 {
     DeliveryTrust t;
     const bool anyPlane = (shot && shot->hasPlane()) || std::any_of(shots.begin(), shots.end(), [](const DeliveryShotInput &s) { return s.hasPlane(); });
@@ -793,11 +855,17 @@ DeliveryTrust deliveryTrust(const std::vector<DeliveryShotInput> &shots, const D
     if (shot ? !shot->handsSpans.empty() : anyPlane)
         t.lines << QStringLiteral("Where the shaft points along the target line (P2, the top and the stretch after it) the hands carry "
                                   "the plane: the curve there is the plane through the ball line and your hands, shaded on the plot.");
+    const QString pool = deliveryPoolWords(day);
+    if (!pool.isEmpty())
+        t.lines << QStringLiteral("The fits pool your day, %1: one camera set-up, so its offset cancels; the other sessions' "
+                                  "%2 are read from their cached readings.").arg(pool, noun)
+                       + (day->staleGrids > 0 ? QStringLiteral(" %1 of them were cached before their swing was last analysed.")
+                                                    .arg(day->staleGrids) : QString());
     const auto fitLine = [&](const DeliveryFit &f, const QString &what) {
         if (f.n == 0) return;
         QString state = f.holds ? QStringLiteral("shown") : QStringLiteral("not shown: ") + f.why;
-        t.lines << QStringLiteral("%1: %2 %3, r %4%5 — yours alone, %6.")
-                       .arg(what).arg(f.n).arg(f.n == 1 ? one(noun) : noun, W::fig(f.r, 2),
+        t.lines << QStringLiteral("%1: %2 %3%4, r %5%6 — yours alone, %7.")
+                       .arg(what).arg(f.n).arg(f.n == 1 ? one(noun) : noun, pool.isEmpty() ? QString() : QStringLiteral(" ") + pool, W::fig(f.r, 2),
                             fin(f.sd) ? QStringLiteral(", scatter ±") + deliveryDeg1(f.sd) : QString(), state);
     };
     fitLine(fits.pathP6, QStringLiteral("Path against the plane at P6"));
@@ -833,7 +901,7 @@ DeliveryTrust deliveryTrust(const std::vector<DeliveryShotInput> &shots, const D
 
 // ── the views ───────────────────────────────────────────────────────────────────────────────────
 
-DeliveryShotView deliveryShot(const DeliveryShotInput &in, const std::vector<DeliveryShotInput> &shots)
+DeliveryShotView deliveryShot(const DeliveryShotInput &in, const std::vector<DeliveryShotInput> &shots, const DeliveryDay *day)
 {
     DeliveryShotView v;
     v.hasPlane = in.hasPlane();
@@ -841,12 +909,15 @@ DeliveryShotView deliveryShot(const DeliveryShotInput &in, const std::vector<Del
     v.available = v.hasPlane || v.hasMonitor;
     if (!v.available) return v;
     v.mode = !v.hasPlane ? QStringLiteral("noDtl") : !v.hasMonitor ? QStringLiteral("noMonitor") : QStringLiteral("full");
-    v.fits = deliveryFits(shots);
+    const std::vector<DeliveryShotInput> pool = deliveryPool(shots, day);
+    v.fits = deliveryFits(pool);
+    v.poolShots = int(pool.size());
+    v.poolWords = deliveryPoolWords(day);
     const DeliveryUsual usual = deliveryUsual(shots);
-    v.head = deliveryHead(in, shots, v.fits, usual);
+    v.head = deliveryHead(in, pool, v.fits, usual);
     v.shape = deliveryShotShape(in);
     v.impact = deliveryImpactLines(in);
-    v.trust = deliveryTrust(shots, &in, v.fits);
+    v.trust = deliveryTrust(shots, &in, v.fits, QStringLiteral("shots"), day);
     if (!v.hasPlane) return v;   // §4.3 rule 4: no story, no slot, no flight
 
     v.story = deliveryPlaneStory(in);
@@ -854,10 +925,10 @@ DeliveryShotView deliveryShot(const DeliveryShotInput &in, const std::vector<Del
     const DeliveryFit &f = v.fits.path();
     v.flightAvailable = f.n > 0 || in.hasPath();
     if (!v.flightAvailable) return v;
-    v.flightText = f.n > 0 ? deliveryFitSentence(f) : QString();
+    v.flightText = f.n > 0 ? deliveryFitSentence(f, QStringLiteral("shots"), v.poolWords) : QString();
     v.attackText = deliveryAttackSentence(v.fits.attackP6);
     const double x = deliveryXOf(in, f.x);
-    v.place = deliveryPlace(shots, f.x, x);
+    v.place = deliveryPlace(pool, f.x, x);
     QString xPart;
     if (fin(x))
         xPart = f.x == DeliveryX::Steepening ? QStringLiteral("hands %1 %2").arg(absDeg(x), steeperWord(x))
@@ -880,7 +951,7 @@ DeliveryShotView deliveryShot(const DeliveryShotInput &in, const std::vector<Del
     return v;
 }
 
-DeliverySessionView deliverySession(const std::vector<DeliveryShotInput> &shots, const QString &noun)
+DeliverySessionView deliverySession(const std::vector<DeliveryShotInput> &shots, const QString &noun, const DeliveryDay *day)
 {
     DeliverySessionView v;
     for (const DeliveryShotInput &s : shots) {
@@ -890,13 +961,15 @@ DeliverySessionView deliverySession(const std::vector<DeliveryShotInput> &shots,
     }
     v.available = v.shots > 0;
     if (!v.available) return v;
-    v.fits = deliveryFits(shots);
+    v.fits = deliveryFits(deliveryPool(shots, day));
+    v.poolShots = int(shots.size() + (day ? day->others.size() : 0));
+    v.poolWords = deliveryPoolWords(day);
     v.usual = deliveryUsual(shots);
     v.band = deliverySessionBand(shots);
     v.varies = deliveryVariesMost(v.band, v.fits);
     const DeliveryFit &f = v.fits.path();
     if (f.n > 0) {
-        v.flightText = deliveryFitSentence(f, noun);
+        v.flightText = deliveryFitSentence(f, noun, v.poolWords);
         v.attackText = deliveryAttackSentence(v.fits.attackP6);
     }
     std::map<QString, int> counts;
@@ -910,14 +983,16 @@ DeliverySessionView deliverySession(const std::vector<DeliveryShotInput> &shots,
         for (auto it = counts.begin(); it != counts.end(); ++it) if (it->second > best->second) best = it;
         v.shapeLine = QStringLiteral("%1 on %2 of %3 %4").arg(best->first).arg(best->second).arg(shaped).arg(shaped == 1 ? one(noun) : noun);
     }
-    // the head (§4.7)
+    // the head (§4.7): "(16 shots on 20 Oct, 3 sessions)" for a day of several
+    QString poolTail = v.poolWords;
+    if (!poolTail.isEmpty()) poolTail = QStringLiteral(" ") + poolTail.replace(QStringLiteral(" ("), QStringLiteral(", ")).remove(QLatin1Char(')'));
     if (f.holds) {
         v.head = f.x == DeliveryX::Steepening
-            ? QStringLiteral("Your path follows your hands: a degree more steepening, %1 further left (%2 %3).").arg(absDeg1(f.slope)).arg(f.n).arg(noun)
-            : QStringLiteral("Your path follows your plane: steeper at P6 by a degree, %1 further left (%2 %3).").arg(absDeg1(f.slope)).arg(f.n).arg(noun);
+            ? QStringLiteral("Your path follows your hands: a degree more steepening, %1 further left (%2 %3%4).").arg(absDeg1(f.slope)).arg(f.n).arg(noun, poolTail)
+            : QStringLiteral("Your path follows your plane: steeper at P6 by a degree, %1 further left (%2 %3%4).").arg(absDeg1(f.slope)).arg(f.n).arg(noun, poolTail);
         if (f.slope > 0) v.head.replace(QStringLiteral("further left"), QStringLiteral("further right"));
     } else if (f.n > 0) {
-        v.head = deliveryFitSentence(f, noun);
+        v.head = deliveryFitSentence(f, noun, v.poolWords);
     } else if (v.planeShots > 0) {
         QStringList parts;
         if (fin(v.usual.plane[kP1])) parts << QStringLiteral("set on %1").arg(deliveryDeg(v.usual.plane[kP1]));
@@ -931,7 +1006,7 @@ DeliverySessionView deliverySession(const std::vector<DeliveryShotInput> &shots,
     } else if (!v.shapeLine.isEmpty()) {
         v.head = v.shapeLine + QStringLiteral(".");
     }
-    v.trust = deliveryTrust(shots, nullptr, v.fits, noun);
+    v.trust = deliveryTrust(shots, nullptr, v.fits, noun, day);
     return v;
 }
 
