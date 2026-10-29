@@ -1824,6 +1824,41 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:downswing_plane_too_flat") },
     });
 
+    // The swing plane as one smooth curve: the plane through the target line and the shaft, at every
+    // instant from address to just past impact (shaft_plane_curve.h). A chart reading only — nothing
+    // in the diagnostics pack reads it; the two fitted halves (swingPlaneAngle) are what is graded.
+    cat.addDescriptor({
+        .key = QStringLiteral("swingPlaneCurve"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Swing plane curve"),
+        .shortLabel = QStringLiteral("Plane ~"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("orchid"),
+        .description = QStringLiteral(
+            "The angle to the ground of the plane through the target line and the shaft, at every "
+            "moment from address to just after impact, as one smooth curve. At address it is the "
+            "plane the club was set on; a curve that climbs going back is a club going back more "
+            "upright, one that falls coming down is a club shallowing. Read from the down-the-line "
+            "view, with the face-on view saying which frames to trust."),
+        .howToRead = QStringLiteral(
+            "Degrees above the ground; higher is more upright. Where the shaft is horizontal or "
+            "points along the target line (around P2, the top and P6) the plane cannot be seen, and "
+            "the curve is bridged smoothly from either side and drawn dashed. Compare like with "
+            "like: it is club-dependent."),
+        .signPositive = QStringLiteral("a more upright plane"),
+        .signNegative = QStringLiteral("a flatter plane"),
+        .phases = { P::ArmParallelDown },
+        .card = { .readAt = { { P::Address, QStringLiteral("ADDRESS") }, { P::MidBackswing, QStringLiteral("P3") },
+                              { P::ArmParallelDown, QStringLiteral("P5") }, { P::Impact, QStringLiteral("IMPACT") } },
+                  .peak = false, .delta = false, .rate = false, .curve = true },
+        .routes = {
+            via("dtl", RM::Triangulated, Direct, { .dtlCamera = true, .clubTrack = true },
+                QStringLiteral("the plane through the target line and the shaft is read from the "
+                               "down-the-line view; the face-on track says which frames see it")) },
+        .usedBy = { QStringLiteral("chart:review") },
+    });
+
     // The transition delta, and the reason it is a separate key from swingPlane
     // above: this is not a plane ANGLE, it is the CHANGE in one between two windows,
     // and it comes off the face-on camera rather than down-the-line. Over the top is

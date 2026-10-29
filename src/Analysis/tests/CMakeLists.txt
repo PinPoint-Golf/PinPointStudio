@@ -826,6 +826,11 @@ pp_add_test(shaft_plane_test SOURCES shaft_plane_test.cpp NO_QT)
 # the bridge but kept out of the fit. Pure std header — no Qt, no OpenCV, no fixture.
 pp_add_test(shaft_fusion_test SOURCES shaft_fusion_test.cpp NO_QT)
 
+# The swing plane curve (shaft_plane_curve.h): the plane through the target line and the shaft, as
+# one smooth, robust spline. Synthetic: the view-plane angle recovers a known plane and is mirror
+# blind; the fit bridges a hole, rejects a mirrored run and ignores ill-conditioned frames.
+pp_add_test(shaft_plane_curve_test SOURCES shaft_plane_curve_test.cpp NO_QT)
+
 # The stick-based camera pose solve (camera_pose_sticks.h; camera_calibration_design.md §4.4,
 # dtl_continuous_track_design_update.md §4 item 1): one synthetic bay, two cameras with
 # deliberate yaw/pitch/roll and ROI'd principal points, lines fitted through projected stick

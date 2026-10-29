@@ -39,6 +39,7 @@
 #include "../Club/dtl_shaft_config.h"
 #include "../Club/dtl_shaft_json.h"
 #include "../Club/shaft_fusion_json.h" // shaftFusionConfigFromOverrides (ShaftFusionStage)
+#include "../Club/shaft_plane_curve.h" // swingPlaneCurve (ShaftFusionStage)
 #include "../Club/dtl_shaft_synth3d.h" // the 3-D synthetic shaft into the DTL tile (DtlSynth3DStage)
 #include "../Body/address_marks.h" // the body's edges at hip height at address (AddressMarksStage)
 #include <opencv2/imgcodecs.hpp>  // the address-marks debug dump
@@ -2589,6 +2590,55 @@ struct ShaftFusionStage : AnalysisStage {
                 if (std::isfinite(ds)) { m.sigma = ds; m.sigmaKind = uint8_t(SigmaKind::Propagated); }
             }
             if (m.t_us.size() >= 2) ctx.seriesOut().push_back(std::move(m));
+        }
+        // swingPlaneCurve — the plane through the target line and the shaft, as one smooth curve
+        // from address to just past impact (shaft_plane_curve.h says what it is and why). Every
+        // measured down-the-line frame is an observation, conditioned by q = ρ·|u_z| with
+        // |u_z| ≈ ρ|sin θ_D| (a level camera): ρ the fused foreshortening where the frame was
+        // fused, else the tracker's own. Not the fused u_z itself — at address the face-on track
+        // coasts and that direction is poor, which bridged Nick's whole address on 29 Oct.
+        // Stretches with no well-conditioned frame are bridged and marked invalid (drawn dashed).
+        {
+            const fusion::Camera cd = fusion::dtlCamera(cfg.dtlYawDeg, cfg.dtlPitchDeg, cfg.dtlRollDeg);
+            std::vector<planecurve::Obs> obs;
+            for (const DtlSample &s : dt.samples) {
+                if (!dtlMeasured(s.tier) || !std::isfinite(s.thetaRad) || !std::isfinite(s.sigmaThetaDeg)) continue;
+                planecurve::Obs o;
+                o.t_us     = s.t_us - dt.clockOffsetUs;
+                o.inclDeg  = planecurve::viewPlaneInclDeg(cd, s.thetaRad);
+                o.sigmaDeg = planecurve::viewPlaneInclSigmaDeg(cd, s.thetaRad, s.sigmaThetaDeg);
+                const auto f = std::lower_bound(t.samples.begin(), t.samples.end(), o.t_us,
+                                                [](const fusion::Sample3D &x, int64_t tt) { return x.t_us < tt; });
+                const double rho = (f != t.samples.end() && f->t_us == o.t_us && std::isfinite(f->rhoD)) ? f->rhoD
+                                 : std::isfinite(s.rhoPred) ? s.rhoPred : 1.0;
+                o.cond = rho * rho * std::fabs(std::sin(s.thetaRad));
+                obs.push_back(o);
+            }
+            int64_t fromUs = backFromUs;
+            if (const auto ad = ctx.seg.eventFor(Phase::Address); ad && ad->t_us < topUs) fromUs = ad->t_us;
+            const planecurve::Curve pc = planecurve::fitCurve(obs, fromUs, impactUs + 40000, planecurve::Config{});
+            if (pc.fitted && pc.t_us.size() >= 2) {
+                MetricSeries m;
+                m.key   = QStringLiteral("swingPlaneCurve");
+                m.label = QStringLiteral("Swing plane curve");
+                m.unit  = QStringLiteral("°");
+                m.t_us  = pc.t_us;
+                m.value = pc.inclDeg;
+                bool anyBridged = false;
+                for (uint8_t v : pc.supported) anyBridged |= (v == 0);
+                if (anyBridged) m.valid = pc.supported;
+                std::vector<double> sup;
+                for (size_t i = 0; i < pc.sigmaDeg.size(); ++i)
+                    if (pc.supported[i] && std::isfinite(pc.sigmaDeg[i])) sup.push_back(pc.sigmaDeg[i]);
+                if (!sup.empty()) {
+                    std::nth_element(sup.begin(), sup.begin() + long(sup.size() / 2), sup.end());
+                    m.sigma = sup[sup.size() / 2];
+                    m.sigmaKind = uint8_t(SigmaKind::Propagated);
+                }
+                ctx.seriesOut().push_back(std::move(m));
+            }
+            ppInfo() << "[WristAnalysis] swing plane curve:" << pc.n << "frames," << pc.nRejected << "rejected,"
+                     << (pc.fitted ? QStringLiteral("scale %1").arg(pc.scale, 0, 'f', 2) : QStringLiteral("not fitted"));
         }
         // THE FUSION'S GATE RECORDS (trust stage 6). A half of swingPlane whose plane FITTED but
         // scattered too widely to be a plane is refused, one record per half: the downswing above

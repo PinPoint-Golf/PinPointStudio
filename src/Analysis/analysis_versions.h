@@ -87,13 +87,14 @@ constexpr int kDtlShaftStageVersion = 5;   // 2: HELD / OCCLUDED_WRIST / OCCLUDE
 //           shaft_fusion.h). Stamped; never reused — it is a few microseconds of
 //           arithmetic on two tracks that are already in hand. Bump when
 //           shaft_fusion.h changes its output.
-constexpr int kShaftFusionStageVersion = 6;   // 2: the address plane and deliveryVsAddressDeg (2026-09-21)
+constexpr int kShaftFusionStageVersion = 7;   // 2: the address plane and deliveryVsAddressDeg (2026-09-21)
                                               // 3: the backswing plane fitted from ADDRESS (not takeaway) (2026-09-29)
                                               // 4: the DTL camera's roll, offset and calibrated flag in club3d.camera (2026-10-02)
                                               // 5: §3.2a — the η(t) curve, the DTL anchor and the reflected band, each switched;
                                               //    club3d gains eta / items and the (C)/(D) summary keys (2026-10-03)
                                               // 6: per-frame direction σ, plane inclination σ by block bootstrap,
                                               //    address-plane σ (shaft uncertainty design, 2026-10-01)
+                                              // 7: the stage also publishes swingPlaneCurve (shaft_plane_curve.h) (2026-10-29)
 // skeleton3d — kSkeleton3DStageVersion: the rigid, jointed skeleton fitted to both poses, the
 //           shaft, the feet and any IMUs (Skeleton3DStage, skeleton3d/; swing_3d_viz_design.md).
 //           Stamped; never reused — recomputed from the reused poses on every re-analysis.
