@@ -25,8 +25,7 @@
 //      offered sessions and the first device warning;
 //   2. HmHomeTabs — Coaching | Your swing | Matchups; a fault opens its detail in place.
 // The golfer's sessions are the rail's Sessions (ScreenSessions), not repeated here.
-// The contour background (PpTopoBackground) stays behind the first-run onboarding only; the
-// mockup's ground under a golfer's Home is flat.
+// The contour background (PpTopoBackground) sits behind all of Home, first run and golfer alike.
 
 import QtQuick
 import QtQuick.Layouts
@@ -110,19 +109,17 @@ Item {
 
     Rectangle { anchors.fill: parent; color: Theme.colorBg }
 
-    // Ambient theme-reactive contour field over the solid background, behind the first-run
-    // onboarding only (a golfer's Home is flat ground, as the mockup draws it). Subtle by default;
-    // pauses when hidden or backgrounded; respects reduced-motion. Hover lifts the terrain under the
-    // cursor; click/tap sends a ripple.
+    // Ambient theme-reactive contour field over the solid background, behind all of Home. Subtle by
+    // default; pauses when hidden or backgrounded; respects reduced-motion. Hover lifts the terrain
+    // under the cursor; click/tap sends a ripple.
     PpTopoBackground {
         id: topo
         anchors.fill: parent
-        visible:   !root.hasGolfer
         colorLow:  Theme.gradientWarm
         colorMid:  Theme.gradientWarmLit
         colorHigh: Theme.gradientCool
         accentColor: Theme.colorAccent
-        animated:  !appSettings.reduceMotion && visible
+        animated:  !appSettings.reduceMotion
         hoverPoint: topoHover.hovered
             ? Qt.point(topoHover.point.position.x / width,
                        topoHover.point.position.y / height)
