@@ -170,6 +170,14 @@ Item {
             visible: root.kind !== "note" && !!root.rep.wrist
             ro: rr; wr: root.rep.wrist || null
         }
+        // the club delivery page (club_delivery_chart_design.md §4.8): after the Posture and Wrist pages, before the back
+        // matter; absent when the map has no `delivery` (no swing of the session reads the swing plane). Not on the cover's
+        // Inside line.
+        PpDeliveryPage {
+            width: pager.textW
+            visible: root.kind !== "note" && !!root.rep.delivery
+            ro: rr; dl: root.rep.delivery || null
+        }
         PpNumbersTable {
             width: pager.textW
             visible: root.kind !== "note" && (!!root.rep.practice || !!root.rep.numbers)

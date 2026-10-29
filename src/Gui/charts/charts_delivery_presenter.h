@@ -110,7 +110,7 @@
 //    varies: { has, tightest, loosest (tags | ""), tightHalf, looseHalf (| null), words },
 //    usual: { address, shoulders, steepening (| null), addressText, shouldersText, steepeningText },
 //    flight: FLIGHT (the day's pool, as This shot's; the picked one ringed; thisLine ""),
-//    shapes: { marks: [{ ordinal, swingDir, available, start, curve, word, picked }], line ("Pull, slight fade on 5 of 8 shots" | "") },
+//    shapes: { marks: [{ ordinal, swingDir, available, start, curve, word, fromBall, picked }], line ("Pull, slight fade on 5 of 8 shots" | "") },
 //    trust: TRUST }
 //
 //  plotLayers: { "swingPlaneCurve": [LAYER] } — the lines the trace figure draws over the swing plane curve's row, in

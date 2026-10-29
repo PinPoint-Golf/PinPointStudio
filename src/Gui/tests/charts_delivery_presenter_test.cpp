@@ -317,6 +317,7 @@ private slots:
         QCOMPARE(marks.value(QStringLiteral("marks")).toList().size(), 14);
         QVERIFY(marks.value(QStringLiteral("marks")).toList()[1].toMap().value(QStringLiteral("picked")).toBool());
         QCOMPARE(marks.value(QStringLiteral("line")).toString(), QStringLiteral("Pull, slight fade on 14 of 14 shots"));
+        QVERIFY(marks.value(QStringLiteral("marks")).toList()[1].toMap().contains(QStringLiteral("fromBall")));   // the report's grid says what it read
         const QVariantMap sc = s.value(QStringLiteral("flight")).toMap().value(QStringLiteral("scatter")).toMap();
         QCOMPARE(sc.value(QStringLiteral("points")).toList().size(), 14);
 

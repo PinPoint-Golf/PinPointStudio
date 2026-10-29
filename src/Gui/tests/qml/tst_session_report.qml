@@ -59,7 +59,9 @@ Item {
             "longest-names-and-note": 11, "note": 1, "no-launch-monitor": 10,
             "launch-monitor-appendix": 15,      // nick + the launch monitor appendix (Nick Henn's 20 Oct session 3 readings)
             "posture": 15,                      // nick + the Posture page (Nick Henn's 20 Oct session 3 posture readings; + its picture strip, stage 5)
-            "wrist": 17                         // posture + the Wrist page (Mark Liversedge's 18 Aug Wrist_02 wrist block: report_wrist.sh rich)
+            "wrist": 17,                        // posture + the Wrist page (Mark Liversedge's 18 Aug Wrist_02 wrist block: report_wrist.sh rich)
+            "delivery": 18                      // wrist + the Club delivery page (Jess Ratcliffe's 20 Oct Wrist_01 delivery block, its fit over her
+                                                // day: report_delivery.sh jess — ONE page, the trust note in two columns under the scatter)
         })
 
         function signature() { return JSON.stringify(reg.pageInfo().map(p => [Math.round(p.from), Math.round(p.to)])) }
@@ -457,6 +459,76 @@ Item {
             for (let k = 0; k < a.length; ++k) {
                 compare(b[k].length, a[k].length, "wrist page " + (pages[k] + 1) + ": items")
                 for (let i = 0; i < a[k].length; ++i) compare(b[k][i], a[k][i], "wrist page " + (pages[k] + 1) + " item " + i + " changed with the app theme")
+            }
+        }
+        // ── the Club delivery page (club_delivery_chart_design.md §4.8; report_delivery.h) ──
+        // a copy of the delivery fixture's map with its `delivery` block changed by `edit`
+        function deliveryMap(edit) {
+            const m = JSON.parse(JSON.stringify(Fx.maps["delivery"]))
+            if (edit) edit(m.delivery, m)
+            return m
+        }
+        function test_11_theDeliveryPage() {
+            const d = Fx.maps["delivery"].delivery
+            // absent: no `delivery` in the map (a session with no swing plane), no page, no heading
+            load("wrist")
+            verify(!shown("reportDelivery") && !shown("reportDeliveryBand") && !shown("reportDeliveryTrust"), "no delivery in the map: no Club delivery page")
+            compare(reg.sectionPage("reportDelivery"), 0)
+            loadMap(deliveryMap((x, m) => { delete m.delivery }))
+            verify(!shown("reportDelivery"), "the delivery fixture without its block: no Club delivery page")
+            // present: the head, the band, the usual set-up, the ball flight and its scatter, the shot shape, the trust note
+            load("delivery")
+            for (const n of ["reportDelivery", "reportDeliveryBand", "reportDeliveryUsual", "reportDeliveryFlight", "reportDeliveryScatter",
+                             "reportDeliveryShape", "chShotShapeGrid", "reportDeliveryTrust"])
+                verify(shown(n), "the Club delivery page draws " + n)
+            const cols = visibleAll("reportDeliveryBandCol")
+            compare(cols.length, 7, "a box per position, P1…P7")
+            compare(cols.map(c => c.tag).join(","), "P1,P2,P3,P4,P5,P6,P7")
+            compare(cols.map(c => c.text).join(","), d.band.positions.map(p => p.medianText).join(","), "the medians, verbatim")
+            verify(cols.every(c => c.text !== "" && c.text !== "0"), "every median a figure with its unit, or \"-\"")
+            const usual = visibleAll("reportDeliveryUsualItem")
+            compare(usual.map(u => u.label + " " + u.text).join(" · "), d.usual.map(u => u.label + " " + u.text).join(" · "), "the usual set-up, verbatim")
+            verify(usual.every(u => u.text !== "" && u.text !== "0"), "a missing set-up figure says \"-\"")
+            compare(visibleAll("reportDeliveryTrustLine").map(t => t.text).join("\n"), d.trust.join("\n"), "the trust lines, open and verbatim")
+            compare(findAll(reg, "chShapeMark", []).filter(k => k.visible).length, d.shape.marks.filter(k => k.available).length, "a mark per swing with a shape")
+            verify(reg.sectionPage("reportDelivery") > reg.sectionPage("reportWrist"), "after the Wrist page")
+            verify(reg.sectionPage("reportDelivery") > reg.sectionPage("reportPosture"), "after the Posture page")
+            verify(reg.sectionPage("reportDelivery") < reg.sectionPage("reportPractice"), "before Between now and next time")
+            compare(reg.insideLine.indexOf("delivery"), -1, "not on the cover's contents line")
+            const pages = reg.pageInfo().map((p, i) => p.section === "Club delivery" ? i : -1).filter(i => i >= 0)
+            verify(pages.length >= 1, "the Club delivery section has a page")
+            compare(reg.pageInfo()[pages[0]].cont, "", "it opens on a fresh page")
+            // under five swings with the curve: the sentence, no boxes
+            loadMap(deliveryMap(x => { x.band.shown = false; x.band.positions = []; x.band.varies = ""
+                                       x.band.sub = "The plane at each position is drawn from 5 swings with the swing plane curve; this session has 3." }))
+            verify(!shown("reportDeliveryBand"), "no boxes")
+            compare(visibleAll("reportDeliveryBandWhy").map(t => t.text).join(), "The plane at each position is drawn from 5 swings with the swing plane curve; this session has 3.")
+            // no swing with both readings: the sentence, no scatter
+            loadMap(deliveryMap(x => { x.flight.scatter = null; x.flight.legend = ""
+                                       x.flight.text = "No swing in this session has both the launch monitor's path and the plane, so the plane is not set against the ball flight." }))
+            verify(shown("reportDeliveryFlight") && !shown("reportDeliveryScatter"), "the ball flight says why, with no scatter")
+            compare(visibleAll("reportDeliveryFlightText").map(t => t.text).join(), "No swing in this session has both the launch monitor's path and the plane, so the plane is not set against the ball flight.")
+            // no monitor shape: the sentence, no grid
+            loadMap(deliveryMap(x => { x.shape.shown = false; x.shape.line = ""; x.shape.sub = "The launch monitor gave no start line or curve on this session's swings." }))
+            verify(shown("reportDeliveryShape") && !shown("chShotShapeGrid"), "the shot shape says why, with no grid")
+            checkLayout("delivery-no-shape")
+        }
+        // the Club delivery page in its own inks whatever the app's theme, as the Posture and Wrist pages
+        function test_12_theDeliveryPageIgnoresTheAppTheme() {
+            const start = Theme.themeIndex
+            Theme.themeIndex = 12                       // Folio light
+            load("delivery")
+            const pages = reg.pageInfo().map((p, i) => p.section === "Club delivery" ? i : -1).filter(i => i >= 0)
+            verify(pages.length > 0, "the Club delivery section has a page")
+            const a = [], b = []
+            for (const p of pages) { reg.printPage = p; wait(30); a.push(appearance()) }
+            Theme.themeIndex = 7                        // Vector dark
+            wait(300)
+            for (const p of pages) { reg.printPage = p; wait(30); b.push(appearance()) }
+            Theme.themeIndex = start
+            for (let k = 0; k < a.length; ++k) {
+                compare(b[k].length, a[k].length, "delivery page " + (pages[k] + 1) + ": items")
+                for (let i = 0; i < a[k].length; ++i) compare(b[k][i], a[k][i], "delivery page " + (pages[k] + 1) + " item " + i + " changed with the app theme")
             }
         }
         // the appendix too: its tables (Folio light from the register) and the launch monitor panel's own figures,

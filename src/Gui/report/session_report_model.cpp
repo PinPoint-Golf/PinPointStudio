@@ -19,13 +19,16 @@
 #include "session_report_model.h"
 
 #include "report_meta.h"
+#include "report_delivery.h"
 #include "report_posture.h"
 #include "report_wrist.h"
 #include "report_stills.h"
 #include "report_words.h"
 
 #include "../athlete/athlete_controller.h"
+#include "../charts/charts_delivery_presenter.h"
 #include "../charts/charts_posture_presenter.h"
+#include "../charts/charts_relations_presenter.h"
 #include "../charts/charts_wrist_presenter.h"
 #include "../charts/session_series_model.h"
 #include "../charts/session_wrist.h"
@@ -101,12 +104,13 @@ struct DocFacts {
     QStringList videoAliases;
 };
 
-// THE CHARTS PAGES' READING (posture_chart_design.md §5.7; the Wrist page): the Charts panel's own session
-// snapshot of the swings (a private SessionSeriesModel, run inline on this worker: the analysis' series, phases
-// and the ledger rows, never the pose blob), built ONCE, and over it the Posture presenter's session payload
-// (nothing picked, Auto pattern) and the Wrist presenter's (nothing picked, Auto style, the dominant style's
-// wash). The same numbers and words the Charts Posture and Wrist sections draw for the session. { posture, wrist },
-// each empty when nothing reads.
+// THE CHARTS PAGES' READING (posture_chart_design.md §5.7; the Wrist page; club_delivery_chart_design.md §4.8): the
+// Charts panel's own session snapshot of the swings (a private SessionSeriesModel, run inline on this worker: the
+// analysis' series, phases and the ledger rows, never the pose blob), built ONCE, and over it the Posture presenter's
+// session payload (nothing picked, Auto pattern), the Wrist presenter's (nothing picked, Auto style, the dominant
+// style's wash) and the Club delivery presenter's (nothing picked; its fits over the golfer's day, read from the day's
+// other sessions' swing_phasegrid.json). The same numbers and words the Charts Posture, Wrist and Club delivery
+// sections draw for the session. { posture, wrist, delivery }, each empty when nothing reads.
 QVariantMap readChartsPages(const QString &sessionDir)
 {
     pinpoint::charts::SessionSeriesModel series;
@@ -115,7 +119,8 @@ QVariantMap readChartsPages(const QString &sessionDir)
     const std::shared_ptr<const pinpoint::charts::SessionSnapshot> snap = series.snapshot();
     if (!snap || snap->count() == 0) return {};
     return { { QStringLiteral("posture"), pinpoint::charts::postureSessionReportPayload(*snap, -1, QStringLiteral("swings")) },   // the report says swings
-             { QStringLiteral("wrist"), pinpoint::charts::wristSessionReportPayload(*snap, -1, QStringLiteral("swings")) } };
+             { QStringLiteral("wrist"), pinpoint::charts::wristSessionReportPayload(*snap, -1, QStringLiteral("swings")) },
+             { QStringLiteral("delivery"), pinpoint::charts::deliverySessionReportPayload(*snap, QStringLiteral("swings")) } };
 }
 
 QVector<DocFacts> readDocs(const QString &sessionDir)
@@ -251,8 +256,8 @@ struct SessionReportModel::Job {
     bool        built = false;
     QFutureWatcher<QVector<DocFacts>> docsWatcher;
     QVector<DocFacts> docs;
-    QFutureWatcher<QVariantMap> chartsWatcher;      // the Posture and Wrist pages' payloads (readChartsPages)
-    QVariantMap posture, wrist;
+    QFutureWatcher<QVariantMap> chartsWatcher;      // the Posture, Wrist and Club delivery pages' payloads (readChartsPages)
+    QVariantMap posture, wrist, delivery;
 
     QVariantMap         map;
     QVector<StillRequest> requests;
@@ -520,6 +525,7 @@ void SessionReportModel::onChartsRead()
     const QVariantMap pages = m_job->chartsWatcher.result();
     m_job->posture = pages.value(QStringLiteral("posture")).toMap();
     m_job->wrist = pages.value(QStringLiteral("wrist")).toMap();
+    m_job->delivery = pages.value(QStringLiteral("delivery")).toMap();
     m_job->chartsReady = true;
     QTimer::singleShot(0, this, [this] { maybeBuild(); });
 }
@@ -1942,6 +1948,18 @@ void SessionReportModel::build()
             QHash<QString, int> swingNoOfDir;
             for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), k + 1);
             map[QStringLiteral("wrist")] = M::wristReportBlock(job.wrist, swingNoOfDir);
+        }
+
+        // The Club delivery page (club_delivery_chart_design.md §4.8): the Charts Club delivery section's Session reading,
+        // its swings numbered as the report numbers them, the scatter's axis ticks made here (paper has no ticker). Not in a
+        // note (the cover alone); absent when no swing reads the swing plane (data decides: no down-the-line club track).
+        if (isNote) {
+            map[QStringLiteral("delivery")] = kNull;
+        } else {
+            QHash<QString, int> swingNoOfDir;
+            for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), k + 1);
+            map[QStringLiteral("delivery")] = M::deliveryReportBlock(job.delivery, swingNoOfDir,
+                [](double lo, double hi, int n, const QString &unit) { return pinpoint::charts::ChartsRelationsPresenter::axisTicks(lo, hi, n, unit); });
         }
 
         if (isNote) {

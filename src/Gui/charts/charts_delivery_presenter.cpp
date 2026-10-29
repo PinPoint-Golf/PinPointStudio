@@ -570,6 +570,7 @@ QVariantMap sessionMapOf(const std::vector<DeliveryShotInput> &inputs, const Del
         marks.append(QVariantMap{ { QStringLiteral("ordinal"), inputs[i].ordinal }, { QStringLiteral("swingDir"), inputs[i].swingDir },
                                   { QStringLiteral("available"), sh.available }, { QStringLiteral("start"), sh.start },
                                   { QStringLiteral("curve"), sh.curve }, { QStringLiteral("word"), sh.word },
+                                  { QStringLiteral("fromBall"), sh.fromBall },
                                   { QStringLiteral("picked"), int(i) == pickedIndex } });
     }
     out.insert(QStringLiteral("shapes"), QVariantMap{ { QStringLiteral("marks"), marks }, { QStringLiteral("line"), sv.shapeLine } });

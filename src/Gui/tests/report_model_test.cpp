@@ -28,7 +28,10 @@
 // The posture page's block (report/report_posture.h, posture_chart_design.md §5.7) is cut from the Charts
 // Posture presenter's session payload; here on a payload of the presenter's shape (the real one is cut in
 // charts_posture_presenter_test): absent without a reading, the sentences verbatim, the caps and their "N more",
-// the strip renumbered to the report's swings, "What moved" only where there is a line.
+// the strip renumbered to the report's swings, "What moved" only where there is a line. The Club delivery page's block
+// (report/report_delivery.h, club_delivery_chart_design.md §4.8) likewise, on a payload of the Club delivery presenter's
+// session shape (the real one is cut in charts_delivery_presenter_test): absent without the plane, the words verbatim,
+// the scatter in PpChScatter's shape with the line only when the fit holds, the swings renumbered, the ticks asked.
 //
 // The map itself is assembled by SessionReportModel from a live diagnostics model, and is proved on
 // real sessions by tools/session-report-mock/dump_report.qml (build/report-build/model-I/): a model test
@@ -47,6 +50,7 @@
 #include "report/report_words.h"
 #include "report/report_posture.h"
 #include "report/report_wrist.h"
+#include "report/report_delivery.h"
 #include "../../Diagnostics/packs/drill_pack.h"
 #include "../../Diagnostics/packs/gate_words_pack.h"
 #include "../../Diagnostics/packs/pack_provider.h"
@@ -809,6 +813,199 @@ int main(int argc, char **argv)
         bool noAuto = true;
         for (const QString &l : cb.value(QStringLiteral("trust")).toStringList()) noAuto = noAuto && !l.contains(QStringLiteral("Auto"));
         check(noAuto && cb.value(QStringLiteral("trust")).toStringList().size() == 2, "camera-only: two trust lines, neither names the Auto control");
+    }
+
+    std::printf("the club delivery page: absent without the plane, the presenter's words, the scatter, the grid\n");
+    {
+        using pinpoint::report::deliveryReportBlock;
+        const QHash<QString, int> noSwings;
+        check(deliveryReportBlock(QVariantMap{}, noSwings).isNull(), "no payload: no delivery block");
+        check(deliveryReportBlock(QVariantMap{ { QStringLiteral("available"), false } }, noSwings).isNull(), "not available: no delivery block");
+        check(deliveryReportBlock(QVariantMap{ { QStringLiteral("available"), true }, { QStringLiteral("planeShots"), 0 },
+                                               { QStringLiteral("monitorShots"), 8 } }, noSwings).isNull(),
+              "the monitor alone, no swing plane (no down-the-line club track): no delivery block");
+
+        // a session of 8 swings (folders 3…10) and two of the day's other session's swings
+        const QString dir = QStringLiteral("/lib/Golfer/2026-10-20_Golfer_02/swing_%1");
+        QVariantList positions, points, marks;
+        for (int p = 0; p < 7; ++p) {
+            QVariantList values;
+            for (int i = 0; i < 8; ++i) values.append(p == 1 && i == 2 ? QVariant::fromValue(nullptr) : QVariant(55.0 + p + i * 0.5));
+            positions.append(QVariantMap{ { QStringLiteral("index"), p }, { QStringLiteral("tag"), QStringLiteral("P%1").arg(p + 1) },
+                                          { QStringLiteral("name"), p == 0 ? QStringLiteral("address") : p == 3 ? QStringLiteral("the top") : QStringLiteral("P%1").arg(p + 1) },
+                                          { QStringLiteral("box"), QVariantMap{ { QStringLiteral("n"), 8 }, { QStringLiteral("min"), 55.0 + p }, { QStringLiteral("max"), 58.5 + p },
+                                                                                { QStringLiteral("q1"), 56.0 + p }, { QStringLiteral("med"), 56.7 + p },
+                                                                                { QStringLiteral("q3"), 57.5 + p }, { QStringLiteral("outliers"), QVariantList{} } } },
+                                          { QStringLiteral("medianText"), p == 6 ? QString() : QStringLiteral("%1°").arg(57 + p) },
+                                          { QStringLiteral("halfText"), p == 6 ? QString() : QStringLiteral("±0.8°") },
+                                          { QStringLiteral("picked"), QVariant::fromValue(nullptr) }, { QStringLiteral("values"), values } });
+        }
+        for (int i = 0; i < 8; ++i) {
+            points.append(QVariantMap{ { QStringLiteral("ordinal"), i + 1 }, { QStringLiteral("swingDir"), dir.arg(i + 3, 4, 10, QLatin1Char('0')) },
+                                       { QStringLiteral("x"), 60.0 + i }, { QStringLiteral("y"), -1.0 - i * 0.5 }, { QStringLiteral("thisSession"), true },
+                                       { QStringLiteral("session"), QStringLiteral("2026-10-20_Golfer_02") }, { QStringLiteral("picked"), false } });
+            marks.append(QVariantMap{ { QStringLiteral("ordinal"), i + 1 }, { QStringLiteral("swingDir"), dir.arg(i + 3, 4, 10, QLatin1Char('0')) },
+                                      { QStringLiteral("available"), i != 5 }, { QStringLiteral("start"), i % 3 - 1 }, { QStringLiteral("curve"), 1 },
+                                      { QStringLiteral("word"), i == 5 ? QString() : QStringLiteral("Pull, slight fade") }, { QStringLiteral("fromBall"), i < 6 },
+                                      { QStringLiteral("picked"), false } });
+        }
+        for (int i = 0; i < 2; ++i)
+            points.append(QVariantMap{ { QStringLiteral("ordinal"), i + 1 }, { QStringLiteral("swingDir"), QStringLiteral("/lib/Golfer/2026-10-20_Golfer_01/swing_000%1").arg(i + 1) },
+                                       { QStringLiteral("x"), 62.0 }, { QStringLiteral("y"), QVariant::fromValue(nullptr) }, { QStringLiteral("thisSession"), false },
+                                       { QStringLiteral("session"), QStringLiteral("2026-10-20_Golfer_01") }, { QStringLiteral("picked"), false } });
+        points.append(QVariantMap{ { QStringLiteral("ordinal"), 3 }, { QStringLiteral("swingDir"), QStringLiteral("/lib/Golfer/2026-10-20_Golfer_01/swing_0003") },
+                                   { QStringLiteral("x"), 64.0 }, { QStringLiteral("y"), -4.0 }, { QStringLiteral("thisSession"), false },
+                                   { QStringLiteral("session"), QStringLiteral("2026-10-20_Golfer_01") }, { QStringLiteral("picked"), false } });
+        const QString fitText = QStringLiteral("On your 9 swings with the monitor on 20 Oct (2 sessions), each degree steeper at P6 moves your path 0.5° left.");
+        const QVariantMap fit{ { QStringLiteral("n"), 9 }, { QStringLiteral("holds"), true }, { QStringLiteral("verdict"), QStringLiteral("shown") } };
+        const QVariantMap line{ { QStringLiteral("x0"), 60.0 }, { QStringLiteral("y0"), -1.0 }, { QStringLiteral("x1"), 67.0 }, { QStringLiteral("y1"), -4.5 } };
+        QVariantList trustLines{ QStringLiteral("Plane angles come from the down-the-line camera, which is not calibrated."),
+                                 QStringLiteral("Where the shaft points along the target line (P2, the top and the stretch after it) the hands carry "
+                                                "the plane: the curve there is the plane through the ball line and your hands, shaded on the plot."),
+                                 QString() };
+        for (int i = 0; i < 14; ++i) trustLines.append(QStringLiteral("Line %1.").arg(i + 1));
+        const QVariantMap payload{
+            { QStringLiteral("available"), true }, { QStringLiteral("n"), 8 }, { QStringLiteral("shots"), 8 },
+            { QStringLiteral("planeShots"), 8 }, { QStringLiteral("monitorShots"), 7 }, { QStringLiteral("small"), true },
+            { QStringLiteral("kicker"), QStringLiteral("8 swings  ·  7-iron  ·  Club delivery") },
+            { QStringLiteral("headText"), QStringLiteral("Your path follows your plane: steeper at P6 by a degree, 0.5° further left (9 swings on 20 Oct, 2 sessions).") },
+            { QStringLiteral("band"), QVariantMap{ { QStringLiteral("shown"), true }, { QStringLiteral("n"), 8 }, { QStringLiteral("positions"), positions } } },
+            { QStringLiteral("varies"), QVariantMap{ { QStringLiteral("has"), true }, { QStringLiteral("words"), QStringLiteral("Steadiest at P1 (middle half ±0.8°), loosest at P6 (±0.8°).") } } },
+            { QStringLiteral("usual"), QVariantMap{ { QStringLiteral("addressText"), QStringLiteral("57°") }, { QStringLiteral("shouldersText"), QStringLiteral("-") },
+                                                    { QStringLiteral("steepeningText"), QStringLiteral("+3°") } } },
+            { QStringLiteral("flight"), QVariantMap{ { QStringLiteral("available"), true }, { QStringLiteral("text"), fitText },
+                                                     { QStringLiteral("attackText"), QString() }, { QStringLiteral("thisLine"), QString() },
+                                                     { QStringLiteral("fit"), fit },
+                                                     { QStringLiteral("pool"), QVariantMap{ { QStringLiteral("words"), QStringLiteral("on 20 Oct (2 sessions)") } } },
+                                                     { QStringLiteral("scatter"), QVariantMap{ { QStringLiteral("xLabel"), QStringLiteral("Swing plane at P6") },
+                                                                                               { QStringLiteral("yLabel"), QStringLiteral("Club path (monitor)") },
+                                                                                               { QStringLiteral("unit"), QStringLiteral("°") }, { QStringLiteral("holds"), true },
+                                                                                               { QStringLiteral("points"), points }, { QStringLiteral("line"), line },
+                                                                                               { QStringLiteral("xLo"), 60.0 }, { QStringLiteral("xHi"), 67.0 },
+                                                                                               { QStringLiteral("yLo"), -4.5 }, { QStringLiteral("yHi"), -1.0 } } } } },
+            { QStringLiteral("shapes"), QVariantMap{ { QStringLiteral("marks"), marks }, { QStringLiteral("line"), QStringLiteral("Pull, slight fade on 3 of 7 swings") } } },
+            { QStringLiteral("trust"), QVariantMap{ { QStringLiteral("lines"), trustLines } } } };
+        QHash<QString, int> swingNo;
+        for (int i = 0; i < 8; ++i) swingNo.insert(QDir::cleanPath(dir.arg(i + 3, 4, 10, QLatin1Char('0'))), i + 2);   // the report numbers them 2…9
+        int asked = 0;
+        const auto ticks = [&](double lo, double hi, int n, const QString &unit) {
+            ++asked;
+            return QVariantList{ QVariantMap{ { QStringLiteral("v"), lo }, { QStringLiteral("text"), QString::number(lo) + unit } },
+                                 QVariantMap{ { QStringLiteral("v"), hi }, { QStringLiteral("text"), QString::number(n) } } };
+        };
+        const QVariant bv = deliveryReportBlock(payload, swingNo, ticks);
+        check(!bv.isNull(), "the plane read: the delivery block");
+        const QVariantMap b = bv.toMap();
+        check(QStringList(b.keys()) == QStringList({ QStringLiteral("band"), QStringLiteral("flight"), QStringLiteral("head"), QStringLiteral("kicker"),
+                                                     QStringLiteral("shape"), QStringLiteral("trust"), QStringLiteral("trustMore"), QStringLiteral("usual") }),
+              "the block's keys, and no more");
+        eq(b.value(QStringLiteral("kicker")).toString(), QStringLiteral("8 swings  ·  7-iron  ·  Club delivery"), "the kicker is the presenter's");
+        eq(b.value(QStringLiteral("head")).toString(), payload.value(QStringLiteral("headText")).toString(), "the head is the presenter's, verbatim");
+
+        const QVariantMap band = b.value(QStringLiteral("band")).toMap();
+        const QVariantList bp = band.value(QStringLiteral("positions")).toList();
+        check(band.value(QStringLiteral("shown")).toBool() && bp.size() == 7, "the band: a box per position, P1…P7");
+        eq(bp[3].toMap().value(QStringLiteral("name")).toString(), QStringLiteral("the top"), "a position's name, verbatim");
+        eq(bp[0].toMap().value(QStringLiteral("medianText")).toString(), QStringLiteral("57°"), "the median, verbatim");
+        eq(bp[6].toMap().value(QStringLiteral("medianText")).toString(), QStringLiteral("-"), "no median: \"-\", never 0");
+        eq(bp[6].toMap().value(QStringLiteral("halfText")).toString(), QStringLiteral("-"), "no middle half: \"-\"");
+        check(bp[1].toMap().value(QStringLiteral("values")).toList().size() == 8 && bp[1].toMap().value(QStringLiteral("values")).toList()[2].isNull(),
+              "each box keeps its per-swing values, an unread one null");
+        check(std::abs(band.value(QStringLiteral("lo")).toDouble() - (55.0 - 0.57)) < 1e-9 && std::abs(band.value(QStringLiteral("hi")).toDouble() - (64.5 + 0.57)) < 1e-9,
+              "the boxes' one scale: every whisker, padded 6 %");
+        eq(band.value(QStringLiteral("sub")).toString(),
+           QStringLiteral("8 swings with the swing plane curve. Under each box, the median and ± half the middle half."),
+           "the band's sub");
+        eq(band.value(QStringLiteral("varies")).toString(), QStringLiteral("Steadiest at P1 (middle half ±0.8°), loosest at P6 (±0.8°)."), "where it varies, verbatim");
+
+        const QVariantList usual = b.value(QStringLiteral("usual")).toList();
+        check(usual.size() == 3, "the usual set-up: address, shoulders, hands");
+        eq(usual[0].toMap().value(QStringLiteral("text")).toString(), QStringLiteral("57°"), "the usual address line");
+        eq(usual[1].toMap().value(QStringLiteral("text")).toString(), QStringLiteral("-"), "no shoulder plane: \"-\"");
+        eq(usual[2].toMap().value(QStringLiteral("label")).toString(), QStringLiteral("hands steeper coming down"), "the hands' label");
+        eq(usual[2].toMap().value(QStringLiteral("text")).toString(), QStringLiteral("+3°"), "the hands' steepening, signed");
+
+        const QVariantMap fl = b.value(QStringLiteral("flight")).toMap();
+        eq(fl.value(QStringLiteral("text")).toString(), fitText, "the fit's sentence, verbatim");
+        eq(fl.value(QStringLiteral("pool")).toString(), QStringLiteral("on 20 Oct (2 sessions)"), "the pool words");
+        const QVariantMap sc = fl.value(QStringLiteral("scatter")).toMap();
+        const QVariantList pts = sc.value(QStringLiteral("points")).toList();
+        check(pts.size() == 9, "the scatter: every swing of the day with both readings (two of the other session's had no path)");
+        check(pts[0].toMap().value(QStringLiteral("ordinal")).toInt() == 2 && pts[7].toMap().value(QStringLiteral("ordinal")).toInt() == 9,
+              "this session's dots numbered as the report numbers its swings");
+        check(pts[8].toMap().value(QStringLiteral("ordinal")).toInt() == -1 && pts[8].toMap().value(QStringLiteral("faint")).toBool()
+              && !pts[0].toMap().value(QStringLiteral("faint")).toBool(), "another session's dot: faint, no swing number");
+        check(sc.value(QStringLiteral("line")).toMap().value(QStringLiteral("x1")).toDouble() == 67.0 && sc.value(QStringLiteral("clear")).toBool(),
+              "the fit holds: its line is drawn");
+        const QVariantMap xr = sc.value(QStringLiteral("xRange")).toMap(), yr = sc.value(QStringLiteral("yRange")).toMap();
+        check(std::abs(xr.value(QStringLiteral("lo")).toDouble() - (60.0 - 0.5)) < 1e-9 && std::abs(yr.value(QStringLiteral("hi")).toDouble() - (-1.0 + 0.5)) < 1e-9,
+              "the screen's padding: at least half a degree");
+        check(asked == 2 && sc.value(QStringLiteral("xTicks")).toList().size() == 2
+              && sc.value(QStringLiteral("xTicks")).toList()[0].toMap().value(QStringLiteral("v")).toDouble() == xr.value(QStringLiteral("lo")).toDouble()
+              && sc.value(QStringLiteral("yTicks")).toList()[0].toMap().value(QStringLiteral("v")).toDouble() == yr.value(QStringLiteral("lo")).toDouble(),
+              "the ticks: asked once per axis over its padded range");
+        eq(fl.value(QStringLiteral("legend")).toString(),
+           QStringLiteral("A dot per swing with both readings: this session's in ink, the day's other sessions faint. The line is your fit."), "the scatter's legend");
+
+        const QVariantMap sh = b.value(QStringLiteral("shape")).toMap();
+        const QVariantList sm = sh.value(QStringLiteral("marks")).toList();
+        check(sm.size() == 8 && sm[0].toMap().value(QStringLiteral("swing")).toInt() == 2 && sm[0].toMap().value(QStringLiteral("ordinal")).toInt() == 2,
+              "a shape mark per swing, numbered as the report numbers them");
+        check(sh.value(QStringLiteral("shown")).toBool() && !sm[5].toMap().value(QStringLiteral("available")).toBool(), "the grid shows; a swing with no shape keeps its place");
+        eq(sh.value(QStringLiteral("line")).toString(), QStringLiteral("Pull, slight fade on 3 of 7 swings"), "the shape line, verbatim");
+        eq(sh.value(QStringLiteral("sub")).toString(),
+           QStringLiteral("Where the ball started and how it curved, from the launch monitor: the ball's start and spin axis on 5 swings, the club's face and path on 2 swings. "
+                          "1 swing has no shape from the monitor."),
+           "the grid's sub: what it was read from, and the swing with none");
+
+        const QStringList trust = b.value(QStringLiteral("trust")).toStringList();
+        check(trust.size() == pinpoint::report::kDeliveryReportTrustCap, "trust lines capped, the blank one dropped");
+        check(trust[1].endsWith(QStringLiteral("and your hands.")) && !trust[1].contains(QStringLiteral("plot")),
+              "the hands' line ends at the hands: paper has no plot to shade");
+        eq(b.value(QStringLiteral("trustMore")).toString(), QStringLiteral("4 more"), "the trust's \"N more\"");
+
+        // the fit refused, a head that says it, few swings, no monitor shape, no ticker
+        QVariantMap weak = payload;
+        weak.insert(QStringLiteral("headText"), fitText);
+        QVariantMap wfl = weak.value(QStringLiteral("flight")).toMap();
+        wfl.insert(QStringLiteral("fit"), QVariantMap{ { QStringLiteral("n"), 9 }, { QStringLiteral("holds"), false }, { QStringLiteral("verdict"), QStringLiteral("weak") } });
+        weak.insert(QStringLiteral("flight"), wfl);
+        QVariantMap wband = weak.value(QStringLiteral("band")).toMap();
+        wband.insert(QStringLiteral("shown"), false);
+        wband.insert(QStringLiteral("n"), 3);
+        weak.insert(QStringLiteral("band"), wband);
+        QVariantList noShape;
+        for (const QVariant &m : marks) { QVariantMap mm = m.toMap(); mm.insert(QStringLiteral("available"), false); noShape.append(mm); }
+        weak.insert(QStringLiteral("shapes"), QVariantMap{ { QStringLiteral("marks"), noShape }, { QStringLiteral("line"), QString() } });
+        const QVariantMap wb = deliveryReportBlock(weak, noSwings).toMap();
+        const QVariantMap wsc = wb.value(QStringLiteral("flight")).toMap().value(QStringLiteral("scatter")).toMap();
+        check(wsc.value(QStringLiteral("line")).isNull() && !wsc.value(QStringLiteral("clear")).toBool() && wsc.value(QStringLiteral("points")).toList().size() == 9,
+              "the fit refused: every dot, no line");
+        check(wsc.value(QStringLiteral("xTicks")).toList().isEmpty(), "no ticker: no ticks");
+        check(wsc.value(QStringLiteral("points")).toList()[0].toMap().value(QStringLiteral("ordinal")).toInt() == 1, "a swing the report does not number keeps its ordinal");
+        eq(wb.value(QStringLiteral("flight")).toMap().value(QStringLiteral("text")).toString(), QString(), "the head says the fit: not said twice");
+        eq(wb.value(QStringLiteral("flight")).toMap().value(QStringLiteral("legend")).toString(),
+           QStringLiteral("A dot per swing with both readings: this session's in ink, the day's other sessions faint. No line: the fit does not hold."), "the refused fit's legend");
+        check(!wb.value(QStringLiteral("band")).toMap().value(QStringLiteral("shown")).toBool()
+              && wb.value(QStringLiteral("band")).toMap().value(QStringLiteral("positions")).toList().isEmpty(), "under five swings with the curve: no boxes");
+        eq(wb.value(QStringLiteral("band")).toMap().value(QStringLiteral("sub")).toString(),
+           QStringLiteral("The plane at each position is drawn from 5 swings with the swing plane curve; this session has 3."), "and the sentence says why");
+        check(!wb.value(QStringLiteral("shape")).toMap().value(QStringLiteral("shown")).toBool(), "no monitor shape: no grid");
+        eq(wb.value(QStringLiteral("shape")).toMap().value(QStringLiteral("sub")).toString(),
+           QStringLiteral("The launch monitor gave no start line or curve on this session's swings."), "and its sentence says why");
+
+        // no swing with both readings: the fit's sentence is the report's, there is no scatter
+        QVariantMap noMon = payload;
+        noMon.insert(QStringLiteral("flight"), QVariantMap{ { QStringLiteral("available"), false }, { QStringLiteral("text"), QString() },
+                                                            { QStringLiteral("fit"), QVariantMap{ { QStringLiteral("n"), 0 }, { QStringLiteral("holds"), false } } },
+                                                            { QStringLiteral("scatter"), QVariantMap{ { QStringLiteral("points"), QVariantList{} },
+                                                                                                      { QStringLiteral("xLo"), QVariant::fromValue(nullptr) } } } });
+        const QVariantMap nb = deliveryReportBlock(noMon, noSwings).toMap();
+        check(nb.value(QStringLiteral("flight")).toMap().value(QStringLiteral("scatter")).isNull(), "no swing with both readings: no scatter");
+        eq(nb.value(QStringLiteral("flight")).toMap().value(QStringLiteral("text")).toString(),
+           QStringLiteral("No swing in this session has both the launch monitor's path and the plane, so the plane is not set against the ball flight."),
+           "and the sentence says why");
+        eq(nb.value(QStringLiteral("flight")).toMap().value(QStringLiteral("legend")).toString(), QString(), "no scatter: no legend");
     }
 
     std::printf("an edit in the Diagnostic Model reaches the next report (#60): goal, an attached drill, a gate's words\n");
