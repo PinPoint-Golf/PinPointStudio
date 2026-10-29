@@ -1931,6 +1931,42 @@ void installMetricManifest(MetricCatalogue &cat)
         .usedBy = { QStringLiteral("chart:review") },
     });
 
+    // The shoulder plane: the plane through the ball's target line and the TRAIL shoulder at
+    // address (shaft_plane_curve.h), the steep edge of the slot whose flat edge is the swing plane
+    // curve's own address value (club_delivery_chart_design.md §2.3). Not the shoulders' aim, and
+    // not shoulderPlaneAngle (the shoulder line's tilt, Body rotation), hence "at address" in the
+    // label. The golfer's own line, never a norm. A chart reading only.
+    cat.addDescriptor({
+        .key = QStringLiteral("shoulderPlane"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Shoulder plane at address"),
+        .shortLabel = QStringLiteral("Shoulders at address"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("lavender"),
+        .description = QStringLiteral(
+            "The plane from the ball through your trail shoulder at address: the steep edge of the "
+            "slot. Your swing plane at address is the slot's flat edge; a club that travels above "
+            "the shoulder plane is steep, and one that drops below where you set it at address is "
+            "under the plane."),
+        .howToRead = QStringLiteral(
+            "Degrees above the ground; higher is more upright. Read at Address, from the trail "
+            "shoulder the pose finds over the last moments of the address hold (the right shoulder "
+            "for a right-handed golfer, the left for a left-handed one) and the ball the tracker "
+            "found down the line. CAUTION: a down-the-line camera off the target line tilts it by a "
+            "few degrees, so compare it with your own swing plane on the same camera rather than "
+            "with another golfer's number."),
+        .signPositive = QStringLiteral("a more upright shoulder plane"),
+        .signNegative = QStringLiteral("a flatter shoulder plane"),
+        .phases = { P::Address },
+        .card = { .readAt = { { P::Address, {} } }, .peak = false, .delta = false, .rate = false },
+        .routes = {
+            via("dtl", RM::Projected, Direct, { .dtlCamera = true, .clubTrack = true },
+                QStringLiteral("the image line from the down-the-line ball to the trail shoulder at "
+                               "address; the shaft track supplies the ball, the pose the shoulder")) },
+        .usedBy = { QStringLiteral("chart:review") },
+    });
+
     // The transition delta, and the reason it is a separate key from swingPlane
     // above: this is not a plane ANGLE, it is the CHANGE in one between two windows,
     // and it comes off the face-on camera rather than down-the-line. Over the top is

@@ -2399,7 +2399,7 @@ struct DtlShaftStage : AnalysisStage {
 //      through impact gets a second opinion from the view that sees impact sharply.
 struct ShaftFusionStage : AnalysisStage {
     QString name() const override { return QStringLiteral("ShaftFusion"); }
-    StageDecl decl() const override { return D({ kShaft, kShaftDtl, kSeg }, { kShaft3d }, { kSeries }); }
+    StageDecl decl() const override { return D({ kShaft, kShaftDtl, kPoseDtl, kSeg }, { kShaft3d }, { kSeries }); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return shaftFusionConfigFromOverrides(ctx.job.tuningOverrides).enabled
@@ -2684,12 +2684,49 @@ struct ShaftFusionStage : AnalysisStage {
                 m.phaseSamples.push_back(ps);
                 ctx.seriesOut().push_back(std::move(m));
             }
+            // shoulderPlane — the plane through the ball line and the TRAIL shoulder at address, the
+            // steep edge of the slot (club_delivery_chart_design.md §2.3). The trail shoulder from the
+            // down-the-line pose over the last 15 frames of the hold — before P1 − 100 ms, the window
+            // the ball finder reads the ball in — with that ball and this camera. No ball, no pose,
+            // no address: no reading, never a zero.
+            const PhaseEvent *addr = ctx.seg.eventFor(Phase::Address);
+            const PoseTrack2D &pd = ctx.detail->poseDtl;
+            planecurve::ShoulderPlaneReading sl;
+            if (haveBall && addr && !pd.frames.empty() && dt.frameWidth > 0 && dt.frameHeight > 0) {
+                const int j = planecurve::trailShoulderJoint(ctx.job.handedness);
+                std::vector<std::pair<double, double>> hold;
+                for (const PoseFrame2D &f : pd.frames) {
+                    if (f.t_us - dt.clockOffsetUs >= addr->t_us - 100000) break;
+                    if (f.conf[size_t(j)] > 0.3f)
+                        hold.push_back({ f.kp[size_t(j)].x() * dt.frameWidth, f.kp[size_t(j)].y() * dt.frameHeight });
+                }
+                sl = planecurve::shoulderPlaneFromHold(cd, hold, dt.ball.x, dt.ball.y);
+            }
+            if (sl.ok) {
+                MetricSeries m;
+                m.key   = QStringLiteral("shoulderPlane");
+                m.label = QStringLiteral("Shoulder plane at address");
+                m.unit  = QStringLiteral("°");
+                PhaseSample ps{ Phase::Address, addr->t_us, sl.deg, QString() };
+                if (std::isfinite(sl.sigmaDeg) && sl.sigmaDeg > 0) {
+                    ps.sigma = sl.sigmaDeg; ps.sigmaKind = uint8_t(SigmaKind::Propagated);
+                    m.sigma = sl.sigmaDeg;  m.sigmaKind = ps.sigmaKind;
+                }
+                m.phaseSamples.push_back(ps);
+                ctx.seriesOut().push_back(std::move(m));
+            }
             ppInfo() << "[WristAnalysis] swing plane curve:" << pc.n << "frames," << pc.nRejected << "rejected,"
                      << (pc.fitted ? QStringLiteral("scale %1").arg(pc.scale, 0, 'f', 2) : QStringLiteral("not fitted"))
                      << "| hand plane:" << (haveBall ? QStringLiteral("%1 frames").arg(hc.n) : QStringLiteral("no DTL ball"))
                      << "| steepening" << (st.ok ? QStringLiteral("%1 ± %2° (%3 up, %4 down)").arg(st.deg, 0, 'f', 1)
                                                        .arg(st.sigmaDeg, 0, 'f', 1).arg(st.nUp).arg(st.nDown)
-                                                 : QStringLiteral("not read"));
+                                                 : QStringLiteral("not read"))
+                     << "| shoulder plane" << (sl.ok ? QStringLiteral("%1 ± %2° (%3 shoulder, %4 frames)")
+                                                         .arg(sl.deg, 0, 'f', 1).arg(sl.sigmaDeg, 0, 'f', 1)
+                                                         .arg(ctx.job.handedness == 2 ? QStringLiteral("left")
+                                                                                      : QStringLiteral("right"))
+                                                         .arg(sl.n)
+                                                    : QStringLiteral("not read"));
         }
         // THE FUSION'S GATE RECORDS (trust stage 6). A half of swingPlane whose plane FITTED but
         // scattered too widely to be a plane is refused, one record per half: the downswing above

@@ -63,6 +63,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 namespace pinpoint::analysis::planecurve {
@@ -146,6 +147,80 @@ inline double handPlaneInclSigmaDeg(const fusion::Camera &cam, double gx, double
     const double d = std::hypot(gx - bx, gy - by);
     if (!(d > 0)) return kNan;
     return viewPlaneInclSigmaDeg(cam, std::atan2(gy - by, gx - bx), std::atan(sigmaPx / d) * 180.0 / kPi);
+}
+
+// THE SHOULDER PLANE — the plane through the ball's target line and the golfer's TRAIL shoulder at
+// address (club_delivery_chart_design.md §2.3, where it is the "shoulder line"; named the plane here
+// so it is not read as the shoulders' alignment to the target. The trail shoulder is Mark's answer
+// to the design's Q1, 29 Oct 2026). The coaching slot is the wedge between the address plane and this one: a club above it
+// is steep, a club below the address line is under the plane. It is the hand plane's maths on a
+// shoulder point — the view plane of the image line from the down-the-line ball to the shoulder —
+// so it carries the hand plane's caution too: an absolute angle off an uncalibrated camera, read
+// against the same golfer's own curve on the same camera.
+inline double shoulderPlaneInclDeg(const fusion::Camera &cam, double sx, double sy, double bx, double by)
+{
+    return handPlaneInclDeg(cam, sx, sy, bx, by);
+}
+
+inline double shoulderPlaneInclSigmaDeg(const fusion::Camera &cam, double sx, double sy, double bx, double by,
+                                        double sigmaPx)
+{
+    return handPlaneInclSigmaDeg(cam, sx, sy, bx, by, sigmaPx);
+}
+
+// The trail shoulder's COCO body index: the right shoulder (6) for a right-handed golfer, the left
+// (5) for a left-handed one. `handedness` as the job carries it (2 = left); unknown reads as right,
+// as leadIsLeft does everywhere else in the pipeline.
+inline int trailShoulderJoint(int handedness) { return handedness == 2 ? 5 : 6; }
+
+// The reading from the address hold: the trail shoulder's image points (pixels, time order, only
+// frames where the pose saw it), of which the last `lastN` are read — the end of the hold, the ball
+// finder's window. The point is the per-axis median. Its σ is the shoulder's placement scatter
+// ACROSS the ball → shoulder line (1.4826 · MAD; the scatter along the line does not turn it),
+// not divided by √n: the frames of a still hold are one pose of one image, not independent
+// placements, so their median is placed no better than one of them. Floored at minSigmaPx — a
+// pose that repeats itself to the pixel has not placed the joint to the pixel.
+struct ShoulderPlaneReading {
+    bool   ok = false;
+    double deg = kNan, sigmaDeg = kNan;
+    double sx = kNan, sy = kNan, sigmaPx = kNan;
+    int    n = 0;
+};
+
+inline ShoulderPlaneReading shoulderPlaneFromHold(const fusion::Camera &cam,
+                                                  const std::vector<std::pair<double, double>> &pts,
+                                                  double bx, double by, size_t lastN = 15,
+                                                  double minSigmaPx = 1.0, size_t minFrames = 3)
+{
+    ShoulderPlaneReading out;
+    auto median = [](std::vector<double> v) {
+        std::sort(v.begin(), v.end());
+        const size_t n = v.size();
+        return n ? (n % 2 ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2])) : kNan;
+    };
+    const size_t from = pts.size() > lastN ? pts.size() - lastN : 0;
+    std::vector<double> xs, ys;
+    for (size_t i = from; i < pts.size(); ++i)
+        if (std::isfinite(pts[i].first) && std::isfinite(pts[i].second)) {
+            xs.push_back(pts[i].first);
+            ys.push_back(pts[i].second);
+        }
+    out.n = int(xs.size());
+    if (xs.size() < minFrames || !std::isfinite(bx) || !std::isfinite(by)) return out;
+    out.sx = median(xs);
+    out.sy = median(ys);
+    const double d = std::hypot(out.sx - bx, out.sy - by);
+    if (!(d > 0)) return out;
+    const double nx = -(out.sy - by) / d, ny = (out.sx - bx) / d;   // across the line
+    std::vector<double> across;
+    for (size_t i = 0; i < xs.size(); ++i) across.push_back((xs[i] - out.sx) * nx + (ys[i] - out.sy) * ny);
+    const double mid = median(across);
+    for (double &a : across) a = std::fabs(a - mid);
+    out.sigmaPx  = std::max(1.4826 * median(across), minSigmaPx);
+    out.deg      = shoulderPlaneInclDeg(cam, out.sx, out.sy, bx, by);
+    out.sigmaDeg = shoulderPlaneInclSigmaDeg(cam, out.sx, out.sy, bx, by, out.sigmaPx);
+    out.ok       = std::isfinite(out.deg);
+    return out;
 }
 
 // How much steeper the hands come down than they went up, at the same hand height: the median hand

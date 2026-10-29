@@ -23,6 +23,9 @@
 //      comes back within a degree; a 120 ms hole is bridged close to the truth and marked bridged;
 //      a run of frames 35° off (a mirrored band's signature) is rejected rather than followed;
 //      frames below the conditioning floor do not enter; too few frames is no curve.
+//   3. The hand plane: at address it is the shaft's plane; the steepening reads the two halves.
+//   4. The shoulder plane: a trail shoulder on a known plane through the ball line reads it, from
+//      the hold's last frames only; a mirrored (left-handed) layout reads the same.
 // Pure std, no fixture.
 
 #include "../../Club/shaft_plane_curve.h"
@@ -144,6 +147,45 @@ int main()
         std::vector<HandFrame> flat(fr);
         for (HandFrame &f : flat) f.gripY = 600.0;
         check(!handPlaneSteepening(flat, tk, top, imp).ok, "hands that never rise are not read");
+    }
+
+    // ── 4. the shoulder plane ───────────────────────────────────────────────────────────────
+    {
+        const fusion::Camera cd = fusion::dtlCamera(0.0, 0.0, 0.0);
+        // A trail shoulder 1.3 m up a 67° plane through the ball line, 0.4 m along the line from
+        // the ball, seen 400 px to the metre (the in-plane basis of section 1).
+        const double inc = 67.0 * kPi / 180.0;
+        const fusion::Vec3 a = cd.d, m { 0.0, -std::cos(inc), std::sin(inc) };
+        const fusion::Vec3 s = a * 0.4 + m * 1.3;
+        const double W = 1920, bx = 1100, by = 900;
+        const double sx = bx + 400.0 * s.dot(cd.right), sy = by + 400.0 * s.dot(cd.down);
+        check(std::fabs(shoulderPlaneInclDeg(cd, sx, sy, bx, by) - 67.0) < 1e-6,
+              "a trail shoulder on a 67-degree plane through the ball line reads 67 degrees");
+
+        // The hold: fifteen frames of a still shoulder with ±1.5 px of pose jitter, after older
+        // frames 200 px away that the reading must not see.
+        auto hold = [&](double x0, double y0, double flip) {
+            std::vector<std::pair<double, double>> pts;
+            for (int k = 0; k < 10; ++k) pts.push_back({ x0 + flip * 200.0, y0 + 200.0 });
+            for (int k = 0; k < 15; ++k) pts.push_back({ x0 + flip * 1.5 * noise(k), y0 + 1.5 * noise(k + 40) });
+            return pts;
+        };
+        const ShoulderPlaneReading r = shoulderPlaneFromHold(cd, hold(sx, sy, 1.0), bx, by);
+        std::printf("    shoulder plane %.3f ± %.3f (%.2f px, %d frames)\n", r.deg, r.sigmaDeg, r.sigmaPx, r.n);
+        check(r.ok && r.n == 15 && std::fabs(r.deg - 67.0) < 0.3,
+              "the hold's last 15 frames read the shoulder plane, the older frames unseen");
+        check(r.sigmaDeg > 0.0 && r.sigmaPx >= 1.0, "and it carries a sigma from the shoulder's scatter");
+
+        // A left-handed golfer is the mirror image: the trail shoulder is the LEFT one (COCO 5), and
+        // the ball and shoulder both sit mirrored about the frame's centre. The plane reads the same.
+        check(trailShoulderJoint(1) == 6 && trailShoulderJoint(0) == 6 && trailShoulderJoint(2) == 5,
+              "the trail shoulder is the right one for a right-hander (or unknown), the left for a left-hander");
+        const ShoulderPlaneReading l = shoulderPlaneFromHold(cd, hold(W - sx, sy, -1.0), W - bx, by);
+        check(l.ok && std::fabs(l.deg - r.deg) < 1e-9 && std::fabs(l.sigmaDeg - r.sigmaDeg) < 1e-9,
+              "a mirrored left-handed layout reads the same shoulder plane");
+
+        check(!shoulderPlaneFromHold(cd, {}, bx, by).ok, "no pose in the hold is no reading");
+        check(!shoulderPlaneFromHold(cd, hold(sx, sy, 1.0), kNan, kNan).ok, "no ball is no reading");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "ALL PASSED\n", g_fail);
