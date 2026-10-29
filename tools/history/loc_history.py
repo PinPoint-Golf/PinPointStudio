@@ -74,6 +74,8 @@ PRESETS = {
             ("Charts panel,\ntrust + gates", "2026-10-14", 250, -2),
             ("Session report PDF", "2026-10-20", 345, 0),
             ("Posture composites", "2026-10-22", 535, -5),
+            ("Trunk IMUs\n(hip + chest sensors)", "2026-10-26", 280, 4),
+            ("UX refactor: one rail,\nno session modes", "2026-10-28", 585, -8),
         ]),
     "goldencheetah": dict(
         title="GoldenCheetah: lines of code over time, with the features as they arrived",
