@@ -494,6 +494,12 @@ set(PP_QML_SOURCES
     # The Posture section's presenter (posture_chart_design.md stage 2b): the core above, serialised.
     src/Gui/charts/charts_posture_presenter.h
     src/Gui/charts/charts_posture_presenter.cpp
+    # The Club delivery section (club_delivery_chart_design.md stage 2): its pure C++ core over the snapshot, and the
+    # presenter that serialises it (with the plot's lines over the swing plane curve).
+    src/Gui/charts/session_delivery.h
+    src/Gui/charts/session_delivery.cpp
+    src/Gui/charts/charts_delivery_presenter.h
+    src/Gui/charts/charts_delivery_presenter.cpp
     # The Posture picture strip (posture_chart_design.md §5.4, stage 5): pure C++ over the swing document —
     # the frames, the frozen coach lines and the band offsets in each frame's pixels. Its closure: the
     # report stills' pure half (which frame, which crop; no decoder), the markup stream rules it picks the

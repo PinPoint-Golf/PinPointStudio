@@ -77,6 +77,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/charts_traces_tests.cmake OPTIONAL)
 include(${CMAKE_CURRENT_LIST_DIR}/charts_relations_tests.cmake OPTIONAL)
 include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_tests.cmake OPTIONAL)
 include(${CMAKE_CURRENT_LIST_DIR}/charts_posture_tests.cmake OPTIONAL)
+include(${CMAKE_CURRENT_LIST_DIR}/charts_delivery_tests.cmake OPTIONAL)
 
 # SwingRigDriver (swing3d/) — the 3-D swing panel's C++ half against a hand-built skeleton3d block
 # written by the production writer: availability and its reason, rest round trip, playhead
