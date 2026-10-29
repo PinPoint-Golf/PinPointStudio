@@ -21,11 +21,12 @@ import PinPointStudio
 
 // PPCHPLANELABELS — the words on the Club delivery lines (docs/design/club_delivery_chart_design.md §4.2): laid over a
 // plot's AREA (the PpChPlot's own box), it names the lines ChartsDeliveryPresenter.plotLayers drew there — "address 59°"
-// and "shoulders 69°" just over (else under) their hairlines at the right end, further in on a short plot, "hands carry the plane here" once, at the top of its
-// first stretch wide enough to hold them (else at its foot). Labels on the drawn things, never a legend; each on a knock-out in the text inks.
+// and "shoulders 69°" just over (else under) their hairlines at the right end, further in on a short plot. Labels on the drawn
+// things, never a legend; each on a knock-out in the text inks. The hands' stretches are NOT named: the shade speaks for
+// itself and a label over it hid the curve (Mark, 29 Oct); the trust fold says what the shade is.
 // A label that would leave the plot, or touch another label or a `reserve`d box (the row's name, the overlaid key), is
 // dropped — never squeezed. A line outside the plot's value range draws nothing and so names nothing.
-//   layers: the row's plotLayers (role, label, text; hline v, span t0/t1, labelled)
+//   layers: the row's plotLayers (role, label, text; hline v)
 //   x0, x1, lo, hi: the plot's own mapping; reserve: [{ x, y, w, h }] in this item's coordinates; topInset: the name band
 // objectName: chPlaneLabel (+ role) on each label drawn.
 Item {
@@ -72,19 +73,6 @@ Item {
                 const inner = Math.max(0, pl.width * 0.62 - w)
                 take(role, words, [{ y: y - h - 1 }, { y: y + 2 }, { x: inner, y: y - h - 1 }, { x: inner, y: y + 2 }])
             }
-        // the hands' stretches: named once, on the first stretch in the window wide enough to hold the words (else the
-        // widest), at its top under the name band, else at its foot
-        const spans = ls.filter(function (l) { return l.k === "span" && l.role === "hands" })
-                        .map(function (l) { return { l: l, xa: Math.max(0, pl.xOf(l.t0)), xb: Math.min(pl.width, pl.xOf(l.t1)) } })
-                        .filter(function (s) { return s.xb > s.xa })
-        if (spans.length) {
-            const words = (spans.filter(function (s) { return s.l.labelled })[0] || spans[0]).l.label || ""
-            const need = fm.advanceWidth(words) + 2 * pad
-            const fit = spans.filter(function (s) { return s.xb - s.xa >= need })[0]
-            const sp = fit || spans.slice().sort(function (a, b) { return (b.xb - b.xa) - (a.xb - a.xa) })[0]
-            take("hands", words, [{ x: sp.xa + 2 * pad, y: topInset + 1 }, { x: sp.xa + 2 * pad, y: height - h - 2 },
-                                  { x: Math.max(0, sp.xb - need), y: topInset + 1 }, { x: Math.max(0, sp.xb - need), y: height - h - 2 }])
-        }
         return out
     }
 
@@ -97,7 +85,7 @@ Item {
             x: modelData.x; y: modelData.y
             text: modelData.text
             font: pl.roles.fSmall
-            color: modelData.role === "hands" ? pl.roles.ink3 : pl.roles.ink2
+            color: pl.roles.ink2
             Rectangle { z: -1; anchors.fill: parent; anchors.margins: -2; color: pl.roles.knock }
         }
     }

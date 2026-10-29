@@ -1009,6 +1009,7 @@ Item {
             compare(layers(oneShown("chTrace:handPlaneCurve"), function (l) { return l.role !== undefined }).length, 0, "only the swing plane curve's row")
             const names = shownAll("chPlaneLabel", row).map(function (l) { return l.role })
             verify(names.indexOf("address") >= 0 && names.indexOf("shoulders") >= 0, "the hairlines named (" + names + ")")
+            verify(names.indexOf("hands") < 0, "the hands' shade carries no words over the curve (" + names + ")")
             // without the readings: no section, no lines
             fresh({}, 8)
             useDeliveryPreset()

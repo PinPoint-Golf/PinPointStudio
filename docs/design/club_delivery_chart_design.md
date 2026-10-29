@@ -213,8 +213,8 @@ page in the session report.
   "address";
 - the **shoulder plane**: a hairline at the shoulder-plane value, labelled "shoulders";
 - the **slot**: a faint wash between them;
-- the **"hands carry the plane here"** band: a light shade over the stretches where the swing plane curve is the
-  hands' (§1.3), labelled once;
+- the hands' stretches: a light shade over the stretches where the swing plane curve is the hands' (§1.3), with
+  no words on the plot (a label there hid the curve; Mark, 29 Oct). The trust fold says what the shade is.
 - the swing plane curve and the hand plane in their own colours (orchid, crimson); the gap between them in the
   downswing is the club under (or over) the hands, said on hover, not shaded.
 
