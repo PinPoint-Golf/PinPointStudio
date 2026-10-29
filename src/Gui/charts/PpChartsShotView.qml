@@ -36,6 +36,10 @@ import PinPointStudio
 //     the domain read added where it means something (Mark, 16 Oct).
 //   The posture section (PpChPostureShotSection, "Posture"), after it, by the same rule (body.postureShotShown: a
 //     posture reading AND a posture curve on show; docs/design/posture_chart_design.md §5.1).
+//   The club delivery section (PpChDeliveryShotSection, "Club delivery"), after it, by the same rule (body.deliveryShotShown:
+//     the swing plane curve or a monitor delivery reading AND one of those curves on show; club_delivery_chart_design.md
+//     §4); its lines on the swing plane curve's row (the address line, the shoulder plane, the slot, the hands' stretches)
+//     are the trace figure's (body.planeLayers). At the glance it sits under the glance cards (§8.3).
 // Every word and number is a presenter's (body.t* = ChartsTracesPresenter, body.r* = ChartsRelationsPresenter,
 // each bound ONCE on the body). The presenters' own empty / refusal sentences are what an empty view says.
 // objectName: chShotView.
@@ -255,6 +259,7 @@ Column {
                 figMode: sv.replay ? "now" : "figures"
                 plotH: sv.plotH
                 demoHoverMs: sv.demoHoverMs
+                planeLayers: sv.body ? sv.body.planeLayers : ({})
                 onTrustClicked: (subject) => sv.openTrust(subject, "chart")
             }
             PpTrustInline { roles: sv.roles; readings: sv.trustReadings("chart"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "chart") }
@@ -413,6 +418,15 @@ Column {
         width: sv.width
         sourceComponent: PpChPostureShotSection { roles: sv.roles; brush: sv.brush; body: sv.body; reg: sv.reg
                                                   interactive: sv.interactive; cast: sv.cast }
+    }
+    // ═══ the club delivery section, when it means something (the plane or a monitor delivery reading AND its curve on show) ═══
+    Loader {
+        objectName: "chDeliveryShotSlot"
+        active: !!sv.body && sv.body.deliveryShotShown && !!sv.roles
+        visible: active
+        width: sv.width
+        sourceComponent: PpChDeliveryShotSection { roles: sv.roles; brush: sv.brush; body: sv.body; reg: sv.reg
+                                                   interactive: sv.interactive; cast: sv.cast }
     }
 
     // Apart from the session (B): the readings past the session's whiskers lead

@@ -47,7 +47,8 @@ import PinPointStudio
 // THIS API IS THE INTEGRATION SEAM (the panel, the harness overlay, tests and probes reach in): tracesP,
 // relationsP, wristP (+ wChoices wShot wSession wMoves wStandfirst wSelected wristAvailable wristOnShow
 // wristShotShown wristSessionShown), postureP (+ pChoices pShot pSession pStandfirst pSelected postureAvailable
-// postureOnShow postureShotShown postureSessionShown canOpenCondition; openCondition()), tab, view, shownView, preset, metricsOff, window, customStartUs/EndUs, band,
+// postureOnShow postureShotShown postureSessionShown canOpenCondition; openCondition()), deliveryP (+ dChoices dShot dSession
+// dLayers dStandfirst dSelected deliveryAvailable deliveryOnShow deliveryShotShown deliverySessionShown), tab, view, shownView, preset, metricsOff, window, customStartUs/EndUs, band,
 // facet, against, difference, overlay, align, showDots, showCursor, upId, acrossId, relFacet, wristAgainst, wristCurves, wristArchetype, posturePattern, postureAgainst, openId, collapsed, askedId, interactive, surface,
 // framed, cardAside, register, registerItem, demoState, forceRegister, playUs, spanUs; choose(),
 // toggleMetric(), chooseCustom(), chooseUp(), toggleSection(), openReading(), ask(), clearAsk(), pickOrdinal(),
@@ -61,6 +62,7 @@ Item {
     property QtObject relationsP: null
     property QtObject wristP: null               // ChartsWristPresenter: the Wrist sections of This shot and Session
     property QtObject postureP: null             // ChartsPosturePresenter: the Posture sections of This shot and Session
+    property QtObject deliveryP: null            // ChartsDeliveryPresenter: the Club delivery sections and the plot's plane lines
 
     // ── the outputs, each bound ONCE (a QVariantMap read is a deep copy; the views read these) ──
     readonly property var tChoices: tracesP ? tracesP.choices : ({})
@@ -110,13 +112,33 @@ Item {
     }
     readonly property bool postureShotShown: postureOnShow && !!pShot && pShot.available === true
     readonly property bool postureSessionShown: postureOnShow && postureAvailable && register !== "Replay" && !!pSession && pSession.available === true
+    // THE CLUB DELIVERY SECTIONS (docs/design/club_delivery_chart_design.md §4.1), the posture's rule: the shot (or some
+    // shot of the session) carries the swing plane curve or a monitor delivery reading AND one of the presenter's
+    // choices.onShowKeys (the plane keys and the lm.* delivery keys) is on in the traces' preset — in practice Club
+    // delivery. dLayers are the lines the figures draw over the swing plane curve's row (plotLayers, by the scope on show).
+    readonly property var dChoices: deliveryP ? deliveryP.choices : ({})
+    readonly property var dShot: deliveryP ? deliveryP.thisShot : ({})
+    readonly property var dSession: deliveryP ? deliveryP.session : ({})
+    readonly property var dLayers: deliveryP ? deliveryP.plotLayers : ({})
+    readonly property var dStandfirst: deliveryP ? deliveryP.standfirst : ({})
+    readonly property int dSelected: deliveryP ? deliveryP.selected : -1
+    readonly property bool deliveryAvailable: !!deliveryP && deliveryP.available
+    readonly property bool deliveryOnShow: {
+        const keys = (dChoices && dChoices.onShowKeys) || []
+        return keys.length > 0 && (tChoices && tChoices.metrics ? tChoices.metrics : [])
+                   .some(function (m) { return m.on === true && keys.indexOf(root._bareKey(m.key)) >= 0 })
+    }
+    readonly property bool deliveryShotShown: deliveryOnShow && !!dShot && dShot.available === true
+    readonly property bool deliverySessionShown: deliveryOnShow && deliveryAvailable && register !== "Replay" && !!dSession && dSession.available === true
+    // the plot's plane lines: only while the section's curves are on show (the figure draws them on that row only)
+    readonly property var planeLayers: deliveryOnShow && dLayers ? dLayers : ({})
     // A condition named on a chart opens in Session diagnostics, when that panel is up (SessionMode.sessionDiagnostics
     // is its model; null while the panel is off — then a name is plain text, never a dead link).
     readonly property bool canOpenCondition: interactive && !!SessionMode.sessionDiagnostics
     function openCondition(id) { if (canOpenCondition && id) SessionMode.sessionDiagnostics.openDetail(id) }
     readonly property int pickedOrdinal: tShot && tShot.available ? (tShot.ordinal || -1) : (rStatus && rStatus.pickedOrdinal > 0 ? rStatus.pickedOrdinal : -1)
     readonly property bool busy: (!!tracesP && tracesP.busy) || (!!relationsP && relationsP.busy) || (!!wristP && wristP.busy)
-                                 || (!!postureP && postureP.busy)
+                                 || (!!postureP && postureP.busy) || (!!deliveryP && deliveryP.busy)
 
     // ── the replay, fed by the panel (constants on an invisible screen) ──
     property real playUs: -1

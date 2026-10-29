@@ -40,9 +40,11 @@
 //       today's   preset · split (small multiples ↔ overlay) · dots · cursor
 //       wrist     wristAgainst · wristCurves · wristArchetype           (the Wrist sections; a saved wristScope is ignored)
 //       posture   posturePattern · postureAgainst                       (the Posture sections)
+//       delivery  none: the Club delivery sections have no choices, only their folds
 //       new       view · metricsOff · window · customStartUs · customEndUs · band · facet · against ·
 //                 difference · up · across · relFacet
-//       folds     controls · summary · sequence · apart · wrist · seqSession · wristSession · posture · postureSession
+//       folds     controls · summary · sequence · apart · wrist · seqSession · wristSession · posture · postureSession ·
+//                 delivery · deliverySession
 //                 (sectionCollapse)
 //     A saved "Custom" from today's panel restores as its base preset with its switched-off series.
 //   • THE READER'S PLACE (transient, per session) is SessionMode.chartsNav: { sessionDir, openId, scroll }.
@@ -184,6 +186,18 @@ Item {
         pattern: body.posturePattern
         referenceSwingDir: appSettings.wristReferenceSwingDir
     }
+    // the Club delivery sections (docs/design/club_delivery_chart_design.md §4, stage 3): the plane story, the fit to the
+    // ball flight over the golfer's day, the impact lines and the shot shape, and the plot's plane lines; the scope
+    // follows the view on show, as the posture's does.
+    ChartsDeliveryPresenter {
+        id: deliveryPresenter
+        model: seriesModel
+        pickedSwingDir: root._swingDir
+        pickedDetail: root._detail
+        register: root._register
+        playheadUs: root._playUs
+        scope: body.shownView === "session" ? "session" : "shot"
+    }
 
     Connections {
         target: shotProcessor
@@ -268,7 +282,8 @@ Item {
         body.collapsed = { controls: m[b + "controls"] === true, summary: m[b + "summary"] === true, sequence: m[b + "sequence"] === true,
                            apart: m[b + "apart"] === true, wrist: m[b + "wrist"] === true,
                            seqSession: m[b + "seqSession"] === true, wristSession: m[b + "wristSession"] === true,
-                           posture: m[b + "posture"] === true, postureSession: m[b + "postureSession"] === true }
+                           posture: m[b + "posture"] === true, postureSession: m[b + "postureSession"] === true,
+                           delivery: m[b + "delivery"] === true, deliverySession: m[b + "deliverySession"] === true }
     }
     function _persistFold(name, val) {
         if (root.sessionType < 0 || !root.remembersNav) return
@@ -400,6 +415,7 @@ Item {
         relationsP: relationsPresenter
         wristP: wristPresenter
         postureP: posturePresenter
+        deliveryP: deliveryPresenter
         playUs: root._playUs
         spanUs: root._spanUs
         onShotRequested: (dir, id) => root._pickShot(dir)

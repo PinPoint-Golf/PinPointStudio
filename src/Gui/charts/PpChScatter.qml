@@ -25,7 +25,12 @@ import PinPointStudio
 // squares line: ink2 and solid when it clears chance, ink3 dashed (ch.chanceDash) inside chance. The caption
 // is the presenter's ("r .62 (.17 to .86) · n 15 · inside chance"). Ranges are shared across facet panels
 // (the presenter gives the same xRange / yRange to every panel). Ticks are the presenter's.
-// objectName: chScatter.
+// Optional, for a caller with more to say per point (the Club delivery section's fit, §4.4): a point may carry
+// `faint` (drawn at half strength: a shot of another session that day, outside the Brush), `ring` (ringed whatever
+// the Brush says) and `label` (its values in words). With `hoverLabels` the plot itself takes the pointer: the
+// point nearest it lays its `label` ON the plot, and a click on a point of this session (ordinal > 0) opens it.
+// `markX` / `markXText`: a reading of this shot with no y (no monitor on it), drawn as a dashed hairline at its x.
+// objectName: chScatter (chScatterHover: the hovered point's words; chScatterMarkX: the x-only hairline).
 Item {
     id: sc
     objectName: "chScatter"
@@ -43,6 +48,9 @@ Item {
     property bool showAxisNames: true
     property bool showCaption: true
     property real plotH: roles ? roles.u(roles.isPrint ? 150 : 170) : 170
+    property bool hoverLabels: false
+    property real markX: NaN
+    property string markXText: ""
     property bool atom: true
     readonly property var keyKinds: ["ring", "fit", "chance", "box"]
     signal shotActivated(int ordinal)
@@ -124,10 +132,14 @@ Item {
         model: sc.roles ? sc.pts : []
         delegate: Item {
             required property var modelData
+            opacity: modelData.faint === true ? 0.45 : 1
             PpMark {
                 id: mk
-                roles: sc.roles; brush: sc.brush; interactive: sc.interactive
+                // a point outside the Brush (ordinal < 0: another session's shot) takes no Brush at all, so it is never
+                // lit, ringed or hovered as a shot of this session
+                roles: sc.roles; brush: modelData.ordinal >= 0 ? sc.brush : null; interactive: sc.interactive && !sc.hoverLabels
                 shotId: modelData.ordinal; fired: modelData.fired === true
+                ringed: modelData.ring === true || (sc.brush && modelData.ordinal >= 0 ? sc.brush.isPicked(modelData.ordinal) : false)
                 cx: Math.round(sc.px(modelData.x) * 2) / 2; cy: Math.round(sc.py(modelData.y) * 2) / 2
                 onActivated: sc.shotActivated(modelData.ordinal)
             }
@@ -138,6 +150,61 @@ Item {
                 x: mk.cx - width / 2; y: mk.cy + sc.roles.markFired / 2 + 1; color: sc.roles.warn
             }
         }
+    }
+    // a reading of this shot with no y: a dashed hairline at its x, named
+    Item {
+        objectName: "chScatterMarkX"
+        visible: sc.ok && !!sc.roles && isFinite(sc.markX) && sc.markX >= sc.xR.lo && sc.markX <= sc.xR.hi
+        x: visible ? Math.round(sc.px(sc.markX)) : 0; y: sc.pTop; width: 1; height: sc.ph
+        Column {
+            width: 1; height: parent.height; spacing: sc.roles ? sc.roles.u(3) : 3
+            Repeater { model: sc.roles ? Math.floor(sc.ph / sc.roles.u(6)) : 0
+                       delegate: Rectangle { width: 1; height: sc.roles.u(3); color: sc.roles.ink2 } }
+        }
+        Text {
+            visible: sc.markXText !== ""
+            x: parent.x + width + (sc.roles ? sc.roles.u(4) : 4) > sc.gutL + sc.pw ? -width - (sc.roles ? sc.roles.u(3) : 3) : (sc.roles ? sc.roles.u(3) : 3)
+            y: sc.roles ? sc.roles.u(2) : 2
+            text: sc.markXText; font: sc.roles ? sc.roles.fSmall : Qt.font({}); color: sc.roles ? sc.roles.ink2 : "grey"
+            Rectangle { z: -1; anchors.fill: parent; anchors.margins: -1; color: sc.roles ? sc.roles.knock : "transparent" }
+        }
+    }
+    // hoverLabels: the nearest point's words, laid on the plot beside it
+    property int hoverIndex: -1
+    MouseArea {
+        visible: sc.hoverLabels && sc.ok
+        enabled: visible
+        x: sc.gutL; y: sc.pTop; width: sc.pw; height: sc.ph
+        hoverEnabled: true
+        function nearest(mx, my) {
+            let best = -1, bd = (sc.roles ? sc.roles.u(12) : 12) ** 2
+            for (let i = 0; i < sc.pts.length; ++i) {
+                const p = sc.pts[i], dx = sc.px(p.x) - sc.gutL - mx, dy = sc.py(p.y) - sc.pTop - my, d = dx * dx + dy * dy
+                if (d < bd) { bd = d; best = i }
+            }
+            return best
+        }
+        onPositionChanged: (e) => {
+            const i = nearest(e.x, e.y)
+            if (sc.brush && sc.hoverIndex >= 0 && sc.pts[sc.hoverIndex] && sc.pts[sc.hoverIndex].ordinal > 0) sc.brush.hoverShot(sc.pts[sc.hoverIndex].ordinal, false)
+            sc.hoverIndex = i
+            if (sc.brush && i >= 0 && sc.pts[i].ordinal > 0) sc.brush.hoverShot(sc.pts[i].ordinal, true)
+        }
+        onExited: { if (sc.brush && sc.hoverIndex >= 0 && sc.pts[sc.hoverIndex] && sc.pts[sc.hoverIndex].ordinal > 0) sc.brush.hoverShot(sc.pts[sc.hoverIndex].ordinal, false); sc.hoverIndex = -1 }
+        cursorShape: sc.hoverIndex >= 0 && sc.pts[sc.hoverIndex] && sc.pts[sc.hoverIndex].ordinal > 0 && sc.interactive ? Qt.PointingHandCursor : Qt.ArrowCursor
+        onClicked: if (sc.interactive && sc.hoverIndex >= 0 && sc.pts[sc.hoverIndex].ordinal > 0) sc.shotActivated(sc.pts[sc.hoverIndex].ordinal)
+    }
+    Text {
+        objectName: "chScatterHover"
+        readonly property var p: sc.hoverIndex >= 0 ? sc.pts[sc.hoverIndex] : null
+        visible: !!p && !!p.label && !!sc.roles
+        readonly property real cx: p ? sc.px(p.x) : 0
+        readonly property real cy: p ? sc.py(p.y) : 0
+        x: cx + width + (sc.roles ? sc.roles.u(10) : 10) > sc.gutL + sc.pw ? cx - width - (sc.roles ? sc.roles.u(8) : 8) : cx + (sc.roles ? sc.roles.u(8) : 8)
+        y: Math.max(sc.pTop, Math.min(sc.pTop + sc.ph - height, cy - height / 2))
+        text: p && p.label ? p.label : ""
+        font: sc.roles ? sc.roles.fFigS : Qt.font({}); color: sc.roles ? sc.roles.ink : "black"
+        Rectangle { z: -1; anchors.fill: parent; anchors.margins: -2; color: sc.roles ? sc.roles.knock : "transparent" }
     }
     PpChBoxCell {
         visible: sc.showMarginals && sc.ok

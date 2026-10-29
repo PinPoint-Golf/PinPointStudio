@@ -951,5 +951,137 @@ Item {
             useWristPreset()
             compare(shownAll("chWristTrust", oneShown("chWristSection")).length, 0, "no trust fold at the glance")
         }
+        // ── the Club delivery section (docs/design/club_delivery_chart_design.md §4, stage 3) ──
+        // `delivery: true` gives every shot the plane and the monitor's delivery readings (qml_ui_test.cpp
+        // withDeliveryReadings: charts_delivery_presenter_test's synthetic shots on the fixture's own P-positions). The
+        // words and numbers are charts_delivery_presenter_test's and session_delivery_test's; these pin WHERE the panel
+        // surfaces them: a "Club delivery" section on This shot and Session when the plane or a monitor delivery reading
+        // AND one of those curves is on show (the Club delivery preset), and the lines on the swing plane curve's row.
+        readonly property string deliveryPreset: "Club delivery"
+        function useDeliveryPreset() {
+            verify((hn.body.tChoices.presets || []).some(function (p) { return p.id === deliveryPreset }), "the Club delivery preset is offered")
+            hn.body.choose("preset", deliveryPreset); settle()
+            compare(hn.body.tChoices.preset, deliveryPreset)
+        }
+        function test_36_the_delivery_section_shows_on_the_club_delivery_preset() {
+            fresh({ delivery: true }, 8)
+            compare(hn.body.deliveryAvailable, true, "a shot carries the plane")
+            compare(hn.body.deliveryOnShow, false, "the default preset shows no plane or monitor delivery curve")
+            compare(shownAll("chDeliverySection").length, 0, "no delivery curve on show: no section")
+            useDeliveryPreset()
+            compare(hn.body.deliveryOnShow, true)
+            compare(hn.body.deliveryShotShown, true)
+            const sec = oneShown("chDeliverySection")
+            verify(sec.height > 0)
+            const sh = hn.body.dShot
+            compare(sh.mode, "full")
+            verify(textOf(oneShown("chDeliveryHead", sec)).indexOf(hn.plain(sh.headText)) === 0, "the presenter's head first")
+            verify(textOf(oneShown("chDeliveryStory", sec)).indexOf(hn.plain(sh.story.text)) >= 0, "the plane story")
+            compare(shownAll("chDeliveryPos", sec).map(function (p) { return p.tag }).join(","), "P1,P2,P3,P4,P5,P6,P7", "the plane at each position")
+            verify(oneShown("chDeliverySlot", sec))
+            const fl = oneShown("chDeliveryFlight", sec)
+            verify(textOf(fl).indexOf(hn.plain(sh.flight.text)) >= 0, "the fit's sentence")
+            const sc = oneShown("chScatter", fl)
+            verify(sc.pts.length >= 12, "a dot per shot with both readings (" + sc.pts.length + ")")
+            compare(sc.pts.filter(function (p) { return p.ring === true }).length, 1, "this shot ringed")
+            verify(!!sc.scatter.line, "the fitted line, the fit holding")
+            if ((sh.impact.lines || []).length > 0)
+                compare(shownAll("chDeliveryImpactLine", oneShown("chDeliveryImpact", sec)).length, sh.impact.lines.length, "a line per impact reading")
+            const shp = oneShown("chDeliveryShape", sec)
+            const grid = oneShown("chShotShapeGrid", shp)
+            compare(shownAll("chShapeCell", grid).length, 9, "the 3×3 grid")
+            compare(shownAll("chShapeThis", grid).length, sh.shape.available ? 1 : 0, "this shot in its cell")
+            verify(textOf(shp).indexOf(sh.shape.available ? sh.shape.word : "-") >= 0, "the shape's word")
+            // trust, said once: closed, then the presenter's lines verbatim
+            const tr = oneShown("chDeliveryTrust", sec)
+            compare(shownAll("chDeliveryTrustLine", tr).length, 0, "closed by default")
+            press(oneShown("chDeliveryTrustToggle", tr))
+            compare(shownAll("chDeliveryTrustLine", tr).map(function (t) { return t.text }).join("\n"), (sh.trust.lines || []).join("\n"), "opened: the lines, verbatim")
+            // the plot: the address line, the shoulder plane, the slot and the hands' stretches on the swing plane curve's row,
+            // inked by role, and named on the plot
+            const row = oneShown("chTrace:swingPlaneCurve")
+            const roles = ["address", "shoulders", "slot", "hands"]
+            for (const r of roles) {
+                const ls = layers(row, function (l) { return l.role === r })
+                verify(ls.length >= 1, "a '" + r + "' layer on the swing plane curve's row")
+                verify(ls.every(function (l) { return l.color !== undefined }), "inked by role: " + r)
+            }
+            compare(layers(oneShown("chTrace:handPlaneCurve"), function (l) { return l.role !== undefined }).length, 0, "only the swing plane curve's row")
+            const names = shownAll("chPlaneLabel", row).map(function (l) { return l.role })
+            verify(names.indexOf("address") >= 0 && names.indexOf("shoulders") >= 0, "the hairlines named (" + names + ")")
+            // without the readings: no section, no lines
+            fresh({}, 8)
+            useDeliveryPreset()
+            compare(hn.body.deliveryShotShown, false)
+            compare(shownAll("chDeliverySection").length, 0)
+            compare(shownAll("chPlaneLabel").length, 0)
+        }
+        function test_37_a_delivery_position_seeks_and_the_session_section_reads() {
+            fresh({ delivery: true }, 8)
+            useDeliveryPreset()
+            const sec = oneShown("chDeliverySection")
+            const p4 = shownAll("chDeliveryPos", sec).filter(function (p) { return p.tag === "P4" })
+            compare(p4.length, 1)
+            const before = hn.replay.seeks
+            press(p4[0])
+            compare(hn.replay.seeks, before + 1, "a position press seeks")
+            compare(hn.replay.lastSeekUs, hn.body.deliveryP.seekUsFor("P4"), "to that position")
+            // Session: the session's section after the standard content; the presenter's scope follows the view
+            tabPress("session")
+            compare(hn.body.deliveryP.scope, "session")
+            compare(hn.body.deliverySessionShown, true)
+            verify(oneShown("chDeliverySessionSlot"))
+            const ses = oneShown("chDeliverySession")
+            verify(textOf(oneShown("chDeliverySessionHead", ses)).length > 0, "a head")
+            compare(shownAll("chDeliveryBandCol", oneShown("chDeliveryBand", ses)).length, 7, "a box per position")
+            verify(oneShown("chDeliveryUsual", ses))
+            verify(oneShown("chScatter", oneShown("chDeliveryFlight", ses)))
+            verify(shownAll("chShapeMark", oneShown("chShotShapeGrid", ses)).length >= 1, "the session's shots in the grid")
+            // the session figure: the medians' lines, no hands' stretch
+            const labels = shownAll("chPlaneLabel", oneShown("chSessionFigure")).map(function (l) { return l.role })
+            verify(labels.indexOf("address") >= 0, "the session's address line named (" + labels + ")")
+            compare(labels.indexOf("hands"), -1, "no hands' stretch on Session")
+            tabPress("shot")
+            compare(hn.body.deliveryP.scope, "shot")
+        }
+        function test_38_the_delivery_glance_sits_under_the_cards() {
+            fresh({ delivery: true }, 8)
+            useMode("Replay")
+            useDeliveryPreset()
+            const sec = oneShown("chDeliverySection")
+            verify(textOf(oneShown("chDeliveryHead", sec)).length > 0, "a head")
+            verify(oneShown("chDeliveryStory", sec), "the plane story")
+            compare(shownAll("chDeliveryPos", sec).length, 0, "no positions at the glance")
+            compare(shownAll("chDeliveryFlight", sec).length, 0, "no scatter at the glance")
+            compare(shownAll("chDeliveryImpact", sec).length, 0)
+            compare(shownAll("chDeliveryTrust", sec).length, 0, "no trust fold at the glance")
+            compare(shownAll("chDeliveryShape", sec).length, hn.body.dShot.shape.available ? 1 : 0, "the shape mark when the monitor has one")
+            // under the glance cards (§8.3), never instead of them
+            const cards = shownAll("chSummary")
+            if (cards.length > 0) verify(sec.mapToItem(null, 0, 0).y > cards[0].mapToItem(null, 0, 0).y, "the section sits under the glance cards")
+            compare(hn.body.dShot.replay.head, hn.body.dShot.headText)
+            tabPress("session")
+            compare(hn.body.deliverySessionShown, false)
+            compare(shownAll("chDeliverySessionSlot").length, 0, "Session adds no delivery section at the glance")
+        }
+        function test_39_the_delivery_folds_persist() {
+            fresh({ delivery: true }, 8)
+            useDeliveryPreset()
+            const b = hn.sessionType + ":" + SessionMode.analyse + ":"
+            press(oneShown("chFold:delivery"))
+            compare(hn.body.collapsed.delivery, true)
+            compare(appSettings.sectionCollapse[b + "delivery"], true)
+            compare(shownAll("chDeliveryStory").length, 0, "folded: the story goes")
+            verify(textOf(oneShown("chFold:delivery")).indexOf(hn.plain(hn.body.dShot.headText)) >= 0, "folded, the head keeps its one-line state")
+            tabPress("session")
+            press(oneShown("chFold:deliverySession"))
+            compare(hn.body.collapsed.deliverySession, true)
+            compare(appSettings.sectionCollapse[b + "deliverySession"], true)
+            compare(shownAll("chDeliverySession").length, 0, "folded: the session's section goes")
+            // a rebuild puts them back
+            fresh({ delivery: true }, 8)
+            compare(hn.body.collapsed.delivery, true)
+            compare(hn.body.collapsed.deliverySession, true)
+        }
     }
 }

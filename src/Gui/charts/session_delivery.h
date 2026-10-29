@@ -82,7 +82,8 @@
 //      a fit's slope one decimal, r two, scatter one; a middle half's ± one decimal. U+2212 minus.
 //  10. SHOT SHAPE (§4.6) is the monitor's alone: start from lm.faceAngle (±1° straight), curve from
 //      lm.faceToPath (else face − path; ±1° straight); "slight" up to kDeliverySlightCurveDeg (the
-//      design's "pull, slight fade"). Words mirror for a left-handed golfer.
+//      design's "pull, slight fade"); past kDeliveryBigCurveDeg a curve left is a hook and a curve right a slice
+//      (Jess 20 Oct shot 3, face to path −13.8°, was a "draw"). Words mirror for a left-handed golfer.
 //  11. LIE → FACE (§4.5): lm.lieAngle (toe up +) else shaftLie P7 − P1 (more upright +); loft lm.dynamicLoft
 //      else the club's factory loft (athlete_controller.cpp's defaultClubRecordFor table; the athlete's own
 //      club record is not in the snapshot). Δface = Δlie × sin(loft), toe up → face left (right-handed).
@@ -123,6 +124,8 @@ inline constexpr double kDeliveryDeliveredSameDeg   = 1.0;   // |P7 − P1| as p
 inline constexpr double kDeliveryShapeStartDeg      = 1.0;   // ±1° start: the monitor's own resolution class
 inline constexpr double kDeliveryShapeCurveDeg      = 1.0;   // ±1° face-to-path: the same
 inline constexpr double kDeliverySlightCurveDeg     = 3.0;   // decision 10: "slight fade" up to here
+inline constexpr double kDeliveryBigCurveDeg        = 6.0;   // decision 10: over this the ball curves too far to call a
+                                                             // draw or a fade — a hook (left) or a slice (right)
 inline constexpr int    kDeliverySessionBandShots   = 5;     // the band means nothing below
 inline constexpr double kDeliveryUsualDeg           = 3.0;   // decision 6: the going-back word's own step
 inline constexpr double kDeliveryHandsCarryDeg      = 0.5;   // decision 5: the curve sits on the hand plane
@@ -300,7 +303,7 @@ struct DeliveryShape {
     int     start = 0;             // −1 left, 0 straight, +1 right (of the target, the ball's start)
     int     curve = 0;             // −1 curves left, 0 straight, +1 curves right
     bool    slight = false;
-    QString startWord, curveWord;  // "pull" | "straight" | "push"; "slight fade" | "draw" | "straight" …
+    QString startWord, curveWord;  // "pull" | "straight" | "push"; "slight fade" | "draw" | "hook" | "slice" | "straight" …
     QString word;                  // "Pull, slight fade" | "Straight"
 };
 DeliveryShape deliveryShotShape(const DeliveryShotInput &in);

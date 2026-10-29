@@ -59,6 +59,7 @@
 #include "charts/charts_traces_presenter.h"
 #include "charts/charts_wrist_presenter.h"
 #include "charts/charts_posture_presenter.h"
+#include "charts/charts_delivery_presenter.h"
 #include "charts/session_wrist.h"
 #include "tests/charts_maths_fixture.h"
 
@@ -140,7 +141,10 @@ public:
     {
         using namespace pinpoint::charts;
         if (!load() || ordinal < 1 || ordinal > int(m_fx.session.shots.size())) return {};
-        const ShotSeries &s = *m_fx.session.shots[size_t(ordinal - 1)];
+        // after a `delivery: true` feed the replay's detail carries the same Club delivery readings as the snapshot
+        ShotSeries withDelivery;
+        if (m_deliveryFed) { withDelivery = *m_fx.session.shots[size_t(ordinal - 1)]; withDeliveryReadings(withDelivery); }
+        const ShotSeries &s = m_deliveryFed ? withDelivery : *m_fx.session.shots[size_t(ordinal - 1)];
         QVariantList series, phases;
         for (const QString &k : s.metricOrder) {
             const MetricSeries *m = s.metric(k);
@@ -183,6 +187,10 @@ public:
     //                        Without it the Posture presenter is fed an empty snapshot: no shot carries a
     //                        posture reading and no Posture section shows, whatever the preset.
     //   picture: true        (with posture) every shot's picture strip reads data/posture/picture_doc.json
+    //   delivery: true       give every shot the Club delivery readings (withDeliveryReadings: the swing plane curve,
+    //                        the hand plane, the shoulder plane, the steepening and the monitor's path, attack, face and
+    //                        face-to-path) and feed the Delivery presenter the session. Without it the Delivery
+    //                        presenter is fed an empty snapshot: no Club delivery section shows, whatever the preset.
     // Returns the number of shots in the snapshot fed (−1 when the fixture did not load).
     Q_INVOKABLE int feed(const QVariantList &presenters, const QVariantMap &opts = {})
     {
@@ -190,6 +198,7 @@ public:
         if (!load()) return -1;
         auto s = std::make_shared<SessionSnapshot>();
         s->revision = ++m_revision;
+        m_deliveryFed = opts.value(QStringLiteral("delivery")).toBool();
         if (!opts.value(QStringLiteral("none")).toBool()) {
             s->sessionDir = sessionDir();
             s->conditions = m_fx.session.conditions;
@@ -200,6 +209,7 @@ public:
             const QVariantMap clubs = opts.value(QStringLiteral("clubs")).toMap();
             const QVariantMap un = opts.value(QStringLiteral("unmeasured")).toMap();
             const bool wrist = opts.value(QStringLiteral("wrist")).toBool();
+            const bool delivery = opts.value(QStringLiteral("delivery")).toBool();
             QList<int> unOrd;
             for (const QVariant &v : un.value(QStringLiteral("ordinals")).toList()) unOrd << v.toInt();
             for (const auto &sh : m_fx.session.shots) {
@@ -216,6 +226,7 @@ public:
                 }
                 if (wrist) { withWristCurve(*c); c->wrist = shotWristPayload(*c, -1, {}); }
                 else c->wrist = QVariantMap{};
+                if (delivery) withDeliveryReadings(*c);
                 s->shots.push_back(c);
             }
         }
@@ -224,6 +235,16 @@ public:
             if (auto *t = qobject_cast<ChartsTracesPresenter *>(o)) { t->setModel(nullptr); t->setSnapshot(s); }
             else if (auto *r = qobject_cast<ChartsRelationsPresenter *>(o)) r->setSnapshot(s);
             else if (auto *w = qobject_cast<ChartsWristPresenter *>(o)) { w->setModel(nullptr); w->setSnapshot(s); }
+            else if (auto *d = qobject_cast<ChartsDeliveryPresenter *>(o)) {
+                d->setModel(nullptr);
+                if (opts.value(QStringLiteral("delivery")).toBool()) d->setSnapshot(s);
+                else {
+                    auto e = std::make_shared<SessionSnapshot>();
+                    e->revision = s->revision;
+                    e->sessionDir = s->sessionDir;
+                    d->setSnapshot(e);
+                }
+            }
             else if (auto *p = qobject_cast<ChartsPosturePresenter *>(o)) {
                 p->setModel(nullptr);
                 if (opts.value(QStringLiteral("posture")).toBool()) {
@@ -243,6 +264,64 @@ public:
             }
         }
         return s->count();
+    }
+
+    // THE 4 JULY FIXTURE HAS NO SWING PLANE CURVE (it predates the plane, and its monitor rows were trimmed), so
+    // `delivery: true` gives each shot the Club delivery readings of charts_delivery_presenter_test's synthetic shots,
+    // laid on the shot's OWN P-positions: the curve flat ±25 ms about each position and linear between (P1…P7 =
+    // 58 54 62 65 64 p6 59°, p6 = 58 + 0.5 (ordinal − 1)) on a 5 ms grid from P1 to 40 ms past impact; the hand plane
+    // 4° under it except from 50 ms before the top to 25 ms after P6, where the hands carry it; the shoulder plane 68°
+    // at address; and the monitor's path following the plane at P6 (−0.92 a degree, ±0.3), its attack, a face and a
+    // face-to-path that put the shots in more than one cell of the shot-shape grid. 15 shots: the path fit holds.
+    // A shot missing a P-position is left as it is.
+    static void withDeliveryReadings(pinpoint::charts::ShotSeries &c)
+    {
+        using namespace pinpoint::charts;
+        constexpr int kPh[7] = { 0, 12, 8, 2, 13, 9, 5 };
+        qint64 at[7];
+        for (int p = 0; p < 7; ++p) {
+            at[p] = -1;
+            for (const PhaseMark &m : c.phases) if (m.phase == kPh[p]) at[p] = m.tUs;
+            if (at[p] < 0 || (p > 0 && at[p] <= at[p - 1])) return;
+        }
+        const int i = c.ordinal;
+        const double p6 = 58.0 + 0.5 * (i - 1);
+        const double val[7] = { 58, 54, 62, 65, 64, p6, 59 };
+        MetricSeries curve, hands;
+        curve.key = QStringLiteral("swingPlaneCurve"); curve.unit = QStringLiteral("°"); curve.sigma = 0.8;
+        hands.key = QStringLiteral("handPlaneCurve");  hands.unit = QStringLiteral("°");
+        const qint64 handsFrom = at[3] - 50'000, handsTo = at[5] + 25'000;
+        for (qint64 t = at[0]; t <= at[6] + 40'000; t += 5'000) {
+            double v = val[6];
+            int p = 0;
+            while (p < 6 && t > at[p + 1]) ++p;
+            if (p < 6) {
+                const double a = double(at[p] + 25'000), b = double(at[p + 1] - 25'000);
+                v = (b <= a || double(t) <= a) ? (double(t) <= a ? val[p] : val[p + 1])
+                  : double(t) >= b ? val[p + 1] : val[p] + (val[p + 1] - val[p]) * (double(t) - a) / (b - a);
+            }
+            curve.tUs.push_back(t); curve.value.push_back(v);
+            hands.tUs.push_back(t); hands.value.push_back(t >= handsFrom && t <= handsTo ? v : v - 4.0);
+        }
+        const auto put = [&c](MetricSeries m) {
+            if (!c.metricOrder.contains(m.key)) c.metricOrder << m.key;
+            c.metrics.insert(m.key, std::move(m));
+        };
+        put(curve); put(hands);
+        const auto instant = [&](const QString &key, int phase, double v) {
+            MetricSeries m;
+            m.key = key; m.unit = QStringLiteral("°");
+            PhaseSample ps; ps.phase = phase; ps.value = v;
+            for (const PhaseMark &pm : c.phases) if (pm.phase == phase) ps.tUs = pm.tUs;
+            m.phaseSamples.push_back(ps);
+            put(m);
+        };
+        instant(QStringLiteral("shoulderPlane"), 0, 68.0);
+        instant(QStringLiteral("handPlaneSteepening"), 2, 5.0 + 0.3 * (i - 1));
+        instant(QStringLiteral("lm.clubPath"), 5, 55.5 - 0.92 * p6 + (i % 2 ? 0.3 : -0.3));
+        instant(QStringLiteral("lm.attackAngle"), 5, 28.0 - 0.5 * p6 + (i % 2 ? 0.2 : -0.2));
+        instant(QStringLiteral("lm.faceAngle"), 5, -2.0 + 1.5 * (i % 3));
+        instant(QStringLiteral("lm.faceToPath"), 5, 1.5 - 1.2 * (i % 4));
     }
 
     // ⚠ THE TRIMMED FIXTURE KEEPS NO WRIST CURVE: trim_fixture.py kept curves for the six speeds only, so
@@ -296,6 +375,7 @@ private:
     charts_test::Fixture m_fx;
     bool m_tried = false;
     quint64 m_revision = 100;
+    bool m_deliveryFed = false;          // the last feed gave the shots the Club delivery readings (detailOf follows)
 };
 
 class QmlUiTestSetup : public QObject

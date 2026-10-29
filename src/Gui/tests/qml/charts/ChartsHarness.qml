@@ -113,8 +113,9 @@ Item {
     }
     // the wrist presenter is fed too (detached from the model): without opts.wrist no shot carries a wrist
     // profile, so no wrist section shows — every suite but the Wrist cases sees the standard views only
-    // (and the posture presenter: without opts.posture it is fed no shot, so no Posture section shows)
-    function feed(opts) { return chartsFixture.feed([body.tracesP, body.relationsP, body.wristP, body.postureP], opts || {}) }
+    // (and the posture presenter: without opts.posture it is fed no shot, so no Posture section shows; the delivery
+    // presenter likewise: without opts.delivery no shot carries the plane and no Club delivery section shows)
+    function feed(opts) { return chartsFixture.feed([body.tracesP, body.relationsP, body.wristP, body.postureP, body.deliveryP], opts || {}) }
 
     // ── the replay ──
     // The span of a shot's recording: the last sample of any of its series (window-relative µs).
@@ -146,6 +147,7 @@ Item {
             if (body && body.relationsP) body.relationsP.waitForIdle(60000)
             if (body && body.wristP) body.wristP.waitForIdle(60000)
             if (body && body.postureP) body.postureP.waitForIdle(60000)
+            if (body && body.deliveryP) body.deliveryP.waitForIdle(60000)
             if (tc) tc.wait(16)
         }
         if (tc) tc.waitForRendering(h, 60)

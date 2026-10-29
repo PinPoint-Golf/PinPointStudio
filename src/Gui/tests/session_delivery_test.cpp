@@ -325,6 +325,27 @@ private slots:
         QCOMPARE(sv.head, sv.shapeLine + QStringLiteral("."));
     }
 
+    // §4.6, decision 10: past kDeliveryBigCurveDeg of face to path the curve is a hook (left) or a slice (right), mirrored
+    // for a left-handed golfer; the slight band and the draw / fade between are unchanged.
+    void bigCurvesAreHooksAndSlices()
+    {
+        DeliveryShotInput g;
+        g.lmFace = -2.0;
+        g.lmFaceToPath = -13.8;   // Jess 20 Oct shot 3
+        QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Pull, hook"));
+        QCOMPARE(deliveryShotShape(g).curveWord, QStringLiteral("hook"));
+        g.lmFaceToPath = 7.0;
+        QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Pull, slice"));
+        g.lmFaceToPath = -4.0;
+        QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Pull, draw"));
+        g.lmFaceToPath = 6.0;     // the edge is a fade still
+        QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Pull, fade"));
+        g.lmFaceToPath = -2.5;
+        QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Pull, slight draw"));
+        g.leftHanded = true; g.lmFaceToPath = -13.8;
+        QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Push, slice"));
+    }
+
     // §4.5: Δface ≈ Δlie × sin(loft).
     void lieTurnsTheFace()
     {

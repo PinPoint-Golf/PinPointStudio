@@ -57,6 +57,21 @@ Item {
     property int pickedOrdinal: 0
     property real plotH: roles ? roles.u(70) : 70
     property bool overlay: false                // one plot, one shared value axis (session.overlay)
+    // THE CLUB DELIVERY LINES (docs/design/club_delivery_chart_design.md §4.7): ChartsDeliveryPresenter.plotLayers in
+    // its Session scope — the session's median address line and shoulder plane and the slot between them, no hands'
+    // stretches — per row key, inked by role (roles.planeLayer) and named on the plot (PpChPlaneLabels). The slot's
+    // span is the shots' own ms from impact, which the canonical axis keeps (impact is every shot's anchor): it is
+    // clipped to the window like any layer.
+    property var planeLayers: ({})
+    function planeLayersOf(key) { return (planeLayers && key && planeLayers[key]) || [] }
+    // a value range [lo, hi] taken out, with a little room, to hold the layers' hairlines
+    function withPlane(lo, hi, ls) {
+        let a = lo, b = hi
+        for (const l of (ls || [])) if (l.k === "hline" && l.v !== null && l.v !== undefined && isFinite(l.v)) { a = Math.min(a, l.v); b = Math.max(b, l.v) }
+        if (a === lo && b === hi) return { lo: lo, hi: hi }
+        const pad = 0.04 * Math.max(1e-6, b - a)
+        return { lo: a < lo ? a - pad : lo, hi: b > hi ? b + pad : hi }
+    }
     readonly property var ovAxis: session && session.overlay ? session.overlay : null
     readonly property var keyKinds: []
     property bool atom: true
@@ -133,6 +148,7 @@ Item {
         }
         if (band !== "fit" && r.part && r.part.found)
             out.push({ k: "vline", t: r.part.canonMs, color: roles.ink3, dash: [roles.u(2), roles.u(2.5)] })
+        for (const l of planeLayersOf(r.key)) out.push(roles.planeLayer(l))
         return out
     }
 
@@ -188,8 +204,11 @@ Item {
                 // overlaid, the one plot takes the height its stacked figures need (as This shot's overlay)
                 readonly property real ph: ov && sf.figSide ? Math.max(sf.plotH, figCol.implicitHeight - cov) : sf.plotH
                 objectName: "chEnvelope:" + (ov ? "overlay" : r.key)
-                readonly property real lo0: ov ? (sf.ovAxis ? sf.ovAxis.yLo : 0) : r.yLo
-                readonly property real hi0: ov ? (sf.ovAxis ? sf.ovAxis.yHi : 1) : r.yHi
+                // the presenter's range, taken out to hold the Club delivery hairlines (see planeLayers)
+                readonly property var span_: sf.withPlane(ov ? (sf.ovAxis ? sf.ovAxis.yLo : 0) : r.yLo, ov ? (sf.ovAxis ? sf.ovAxis.yHi : 1) : r.yHi,
+                                                          ov ? [].concat.apply([], sf.rows.map(function (q) { return sf.planeLayersOf(q.key) })) : sf.planeLayersOf(r.key))
+                readonly property real lo0: span_.lo
+                readonly property real hi0: span_.hi
                 readonly property real lo: lo0
                 readonly property real hi: hi0 + (hi0 - lo0) * (sf.nameBand / Math.max(1, rw.ph - sf.nameBand))
                 // the presenter's ticks (texts included); a short plot keeps every other one
@@ -238,8 +257,19 @@ Item {
                                 text: modelData.text; font: sf.roles.fFigLabel; color: sf.roles.ink3
                             }
                         }
+                        // the Club delivery lines named where they are drawn, clear of the row's name (or the key)
+                        PpChPlaneLabels {
+                            x: sf.yGut; width: sf.innerW; height: rw.ph
+                            roles: sf.roles
+                            layers: rw.ov ? [].concat.apply([], sf.rows.map(function (q) { return sf.planeLayersOf(q.key) })) : sf.planeLayersOf(rw.r.key)
+                            x0: sf.x0; x1: sf.x1; lo: rw.lo; hi: rw.hi
+                            topInset: sf.nameBand
+                            reserve: pn.index !== 0 ? [] : [rw.ov ? { x: 0, y: 0, w: sKey.width + sf.roles.u(10), h: sKey.height + sf.roles.u(3) }
+                                                                  : { x: 0, y: 0, w: sName.width + sf.roles.u(10), h: Math.max(sf.nameBand, sName.height + sf.roles.u(3)) }]
+                        }
                         // overlaid: the key, one line per curve, at the top left on a knock-out (as This shot's)
                         Column {
+                            id: sKey
                             visible: pn.index === 0 && rw.ov
                             x: sf.yGut + sf.roles.u(4); y: sf.roles.u(1)
                             Repeater {
@@ -256,6 +286,7 @@ Item {
                             }
                         }
                         Row {
+                            id: sName
                             visible: pn.index === 0 && !rw.ov
                             x: sf.yGut + sf.roles.u(4); y: sf.roles.u(1); spacing: sf.roles.u(5)
                             Rectangle { anchors.verticalCenter: snm.verticalCenter; width: sf.roles.u(sf.roles.ch.swatch); height: sf.roles.u(2); color: rw.r ? sf.roles.hue(rw.r.key) : "transparent" }

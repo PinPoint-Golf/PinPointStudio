@@ -57,6 +57,18 @@ PpTypeset {
     readonly property real boxFill: ch.boxFill
     // a dash pattern in design units, for a Canvas
     function dash(pat) { return (pat || []).map(function (d) { return u(d) }) }
+    // THE CLUB DELIVERY LINES ON THE SWING PLANE CURVE'S ROW (docs/design/club_delivery_chart_design.md §4.2): the
+    // presenter's plotLayers carry a `role` and no colour; the ink is chosen here, by role. The address line and the
+    // shoulder plane are hairlines in ink (the shoulders dashed), the slot between them a faint ink wash, and the
+    // stretches the hands carry the plane a light shade of the hand plane's own hue (the curve there IS the hands').
+    function planeLayer(l) {
+        const st = l.role === "address" ? { color: Qt.alpha(ink, 0.75), dash: [] }
+                 : l.role === "shoulders" ? { color: Qt.alpha(ink, 0.75), dash: dash([4, 3]) }
+                 : l.role === "slot" ? { color: Qt.alpha(ink, Theme.dark && !isPrint ? 0.09 : 0.06) }
+                 : l.role === "hands" ? { color: hueA("handPlaneCurve", envAlpha * 0.6) }
+                 : { color: ink3 }
+        return Object.assign({}, l, st)
+    }
 
     // the knock-out behind a label inside a plot: the surface at ch.knockOutAlpha (white on paper)
     readonly property color knock: isPrint ? "#FFFFFF" : Qt.alpha(Theme.colorSurface, ch.knockOutAlpha)

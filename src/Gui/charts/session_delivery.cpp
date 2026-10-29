@@ -694,7 +694,9 @@ DeliveryShape deliveryShotShape(const DeliveryShotInput &in)
     // the words mirror for a left-handed golfer: right of the target is a pull, a curve right a draw
     const int st = in.leftHanded ? -s.start : s.start, cv = in.leftHanded ? -s.curve : s.curve;
     s.startWord = st > 0 ? QStringLiteral("push") : st < 0 ? QStringLiteral("pull") : QStringLiteral("straight");
-    const QString base = cv > 0 ? QStringLiteral("fade") : QStringLiteral("draw");
+    const bool big = std::fabs(s.faceToPath) > kDeliveryBigCurveDeg;
+    const QString base = cv > 0 ? (big ? QStringLiteral("slice") : QStringLiteral("fade"))
+                                : (big ? QStringLiteral("hook") : QStringLiteral("draw"));
     s.curveWord = s.curve == 0 ? QStringLiteral("straight") : (s.slight ? QStringLiteral("slight ") : QString()) + base;
     if (s.start == 0 && s.curve == 0)  s.word = QStringLiteral("Straight");
     else if (s.curve == 0)             s.word = W::cap1(s.startWord);

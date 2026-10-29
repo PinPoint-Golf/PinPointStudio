@@ -65,6 +65,20 @@ Item {
     property string figMode: "figures"          // "figures" (Analyse) | "now" (Replay)
     property real plotH: roles ? roles.u(70) : 70
     property var demoHoverMs: undefined         // renders only: a hover held at this ms
+    // THE CLUB DELIVERY LINES (docs/design/club_delivery_chart_design.md §4.2): ChartsDeliveryPresenter.plotLayers, per
+    // row key — the address line, the shoulder plane, the slot between them and the hands' stretches over the swing
+    // plane curve's row, in PpChPlot's own layer shapes. Inked by role (roles.planeLayer) and named on the plot
+    // (PpChPlaneLabels); overlaid, they join the one plot. {} draws nothing.
+    property var planeLayers: ({})
+    function planeLayersOf(key) { return (planeLayers && key && planeLayers[key]) || [] }
+    // a value range [lo, hi] taken out, with a little room, to hold the layers' hairlines
+    function withPlane(lo, hi, ls) {
+        let a = lo, b = hi
+        for (const l of (ls || [])) if (l.k === "hline" && l.v !== null && l.v !== undefined && isFinite(l.v)) { a = Math.min(a, l.v); b = Math.max(b, l.v) }
+        if (a === lo && b === hi) return { lo: lo, hi: hi }
+        const pad = 0.04 * Math.max(1e-6, b - a)
+        return { lo: a < lo ? a - pad : lo, hi: b > hi ? b + pad : hi }
+    }
     readonly property var keyKinds: []
     property bool atom: true
 
@@ -125,6 +139,7 @@ Item {
             out.push({ k: "band", t: est.t, lo: est.lo, hi: est.hi, color: roles.hueA(r.key, roles.envAlpha) })
             out.push({ k: "line", t: est.t, v: est.v, color: col, w: c.thisShotW, dash: roles.dash(c.fitDash), z: 3 })
         }
+        for (const l of planeLayersOf(r.key)) out.push(roles.planeLayer(l))
         return out
     }
     property bool showRawDots: true
@@ -201,8 +216,12 @@ Item {
                 readonly property string key: ov ? "" : modelData.key
                 objectName: ov ? "chTrace:overlay" : "chTrace:" + key
                 readonly property real ph: ov ? tf.plotH * Math.min(2, Math.max(1, tf.rows.length * 0.6)) : tf.plotH
-                readonly property real lo: ov ? (tf.overlayAxis ? tf.overlayAxis.yLo : 0) : r.yLo
-                readonly property real hi: ov ? (tf.overlayAxis ? tf.overlayAxis.yHi : 1) : r.yHi
+                // the presenter's range, taken out to hold the Club delivery hairlines (an address line or a shoulder plane
+                // outside the curve's own range would otherwise be off the plot, unseen)
+                readonly property var span_: tf.withPlane(ov ? (tf.overlayAxis ? tf.overlayAxis.yLo : 0) : r.yLo, ov ? (tf.overlayAxis ? tf.overlayAxis.yHi : 1) : r.yHi,
+                                                          ov ? [].concat.apply([], tf.rows.map(function (q) { return tf.planeLayersOf(q.key) })) : tf.planeLayersOf(key))
+                readonly property real lo: span_.lo
+                readonly property real hi: span_.hi
                 // the value range is lifted so the curve clears the name band at the top
                 readonly property real hiL: hi + (hi - lo) * (tf.nameBand / Math.max(1, ph - tf.nameBand))
                 readonly property string unit: ov ? (tf.overlayAxis && tf.overlayAxis.sameUnit && tf.rows.length ? tf.rows[0].unit : "") : r.unit
@@ -251,6 +270,7 @@ Item {
                 }
                 // overlaid: each curve named at its line end instead (direct labels), in a column at the right
                 Column {
+                    id: ovKey
                     visible: rw.ov
                     x: tf.yGut + tf.roles.u(4); y: tf.roles.u(1)
                     Repeater {
@@ -265,6 +285,21 @@ Item {
                             Text { anchors.baseline: ovT.baseline; text: modelData.unit; font: tf.roles.fSmall; color: tf.roles.ink3 }
                         }
                     }
+                }
+                // the Club delivery lines named where they are drawn, clear of the row's name (or the overlaid key)
+                PpChPlaneLabels {
+                    x: tf.yGut; width: tf.innerW; height: rw.ph
+                    roles: tf.roles
+                    layers: rw.ov ? [].concat.apply([], tf.rows.map(function (q) { return tf.planeLayersOf(q.key) })) : tf.planeLayersOf(rw.key)
+                    x0: tf.x0; x1: tf.x1; lo: rw.lo; hi: rw.hiL
+                    topInset: tf.nameBand
+                    // the row's name (or the overlaid key) and each peak's figure keep their place
+                    reserve: [rw.ov ? { x: 0, y: 0, w: ovKey.width + tf.roles.u(10), h: ovKey.height + tf.roles.u(3) }
+                                    : { x: 0, y: 0, w: nameRow.width + tf.roles.u(10), h: Math.max(tf.nameBand, nameRow.height + tf.roles.u(3)) }]
+                             .concat((rw.ov ? [].concat.apply([], tf.rows.map(function (q) { return q.peaks || [] })) : (rw.r.peaks || []))
+                                     .filter(function (p) { return isFinite(p.value) })
+                                     .map(function (p) { return { x: plot.xOf(p.shotMs) - tf.roles.u(8), y: plot.yOf(p.value) - tf.roles.u(22),
+                                                                  w: tf.roles.u(52), h: tf.roles.u(30) } }))
                 }
                 // ── marks on the curve(s): P dots by verdict, peaks (σ whisker, late ring + word, rising chevron) ──
                 Item {

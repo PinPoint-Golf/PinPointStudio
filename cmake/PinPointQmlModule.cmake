@@ -340,6 +340,12 @@ set(PP_QML_FILES
     src/Gui/charts/PpChPostureSession.qml
     src/Gui/charts/PpChPosturePicture.qml
     src/Gui/charts/PpChPostureFrame.qml
+    # the Club delivery sections (docs/design/club_delivery_chart_design.md §10 stage 3)
+    src/Gui/charts/PpChDeliveryShotSection.qml
+    src/Gui/charts/PpChDeliverySession.qml
+    src/Gui/charts/PpChDeliveryFlight.qml
+    src/Gui/charts/PpChShotShapeGrid.qml
+    src/Gui/charts/PpChPlaneLabels.qml
     src/Gui/charts/PpChMatrix.qml
     src/Gui/charts/PpChReadingPicker.qml
     src/Gui/charts/PpChSeqSession.qml

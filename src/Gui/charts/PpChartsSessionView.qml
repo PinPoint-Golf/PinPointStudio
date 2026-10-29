@@ -33,6 +33,8 @@ import PinPointStudio
 // reading and a wrist metric is among the curves on show (body.wristSessionShown; Mark, 16 Oct: the standard
 // curves first, the domain read added where it means something). The glance never adds it.
 // Then the posture section ("Posture", PpChPostureSession) by the same rule (body.postureSessionShown), Analyse only.
+// Then the club delivery section ("Club delivery", PpChDeliverySession) by the same rule (body.deliverySessionShown),
+// Analyse only; the session's median address line and shoulder plane are the figure's (body.planeLayers).
 // objectNames: chSessionView, chSessionHead, chSessionControls, chFacetPicker (Analyse), chFacetPickerGlance.
 Column {
     id: sv
@@ -133,6 +135,7 @@ Column {
         pickedOrdinal: sv.body && sv.body.tShot ? (sv.body.tShot.ordinal || 0) : 0
         plotH: sv.plotH
         overlay: sv.overlaid
+        planeLayers: sv.body ? sv.body.planeLayers : ({})
         onShotActivated: (o) => { if (sv.body) sv.body.pickOrdinal(o) }
     }
     // why readings are missing or held back across the session, said once and closed by default, under the figure
@@ -268,6 +271,22 @@ Column {
                            state_: sv.body && sv.body.pSession ? sv.firstClause(sv.body.pSession.head) : ""
                            onToggled: if (sv.body) sv.body.toggleSection("postureSession") }
             PpChPostureSession { visible: !sv.postureFolded; width: parent.width; roles: sv.roles; brush: sv.brush; body: sv.body; interactive: sv.interactive }
+        }
+    }
+    // the club delivery section: the plane at each position, the usual set-up, the ball flight over the day, the shapes
+    readonly property bool deliveryFolded: !!body && !!body.collapsed && body.collapsed.deliverySession === true
+    Loader {
+        objectName: "chDeliverySessionSlot"
+        active: !!sv.body && sv.body.deliverySessionShown && !!sv.roles
+        visible: active
+        width: sv.width
+        sourceComponent: Column {
+            spacing: sv.roles.u(14)
+            PpChFoldHead { width: parent.width; roles: sv.roles; key: "deliverySession"; title: "Club delivery"; interactive: sv.interactive
+                           collapsed: sv.deliveryFolded
+                           state_: sv.body && sv.body.dSession ? sv.firstClause(sv.body.dSession.head) : ""
+                           onToggled: if (sv.body) sv.body.toggleSection("deliverySession") }
+            PpChDeliverySession { visible: !sv.deliveryFolded; width: parent.width; roles: sv.roles; brush: sv.brush; body: sv.body; interactive: sv.interactive }
         }
     }
 }
