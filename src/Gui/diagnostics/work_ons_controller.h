@@ -117,11 +117,12 @@ class WorkOnsController : public QObject
     // lists them all, each opening in place):
     //   {conditionId, label, golfer, band ("habit" | "occasional" | "clean" | "unclear"), share (0..1,
     //    recency-weighted), fired, assessable (unweighted swings), measureId, hasTypical, typical,
-    //    corridorLo, corridorHi, corridorShape, unit, grade, workOn ("active" | "easing" | "new" | ""),
-    //    sessionsListed}
+    //    corridorLo, corridorHi, corridorShape, tail ("high" | "low" | ""), unit, grade, workOn
+    //    ("active" | "easing" | "new" | ""), sessionsListed}
     // `grade` is the typical value graded against its stored corridor under `gradePolicy`, in the
     // panel's tokens ("ideal" | "good" | "watch" | "action", for Theme.corridorTone/corridorWord);
-    // "" when there is no typical value or no corridor to read it against.
+    // "" when there is no typical value or no corridor to read it against. Only the condition's own
+    // `tail` grades: past the other edge is its mirror's reading (bowed_at_top / cupped_at_top).
     Q_PROPERTY(QVariantList areaItems READ areaItems NOTIFY areasChanged)
 
     // ── Your swing ──

@@ -30,7 +30,7 @@
 //   { group, label, measurable, measured, habits, occasional, clean, unclear, habitTrend, hasTrend,
 //     topFault, topFaultId, workOnsActive, workOnsNew, items: [{ conditionId, label, golfer, band,
 //     share, fired, assessable, measureId, hasTypical, typical, corridorLo, corridorHi,
-//     corridorShape, unit, grade, workOn, sessionsListed }] }
+//     corridorShape, tail, unit, grade, workOn, sessionsListed }] }
 //
 // An area the rig cannot measure says so in place of the bar, and does not open: no chevron, no
 // press, no focus.
@@ -108,9 +108,14 @@ PpExpandRow {
         return (u === "°" || u === "%") ? s + u : s + " " + u
     }
     // The corridor the typical value was graded against: both edges, or the one a one-sided
-    // corridor grades (a floor's low edge, a ceiling's high one).
+    // corridor grades (a floor's low edge, a ceiling's high one). A two-sided corridor that the
+    // condition watches from one end (its `tail`) shows that end only: bowed at the top is "≤ 16.0",
+    // cupped at the top "≥ −6.0", one wrist angle read from both sides.
     function corridorText(it) {
         const shape = it.corridorShape || ""
+        const tail  = it.tail || ""
+        if (shape === "twoSided" && tail === "high") return "≤ " + areaRow.figure(it.corridorHi)
+        if (shape === "twoSided" && tail === "low")  return "≥ " + areaRow.figure(it.corridorLo)
         if (shape === "twoSided") return areaRow.figure(it.corridorLo) + "–" + areaRow.figure(it.corridorHi)
         if (shape === "floor")    return "≥ " + areaRow.figure(it.corridorLo)
         if (shape === "ceiling")  return "≤ " + areaRow.figure(it.corridorHi)

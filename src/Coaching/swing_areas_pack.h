@@ -30,6 +30,7 @@
 #include "../Diagnostics/engine/characteristic.h"
 
 #include <QHash>
+#include <QSet>
 #include <QString>
 
 namespace pinpoint::analysis {
@@ -61,10 +62,18 @@ inline QHash<QString, AreaConditionInfo> areaConditionInfoForPack(const Characte
         i.counts = areaConditionCounts(i.group, workOnClassFor(c), c.kind == ConditionKind::Outcome,
                                        !c.reportHold.isEmpty());
         bool anyMeasure = false, allLm = true;
+        QSet<QString> bothTails;      // measures read from both ends, or once with no direction
         for (const QString &sigId : c.detectedBy) {
             const Signal *sg = pack.signal(sigId);
             if (!sg) { allLm = false; continue; }
+            const QString tail = sg->direction ? (*sg->direction == Direction::High ? QStringLiteral("high")
+                                                                                 : QStringLiteral("low"))
+                                               : QString();
             for (const QString &mid : sg->measures) {
+                if (tail.isEmpty() || (i.tailByMeasure.contains(mid) && i.tailByMeasure.value(mid) != tail))
+                    bothTails.insert(mid);
+                else
+                    i.tailByMeasure.insert(mid, tail);
                 const Measure *m = pack.measure(mid);
                 if (!m) { allLm = false; continue; }
                 anyMeasure = true;
@@ -73,6 +82,7 @@ inline QHash<QString, AreaConditionInfo> areaConditionInfoForPack(const Characte
                 if (!areaMeasureIsLmOnly(*m)) allLm = false;
             }
         }
+        for (const QString &mid : bothTails) i.tailByMeasure.remove(mid);
         i.lmOnly = anyMeasure && allLm;
         out.insert(c.id, std::move(i));
     }

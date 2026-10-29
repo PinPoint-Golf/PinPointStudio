@@ -248,6 +248,16 @@ Item {
             compare(lp.typicalText, "7.0° · ≤ 5.0") // a ceiling grades its high edge only
         }
 
+        function test_a_one_tailed_condition_prints_its_own_edge() {
+            // cupped_at_top and bowed_at_top read one wrist angle from opposite ends (#112).
+            const p = row("posture")
+            const wrist = { hasTypical: true, typical: -18, unit: "°", corridorLo: -6, corridorHi: 16,
+                            corridorShape: "twoSided" }
+            compare(p.typicalText(Object.assign({}, wrist, { tail: "low" })),  "−18.0° · ≥ −6.0")
+            compare(p.typicalText(Object.assign({}, wrist, { tail: "high" })), "−18.0° · ≤ 16.0")
+            compare(p.typicalText(Object.assign({}, wrist, { tail: "" })),     "−18.0° · −6.0–16.0")
+        }
+
         function test_the_keyboard_opens_a_row() {
             const seq = row("sequence")
             verify(!seq.expanded)

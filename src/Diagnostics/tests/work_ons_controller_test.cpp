@@ -521,7 +521,7 @@ static void checkAreasShape(const WorkOnsController &c, const char *when)
                                                  QStringLiteral("band"), QStringLiteral("share"), QStringLiteral("fired"),
                                                  QStringLiteral("assessable"), QStringLiteral("measureId"), QStringLiteral("hasTypical"),
                                                  QStringLiteral("typical"), QStringLiteral("corridorLo"), QStringLiteral("corridorHi"),
-                                                 QStringLiteral("corridorShape"), QStringLiteral("unit"), QStringLiteral("grade"),
+                                                 QStringLiteral("corridorShape"), QStringLiteral("tail"), QStringLiteral("unit"), QStringLiteral("grade"),
                                                  QStringLiteral("workOn"), QStringLiteral("sessionsListed") });
             const QString band = it.value(QStringLiteral("band")).toString();
             const double share = it.value(QStringLiteral("share")).toDouble();
@@ -548,7 +548,7 @@ static void checkAreasShape(const WorkOnsController &c, const char *when)
                                        "unclear, habitTrend, hasTrend, topFault, topFaultId, workOnsActive, workOnsNew, items}", when);
     check(areaKeys, label);
     std::snprintf(label, sizeof label, "%s: every item is {conditionId, label, golfer, band, share, fired, assessable, "
-                                       "measureId, hasTypical, typical, corridorLo, corridorHi, corridorShape, unit, grade, "
+                                       "measureId, hasTypical, typical, corridorLo, corridorHi, corridorShape, tail, unit, grade, "
                                        "workOn, sessionsListed}", when);
     check(itemKeys, label);
     std::snprintf(label, sizeof label, "%s: the counts add up, at most five items, a band word, share in 0..1, "
@@ -924,6 +924,61 @@ int main(int argc, char **argv)
         check(t.summaryReady() && themesFile(themed).value(QStringLiteral("ruleVersion")).toInt() == kThemeRuleVersion
               && themesWrittenAt(themed) != w,
               "a swing_themes.json written under another rule is recomputed");
+    }
+
+    // ══ One measure, two conditions: each graded on its own tail (#112) ══════════════════
+    //
+    // cupped_at_top (low) and bowed_at_top (high) read the same P4 wrist angle. A wrist cupped to
+    // −18° against a −6..16 corridor fires cupped on every swing and bowed on none; the bowed row
+    // must not borrow the cup's grade.
+    {
+        const QString wrist = tmp.filePath(QStringLiteral("Wrist"));
+        const QString dir = QDir(wrist).filePath(QStringLiteral("s1"));
+        std::vector<ShotRecord> shots;
+        for (int i = 0; i < 6; ++i) {
+            QDir().mkpath(dir + QStringLiteral("/swing_%1").arg(i + 1, 4, 10, QLatin1Char('0')));
+            ShotRecord s;
+            s.shotId = i + 1;
+            s.club = QStringLiteral("7I");
+            s.timestampMs = t0 + i * 45'000LL;
+            for (const char *id : { "cupped_at_top", "bowed_at_top" }) {
+                ConditionRow r;
+                r.conditionId = QString::fromLatin1(id);
+                r.drivingMeasureId = QStringLiteral("m_leadWristFlexExt_p4");
+                r.value = -18.0;
+                r.corridorLo = -6.0; r.corridorHi = 16.0;
+                r.corridorShape = CorridorShape::TwoSided;
+                const bool cupped = r.conditionId == QStringLiteral("cupped_at_top");
+                r.state = cupped ? ShotState::Fired : ShotState::Clean;
+                r.z = cupped ? -2.1 : 0.0;
+                r.direction = cupped ? -1 : 0;
+                s.rows.push_back(r);
+            }
+            shots.push_back(s);
+        }
+        QJsonObject root;
+        root[QStringLiteral("schemaVersion")] = 1;
+        root[QStringLiteral("ledger")] = toJson(shots);
+        QFile f(dir + QStringLiteral("/diagnostics.json"));
+        if (f.open(QIODevice::WriteOnly))
+            f.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+        f.close();
+
+        WorkOnsController w;
+        w.setSynchronous(true);
+        w.setAthleteDir(wrist);
+        const QVariantMap arms = area(w, "armsAndClub");
+        const QVariantMap cup = areaItem(arms, "cupped_at_top"), bow = areaItem(arms, "bowed_at_top");
+        check(cup.value(QStringLiteral("tail")).toString() == QStringLiteral("low")
+              && bow.value(QStringLiteral("tail")).toString() == QStringLiteral("high"),
+              "cupped at the top watches the low tail of the P4 wrist angle, bowed at the top the high");
+        check(cup.value(QStringLiteral("hasTypical")).toBool() && bow.value(QStringLiteral("hasTypical")).toBool()
+              && cup.value(QStringLiteral("typical")).toDouble() == -18.0 && bow.value(QStringLiteral("typical")).toDouble() == -18.0,
+              "…both typically −18°");
+        check(!cup.value(QStringLiteral("grade")).toString().isEmpty()
+              && cup.value(QStringLiteral("grade")).toString() != QStringLiteral("ideal")
+              && bow.value(QStringLiteral("grade")).toString() == QStringLiteral("ideal"),
+              "…a cupped wrist grades the cup and leaves bowed at the top ideal, never 'watch' on both");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

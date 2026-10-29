@@ -107,6 +107,23 @@ QString gradeOnCorridor(const SpreadCorridor &c, double v)
     return gradeName(Grade::Ideal);
 }
 
+// ONE TAIL OF A TWO-SIDED CORRIDOR: a condition watches one end of its measure (AreaItem::tail), and
+// the other end belongs to its mirror. Without this, a wrist cupped past the low edge graded "watch"
+// on bowed_at_top as well as on cupped_at_top (#112). The unwatched side opens, its edges collapsing
+// onto mu as spreadCorridorFromRow's open sides do. "" leaves the corridor as it is.
+SpreadCorridor watchingTail(SpreadCorridor c, const QString &tail)
+{
+    if (!c.known) return c;
+    if (tail == QLatin1String("high")) {
+        c.lowOpen = true;
+        c.idealLo = c.signalLo = c.faultLo = c.mu;
+    } else if (tail == QLatin1String("low")) {
+        c.highOpen = true;
+        c.idealHi = c.signalHi = c.faultHi = c.mu;
+    }
+    return c;
+}
+
 // A COUNT of swings, never a percentage — recurrenceText()'s rule, one level up.
 QString swingsText(int fired, int total)
 {
@@ -624,7 +641,7 @@ void WorkOnsController::publishAreas(const CharacteristicPack &pack, const std::
                 band.corridorLo    = it.corridorLo;
                 band.corridorHi    = it.corridorHi;
                 band.corridorShape = corridorShapeFromString(it.corridorShape);
-                grade = gradeOnCorridor(spreadCorridorFromRow(band, policy), it.typical);
+                grade = gradeOnCorridor(watchingTail(spreadCorridorFromRow(band, policy), it.tail), it.typical);
             }
             items.append(QVariantMap{
                 { QStringLiteral("conditionId"),    it.conditionId },
@@ -640,6 +657,7 @@ void WorkOnsController::publishAreas(const CharacteristicPack &pack, const std::
                 { QStringLiteral("corridorLo"),     it.corridorLo },
                 { QStringLiteral("corridorHi"),     it.corridorHi },
                 { QStringLiteral("corridorShape"),  it.corridorShape },
+                { QStringLiteral("tail"),           it.tail },
                 { QStringLiteral("unit"),           it.unit },
                 { QStringLiteral("grade"),          grade },
                 { QStringLiteral("workOn"),         it.workOn },

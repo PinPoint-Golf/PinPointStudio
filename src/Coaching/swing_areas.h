@@ -96,6 +96,11 @@ struct AreaConditionInfo {
     // Every detecting measure's unit, by measure id — a multi-signal condition quotes the unit of the
     // measure that DROVE the reading (latestEvidence.measureId), not the first one authored.
     QHash<QString, QString> unitByMeasure;
+    // The tail of each detecting measure this condition watches, "high" or "low" (its signals'
+    // direction). A condition is one tail of one measure: cupped_at_top and bowed_at_top read the
+    // same P4 wrist angle from opposite ends. Absent when the signals watch the measure from both
+    // ends or name no direction — then the condition is graded on both.
+    QHash<QString, QString> tailByMeasure;
 };
 
 // The counting rule, isolated so it is testable without a pack. `cls` is workOnClassFor()'s answer
@@ -169,6 +174,10 @@ struct AreaItem {
     bool     hasTypical = false;
     double   typical    = 0.0;
     double   corridorLo = 0.0, corridorHi = 0.0;
+    // The tail of the corridor this condition watches on measureId, "high" or "low"; "" for both
+    // (AreaConditionInfo::tailByMeasure). The typical value is graded on this side only, so a
+    // cupped wrist never reads as a bowed one's watch.
+    QString  tail;
     // On the golfer's work-ons list: "active", "easing", or "new" (Active and listed ONLY in the newest
     // substantive session). "" when never listed or cleared — the every-condition aggregate's status
     // for a never-listed pattern reads Active, so this is derived only when sessionsListed > 0.
@@ -303,6 +312,7 @@ inline std::vector<AreaSummary> summariseAreas(const std::vector<SessionWorkOns>
                                ? w->latestEvidence.measureId
                                : (w->hasLatest ? w->latest.measureId : QString());
             it.unit = ci.unitByMeasure.value(it.measureId, ci.unit);
+            it.tail = ci.tailByMeasure.value(it.measureId);
             if (w->hasLatestEvidence && w->latestEvidence.hasTypical) {
                 it.hasTypical    = true;
                 it.typical       = w->latestEvidence.typicalValue;
