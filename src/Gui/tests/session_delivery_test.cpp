@@ -230,9 +230,9 @@ private slots:
         const DeliveryShotInput *s26 = swingOf(m_mark, QStringLiteral("swing_0026"));
         QVERIFY(s7 && s26);
         const DeliveryStory a = deliveryPlaneStory(*s7), b = deliveryPlaneStory(*s26);
-        QCOMPARE(a.text, QStringLiteral("set on 59° · 13° steeper at P3 · peaked at the top · delivered at 61°, 2° above where you set it. "
+        QCOMPARE(a.text, QStringLiteral("set on 59° · 13° steeper than address at P3 · peaked at the top · delivered at 61°, 2° above where you set it. "
                                         "Hands 12° steeper coming down."));
-        QCOMPARE(b.text, QStringLiteral("set on 57° · 3° steeper at P3 · peaked at the top · delivered at 58°, where you set it. "
+        QCOMPARE(b.text, QStringLiteral("set on 57° · 3° steeper than address at P3 · peaked at the top · delivered at 58°, where you set it. "
                                         "Hands came down on the plane they went up."));
         QCOMPARE(a.shapeWord, QStringLiteral("is steep from P3"));
         QCOMPARE(b.shapeWord, QStringLiteral("matches"));
@@ -586,7 +586,7 @@ private slots:
         QCOMPARE(in.curveToMs, 40.0);
         QVERIFY(in.handsSpans.empty());   // no hand plane: nothing to say the hands carry it
         QCOMPARE(deliveryPlaneStory(in).text,
-                 QStringLiteral("set on 58° · 4° steeper at P3 · peaked at the top · delivered at 59°, where you set it. "
+                 QStringLiteral("set on 58° · 4° steeper than address at P3 · peaked at the top · delivered at 59°, where you set it. "
                                 "Hands 4° steeper coming down."));
     }
 

@@ -227,7 +227,7 @@ struct DeliveryStory {
     bool    available = false;     // P1 and P7 read
     QString set, back, top, delivered, hands;   // the parts, each "" when its readings are missing
     QStringList parts;             // set · back · top · delivered (the read ones, in order)
-    QString text;                  // "set on 59° · 13° steeper at P3 · peaked at the top · delivered at 61°, 2° above
+    QString text;                  // "set on 59° · 13° steeper than address at P3 · peaked at the top · delivered at 61°, 2° above
                                    //  where you set it. Hands 12° steeper coming down."
     bool    shapeRead = false;     // P3, P4 and P7 read: the published shape is said
     QString shapeWord;             // "matches" | "is steep from P3" | "is steep at the top" | "stays under"

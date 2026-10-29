@@ -70,7 +70,7 @@
 //    replay: { head (= headText), story (= story.text | ""), shape (= shape.word | "") }   (§4.8: Replay's glance)
 //    standfirsts: [7 × Sentence] (P1..P7; the live one is `standfirst`) }
 //
-//  STORY  = { available, text ("set on 59° · 13° steeper at P3 · peaked at the top · delivered at 61°, 2° above where you set
+//  STORY  = { available, text ("set on 59° · 13° steeper than address at P3 · peaked at the top · delivered at 61°, 2° above where you set
 //             it. Hands 12° steeper coming down."), parts: [string], set, back, top, delivered, hands, shapeRead, shapeWord,
 //             shapeLine (the published shape, Analyse only), positions: [POS] }
 //  POS    = { index (0..6), tag ("P4"), phase (Phase id), name ("the top"), value (| null), text ("65°" | "-"),

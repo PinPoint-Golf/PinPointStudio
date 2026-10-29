@@ -378,7 +378,7 @@ DeliveryStory deliveryPlaneStory(const DeliveryShotInput &in)
     s.parts << s.set;
     if (fin(P[kP3])) {
         const double d = P[kP3] - P[kP1];
-        s.back = std::fabs(d) >= kDeliveryGoingBackDeg ? QStringLiteral("%1 %2 at P3").arg(absDeg(d), steeperWord(d))
+        s.back = std::fabs(d) >= kDeliveryGoingBackDeg ? QStringLiteral("%1 %2 than address at P3").arg(absDeg(d), steeperWord(d))
                                                        : QStringLiteral("on that plane at P3");
         s.parts << s.back;
     }

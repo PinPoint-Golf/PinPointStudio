@@ -193,7 +193,7 @@ page in the session report.
 │ Club delivery                                                                    ▾ fold    │
 │ At P6 your plane was 65°, in your steepest third, and the path went 4.3° left.             │  head
 │                                                                                            │
-│ Plane     set on 59° · 13° steeper at P3 · peaked at the top · delivered at 61°, 2° above  │  the plane story
+│ Plane     set on 59° · 13° steeper than address at P3 · peaked at the top · delivered at 61°, 2° above  │  the plane story
 │           where you set it. Hands 12° steeper coming down.                                 │  (§5.1)
 │                                                                                            │
 │ Ball flight   On your 28 shots with the monitor, each degree steeper at P6 moves your      │  §4.4
@@ -323,7 +323,7 @@ Built from the swing plane curve at P1, P3, P4, P6, P7 and the steepening, round
 (`feedback_no_sigma_rounding`):
 
 - **Set:** "set on {P1}°".
-- **Going back:** "{|P3−P1|}° {steeper|flatter} at P3" when |P3 − P1| ≥ 3, else "on that plane at P3".
+- **Going back:** "{|P3−P1|}° {steeper|flatter} than address at P3" (said against address, because the head may compare P3 with the usual) when |P3 − P1| ≥ 3, else "on that plane at P3".
 - **The top:** "peaked at the top" when the maximum of P2…P5 is at P4 ± one position; else "peaked at P{n}".
 - **Delivered:** "delivered at {P7}°, {|P7−P1|}° {above|below} where you set it" (≤ 1° → "where you set it").
 - **Hands:** "Hands {steepening}° steeper coming down" (≥ 3°), "came down on the plane they went up" (|x| < 3),

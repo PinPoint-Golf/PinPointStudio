@@ -189,7 +189,7 @@ private slots:
         const QVariantMap story = t.value(QStringLiteral("story")).toMap();
         hasKeys(story, { "available", "text", "parts", "set", "back", "top", "delivered", "hands", "shapeRead", "shapeWord", "shapeLine", "positions" }, "story");
         QCOMPARE(story.value(QStringLiteral("text")).toString(),
-                 QStringLiteral("set on 58° · 4° steeper at P3 · peaked at the top · delivered at 59°, where you set it. Hands 9° steeper coming down."));
+                 QStringLiteral("set on 58° · 4° steeper than address at P3 · peaked at the top · delivered at 59°, where you set it. Hands 9° steeper coming down."));
         const QVariantList pos = story.value(QStringLiteral("positions")).toList();
         QCOMPARE(pos.size(), 7);
         QCOMPARE(pos[3].toMap().value(QStringLiteral("name")).toString(), QStringLiteral("the top"));
