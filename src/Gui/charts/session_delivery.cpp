@@ -170,7 +170,7 @@ const QStringList &deliveryMetricKeys()
         QStringLiteral("lowPointAhead"), QStringLiteral("clubPath"), QStringLiteral("attackAngle"),
         QStringLiteral("lm.clubPath"), QStringLiteral("lm.faceAngle"), QStringLiteral("lm.faceToPath"),
         QStringLiteral("lm.attackAngle"), QStringLiteral("lm.dynamicLoft"), QStringLiteral("lm.lieAngle"),
-        QStringLiteral("lm.lowPointAhead") };
+        QStringLiteral("lm.lowPointAhead"), QStringLiteral("lm.launchDirection"), QStringLiteral("lm.spinAxis") };
     return k;
 }
 
@@ -181,7 +181,7 @@ const QStringList &deliveryOnShowKeys()
         QStringLiteral("shoulderPlane"),
         QStringLiteral("lm.clubPath"), QStringLiteral("lm.faceAngle"), QStringLiteral("lm.faceToPath"),
         QStringLiteral("lm.attackAngle"), QStringLiteral("lm.dynamicLoft"), QStringLiteral("lm.lieAngle"),
-        QStringLiteral("lm.lowPointAhead") };
+        QStringLiteral("lm.lowPointAhead"), QStringLiteral("lm.launchDirection"), QStringLiteral("lm.spinAxis") };
     return k;
 }
 
@@ -214,7 +214,8 @@ bool DeliveryShotInput::hasPlane() const { return std::any_of(plane.begin(), pla
 
 bool DeliveryShotInput::hasMonitor() const
 {
-    return fin(lmPath) || fin(lmFace) || fin(lmFaceToPath) || fin(lmAttack) || fin(lmLoft) || fin(lmLie) || fin(lmLowPoint);
+    return fin(lmPath) || fin(lmFace) || fin(lmFaceToPath) || fin(lmAttack) || fin(lmLoft) || fin(lmLie) || fin(lmLowPoint)
+        || fin(lmLaunchDir) || fin(lmSpinAxis);
 }
 
 std::vector<DeliverySpan> deliveryHandsSpans(const std::vector<double> &tMs, const std::vector<double> &curve,
@@ -323,6 +324,8 @@ DeliveryShotInput deliveryInputFromGrid(const pa::SwingPhaseGrid &grid)
     in.lmLoft        = instant(QStringLiteral("lm.dynamicLoft"), pa::Phase::Impact);
     in.lmLie         = instant(QStringLiteral("lm.lieAngle"), pa::Phase::Impact);
     in.lmLowPoint    = instant(QStringLiteral("lm.lowPointAhead"), pa::Phase::Impact);
+    in.lmLaunchDir   = instant(QStringLiteral("lm.launchDirection"), pa::Phase::Impact);
+    in.lmSpinAxis    = instant(QStringLiteral("lm.spinAxis"), pa::Phase::Impact);
     return in;
 }
 
@@ -686,15 +689,22 @@ DeliveryShape deliveryShotShape(const DeliveryShotInput &in)
     DeliveryShape s;
     s.face = in.lmFace;
     s.faceToPath = fin(in.lmFaceToPath) ? in.lmFaceToPath : (fin(in.lmFace) && fin(in.lmPath) ? in.lmFace - in.lmPath : kNaN);
-    if (!fin(s.face) || !fin(s.faceToPath)) return s;
+    s.launchDir = in.lmLaunchDir;
+    s.spinAxis = in.lmSpinAxis;
+    // the ball first (its start and spin axis ARE the shape), else the club's face and face to path
+    s.fromBall = fin(s.launchDir) && fin(s.spinAxis);
+    if (!s.fromBall && (!fin(s.face) || !fin(s.faceToPath))) return s;
     s.available = true;
-    s.start = s.face > kDeliveryShapeStartDeg ? 1 : s.face < -kDeliveryShapeStartDeg ? -1 : 0;
-    s.curve = s.faceToPath > kDeliveryShapeCurveDeg ? 1 : s.faceToPath < -kDeliveryShapeCurveDeg ? -1 : 0;
-    s.slight = s.curve != 0 && std::fabs(s.faceToPath) <= kDeliverySlightCurveDeg;
+    const double startDeg = s.fromBall ? s.launchDir : s.face;
+    const double k = s.fromBall ? kDeliverySpinAxisPerFaceToPath : 1.0;   // the curve's steps in its own measure
+    const double curveDeg = s.fromBall ? s.spinAxis : s.faceToPath;
+    s.start = startDeg > kDeliveryShapeStartDeg ? 1 : startDeg < -kDeliveryShapeStartDeg ? -1 : 0;
+    s.curve = curveDeg > k * kDeliveryShapeCurveDeg ? 1 : curveDeg < -k * kDeliveryShapeCurveDeg ? -1 : 0;
+    s.slight = s.curve != 0 && std::fabs(curveDeg) <= k * kDeliverySlightCurveDeg;
     // the words mirror for a left-handed golfer: right of the target is a pull, a curve right a draw
     const int st = in.leftHanded ? -s.start : s.start, cv = in.leftHanded ? -s.curve : s.curve;
     s.startWord = st > 0 ? QStringLiteral("push") : st < 0 ? QStringLiteral("pull") : QStringLiteral("straight");
-    const bool big = std::fabs(s.faceToPath) > kDeliveryBigCurveDeg;
+    const bool big = std::fabs(curveDeg) > k * kDeliveryBigCurveDeg;
     const QString base = cv > 0 ? (big ? QStringLiteral("slice") : QStringLiteral("fade"))
                                 : (big ? QStringLiteral("hook") : QStringLiteral("draw"));
     s.curveWord = s.curve == 0 ? QStringLiteral("straight") : (s.slight ? QStringLiteral("slight ") : QString()) + base;

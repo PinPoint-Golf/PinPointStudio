@@ -209,7 +209,8 @@ Item {
                         Text { text: "Shot shape"; font: ds.has ? ds.ty.fKicker : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
                         Text { text: ds.shape.word || "-"; font: ds.has ? ds.ty.fBodyM : Qt.font({}); color: ds.has ? ds.ty.ink : "black" }
                         Text { visible: ds.shape.available === true
-                               text: "face " + (ds.shape.faceText || "-") + "  ·  face to path " + (ds.shape.faceToPathText || "-")
+                               text: ds.shape.fromBall ? "start " + (ds.shape.launchDirText || "-") + "  ·  spin axis " + (ds.shape.spinAxisText || "-")
+                                                 : "face " + (ds.shape.faceText || "-") + "  ·  face to path " + (ds.shape.faceToPathText || "-")
                                font: ds.has ? ds.ty.fFigS : Qt.font({}); color: ds.has ? ds.ty.ink2 : "grey" }
                     }
                     PpChShotShapeGrid {

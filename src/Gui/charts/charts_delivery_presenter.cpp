@@ -365,7 +365,9 @@ QVariantMap shapeMap(const DeliveryShape &s)
 {
     return { { QStringLiteral("available"), s.available }, { QStringLiteral("face"), nv(s.face) },
              { QStringLiteral("faceToPath"), nv(s.faceToPath) }, { QStringLiteral("faceText"), deliveryDeg1(s.face) },
-             { QStringLiteral("faceToPathText"), deliveryDeg1(s.faceToPath) }, { QStringLiteral("start"), s.start },
+             { QStringLiteral("faceToPathText"), deliveryDeg1(s.faceToPath) }, { QStringLiteral("fromBall"), s.fromBall },
+             { QStringLiteral("launchDirText"), deliveryDeg1(s.launchDir) }, { QStringLiteral("spinAxisText"), deliveryDeg1(s.spinAxis) },
+             { QStringLiteral("start"), s.start },
              { QStringLiteral("curve"), s.curve }, { QStringLiteral("slight"), s.slight },
              { QStringLiteral("startWord"), s.startWord }, { QStringLiteral("curveWord"), s.curveWord }, { QStringLiteral("word"), s.word } };
 }

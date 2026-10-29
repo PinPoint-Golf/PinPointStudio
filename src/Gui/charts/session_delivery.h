@@ -80,10 +80,14 @@
 //   9. FIGURES. Plane angles whole degrees; the monitor's path, face, attack, lie and loft one decimal
 //      (its own resolution, and the design's words: "path went 4.3° left"); our camera's whole degrees;
 //      a fit's slope one decimal, r two, scatter one; a middle half's ± one decimal. U+2212 minus.
-//  10. SHOT SHAPE (§4.6) is the monitor's alone: start from lm.faceAngle (±1° straight), curve from
-//      lm.faceToPath (else face − path; ±1° straight); "slight" up to kDeliverySlightCurveDeg (the
-//      design's "pull, slight fade"); past kDeliveryBigCurveDeg a curve left is a hook and a curve right a slice
-//      (Jess 20 Oct shot 3, face to path −13.8°, was a "draw"). Words mirror for a left-handed golfer.
+//  10. SHOT SHAPE (§4.6) is the monitor's alone, and the BALL's first: start from lm.launchDirection and curve
+//      from lm.spinAxis (the shape itself), else from the club, start from lm.faceAngle and curve from
+//      lm.faceToPath (else face − path) — the 5 Oct monitor gave no face but did give the ball's start and
+//      spin axis, and the grid stood empty (Mark, 29 Oct). Club: ±1° straight, "slight" up to
+//      kDeliverySlightCurveDeg, past kDeliveryBigCurveDeg a hook (left) or a slice (right) (Jess 20 Oct shot 3,
+//      face to path −13.8°, was a "draw"). Ball: the same start; the spin axis tilts about 1.5 times the face to
+//      path (the library's 80 shots with both: median 1.53, same sign on 71), so its curve steps are the club's
+//      × 1.5. Words mirror for a left-handed golfer.
 //  11. LIE → FACE (§4.5): lm.lieAngle (toe up +) else shaftLie P7 − P1 (more upright +); loft lm.dynamicLoft
 //      else the club's factory loft (athlete_controller.cpp's defaultClubRecordFor table; the athlete's own
 //      club record is not in the snapshot). Δface = Δlie × sin(loft), toe up → face left (right-handed).
@@ -124,6 +128,7 @@ inline constexpr double kDeliveryDeliveredSameDeg   = 1.0;   // |P7 − P1| as p
 inline constexpr double kDeliveryShapeStartDeg      = 1.0;   // ±1° start: the monitor's own resolution class
 inline constexpr double kDeliveryShapeCurveDeg      = 1.0;   // ±1° face-to-path: the same
 inline constexpr double kDeliverySlightCurveDeg     = 3.0;   // decision 10: "slight fade" up to here
+inline constexpr double kDeliverySpinAxisPerFaceToPath = 1.5; // decision 10: spin axis ≈ 1.5 × face to path (library median 1.53)
 inline constexpr double kDeliveryBigCurveDeg        = 6.0;   // decision 10: over this the ball curves too far to call a
                                                              // draw or a fade — a hook (left) or a slice (right)
 inline constexpr int    kDeliverySessionBandShots   = 5;     // the band means nothing below
@@ -174,6 +179,7 @@ struct DeliveryShotInput {
     double ourPath = kNaN, ourAttack = kNaN;          // the camera's clubPath, attackAngle
     double lmPath = kNaN, lmFace = kNaN, lmFaceToPath = kNaN, lmAttack = kNaN;
     double lmLoft = kNaN, lmLie = kNaN, lmLowPoint = kNaN;
+    double lmLaunchDir = kNaN, lmSpinAxis = kNaN;     // the ball's start (+ right) and spin axis (+ curves right)
     double nominalLoft = kNaN;
 
     // The curve as drawn (This shot's plot), ms from impact; and where the hands carry it (decision 5).
@@ -298,8 +304,10 @@ struct DeliveryImpactLine {
 std::vector<DeliveryImpactLine> deliveryImpactLines(const DeliveryShotInput &in);
 
 struct DeliveryShape {
-    bool    available = false;     // the monitor's face and its face-to-path (or path)
+    bool    available = false;     // the ball's start and spin axis, else the face and its face-to-path (or path)
+    bool    fromBall = false;      // read off the ball (launch direction, spin axis), not the club
     double  face = kNaN, faceToPath = kNaN;
+    double  launchDir = kNaN, spinAxis = kNaN;
     int     start = 0;             // −1 left, 0 straight, +1 right (of the target, the ball's start)
     int     curve = 0;             // −1 curves left, 0 straight, +1 curves right
     bool    slight = false;

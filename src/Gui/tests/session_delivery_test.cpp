@@ -346,6 +346,33 @@ private slots:
         QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Push, slice"));
     }
 
+    // §4.6, decision 10: the ball's start and spin axis first; the 5 Oct monitor gave no face, and the grid stood empty.
+    void theBallShapesTheShotFirst()
+    {
+        DeliveryShotInput m;          // Mark 5 Oct swing 1: no face; launch −1.37°, spin axis +1.20°
+        m.lmPath = 0.72;
+        m.lmLaunchDir = -1.37;
+        m.lmSpinAxis = 1.20;
+        DeliveryShape s = deliveryShotShape(m);
+        QVERIFY(s.available);
+        QVERIFY(s.fromBall);
+        QCOMPARE(s.word, QStringLiteral("Pull"));            // 1.2° of spin axis is inside ±1.5°: straight
+        m.lmSpinAxis = 4.0;
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, slight fade"));   // ≤ 4.5°
+        m.lmSpinAxis = -8.0;
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, draw"));          // ≤ 9°
+        m.lmSpinAxis = -12.0;
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, hook"));
+        m.lmLaunchDir = 0.5; m.lmSpinAxis = 0.0;
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Straight"));
+        // the ball wins over the club when both are there
+        m.lmFace = -3.0; m.lmFaceToPath = -13.8; m.lmLaunchDir = 2.0; m.lmSpinAxis = 3.0;
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Push, slight fade"));
+        // no ball, no face: nothing
+        DeliveryShotInput none; none.lmPath = 1.0;
+        QVERIFY(!deliveryShotShape(none).available);
+    }
+
     // §4.5: Δface ≈ Δlie × sin(loft).
     void lieTurnsTheFace()
     {
