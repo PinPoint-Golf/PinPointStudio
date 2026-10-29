@@ -173,6 +173,7 @@ int main()
         in.phases = &ph; in.leadIsLeft = true;
         in.ballFound = true; in.ballBright = true; in.ballRadiusPx = 7.5;
         in.ballX = mirror ? kW - 470.0 : 470.0; in.ballY = 810;
+        in.clubLengthM = 0.72; in.clubLengthSigmaM = 0.005;   // 72 cm: the DTL ball ruler puts the ball 71.6 cm from the hands
         return in;
     };
 
@@ -199,9 +200,16 @@ int main()
             if (th->t_us[i] > kImpact + 10000 && th->valid[i]) tailMasked = false;
         check(tailMasked, "§1 thrust is masked past impact");
         const MetricSeries *gap = find(r, "ballBodyDistance"), *bal = find(r, "balanceHeelToe");
-        const double ratio = r.scaleRatio;                         // DTL px per face-on px
-        check(gap && ratio > 0 && near(atPhase(gap, Phase::Address), 100.0 * (470.0 - 262.0) / (153.6 * ratio), 0.2),
-              "§1 ball reach = ball to the ball-most toe, over face-on's shoulder width carried across");
+        // The wrists sit at (305, 620) at address and the ball at (470, 810): the club is the ruler.
+        const double lever = std::hypot(470.0 - 305.0, 810.0 - 620.0), cmPerPxClub = 72.0 / lever;
+        check(gap && near(atPhase(gap, Phase::Address), (470.0 - 262.0) * cmPerPxClub, 0.01),
+              "§1 ball distance = ball to the ball-most toe, in cm with the club as the ruler");
+        const MetricSeries *ex = find(r, "ballReachExcess");
+        check(ex && near(atPhase(ex, Phase::Address), (305.0 - 262.0) * cmPerPxClub, 0.01),
+              "§1 beyond the club's reach = the distance less the club along the wrist→ball line = the hands past the toes");
+        check(ex && ex->phaseSamples.front().sigma
+                  && near(*ex->phaseSamples.front().sigma, atPhase(ex, Phase::Address) * 0.005 / 0.72, 1e-6),
+              "§1 …with the club length's σ carried");
         check(bal && atPhase(bal, Phase::Address) > 0 && atPhase(bal, Phase::Address) < 120, "§1 balance proxy emitted");
         check(near(atPhase(find(r, "handPathLoop"), Phase::Top), 15.0, 0.3),
               "§1 hands down 60 px outside a 400 px rise ⇒ loop +15 %");
@@ -375,6 +383,35 @@ int main()
         for (const GateRecord &g : n.gates)
             if (g.gate == QLatin1String("posture.ruler") && g.covers.contains(QStringLiteral("headRise"))) covered = true;
         check(n.valid && !find(n, "headRise") && covered, "§7 no ruler ⇒ no headRise, and the ruler gate says so");
+    }
+
+    // §8 the ball the club reaches (ball_reach_by_club.md): the same reading facing either way, and a
+    // ball the club cannot have been soled behind — straight under the hands, or two club lengths
+    // away by the ball's own ruler — refused with its reason, as is a swing with no club length.
+    {
+        const PoseTrack2D d = makePose(false), m = makePose(true);
+        const double a = atPhase(find(buildDtlPosture(inputs(d, false), cfg), "ballReachExcess"), Phase::Address);
+        const double b = atPhase(find(buildDtlPosture(inputs(m, true), cfg), "ballReachExcess"), Phase::Address);
+        check(a > 0 && near(a, b, 1e-6), "§8 mirrored golfer ⇒ the same distance beyond the club's reach");
+        auto refusedBy = [&](const DtlPostureInputs &in, const char *code) {
+            const DtlPostureResult r = buildDtlPosture(in, cfg);
+            bool gate = false;
+            for (const GateRecord &g : r.gates)
+                if (g.gate == QLatin1String("posture.ballReach") && g.subject == QLatin1String("ballReachExcess")
+                    && g.covers.contains(QStringLiteral("ballBodyDistance"))
+                    && g.evidence.value(QStringLiteral("code")).toString() == QLatin1String(code)) gate = true;
+            return r.valid && gate && !find(r, "ballReachExcess") && !find(r, "ballBodyDistance")
+                && find(r, "armHang");
+        };
+        DtlPostureInputs shadow = inputs(d, false);
+        shadow.ballX = 305.0;                                     // the hands' shadow, 90° under them
+        check(refusedBy(shadow, "ballAngle"), "§8 a ball straight under the hands is refused (ballAngle), the rest kept");
+        DtlPostureInputs shortClub = inputs(d, false);
+        shortClub.clubLengthM = 0.40;                             // the ball ruler: 71.6 cm from the hands
+        check(refusedBy(shortClub, "ballLength"), "§8 a ball 1.8 club lengths from the hands is refused (ballLength)");
+        DtlPostureInputs noClub = inputs(d, false);
+        noClub.clubLengthM = 0.0;
+        check(refusedBy(noClub, "noClub"), "§8 no club length ⇒ no ball distance (noClub)");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "ALL PASS\n", g_fail);

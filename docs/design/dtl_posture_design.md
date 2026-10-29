@@ -234,3 +234,5 @@ planned.** What would close it is in §6.
 4. The mirrored DTL band (s1–3) — now known to coincide with a different camera placement.
 5. `ballBodyDistance` reads 159–182 % against a heuristic norm of 130 ± 20 %: the toe
    keypoint is the big-toe joint, not the shoe tip, and the norm was never measured.
+   **Done 2026-10-29** (`ball_reach_by_club.md`): the club sets most of that distance, so the reading is now in
+   cm with the club as the ruler, and the graded one (`ballReachExcess`) takes the club's reach out.

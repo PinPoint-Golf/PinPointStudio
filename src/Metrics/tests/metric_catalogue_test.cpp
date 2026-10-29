@@ -86,7 +86,7 @@ int main()
         // sequence is read from (pelvis / thorax / leadArm / club — segment_rates.h); the
         // Sequence itself went from planned to live the same day.
         // 104 -> 105 on 2026-09-23 with handPathLoop, the down-the-line hand loop over the top reads.
-        checkEqI(static_cast<int>(cat.all().size()), 127, "descriptor count == 127");   // +thoraxRotationSigned (2026-10-26, trunk design defect 2: the chest's signed twin, thorax IMU)   // +spineBackLine, +hipDepthButt (2026-10-22, the silhouette pair at every P-frame, posture_chart_design.md §10 stage 4a)   // +headRise (2026-10-22, standing up going back from down the line, posture_metrics_design.md §4.5)   // +trunkRise, +armHang, +headPitch (2026-10-21, posture_metrics_design.md §3)   // +lowPointFromAttack (2026-10-21, issue #92: the low point the monitor's attack angle implies)   // +ksOrderShare, +ksTimingSpread (2026-10-14: the session sequence-consistency readings, planned)   // +8 sequence node readings (2026-10-14: arm/club peak times, four peak speeds, two reversals)   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
+        checkEqI(static_cast<int>(cat.all().size()), 128, "descriptor count == 128");   // +ballReachExcess (2026-10-29, the ball distance less the club's reach, ball_reach_by_club.md)   // +thoraxRotationSigned (2026-10-26, trunk design defect 2: the chest's signed twin, thorax IMU)   // +spineBackLine, +hipDepthButt (2026-10-22, the silhouette pair at every P-frame, posture_chart_design.md §10 stage 4a)   // +headRise (2026-10-22, standing up going back from down the line, posture_metrics_design.md §4.5)   // +trunkRise, +armHang, +headPitch (2026-10-21, posture_metrics_design.md §3)   // +lowPointFromAttack (2026-10-21, issue #92: the low point the monitor's attack angle implies)   // +ksOrderShare, +ksTimingSpread (2026-10-14: the session sequence-consistency readings, planned)   // +8 sequence node readings (2026-10-14: arm/club peak times, four peak speeds, two reversals)   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
                                "clubheadPeakLead",
@@ -137,7 +137,7 @@ int main()
         // was firing on the wrong quantity: `shoulderLineYaw` (aim is a bearing, and the tilt one
         // camera reads is set by the grip) and `clubheadPeakLead` (the fault is the CLUBHEAD peaking
         // early; hand speed falls into impact on every good release).
-        checkEqI(countType(cat, MetricType::PointInTime), 61, "PointInTime count");   // +armHang, +headPitch (2026-10-21: address scalars, no curve)   // +lowPointFromAttack (2026-10-21)   // +8 sequence node readings (2026-10-14)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02)   // +17: a monitor reports one number per shot; +transitionPlaneDelta, +compoundMiss, +shoulderLineYaw, +clubheadPeakLead, +handPathLoop
+        checkEqI(countType(cat, MetricType::PointInTime), 62, "PointInTime count");   // +ballReachExcess (2026-10-29)   // +armHang, +headPitch (2026-10-21: address scalars, no curve)   // +lowPointFromAttack (2026-10-21)   // +8 sequence node readings (2026-10-14)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02)   // +17: a monitor reports one number per shot; +transitionPlaneDelta, +compoundMiss, +shoulderLineYaw, +clubheadPeakLead, +handPathLoop
         checkEqI(countType(cat, MetricType::Summary),      7, "Summary count");   // +ksOrderShare, +ksTimingSpread
         checkEqI(countType(cat, MetricType::Sequence),     1, "Sequence count (kinematicSequence)");
 
@@ -527,7 +527,7 @@ int main()
         // Depth metrics state a DEVICE. Three of them used minTier = Stereo3D as a stand-in, which
         // rendered as "a higher reconstruction tier" — true, unactionable, and unfilterable.
         for (const char *k : { "pelvisThrust", "clubPath", "swingPlane", "shaftDirection",
-                               "ballBodyDistance", "launchDirection" }) {
+                               "ballBodyDistance", "ballReachExcess", "launchDirection" }) {
             const MetricDescriptor *d = cat.descriptor(QString::fromLatin1(k));
             check(d && d->baselineRequirement().dtlCamera,
                   k);

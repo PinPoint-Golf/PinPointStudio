@@ -1770,6 +1770,7 @@ inline constexpr int    kMcDraws            = 200;
 inline constexpr uint64_t kSeed             = 0x5eedc1ab5eedc1abull;
 inline constexpr double kClubLenSigmaKnownM   = 0.005;   // σ of a measured club length (m)
 inline constexpr double kClubLenSigmaDefaultM = 0.12;    // σ when clubLengthM is the 1.12 m default (Q1: wide σ)
+inline constexpr double kClubLenSigmaStandardM = 0.025; // σ of a club's STANDARD length (no record): the charts spread ±1"
 inline constexpr double kBallSigmaFloorPx     = 1.0;
 inline constexpr double kDepartureBallSigmaPx = 2.0;     // impact_anchor ball: median 1.9 px, 29/32 within 10 px
 inline constexpr double kCameraFloorDeg       = 0.5;     // plane inclination floor (≤ 1° over ±15° yaw)

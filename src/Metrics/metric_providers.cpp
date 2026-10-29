@@ -157,7 +157,8 @@ std::vector<QString> DtlPostureProvider::provides() const
     return { QStringLiteral("pelvisThrust"),     QStringLiteral("headRise"),
              QStringLiteral("spineForwardBend"),
              QStringLiteral("leadKneeFlexion"),  QStringLiteral("trailKneeFlexion"),
-             QStringLiteral("ballBodyDistance"), QStringLiteral("balanceHeelToe"),
+             QStringLiteral("ballBodyDistance"), QStringLiteral("ballReachExcess"),
+             QStringLiteral("balanceHeelToe"),
              QStringLiteral("handPathLoop"),     QStringLiteral("trailForearmAngle"),
              // The two address angles (posture_metrics_design.md §3.1).
              QStringLiteral("armHang"),          QStringLiteral("headPitch"),

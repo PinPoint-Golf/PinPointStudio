@@ -1356,10 +1356,11 @@
     {
       "measure": "m_ballBodyGap",
       "context": "any",
-      "mu": 130.0,
-      "sigmaLo": 20.0,
-      "unit": "% shoulder width",
-      "source": "heuristic"
+      "mu": 10.0,
+      "sigmaLo": 4.0,
+      "unit": "cm",
+      "source": "heuristic",
+      "citation": "RE-SEATED 2026-10-29 ON A NEW MEASURE, ONE ROW FOR EVERY CLUB (docs/design/ball_reach_by_club.md). The old row graded the ball's raw distance from the toes as a share of shoulder width against 130 +/- 20 %, an authored number never measured: every golfer with a 7 or 8 iron read 160-195 % and Ball too far fired for all four of them, while arm hang said none was reaching. The club sets most of that distance (a driver puts the ball ~20 cm further out than a wedge), so the measure is now the distance LESS the club's reach (its length along the wrist-to-ball line), in cm, which is how far past the toes the hands sit. Coaching holds that this stays the same from wedge to driver. Measured spread, recorded and not adopted as a good-swing norm (four golfers of unknown standard): session medians Mark 7 iron 5-12, gap wedge 7; Nick 7 iron 5; Chris 7 iron 11; Jess 8 iron 15 cm; per swing 4-18 cm. Centre 10 cm, the middle of that; sigma 4 cm is authored, so Ball too far begins beyond 18 cm and Ball too close below 2 cm (the hands at the toe line). Heuristic; no driver or wood swing has been graded against it."
     },
     {
       "measure": "m_trailElbowRise",

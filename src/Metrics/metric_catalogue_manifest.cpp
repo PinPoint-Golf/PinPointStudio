@@ -3406,24 +3406,59 @@ void installMetricManifest(MetricCatalogue &cat)
         .key = QStringLiteral("ballBodyDistance"),
         .type = MetricType::PointInTime,
         .label = QStringLiteral("Ball distance from the body"),
-        .shortLabel = QStringLiteral("Ball reach"),
-        .unit = QStringLiteral("% shoulder width"),
+        .shortLabel = QStringLiteral("Ball distance"),
+        .unit = QStringLiteral("cm"),
         .group = QStringLiteral("Feet & stance"),
         .color = QStringLiteral("ochre"),
         .description = QStringLiteral(
-            "How far the ball sits from the golfer, measured across the stance line and expressed "
-            "as a percentage of shoulder width so it is comparable between golfers. Standing too "
-            "close crowds the arms and steepens the swing; reaching for the ball pulls the "
-            "shoulders forward and rounds the upper back even in someone whose standing posture is "
-            "fine. It is a different axis from ball position, which runs ALONG the stance."),
+            "How far the ball sits from the front of the feet at address, measured across the stance "
+            "line. Most of it is the club: the ball sits one club length from the hands, so a driver "
+            "puts it about 20 cm further out than a wedge for the same golfer. This is the plain "
+            "distance; the reading a ball-distance fault is graded on is the part the club does not "
+            "account for (Ball distance beyond the club's reach). It is a different axis from ball "
+            "position, which runs ALONG the stance."),
         .howToRead = QStringLiteral(
-            "A single setup measurement at address. Higher means further away. This is a depth "
-            "measurement across the stance line, so it needs the down-the-line view — face-on "
-            "cannot resolve it, because the distance runs along that camera's own axis. Normalised "
-            "by shoulder width: a raw millimetre reading is not comparable between a tall golfer "
-            "and a short one."),
+            "A single setup measurement at address. Higher means further away. It needs the "
+            "down-the-line view — face-on cannot resolve it, because the distance runs along that "
+            "camera's own axis. The club in the golfer's hands is the ruler: its length, from the "
+            "golfer's club record or the standard for the club named, against the distance from the "
+            "wrists to the ball in the picture. Compare it between swings with the same club, not "
+            "between clubs."),
         .signPositive = QStringLiteral("standing further from the ball"),
         .signNegative = QStringLiteral("standing closer to the ball"),
+        .phases = { P::Address },
+        .card = { .readAt = { { P::Address, {} } } },
+        .routes = {
+            via("dtl", RM::Triangulated, Direct, { .dtlCamera = true, .ballTrack = true },
+                QStringLiteral("the ball's standoff is measured across the stance line, which is "
+                               "the depth axis the face-on camera cannot see")) },
+        .usedBy = {},
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("ballReachExcess"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Ball distance beyond the club's reach"),
+        .shortLabel = QStringLiteral("Beyond club reach"),
+        .unit = QStringLiteral("cm"),
+        .group = QStringLiteral("Feet & stance"),
+        .color = QStringLiteral("ochre"),
+        .description = QStringLiteral(
+            "The ball's distance from the front of the feet less the part this club accounts for: "
+            "the club's length laid along the line from the hands to the ball. What is left is how "
+            "far past the toes the hands sit, which is where standing too close or too far shows "
+            "once the club is taken out. Coaching holds that this stays the same from wedge to "
+            "driver while the ball's own distance changes with the club, so one corridor serves "
+            "every club. Standing too close crowds the arms and steepens the swing; reaching for "
+            "the ball pulls the shoulders forward and rounds the upper back."),
+        .howToRead = QStringLiteral(
+            "A single setup measurement at address, in centimetres. Higher means the hands, and so "
+            "the ball, further out than the club needs. The club's angle is the one measured in the "
+            "picture, not the club's catalogue lie: a down-the-line camera reads the shaft several "
+            "degrees flatter than the lie, and that would read as distance. Standing too far by "
+            "setting the hands low, with the shaft flatter, is therefore not seen here."),
+        .signPositive = QStringLiteral("standing further from the ball than the club needs"),
+        .signNegative = QStringLiteral("standing closer to the ball than the club needs"),
         .phases = { P::Address },
         .card = { .readAt = { { P::Address, {} } } },
         .routes = {

@@ -42,9 +42,14 @@
 //   leadKneeFlexion   °    180° − (hip, knee, ankle), by side. The trail leg is nearer the camera
 //   trailKneeFlexion  °    and occludes the lead one through much of the swing; both are emitted
 //                          and the confidence gate is what speaks for the lead knee.
-//   ballBodyDistance  % shoulder width   ball to the toe line at address; the shoulder width is
-//                          end-on here, so it is face-on's, carried across by the ratio of the
-//                          body's vertical extent in the two views (segment_rates' pair scale).
+//   ballBodyDistance  cm   ball to the toe line at address, with the CLUB as the ruler: the ball
+//                          sits one club length from the hands, so cm/px = club length / the
+//                          wrist→ball distance in the picture (ball_reach_by_club.md §2).
+//   ballReachExcess   cm   the same distance less the club's own horizontal reach (its length
+//                          along the wrist→ball line), which leaves how far past the toes the hands
+//                          sit. The club, not the golfer, sets most of the ball distance — a driver
+//                          puts the ball ~20 cm further out than a wedge — so this is the reading a
+//                          ball-distance fault is graded on, and the same corridor fits every club.
 //   balanceHeelToe    % foot length      a PROXY and it says so: a mass-weighted point
 //                          (0.45 pelvis, 0.35 shoulders, 0.20 knees) over the heel→toe span. No
 //                          pressure, no segment-mass model.
@@ -118,6 +123,14 @@ struct DtlPostureConfig {
     int     loopMinLevels = 3;        // dtlPosture.loopMinLevels — heights that must resolve on both paths
     int64_t loopTopWindowUs = 80000;  // dtlPosture.loopTopWindowUs — the top of the hand path is sought ± this of Top
     double  loopMinRisePx = 40.0;     // dtlPosture.loopMinRisePx — a rise shorter than this is not a swing seen
+    // A club at address points down from the hands to the ball: 50–58° below the horizontal in every
+    // down-the-line session of Oct 2026, wedge to 7 iron. A "ball" at 89° — straight under the hands —
+    // is the hands' own shadow (7 Oct 2026, #114), and one 0.8× or 1.2× a club length from them
+    // (when a ruler of its own says so) is not the ball this club is soled behind.
+    double  ballAngleMinDeg = 30.0;   // dtlPosture.ballAngleMinDeg
+    double  ballAngleMaxDeg = 75.0;   // dtlPosture.ballAngleMaxDeg
+    double  ballLeverMin  = 0.80;     // dtlPosture.ballLeverMin — wrist→ball over the club's length
+    double  ballLeverMax  = 1.20;     // dtlPosture.ballLeverMax
 
     static DtlPostureConfig fromOverrides(const QVariantMap &ov)
     {
@@ -136,6 +149,10 @@ struct DtlPostureConfig {
         apply(ov, "dtlPosture.loopMinLevels", c.loopMinLevels);
         apply(ov, "dtlPosture.loopTopWindowUs", c.loopTopWindowUs);
         apply(ov, "dtlPosture.loopMinRisePx", c.loopMinRisePx);
+        apply(ov, "dtlPosture.ballAngleMinDeg", c.ballAngleMinDeg);
+        apply(ov, "dtlPosture.ballAngleMaxDeg", c.ballAngleMaxDeg);
+        apply(ov, "dtlPosture.ballLeverMin",  c.ballLeverMin);
+        apply(ov, "dtlPosture.ballLeverMax",  c.ballLeverMax);
         return c;
     }
 };
@@ -150,6 +167,11 @@ struct DtlPostureInputs {
     bool    ballFound = false, ballBright = false;
     double  ballX = 0, ballY = 0, ballRadiusPx = 0;
     double  foMmPerPx = 0;                   // face-on ball-diameter ruler; ≤ 0 = none
+    // The club in the golfer's hands: the athlete's record (capture.club.lengthMm), else the
+    // standard length of the club the swing names (club_standards.h). ≤ 0 = no club, and then no
+    // ball distance. σ is the length's own: a record's 5 mm, a standard's spread, the driver
+    // default's 12 cm.
+    double  clubLengthM = 0, clubLengthSigmaM = 0;
 };
 
 struct DtlPostureResult {
@@ -262,7 +284,7 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
                                           QStringLiteral("spineForwardBend"), QStringLiteral("leadKneeFlexion"),
                                           QStringLiteral("trailKneeFlexion"), QStringLiteral("trailForearmAngle"),
                                           QStringLiteral("balanceHeelToe"), QStringLiteral("ballBodyDistance"),
-                                          QStringLiteral("handPathLoop"), QStringLiteral("armHang"),
+                                          QStringLiteral("ballReachExcess"), QStringLiteral("handPathLoop"), QStringLiteral("armHang"),
                                           QStringLiteral("headPitch") } });
         return res;
     };
@@ -331,6 +353,7 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
     // dropped, the thrust goes with it, and the angles are untouched.
     if (res.cmPerPx > 0.0 && foShoulderPx && res.scaleRatio > 0.0) {
         const double sw = *foShoulderPx * res.scaleRatio * res.cmPerPx;
+        res.shoulderWidthCm = sw;
         if (sw < cfg.shoulderMinCm || sw > cfg.shoulderMaxCm) {
             res.rulerRefused = QStringLiteral("%1 implied %2 cm of shoulders").arg(res.ruler).arg(sw, 0, 'f', 1);
             QVariantMap ev = code("implausible");
@@ -445,18 +468,66 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
                                             GateEffect::Refused, ev, {}, {}, {} });
         }
     }
-    if (toeLine && in.ballFound && foShoulderPx && res.scaleRatio > 0.0) {
-        const double shoulderDtlPx = *foShoulderPx * res.scaleRatio;
-        res.shoulderWidthCm = shoulderDtlPx * res.cmPerPx;
-        if (shoulderDtlPx > 8.0)
-            scalar("ballBodyDistance", "Ball distance from the body", "% shoulder width",
-                   100.0 * tw * (in.ballX - *toeLine) / shoulderDtlPx);
+    // ── the ball's distance, and the part of it the club accounts for (ball_reach_by_club.md) ──
+    //
+    // The ball sits where the club puts it: one club length from the hands, along the shaft. So the
+    // CLUB is the ruler (cm/px = its length over the wrist→ball distance in the picture — the DTL
+    // ball ruler agrees to 0.5 cm on every Oct 2026 session that has both), and the club's own
+    // horizontal reach, L·cos φ with φ the wrist→ball line's angle below the horizontal, comes off
+    // the toe→ball distance to leave the hands' distance past the toes. φ is MEASURED rather than
+    // taken from the club's catalogue lie: the camera reads a 62° 7 iron at 49–55° on every session,
+    // so a catalogue lie would call every 7 iron 8 cm too far. That is the same as reading the hands
+    // against the toe line in club-length units, and it is meant to be: the club sets most of the
+    // ball's distance, so it is what has to come out before a golfer can be called too far away.
+    if (toeLine && in.ballFound) {
+        auto refuseReach = [&res](QVariantMap ev) {
+            res.gates.push_back(GateRecord{ PP_GATE("posture.ballReach"), QStringLiteral("ballReachExcess"),
+                                            GateEffect::Refused, std::move(ev), {}, {},
+                                            { QStringLiteral("ballBodyDistance") } });
+        };
+        const auto wristX = medianOfSeen(v, *addrT, half, minN, [&](size_t i) -> std::optional<double> {
+            const auto wr = seenMid(v, i, kLWr, kRWr, cm);
+            return wr ? std::optional<double>(wr->x()) : std::nullopt; });
+        const auto wristY = medianOfSeen(v, *addrT, half, minN, [&](size_t i) -> std::optional<double> {
+            const auto wr = seenMid(v, i, kLWr, kRWr, cm);
+            return wr ? std::optional<double>(wr->y()) : std::nullopt; });
+        if (!(in.clubLengthM > 0.0))
+            refuseReach(code("noClub"));
+        else if (!wristX || !wristY)
+            refuseReach(code("wrists"));
         else {
-            QVariantMap ev = code("shoulder");
-            ev.insert(QStringLiteral("lengthPx"), shoulderDtlPx);
-            ev.insert(QStringLiteral("minPx"), 8.0);
-            res.gates.push_back(GateRecord{ PP_GATE("posture.sizeFloor"), QStringLiteral("ballBodyDistance"),
-                                            GateEffect::Refused, ev, {}, {}, {} });
+            const double dx = tw * (in.ballX - *wristX), dy = in.ballY - *wristY;
+            const double leverPx = std::hypot(dx, dy);
+            const double phiDeg = std::atan2(dy, dx) * 180.0 / M_PI;
+            const double clubCm = 100.0 * in.clubLengthM;
+            const double leverRatio = res.cmPerPx > 0.0 ? leverPx * res.cmPerPx / clubCm : 1.0;
+            if (leverPx < 1.0 || phiDeg < cfg.ballAngleMinDeg || phiDeg > cfg.ballAngleMaxDeg) {
+                QVariantMap ev = code("ballAngle");
+                ev.insert(QStringLiteral("angleDeg"), phiDeg);
+                ev.insert(QStringLiteral("minDeg"), cfg.ballAngleMinDeg);
+                ev.insert(QStringLiteral("maxDeg"), cfg.ballAngleMaxDeg);
+                refuseReach(ev);
+            } else if (leverRatio < cfg.ballLeverMin || leverRatio > cfg.ballLeverMax) {
+                QVariantMap ev = code("ballLength");
+                ev.insert(QStringLiteral("lengthCm"), leverPx * res.cmPerPx);
+                ev.insert(QStringLiteral("clubCm"), clubCm);
+                refuseReach(ev);
+            } else {
+                const double cmPerPxClub = clubCm / leverPx;
+                const double dist   = tw * (in.ballX - *toeLine) * cmPerPxClub;
+                const double excess = dist - clubCm * std::cos(phiDeg * M_PI / 180.0);
+                // σ: the club's length scales both readings; nothing here is a fitted spread.
+                const double relL = in.clubLengthSigmaM > 0.0 ? in.clubLengthSigmaM / in.clubLengthM : 0.0;
+                auto withSigma = [&](const char *key, const char *label, double value) {
+                    scalar(key, label, "cm", value);
+                    if (relL > 0.0) {
+                        res.series.back().phaseSamples.back().sigma = std::abs(value) * relL;
+                        res.series.back().phaseSamples.back().sigmaKind = uint8_t(SigmaKind::AssumedInput);
+                    }
+                };
+                withSigma("ballBodyDistance", "Ball distance from the body", dist);
+                withSigma("ballReachExcess", "Ball distance beyond the club's reach", excess);
+            }
         }
     }
 

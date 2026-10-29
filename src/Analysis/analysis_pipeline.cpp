@@ -2655,6 +2655,16 @@ struct DtlPostureStage : AnalysisStage {
             in.ballBright = b.source == QLatin1String("bright");
             in.ballX = b.x; in.ballY = b.y; in.ballRadiusPx = b.radiusPx;
         }
+        // The club for the ball's distance (ball_reach_by_club.md): the golfer's own record, else the
+        // standard length of the club the swing names, else the driver default with its wide σ.
+        namespace unc = pinpoint::tuned::uncertainty;
+        if (ctx.job.clubLengthKnown) {
+            in.clubLengthM = ctx.job.clubLengthM;          in.clubLengthSigmaM = unc::kClubLenSigmaKnownM;
+        } else if (ctx.job.standardClubLengthM > 0.5) {
+            in.clubLengthM = ctx.job.standardClubLengthM;  in.clubLengthSigmaM = unc::kClubLenSigmaStandardM;
+        } else {
+            in.clubLengthM = ctx.job.clubLengthM;          in.clubLengthSigmaM = unc::kClubLenSigmaDefaultM;
+        }
         DtlPostureResult r = buildDtlPosture(in, DtlPostureConfig::fromOverrides(ctx.job.tuningOverrides));
         ctx.addGates(std::move(r.gates));   // trust stage 6: kept on a refusal too
         // The ruler, kept on a refusal too (a refusal before the ruler resolved leaves "none").

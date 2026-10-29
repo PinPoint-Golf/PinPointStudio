@@ -771,14 +771,14 @@
         "anchor": "p1"
       },
       "status": "live",
-      "label": "Ball distance from the body, at P1",
-      "metricKey": "ballBodyDistance",
-      "highMeans": "further from the body, reaching more for the ball",
-      "golferHigh": "you stand further from the ball",
-      "golferLow": "you stand closer to the ball",
+      "label": "Ball distance beyond the club's reach, at P1",
+      "metricKey": "ballReachExcess",
+      "highMeans": "further from the ball than the club's length accounts for, the hands reaching out past the toes",
+      "golferHigh": "you stand further from the ball than your club needs",
+      "golferLow": "you stand closer to the ball than your club needs",
       "golferSign": 1,
-      "golferName": "distance from you to the ball at address",
-      "unit": "% shoulder width"
+      "golferName": "distance to the ball beyond your club's reach at address",
+      "unit": "cm"
     },
     {
       "id": "m_thoraxDrift",

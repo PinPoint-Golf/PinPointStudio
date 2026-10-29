@@ -227,15 +227,29 @@ inline void appendBodyGates(std::vector<GateEntry> &c)
     }
     {
         GateEntry &e = add(c, "posture.sizeFloor", posture, "Too small to read", "too small",
-            QStringLiteral("Balance heel to toe is a share of the foot's length, and ball distance a share of the "
-                           "shoulder width. When either is only a few pixels in the down-the-line picture, the share "
-                           "is keypoint noise and is not read."),
+            QStringLiteral("Balance heel to toe is a share of the foot's length. When the foot is only a few pixels "
+                           "in the down-the-line picture, the share is keypoint noise and is not read."),
             "{code:code}.",
             { GateEffect::Refused }, dtlProd, dtlDoc);
         e.tuning = { tune("dtlPosture.minSizePx", 8.0, "px") };
         e.codes = {
-            { QStringLiteral("foot"),     QStringLiteral("The foot was {lengthPx:px} long in the picture; more than {minPx:px} is needed") },
-            { QStringLiteral("shoulder"), QStringLiteral("The shoulders were {lengthPx:px} wide in the down-the-line picture; more than {minPx:px} is needed") } };
+            { QStringLiteral("foot"),     QStringLiteral("The foot was {lengthPx:px} long in the picture; more than {minPx:px} is needed") } };
+    }
+    {
+        GateEntry &e = add(c, "posture.ballReach", posture, "Ball distance not read", "not read",
+            QStringLiteral("The ball's distance is measured with the club as the ruler: the ball sits one club "
+                           "length from the hands, along the shaft. It needs the club's length, the wrists at "
+                           "address, and a ball where a club held in those hands could be soled — below them at "
+                           "a club's angle, and, when the picture has a ruler of its own, about a club length away."),
+            "{code:code}.",
+            { GateEffect::Refused }, dtlProd, dtlDoc);
+        e.tuning = { tune("dtlPosture.ballAngleMinDeg", 30.0, "°"), tune("dtlPosture.ballAngleMaxDeg", 75.0, "°"),
+                     tune("dtlPosture.ballLeverMin", 0.80, ""), tune("dtlPosture.ballLeverMax", 1.20, "") };
+        e.codes = {
+            { QStringLiteral("noClub"),     QStringLiteral("No club length was known for this swing") },
+            { QStringLiteral("wrists"),     QStringLiteral("The wrists were not seen clearly at address") },
+            { QStringLiteral("ballAngle"),  QStringLiteral("The ball found sat {angleDeg:deg} below the hands; a club at address points {minDeg:deg} to {maxDeg:deg} down, so it was not the ball being hit") },
+            { QStringLiteral("ballLength"), QStringLiteral("The ball found sat {lengthCm:cm} from the hands, and the club is {clubCm:cm} long, so it was not the ball being hit") } };
     }
     {
         GateEntry &e = add(c, "posture.handLoop", posture, "Hand loop not read", "not read",

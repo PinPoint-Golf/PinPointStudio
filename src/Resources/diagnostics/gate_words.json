@@ -148,6 +148,10 @@
       "golfer": "you were too small in the down-the-line picture to measure it"
     },
     {
+      "id": "posture.ballReach",
+      "golfer": "the down-the-line camera could not find the ball where your club was soled"
+    },
+    {
       "id": "posture.handLoop",
       "golfer": "the down-the-line camera could not follow your hands clearly enough"
     },

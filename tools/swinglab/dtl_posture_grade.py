@@ -10,7 +10,7 @@ import json, os, sys, collections
 import numpy as np
 
 PH = {0: "P1", 2: "P4", 13: "P5", 9: "P6", 5: "P7", 14: "P8"}
-KEYS = ["pelvisThrust", "spineForwardBend", "leadKneeFlexion", "trailKneeFlexion", "ballBodyDistance",
+KEYS = ["pelvisThrust", "spineForwardBend", "leadKneeFlexion", "trailKneeFlexion", "ballBodyDistance", "ballReachExcess",
         "balanceHeelToe", "swingPlane"]
 
 
