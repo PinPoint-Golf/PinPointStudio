@@ -1784,6 +1784,46 @@ void installMetricManifest(MetricCatalogue &cat)
         // is the same idea measured a way the face-on camera can actually deliver.
     });
 
+    // The same two fitted planes as ABSOLUTE angles to the ground. swingPlane subtracts the address
+    // plane, so a golfer who sets up flat and swings on that flat plane reads "on plane" there; here
+    // the plane itself is graded against a per-club norm (Mark, 29 Oct 2026, from Jess's swings).
+    cat.addDescriptor({
+        .key = QStringLiteral("swingPlaneAngle"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Swing plane angle"),
+        .shortLabel = QStringLiteral("Plane ∠"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("lavender"),
+        .description = QStringLiteral(
+            "The angle to the ground of the plane the shaft swings on: a best-fit plane through the "
+            "shaft's three-dimensional direction from address to the top (the backswing plane), and "
+            "another from the top to impact (the downswing plane), found by intersecting what the "
+            "face-on and down-the-line cameras each see. 90° would be a vertical plane; a driver "
+            "swings on a flatter plane than a wedge."),
+        .howToRead = QStringLiteral(
+            "Two numbers per swing, each held over its half: the backswing plane, then the "
+            "downswing plane, in degrees above the ground. Higher is more upright. It is "
+            "club-dependent, so compare like with like. Unlike Swing plane it is not measured "
+            "against the address plane, so it shows a golfer who is flat or upright all the way "
+            "through. Needs both cameras and a club track in each. The angle is robust to where "
+            "the down-the-line camera stands; the plane's direction is not, and is not reported."),
+        .signPositive = QStringLiteral("a more upright plane"),
+        .signNegative = QStringLiteral("a flatter plane"),
+        .phases = { P::ArmParallelDown },
+        // No Δ tile: back minus down is the same number as Swing plane's Δ PLANE (the address
+        // plane cancels), and one card already says it.
+        .card = { .readAt = { { P::MidBackswing, QStringLiteral("BACKSWING") }, { P::Delivery, QStringLiteral("DOWNSWING") } }, .peak = false, .delta = false, .rate = false },
+        .routes = {
+            via("dtl", RM::Triangulated, Direct, { .dtlCamera = true, .clubTrack = true },
+                QStringLiteral("a best-fit plane through the shaft's direction needs that direction "
+                               "in three dimensions, which one camera cannot give")) },
+        .usedBy = { QStringLiteral("characteristic:backswing_plane_too_upright"),
+                    QStringLiteral("characteristic:backswing_plane_too_flat"),
+                    QStringLiteral("characteristic:downswing_plane_too_steep"),
+                    QStringLiteral("characteristic:downswing_plane_too_flat") },
+    });
+
     // The transition delta, and the reason it is a separate key from swingPlane
     // above: this is not a plane ANGLE, it is the CHANGE in one between two windows,
     // and it comes off the face-on camera rather than down-the-line. Over the top is

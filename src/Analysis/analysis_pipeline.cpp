@@ -2547,27 +2547,73 @@ struct ShaftFusionStage : AnalysisStage {
             }
             if (m.t_us.size() >= 2) ctx.seriesOut().push_back(std::move(m));
         }
+        // swingPlaneAngle — the same two planes as ABSOLUTE angles to the ground, in degrees (90 =
+        // vertical), with no address plane subtracted: the backswing plane (address → top, P1–P4)
+        // held up to the top, the downswing plane (top → impact, P4–P7) held from the top to
+        // impact. swingPlane above cannot see a golfer who sets up flat and swings on that flat
+        // plane all the way; this can (Mark, 29 Oct). The inclination is the half of the fit the
+        // uncalibrated cameras leave honest (≤ 1° over ±15° of yaw, shaft_fusion.h); the plane's
+        // heading is not. Each half is gated exactly as swingPlane's, and needs no address plane.
+        {
+            MetricSeries m;
+            m.key   = QStringLiteral("swingPlaneAngle");
+            m.label = QStringLiteral("Swing plane angle");
+            m.unit  = QStringLiteral("°");
+            const double nan  = std::numeric_limits<double>::quiet_NaN();
+            const double back = (t.back.fitted && !t.backIncoherent) ? t.back.inclDeg : nan;
+            const double down = (t.down.fitted && t.down.offered(cfg)) ? t.down.inclDeg : nan;
+            if (std::isfinite(back))
+                for (int64_t us = backFromUs; us < topUs; us += 5000) {
+                    m.t_us.push_back(us);
+                    m.value.push_back(back);
+                }
+            if (std::isfinite(down))
+                for (int64_t us = topUs; us <= impactUs; us += 5000) {
+                    m.t_us.push_back(us);
+                    m.value.push_back(down);
+                }
+            const auto sampleAt = [&](Phase p, double v, int64_t lo, int64_t hi, double sig) {
+                if (!std::isfinite(v)) return;
+                if (const PhaseEvent *e = ctx.seg.eventFor(p); e && e->t_us >= lo && e->t_us <= hi) {
+                    PhaseSample ps{ p, e->t_us, v, QString() };
+                    if (std::isfinite(sig)) { ps.sigma = sig; ps.sigmaKind = uint8_t(SigmaKind::Propagated); }
+                    m.phaseSamples.push_back(ps);
+                }
+            };
+            sampleAt(Phase::MidBackswing,    back, backFromUs, topUs - 1, t.back.inclSigmaDeg);
+            sampleAt(Phase::ArmParallelDown, down, topUs, impactUs, t.down.inclSigmaDeg);
+            sampleAt(Phase::Delivery,        down, topUs, impactUs, t.down.inclSigmaDeg);
+            m.sigma = std::isfinite(down) ? t.down.oopRmsDeg : t.back.oopRmsDeg;
+            if (unc.enabled) {
+                const double ds = std::isfinite(down) ? t.down.inclSigmaDeg : t.back.inclSigmaDeg;
+                if (std::isfinite(ds)) { m.sigma = ds; m.sigmaKind = uint8_t(SigmaKind::Propagated); }
+            }
+            if (m.t_us.size() >= 2) ctx.seriesOut().push_back(std::move(m));
+        }
         // THE FUSION'S GATE RECORDS (trust stage 6). A half of swingPlane whose plane FITTED but
         // scattered too widely to be a plane is refused, one record per half: the downswing above
         // planeOopMaxDeg (PlaneFit::offered), the backswing above backIncoherentDeg (most likely a
         // mirrored down-the-line band). And the frames where the two cameras' view planes met too
         // obliquely to give a direction (cond < minCond), as one summary on the 3-D club.
+        // swingPlaneAngle reads the same two planes, so each refusal is recorded against both.
         {
             std::vector<GateRecord> fg;
-            if (t.down.fitted && !t.down.offered(cfg))
-                fg.push_back(GateRecord{ PP_GATE("club3d.planeScatter"), QStringLiteral("swingPlane"), GateEffect::Refused,
-                                         QVariantMap{ { QStringLiteral("code"), QStringLiteral("down") },
-                                                      { QStringLiteral("rmsDeg"), t.down.oopRmsDeg },
-                                                      { QStringLiteral("maxRmsDeg"), cfg.planeOopMaxDeg },
-                                                      { QStringLiteral("frames"), t.down.n } },
-                                         {}, {}, {} });
-            if (t.back.fitted && t.backIncoherent)
-                fg.push_back(GateRecord{ PP_GATE("club3d.planeScatter"), QStringLiteral("swingPlane"), GateEffect::Refused,
-                                         QVariantMap{ { QStringLiteral("code"), QStringLiteral("back") },
-                                                      { QStringLiteral("rmsDeg"), t.back.oopRmsDeg },
-                                                      { QStringLiteral("maxRmsDeg"), cfg.backIncoherentDeg },
-                                                      { QStringLiteral("frames"), t.back.n } },
-                                         {}, {}, {} });
+            for (const QString &subject : { QStringLiteral("swingPlane"), QStringLiteral("swingPlaneAngle") }) {
+                if (t.down.fitted && !t.down.offered(cfg))
+                    fg.push_back(GateRecord{ PP_GATE("club3d.planeScatter"), subject, GateEffect::Refused,
+                                             QVariantMap{ { QStringLiteral("code"), QStringLiteral("down") },
+                                                          { QStringLiteral("rmsDeg"), t.down.oopRmsDeg },
+                                                          { QStringLiteral("maxRmsDeg"), cfg.planeOopMaxDeg },
+                                                          { QStringLiteral("frames"), t.down.n } },
+                                             {}, {}, {} });
+                if (t.back.fitted && t.backIncoherent)
+                    fg.push_back(GateRecord{ PP_GATE("club3d.planeScatter"), subject, GateEffect::Refused,
+                                             QVariantMap{ { QStringLiteral("code"), QStringLiteral("back") },
+                                                          { QStringLiteral("rmsDeg"), t.back.oopRmsDeg },
+                                                          { QStringLiteral("maxRmsDeg"), cfg.backIncoherentDeg },
+                                                          { QStringLiteral("frames"), t.back.n } },
+                                             {}, {}, {} });
+            }
             std::vector<int64_t> ill;
             for (const fusion::Sample3D &s : t.samples)
                 if (s.flags & fusion::IllConditioned) ill.push_back(s.t_us);

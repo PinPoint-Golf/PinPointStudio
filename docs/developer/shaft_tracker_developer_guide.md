@@ -1835,6 +1835,7 @@ The curve is masked after the P7 anchor.
 
 - **The face-on transition delta** (`transitionPlaneDelta`). §6.5. Experimental and uncalibrated. Only the "shallowing" characteristic reads it.
 - **The fused swing plane** (`swingPlane`). §6.2. The backswing and downswing plane inclinations relative to the address plane, read at P3 and P6, with uncertainty equal to the plane's spread. The inclination is robust to the unknown camera yaw; the heading is not, and is not published.
+- **The fused swing plane angle** (`swingPlaneAngle`). The same two fits as absolute angles to the ground, with no address plane subtracted: the backswing plane (address → top, P1–P4) read at P3, the downswing plane (top → impact, P4–P7) read at P6, each with its bootstrap σ. Each half is gated exactly as `swingPlane`'s (`club3d.planeScatter` is recorded against both keys) but needs no address plane. It feeds `m_backswingPlaneAngle` and `m_downswingPlaneAngle`, graded against per-club norms (driver 48°, fairway wood 53°, hybrid 56°, iron 60°, wedge 63°, ±4°; plausible 30–80°), and their four tails: *Backswing plane too upright / too flat*, *Downswing plane too steep / too flat*. Added 29 Oct 2026 because `swingPlane` reads a golfer who sets up flat and swings on that flat plane as on plane.
 
 ### 8.9 The kinematic sequence's club rotation (`clubAngularSpeed`)
 

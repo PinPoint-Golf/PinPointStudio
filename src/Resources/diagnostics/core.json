@@ -2308,6 +2308,42 @@
       "viewNeeded": "downTheLine"
     },
     {
+      "id": "m_backswingPlaneAngle",
+      "kind": "provided",
+      "metricKey": "swingPlaneAngle",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p3"
+      },
+      "status": "live",
+      "label": "Swing plane angle, backswing (address to the top)",
+      "unit": "°",
+      "highMeans": "a more upright backswing plane — the shaft's plane stands closer to vertical",
+      "golferHigh": "the club swings back on a more upright plane",
+      "golferLow": "the club swings back on a flatter plane",
+      "golferSign": 1,
+      "golferName": "how upright the plane is that the club swings back on",
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_downswingPlaneAngle",
+      "kind": "provided",
+      "metricKey": "swingPlaneAngle",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p6"
+      },
+      "status": "live",
+      "label": "Swing plane angle, downswing (top to impact)",
+      "unit": "°",
+      "highMeans": "a more upright downswing plane — the shaft's plane stands closer to vertical",
+      "golferHigh": "the club comes down on a more upright plane",
+      "golferLow": "the club comes down on a flatter plane",
+      "golferSign": 1,
+      "golferName": "how upright the plane is that the club comes down on",
+      "viewNeeded": "downTheLine"
+    },
+    {
       "id": "m_lowPointAhead",
       "kind": "provided",
       "metricKey": "lowPointAhead",
@@ -4679,6 +4715,38 @@
       "test": "outsideCorridor",
       "measures": [
         "m_shaftPlaneBackswing"
+      ],
+      "direction": "low"
+    },
+    {
+      "id": "sig_backswingPlaneTooUpright",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_backswingPlaneAngle"
+      ],
+      "direction": "high"
+    },
+    {
+      "id": "sig_backswingPlaneTooFlat",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_backswingPlaneAngle"
+      ],
+      "direction": "low"
+    },
+    {
+      "id": "sig_downswingPlaneTooSteep",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_downswingPlaneAngle"
+      ],
+      "direction": "high"
+    },
+    {
+      "id": "sig_downswingPlaneTooFlat",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_downswingPlaneAngle"
       ],
       "direction": "low"
     },
@@ -8314,6 +8382,167 @@
         "tier": "practice",
         "searchedOn": "2026-07-27",
         "searchTerms": "swing plane shaft position backswing top of swing golf"
+      }
+    },
+    {
+      "id": "backswing_plane_too_upright",
+      "label": "Backswing plane too upright",
+      "golfer": "the club swings back on too upright a plane for this club",
+      "golferWell": "the club swings back on a plane that suits this club",
+      "golferWhy": "An upright plane going back tends to bring the club down steep, so you tend to pull it, slice it or take a deep divot.",
+      "goal": "Swing the club back on a plane that suits the club",
+      "cue": "Going back, feel your arms swing around your chest as it turns, rather than lifting the club up in front of you.",
+      "check": "Film from down the line. With the lead arm level with the ground, the shaft should point at the ball line. If it points well inside your toes, or the club is standing nearly vertical, the plane is too upright.",
+      "picture": {
+        "kind": "pair",
+        "camera": "dtl",
+        "phase": "P3",
+        "line": "shaft"
+      },
+      "aliases": [
+        "too upright",
+        "swinging it up"
+      ],
+      "axis": "backswing_plane_angle",
+      "group": "armsAndClub",
+      "kind": "fault",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_backswingPlaneTooUpright"
+      ],
+      "state": "draft",
+      "consequence": "The plane the shaft swings back on stands steeper than a good player's for this club, whatever plane it started on. It usually comes down steep too, unless the golfer drops it flatter in transition.",
+      "drills": [
+        "drill.buttToTheLine",
+        "drill.shoulderPlaneClub"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "launch monitor swing plane degrees by club driver irons; shaft plane angle at address by club"
+      }
+    },
+    {
+      "id": "backswing_plane_too_flat",
+      "label": "Backswing plane too flat",
+      "golfer": "the club swings back on too flat a plane for this club",
+      "golferWell": "the club swings back on a plane that suits this club",
+      "golferWhy": "A flat plane going back tends to bring the club in from behind you, so you rely on your hands to square the face and tend to push it or hook it.",
+      "goal": "Swing the club back on a plane that suits the club",
+      "cue": "Going back, feel your trail arm fold upward and the club stay in front of your chest, rather than swinging around behind you.",
+      "check": "Film from down the line. With the lead arm level with the ground, the shaft should point at the ball line. If it points well beyond the ball, or the club is lying low around your body, the plane is too flat.",
+      "picture": {
+        "kind": "pair",
+        "camera": "dtl",
+        "phase": "P3",
+        "line": "shaft"
+      },
+      "aliases": [
+        "too flat",
+        "too around",
+        "swinging it around"
+      ],
+      "axis": "backswing_plane_angle",
+      "group": "armsAndClub",
+      "kind": "fault",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_backswingPlaneTooFlat"
+      ],
+      "state": "draft",
+      "consequence": "The plane the shaft swings back on lies flatter than a good player's for this club. Measured against its own address plane it can still read on plane, because a golfer who sets up flat and swings on that flat plane is flat all the way through.",
+      "drills": [
+        "drill.buttToTheLine",
+        "drill.takeawayStick"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "launch monitor swing plane degrees by club driver irons; shaft plane angle at address by club"
+      }
+    },
+    {
+      "id": "downswing_plane_too_steep",
+      "label": "Downswing plane too steep",
+      "golfer": "the club comes down on too steep a plane for this club",
+      "golferWell": "the club comes down on a plane that suits this club",
+      "golferWhy": "A steep plane coming down cuts across the ball, so you tend to pull it, slice it or take a deep divot.",
+      "goal": "Bring the club down on a plane that suits the club",
+      "cue": "As you start down, feel the clubhead fall behind your hands and your trail elbow drop toward your trail hip.",
+      "check": "Film from down the line. Halfway down, with the shaft level with the ground, the shaft should point at or just outside the ball line. If it points well inside your toes, the plane is too steep.",
+      "picture": {
+        "kind": "pair",
+        "camera": "dtl",
+        "phase": "P6",
+        "line": "shaft"
+      },
+      "aliases": [
+        "steep coming down",
+        "chopping down"
+      ],
+      "axis": "downswing_plane_angle",
+      "group": "armsAndClub",
+      "kind": "delivery",
+      "prominence": "common",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_downswingPlaneTooSteep"
+      ],
+      "state": "draft",
+      "consequence": "The plane the shaft comes down on stands steeper than a good player's for this club. It is the absolute view of the same event steep through delivery describes against the address plane.",
+      "drills": [
+        "drill.pumpToDelivery",
+        "drill.gateForPath"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "launch monitor swing plane degrees by club driver irons; shaft plane angle at address by club"
+      }
+    },
+    {
+      "id": "downswing_plane_too_flat",
+      "label": "Downswing plane too flat",
+      "golfer": "the club comes down on too flat a plane for this club",
+      "golferWell": "the club comes down on a plane that suits this club",
+      "golferWhy": "A flat plane coming down swings the club too far from the inside, so you tend to push it, hook it or catch it thin.",
+      "goal": "Bring the club down on a plane that suits the club",
+      "cue": "As you start down, feel your chest keep turning while your arms drop in front of you, so the club stays in front of your body.",
+      "check": "Film from down the line. Halfway down, with the shaft level with the ground, the shaft should point at or just outside the ball line. If it points well beyond the ball, the plane is too flat.",
+      "picture": {
+        "kind": "pair",
+        "camera": "dtl",
+        "phase": "P6",
+        "line": "shaft"
+      },
+      "aliases": [
+        "too shallow",
+        "too far from the inside"
+      ],
+      "axis": "downswing_plane_angle",
+      "group": "armsAndClub",
+      "kind": "delivery",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_downswingPlaneTooFlat"
+      ],
+      "state": "draft",
+      "consequence": "The plane the shaft comes down on lies flatter than a good player's for this club. Shallowing in transition is a move good players make on purpose; this is a plane that ends up flatter than the club wants at impact.",
+      "drills": [
+        "drill.pumpToDelivery",
+        "drill.gateForPath"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "launch monitor swing plane degrees by club driver irons; shaft plane angle at address by club"
       }
     },
     {
@@ -18520,6 +18749,193 @@
       "strength": "weak",
       "provenance": {
         "tier": "practice"
+      }
+    },
+    {
+      "from": "ball_too_close",
+      "to": "backswing_plane_too_upright",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "posture_too_bent",
+      "to": "backswing_plane_too_upright",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "steep_shoulder_plane",
+      "to": "backswing_plane_too_upright",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "backswing_plane_too_upright",
+      "to": "downswing_plane_too_steep",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "ball_too_far",
+      "to": "backswing_plane_too_flat",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "posture_too_upright",
+      "to": "backswing_plane_too_flat",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "flat_shoulder_plane",
+      "to": "backswing_plane_too_flat",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "arms_reaching_at_address",
+      "to": "backswing_plane_too_flat",
+      "type": "causes",
+      "strength": "weak",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "backswing_plane_too_flat",
+      "to": "downswing_plane_too_flat",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "downswing_plane_too_steep",
+      "to": "out_to_in_path",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "downswing_plane_too_steep",
+      "to": "attack_too_steep",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "downswing_plane_too_steep",
+      "to": "over_the_top",
+      "type": "corroborates",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "steep_downswing_shaft",
+      "to": "downswing_plane_too_steep",
+      "type": "corroborates",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "shallowing",
+      "to": "downswing_plane_too_flat",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "downswing_plane_too_flat",
+      "to": "in_to_out_path",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "downswing_plane_too_flat",
+      "to": "attack_too_shallow",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "downswing_plane_too_flat",
+      "to": "under_plane_stuck",
+      "type": "corroborates",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-29",
+        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
       }
     }
   ]

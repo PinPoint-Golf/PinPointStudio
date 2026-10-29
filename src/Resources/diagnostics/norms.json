@@ -1755,6 +1755,138 @@
       "source": "heuristic"
     },
     {
+      "measure": "m_backswingPlaneAngle",
+      "context": "any",
+      "mu": 57.0,
+      "sigmaLo": 7.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "Club unknown, so a corridor wide enough for driver-to-wedge territory. The per-club rows below are the ones that should normally resolve. Not tuned on our golfers: four golfers' 7- and 8-iron sessions in the library on 29 Oct read medians of 54–67° going back and 53–72° coming down. PLAUSIBILITY CAPS 30..80: a fitted shaft plane outside them is a fit fault (the library holds a 16° iron downswing fit), not a swing.",
+      "plausibleLo": 30.0,
+      "plausibleHi": 80.0
+    },
+    {
+      "measure": "m_backswingPlaneAngle",
+      "context": "driver",
+      "mu": 48.0,
+      "sigmaLo": 4.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "A launch-monitor maker's published guidance: a driver typically swings on a 45–50° plane, with combine averages of 48.1° for scratch men and 46.8° for scratch women. The same norm serves the backswing and the downswing plane: an on-plane swing goes back and comes down on about the same plane, and the launch-monitor figure is the downswing's. Not tuned on our golfers: four golfers' 7- and 8-iron sessions in the library on 29 Oct read medians of 54–67° going back and 53–72° coming down. PLAUSIBILITY CAPS 30..80: a fitted shaft plane outside them is a fit fault (the library holds a 16° iron downswing fit), not a swing.",
+      "plausibleLo": 30.0,
+      "plausibleHi": 80.0
+    },
+    {
+      "measure": "m_backswingPlaneAngle",
+      "context": "fairway_wood",
+      "mu": 53.0,
+      "sigmaLo": 4.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "Between the driver (≈48°, launch-monitor data) and the long irons (≈57–60°): shorter, more lofted clubs swing on a more upright plane. The same norm serves the backswing and the downswing plane: an on-plane swing goes back and comes down on about the same plane, and the launch-monitor figure is the downswing's. Not tuned on our golfers: four golfers' 7- and 8-iron sessions in the library on 29 Oct read medians of 54–67° going back and 53–72° coming down. PLAUSIBILITY CAPS 30..80: a fitted shaft plane outside them is a fit fault (the library holds a 16° iron downswing fit), not a swing.",
+      "plausibleLo": 30.0,
+      "plausibleHi": 80.0
+    },
+    {
+      "measure": "m_backswingPlaneAngle",
+      "context": "hybrid",
+      "mu": 56.0,
+      "sigmaLo": 4.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "An iron-length shaft on a wood-shaped head: just flatter than the long irons. Lie angles run from about 57° (3-iron) to about 63° (9-iron and wedges), and a coaching rule of thumb puts a 6- or 7-iron plane near 60°. The same norm serves the backswing and the downswing plane: an on-plane swing goes back and comes down on about the same plane, and the launch-monitor figure is the downswing's. Not tuned on our golfers: four golfers' 7- and 8-iron sessions in the library on 29 Oct read medians of 54–67° going back and 53–72° coming down. PLAUSIBILITY CAPS 30..80: a fitted shaft plane outside them is a fit fault (the library holds a 16° iron downswing fit), not a swing.",
+      "plausibleLo": 30.0,
+      "plausibleHi": 80.0
+    },
+    {
+      "measure": "m_backswingPlaneAngle",
+      "context": "iron",
+      "mu": 60.0,
+      "sigmaLo": 4.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "Lie angles run from about 57° (3-iron) to about 63° (9-iron and wedges), and a coaching rule of thumb puts a 6- or 7-iron plane near 60°. The same norm serves the backswing and the downswing plane: an on-plane swing goes back and comes down on about the same plane, and the launch-monitor figure is the downswing's. Not tuned on our golfers: four golfers' 7- and 8-iron sessions in the library on 29 Oct read medians of 54–67° going back and 53–72° coming down. PLAUSIBILITY CAPS 30..80: a fitted shaft plane outside them is a fit fault (the library holds a 16° iron downswing fit), not a swing.",
+      "plausibleLo": 30.0,
+      "plausibleHi": 80.0
+    },
+    {
+      "measure": "m_backswingPlaneAngle",
+      "context": "wedge",
+      "mu": 63.0,
+      "sigmaLo": 4.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "Lie angles run from about 57° (3-iron) to about 63° (9-iron and wedges), and a coaching rule of thumb puts a 6- or 7-iron plane near 60°. The same norm serves the backswing and the downswing plane: an on-plane swing goes back and comes down on about the same plane, and the launch-monitor figure is the downswing's. Not tuned on our golfers: four golfers' 7- and 8-iron sessions in the library on 29 Oct read medians of 54–67° going back and 53–72° coming down. PLAUSIBILITY CAPS 30..80: a fitted shaft plane outside them is a fit fault (the library holds a 16° iron downswing fit), not a swing.",
+      "plausibleLo": 30.0,
+      "plausibleHi": 80.0
+    },
+    {
+      "measure": "m_downswingPlaneAngle",
+      "context": "any",
+      "mu": 57.0,
+      "sigmaLo": 7.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "Club unknown, so a corridor wide enough for driver-to-wedge territory. The per-club rows below are the ones that should normally resolve. Not tuned on our golfers: four golfers' 7- and 8-iron sessions in the library on 29 Oct read medians of 54–67° going back and 53–72° coming down. PLAUSIBILITY CAPS 30..80: a fitted shaft plane outside them is a fit fault (the library holds a 16° iron downswing fit), not a swing.",
+      "plausibleLo": 30.0,
+      "plausibleHi": 80.0
+    },
+    {
+      "measure": "m_downswingPlaneAngle",
+      "context": "driver",
+      "mu": 48.0,
+      "sigmaLo": 4.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "A launch-monitor maker's published guidance: a driver typically swings on a 45–50° plane, with combine averages of 48.1° for scratch men and 46.8° for scratch women. The same norm serves the backswing and the downswing plane: an on-plane swing goes back and comes down on about the same plane, and the launch-monitor figure is the downswing's. Not tuned on our golfers: four golfers' 7- and 8-iron sessions in the library on 29 Oct read medians of 54–67° going back and 53–72° coming down. PLAUSIBILITY CAPS 30..80: a fitted shaft plane outside them is a fit fault (the library holds a 16° iron downswing fit), not a swing.",
+      "plausibleLo": 30.0,
+      "plausibleHi": 80.0
+    },
+    {
+      "measure": "m_downswingPlaneAngle",
+      "context": "fairway_wood",
+      "mu": 53.0,
+      "sigmaLo": 4.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "Between the driver (≈48°, launch-monitor data) and the long irons (≈57–60°): shorter, more lofted clubs swing on a more upright plane. The same norm serves the backswing and the downswing plane: an on-plane swing goes back and comes down on about the same plane, and the launch-monitor figure is the downswing's. Not tuned on our golfers: four golfers' 7- and 8-iron sessions in the library on 29 Oct read medians of 54–67° going back and 53–72° coming down. PLAUSIBILITY CAPS 30..80: a fitted shaft plane outside them is a fit fault (the library holds a 16° iron downswing fit), not a swing.",
+      "plausibleLo": 30.0,
+      "plausibleHi": 80.0
+    },
+    {
+      "measure": "m_downswingPlaneAngle",
+      "context": "hybrid",
+      "mu": 56.0,
+      "sigmaLo": 4.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "An iron-length shaft on a wood-shaped head: just flatter than the long irons. Lie angles run from about 57° (3-iron) to about 63° (9-iron and wedges), and a coaching rule of thumb puts a 6- or 7-iron plane near 60°. The same norm serves the backswing and the downswing plane: an on-plane swing goes back and comes down on about the same plane, and the launch-monitor figure is the downswing's. Not tuned on our golfers: four golfers' 7- and 8-iron sessions in the library on 29 Oct read medians of 54–67° going back and 53–72° coming down. PLAUSIBILITY CAPS 30..80: a fitted shaft plane outside them is a fit fault (the library holds a 16° iron downswing fit), not a swing.",
+      "plausibleLo": 30.0,
+      "plausibleHi": 80.0
+    },
+    {
+      "measure": "m_downswingPlaneAngle",
+      "context": "iron",
+      "mu": 60.0,
+      "sigmaLo": 4.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "Lie angles run from about 57° (3-iron) to about 63° (9-iron and wedges), and a coaching rule of thumb puts a 6- or 7-iron plane near 60°. The same norm serves the backswing and the downswing plane: an on-plane swing goes back and comes down on about the same plane, and the launch-monitor figure is the downswing's. Not tuned on our golfers: four golfers' 7- and 8-iron sessions in the library on 29 Oct read medians of 54–67° going back and 53–72° coming down. PLAUSIBILITY CAPS 30..80: a fitted shaft plane outside them is a fit fault (the library holds a 16° iron downswing fit), not a swing.",
+      "plausibleLo": 30.0,
+      "plausibleHi": 80.0
+    },
+    {
+      "measure": "m_downswingPlaneAngle",
+      "context": "wedge",
+      "mu": 63.0,
+      "sigmaLo": 4.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "Lie angles run from about 57° (3-iron) to about 63° (9-iron and wedges), and a coaching rule of thumb puts a 6- or 7-iron plane near 60°. The same norm serves the backswing and the downswing plane: an on-plane swing goes back and comes down on about the same plane, and the launch-monitor figure is the downswing's. Not tuned on our golfers: four golfers' 7- and 8-iron sessions in the library on 29 Oct read medians of 54–67° going back and 53–72° coming down. PLAUSIBILITY CAPS 30..80: a fitted shaft plane outside them is a fit fault (the library holds a 16° iron downswing fit), not a swing.",
+      "plausibleLo": 30.0,
+      "plausibleHi": 80.0
+    },
+    {
       "measure": "m_transitionPlaneDelta",
       "context": "any",
       "mu": 0.0,
