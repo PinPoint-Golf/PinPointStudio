@@ -478,6 +478,47 @@
       "year": 2008,
       "generalReading": true,
       "establishes": "29 skilled men (handicap 1.6 ± 2.4), 5-iron, electromagnetic sensors on the forehead, T3 and S2. Measured from address, the head is +2.0 ± 3.9 cm HIGHER at the top and 3.5 ± 3.1 cm LOWER at impact: a good player's head does not hold still, it rises a little going back and finishes below where it started. The pelvis is +5.4 ± 5.2 cm toward the ball at the top, but the sensor sits on the sacrum and moves as the pelvis turns, so that figure is not comparable with a hip-midpoint reading. Pelvis flexion falls from 23.1° at address to 4.9° by impact. The tables say only 'backswing' and 'downswing'; the top and impact values are read from the paper's Figure 2. It is the published basis for the posture chart's head-height band at P4 and P7 (posture_chart_design.md §3.2, §7.1) — those bands are norm rows, whose free-text citation does not join this registry, which is why the record carries the flag rather than a citation. NOTE THE QUESTION: the study asked what putting practice does to the full swing; the swing kinematics used here are its baseline, before any putting."
+    },
+    {
+      "id": "ref.coleman2005",
+      "doi": "10.1080/02640410410001730179",
+      "pmid": "15966340",
+      "title": "A three-dimensional examination of the planar nature of the golf swing",
+      "authors": "Coleman, Rankin",
+      "journal": "Journal of Sports Sciences",
+      "volume": "23",
+      "issue": "3",
+      "pages": "227-234",
+      "year": 2005,
+      "generalReading": true,
+      "establishes": "Seven right-handed golfers (handicap 0-15), 3-D kinematics. The plane through the 7th cervical vertebra, lead shoulder and lead wrist is NOT fixed through the downswing: its angle to the horizontal axis runs from 133° (s 1) at the start of the downswing to 102° (s 4) at impact, a steepening of the lead-arm plane, and it rotates about the vertical with large differences between golfers. The clubhead does not lie in that plane: 0.02 m (s 0.28) from it at the start of the downswing and 0.29 m (s 0.08) at impact. It is the arm-side counterpart of the hand plane (handPlaneCurve) and one of the measured reasons the swing plane is drawn as a curve rather than a number; nothing in the pack cites it yet."
+    },
+    {
+      "id": "ref.coleman2007",
+      "doi": "10.1080/02640410601113239",
+      "pmid": "17454542",
+      "title": "An examination of the planar nature of golf club motion in the swings of experienced players",
+      "authors": "Coleman, Anderson",
+      "journal": "Journal of Sports Sciences",
+      "volume": "25",
+      "issue": "7",
+      "pages": "739-748",
+      "year": 2007,
+      "generalReading": true,
+      "establishes": "Ten golfers (handicap 1-5), driver, 5-iron and pitching wedge, the club's whole downswing fitted to one plane. The fit varies between golfers and clubs (r² 0.871-0.995, RMS residual 45-166 mm), so a single plane suits some golfers and not others. The plane's angle to the reference horizontal axis is 125.5° (s 3.0) for the driver, 117.1° (s 3.0) for the 5-iron and 113.6° (s 2.7) for the wedge, significantly different between clubs: read as its supplement, 54.5°, 62.9° and 66.4° from the ground, so the longer the club the flatter the plane. Those are WHOLE-DOWNSWING planes, 3-5° steeper than the planes fitted near impact (ref.morrison2018, ref.kwon2012), which matters for which one a norm quotes. Cited in the free text of the m_backswingPlaneAngle and m_downswingPlaneAngle norm rows, which does not join this registry, hence the flag."
+    },
+    {
+      "id": "ref.morrison2018",
+      "doi": "10.1177/1754337117751729",
+      "title": "Analysis of the delivery plane in the golf swing using principal components",
+      "authors": "Morrison, McGrath, Wallace",
+      "journal": "Proceedings of the Institution of Mechanical Engineers, Part P: Journal of Sports Engineering and Technology",
+      "volume": "232",
+      "issue": "4",
+      "pages": "295-304",
+      "year": 2018,
+      "generalReading": true,
+      "establishes": "52 male golfers (27 high-skilled, 25 intermediate), their own drivers, 40 shots each. The clubface centre's path from mid-downswing to impact fits a plane closely (RMSE 1.1 mm) at a median 49.7° from the ground (high-skilled 49.5°, intermediate 51.2°). Measured against that plane, the shaft sits 2.2° below it at mid-backswing, on it in the late backswing, 5.5° above it at the top and 1.8° above (s 5.8) early in the downswing: the published shape of a swing plane that steepens to the top and settles back by impact, which is the shape the swing plane curve draws. Strike precision was associated with a shaft close to parallel to, or under, that plane in the downswing; the authors decline to turn that into a model swing plane, and the association is with the plane fitted per shot, not one fixed to the target line. Cited in the free text of the plane-angle norm rows, hence the flag."
     }
   ]
 }
