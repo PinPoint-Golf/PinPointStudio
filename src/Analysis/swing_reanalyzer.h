@@ -130,7 +130,7 @@ struct ReanalyzeResult {
     std::optional<pinpoint::CaptureIntegrityVerdict> captureIntegrity;
 };
 
-// Convenience for the app: load + run makeShotAnalyzer(sessionType)->analyze().
+// Convenience for the app: load + run makeShotAnalyzer()->analyze().
 // Self-contained — touches no live device. The analyzer call is wrapped so a
 // thrown analyzer degrades to { ok=false, error } rather than propagating.
 ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOptions& opts = {});

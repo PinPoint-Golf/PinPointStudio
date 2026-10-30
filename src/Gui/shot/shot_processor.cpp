@@ -1157,11 +1157,6 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
     job.impactUs    = m_impactUs;
     // Offline pose-model tier (High -> ViTPose++-L when downloaded, else ViTPose-B).
     job.motionCaptureQuality = m_appSettings ? m_appSettings->motionCaptureQuality() : QString();
-    // Produce WristAssessmentEngine findings on the live Wrist pipeline (design §B.0:
-    // faults are the AI-coach feedback layer, decoupled from the headline resemblance
-    // score — D-3). Was offline-only (SwingLab); now always-on for Wrist so swing.json
-    // carries the coach feed. Other session types leave it off (no producer yet).
-    job.runAssessment = (m_sessionType == 1);
 
     // Face-on first so analyzers can prefer it without re-sorting; the count
     // makes "face-on first" verifiable from the worker (0 = none captured).
@@ -1486,7 +1481,7 @@ void ShotProcessor::startAnalysis()
             // with no handler — std::terminate. Degrade to a failed analysis
             // instead; the join still adds the shot and resumes the buffer.
             try {
-                auto analyzer = makeShotAnalyzer(job.sessionType);
+                auto analyzer = makeShotAnalyzer();
                 return analyzer->analyze(*win, job);
             } catch (const std::exception &e) {
                 ShotAnalysisResult r;

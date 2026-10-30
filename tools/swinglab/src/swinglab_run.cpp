@@ -1073,7 +1073,6 @@ int main(int argc, char **argv)
     // CLI overrides on the resolved job. Session type: explicit option wins; else
     // the recorded capture.sessionType (load()); else the option default (1).
     job.tuningOverrides = tuning;
-    job.runAssessment   = true;   // SwingLab: emit Tier-2 findings into swing.json (known-groups)
     // --full-window on the --out path too: the whole captured window, one pass, every frame
     // posed (no two-pass coarse/dense schedule). The trunk hop analysis needs the dense pose.
     job.fullWindow      = cli.isSet(optFullWindow);
@@ -1196,7 +1195,7 @@ int main(int argc, char **argv)
 
     // ── Run the production pipeline ──────────────────────────────────────────
     const qint64 buildMs = wall.elapsed();
-    auto analyzer = makeShotAnalyzer(job.sessionType);
+    auto analyzer = makeShotAnalyzer();
     ShotAnalysisResult result = analyzer->analyze(window, job);
     // gates decided while LOADING the swing (a HackMotion lane that would not bind) belong to its
     // analysis too — reanalyzeSwingDir appends them the same way (trust stage 6)
@@ -1278,7 +1277,7 @@ int main(int argc, char **argv)
     }
     if (cli.isSet(optDag)) {
         const QJsonObject dag = pinpoint::analysis::analysisGraphJson(
-            job.sessionType, result.detail ? &result.detail->timings.stages : nullptr, &job);
+            result.detail ? &result.detail->timings.stages : nullptr, &job);
         QSaveFile df(cli.value(optDag));
         if (!df.open(QIODevice::WriteOnly) || df.write(QJsonDocument(dag).toJson()) < 0 || !df.commit())
             std::fprintf(stderr, "[swinglab] cannot write --dag %s\n", cli.value(optDag).toUtf8().constData());

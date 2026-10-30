@@ -38,6 +38,9 @@
 //           through the production SwingDocWriter::writeSwingJson seam, wall-clock
 //           "timings" excluded by design), over the SAME RAM window Tests 1-3 built.
 //           Run twice: 4a IMU-only (no camera), 4b camera path (+ face-on cam).
+//   Test 6  re-analysis keeps the wrist assessment (#110/#111) — a swing recorded as a
+//           Swing session, stored with its live analysis, re-analysed through
+//           reanalyzeSwingDir: same analysis.assessment block, same headline score.
 //
 // Built as a tools target (PINPOINT_BUILD_TOOLS) in the root CMakeLists, beside
 // swinglab_run, where the Buffer/Export/FFmpeg/OpenCV deps are already wired.
@@ -621,7 +624,6 @@ void runDoubleRunParity(const RamSwing &ram, bool withCamera)
     job.sessionType   = 1;   // Wrist
     job.impactUs      = kImpact;
     job.handedness    = 1;   // right
-    job.runAssessment = true;
     job.imuBindings   = { fore, hand };
     if (withCamera) {
         job.cameraSources     = { ram.camId };
@@ -666,6 +668,75 @@ void runDoubleRunParity(const RamSwing &ram, bool withCamera)
     CHECK(diff.isEmpty());
     if (!diff.isEmpty())
         std::fprintf(stderr, "  FIRST DIFF: %s\n", diff.toUtf8().constData());
+}
+
+
+// ── Test 6: re-analysis keeps the wrist assessment (#110 / #111) ────────────
+//
+// Re-analysis built its own job without the assessment switch, and picked its analyzer by
+// session type, so a re-analysed swing lost analysis.assessment and the headline score it
+// sets. The swing is recorded as a SWING session (type 0) on purpose: analysis must decide
+// from the data the swing has, never from its type. The "live" analysis is Test 4b's job
+// (both IMU roles + the face-on camera), stored in swing.json the way capture stores it;
+// re-analysing that document must give back the same assessment block.
+void testReanalysisKeepsAssessment(const RamSwing &ram)
+{
+    std::fprintf(stderr, "[Test 6] re-analysis keeps the wrist assessment (#110/#111)\n");
+
+    ImuSegmentBinding fore, hand;
+    fore.source = ram.imuId; fore.role = SegmentRole::LeadForearm; fore.calibrated = true;
+    hand.source = ram.imuId; hand.role = SegmentRole::LeadHand;    hand.calibrated = true;
+
+    ShotAnalysisJob job;
+    job.sessionType       = 0;   // Swing — must not matter
+    job.impactUs          = kImpact;
+    job.handedness        = 1;   // right
+    job.imuBindings       = { fore, hand };
+    job.cameraSources     = { ram.camId };
+    job.faceOnCameraCount = 1;
+    const ShotAnalysisResult live = makeShotAnalyzer()->analyze(*ram.window, job);
+    CHECK(live.detail != nullptr);
+    if (!live.detail) return;
+    CHECK(live.detail->assessmentScore >= 0);   // a Swing-type shot is assessed too
+
+    QTemporaryDir dir;
+    CHECK(dir.isValid());
+    SwingExportJob ej = baseExportJob(ram, dir.path(), /*saveRaw=*/true);
+    ej.sessionType = 0;
+    const SwingExportResult res = SwingExporter::run(*ram.window, ej);
+    CHECK(res.ok);
+    QString err;
+    CHECK(SwingDocWriter::writeSwingJson(dir.path(), res.manifest, live.detail.get(), &err));
+    const QJsonObject before =
+        SwingStore::load(dir.path(), &err).value(QStringLiteral("analysis")).toObject();
+    CHECK(before.contains(QStringLiteral("assessment")));
+
+    const ReanalyzeResult re = reanalyzeSwingDir(dir.path());
+    CHECK(re.ok);
+    if (!re.ok || !re.analysis.detail) {
+        std::fprintf(stderr, "  re-analysis failed: %s\n", re.error.toUtf8().constData());
+        ++g_failures;
+        return;
+    }
+    const SwingAnalysis &a = *re.analysis.detail;
+    CHECK(a.assessmentScore == live.detail->assessmentScore);
+    CHECK(a.findings.size() == live.detail->findings.size());
+    CHECK(a.score.overall == live.detail->score.overall);
+
+    // Through the document, as the write-back would store it.
+    QTemporaryDir out;
+    CHECK(out.isValid());
+    const QJsonObject after = serializedAnalysisMinusTimings(out.path(), re.analysis);
+    CHECK(after.contains(QStringLiteral("assessment")));
+    const QString diff = firstJsonDiff(before.value(QStringLiteral("assessment")),
+                                       after.value(QStringLiteral("assessment")),
+                                       QStringLiteral("analysis.assessment"));
+    CHECK(diff.isEmpty());
+    std::fprintf(stderr, "  live score=%d assessment=%d findings=%zu | re-analysed score=%d assessment=%d"
+                         " findings=%zu%s%s\n",
+                 live.detail->score.overall, live.detail->assessmentScore, live.detail->findings.size(),
+                 a.score.overall, a.assessmentScore, a.findings.size(),
+                 diff.isEmpty() ? "" : " FIRST DIFF: ", diff.toUtf8().constData());
 }
 
 
@@ -816,6 +887,9 @@ int main(int argc, char** argv)
 
     // ── burst-stamped grid invariant (Test 5) — standalone lanes ──
     testBurstStampedGrid();
+
+    // ── re-analysis keeps the wrist assessment (Test 6) ──
+    testReanalysisKeepsAssessment(ram);
 
     std::fprintf(stderr, "\n%s — %d check failure(s)\n",
                  g_failures == 0 ? "PASS" : "FAIL", g_failures);

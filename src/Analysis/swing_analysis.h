@@ -1018,9 +1018,9 @@ struct SwingAnalysis {
     std::vector<PhaseEvent>   phases;
     ScoreBreakdown            score;
     std::vector<Fault>        faults;
-    // Tier-2 wrist assessment (faults + strengths) and its score-v2 total. Populated only when
-    // the job opts in (ShotAnalysisJob::runAssessment — the SwingLab offline path); empty + -1
-    // otherwise, so the live/GUI pipeline and existing swing.json baselines are unchanged.
+    // Tier-2 wrist assessment (faults + strengths) and its score-v2 total. Populated whenever
+    // the assessment stage ran (IMU streams + wrist series, any session type); empty + -1
+    // otherwise.
     std::vector<PpWristFinding> findings;
     int                       assessmentScore = -1;   // score v2 (0..100); -1 = assessment not run
     // Orientation-filter quality diagnostics, populated ONLY when offline re-fusion ran

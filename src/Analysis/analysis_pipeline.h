@@ -25,8 +25,8 @@
 #include <vector>
 
 // The analysis pipeline: the full IMU + camera analyzer. It began as the Wrist session's
-// analyzer and grew into the general pipeline; makeShotAnalyzer() still selects it for
-// session type 1. analyze() runs a
+// analyzer and grew into the general pipeline; makeShotAnalyzer() returns it for every
+// swing, whatever its session type (issue #111). analyze() runs a
 // capability-gated stage pipeline over a shared, typed AnalysisContext — the constrained
 // blackboard of analysis_pipeline_fusion_architecture_proposal.md §10. The full profile
 // (fullProfile() in the .cpp) is an authored list of AnalysisStage objects — IMU fusion
@@ -46,27 +46,17 @@ public:
 
 namespace pinpoint::analysis {
 
-// Reusable camera-only profile that produces the kinematic display series (clubhead
-// speed / hand speed / lag) for the non-Wrist session types. It reuses the Wrist
-// profile's face-on camera stages — Pose → PoseSmooth → Ball → Shaft → SegResolve →
-// BindDetail → Kinematics — with no IMU or scoring stages. KinematicsStage self-gates
-// on kinematics.enabled, so the profile yields an empty detail when the feature is
-// dark. The stage structs stay file-local to analysis_pipeline.cpp; this builder is the
-// shared seam (developer guide §10.5 — share when the second session needs it).
-SessionProfile cameraKinematicsProfile();
-
 // Run a profile the way the analyzers do: the authored loop (runStages) by default, or —
 // with analysis.parallel on (pp_tuned_constants.h dag::) — as its dependency graph on
 // analysis.parallelThreads pool threads (analysis_dag.h). Then ctx.trace → the detail's
 // timings.stages. The parallel path must give the loop's result byte for byte.
 void runProfile(const SessionProfile &profile, AnalysisContext &ctx);
 
-// The declared graph of the profile a session type runs (Wrist for 1, CameraKinematics
-// otherwise), as pinpoint.analysisDag/1 JSON; `timeline` adds a run's timings.stages.
+// The declared graph of the full profile, as pinpoint.analysisDag/1 JSON; `timeline` adds a run's timings.stages.
 // Too big for every document — swinglab_run --dag writes it; tools/analysis/analysis_dag.py
 // draws it. `job`, when given, is the run's — a stage whose reads follow a tuning key
 // (DtlPose under pose.dtlEarly) is drawn as that job ran it.
-QJsonObject analysisGraphJson(int sessionType, const std::vector<StageTiming> *timeline = nullptr,
+QJsonObject analysisGraphJson(const std::vector<StageTiming> *timeline = nullptr,
                               const ShotAnalysisJob *job = nullptr);
 
 } // namespace pinpoint::analysis

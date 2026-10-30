@@ -985,31 +985,23 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
                  << "dtl pose" << (ls.job.dtlSource == kInvalidSourceId ? "n/a"
                                    : ls.job.poseDtlPreloaded.frames.empty() ? "re-run" : "recorded");
     }
-    // Fail closed on an unknown discipline rather than silently analysing as Wrist
-    // and writing a wrong-discipline analysis block back (our exports always carry
-    // capture.sessionType; swinglab_run resolves its own default before analyze()).
-    if (ls.job.sessionType < 0) {
-        out.error = QStringLiteral("This shot's recording doesn't note its session type — "
-                                   "it was captured before re-analysis was supported.");
-        return out;
-    }
     if (ls.job.impactUs <= 0) {
         out.error = QStringLiteral("This shot has no recorded impact time, so it can't be re-analysed.");
         return out;
     }
-    // Wrist analysis needs at least ONE usable modality. Without IMU A/M bindings
-    // the fuser produces nothing (wrist metrics can't be re-derived), but a face-on
-    // camera still yields a valid vision-only analysis (pose + shaft track + hands-
-    // only phase landmarks). Refuse only when NEITHER is present — that path would
-    // return a degenerate result the caller would write back over the original.
-    if (ls.job.sessionType == 1 && ls.job.imuBindings.empty() && ls.job.faceOnCameraCount == 0) {
+    // Analysis needs at least ONE usable modality, whatever the session type (issue #111).
+    // Without IMU A/M bindings the fuser produces nothing (wrist metrics can't be
+    // re-derived), but a face-on camera still yields a valid vision-only analysis (pose +
+    // shaft track + hands-only phase landmarks). Refuse only when NEITHER is present — that
+    // path would return a degenerate result the caller would write back over the original.
+    if (ls.job.imuBindings.empty() && ls.job.faceOnCameraCount == 0) {
         out.error = QStringLiteral("No motion sensor calibration and no face-on camera were saved with this "
                                    "shot, so it can't be re-analysed.");
         return out;
     }
 
     try {
-        auto analyzer = makeShotAnalyzer(ls.job.sessionType);
+        auto analyzer = makeShotAnalyzer();
         out.analysis  = analyzer->analyze(*ls.window, ls.job);
         out.ok        = out.analysis.ok;
         out.error     = out.analysis.error;

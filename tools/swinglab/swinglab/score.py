@@ -268,7 +268,7 @@ def truth_metrics(run: RunResult, swing: Swing):
 
 def diagnosis_metrics(run: RunResult, swing: Swing):
     """Tier-2-Ext — known-groups diagnosis. Only contributes checks when the offline
-    analyzer emitted a Tier-2 assessment block (ShotAnalysisJob::runAssessment ⇒
+    analyzer emitted a Tier-2 assessment block (the Assessment stage ran: IMU streams ⇒
     analysis.assessment.findings[]) AND the swing declares a known group in its truth.json
     meta (`knownGroup`: a scripted fault id like "cast"/"flip", or "clean"/"control").
 

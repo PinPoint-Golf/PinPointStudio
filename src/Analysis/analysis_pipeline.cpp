@@ -1931,7 +1931,7 @@ struct AssessmentStage : AnalysisStage {
     StageDecl decl() const override { return D({ kCtxSeries, kStreams, kSeries, kPhases }, { kScore }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
-        return ctx.job.runAssessment && ctx.hasImuStreams() && !ctx.series.empty();
+        return ctx.hasImuStreams() && !ctx.series.empty();
     }
     void run(AnalysisContext &ctx) override
     {
@@ -1975,7 +1975,7 @@ struct PoseAssessmentStage : AnalysisStage {
     bool canRun(const AnalysisContext &ctx) const override
     {
         return PoseWristAngleConfig::fromOverrides(ctx.job.tuningOverrides).enabled
-            && !ctx.hasImuStreams() && ctx.job.runAssessment
+            && !ctx.hasImuStreams()
             && ctx.caps.hasCamera(CameraPlacement::FaceOn)
             && !ctx.detail->pose2d.frames.empty();
     }
@@ -4225,12 +4225,6 @@ ShotAnalysisResult PipelineAnalyzer::analyze(const pinpoint::SwingWindow &window
     return r;
 }
 
-// Shared camera-only profile for the non-Wrist session types (declared in
-// analysis_pipeline.h). External linkage so shot_analyzer.cpp's CameraKinematicsAnalyzer
-// can run it; the stage structs it constructs stay file-local in the anon namespace
-// above (still visible for the rest of this translation unit). No IMU/scoring stages —
-// SegResolve adopts the vision segmentation the Shaft stage emits, BindDetail binds the
-// (empty) local products, and KinematicsStage appends the display series to the detail.
 namespace pinpoint::analysis {
 
 // OpenCV's global parallel_for_ pool, sized once to the physical cores when the first
@@ -4283,57 +4277,10 @@ void runProfile(const SessionProfile &profile, AnalysisContext &ctx)
     bindStageTimings(ctx);
 }
 
-QJsonObject analysisGraphJson(int sessionType, const std::vector<StageTiming> *timeline,
-                              const ShotAnalysisJob *job)
+QJsonObject analysisGraphJson(const std::vector<StageTiming> *timeline, const ShotAnalysisJob *job)
 {
-    const SessionProfile p = sessionType == 1 ? fullProfile() : cameraKinematicsProfile();
+    const SessionProfile p = fullProfile();
     return stageGraphToJson(p.name, buildStageGraph(p, job), timeline);
 }
 
-SessionProfile cameraKinematicsProfile()
-{
-    SessionProfile p;
-    p.name = QStringLiteral("CameraKinematics");
-    p.stages.push_back(std::make_unique<FrameDecodeStage>(false));   // decode.frameStore (off: skips)
-    p.stages.push_back(std::make_unique<FrameDecodeStage>(true));
-    p.stages.push_back(std::make_unique<PoseStage>());
-    p.stages.push_back(std::make_unique<PoseSmoothStage>());
-    p.stages.push_back(std::make_unique<BallStage>());
-    p.stages.push_back(std::make_unique<ImpactStage>());
-    p.stages.push_back(std::make_unique<ShaftStage>());
-    p.stages.push_back(std::make_unique<SegResolveStage>());
-    p.stages.push_back(std::make_unique<ImpactAnchorStage>());   // data-gated, as in the Wrist profile
-    // PositionsLadder is data-gated (positions + ladder present), not
-    // session-gated, so it runs here too — the club P-events are a property of
-    // the camera, not of the session type. Same for its fusion successor: on a
-    // camera-only ladder every interior slot is a pure insertion and every anchor
-    // slot ties, so arbitration reproduces the ladder and adds the audit trail.
-    p.stages.push_back(std::make_unique<PositionsLadderStage>());
-    p.stages.push_back(std::make_unique<TimelineFusionStage>());
-    p.stages.push_back(std::make_unique<BindDetailStage>());
-    // The same body-metric block the Wrist profile runs. It used to be absent here, which is what
-    // made a face-on metric look like a property of the session rather than of the camera — see
-    // appendBodyMetricStages. There is no EventRefine in this profile, so these stages read the
-    // SegResolve ladder rather than the refined one; each of them already tolerates a coarser
-    // ladder (they read ctx.seg.events and fall back per phase), and a coarser Address is a
-    // slightly noisier reference, not a wrong one.
-    appendBodyMetricStages(p);
-    p.stages.push_back(std::make_unique<KinematicsStage>());
-    p.stages.push_back(std::make_unique<ShaftPlaneStage>());
-    p.stages.push_back(std::make_unique<DtlPoseStage>());
-    p.stages.push_back(std::make_unique<DtlShaftStage>());
-    p.stages.push_back(std::make_unique<ShaftFusionStage>());
-    p.stages.push_back(std::make_unique<DtlPostureStage>());
-    // After DtlPosture, whose DTL ruler it reads (hipDepthButt), and so after DtlShaft: under the
-    // executor the leaf otherwise took the DTL reader just before DtlShaft was ready (~0.9 s).
-    p.stages.push_back(std::make_unique<AddressMarksStage>());
-    p.stages.push_back(std::make_unique<DtlShaftLieStage>());
-    // The sequence runs AFTER the two-camera skeleton: its lead-arm rung reads the fit
-    // (ks_skeleton3d_route_design.md §8). Neither skeleton stage reads anything the sequence writes.
-    p.stages.push_back(std::make_unique<Skeleton3DStage>());
-    p.stages.push_back(std::make_unique<BodyRotationTriangulatedStage>());
-    p.stages.push_back(std::make_unique<KinematicSequenceStage>());
-    p.stages.push_back(std::make_unique<DtlSynth3DStage>());
-    return p;
-}
 } // namespace pinpoint::analysis

@@ -187,7 +187,7 @@ public:
 //   wristScore / wristResemblance — LIVE (WristResemblanceScorer + WristAssessmentEngine,
 //     analysis_pipeline.cpp); need the lead forearm + hand IMUs.
 //   swingScore — the adherence score. No adherence scorer exists (the old SwingScorer was deleted
-//     unwired) and CameraKinematicsAnalyzer returns a stub, so its only route is planned and it always resolves
+//     unwired), so its only route is planned and it always resolves
 //     Unavailable. That used to be an `if (key == "swingScore")` here, saying so in a sentence the
 //     directory could not see; it is now the route's own summary.
 class ScoreProvider : public IMetricProvider {

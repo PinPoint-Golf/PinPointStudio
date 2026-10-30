@@ -192,13 +192,6 @@ struct ShotAnalysisJob {
     // without rebuilds. Unknown keys are logged and ignored.
     QVariantMap tuningOverrides;
 
-    // SwingLab: run the Tier-2 wrist assessment engine (faults/strengths + score v2) inside
-    // the offline analyzer and emit findings into swing.json, so known-groups diagnosis is
-    // observable/tunable (sampler.*/rules.*/bands.* — pipeline_validation_and_tuning.md §5.6).
-    // Default OFF: the production GUI runs assessment in its own diagnostics model; only the
-    // lab opts in, so live behaviour and existing baselines are untouched.
-    bool runAssessment = false;
-
     // Skip the heavy-stage swing-span bounding (v3 G3 pose/ball scan window +
     // shaft.spanBound) and process the entire captured window instead. Live
     // capture always leaves this false (throughput matters, the padded span
@@ -222,7 +215,7 @@ struct ShotAnalysisResult {
     std::shared_ptr<pinpoint::analysis::SwingAnalysis> detail;
 };
 
-// Abstract per-session-type shot analyzer. analyze() runs on a QtConcurrent
+// Abstract shot analyzer. analyze() runs on a QtConcurrent
 // worker thread while the EventBuffer is Paused; it may only read the frozen
 // SwingWindow (const methods, zero-copy) and the job values. It runs
 // concurrently with the swing export over the same window — both are pure
@@ -235,9 +228,7 @@ public:
                                        const ShotAnalysisJob &job) = 0;
 };
 
-// Factory keyed by SessionController::Type. Unknown / -1 falls back to the
-// generic stub. Never returns nullptr.
-//
-// v1 ships stub analyzers that return immediately with placeholder
-// score/metrics/trace — the real per-type analysis pipelines are future work.
-std::unique_ptr<ShotAnalyzer> makeShotAnalyzer(int sessionType);
+// The analyzer for every swing: the full pipeline, whose stages gate on the data
+// and devices the swing has, never on its session type (issue #111). Never
+// returns nullptr.
+std::unique_ptr<ShotAnalyzer> makeShotAnalyzer();
