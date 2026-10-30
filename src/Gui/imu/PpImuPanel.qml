@@ -281,10 +281,12 @@ Item {
         readonly property bool calibratedOk: inst ? inst.fullyCalibrated === true : false
         readonly property bool connected:     inst ? inst.imuConnected  : false
         // Live connection state (driver labels: Scanning… / Connecting… /
-        // Discovering services… / Retrying… / Connected / Error / Not found).
+        // Discovering services… / Retrying… / Reconnecting… / Connected / Error / Not found /
+        // Not ready — its settings didn't take, #105).
         readonly property string stateLabel: inst ? inst.stateLabel : ""
         readonly property bool failed:  inst !== null && !connected
-                                        && (stateLabel === "Error" || stateLabel === "Not found")
+                                        && (stateLabel === "Error" || stateLabel === "Not found"
+                                            || stateLabel === "Not ready")
         readonly property bool pending: inst !== null && !connected && !failed
         readonly property bool needsCal: connected && !calibratedOk
         // Only once a connected device reports a level.

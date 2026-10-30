@@ -74,6 +74,7 @@ public:
 
 protected:
     void writeToDevice(const QByteArray &data) override;
+    void sendConfiguration() override;
     std::optional<QuaternionData> eulerToQuat(const EulerAngles &e) const override;
 
 private:

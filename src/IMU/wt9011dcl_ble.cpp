@@ -110,6 +110,20 @@ void WT9011DCL_BLE::initializeDevice()
     // and rate change, so it never starts from a stale quaternion.
     resetOrientationFilter();
 
+    // Send ORIENT / AXIS6 / RRATE (sendConfiguration) and read them back. A wrong
+    // or missing read-back sends them again; the base reports every read-back and
+    // the verdict (issue #105). Runtime-only — we never SAVE to the device's flash.
+    startConfigCheck(static_cast<quint16>(m_rate));
+
+    // NOTE: CALSW zeroing (0x0008, 0x0004) is intentionally NOT done here.
+    // The sensor zero is set at calibration time (arm-down pose) via
+    // zeroToCurrentPose(), which is called from ImuInstance::setCalibration().
+    // This ensures the reference frame is set at a known anatomical position
+    // rather than at the arbitrary moment of BLE connection.
+}
+
+void WT9011DCL_BLE::sendConfiguration()
+{
     // Vertical installation: device mounted on wrist/forearm, not lying flat.
     sendCommand(RegOrient, 0x0001);
 
@@ -119,19 +133,6 @@ void WT9011DCL_BLE::initializeDevice()
 
     // Output rate — defaults to 100 Hz, updated by setOutputRate().
     sendCommand(RegRRate, static_cast<quint16>(m_rate));
-
-    // Verify ORIENT and AXIS6 were accepted. Responses arrive asynchronously via
-    // dispatchReadResponse() and are logged via diagnosticInfo(). This guarantees
-    // every device comes up in the same known state (vertical mount + 6-axis),
-    // runtime-only — we never SAVE to the device's flash.
-    readRegisters(RegOrient, 0);
-    readRegisters(RegAxis6, 0);
-
-    // NOTE: CALSW zeroing (0x0008, 0x0004) is intentionally NOT done here.
-    // The sensor zero is set at calibration time (arm-down pose) via
-    // zeroToCurrentPose(), which is called from ImuInstance::setCalibration().
-    // This ensures the reference frame is set at a known anatomical position
-    // rather than at the arbitrary moment of BLE connection.
 }
 
 void WT9011DCL_BLE::zeroToCurrentPose()

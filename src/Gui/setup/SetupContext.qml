@@ -318,9 +318,11 @@ QtObject {
             // the dependency is USED below (an unused local is dropped with its dependency).
             var named = settings.imuAlias !== undefined && settings.imuRoles !== undefined
             var label = inst !== null ? inst.stateLabel : ""
-            // A connect that gave up (wizard l.1577: "Error" / "Not found") is not still connecting:
-            // the page offers Connect again rather than "Connecting…" for ever. (Stage 5b.)
-            var failed = inst !== null && !conn && (label === "Error" || label === "Not found")
+            // A connect that gave up (wizard l.1577: "Error" / "Not found"; "Not ready" = its
+            // settings didn't take, #105) is not still connecting: the page offers Connect again
+            // rather than "Connecting…" for ever. (Stage 5b.)
+            var failed = inst !== null && !conn
+                         && (label === "Error" || label === "Not found" || label === "Not ready")
             out.push({ id: d.id, index: d.index, vendor: d.vendor, alias: d.alias || "",
                        description: d.description || "", transport: d.transport || "",
                        // Never a raw id (Stage 5d): the manager's remembered-name rule.

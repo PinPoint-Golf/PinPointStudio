@@ -383,6 +383,22 @@ ImuInstance::ImuInstance(const Device &device,
         appendLog(timestamp() + "  [diag] " + msg);
     });
 
+    // Configuration read-backs and verdicts (issue #105) — into the app log, with the
+    // sensor's name, as well as the sensor's own log.
+    connect(m_imu, &WT9011DCL_Base::configReadback, this,
+            [this](int reg, int got, int want, int attempt) {
+        const QString line = QStringLiteral("%1 read-back 0x%2 (sent 0x%3, attempt %4)")
+            .arg(QString::fromLatin1(pinpoint::wt901::configRegName(quint8(reg))))
+            .arg(got, 4, 16, QLatin1Char('0')).arg(want, 4, 16, QLatin1Char('0')).arg(attempt);
+        if (got == want)
+            ppInfo() << "[IMU]" << m_deviceDescription << line;
+        else
+            ppWarn() << "[IMU]" << m_deviceDescription << line << "— does not match";
+        appendLog(timestamp() + QStringLiteral("  ") + line);
+    });
+    connect(m_imu, &WT9011DCL_Base::configurationChecked,
+            this,  &ImuInstance::onConfigurationChecked);
+
     connect(m_imu, &WT9011DCL_Base::batteryUpdated, this, [this](int percent) {
         if (percent == m_batteryPercent) return;
         m_batteryPercent = percent;
@@ -1078,6 +1094,20 @@ void ImuInstance::onConnectionLost(bool fromError)
                   + QStringLiteral("  BLE %1 (post-failure cleanup) — retry %2/%3 still due in ~%4 s")
                     .arg(fromError ? QStringLiteral("error") : QStringLiteral("disconnected"))
                     .arg(m_retryCount).arg(kMaxRetries).arg(remainSec));
+    } else if (m_configDrop != ConfigDrop::None) {
+        // We dropped the link because the configuration didn't take (issue #105).
+        const bool reconnect = m_configDrop == ConfigDrop::Reconnect;
+        m_configDrop = ConfigDrop::None;
+        m_retryCount = 0;
+        if (reconnect) {
+            setStateLabel(QStringLiteral("Reconnecting…"));
+            if (!m_busy) { m_busy = true; emit busyChanged(); }
+            m_retryTimer.start(kRetryBaseDelayMs);   // the retry path calls start()
+        } else {
+            m_configReconnects = 0;   // the golfer's next Connect gets a fresh try
+            if (m_busy) { m_busy = false; emit busyChanged(); }
+            setStateLabel(QStringLiteral("Not ready"));
+        }
     } else {
         // A genuine disconnect/loss outside any connect attempt (user disconnect,
         // mid-stream drop, or retries already exhausted).
@@ -1085,6 +1115,49 @@ void ImuInstance::onConnectionLost(bool fromError)
         if (m_busy) { m_busy = false; emit busyChanged(); }
         setStateLabel(fromError ? QStringLiteral("Error") : QStringLiteral("Disconnected"));
     }
+}
+
+void ImuInstance::onConfigurationChecked(int verdict, int attempt, const QString &detail)
+{
+    using V = WT9011DCL_Base::ConfigVerdict;
+    switch (static_cast<V>(verdict)) {
+    case V::Pending:
+        return;
+    case V::Retry:
+        ppWarn() << "[IMU]" << m_deviceDescription << "configuration not confirmed on attempt"
+                 << attempt << "(" << detail << ") — sending it again";
+        appendLog(timestamp() + QStringLiteral("  Settings not confirmed (%1) — sending them again").arg(detail));
+        return;
+    case V::Confirmed:
+        m_configReconnects = 0;
+        ppInfo() << "[IMU]" << m_deviceDescription << "configuration confirmed (ORIENT vertical, AXIS6, RRATE), attempt"
+                 << attempt;
+        appendLog(timestamp() + QStringLiteral("  Settings confirmed"));
+        return;
+    case V::Unverified:
+        // Nothing shows the frame is wrong (only missing answers, or only the rate),
+        // so the sensor stays in use and the log says what could not be confirmed.
+        m_configReconnects = 0;
+        ppWarn() << "[IMU]" << m_deviceDescription << "configuration could not be confirmed after"
+                 << attempt << "attempts (" << detail << ") — using the sensor anyway";
+        appendLog(timestamp() + QStringLiteral("  Settings could not be confirmed (%1) — in use anyway").arg(detail));
+        return;
+    case V::Failed:
+        break;
+    }
+
+    // ORIENT or AXIS6 did not take: the sensor's axes or fusion are not the ones every
+    // solve assumes. Drop the link — onConnectionLost() reconnects once, then gives up.
+    const bool reconnect = m_configReconnects < kMaxConfigReconnects;
+    if (reconnect) ++m_configReconnects;
+    m_configDrop = reconnect ? ConfigDrop::Reconnect : ConfigDrop::GiveUp;
+    ppWarn() << "[IMU]" << m_deviceDescription << "settings did not take after" << attempt << "attempts ("
+             << detail << ") —" << (reconnect ? "reconnecting" : "sensor not ready");
+    appendLog(timestamp() + QStringLiteral("  Settings did not take (%1) — %2").arg(detail,
+              reconnect ? QStringLiteral("reconnecting")
+                        : QStringLiteral("sensor not ready. Turn it off and on, then Connect.")));
+    QMetaObject::invokeMethod(m_imu, [imu = m_imu]() { imu->disconnectFromDevice(); },
+                              Qt::QueuedConnection);
 }
 
 void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)

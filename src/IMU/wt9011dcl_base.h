@@ -20,6 +20,7 @@
 
 #include "imu_base.h"
 #include "imu_capabilities.h"
+#include "wt901_config_check.h"
 #include <atomic>
 #include <optional>
 
@@ -139,6 +140,10 @@ public:
 
     void readRegisters(quint8 regAddr, quint8 regCount = 1);
 
+    // Outcome of the connect-time configuration check (issue #105); values of
+    // pinpoint::wt901::ConfigCheck::Verdict.
+    using ConfigVerdict = pinpoint::wt901::ConfigCheck::Verdict;
+
     // Sends a read request for the battery voltage register (0x64).
     // Result arrives asynchronously via batteryUpdated().
     void requestBattery() override;
@@ -217,13 +222,38 @@ protected:
         RegVBat     = 0x64, // Battery voltage — confirmed from WitmotionSDK Bwt901bleProcessor.cs
     };
 
+    // Connect-time configuration check (issue #105). A subclass calls
+    // startConfigCheck() where it configures the device; each attempt calls
+    // sendConfiguration() and reads ORIENT, AXIS6 and RRATE back. A wrong or
+    // missing read-back sends the configuration again (ConfigCheck::kMaxAttempts),
+    // and every read-back and verdict is reported through the signals below.
+    void startConfigCheck(quint16 expectedRRate);
+    virtual void sendConfiguration() {}
+
     // Subclasses implement this to write bytes to their transport.
     virtual void writeToDevice(const QByteArray &data) = 0;
 
     // Shared command builder — calls writeToDevice().
     void sendCommand(quint8 reg, quint16 value);
 
+signals:
+    // One read-back of a configured register (reg is the register address).
+    void configReadback(int reg, int got, int want, int attempt);
+    // An attempt settled (ConfigVerdict, never Pending). detail names the
+    // registers that read back wrong or did not answer, "" when confirmed.
+    void configurationChecked(int verdict, int attempt, const QString &detail);
+
 private:
+    void sendConfigAttempt();
+    void handleConfigVerdict(ConfigVerdict v);
+    void onConfigReadback(quint8 reg, quint16 raw);
+
+    // Per-attempt wait for the three read-backs. They arrive in tens of ms.
+    static constexpr int kConfigReadbackTimeoutMs = 1500;
+
+    pinpoint::wt901::ConfigCheck m_configCheck;
+    quint32 m_configGen = 0;   // invalidates the timeout of a superseded attempt
+
     enum PacketType : quint8 {
         PktTime        = 0x50,
         PktAccel       = 0x51,

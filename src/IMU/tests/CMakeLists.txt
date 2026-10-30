@@ -181,3 +181,13 @@ pp_add_test(trunk_ceremony_file_test
     SOURCES trunk_ceremony_file_test.cpp
     INCLUDE ${IMU}
     STD 20)
+
+# ── Witmotion connect-time configuration check (issue #105) ──────────────────
+# Did ORIENT / AXIS6 / RRATE take? The 27 Oct failure (ORIENT not applied on one
+# connection) can't be produced at will on a sensor, so the retry / Failed /
+# Unverified decision is pinned against faked read-backs. Pure header, no Qt.
+pp_add_test(wt901_config_check_test
+    SOURCES wt901_config_check_test.cpp
+    INCLUDE ${IMU}
+    NO_QT
+    STD 20)

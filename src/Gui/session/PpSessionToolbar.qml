@@ -85,7 +85,8 @@ Item {
         for (var i = 0; i < list.length; ++i) {
             var inst = imuManager.instanceFor(list[i].id)
             if (inst && !inst.imuConnected
-                     && (inst.stateLabel === "Error" || inst.stateLabel === "Not found")) return true
+                     && (inst.stateLabel === "Error" || inst.stateLabel === "Not found"
+                         || inst.stateLabel === "Not ready")) return true
         }
         return false
     }

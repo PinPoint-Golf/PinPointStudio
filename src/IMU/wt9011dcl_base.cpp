@@ -19,11 +19,20 @@
 #include "wt9011dcl_base.h"
 #include "pp_debug.h"
 #include "event_buffer.h"
+#include <QStringList>
+#include <QTimer>
 #include <QtMath>
 
 WT9011DCL_Base::WT9011DCL_Base(QObject *parent)
     : ImuBase(parent)
-{}
+{
+    // A dropped link ends the configuration check: nothing more will answer, and the
+    // next connect starts a new one.
+    connect(this, &ImuBase::disconnected, this, [this]() {
+        m_configCheck.cancel();
+        ++m_configGen;
+    });
+}
 
 // ---------------------------------------------------------------------------
 // Capabilities
@@ -129,6 +138,68 @@ void WT9011DCL_Base::requestBattery()
     // Count byte is 0x00; the device always returns a fixed 20-byte 0x71 response regardless.
     m_batteryReadInFlight = true;   // arm: only honour a VBat 0x71 we actually asked for
     readRegisters(RegVBat, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Connect-time configuration check (issue #105)
+// ---------------------------------------------------------------------------
+
+void WT9011DCL_Base::startConfigCheck(quint16 expectedRRate)
+{
+    m_configCheck.begin(expectedRRate);
+    sendConfigAttempt();
+}
+
+void WT9011DCL_Base::sendConfigAttempt()
+{
+    const quint32 gen = ++m_configGen;
+    sendConfiguration();
+    // The device answers in order, after the writes above have been applied.
+    readRegisters(pinpoint::wt901::kRegOrient, 0);
+    readRegisters(pinpoint::wt901::kRegAxis6, 0);
+    readRegisters(pinpoint::wt901::kRegRRate, 0);
+    QTimer::singleShot(kConfigReadbackTimeoutMs, this, [this, gen]() {
+        if (gen == m_configGen)
+            handleConfigVerdict(m_configCheck.onTimeout());
+    });
+}
+
+void WT9011DCL_Base::onConfigReadback(quint8 reg, quint16 raw)
+{
+    if (!m_configCheck.expecting(reg))
+        return;
+    emit configReadback(reg, raw, m_configCheck.expected(reg), m_configCheck.attempt());
+    handleConfigVerdict(m_configCheck.onReadback(reg, raw));
+}
+
+void WT9011DCL_Base::handleConfigVerdict(ConfigVerdict v)
+{
+    using pinpoint::wt901::ConfigCheck;
+    if (v == ConfigVerdict::Pending)
+        return;
+
+    QStringList parts;
+    const uint8_t wrong   = m_configCheck.wrongBits();
+    const uint8_t missing = m_configCheck.missingBits();
+    const auto name = [](uint8_t bit) {
+        return QString::fromLatin1(pinpoint::wt901::configRegName(
+            bit == ConfigCheck::kBitOrient ? pinpoint::wt901::kRegOrient
+          : bit == ConfigCheck::kBitAxis6  ? pinpoint::wt901::kRegAxis6
+                                           : pinpoint::wt901::kRegRRate));
+    };
+    for (uint8_t bit : {ConfigCheck::kBitOrient, ConfigCheck::kBitAxis6, ConfigCheck::kBitRRate}) {
+        if (wrong & bit)   parts << name(bit) + QStringLiteral(" read back wrong");
+        if (missing & bit) parts << name(bit) + QStringLiteral(" did not answer");
+    }
+    const int attempt = m_configCheck.attempt();
+    emit configurationChecked(static_cast<int>(v), attempt, parts.join(QStringLiteral(", ")));
+
+    if (v == ConfigVerdict::Retry) {
+        m_configCheck.nextAttempt();
+        sendConfigAttempt();
+    } else {
+        ++m_configGen;   // settled: the attempt's timeout is moot
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -418,6 +489,7 @@ void WT9011DCL_Base::dispatchReadResponse(const QByteArray &frame)
                 "Euler output may be in the wrong frame.")
                 .arg(raw, 4, 16, QLatin1Char('0')));
         }
+        onConfigReadback(startReg, static_cast<quint16>(raw));
         return;
     }
 
@@ -433,6 +505,14 @@ void WT9011DCL_Base::dispatchReadResponse(const QByteArray &frame)
                 "Device may be in 9-axis (magnetometer) mode.")
                 .arg(raw, 4, 16, QLatin1Char('0')));
         }
+        onConfigReadback(startReg, static_cast<quint16>(raw));
+        return;
+    }
+
+    if (startReg == RegRRate) {
+        emit diagnosticInfo(QStringLiteral("[rrate] RRATE readback=0x%1")
+                            .arg(raw, 4, 16, QLatin1Char('0')));
+        onConfigReadback(startReg, static_cast<quint16>(raw));
         return;
     }
 

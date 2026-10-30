@@ -384,6 +384,16 @@ private:
     bool   m_connecting     = false;
     bool   m_attemptingConn = false;
 
+    // Configuration that didn't take (issue #105). When ORIENT or AXIS6 still reads
+    // back wrong after the driver's retries, the link is dropped and connected again
+    // once (a fresh connect is what fixed it on 27 Oct); if it fails again the sensor
+    // is left "Not ready" rather than streaming in the wrong frame.
+    enum class ConfigDrop { None, Reconnect, GiveUp };
+    ConfigDrop m_configDrop       = ConfigDrop::None;
+    int        m_configReconnects = 0;
+    static constexpr int kMaxConfigReconnects = 1;
+    void onConfigurationChecked(int verdict, int attempt, const QString &detail);
+
     // Battery polling
     QTimer m_batteryTimer;
     int    m_batteryRetries = 0;
