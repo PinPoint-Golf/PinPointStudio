@@ -1578,6 +1578,55 @@ int main(int argc, char **argv)
         check(m.unsavedCount() == 0, "back to the file");
     }
 
+    // #100: corridors, screens and drills live in registries of their own, and the bulk-set's one
+    // command once took them as they stood AFTER the edit, so Undo left those rows changed.
+    std::printf("=== #100: a bulk-set on drills and corridors undoes in one step ===\n");
+    {
+        m.undoTo(-1);
+        const auto twoShipped = [&](const QString &type) {
+            QStringList ids;
+            for (const QVariant &v : m.rows(type)) {
+                const QVariantMap r = v.toMap();
+                if (r.value(QStringLiteral("source")).toString() == QStringLiteral("shipped"))
+                    ids << r.value(QStringLiteral("id")).toString();
+                if (ids.size() == 2) break;
+            }
+            return ids;
+        };
+        const auto cellText = [&](const QString &type, const QString &id, const QString &field) {
+            return cellFor(rowFor(m.rows(type), id), field).value(QStringLiteral("value")).toString();
+        };
+
+        const QString drills = QStringLiteral("drills"), corridors = QStringLiteral("corridors");
+        const QStringList dIds = twoShipped(drills), nIds = twoShipped(corridors);
+        check(dIds.size() == 2 && nIds.size() == 2, "two shipped drills and two shipped corridors");
+        std::printf("      drills %s, %s; corridors %s, %s\n", qPrintable(dIds.value(0)), qPrintable(dIds.value(1)),
+                    qPrintable(nIds.value(0)), qPrintable(nIds.value(1)));
+
+        const QStringList equipBefore = { cellText(drills, dIds[0], QStringLiteral("equipment")),
+                                          cellText(drills, dIds[1], QStringLiteral("equipment")) };
+        check(okOf(m.setFieldOnAll(drills, dIds, QStringLiteral("equipment"), QStringLiteral("Probe band"))),
+              "the drills' bulk-set lands");
+        check(cellText(drills, dIds[0], QStringLiteral("equipment")) == QStringLiteral("Probe band")
+                  && cellText(drills, dIds[1], QStringLiteral("equipment")) == QStringLiteral("Probe band"),
+              "both drills carry the new equipment");
+        m.undo();
+        check(cellText(drills, dIds[0], QStringLiteral("equipment")) == equipBefore[0]
+                  && cellText(drills, dIds[1], QStringLiteral("equipment")) == equipBefore[1],
+              "one undo puts both drills back");
+        check(m.unsavedCount() == 0, "and nothing is unsaved");
+
+        const QStringList muBefore = { cellText(corridors, nIds[0], QStringLiteral("mu")),
+                                       cellText(corridors, nIds[1], QStringLiteral("mu")) };
+        check(okOf(m.setFieldOnAll(corridors, nIds, QStringLiteral("mu"), 8.0)),
+              "the corridors' bulk-set lands");
+        m.undo();
+        check(cellText(corridors, nIds[0], QStringLiteral("mu")) == muBefore[0]
+                  && cellText(corridors, nIds[1], QStringLiteral("mu")) == muBefore[1],
+              "one undo puts both corridors back");
+        check(m.unsavedCount() == 0, "and nothing is unsaved");
+    }
+
     std::printf("=== the ring collar offers the whole strength ladder ===\n");
     {
         // The collar draws five cells, so every rung is reachable in one hold and none of them is

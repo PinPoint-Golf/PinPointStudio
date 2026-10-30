@@ -5929,8 +5929,7 @@ QVariantMap ModelBrowser::setFieldOnAll(const QString &type, const QStringList &
                                         const QString &field, const QVariant &value)
 {
     // Still refused for gates, golfer words included. Each clause is its own sentence, so one value
-    // across a selection is never what an author means — and the command this collapses into below
-    // is pushed through the short form, which does not snapshot the gate-word layer.
+    // across a selection is never what an author means.
     if (type == kGates)
         return refuse(tr("Gates are not bulk-edited: only a gate's golfer words are editable, one "
                          "gate at a time, because each clause is its own sentence."));
@@ -5938,7 +5937,15 @@ QVariantMap ModelBrowser::setFieldOnAll(const QString &type, const QStringList &
 
     // ONE command for the whole selection. Re-tiering twelve links has to undo as one action —
     // twelve undos to reverse one gesture is a stack that punishes the shortcut it exists to enable.
-    const CharacteristicPack before = m_working;
+    // EVERY layer, not just the pack (#100): a corridor, screen or drill edit lands in its own
+    // registry, and a before-state taken after the edit made Undo restore the pack and leave those
+    // rows changed while the stack said the change was gone.
+    const CharacteristicPack before          = m_working;
+    const NormPack           normsBefore     = m_workingNorms;
+    const ScreenSet          screensBefore   = m_workingScreens;
+    const DrillSet           drillsBefore    = m_workingDrills;
+    const GateWordSet        gateWordsBefore = m_workingGateWords;
+    const int                mark            = m_stackIndex;
 
     int     done = 0;
     QString firstRefusal;
@@ -5957,9 +5964,10 @@ QVariantMap ModelBrowser::setFieldOnAll(const QString &type, const QStringList &
     // intermediate states, so dropping them and re-pushing from `before` is what makes the whole
     // selection a single undo step.
     if (done > 0) {
-        m_stack.erase(m_stack.begin() + (m_stackIndex + 1 - done), m_stack.begin() + (m_stackIndex + 1));
-        m_stackIndex -= done;
-        pushCommand(what, tr("%n row(s)", "", done), before, m_workingNorms);
+        m_stack.erase(m_stack.begin() + (mark + 1), m_stack.begin() + (m_stackIndex + 1));
+        m_stackIndex = mark;
+        pushCommand(what, tr("%n row(s)", "", done), before, normsBefore, screensBefore, drillsBefore,
+                    gateWordsBefore);
     }
 
     if (done == 0) return refuse(firstRefusal.isEmpty() ? tr("Nothing changed.") : firstRefusal);
