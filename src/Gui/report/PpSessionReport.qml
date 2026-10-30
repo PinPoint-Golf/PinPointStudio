@@ -306,6 +306,8 @@ Item {
             width: root.width; height: root.height
             medium: "print"
             printAesthetic: "folio"                     // Folio light, as the client pages (PpTypeset.fixedAesthetic)
+            // the appendix's shot is the report's reference swing (§6); none named, no shot to name
+            shotName: root.appendixBody && root.appendixBody.readout ? "Reference swing" : ""
             body: root.appendixBody
             readout: root.appendixBody ? root.appendixBody.readout : null
             cards: root.appendixBody ? root.appendixBody.cards : []

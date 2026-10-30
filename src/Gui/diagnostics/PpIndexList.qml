@@ -20,7 +20,8 @@ import QtQuick
 
 // INDEXLIST — A's index of the clean conditions: name, leader dots, value and unit on a right edge,
 // in as many columns as fit (roles.flows.index em each, column-major so it reads down). Ink marks a
-// session pattern clean on this shot, ° marks a watched condition. `grouped` adds B's group heads
+// session pattern clean on this shot, ° marks a watched condition; its fault line follows
+// in brackets, the fault line. `grouped` adds B's group heads
 // (patterns clean here / watched / clean all session), alphabetical within each group.
 Item {
     id: ix
@@ -32,7 +33,7 @@ Item {
     property bool grouped: false
     property string title: "Inside the corridor"
     property bool showHead: true
-    property string legend: "Ink: a session pattern, clean on this shot  ·  ° watching  ·  the rest clean all session"
+    property string legend: "In brackets: the fault line  ·  Ink: a session pattern, clean on this shot  ·  ° watching  ·  the rest clean all session"
     signal conditionActivated(string id)
     signal conditionHovered(string id)
 
@@ -112,7 +113,12 @@ Item {
                         width: parent.width; height: parent.height - y
                         Rectangle { anchors.fill: parent; visible: it.hot; color: ix.roles.rowHover }
                         Text {
-                            id: iunit; anchors.right: parent.right; anchors.baseline: inm.baseline
+                            id: imed; anchors.right: parent.right; anchors.baseline: inm.baseline
+                            text: it.c.faultText ? " (" + it.c.faultText + ")" : ""
+                            font: ix.roles.fSmall; color: ix.roles.ink3
+                        }
+                        Text {
+                            id: iunit; anchors.right: imed.left; anchors.baseline: inm.baseline
                             text: ix.roles.shortUnit(ix.roles.unitOf(it.c.valueText)); font: ix.roles.fSmall; color: ix.roles.ink3
                         }
                         Text {
@@ -123,7 +129,7 @@ Item {
                         Text {
                             id: inm
                             y: ix.roles.u(1)
-                            width: Math.min(implicitWidth, ix.cw - ival.width - iunit.width - ix.roles.u(16))
+                            width: Math.min(implicitWidth, ix.cw - ival.width - iunit.width - imed.width - ix.roles.u(16))
                             wrapMode: Text.WordWrap
                             text: it.c.name + (!ix.grouped && it.c.tierTag === "watching" ? "°" : "")
                             font: ix.roles.fSmall

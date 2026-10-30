@@ -418,6 +418,23 @@ inline QString spreadCorridorWords(const SpreadCorridor &c, const QString &unit)
                               .arg(n(c.signalLo), n(c.signalHi), n(c.faultLo), n(c.faultHi)), unit);
 }
 
+// THE FAULT LINE ALONE, for the print index's brackets beside a clean reading: where it would fire,
+// at spreadCorridorWords' precision, with no unit (the reading beside it carries one). `side` is the
+// condition's own tail (its signal's direction: +1 high, −1 low, 0 either) — a pair on one measure
+// ("Feet closed" / "Feet open") shares a two-sided corridor, and each names only its own edge.
+//   high/ceiling "fault > 13"   low/floor "fault < 1.2"   either "fault outside 0 to 30"   none ""
+inline QString spreadFaultWords(const SpreadCorridor &c, int side = 0)
+{
+    if (!c.known || (c.lowOpen && c.highOpen)) return QString();
+    const int d = spreadDecimals(std::max(c.faultHi - c.faultLo, 1e-9));
+    auto n = [&](double v) { return spreadNumber(v, d, /*trimZeros*/ true); };
+    const bool hi = !c.highOpen && (side > 0 || c.lowOpen);
+    const bool lo = !c.lowOpen && (side < 0 || c.highOpen);
+    if (hi) return QStringLiteral("fault > %1").arg(n(c.faultHi));
+    if (lo) return QStringLiteral("fault < %1").arg(n(c.faultLo));
+    return QStringLiteral("fault outside %1 to %2").arg(n(c.faultLo), n(c.faultHi));
+}
+
 // WHERE ONE READING SITS against the corridor, in words, for the hover readout. Past the fault
 // line by how much; past the pass band and how far short of the fault line; or inside the pass
 // band. The side that does not grade is inside the pass band — that is what not grading means.

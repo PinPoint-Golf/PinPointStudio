@@ -47,6 +47,9 @@ Item {
     // "" prints in the app's theme (as before); the session report's appendix sets "folio" so it prints in Folio light
     // like the client pages, whatever the app shows (PpTypeset.fixedAesthetic)
     property string printAesthetic: ""
+    // what the printed shot is to the reader: the session report's appendix prints its reference swing (the one
+    // nearest every work-on target, session_report.h referenceSwing) and says so; "" = plain "This shot"
+    property string shotName: ""
 
     // ── data ──
     readonly property var conds: (readout && readout.conditions) || []
@@ -175,9 +178,9 @@ Item {
 
         // ═══ 2 This shot ═══
         // sections after the first open on B's kicker + head + standfirst; the kicker carries the number
-        PpStandfirst { section: "This shot"
+        PpStandfirst { section: root.shotName || "This shot"
                      width: pager.textW; roles: ro; medium: "print"
-                     kicker: "2  ·  This shot  ·  " + (root.header ? root.header.shotLabel : "")
+                     kicker: "2  ·  " + (root.shotName || "This shot") + "  ·  " + (root.header ? root.header.shotLabel : "")
                      head: root.fired.length ? ro.cap1(ro.word(root.fired.length)) + " outside the corridor" : "A clean swing"
                      standfirst: ro.shotStandfirst(root.readout, false) }
         PpTrustSummaryFold { width: pager.textW; roles: ro; printed: true; scope: "shot"
@@ -191,7 +194,7 @@ Item {
             xrefId: root.detail ? (root.detail.id || "") : ""; xrefPage: pager.pageOf(detailHead)
         }
         PpNotes { width: pager.textW; roles: ro; medium: "print"; tone: 2; small: true
-                text: "Out by: how far past the corridor edge, in multiples of the distance to it. Fired: shots outside, of those measurable. The other " + ro.figHtml(root.clean.length) + " conditions stayed inside their corridor; they are listed alphabetically, with this shot’s value, in the index on p.&nbsp;" + pager.pageOf(indexHead) + "." }
+                text: "Out by: how far past the corridor edge, in multiples of the distance to it. Fired: shots outside, of those measurable. The other " + ro.figHtml(root.clean.length) + " conditions stayed inside their corridor; they are listed alphabetically, with this shot’s value, " + (root.shotName ? "on" : "in the index on") + " p.&nbsp;" + pager.pageOf(indexHead) + "." }
 
         // ═══ 3 Watching ═══
         PpStandfirst { section: "Watching"
@@ -253,7 +256,7 @@ Item {
             width: pager.textW
             Item {
                 id: indexHead
-                readonly property string section: "Index"
+                readonly property string section: root.shotName ? root.shotName + " · shot " + root.shotNo : "Index"
                 readonly property var keyKinds: []
                 readonly property string printGroup: "clean"
                 property bool atom: true
@@ -262,11 +265,14 @@ Item {
                 Flow {
                     id: ih
                     width: parent.width; spacing: ro.u(8)
-                    Text { id: iht; text: "Index · inside the corridor on shot " + root.shotNo; font: ro.fSection; color: ro.ink }
-                    Text { text: root.clean.length; font: ro.fFigS; color: ro.ink3; height: iht.height; verticalAlignment: Text.AlignVCenter }
+                    Text { id: iht; font: ro.fSection; color: ro.ink
+                           text: root.shotName ? root.shotName + " · shot " + root.shotNo : "Index · inside the corridor on shot " + root.shotNo }
+                    // named, the count goes into words below: a bare figure after "shot 14" read as a measure
+                    Text { visible: !root.shotName; text: root.clean.length; font: ro.fFigS; color: ro.ink3; height: iht.height; verticalAlignment: Text.AlignVCenter }
                     Item { width: ro.u(8); height: 1 }
                     Text { width: Math.min(implicitWidth, ih.width); wrapMode: Text.WordWrap; height: Math.max(implicitHeight, iht.height); verticalAlignment: Text.AlignVCenter
-                           text: "Alphabetical. Ink: a session pattern, clean on this shot  ·  ° watching  ·  the rest clean all session"
+                           text: (root.shotName ? "The " + root.clean.length + " checks it passed, alphabetical, each with the reading it judged and, in brackets, where it would fault. " : "Alphabetical. In brackets: the fault line. ")
+                                 + "Ink: a session pattern, clean on this shot  ·  ° watching  ·  the rest clean all session"
                            font: ro.fMicro; color: ro.ink3 }
                 }
                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: ro.hw; color: ro.hair }

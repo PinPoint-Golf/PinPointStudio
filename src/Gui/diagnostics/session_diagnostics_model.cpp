@@ -4439,7 +4439,19 @@ QVariantMap SessionDiagnosticsModel::shotReadout(int shotId) const
         } else if (st != ShotState::NotAssessable && r) {
             c[QStringLiteral("valueText")] = withUnit(fmtNumber(r->value), unit);
             // The same sentence the card prints (spreadCorridorWords) — pass band and fault line.
-            c[QStringLiteral("corridorText")] = spreadCorridorWords(corridorForRow(*r), unit);
+            const SpreadCorridor sc = corridorForRow(*r);
+            c[QStringLiteral("corridorText")] = spreadCorridorWords(sc, unit);
+            // the fault line alone, beside the reading in the index (unitless: the reading carries it)
+            int side = 0;                                      // the condition's own tail, from its signal
+            if (m_packProv)
+                if (const Condition *pc = m_packProv->pack().condition(id))
+                    for (const QString &sid : pc->detectedBy)
+                        if (const Signal *sig = m_packProv->pack().signal(sid); sig && sig->direction
+                            && (r->drivingMeasureId.isEmpty() || sig->measures.contains(r->drivingMeasureId))) {
+                            side = *sig->direction == Direction::High ? +1 : -1;
+                            break;
+                        }
+            c[QStringLiteral("faultText")] = spreadFaultWords(sc, side);
             c[QStringLiteral("reason")] = QString();
         } else {
             // Never a blank in either slot: the value reads "not measurable" — or, where a gate or rule
