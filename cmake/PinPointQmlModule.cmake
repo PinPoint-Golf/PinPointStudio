@@ -342,6 +342,7 @@ set(PP_QML_FILES
     src/Gui/charts/PpChPostureFrame.qml
     # the Club delivery sections (docs/design/club_delivery_chart_design.md §10 stage 3)
     src/Gui/charts/PpChDeliveryShotSection.qml
+    src/Gui/charts/PpChDeliveryPicture.qml
     src/Gui/charts/PpChDeliverySession.qml
     src/Gui/charts/PpChDeliveryFlight.qml
     src/Gui/charts/PpChShotShapeGrid.qml
@@ -507,6 +508,10 @@ set(PP_QML_SOURCES
     src/Gui/charts/session_delivery.cpp
     src/Gui/charts/charts_delivery_presenter.h
     src/Gui/charts/charts_delivery_presenter.cpp
+    # The Club delivery picture strip (club_delivery_chart_design.md stage 6): pure C++ over the swing document, the
+    # Posture picture's DTL reading (below) with the address line and the shoulder plane frozen at address.
+    src/Gui/charts/delivery_picture.h
+    src/Gui/charts/delivery_picture.cpp
     # The Posture picture strip (posture_chart_design.md §5.4, stage 5): pure C++ over the swing document —
     # the frames, the frozen coach lines and the band offsets in each frame's pixels. Its closure: the
     # report stills' pure half (which frame, which crop; no decoder), the markup stream rules it picks the

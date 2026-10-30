@@ -150,6 +150,13 @@ struct PictureDoc {
 // The document → the picture's inputs. `root` is the whole swing document (SwingStore::load).
 PictureDoc postureDocFrom(const QJsonObject &root, const QString &swingDir, const QString &stamp = QString());
 
+// One camera's reading of the document, as the picture reads it (the stills' frame and crop at address, the top and
+// impact, widened to the golfer's mask marks; the address pose; down the line the ball and the measured club sample
+// nearest address): the Club delivery picture (delivery_picture.h) reads its frames, ball and address grip HERE, so
+// the two strips cut the same stills and draw from the same points. No head track. `present` false when the swing has
+// no such camera or no analysis.
+PictureCameraDoc pictureCameraDocFrom(const QJsonObject &root, bool dtl);
+
 // The bands at impact the picture offsets the golfer's lines by (the presenter's cells at P7, the pattern in use).
 struct PictureBands {
     bool    hipHas = false;   double hipLo = kPicNaN, hipHi = kPicNaN;

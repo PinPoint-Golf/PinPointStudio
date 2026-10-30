@@ -19,11 +19,13 @@
 #include "charts_delivery_presenter.h"
 
 #include "box_map.h"
+#include "delivery_picture.h"
 #include "charts_words.h"
 #include "session_delivery.h"
 #include "session_series_model.h"
 
 #include "../../Core/pp_debug.h"
+#include "../../Export/swing_store.h"
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>
@@ -37,7 +39,10 @@
 #include <QMetaObject>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QPointer>
 #include <QSet>
+#include <QStandardPaths>
+#include <QThreadPool>
 
 #include <algorithm>
 #include <cmath>
@@ -73,12 +78,20 @@ struct ChartsDeliveryPresenter::Result {
     QVariantMap choices, thisShot, session, plotLayers;
     QVariantList standfirsts;                          // 7 Sentences (thisShot.standfirsts)
     std::array<qint64, kDeliveryPositions> posUs{};    // the picked shot's P µs, −1 none
+    QVariantList pendingStills;                        // the picture's stills not made yet (thisShot.picture)
 };
 
 struct ChartsDeliveryPresenter::Worker {
     QMutex mutex;                                      // held for a whole job
     QHash<const ShotSeries *, CacheEntry> cache;
     QHash<QString, DayEntry> days;                     // by the cleaned session folder
+    // the picture strip's documents (delivery_picture.h), by cleaned dir and document stamp; a few kept
+    struct PictureEntry { qint64 size = -1, mtimeMs = -1; bool pinned = false; DeliveryPictureDoc doc; };
+    QHash<QString, PictureEntry> pictures;
+    QStringList pictureOrder;                          // least recent first
+    // the stills the maker could not make: outPath → why (written on the GUI thread, read by a job)
+    QMutex stillMutex;
+    QHash<QString, QString> stillErrors;
 };
 
 namespace {
@@ -276,6 +289,7 @@ DeliveryDay dayOf(ChartsDeliveryPresenter::Worker *w, const QString &sessionDir)
 
 struct Ctx {
     const ChartsDeliveryPresenter::Inputs &in;
+    ChartsDeliveryPresenter::Worker *w = nullptr;
     std::shared_ptr<const SessionSnapshot> snap;
     Ctx(const ChartsDeliveryPresenter::Inputs &i, std::shared_ptr<const SessionSnapshot> s) : in(i), snap(std::move(s)) {}
     int n = 0;
@@ -467,6 +481,98 @@ QString emptyTail()
                           "delivery from the launch monitor.");
 }
 
+// ── the picture strip (stage 6, delivery_picture.h) ──────────────────────────────────────────────
+
+// The swing's document → the picture's inputs, cached by the document's stamp (a re-analysed swing is read again).
+// A pinned entry (the tests' seam) is kept whatever the disk says. The posture presenter's pictureDocOf.
+const DeliveryPictureDoc &pictureDocOf(ChartsDeliveryPresenter::Worker &w, const QString &swingDir)
+{
+    const QString dir = cleanDir(swingDir);
+    auto it = w.pictures.find(dir);
+    if (it != w.pictures.end() && it->pinned) return it->doc;
+    const pinpoint::SwingStore::DocInfo info = pinpoint::SwingStore::info(dir);
+    if (it != w.pictures.end() && it->size == info.size && it->mtimeMs == info.mtimeMs) {
+        w.pictureOrder.removeAll(dir);
+        w.pictureOrder << dir;
+        return it->doc;
+    }
+    ChartsDeliveryPresenter::Worker::PictureEntry e;
+    e.size = info.size;
+    e.mtimeMs = info.mtimeMs;
+    if (!info.exists()) {
+        e.doc.swingDir = dir;
+        e.doc.why = QStringLiteral("the swing's document is not on disk");
+    } else {
+        QString err;
+        const QJsonObject root = pinpoint::SwingStore::load(dir, &err);
+        e.doc = deliveryPictureDocFrom(root, dir, QStringLiteral("%1-%2").arg(info.size).arg(info.mtimeMs));
+        if (root.isEmpty()) e.doc.why = QStringLiteral("the swing's document could not be read%1").arg(err.isEmpty() ? QString() : QStringLiteral(": ") + err);
+    }
+    w.pictureOrder.removeAll(dir);
+    w.pictureOrder << dir;
+    while (w.pictureOrder.size() > 6) {
+        const QString old = w.pictureOrder.takeFirst();
+        auto o = w.pictures.find(old);
+        if (o != w.pictures.end() && !o->pinned) w.pictures.erase(o);
+    }
+    return w.pictures.insert(dir, std::move(e)).value().doc;
+}
+
+// Where Charts caches the picture's stills.
+QString pictureStillDir()
+{
+    const QString base = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    return QDir(base.isEmpty() ? QDir::tempPath() : base).filePath(QStringLiteral("delivery-picture"));
+}
+
+// The stills a picture still needs made.
+QVariantList pendingStillsOf(const QVariantMap &picture)
+{
+    QVariantList out;
+    for (const QVariant &g : picture.value(QStringLiteral("groups")).toList())
+        for (const QVariant &fv : g.toMap().value(QStringLiteral("frames")).toList()) {
+            const QVariantMap f = fv.toMap();
+            const QVariantMap still = f.value(QStringLiteral("still")).toMap();
+            if (f.value(QStringLiteral("src")).toString().isEmpty() && f.value(QStringLiteral("imageWhy")).toString().isEmpty()
+                && !still.value(QStringLiteral("outPath")).toString().isEmpty())
+                out.append(still);
+        }
+    return out;
+}
+
+// Each frame's note, from the plane story (the presenter's own numbers, never the picture's): the address frame names
+// the two lines, the top and P6 the plane there and where it sat against them — "plane 65° · inside the slot".
+QVariantMap withFrameNotes(QVariantMap pic, const DeliveryShotInput &in, const DeliverySlot &slot)
+{
+    QVariantList groups = pic.value(QStringLiteral("groups")).toList();
+    for (int g = 0; g < groups.size(); ++g) {
+        QVariantMap gm = groups[g].toMap();
+        QVariantList frames = gm.value(QStringLiteral("frames")).toList();
+        for (int k = 0; k < frames.size(); ++k) {
+            QVariantMap f = frames[k].toMap();
+            const int pos = f.value(QStringLiteral("pos")).toInt();
+            QStringList parts;
+            if (pos == 0) {
+                if (fin(in.plane[0])) parts << QStringLiteral("address line %1").arg(deliveryDeg(in.plane[0]));
+                if (fin(in.shoulderPlane)) parts << QStringLiteral("shoulder plane %1").arg(deliveryDeg(in.shoulderPlane));
+            } else if (pos >= 0 && pos < kPos && fin(in.plane[size_t(pos)])) {
+                parts << QStringLiteral("plane %1").arg(deliveryDeg(in.plane[size_t(pos)]));
+                if (slot.available) {
+                    QString where = QStringLiteral("inside the slot");
+                    for (const DeliverySlotMark &m : slot.outside) if (m.pos == pos) where = m.words;
+                    parts << where;
+                }
+            }
+            f.insert(QStringLiteral("note"), parts.join(QStringLiteral("  ·  ")));
+            frames[k] = f;
+        }
+        gm.insert(QStringLiteral("frames"), frames);
+        groups[g] = gm;
+    }
+    pic.insert(QStringLiteral("groups"), groups);
+    return pic;
+}
+
 // ── the sections ────────────────────────────────────────────────────────────────────────────
 
 void buildThisShot(Ctx &c, ChartsDeliveryPresenter::Result &R)
@@ -512,6 +618,23 @@ void buildThisShot(Ctx &c, ChartsDeliveryPresenter::Result &R)
                                                       { QStringLiteral("shape"), v.shape.available ? v.shape.word : QString() } });
     R.standfirsts = v.hasPlane ? standfirstsOf(c.pick) : QVariantList{};
     out.insert(QStringLiteral("standfirsts"), R.standfirsts);
+
+    // THE PICTURE (stage 6): this swing's down-the-line frames at address, the top and P6, the address line and the
+    // shoulder plane frozen on all three
+    if (c.w && !s.swingDir.trimmed().isEmpty()) {
+        DeliveryPictureOptions po;
+        po.stillDir = pictureStillDir();
+        po.ordinal = s.ordinal;
+        {
+            QMutexLocker sl(&c.w->stillMutex);
+            po.stillErrors = c.w->stillErrors;
+        }
+        const QVariantMap pic = withFrameNotes(deliveryPicture(pictureDocOf(*c.w, s.swingDir), po), c.pick, v.slot);
+        out.insert(QStringLiteral("picture"), pic);
+        R.pendingStills = pendingStillsOf(pic);
+    } else {
+        out.insert(QStringLiteral("picture"), deliveryPictureUnread(s.swingDir, QStringLiteral("this swing has no folder")));
+    }
     R.thisShot = out;
 }
 
@@ -666,6 +789,7 @@ static std::shared_ptr<ChartsDeliveryPresenter::Result> computeDelivery(ChartsDe
     std::shared_ptr<const SessionSnapshot> snap = in.snapshot;
     if (!snap) snap = std::make_shared<SessionSnapshot>();
     Ctx c(in, snap);
+    c.w = &w;
     c.n = c.snap->count();
     c.inputs = readInputs(&w, *c.snap);
     for (const DeliveryShotInput &s : c.inputs) if (hasDelivery(s)) ++c.ready;
@@ -706,6 +830,15 @@ QVariantMap deliverySessionReportPayload(const SessionSnapshot &snapshot, const 
     const DeliveryDay day = dayOf(nullptr, sessionDirOf(snapshot, QString()));
     const DeliverySessionView sv = deliverySession(inputs, many, &day);
     return sessionMapOf(inputs, sv, day, -1, nullptr, many);
+}
+
+// ── the still maker (process-wide: the app sets it once) ────────────────────────────────────────
+static QMutex &stillMakerMutex() { static QMutex m; return m; }
+static ChartsDeliveryPresenter::StillMaker &stillMakerRef() { static ChartsDeliveryPresenter::StillMaker f; return f; }
+static ChartsDeliveryPresenter::StillMaker stillMaker()
+{
+    QMutexLocker l(&stillMakerMutex());
+    return stillMakerRef();
 }
 
 // ── the object ──────────────────────────────────────────────────────────────────────────────
@@ -832,6 +965,7 @@ void ChartsDeliveryPresenter::apply(std::shared_ptr<Result> r)
     updateSelected(true);
     if (m_dirty && !m_synchronous) startJob();
     else if (wasRunning) emit busyChanged();
+    makeStills();
 }
 
 void ChartsDeliveryPresenter::flushIfSynchronous()
@@ -841,7 +975,78 @@ void ChartsDeliveryPresenter::flushIfSynchronous()
     Inputs in = m_in;
     in.snapshot = currentSnapshot();
     m_result = computeDelivery(*m_worker, in);
+    // synchronous (tests): the stills are made inline and the result read once more with them
+    if (m_result && !m_result->pendingStills.isEmpty() && stillMaker()) {
+        QVariantList todo;
+        for (const QVariant &v : std::as_const(m_result->pendingStills)) {
+            const QString out = v.toMap().value(QStringLiteral("outPath")).toString();
+            if (!m_stillsAsked.contains(out)) { m_stillsAsked.insert(out); todo.append(v); }
+        }
+        if (!todo.isEmpty()) {
+            const QHash<QString, QString> errs = stillMaker()(todo);
+            {
+                QMutexLocker sl(&m_worker->stillMutex);
+                for (auto it = errs.cbegin(); it != errs.cend(); ++it) if (!it.value().isEmpty()) m_worker->stillErrors.insert(it.key(), it.value());
+            }
+            m_result = computeDelivery(*m_worker, in);
+        }
+    }
     updateSelected(true);
+}
+
+// The picture's stills, made once each off the GUI thread by the app's maker; the picture is read again when they land.
+void ChartsDeliveryPresenter::makeStills()
+{
+    if (m_synchronous || m_stillsBusy || !m_result || m_result->pendingStills.isEmpty() || !stillMaker()) return;
+    QVariantList todo;
+    for (const QVariant &v : std::as_const(m_result->pendingStills)) {
+        const QString out = v.toMap().value(QStringLiteral("outPath")).toString();
+        if (!m_stillsAsked.contains(out)) { m_stillsAsked.insert(out); todo.append(v); }
+    }
+    if (todo.isEmpty()) return;
+    m_stillsBusy = true;
+    QPointer<ChartsDeliveryPresenter> self(this);
+    auto w = m_worker;
+    const StillMaker maker = stillMaker();
+    QThreadPool::globalInstance()->start([self, w, todo, maker]() {
+        const QHash<QString, QString> errs = maker(todo);
+        {
+            QMutexLocker sl(&w->stillMutex);
+            for (auto it = errs.cbegin(); it != errs.cend(); ++it) if (!it.value().isEmpty()) w->stillErrors.insert(it.key(), it.value());
+        }
+        QMetaObject::invokeMethod(qApp, [self]() {
+            if (!self) return;
+            self->m_stillsBusy = false;
+            self->schedule();
+        }, Qt::QueuedConnection);
+    });
+}
+
+void ChartsDeliveryPresenter::setStillMaker(StillMaker maker)
+{
+    QMutexLocker l(&stillMakerMutex());
+    stillMakerRef() = std::move(maker);
+}
+
+void ChartsDeliveryPresenter::setPictureDocumentForTest(const QString &swingDir, const QString &jsonFile)
+{
+    const QString dir = cleanDir(swingDir);
+    {
+        QMutexLocker lk(&m_worker->mutex);
+        if (jsonFile.trimmed().isEmpty()) {
+            m_worker->pictures.remove(dir);
+        } else {
+            QFile f(jsonFile);
+            QJsonObject root;
+            if (f.open(QIODevice::ReadOnly)) root = QJsonDocument::fromJson(f.readAll()).object();
+            Worker::PictureEntry e;
+            e.pinned = true;
+            e.doc = deliveryPictureDocFrom(root, dir, QStringLiteral("test"));
+            if (root.isEmpty()) e.doc.why = QStringLiteral("the test's document %1 could not be read").arg(jsonFile);
+            m_worker->pictures.insert(dir, std::move(e));
+        }
+    }
+    schedule();
 }
 
 void ChartsDeliveryPresenter::setSynchronous(bool on)

@@ -23,6 +23,8 @@ import QtQuick
 // line and word is the presenter's (charts/posture_picture.h: FRAME, MARK — each in the frame's own image pixels); this
 // only scales them by the drawn image (s = drawn height / frame.height) and picks colours. `sets` says which coach sets
 // are drawn (the reader's Coach lines toggles, else the picture's default sets); a band or ink mark is always drawn.
+// Also the Club delivery strip's frame (PpChDeliveryPicture; charts/delivery_picture.h), whose slot is a "poly" mark: a
+// filled polygon in the coach colour at polyAlpha, under the lines.
 // objectName: chPosturePictureFrame (+ tag, camera, seekUs, coachDrawn, bandDrawn, inkDrawn, hasImage).
 Item {
     id: fr
@@ -40,6 +42,7 @@ Item {
     property font noteFont: Qt.font({ pixelSize: 11 })
     property var hueOf: null                  // function(metric key) → its colour (the band's wash)
     property real washAlpha: 0.34
+    property real polyAlpha: 0.16             // a "poly" mark's fill (the Club delivery slot)
     property real pen: 1.6
     property bool interactive: false
     property bool asyncImage: true            // print: false (the page is grabbed once it is laid out)
@@ -51,6 +54,7 @@ Item {
     readonly property var marks: frame && frame.marks ? frame.marks : []
     readonly property var shown: marks.filter(function (m) { return m.role !== "coach" || (!!fr.sets && fr.sets[m.set] === true) })
     readonly property int coachDrawn: shown.filter(function (m) { return m.role === "coach" }).length
+    readonly property int polyDrawn: shown.filter(function (m) { return m.kind === "poly" }).length
     readonly property int bandDrawn: shown.filter(function (m) { return m.role === "band" }).length
     readonly property int inkDrawn: shown.filter(function (m) { return m.role === "ink" }).length
     readonly property bool hasImage: img.status === Image.Ready
@@ -94,7 +98,18 @@ Item {
                 if (!(s > 0)) return
                 const list = fr.shown
                 const dashOf = function (pattern, pen) { return pattern.map(function (v) { return v / pen }) }
-                // bands under the lines
+                // filled polygons (the slot), then the bands, under the lines
+                for (let q = 0; q < list.length; ++q) {
+                    const m = list[q]
+                    if (m.kind !== "poly" || !m.pts || m.pts.length < 3) continue
+                    ctx.fillStyle = Qt.alpha(m.hueKey && fr.hueOf ? fr.hueOf(m.hueKey) : fr.coachColor, fr.polyAlpha)
+                    ctx.setLineDash([])
+                    ctx.beginPath()
+                    ctx.moveTo(m.pts[0][0] * s, m.pts[0][1] * s)
+                    for (let v = 1; v < m.pts.length; ++v) ctx.lineTo(m.pts[v][0] * s, m.pts[v][1] * s)
+                    ctx.closePath()
+                    ctx.fill()
+                }
                 for (let i = 0; i < list.length; ++i) {
                     const m = list[i]
                     if (m.kind !== "rect") continue
@@ -109,7 +124,7 @@ Item {
                 }
                 for (let j = 0; j < list.length; ++j) {
                     const m = list[j]
-                    if (m.kind === "rect") continue
+                    if (m.kind === "rect" || m.kind === "poly") continue
                     const ink = m.role === "ink"
                     ctx.save()
                     ctx.globalAlpha = ink ? 1.0 : fr.coachAlpha

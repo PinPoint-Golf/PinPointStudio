@@ -23,6 +23,7 @@
 #include <QObject>
 #include <QHash>
 #include <QPointer>
+#include <QSet>
 #include <QString>
 #include <QThreadPool>
 #include <QVariantList>
@@ -30,6 +31,7 @@
 #include <QtQml/qqmlregistration.h>
 
 #include <array>
+#include <functional>
 #include <memory>
 
 // THE CHARTS PANEL'S CLUB DELIVERY PRESENTER — the Club delivery section of This shot and Session
@@ -68,7 +70,12 @@
 //    head: Sentence, headText, headRule (1..4, §4.3),
 //    story: STORY, slot: SLOT, flight: FLIGHT, impact: { available, lines: [IMPACT] }, shape: SHAPE, trust: TRUST,
 //    replay: { head (= headText), story (= story.text | ""), shape (= shape.word | "") }   (§4.8: Replay's glance)
-//    standfirsts: [7 × Sentence] (P1..P7; the live one is `standfirst`) }
+//    standfirsts: [7 × Sentence] (P1..P7; the live one is `standfirst`),
+//    picture: PICTURE (delivery_picture.h, stage 6: the down-the-line frames at address, the top and P6 with the address
+//             line, the shoulder plane and the slot frozen at address, every coordinate in the frame's own pixels; each
+//             frame's `note` is the plane story's at that position — "plane 65° · inside the slot"; the stills are made
+//             by the app's still maker, setStillMaker, off the GUI thread, and the picture re-delivered with their `src`;
+//             no down-the-line camera: available false, no groups, nothing said) }
 //
 //  STORY  = { available, text ("set on 59° · 13° steeper than address at P3 · peaked at the top · delivered at 61°, 2° above where you set
 //             it. Hands 12° steeper coming down."), parts: [string], set, back, top, delivered, hands, shapeRead, shapeWord,
@@ -183,8 +190,18 @@ public:
     // swing has no such position. A lookup into the delivered result.
     Q_INVOKABLE qint64 seekUsFor(const QString &tag) const;
 
+    // THE STILL MAKER (the app's: main.cpp hands it ReportStills, as it does the Posture presenter's): makes the
+    // picture's stills, each a thisShot.picture frame's `still` map { swingDir, camera, phase, x, y, w, h, maxPx, outPath },
+    // synchronously, on a pool thread; returns outPath → why for each it could not make. Without one the frames keep
+    // src "" and draw their lines on an empty frame.
+    using StillMaker = std::function<QHash<QString, QString>(const QVariantList &stills)>;
+    static void setStillMaker(StillMaker maker);
+
     // ── test seams ──
     void setSnapshot(std::shared_ptr<const SessionSnapshot> snapshot);   // used while no model is set
+    // The picture's document for a swing folder, from a JSON file (a swing document) instead of the disk's: kept
+    // whatever the disk says. An empty path forgets it.
+    Q_INVOKABLE void setPictureDocumentForTest(const QString &swingDir, const QString &jsonFile);
     Q_INVOKABLE void setSynchronous(bool on);
     Q_INVOKABLE bool waitForIdle(int msTimeout = 60000);
 
@@ -210,6 +227,7 @@ private:
     void startJob();
     void apply(std::shared_ptr<Result> r);
     void flushIfSynchronous();
+    void makeStills();
     void updateSelected(bool force);
     std::shared_ptr<const SessionSnapshot> currentSnapshot() const;
 
@@ -226,6 +244,8 @@ private:
 
     std::shared_ptr<Result> m_result;
     std::shared_ptr<Worker> m_worker;
+    bool m_stillsBusy = false;
+    QSet<QString> m_stillsAsked;                       // outPaths handed to the maker (once each)
     QThreadPool m_pool;
 };
 

@@ -409,6 +409,19 @@ review sheets, `--probe-qml` before it is called done, then a windowed run. Two 
 
 Stages 1–3 are the chart Mark asked for. 4 is print. 5 and 6 follow.
 
+**Stage 6 as built (29 Oct, uncommitted).** `Gui/charts/delivery_picture.{h,cpp}`, the Posture strip's twin: pure C++ over the
+swing document, on the presenter's `thisShot.picture`, drawn by `PpChDeliveryPicture.qml` (each frame a `PpChPostureFrame`,
+which gained a filled `poly` mark for the slot) after the plane story, in Analyse and in the Replay glance (as Posture's strip
+is). The frames are the down-the-line stills at P1, P4 and P6 by the report stills' rule, the crop the Posture picture's
+widened to take in the ball. The address line runs from the DTL ball through the measured club sample nearest address (the
+nearest MEASUREMENT within 60 ms: the replay's rule refuses a held frame that happens to sit nearest, which left swing 7 with
+no line); the shoulder plane through the trail shoulder the `shoulderPlane` metric was read through (`shoulderPlaneFromHold`
+on the same raw pose frames, so the drawn line's view-plane angle is the metric's); both to the frame's edge, the slot a wash
+between them, frozen on all three frames and drawn whatever the reader's Coach lines toggles (they are the section's reading,
+the plot's own hairlines). Each frame's note is the plane story's at that position ("plane 65° · inside the slot"). No ball:
+the shaft line alone, said; no shoulder plane on the document: said, "re-analyse"; no down-the-line camera: nothing. Not
+printed: the report's Club delivery page is 90 % (Mark 5 Oct) and 97 % (Jess 20 Oct) full and must stay one page.
+
 ---
 
 ## 10. Implementation plan

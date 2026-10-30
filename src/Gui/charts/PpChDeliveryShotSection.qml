@@ -32,13 +32,16 @@ import PinPointStudio
 //     scatter over the golfer's day) | "At impact" (the presenter's lines, the monitor's first) and "Shot shape"
 //     (PpChShotShapeGrid: this shot ringed, the session's shots behind it); "How far can I trust this?" under them,
 //     closed (said once, §4.9).
+//   The picture strip (PpChDeliveryPicture, stage 6): the down-the-line frames at address, the top and P6 with the
+//     address line, the shoulder plane and the slot frozen at address, after the plane story; a press on a frame seeks there.
 //   No down-the-line camera (thisShot.mode "noDtl", §4.3 rule 4): no plane story; the ball flight, the impact lines, the
 //     grid and the trust fold, which says why the plane is absent — every reading still shown.
-//   Replay (the glance at the mat, and the cast; §4.8): the head, the plane story and the shot-shape mark when the
-//     monitor has one — under the glance cards, never instead of them (§8.3). No scatter, no controls, no trust fold.
+//   Replay (the glance at the mat, and the cast; §4.8): the head, the plane story, the shot-shape mark when the
+//     monitor has one and the picture strip (as Posture's glance carries its strip; the frames do not seek) — under the glance cards, never instead of them (§8.3). No scatter, no controls, no trust fold.
 // Every word and number is ChartsDeliveryPresenter's (body.d*, each bound ONCE on the body).
 // objectNames: chDeliverySection, chDeliveryHead, chDeliveryStory (chDeliveryPos + tag), chDeliverySlot,
-// chDeliveryFlight, chDeliveryImpact (chDeliveryImpactLine + key), chDeliveryShape, chDeliveryTrust (+ the blocks').
+// chDeliveryFlight, chDeliveryImpact (chDeliveryImpactLine + key), chDeliveryShape, chDeliveryPicture, chDeliveryTrust
+// (+ the blocks').
 Item {
     id: ds
     objectName: "chDeliverySection"
@@ -159,6 +162,18 @@ Item {
             PpChShotShapeGrid { roles: ds.ty; shot: ds.shape; marks: []; line: ""; interactive: false
                                 cell: ds.has ? ds.ty.u(20) : 20 }
             Text { text: ds.shape.word || "-"; font: ds.has ? ds.ty.fBodyM : Qt.font({}); color: ds.has ? ds.ty.ink : "black" }
+        }
+
+        // ── the picture strip: address, the top and P6 down the line, the lines frozen at address (stage 6); at the glance
+        //    too, with no affordance ──
+        PpChDeliveryPicture {
+            visible: ds.has && on
+            width: ds.width
+            roles: ds.ty
+            picture: ds.has ? (ds.sh.picture || null) : null
+            interactive: ds.interactive && !ds.cast
+            glance: ds.replay
+            onSeek: (us) => ds.seekTo(us)
         }
 
         // ── Analyse: ball flight | at impact and the shot shape ──

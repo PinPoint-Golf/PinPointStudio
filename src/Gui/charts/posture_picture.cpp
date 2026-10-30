@@ -531,6 +531,17 @@ PictureDoc postureDocFrom(const QJsonObject &root, const QString &swingDir, cons
     return d;
 }
 
+PictureCameraDoc pictureCameraDocFrom(const QJsonObject &root, bool dtl)
+{
+    PictureCameraDoc c;
+    c.dtl = dtl;
+    const QJsonObject an = root.value(QStringLiteral("analysis")).toObject();
+    if (root.isEmpty() || an.isEmpty()) return c;
+    const qint64 t0 = qint64(root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble());
+    readCamera(root, an, t0, dtl, &c);
+    return c;
+}
+
 QVariantMap posturePictureUnread(const QString &swingDir, const QString &why)
 {
     return { { QStringLiteral("available"), false }, { QStringLiteral("swingDir"), swingDir },

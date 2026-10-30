@@ -34,6 +34,9 @@
 //   --probe-draw split | overlay — small multiples or one plot (else the reader's saved choice)
 //   --probe-trust open — open the section's "How far can I trust this?" before the grab
 //   --probe-fold delivery|deliverySession — fold that section before the checks (its one-line state is logged)
+//   The picture strip (stage 6): "PROBE: PICTURE …" lines (available, lines drawn, why, legend, each frame's crop, marks
+//   and note; each drawn frame's hasImage and scale), a check that the strip is drawn when the payload has one, and the
+//   grab waits (up to 40 s) for the frames' stills.
 //   --probe-dump 1 — the presenter's payloads (thisShot, session, plotLayers, choices) as one "PROBE: DUMP <json>" line
 // --probe-png writes the page (the view's scrolling content) as window grabs a viewport apart, <stem>_part<i>.png, with a
 // "PROBE: PAGE w h viewport x y w h" line and a "PROBE: PART i contentY" line each, to stitch. "PROBE:" lines carry the
@@ -110,6 +113,7 @@ Item {
 
     property int step: 0
     property int waits: 0
+    property int picWaits: 0
     property var body: null
     property var view: null
     property var section: null
@@ -190,8 +194,21 @@ Item {
                     probe.log("shape: " + ((sh.shape && sh.shape.word) || "-") + " · face " + ((sh.shape && sh.shape.faceText) || "") + " · f2p " + ((sh.shape && sh.shape.faceToPathText) || ""))
                     for (const t of ((sh.trust && sh.trust.lines) || [])) probe.log("  trust: " + t)
                     probe.log("replay glance: " + JSON.stringify(sh.replay || {}))
+                    const pic = sh.picture || {}
+                    probe.log("PICTURE available " + pic.available + " · lines " + JSON.stringify(pic.lines || {}) + " · pending " + pic.pending)
+                    for (const w of (pic.why || [])) probe.log("PICTURE why: " + w)
+                    probe.log("PICTURE legend: " + (pic.legend || ""))
+                    for (const g of (pic.groups || [])) for (const fr of (g.frames || [])) {
+                        probe.log("PICTURE FRAME " + fr.tag + " " + fr.when + " · " + fr.width + "×" + fr.height + " crop " + JSON.stringify(fr.crop)
+                                  + " · frame " + fr.frameIndex + " · note: " + (fr.note || "") + (fr.imageWhy ? " · imageWhy: " + fr.imageWhy : ""))
+                        for (const m of (fr.marks || [])) probe.log("PICTURE MARK " + fr.tag + " " + m.kind + " '" + m.label + "' " + JSON.stringify(m.pts))
+                    }
                     probe.view = probe.one(root, "chShotView")
                     probe.section = probe.one(root, "chDeliverySection")
+                    if (probe.section && pic.available === true && b.collapsed.delivery !== true) {
+                        probe.check(!!probe.one(probe.section, "chDeliveryPicture"), "chDeliveryPicture drawn")
+                        probe.check(probe.all(probe.section, "chDeliveryPictureFrame").length === 3, "three frames: address, the top, P6")
+                    }
                     probe.check(b.deliveryShotShown === true, "deliveryShotShown on the Club delivery preset")
                     probe.check(!!probe.section && probe.section.height > 0, "chDeliverySection shown")
                     if (probe.section) {
@@ -256,6 +273,10 @@ Item {
                 if (f) f.contentY = 0
                 probe.log("SURFACE " + Theme.colorSurface)
             } else if (probe.step === 6) {
+                // the picture's stills land after the presenter's first delivery: wait for them (or 40 s)
+                const frs = probe.all(probe.body, "chDeliveryPictureFrame")
+                if (frs.length > 0 && frs.some(x => !x.hasImage) && probe.picWaits < 16) { probe.picWaits += 1; probe.step -= 1; return }
+                for (const x of frs) probe.log("PICTURE DRAWN " + x.tag + " hasImage " + x.hasImage + " coach " + x.coachDrawn + " poly " + x.polyDrawn + " scale " + x.s.toFixed(4))
                 // GEO lines in the page's own coordinates (the view's Flickable content), then the page grabbed in strips
                 const f = probe.flickOf(probe.view)
                 probe.flick = f
@@ -264,10 +285,10 @@ Item {
                                "chDeliveryTrust", "chDeliverySession", "chDeliverySessionHead", "chDeliveryBand", "chDeliveryUsual", "chScatter",
                                "chShotShapeGrid", "chTrace:swingPlaneCurve", "chTrace:handPlaneCurve", "chTrace:overlay", "chEnvelope:swingPlaneCurve",
                                "chEnvelope:overlay", "chPlaneLabel", "chFold:delivery", "chFold:deliverySession", "chHead", "chSessionHead", "chTraces",
-                               "chSessionFigure", "chSummary"]
+                               "chSessionFigure", "chSummary", "chDeliveryPicture", "chDeliveryPictureFrame"]
                 for (const n of names) for (const it of probe.all(b, n)) {
                     const p = f ? it.mapToItem(f.contentItem, 0, 0) : it.mapToItem(null, 0, 0)
-                    probe.log("GEO " + (n === "chPlaneLabel" ? n + ":" + it.role : n) + " " + Math.round(p.x) + " " + Math.round(p.y) + " " + Math.round(it.width) + " " + Math.round(it.height))
+                    probe.log("GEO " + (n === "chPlaneLabel" ? n + ":" + it.role : n === "chDeliveryPictureFrame" ? n + ":" + it.tag : n) + " " + Math.round(p.x) + " " + Math.round(p.y) + " " + Math.round(it.width) + " " + Math.round(it.height))
                 }
                 tick.running = false
                 if (probe.png === "" || !f) { probe.finish(); return }
