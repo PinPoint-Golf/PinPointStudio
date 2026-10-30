@@ -977,6 +977,10 @@ int main()
         // backlog item: it is a corridor grading a number in the wrong scale.
         check(countCode(issues, "measureUnitMismatch") == 0,
               "every shipped measure is graded in the unit its producer actually emits");
+        // #118: the "any club" swing plane rows shipped with a lenient Watch edge (81.5°) past their
+        // own 80° plausibility cap, and only the Diagnostic Model's Health list said so.
+        check(countCode(issues, "plausibleInsideCorridor") == 0,
+              "no shipped corridor reaches into readings its own norm does not believe");
         check(countCode(issues, "unknownNormMeasure") == 0, "every shipped norm keys on a real measure");
         check(countCode(issues, "unknownNormContext") == 0, "every shipped norm keys on a real context");
         check(countCode(issues, "normNotCapturable") == 0,
