@@ -27,10 +27,15 @@ import PinPointStudio
 // pages at 300 dpi, appendix pages at 200 (the sheet relays the register's printPageDpi), photographs as
 // JPEG and everything else as a palette ("auto"). Then printFinished, and the sheet is destroyed.
 //
-// THE SHEET IS NEVER SEEN. It sits outside the window's left edge and under everything: PpPdfPrinter grabs
-// the item itself (grabToImage renders the item's own subtree, wherever it is), so it needs to be in the
-// window and visible, not on screen. Nothing here touches Theme — the register draws in Folio light from
-// its own palette, whatever the app's theme is.
+// THE SHEET IS NEVER SEEN, AND NEVER WAITS FOR THE APP WINDOW. It is made here and moved at once into an
+// OffscreenSheet — a window of its own that is never shown, laid out and drawn on demand — and the printer
+// draws each page through it. A sheet left in the app window would be laid out and grabbed only when that
+// window draws, and a window out of sight draws nothing (covered, minimised or on another Space on a Mac;
+// minimised elsewhere): the print stalled until the app was looked at again. Where Qt Quick has no RHI
+// (the offscreen test platform) the sheet stays here instead, outside the window's left edge and under
+// everything, and is grabbed with grabToImage as before. Either way the OffscreenSheet keeps App Nap off
+// until the print is done. Nothing here touches Theme — the register draws in Folio light from its own
+// palette, whatever the app's theme is.
 //
 // LAYOUT BEFORE PRINT. The pager lays a long galley out over a few frames, and printToPdf reads
 // printPageCount once, at the start; so the print waits until the page count has held still for a few
@@ -50,6 +55,8 @@ Item {
         target: host._model()
         function onPrintRequested(report, path) { host.start(report, path) }
     }
+
+    OffscreenSheet { id: offscreen }
 
     PpPdfPrinter {
         id: printer
@@ -112,6 +119,14 @@ Item {
         }
         host.sheet = sh
         host.path = path
+        if (offscreen.adopt(sh)) {
+            sh.x = 0                     // its own window: drawn from the origin, not off the left edge
+            printer.grabber = offscreen
+        } else {
+            printer.grabber = null
+            if (typeof appLog !== "undefined")
+                appLog.info("ReportPrintHost", "printing in the app window: " + offscreen.errorString)
+        }
         sh.register.appendixBody = host._appendixBody(report)
         sh.register.report = report
         const meta = report.meta || ({}), brand = report.brand || ({})
@@ -165,6 +180,8 @@ Item {
         const m = host._model()
         const sh = host.sheet
         host.sheet = null
+        printer.grabber = null
+        offscreen.release()              // before the sheet goes: the window gives it back first
         if (sh) sh.destroy()
         if (m) m.printFinished(ok, path, pages, error)
     }

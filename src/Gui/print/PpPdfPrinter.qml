@@ -43,6 +43,11 @@ import PinPointStudio
 // appendix at 200 (half the bytes; the appendix is read on screen). The sheet is A4 either way —
 // the writer fits every page image to the whole sheet whatever its pixel size.
 //
+// `grabber` (optional) draws the target without the app window: an object whose grab(pixelSize)
+// returns the page as an image, synchronously — the session report's OffscreenSheet, which keeps a
+// print going while the app is covered or minimised (grabToImage waits for the window's next frame,
+// and a window out of sight draws none). Null: grabToImage, as before.
+//
 // Not wired to any control yet — print is the last thing on the plan.
 QtObject {
     id: root
@@ -54,6 +59,7 @@ QtObject {
     property string author: ""
     property string subject: ""
     property string encoding: "lossless"
+    property var grabber: null
     readonly property bool busy: _target !== null
 
     signal pageWritten(int index, int count)
@@ -135,6 +141,18 @@ QtObject {
         const scale = pageDpi / 96
         const photo = target.printPageHasPhoto !== undefined && !!target.printPageHasPhoto
         const requested = Qt.size(Math.round(target.width * scale), Math.round(target.height * scale))
+        if (grabber) {
+            const image = grabber.grab(requested)
+            if (!_writer.addPage(image, photo, requested)) {
+                _fail("Page " + (page + 1) + " could not be drawn: "
+                      + (grabber.errorString || _writer.errorString))
+                return
+            }
+            pageWritten(page, _count)
+            _page = page + 1
+            _step()
+            return
+        }
         const started = target.grabToImage(function (result) {
             // A cancel (or a new run) between the request and the picture: drop it.
             if (root._target !== target || root._page !== page)

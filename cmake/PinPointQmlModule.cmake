@@ -618,5 +618,14 @@ set(PP_QML_SOURCES
     # behind __has_include, so a missing path drops the type silently rather than failing the build.
     src/Gui/print/pdf_document_writer.h
     src/Gui/print/pdf_document_writer.cpp
+    # The report's print sheet in a window of its own (QQuickRenderControl), so a print does not stall
+    # while the app is out of sight; same include-path rule as the writer above.
+    src/Gui/print/offscreen_sheet.h
+    src/Gui/print/offscreen_sheet.cpp
+    src/Gui/print/busy_activity.h
 )
+# App Nap is macOS's; elsewhere BusyActivity is inline and empty. Foundation comes with Qt6::Gui (AppKit).
+if(APPLE)
+    list(APPEND PP_QML_SOURCES src/Gui/print/busy_activity_mac.mm)
+endif()
 
