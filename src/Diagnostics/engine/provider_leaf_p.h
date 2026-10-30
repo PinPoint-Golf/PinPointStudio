@@ -238,13 +238,18 @@ protected:
     // exactly as a loaded layer is: the report is advisory (an overlay routinely fails standalone
     // referential integrity and the caller reads the ASSEMBLED one), but a duplicate id, a
     // malformed reducer or a mismatched unit is a fault of this content alone and is worth naming
-    // before the merge buries it.
+    // before the merge buries it. The referential codes are dropped exactly as loadLayer() drops
+    // them (#99): an edited shipped habit names shipped signals this layer does not carry, and the
+    // merged provider puts every layer report on the health list, so keeping them here accused each
+    // edited habit of an unknown signal. The assembled check still reports a reference that is
+    // really broken.
     void adopt(typename Traits::Pack content, QString label, PackOrigin origin)
     {
         m_pack   = std::move(content);
         m_label  = std::move(label);
         m_origin = origin;
-        m_report = Traits::validate(m_pack);
+        for (ValidationIssue &i : Traits::validate(m_pack).issues)
+            if (Traits::admitLayerIssue(i)) m_report.issues.push_back(std::move(i));
     }
 
     typename Traits::Pack m_pack;

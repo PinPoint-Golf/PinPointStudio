@@ -1627,6 +1627,28 @@ int main(int argc, char **argv)
         check(m.unsavedCount() == 0, "and nothing is unsaved");
     }
 
+    // #99: editing a shipped habit copies it into "your edits", and that copy names shipped signals
+    // it does not carry. Health once read that as an unknown signal on every habit touched.
+    std::printf("=== #99: an edited shipped habit raises no false unknown signal ===\n");
+    {
+        m.undoTo(-1);
+        const auto unknownSignals = [&] {
+            int n = 0;
+            for (const QVariant &v : m.validation())
+                if (v.toMap().value(QStringLiteral("code")).toString() == QStringLiteral("unknownSignal")) ++n;
+            return n;
+        };
+        const QString habit = QStringLiteral("s_posture");
+        check(!rowFor(m.rows(QStringLiteral("characteristics")), habit).isEmpty(), "S-posture ships");
+        const int errorsBefore = m.validationErrorCount();
+        check(okOf(m.setField(QStringLiteral("characteristics"), habit, QStringLiteral("label"),
+                              QStringLiteral("Probe posture"))),
+              "renaming it lands");
+        check(unknownSignals() == 0, "health lists no unknown signal for it");
+        check(m.validationErrorCount() == errorsBefore, "and the error count does not move");
+        m.undo();
+    }
+
     std::printf("=== the ring collar offers the whole strength ladder ===\n");
     {
         // The collar draws five cells, so every rung is reachable in one hold and none of them is
