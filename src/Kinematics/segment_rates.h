@@ -120,6 +120,9 @@ struct SegmentRatesConfig {
     double  gyroNoiseDps     = tuned::sequence::kGyroNoiseDps;      // sequence.gyroNoiseDps — per-sample IMU σ
     bool    faceOnTrunkPlacement = tuned::sequence::kFaceOnTrunkPlacement; // sequence.faceOnTrunkPlacement — §9 gate
     double  sightedTurnDeg   = tuned::sequence::kSightedTurnDeg;    // sequence.sightedTurnDeg — |turn| below ⇒ blind band
+    double  squareFromMsPelvis = tuned::sequence::kSquareFromMsPelvis; // sequence.squareFromMsPelvis — square-up search, from impact
+    double  squareFromMsThorax = tuned::sequence::kSquareFromMsThorax; // sequence.squareFromMsThorax
+    double  squareToMs         = tuned::sequence::kSquareToMs;         // sequence.squareToMs
     double  minAfterReversalMs = tuned::sequence::kMinAfterReversalMs; // sequence.minAfterReversalMs — a sighted trunk peak closer to a sign change is a spike
     double  minCredibleClubMph = tuned::sequence::kMinCredibleClubMph; // sequence.minCredibleClubMph
     bool    throughP8          = tuned::sequence::kThroughP8;          // sequence.throughP8 — domain Transition→P8, not →Impact
@@ -206,6 +209,9 @@ struct SegmentRatesConfig {
         apply(ov, "sequence.cameraClubJudgeWindowMs",     c.judgeWindowMs);
         apply(ov, "sequence.cameraClubJudgeMinMeasured",  c.judgeMinMeasured);
         apply(ov, "sequence.sightedTurnDeg",    c.sightedTurnDeg);
+        apply(ov, "sequence.squareFromMsPelvis", c.squareFromMsPelvis);
+        apply(ov, "sequence.squareFromMsThorax", c.squareFromMsThorax);
+        apply(ov, "sequence.squareToMs",         c.squareToMs);
         apply(ov, "sequence.minAfterReversalMs", c.minAfterReversalMs);
         apply(ov, "sequence.minCredibleClubMph", c.minCredibleClubMph);
         apply(ov, "sequence.throughP8",          c.throughP8);

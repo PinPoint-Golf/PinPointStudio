@@ -285,7 +285,8 @@ clamped through the whole downswing. The formulae are otherwise unchanged:
 
 ```
 θ̃(t) = acos r(t)                         // unsigned, as before
-t_sq  = argmax_{t ∈ [Transition, Finish]} w(t)   // the square-up instant: span maximum in the downswing
+t_sq  = argmax_{t ∈ [Impact − 150 ms (thorax) / 250 ms (pelvis), Impact + 150 ms]} w(t)
+                                          // the square-up instant: span maximum about impact (§12.7)
 θ(t)  = +θ̃(t) for t < t_sq,  −θ̃(t) for t ≥ t_sq  // closed positive before square, open after
 rate  = −dθ/dt                            // opening positive
 σ_θ   = σ_w / (w₀ · max(sin θ̃, sin θ_floor))
@@ -921,6 +922,23 @@ does it per shot too.
   shape to predict measurement error per shot.
 
 ---
+
+### 12.7 The square-up is looked for about impact (#103, 30 Oct 2026)
+
+`t_sq` was the span maximum over Transition → Finish. On 11 library shots that maximum was not
+square: a wide shoulder line at the top (−270…−340 ms; the 2-D span of a tilted shoulder line) or in
+the follow-through (+450…+850 ms). Every sample between it and the true square took the wrong sign,
+so the chest read as turning away from the target through impact (`sequence.chestUnreadable`).
+
+Across the 236 library swings the square-up sits at a median −7 ms for the thorax (1st percentile
+−80 ms) and −80 ms for the pelvis (1st percentile −174 ms). The search is now a window about impact:
+thorax [−150, +150] ms, pelvis [−250, +150] ms (`sequence.squareFromMsThorax`,
+`sequence.squareFromMsPelvis`, `sequence.squareToMs`). Measured offline over the library's stored
+pose (mean opening rate over the 60 ms before impact, and the 100 ms after): backwards chest curves
+13 → 0 before impact and 15 → 0 after; pelvis 38 → 35 and 3 → 1 (the pelvis remainder is the hands
+crossing the hips at impact, not the unfold). The instant is unchanged on every other swing. The
+window also stops the reference `w₀` being read off a too-wide artefact at the top, so those samples
+now fall inside the sin floor and show as a gap rather than as a false angle.
 
 ## 13. The down-the-line pair, uncalibrated — built, and what it found (2026-09-20)
 

@@ -1115,6 +1115,18 @@ inline constexpr double       kGyroNoiseDps      = 2.0;      // sequence.gyroNoi
 //     below the floor: 27 of 55 library swings lost a sound club node to it.)
 inline constexpr bool         kFaceOnTrunkPlacement = true;   // sequence.faceOnTrunkPlacement
 inline constexpr double       kSightedTurnDeg       = 20.0;   // sequence.sightedTurnDeg
+//   kSquareFromMsPelvis / kSquareFromMsThorax / kSquareToMs — where the face-on span route looks for
+//     a trunk segment's square-up instant (the sign unfold), relative to IMPACT (#103, 2026-10-30).
+//     It looked over Top → Finish, and the widest span there was not always square: on 11 library
+//     shots it was a wide shoulder line at the top (−270…−340 ms) or the follow-through (+450…+850
+//     ms), and the chest curve ran backwards through impact. Across the 236 library swings the
+//     square-up sits at a median −7 ms for the chest (1st percentile −80) and −80 ms for the pelvis
+//     (1st percentile −174); a segment still closed 150 ms after impact, or already square 250 ms
+//     before it, is not a golf swing. In the window: backwards chest curves 13 → 0 before impact
+//     and 15 → 0 after it; every other swing's instant unchanged.
+inline constexpr double       kSquareFromMsPelvis   = -250.0; // sequence.squareFromMsPelvis
+inline constexpr double       kSquareFromMsThorax   = -150.0; // sequence.squareFromMsThorax
+inline constexpr double       kSquareToMs           = 150.0;  // sequence.squareToMs
 inline constexpr double       kMinAfterReversalMs   = 60.0;   // sequence.minAfterReversalMs
 inline constexpr double       kMinCredibleClubMph   = 40.0;   // sequence.minCredibleClubMph
 //   kThroughP8 — the sequence domain runs Transition → P8 (shaft parallel, follow-through), so a

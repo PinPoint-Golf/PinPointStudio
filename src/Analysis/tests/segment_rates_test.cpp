@@ -2330,6 +2330,48 @@ int main()
               std::any_of(pt.begin(), pt.end(), [](const MetricSeries &m) { return m.key == QLatin1String("thoraxPeakTime"); }));
     }
 
+    // ── §16d the square-up is looked for about impact (#103) ──────────────────────────────────────────────
+    //    A shoulder line imaged WIDER at the top than at square (the 2-D span of a tilted line; 11 library
+    //    shots, −270…−340 ms) used to be taken as the square-up, and every sample between it and the true
+    //    square took the wrong sign: the chest ran backwards through impact. The search is now a window
+    //    about impact; the old Top → Finish search is reproduced by widening that window.
+    {
+        const ShaftTrack2D shaft = makeShaft();
+        PoseTrack2D pose = makePose(true);
+        const double wide = 0.5 * 1.06 * kShSpanPx / kW;   // 6 % wider than square
+        for (PoseFrame2D &f : pose.frames) {
+            if (f.t_us < kTopUs - 30000 || f.t_us > kTopUs + 60000) continue;
+            f.kp[kLSh] = QPointF(0.5 - wide, f.kp[kLSh].y());
+            f.kp[kRSh] = QPointF(0.5 + wide, f.kp[kRSh].y());
+        }
+        SegmentRatesInputs in;
+        in.pose = &pose; in.frameW = kW; in.frameH = kH; in.leadIsLeft = true;
+        in.shaft = &shaft; in.phases = &ph; in.impactUs = kImpactUs;
+        const auto preImpactMean = [](const SegmentRateChannel &ch) {
+            double sum = 0.0; int k = 0;
+            for (size_t i = 0; i < ch.series.t_us.size(); ++i)
+                if (ch.series.t_us[i] >= kImpactUs - 60000 && ch.series.t_us[i] <= kImpactUs
+                    && std::isfinite(ch.series.value[i])) { sum += ch.series.value[i]; ++k; }
+            return k ? sum / k : std::nan("");
+        };
+        const auto unreadable = [](const SegmentRatesResult &r) {
+            const KsNode *t = nodeOf(r, SeqSegment::Thorax);
+            if (t) for (const GateRecord &g : t->gates) if (g.gate == QLatin1String("sequence.chestUnreadable")) return true;
+            return false;
+        };
+        SegmentRatesConfig old = cfg;
+        old.squareFromMsThorax = -1e6;
+        old.squareToMs         = (kFinishUs - kImpactUs) / 1000.0;
+        const SegmentRatesResult ro = buildSegmentRates(in, old);
+        const SegmentRatesResult rn = buildSegmentRates(in, cfg);
+        const double mo = preImpactMean(ro.thorax), mn = preImpactMean(rn.thorax);
+        std::printf("      chest mean over the 60 ms before impact: Top→Finish search %.0f °/s, about impact %.0f °/s\n", mo, mn);
+        CHECK("§16d the fixture reproduces #103: searched over Top → Finish, the chest runs backwards into impact",
+              mo <= 0.0 && unreadable(ro));
+        CHECK("§16d searched about impact, the chest turns toward the target into impact and is readable",
+              mn > 0.0 && !unreadable(rn));
+    }
+
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;
 }

@@ -583,6 +583,12 @@ struct PoseView {
 // and then clamps through the whole downswing (the 2026-09-17 spike). The square-up instant the
 // sign unfold already locates is where the reference is read, robustly; the address median is
 // kept as a floor for a golfer who was widest at address.
+//
+// [searchFromUs, searchToUs] is where the square-up is looked for: a window about IMPACT
+// (sequence.squareFromMs* / squareToMs, #103), not Top → Finish. The widest span over the whole
+// downswing was sometimes the shoulder line at the top or in the follow-through, and every sample
+// between that and the true square then took the wrong sign — the chest ran backwards through
+// impact.
 AngleTrack spanTurnTrack(const PoseView &pv, int a, int b, int64_t addressUs, int64_t searchFromUs,
                          int64_t searchToUs, const SegmentRatesConfig &cfg)
 {
@@ -617,7 +623,7 @@ AngleTrack spanTurnTrack(const PoseView &pv, int a, int b, int64_t addressUs, in
     const double wAddr = medianOf(ref);
     if (!(wAddr >= cfg.minSpanPx)) return out;
 
-    // The square-up instant: the span maximum inside the downswing search window, read off a
+    // The square-up instant: the span maximum inside the search window about impact, read off a
     // local median so a single wide sample does not set it. Before it the body is still closed
     // (turn positive), after it open (negative). A ladder inference, which is why the rung is
     // Estimated — see the header.
@@ -1870,7 +1876,6 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
 
         const int64_t addressUs = phaseTime(phases, Phase::Address, -1);
         const int64_t topUs     = phaseTime(phases, Phase::Top, dom.fromUs);
-        const int64_t finishUs  = phaseTime(phases, Phase::Finish, pv.frames->back().t_us);
 
         // ── The PAIR route, between the IMU rung and the face-on span rung ─────────────────────
         // Pelvis and thorax only. It needs both poses, and it needs them on one clock; nothing
@@ -2014,7 +2019,9 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
         // The trunk from its spans. The node is claimed only where the camera can see the rate —
         // the sighted band, |turn| ≥ sightedTurnDeg — and bounded where it could not (§12.4).
         const auto trunkFromSpan = [&](SegmentRateChannel &ch, SeqSegment seg, int a, int b, const QString &label) {
-            AngleTrack at = spanTurnTrack(pv, a, b, addressUs, topUs, finishUs, cfg);
+            const double fromMs = seg == SeqSegment::Pelvis ? cfg.squareFromMsPelvis : cfg.squareFromMsThorax;
+            AngleTrack at = spanTurnTrack(pv, a, b, addressUs, impactUs + int64_t(fromMs * 1000.0),
+                                          impactUs + int64_t(cfg.squareToMs * 1000.0), cfg);
             if (at.t.empty()) return;
             std::vector<uint8_t> sighted;
             PlacementGate gate;
