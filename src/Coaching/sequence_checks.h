@@ -331,7 +331,7 @@ inline QString sequenceGateWords(const QString &gateId)
     return e ? gates::claimWords(*e) : QString();
 }
 
-// The QML shape — PpSequenceStrip and PpChSeqTable bind it; empty map = nothing recorded.
+// The QML shape — PpChSeqTable binds it; empty map = nothing recorded.
 //   { notAssessable, gapNote,
 //     checks: [{ facet, signalId, label, question, state, mark, pFire, quantified, reason, gate, trustSubject,
 //                gateWords, detail }] }

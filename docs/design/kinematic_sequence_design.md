@@ -488,6 +488,11 @@ which is how the benchmark chart is drawn (the club dwarfs the pelvis by design;
 one click away). `showSigmaBand` is the existing ±σ ribbon and is what makes the face-on pelvis curve
 readable for what it is.
 
+> **Retired 30 Oct 2026 (#19).** The strip and the old replay charts that hosted it
+> (`PpReplayCharts.qml`) are deleted: nothing had loaded them since the Charts panel replaced that
+> screen, and the Charts panel's sequence table (`PpChSeqTable`) carries the sequence and its checks.
+> The text below is kept as the record of what it was.
+
 **The strip is the one new surface.** `PpSequenceStrip.qml`, shown under the plot only while the
 preset is "Kinematic sequence": four chips in `order`, each labelled with the segment, its
 `beforeImpactMs`, and its route glyph (the directory's method glyphs — inertial, triangulated,

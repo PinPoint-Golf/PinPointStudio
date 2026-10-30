@@ -56,13 +56,9 @@ Item {
     property var  seriesList: []         // [{ key, label, unit, t_us, value, phaseSamples }]
     property var  phases:     []         // [{ phase, t_us, conf }]
     // analysisDetail.kinematicSequence — the ordered peaks of the four segment angular-speed
-    // curves (kinematic_sequence_json.h). Read by the SEQUENCE strip under the plot, which is
-    // shown only while the METRICS preset is "Kinematic sequence"; null on a swing that produced
-    // no node, and the strip then simply is not there.
+    // curves (kinematic_sequence_json.h), marked on the plot under the "Kinematic sequence"
+    // preset; null on a swing that produced no node.
     property var  kinematicSequence: null
-    // SessionDiagnosticsModel.sequenceChecks(shotId) for this swing — the sequence tile's
-    // sequence-checks line, the marks and their reasons (§10.6 E4). null draws no line.
-    property var  sequenceChecks: null
     // The sequence as plot geometry (ChartMetrics.sequenceOverlay), under its own preset only —
     // the four curves it marks are the ones that preset strokes. Null elsewhere, so no plot draws it.
     readonly property var _sequenceOverlay: (root.preset === "Kinematic sequence"
@@ -122,9 +118,6 @@ Item {
     property bool controlsCollapsed: false
     property bool chartCollapsed:    false
     property bool summaryCollapsed:  false
-    // The SEQUENCE tile under the kinematic sequence chart folds to its title line (the verdict
-    // stays on it), which hands its height back to the plot. Persisted with the other three.
-    property bool sequenceCollapsed: false
 
     readonly property string _sectionKeyBase: root.sessionType + ":" + SessionMode.mode + ":"
     on_SectionKeyBaseChanged: { root._restoreSections(); root._restorePrefs() }
@@ -136,7 +129,6 @@ Item {
         root.controlsCollapsed = m[b + "controls"] === true
         root.chartCollapsed    = m[b + "chart"]    === true
         root.summaryCollapsed  = m[b + "summary"]  === true
-        root.sequenceCollapsed = m[b + "sequence"] === true
     }
     function _persistSection(name, val) {
         if (root.sessionType < 0) return            // compact / transient — don't persist
@@ -1394,26 +1386,6 @@ Item {
                     }
                 }
             }
-        }
-
-        // ── SEQUENCE tile — only under its own preset ────────────────────────────────────────
-        // The rows are the peaks of exactly the four curves the "Kinematic sequence" preset
-        // draws, so the tile is tied to that preset and to nothing else: under any other
-        // vocabulary it is not shown, and on a swing that produced no node it is not there at
-        // all. Everything it prints is ChartMetrics' (sequenceTable / sequenceRouteText); the
-        // component binds.
-        PpSequenceStrip {
-            visible: !root.compact && !root.chartCollapsed
-                     && root.preset === "Kinematic sequence"
-                     && !!root.kinematicSequence && !!root.kinematicSequence.nodes
-                     && root.kinematicSequence.nodes.length > 0
-            Layout.fillWidth: true
-            kinematicSequence: root.kinematicSequence
-            checks: root.sequenceChecks
-            impactUs: root.impactUs
-            collapsed: root.sequenceCollapsed
-            onToggled: { root.sequenceCollapsed = !root.sequenceCollapsed
-                         root._persistSection("sequence", root.sequenceCollapsed) }
         }
 
         // Legend chips = toggle + live value / Δ-from-address readout at the playhead.

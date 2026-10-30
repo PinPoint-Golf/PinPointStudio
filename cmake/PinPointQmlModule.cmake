@@ -71,7 +71,6 @@ set(PP_QML_FILES
     src/Gui/session/PpClubPanel.qml
     src/Gui/cameras/PpCameraTiles.qml
     src/Gui/session/PpModeStage.qml
-    src/Gui/review/PpReplayCharts.qml
     src/Gui/review/PpTransitTimeline.qml
     src/Gui/review/PpReplayTransport.qml
     src/Gui/shell/PpRail.qml
@@ -372,7 +371,6 @@ set(PP_QML_FILES
     src/Gui/review/PpChartPlot.qml
     src/Gui/review/PpSegmentBrush.qml
     src/Gui/review/PpChartSummary.qml
-    src/Gui/review/PpSequenceStrip.qml
     src/Gui/review/PpSpeedSelector.qml
     src/Gui/components/PpToast.qml
     src/Gui/components/PpNotificationHost.qml
