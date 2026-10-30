@@ -1946,6 +1946,7 @@ FitResult fitSkeleton(const FitInput &in)
             for (ViewObs &o : P.fo) {
                 for (KpObs &k : o.kp) if (k.sigma > 0) k.u = in.foW - k.u;
                 if (std::isfinite(o.shaftTheta)) o.shaftTheta = kPi - o.shaftTheta;
+                if (o.headSigma > 0) o.headU = in.foW - o.headU;   // the measured clubhead too (#49)
             }
         }
     }

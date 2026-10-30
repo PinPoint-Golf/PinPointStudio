@@ -1283,6 +1283,36 @@ int main()
         check(sOn.dirBodyP90 <= sOff.dirBodyP90 + 0.5, "(BALL) the body is no worse for it (bone direction +0.5°)");
     }
 
+    // ── (MIR) a mirrored face-on recording (#49) ──────────────────────────────────────────────
+    // The same swing with its face-on view mirrored (u → width − u): keypoints, shaft angle and the
+    // measured clubhead. The fit flips the face-on source back, so the club head comes out where
+    // the unmirrored fit puts it. Before #49 the clubhead pixel was left mirrored and pulled the
+    // 3-D club to the far side of the golfer.
+    std::printf("(MIR) a mirrored face-on recording fits the same club head path\n");
+    {
+        const FitInput plain = observe(T, 2.0, 0.02, true, 11, false);
+        FitInput mir = plain;
+        for (ViewObs &o : mir.fo) {
+            for (KpObs &k : o.kp) if (k.sigma > 0) k.u = mir.foW - k.u;
+            if (std::isfinite(o.shaftTheta)) o.shaftTheta = kPi - o.shaftTheta;
+            if (o.headSigma > 0) o.headU = mir.foW - o.headU;
+        }
+        const FitResult rP = fitSkeleton(plain), rM = fitSkeleton(mir);
+        double worst = 0;
+        int n = 0;
+        for (size_t i = 0; i < T.t.size() && i < rP.grip.size() && i < rM.grip.size(); ++i) {
+            const V3 hP = rP.grip[i] + rP.shaftDir[i] * (rP.clubLengthM - 0.04);
+            const V3 hM = rM.grip[i] + rM.shaftDir[i] * (rM.clubLengthM - 0.04);
+            if (!std::isfinite(hP.x) || !std::isfinite(hM.x)) continue;
+            worst = std::max(worst, (hP - hM).norm() * 100);
+            ++n;
+        }
+        std::printf("      %d frames, worst club head difference %.2f cm\n", n, worst);
+        check(rP.valid && rM.valid, "(MIR) both fits converged");
+        check(!rP.foMirrored && rM.foMirrored, "(MIR) only the mirrored source is found mirrored");
+        check(n > 0 && worst <= 2.0, "(MIR) the club head path matches the unmirrored fit within 2 cm");
+    }
+
     // ── (2C) two cameras or no skeleton (v15) ──────────────────────────────────────────────────
     std::printf("(2C) the 3-D skeleton needs both cameras\n");
     {
