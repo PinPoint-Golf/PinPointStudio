@@ -315,6 +315,9 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
         // Drawn but not judged (MetricSeries::withheld), same contract: only when set.
         if (!m.withheld.isEmpty())
             mo.insert(QStringLiteral("withheld"), m.withheld);
+        // An angle of a line (MetricSeries::lineAngle), same contract: only when set.
+        if (m.lineAngle)
+            mo.insert(QStringLiteral("lineAngle"), true);
         metrics.append(mo);
     }
     o[QStringLiteral("metrics")] = metrics;

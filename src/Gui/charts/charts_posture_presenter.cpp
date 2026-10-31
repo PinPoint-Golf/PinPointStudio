@@ -247,6 +247,7 @@ std::shared_ptr<ShotSeries> postureShotFromDetail(const QVariantMap &d, const QS
         if (!m.valid.empty()) m.valid.resize(n, 1);
         m.sigma = s.contains(QStringLiteral("sigma")) ? s.value(QStringLiteral("sigma")).toDouble() : kNaN;
         m.sigmaKind = s.contains(QStringLiteral("sigmaKind")) ? s.value(QStringLiteral("sigmaKind")).toInt() : -1;
+        m.lineAngle = s.value(QStringLiteral("lineAngle")).toBool();
         for (const QVariant &pv : s.value(QStringLiteral("phaseSamples")).toList()) {
             const QVariantMap p = pv.toMap();
             PhaseSample ps;

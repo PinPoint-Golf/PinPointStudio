@@ -28,6 +28,7 @@
 #include "../measures/measure_sample.h"
 
 #include "../../Metrics/series_reduce.h"
+#include "../../Metrics/line_angle.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -978,6 +979,62 @@ int main()
 
         check(!reduceOverGrid(grid, ladderMeasure("nope", { "alsoNope" })).has_value(),
               "no rung answers, no value");
+    }
+
+    // ── An angle of a line (issue #116) ──────────────────────────────────────
+    //
+    // 2026-10-08 Wrist_01 s3's shaft lean, in shape: a continuous curve a whole turn out — 383° at
+    // address, up through 572.5° at the top, down to 354.5° at the ladder's (early) impact. Marked
+    // `lineAngle`, every VALUE the grid holds is folded into (−180°, 180°] after the median, while
+    // the SPANS stay on the continuous curve; unmarked, the same curve grids exactly as before.
+    std::printf("\nline angle (shaft lean)\n");
+    {
+        near(wrapLeanDeg(354.5), -5.5, "wrapLeanDeg: 354.5° is −5.5°", 1e-12);
+        check(wrapLeanDeg(180.0) == 180.0 && wrapLeanDeg(-180.0) == 180.0,
+              "wrapLeanDeg: ±180° is +180° — the range is (−180°, 180°]");
+        check(wrapLeanDeg(540.0) == 180.0 && wrapLeanDeg(-540.0) == 180.0, "wrapLeanDeg: ±540° is +180°");
+        check(wrapLeanDeg(8.4) == 8.4 && wrapLeanDeg(-11.0) == -11.0 && wrapLeanDeg(0.0) == 0.0
+                  && wrapLeanDeg(179.9) == 179.9 && wrapLeanDeg(-179.9) == -179.9,
+              "wrapLeanDeg: a value already in range is unchanged");
+        near(wrapLeanDeg(-362.0), -2.0, "wrapLeanDeg: a turn off a negative value", 1e-12);
+
+        const auto curveAt = [](double ms) {
+            return ms <= 400.0 ? 383.0 + (572.5 - 383.0) * ms / 400.0
+                               : 572.5 + (354.5 - 572.5) * (ms - 400.0) / 700.0;
+        };
+        const auto leanAnalysis = [&](bool lineAngle) {
+            QJsonArray t, v;
+            for (int ms = 0; ms <= 1200; ms += 5) { t.append(qint64(ms) * 1000); v.append(curveAt(ms)); }
+            QJsonObject mo{ { QStringLiteral("key"), QStringLiteral("impactShaftLean") },
+                            { QStringLiteral("unit"), QStringLiteral("°") },
+                            { QStringLiteral("t_us"), t }, { QStringLiteral("value"), v },
+                            { QStringLiteral("phaseSamples"), QJsonArray{} } };
+            if (lineAngle) mo.insert(QStringLiteral("lineAngle"), true);
+            QJsonArray ph;
+            ph.append(phaseEvent(Phase::Address, 50'000));
+            ph.append(phaseEvent(Phase::Top, 400'000));
+            ph.append(phaseEvent(Phase::Impact, 1'100'000));
+            return QJsonObject{ { QStringLiteral("phases"), ph }, { QStringLiteral("metrics"), QJsonArray{ mo } } };
+        };
+        const SwingPhaseGrid folded = buildPhaseGrid(leanAnalysis(true));
+        const SwingPhaseGrid plain  = buildPhaseGrid(leanAnalysis(false));
+        near(reduceOverGrid(folded, QStringLiteral("impactShaftLean"), at(Phase::Impact)).value_or(-999),
+             354.5 - 360.0, "a lineAngle series reads −5.5° at impact, not 354.5°", 1e-9);
+        near(reduceOverGrid(folded, QStringLiteral("impactShaftLean"), at(Phase::Address)).value_or(-999),
+             curveAt(50.0) - 360.0, "…and its address a turn down too (406.7° → 46.7°)", 1e-9);
+        // The top is a kink, so its ±15 ms median sits a little under 572.5°: the fold takes two
+        // whole turns off whatever the unmarked grid reads there, and nothing else.
+        near(reduceOverGrid(folded, QStringLiteral("impactShaftLean"), at(Phase::Top)).value_or(-999),
+             reduceOverGrid(plain, QStringLiteral("impactShaftLean"), at(Phase::Top)).value_or(999) - 720.0,
+             "…and the top two whole turns, the median otherwise untouched", 1e-9);
+        const MetricPhaseGrid *fm = folded.metric(QStringLiteral("impactShaftLean"));
+        const MetricPhaseGrid *pm = plain.metric(QStringLiteral("impactShaftLean"));
+        bool spansSame = fm && pm && fm->spans.size() == pm->spans.size() && !fm->spans.empty();
+        for (size_t i = 0; spansSame && i < fm->spans.size(); ++i)
+            spansSame = fm->spans[i].min == pm->spans[i].min && fm->spans[i].max == pm->spans[i].max;
+        check(spansSame, "the spans stay on the continuous curve (its 572.5° top is still the max)");
+        near(reduceOverGrid(plain, QStringLiteral("impactShaftLean"), at(Phase::Impact)).value_or(-999),
+             354.5, "unmarked, the same curve grids as it always did (354.5°)", 1e-9);
     }
 
     std::printf("\n%s (%d failures)\n", g_fail ? "FAILED" : "OK", g_fail);

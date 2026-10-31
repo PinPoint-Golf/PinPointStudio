@@ -271,6 +271,8 @@ pa::SwingPhaseGrid deliveryPhaseGridOf(const ShotSeries &shot)
         QJsonObject mo{ { QStringLiteral("key"), k }, { QStringLiteral("unit"), m->unit },
                         { QStringLiteral("t_us"), t }, { QStringLiteral("value"), v }, { QStringLiteral("phaseSamples"), samples } };
         if (anyInvalid) mo.insert(QStringLiteral("valid"), valid);
+        // Shaft lean's readings are folded by the grid (line_angle.h, issue #116): carry the mark.
+        if (m->lineAngle) mo.insert(QStringLiteral("lineAngle"), true);
         if (fin(m->sigma) && m->sigma > 0.0) {
             mo.insert(QStringLiteral("sigma"), m->sigma);
             if (m->sigmaKind >= 0) mo.insert(QStringLiteral("sigmaKind"), m->sigmaKind);

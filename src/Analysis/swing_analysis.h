@@ -308,6 +308,11 @@ struct MetricSeries {
     // from this reading (the camera club peak, KB-18). The value and σ stand and are charted; the
     // engine refuses every signal that reads it (SignalRefusal::Withheld). Serialised only when set.
     QString withheld;
+    // AN ANGLE OF A LINE (shaft lean, issue #116): any SINGLE reading taken from this series — a value
+    // at a phase, a card tile — is folded into (−180°, 180°] by the reader (wrapLeanDeg). The curve
+    // itself stays continuous, because it is unwrapped through the top of the swing and a per-sample
+    // fold would draw two false swings there. Serialised only when set.
+    bool lineAngle = false;
 };
 
 // Find a series by anatomical key, BEST INSTRUMENT FIRST.

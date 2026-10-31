@@ -286,6 +286,7 @@ std::shared_ptr<ShotSeries> SessionSeriesModel::extractShot(const QJsonObject &r
             s.sigma = num(m.value(QStringLiteral("sigma")));
         if (m.contains(QStringLiteral("sigmaKind")))
             s.sigmaKind = m.value(QStringLiteral("sigmaKind")).toInt(-1);
+        s.lineAngle = m.value(QStringLiteral("lineAngle")).toBool();
 
         const QJsonArray ps = m.value(QStringLiteral("phaseSamples")).toArray();
         s.phaseSamples.reserve(size_t(ps.size()));

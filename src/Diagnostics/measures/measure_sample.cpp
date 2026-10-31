@@ -19,6 +19,7 @@
 #include "measure_sample.h"
 
 #include "../../Metrics/series_reduce.h"
+#include "../../Metrics/line_angle.h"      // wrapLeanDeg — a lineAngle series' readings
 #include "../../Core/club_vocabulary.h"
 #include "../../Export/swing_store.h" // no FFmpeg: the store is its own library
 
@@ -245,10 +246,17 @@ SwingPhaseGrid buildPhaseGrid(const QJsonObject &analysis, const PhaseGridConfig
         // -truncation fixture in the test, which reads 11.925 only if the bound includes its 16th
         // sample AND the even case averages rather than taking the lower middle. `minValidSamples`
         // rides along as ReduceConfig::minAtSamples, which exists for exactly this delegation.
+        //
+        // An ANGLE OF A LINE (`lineAngle`, shaft lean — line_angle.h) is reduced on its continuous
+        // curve and only the VALUE is folded into (−180°, 180°]: the median never straddles the fold,
+        // and 2026-10-08 s3 reads −5.5° at its ladder impact rather than 354.5° (issue #116). The spans
+        // below stay on the continuous curve, which is what they describe.
+        const bool lineAngle = mo.value(QStringLiteral("lineAngle")).toBool();
+        const auto reading = [lineAngle](double x) { return lineAngle ? wrapLeanDeg(x) : x; };
         for (const PhaseAt &e : candidates) {
             const Reduced r = reduceAt(view, e.tUs, rc);
             if (r.ok) {
-                PhaseGridValue v{ e.phase, e.tUs, r.value };
+                PhaseGridValue v{ e.phase, e.tUs, reading(r.value) };
                 stampSigma(v);
                 mg.values.push_back(v);
                 continue;
@@ -256,7 +264,7 @@ SwingPhaseGrid buildPhaseGrid(const QJsonObject &analysis, const PhaseGridConfig
             const auto it = std::find_if(labelled.begin(), labelled.end(),
                                          [&](const auto &pr) { return pr.first == e.phase; });
             if (it != labelled.end()) {
-                PhaseGridValue v{ e.phase, it->second.tUs, it->second.value };
+                PhaseGridValue v{ e.phase, it->second.tUs, reading(it->second.value) };
                 stampSigma(v);
                 mg.values.push_back(v);
             }

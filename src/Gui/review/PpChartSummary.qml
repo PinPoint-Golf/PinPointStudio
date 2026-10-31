@@ -138,6 +138,14 @@ ColumnLayout {
     function _meanOf(s) {
         return root._hasMean(s) ? s.mean : s.value
     }
+    // AN ANGLE OF A LINE (series.lineAngle — shaft lean, issue #116): one reading of it is folded into
+    // (−180°, 180°], though its curve runs on continuously through the top of the swing. The JS twin
+    // of wrapLeanDeg (src/Metrics/line_angle.h), which the charts' C++ cards use.
+    function _reading(s, v) {
+        if (!(s && s.lineAngle) || !isFinite(v)) return v
+        var r = v - 360 * Math.round(v / 360)
+        return r <= -180 ? r + 360 : r
+    }
     // A series with no curve: its reading at a phase IS the phase sample, or nothing.
     function _hasCurve(s) { return !!(s && s.t_us && s.t_us.length > 1) }
     function _phaseSampleReading(s, phase) {
@@ -365,10 +373,12 @@ ColumnLayout {
                                : { ok: false, val: 0, us: -1, raw: "" }
                     }
                     var ok = root._measuredAt(card.modelData, us)
-                    var v  = labels.valueAtNearest(card.modelData.t_us, root._meanOf(card.modelData), us)
+                    var v  = root._reading(card.modelData,
+                                           labels.valueAtNearest(card.modelData.t_us, root._meanOf(card.modelData), us))
                     var raw = root._hasMean(card.modelData)
-                              ? cm.formatBare(labels.valueAtNearest(card.modelData.t_us,
-                                                                    card.modelData.value, us),
+                              ? cm.formatBare(root._reading(card.modelData,
+                                                            labels.valueAtNearest(card.modelData.t_us,
+                                                                                  card.modelData.value, us)),
                                               card.modelData.unit)
                               : ""
                     return { ok: ok, val: v, us: us, raw: raw }
@@ -487,7 +497,7 @@ ColumnLayout {
                     var us = root._phaseUs(phase)
                     if (us < 0) return { ok: false, val: 0, us: -1 }
                     return { ok: root._measuredAt(s, us),
-                             val: labels.valueAtNearest(s.t_us, root._meanOf(s), us), us: us }
+                             val: root._reading(s, labels.valueAtNearest(s.t_us, root._meanOf(s), us)), us: us }
                 }
                 function companionTiles(s) {
                     var out = [], sp = cm.cardSpecFor(s.key), i

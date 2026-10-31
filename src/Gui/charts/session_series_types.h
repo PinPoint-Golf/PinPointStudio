@@ -79,6 +79,7 @@ struct MetricSeries {
     double sigma     = kNaN;      // series σ, NaN when absent
     int    sigmaKind = -1;        // -1 when absent
     std::vector<PhaseSample> phaseSamples;
+    bool   lineAngle = false;     // an angle of a line: a single reading is folded (line_angle.h)
 
     bool hasCurve() const { return tUs.size() >= 2; }
     bool isValid(size_t i) const { return valid.empty() || (i < valid.size() && valid[i] != 0); }

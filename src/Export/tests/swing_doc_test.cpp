@@ -100,6 +100,7 @@ int main()
     m.t_us  = { 1000000, 1005000, 1010000 };
     m.value = { 0.0, 12.5, -8.0 };
     m.phaseSamples.push_back({ Phase::Impact, 1010000, -8.0, QStringLiteral("green") });
+    m.lineAngle = true;   // MetricSeries::lineAngle (issue #116) — round-tripped below, absent on `tr`
     a.series.push_back(m);
     // A Summary scalar carrying a measurement uncertainty: empty curve, one
     // Impact phaseSample, non-degree unit. Covers both additions at once — the
@@ -271,6 +272,9 @@ int main()
     check(m1[QStringLiteral("routeId")].toString() == QStringLiteral("pelvisImu")
               && m1[QStringLiteral("routeDirect")].toBool(),
           "routeId and routeDirect serialized when stated");
+    // An angle of a line (issue #116): written only when true, so every other series keeps its bytes.
+    check(m0.value(QStringLiteral("lineAngle")).toBool() && !m1.contains(QStringLiteral("lineAngle")),
+          "lineAngle written when true, absent when false");
     check(an[QStringLiteral("phases")].toArray().size() == 2, "phases array");
     check(static_cast<qint64>(an[QStringLiteral("phases")].toArray().at(0).toObject()[QStringLiteral("t_us")].toDouble()) == 1010000, "phase t_us preserved");
     check(an[QStringLiteral("phases")].toArray().at(1).toObject()[QStringLiteral("segment")].toInt()
@@ -507,6 +511,8 @@ int main()
                       && r1.value(QStringLiteral("routeId")).toString() == QStringLiteral("pelvisImu")
                       && r1.value(QStringLiteral("routeDirect")).toBool(),
                   "reader: routeId / routeDirect round-trip, absent where never stated");
+            check(r0.value(QStringLiteral("lineAngle")).toBool() && !r1.contains(QStringLiteral("lineAngle")),
+                  "reader: lineAngle round-trips into the detail, absent where false");
         }
         // Non-degree metrics format in their OWN unit — this reader used to
         // hardcode "°" and rendered every ratio/speed/×frame value as degrees.

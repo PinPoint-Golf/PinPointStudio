@@ -29,6 +29,7 @@
 #include "../../Core/pp_debug.h"
 #include "../../Core/pp_tuned_constants.h"   // the ±15 ms an instant's reading may reach
 #include "../../Export/swing_store.h"   // the ★ reference swing (loadAnalysis), read on the worker
+#include "../../Metrics/line_angle.h"      // wrapLeanDeg — a lineAngle series' reading tiles
 
 #include "../review/chart_metrics.h"
 #include "../review/timeline_labels.h"
@@ -431,6 +432,7 @@ std::shared_ptr<ShotSeries> shotFromDetail(const QVariantMap &d, QHash<QString, 
         if (allValid) m.valid.clear();
         m.sigma = s.contains(QStringLiteral("sigma")) ? s.value(QStringLiteral("sigma")).toDouble() : kNaN;
         m.sigmaKind = s.contains(QStringLiteral("sigmaKind")) ? s.value(QStringLiteral("sigmaKind")).toInt() : -1;
+        m.lineAngle = s.value(QStringLiteral("lineAngle")).toBool();
         for (const QVariant &pv : s.value(QStringLiteral("phaseSamples")).toList()) {
             const QVariantMap p = pv.toMap();
             PhaseSample ps;
@@ -738,7 +740,10 @@ Reading readingOf(const Ctx &c, const SeriesCalc &s, int ph)
     qint64 us = phaseUsOf(*c.shot, ph);
     if (us < 0 && ph == phase::Impact && c.shot->impactUs > 0) us = c.shot->impactUs;
     if (us < 0) {
-        if (ph == phase::Impact && s.valueOk) { r.ok = true; r.val = s.st.value(QStringLiteral("end")).toDouble(); r.us = c.win.endUs; }
+        if (ph == phase::Impact && s.valueOk) {
+            r.ok = true; r.val = s.st.value(QStringLiteral("end")).toDouble(); r.us = c.win.endUs;
+            if (s.m->lineAngle) r.val = pinpoint::analysis::wrapLeanDeg(r.val);   // a reading (line_angle.h)
+        }
         return r;
     }
     // A MASKED SAMPLE IS NEVER THE READING WHEN THE PRODUCER PUT ONE BESIDE IT (issue #1). Clubhead
@@ -767,6 +772,9 @@ Reading readingOf(const Ctx &c, const SeriesCalc &s, int ph)
     r.ok = s.measured[i] != 0;
     r.val = s.mean[i];
     r.raw = s.m->value[i];
+    // An angle of a line (shaft lean) is a reading in (−180°, 180°] wherever it is read, though its
+    // drawn curve runs on continuously through the top (line_angle.h, issue #116).
+    if (s.m->lineAngle) { r.val = pinpoint::analysis::wrapLeanDeg(r.val); r.raw = pinpoint::analysis::wrapLeanDeg(r.raw); }
     r.us = us;
     return r;
 }

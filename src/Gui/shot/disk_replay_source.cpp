@@ -319,6 +319,8 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
                 sm.insert(QStringLiteral("routeDirect"), m[QStringLiteral("routeDirect")].toBool());
             if (m.contains(QStringLiteral("withheld")))
                 sm.insert(QStringLiteral("withheld"), m[QStringLiteral("withheld")].toString());
+            if (m.value(QStringLiteral("lineAngle")).toBool())
+                sm.insert(QStringLiteral("lineAngle"), true);
             series.append(sm);
         }
         QVariantList phases;

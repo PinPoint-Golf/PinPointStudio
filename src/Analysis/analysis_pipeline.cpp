@@ -114,6 +114,9 @@ MetricSeries buildShaftLeanSeries(const ShaftTrack2D &shaft, int handedness,
     m.key   = QStringLiteral("impactShaftLean");
     m.label = QStringLiteral("Shaft lean");
     m.unit  = QStringLiteral("°");
+    // The curve below is continuous (it unwraps through the top), so a reading taken from it anywhere
+    // but the anchored impact sample can be a whole turn out; the readers fold it (issue #116).
+    m.lineAngle = true;
     // THE INSTRUMENT'S ERROR, measured rather than assumed. Against 39 hand-marked P7 frames
     // (2026-09-14; four sessions, two clubs) the tracker's impact lean overshoots the grip-to-head
     // chord by a median +12° with an sd of 9.5° — and the overshoot is NOT a timing offset (the
