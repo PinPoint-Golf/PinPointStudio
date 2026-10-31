@@ -34,7 +34,9 @@ QtObject {
     function reasons(detail) {
         const d = detail || {}
         const out = []
-        if (d.capture)         out.push({ subject: "shot",          gate: "shot.captureHoles" })
+        if (d.capture && (d.holes > 0 || !d.startsAfterImpact))
+                               out.push({ subject: "shot",          gate: "shot.captureHoles" })
+        if (clipped(d))        out.push({ subject: "shot",          gate: "shot.captureShort" })
         if (d.imu)             out.push({ subject: "shot",          gate: "shot.refusionParity" })
         if (d.clubRefused)     out.push({ subject: "track.club",    gate: "club.trackRefused" })
         if (d.dtlTopOutOfView) out.push({ subject: "track.clubDtl", gate: "clubDtl.topOutOfView" })
@@ -43,10 +45,27 @@ QtObject {
     // The subject a click on the ⚠ opens in the Trust panel, or "" when the warning names no gate.
     function subject(detail) { const r = reasons(detail); return r.length ? r[0].subject : "" }
 
+    // The video does not cover the capture window (issue #53): it starts late, stops early, or has
+    // no frames before impact. Only the last sets `capture` (the shot is left out); a late start or
+    // an early end alone is a ⚠ on a shot that is still assessed. A warning written before this was
+    // judged has none of the three.
+    function clipped(d) { return !!(d.startsAfterImpact || d.lateStart || d.earlyEnd) }
+
+    // Seconds, one decimal, for "starts 2.4 s late".
+    function seconds(ms) { return (Math.round(ms / 100) / 10).toFixed(1) }
+
     function text(detail) {
         const d = detail || {}
         const parts = []
-        if (d.capture) {
+        if (d.startsAfterImpact)
+            parts.push(qsTr("The video starts after impact, so this swing can't be analysed."))
+        else if (d.lateStart)
+            parts.push(qsTr("The video starts %1 s late, so address and the takeaway may be missing.")
+                       .arg(seconds(d.missingStartMs)))
+        if (d.earlyEnd)
+            parts.push(qsTr("The video stops %1 s early, so the end of the follow-through may be missing.")
+                       .arg(seconds(d.missingEndMs)))
+        if (d.capture && (d.holes > 0 || !d.startsAfterImpact)) {
             const where = d.preImpact ? qsTr("during the swing")
                                       : qsTr("after impact, so the follow-through positions are unreliable")
             parts.push(qsTr("Frames were lost during capture (%1 frames in %2 hole%3, worst %4 ms) %5.")

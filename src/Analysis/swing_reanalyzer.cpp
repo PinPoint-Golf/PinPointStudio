@@ -485,6 +485,10 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
             tMax = std::max(tMax, tUs.back());
 
             src->addCamera(id, std::move(reader));
+            // A phone clip is timed from its own first frame, not the window's t0
+            // (SwingStore::streamOnWindowClock): the capture check may not hold it to the window.
+            if (!SwingStore::streamOnWindowClock(s))
+                out.offClockCameras.push_back(id);
             // The impact camera (setup.perspective 4): the ImpactRunner's source,
             // never a face-on candidate (impact_camera_design.md §10).
             const bool impact = s.contains(QStringLiteral("setup"))
@@ -860,6 +864,12 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
                      << b.mountDeviationDeg << "deg, gravity err"
                      << b.mountGravityErrorDeg << "deg) — results unreliable";
 
+    const QJsonObject windowIn = root[QStringLiteral("window")].toObject();
+    if (windowIn.contains(QStringLiteral("start_us")) && windowIn.contains(QStringLiteral("end_us"))) {
+        out.captureWindowStartUs = qint64(windowIn[QStringLiteral("start_us")].toDouble());
+        out.captureWindowEndUs   = qint64(windowIn[QStringLiteral("end_us")].toDouble());
+    }
+
     out.window.emplace(std::move(src), std::move(entries), tMin, tMax);
     out.job     = std::move(job);
     out.usedRaw = anyRaw;
@@ -1036,8 +1046,18 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
     // Capture data-integrity (frame-timestamp holes in the camera lanes). The
     // loader's window is window-relative and so is ls.job.impactUs — the same
     // domain contract the analyzer follows, so the pre/post-impact split is exact.
-    if (ls.window)
-        out.captureIntegrity = pinpoint::checkCaptureIntegrity(*ls.window, ls.job.impactUs);
+    // The lanes' coverage is judged against the RECORDED window (the document's
+    // `window` block), not the loaded one, which spans only the frames that exist;
+    // the impact camera's band and phone clips (their own clock) are exempt.
+    if (ls.window) {
+        pinpoint::CaptureCoverageSpec cov;
+        cov.judge         = true;
+        cov.windowStartUs = ls.captureWindowStartUs;
+        cov.windowEndUs   = ls.captureWindowEndUs;
+        std::vector<SourceId> exempt = ls.offClockCameras;
+        exempt.push_back(ls.job.impactSource);
+        out.captureIntegrity = pinpoint::checkCaptureIntegrity(*ls.window, ls.job.impactUs, cov, exempt);
+    }
 
     return out;
 }

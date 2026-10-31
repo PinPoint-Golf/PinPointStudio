@@ -234,6 +234,12 @@ int main(int argc, char **argv)
         const double fps = el.value(QStringLiteral("playback")).toObject()
                                .value(QStringLiteral("fps")).toDouble(0.0);
         check(std::abs(fps - 250.0) < 0.5, "playback.fps measured from the frame times");
+        // …and those times are on the CLIP's clock, said in so many words (issue #53): a reader
+        // that needs the window's clock must not hold this clip to the capture window.
+        check(fr.value(QStringLiteral("clock")).toString() == QLatin1String(pinpoint::SwingStore::kFramesClockClip),
+              "frames.clock says \"clip\" — the times run from the clip's own first frame");
+        check(!pinpoint::SwingStore::streamOnWindowClock(el),
+              "…and SwingStore::streamOnWindowClock reads it as off the window's clock");
     }
 
     // ── `absent` is an answer, not a failure ──────────────────────────────

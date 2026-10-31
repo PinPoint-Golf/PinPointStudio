@@ -92,6 +92,36 @@ QJsonObject captureIntegrityJson(const CaptureIntegrityVerdict &v)
     // Additive (trust stage 6) — the shot.captureHoles record quotes it (manifest_gates.h).
     if (std::isfinite(v.firstHoleMs))
         o.insert(QStringLiteral("firstHoleMs"), v.firstHoleMs);
+    // Coverage (issue #53): how far each camera's video falls short of the capture window, and how
+    // many of its frames came before impact. Additive — a block written before it has none of these
+    // keys, and every reader takes their absence as "not judged". Unknowns are left out, never 0.
+    if (v.coverageJudged) {
+        const auto putIfKnown = [](QJsonObject &obj, const char *key, double ms) {
+            if (std::isfinite(ms)) obj.insert(QLatin1String(key), ms);
+        };
+        o.insert(QStringLiteral("edgeToleranceMs"),   v.edgeToleranceMs);
+        o.insert(QStringLiteral("lateStart"),         v.lateStart);
+        o.insert(QStringLiteral("earlyEnd"),          v.earlyEnd);
+        o.insert(QStringLiteral("startsAfterImpact"), v.startsAfterImpact);
+        putIfKnown(o, "windowMs",       v.windowMs);
+        putIfKnown(o, "missingStartMs", v.missingStartMs);
+        putIfKnown(o, "missingEndMs",   v.missingEndMs);
+        if (v.framesBeforeImpact >= 0)
+            o.insert(QStringLiteral("framesBeforeImpact"), v.framesBeforeImpact);
+        QJsonArray cams;
+        for (const CaptureLaneCoverage &c : v.cameras) {
+            QJsonObject co;
+            if (!c.serial.empty()) co.insert(QStringLiteral("serial"), QString::fromStdString(c.serial));
+            putIfKnown(co, "firstFrameMs",   c.firstFrameMs);
+            putIfKnown(co, "lastFrameMs",    c.lastFrameMs);
+            putIfKnown(co, "missingStartMs", c.missingStartMs);
+            putIfKnown(co, "missingEndMs",   c.missingEndMs);
+            if (c.framesBeforeImpact >= 0)
+                co.insert(QStringLiteral("framesBeforeImpact"), c.framesBeforeImpact);
+            cams.append(co);
+        }
+        o.insert(QStringLiteral("cameras"), cams);
+    }
     return o;
 }
 
@@ -118,14 +148,31 @@ QVariantMap dataWarningDetailFrom(const QJsonObject &manifest)
     bool capture = false, imu = false;
     if (manifest.contains(QStringLiteral("captureIntegrity"))) {
         const QJsonObject ci = manifest[QStringLiteral("captureIntegrity")].toObject();
-        if (ci.value(QStringLiteral("camerasChecked")).toInt() > 0
-            && !ci.value(QStringLiteral("ok")).toBool(true)) {
+        const bool checked = ci.value(QStringLiteral("camerasChecked")).toInt() > 0;
+        if (checked && !ci.value(QStringLiteral("ok")).toBool(true)) {
             capture = true;
             d.insert(QStringLiteral("holes"),       ci.value(QStringLiteral("holes")).toInt());
             d.insert(QStringLiteral("framesLost"),  ci.value(QStringLiteral("framesLost")).toInt());
             d.insert(QStringLiteral("worstHoleMs"), ci.value(QStringLiteral("worstHoleMs")).toDouble());
             d.insert(QStringLiteral("preImpact"),   ci.value(QStringLiteral("preImpact")).toBool());
             d.insert(QStringLiteral("postImpact"),  ci.value(QStringLiteral("postImpact")).toBool());
+        }
+        // A clip cut short of the capture window (issue #53). Only the facts that are true are
+        // added, so a holes-only warning reads exactly as it always has. A late start or an early
+        // end with frames before impact leaves `ok` true: its facts carry the ⚠ WITHOUT `capture`,
+        // so — like clubRefused below — the shot stays in the session assessment. No frame before
+        // impact fails the block (`capture` above) and withholds it.
+        if (checked) {
+            if (ci.value(QStringLiteral("startsAfterImpact")).toBool())
+                d.insert(QStringLiteral("startsAfterImpact"), true);
+            if (ci.value(QStringLiteral("lateStart")).toBool()) {
+                d.insert(QStringLiteral("lateStart"),      true);
+                d.insert(QStringLiteral("missingStartMs"), ci.value(QStringLiteral("missingStartMs")).toDouble());
+            }
+            if (ci.value(QStringLiteral("earlyEnd")).toBool()) {
+                d.insert(QStringLiteral("earlyEnd"),     true);
+                d.insert(QStringLiteral("missingEndMs"), ci.value(QStringLiteral("missingEndMs")).toDouble());
+            }
         }
     }
     if (manifest.contains(QStringLiteral("imuIntegrity"))) {
@@ -164,7 +211,8 @@ QVariantMap dataWarningDetailFrom(const QJsonObject &manifest)
             dtlClub         = top.value(QStringLiteral("clubPx")).toDouble();
         }
     }
-    if (!capture && !imu && clubRefused.isEmpty() && !dtlTop) return {};
+    const bool videoShort = d.contains(QStringLiteral("lateStart")) || d.contains(QStringLiteral("earlyEnd"));
+    if (!capture && !imu && clubRefused.isEmpty() && !dtlTop && !videoShort) return {};
     if (capture || imu) {
         d.insert(QStringLiteral("capture"), capture);
         d.insert(QStringLiteral("imu"),     imu);
@@ -1625,6 +1673,15 @@ QJsonObject framesToJson(const QVector<qint64> &tUs)
     return f;
 }
 
+// The frames block, marked with the clock its times run on when that is not the window's
+// (`frames.clock`, read by SwingStore::streamOnWindowClock).
+QJsonObject framesOnClock(const QVector<qint64> &tUs, const QString &clock)
+{
+    QJsonObject f = framesToJson(tUs);
+    if (!clock.isEmpty()) f[QStringLiteral("clock")] = clock;
+    return f;
+}
+
 SwingDocWriter::StreamOrigin originFromJson(const QJsonObject &j)
 {
     SwingDocWriter::StreamOrigin o;
@@ -1646,7 +1703,8 @@ bool SwingDocWriter::updateStreamOrigin(const QString &swingDir, const QString &
                                         const StreamOrigin &origin, QString *error,
                                         const QString &fileName,
                                         const QVector<qint64> &frameTUs,
-                                        double playbackFps)
+                                        double playbackFps,
+                                        const QString &framesClock)
 {
     if (alias.isEmpty()) {
         if (error) *error = QStringLiteral("updateStreamOrigin needs a stream alias");
@@ -1669,7 +1727,7 @@ bool SwingDocWriter::updateStreamOrigin(const QString &swingDir, const QString &
         if (el.value(QStringLiteral("alias")).toString() != alias) continue;
         el[QStringLiteral("origin")] = originToJson(origin);
         if (!fileName.isEmpty()) el[QStringLiteral("file")] = fileName;
-        if (!frameTUs.isEmpty()) el[QStringLiteral("frames")] = framesToJson(frameTUs);
+        if (!frameTUs.isEmpty()) el[QStringLiteral("frames")] = framesOnClock(frameTUs, framesClock);
         if (playbackFps > 0.0)
             el[QStringLiteral("playback")] = QJsonObject{{QStringLiteral("fps"), playbackFps}};
         streams.replace(i, el);
@@ -1689,7 +1747,7 @@ bool SwingDocWriter::updateStreamOrigin(const QString &swingDir, const QString &
         el[QStringLiteral("alias")]  = alias;
         el[QStringLiteral("origin")] = originToJson(origin);
         if (!fileName.isEmpty()) el[QStringLiteral("file")] = fileName;
-        if (!frameTUs.isEmpty()) el[QStringLiteral("frames")] = framesToJson(frameTUs);
+        if (!frameTUs.isEmpty()) el[QStringLiteral("frames")] = framesOnClock(frameTUs, framesClock);
         if (playbackFps > 0.0)
             el[QStringLiteral("playback")] = QJsonObject{{QStringLiteral("fps"), playbackFps}};
         streams.append(el);

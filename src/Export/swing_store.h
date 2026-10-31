@@ -124,4 +124,20 @@ QStringList swingDirsUnder(const QString &root);
 // The document as compact JSON text — the interchange form (zip export, `ppsw dump`).
 QByteArray toJsonText(const QJsonObject &root);
 
+// IS THIS VIDEO STREAM ON THE SWING'S CLOCK? A `streams[]` video element's frames.t_us are the
+// window's (relative to clock.t0_us) — except a clip filed late by the phone path, which
+// ppcp_clip_filer.cpp times from ITS OWN first frame (exact for playback, not aligned to the
+// window) and marks so: `frames.clock: "clip"` (kFramesClockClip, written by
+// SwingDocWriter::updateStreamOrigin). ABSENT MEANS THE WINDOW'S CLOCK, which is right for every
+// stream ever written before the marker, since none of them is a phone clip. A reader that needs
+// the window clock (the capture check's coverage half, issue #53) leaves a stream that answers
+// false out of anything timed against the window. (It is a statement about the clock, not about
+// where the bytes came from: `origin` is provenance and analysis never reads it — swing_doc_test.)
+inline constexpr char kFramesClockClip[] = "clip";
+inline bool streamOnWindowClock(const QJsonObject &stream)
+{
+    return stream.value(QStringLiteral("frames")).toObject().value(QStringLiteral("clock")).toString()
+           != QLatin1String(kFramesClockClip);
+}
+
 } // namespace pinpoint::SwingStore

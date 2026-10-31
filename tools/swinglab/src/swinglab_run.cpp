@@ -784,6 +784,7 @@ int main(int argc, char **argv)
         // this pass rather than inherited from capture, and is REMOVED when this pass
         // could not reach one. See swing_doc.h.
         pinpoint::applyImuIntegrity(manifest, r.imuIntegrity ? &*r.imuIntegrity : nullptr);
+        pinpoint::applyCaptureIntegrity(manifest, r.captureIntegrity ? &*r.captureIntegrity : nullptr);
         QString werr;
         if (!pinpoint::SwingDocWriter::writeSwingJson(swingDir, manifest,
                                                       r.analysis.detail.get(), &werr))

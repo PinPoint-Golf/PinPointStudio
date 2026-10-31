@@ -8,6 +8,7 @@
 #include "../../LaunchMonitor/gcquad_csv_parser.h"
 #include "../../IMU/imu_refusion_check.h"   // ImuRefusionVerdict (header-only)
 #include "../../Analysis/capture_integrity_check.h"   // CaptureIntegrityVerdict (header-only)
+#include "../../Analysis/manifest_gates.h"            // the whole-shot records the blocks derive
 #include "../../Analysis/swing_analysis.h"
 #include "../../Analysis/recorded_products.h"   // the club / ladder readers this file round-trips
 #include "../../Club/dtl_shaft_json.h"      // dtlShaftTrackToJson — analysis.clubDtl's builder
@@ -1623,6 +1624,118 @@ int main()
         QJsonObject m4 = readManifest(d7);
         applyCaptureIntegrity(m4, nullptr);
         check(!m4.contains(QStringLiteral("captureIntegrity")), "nullptr removes it too");
+
+        // A clip cut short of the capture window (issue #53): no holes, still a warning — its own
+        // facts in the detail, its own gate record, and the amounts per camera in the block.
+        pinpoint::CaptureIntegrityVerdict clip;
+        clip.ok = false; clip.camerasChecked = 1; clip.coverageJudged = true; clip.windowMs = 4000.0;
+        clip.missingStartMs = 2434.1; clip.missingEndMs = 18.5; clip.framesBeforeImpact = 0;
+        clip.lateStart = true; clip.startsAfterImpact = true;
+        pinpoint::CaptureLaneCoverage lane;
+        lane.serial = "18277032"; lane.firstFrameMs = 2434.1; lane.lastFrameMs = 3981.5;
+        lane.missingStartMs = 2434.1; lane.missingEndMs = 18.5; lane.framesBeforeImpact = 0;
+        clip.cameras.push_back(lane);
+        QJsonObject m5 = readManifest(d7);
+        applyCaptureIntegrity(m5, &clip);
+        const QJsonObject ci5 = m5.value(QStringLiteral("captureIntegrity")).toObject();
+        const QJsonArray cams5 = ci5.value(QStringLiteral("cameras")).toArray();
+        check(!ci5.value(QStringLiteral("ok")).toBool(true) && ci5.value(QStringLiteral("startsAfterImpact")).toBool()
+                  && ci5.value(QStringLiteral("framesBeforeImpact")).toInt(-1) == 0
+                  && ci5.value(QStringLiteral("missingStartMs")).toDouble() == 2434.1
+                  && ci5.value(QStringLiteral("windowMs")).toDouble() == 4000.0,
+              "a short clip's block records how much is missing");
+        check(cams5.size() == 1 && cams5[0].toObject().value(QStringLiteral("serial")).toString() == QStringLiteral("18277032")
+                  && cams5[0].toObject().value(QStringLiteral("firstFrameMs")).toDouble() == 2434.1
+                  && cams5[0].toObject().value(QStringLiteral("framesBeforeImpact")).toInt(-1) == 0,
+              "…per camera");
+        check(SwingDocWriter::writeSwingJson(d7, m5, &a, &e7), "…and the document writes");
+        const PersistedShot p5 = SwingDocReader::readSwingJson(d7);
+        check(p5.dataWarning && p5.dataWarningDetail.value(QStringLiteral("capture")).toBool()
+                  && p5.dataWarningDetail.value(QStringLiteral("startsAfterImpact")).toBool()
+                  && p5.dataWarningDetail.value(QStringLiteral("lateStart")).toBool()
+                  && p5.dataWarningDetail.value(QStringLiteral("missingStartMs")).toDouble() == 2434.1
+                  && !p5.dataWarningDetail.contains(QStringLiteral("earlyEnd")),
+              "…and reads back as a capture warning with the short-clip facts (only the true ones)");
+        // The records the analysis write derives from the block (manifest_gates.h).
+        bool shortRecord = false, holesRecord = false;
+        QString shortCode;
+        for (const pinpoint::analysis::GateRecord &g : pinpoint::analysis::manifestGatesOf(m5)) {
+            if (g.gate == QStringLiteral("shot.captureShort")) {
+                shortRecord = true;
+                shortCode = g.evidence.value(QStringLiteral("code")).toString();
+            }
+            if (g.gate == QStringLiteral("shot.captureHoles")) holesRecord = true;
+        }
+        check(shortRecord && !holesRecord && shortCode == QStringLiteral("afterImpact"),
+              "…and derives shot.captureShort (code afterImpact), not the holes record");
+        bool legacyHoles = false;
+        for (const pinpoint::analysis::GateRecord &g : pinpoint::analysis::manifestGatesOf(m1))
+            legacyHoles = legacyHoles || g.gate == QStringLiteral("shot.captureHoles");
+        check(legacyHoles, "a holes-only failing block still derives shot.captureHoles");
+        // A holes-only block from before coverage was judged keeps its old detail, key for key.
+        check(!p1.dataWarningDetail.contains(QStringLiteral("startsAfterImpact"))
+                  && !p1.dataWarningDetail.contains(QStringLiteral("lateStart")),
+              "a holes-only warning gains no short-clip keys");
+
+        // Which clock a stream's frames run on (SwingStore::streamOnWindowClock, issue #53): only an
+        // explicit frames.clock "clip" — what the phone path writes — takes a stream off the window's
+        // clock. Absent is the window's (every stream written before the marker), and `origin` alone
+        // says nothing about the clock.
+        const QJsonObject onWindow{ { QStringLiteral("kind"), QStringLiteral("video") },
+                                    { QStringLiteral("frames"), QJsonObject{ { QStringLiteral("t_us"), QJsonArray{ 0, 6667 } } } } };
+        QJsonObject phoneClip = onWindow;
+        phoneClip[QStringLiteral("frames")] = QJsonObject{ { QStringLiteral("t_us"), QJsonArray{ 0, 16667 } },
+                                                           { QStringLiteral("clock"), QStringLiteral("clip") } };
+        QJsonObject originOnly = onWindow;
+        originOnly[QStringLiteral("origin")] = QJsonObject{ { QStringLiteral("transport"), QStringLiteral("ppcp") } };
+        check(SwingStore::streamOnWindowClock(onWindow) && SwingStore::streamOnWindowClock(originOnly)
+                  && !SwingStore::streamOnWindowClock(phoneClip),
+              "streamOnWindowClock: only frames.clock \"clip\" is off the window's clock");
+        // …and the writer the phone path uses puts the marker there.
+        {
+            QJsonObject mc = readManifest(d7);
+            check(SwingDocWriter::writeSwingJson(d7, mc, &a, &e7), "a document to file a clip into");
+            SwingDocWriter::StreamOrigin o;
+            o.transport = QStringLiteral("ppcp"); o.captureId = QStringLiteral("cap:z"); o.transfer = QStringLiteral("complete");
+            check(SwingDocWriter::updateStreamOrigin(d7, QStringLiteral("Phone"), o, &e7, QStringLiteral("Phone.mov"),
+                                                     { 0, 16667, 33333 }, 60.0, QString::fromLatin1(SwingStore::kFramesClockClip)),
+                  "updateStreamOrigin files a clip with its clock");
+            QJsonObject phoneEl;
+            for (const QJsonValue &v : readManifest(d7).value(QStringLiteral("streams")).toArray())
+                if (v.toObject().value(QStringLiteral("alias")).toString() == QStringLiteral("Phone")) phoneEl = v.toObject();
+            check(phoneEl.value(QStringLiteral("frames")).toObject().value(QStringLiteral("clock")).toString() == QStringLiteral("clip")
+                      && !SwingStore::streamOnWindowClock(phoneEl),
+                  "…as frames.clock \"clip\", which the accessor reads as off the window's clock");
+        }
+
+        // A late start with the swing still on the clip (2026-10-24 Paddy s10, 0.6 s late): ok stays
+        // true — a ⚠ WITHOUT `capture`, so the session keeps assessing it, and a downgrade record.
+        pinpoint::CaptureIntegrityVerdict late;
+        late.camerasChecked = 2; late.coverageJudged = true; late.windowMs = 4000.0;
+        late.missingStartMs = 600.8; late.missingEndMs = 18.6; late.framesBeforeImpact = 284;
+        late.lateStart = true;                                   // ok stays true
+        QJsonObject m6 = readManifest(d7);
+        applyCaptureIntegrity(m6, &late);
+        check(m6.value(QStringLiteral("captureIntegrity")).toObject().value(QStringLiteral("ok")).toBool(false),
+              "a late start alone leaves the block ok");
+        check(SwingDocWriter::writeSwingJson(d7, m6, &a, &e7), "…and the document writes");
+        const PersistedShot p6 = SwingDocReader::readSwingJson(d7);
+        check(p6.dataWarning && !p6.dataWarningDetail.contains(QStringLiteral("capture"))
+                  && p6.dataWarningDetail.value(QStringLiteral("lateStart")).toBool()
+                  && p6.dataWarningDetail.value(QStringLiteral("missingStartMs")).toDouble() == 600.8
+                  && !p6.dataWarningDetail.contains(QStringLiteral("startsAfterImpact")),
+              "…and reads back as a ⚠ with the late-start facts and NO `capture` (not excluded)");
+        check(SwingDocReader::readSwingSummary(d7).dataWarning, "…the summary carries the ⚠ too");
+        bool downgraded = false, withheld = false;
+        for (const pinpoint::analysis::GateRecord &g : pinpoint::analysis::manifestGatesOf(m6)) {
+            if (g.gate == QStringLiteral("shot.captureShort")) {
+                downgraded = g.effect == pinpoint::analysis::GateEffect::Downgraded
+                             && g.evidence.value(QStringLiteral("code")).toString() == QStringLiteral("lateStart");
+                withheld = g.effect == pinpoint::analysis::GateEffect::Withheld;
+            }
+            if (g.gate == QStringLiteral("shot.captureHoles")) withheld = true;
+        }
+        check(downgraded && !withheld, "…and derives shot.captureShort as a downgrade (code lateStart), nothing withheld");
 
         QDir(d7).removeRecursively();
     }

@@ -77,18 +77,22 @@ void applyImuIntegrity(QJsonObject &manifest, const ImuRefusionVerdict *v);
 //
 // Frame-timestamp holes in the camera lanes (capture_integrity_check.h): the
 // 2026-08-18 s3 stall that lost ~80 frames after impact and left the user none
-// the wiser. Same two producers, same lifecycle as imuIntegrity: nullptr or a
-// verdict that checked no camera REMOVES the block, so a re-analysis can only
-// ever replace or withdraw a claim, never inherit one.
+// the wiser — and, since issue #53, each lane's coverage of the capture window
+// (missing at the start / end, frames before impact, per camera; additive keys,
+// absent from older blocks). Same two producers, same lifecycle as imuIntegrity:
+// nullptr or a verdict that checked no camera REMOVES the block, so a re-analysis
+// can only ever replace or withdraw a claim, never inherit one.
 QJsonObject captureIntegrityJson(const CaptureIntegrityVerdict &v);
 void applyCaptureIntegrity(QJsonObject &manifest, const CaptureIntegrityVerdict *v);
 
 // The per-shot DATA WARNING, read from both integrity blocks of a manifest. Empty
 // when neither block warns. Otherwise { capture: bool, imu: bool, holes, framesLost,
-// worstHoleMs, preImpact, postImpact, worstMaxDeg } — facts, not sentences, so the
-// QML tooltip and the session ledger word it themselves. The one place the rule
-// "which blocks constitute a warning" is spelled; readSwingJson and the live join
-// both call it.
+// worstHoleMs, preImpact, postImpact, worstMaxDeg } plus, only when true, the short-clip
+// facts { startsAfterImpact, lateStart + missingStartMs, earlyEnd + missingEndMs } (issue #53).
+// A late start or early end alone carries those facts WITHOUT `capture`: a ⚠, not an exclusion
+// — facts, not sentences, so the QML tooltip and the session ledger word it themselves.
+// The one place the rule "which blocks constitute a warning" is spelled; readSwingJson
+// and the live join both call it.
 QVariantMap dataWarningDetailFrom(const QJsonObject &manifest);
 
 // The down-the-line top-out-of-view fact (analysis.clubDtl.summary.topOutOfView)
@@ -253,7 +257,8 @@ public:
     // arriving.  Left alone on a pending or absent update, so a later state
     // change never erases a file that has already landed.
     // `frameTUs` are the per-frame timestamps in microseconds, in the same
-    // window-relative convention every other video stream uses.  Written only
+    // window-relative convention every other video stream uses unless `framesClock`
+    // (below) names another clock.  Written only
     // when non-empty, and REQUIRED for the stream to be usable: SwingDiskLoader
     // and DiskReplaySource both skip a video element whose `frames.t_us` is
     // empty, so a clip that lands without them is a file on disk that nothing
@@ -263,11 +268,16 @@ public:
     // defaults to 30, decides 719 frames are 24 s of video to fit into a 3 s
     // window, runs the player at 8x and the clip is over in half a second
     // (2 Sept 2026).  Measured from the frame times, never assumed.
+    // `framesClock` names the clock `frameTUs` run on when it is NOT the window's: the phone path
+    // passes SwingStore::kFramesClockClip ("clip"), because ppcp_clip_filer.cpp times a clip from its
+    // own first frame. Written as `frames.clock` beside `frames.t_us`; empty writes nothing (the
+    // window's clock). SwingStore::streamOnWindowClock is its reader (issue #53).
     static bool updateStreamOrigin(const QString &swingDir, const QString &alias,
                                    const StreamOrigin &origin, QString *error = nullptr,
                                    const QString &fileName = QString(),
                                    const QVector<qint64> &frameTUs = {},
-                                   double playbackFps = 0.0);
+                                   double playbackFps = 0.0,
+                                   const QString &framesClock = QString());
 
     // Who the shot belongs to and where it sits — everything a device-only document
     // needs that the reading itself cannot supply.

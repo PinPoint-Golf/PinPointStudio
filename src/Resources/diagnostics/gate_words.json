@@ -236,6 +236,10 @@
       "golfer": "the recording dropped frames, so the whole swing was left out"
     },
     {
+      "id": "shot.captureShort",
+      "golfer": "the video started after impact, so the whole swing was left out"
+    },
+    {
       "id": "shot.refusionParity",
       "golfer": "a body sensor's recording did not hang together, so the whole swing was left out"
     },

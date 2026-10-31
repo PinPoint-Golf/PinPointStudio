@@ -47,6 +47,27 @@ inline void appendShotGates(std::vector<GateEntry> &c)
                     { QStringLiteral("both"), QStringLiteral("before and after the ball was struck") } };
     }
     {
+        // Issue #53: a clip that began after impact passed the holes check, because there was no gap
+        // BETWEEN its frames — the swing was simply not on it. No frame before impact withholds the
+        // shot; a late start or an early end with the swing still on the clip is a downgrade (a ⚠,
+        // still assessed — "show with a warning, never hide").
+        GateEntry &e = add(c, "shot.captureShort", shot,
+            "Video incomplete", "video incomplete",
+            QStringLiteral("Each camera records a fixed stretch of time around the shot, and its video should run "
+                           "from the start of that stretch to the end, give or take %1 ms. When a camera's video "
+                           "has no frames before impact the swing is not on it at all: nothing on this swing is "
+                           "judged, and it is left out of the session's assessment. When it only starts late or "
+                           "stops early, address or the end of the follow-through may be missing, so the swing "
+                           "carries a warning but is still assessed.").arg(50),
+            "{code:code}[; the video starts {missingStartMs:ms} late][; it stops {missingEndMs:ms} early][; {framesBeforeImpact} frames before impact].",
+            { GateEffect::Withheld, GateEffect::Downgraded }, "src/Analysis/manifest_gates.h", "docs/design/trust_stage6_plan.md");
+        e.tuning = { tune("capture.edgeToleranceMs", 50.0, "ms") };
+        e.codes = { { QStringLiteral("afterImpact"), QStringLiteral("The video starts after impact, so the swing is not on it") },
+                    { QStringLiteral("lateStart"),   QStringLiteral("The video starts late; the swing is still assessed") },
+                    { QStringLiteral("earlyEnd"),    QStringLiteral("The video stops early; the swing is still assessed") },
+                    { QStringLiteral("both"),        QStringLiteral("The video starts late and stops early; the swing is still assessed") } };
+    }
+    {
         GateEntry &e = add(c, "shot.refusionParity", shot,
             "Sensor recording inconsistent", "sensor recording inconsistent",
             QStringLiteral("A body sensor's stored orientation should follow from its own stored movement readings: "

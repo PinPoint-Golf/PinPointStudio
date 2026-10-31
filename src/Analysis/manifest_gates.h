@@ -19,9 +19,9 @@
 #pragma once
 
 // THE WHOLE-SHOT GATES (trust stage 6, docs/design/trust_stage6_plan.md): the two data-integrity
-// verdicts that withhold every judgement on a swing — frames missing from a camera lane
-// (capture_integrity_check.h) and sensor orientation that its own raw readings do not reproduce
-// (imu_refusion_check.h).
+// verdicts that withhold every judgement on a swing — frames missing from a camera lane, between
+// frames or off either end of the capture window (capture_integrity_check.h) — and sensor
+// orientation that its own raw readings do not reproduce (imu_refusion_check.h).
 //
 // THE DECISION LIVES IN THE MANIFEST, NOT IN THE ANALYSIS. Both verdicts are reached outside the
 // pipeline — at the capture join (ShotProcessor) and again on every re-analysis (swing_reanalyzer)
@@ -49,9 +49,18 @@ inline std::vector<GateRecord> manifestGates(const QJsonObject &captureIntegrity
 {
     GateLog log;
 
+    // A failing block fails for holes, for a clip with no frame before impact (issue #53), or both;
+    // each has its own record. A block written before coverage was judged failed for holes only. A
+    // late start or an early end alone does NOT fail the block: its record downgrades, never withholds.
+    const bool checked       = captureIntegrity.value(QStringLiteral("camerasChecked")).toInt() > 0;
+    const bool captureFailed = checked && !captureIntegrity.value(QStringLiteral("ok")).toBool(true);
+    const bool afterImpact = captureIntegrity.value(QStringLiteral("startsAfterImpact")).toBool();
+    const bool lateStart   = captureIntegrity.value(QStringLiteral("lateStart")).toBool();
+    const bool earlyEnd    = captureIntegrity.value(QStringLiteral("earlyEnd")).toBool();
+    const bool clipped     = afterImpact || lateStart || earlyEnd;
+
     // Frames missing between camera timestamps: a hole longer than `holePeriods` frame periods.
-    if (captureIntegrity.value(QStringLiteral("camerasChecked")).toInt() > 0
-        && !captureIntegrity.value(QStringLiteral("ok")).toBool(true)) {
+    if (captureFailed && (captureIntegrity.value(QStringLiteral("holes")).toInt() > 0 || !afterImpact)) {
         QVariantMap ev{
             { QStringLiteral("holes"),       captureIntegrity.value(QStringLiteral("holes")).toInt() },
             { QStringLiteral("framesLost"),  captureIntegrity.value(QStringLiteral("framesLost")).toInt() },
@@ -69,6 +78,26 @@ inline std::vector<GateRecord> manifestGates(const QJsonObject &captureIntegrity
                                         : pre         ? QStringLiteral("pre")
                                                       : QStringLiteral("post"));
         log.fire(PP_GATE("shot.captureHoles"), QStringLiteral("shot"), GateEffect::Withheld, ev);
+    }
+
+    // The video does not cover the capture window: it starts late or stops early (Downgraded — a ⚠,
+    // the shot still assessed), or has no frame at or before impact (Withheld). Amounts are the worst
+    // camera's.
+    if (checked && clipped) {
+        QVariantMap ev{ { QStringLiteral("edgeToleranceMs"),
+                          captureIntegrity.value(QStringLiteral("edgeToleranceMs")).toDouble() } };
+        if (lateStart)
+            ev.insert(QStringLiteral("missingStartMs"), captureIntegrity.value(QStringLiteral("missingStartMs")).toDouble());
+        if (earlyEnd)
+            ev.insert(QStringLiteral("missingEndMs"), captureIntegrity.value(QStringLiteral("missingEndMs")).toDouble());
+        if (captureIntegrity.contains(QStringLiteral("framesBeforeImpact")))
+            ev.insert(QStringLiteral("framesBeforeImpact"), captureIntegrity.value(QStringLiteral("framesBeforeImpact")).toInt());
+        ev.insert(QStringLiteral("code"), afterImpact            ? QStringLiteral("afterImpact")
+                                        : lateStart && earlyEnd  ? QStringLiteral("both")
+                                        : lateStart              ? QStringLiteral("lateStart")
+                                                                 : QStringLiteral("earlyEnd"));
+        log.fire(PP_GATE("shot.captureShort"), QStringLiteral("shot"),
+                 afterImpact ? GateEffect::Withheld : GateEffect::Downgraded, ev);
     }
 
     // Sensor re-fusion parity: re-running the filter from the stored raw readings did not

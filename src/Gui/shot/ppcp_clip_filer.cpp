@@ -419,9 +419,11 @@ bool PpcpClipFiler::file(Shot &s, const PpcpClip &clip)
     // ⚠ AND THE FILE, or the element says `complete` while naming nothing and no
     // reader can open it.  Relative to the swing folder, as every other stream's
     // `file` is.
+    // …and SAY which clock the frame times run on (the clip's own, rebased above), so a reader that
+    // needs the window's — the capture check's coverage half — does not hold this clip to it.
     if (!SwingDocWriter::updateStreamOrigin(s.swingDir, alias, o, &err,
                                             QFileInfo(path).fileName(), frameTUs,
-                                            playbackFps))
+                                            playbackFps, QString::fromLatin1(pinpoint::SwingStore::kFramesClockClip)))
         ppWarn() << "[ppcp] clip landed but swing.json was not updated —" << err;
 
     ppInfo() << "[ppcp] phone video landed:" << path << clip.payload.size() << "bytes, shot"

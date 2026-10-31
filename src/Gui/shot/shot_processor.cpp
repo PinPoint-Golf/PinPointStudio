@@ -857,7 +857,10 @@ void ShotProcessor::beginGather()
 {
     // The user may have pressed Stop during the post-roll: the rings froze at
     // the pause instant, truncating the follow-through there — still a valid
-    // shot, so proceed from Paused. Only buffer teardown aborts.
+    // shot, so proceed from Paused. Only buffer teardown aborts. The capture
+    // check then sees a clip ending before the window does (earlyEnd) and the
+    // shot carries a warning, but it is still assessed; only a clip with no
+    // frame before impact is withheld (capture_integrity_check.h).
     m_cameraManager->pauseBuffer();
     if (!m_buffer || m_buffer->state() != pinpoint::BufferState::Paused) {
         ppWarn() << "[ShotProcessor] shot aborted — buffer unavailable at post-roll expiry";
@@ -2261,17 +2264,30 @@ void ShotProcessor::maybeJoin()
             // the verdict knows whether the swing itself or only the follow-through lost frames.
             // Persisted beside imuIntegrity; the carousel ⚠ and the session ledger's exclusion both read
             // the two blocks through dataWarningDetailFrom, so the rule lives in one place.
+            // Each lane is also held to the frozen window it was cut from (issue #53: a clip that
+            // started after impact passed as clean); the impact camera keeps only its band.
             if (m_swingWindow) {
+                pinpoint::CaptureCoverageSpec cov;
+                cov.judge         = true;
+                cov.windowStartUs = m_swingWindow->startTimestampUs();
+                cov.windowEndUs   = m_swingWindow->endTimestampUs();
                 const pinpoint::CaptureIntegrityVerdict cv =
-                    pinpoint::checkCaptureIntegrity(*m_swingWindow, m_impactUs);
+                    pinpoint::checkCaptureIntegrity(*m_swingWindow, m_impactUs, cov,
+                                                    { m_analysisJob.impactSource });
                 if (cv.camerasChecked > 0) {
                     out.manifest[QStringLiteral("captureIntegrity")] =
                         pinpoint::captureIntegrityJson(cv);
-                    if (cv.warns())
+                    if (cv.holes > 0)
                         ppWarn() << "[ShotProcessor] capture lost" << cv.framesLost << "frame(s) in"
                                  << cv.holes << "hole(s), worst" << cv.worstHoleMs << "ms,"
                                  << (cv.preImpact ? "before impact" : "after impact")
                                  << "— shot flagged and excluded from the session assessment";
+                    if (cv.clipped())
+                        ppWarn() << "[ShotProcessor] capture cut short —" << cv.missingStartMs
+                                 << "ms missing at the start," << cv.missingEndMs << "ms at the end,"
+                                 << cv.framesBeforeImpact << "frame(s) before impact on the worst camera"
+                                 << (cv.startsAfterImpact ? "— no swing on it: shot flagged and excluded from the session assessment"
+                                                          : "— shot flagged, still assessed");
                 }
             }
             out.dataWarningDetail = pinpoint::dataWarningDetailFrom(out.manifest);

@@ -79,6 +79,17 @@ struct LoadedSwing {
     // an assumed "probably Madgwick" would be a fabricated provenance claim.
     QString hostOrientationFilter;
 
+    // The capture window the lanes were cut from — the document's `window` block, in the
+    // loader's (window-relative) domain. The window above spans only the frames that exist, so
+    // it cannot say a clip is short; the capture check's coverage half reads this instead
+    // (issue #53). end <= start = the document does not say.
+    int64_t captureWindowStartUs = 0;
+    int64_t captureWindowEndUs   = -1;
+    // Camera lanes that are not on the window's clock (SwingStore::streamOnWindowClock): a phone
+    // clip, whose frame times start at its own first frame (ppcp_clip_filer.cpp). The capture
+    // check judges their holes but not their coverage.
+    std::vector<pinpoint::SourceId> offClockCameras;
+
     // Gate records decided while LOADING (trust stage 6): a HackMotion lane the loader could not
     // bind (hm_binding_recon.h refusalRecords). reanalyzeSwingDir appends them to the analysis'
     // gates, so they reach analysis.gates beside the stages' own; rebuilt on every load.
