@@ -1019,6 +1019,55 @@ int main()
                   && two.value(QStringLiteral("peak")).toDouble() <= 2.0);
     }
 
+    // ── issue #1: clubhead speed rising into impact, nothing measured after it ─────
+    {
+        std::printf("summaryMasked — issue #1: a curve rising into impact, masked past it\n");
+        // The Charts card's own path: the mask is what charts_traces_presenter composes for a
+        // P1→P7 metric (the producer's mask past the P7 knot, and the domain clamp) — a MASKED END,
+        // the one place series_reduce.h reads a window's line at its anchor. 5 ms spacing,
+        // v = 50 + i up to impact at sample 20 (100 ms, v = 70); samples 21..23 a BRIDGE (68, 64,
+        // 61 — filled in) and 24..29 the club leaving the ball (55 → 50), all past the domain.
+        constexpr qlonglong dt = 5000;
+        const int n = 30, iImpact = 20;
+        const QVariantList t = tAt(n, dt);
+        const double bridge[3] = { 68.0, 64.0, 61.0 };
+        QVariantList v;
+        for (int i = 0; i < n; ++i) {
+            if (i <= iImpact)  v.append(50.0 + i);
+            else if (i <= 23)  v.append(bridge[i - 21]);
+            else               v.append(55.0 - (i - 24));
+        }
+        const QVariantList mask = onesMask(n, iImpact + 1, n - 1);
+        const qlonglong impactUs = qlonglong(iImpact) * dt;
+        // The window the trace opens on, clamped to the domain: [0, impact].
+        const QVariantMap s = cm.summaryMasked(t, v, mask, 0, impactUs);
+        // By hand. The impact edge's ±15 ms median: samples 17..20 (67..70; 17 is exactly 15 ms
+        // away, inclusive) ⇒ (68 + 69)/2 = 68.5. PEAK: anchor 20's ±20 ms window holds 16..20
+        // (66..70) — five, unwidened, one continuous run — and reaches past the last measured
+        // sample into the masked tail, so it reads its line at the anchor, clamped into [66, 70]:
+        // 70.0. The one-sided mean the card used to print was 68.0, below both the edge and the sample.
+        checkEqD("end = the impact edge's ±15 ms median, 68.5", s.value(QStringLiteral("end")).toDouble(), 68.5);
+        checkEqD("PEAK = 70.0, the reading at impact (its window's line read at it)",
+                 s.value(QStringLiteral("peak")).toDouble(), 70.0);
+        checkEqI("…at impact", s.value(QStringLiteral("tPeakUs")).toLongLong(), impactUs);
+        checkTrue("PEAK >= the impact edge and >= the last measured sample",
+                  s.value(QStringLiteral("peak")).toDouble() >= s.value(QStringLiteral("end")).toDouble()
+                  && s.value(QStringLiteral("peak")).toDouble() >= 70.0 - 1e-9);
+        // The drawn line ends on that same double, and nothing filled in or out of the domain is in
+        // any of it: the bridge at 1e6 and the departing club at −1e6 move nothing measured.
+        const QVariantList line = cm.windowedMean(t, v, mask).value(QStringLiteral("mean")).toList();
+        checkExactD("the drawn line's impact entry IS the PEAK", line.at(iImpact).toDouble(),
+                    s.value(QStringLiteral("peak")).toDouble());
+        QVariantList wild = v;
+        for (int i = iImpact + 1; i < n; ++i) wild[i] = i <= 23 ? 1.0e6 : -1.0e6;
+        const QVariantMap sw = cm.summaryMasked(t, wild, mask, 0, impactUs);
+        const QVariantList lw = cm.windowedMean(t, wild, mask).value(QStringLiteral("mean")).toList();
+        bool same = sw.value(QStringLiteral("peak")).toDouble() == s.value(QStringLiteral("peak")).toDouble()
+                    && sw.value(QStringLiteral("end")).toDouble() == s.value(QStringLiteral("end")).toDouble();
+        for (int i = 0; i <= iImpact; ++i) same = same && lw.at(i).toDouble() == line.at(i).toDouble();
+        checkTrue("a wild bridge and departing club change no measured number", same);
+    }
+
     // ── partial: the window's numbers do not rest on a continuous measurement ─────
     {
         std::printf("summaryMasked — partial, and the fallback edge\n");

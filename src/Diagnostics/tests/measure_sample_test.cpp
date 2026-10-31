@@ -873,16 +873,19 @@ int main()
         // camera club peak fire the verdicts its producer withholds.
         // Schema 8 added the swing's gate records: a v7 sidecar serves none, so every refusal would read
         // as a plain missing metric (trust_and_gates_design.md §4.4).
-        check(kPhaseGridSchemaVersion == 8,
-              "the sidecar schema is 8: closed spans, no zero-width span, no endpoint seed, σ, route, withheld and gate records carried");
-        for (const int old : { 2, 3 }) {
+        // Schema 9 (issue #1) moved the extremes at a masked end (the window's line read at its anchor,
+        // clamped): a v8 sidecar's guard still matches, so only the bump retires them.
+        check(kPhaseGridSchemaVersion == 9,
+              "the sidecar schema is 9: closed spans, no zero-width span, no endpoint seed, σ, route, withheld, gate records, masked-end extremes");
+        for (const int old : { 2, 3, 8 }) {
             QJsonObject prev = doc;
             prev.insert(QStringLiteral("schema"), old);
             stale = true;
             const SwingPhaseGrid sPrev = loadPhaseGrid(prev, size, mtime, &stale);
             check(!stale && sPrev.isEmpty(),
-                  old == 2 ? "…and a v2 sidecar is discarded despite a matching size+mtime guard"
-                           : "…and so is a v3 one, whose spans were the OTHER boundary convention");
+                  old == 2   ? "…and a v2 sidecar is discarded despite a matching size+mtime guard"
+                  : old == 3 ? "…and so is a v3 one, whose spans were the OTHER boundary convention"
+                             : "…and a v8 one, whose extremes at a masked end were one-sided means");
         }
 
         // THE REDUCTION GUARD. size and mtime cannot see the reduction parameters, so sweeping one

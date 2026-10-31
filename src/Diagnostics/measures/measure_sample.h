@@ -132,7 +132,16 @@ namespace pinpoint::analysis {
 //    why a measure the engine asks for is absent, so a finding it stopped says "not judged: pelvis peak
 //    out of sight" rather than "metric not produced". Additive; the bump retires v7 sidecars, which
 //    carry no records and would read every refusal as a plain missing metric.
-inline constexpr int kPhaseGridSchemaVersion = 8;
+// 9: a span's extreme at a MASKED END — a curve its producer masks after its last measured sample,
+//    as clubhead speed and the Address→Impact channels are after impact — is read off the window's
+//    own line at its anchor, clamped into the window's range (series_reduce.h windowMeanValueAt,
+//    issue #1): clubhead speed's P6→P7 maximum on 2026-07-04 moves 80.1 → 82.3 mph, up to the impact
+//    reading it used to sit below, and the Address→Impact channels' extremes at impact move too.
+//    Every other value is unchanged to the bit, and `values` (the ±15 ms median) not at all — but a
+//    v8 sidecar's size+mtime guard still matches the unchanged swing document, so as with 3 the bump
+//    is the only thing that retires the stale extremes. The session's graded rows carry this number
+//    in their content stamp for the same reason.
+inline constexpr int kPhaseGridSchemaVersion = 9;
 
 // SigmaSource — where a reading's measurement σ came from — lives in sigma_source.h.
 

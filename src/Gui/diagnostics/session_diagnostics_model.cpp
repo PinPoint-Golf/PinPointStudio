@@ -828,6 +828,9 @@ QString SessionDiagnosticsModel::computeContentStamp() const
     // The row shape too: a row written before a field existed regrades to fill it.
     h.addData(QByteArray::number(kDiagSchemaVersion));
     h.addData(QByteArrayLiteral("words") + QByteArray::number(kRowWordsVersion));
+    // The numbers the rows were graded on: a phase-grid schema bump means the reductions changed (v9:
+    // the extremes at a masked end, issue #1), and a row graded on the old ones regrades.
+    h.addData(QByteArrayLiteral("grid") + QByteArray::number(kPhaseGridSchemaVersion));
     return QString::fromLatin1(h.result().toHex().left(16));
 }
 

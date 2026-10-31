@@ -234,6 +234,25 @@ nothing (the probe showed `peakSigma` at exactly zero across every still-address
 σ on a peak is the standard error of the window mean about a local straight line, so a clean
 fast-moving curve reports zero rather than its own slope as error.
 
+**A fifth, from issue #1 (2026-10-31).** (5) At a *masked end* a centred window cannot be centred.
+Clubhead speed is measured up to impact and its producer masks the rest of the series (rule 2); rising
+~250 mph/s into the ball, its last sample's one-sided mean is the curve ~10 ms earlier, so its PEAK read
+2–4 mph below the reading at impact on every shot of 2026-07-04 (80.1 against 82.3 on shot 1). Such a
+window's value is now its own least-squares line read at the anchor — the local line rule 4 fits —
+clamped into the range of the window's own samples. It applies only when ALL of these hold: the window
+reaches past the last valid sample and the series goes on past it masked (a masked tail, not a curve that
+simply stops, and never the start of a curve); the window holds at least four valid samples; it was not
+widened (rule 3); and no invalid sample sits inside it before that last valid sample. The reducer cannot
+tell a producer's domain mask from a quality or sight gate that masks a curve to its end, so such a gate's
+tail can qualify too — the floor of four (with three, the end sample carries 5/6 of the line) and the
+clamp are what bound it. Everywhere else — the edges of a bridged run inside a curve, sparse or widened
+ends, short end windows — the plain mean stands, to the bit. What it gives up at that one end: the
+40 ms outlier guarantee is weaker (a spike on the last sample carries 3/5–7/10 of its size into the
+value instead of a fifth or a quarter), bounded by the clamp and stated by the σ, which there is the fitted value's
+standard error. The rule reaches every producer that masks a tail — clubhead speed and the
+Address→Impact channels at impact — and moves their stored extremes at impact; the phase-grid sidecar
+went to schema 9 for it.
+
 The diagnostics engine's `PhaseGridSpan.min/max` becomes the windowed-mean extremes, which
 changes the value of every authored Extremum measure by roughly the noise amplitude. That is
 a content-visible change and is gated in the plan (a corpus before/after of every

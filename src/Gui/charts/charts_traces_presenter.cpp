@@ -27,6 +27,7 @@
 #include "session_bridge.h"     // the chest's probable peak (Session only)
 #include "session_series_model.h"
 #include "../../Core/pp_debug.h"
+#include "../../Core/pp_tuned_constants.h"   // the ±15 ms an instant's reading may reach
 #include "../../Export/swing_store.h"   // the ★ reference swing (loadAnalysis), read on the worker
 
 #include "../review/chart_metrics.h"
@@ -740,7 +741,29 @@ Reading readingOf(const Ctx &c, const SeriesCalc &s, int ph)
         if (ph == phase::Impact && s.valueOk) { r.ok = true; r.val = s.st.value(QStringLiteral("end")).toDouble(); r.us = c.win.endUs; }
         return r;
     }
-    const size_t i = nearestIndex(s.m->tUs, us);
+    // A MASKED SAMPLE IS NEVER THE READING WHEN THE PRODUCER PUT ONE BESIDE IT (issue #1). Clubhead
+    // speed ends at the P7 knot and the next sample is the club leaving the ball, masked; on 10 of the
+    // 15 4 July shots that masked sample is the NEARER one to the P7 instant, and "at impact" printed
+    // "-" beside a PEAK and an "at P7" taken from the measured sample 4 ms before it. So when the
+    // nearest sample is not measured, the reading moves to the sample the producer's own P7 dot sits
+    // on (MetricSeries::phaseSamples — kinematic_series.cpp addPhaseDots puts it on the nearest VALID
+    // sample) — the very sample the trace's "at P7" figure reads — and only when that dot is within the
+    // ±15 ms an At window reaches (tuned::sampler::kWindowHalfUs). No dot, a dot further away, or a dot
+    // on a sample this panel does not count as measured, and "-" stays the honest answer: a curve a gate
+    // refused at impact (the chest's blind band) keeps "-" here as it does in the trace. So the tile's
+    // reading MAY BE A SAMPLE UP TO ±15 ms FROM THE PHASE INSTANT (r.us stays the instant, for its
+    // band) — on the clubhead it is the last sample before the ball, 0.3–4 ms early on the 4 July shots.
+    size_t i = nearestIndex(s.m->tUs, us);
+    if (!s.measured[i]) {
+        for (const PhaseSample &p : s.m->phaseSamples) {
+            if (p.phase != ph) continue;
+            if (std::abs(p.tUs - us) <= pinpoint::tuned::sampler::kWindowHalfUs) {
+                const size_t j = nearestIndex(s.m->tUs, p.tUs);
+                if (s.measured[j]) i = j;
+            }
+            break;
+        }
+    }
     r.ok = s.measured[i] != 0;
     r.val = s.mean[i];
     r.raw = s.m->value[i];

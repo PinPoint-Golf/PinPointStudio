@@ -39,7 +39,11 @@
 //                 measure_sample.cpp has always used; the chart adopts it.
 //   * Delta     — At(to) − At(from). Both ends robust, meaning unchanged.
 //   * Extremum  — the extremum of the CENTRED-WINDOW MEAN. A one-sample outlier cannot be the peak
-//                 because a peak has to be there for `extremumWindowUs`.
+//                 because a peak has to be there for `extremumWindowUs`. At a producer's MASKED END
+//                 (a curve measured up to impact and masked after it) the window cannot be centred,
+//                 and — when that end window holds at least four valid samples — its value is read
+//                 off its own straight line at the anchor, clamped into its own samples' range
+//                 (detail::windowMeanValueAt, issue #1).
 //   * Rate      — the largest-magnitude LEAST-SQUARES slope over any sliding window of at least
 //                 `rateWindowUs` with at least `minRateSamples` valid samples. Never an
 //                 adjacent-frame difference: at 8 ms spacing that divides the jitter by 8 ms and
@@ -236,12 +240,24 @@ inline bool improves(double cand, double best, bool wantMax)
 //
 // Fewer than three samples ⇒ 0: a two-point window is fitted exactly by the line and has no
 // residual to speak from, and pretending otherwise would print certainty.
+//
+// `atAnchor` is WindowValue::cut: the value was read off this same line AT THE ANCHOR (x = 0) rather
+// than at the samples' centroid, so its standard error is the fitted value's, s·sqrt(1/k + x̄²/Sxx) —
+// larger the further the support sits to one side. (When the clamp then holds the value at an end
+// sample, this is still the line's error: the clamp bounds the value, it does not measure it.) Uncut,
+// the expression below is the one it always was, to the bit.
 inline double windowMeanSigma(const std::vector<double> &xs, const std::vector<double> &ys,
-                              double ybar)
+                              bool atAnchor)
 {
     const std::size_t k = xs.size();
     if (k < 3)
         return 0.0;
+
+    // The window's own mean, summed in the order windowMeanValueAt summed it — so for an uncut window
+    // it is that function's value to the bit.
+    double sy = 0.0;
+    for (double y : ys) sy += y;
+    const double ybar = sy / static_cast<double>(k);
 
     double sx = 0.0;
     for (double x : xs) sx += x;
@@ -264,6 +280,9 @@ inline double windowMeanSigma(const std::vector<double> &xs, const std::vector<d
     }
     if (!(sse > 0.0))
         return 0.0;                    // an exact local fit — a clean ramp, a constant
+    if (atAnchor && sxx > 0.0)
+        return std::sqrt(sse / static_cast<double>(k - 2))
+               * std::sqrt(1.0 / static_cast<double>(k) + xbar * xbar / sxx);
     return std::sqrt(sse / static_cast<double>(k - 2)) / std::sqrt(static_cast<double>(k));
 }
 
@@ -287,6 +306,46 @@ inline double windowMeanSigma(const std::vector<double> &xs, const std::vector<d
 // job for whoever actually wants the error bar. The VALUE arithmetic is still in one place, which
 // is the guarantee that matters.
 //
+// ⚠ AT A MASKED END THE MEAN IS READ AT THE ANCHOR, NOT AT ITS SAMPLES' CENTRE (issue #1).
+// A centred window is only centred while there are samples on both sides of its anchor. Clubhead
+// speed is measured up to impact and its producer MASKS the rest of the series (kinematic_series.cpp
+// maskAfter, design §5.1's domain mask): rising ~250 mph/s into the ball, its last sample's 20 ms
+// window holds only the samples before it, and their plain mean is the curve ~10 ms INSIDE the
+// anchor — 80.1 against the 82.3 the sample itself and the P7 reading show, so the trace printed a
+// PEAK below a reading inside its own window on all 15 shots of 2026-07-04. That is not noise
+// rejection, it is a different instant. So such a window takes its value from its own
+// least-squares line at the anchor, mean + slope·(t_i − x̄) — the line windowMeanSigma already
+// fits — CLAMPED into the range of its own samples.
+//
+// THE RULE IS NARROW ON PURPOSE, and every condition is there because the first cut (any window
+// reaching past the first OR last valid sample) moved things it had no business moving — 21 of 301
+// kinematic-sequence maxima, a chest peak 1176 → 2453 °/s across a masked run, a lead-arm minimum
+// −8.9 → −102 at the start of its curve. It fires only when ALL of these hold (`cut`):
+//   · the window reaches past the series' LAST valid sample, and the series goes ON past it with
+//     samples marked invalid — a masked tail, like the clubhead's. A curve that simply STOPS (the
+//     sequence rates are cut at P8) or the START of any curve is not this case. ⚠ The reducer cannot
+//     tell a producer's domain mask from a quality or sight gate that masks to the end, so a gate's
+//     masked tail CAN qualify; the next two conditions are what keep that case honest;
+//   · the window holds at least FOUR valid samples: with three, the end sample carries 5/6 of the
+//     line's value — the "line" is that one sample, and behind a gate that is the worst sample to
+//     trust (two 10-05 pelvis rates read junk before a gate as a 937 → 1251 °/s peak);
+//   · the window was not WIDENED (h is the plain half-window): a widened window reaches across
+//     whatever gap made it widen, and a line through both sides of a gap is not a local line;
+//   · no invalid sample sits inside the window before that last valid sample: the support is one
+//     continuous measured run up to the end, never the edge of a gate's refusal;
+//   · the value is CLAMPED into [min, max] of the window's own valid samples, so it can never leave
+//     the range of what was measured — a line through noise cannot overshoot into a number no sample
+//     had (the clubhead's end reads at most its last sample: 82.33, not the line's 82.38).
+// Everywhere else the value and its σ are the plain mean's, to the bit — including the edges of a
+// bridged run inside a series, whose samples a gate refused and are the last to extrapolate from.
+// (A gate that masks a curve's whole tail is not such an edge, and passes the rule when the four
+// conditions hold; the floor of four and the clamp are what bound it.)
+//
+// WHAT IT GIVES UP, at that one end: the 40 ms outlier guarantee is weaker there. A spike ON the
+// last sample carries more of its weight into the line (7/10 of it on a 4-sample window, 3/5 on 5,
+// rather than 1/4 or 1/5) — bounded by the clamp, which cannot let the value past the spike itself, and stated by the
+// σ, which is the fitted value's standard error and grows with the lopsidedness (windowMeanSigma).
+//
 // An out-of-range or invalid `i` returns the raw value with ok = false; for a valid `i` cnt >= 1
 // always, since sample i is inside its own window.
 struct WindowValue {
@@ -294,6 +353,7 @@ struct WindowValue {
     int64_t     h     = 0;      // the half-width the widening settled on
     std::size_t cnt   = 0;      // valid samples inside it
     bool        ok    = false;
+    bool        cut   = false;  // a masked end (see above): `value` is the clamped line at t_i
 };
 
 inline WindowValue windowMeanValueAt(const SeriesView &s, std::size_t i, const ReduceConfig &cfg)
@@ -312,20 +372,44 @@ inline WindowValue windowMeanValueAt(const SeriesView &s, std::size_t i, const R
     // smallest distance strictly outside the current width, i.e. where the window would have to
     // reach to admit one more sample; when there is none the series has nothing further to give and
     // the window is as wide as it will ever be.
+    //
+    // The same walk keeps what the masked-end rule above needs: the line's sums (x in SECONDS from
+    // the anchor, y as the step from the anchor's own value, so nothing large is subtracted from
+    // anything large), the window's own range, the last valid sample, and the earliest invalid
+    // sample inside the window.
     int64_t     h   = half;
     double      sum = 0.0;
     std::size_t cnt = 0;
+    double      sx = 0.0, sxx = 0.0, sxy = 0.0, sdy = 0.0;
+    double      lo = s.v[i], hi = s.v[i];
+    std::size_t lastValid = i;
+    int64_t     firstGapUs = -1;           // the earliest invalid sample inside the window, if any
     for (;;) {
         sum = 0.0;
         cnt = 0;
+        sx = sxx = sxy = sdy = 0.0;
+        lo = hi = s.v[i];
+        firstGapUs = -1;
         int64_t next = -1;
         for (std::size_t j = 0; j < s.n; ++j) {
-            if (!s.isValid(j))
-                continue;
             const int64_t d = absUs(s.t[j] - s.t[i]);
+            if (!s.isValid(j)) {
+                if (d <= h && firstGapUs < 0)
+                    firstGapUs = s.t[j];   // ascending: the first one met is the earliest
+                continue;
+            }
+            lastValid = std::max(lastValid, j);
             if (d <= h) {
                 sum += s.v[j];
                 ++cnt;
+                const double x  = static_cast<double>(s.t[j] - s.t[i]) * 1.0e-6;
+                const double dy = s.v[j] - s.v[i];
+                sx  += x;
+                sxx += x * x;
+                sxy += x * dy;
+                sdy += dy;
+                lo = std::min(lo, s.v[j]);
+                hi = std::max(hi, s.v[j]);
             } else if (next < 0 || d < next) {
                 next = d;
             }
@@ -339,6 +423,22 @@ inline WindowValue windowMeanValueAt(const SeriesView &s, std::size_t i, const R
     w.h     = h;
     w.cnt   = cnt;
     w.ok    = true;
+
+    // The masked end (see above): every condition, then the line at the anchor, clamped.
+    const bool maskedTail = lastValid + 1 < s.n;                   // the series goes on, invalid
+    const bool pastEnd    = s.t[i] + h > s.t[lastValid];
+    const bool unwidened  = h == half;
+    const bool continuous = firstGapUs < 0 || firstGapUs > s.t[lastValid];
+    if (maskedTail && pastEnd && unwidened && continuous && cnt >= 4) {
+        const double k    = static_cast<double>(cnt);
+        const double xbar = sx / k;
+        const double Sxx  = sxx - sx * xbar;       // centred; x is seconds inside one window
+        if (Sxx > 0.0) {
+            const double slope = (sxy - xbar * sdy) / Sxx;
+            w.value = std::clamp(w.value + slope * (0.0 - xbar), lo, hi);
+            w.cut   = true;
+        }
+    }
     return w;
 }
 
@@ -368,7 +468,7 @@ inline double windowMeanSigmaAt(const SeriesView &s, std::size_t i, const Window
         xs.push_back(static_cast<double>(s.t[j] - s.t[i]) * 1.0e-6);
         ys.push_back(s.v[j]);
     }
-    return windowMeanSigma(xs, ys, w.value);
+    return windowMeanSigma(xs, ys, w.cut);
 }
 
 } // namespace detail

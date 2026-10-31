@@ -39,6 +39,12 @@
 // numbers; so it also pins the line's own values against §1's and §2's derivations,
 // which are the numbers the card has always reported.
 //
+// §11 is issue #1: a curve rising into a MASKED end (clubhead speed into impact, masked after it)
+// reads its window's line at the anchor, clamped into the window's range, so PEAK is never below the
+// reading at impact; every other window — a curve that simply stops, the start of a curve, a gap
+// inside the window, a widened window, an end window of fewer than four samples — keeps the plain mean, and a bridged or out-of-domain sample
+// still enters nothing.
+//
 // ⚠ EVERY EXPECTED NUMBER IS DERIVED IN A COMMENT BESIDE IT, not observed from a
 // run. If one of these fails, read the derivation before changing the number: the
 // window arithmetic is the thing under test.
@@ -903,6 +909,242 @@ int main()
         const RefEx   eref  = pickFromLine(ramp, line, Query{ 800000, 900000 }, true);
         CHECK("identity: a query with no candidate is ok=false on BOTH sides",
               !empty.ok && !eref.ok);
+    }
+
+    // ── 11) issue #1: a curve rising into a MASKED end ───────────────────────
+    {
+        std::printf("=== 11) a masked end: PEAK >= the impact reading, and nothing else moves ===\n");
+        // Clubhead speed's shape: 4 ms spacing (41 samples, 0..160 ms), impact at sample 30
+        // (120000), rising 1 mph per sample (250 mph/s) to 80 at impact; samples 31..33 are a
+        // BRIDGE the producer drew across a gap (70, 65, 62 — filled in, not measured); 34..40
+        // are the club leaving the ball, falling 60 → 54. v_i = 50 + i up to impact.
+        Series club;
+        const double bridge[3] = { 70.0, 65.0, 62.0 };
+        for (int i = 0; i <= 40; ++i) {
+            club.t.push_back(4000 * int64_t(i));
+            if (i <= 30)      club.v.push_back(50.0 + i);
+            else if (i <= 33) club.v.push_back(bridge[i - 31]);
+            else              club.v.push_back(60.0 - (i - 34));
+        }
+        const int64_t impactUs = 120000;
+
+        // THE CHART'S VIEW: clubhead speed's domain is Address→Impact; the producer masks the tail
+        // past the P7 knot (kinematic_series.cpp maskAfter) and the Charts presenter composes the
+        // same domain into the mask it hands every reduction. A MASKED END at sample 30.
+        Series chart = club;
+        chart.valid.assign(chart.t.size(), 1u);
+        for (int i = 31; i <= 40; ++i) chart.valid[size_t(i)] = 0u;
+
+        // The readings at P7, by hand. The dot / "at P7" figure is the last measured sample, 80.
+        // At = the median of the valid samples within ±15 ms of 120000: samples 27..30 (26 is 16 ms
+        // away) = 77, 78, 79, 80 ⇒ (78 + 79)/2 = 78.5.
+        const Reduced at = reduceAt(view(chart), impactUs, cfg);
+        CHECK("issue #1: At(P7) is the ±15 ms median of the measured samples, 78.5",
+              at.ok && near(at.value, 78.5, 1e-12));
+
+        // The PEAK, by hand. Anchor 30's ±20 ms window holds samples 25..30 (75..80) — six, so it
+        // is not widened — and reaches past the last measured sample into the masked tail, with no
+        // gap inside it: a masked end. The six points are exactly v = 50 + i, so the line at the
+        // anchor is 80.0, inside [75, 80]. Their plain mean, 77.5, is the curve at 110 ms: that was
+        // the old PEAK, below the reading at impact and below At — the issue in miniature.
+        double plain = 0.0;
+        for (int i = 25; i <= 30; ++i) plain += club.v[size_t(i)];
+        plain /= 6.0;
+        CHECK("issue #1: (the one-sided mean the old reducer reported is 77.5, below both readings)",
+              near(plain, 77.5, 1e-12) && plain < at.value && plain < club.v[30]);
+        const Reduced pk = reduceExtremum(view(chart), 0, impactUs, true, cfg);
+        std::printf("      peak %.12f at %lld (sigma %.3g); At %.3f; raw at impact %.3f\n",
+                    pk.value, static_cast<long long>(pk.atUs), pk.sigma, at.value, club.v[30]);
+        CHECK("issue #1: PEAK is the line at the last measured sample, 80.0 at impact",
+              pk.ok && near(pk.value, 80.0, 1e-9) && pk.atUs == impactUs);
+        CHECK("issue #1: PEAK >= the reading at P7 (80) and >= At(P7) (78.5)",
+              pk.ok && pk.value >= club.v[30] - 1e-9 && pk.value >= at.value);
+        CHECK("issue #1: an exact line leaves no residual, so the end value's sigma is 0",
+              pk.sigma <= 1e-9);
+        std::vector<WindowedMean> line;
+        windowedMeans(view(chart), line, cfg);
+        CHECK("issue #1: the drawn line ends ON the impact reading (entry 30 = the PEAK's double)",
+              line.size() == chart.t.size() && line[30].ok && line[30].value == pk.value);
+
+        // THE START OF THE SAME CURVE IS UNTOUCHED: entry 0's window is samples 0..5, one-sided,
+        // and keeps its plain mean (50+…+55)/6 = 52.5 — not the line's 50.
+        CHECK("issue #1: the start of a curve keeps its plain mean (entry 0 = 52.5)",
+              line[0].ok && near(line[0].value, 52.5, 1e-12));
+
+        // NO FILLED-IN OR OUT-OF-DOMAIN SAMPLE ENTERS ANY MEAN. Replace the bridge with 1e6 and the
+        // departing club with −1e6: every measured entry, At and PEAK are bit-identical, and the
+        // masked entries carry their (new) raw values with ok = false.
+        Series wild = chart;
+        for (int i = 31; i <= 33; ++i) wild.v[size_t(i)] = 1.0e6;
+        for (int i = 34; i <= 40; ++i) wild.v[size_t(i)] = -1.0e6;
+        std::vector<WindowedMean> wline;
+        windowedMeans(view(wild), wline, cfg);
+        bool same = true, rawOff = true;
+        for (size_t i = 0; i < wline.size(); ++i) {
+            if (!chart.valid[i]) {
+                if (wline[i].ok || wline[i].value != wild.v[i]) rawOff = false;
+            } else if (wline[i].value != line[i].value || wline[i].sigma != line[i].sigma) {
+                same = false;
+            }
+        }
+        const Reduced wpk = reduceExtremum(view(wild), 0, impactUs, true, cfg);
+        const Reduced wat = reduceAt(view(wild), impactUs, cfg);
+        CHECK("issue #1: a wild bridge and departing club move no measured entry, At or PEAK",
+              same && wpk.value == pk.value && wpk.atUs == pk.atUs && wat.value == at.value);
+        CHECK("issue #1: those samples stay their raw selves with ok = false (dashed, not averaged)",
+              rawOff);
+
+        // THE SERIES' OWN MASK (the bridge alone): the samples past the bridge are measurements and
+        // the curve's last sample is valid, so there is no masked end anywhere and nothing reads a
+        // line. Anchor 30 beside the bridge keeps the PLAIN mean of its valid window, 25..30 and the
+        // departing 34 (136000) and 35 (140000, exactly 20 ms): (75+…+80 + 60 + 59)/8 = 584/8 = 73.0.
+        // And the bridge still enters nothing: at 1e6, every measured entry is bit-identical.
+        Series own = club;
+        own.valid.assign(own.t.size(), 1u);
+        for (int i = 31; i <= 33; ++i) own.valid[size_t(i)] = 0u;
+        Series ownWild = own;
+        for (int i = 31; i <= 33; ++i) ownWild.v[size_t(i)] = 1.0e6;
+        std::vector<WindowedMean> oline, owline;
+        windowedMeans(view(own), oline, cfg);
+        windowedMeans(view(ownWild), owline, cfg);
+        bool ownSame = true;
+        for (size_t i = 0; i < oline.size(); ++i)
+            if (own.valid[i]
+                && (oline[i].value != owline[i].value || oline[i].sigma != owline[i].sigma))
+                ownSame = false;
+        CHECK("issue #1: with only the bridge masked, the bridge still enters no mean", ownSame);
+        CHECK("issue #1: an interior bridge's edge keeps the plain mean (73.0 at anchor 30)",
+              oline[30].ok && near(oline[30].value, 73.0, 1e-12));
+
+        // The shapes an END can really have, each on six samples 4 ms apart (x = 0..5, t = 0..20 ms)
+        // followed by two masked ones, so sample 5's ±20 ms window is exactly x = 0..5, unwidened,
+        // with a masked tail. By hand, with x̄ = 2.5 and Sxx = Σ(x − x̄)² = 17.5 (in samples; the
+        // line's value does not depend on the time unit): line at x = 5 = ȳ + 2.5·Σ(x − x̄)y/17.5.
+        const auto endOf = [&](const double (&y)[6]) {
+            Series e;
+            for (int i = 0; i < 8; ++i) {
+                e.t.push_back(4000 * int64_t(i));
+                e.v.push_back(i < 6 ? y[i] : -999.0);
+                e.valid.push_back(i < 6 ? 1u : 0u);
+            }
+            std::vector<WindowedMean> l;
+            windowedMeans(view(e), l, cfg);
+            return l[5];
+        };
+        // A NOISY LAST SAMPLE: a ramp 75..79 then 83 (its own 80 plus 3). ȳ = 78,
+        // Σ(x − x̄)y = 17.5 + 3·2.5 = 25, so the line at the end is 78 + 2.5·25/17.5 = 81.5714…:
+        // the spike carries 11/21 of its 3 into the value (the plain mean carried 1/6 of it), and
+        // 81.57 is inside [75, 83], so no clamp.
+        const double noisy[6] = { 75, 76, 77, 78, 79, 83 };
+        const WindowedMean wn = endOf(noisy);
+        CHECK("end: a noisy last sample — the line reads 78 + 2.5·25/17.5 = 81.571 (spike weight 11/21)",
+              wn.ok && near(wn.value, 78.0 + 2.5 * 25.0 / 17.5, 1e-9));
+        // A TURNING POINT 8 ms before the end: 0, 4, 7, 9, 8, 6. ȳ = 34/6, Σ(x − x̄)y = 22 ⇒ the
+        // line at x = 5 is 34/6 + 2.5·22/17.5 = 8.8095… — above the last sample (6), below the
+        // window's top (9). The line does not know the curve turned; the clamp keeps it inside what
+        // was measured. Stated, not hidden: the end rule is for a curve still moving INTO its end.
+        const double turn[6] = { 0, 4, 7, 9, 8, 6 };
+        const WindowedMean wt = endOf(turn);
+        CHECK("end: a turning point — 34/6 + 2.5·22/17.5 = 8.810, inside [0, 9]",
+              wt.ok && near(wt.value, 34.0 / 6.0 + 2.5 * 22.0 / 17.5, 1e-9) && wt.value <= 9.0);
+        // THE CLAMP: a curve flattening into its end, 0, 4, 7, 9, 10, 10. ȳ = 40/6, Σ(x − x̄)y = 35,
+        // so the line at the end is 40/6 + 2.5·2 = 11.667 — above every sample. Clamped to the
+        // window's top, 10.
+        const double flat[6] = { 0, 4, 7, 9, 10, 10 };
+        const WindowedMean wf = endOf(flat);
+        CHECK("end: the line overshoots (11.667) and is clamped into the window's range, 10",
+              wf.ok && wf.value == 10.0);
+
+        // NOT A MASKED END ⇒ THE PLAIN MEAN. (1) The curve simply STOPS, nothing masked after it:
+        // §1's ramp end, 7.84, is unchanged (pinned there). (2) A gap INSIDE the window before the
+        // last valid sample: 4 ms ramp v = i, samples 18..19 masked, 20 valid, 21..23 masked. Anchor
+        // 20's window (15..25) holds 15, 16, 17, 20 — four, unwidened, a masked tail — but its
+        // support is not one continuous run up to the end, so the plain mean (15+16+17+20)/4 = 17.0.
+        // (3) A window that WIDENS across a masked run: samples 13..19 masked, 20 valid, 21..23
+        // masked. Anchor 20's ±20 ms holds only itself, widens to 12 (32 ms) and then 11 (36 ms):
+        // a widened window, so the plain mean (11 + 12 + 20)/3 = 14.333….
+        const auto rampGap = [](int gapFrom) {
+            Series g;
+            for (int i = 0; i <= 23; ++i) {
+                g.t.push_back(4000 * int64_t(i));
+                g.v.push_back(double(i));
+                g.valid.push_back((i >= gapFrom && i <= 19) || i >= 21 ? 0u : 1u);
+            }
+            return g;
+        };
+        std::vector<WindowedMean> lg;
+        windowedMeans(view(rampGap(18)), lg, cfg);
+        CHECK("end: a gap inside the end window keeps the plain mean, (15+16+17+20)/4 = 17.0",
+              lg[20].ok && near(lg[20].value, 17.0, 1e-12));
+        windowedMeans(view(rampGap(13)), lg, cfg);
+        CHECK("end: a window widened across a masked run keeps the plain mean, (11+12+20)/3",
+              lg[20].ok && near(lg[20].value, 43.0 / 3.0, 1e-12));
+        // (4) A masked tail behind only THREE samples: 8 ms ramp v = i (0..5) and two masked samples
+        // after. Anchor 5's ±20 ms window holds 3, 4, 5 (sample 2 is 24 ms away) — continuous,
+        // unwidened, a masked tail, but three samples: the end sample would carry 5/6 of a line
+        // through them, so it keeps the plain mean (3 + 4 + 5)/3 = 4.0, not the line's 5.
+        Series short3;
+        for (int i = 0; i < 8; ++i) {
+            short3.t.push_back(8000 * int64_t(i));
+            short3.v.push_back(i < 6 ? double(i) : -999.0);
+            short3.valid.push_back(i < 6 ? 1u : 0u);
+        }
+        windowedMeans(view(short3), lg, cfg);
+        CHECK("end: a three-sample end window behind a masked tail keeps the plain mean, 4.0",
+              lg[5].ok && near(lg[5].value, 4.0, 1e-12));
+
+        // THE RANGE PROPERTY, on every fixture of this section and §2's spike: no OK entry of a drawn
+        // line ever leaves [min, max] of the valid samples within ±20 ms of it (an unwidened window's
+        // own range — every window here is unwidened at 4 or 8 ms).
+        const auto inRange = [&](const Series &r) {
+            std::vector<WindowedMean> l;
+            windowedMeans(view(r), l, cfg);
+            for (size_t i = 0; i < l.size(); ++i) {
+                if (!l[i].ok) continue;
+                double lo = 1e300, hi = -1e300;
+                for (size_t j = 0; j < r.t.size(); ++j) {
+                    if ((!r.valid.empty() && !r.valid[j]) || std::llabs(r.t[j] - r.t[i]) > 20000) continue;
+                    lo = std::min(lo, r.v[j]);
+                    hi = std::max(hi, r.v[j]);
+                }
+                if (l[i].value < lo - 1e-9 || l[i].value > hi + 1e-9) return false;
+            }
+            return true;
+        };
+        Series spike = makeRamp(8000, 100, 10.0);
+        spike.v[99] = 99.0;
+        spike.valid.assign(spike.t.size(), 1u);
+        spike.t.push_back(800000); spike.v.push_back(0.0); spike.valid.push_back(0u);   // a masked tail
+        CHECK("range: no drawn entry leaves its window's measured range (clubhead, own mask, a spike "
+              "on a masked end)",
+              inRange(chart) && inRange(own) && inRange(spike) && inRange(rampGap(18)));
+
+        // CONTROL — a fully measured curve with its peak INSIDE it is untouched, end to end. A hump
+        // at 4 ms, v_i = 80 − |i − 20| (i = 0..40), no mask: no masked end, so EVERY entry is the
+        // plain mean, summed here independently in the same order, to the bit; the peak is anchor
+        // 20's window 15..25, sum 2(75+76+77+78+79) + 80 = 850, mean 850/11.
+        Series hump;
+        for (int i = 0; i <= 40; ++i) {
+            hump.t.push_back(4000 * int64_t(i));
+            hump.v.push_back(80.0 - std::fabs(double(i - 20)));
+        }
+        std::vector<WindowedMean> hline;
+        windowedMeans(view(hump), hline, cfg);
+        bool allPlain = true;
+        for (int i = 0; i <= 40; ++i) {
+            double sum = 0.0;
+            int    cnt = 0;
+            for (int j = 0; j <= 40; ++j) {
+                if (std::llabs(hump.t[size_t(j)] - hump.t[size_t(i)]) > 20000) continue;
+                sum += hump.v[size_t(j)];
+                ++cnt;
+            }
+            if (hline[size_t(i)].value != sum / static_cast<double>(cnt)) allPlain = false;
+        }
+        CHECK("control: every entry of a fully measured curve is the plain mean, bit-exact", allPlain);
+        const Reduced hpk = reduceExtremum(view(hump), 0, hump.t.back(), true, cfg);
+        CHECK("control: its PEAK is the centred mean at the top, 850/11 at 80000",
+              hpk.ok && near(hpk.value, 850.0 / 11.0, 1e-12) && hpk.atUs == 80000);
     }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);
