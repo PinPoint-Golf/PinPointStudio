@@ -32,6 +32,7 @@
 #include "../../Gui/diagnostics/session_diagnostics_model.h"
 #include "../../Coaching/sequence_checks.h"
 #include "../engine/characteristic_engine.h"
+#include "../packs/pack_provider.h"                // makeCharacteristicPackProvider (#16 side checks)
 
 #include <QCoreApplication>
 #include <QSet>
@@ -1232,6 +1233,48 @@ int main(int argc, char **argv)
     QTemporaryDir tmp;
     check(tmp.isValid(), "a temporary swing library");
     if (!tmp.isValid()) { std::printf("\nFAILURES\n"); return 1; }
+
+    // ── #16: the side each condition fires on (firing_side.h), off the SHIPPED pack ──────────
+    std::printf("\nthe side a condition fires on\n");
+    {
+        const auto prov = makeCharacteristicPackProvider();
+        const CharacteristicPack &pk = prov->pack();
+        check(conditionFiringSide(pk, QStringLiteral("ball_forward"), QStringLiteral("m_ballPosition")) == FiringSide::Low,
+              "#16: Ball too far forward fires on the LOW end of the ball position");
+        check(conditionFiringSide(pk, QStringLiteral("ball_back"), QStringLiteral("m_ballPosition")) == FiringSide::High,
+              "#16: …and Ball too far back on the HIGH end of the same band");
+        check(conditionFiringSide(pk, QStringLiteral("shank"), QStringLiteral("m_strikeLocation")) == FiringSide::Low,
+              "#16: a threshold test has a side (shank: below −30)");
+        check(conditionFiringSide(pk, QStringLiteral("no_pelvis_braking"), QStringLiteral("m_pelvisSpeedImpact")) == FiringSide::Either
+                  && conditionFiringSide(pk, QStringLiteral("no_pelvis_braking"), QStringLiteral("m_pelvisPeakSpeed")) == FiringSide::Either,
+              "#16: a ratio gives neither of its measures a side — the quotient fires");
+        check(conditionFiringSide(pk, QStringLiteral("ball_forward"), QStringLiteral("m_notOneOfItsMeasures")) == FiringSide::Either
+                  && conditionFiringSide(pk, QStringLiteral("no_such_condition"), QStringLiteral("m_ballPosition")) == FiringSide::Either,
+              "#16: a measure the condition does not read, or no such condition: Either");
+
+        // Built: one condition on both ends of one measure, and a signal with no direction.
+        CharacteristicPack b;
+        auto sig = [](const char *id, std::optional<Direction> d) {
+            Signal s;
+            s.id = QString::fromLatin1(id);
+            s.test = SignalTest::OutsideCorridor;
+            s.measures = { QStringLiteral("m_x") };
+            s.direction = d;
+            return s;
+        };
+        b.signalDefs = { sig("s_hi", Direction::High), sig("s_lo", Direction::Low), sig("s_none", std::nullopt) };
+        Condition both;
+        both.id = QStringLiteral("both");
+        both.detectedBy = { QStringLiteral("s_hi"), QStringLiteral("s_lo") };
+        Condition none;
+        none.id = QStringLiteral("none");
+        none.detectedBy = { QStringLiteral("s_none") };
+        b.conditions = { both, none };
+        check(conditionFiringSide(b, QStringLiteral("both"), QStringLiteral("m_x")) == FiringSide::Either,
+              "#16: a condition on both ends of one measure watches both (Either)");
+        check(conditionFiringSide(b, QStringLiteral("none"), QStringLiteral("m_x")) == FiringSide::High,
+              "#16: a signal with no direction is the HIGH tail, as the engine evaluates it");
+    }
 
     // ── 1. Live ingest: stage progression and the ratchet ────────────────────────────
     std::printf("\nlive ingest\n");
@@ -2737,12 +2780,34 @@ int main(int argc, char **argv)
                     qPrintable(spreadCorridorWords(cc, hr)),
                     qPrintable(spreadCorridorWords(c2, QStringLiteral("mm"))),
                     qPrintable(spreadCorridorWords(cf, QString())));
-        check(spreadCorridorWords(cc, hr) == QStringLiteral("pass up to 4.7 · fault at 7 % hand rise"),
-              "ceiling: \"pass up to <signal> · fault at <fault>\", trailing zeros dropped");
+        check(spreadCorridorWords(cc, hr) == QStringLiteral("pass up to 4.7 · fault above 7 % hand rise"),
+              "ceiling: \"pass up to <signal> · fault above <fault>\", trailing zeros dropped");
         check(spreadCorridorWords(c2, QStringLiteral("mm")) == QStringLiteral("pass 5 to 25 · fault outside 0 to 30 mm"),
               "two-sided: both pass edges and both fault lines");
-        check(spreadCorridorWords(cf, QString()) == QStringLiteral("pass from 1.3 up · fault at 1.2"),
+        check(spreadCorridorWords(cf, QString()) == QStringLiteral("pass from 1.3 up · fault below 1.2"),
               "floor: the mirror, never assuming high is bad");
+        // #16: a condition on ONE TAIL of that two-sided band states its own edge only, and the
+        // other end opens — that end is its mirror condition's.
+        {
+            const SpreadCorridor hi = spreadCorridorOnSide(c2, FiringSide::High);
+            const SpreadCorridor lo = spreadCorridorOnSide(c2, FiringSide::Low);
+            check(spreadCorridorWords(hi, QStringLiteral("mm")) == QStringLiteral("pass up to 25 · fault above 30 mm"),
+                  "#16: fires high only — \"pass up to 25 · fault above 30 mm\", no low fault line");
+            check(spreadCorridorWords(lo, QStringLiteral("mm")) == QStringLiteral("pass from 5 up · fault below 0 mm"),
+                  "#16: fires low only — \"pass from 5 up · fault below 0 mm\"");
+            check(spreadCorridorWords(spreadCorridorOnSide(c2, FiringSide::Either), QStringLiteral("mm"))
+                      == QStringLiteral("pass 5 to 25 · fault outside 0 to 30 mm"),
+                  "#16: a condition on both tails keeps both edges");
+            check(spreadPositionWords(hi, -8.0, 0) == QStringLiteral("inside the pass band")
+                      && spreadPositionWords(c2, -8.0, 0) == QStringLiteral("8 past the fault line"),
+                  "#16: far out on the end it never fires on is inside its pass band");
+            const SpreadAxis ha = spreadAxisFor(hi, { -8.0, 12.0, 28.0 });
+            const std::vector<SpreadBand> hb = spreadBands(hi, ha);
+            check(!hb.empty() && hb.front().grade == QLatin1String("open") && hb.back().grade == QLatin1String("action"),
+                  "#16: …and its strip paints that end open, not Watch and Action");
+            check(spreadCorridorWords(spreadCorridorOnSide(cc, FiringSide::Low), hr) == spreadCorridorWords(cc, hr),
+                  "#16: a side that would leave nothing graded (a ceiling watched low) changes nothing");
+        }
         check(spreadPositionWords(cc, 10.0, 0) == QStringLiteral("3 past the fault line")
                   && spreadPositionWords(cc, 5.0, 0) == QStringLiteral("past the pass band, 2 short of the fault line")
                   && spreadPositionWords(cc, -3.0, 0) == QStringLiteral("inside the pass band")
@@ -2928,7 +2993,7 @@ int main(int argc, char **argv)
         for (const QVariant &cv : ms->cards())
             if (cv.toMap().value(QStringLiteral("id")).toString() == QLatin1String("over_the_top"))
                 corridorWordsOk = cv.toMap().value(QStringLiteral("corridorText")).toString()
-                                  == QStringLiteral("pass up to 8.7 · fault at 13 % hand rise");
+                                  == QStringLiteral("pass up to 8.7 · fault above 13 % hand rise");
         check(corridorWordsOk, "the card's corridor line states the pass band and the fault line the strip draws");
 
         // The card carries the same map.

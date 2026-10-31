@@ -84,6 +84,20 @@ corridor sentence. This CHANGES STORED SESSION DATA: bump the relevant stage ver
 re-analysed (house rule: version-gated re-analysis), test on the one swing that shows it first, then
 re-run the library and check the corpus counts. Highest reach of the four — do it with the most care.
 
+**Fixed** 31 Oct 2026 (#16). Each ledger row now records the tail its CONDITION fires on
+(`ConditionRow::firingSide`, schema 10, from the condition's corridor and threshold signals on the
+measure), beside the measure's `corridorShape`. `rowStrength()` takes the excess on the measure's graded
+ends less the one the condition never fires on, so shot 8's Ball too far forward and Backing away score
+0; a condition on both tails reads |z| as before. A threshold test is measured against its own line
+(`faultAt`: the band's middle is 0, the line is 2) — on FIRED rows too, so a threshold condition's "how far
+out when it fires" (the card and work-on rankings) is distance from its own line — and a clean all-of condition (reverse pivot) reads the
+part that kept it clean (`allOf`). One derivation of the side (`Coaching/firing_side.h`) serves the
+rows, Home's work-on line and Home's areas. The panel's corridor (sentence — "fault below −7.5 cm",
+strip, fault line, position words, key figures) opens the other end; the dot plot's "‹ out on the
+other side" mark is gone. The report's "going well" keeps the two-sided distance from the
+corridor's middle (`rowCorridorDistance`), so a forward ball never makes "Ball too far back" a strength.
+The schema bump changes the content stamp, so every ledger regrades on activation.
+
 ## 4. A closing line that describes a view that no longer exists
 
 **What you see.** The session's closing line: "Counts are session totals; this shot is the wide tick.

@@ -260,7 +260,7 @@ Item {
                     // The corridor is the MODEL's line on the card; the typeset ledger draws it in the
                     // fired table's corridor column and the detail's feature head, not on the session row.
                     probe.log("corridor line: \"" + (card.modelData.corridorText || "") + "\"")
-                    probe.check((card.modelData.corridorText || "") === "pass up to 8.7 · fault at 13 % hand rise",
+                    probe.check((card.modelData.corridorText || "") === "pass up to 8.7 · fault above 13 % hand rise",
                                 "the card's corridor line states the pass band and the fault line")
                 }
                 probe.queueGrab(probe.appBody, "app_panel")

@@ -131,7 +131,9 @@ PpTypeset {
     function shortCount(rec) { return String(rec || "").replace(" measurable shots", "") }
     function corridorShort(t) {
         let s = String(t || "")
-        s = s.replace(/pass up to /, "pass ≤ ").replace(/pass from (\S+) up/, "pass ≥ $1").replace(/fault at /, "fault ")
+        // one-sided: "pass ≤ 8.7 · fault > 13", the fault's direction kept (spreadFaultWords' style)
+        s = s.replace(/pass up to /, "pass ≤ ").replace(/pass from (\S+) up/, "pass ≥ $1")
+             .replace(/fault above /, "fault > ").replace(/fault below /, "fault < ")
         return s.replace(/(\d)[^\d]*$/, "$1")
     }
     function corridorParts(t) {

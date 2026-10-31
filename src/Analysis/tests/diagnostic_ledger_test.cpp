@@ -1281,6 +1281,180 @@ int main()
               "an unrecognised shape degrades to Unknown, which draws nothing");
     }
 
+    // ── Strength on the CONDITION's side (#16) ───────────────────────────────────
+    //
+    // A condition is one tail of one measure: "Ball too far forward" fires below a two-sided band,
+    // "Ball too far back" above the same band. Shot 8 of 4 July had the ball 2.43 band half-widths
+    // BACK, and the forward-ball row — clean — scored 2.43, as far out as the back-ball firing.
+    // The oracles below are the arithmetic of the definition, not the function's output: on the
+    // side a condition fires on the distance is z (or −z) from the middle; on the other side it is 0.
+    {
+        auto row = [](ShotState st, double z, CorridorShape shape, FiringSide side) {
+            ConditionRow r;
+            r.conditionId   = QStringLiteral("x");
+            r.state         = st;
+            r.z             = z;
+            r.corridorShape = shape;
+            r.firingSide    = side;
+            r.corridorLo    = -2.0;
+            r.corridorHi    =  2.0;
+            return r;
+        };
+        const auto excessOf = [](const ConditionRow &r) { return rowStrength(r).excess; };
+
+        // Fires HIGH only (a ceiling on a two-sided band): far below it is clean and 0.
+        const RowStrength farLow = rowStrength(row(ShotState::Clean, -2.43, CorridorShape::TwoSided, FiringSide::High));
+        check(farLow.known && farLow.excess == 0.0 && severityLevel(farLow.excess) == 0,
+              "#16: fires high only — a clean reading far out low scores 0, not 2.43");
+        check(near(excessOf(row(ShotState::Clean, 0.6, CorridorShape::TwoSided, FiringSide::High)), 0.6, 1e-12),
+              "#16: …while a clean reading on its own side is z from the middle");
+        check(near(excessOf(row(ShotState::Fired, 2.43, CorridorShape::TwoSided, FiringSide::High)), 2.43, 1e-12),
+              "#16: …and its firing is |z| as before");
+
+        // Fires LOW only — the mirror (backing away from the ball, 3.75 on the side it never fires on).
+        check(excessOf(row(ShotState::Clean, 3.75, CorridorShape::TwoSided, FiringSide::Low)) == 0.0,
+              "#16: fires low only — a clean reading far out high scores 0, not 3.75");
+        check(near(excessOf(row(ShotState::Clean, -0.7, CorridorShape::TwoSided, FiringSide::Low)), 0.7, 1e-12),
+              "#16: …and 0.7 when it is 0.7 towards its own edge");
+
+        // A condition that fires BOTH ways is unchanged: |z| on either side.
+        check(near(excessOf(row(ShotState::Clean, -2.43, CorridorShape::TwoSided, FiringSide::Either)), 2.43, 1e-12)
+                  && near(excessOf(row(ShotState::Clean, 3.75, CorridorShape::TwoSided, FiringSide::Either)), 3.75, 1e-12),
+              "#16: a condition watching both tails still reads |z| on either side");
+
+        // On a one-sided measure the side agrees with the shape, and nothing moves; pointed at the
+        // OPEN tail (a pack mistake the health check reports) it can never fire, so it is no distance.
+        check(near(excessOf(row(ShotState::Clean, -1.2, CorridorShape::Floor, FiringSide::Low)), 1.2, 1e-12)
+                  && excessOf(row(ShotState::Clean, 4.0, CorridorShape::Floor, FiringSide::Low)) == 0.0,
+              "#16: a floor watched low reads as a floor always did");
+        const RowStrength openTail = rowStrength(row(ShotState::Clean, -1.2, CorridorShape::Floor, FiringSide::High));
+        check(openTail.known && openTail.excess == 0.0, "#16: a condition on a floor's open tail is 0 out");
+
+        // THE REPORT'S "GOING WELL" ASKS A DIFFERENT QUESTION: is the reading well inside the
+        // measure's corridor (rowCorridorDistance, ConditionLedger::medianExcess)? A one-way condition
+        // clean on six swings, every one 3 out on the side it never fires on, is 0 from its own fault
+        // and still 3 from the middle of the corridor — a forward ball is not a back-ball strength.
+        const ConditionRow far = row(ShotState::Clean, 3.0, CorridorShape::TwoSided, FiringSide::Low);
+        check(rowStrength(far).excess == 0.0 && near(rowCorridorDistance(far).excess, 3.0, 1e-12)
+                  && rowCorridorDistance(far).known,
+              "#16: 0 from its own fault, 3 from the middle of the corridor");
+        check(near(rowCorridorDistance(row(ShotState::Clean, 4.0, CorridorShape::Floor, FiringSide::Low)).excess, 0.0, 1e-12)
+                  && !rowCorridorDistance(row(ShotState::Clean, 1.0, CorridorShape::Unknown, FiringSide::Low)).known,
+              "#16: …the corridor distance keeps the measure's own open side and its refusals");
+        std::vector<ShotRecord> shots(6);
+        for (int i = 0; i < 6; ++i) {
+            shots[size_t(i)].shotId = i + 1;
+            shots[size_t(i)].rows = { far, row(ShotState::Clean, 3.0, CorridorShape::TwoSided, FiringSide::Either) };
+            shots[size_t(i)].rows[1].conditionId = QStringLiteral("y");
+        }
+        const auto ls = conditionLedgers(shots, O);
+        const ConditionLedger &oneWay = led(ls, "x"), &bothWays = led(ls, "y");
+        check(oneWay.excessN == 6 && near(oneWay.medianExcess, 3.0, 1e-12)
+                  && near(bothWays.medianExcess, 3.0, 1e-12),
+              "#16: the session's median distance is from the corridor's middle, one way or both");
+
+        // The side is stored (schema 10), written only when it is one way, and a file without it —
+        // every ledger before schema 10 — reads back as Either: the corridor's shape alone.
+        std::vector<ShotRecord> one(1);
+        one[0].shotId = 1;
+        one[0].rows = { row(ShotState::Clean, -2.43, CorridorShape::TwoSided, FiringSide::High),
+                        row(ShotState::Clean, -2.43, CorridorShape::TwoSided, FiringSide::Either) };
+        one[0].rows[1].conditionId = QStringLiteral("y");
+        const QJsonObject obj = toJson(one, O);
+        const QJsonArray rowsJ = obj.value(QStringLiteral("shots")).toArray().at(0).toObject()
+                                     .value(QStringLiteral("rows")).toArray();
+        check(rowsJ.at(0).toObject().value(QStringLiteral("firingSide")).toString() == QStringLiteral("high")
+                  && !rowsJ.at(1).toObject().contains(QStringLiteral("firingSide")),
+              "#16: firingSide is written on a one-way row and only there");
+        const auto back = fromJson(obj);
+        check(back.size() == 1 && back[0].rows.size() == 2 && back[0].rows[0].firingSide == FiringSide::High
+                  && back[0].rows[1].firingSide == FiringSide::Either,
+              "#16: the side survives the round trip");
+        check(firingSideFromString(QString()) == FiringSide::Either,
+              "#16: a row with no side recorded reads as Either");
+        check(obj.value(QStringLiteral("schemaVersion")).toInt() == 10, "#16: the ledger is schema 10");
+
+        // Two signals on one measure, one on each tail: between them both tails are watched.
+        ConditionRow two = row(ShotState::Clean, 0.0, CorridorShape::TwoSided, FiringSide::Either);
+        MeasureRow hi, lo;
+        hi.measureId = lo.measureId = QStringLiteral("m");
+        hi.corridorShape = lo.corridorShape = CorridorShape::TwoSided;
+        hi.firingSide = FiringSide::High;
+        lo.firingSide = FiringSide::Low;
+        two.readings = { hi, lo };
+        const std::optional<MeasureRow> merged = rowReadingOf(two, QStringLiteral("m"));
+        check(merged && merged->firingSide == FiringSide::Either,
+              "#16: one signal on each tail of a measure reads as both tails watched");
+
+        // AN ALL-OF CONDITION held clean by one part. Reverse pivot needs the tilt at the top AND at
+        // impact: the top part fired (z −2.6, past its low edge), the impact part did not (z −0.6). The
+        // row is as far from firing as the impact part — 0.6 — not 2.6. The same row NOT all-of reads
+        // its driving reading as before.
+        {
+            ConditionRow rp = row(ShotState::Clean, -2.6, CorridorShape::TwoSided, FiringSide::Low);
+            MeasureRow top, imp;
+            top.measureId = QStringLiteral("m_top");  top.z = -2.6;  top.fired = true;
+            imp.measureId = QStringLiteral("m_imp");  imp.z = -0.6;  imp.fired = false;
+            for (MeasureRow *m : { &top, &imp }) {
+                m->corridorShape = CorridorShape::TwoSided;
+                m->firingSide    = FiringSide::Low;
+                m->corridorLo = -2.0; m->corridorHi = 2.0;
+            }
+            rp.readings = { top, imp };
+            rp.allOf = true;
+            check(near(rowStrength(rp).excess, 0.6, 1e-12),
+                  "#16: a clean all-of row reads the part that kept it clean (0.6), not the one that fired (2.6)");
+            rp.readings[1].corridorShape = CorridorShape::None;      // the part keeping it clean has no scale
+            check(!rowStrength(rp).known, "#16: …and nothing at all when that part has no scale — never the fired part");
+            rp.readings[1].corridorShape = CorridorShape::TwoSided;
+            rp.allOf = false;
+            check(near(rowStrength(rp).excess, 2.6, 1e-12), "#16: …and an any-of row its driving reading");
+            rp.allOf = true;
+            rp.state = ShotState::Fired;
+            check(near(rowStrength(rp).excess, 2.6, 1e-12), "#16: …and a FIRED all-of row its driving reading");
+        }
+
+        // A THRESHOLD TEST is measured against ITS OWN LINE: the band's middle is 0, its number is
+        // kDiagThresholdExcess (2, where a corridor test fires). Shank fires below −30 on a strike
+        // location whose band is ±8 around 0: −26.8 is 2 × 26.8 / 30 = 1.79, short of firing, where the
+        // band alone put it 3.35 out; −33 fired is 2.2; the high side is 0.
+        {
+            ConditionRow sh = row(ShotState::Clean, -26.8 / 8.0, CorridorShape::TwoSided, FiringSide::Low);
+            sh.corridorLo = -8.0; sh.corridorHi = 8.0; sh.value = -26.8; sh.faultAt = -30.0;
+            check(near(rowStrength(sh).excess, 2.0 * 26.8 / 30.0, 1e-12), "#16: a threshold reading short of its line reads short of 2");
+            check(near(rowCorridorDistance(sh).excess, 26.8 / 8.0, 1e-12),
+                  "#16: …while its distance from the corridor's middle is still the band's");
+            sh.state = ShotState::Fired; sh.value = -33.0; sh.z = -33.0 / 8.0;
+            check(near(rowStrength(sh).excess, 2.2, 1e-12), "#16: a threshold firing reads past 2, by its own line");
+            sh.state = ShotState::Clean; sh.value = 12.0; sh.z = 1.5;
+            check(rowStrength(sh).known && rowStrength(sh).excess == 0.0, "#16: …and the other side is 0");
+            sh.faultAt = 5.0;                       // a low-side condition with its line ABOVE the middle
+            check(!rowStrength(sh).known, "#16: a line on the wrong side of the middle has no scale");
+        }
+
+        // The per-reading fields and allOf survive the round trip.
+        {
+            std::vector<ShotRecord> rt(1);
+            rt[0].shotId = 1;
+            ConditionRow r2 = row(ShotState::Clean, 0.3, CorridorShape::TwoSided, FiringSide::High);
+            r2.allOf = true;
+            r2.faultAt = 4.5;
+            MeasureRow m1, m2;
+            m1.measureId = QStringLiteral("a"); m1.firingSide = FiringSide::Low;  m1.faultAt = -3.0;
+            m2.measureId = QStringLiteral("b"); m2.firingSide = FiringSide::High;
+            r2.readings = { m1, m2 };
+            rt[0].rows = { r2 };
+            const auto back2 = fromJson(toJson(rt, O));
+            const bool ok = back2.size() == 1 && back2[0].rows.size() == 1 && back2[0].rows[0].readings.size() == 2;
+            check(ok && back2[0].rows[0].allOf && back2[0].rows[0].faultAt == 4.5
+                      && back2[0].rows[0].readings[0].firingSide == FiringSide::Low
+                      && back2[0].rows[0].readings[0].faultAt == -3.0
+                      && back2[0].rows[0].readings[1].firingSide == FiringSide::High
+                      && !std::isfinite(back2[0].rows[0].readings[1].faultAt),
+                  "#16: allOf, the row's line and each reading's side and line survive the round trip");
+        }
+    }
+
     // ── Never-do rule 1 — no percentage the n does not support ──────────────────
     //
     // Recurrence is a COUNT, always. There is no percentage-formatting function in the
@@ -1585,7 +1759,7 @@ int main()
         r.peakTimes.push_back({ QStringLiteral("m_leadArmPeakTime"), -21.0,
                                 std::numeric_limits<double>::quiet_NaN() });
         const QJsonObject obj = toJson({ r });
-        check(obj.value(QStringLiteral("schemaVersion")).toInt() == 9, "the ledger is schema 9");
+        check(obj.value(QStringLiteral("schemaVersion")).toInt() >= 9, "the ledger is schema 9 or later");
         const QByteArray bytes = QJsonDocument(obj).toJson(QJsonDocument::Compact);
         const auto back = fromJsonDocument(QJsonDocument::fromJson(bytes));
         check(back.size() == 1 && back[0].peakTimes.size() == 2
@@ -1690,7 +1864,7 @@ int main()
         const QJsonObject obj   = toJson({ shot });
         const QByteArray  bytes = QJsonDocument(obj).toJson(QJsonDocument::Compact);
         const auto        back  = fromJsonDocument(QJsonDocument::fromJson(bytes));
-        check(obj.value(QStringLiteral("schemaVersion")).toInt() == 9, "a composite row writes schema 9");
+        check(obj.value(QStringLiteral("schemaVersion")).toInt() >= 9, "a composite row writes schema 9 or later");
         const ConditionRow *b = back.empty() ? nullptr : rowFor(back[0], QStringLiteral("loss_of_posture"));
         check(b && b->composite.present() && b->composite.parts.size() == 2 && b->composite.unread.size() == 3,
               "schema9_composite_roundtrip: the parts and the unread parts come back");

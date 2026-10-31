@@ -107,7 +107,12 @@ Item {
         const pass = (sp.bands || []).filter(b => b.grade === "ideal" || b.grade === "good" || b.grade === "open")
         if (!cur || !pass.length) return []
         const v = cur.value
-        const lo = Math.min(...pass.map(b => b.lo)), hi = Math.max(...pass.map(b => b.hi))
+        // an OPEN end has no pass edge (#16: a one-way condition opens the end it never fires on): its band
+        // stops where the axis does, which is no distance the golfer can travel
+        const bands = sp.bands || [], graded = pass.filter(b => b.grade !== "open")
+        if (!graded.length) return []
+        const lo = bands[0].grade === "open" ? -Infinity : Math.min(...graded.map(b => b.lo))
+        const hi = bands[bands.length - 1].grade === "open" ? Infinity : Math.max(...graded.map(b => b.hi))
         const above = v > hi, below = v < lo
         const fmt = x => (Math.round(Math.abs(x) * 10) / 10).toFixed(1).replace("-", "−")
         const lab = "Shot " + (cur.index !== undefined ? cur.index + 1 : shotNo)

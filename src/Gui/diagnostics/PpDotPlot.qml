@@ -21,9 +21,11 @@ import QtQuick
 // DOTPLOT — C's This-shot figure: every condition on ONE common, corridor-normalised scale. In those
 // steps a reading sits at 0 in the middle of its corridor, the pass edge is at 2 (where a condition
 // fires) and the fault line at 3; x = strengthExcess for this shot. Fired conditions are warn marks on a
-// warn stem from the pass edge; clean ones are clean marks inside the wash; "‹" = out on the other side,
-// so clean here. Rows sort by distance. Laid out in as many blocks as fit: rich (session tier · name ·
-// plot · value) from roles.flows.dotRich em a block, tight (names wrap, values never) from dotTight.
+// warn stem from the pass edge; clean ones are clean marks inside the wash. A clean reading out on the
+// side its condition never fires on scores 0 in the model (#16) and sits in the middle like any other
+// clean one: that reading is the other side's condition's. Rows sort by distance. Laid out in as many
+// blocks as fit: rich (session tier · name · plot · value) from roles.flows.dotRich em a block, tight
+// (names wrap, values never) from dotTight.
 // filter "fired" draws only the fired rows (Replay); the scale stays the same.
 // Round 4:
 //   • showTier: the tier column FOLDS before the plot goes tight — between dotRich − the tier column and
@@ -49,7 +51,7 @@ Item {
     property bool showHead: true
     property bool showTier: true                // false: the tier never takes a column (it folds onto the name)
     property string printGroup: ""              // print: name the list so the PpPager repeats the heads after a break
-    readonly property var keyKinds: ["fired", "clean", "corridor", "fault", "other"]
+    readonly property var keyKinds: ["fired", "clean", "corridor", "fault"]
     signal conditionActivated(string id)
     signal conditionHovered(string id)
 
@@ -61,12 +63,12 @@ Item {
             const c = cs[i]
             if (c.stateKind === "notAssessable") continue
             const fired = c.stateKind === "fired", known = c.strengthKnown !== false
-            const ex = Number(c.strengthExcess), other = !fired && known && ex >= 2
+            const ex = Number(c.strengthExcess)
             // A SHARP firing (crossing the line is the fault) has no distance: its excess is a rank
             // key, so it leads the rows and is drawn at the plot's right edge, never sizing the axis.
             const sharp = fired && c.strengthSharp === true
-            rows.push({ id: c.id, name: c.name, fired: fired, known: known, other: other, sharp: sharp,
-                        x: (other || !known) ? 0 : ex, value: c.valueText || "-", stateKind: c.stateKind, tierTag: c.tierTag || "",
+            rows.push({ id: c.id, name: c.name, fired: fired, known: known, sharp: sharp,
+                        x: !known ? 0 : ex, value: c.valueText || "-", stateKind: c.stateKind, tierTag: c.tierTag || "",
                         tier: c.tierTag === "clean all session" ? "" : c.tierTag })
         }
         rows.sort((a, b) => ((b.sharp ? 1 : 0) - (a.sharp ? 1 : 0)) || (b.x - a.x) || ((b.fired ? 1 : 0) - (a.fired ? 1 : 0)) || a.name.localeCompare(b.name))
@@ -232,11 +234,6 @@ Item {
                         roles: dk.roles
                         fired: row.r.fired
                         cx: dk.xs(row.r.x); cy: dk.pitch / 2
-                    }
-                    Text {
-                        visible: row.r.other
-                        text: "‹"; color: dk.roles.ink3; font: dk.roles.fSmall
-                        x: dk.geo.plotX - width - dk.roles.u(2); y: (dk.pitch - height) / 2
                     }
                     Text {
                         x: dk.geo.valueX; y: (dk.pitch - height) / 2

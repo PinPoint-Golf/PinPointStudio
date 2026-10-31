@@ -27,6 +27,7 @@
 
 #include "swing_areas.h"
 #include "work_ons_pack.h"                          // workOnClassFor
+#include "firing_side.h"                            // conditionFiringSide
 #include "../Diagnostics/engine/characteristic.h"
 
 #include <QHash>
@@ -62,18 +63,15 @@ inline QHash<QString, AreaConditionInfo> areaConditionInfoForPack(const Characte
         i.counts = areaConditionCounts(i.group, workOnClassFor(c), c.kind == ConditionKind::Outcome,
                                        !c.reportHold.isEmpty());
         bool anyMeasure = false, allLm = true;
-        QSet<QString> bothTails;      // measures read from both ends, or once with no direction
         for (const QString &sigId : c.detectedBy) {
             const Signal *sg = pack.signal(sigId);
             if (!sg) { allLm = false; continue; }
-            const QString tail = sg->direction ? (*sg->direction == Direction::High ? QStringLiteral("high")
-                                                                                 : QStringLiteral("low"))
-                                               : QString();
             for (const QString &mid : sg->measures) {
-                if (tail.isEmpty() || (i.tailByMeasure.contains(mid) && i.tailByMeasure.value(mid) != tail))
-                    bothTails.insert(mid);
-                else
-                    i.tailByMeasure.insert(mid, tail);
+                // The tail it watches here: the one derivation the session panel uses (firing_side.h).
+                // A ratio's measures get none — the quotient fires, not either measure (#16).
+                const FiringSide side = conditionFiringSide(pack, c, mid);
+                if (side != FiringSide::Either)
+                    i.tailByMeasure.insert(mid, side == FiringSide::High ? QStringLiteral("high") : QStringLiteral("low"));
                 const Measure *m = pack.measure(mid);
                 if (!m) { allLm = false; continue; }
                 anyMeasure = true;
@@ -82,7 +80,6 @@ inline QHash<QString, AreaConditionInfo> areaConditionInfoForPack(const Characte
                 if (!areaMeasureIsLmOnly(*m)) allLm = false;
             }
         }
-        for (const QString &mid : bothTails) i.tailByMeasure.remove(mid);
         i.lmOnly = anyMeasure && allLm;
         out.insert(c.id, std::move(i));
     }

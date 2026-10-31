@@ -21,7 +21,7 @@ import QtQuick
 // PAGEKEY — C's key: each entry a drawn mark and its word, flowed. On screen one key per view, above its
 // figures (never repeated per figure); in print the PpPager draws one key per page in the footer holding
 // only the marks that page uses (every block exposes `keyKinds`).
-// kinds: any of fired clean ring hover median fault pass corridor other bar tick stub (gap = stub) strip
+// kinds: any of fired clean ring hover median fault pass corridor bar tick stub (gap = stub) strip
 //        box fit chance dots (the Charts panel's: a session box, a least-squares line clear of / inside
 //        chance, raw samples)
 //        n-fired n-clean n-root n-ghost n-outcome
@@ -51,7 +51,7 @@ Flow {
     readonly property var _words: ({
         "fired": "fired", "clean": "clean", "ring": shotLabel, "hover": "the shot under the pointer",
         "median": "median of the last 5", "fault": "fault line", "pass": "pass edge", "corridor": "inside the corridor",
-        "other": "out on the other side, so clean here", "bar": "fired", "tick": "clean", "gap": "stub: not measured", "stub": "stub: not measured",
+        "bar": "fired", "tick": "clean", "gap": "stub: not measured", "stub": "stub: not measured",
         "strip": "shots in the order struck; a bar fired, a tick clean, a stub not measured",
         "box": "the session: middle half, median, whiskers", "fit": "least squares, clears chance",
         "chance": "least squares, inside chance", "dots": "raw samples",
@@ -61,7 +61,7 @@ Flow {
         "l-coherent": "coherent", "l-presentTogether": "present together", "l-unanchored": "unanchored"
     })
     readonly property var sets: ({
-        shot: ["fired", "clean", "corridor", "fault", "other"],
+        shot: ["fired", "clean", "corridor", "fault"],
         session: ["fired", "clean", "ring", "median", "fault", "corridor"],
         watch: ["bar", "tick", "stub"],
         figure: ["fired", "clean", "ring", "median", "fault", "pass", "corridor"],
@@ -99,7 +99,6 @@ Flow {
                 Rectangle { visible: ki.kind === "median"; width: parent.width; height: 1.2; color: pk.roles.ink2; anchors.verticalCenter: parent.verticalCenter }
                 Rectangle { visible: ki.kind === "fault"; width: parent.width; height: Math.max(1, pk.roles.hw); color: pk.roles.fault; anchors.verticalCenter: parent.verticalCenter }
                 Rectangle { visible: ki.kind === "corridor"; anchors.fill: parent; color: Qt.alpha(pk.roles.ink, 0.07) }
-                Text { visible: ki.kind === "other"; text: "‹"; color: pk.roles.ink3; font: pk.roles.fSmall; anchors.centerIn: parent }
                 Rectangle { visible: ki.kind === "bar"; anchors.centerIn: parent; width: Math.max(3, pk.roles.u(4)); height: parent.height; radius: pk.roles.r.barRadius; color: pk.roles.warn }
                 Rectangle { visible: ki.kind === "tick"; anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom
                             width: 1; height: parent.height * 0.6; color: pk.roles.ink3 }

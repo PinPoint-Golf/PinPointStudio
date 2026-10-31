@@ -52,6 +52,15 @@ using namespace pinpoint::analysis;
 
 namespace {
 
+// THE AUTHORED NUMBER A THRESHOLD SIGNAL FIRES AT, or NaN for any other test (#16): a threshold reading's
+// distance is measured against its own line (ConditionRow::faultAt), not the band its measure carries.
+double thresholdOf(const CharacteristicPack &pack, const QString &signalId)
+{
+    const Signal *s = pack.signal(signalId);
+    return s && s->test == SignalTest::Threshold && s->threshold ? *s->threshold
+                                                                 : std::numeric_limits<double>::quiet_NaN();
+}
+
 // The envelope's own schema tag, separate from kDiagSchemaVersion.
 //
 // TWO VERSIONS BECAUSE THERE ARE TWO CONTRACTS. kDiagSchemaVersion tags the ROW shape, which
@@ -955,6 +964,13 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
             // Every branch that left z at 0 for want of a scale records None, so a meter is
             // never drawn over a reading that was graded against an authored number.
             r.corridorShape    = corridorShapeOf(f.evidence);
+            // …and which of the band's ends THIS condition fires on (schema 10, #16), so a clean
+            // reading out on the end it never fires on is not scored as a near miss.
+            r.firingSide       = conditionFiringSide(pack, f.conditionId, r.drivingMeasureId);
+            // …the threshold test's own line when one decided it, and whether every signal must fire —
+            // what a clean row's distance is read against (rowStrength).
+            r.faultAt          = thresholdOf(pack, f.evidence.drivingSignalId);
+            if (const Condition *pc = pack.condition(f.conditionId)) r.allOf = pc->detection == DetectionMode::All;
             // Schema 9: a composite's parts and coverage, the evidence its detail page draws.
             r.composite        = compositeRowOf(f.evidence);
         }
@@ -969,6 +985,8 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
                 m.corridorHi    = e.corridorHi;
                 m.z             = e.z;
                 m.corridorShape = corridorShapeOf(e);
+                m.firingSide    = conditionFiringSide(pack, f.conditionId, m.measureId);
+                m.faultAt       = thresholdOf(pack, e.drivingSignalId);
                 m.fired         = e.fired;
                 m.composite     = compositeRowOf(e);
                 r.readings.push_back(std::move(m));
@@ -2220,15 +2238,17 @@ SpreadCorridor SessionDiagnosticsModel::corridorForRow(const ConditionRow &r) co
     // The norm for the row's own measure and context, as it grades today; the row's stored Ideal
     // band only when none resolves (spreadCorridorFromRow). A row graded against an authored
     // number has neither, and says so.
+    // Either way, on the condition's own tail only (#16): the other end of a shared band is its
+    // mirror's, and the sentence and the strip state the edge this one fires at.
     const GradePolicy policy = gradePolicyByName(m_policyName);
     if (m_norms && !r.drivingMeasureId.isEmpty()) {
         Shape shape = Shape::Target;
         if (m_packProv)
             if (const Measure *m = m_packProv->pack().measure(r.drivingMeasureId)) shape = m->shape;
         const NormResolution res = m_norms->resolve(r.drivingMeasureId, r.contextId);
-        if (res.found()) return spreadCorridorFromNorm(*res.norm, shape, policy);
+        if (res.found()) return spreadCorridorOnSide(spreadCorridorFromNorm(*res.norm, shape, policy), r.firingSide);
     }
-    return spreadCorridorFromRow(r, policy);
+    return spreadCorridorOnSide(spreadCorridorFromRow(r, policy), r.firingSide);
 }
 
 SpreadCorridor SessionDiagnosticsModel::spreadCorridorOf(const ConditionLedger &l, int fi,
@@ -2300,6 +2320,11 @@ SpreadCorridor SessionDiagnosticsModel::spreadCorridorOf(const ConditionLedger &
             (*normInfo)[QStringLiteral("citation")] = QString();
         }
     }
+    // THE CONDITION'S TAIL of this measure (#16), as the rows recorded it: the strip, its fault line
+    // and the sentence all state the end this condition fires at, and the other end opens.
+    if (rep && !measureId.isEmpty())
+        if (const std::optional<MeasureRow> m = rowReadingOf(*rep, measureId))
+            c = spreadCorridorOnSide(c, m->firingSide);
     return c;
 }
 

@@ -19,6 +19,7 @@
 #pragma once
 
 #include "../../Coaching/diagnostic_ledger.h"
+#include "../../Coaching/firing_side.h"            // conditionFiringSide (#16)
 #include "../../Coaching/work_ons.h"
 #include "../../Diagnostics/engine/characteristic_engine.h"
 #include "../../Diagnostics/engine/relation_resolver.h"

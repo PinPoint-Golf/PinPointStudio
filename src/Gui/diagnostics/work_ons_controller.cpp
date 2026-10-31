@@ -111,17 +111,10 @@ QString gradeOnCorridor(const SpreadCorridor &c, double v)
 // the other end belongs to its mirror. Without this, a wrist cupped past the low edge graded "watch"
 // on bowed_at_top as well as on cupped_at_top (#112). The unwatched side opens, its edges collapsing
 // onto mu as spreadCorridorFromRow's open sides do. "" leaves the corridor as it is.
+// The session panel opens the same side the same way (session_spread.h spreadCorridorOnSide, #16).
 SpreadCorridor watchingTail(SpreadCorridor c, const QString &tail)
 {
-    if (!c.known) return c;
-    if (tail == QLatin1String("high")) {
-        c.lowOpen = true;
-        c.idealLo = c.signalLo = c.faultLo = c.mu;
-    } else if (tail == QLatin1String("low")) {
-        c.highOpen = true;
-        c.idealHi = c.signalHi = c.faultHi = c.mu;
-    }
-    return c;
+    return spreadCorridorOnSide(c, firingSideFromString(tail));
 }
 
 // A COUNT of swings, never a percentage — recurrenceText()'s rule, one level up.
@@ -545,7 +538,9 @@ void WorkOnsController::publish()
                 band.corridorLo    = lo;
                 band.corridorHi    = hi;
                 band.corridorShape = shape;
-                const SpreadCorridor sc = spreadCorridorFromRow(band, gradePolicyByName(m_gradePolicy));
+                // On this condition's own end of the band (#16), as the panel states it.
+                const SpreadCorridor sc = spreadCorridorOnSide(spreadCorridorFromRow(band, gradePolicyByName(m_gradePolicy)),
+                                                               conditionFiringSide(pack, w.id, measureId));
                 const QString corridor = sc.known ? spreadCorridorWords(sc, unit) : QString();
                 if (!corridor.isEmpty())
                     text += QStringLiteral(" · typically %1 against %2")

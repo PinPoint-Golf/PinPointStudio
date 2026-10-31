@@ -207,7 +207,13 @@ inline constexpr double kDiagSharpExcess = 1000.0;
 // both ends — and the authored parts it could not read, with the coverage. The composite's own number
 // is never shown, so these ARE the evidence Replay and Print draw. A file at 8 reads back with none
 // (no composite was ever graded under it), and regrades on activation.
-inline constexpr int kDiagSchemaVersion = 9;
+// 10 added ConditionRow / MeasureRow `firingSide` (#16): the tail the CONDITION fires on, so a clean
+// reading out on the side it never fires on scores 0 rather than as far past a fault line; `faultAt`,
+// a threshold test's own number, so its reading is measured against its own line; and ConditionRow
+// `allOf`, so a clean all-of row reads the part that kept it clean. A file at 9 reads back with Either,
+// no line and not all-of on every row — its old reading — and regrades on activation (the content
+// stamp carries this version), which writes them.
+inline constexpr int kDiagSchemaVersion = 10;
 
 // Every §4 tunable in one injectable bundle.
 struct LedgerOptions {
@@ -450,6 +456,41 @@ inline CorridorShape corridorShapeFromString(const QString &s)
     return CorridorShape::Unknown;      // anything unrecognised is "we did not record it"
 }
 
+// WHICH TAIL THE CONDITION FIRES ON, recorded beside the corridor's shape because the two are
+// different facts (#16). CorridorShape is the MEASURE's: which ends of its band grade at all, and
+// so how z was scaled. This is the CONDITION's: which of those ends its signals watch. A condition
+// is one tail of one measure (characteristic_pack.cpp `signalDirection`), so on a two-sided
+// corridor "Ball too far forward" watches the low end and "Ball too far back" the high end of the
+// same band — and a clean forward-ball row far out on the HIGH side is the back-ball fault, not a
+// near miss of its own. Without this the strength meter took |z| there and scored a clean reading
+// as far past a fault line it can never cross.
+//
+// Either is what a row says when the condition watches both ends, when it has no corridor signal
+// on the measure, and on every row of a file written before schema 10 — which then reads exactly as
+// it always did, by the corridor's shape alone, until it regrades on activation.
+enum class FiringSide {
+    Either,     // both tails (or not recorded): the corridor's shape alone says which side grades
+    High,       // fires above the corridor only; below it is the other condition's side
+    Low,        // fires below the corridor only
+};
+
+inline QString firingSideToString(FiringSide s)
+{
+    switch (s) {
+    case FiringSide::High:   return QStringLiteral("high");
+    case FiringSide::Low:    return QStringLiteral("low");
+    case FiringSide::Either: break;
+    }
+    return QStringLiteral("either");
+}
+
+inline FiringSide firingSideFromString(const QString &s)
+{
+    if (s == QStringLiteral("high")) return FiringSide::High;
+    if (s == QStringLiteral("low"))  return FiringSide::Low;
+    return FiringSide::Either;          // absent (schema ≤ 9) or "either"
+}
+
 // ── A composite's parts (schema 9, posture_metrics_design.md §6.3, §8) ──────────
 //
 // The ledger's copy of the engine's CompositePart / CompositeUnread (characteristic_engine.h). A
@@ -499,6 +540,8 @@ struct MeasureRow {
     double  corridorHi = 0.0;
     double  z          = 0.0;
     CorridorShape corridorShape = CorridorShape::Unknown;
+    FiringSide    firingSide    = FiringSide::Either;   // schema 10: the tail the condition watches here
+    double  faultAt    = std::numeric_limits<double>::quiet_NaN();   // schema 10: a threshold test's number
     bool    fired      = false;     // this signal's own verdict
     CompositeRowEvidence composite; // schema 9: this reading's parts, when its measure is a composite
 };
@@ -519,6 +562,16 @@ struct ConditionRow {
     // Which shape of corridor that z was taken against, so "how far out" can be read off it
     // without mistaking a floor cleared by a mile for a fault. See CorridorShape.
     CorridorShape corridorShape = CorridorShape::Unknown;
+    // Schema 10: which tail of that corridor THIS CONDITION fires on (FiringSide), so a clean reading
+    // out on the side it never fires on is not scored as far out.
+    FiringSide    firingSide    = FiringSide::Either;
+    // Schema 10: the authored number a THRESHOLD test fires at (Signal::threshold), when that is what
+    // decided the driving reading — the row's own fault line, which the corridor above is not. NaN for
+    // a corridor test.
+    double  faultAt    = std::numeric_limits<double>::quiet_NaN();
+    // Schema 10: the condition fires only when EVERY signal does (DetectionMode::All). A clean row of one
+    // is as far from firing as its nearest-to-clean part, not as its driving reading (rowStrength).
+    bool    allOf      = false;
 
     QString contextId;              // the corridor's context (club, tee, …)
     bool    contextInferred = false;// carried into ranking as a confidence demotion
@@ -572,6 +625,8 @@ inline std::vector<MeasureRow> rowReadings(const ConditionRow &r)
     m.corridorHi    = r.corridorHi;
     m.z             = r.z;
     m.corridorShape = r.corridorShape;
+    m.firingSide    = r.firingSide;
+    m.faultAt       = r.faultAt;
     m.fired         = r.state == ShotState::Fired;
     m.composite     = r.composite;
     return { m };
@@ -585,7 +640,11 @@ inline std::optional<MeasureRow> rowReadingOf(const ConditionRow &r, const QStri
     for (const MeasureRow &m : rowReadings(r)) {
         if (m.measureId != measureId) continue;
         if (!out) out = m;
-        else      out->fired = out->fired || m.fired;
+        else {
+            out->fired = out->fired || m.fired;
+            // one signal on each tail: between them the measure is watched at both ends
+            if (out->firingSide != m.firingSide) out->firingSide = FiringSide::Either;
+        }
     }
     return out;
 }
@@ -671,42 +730,120 @@ inline const ConditionRow *rowFor(const ShotRecord &shot, const QString &conditi
 // A FIRED ROW NEEDS NO SHAPE. A firing can only have happened on the graded side, so |z| is
 // the distance whichever way the band is open — which is what lets the meter work on every
 // session already on disk, including the ones written before the shape was recorded.
+//
+// THE GRADED SIDE IS THE CONDITION'S AS WELL AS THE MEASURE'S (#16). A clean row of a condition
+// that fires on one tail only (FiringSide) is measured on that tail alone, exactly as a floor or a
+// ceiling is: a reading out on the other side is the other condition's fault, and here it sits at
+// 0 with the reading dead in the middle. A row whose condition watches both tails reads |z| as
+// before.
 struct RowStrength {
     bool   known  = false;
     double excess = 0.0;
 };
 
-inline RowStrength rowStrength(const ConditionRow &r)
+// WHERE A THRESHOLD TEST'S OWN LINE SITS ON THE LADDER: the excess at which a corridor test starts to
+// fire under the standard policy (Good ends at 2 Ideal half-widths, where Watch begins).
+inline constexpr double kDiagThresholdExcess = 2.0;
+
+// ONE READING's distance, on the tails `side` leaves graded. The arithmetic every strength is built
+// from — a row's driving reading, or each part of an all-of row.
+//
+// A THRESHOLD TEST'S READING (faultAt finite) is measured against ITS OWN LINE, not the band its measure
+// happens to carry (#16): the band's middle is 0 and the authored number is kDiagThresholdExcess, the
+// step a corridor test fires at, so a shank reading short of its −30 line reads short of the pass edge
+// rather than three widths past a band it is never graded on. A line on the wrong side of the middle
+// for the side the condition fires (or on it) has no scale, and nothing is drawn.
+inline RowStrength readingStrength(bool fired, double value, double z, double lo, double hi,
+                                   CorridorShape shape, FiringSide side, double faultAt)
 {
     RowStrength out;
-    if (r.state == ShotState::NotAssessable) return out;      // rule 1: we did not look
-    // A sharp condition that fired crossed a line that is serious in itself (Condition::sharp):
-    // the top of the ladder, whatever corridor there is or is not. Clean, it says nothing here.
-    if (r.sharp && r.state == ShotState::Fired) {
-        out.known  = true;
-        out.excess = kDiagSharpExcess;
-        return out;
-    }
-    if (!std::isfinite(r.z)) return out;
-    if (r.corridorShape == CorridorShape::None) return out;   // no band, no scale
+    if (!std::isfinite(z)) return out;
+    if (shape == CorridorShape::None) return out;              // no band, no scale
 
-    if (r.state == ShotState::Fired) {                        // the graded side by definition
+    if (std::isfinite(faultAt)) {
+        if (shape == CorridorShape::Unknown || !std::isfinite(value)) return out;
+        const double mid = shape == CorridorShape::Ceiling ? lo : shape == CorridorShape::Floor ? hi : 0.5 * (lo + hi);
+        const double d   = faultAt - mid;
+        if (d == 0.0 || (side == FiringSide::High && d < 0.0) || (side == FiringSide::Low && d > 0.0)) return out;
         out.known  = true;
-        out.excess = std::fabs(r.z);
+        out.excess = std::max(0.0, kDiagThresholdExcess * (value - mid) / d);
         return out;
     }
 
-    switch (r.corridorShape) {
-    case CorridorShape::TwoSided: out.known = true; out.excess = std::fabs(r.z);           break;
+    if (fired) {                                              // the graded side by definition
+        out.known  = true;
+        out.excess = std::fabs(z);
+        return out;
+    }
+
+    // The tails that grade THIS reading: the measure's graded ends, less the one its condition never
+    // fires on. z is +1 at the high edge and −1 at the low one on every shape, so the distance on
+    // a tail is z or −z from there, and nothing on a tail that does not grade.
+    bool high = false, low = false;
+    switch (shape) {
+    case CorridorShape::TwoSided: high = true; low = true; break;
     // The open side is not a distance from anything: a floor cleared by a mile is the best
     // swing of the session, and it sits at 0 with the reading that hit the aspiration exactly.
-    case CorridorShape::Floor:    out.known = true; out.excess = std::max(0.0, -r.z);      break;
-    case CorridorShape::Ceiling:  out.known = true; out.excess = std::max(0.0,  r.z);      break;
+    case CorridorShape::Floor:    low  = true;             break;
+    case CorridorShape::Ceiling:  high = true;             break;
     case CorridorShape::Unknown:
-    case CorridorShape::None:     break;
+    case CorridorShape::None:     return out;
     }
+    if (side == FiringSide::High) low  = false;
+    if (side == FiringSide::Low)  high = false;
+
+    out.known  = true;
+    // Both tails off — a condition pointed at the measure's open end, which can never fire
+    // (diagnostics_health `signalOnOpenTail`) — is no distance from its fault at all.
+    out.excess = std::max({ 0.0, high ? z : 0.0, low ? -z : 0.0 });
     return out;
 }
+
+inline RowStrength readingStrength(const MeasureRow &m)
+{
+    return readingStrength(m.fired, m.value, m.z, m.corridorLo, m.corridorHi, m.corridorShape, m.firingSide, m.faultAt);
+}
+
+// The row's driving reading on the tails `side` leaves graded, with or without its threshold line:
+// rowStrength() passes the row's own side and line, rowCorridorDistance() neither.
+inline RowStrength rowStrengthOnSide(const ConditionRow &r, FiringSide side, bool ownLine = true)
+{
+    if (r.state == ShotState::NotAssessable) return {};       // rule 1: we did not look
+    // A sharp condition that fired crossed a line that is serious in itself (Condition::sharp):
+    // the top of the ladder, whatever corridor there is or is not. Clean, it says nothing here.
+    if (r.sharp && r.state == ShotState::Fired) return { true, kDiagSharpExcess };
+    return readingStrength(r.state == ShotState::Fired, r.value, r.z, r.corridorLo, r.corridorHi, r.corridorShape,
+                           side, ownLine ? r.faultAt : std::numeric_limits<double>::quiet_NaN());
+}
+
+// AN ALL-OF CONDITION THAT DID NOT FIRE is held clean by the part that did not (#16): "reverse pivot"
+// needs the tilt at the top AND the tilt at impact, and a swing tilted far at the top and not at impact
+// is as far from it as the impact tilt says — not as far as the top tilt, which crossed its own line.
+// So such a row reads the SMALLEST distance among the parts that did NOT fire (each on its own side and
+// line) — a part that fired has crossed already and says nothing about how near the rest are. When no
+// part that kept it clean has a scale (a strike-height threshold with no band), nothing is drawn: the
+// part that fired is not allowed to speak for it. Every other row reads its driving reading.
+inline RowStrength rowStrength(const ConditionRow &r)
+{
+    if (r.state == ShotState::Clean && r.allOf && r.readings.size() > 1) {
+        RowStrength best;
+        for (const MeasureRow &m : r.readings) {
+            if (m.fired) continue;
+            const RowStrength s = readingStrength(m);
+            if (s.known && (!best.known || s.excess < best.excess)) best = s;
+        }
+        return best;
+    }
+    return rowStrengthOnSide(r, r.firingSide);
+}
+
+// HOW FAR FROM THE MIDDLE OF THE MEASURE'S CORRIDOR, on every end the MEASURE grades, whichever end
+// the condition fires on, off the driving reading. A different question from rowStrength's, and the
+// session report's "going well" asks this one (ConditionLedger::medianExcess): a condition is a
+// strength when the reading it stands on sits well inside its corridor, and "Ball too far back" clean
+// on every swing because the ball was far FORWARD is not a ball position going well — its mirror
+// fired. The strength meter, the card ranking and the dot plot read rowStrength (#16).
+inline RowStrength rowCorridorDistance(const ConditionRow &r) { return rowStrengthOnSide(r, FiringSide::Either, false); }
 
 // The excess on the drawn ladder. Monotone, saturating, and 0 only for a reading in the
 // middle — the top step is open-ended because "far outside" has no ceiling worth drawing.
@@ -803,13 +940,15 @@ struct ConditionLedger {
     double firingExcess = 0.0;
     int    firingExcessN = 0;       // firings that carried a gradeable reading
 
-    // HOW FAR OUT IT SITS ON EVERY JUDGED SWING, fired or clean: the median rowStrength() excess over
+    // HOW FAR OUT IT SITS ON EVERY JUDGED SWING, fired or clean: the median rowCorridorDistance() over
     // the assessable shots that carried a gradeable reading. NaN when none did (no corridor: a
     // threshold test, a sharp line, a refused reading). Where firingExcess asks how bad a habit is
     // when it shows, this asks whether a CLEAN condition was comfortably clean — what the report's
     // "going well" needs (session_report.h pickStrengths). A clean row out on the far side of a
     // two-sided corridor counts as out, which is the point: never firing is not the same as being
-    // well inside the corridor.
+    // well inside the corridor. So this is the distance from the middle on both of the measure's
+    // graded ends, NOT the condition's one-sided strength (rowCorridorDistance, #16): a forward ball
+    // keeps "Ball too far back" from being called a strength.
     double medianExcess = std::numeric_limits<double>::quiet_NaN();
     int    excessN      = 0;
 
@@ -1028,7 +1167,7 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
                 absZ.push_back(std::fabs(r->z));
             }
             {
-                const RowStrength st = rowStrength(*r);
+                const RowStrength st = rowCorridorDistance(*r);
                 if (st.known && !(r->sharp && r->state == ShotState::Fired)) allExcesses.push_back(st.excess);
             }
             if (r->state != ShotState::Fired) continue;
@@ -2040,6 +2179,10 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
             ro[QStringLiteral("corridorHi")]      = r.corridorHi;
             ro[QStringLiteral("z")]               = r.z;
             ro[QStringLiteral("corridorShape")]   = corridorShapeToString(r.corridorShape);
+            // Schema 10 — only on a condition that fires one way, so a two-tailed row reads as before.
+            if (r.firingSide != FiringSide::Either) ro[QStringLiteral("firingSide")] = firingSideToString(r.firingSide);
+            if (std::isfinite(r.faultAt)) ro[QStringLiteral("faultAt")] = r.faultAt;
+            if (r.allOf) ro[QStringLiteral("allOf")] = true;
             ro[QStringLiteral("contextId")]       = r.contextId;
             ro[QStringLiteral("contextInferred")] = r.contextInferred;
             ro[QStringLiteral("material")]        = r.material;
@@ -2067,6 +2210,8 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
                     mo[QStringLiteral("corridorHi")]    = m.corridorHi;
                     mo[QStringLiteral("z")]             = m.z;
                     mo[QStringLiteral("corridorShape")] = corridorShapeToString(m.corridorShape);
+                    if (m.firingSide != FiringSide::Either) mo[QStringLiteral("firingSide")] = firingSideToString(m.firingSide);
+                    if (std::isfinite(m.faultAt)) mo[QStringLiteral("faultAt")] = m.faultAt;
                     mo[QStringLiteral("fired")]         = m.fired;
                     if (m.composite.present()) mo[QStringLiteral("composite")] = compositeToJson(m.composite);
                     ra.append(mo);
@@ -2200,6 +2345,10 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
             // Absent on a schema-1 file, and Unknown is the honest answer there.
             r.corridorShape    = corridorShapeFromString(
                                      ro.value(QStringLiteral("corridorShape")).toString());
+            // Absent before schema 10 (and on a two-tailed row): Either, the corridor's shape alone.
+            r.firingSide       = firingSideFromString(ro.value(QStringLiteral("firingSide")).toString());
+            r.faultAt          = ro.value(QStringLiteral("faultAt")).toDouble(std::numeric_limits<double>::quiet_NaN());
+            r.allOf            = ro.value(QStringLiteral("allOf")).toBool(false);
             r.pFire            = float(ro.value(QStringLiteral("pFire")).toDouble(-1.0));
             r.quantified       = ro.value(QStringLiteral("quantified")).toBool();
             r.grossRisk        = float(ro.value(QStringLiteral("grossRisk")).toDouble(-1.0));
@@ -2220,6 +2369,8 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
                 m.corridorHi    = mo.value(QStringLiteral("corridorHi")).toDouble();
                 m.z             = mo.value(QStringLiteral("z")).toDouble();
                 m.corridorShape = corridorShapeFromString(mo.value(QStringLiteral("corridorShape")).toString());
+                m.firingSide    = firingSideFromString(mo.value(QStringLiteral("firingSide")).toString());
+                m.faultAt       = mo.value(QStringLiteral("faultAt")).toDouble(std::numeric_limits<double>::quiet_NaN());
                 m.fired         = mo.value(QStringLiteral("fired")).toBool();
                 if (const QJsonValue cv = mo.value(QStringLiteral("composite")); cv.isObject())
                     m.composite = compositeFromJson(cv.toObject());

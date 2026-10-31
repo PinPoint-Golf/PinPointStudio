@@ -99,7 +99,8 @@ struct AreaConditionInfo {
     // The tail of each detecting measure this condition watches, "high" or "low" (its signals'
     // direction). A condition is one tail of one measure: cupped_at_top and bowed_at_top read the
     // same P4 wrist angle from opposite ends. Absent when the signals watch the measure from both
-    // ends or name no direction — then the condition is graded on both.
+    // ends, or only through a ratio or an order test — then the condition is graded on both. The
+    // session panel's rows take the same side (firing_side.h conditionFiringSide).
     QHash<QString, QString> tailByMeasure;
 };
 

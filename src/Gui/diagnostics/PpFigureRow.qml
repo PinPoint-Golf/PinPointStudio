@@ -185,8 +185,9 @@ Item {
             model: fg.roles ? (sc.edges) : []
             delegate: Row {
                 required property var modelData
-                // pass and aim edges are labelled where the scale is true; a fault line always, marked ≈ in a band
-                visible: !fg.zoneBelow && (modelData.kind === "fault" || ((modelData.kind === "pass" || modelData.kind === "aim") && sc.region(modelData.f) === 1))
+                // a pass edge is labelled where the scale is true; a fault line always, marked ≈ in a band. The
+                // aim edge (where an open end meets the graded one) grades nothing, so it carries no bare number (#16)
+                visible: !fg.zoneBelow && (modelData.kind === "fault" || (modelData.kind === "pass" && sc.region(modelData.f) === 1))
                 x: vr.zX; y: sc.y(modelData.f) - height / 2
                 spacing: fg.roles.u(5)
                 Text { text: fg.roles.num(modelData.value); font: fg.roles.fFigLabel; color: modelData.kind === "fault" ? fg.roles.warn : fg.roles.ink3 }
@@ -255,7 +256,7 @@ Item {
     }
     // the zone labels' heights in the right gutter, which an examined box's reading keeps clear of; the
     // gutter starts u(10) past the LAST panel of a row (a panel with another after it has no gutter)
-    readonly property var gutterYs: zoneBelow ? [] : sc.edges.filter(e => e.kind === "fault" || ((e.kind === "pass" || e.kind === "aim") && sc.region(e.f) === 1)).map(e => sc.y(e.f))
+    readonly property var gutterYs: zoneBelow ? [] : sc.edges.filter(e => e.kind === "fault" || (e.kind === "pass" && sc.region(e.f) === 1)).map(e => sc.y(e.f))
                                                      .concat(sc.bandLo ? [sc.loBandTop + sc.bandPx / 2] : [], sc.bandHi ? [sc.plotTop + sc.bandPx / 2] : [])
     function gutterXOf(loader) { return loader && loader.parent && loader.index === loader.parent.kinds.length - 1 ? loader.width + roles.u(10) : 1e6 }
     readonly property int axisDecimals: s.decimals !== undefined ? s.decimals : (hist.decimals !== undefined ? hist.decimals : 0)

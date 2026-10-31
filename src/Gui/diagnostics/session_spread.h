@@ -179,6 +179,26 @@ inline SpreadCorridor spreadCorridorFromRow(const ConditionRow &r, const GradePo
     return c;
 }
 
+// ONE TAIL OF THE CORRIDOR: the condition's (FiringSide, #16). A condition watches one end of its
+// measure and the other end belongs to its mirror — "Ball too far forward" and "Ball too far back"
+// share one two-sided band — so for the condition the end it never fires on does not grade: it
+// opens, its edges collapsing onto mu as an open side's do everywhere above, and the bands, the
+// sentence and the position words all say so. Either leaves the corridor as it is, and so does a
+// side that would open BOTH ends (a condition pointed at the measure's open tail, which cannot
+// fire — diagnostics_health reports it): no corridor is drawn with nothing graded on it.
+inline SpreadCorridor spreadCorridorOnSide(SpreadCorridor c, FiringSide side)
+{
+    if (!c.known) return c;
+    if (side == FiringSide::High && !c.highOpen) {
+        c.lowOpen = true;
+        c.idealLo = c.signalLo = c.faultLo = c.mu;
+    } else if (side == FiringSide::Low && !c.lowOpen) {
+        c.highOpen = true;
+        c.idealHi = c.signalHi = c.faultHi = c.mu;
+    }
+    return c;
+}
+
 // A sample's quantile, linear between order statistics (type 7, R's default). Empty → NaN. The box
 // plots' quartiles come from the same function (box_stats.h), so the box's median is this median.
 inline double spreadQuantile(std::vector<double> sorted, double q)
@@ -398,8 +418,8 @@ inline QString spreadWithUnit(const QString &number, const QString &unit)
 // replaces "pass 0.0 to 4.3", which quoted the policy's Ideal band — mu to mu + σ — and so put a
 // number on the card that appears nowhere on the strip under it and is not where anything fires.
 //
-//   ceiling   "pass up to 8.7 · fault at 13 % hand rise"
-//   floor     "pass from 1.3 up · fault at 1.2"
+//   ceiling   "pass up to 8.7 · fault above 13 % hand rise"
+//   floor     "pass from 1.3 up · fault below 1.2"
 //   twoSided  "pass 5 to 25 · fault outside 0 to 30 mm"
 //
 // The unit once, at the end, where it reads for both numbers. Decimals off the corridor's own span
@@ -411,9 +431,9 @@ inline QString spreadCorridorWords(const SpreadCorridor &c, const QString &unit)
     const int d = spreadDecimals(span);
     auto n = [&](double v) { return spreadNumber(v, d, /*trimZeros*/ true); };
     if (c.lowOpen)
-        return spreadWithUnit(QStringLiteral("pass up to %1 · fault at %2").arg(n(c.signalHi), n(c.faultHi)), unit);
+        return spreadWithUnit(QStringLiteral("pass up to %1 · fault above %2").arg(n(c.signalHi), n(c.faultHi)), unit);
     if (c.highOpen)
-        return spreadWithUnit(QStringLiteral("pass from %1 up · fault at %2").arg(n(c.signalLo), n(c.faultLo)), unit);
+        return spreadWithUnit(QStringLiteral("pass from %1 up · fault below %2").arg(n(c.signalLo), n(c.faultLo)), unit);
     return spreadWithUnit(QStringLiteral("pass %1 to %2 · fault outside %3 to %4")
                               .arg(n(c.signalLo), n(c.signalHi), n(c.faultLo), n(c.faultHi)), unit);
 }
