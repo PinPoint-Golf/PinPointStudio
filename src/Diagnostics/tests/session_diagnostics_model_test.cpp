@@ -1338,6 +1338,27 @@ int main(int argc, char **argv)
         m->closeSession();
         check(m->stage() == QLatin1String("closing"), "closeSession freezes at Closing");
         check(!m->bookends().isEmpty(), "the closing panel offers session bookends");
+        // #17: the closing line, from the model itself — what the counts cover, which shot is this one in
+        // words that do not depend on how it is drawn, and why a count is not a percentage, in plain words
+        const QVariantMap hi = m->headerInfo();
+        const QString closing = hi.value(QStringLiteral("closingLine")).toString();
+        const QString noShot  = hi.value(QStringLiteral("closingLineNoShot")).toString();
+        check(closing == QLatin1String("Every count covers all 6 shots, and this shot is highlighted wherever it "
+                                       "appears. At this number of shots a percentage would look more exact than "
+                                       "it is, so each pattern says how many shots it came back on."),
+              "the closing line says what the counts cover and which shot is this one");
+        const auto plainWords = [](const QString &t) {
+            return t.contains(QLatin1String("number of shots")) && !t.contains(QLatin1String("wide tick"))
+                   && !t.contains(QLatin1String(" n.")) && !t.contains(QLatin1String(" n "))
+                   && t.count(QLatin1String("count")) == 1;
+        };
+        check(plainWords(closing) && plainWords(noShot),
+              "…both forms in plain words: \"number of shots\", no drawing, no \"n\", \"count\" once");
+        check(noShot == QLatin1String("Every count covers all 6 shots. At this number of shots a percentage would "
+                                      "look more exact than it is, so each pattern says how many shots it came back on.")
+                  && !noShot.contains(QLatin1String("this shot")),
+              "…and the form for a surface that names no shot (the report appendix with no reference swing) "
+              "does not claim one is highlighted");
         const QVariantMap bk = m->bookends().first().toMap();
         check(bk.contains(QStringLiteral("representativeShotId")),
               "…including the most representative shot, not just best and worst");
@@ -1951,6 +1972,11 @@ int main(int argc, char **argv)
         check(m->headerInfo().value(QStringLiteral("countLine")).toString()
                   .contains(QLatin1String("counted over all 6 shots")),
               "…and states that the counts are session totals");
+        check(m->headerInfo().value(QStringLiteral("reviewFootLine")).toString()
+                  == QLatin1String("The panel stays at the finished session: every count covers all 6 shots, and "
+                                   "this shot is highlighted wherever it appears. At this number of shots a percentage "
+                                   "would look more exact than it is, so each pattern says how many shots it came back on."),
+              "…and the review foot line says the same in the same plain words (#17)");
 
         const QVariantMap ro = m->shotReadout(3);
         check(!ro.isEmpty(), "shotReadout returns a payload for a shot in the ledger");
@@ -2362,7 +2388,7 @@ int main(int argc, char **argv)
         const QVariantMap reviewDetail = m->detail();
         check(!reviewDetail.isEmpty(), "the page survives the close and the review");
         {
-            // The one honest difference: the reviewed shot is the wide tick, here as everywhere.
+            // The one honest difference: the reviewed shot is highlighted, here as everywhere.
             const QVariantList ticks =
                 reviewDetail.value(QStringLiteral("header")).toMap()
                             .value(QStringLiteral("ticks")).toList();
@@ -2847,7 +2873,7 @@ int main(int argc, char **argv)
             check(h.value(QStringLiteral("statePill")).toString() == QLatin1String("CLEAN HERE"),
                   "…the chip says CLEAN HERE");
             check(selectedIn(h.value(QStringLiteral("ticks")).toList(), "selected") == 2,
-                  "…the tick run's wide tick is shot 3");
+                  "…the tick run's highlighted shot is shot 3");
             check(selectedIn(sp.value(QStringLiteral("run")).toList(), "selected") == 2
                       && currentDotIndex(sp) == 2,
                   "…and so are the run's wide mark and the strip's ringed dot");

@@ -552,6 +552,14 @@ Item {
                 width: ssc.width; roles: ro; keepPrev: true
                 text: "A pattern opens its detail; a strip cell or a typical / worst / best figure puts that shot in the carousel."
             }
+            // the session has closed: what the counts cover and, with a shot read, which one is this (the
+            // model's words, #17), under the table they explain
+            PpNotes {
+                objectName: "sdClosingLine"
+                visible: !ss.cold && !!root.header && String(root.header.closingLine || "") !== ""
+                width: ssc.width; roles: ro; keepPrev: true
+                text: root.header ? ro.esc((root.shot ? root.header.closingLine : root.header.closingLineNoShot) || "") : ""
+            }
             // F39: the capture's coverage, its own line, never omitted while there is a session
             PpNotes {
                 objectName: "sdCoverageLine"

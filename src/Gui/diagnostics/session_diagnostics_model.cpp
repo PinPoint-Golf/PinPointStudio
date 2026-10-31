@@ -3276,17 +3276,21 @@ void SessionDiagnosticsModel::buildHeader()
     h[QStringLiteral("cadenceNote")] = m_quiet ? QStringLiteral("BANDWIDTH · QUIET") : QString();
 
     // THE PANEL'S TENSE, IN WORDS, ALONG THE BOTTOM (13a's footer). The devices above it —
-    // the wide tick, the session counts under every node — are only unambiguous to a reader
+    // the picked shot's mark, the session counts under every node — are only unambiguous to a reader
     // who already knows the panel does not rewind. This sentence is what tells them, and it
     // is the reason the deliberate non-rewind is a design decision rather than a surprise.
+    // The closing words (#17) name what the counts cover and which shot is this one without saying how
+    // the panel draws it (a shaded column, a ring), and why a count is not a percentage. Two forms: a
+    // surface that names no shot (the report appendix with no reference swing) takes the one without it.
+    const QString covers = n == 1 ? QStringLiteral("Every count covers the one shot")
+                                  : QStringLiteral("Every count covers all %1 shots").arg(n);
+    const QString notRate = QStringLiteral("At this number of shots a percentage would look more exact "
+                                           "than it is, so each pattern says how many shots it came back on.");
+    const QString shotClause = QStringLiteral(", and this shot is highlighted wherever it appears. ");
     h[QStringLiteral("reviewFootLine")] =
-        m_reviewing
-            ? QStringLiteral("The ledger stays at the finished session: counts under each node "
-                             "are the totals over all %1 %2, and this shot is the wide tick "
-                             "inside each run. Recurrence is not a rate at this n.")
-                  .arg(n)
-                  .arg(n == 1 ? QStringLiteral("shot") : QStringLiteral("shots"))
-            : QString();
+        m_reviewing ? QStringLiteral("The panel stays at the finished session: ") + covers.at(0).toLower()
+                          + covers.mid(1) + (fi >= 0 ? shotClause : QStringLiteral(". ")) + notRate
+                    : QString();
 
     // The Cold body line. One sentence, and it is the em-dash philosophy: say the n is too
     // small, do not fill the space with something that looks like a finding.
@@ -3306,10 +3310,9 @@ void SessionDiagnosticsModel::buildHeader()
     // where the claim belongs — it is a statement about conditions, not about a composition.
     h[QStringLiteral("formingLine")] = QString();
     h[QStringLiteral("closingLine")] =
-        st == Stage::Closing
-            ? QStringLiteral("Counts are session totals; this shot is the wide tick. "
-                             "Recurrence is a count, not a rate at this n.")
-            : QString();
+        st == Stage::Closing ? covers + (fi >= 0 ? shotClause : QStringLiteral(". ")) + notRate : QString();
+    h[QStringLiteral("closingLineNoShot")] =
+        st == Stage::Closing ? covers + QStringLiteral(". ") + notRate : QString();
 
     m_headerInfo = h;
 }
@@ -4632,7 +4635,7 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
     // when there is one the ledger holds and the newest otherwise, so a live session with nothing
     // picked (or the newest picked, which the post-shot replay does) still follows each new shot.
     //
-    // The wide tick marks that swing whenever it is a PICK — in review, closed, or live with a
+    // The highlight marks that swing whenever it is a PICK — in review, closed, or live with a
     // swing selected — and not when the detail is simply following the newest, live.
     const int fi           = detailFocusIndex();
     const bool picked      = m_selectedShotId >= 0 && indexOfShot(m_selectedShotId) >= 0;

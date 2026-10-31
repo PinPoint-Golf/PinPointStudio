@@ -96,6 +96,12 @@ panel does not print the line until it is fixed.
 **Fix direction.** Describe the picked shot without depending on how it is drawn, and say "at this
 number of shots" in plain words. A wording change; update any test that pins the string.
 
+**Fixed** 31 Oct 2026 (#17). The line reads "Every count covers all N shots, and this shot is highlighted
+wherever it appears. At this number of shots a percentage would look more exact than it is, so each pattern
+says how many shots it came back on." A second form (`closingLineNoShot`) drops the middle clause for a
+surface that reads no shot (the report appendix with no reference swing). The review foot line got the
+same words. The Session view shows the line again in Analyse, Replay and Print (not on the cast).
+
 ## Suggested order
 
 4 (wording) → 1 (presentation rule) → 2 (assembly rule) → 3 (analysis change, re-analysis, corpus

@@ -73,6 +73,9 @@ Item {
     readonly property var detailCard: detail && detail.id ? (ro.byId(allCards, detail.id) || detail.header || null) : null
     readonly property int shotCount: readout ? readout.shotCount : 0
     readonly property int shotNo: ro.shotNo(readout)
+    // a shot is printed only when the readout names one: shotReadout() of an id the ledger does not hold is
+    // an EMPTY map, which is truthy, and would claim a highlight nothing draws (#17)
+    readonly property bool hasShot: !!readout && readout.shotId !== undefined
     // WHAT CHANGED (posture_metrics_design.md §8): the open pattern's parts when it is a composite, whose number
     // is never printed — no figure row for it; its coverage prints once, in this shot's trust summary
     readonly property var whatChanged: (detail && detail.whatChanged) || ({})
@@ -155,6 +158,12 @@ Item {
                 xrefId: root.detail ? (root.detail.id || "") : ""; xrefPage: pager.pageOf(detailHead)
             }
         }
+        // the session has closed: what the counts cover and, when a shot is printed, which one is this (the
+        // model's words, #17). The report appendix with no reference swing names no shot: its form says none.
+        PpNotes { objectName: "sdClosingLine"; keepPrev: true
+                width: pager.textW; roles: ro; medium: "print"; tone: 2; small: true
+                visible: !!root.header && String(root.header.closingLine || "") !== ""
+                text: root.header ? ro.esc((root.hasShot ? root.header.closingLine : root.header.closingLineNoShot) || "") : "" }
         // "How far can I trust this?" (trust_and_gates_design.md §7.4), set open: a report has nothing to unfold
         PpTrustSummaryFold { width: pager.textW; roles: ro; printed: true; scope: "session"
                              sessionDir: root.source ? String(root.source.sessionDir || "") : "" }
@@ -304,7 +313,7 @@ Item {
     PpBrush {
         id: br
         cards: root.allCards
-        pickedShot: root.readout ? root.readout.shotId : -1
+        pickedShot: root.hasShot ? root.readout.shotId : -1
         pickedCondition: root.detail ? (root.detail.id || "") : ""
     }
 }

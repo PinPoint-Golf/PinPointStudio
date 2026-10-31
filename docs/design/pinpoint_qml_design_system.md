@@ -2275,7 +2275,11 @@ Verify by driving every tab, mode and detail page with `--probe-qml`, not by att
   - The cause headline names "Across the line at the top", which is on none of the drawn paths.
   - Clean one-directional conditions report an excess of 2 or more from the side that cannot fire.
     The model should publish a graded-side excess, 0 on the open side.
-  - The closing line still says "this shot is the wide tick".
+  - The closing line still says "this shot is the wide tick". (Fixed 31 Oct 2026, #17: it now reads "Every
+    count covers all N shots, and this shot is highlighted wherever it appears. At this number of shots a
+    percentage would look more exact than it is, so each pattern says how many shots it came back on.",
+    without the middle clause where no shot is read, and the Session view shows it again in Analyse,
+    Replay and Print, not on the cast.)
 - **Whether print offers the full report.**
 - **The library's API requests** (all folded in during the build, 11 Oct):
   - a SparkRow column head;

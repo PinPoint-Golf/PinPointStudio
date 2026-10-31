@@ -485,6 +485,7 @@ Item {
             // row per pattern. Measured, never guessed: the tiles lay out (hidden) to say how tall they are.
             readonly property real room: sessionFlick.height - ro.u(16) - sessHead.height - sv.spacing - ro.u(24) - cov.height - sv.spacing
                                          - (sessTrust.visible ? sessTrust.height + sv.spacing : 0)
+                                         - (closingNote.visible ? closingNote.height + sv.spacing : 0)
             readonly property bool hasCards: !ss.cold && (root.cards || []).length > 0
             readonly property bool useTiles: hasCards && !root.cast && tiles.height > 0 && tiles.height <= room
             PpSmallMultiples {
@@ -513,6 +514,16 @@ Item {
                 visible: !!root.source && String(root.source.coverageLine || "") !== ""
                 width: sv.width; wrapMode: Text.WordWrap
                 text: root.source ? ro.cap1(root.source.coverageLine) + "." : ""
+                font: ro.fSmall; color: ro.ink3
+            }
+            // the session has closed: what the counts cover and, with a shot read, which one is this (the
+            // model's words, #17). Not on the cast, like the review note: the golfer's glance carries no tense.
+            Text {
+                id: closingNote
+                objectName: "sdClosingLine"
+                visible: !root.cast && !ss.cold && !!root.header && String(root.header.closingLine || "") !== ""
+                width: sv.width; wrapMode: Text.WordWrap
+                text: root.header ? ((root.shot ? root.header.closingLine : root.header.closingLineNoShot) || "") : ""
                 font: ro.fSmall; color: ro.ink3
             }
             ReviewFoot { width: sv.width }

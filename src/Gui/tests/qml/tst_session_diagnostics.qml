@@ -460,7 +460,8 @@ Item {
         s.headerInfo.stage = "closing"
         s.headerInfo.stageLabel = "CLOSING"
         s.headerInfo.closed = true
-        s.headerInfo.closingLine = "Counts are session totals; this shot is the wide tick."
+        s.headerInfo.closingLine = "Every count covers all 6 shots, and this shot is highlighted wherever it appears. At this number of shots a percentage would look more exact than it is, so each pattern says how many shots it came back on."
+        s.headerInfo.closingLineNoShot = "Every count covers all 6 shots. At this number of shots a percentage would look more exact than it is, so each pattern says how many shots it came back on."
         s.bookends = [
             { id: "casting", name: "Casting", representativeShotId: 4, worstShotId: 3, bestShotId: 5,
               worstText: "worst 3", bestText: "best 5", representativeText: "shot 4 · most representative" },
@@ -481,7 +482,8 @@ Item {
         s.headerInfo.shotCount = 14
         s.headerInfo.shotLabel = "shot 9 of 14"
         s.headerInfo.countLine = "2 patterns · counted over all 14 shots"
-        s.headerInfo.closingLine = "Counts are session totals; this shot is the wide tick."
+        s.headerInfo.closingLine = "Every count covers all 14 shots, and this shot is highlighted wherever it appears. At this number of shots a percentage would look more exact than it is, so each pattern says how many shots it came back on."
+        s.headerInfo.closingLineNoShot = "Every count covers all 14 shots. At this number of shots a percentage would look more exact than it is, so each pattern says how many shots it came back on."
         s.headerInfo.reviewBadge = "REVIEWING · shot 9 of 14"
         s.headerInfo.reviewNote  = "final session state · this shot read inside the finished ledger"
         // The review tense: what happened HERE and what happened AFTER, off one row, and the run 14 long.
@@ -1381,6 +1383,44 @@ Item {
                     verify(plain(cov.text).indexOf("140") >= 0, r + " source " + i + ": the whole pack, not the measured few")
                 }
             }
+        }
+
+        // #17: once the session has closed (live end or review), the Session view states the model's closing
+        // line in BOTH registers: the form naming this shot when a shot is read, the form without it when none
+        // is (it must not claim a highlight nothing draws). In Analyse it sits under the table it explains,
+        // above the coverage line. Not while the session runs, and not on the cast. (The words themselves are
+        // pinned against the real model in session_diagnostics_model_test.)
+        function test_09b_aClosedSessionSaysWhatItsCountsAre() {
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                const src = reviewSource()
+                setReview(spied(src), reviewReadout())
+                showTab("session")
+                let cl = oneShown(viewOf("session"), "sdClosingLine")
+                compare(plain(cl.text), src.headerInfo.closingLine, r + ": a shot is read, so the line names it")
+                if (r === "Analyse") {
+                    const cov = oneShown(viewOf("session"), "sdCoverageLine")
+                    verify(cl.mapToItem(viewOf("session"), 0, 0).y < cov.mapToItem(viewOf("session"), 0, 0).y,
+                           "Analyse: the closing line sits under the table, above the coverage line")
+                }
+                setReview(spied(reviewSource()), null)
+                showTab("session")
+                cl = oneShown(viewOf("session"), "sdClosingLine")
+                compare(plain(cl.text), src.headerInfo.closingLineNoShot, r + ": no shot read, so the line names none")
+                verify(plain(cl.text).indexOf("this shot") < 0, r + ": and claims no highlight")
+                setSource(spied(closingSource()))
+                showTab("session")
+                verify(shownAll(viewOf("session"), "sdClosingLine").length === 1, r + ": a live session that has ended states it")
+                setSource(spied(establishedSource(true)))
+                showTab("session")
+                verify(shownAll(viewOf("session"), "sdClosingLine").length === 0, r + ": no closing line while the session runs")
+            }
+            // the cast is the golfer's glance: like the review note, the tense is not stated there
+            body.surface = "cast"
+            setReview(spied(reviewSource()), reviewReadout())
+            body.tab = "session"
+            laidOut()
+            compare(shownAll(body, "sdClosingLine").length, 0, "the cast states no closing line")
         }
 
         // ═══════════════════════════ the fit ═══════════════════════════
