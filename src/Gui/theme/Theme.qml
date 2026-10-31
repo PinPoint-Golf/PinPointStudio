@@ -597,6 +597,10 @@ QtObject {
     readonly property bool capsHeadings: _v("capsHeadings", true)
     readonly property int  capsFont: capsHeadings ? Font.AllUppercase : Font.MixedCase
     function caps(s) { return capsHeadings ? String(s).toUpperCase() : String(s) }
+    // A label that carries a unit: the words in the heading case, the unit exactly as given, in
+    // brackets. Units are never set in capitals ("mm" read as "MM" is another unit):
+    // capsUnit("Loft", "°") → "LOFT (°)" in Instrument, "Loft (°)" in Folio.
+    function capsUnit(words, unit) { return caps(words) + " (" + String(unit) + ")" }
 
     // ── Geometry tokens ──────────────────────────────────────────────────────
     readonly property int railWidth: _a.railWidth

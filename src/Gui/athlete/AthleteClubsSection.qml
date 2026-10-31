@@ -324,7 +324,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               Theme.caps(qsTr("Loft (°)"))
+                                    text:               Theme.capsUnit(qsTr("Loft"), "°")
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -343,7 +343,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               Theme.caps(qsTr("Club length (mm)"))
+                                    text:               Theme.capsUnit(qsTr("Club length"), "mm")
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -362,7 +362,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               Theme.caps(qsTr("Shaft length (mm)"))
+                                    text:               Theme.capsUnit(qsTr("Shaft length"), "mm")
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -381,7 +381,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               Theme.caps(qsTr("Hands end (mm from butt)"))
+                                    text:               Theme.capsUnit(qsTr("Hands end from butt"), "mm")
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -400,7 +400,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               Theme.caps(qsTr("Band width (mm)"))
+                                    text:               Theme.capsUnit(qsTr("Band width"), "mm")
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -417,7 +417,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               Theme.caps(qsTr("Band centres (mm from butt)"))
+                                    text:               Theme.capsUnit(qsTr("Band centres from butt"), "mm")
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -461,7 +461,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               Theme.caps(qsTr("Hosel from butt (mm)"))
+                                    text:               Theme.capsUnit(qsTr("Hosel from butt"), "mm")
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
