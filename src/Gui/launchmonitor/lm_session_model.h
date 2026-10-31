@@ -39,8 +39,8 @@
 //
 // The two registries are forward-declared for the same reason and held behind smart
 // pointers, which is why this class now declares a destructor it does not need: a
-// unique_ptr to an incomplete type has to be destroyed where the type is complete. Same
-// shape as MetricCatalog, the other QML façade that resolves a corridor.
+// unique_ptr to an incomplete type has to be destroyed where the type is complete. This is
+// the one QML façade that resolves a corridor (through metric_corridor.h).
 namespace pinpoint::analysis {
 struct LmFieldStats;
 class ICharacteristicPackProvider;
@@ -120,9 +120,9 @@ class LmSessionModel : public QAbstractListModel
     Q_PROPERTY(QString deviceName READ deviceName WRITE setDeviceName NOTIFY headerChanged)
     // The pack-wide grade policy, by NAME ("standard" | "strict" | "lenient"), passed in
     // for the same reason as the gates above: the panel has `appSettings` in scope. It is
-    // the same property MetricCatalog exposes and it must be bound to the same setting —
+    // the same property ChartsRelationsPresenter exposes and it must be bound to the same setting —
     // a corridor graded against the default while the golfer has chosen Strict would put a
-    // different colour on this panel than on the metric surfaces for one reading.
+    // different colour on this panel than on the other surfaces for one reading.
     Q_PROPERTY(QString gradePolicy READ gradePolicy WRITE setGradePolicy NOTIFY gradePolicyChanged)
 
     // The athlete's handedness, passed in for the same reason as `connected`: the panel already has athleteController in scope and a model that
@@ -309,7 +309,7 @@ private:
     bool          m_headlineHasReadings = false;   // the shot the board headlines carries a reading
 
     // The two registries a corridor comes from. Assembled once and read-only thereafter,
-    // same as MetricCatalog's: the norm provider is the process-wide cached one, so a
+    // (nothing mutates them after construction): the norm provider is the process-wide cached one, so a
     // board opening costs no file read, and the pack is this object's own.
     std::unique_ptr<pinpoint::analysis::ICharacteristicPackProvider> m_pack;
     std::shared_ptr<const pinpoint::analysis::INormProvider>         m_norms;

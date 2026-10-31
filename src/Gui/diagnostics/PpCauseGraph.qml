@@ -202,7 +202,8 @@ Item {
         width: dg.mainW
         spacing: dg.roles.u(8)
         Rectangle { width: parent.width; height: dg.roles.hw; color: dg.roles.grid; opacity: dg.roles.gridOpacity }
-        Text { text: dg.causes ? "What might have caused this" : "What this leads to"; topPadding: dg.roles.u(6); font: dg.roles.fSection; color: dg.roles.ink }
+        PpSectionHead { width: parent.width; roles: dg.roles; paged: false; lead: 6; pad: 0
+                        title: dg.causes ? "What might have caused this" : "What this leads to" }
         Text { objectName: dg.causes ? "sdDetailCauseHeadline" : "sdDetailOutcomeHeadline"
                width: parent.width; wrapMode: Text.WordWrap; font: dg.roles.fSmall; color: dg.roles.ink2
                text: dg.detail ? ((dg.causes ? dg.detail.causeHeadline || dg.detail.noCausesLine : dg.detail.outcomeHeadline || dg.detail.noEffectsLine) || "") : "" }

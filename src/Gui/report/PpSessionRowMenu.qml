@@ -38,7 +38,7 @@
 // hiding it.
 //
 // The Popup + PpPopoverCard pattern of the carousel drawer's row menu (session/PpSessionDrawer.qml):
-// 34-px hover rows, hairline separators, the destructive item in colorWarn.
+// PpMenuItem's 34-px hover rows, PpMenuRule's hairline separators, the destructive item in colorWarn.
 
 import QtQuick
 import QtQuick.Controls.Basic
@@ -60,6 +60,7 @@ Popup {
     // ── The list's ───────────────────────────────────────────────────────────
     property bool   archiveReady: true      // Settings → Archiving has a folder
     property bool   jobRunning:   false     // a bulk job holds the queue
+    property var    jobs:         null      // PpSessionBulkJobs: the rules, and why not
     // ── The golfer and the mailer (the list's) ───────────────────────────────
     property string greeting:    ""
     property string email:       ""
@@ -77,12 +78,11 @@ Popup {
     signal archiveRequested()
     signal deleteRequested()
 
-    readonly property bool _reportable: menu.canReport && !menu.isLive && !menu.archived
-    readonly property bool _hasPdf: menu.pdfPath !== "" && (menu.reportState === "current" || menu.reportState === "stale")
-    readonly property string _who: menu.greeting !== "" ? menu.greeting : qsTr("the golfer")
-    readonly property string _notReportable: menu.isLive   ? qsTr("still recording")
-                                           : menu.archived ? qsTr("restore it first")
-                                           :                 qsTr("needs 3 swings")
+    // The rules and the notes are the bulk queue's (PpSessionBulkJobs), asked of this row's facts.
+    readonly property bool _reportable: !!menu.jobs && menu.jobs.reportable(menu)
+    readonly property bool _hasPdf: !!menu.jobs && menu.jobs.hasPdf(menu)
+    readonly property string _who: menu.jobs ? menu.jobs.who(menu) : ""
+    function _whyNot(verb) { return menu.jobs ? menu.jobs.whyNot(verb, menu) : "" }
     readonly property string _revealWords: Qt.platform.os === "osx"     ? qsTr("Show in Finder")
                                          : Qt.platform.os === "windows" ? qsTr("Show in Explorer")
                                          :                                qsTr("Show folder")
@@ -93,147 +93,94 @@ Popup {
     width: Theme.sp(236)
     background: PpPopoverCard {}
 
-    // One menu line: its words, an optional quiet note after them, inactive or destructive. (An inline
-    // component cannot reach `menu`, so each use closes the menu in its own onTriggered.)
-    component MenuLine: Rectangle {
-        id: it
-        property string text:     ""
-        property string note:     ""
-        property bool   active:   true
-        property bool   warn:     false
-        property bool   linkNote: false       // the note is the way to fix it (accent)
-        signal triggered()
-
-        width: parent ? parent.width : 0
-        height: Math.max(Theme.sp(34), words.implicitHeight + Theme.sp(14))
-        radius: Theme.radius
-        color: !it.active ? "transparent"
-             : itPress.containsMouse ? (it.warn ? Theme.colorWarnLight : Theme.colorBg2) : "transparent"
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-        Text {
-            id: words
-            anchors { left: parent.left; right: parent.right; leftMargin: Theme.gap(10); rightMargin: Theme.gap(10)
-                      verticalCenter: parent.verticalCenter }
-            wrapMode: Text.WordWrap
-            textFormat: Text.StyledText
-            readonly property color ink: it.warn ? (it.active ? Theme.colorWarn : Qt.alpha(Theme.colorWarn, 0.5))
-                                       : it.active ? Theme.colorText : Theme.colorText3
-            readonly property color noteInk: it.linkNote ? Theme.colorAccent : Theme.colorText3
-            text: it.text.replace(/&/g, "&amp;").replace(/</g, "&lt;")
-                  + (it.note !== "" ? " <font color=\"" + noteInk + "\">· " + it.note.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</font>" : "")
-            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
-            font.weight: Theme.fontBodyWeight
-            color: ink
-        }
-        PpPressable {
-            id: itPress
-            enabled: it.active
-            hoverScale: 1.0       // full-width menu item — press-dip only
-            onClicked: it.triggered()
-        }
-    }
-    component Rule: Rectangle {
-        width: parent ? parent.width - Theme.sp(12) : 0
-        x: Theme.sp(6)
-        height: 1
-        color: Theme.colorBorderMid
-        opacity: Theme.borderOpacityNormal
-    }
+    // The lines are PpMenuItem, the hairlines PpMenuRule; each line closes the menu in its own onTriggered.
     component Gap: Item { width: 1; height: Theme.gap(4) }
 
     contentItem: Column {
-        MenuLine {
+        PpMenuItem {
             objectName: "menuReview"
             text: menu.isLive ? qsTr("Go to Live") : menu.archived ? qsTr("Restore and review") : qsTr("Review in Live")
             onTriggered: { menu.close(); menu.reviewRequested() }
         }
         Gap {}
-        Rule {}
+        PpMenuRule {}
         Gap {}
 
         // The report: make it, open it, remake it.
-        MenuLine {
+        PpMenuItem {
             objectName: "menuReport"
             text: menu.reportState === "current" ? qsTr("Open report")
                 : menu.reportState === "stale"   ? qsTr("Remake report")
                 :                                  qsTr("Make report")
             active: menu._reportable && !menu.making && (menu.reportState !== "current" || menu.pdfPath !== "")
-            note: !menu._reportable ? menu._notReportable : menu.making ? qsTr("making it now") : ""
+            note: menu._whyNot("make")
             onTriggered: { menu.close(); menu.reportState === "current" ? menu.openReportRequested() : menu.makeReportRequested() }
         }
         // A current report can always be made again (a model change leaves it current but out of step).
-        MenuLine {
+        PpMenuItem {
             objectName: "menuRemake"
             visible: menu._reportable && menu.reportState === "current"
             text: qsTr("Remake report")
             active: !menu.making
             onTriggered: { menu.close(); menu.makeReportRequested() }
         }
-        MenuLine {
+        PpMenuItem {
             objectName: "menuOpenOld"
             visible: menu._reportable && menu.reportState === "stale" && menu.pdfPath !== ""
             text: qsTr("Open old report")
             onTriggered: { menu.close(); menu.openOldReportRequested() }
         }
         // Email to Nick — or why not. A missing address is the fix the coach can make from here.
-        MenuLine {
+        PpMenuItem {
             objectName: "menuEmail"
             readonly property bool noAddress: menu.email === ""
             text: qsTr("Email to %1").arg(menu._who)
             active: menu._reportable && !menu.making && !menu.sendBusy && (noAddress || menu._hasPdf)
             linkNote: noAddress && active
-            note: !menu._reportable ? ""
-                : noAddress          ? qsTr("add %1's email").arg(menu._who)
-                : !menu._hasPdf      ? qsTr("make report first")
-                : menu.sendBusy      ? qsTr("another is sending")
-                :                      ""
+            // Not reportable: the report line above says why.
+            note: menu._reportable ? menu._whyNot("send") : ""
             onTriggered: { menu.close(); noAddress ? menu.golferDetailsRequested() : menu.emailRequested() }
         }
-        MenuLine {
+        PpMenuItem {
             objectName: "menuCopyAddress"
             text: qsTr("Copy address")
             active: menu.email !== ""
             onTriggered: { menu.close(); menu.copyAddressRequested() }
         }
         Gap {}
-        Rule {}
+        PpMenuRule {}
         Gap {}
 
-        MenuLine {
+        PpMenuItem {
             objectName: "menuExport"
             text: qsTr("Export…")
-            active: !menu.isLive && menu.hasSwings && !menu.jobRunning
-            note: menu.isLive     ? qsTr("export it from Live")
-                : !menu.hasSwings ? qsTr("no swings")
-                : menu.jobRunning ? qsTr("another job is running") : ""
+            note: menu._whyNot("export")
+            active: note === ""
             onTriggered: { menu.close(); menu.exportRequested() }
         }
-        MenuLine {
+        PpMenuItem {
             objectName: "menuReveal"
             text: menu._revealWords
             active: menu.dir !== ""
             onTriggered: { menu.close(); menu.revealRequested() }
         }
-        MenuLine {
+        PpMenuItem {
             objectName: "menuArchive"
             text: menu.archived ? qsTr("Restore") : qsTr("Archive")
-            active: !menu.isLive && menu.archiveReady && !menu.jobRunning
-            note: menu.isLive        ? qsTr("still recording")
-                : !menu.archiveReady ? qsTr("set an archive folder in Settings → Archiving")
-                : menu.jobRunning    ? qsTr("another job is running") : ""
+            note: menu._whyNot("archive")
+            active: note === ""
             onTriggered: { menu.close(); menu.archiveRequested() }
         }
         Gap {}
-        Rule {}
+        PpMenuRule {}
         Gap {}
 
-        MenuLine {
+        PpMenuItem {
             objectName: "menuDelete"
             text: qsTr("Delete…")
             warn: true
-            active: !menu.isLive && !menu.jobRunning
-            note: menu.isLive     ? qsTr("still recording")
-                : menu.jobRunning ? qsTr("another job is running") : ""
+            note: menu._whyNot("trash")
+            active: note === ""
             onTriggered: { menu.close(); menu.deleteRequested() }
         }
     }

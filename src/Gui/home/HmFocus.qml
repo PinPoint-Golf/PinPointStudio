@@ -38,6 +38,7 @@
 
 import QtQuick
 import PinPointStudio
+import "hm_text.js" as HomeText
 
 Item {
     id: root
@@ -52,16 +53,7 @@ Item {
     // An open fault's "Review the … session →".
     signal reviewSessionRequested(string sessionDir)
 
-    // A condition's detail (WorkOnsController.faultDetail: any condition a session measured, a
-    // listed work-on or not), or null. Reads detailsRevision so the binding follows each publish.
-    function faultFor(conditionId) {
-        const c = root.controller
-        if (!c || !conditionId || typeof c.faultDetail !== "function") return null
-        if (c.detailsRevision < 0) return null
-        const d = c.faultDetail(conditionId)
-        return d && d.id ? d : null
-    }
-    // The "Right now" fault open in place ("" when none): one at a time.
+    // The "Right now" fault open in place ("" when none): one at a time (HmFaultRow).
     property string openId: ""
 
     // null when there is no focus: before the first summary, and when nothing needs work.
@@ -79,10 +71,7 @@ Item {
     readonly property color toneGood:  Theme.colorGood
     readonly property color toneFault: Theme.colorAttention
 
-    readonly property int maxPips: 8
     readonly property int markW:   Theme.sp(20)
-
-    function capitalised(s) { s = String(s); return s.length ? s.charAt(0).toUpperCase() + s.slice(1) : s }
 
     visible: focusItem !== null
     implicitHeight: visible ? focusTable.implicitHeight : 0
@@ -91,22 +80,6 @@ Item {
     // Pieces
     // ════════════════════════════════════════════════════════════════════════
 
-    // A sentence-case caption, as PpCard draws its column captions.
-    component Caption: Text {
-        elide:          Text.ElideRight
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody2
-        font.weight:    Theme.fontBodyWeight
-        color:          Theme.colorText3
-    }
-    component Line: Text {
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody
-        font.weight:    Theme.fontBodyWeight
-        color:          Theme.colorText
-        wrapMode:       Text.WordWrap
-        lineHeight:     1.2
-    }
     component Prose: Text {
         font.family:    Theme.fontBody
         font.pixelSize: Theme.fontSzBody
@@ -221,52 +194,40 @@ Item {
                     layout: focusTable.gridLayout
                     height: Theme.sp(Theme.tableHeaderH)
                     hoverEnabled: false
-                    Caption { text: qsTr("Aim for");   width: Math.min(implicitWidth, capRow.columnWidth(0)) }
-                    Caption { text: qsTr("Right now"); width: Math.min(implicitWidth, capRow.columnWidth(1)) }
-                    Caption { text: qsTr("How often"); width: Math.min(implicitWidth, capRow.columnWidth(2)) }
-                    Caption { text: qsTr("Sessions");  width: Math.min(implicitWidth, capRow.columnWidth(3)) }
+                    PpCaption { text: qsTr("Aim for");   width: Math.min(implicitWidth, capRow.columnWidth(0)) }
+                    PpCaption { text: qsTr("Right now"); width: Math.min(implicitWidth, capRow.columnWidth(1)) }
+                    PpCaption { text: qsTr("How often"); width: Math.min(implicitWidth, capRow.columnWidth(2)) }
+                    PpCaption { text: qsTr("Sessions");  width: Math.min(implicitWidth, capRow.columnWidth(3)) }
                 }
 
                 Repeater {
                     model: Math.max(root.aimFor.length, root.rightNow.length)
-                    PpExpandRow {
+                    HmFaultRow {
                         id: pairRow
                         required property int index
                         readonly property bool hasAim:   index < root.aimFor.length
                         readonly property bool hasFault: index < root.rightNow.length
                         readonly property var  aim:      hasAim   ? root.aimFor[index]   : ""
                         readonly property var  fault:    hasFault ? root.rightNow[index] : null
-                        readonly property string faultId: fault ? (fault.conditionId || "") : ""
-                        // The fault's detail, which the row opens to; null when no session measured it.
-                        readonly property var  workOn:   root.faultFor(faultId)
+                        // Opens in place to the fault's detail (HmFaultRow), one at a time.
+                        controller:  root.controller
+                        conditionId: pairRow.fault ? (pairRow.fault.conditionId || "") : ""
+                        openId:      root.openId
+                        onOpenRequested: (next) => root.openId = next
+                        onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
                         layout: focusTable.gridLayout
                         topRule: true
                         // Wrapped words make the row grow; never below the table row.
                         rowHeight: Math.max(Theme.sp(Theme.rowH),
                                             Math.max(aimCell.height, faultText.height) + Theme.sp(18))
-                        chevronSide: "right"
-                        expanded:    root.openId !== "" && root.openId === pairRow.faultId
-                        autoToggle:  false
-                        onToggled:   root.openId = pairRow.expanded ? "" : pairRow.faultId
-                        accessibleName:  pairRow.fault ? String(pairRow.fault.text) : ""
-                        pressObjectName: "faultPress"
-                        detailIndent:     pairRow.columnX(1) + pairRow.padH
-                        detailRightInset: pairRow.padH
-                        detail: pairRow.workOn ? focusDetail : null
-                        Component {
-                            id: focusDetail
-                            HmFaultDetail {
-                                item: pairRow.workOn
-                                onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
-                            }
-                        }
+                        accessibleName: pairRow.fault ? String(pairRow.fault.text) : ""
 
                         // Aim for: a tick and the ideal.
                         Item {
                             id: aimCell
                             objectName: pairRow.hasAim ? "focusAim" : ""
                             // The words as drawn — what a probe reads.
-                            readonly property string plainText: root.capitalised(pairRow.aim)
+                            readonly property string plainText: HomeText.capitalised(pairRow.aim)
                             visible: pairRow.hasAim
                             width:  pairRow.columnWidth(0)
                             height: aimText.height
@@ -278,7 +239,7 @@ Item {
                                 y: Math.round((aimText.lineCount > 1 ? aimText.height / aimText.lineCount
                                                                      : aimText.height) / 2 - height / 2)
                             }
-                            Line {
+                            HmHeadline {
                                 id: aimText
                                 x: root.markW + focusTable.columnGap
                                 width: Math.max(0, parent.width - x)
@@ -287,11 +248,11 @@ Item {
                         }
 
                         // Right now: the fault…
-                        Line {
+                        HmHeadline {
                             id: faultText
                             objectName: pairRow.hasFault ? "focusNow" : ""
                             // The words as drawn — what a probe reads.
-                            readonly property string itemText:      pairRow.fault ? root.capitalised(pairRow.fault.text) : ""
+                            readonly property string itemText:      pairRow.fault ? HomeText.capitalised(pairRow.fault.text) : ""
                             readonly property string frequencyText: pairRow.fault ? pairRow.fault.frequency : ""
                             readonly property string plainText:     itemText + " — " + frequencyText
                             readonly property int    pipCount:      pairRow.fault ? (pairRow.fault.sessions || []).length : 0
@@ -310,7 +271,7 @@ Item {
                                 share: pairRow.fault ? pairRow.fault.share : 0
                                 tone:  root.toneFault
                             }
-                            Caption {
+                            PpCaption {
                                 id: freq
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: Math.min(implicitWidth, Math.max(0, parent.width - meter.width - parent.spacing
@@ -328,7 +289,7 @@ Item {
                         PpPips {
                             visible: pairRow.hasFault
                             marks:   pairRow.fault ? pairRow.fault.sessions : []
-                            maxPips: root.maxPips
+                            maxPips: HomeText.maxPips
                             tone:    Theme.colorText2
                         }
                     }
@@ -373,7 +334,7 @@ Item {
                         width: parent.width
                         spacing: Theme.gap(6)
                         visible: root.focusItem !== null && (root.focusItem.why || "") !== ""
-                        Caption { text: qsTr("Why it matters") }
+                        PpCaption { text: qsTr("Why it matters") }
                         Prose {
                             objectName: "focusWhy"
                             width: Math.min(parent.width, Theme.sp(760))
@@ -385,7 +346,7 @@ Item {
                         width: parent.width
                         spacing: Theme.gap(6)
                         visible: root.focusItem !== null && (root.focusItem.practise || "") !== ""
-                        Caption { text: qsTr("How to practice") }
+                        PpCaption { text: qsTr("How to practice") }
                         Prose {
                             objectName: "focusPractise"
                             width: Math.min(parent.width, Theme.sp(760))

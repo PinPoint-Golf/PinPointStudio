@@ -92,12 +92,11 @@ Item {
                     width: Math.max(1, st.roles.hw); height: Math.round(parent.height * 0.6)
                     color: st.roles.ink3
                 }
-                Rectangle {
+                PpStub {
                     objectName: "sdShotStub"
                     visible: cell.cellState === "notMeasured"
                     anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom
-                    width: Math.max(2, st.fit.barW); height: st.roles.stubH(st.barH)
-                    color: st.roles.ink3
+                    roles: st.roles; size: st.barH; maxW: st.fit.barW
                 }
             }
             MouseArea {

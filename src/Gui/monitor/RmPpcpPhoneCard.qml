@@ -71,9 +71,7 @@ Rectangle {
     }
     function fmtStorage() {
         if (!phone || phone.storageFreeBytes === undefined || phone.storageFreeBytes < 0) return "—"
-        var gb = phone.storageFreeBytes / (1024 * 1024 * 1024)
-        return gb >= 1 ? gb.toFixed(1) + " GB"
-                       : (phone.storageFreeBytes / (1024 * 1024)).toFixed(0) + " MB"
+        return Theme.formatBytes(phone.storageFreeBytes)
     }
     function fmtArm() {
         if (!phone || !phone.armState) return "—"

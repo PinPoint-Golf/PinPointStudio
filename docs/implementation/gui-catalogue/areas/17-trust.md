@@ -1,7 +1,7 @@
 # Trust and gates
 
 *Directory:* `src/Gui/trust/`  
-*7 components · 702 lines of QML*
+*7 components · 707 lines of QML*
 
 'Readings and their limits': the Trust panel, inline reasons, gate notes and the TrustFocus routing singleton.
 
@@ -12,9 +12,9 @@
 | [PpGateNote](#ppgatenote) | 75 | `Column` | 0 | 2 | ⚠ unreferenced |
 | [PpTrustInline](#pptrustinline) | 75 | `Item` | 2 | 4 |  |
 | [PpTrustInlineFor](#pptrustinlinefor) | 63 | `Item` | 12 | 1 |  |
-| [PpTrustPanel](#pptrustpanel) | 197 | `Item` | 2 | 3 |  |
+| [PpTrustPanel](#pptrustpanel) | 197 | `Item` | 1 | 3 |  |
 | [PpTrustReading](#pptrustreading) | 123 | `Column` | 2 | 0 |  |
-| [PpTrustSummaryFold](#pptrustsummaryfold) | 122 | `Column` | 5 | 2 |  |
+| [PpTrustSummaryFold](#pptrustsummaryfold) | 127 | `Column` | 5 | 2 |  |
 | [TrustFocus](#trustfocus) | 47 | `QtObject` | 16 | 2 | singleton |
 
 ### PpGateNote
@@ -77,7 +77,7 @@
 
 - **Properties:** `int sessionType`, `bool framed`, `readonly string sessionDir`, `readonly var shot`, `readonly var session`
 - **Uses:** `PpTrustReading`, `PpTypeset`, `TrustFocus`
-- **Used by (2):** `ScreenSessionMode`, `ScreenWrist`
+- **Used by (1):** `ScreenWrist`
 
 ### PpTrustReading
 `src/Gui/trust/PpTrustReading.qml` · 123 lines · root `Column`
@@ -94,7 +94,7 @@
 - **Used by (2):** `PpTrustInline`, `PpTrustPanel`
 
 ### PpTrustSummaryFold
-`src/Gui/trust/PpTrustSummaryFold.qml` · 122 lines · root `Column` · no direct `Theme.*` refs
+`src/Gui/trust/PpTrustSummaryFold.qml` · 127 lines · root `Column` · no direct `Theme.*` refs
 
 > PPTRUSTSUMMARYFOLD — "How far can I trust this?" (docs/design/trust_and_gates_design.md §7.4): one quiet
 > line under a head, CLOSED by default (Mark, 16 Oct 2026: the panels are busy enough for a novice), that
@@ -104,9 +104,10 @@
 > (TrustFocus, §7.0). Reads the session through its own SessionSeriesModel (the process-wide cache) and a
 > TrustPresenter, as PpTrustInlineFor does.
 > scope     "shot" (swingDir picks the shot) | "session"
+> extraLines a surface's own lines, said before the presenter's (a composite's coverage)
 > objectNames: trustSummaryFold, trustSummaryToggle, trustSummaryLine:<kind>.
 
-- **Properties:** `QtObject roles`, `string scope`, `string sessionDir`, `string swingDir`, `bool open`, `bool printed`, `readonly bool atom`, `string openSubject`, `var summary`, `readonly var lines`
+- **Properties:** `QtObject roles`, `string scope`, `string sessionDir`, `string swingDir`, `bool open`, `bool printed`, `readonly bool atom`, `string openSubject`, `var summary`, `var extraLines`, `readonly var lines`
 - **Uses:** `PpTrustInlineFor`, `TrustFocus`
 - **Used by (5):** `PpChartsSessionView`, `PpChartsShotView`, `PpDiagAnalyse`, `PpDiagPrint`, `PpDiagReplay`
 

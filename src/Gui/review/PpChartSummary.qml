@@ -26,19 +26,19 @@
 // segment chips / brush move the window. Pure binding; all stats come from ChartMetrics.
 //
 // Nothing here shows a number it cannot stand behind (design metric_presentation_honesty.md §5.1):
-// a bridged sample is excluded from every reduction, a window the domain clamp emptied prints "—"
-// in the three window-scoped tiles, @impact prints "—" where it was not measured at impact, and a
+// a bridged sample is excluded from every reduction, a window the domain clamp emptied prints "-"
+// in the three window-scoped tiles, @impact prints "-" where it was not measured at impact, and a
 // window with any unmeasured part in it wears a PARTIAL chip.
 //
 // Since Phase 2 (§5.2) PEAK is a 40 ms windowed-mean extremum and PK RATE a ≥50 ms least-squares
 // slope, both from src/Metrics/series_reduce.h — the same reducers the diagnostics engine grades
 // with, so a card and a corridor cannot disagree about the same window. PK RATE therefore also has
 // an ABSENT state (`rateOk` false: no window long enough, or too few valid samples in it), and it
-// prints "—" with its unit hidden rather than a fitted-from-nothing 0. The same for PEAK and Δ on a
+// prints "-" with its unit hidden rather than a fitted-from-nothing 0. The same for PEAK and Δ on a
 // series with no valid sample anywhere (`edgeOk` false), where every window number is a 0 read out
 // of nothing rather than a flat curve. PEAK has a third absence of its own (`extremumOk` false): a
 // window narrower than the sample spacing contains no measurement to have an extremum, so the tile
-// prints "—" rather than the interpolated edge the reducer falls back to.
+// prints "-" rather than the interpolated edge the reducer falls back to.
 //
 // Since Phase 6 the CHART DRAWS those same windowed means (ChartMetrics.windowedMean, decorated as
 // `mean` by PpMetricChart._plottable), so the PEAK tile here is now a point on the line beside it —
@@ -67,6 +67,7 @@ import QtQuick
 import QtQuick.Controls.Basic   // ToolTip on the σ chip
 import QtQuick.Layouts
 import PinPointStudio
+import "chart_samples.js" as ChartSamples
 
 ColumnLayout {
     id: root
@@ -125,19 +126,12 @@ ColumnLayout {
     // words (Theme.verdictWords) as well as in its colour and its badge.
     // WHICH ARRAY IS THE CURVE (Phase 6): `mean` — the 40 ms centred windowed mean the chart strokes
     // and summaryMasked reduces — where the host decorated one (PpMetricChart._plottable), else the
-    // persisted `value`. The same one-line rule as PpChartPlot._meanOf, PpMetricChart._meanOf and
-    // PpSegmentBrush._meanOf: this component takes a `series` list from anywhere and may not assume
-    // another prepared it. The predicate is asked by name rather than by comparing the returned array
-    // against s.value, so no drawing or display decision rests on object identity across the bridge.
+    // persisted `value`: ChartSamples.meanOf / hasMean (chart_samples.js), the one rule PpChartPlot,
+    // PpMetricChart and PpSegmentBrush read too, because this component takes a `series` list from
+    // anywhere and may not assume another prepared it.
     //
-    // ⚠ THE REDUCERS ARE STILL FED RAW. summaryMasked below gets `value`, never this — reducing a
+    // ⚠ THE REDUCERS ARE STILL FED RAW. summaryMasked below gets `value`, never the mean — reducing a
     // reduction would window the curve twice and no tile would mean what its definition says.
-    function _hasMean(s) {
-        return !!(s && s.mean && s.t_us && s.mean.length === s.t_us.length)
-    }
-    function _meanOf(s) {
-        return root._hasMean(s) ? s.mean : s.value
-    }
     // AN ANGLE OF A LINE (series.lineAngle — shaft lean, issue #116): one reading of it is folded into
     // (−180°, 180°], though its curve runs on continuously through the top of the swing. The JS twin
     // of wrapLeanDeg (src/Metrics/line_angle.h), which the charts' C++ cards use.
@@ -155,34 +149,11 @@ ColumnLayout {
         return { ok: false, val: 0, us: -1, raw: "" }
     }
 
-    // The measured-at-an-instant test, in JS for the reason chart_metrics.h gives: cm.measuredAt
-    // marshals the whole series per call, and these bindings re-evaluate as the window moves.
-    // Same rule, same short-mask discipline (a mask that does not cover the curve is discarded).
-    //
-    // ⚠ isFinite IS FOLDED IN (F5), which is why the nearest sample is now found before the
-    // short-mask early return rather than after it: a series with NO mask must still not print a NaN
-    // as a reading — `formatBare` on one renders "nan", in the band colour, as the card's headline
-    // number. Same fold as PpChartPlot._measured and SeriesView::isValid, for the same reason:
-    // nothing in the pipeline should produce a NaN, which is exactly why it cannot be assumed.
-    // ⚠ The domain is judged on the NEAREST SAMPLE'S time, not on `t` (chart_metrics.cpp
-    // measuredAt says why: a domain end snapped to a frame 2.9 ms before the impact instant was
-    // refusing the reading AT impact of that very frame). Same as PpMetricChart._measuredIdx.
-    function _measuredAt(s, t) {
-        var tt = s.t_us
-        if (!tt || tt.length === 0) return true
-        var best = -1, bd = Infinity
-        for (var i = 0; i < tt.length; ++i) {
-            var d = Math.abs(tt[i] - t)
-            if (d < bd) { bd = d; best = i }
-        }
-        if (best < 0) return true
-        if (s.validFromUs !== undefined && s.validToUs !== undefined
-            && s.validToUs > s.validFromUs && (tt[best] < s.validFromUs || tt[best] > s.validToUs))
-            return false
-        if (s.value && !isFinite(s.value[best])) return false
-        if (!s.valid || s.valid.length < tt.length) return true
-        return s.valid[best] !== 0
-    }
+    // The measured-at-an-instant test is ChartSamples.measuredAt (chart_samples.js), in JS for the
+    // reason chart_metrics.h gives: cm.measuredAt marshals the whole series per call, and these
+    // bindings re-evaluate as the window moves. It folds isFinite in (F5) — a series with NO mask
+    // must still not print a NaN as a reading — and judges the domain on the NEAREST SAMPLE'S time,
+    // not on `t`, as chart_metrics.cpp measuredAt does.
 
     // The card's window: the active window CLAMPED to this metric's phase domain, because the
     // reducers must search only where the geometry means something (design §5.1). A pelvis-sway
@@ -193,7 +164,7 @@ ColumnLayout {
     // a point at the domain's end rather than inverting — summaryMasked swaps an inverted pair,
     // which would turn the clamp into a window over exactly the region it was removing.
     // ⚠ The same two lines live in PpMetricChart.qml (the split-mode @end readout); keep them equal.
-    // A phase's instant on this swing, or -1 when the ladder lacks it (the tile then prints "—").
+    // A phase's instant on this swing, or -1 when the ladder lacks it (the tile then prints "-").
     function _phaseUs(phase) {
         var ps = root.phases || []
         for (var i = 0; i < ps.length; ++i) if (ps[i].phase === phase) return ps[i].t_us
@@ -315,7 +286,7 @@ ColumnLayout {
                 readonly property var    st:  cm.summaryMasked(card.modelData.t_us, card.modelData.value,
                                                                card.mask, card.winStartUs, card.winEndUs)
                 // THE DOMAIN CLAMP EMPTIED THE WINDOW: the selected span lies wholly outside where
-                // this metric means anything, so every window tile prints "—" rather than a Δ of
+                // this metric means anything, so every window tile prints "-" rather than a Δ of
                 // 0.0 and a rate of 0 read off a single instant. Guarded on a non-empty selection
                 // so a chart that has not sized its window yet is not called empty.
                 readonly property bool   collapsed: card.winEndUs <= card.winStartUs
@@ -372,10 +343,10 @@ ColumnLayout {
                                ? { ok: true, val: card.st.end, us: root.endUs, raw: "" }
                                : { ok: false, val: 0, us: -1, raw: "" }
                     }
-                    var ok = root._measuredAt(card.modelData, us)
+                    var ok = ChartSamples.measuredAt(card.modelData, us)
                     var v  = root._reading(card.modelData,
-                                           labels.valueAtNearest(card.modelData.t_us, root._meanOf(card.modelData), us))
-                    var raw = root._hasMean(card.modelData)
+                                           labels.valueAtNearest(card.modelData.t_us, ChartSamples.meanOf(card.modelData), us))
+                    var raw = ChartSamples.hasMean(card.modelData)
                               ? cm.formatBare(root._reading(card.modelData,
                                                             labels.valueAtNearest(card.modelData.t_us,
                                                                                   card.modelData.value, us)),
@@ -425,7 +396,7 @@ ColumnLayout {
                         var r = card.reading(rs[i].phase)
                         var v = r.ok ? Theme.bandVerdict(cm.bandAtNearest(card.modelData.phaseSamples, r.us)) : ""
                         out.push({ label: card.readLabel(rs[i]),
-                                   text: r.ok ? card.fmt(r.val) : "—",
+                                   text: r.ok ? card.fmt(r.val) : "-",
                                    ok: r.ok, verdict: v,
                                    color: r.ok ? Theme.verdictColor(v, Theme.colorText) : Theme.colorText3,
                                    sub: "", unit: "", window: false,
@@ -443,7 +414,7 @@ ColumnLayout {
                         out.push({ label: span ? Theme.caps(qsTr("Peak %1→%2")).arg(card.tag(sp.peakFrom))
                                                                     .arg(card.tag(sp.peakTo))
                                                : Theme.caps(qsTr("Peak")),
-                                   text: pOk ? card.fmt(ps.peak) : "—", ok: pOk,
+                                   text: pOk ? card.fmt(ps.peak) : "-", ok: pOk,
                                    color: pOk ? Theme.colorText : Theme.colorText3,
                                    sub: pOk ? cm.formatUncertainty(ps.peakSigma) : "",
                                    unit: "", tip: "", window: !span })
@@ -456,12 +427,12 @@ ColumnLayout {
                             var dOk = a.ok && b.ok
                             out.push({ label: sp.deltaLabel
                                               || ("Δ " + card.tag(sp.deltaFrom) + "→" + card.tag(sp.deltaTo)),
-                                       text: dOk ? card.fmt(b.val - a.val) : "—", ok: dOk,
+                                       text: dOk ? card.fmt(b.val - a.val) : "-", ok: dOk,
                                        color: dOk ? Theme.colorText : Theme.colorText3,
                                        sub: "", unit: "", tip: "", window: false })
                         } else {
                             out.push({ label: sp.deltaLabel || Theme.caps(qsTr("Δ segment")),
-                                       text: card.valueOk ? card.fmt(card.st.delta) : "—",
+                                       text: card.valueOk ? card.fmt(card.st.delta) : "-",
                                        ok: card.valueOk,
                                        color: card.valueOk ? Theme.colorText : Theme.colorText3,
                                        sub: "", unit: "", tip: "", window: true })
@@ -471,9 +442,9 @@ ColumnLayout {
                         // THE MAGNITUDE of a signed slope — this tile has always answered "how
                         // fast, at its fastest" — and NOT put through the σ step rule: σ is in the
                         // metric's unit and this is per 100 ms. Its ± is rateSigma, quoted. Unit
-                        // hidden with the value: "— °/100ms" claims a rate that was never fitted.
+                        // hidden with the value: "- °/100ms" claims a rate that was never fitted.
                         out.push({ label: Theme.caps(qsTr("Pk rate")),
-                                   text: card.rateOk ? String(Math.round(Math.abs(card.st.rate))) : "—",
+                                   text: card.rateOk ? String(Math.round(Math.abs(card.st.rate))) : "-",
                                    ok: card.rateOk,
                                    color: card.rateOk ? Theme.colorText : Theme.colorText3,
                                    sub: card.rateOk ? cm.formatUncertainty(card.st.rateSigma) : "",
@@ -496,8 +467,8 @@ ColumnLayout {
                     if (!root._hasCurve(s)) return root._phaseSampleReading(s, phase)
                     var us = root._phaseUs(phase)
                     if (us < 0) return { ok: false, val: 0, us: -1 }
-                    return { ok: root._measuredAt(s, us),
-                             val: root._reading(s, labels.valueAtNearest(s.t_us, root._meanOf(s), us)), us: us }
+                    return { ok: ChartSamples.measuredAt(s, us),
+                             val: root._reading(s, labels.valueAtNearest(s.t_us, ChartSamples.meanOf(s), us)), us: us }
                 }
                 function companionTiles(s) {
                     var out = [], sp = cm.cardSpecFor(s.key), i
@@ -508,7 +479,7 @@ ColumnLayout {
                         var r = card.companionReading(s, rs[i].phase)
                         var v = r.ok ? Theme.bandVerdict(cm.bandAtNearest(s.phaseSamples, r.us)) : ""
                         out.push({ label: rs[i].label ? rs[i].label : nm + " " + card.readLabel(rs[i]),
-                                   text: r.ok ? cm.formatBare(r.val, s.unit) : "—", ok: r.ok,
+                                   text: r.ok ? cm.formatBare(r.val, s.unit) : "-", ok: r.ok,
                                    verdict: v, color: r.ok ? Theme.verdictColor(v, Theme.colorText) : Theme.colorText3,
                                    sub: "", unit: r.ok ? unit : "", tip: "", window: false })
                     }
@@ -517,7 +488,7 @@ ColumnLayout {
                         var dOk = a.ok && b.ok
                         out.push({ label: sp.deltaLabel
                                           || ("Δ " + nm + " " + card.tag(sp.deltaFrom) + "→" + card.tag(sp.deltaTo)),
-                                   text: dOk ? cm.formatBare(b.val - a.val, s.unit) : "—", ok: dOk,
+                                   text: dOk ? cm.formatBare(b.val - a.val, s.unit) : "-", ok: dOk,
                                    color: dOk ? Theme.colorText : Theme.colorText3,
                                    sub: "", unit: dOk ? unit : "", tip: "", window: false })
                     }
@@ -526,7 +497,7 @@ ColumnLayout {
 
                 // PARTIAL speaks for the WINDOW: part of it was never measured (summaryMasked says
                 // so) or the domain clamp emptied it. A card with no window-scoped tile has nothing
-                // for it to qualify — its fixed readings print "—" for themselves when unmeasured —
+                // for it to qualify — its fixed readings print "-" for themselves when unmeasured —
                 // and so never wears it.
                 readonly property bool   partial: {
                     for (var i = 0; i < card.tiles.length; ++i)

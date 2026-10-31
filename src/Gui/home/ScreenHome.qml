@@ -68,11 +68,7 @@ Item {
     readonly property var clubModel: {
         void athleteController.athletes
         if (!athleteController.hasCurrentAthlete) return []
-        var bag = athleteController.clubsFor(athleteController.currentUuid)
-        var vocab = athleteController.clubOptions()
-        var ids = Object.keys(bag)
-        ids.sort(function (a, b) { return vocab.indexOf(a) - vocab.indexOf(b) })
-        return ids
+        return athleteController.bagClubIds(athleteController.currentUuid)
     }
 
     // Default the club to the athlete's preferred club (resolved to a real bag
@@ -91,8 +87,7 @@ Item {
         var s = root.lastSession || {}
         if (!s.label) return ""
         var n = s.shots || 0
-        return n === 1 ? qsTr("Last session %1 · 1 shot").arg(s.label)
-                       : qsTr("Last session %1 · %2 shots").arg(s.label).arg(n)
+        return qsTr("Last session %1 · %2").arg(s.label).arg(Theme.plural(n, qsTr("%1 shot"), qsTr("%1 shots")))
     }
 
     // The device warning in the rig pane reads resourceMonitor; keep it current while Home shows.
@@ -377,7 +372,7 @@ Item {
                             var hcp = Theme.formatHandicap(m.handicap)
                             var n   = (typeof sessionReportList !== "undefined" && sessionReportList)
                                           ? sessionReportList.count : 0
-                            var sc  = n === 1 ? qsTr("1 session") : qsTr("%1 sessions").arg(n)
+                            var sc  = Theme.plural(n, qsTr("%1 session"), qsTr("%1 sessions"))
                             return athleteController.currentHandedness + " · " + hcp + " · " + sc
                         }
                         font.family:        Theme.fontData

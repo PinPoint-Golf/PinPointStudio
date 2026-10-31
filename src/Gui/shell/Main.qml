@@ -175,105 +175,28 @@ ApplicationWindow {
         }
     }
 
-    Popup {
+    // The close prompt is the house confirmation (components/PpConfirm.qml) in its attention tone: it
+    // interrupts a live session but destroys nothing. Esc or Cancel leaves the session running — the
+    // close was already rejected above.
+    PpConfirm {
         id: closeConfirm
-        parent: Overlay.overlay
-        anchors.centerIn: parent
-        modal: true
-        dim: true
-        closePolicy: Popup.CloseOnEscape          // Esc = cancel (safe default)
-        padding: Theme.gap(20)
-        width: Math.min(Theme.sp(420), root.width - Theme.sp(48))
-
-        background: Rectangle {
-            color: Theme.colorSurface
-            radius: Theme.radiusLg
-            border.width: 1
-            border.color: Theme.colorAttention    // attention framing — interrupts a live session
-        }
-
-        contentItem: Column {
-            spacing: Theme.gap(12)
-
-            Text {
-                width: parent.width
-                text: qsTr("Session in progress")
-                font.family: Theme.fontDisplay
-                font.italic: Theme.fontDisplayItalic
-                font.weight: Theme.fontDisplayWeight
-                font.pixelSize: Math.min(Theme.sp(20), Theme.fontSzDisplay)
-                color: Theme.colorAttention
-                wrapMode: Text.WordWrap
-            }
-            Text {
-                width: parent.width
-                text: qsTr("You're still mid-session — closing now will end your session and stop capture. Close PinPoint Studio?")
-                font.family: Theme.fontBody
-                font.weight: Theme.fontBodyWeight
-                font.pixelSize: Theme.fontSzBody2
-                color: Theme.colorText2
-                wrapMode: Text.WordWrap
-                lineHeight: 1.5
-            }
-
-            Item { width: 1; height: Theme.sp(4) }
-
-            Row {
-                anchors.right: parent.right
-                spacing: Theme.gap(8)
-
-                // End session & close — attention-styled primary
-                Rectangle {
-                    width: confirmCloseLbl.implicitWidth + Theme.sp(24)
-                    height: Theme.sp(32); radius: Theme.radius
-                    color: confirmCloseMa.containsMouse ? Theme.colorAttentionLight : "transparent"
-                    border.width: 1; border.color: Theme.colorAttention
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    Text {
-                        id: confirmCloseLbl
-                        anchors.centerIn: parent
-                        text: qsTr("End session & close")
-                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                        color: Theme.colorAttention
-                    }
-                    PpPressable {
-                        id: confirmCloseMa
-                        onClicked: {
-                            closeConfirm.close()
-                            // Session-level teardown; the deeper shutdown (swing-save
-                            // wait, capture-thread barriers, merger stop) runs in the
-                            // controller destructors and the aboutToQuit hook.
-                            cameraManager.stopCapture()
-                            sessionController.endSession()
-                            // Discard the session folder if it captured nothing (to
-                            // the OS trash — recoverable), same as the End Session flow.
-                            shotProcessor.endSessionFolder()
-                            root._quitConfirmed = true
-                            root.close()
-                        }
-                    }
-                }
-
-                // Cancel — neutral; the close was already rejected
-                Rectangle {
-                    width: cancelCloseLbl.implicitWidth + Theme.sp(24)
-                    height: Theme.sp(32); radius: Theme.radius
-                    color: cancelCloseMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
-                    border.width: 1; border.color: Theme.colorBorderMid
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    Text {
-                        id: cancelCloseLbl
-                        anchors.centerIn: parent
-                        text: qsTr("Cancel")
-                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                        color: Theme.colorText2
-                    }
-                    PpPressable {
-                        id: cancelCloseMa
-                        onClicked: closeConfirm.close()
-                    }
-                }
-            }
+        objectName: "closeConfirm"
+        dialogWidth: Theme.sp(420)
+        buttonHoverScale: 1.02
+        tone: "attention"
+        title: qsTr("Session in progress")
+        body: qsTr("You're still mid-session — closing now will end your session and stop capture. Close PinPoint Studio?")
+        confirmText: qsTr("End session & close")
+        onConfirmed: {
+            // Session-level teardown; the deeper shutdown (swing-save wait, capture-thread barriers,
+            // merger stop) runs in the controller destructors and the aboutToQuit hook.
+            cameraManager.stopCapture()
+            sessionController.endSession()
+            // Discard the session folder if it captured nothing (to the OS trash — recoverable),
+            // same as the End Session flow.
+            shotProcessor.endSessionFolder()
+            root._quitConfirmed = true
+            root.close()
         }
     }
 
@@ -360,7 +283,7 @@ ApplicationWindow {
     // screen owns everything that faces the athlete at the mat — the header DETECT
     // cluster and the secondary-display cast below — so both gate on this rather
     // than on the settings alone.
-    readonly property bool sessionScreenActive: navController.currentIndex === AppScreen.Session
+    readonly property bool sessionScreenActive: SessionMode.sessionScreenActive
 
     // ── Post-shot secondary-display cast ─────────────────────────────────────
     // Surfaces the SESSION DIAGNOSTICS panel on the secondary display, in one of three ways

@@ -17,6 +17,7 @@
  */
 
 #include "posture_picture.h"
+#include "../../Core/figure_format.h"
 
 #include "../../Body/address_marks.h"       // buttShiftCm — the butt line's travel, pelvisThrust's sign
 #include "../../Body/head_track.h"          // trackHead — the inter-ear ruler headLift is measured with
@@ -50,7 +51,7 @@ const char *const kTags[kPicturePositions] = { "P1", "P4", "P7" };
 const int kPosIndex[kPicturePositions] = { 0, 3, 6 };
 const char *const kWhen[kPicturePositions] = { "address", "the top", "impact" };
 
-bool fin(double v) { return std::isfinite(v); }
+using pinpoint::figures::fin;              // figure_format.h
 double numOr(const QJsonValue &v, double d = kPicNaN) { return v.isDouble() ? v.toDouble() : d; }
 
 // A figure as the posture section prints it: one decimal, U+2212 for minus.

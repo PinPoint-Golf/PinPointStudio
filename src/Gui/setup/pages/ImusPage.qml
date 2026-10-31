@@ -140,8 +140,7 @@ WizardPage {
                     var n = page.ctx.sensorsFound
                     return n === 0
                         ? Theme.caps(qsTr("No devices found"))
-                        : n === 1 ? qsTr("1 DEVICE FOUND")
-                                  : qsTr("%1 DEVICES FOUND").arg(n)
+                        : Theme.plural(n, qsTr("%1 DEVICE FOUND"), qsTr("%1 DEVICES FOUND"))
                 }
                 font.family:        Theme.fontData
                 font.pixelSize:     Theme.fontSzMicro
@@ -162,7 +161,7 @@ WizardPage {
                 radius: Theme.radius
                 color:  scanning ? Theme.colorAccentLight
                                  : (scanArea.containsMouse ? Theme.colorBg2
-                                        : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0))
+                                        : Qt.alpha(Theme.colorBg2, 0))
                 border.width: 1
                 border.color: scanning ? Theme.colorAccent
                                        : (scanArea.containsMouse ? Theme.colorAccentMid : Theme.colorBorderStrong)

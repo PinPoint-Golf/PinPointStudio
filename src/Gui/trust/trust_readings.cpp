@@ -200,7 +200,7 @@ QVariantList trustReadings(const charts::ShotSeries &shot)
                     if (rv.toMap().value(QStringLiteral("gate")).toString() == gate) { primary = rv.toMap(); break; }
             } else if (p.present) {
                 const charts::UnplacedWhy why = charts::unplacedWhy(p);
-                figure = why.unit.isEmpty() ? why.figure : why.figure + QChar(0x00A0) + why.unit;
+                figure = W::withUnit(why.figure, why.unit);   // the one figure-and-unit rule (Core/figure_format.h)
                 shortText = why.shortText;
                 level = p.refusal.value(QStringLiteral("effect")).toString() == QLatin1String("bounded") ? Bounded : NotSeen;
             }

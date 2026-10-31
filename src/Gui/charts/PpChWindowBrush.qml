@@ -62,15 +62,14 @@ Item {
         onPaint: {
             const ctx = getContext("2d"); ctx.reset()
             if (!wb.roles || wb.spanUs <= 0) return
-            const ok = function (v) { return v !== null && v !== undefined && isFinite(v) }
             for (const o of (wb.overview || [])) {
                 const lo = o.vLo, hi = o.vHi
-                if (!ok(lo) || !ok(hi)) continue
+                if (!wb.roles.fin(lo) || !wb.roles.fin(hi)) continue
                 ctx.strokeStyle = Qt.alpha(wb.roles.hue(o.key), 0.75); ctx.lineWidth = 1
                 ctx.beginPath(); let pen = false
                 for (let i = 0; i < (o.t || []).length; ++i) {
                     const v = o.v[i]
-                    if (!ok(v)) { pen = false; continue }
+                    if (!wb.roles.fin(v)) { pen = false; continue }
                     const x = wb.xOf(o.t[i]), y = height - 1 - (v - lo) / Math.max(1e-9, hi - lo) * (height - 2)
                     if (!pen) { ctx.moveTo(x, y); pen = true } else ctx.lineTo(x, y)
                 }

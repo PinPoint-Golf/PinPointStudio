@@ -783,7 +783,7 @@ QVariantMap styleMap(const Profile &p)
     for (int i = 0; i < 3; ++i) {
         const QString k = QLatin1String(keys[i]);
         const QVariant pv = p.resemblance.value(k);
-        const QString pct = has ? QString::number(pv.toInt()) + QChar(0x00A0) + QStringLiteral("%") : QStringLiteral("-");
+        const QString pct = has ? W::withUnit(QString::number(pv.toInt()), QStringLiteral("%")) : QStringLiteral("-");
         items.append(QVariantMap{ { QStringLiteral("key"), k }, { QStringLiteral("name"), wristArchetypeName(i) },
                                   { QStringLiteral("pct"), has ? pv : nullv() }, { QStringLiteral("pctText"), pct },
                                   { QStringLiteral("graded"), p.archetype == i } });
@@ -1260,15 +1260,9 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
 
 QVariantMap driftMap(const Correlation &d, int n)
 {
-    const auto r2 = [](double r) {
-        if (!std::isfinite(r)) return QStringLiteral("-");
-        QString t = QString::number(std::abs(r), 'f', 2);
-        if (t.startsWith(QLatin1Char('0'))) t = t.mid(1);
-        return (r < 0 ? QString(QChar(0x2212)) : QString()) + t;
-    };
     QVariantMap out{ { QStringLiteral("defined"), d.defined }, { QStringLiteral("r"), nv(d.r) }, { QStringLiteral("lo"), nv(d.lo) },
-                     { QStringLiteral("hi"), nv(d.hi) }, { QStringLiteral("clear"), d.clear }, { QStringLiteral("rText"), r2(d.r) },
-                     { QStringLiteral("ciText"), d.defined ? QStringLiteral("(%1 to %2)").arg(r2(d.lo), r2(d.hi)) : QString() },
+                     { QStringLiteral("hi"), nv(d.hi) }, { QStringLiteral("clear"), d.clear }, { QStringLiteral("rText"), W::figR(d.r) },
+                     { QStringLiteral("ciText"), d.defined ? QStringLiteral("(%1 to %2)").arg(W::figR(d.lo), W::figR(d.hi)) : QString() },
                      { QStringLiteral("slope"), nv(d.slope) }, { QStringLiteral("intercept"), nv(d.intercept) } };
     out.insert(QStringLiteral("line"), d.defined && d.clear
         ? QVariant(QVariantMap{ { QStringLiteral("x0"), 1 }, { QStringLiteral("y0"), d.intercept + d.slope },

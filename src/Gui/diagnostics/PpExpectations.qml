@@ -45,12 +45,8 @@ Column {
         property bool atom: true
         property bool keepNext: true
         width: ex.width; height: hd.height + ex.roles.u(4)
-        Flow {
-            id: hd
-            width: parent.width; spacing: ex.roles.u(10)
-            Text { id: ht; text: ex.title; font: ex.roles.fSection; color: ex.roles.ink }
-            Text { text: ex.sub; font: ex.roles.fSmallI; color: ex.roles.ink3; height: ht.height; verticalAlignment: Text.AlignVCenter }
-        }
+        PpSectionHead { id: hd; width: parent.width; roles: ex.roles; paged: false; pad: 0
+                        title: ex.title; sub: ex.sub; subFont: ex.roles.fSmallI; subWrap: false }
     }
     Repeater {
         model: ex.roles && ex.hasItems ? ex.items : []

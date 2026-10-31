@@ -438,7 +438,8 @@ public:
     //
     //   axisLo/axisHi, decimals   the axis in the measure's own units, and how it is quoted
     //   corridorKnown, shape      whether there is anything to grade against, and which sides
-    //   bands[]                   { grade: ideal|good|watch|action|open, lo, hi, f0, f1 }
+    //   bands[]                   { grade: ideal|good|watch|action|open, lo, hi, f0, f1, edge } — `edge`
+    //                             the zone edge the band starts at (edgeKindAt; "" for the first band)
     //   faultLines[]              { value, f, text, shortText } — where Action begins, per graded side
     //   normTag/normTagLong/normCitation/normSource   what the corridor is: judgement or data
     //   dots[]                    one per ASSESSABLE shot: { index, shotId, swingDir, value, f,
@@ -447,8 +448,9 @@ public:
     //   clipLo/HiCount, clipLo/HiText   the dots pinned to each edge, and the one label for them
     //   run[]                     one per SHOT, not-assessable included: { index, shotId,
     //                             swingDir, state, assessable, value, fx, fy, clipped, current,
-    //                             selected, valueText }
-    //   median[]                  { index, fx, fy, value } the trailing rolling median
+    //                             selected, valueText, z } — z: the shot on the common scale (ladderZ,
+    //                             folded by ladderSide), absent where there is no reading or no corridor
+    //   median[]                  { index, fx, fy, value, z } the trailing rolling median
     //   medianWindow, notAssessable, pastFault, caption, captionShort, muF, muText
     //   run[].readout, currentReadout   the hover line: "shot 12 · 14 % hand rise · 1 % hand rise
     //                             past the fault line · fired"; "shot 7 · - · not measured"
@@ -513,6 +515,27 @@ public:
     // "a batch is persisted once" (decision 1). Counts the writes attempted, not the ones that
     // succeeded — what is being counted is how often the GUI thread paid for one.
     int persistCount() const { return m_persistCount; }
+
+    // ── Where a reading sits against its corridor, for the figures (C21) ─────────────────
+    //
+    // Decided HERE, off the corridor itself, and published; the QML used to rebuild both from the band
+    // words ("good|watch" is a pass edge) and from a z ladder of its own, and got a one-sided corridor
+    // wrong. Static and public so the test can pin them on a hand-built corridor.
+    //   edgeKindAt   the zone edge at `v` (a boundary between two of spreadBands()): "fault" where Action
+    //                begins, "pass" at the signal edge (Watch begins), "aim" where a one-sided corridor's
+    //                open side meets Ideal, "grid" at an Ideal edge; "" for none. Edges that coincide (a
+    //                monitor bound at the signal edge empties Watch) name the stronger: fault, pass, aim.
+    //   ladderZ      the reading on THE COMMON SCALE the session tiles share: 1 at the Ideal edge, 2 at the
+    //                pass edge, 3 at the fault line, linear between them and on past the outermost edge,
+    //                times `side`. On a one-sided corridor the open side is no distance and reads 0
+    //                (readingStrength's rule). Edges that coincide take the outer rung: where a monitor bound
+    //                empties Watch (or Good and Watch), on one side or two, the shared edge is the fault line
+    //                at 3 (the QML's ladder put it at 2, or 1). NaN with no corridor.
+    //   ladderSide   the side that scale folds up: a one-sided corridor's graded tail, always; a two-sided
+    //                one, the side the session median is on (+1 high, −1 low).
+    static QString edgeKindAt(const pinpoint::analysis::SpreadCorridor &c, double v);
+    static double  ladderZ(const pinpoint::analysis::SpreadCorridor &c, double v, int side = 1);
+    static int     ladderSide(const pinpoint::analysis::SpreadCorridor &c, double median);
 
 signals:
     void cadenceChanged();

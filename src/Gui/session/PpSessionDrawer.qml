@@ -173,7 +173,7 @@ Item {
             readonly property real _mainH: deviceLabels.length > 0 ? Theme.sp(54) : height
             radius: Theme.radius
             color:  isLive ? Theme.colorAccentLight
-                  : (rowMa.containsMouse || kebabMa.containsMouse || rowMenu.opened)
+                  : (rowMa.containsMouse || kebab.containsMouse || rowMenu.opened)
                         ? Theme.colorBg : "transparent"
             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
@@ -285,130 +285,59 @@ Item {
                 // Excluded from the layout on the live row (no on-disk session),
                 // so live rows keep their original alignment. The glyph is hidden
                 // at rest and revealed on row hover to keep the list chromeless.
-                Item {
+                PpMoreButton {
                     id: kebab
                     visible: !rowBg.isLive
                     Layout.alignment: Qt.AlignVCenter
                     Layout.preferredWidth:  Theme.sp(22)
                     Layout.preferredHeight: Theme.sp(22)
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: Theme.radius
-                        color: rowMenu.opened || kebabMa.containsMouse
-                                   ? Theme.colorBg3 : "transparent"
-                        opacity: (rowMa.containsMouse || kebabMa.containsMouse
-                                  || rowMenu.opened) ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-                        Text {
-                            anchors.centerIn: parent
-                            text: "⋯"
-                            font.family: Theme.fontData
-                            font.pixelSize: Theme.fontSzBody
-                            color: Theme.colorText2
-                        }
-                    }
-                    PpPressable {
-                        id: kebabMa
-                        held: rowMenu.opened       // stay grown while the menu is up
-                        onClicked: rowMenu.opened ? rowMenu.close() : rowMenu.open()
-                    }
+                    tile:     Theme.sp(22)
+                    revealed: rowMa.containsMouse
+                    open:     rowMenu.opened
+                    wash:     Theme.colorBg3
+                    ink:      Theme.colorText2
+                    litInk:   Theme.colorText2
+                    onClicked: rowMenu.opened ? rowMenu.close() : rowMenu.open()
 
                     // Reuses the carousel bulk-menu pattern (Popup → Column of
                     // hover rows, destructive action below a separator).
                     Popup {
                         id: rowMenu
                         objectName: "rowMenu"
-                        parent: kebab
-                        x: kebab.width - width            // right edges aligned
+                        parent: kebab.face                // grows with the tile, as it always has
+                        x: kebab.face.width - width       // right edges aligned
                         y: -height - Theme.sp(4)          // open upward, like the carousel
                         padding: Theme.gap(5)
                         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-                        contentWidth: Math.max(exportRow.implicitWidth, trashRow.implicitWidth)
+                        contentWidth: Math.max(exportItem.contentImplicitWidth, trashItem.contentImplicitWidth)
                                       + Theme.sp(28)
                         background: PpPopoverCard {}
 
                         contentItem: Column {
-
-                            Rectangle {   // Export session → shared carousel export sheet
-                                width: parent.width
-                                height: Theme.sp(34)
-                                radius: Theme.radius
-                                color: exportMa.containsMouse ? Theme.colorBg2 : "transparent"
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                                Row {
-                                    id: exportRow
-                                    anchors { left: parent.left; leftMargin: Theme.gap(10)
-                                              verticalCenter: parent.verticalCenter }
-                                    spacing: Theme.gap(10)
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: "⤓"
-                                        font.family: Theme.fontSymbol
-                                        font.pixelSize: Theme.fontSzBody
-                                        color: Theme.colorText2
-                                    }
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: qsTr("Export session")
-                                        font.family: Theme.fontBody
-                                        font.pixelSize: Theme.fontSzBody
-                                        color: Theme.colorText
-                                    }
-                                }
-                                PpPressable {
-                                    id: exportMa
-                                    hoverScale: 1.0       // full-width menu item — press-dip only
-                                    onClicked: {
-                                        rowMenu.close()
-                                        drawer.exportRequested(rowBg.sessionId)
-                                    }
+                            PpMenuItem {   // Export session → shared carousel export sheet
+                                id: exportItem
+                                glyph: "⤓"
+                                text: qsTr("Export session")
+                                fontWeight: Font.Normal
+                                onTriggered: {
+                                    rowMenu.close()
+                                    drawer.exportRequested(rowBg.sessionId)
                                 }
                             }
 
-                            Rectangle {   // separator — destructive action in its own group
-                                width: parent.width - Theme.sp(12)
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                height: 1
-                                color: Theme.colorBorderMid
-                                opacity: Theme.borderOpacityNormal
-                            }
+                            PpMenuRule {}   // destructive action in its own group
 
                             // "Move to trash", not "Delete" — recoverable via the OS
                             // trash, the same wording as the carousel's shot trash.
-                            Rectangle {   // Move to trash (soft, recoverable)
-                                width: parent.width
-                                height: Theme.sp(34)
-                                radius: Theme.radius
-                                color: trashMa.containsMouse ? Theme.colorWarnLight : "transparent"
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                                Row {
-                                    id: trashRow
-                                    anchors { left: parent.left; leftMargin: Theme.gap(10)
-                                              verticalCenter: parent.verticalCenter }
-                                    spacing: Theme.gap(10)
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: "🗑"
-                                        font.family: Theme.fontSymbol
-                                        font.pixelSize: Theme.fontSzBody
-                                        color: Theme.colorWarn
-                                    }
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: qsTr("Move to trash")
-                                        font.family: Theme.fontBody
-                                        font.pixelSize: Theme.fontSzBody
-                                        color: Theme.colorWarn
-                                    }
-                                }
-                                PpPressable {
-                                    id: trashMa
-                                    hoverScale: 1.0       // full-width menu item — press-dip only
-                                    onClicked: {
-                                        rowMenu.close()
-                                        drawer.trashRequested(rowBg.sessionId)
-                                    }
+                            PpMenuItem {   // Move to trash (soft, recoverable)
+                                id: trashItem
+                                glyph: "🗑"
+                                text: qsTr("Move to trash")
+                                warn: true
+                                fontWeight: Font.Normal
+                                onTriggered: {
+                                    rowMenu.close()
+                                    drawer.trashRequested(rowBg.sessionId)
                                 }
                             }
                         }

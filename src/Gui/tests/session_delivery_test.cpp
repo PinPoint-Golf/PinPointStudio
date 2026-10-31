@@ -27,12 +27,14 @@
 //   · lie → face on a 7-iron (Nick, the monitor's lie and loft), a driver (the lie barely matters) and the camera's
 //     fallback (shaftLie P1 → P7, the club's factory loft);
 //   · the monitor first: a shot with lm.attackAngle says the monitor's; one without says the camera's;
+//   · the shot shape is the launch monitor card's classification (pa::lmShapeClass) on every shot, in its own words;
 //   · the hands' stretches of the curve (decision 5) and the sampler on a synthetic shot;
 //   · the golfer's day (decision 13): Jess's 20 Oct, split over her three sessions as in the library, reproduces her
 //     n 16 fit and is shown; Nick's day is refused; Mark's 5 Oct (one session) keeps the session's words.
 
 #include "charts/session_delivery.h"
 #include "charts/session_series_types.h"
+#include "../../LaunchMonitor/lm_inferred_reads.h"   // the launch monitor card's classifier, which the shapes must agree with
 
 #include <QFile>
 #include <QJsonArray>
@@ -325,8 +327,8 @@ private slots:
         QCOMPARE(sv.head, sv.shapeLine + QStringLiteral("."));
     }
 
-    // §4.6, decision 10: past kDeliveryBigCurveDeg of face to path the curve is a hook (left) or a slice (right), mirrored
-    // for a left-handed golfer; the slight band and the draw / fade between are unchanged.
+    // §4.6, decision 10: past the launch monitor's face-to-path severity (LmInferenceTuning::f2pSevereT, 4°, strictly)
+    // the curve is a hook (left) or a slice (right), mirrored for a left-handed golfer; "slight" up to half of it (2°).
     void bigCurvesAreHooksAndSlices()
     {
         DeliveryShotInput g;
@@ -334,13 +336,16 @@ private slots:
         g.lmFaceToPath = -13.8;   // Jess 20 Oct shot 3
         QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Pull, hook"));
         QCOMPARE(deliveryShotShape(g).curveWord, QStringLiteral("hook"));
+        QVERIFY(deliveryShotShape(g).severe);
         g.lmFaceToPath = 7.0;
         QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Pull, slice"));
-        g.lmFaceToPath = -4.0;
+        g.lmFaceToPath = 6.0;     // was a fade at the old 6° edge; the monitor's card calls it a slice
+        QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Pull, slice"));
+        g.lmFaceToPath = -4.0;    // the edge is a draw still
         QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Pull, draw"));
-        g.lmFaceToPath = 6.0;     // the edge is a fade still
-        QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Pull, fade"));
-        g.lmFaceToPath = -2.5;
+        g.lmFaceToPath = -2.5;    // past half way: no longer slight
+        QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Pull, draw"));
+        g.lmFaceToPath = -2.0;    // half way is slight still
         QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Pull, slight draw"));
         g.leftHanded = true; g.lmFaceToPath = -13.8;
         QCOMPARE(deliveryShotShape(g).word, QStringLiteral("Push, slice"));
@@ -356,13 +361,32 @@ private slots:
         DeliveryShape s = deliveryShotShape(m);
         QVERIFY(s.available);
         QVERIFY(s.fromBall);
-        QCOMPARE(s.word, QStringLiteral("Pull"));            // 1.2° of spin axis is inside ±1.5°: straight
+        QCOMPARE(s.word, QStringLiteral("Pull"));            // 1.2° of spin axis is inside ±2°: straight
+        m.lmSpinAxis = 1.8;                                  // was a slight fade (±1.5°); the card says straight
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull"));
+        m.lmSpinAxis = 2.0;                                  // the edge is straight still
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull"));
         m.lmSpinAxis = 4.0;
-        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, slight fade"));   // ≤ 4.5°
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, slight fade"));   // ≤ 5°
+        m.lmSpinAxis = 5.0;
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, slight fade"));
+        m.lmSpinAxis = 5.1;
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, fade"));
         m.lmSpinAxis = -8.0;
-        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, draw"));          // ≤ 9°
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, draw"));          // < 10°
+        m.lmSpinAxis = -9.5;                                 // was a hook (past 9°); the card says a draw
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, draw"));
+        m.lmSpinAxis = -10.0;
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, hook"));
         m.lmSpinAxis = -12.0;
         QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, hook"));
+        // how far it actually curved: 150 yd carry, 4.0° of axis, finishing 8.5 yd right of a −1.37° start line has
+        // bent 4.6° — a slice, as the card says; 4.5 yd right has bent 3.1°, past half way, so a fade, not slight
+        m.lmSpinAxis = 4.0; m.lmCarry = 150.0; m.lmOffline = 8.5;
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, slice"));
+        m.lmOffline = 4.5;
+        QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Pull, fade"));
+        m.lmCarry = N; m.lmOffline = N;
         m.lmLaunchDir = 0.5; m.lmSpinAxis = 0.0;
         QCOMPARE(deliveryShotShape(m).word, QStringLiteral("Straight"));
         // the ball wins over the club when both are there
@@ -371,6 +395,73 @@ private slots:
         // no ball, no face: nothing
         DeliveryShotInput none; none.lmPath = 1.0;
         QVERIFY(!deliveryShotShape(none).available);
+    }
+
+    // §4.6, decision 10: THE LAUNCH MONITOR CARD'S CLASSIFICATION, on every shot. The card (lmFlightShape) and this
+    // section ask one classifier; only the words differ. Over a grid of starts, spin axes, shots that flew, club-only
+    // shots and both hands: the same pull / straight / push, the same curve, the same hook / slice and the same slight.
+    // A club-only shot is the card's face-to-path fallback with this section's face standing in for the start, so it
+    // is compared on the same numbers. The pairs are never mixed: the ball's start with the club's curve names nothing.
+    void shapesAgreeWithTheLaunchMonitorCard()
+    {
+        namespace pa = pinpoint::analysis;
+        int compared = 0;
+        const auto opt = [](double v) { return std::isfinite(v) ? std::optional<double>(v) : std::optional<double>(); };
+        // club: the delivery reads the start as the face and the curve as face to path; the card reads the same
+        // numbers as its start and its face-to-path fallback
+        const auto agree = [&](double start, double axis, double f2p, double carry, double offline, bool lh, bool club) {
+            DeliveryShotInput in;
+            in.leftHanded = lh;
+            if (club) { in.lmFace = start; in.lmFaceToPath = f2p; }
+            else      { in.lmLaunchDir = start; in.lmSpinAxis = axis; in.lmCarry = carry; in.lmOffline = offline; }
+            const DeliveryShape d = deliveryShotShape(in);
+            const pa::LmFlightShape card = pa::lmFlightShape(opt(start), opt(axis), opt(f2p), opt(carry), opt(offline), lh);
+            const pa::LmShapeClass k = pa::lmShapeClass(opt(start), opt(axis), opt(f2p),
+                                                        pa::lmCurvature(opt(start), opt(carry), opt(offline)), lh);
+            ++compared;
+            const int st = lh ? -d.start : d.start, cv = lh ? -d.curve : d.curve;   // the delivery's, in the gloss
+            const QString where = QStringLiteral("start %1 axis %2 f2p %3 carry %4 offline %5 lh %6 club %7")
+                                      .arg(start).arg(axis).arg(f2p).arg(carry).arg(offline).arg(lh).arg(club);
+            QVERIFY2(d.available == card.has, qPrintable(where));
+            if (!card.has) return;
+            QVERIFY2(d.fromBall == !club, qPrintable(where));
+            QVERIFY2(st == card.windowIdx - 1, qPrintable(where));
+            QVERIFY2(cv == card.curveIdx - 1, qPrintable(where));
+            QVERIFY2(d.severe == (card.severe && card.curveIdx != 1), qPrintable(where));
+            QVERIFY2(d.slight == k.slight, qPrintable(where));
+            // the words: the card's "Pull–fade" and the section's "Pull, slight fade" name the same cell
+            const bool hookOrSlice = card.name.contains(QStringLiteral("ook")) || card.name.contains(QStringLiteral("lice"));
+            QVERIFY2(cv == 0 || hookOrSlice == (d.curveWord == QStringLiteral("hook") || d.curveWord == QStringLiteral("slice")),
+                     qPrintable(where));
+        };
+        for (double start : { -3.0, -1.01, -1.0, 0.0, 0.5, 1.0, 1.01, 3.0 })
+            for (bool lh : { false, true }) {
+                for (double axis : { -12.0, -10.0, -9.5, -5.01, -5.0, -2.01, -2.0, -1.8, 0.0, 1.8, 2.0, 2.01, 4.5, 5.0, 5.01, 9.5, 10.0, 12.0 })
+                    agree(start, axis, N, N, N, lh, false);
+                for (double offline : { -20.0, -8.0, -3.0, 0.0, 3.0, 8.0, 20.0 })
+                    agree(start, 4.0, N, 150.0, offline, lh, false);
+                for (double f2p : { -5.0, -4.01, -4.0, -2.5, -2.0, -1.0, 0.0, 1.01, 2.0, 2.01, 4.0, 4.01 })
+                    agree(start, N, f2p, N, N, lh, true);
+            }
+        agree(N, 4.0, N, N, N, false, false);   // no start: neither names a shape
+        QVERIFY(compared > 500);
+
+        // never mixed: the ball's start with the club's curve, or the club's face with the ball's spin axis, names nothing
+        DeliveryShotInput mixed;
+        mixed.lmLaunchDir = -2.0; mixed.lmFaceToPath = 3.0;
+        QVERIFY(!deliveryShotShape(mixed).available);
+        mixed = DeliveryShotInput();
+        mixed.lmFace = -2.0; mixed.lmSpinAxis = 3.0;
+        QVERIFY(!deliveryShotShape(mixed).available);
+        // both pairs: the ball's decides
+        mixed.lmFaceToPath = -6.0; mixed.lmLaunchDir = 2.0;
+        QVERIFY(deliveryShotShape(mixed).fromBall);
+        QCOMPARE(deliveryShotShape(mixed).word, QStringLiteral("Push, slight fade"));
+        // a straight curve is never a hook or a slice, even where the measured curvature is past 4.5°
+        DeliveryShotInput straight;
+        straight.lmLaunchDir = 0.0; straight.lmSpinAxis = 1.0; straight.lmCarry = 150.0; straight.lmOffline = 20.0;
+        QCOMPARE(deliveryShotShape(straight).curve, 0);
+        QVERIFY(!deliveryShotShape(straight).severe);
     }
 
     // §4.5: Δface ≈ Δlie × sin(loft).
@@ -573,12 +664,17 @@ private slots:
         instant(QStringLiteral("shoulderPlane"), 0, 68.0);
         instant(QStringLiteral("lm.clubPath"), 5, -2.5);
         instant(QStringLiteral("handPlaneSteepening"), 2, 4.0);
+        instant(QStringLiteral("lm.carryDistance"), 5, 152.4);   // the shot shape's curvature (decision 10)
+        instant(QStringLiteral("lm.offline"), 5, -6.3);
         const DeliveryShotInput in = deliveryInputFromShot(s);
         for (int p = 0; p < 7; ++p) QCOMPARE(in.plane[size_t(p)], val[p]);
         QCOMPARE(in.posMs[3], -600.0);
         QCOMPARE(in.shoulderPlane, 68.0);
         QCOMPARE(in.lmPath, -2.5);
         QCOMPARE(in.steepening, 4.0);
+        QVERIFY(std::isfinite(in.lmCarry) && std::isfinite(in.lmOffline));   // deliveryMetricKeys carries both
+        QCOMPARE(in.lmCarry, 152.4);
+        QCOMPARE(in.lmOffline, -6.3);
         QVERIFY(!std::isfinite(in.lmAttack));
         QVERIFY(!std::isfinite(in.hands[0]));
         QCOMPARE(in.nominalLoft, 34.0);

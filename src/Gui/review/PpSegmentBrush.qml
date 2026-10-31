@@ -40,13 +40,14 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Shapes
 import PinPointStudio
+import "chart_samples.js" as ChartSamples
 
 Item {
     id: root
 
     // series: [{ t_us, value, color, valid?, validFromUs?, validToUs?, … }] (the decorated,
     // currently-visible series). The last three are the optional validity triple PpMetricChart
-    // decorates on — see _measured below; absent ⇒ every sample is a measurement.
+    // decorates on — see ChartSamples.measured; absent ⇒ every sample is a measurement.
     property var  series: []
     property var  phases: []
     property real axisStartUs: 0
@@ -90,37 +91,18 @@ Item {
         border.width: 1; border.color: Theme.colorBorder
     }
 
-    // ── Measured vs bridged — the same rule as PpChartPlot, in its index form ─────
+    // ── Measured vs bridged, and which array is the curve — the same rules as PpChartPlot ─────
     //
-    // A sample counts as measured when it is inside the metric's phase domain and not marked 0 in
-    // `valid`. Short-mask rule as everywhere else (chart_metrics.h): a mask that does not cover the
-    // curve is discarded wholesale rather than applied to the part it covers.
-    function _hasDomain(s) {
-        return s.validFromUs !== undefined && s.validToUs !== undefined
-               && s.validToUs > s.validFromUs
-    }
-    // ⚠ isFinite folded in (F5), the same rule as PpChartPlot._measured and SeriesView::isValid: a
-    // NaN is not a measurement, and one NaN in a ShapePath's point list takes out the whole run —
-    // a single bad sample would erase a series' sparkline rather than show a gap where it is.
-    function _measured(s, i) {
-        if (root._hasDomain(s) && (s.t_us[i] < s.validFromUs || s.t_us[i] > s.validToUs))
-            return false
-        if (!isFinite(s.value[i])) return false
-        if (!s.valid || s.valid.length < s.t_us.length) return true
-        return s.valid[i] !== 0
-    }
-    // WHICH ARRAY IS THE CURVE (Phase 6): `mean` — the 40 ms centred windowed mean the chart's
-    // traces stroke and the summary tiles reduce — where the host decorated one, else the persisted
-    // `value`. The same one-line rule as PpChartPlot._meanOf and PpMetricChart._meanOf, because all
-    // three are handed a `series` list and none may assume another prepared it. (No `_hasMean`
-    // companion here: nothing on this strip has to ask whether a reduction exists, only what to draw.)
+    // A sample counts as measured when it is inside the metric's phase domain, finite, and not
+    // marked 0 in `valid` (ChartSamples.measured); the curve is `mean` — the 40 ms centred windowed
+    // mean the chart's traces stroke and the summary tiles reduce — where the host decorated one,
+    // else the persisted `value` (ChartSamples.meanOf). Both are written once in chart_samples.js,
+    // shared with PpChartPlot, PpMetricChart and PpChartSummary, because all four are handed a
+    // `series` list and none may assume another prepared it.
     //
     // NO RAW DOTS HERE, and that is deliberate: this strip is 40px tall and is used to DECIDE WHERE
     // TO LOOK, not to read values off. The reduced shape is the legible one at this size; the raw
     // samples are one click away on the chart the strip scopes.
-    function _meanOf(s) {
-        return (s && s.mean && s.t_us && s.mean.length === s.t_us.length) ? s.mean : s.value
-    }
 
     // Each series split into runs of one drawn state, flattened across all series:
     //   [{ color, dashed, t:[…], v:[…], lo, hi }]
@@ -133,10 +115,10 @@ Item {
         for (var k = 0; k < (root.series ? root.series.length : 0); ++k) {
             var s = root.series[k]
             if (!s || !s.t_us || !s.value || s.t_us.length < 2) continue
-            var mv = root._meanOf(s)
+            var mv = ChartSamples.meanOf(s)
 
             var solid = []
-            for (var i = 0; i < s.t_us.length; ++i) solid.push(root._measured(s, i))
+            for (var i = 0; i < s.t_us.length; ++i) solid.push(ChartSamples.measured(s, i))
 
             // ⚠ THE RANGE IS OVER MEASURED SAMPLES ONLY, and it comes from the SAME reducer the
             // cards use rather than a fourth hand-rolled min/max — one implementation, so the
@@ -146,10 +128,10 @@ Item {
             //
             // The window is the axis clipped to the metric's domain, per side, using the instants
             // PpMetricChart already resolved — so out-of-domain samples do not set the scale either.
-            var winA = root._hasDomain(s) ? Math.max(root.axisStartUs, s.validFromUs)
-                                          : root.axisStartUs
-            var winB = root._hasDomain(s) ? Math.min(root.axisEndUs, s.validToUs)
-                                          : root.axisEndUs
+            var winA = ChartSamples.hasDomain(s) ? Math.max(root.axisStartUs, s.validFromUs)
+                                                 : root.axisStartUs
+            var winB = ChartSamples.hasDomain(s) ? Math.min(root.axisEndUs, s.validToUs)
+                                                 : root.axisEndUs
             // `reduceValid` (`valid` AND in-domain, composed once by PpMetricChart._reduceMask) so
             // this strip's scale is taken over the same samples the chart's line and cards were told
             // about — on an older swing whose producer never marked the out-of-domain run, `valid`
@@ -171,8 +153,8 @@ Item {
                 }
                 if (b > a) {
                     var t = [], v = []
-                    // Non-finite points omitted, not drawn — see _measured: a NaN in the list would
-                    // cost the whole run, and the strip is where a reader looks for the SHAPE.
+                    // Non-finite points omitted, not drawn — see ChartSamples.measured: a NaN in the
+                    // list would cost the whole run, and the strip is where a reader looks for the SHAPE.
                     for (var j = a; j <= b; ++j)
                         if (isFinite(mv[j])) { t.push(s.t_us[j]); v.push(mv[j]) }
                     if (t.length > 1)

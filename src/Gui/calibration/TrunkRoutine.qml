@@ -105,22 +105,25 @@
 // (trunk + wG3: the arm's Calibrate step began it, §6.7). A step repeated after a failure is a new
 // stepStart of the same name.
 //
-// NON-VISUAL, the §4.7 routine interface (as WitmotionArmRoutine). Injected: the guide
-// (CalibrationGuide, R9 — trunkPose / trunkAnimate), the segments { pelvis, thorax } (the two
-// Witmotion UNITS), the recorder (`trunkCeremony`, the context object, handed in by the host) and the
-// pace. ⚠ R3: every Timer.running and Connections.enabled below is ANDed with `active`; active going
-// false is stop("inactive"). Every stage change and every entry point is ONE app-log line (R10).
+// NON-VISUAL, the §4.7 routine interface on CalibrationRoutineBase (the host contract, the entry
+// points, the pace, the app log and the guide's finished(); this file is the state machine).
+// Injected: the guide (CalibrationGuide, R9 — trunkPose / trunkAnimate), the segments
+// { pelvis, thorax } (the two Witmotion UNITS), the recorder (`trunkCeremony`, the context object,
+// handed in by the host) and the pace. ⚠ R3: every Timer.running and Connections.enabled below is
+// ANDed with `active`; active going false is stop("inactive"). Every stage change, every step within
+// one and every entry point is ONE app-log line (R10): the stage lines go through _go() below.
 import QtQuick
 import "spoken_instructions.js" as Spoken
+import "../viz/VizMath.js" as VizMath
 
-QtObject {
+CalibrationRoutineBase {
     id: r
 
-    // ── Inputs ────────────────────────────────────────────────────────────────
-    property bool active: false
-    property var  guide: null
-    property var  segments: null          // { pelvis, thorax } — ImuInstance units
-    property bool rightHanded: true
+    // segments: { pelvis, thorax } — ImuInstance units
+    logName: "trunk"
+    // The stage lines are _go()'s: a step change inside a stage is a line too, with its reason.
+    logStageChanges: false
+
     // TrunkCeremonyRecorder (trunk_ceremony_recorder.h). Named as the context object is, so lint W5
     // checks every member used below against its header. null = nothing recorded and no turn check.
     property var  trunkCeremony: null
@@ -133,7 +136,7 @@ QtObject {
     property var  ttsController: null
 
     // Every duration, in ms, and `scale` (1 in the app; tests set it, lint W7).
-    readonly property var defaultPace: ({
+    defaultPace: ({
         introStart: 1500,   // the guide ready → stand tall
         ready:      1000,   // stand tall: both sensors upright and still this long, unbroken → settle
         settle:     1000,   // stand tall: before the still-watch starts
@@ -149,28 +152,19 @@ QtObject {
         waitLog:    1000,   // at most one `trunk wait` app-log line per this, while ready or the hold waits
         scale:      1
     })
-    property var pace: defaultPace
-    readonly property var _p: {
-        var o = {}, k
-        for (k in defaultPace) o[k] = defaultPace[k]
-        if (pace) for (k in pace) o[k] = pace[k]
-        return o
-    }
-    function _ms(name) { return Math.round(_p[name] * _p.scale) }
 
     // ── Outputs ───────────────────────────────────────────────────────────────
     // "idle" | "intro" | "standTall" | "turnAway" | "turnThrough" | "done" | "failed"
-    readonly property string stage:       _stage
+    stage:       _stage
     // Within a step: "ready" | "settle" | "hold" (stand tall); "demo" | "arming" | "armed" | "turning"
     // (a turn; "returned" / "timeout" only for the instant before the check); "passed" | "retry"
     // ("" outside one)
-    readonly property string substage:    _sub
-    readonly property bool   done:        calibrationDone
-    readonly property bool   failed:      _stage === "failed"
+    substage:    _sub
+    failed:      _stage === "failed"
     // The failure on screen, golfer-facing (the C++ records' words, plus the routine's hints);
     // kept through the repeat until the step passes. "error" (a sensor) | "warn" (the turn) | "".
-    readonly property string message:     _message
-    readonly property string messageKind: _messageKind
+    message:     _message
+    messageKind: _messageKind
     readonly property real   holdProgress: calibrationDone ? 1.0 : Math.min(1.0, _holdMs / Math.max(1, _ms("hold")))
     // A turn: the chest's live turn from its armed heading, and the furthest it has been (°, unsigned
     // peak; NaN = no reading / not armed).
@@ -185,15 +179,11 @@ QtObject {
     // The last records: { pelvis, thorax } from calibrateTrunk; { away, through } from checkTurn.
     property var standTallResult: ({})
     property var turnResults:     ({})
-    property bool calibrationDone: false
-
-    signal completed()
 
     readonly property QtObject pelvisImu: segments && segments.pelvis ? segments.pelvis : null
     readonly property QtObject thoraxImu: segments && segments.thorax ? segments.thorax : null
 
     // ── State ─────────────────────────────────────────────────────────────────
-    property bool   _running: false        // between begin() and stop() (outlives done and failed)
     property string _stage: "idle"
     property string _sub: ""
     property string _message: ""
@@ -257,26 +247,27 @@ QtObject {
     // shell prepares exactly these in advance (spoken_instructions.js; ScreenSessionSetup).
     readonly property var spokenPhrases: Spoken.trunk
 
-    function _log(text) { appLog.info("Calib", "trunk " + text) }
-    // ONE line per transition (R10): the stage, the step within it, and why.
+    // ONE line per transition (R10): the stage, the step within it, and why (the base's stage line).
     function _go(stage, sub, why) {
         _stage = stage
         _sub = sub
         _waitReason = ""
-        _log("stage=" + stage + (sub !== "" ? " step=" + sub : "") + (why ? " " + why : ""))
+        _logStage(why)
     }
 
-    // ── Entry points ──────────────────────────────────────────────────────────
-    // A fresh run: both sensors' calibrations cleared (an invalid solve leaves an instance untouched,
-    // so a stale A/M must not be there to inherit), the recording begun unless one runs already.
-    function begin() {
-        _log("begin")
-        // A Recalibrate mid-step: the open step ends here, not at the next step of its name; and
-        // whatever was said for the run it replaces stops.
-        if (_running) _closeStep()
+    // ── Entry points (CalibrationRoutineBase: begin, stop, reset, restore) ────
+    // begin(): a fresh run — both sensors' calibrations cleared (an invalid solve leaves an instance
+    // untouched, so a stale A/M must not be there to inherit), the recording begun unless one runs
+    // already. A Recalibrate mid-step: the open step ends here, not at the next step of its name; and
+    // whatever was said for the run it replaces stops.
+    // reset(): the same clear (the open step closed, the voice stopped, both sensors and the run
+    // cleared, the stage idle) without starting a run; the recording goes on, as after stop().
+    on_Clearing: (forRun, wasRunning) => {
+        if (wasRunning) _closeStep()
         _stopSpeech()
         _reset()
-        _running = true
+    }
+    on_Begun: {
         var missing = _missingSensor()
         if (missing !== "") { _fail(missing, "missing"); return }
         if (trunkCeremony && !trunkCeremony.recording) trunkCeremony.begin()
@@ -284,24 +275,19 @@ QtObject {
         _go("intro", "")
     }
 
-    // Leave: every timer off, the guide stopped, the open step closed on the recorder, the stage
-    // back to idle (unless done). Nothing on the sensors is cleared or written; the recording goes
-    // on (the golfer may come back — and the flow discards it if setup is left without a session).
-    function stop(reason) {
-        if (!_running) return
-        var was = _stage
-        _anim = ""
-        _running = false
-        if (guide) guide.cancel()
+    // stop(): every timer off, the open step closed on the recorder, the stage back to idle (unless
+    // done). Nothing on the sensors is cleared or written; the recording goes on (the golfer may come
+    // back — and the flow discards it if setup is left without a session).
+    on_Stopping: _anim = ""
+    on_Stopped: {
         _stopSpeech()
         _closeStep()
         if (!calibrationDone) _resetState()
-        _log("stop reason=" + reason + " stage=" + was)
     }
 
-    // Show the finished run WITHOUT re-running (R8): the host calls it when the draft's trunk outcome
-    // still holds (both sensors fullyCalibrated). The records shown are the solves in force.
-    function restore() {
+    // restore(): the finished run WITHOUT re-running (R8): the host calls it when the draft's trunk
+    // outcome still holds (both sensors fullyCalibrated). The records shown are the solves in force.
+    on_Restoring: {
         var p = pelvisImu, t = thoraxImu
         var tp = p ? p.trunkCalibration : null, tt = t ? t.trunkCalibration : null
         var solved = tp && tp.valid === true && tt && tt.valid === true
@@ -312,11 +298,10 @@ QtObject {
         _holdMs = _ms("hold")
         _clearTurn()
         calibrationDone = true
-        _running = false
         if (guide) guide.trunkPose(0, 0, false)
         _stage = "done"
         _sub = ""
-        _log("restore done=true solves=" + (solved ? "both" : "not both from stand tall"))
+        _restoreNote = " solves=" + (solved ? "both" : "not both from stand tall")
     }
 
     // ── Internals ─────────────────────────────────────────────────────────────
@@ -495,11 +480,6 @@ QtObject {
         var h = t ? Number(t.trunkHeadingDeg) : NaN
         return isFinite(h) ? h : NaN
     }
-    // An angle difference (°) wrapped into (−180, 180].
-    function _wrap180(d) {
-        var w = ((d + 180) % 360 + 360) % 360 - 180
-        return w === -180 ? 180 : w
-    }
     function _fmt(v) { return isFinite(v) ? Number(v).toFixed(1) + "deg" : "none" }
 
     // Both sensors still (gyro), the reasons when not, for arming and the return.
@@ -542,7 +522,7 @@ QtObject {
     // One tick of an armed or turning step: the live turn, then start / return / timeout.
     function _turnTick(interval) {
         var h = _heading()
-        var d = isFinite(h) && isFinite(_turnRef) ? _wrap180(h - _turnRef) : NaN
+        var d = isFinite(h) && isFinite(_turnRef) ? VizMath.wrap180(h - _turnRef) : NaN
         _turnDeg = d
         if (isFinite(d) && Math.abs(d) > _turnPeakDeg) _turnPeakDeg = Math.abs(d)
 
@@ -559,7 +539,7 @@ QtObject {
             // and the follow stops while he moves (W11; kArmDriftFollowDps says why a rate).
             if (isFinite(d) && _stillReasons().length === 0) {
                 var cap = _armDriftFollowDps * interval / (1000 * _p.scale)
-                _turnRef = _wrap180(_turnRef + Math.max(-cap, Math.min(cap, d)))
+                _turnRef = VizMath.wrap180(_turnRef + Math.max(-cap, Math.min(cap, d)))
             }
             // Keep waiting, saying so (on screen, and the numbers once per waitLog).
             var why = isFinite(d) ? _waitingForTurn()
@@ -698,8 +678,6 @@ QtObject {
         completed()
     }
 
-    onActiveChanged: if (!active) stop("inactive")
-
     // ── Timers and connections (named properties: the tests find each by name) ──
 
     // The intro: the stand-tall pose on show, then stand tall — only once the guide can be watched.
@@ -771,17 +749,15 @@ QtObject {
         }
     }
 
-    // The demonstration advances on the guide's finished(), never on a parallel clock (a stalled
-    // renderer delays the chain instead of being outrun by it — WitmotionArmRoutine's rule).
-    property Connections _guideFinished: Connections {
-        target:  r.guide
-        enabled: r.active && r._running && r._anim !== ""
-        function onFinished() {
-            if (r._anim === "out") {
-                r._anim = "pause"
-            } else if (r._anim === "back") {
-                r._armTurn(r._stage === "turnAway" ? "away" : "through")
-            }
+    // The demonstration advances on the guide's finished() (the base's _guideFinished, listening only
+    // while a demonstration is under way), never on a parallel clock: a stalled renderer delays the
+    // chain instead of being outrun by it.
+    _guideWatched: _anim !== ""
+    on_GuideDone: {
+        if (r._anim === "out") {
+            r._anim = "pause"
+        } else if (r._anim === "back") {
+            r._armTurn(r._stage === "turnAway" ? "away" : "through")
         }
     }
 

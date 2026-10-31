@@ -187,7 +187,7 @@ Item {
     signal navChanged()
     signal demoReset()
     // A shot was picked on a figure. THIS BODY SELECTS NOTHING: the carousel owns the selection (the panel's
-    // _pickShot), by swing folder — the one identity the carousel and the presenters share.
+    // place.pickShot), by swing folder — the one identity the carousel and the presenters share.
     signal shotRequested(string swingDir, int shotId)
 
     property bool _demo: false
@@ -289,7 +289,7 @@ Item {
             else if (k === "scrub") {
                 // a real seek through the presenter: the playhead 40 ms before impact (renders of "now")
                 const us = tracesP ? tracesP.seekUsForShotMs(v === "" ? -40 : Number(v)) : -1
-                if (us >= 0 && typeof shotReplay !== "undefined") shotReplay.seekToUs(us)
+                if (us >= 0) PpChSeek.to(us)
             }
             else if (k === "ask") { _pendingAsk = v; _pendingBrush = brush }
         }
@@ -304,7 +304,7 @@ Item {
         const us = wristP.seekUsFor(_pendingSeekTag)
         if (us < 0) return
         _pendingSeekTag = ""
-        if (typeof shotReplay !== "undefined") shotReplay.seekToUs(us)
+        PpChSeek.to(us)
     }
     onWShotChanged: _trySeek()
     // a demo question is asked once the presenters have answered the reset choices (they recompute off-thread)

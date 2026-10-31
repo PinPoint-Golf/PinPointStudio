@@ -26,16 +26,9 @@ import PinPointStudio
 // d against the d chance gives), each kind's pooled curve with each shot's own measured stretches under it,
 // A's curve-shape groups as a second grouping, and the method, fit and alignment notes.
 // objectName: chKindsView.
-Column {
+PpChViewBase {
     id: kv
     objectName: "chKindsView"
-    property QtObject roles: null
-    property var brush: null
-    property var body: null
-    property string reg: "Analyse"
-    property bool interactive: true
-    property bool cast: false
-    property real pageH: 500
     readonly property var kd: body ? body.rKinds : ({})
     readonly property bool available: !!kd && kd.available === true
     spacing: roles ? roles.u(12) : 12

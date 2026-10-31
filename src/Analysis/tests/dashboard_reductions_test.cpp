@@ -33,7 +33,7 @@ int main()
     // is the whole claim on that side.
     {
         // Two-sided, the shipped case: amber 10..20 padded 12% each side. Bit-identical
-        // to what NormativeBar computed in QML before this existed.
+        // to what the metric-detail corridor bar (since deleted) computed in QML before this existed.
         const BarDomain d = barDomain(/*gLo*/12, /*gHi*/18, /*aLo*/10, /*aHi*/20,
                                       false, false, 15.0, true);
         check(d.valid, "two-sided corridor → valid domain");

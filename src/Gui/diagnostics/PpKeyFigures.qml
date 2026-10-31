@@ -42,9 +42,9 @@ Item {
         if (!detail) return []
         const out = [
             { key: "median", label: "Session median", figure: sp.medianNumber || "-" },
-            { key: "shot", label: "Shot " + shotNo, figure: roles.fig(c.valueText), warn: c.thisShot === "fired" }
+            { key: "shot", label: "Shot " + shotNo, figure: roles.fig(c), warn: c.thisShot === "fired" }
         ]
-        roles.corridorParts(c.corridorText).forEach(q => out.push(Object.assign({ key: q.label === "Pass" ? "pass" : q.label === "Fault line" ? "faultLine" : "faultOutside" }, q)))
+        roles.corridorParts(c).forEach(q => out.push(Object.assign({ key: q.label === "Pass" ? "pass" : q.label === "Fault line" ? "faultLine" : "faultOutside" }, q)))
         out.push({ key: "fired", label: "Fired", figure: roles.firedOf(c) })
         out.push({ key: "pastFault", label: "Past the fault line", figure: (sp.pastFault !== undefined && sp.placed > 0 ? sp.pastFault + " of " + sp.placed : "-") })
         // a session-scope pattern (#58) has no "last fired" and no firings after a shot: the line under its count
@@ -59,7 +59,7 @@ Item {
     }
     readonly property int fit: roles.columns(width, roles.flows.keyFigure, 0)
     readonly property int n: (items || []).length
-    readonly property int cols: Math.max(1, fit >= n ? n : fit >= Math.ceil(n / 2) ? Math.ceil(n / 2) : Math.ceil(n / 4))
+    readonly property int cols: roles.wrapColumns(n, fit)
     readonly property real cw: width / cols
     readonly property real ch: roles.u(50)
     readonly property real gridH: Math.ceil(n / cols) * ch

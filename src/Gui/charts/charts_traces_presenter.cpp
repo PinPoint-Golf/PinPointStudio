@@ -1469,14 +1469,14 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
                               { QStringLiteral("risingWord"), p.risingAtImpact ? QStringLiteral("rising") : QString() } };
         if (p.probable) {
             figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak ⚠") },
-                                    { QStringLiteral("text"), W::fig(std::abs(p.probableDps)) + (W::pm(p.probableSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(p.probableSigmaDps)) + QChar(0x00A0) + shortUnitOf(c, m.unit) },
+                                    { QStringLiteral("text"), W::withUnit(W::fig(std::abs(p.probableDps)) + (W::pm(p.probableSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(p.probableSigmaDps)), shortUnitOf(c, m.unit)) },
                                     { QStringLiteral("warn"), false } };
             figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("order") },
                                     { QStringLiteral("text"), W::ordinalWord(p.rank) + QStringLiteral(" of %1, ").arg(c.seq.timedCount) + probableWord(p) },
                                     { QStringLiteral("warn"), p.late } };
         } else if (p.placed) {
             figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak") },
-                                    { QStringLiteral("text"), W::fig(p.peakDps) + (W::pm(p.peakSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(p.peakSigmaDps)) + QChar(0x00A0) + shortUnitOf(c, m.unit) },
+                                    { QStringLiteral("text"), W::withUnit(W::fig(p.peakDps) + (W::pm(p.peakSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(p.peakSigmaDps)), shortUnitOf(c, m.unit)) },
                                     { QStringLiteral("warn"), false } };
             figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("order") },
                                     { QStringLiteral("text"), W::ordinalWord(p.rank) + (c.seq.timedCount > placedN ? QStringLiteral(" of %1").arg(c.seq.timedCount)
@@ -1866,23 +1866,16 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
         }
         if (pelvisLate) note.append(W::latePelvisNote());
         const SegmentPeak &club = c.seq.segments[3], &pel = c.seq.segments[0], &arm = c.seq.segments[2];
-        if (club.placed)
-            stand.append(QStringLiteral("The club peaked ")).figure(W::figMs(std::abs(club.shotMs)))
-                .append(club.shotMs <= 0 ? QStringLiteral(" before impact") : QStringLiteral(" after impact"));
-        if (pel.placed)
-            stand.append(club.placed ? QStringLiteral(", the pelvis ") : QStringLiteral("The pelvis peaked "))
-                // the pelvis' OWN time from impact (+20 ms on 4 July shot 8), never the club→pelvis gap
-                .figure(W::figMs(std::abs(pel.shotMs)))
-                .append(pel.shotMs > 0 ? QStringLiteral(" after impact") : QStringLiteral(" before impact"));
-        if (!stand.isEmpty()) stand.append(QStringLiteral("."));
+        // each instant against impact by the one rule ("at impact" within 2 ms); the pelvis' OWN time from impact
+        // (+20 ms on 4 July shot 8), never the club→pelvis gap (session_sequence.h peakTimesSentence)
+        stand = peakTimesSentence(club, pel);
         // THE CHEST'S PROBABLE PEAK, said once on the shot (design §12.6): when, its ±, and how it was read
         const SegmentPeak &chest = c.seq.segments[size_t(kChestSegment)];
         if (chest.probable) {
             const ProbableBridge pb = probableBridgeOf(*c.shot);
-            stand.append(stand.isEmpty() ? QStringLiteral("⚠ The chest probably peaked ") : QStringLiteral(" ⚠ The chest probably peaked "))
-                .figure(W::fig(std::abs(chest.probableMs)) + (W::pm(chest.probableSigmaMs).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(chest.probableSigmaMs))
-                        + QStringLiteral("\u00A0ms"))
-                .append(chest.probableMs <= 0 ? QStringLiteral(" before impact") : QStringLiteral(" after impact"));
+            // when, by the one "at impact" rule, the ± kept either way (session_sequence.h appendProbableWhen)
+            stand.append(stand.isEmpty() ? QStringLiteral("⚠ The chest probably peaked ") : QStringLiteral(" ⚠ The chest probably peaked "));
+            appendProbableWhen(stand, chest.probableMs, chest.probableSigmaMs);
             // how it was read (KsNode::probableHow): inside the gap, at an edge of the fit's search, or seen
             const QString &how = chest.probableHow;
             if (how == QLatin1String("seen"))
@@ -1902,7 +1895,7 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
                 .append(QStringLiteral("The chest's curve runs backwards through impact on this shot, so its peak cannot be read: "
                                        "the camera mistook which way the shoulders were turning as they squared up to it."));
         }
-        if (pel.placed && pel.shotMs > 0 && n >= 3) {     // a session clause needs a session (≥ 3 shots)
+        if (pel.placed && W::isAfterImpact(pel.shotMs) && n >= 3) {     // a session clause needs a session (≥ 3 shots)
             const SegmentSummary &ps = c.w->sequence.segments[0];
             stand.append(QStringLiteral(" On ")).figure(W::word(ps.afterImpact) + QStringLiteral(" of the ") + W::word(n))
                 .append(QStringLiteral(" shots the pelvis peaks after impact."));
@@ -1910,7 +1903,7 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
         if (replay) {
             if (club.placed)
                 figs << QVariantMap{ { QStringLiteral("label"), QStringLiteral("Club peak") },
-                                     { QStringLiteral("text"), W::fig(club.peakDps) + (W::pm(club.peakSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(club.peakSigmaDps)) + QStringLiteral("\u00A0°/s") },
+                                     { QStringLiteral("text"), W::withUnit(W::fig(club.peakDps) + (W::pm(club.peakSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(club.peakSigmaDps)), QStringLiteral("°/s")) },
                                      { QStringLiteral("warn"), false }, { QStringLiteral("lateWord"), QString() } };
             if (club.placed && arm.placed)
                 figs << QVariantMap{ { QStringLiteral("label"), QStringLiteral("Lead arm to club") },
@@ -1930,8 +1923,7 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
             head.append(c.labelOf(lead) + QStringLiteral(" ")).figure(W::figUnit(atImp, m->unit)).append(QStringLiteral(" at impact"));
         } else if (s.winPeakOk) {
             const double tp = shotMsOf(c, s.st.value(QStringLiteral("tPeakUs")).toLongLong());
-            head.append(c.labelOf(lead) + QStringLiteral(" peaks ")).figure(W::figMs(std::abs(tp)))
-                .append(tp < 0 ? QStringLiteral(" before impact") : QStringLiteral(" after impact"));
+            appendPeaksWhen(head, c.labelOf(lead), tp);     // "at impact" within 2 ms (session_sequence.h)
         } else {
             head.append(c.preset);
         }

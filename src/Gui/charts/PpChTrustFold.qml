@@ -19,8 +19,9 @@ import QtQuick
 import PinPointStudio
 
 // PPCHTRUSTFOLD — a Charts section's own "How far can I trust this?", under its profile, CLOSED by default, in the look
-// of the panel's own fold (PpTrustSummaryFold). The panel's fold speaks for the traces' readings (TrustPresenter) and
-// carries no section's words, so a section (Posture, Wrist) says its own, ONCE: the presenter's TRUST.lines, verbatim —
+// of the panel's own fold (PpTrustSummaryFold): its toggle is the panel's (PpTrustFoldToggle). The panel's fold speaks
+// for the traces' readings (TrustPresenter) and carries no section's words, so a section (Posture, Wrist) says its own,
+// ONCE: the presenter's TRUST.lines, verbatim —
 // for posture which camera each row came from, the ⚠ reasons, the bands' sources, the datum, the rig rule
 // (docs/design/posture_chart_design.md §5.6); for the wrist each reading's source and confidence, what was not
 // measured and why in full, what is not graded, where the bands come from and which style
@@ -38,11 +39,10 @@ Column {
     visible: (lines || []).length > 0
     spacing: roles ? roles.u(4) : 4
 
-    Text {
+    PpTrustFoldToggle {
         objectName: fold.prefix + "TrustToggle"
-        text: (fold.open ? "▾" : "▸") + " How far can I trust this?"
-        font: fold.roles ? fold.roles.fSmallL : Qt.font({}); color: fold.roles ? fold.roles.link : "grey"
-        MouseArea { anchors.fill: parent; anchors.margins: -2; cursorShape: Qt.PointingHandCursor; onClicked: fold.open = !fold.open }
+        roles: fold.roles; open: fold.open; hitMargin: 2
+        onToggled: fold.open = !fold.open
     }
     Repeater {
         model: fold.open ? (fold.lines || []) : []

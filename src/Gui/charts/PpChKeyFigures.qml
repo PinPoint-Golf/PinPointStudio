@@ -36,7 +36,7 @@ Item {
     signal trustClicked(string subject)
     readonly property int n: (items || []).length
     readonly property int fit: roles ? roles.columns(width, roles.flows.keyFigure, 0) : 1
-    readonly property int cols: Math.max(1, fit >= n ? n : fit >= Math.ceil(n / 2) ? Math.ceil(n / 2) : Math.ceil(n / 4))
+    readonly property int cols: roles ? roles.wrapColumns(n, fit) : 1
     readonly property real cw: width / cols
     readonly property real ch: roles ? roles.u(58) : 58
     visible: n > 0

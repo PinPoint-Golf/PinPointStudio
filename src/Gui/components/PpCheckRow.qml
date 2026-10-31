@@ -19,6 +19,8 @@
 // A square checkbox and its words, the whole row pressable: the export sheet's camera and JSON rows
 // (PpExportOptionsSheet), the Sessions screen's "Show archived (N)". Press-dip only, no hover-grow:
 // the row is the target, and a growing full-width row would nudge its neighbours' edges.
+// Anything declared inside follows the label on the same line, centred on it, 10 px on — the
+// athlete form's "approved 21 Oct 2026" after its photo-approval words. Empty, it takes no room.
 
 import QtQuick
 import PinPointStudio
@@ -27,6 +29,8 @@ Item {
     property string label:   ""
     property bool   checked: false
     signal toggled()
+
+    default property alias trailing: crTrail.data
 
     implicitHeight: Theme.sp(26)
     implicitWidth:  crRow.implicitWidth
@@ -57,6 +61,13 @@ Item {
             font.family:    Theme.fontBody
             font.pixelSize: Theme.fontSzBody
             color:          Theme.colorText
+        }
+        // The trailing slot. A Row of nothing (or of hidden items) is 0 wide, and the positioner
+        // skips a zero-size item, so no gap is added after the label.
+        Row {
+            id: crTrail
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Theme.gap(10)
         }
     }
     PpPressable {

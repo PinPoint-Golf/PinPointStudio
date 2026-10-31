@@ -18,11 +18,10 @@
 
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Controls.Basic
 import QtQuick.Dialogs
 import PinPointStudio
 
-Item {
+SettingsPanelBase {
     id: root
 
     // Disk info. queryStorageInfo() is now CHEAP — volume total/free/name and the cached library
@@ -44,14 +43,6 @@ Item {
     Connections {
         target: appSettings
         function onSessionBytesChanged() { root.refreshDiskInfo() }
-    }
-
-    function formatBytes(n) {
-        if (!n || n <= 0) return "—"
-        if (n >= 1e12) return (n / 1e12).toFixed(1) + " TB"
-        if (n >= 1e9)  return (n / 1e9).toFixed(1)  + " GB"
-        if (n >= 1e6)  return (n / 1e6).toFixed(1)  + " MB"
-        return (n / 1e3).toFixed(0) + " KB"
     }
 
     function formatMb(n) {
@@ -120,36 +111,6 @@ Item {
         }
     }
 
-    // ── Inline component — reusable toggle pill ───────────────────────────────
-
-    component TogglePill: Rectangle {
-        id: pill
-        property bool checked: false
-        signal toggled(bool value)
-
-        width:  Theme.sp(34)
-        height: Theme.sp(18)
-        radius: Theme.sp(9)
-        color:  pill.checked ? Theme.colorAccent : Theme.colorBg3
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-        Rectangle {
-            width:  Theme.sp(12)
-            height: Theme.sp(12)
-            radius: Theme.sp(6)
-            color:  "white"
-            anchors.verticalCenter: parent.verticalCenter
-            x: pill.checked ? parent.width - width - Theme.sp(3) : Theme.sp(3)
-            Behavior on x { NumberAnimation { duration: 120 } }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            cursorShape:  Qt.PointingHandCursor
-            onClicked:    pill.toggled(!pill.checked)
-        }
-    }
-
     // ── Option models ─────────────────────────────────────────────────────────
 
     readonly property var namingOptions: [
@@ -185,907 +146,691 @@ Item {
         "h265": qsTr("H.265 reduces file size by ~40% vs H.264 at equivalent quality. Requires hardware decode for smooth playback on older machines.")
     })
 
-    // ── Search scroll-to support ──────────────────────────────────────────────
+    // ── Page header ───────────────────────────────────────────────────────────
 
-    property string lastHighlightId: ""
+    SettingsSectionHead { text: qsTr("Data") }
 
-    function findChild(parent, name) {
-        for (var i = 0; i < parent.children.length; i++) {
-            var child = parent.children[i]
-            if (child.objectName === name) return child
-            var found = findChild(child, name)
-            if (found) return found
-        }
-        return null
+    PpDisplayText {
+        text: qsTr("Storage")
     }
 
-    function scrollToItem(itemId) {
-        if (!itemId) return true
-        var target = findChild(contentCol, itemId)
-        if (!target) return false
-        var mapped = target.mapToItem(contentCol, 0, 0)
-        scrollView.contentItem.contentY = Math.max(0, Math.min(
-            mapped.y - Theme.sp(24),
-            scrollView.contentItem.contentHeight - scrollView.height
-        ))
-        target.searchHighlight = true
-        lastHighlightId = itemId
-        highlightTimer.restart()
-        return true
+    Text {
+        text:             qsTr("Athlete library location, video recording format, and sensor data export. Retention and archiving policies are configured separately.")
+        font.family:      Theme.fontBody
+        font.pixelSize:   Theme.fontSzBody2
+        font.weight:      Theme.fontBodyWeight
+        color:            Theme.colorText3
+        wrapMode:         Text.WordWrap
+        Layout.fillWidth: true
     }
 
-    Timer {
-        id: highlightTimer
-        interval: 1800
-        onTriggered: {
-            var target = findChild(contentCol, lastHighlightId)
-            if (target) target.searchHighlight = false
-        }
-    }
+    // ── Group 1 — Athlete library ─────────────────────────────────────────────
 
-    // ── Main scroll view ──────────────────────────────────────────────────────
+    SettingsSectionHead { text: qsTr("Athlete library") }
 
-    ScrollView {
-        id: scrollView
-        anchors.fill: parent
-        contentWidth: availableWidth
-        contentHeight: contentCol.y + contentCol.implicitHeight + Theme.sp(28)
+    // Library location
+    SettingsRow {
+        objectName: "setting_libraryPath"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
 
-        ColumnLayout {
-            id: contentCol
-            x:       Theme.sp(32)
-            y:       Theme.sp(28)
-            width:   parent.width - Theme.sp(64)
-            spacing: Theme.gap(20)
-
-            // ── Page header ───────────────────────────────────────────────────
-
-            Text {
-                text:                qsTr("Data")
-                font.family:         Theme.fontBody
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color:               Theme.colorText3
-            }
-
-            PpDisplayText {
-                text: qsTr("Storage")
-            }
-
-            Text {
-                text:             qsTr("Athlete library location, video recording format, and sensor data export. Retention and archiving policies are configured separately.")
-                font.family:      Theme.fontBody
-                font.pixelSize:   Theme.fontSzBody2
-                font.weight:      Theme.fontBodyWeight
-                color:            Theme.colorText3
-                wrapMode:         Text.WordWrap
+            ColumnLayout {
                 Layout.fillWidth: true
-            }
+                spacing: Theme.gap(3)
 
-            // ── Group 1 — Athlete library ─────────────────────────────────────
-
-            Text {
-                text:                qsTr("Athlete library")
-                font.family:         Theme.fontBody
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color:               Theme.colorText3
-            }
-
-            // Library location
-            RowLayout {
-                objectName: "setting_libraryPath"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
+                SettingsRowTitle {
+                    title:    qsTr("Athlete library location")
+                    subtitle: qsTr("Root directory for all athlete profiles and session archives")
+                }
+                Rectangle {
                     Layout.fillWidth: true
-                    spacing: Theme.gap(3)
+                    implicitHeight:   Theme.sp(28)
+                    color:            Theme.colorBg2
+                    border.width:     1
+                    border.color:     Theme.colorBorderStrong
+                    radius:           Theme.radius
+                    clip:             true
 
                     Text {
-                        Layout.fillWidth: true
-                        text:           qsTr("Athlete library location")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Root directory for all athlete profiles and session archives")
+                        anchors {
+                            left: parent.left; leftMargin: Theme.gap(10)
+                            right: parent.right; rightMargin: Theme.gap(10)
+                            verticalCenter: parent.verticalCenter
+                        }
+                        text:           appSettings.athleteLibraryPath.length > 0
+                                            ? appSettings.athleteLibraryPath
+                                            : qsTr("No location selected")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight:   Theme.sp(28)
-                        color:            Theme.colorBg2
-                        border.width:     1
-                        border.color:     Theme.colorBorderStrong
-                        radius:           Theme.radius
-                        clip:             true
-
-                        Text {
-                            anchors {
-                                left: parent.left; leftMargin: Theme.gap(10)
-                                right: parent.right; rightMargin: Theme.gap(10)
-                                verticalCenter: parent.verticalCenter
-                            }
-                            text:           appSettings.athleteLibraryPath.length > 0
-                                                ? appSettings.athleteLibraryPath
-                                                : qsTr("No location selected")
-                            font.family:    Theme.fontData
-                            font.pixelSize: Theme.fontSzMicro
-                            color:          appSettings.athleteLibraryPath.length > 0
-                                                ? Theme.colorText2 : Theme.colorText3
-                            elide:          Text.ElideLeft
-                        }
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.alignment: Qt.AlignBottom
-                    spacing: Theme.gap(4)
-                    PpButton {
-                        label:     qsTr("Change…")
-                        onClicked: folderDialog.open()
-                    }
-                    PpButton {
-                        label:     qsTr("Open")
-                        enabled:   appSettings.athleteLibraryPath.length > 0
-                        onClicked: Qt.openUrlExternally(appSettings.fileUrlFor(appSettings.athleteLibraryPath))
+                        color:          appSettings.athleteLibraryPath.length > 0
+                                            ? Theme.colorText2 : Theme.colorText3
+                        elide:          Text.ElideLeft
                     }
                 }
             }
 
-            // Disk usage bar
-            Rectangle {
-                Layout.fillWidth:  true
-                Layout.leftMargin: Theme.gap(26)
-                implicitHeight:   diskContent.implicitHeight + Theme.sp(24)
-                color:            Theme.colorBg2
-                border.width:     1
-                border.color:     Theme.colorBorderMid
-                radius:           Theme.radius
-                visible:          root.diskInfo.totalBytes > 0
-
-                ColumnLayout {
-                    id: diskContent
-                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(12) }
-                    spacing: Theme.gap(6)
-
-                    Text {
-                        text:                qsTr("Disk usage — ") + (root.diskInfo.volumeName || "—")
-                        font.family:         Theme.fontData
-                        font.pixelSize:      Theme.fontSzMicro
-                        font.letterSpacing:  Theme.trackingMicro
-                        font.capitalization: Theme.capsFont
-                        color:               Theme.colorText3
-                    }
-
-                    // Sessions bar
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Theme.gap(10)
-
-                        Text {
-                            text:                  qsTr("Sessions")
-                            font.family:           Theme.fontData
-                            font.pixelSize:        Theme.fontSzMicro
-                            color:                 Theme.colorText3
-                            Layout.preferredWidth: Theme.sp(70)
-                        }
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: Theme.sp(6)
-                            radius: Theme.sp(3)
-                            color:  Theme.colorBg3
-
-                            Rectangle {
-                                // Math.max as well as Math.min: sessionBytes is -1 until the first
-                                // scan lands, and an unclamped ratio would draw a negative width.
-                                width:  root.diskInfo.totalBytes > 0
-                                            ? parent.width * Math.max(0, Math.min(1,
-                                                  root.diskInfo.sessionBytes / root.diskInfo.totalBytes))
-                                            : 0
-                                height: parent.height
-                                radius: parent.radius
-                                color:  Theme.colorAccent
-                                Behavior on width { NumberAnimation { duration: Theme.durationNormal } }
-                            }
-                        }
-
-                        Text {
-                            // "Measuring…" while the walk is out, rather than the "—" formatBytes
-                            // gives for -1. The two look the same to formatBytes and mean quite
-                            // different things: one is "we are counting", the other is "there is
-                            // nothing here".
-                            text:                  appSettings.sessionBytesScanning
-                                                       ? qsTr("Measuring…")
-                                                       : formatBytes(root.diskInfo.sessionBytes)
-                            font.family:           Theme.fontData
-                            font.pixelSize:        Theme.fontSzMicro
-                            color:                 Theme.colorText2
-                            Layout.preferredWidth: Theme.sp(60)
-                            horizontalAlignment:   Text.AlignRight
-                        }
-                    }
-
-                    // Available bar
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Theme.gap(10)
-
-                        Text {
-                            text:                  qsTr("Available")
-                            font.family:           Theme.fontData
-                            font.pixelSize:        Theme.fontSzMicro
-                            color:                 Theme.colorText3
-                            Layout.preferredWidth: Theme.sp(70)
-                        }
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: Theme.sp(6)
-                            radius: Theme.sp(3)
-                            color:  Theme.colorBg3
-
-                            Rectangle {
-                                width:  root.diskInfo.totalBytes > 0
-                                            ? parent.width * Math.min(1, root.diskInfo.freeBytes / root.diskInfo.totalBytes)
-                                            : 0
-                                height: parent.height
-                                radius: parent.radius
-                                color:  root.diskInfo.freeBytes < 10 * 1024 * 1024 * 1024
-                                            ? Theme.colorWarn : Theme.colorGood
-                                Behavior on width  { NumberAnimation { duration: Theme.durationNormal } }
-                                Behavior on color  { ColorAnimation  { duration: Theme.durationFast } }
-                            }
-                        }
-
-                        Text {
-                            text:                  formatBytes(root.diskInfo.freeBytes)
-                            font.family:           Theme.fontData
-                            font.pixelSize:        Theme.fontSzMicro
-                            color:                 root.diskInfo.freeBytes < 10 * 1024 * 1024 * 1024
-                                                       ? Theme.colorWarn : Theme.colorGood
-                            Layout.preferredWidth: Theme.sp(60)
-                            horizontalAlignment:   Text.AlignRight
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                        }
-                    }
-                }
-            }
-
-            // Swing file format row — only while there is something to say: JSON-era swings to
-            // convert, a conversion running, or the result of the last one.
-            RowLayout {
-                objectName: "setting_swingFormat"
-                Layout.fillWidth:  true
-                Layout.leftMargin: Theme.gap(26)
-                spacing: Theme.gap(16)
-                visible: root.hasConverter
-                         && (libraryConverter.pending > 0 || libraryConverter.running
-                             || libraryConverter.status.length > 0)
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-                    Text {
-                        text:           qsTr("Swing file format")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        Layout.fillWidth: true
-                        wrapMode:         Text.WordWrap
-                        text: !root.hasConverter ? ""
-                              : libraryConverter.running || libraryConverter.status.length > 0
-                                ? libraryConverter.status
-                                : qsTr("%1 swings are in the older, larger format. Converting them shrinks "
-                                       + "each swing's analysis file to a fraction of its size; each one is "
-                                       + "checked against its original before the old file is removed.")
-                                      .arg(libraryConverter.pending)
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
+            ColumnLayout {
+                Layout.alignment: Qt.AlignBottom
+                spacing: Theme.gap(4)
+                PpButton {
+                    label:     qsTr("Change…")
+                    onClicked: folderDialog.open()
                 }
                 PpButton {
-                    Layout.alignment: Qt.AlignVCenter
-                    label:     root.hasConverter && libraryConverter.running ? qsTr("Stop") : qsTr("Convert")
-                    enabled:   root.hasConverter && (libraryConverter.running || libraryConverter.pending > 0)
-                    onClicked: libraryConverter.running ? libraryConverter.cancel() : libraryConverter.convert()
+                    label:     qsTr("Open")
+                    enabled:   appSettings.athleteLibraryPath.length > 0
+                    onClicked: Qt.openUrlExternally(appSettings.fileUrlFor(appSettings.athleteLibraryPath))
                 }
             }
+        }
+    }
 
-            // Session folder naming row
-            RowLayout {
-                objectName: "setting_sessionNaming"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+    // Disk usage bar
+    Rectangle {
+        Layout.fillWidth:  true
+        implicitHeight:   diskContent.implicitHeight + Theme.sp(24)
+        color:            Theme.colorBg2
+        border.width:     1
+        border.color:     Theme.colorBorderMid
+        radius:           Theme.radius
+        visible:          root.diskInfo.totalBytes > 0
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-
-                    Text {
-                        Layout.fillWidth: true
-                        text:           qsTr("Session folder naming")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-
-                    // Live preview of folder name pattern
-                    Text {
-                        text: {
-                            var p = appSettings.sessionNamingPattern
-                            if (p === "date-name-type") return "2026-05-22_Mark-Liversedge_Swing"
-                            if (p === "date-type-name") return "2026-05-22_Swing_Mark-Liversedge"
-                            if (p === "name-date-type") return "Mark-Liversedge_2026-05-22_Swing"
-                            return "2026-05-22"
-                        }
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorAccent
-                    }
-                }
-
-                PpComboBox {
-                    id: namingCombo
-                    Layout.alignment: Qt.AlignVCenter
-                    implicitWidth: Theme.sp(240)
-
-                    model: root.namingOptions.map(function(e) { return e.label })
-
-                    Component.onCompleted: {
-                        var v = appSettings.sessionNamingPattern
-                        for (var i = 0; i < root.namingOptions.length; i++) {
-                            if (root.namingOptions[i].value === v) {
-                                currentIndex = i
-                                break
-                            }
-                        }
-                    }
-
-                    onActivated: (index) => {
-                        appSettings.sessionNamingPattern = root.namingOptions[index].value
-                    }
-                }
-                }
-
-            PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
-
-            // ── Group 2 — Video recording ─────────────────────────────────────
+        ColumnLayout {
+            id: diskContent
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(12) }
+            spacing: Theme.gap(6)
 
             Text {
-                text:                qsTr("Video recording")
-                font.family:         Theme.fontBody
+                text:                qsTr("Disk usage — ") + (root.diskInfo.volumeName || "—")
+                font.family:         Theme.fontData
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
                 font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
 
-            // Recording resolution
+            // Sessions bar
             RowLayout {
-                objectName: "setting_videoRes"
                 Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-
-                    Text {
-                        text:           qsTr("Recording resolution")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        Layout.fillWidth: true
-                        wrapMode:       Text.WordWrap
-                        text:           qsTr("Size of the saved clips, all cameras. ½ native saves smaller files; re-analysing from them works on half-resolution video")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                }
-
-                Row {
-                    spacing: Theme.gap(4)
-                    Layout.alignment: Qt.AlignVCenter
-
-                    Repeater {
-                        model: root.resolutionOptions
-
-                        delegate: Rectangle {
-                            required property var modelData
-
-                            readonly property bool isSelected: appSettings.videoResolutionMode === modelData.value
-
-                            width:        resLbl.implicitWidth + Theme.sp(20)
-                            height:       Theme.sp(24)
-                            radius:       Theme.radius
-                            color:        isSelected            ? Theme.colorAccentLight
-                                        : resMa.containsMouse   ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0.6)
-                                        :                         "transparent"
-                            border.width: 1
-                            border.color: isSelected            ? Theme.colorAccent
-                                        : resMa.containsMouse   ? Theme.colorAccentMid
-                                        :                         Theme.colorBorderStrong
-                            Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                            Text {
-                                id: resLbl
-                                anchors.centerIn: parent
-                                text:           modelData.label
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzMicro
-                                color:          isSelected ? Theme.colorAccent : Theme.colorText2
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
-
-                            PpPressable {
-                                id: resMa
-                                onClicked: {
-                                    appSettings.videoResolutionMode = modelData.value
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Video codec
-            RowLayout {
-                objectName: "setting_videoCodec"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-
-                    Text {
-                        text:           qsTr("Video codec")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Encoding applied when saving swing clips to disk")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                    Text {
-                        text:           root.codecDescriptions[appSettings.videoCodec] || ""
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText2
-                        wrapMode:       Text.WordWrap
-                        Layout.fillWidth: true
-                    }
-                }
-
-                Row {
-                    spacing: Theme.gap(4)
-                    Layout.alignment: Qt.AlignVCenter
-
-                    Repeater {
-                        model: root.codecOptions
-
-                        delegate: Rectangle {
-                            required property var modelData
-
-                            readonly property bool isSelected: appSettings.videoCodec === modelData.value
-
-                            width:        codecLbl.implicitWidth + Theme.sp(20)
-                            height:       Theme.sp(24)
-                            radius:       Theme.radius
-                            color:        isSelected            ? Theme.colorAccentLight
-                                        : codecMa.containsMouse ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0.6)
-                                        :                         "transparent"
-                            border.width: 1
-                            border.color: isSelected            ? Theme.colorAccent
-                                        : codecMa.containsMouse ? Theme.colorAccentMid
-                                        :                         Theme.colorBorderStrong
-                            Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                            Text {
-                                id: codecLbl
-                                anchors.centerIn: parent
-                                text:           modelData.label
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzMicro
-                                color:          isSelected ? Theme.colorAccent : Theme.colorText2
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
-
-                            PpPressable {
-                                id: codecMa
-                                onClicked: {
-                                    appSettings.videoCodec = modelData.value
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Encoding quality
-            RowLayout {
-                objectName: "setting_videoQuality"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-
-                    Text {
-                        Layout.fillWidth: true
-                        text:           qsTr("Encoding quality")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Higher quality produces larger files")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                }
-
-                Row {
-                    spacing: Theme.gap(4)
-                    Layout.alignment: Qt.AlignVCenter
-
-                    Repeater {
-                        model: root.qualityOptions
-
-                        delegate: Rectangle {
-                            required property var modelData
-
-                            readonly property bool isSelected: appSettings.videoQuality === modelData.value
-
-                            width:        qualLbl.implicitWidth + Theme.sp(20)
-                            height:       Theme.sp(24)
-                            radius:       Theme.radius
-                            color:        isSelected           ? Theme.colorAccentLight
-                                        : qualMa.containsMouse ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0.6)
-                                        :                        "transparent"
-                            border.width: 1
-                            border.color: isSelected           ? Theme.colorAccent
-                                        : qualMa.containsMouse ? Theme.colorAccentMid
-                                        :                        Theme.colorBorderStrong
-                            Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                            Text {
-                                id: qualLbl
-                                anchors.centerIn: parent
-                                text:           modelData.label
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzMicro
-                                color:          isSelected ? Theme.colorAccent : Theme.colorText2
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
-
-                            PpPressable {
-                                id: qualMa
-                                onClicked: {
-                                    appSettings.videoQuality = modelData.value
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Save raw camera frames
-            RowLayout {
-                objectName: "setting_saveRaw"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-
-                    Text {
-                        Layout.fillWidth: true
-                        text:           qsTr("Save raw camera frames")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Stores unprocessed Bayer data alongside encoded clips")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                }
-
-                TogglePill {
-                    checked:  appSettings.saveRawFrames
-                    onToggled: (v) => appSettings.saveRawFrames = v
-                    Layout.alignment: Qt.AlignVCenter
-                }
-            }
-
-            // Skip analysis for raw captures — corpus capture: export frames only,
-            // analyse later from the Shots view. Only meaningful with raw frames on.
-            RowLayout {
-                objectName: "setting_skipAnalysisRaw"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                opacity: appSettings.saveRawFrames ? 1.0 : 0.4
-                Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-
-                    Text {
-                        Layout.fillWidth: true
-                        text:           qsTr("Skip analysis for raw captures")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Captures frames only — re-analyse later from the Shots view (corpus capture)")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                }
-
-                TogglePill {
-                    checked:  appSettings.skipAnalysisForRawCapture
-                    enabled:  appSettings.saveRawFrames
-                    onToggled: (v) => appSettings.skipAnalysisForRawCapture = v
-                    Layout.alignment: Qt.AlignVCenter
-                }
-            }
-
-            // Raw frames warning strip
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight:   rawWarnText.implicitHeight + Theme.sp(20)
-                color:            Theme.colorWarnLight
-                border.width:     1
-                border.color:     Theme.colorWarn
-                radius:           Theme.radius
-                visible:          appSettings.saveRawFrames
+                spacing: Theme.gap(10)
 
                 Text {
-                    id: rawWarnText
-                    anchors {
-                        left: parent.left; right: parent.right
-                        top:  parent.top
-                        leftMargin: Theme.gap(12); rightMargin: Theme.gap(12); topMargin: Theme.gap(10)
+                    text:                  qsTr("Sessions")
+                    font.family:           Theme.fontData
+                    font.pixelSize:        Theme.fontSzMicro
+                    color:                 Theme.colorText3
+                    Layout.preferredWidth: Theme.sp(70)
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: Theme.sp(6)
+                    radius: Theme.sp(3)
+                    color:  Theme.colorBg3
+
+                    Rectangle {
+                        // Math.max as well as Math.min: sessionBytes is -1 until the first
+                        // scan lands, and an unclamped ratio would draw a negative width.
+                        width:  root.diskInfo.totalBytes > 0
+                                    ? parent.width * Math.max(0, Math.min(1,
+                                          root.diskInfo.sessionBytes / root.diskInfo.totalBytes))
+                                    : 0
+                        height: parent.height
+                        radius: parent.radius
+                        color:  Theme.colorAccent
+                        Behavior on width { NumberAnimation { duration: Theme.durationNormal } }
                     }
-                    text:           qsTr("Raw Bayer frames are about 900 MB per camera per swing, against 2.5 MB for a Compact clip. Check the library volume has room before recording long sessions.")
+                }
+
+                Text {
+                    // "Measuring…" while the walk is out, rather than the "—" formatBytes
+                    // gives for -1. The two look the same to formatBytes and mean quite
+                    // different things: one is "we are counting", the other is "there is
+                    // nothing here".
+                    text:                  appSettings.sessionBytesScanning
+                                               ? qsTr("Measuring…")
+                                               : Theme.formatBytes(root.diskInfo.sessionBytes, "—")
+                    font.family:           Theme.fontData
+                    font.pixelSize:        Theme.fontSzMicro
+                    color:                 Theme.colorText2
+                    Layout.preferredWidth: Theme.sp(60)
+                    horizontalAlignment:   Text.AlignRight
+                }
+            }
+
+            // Available bar
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.gap(10)
+
+                Text {
+                    text:                  qsTr("Available")
+                    font.family:           Theme.fontData
+                    font.pixelSize:        Theme.fontSzMicro
+                    color:                 Theme.colorText3
+                    Layout.preferredWidth: Theme.sp(70)
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: Theme.sp(6)
+                    radius: Theme.sp(3)
+                    color:  Theme.colorBg3
+
+                    Rectangle {
+                        width:  root.diskInfo.totalBytes > 0
+                                    ? parent.width * Math.min(1, root.diskInfo.freeBytes / root.diskInfo.totalBytes)
+                                    : 0
+                        height: parent.height
+                        radius: parent.radius
+                        color:  root.diskInfo.freeBytes < 10 * 1024 * 1024 * 1024
+                                    ? Theme.colorWarn : Theme.colorGood
+                        Behavior on width  { NumberAnimation { duration: Theme.durationNormal } }
+                        Behavior on color  { ColorAnimation  { duration: Theme.durationFast } }
+                    }
+                }
+
+                Text {
+                    text:                  Theme.formatBytes(root.diskInfo.freeBytes, "—")
+                    font.family:           Theme.fontData
+                    font.pixelSize:        Theme.fontSzMicro
+                    color:                 root.diskInfo.freeBytes < 10 * 1024 * 1024 * 1024
+                                               ? Theme.colorWarn : Theme.colorGood
+                    Layout.preferredWidth: Theme.sp(60)
+                    horizontalAlignment:   Text.AlignRight
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                }
+            }
+        }
+    }
+
+    // Swing file format row — only while there is something to say: JSON-era swings to
+    // convert, a conversion running, or the result of the last one.
+    SettingsRow {
+        objectName: "setting_swingFormat"
+        visible: root.hasConverter
+                 && (libraryConverter.pending > 0 || libraryConverter.running
+                     || libraryConverter.status.length > 0)
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+            SettingsRowTitle {
+                title:    qsTr("Swing file format")
+                subtitle: !root.hasConverter ? ""
+                          : libraryConverter.running || libraryConverter.status.length > 0
+                            ? libraryConverter.status
+                            : qsTr("%1 swings are in the older, larger format. Converting them shrinks "
+                                   + "each swing's analysis file to a fraction of its size; each one is "
+                                   + "checked against its original before the old file is removed.")
+                                  .arg(libraryConverter.pending)
+            }
+            PpButton {
+                Layout.alignment: Qt.AlignVCenter
+                label:     root.hasConverter && libraryConverter.running ? qsTr("Stop") : qsTr("Convert")
+                enabled:   root.hasConverter && (libraryConverter.running || libraryConverter.pending > 0)
+                onClicked: libraryConverter.running ? libraryConverter.cancel() : libraryConverter.convert()
+            }
+        }
+    }
+
+    // Session folder naming row
+    SettingsRow {
+        objectName: "setting_sessionNaming"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: Theme.gap(3)
+
+                SettingsRowTitle { title: qsTr("Session folder naming") }
+
+                // Live preview of folder name pattern
+                Text {
+                    text: {
+                        var p = appSettings.sessionNamingPattern
+                        if (p === "date-name-type") return "2026-05-22_Mark-Liversedge_Swing"
+                        if (p === "date-type-name") return "2026-05-22_Swing_Mark-Liversedge"
+                        if (p === "name-date-type") return "Mark-Liversedge_2026-05-22_Swing"
+                        return "2026-05-22"
+                    }
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
-                    color:          Theme.colorWarn
-                    wrapMode:       Text.WordWrap
+                    color:          Theme.colorAccent
                 }
             }
 
-            // Estimated sizes
-            RowLayout {
-                id: estimateRow
-                spacing: 0
+            PpComboBox {
+                id: namingCombo
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: Theme.sp(240)
 
-                    // Column 1 — per-swing clip
-                    ColumnLayout {
-                        spacing: Theme.gap(4)
-                        Layout.leftMargin: Theme.gap(26)
+                model: root.namingOptions.map(function(e) { return e.label })
+
+                Component.onCompleted: {
+                    var v = appSettings.sessionNamingPattern
+                    for (var i = 0; i < root.namingOptions.length; i++) {
+                        if (root.namingOptions[i].value === v) {
+                            currentIndex = i
+                            break
+                        }
+                    }
+                }
+
+                onActivated: (index) => {
+                    appSettings.sessionNamingPattern = root.namingOptions[index].value
+                }
+            }
+        }
+    }
+
+    PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
+
+    // ── Group 2 — Video recording ─────────────────────────────────────────────
+
+    SettingsSectionHead { text: qsTr("Video recording") }
+
+    // Recording resolution
+    SettingsRow {
+        objectName: "setting_videoRes"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+
+            SettingsRowTitle {
+                title:    qsTr("Recording resolution")
+                subtitle: qsTr("Size of the saved clips, all cameras. ½ native saves smaller files; re-analysing from them works on half-resolution video")
+            }
+
+            Row {
+                spacing: Theme.gap(4)
+                Layout.alignment: Qt.AlignVCenter
+
+                Repeater {
+                    model: root.resolutionOptions
+
+                    delegate: Rectangle {
+                        required property var modelData
+
+                        readonly property bool isSelected: appSettings.videoResolutionMode === modelData.value
+
+                        width:        resLbl.implicitWidth + Theme.sp(20)
+                        height:       Theme.sp(24)
+                        radius:       Theme.radius
+                        color:        isSelected            ? Theme.colorAccentLight
+                                    : resMa.containsMouse   ? Qt.alpha(Theme.colorBg2, 0.6)
+                                    :                         "transparent"
+                        border.width: 1
+                        border.color: isSelected            ? Theme.colorAccent
+                                    : resMa.containsMouse   ? Theme.colorAccentMid
+                                    :                         Theme.colorBorderStrong
+                        Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
+                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
                         Text {
-                            text:                qsTr("Per-swing clip")
-                            font.family:         Theme.fontData
-                            font.pixelSize:      Theme.fontSzMicro
-                            font.letterSpacing:  Theme.trackingMicro
-                            font.capitalization: Theme.capsFont
-                            color:               Theme.colorText3
-                        }
-                        Text {
-                            text:           "~" + formatMb(root.clipMb)
-                            font.family:    Theme.fontData
-                            font.pixelSize: Theme.fontSzBody
-                            color:          Theme.colorText
-                        }
-                        Text {
-                            // The labels the buttons show, not the stored values ("Compact", not "low").
-                            text: {
-                                function labelOf(opts, v) {
-                                    for (var i = 0; i < opts.length; i++)
-                                        if (opts[i].value === v) return opts[i].label
-                                    return v
-                                }
-                                return qsTr("2 cameras · full window · ")
-                                       + labelOf(root.codecOptions, appSettings.videoCodec) + " "
-                                       + labelOf(root.qualityOptions, appSettings.videoQuality) + " · "
-                                       + labelOf(root.resolutionOptions, appSettings.videoResolutionMode)
-                                       + (appSettings.saveRawFrames ? qsTr(" · raw") : "")
-                            }
+                            id: resLbl
+                            anchors.centerIn: parent
+                            text:           modelData.label
                             font.family:    Theme.fontData
                             font.pixelSize: Theme.fontSzMicro
-                            color:          Theme.colorText3
-                        }
-                    }
-
-                    // Separator
-                    Rectangle {
-                        width:            1
-                        Layout.fillHeight: true
-                        color:            Theme.colorBorderMid
-                        Layout.leftMargin:  Theme.gap(12)
-                        Layout.rightMargin: Theme.gap(12)
-                    }
-
-                    // Column 2 — per session
-                    ColumnLayout {
-                        spacing: Theme.gap(4)
-
-                        Text {
-                            text:                qsTr("Per hour (60 swings)")
-                            font.family:         Theme.fontData
-                            font.pixelSize:      Theme.fontSzMicro
-                            font.letterSpacing:  Theme.trackingMicro
-                            font.capitalization: Theme.capsFont
-                            color:               Theme.colorText3
-                        }
-                        Text {
-                            text:           "~" + formatGb(root.sessionMb / 1024)
-                            font.family:    Theme.fontData
-                            font.pixelSize: Theme.fontSzBody
-                            color:          Theme.colorText
-                        }
-                    }
-
-                    // Separator
-                    Rectangle {
-                        width:             1
-                        Layout.fillHeight: true
-                        color:             Theme.colorBorderMid
-                        Layout.leftMargin:  Theme.gap(12)
-                        Layout.rightMargin: Theme.gap(12)
-                    }
-
-                    // Column 3 — remaining capacity
-                    ColumnLayout {
-                        spacing: Theme.gap(4)
-
-                        Text {
-                            text:                qsTr("Remaining capacity")
-                            font.family:         Theme.fontData
-                            font.pixelSize:      Theme.fontSzMicro
-                            font.letterSpacing:  Theme.trackingMicro
-                            font.capitalization: Theme.capsFont
-                            color:               Theme.colorText3
-                        }
-                        Text {
-                            text:  root.diskInfo.freeBytes <= 0 ? "—"
-                                 : root.remainingHours >= 2 ? "~" + Math.floor(root.remainingHours) + qsTr(" h of capture")
-                                 : "~" + Math.floor(root.remainingHours * 60) + qsTr(" min of capture")
-                            font.family:    Theme.fontData
-                            font.pixelSize: Theme.fontSzBody
-                            color:          root.remainingHours > 10 ? Theme.colorGood : Theme.colorWarn
+                            color:          isSelected ? Theme.colorAccent : Theme.colorText2
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         }
+
+                        PpPressable {
+                            id: resMa
+                            onClicked: {
+                                appSettings.videoResolutionMode = modelData.value
+                            }
+                        }
                     }
-
                 }
-
-            PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
-
-            // ── Group 3 — Sensor data ─────────────────────────────────────────
-
-            Text {
-                text:                qsTr("Sensor data")
-                font.family:         Theme.fontBody
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color:               Theme.colorText3
             }
+        }
+    }
 
-            // Save pose keypoints
-            RowLayout {
-                objectName: "setting_savePose"
+    // Video codec
+    SettingsRow {
+        objectName: "setting_videoCodec"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+
+            ColumnLayout {
                 Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+                spacing: Theme.gap(3)
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-
-                    Text {
-                        text:           qsTr("Save pose keypoints")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        Layout.fillWidth: true
-                        wrapMode:       Text.WordWrap
-                        text:           qsTr("The skeleton tracked in every frame, kept in each swing's analysis. Needed for skeleton overlays in replay and for a fast re-analysis; off saves about half of each swing's analysis file")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
+                SettingsRowTitle {
+                    title:    qsTr("Video codec")
+                    subtitle: qsTr("Encoding applied when saving swing clips to disk")
                 }
-
-                TogglePill {
-                    checked:   appSettings.savePoseKeypoints
-                    onToggled: (v) => appSettings.savePoseKeypoints = v
-                    Layout.alignment: Qt.AlignVCenter
+                Text {
+                    text:           root.codecDescriptions[appSettings.videoCodec] || ""
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    color:          Theme.colorText2
+                    wrapMode:       Text.WordWrap
+                    Layout.fillWidth: true
                 }
             }
 
-            // Save IMU streams
-            RowLayout {
-                objectName: "setting_saveImu"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+            Row {
+                spacing: Theme.gap(4)
+                Layout.alignment: Qt.AlignVCenter
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
+                Repeater {
+                    model: root.codecOptions
 
-                    Text {
-                        Layout.fillWidth: true
-                        text:           qsTr("Save motion sensor streams")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Full quaternion and accelerometer data for all enabled motion sensors")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
+                    delegate: Rectangle {
+                        required property var modelData
+
+                        readonly property bool isSelected: appSettings.videoCodec === modelData.value
+
+                        width:        codecLbl.implicitWidth + Theme.sp(20)
+                        height:       Theme.sp(24)
+                        radius:       Theme.radius
+                        color:        isSelected            ? Theme.colorAccentLight
+                                    : codecMa.containsMouse ? Qt.alpha(Theme.colorBg2, 0.6)
+                                    :                         "transparent"
+                        border.width: 1
+                        border.color: isSelected            ? Theme.colorAccent
+                                    : codecMa.containsMouse ? Theme.colorAccentMid
+                                    :                         Theme.colorBorderStrong
+                        Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
+                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                        Text {
+                            id: codecLbl
+                            anchors.centerIn: parent
+                            text:           modelData.label
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          isSelected ? Theme.colorAccent : Theme.colorText2
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        }
+
+                        PpPressable {
+                            id: codecMa
+                            onClicked: {
+                                appSettings.videoCodec = modelData.value
+                            }
+                        }
                     }
                 }
+            }
+        }
+    }
 
-                TogglePill {
-                    checked:   appSettings.saveImuStreams
-                    onToggled: (v) => appSettings.saveImuStreams = v
-                    Layout.alignment: Qt.AlignVCenter
+    // Encoding quality
+    SettingsRow {
+        objectName: "setting_videoQuality"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+
+            SettingsRowTitle {
+                title:    qsTr("Encoding quality")
+                subtitle: qsTr("Higher quality produces larger files")
+            }
+
+            Row {
+                spacing: Theme.gap(4)
+                Layout.alignment: Qt.AlignVCenter
+
+                Repeater {
+                    model: root.qualityOptions
+
+                    delegate: Rectangle {
+                        required property var modelData
+
+                        readonly property bool isSelected: appSettings.videoQuality === modelData.value
+
+                        width:        qualLbl.implicitWidth + Theme.sp(20)
+                        height:       Theme.sp(24)
+                        radius:       Theme.radius
+                        color:        isSelected           ? Theme.colorAccentLight
+                                    : qualMa.containsMouse ? Qt.alpha(Theme.colorBg2, 0.6)
+                                    :                        "transparent"
+                        border.width: 1
+                        border.color: isSelected           ? Theme.colorAccent
+                                    : qualMa.containsMouse ? Theme.colorAccentMid
+                                    :                        Theme.colorBorderStrong
+                        Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
+                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                        Text {
+                            id: qualLbl
+                            anchors.centerIn: parent
+                            text:           modelData.label
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          isSelected ? Theme.colorAccent : Theme.colorText2
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        }
+
+                        PpPressable {
+                            id: qualMa
+                            onClicked: {
+                                appSettings.videoQuality = modelData.value
+                            }
+                        }
+                    }
                 }
+            }
+        }
+    }
+
+    // Save raw camera frames
+    SettingsRow {
+        objectName: "setting_saveRaw"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+            SettingsRowTitle {
+                title:    qsTr("Save raw camera frames")
+                subtitle: qsTr("Stores unprocessed Bayer data alongside encoded clips")
+            }
+            PpSwitch {
+                checked:  appSettings.saveRawFrames
+                onToggled: (v) => appSettings.saveRawFrames = v
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+    }
+
+    // Skip analysis for raw captures — corpus capture: export frames only,
+    // analyse later from the Shots view. Only meaningful with raw frames on.
+    SettingsRow {
+        objectName: "setting_skipAnalysisRaw"
+        opacity: appSettings.saveRawFrames ? 1.0 : 0.4
+        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+            SettingsRowTitle {
+                title:    qsTr("Skip analysis for raw captures")
+                subtitle: qsTr("Captures frames only — re-analyse later from the Shots view (corpus capture)")
+            }
+            PpSwitch {
+                checked:  appSettings.skipAnalysisForRawCapture
+                enabled:  appSettings.saveRawFrames
+                onToggled: (v) => appSettings.skipAnalysisForRawCapture = v
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+    }
+
+    // Raw frames warning strip
+    Rectangle {
+        Layout.fillWidth: true
+        implicitHeight:   rawWarnText.implicitHeight + Theme.sp(20)
+        color:            Theme.colorWarnLight
+        border.width:     1
+        border.color:     Theme.colorWarn
+        radius:           Theme.radius
+        visible:          appSettings.saveRawFrames
+
+        Text {
+            id: rawWarnText
+            anchors {
+                left: parent.left; right: parent.right
+                top:  parent.top
+                leftMargin: Theme.gap(12); rightMargin: Theme.gap(12); topMargin: Theme.gap(10)
+            }
+            text:           qsTr("Raw Bayer frames are about 900 MB per camera per swing, against 2.5 MB for a Compact clip. Check the library volume has room before recording long sessions.")
+            font.family:    Theme.fontData
+            font.pixelSize: Theme.fontSzMicro
+            color:          Theme.colorWarn
+            wrapMode:       Text.WordWrap
+        }
+    }
+
+    // Estimated sizes
+    RowLayout {
+        id: estimateRow
+        spacing: 0
+
+            // Column 1 — per-swing clip
+            ColumnLayout {
+                spacing: Theme.gap(4)
+
+                Text {
+                    text:                qsTr("Per-swing clip")
+                    font.family:         Theme.fontData
+                    font.pixelSize:      Theme.fontSzMicro
+                    font.letterSpacing:  Theme.trackingMicro
+                    font.capitalization: Theme.capsFont
+                    color:               Theme.colorText3
+                }
+                Text {
+                    text:           "~" + formatMb(root.clipMb)
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzBody
+                    color:          Theme.colorText
+                }
+                Text {
+                    // The labels the buttons show, not the stored values ("Compact", not "low").
+                    text: {
+                        function labelOf(opts, v) {
+                            for (var i = 0; i < opts.length; i++)
+                                if (opts[i].value === v) return opts[i].label
+                            return v
+                        }
+                        return qsTr("2 cameras · full window · ")
+                               + labelOf(root.codecOptions, appSettings.videoCodec) + " "
+                               + labelOf(root.qualityOptions, appSettings.videoQuality) + " · "
+                               + labelOf(root.resolutionOptions, appSettings.videoResolutionMode)
+                               + (appSettings.saveRawFrames ? qsTr(" · raw") : "")
+                    }
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    color:          Theme.colorText3
+                }
+            }
+
+            // Separator
+            Rectangle {
+                width:            1
+                Layout.fillHeight: true
+                color:            Theme.colorBorderMid
+                Layout.leftMargin:  Theme.gap(12)
+                Layout.rightMargin: Theme.gap(12)
+            }
+
+            // Column 2 — per session
+            ColumnLayout {
+                spacing: Theme.gap(4)
+
+                Text {
+                    text:                qsTr("Per hour (60 swings)")
+                    font.family:         Theme.fontData
+                    font.pixelSize:      Theme.fontSzMicro
+                    font.letterSpacing:  Theme.trackingMicro
+                    font.capitalization: Theme.capsFont
+                    color:               Theme.colorText3
+                }
+                Text {
+                    text:           "~" + formatGb(root.sessionMb / 1024)
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzBody
+                    color:          Theme.colorText
+                }
+            }
+
+            // Separator
+            Rectangle {
+                width:             1
+                Layout.fillHeight: true
+                color:             Theme.colorBorderMid
+                Layout.leftMargin:  Theme.gap(12)
+                Layout.rightMargin: Theme.gap(12)
+            }
+
+            // Column 3 — remaining capacity
+            ColumnLayout {
+                spacing: Theme.gap(4)
+
+                Text {
+                    text:                qsTr("Remaining capacity")
+                    font.family:         Theme.fontData
+                    font.pixelSize:      Theme.fontSzMicro
+                    font.letterSpacing:  Theme.trackingMicro
+                    font.capitalization: Theme.capsFont
+                    color:               Theme.colorText3
+                }
+                Text {
+                    text:  root.diskInfo.freeBytes <= 0 ? "—"
+                         : root.remainingHours >= 2 ? "~" + Math.floor(root.remainingHours) + qsTr(" h of capture")
+                         : "~" + Math.floor(root.remainingHours * 60) + qsTr(" min of capture")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzBody
+                    color:          root.remainingHours > 10 ? Theme.colorGood : Theme.colorWarn
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                }
+            }
+
+        }
+
+    PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
+
+    // ── Group 3 — Sensor data ─────────────────────────────────────────────────
+
+    SettingsSectionHead { text: qsTr("Sensor data") }
+
+    // Save pose keypoints
+    SettingsRow {
+        objectName: "setting_savePose"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+            SettingsRowTitle {
+                title:    qsTr("Save pose keypoints")
+                subtitle: qsTr("The skeleton tracked in every frame, kept in each swing's analysis. Needed for skeleton overlays in replay and for a fast re-analysis; off saves about half of each swing's analysis file")
+            }
+            PpSwitch {
+                checked:   appSettings.savePoseKeypoints
+                onToggled: (v) => appSettings.savePoseKeypoints = v
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+    }
+
+    // Save IMU streams
+    SettingsRow {
+        objectName: "setting_saveImu"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+            SettingsRowTitle {
+                title:    qsTr("Save motion sensor streams")
+                subtitle: qsTr("Full quaternion and accelerometer data for all enabled motion sensors")
+            }
+            PpSwitch {
+                checked:   appSettings.saveImuStreams
+                onToggled: (v) => appSettings.saveImuStreams = v
+                Layout.alignment: Qt.AlignVCenter
             }
         }
     }

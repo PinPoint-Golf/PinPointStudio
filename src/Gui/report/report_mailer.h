@@ -111,6 +111,14 @@ public:
     // when the user name is not an address (an open relay).
     Q_INVOKABLE QVariantMap sendTest(const QString &fromName, const QString &fromAddress = QString());
 
+    // ── Sending reports: who it is from ──
+    // Said once here, for the screens that need them (Settings → Studio's test, the session list's email).
+    // fromAddress: the From address send() and sendTest() use — the user name when it is an address, else
+    // `coachEmail` trimmed (an open relay). senderName: the name to pass them as fromName — the coach's,
+    // else the studio's, trimmed; "" when neither is set.
+    Q_INVOKABLE QString fromAddress(const QString &coachEmail) const { return fromAddressFor(coachEmail); }
+    Q_INVOKABLE QString senderName(const QString &coachName, const QString &studioName) const;
+
     QString lastAction() const { return m_lastAction; }
     bool    dryRun() const;
 

@@ -461,6 +461,54 @@ private slots:
         AthleteController a;
         QCOMPARE(a.validReportEmail(text), ok);
     }
+
+    // The form's text rules, now asked of the controller: the stored email spelling, the greeting's
+    // fallback (the same first word reportDetails resolves), and the date-of-birth check.
+    void formTextRules()
+    {
+        AthleteController a;
+        QCOMPARE(a.normaliseReportEmails("a@b.com, , c@d.org,"), QStringLiteral("a@b.com, c@d.org"));
+        QCOMPARE(a.normaliseReportEmails("  a@b.com  ,c@d.org "), QStringLiteral("a@b.com, c@d.org"));
+        QCOMPARE(a.normaliseReportEmails(" , "), QString());
+        QCOMPARE(a.normaliseReportEmails(""), QString());
+
+        QCOMPARE(a.greetingDefault("Nick Henn"), QStringLiteral("Nick"));
+        QCOMPARE(a.greetingDefault("  Jess   Ratcliffe "), QStringLiteral("Jess"));
+        QCOMPARE(a.greetingDefault("Paddy"), QStringLiteral("Paddy"));
+        QCOMPARE(a.greetingDefault("   "), QString());
+
+        QVERIFY(a.validDob(""));                    // blank is a real answer
+        QVERIFY(a.validDob("   "));
+        QVERIFY(a.validDob("2012-03-04"));
+        QVERIFY(a.validDob(" 2012-03-04 "));
+        QVERIFY(a.validDob("2024-02-29"));          // leap day
+        QVERIFY(a.validDob("2026-06-15"));          // summer time: was once rejected as the day before
+        QVERIFY(!a.validDob("2023-02-29"));
+        QVERIFY(!a.validDob("2026-02-31"));
+        QVERIFY(!a.validDob("2026-13-01"));
+        QVERIFY(!a.validDob("2026/10/31"));         // Qt::ISODate would take this; the form does not
+        QVERIFY(!a.validDob("2026-10-31T10:00"));
+        QVERIFY(!a.validDob("2026-1-31"));
+        QVERIFY(!a.validDob("31/10/2012"));
+    }
+
+    // The athlete's bag in vocabulary order, whatever order the records were written in; an id the
+    // vocabulary does not know sorts first.
+    void bagClubIds()
+    {
+        AthleteController a;
+        QVERIFY(a.bagClubIds(QString()).isEmpty());
+        QVERIFY(a.bagClubIds(QStringLiteral("no-such-uuid")).isEmpty());
+        const QString uuid = a.saveAthlete(QString(), QStringLiteral("Bag Test"));
+        QVERIFY(!uuid.isEmpty());
+        QVariantMap bag;
+        for (const char *id : {"PUTTER", "7 IRON", "DRIVER", "SAND WEDGE", "3 WOOD", "MYSTERY"})
+            bag.insert(QString::fromLatin1(id), QVariantMap{});
+        QVERIFY(a.updateAthlete(uuid, "clubs", bag));
+        QCOMPARE(a.bagClubIds(uuid), (QStringList{"MYSTERY", "DRIVER", "3 WOOD", "7 IRON", "SAND WEDGE", "PUTTER"}));
+        QVERIFY(a.updateAthlete(uuid, "clubs", QVariantMap{}));
+        QVERIFY(a.bagClubIds(uuid).isEmpty());
+    }
 };
 
 QTEST_GUILESS_MAIN(ReportStudioTest)

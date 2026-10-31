@@ -85,10 +85,9 @@ Column {
     // TIGHT (as PpWorkOnPage): a section that would run on by less than a fifth of a page is set once more, closer —
     // a one-shot check of the laid-out height, never undone while the map stays the same.
     property real pageH: 950
-    property bool tight: false
-    Timer { id: fitCheck; interval: 40; onTriggered: if (!sg.tight && sg.height > sg.pageH + 1 && sg.height <= sg.pageH * 1.2) sg.tight = true }
-    onHeightChanged: fitCheck.restart()
-    onRepChanged: tight = false
+    PpReportSqueeze { id: squeeze; target: sg; pageH: sg.pageH }
+    readonly property bool tight: squeeze.level > 0
+    onRepChanged: squeeze.level = 0
     readonly property var carry: g.carry || []
     readonly property real cmax: carry.length ? Math.max.apply(null, carry) : 1
     readonly property real cmin: carry.length ? Math.min.apply(null, carry) - Math.max(10, 0.15 * (cmax - Math.min.apply(null, carry))) : 0

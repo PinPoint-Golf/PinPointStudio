@@ -183,9 +183,9 @@ Item {
             case "name": return { t: r.name }
             case "tier": return { t: r.tierTag }
             case "value": return gateCell(r.gated ? r.gateNote : null)
-                                 || { t: roles.fig(r.valueText), c: r.stateKind === "fired" ? roles.warn : r.stateKind === "notAssessable" ? roles.ink3 : roles.ink }
-            case "unit": return { t: roles.unitOf(r.valueText) }
-            case "corridor": return { t: roles.corridorShort(r.corridorText) }
+                                 || { t: roles.fig(r), c: r.stateKind === "fired" ? roles.warn : r.stateKind === "notAssessable" ? roles.ink3 : roles.ink }
+            case "unit": return { t: roles.unitOf(r) }
+            case "corridor": return { t: roles.corridorShort(r) }
             // a composite's multiple IS its number, never shown (posture_metrics_design.md §8): its meter step instead
             case "outby": return { t: r.stateKind === "fired" && r.strengthKnown ? (r.strengthSharp ? "sharp" : r.composite ? r.strength + "/5" : r.strengthExcess.toFixed(1) + "×") : "-" }
             case "strip": return { ticks: r.ticks }
@@ -206,9 +206,9 @@ Item {
             // an unmeasured shot is "-" in ink3, so it never reads as a clean value (D5, INVENTORY #47)
             case "shot": { const gc = gateCell(sp.currentGated ? sp.currentGate : (r.gated && r.thisShot === "notAssessable" ? r.gateNote : null))
                            if (gc) return gc
-                           const t = sp.currentNumber || roles.fig(r.valueText)
+                           const t = sp.currentNumber || roles.fig(r)
                            return { t: t, c: r.thisShot === "fired" ? roles.warn : (t === "-" || r.thisShot === "notAssessable") ? roles.ink3 : roles.ink } }
-            case "unit": return { t: unitFolded && folded.indexOf("median") >= 0 ? "" : (sp.unit || roles.unitOf(r.valueText)) }
+            case "unit": return { t: unitFolded && folded.indexOf("median") >= 0 ? "" : (sp.unit || roles.unitOf(r)) }
             case "typical": return { t: bk ? bk.representativeShotId : "-", shot: bk ? bk.representativeShotId : -1 }
             case "worst": return { t: bk ? bk.worstShotId : "-", shot: bk ? bk.worstShotId : -1 }
             case "best": return { t: bk ? bk.bestShotId : "-", shot: bk ? bk.bestShotId : -1 }
@@ -218,8 +218,8 @@ Item {
             switch (key) {
             case "name": return { t: r.name }
             case "value": return gateCell(c && c.gated ? c.gateNote : null)
-                                 || { t: c ? roles.fig(c.valueText) : "-", c: c && c.stateKind === "fired" ? roles.warn : roles.ink2 }
-            case "unit": return { t: c ? roles.unitOf(c.valueText) : "" }
+                                 || { t: c ? roles.fig(c) : "-", c: c && c.stateKind === "fired" ? roles.warn : roles.ink2 }
+            case "unit": return { t: c ? roles.unitOf(c) : "" }
             case "strip": return { ticks: c ? c.ticks : [] }
             case "frac": return { t: roles.firedFrac(r) }
             }
@@ -281,12 +281,13 @@ Item {
             width: tb.width
             height: ((tb.groups.length || toolsAbove) ? tb.roles.u(34) : tb.roles.u(21)) + tb.roles.r.figureRuleTop
             Rectangle { width: parent.width; height: tb.roles.r.figureRuleTop; color: tb.roles.rule }
-            Text {
+            PpSectionHead {
                 id: ttl
                 visible: tb.title.length > 0
                 x: tb.xs[tb.nameIdx] || 0
                 anchors.bottom: parent.bottom; anchors.bottomMargin: tb.roles.u(5)
-                text: tb.title; font: tb.roles.fSection; color: tb.roles.ink
+                roles: tb.roles; paged: false; pad: 0
+                title: tb.title
             }
             Row {
                 id: toolsRow

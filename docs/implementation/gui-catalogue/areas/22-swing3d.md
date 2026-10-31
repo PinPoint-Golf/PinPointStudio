@@ -1,7 +1,7 @@
 # Swing 3-D
 
 *Directory:* `src/Gui/swing3d/`  
-*2 components · 699 lines of QML*
+*2 components · 701 lines of QML*
 
 The skeleton3d swing visualisation view and its keep-alive host.
 
@@ -10,7 +10,7 @@ The skeleton3d swing visualisation view and its keep-alive host.
 | Component | Lines | Root | Used by | Uses | Notes |
 |---|---:|---|---:|---:|---|
 | [SwingViz3DHost](#swingviz3dhost) | 73 | `Item` | 1 | 1 |  |
-| [SwingViz3DView](#swingviz3dview) | 626 | `Item` | 1 | 7 | 3 local comp. |
+| [SwingViz3DView](#swingviz3dview) | 628 | `Item` | 1 | 7 | 3 local comp. |
 
 ### SwingViz3DHost
 `src/Gui/swing3d/SwingViz3DHost.qml` · 73 lines · root `Item` · no direct `Theme.*` refs
@@ -31,7 +31,7 @@ The skeleton3d swing visualisation view and its keep-alive host.
 - **Exercised by tests/tools:** `swing3d_panel`
 
 ### SwingViz3DView
-`src/Gui/swing3d/SwingViz3DView.qml` · 626 lines · root `Item` · 6 hard-coded colour(s)
+`src/Gui/swing3d/SwingViz3DView.qml` · 628 lines · root `Item` · 6 hard-coded colour(s)
 
 > SwingViz3DView — the swing as the fitted skeleton, the club and the ball, from any side
 > (docs/design/swing_3d_viz_design.md §6). SwingRigDriver does the arithmetic; this file only

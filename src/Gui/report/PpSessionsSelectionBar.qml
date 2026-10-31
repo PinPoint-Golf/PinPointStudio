@@ -41,7 +41,7 @@ Rectangle {
     readonly property var info: bar.list ? bar.list.selectionInfo : ({ count: 0 })
     readonly property var jobs: bar.list ? bar.list.jobs : null
     readonly property bool running: !!(bar.jobs && bar.jobs.running)
-    readonly property string who: bar.list && bar.list.greeting !== "" ? bar.list.greeting : qsTr("the golfer")
+    readonly property string who: bar.jobs ? bar.jobs.who(bar.list) : ""
 
     visible: (bar.info.count || 0) > 0 || bar.running
     implicitHeight: Theme.sp(56)
@@ -50,43 +50,25 @@ Rectangle {
     border.width: 1
     border.color: Qt.alpha(Theme.colorAccent, 0.45)
 
-    function bytesWords(b) {
-        if (!(b > 0)) return "0 MB"
-        const gb = b / (1024 * 1024 * 1024)
-        if (gb >= 1) return gb.toFixed(1) + " GB"
-        return Math.max(1, Math.round(b / (1024 * 1024))) + " MB"
-    }
-    function plural(n, one, many) { return n === 1 ? one.arg(n) : many.arg(n) }
-
-    // ── What the selection can take, and why not ─────────────────────────────
+    // ── What the selection can take, and why not (the queue's rules: PpSessionBulkJobs.whyNot) ──
     readonly property int  n:          bar.info.count || 0
-    readonly property int  reportable: bar.info.reportable || 0
-    readonly property int  liveN:      bar.info.live || 0
-    readonly property int  archivedN:  bar.info.archived || 0
-    readonly property bool allArchived: bar.n > 0 && bar.archivedN === bar.n
-    readonly property bool archiveReady: !!(bar.list && bar.list.archiveReady)
-    readonly property bool reportsBusy:  !!(bar.list && bar.list.reports && bar.list.reports.busy)
-    readonly property bool archiverBusy: !!(bar.list && bar.list.archiver && bar.list.archiver.busy)
-
-    readonly property string whyNoReport:
-          bar.liveN === bar.n     ? qsTr("The live session is still recording")
-        : bar.archivedN + bar.liveN === bar.n ? qsTr("Archived sessions need restoring first")
-        :                           qsTr("A report needs at least three swings")
-    readonly property string whyNotMake:  bar.reportable === 0 ? bar.whyNoReport
-                                        : bar.reportsBusy ? qsTr("A report is being made: wait for it to finish") : ""
-    readonly property string whyNotEmail: bar.list && bar.list.email === "" ? qsTr("Add %1's email on their page first").arg(bar.who)
-                                        : bar.reportable === 0 ? bar.whyNoReport
-                                        : bar.list && bar.list.sendBusy ? qsTr("Another report is being sent")
-                                        : bar.reportsBusy ? qsTr("A report is being made: wait for it to finish") : ""
-    readonly property string whyNotExport: bar.liveN === bar.n ? qsTr("The live session exports from Live") : ""
-    readonly property string whyNotArchive: !bar.archiveReady ? qsTr("Set an archive folder in Settings → Archiving")
-                                          : bar.archiverBusy  ? qsTr("Archiving is busy: %1").arg(bar.list.archiver.status || "")
-                                          : bar.allArchived   ? ""
-                                          : bar.n - bar.archivedN - bar.liveN === 0
-                                            ? (bar.archivedN === 0 ? qsTr("The live session cannot be archived")
-                                                                   : qsTr("Nothing to archive: the rest are archived already"))
-                                          : ""
-    readonly property string whyNotDelete: bar.liveN === bar.n ? qsTr("The live session cannot be deleted") : ""
+    readonly property bool allArchived: bar.n > 0 && (bar.info.archived || 0) === bar.n
+    // The selection's tally, and what else the reasons turn on.
+    readonly property var facts: Object.assign({}, bar.info, {
+        greeting:       bar.list ? bar.list.greeting : "",
+        email:          bar.list ? bar.list.email : undefined,
+        sendBusy:       !!(bar.list && bar.list.sendBusy),
+        reportsBusy:    !!(bar.list && bar.list.reports && bar.list.reports.busy),
+        archiveReady:   !!(bar.list && bar.list.archiveReady),
+        archiverBusy:   !!(bar.list && bar.list.archiver && bar.list.archiver.busy),
+        archiverStatus: bar.list && bar.list.archiver ? (bar.list.archiver.status || "") : ""
+    })
+    function whyNot(verb) { return bar.jobs ? bar.jobs.whyNot(verb, bar.facts, bar.n) : "" }
+    readonly property string whyNotMake:    bar.whyNot("make")
+    readonly property string whyNotEmail:   bar.whyNot("send")
+    readonly property string whyNotExport:  bar.whyNot("export")
+    readonly property string whyNotArchive: bar.whyNot("archive")
+    readonly property string whyNotDelete:  bar.whyNot("trash")
 
     readonly property var verbWords: ({
         make: qsTr("Making reports"), send: qsTr("Sending reports"), export: qsTr("Exporting"),
@@ -140,9 +122,9 @@ Rectangle {
             width: Math.max(0, Math.min(implicitWidth, buttons.x - summary.x - selCount.width - clearLink.width
                                                        - 2 * summary.spacing - Theme.gap(16)))
             elide: Text.ElideRight
-            text: [bar.bytesWords(bar.info.bytes)]
-                  .concat((bar.info.stale || 0) > 0 ? [bar.plural(bar.info.stale, qsTr("%1 report out of date"),
-                                                                  qsTr("%1 reports out of date"))] : [])
+            text: [Theme.formatBytes(bar.info.bytes)]
+                  .concat((bar.info.stale || 0) > 0 ? [Theme.plural(bar.info.stale, qsTr("%1 report out of date"),
+                                                                    qsTr("%1 reports out of date"))] : [])
                   .join(" · ")
             font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
             font.letterSpacing: Theme.trackingData
@@ -179,7 +161,6 @@ Rectangle {
             anchors.baseline: progressWords.baseline
             text: bar.jobs && bar.jobs.cancelling ? qsTr("Stopping after this one…") : qsTr("Cancel")
             interactive: !!bar.jobs && !bar.jobs.cancelling
-            color: !interactive ? Theme.colorText3 : hovered ? Qt.lighter(Theme.colorAccent, 1.15) : Theme.colorAccent
             pressMargin: Theme.sp(3)
             onClicked: if (bar.jobs) bar.jobs.cancel()
         }

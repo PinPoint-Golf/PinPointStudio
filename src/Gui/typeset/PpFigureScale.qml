@@ -29,7 +29,7 @@ import QtQuick
 // separated from the window by a drawn BREAK. True values stay readable: ticks and zone labels are in
 // the measure's own units, a band is labelled with the values it holds, and anything in a band is still
 // drawn there (compressed, never hidden). With no `values`, or `faultForward: false`, it is linear.
-// Panels only ever call y(f), region(f) and read corridor / edges / bandLo / bandHi.
+// Panels only ever call y(f), region(f) and read corridor / washPieces / edges / bandLo / bandHi.
 QtObject {
     id: fs
     property var bands: []
@@ -48,17 +48,12 @@ QtObject {
     property real axisHi: NaN
     function valueOf(f) { return isFinite(axisLo) && isFinite(axisHi) ? axisLo + f * (axisHi - axisLo) : NaN }
 
-    // each zone edge once: kind fault (warn hairline) · pass (dashed ink3) · aim · grid
+    // each zone edge once: kind fault (warn hairline) · pass (dashed ink3) · aim · grid. The model names the
+    // edge each band starts at (bands[].edge, SessionDiagnosticsModel::edgeKindAt), off the corridor itself;
+    // a boundary it names nothing is a grid hairline
     readonly property var edges: {
         const out = [], b = bands || []
-        for (let i = 1; i < b.length; ++i) {
-            const pair = [b[i - 1].grade, b[i].grade].sort().join("|")
-            let kind = "grid"
-            if (pair === "action|watch") kind = "fault"
-            else if (pair === "good|watch") kind = "pass"
-            else if (pair.indexOf("open") >= 0) kind = "aim"
-            out.push({ f: b[i].f0, value: b[i].lo, kind: kind })
-        }
+        for (let i = 1; i < b.length; ++i) out.push({ f: b[i].f0, value: b[i].lo, kind: b[i].edge || "grid" })
         return out
     }
     // the corridor (ideal + good + open) as an f range, for the wash
@@ -68,6 +63,18 @@ QtObject {
         for (let i = 0; i < b.length; ++i)
             if (b[i].grade === "ideal" || b[i].grade === "good" || b[i].grade === "open") { lo = Math.min(lo, b[i].f0); hi = Math.max(hi, b[i].f1) }
         return hi > lo ? { lo: lo, hi: hi } : null
+    }
+    // the corridor wash, split at the breaks: [f0, f1] pieces within one region each (a wash never runs
+    // across a break)
+    readonly property var washPieces: {
+        if (!corridor) return []
+        const c = corridor, w = win, out = []
+        const cuts = [0, bandLo ? w.lo : 0, bandHi ? w.hi : 1, 1]
+        for (let i = 0; i < 3; ++i) {
+            const a = Math.max(c.lo, cuts[i]), b = Math.min(c.hi, cuts[i + 1])
+            if (b > a + 1e-6) out.push({ f0: a, f1: b })
+        }
+        return out
     }
     readonly property var passFs: edges.filter(e => e.kind === "pass").map(e => e.f)
     readonly property var faultFs: edges.filter(e => e.kind === "fault").map(e => e.f)
@@ -104,6 +111,13 @@ QtObject {
     readonly property real winBottom: plotTop + plotHeight - (bandLo ? bandPx + breakPx : 0)
     readonly property real loBandTop: plotTop + plotHeight - bandPx
     readonly property real hiBandBottom: plotTop + bandPx
+    // the centre line of each drawn break (the gap between a band and the window), for PpBreakSlash
+    readonly property var breakYs: {
+        const g = []
+        if (bandLo) g.push((winBottom + loBandTop) / 2)
+        if (bandHi) g.push((winTop + hiBandBottom) / 2)
+        return g
+    }
 
     function region(f) { return (bandLo && f < win.lo) ? 0 : (bandHi && f > win.hi) ? 2 : 1 }
     function y(f) {

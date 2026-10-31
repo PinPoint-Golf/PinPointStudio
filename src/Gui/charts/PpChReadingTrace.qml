@@ -106,7 +106,7 @@ Item {
         enabled: tr.interactive && !!tr.presenter && typeof shotReplay !== "undefined"
         x: tr.gutL; y: tr.pTop; width: tr.pw; height: tr.plotH
         cursorShape: Qt.SizeHorCursor
-        function seekTo(px) { const us = tr.presenter.seekUsAtShotMs(tr.tAt(px + tr.gutL)); if (us >= 0) shotReplay.seekToUs(us) }
+        function seekTo(px) { const us = tr.presenter.seekUsAtShotMs(tr.tAt(px + tr.gutL)); PpChSeek.to(us) }
         onPressed: (e) => { shotReplay.beginScrub(); seekTo(e.x) }
         onPositionChanged: (e) => { if (pressed) seekTo(e.x) }
         onReleased: shotReplay.endScrub()

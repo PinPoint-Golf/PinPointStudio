@@ -63,6 +63,10 @@
 //        numbers and the live figure turning with them (W2.3), Ready's "Trunk calibration" row, the
 //        recorder's calls
 //   TP2  back from Check: Calibrate trunk shows complete, re-runs nothing (R8)
+//   TP14 Check with no C++ heading (trunkHeadingDeg NaN — a filter fault, or the sensor not
+//        calibrated): the reading shows the missing mark "-", never a number from anatQuat (D17)
+//   TP15 Check opened while a sensor has no heading: that reading shows "-"; when its heading
+//        arrives it is zeroed there and shown from then on (show, never hide)
 //   TP3  leave the page mid-step: nothing fires after the leave (the leave mark, as CalibDriver's)
 //   TP4  trunk + wG3: the arm steps first; the recording begins at the arm's Calibrate step and the
 //        trunk routine continues it (no second begin)
@@ -1013,9 +1017,14 @@ Item {
                 return t ? t.text : ""
             }
             compare(line(), "hips 0° · chest 0° · X 0°")
+            // The numbers come from each unit's trunkHeadingDeg (the C++ heading, D17), the figure from
+            // its anatQuat: turn both. The headings move from where they stood when the page opened (the
+            // routine's turns leave them a few degrees off zero).
             var yaw = function(deg) { var h = deg * Math.PI / 360; return Qt.quaternion(Math.cos(h), 0, 0, Math.sin(h)) }
-            d.imu.device("WT-P").anatQuat = yaw(-45)        // a right-hander turns away about −Z
-            d.imu.device("WT-T").anatQuat = yaw(-88)
+            var pel = d.imu.device("WT-P"), tho = d.imu.device("WT-T")
+            var pel0 = pel.headingDeg, tho0 = tho.headingDeg
+            pel.anatQuat = yaw(-45); pel.headingDeg = pel0 - 45     // a right-hander turns away about −Z
+            tho.anatQuat = yaw(-88); tho.headingDeg = tho0 - 88
             compare(line(), "hips 45° · chest 88° · X 43°")
             verify(d.find(d.flow.page, function(o) { return o.objectName === "trunkLiveFigureSlot" }) !== null)
             // The live figure turned with them (W2.3): a right-hander's turn away turns the avatar's hips
@@ -1042,6 +1051,48 @@ Item {
             // Start keeps the ceremony for the session (the recorder writes it then).
             d.start()
             compare(d.ceremony.count("discard"), 0)
+        }
+
+        function test_TP14_checkWithNoHeadingShowsTheMissingMark() {
+            trunkSetup(false)
+            d.open()
+            d.walkTo("calibrateTrunk")
+            waitPageDone()
+            d.next()
+            compare(d.current(), "checkTrunk")
+            var readings = function() { return d.find(d.flow.page, function(o) { return o.objectName === "trunkReadings" }) }
+            compare(readings().text, "hips 0° · chest 0° · X 0°")
+            var yaw = function(deg) { var h = deg * Math.PI / 360; return Qt.quaternion(Math.cos(h), 0, 0, Math.sin(h)) }
+            var pel = d.imu.device("WT-P"), tho = d.imu.device("WT-T")
+            pel.headingDeg = pel.headingDeg - 45
+            // The chest turns (its anatQuat moves) but C++ has no heading for it: no number.
+            tho.anatQuat   = yaw(-88)
+            tho.headingDeg = NaN
+            compare(readings().text, "hips 45° · chest - · X -")
+            verify(Qt.colorEqual(readings().color, Theme.colorText3), "a reading with no heading is not muted")
+            // The hip sensor not anatomically calibrated: its heading is NaN too (as the real ImuInstance's).
+            pel.anatCalibrated = false
+            compare(readings().text, "hips - · chest - · X -")
+        }
+
+        function test_TP15_aHeadingThatArrivesAfterCheckOpensIsShown() {
+            trunkSetup(false)
+            d.open()
+            d.walkTo("calibrateTrunk")
+            waitPageDone()
+            var pel = d.imu.device("WT-P"), tho = d.imu.device("WT-T")
+            tho.headingDeg = NaN                    // no chest heading as Check opens
+            d.next()
+            compare(d.current(), "checkTrunk")
+            var readings = function() { return d.find(d.flow.page, function(o) { return o.objectName === "trunkReadings" }) }
+            compare(readings().text, "hips 0° · chest - · X -")
+            // The chest heading arrives: zeroed where it arrived, then it reads like the hips.
+            tho.headingDeg = 10
+            compare(readings().text, "hips 0° · chest 0° · X 0°")
+            verify(Qt.colorEqual(readings().color, Theme.colorText), "a full reading is still muted")
+            pel.headingDeg = pel.headingDeg - 20    // a right-hander turns away about −Z
+            tho.headingDeg = 10 - 50
+            compare(readings().text, "hips 20° · chest 50° · X 30°")
         }
 
         function test_TP2_backFromCheckRestoresWithoutARerun() {

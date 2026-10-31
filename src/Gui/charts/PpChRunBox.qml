@@ -25,7 +25,10 @@ import PinPointStudio
 // line (least squares on shot order) is drawn only when the presenter gives one (it clears chance); the
 // caption always carries r and its interval. Ticks are the presenter's (ticks()). ON PAPER (the session report's
 // Wrist page) a point may carry its own `label` (the report's swing number, where the ordinal only places it), and
-// `hueOf` gives the metric's ink theme-free (the report's palette: roles.hue reads the live theme).
+// `hueOf` gives the metric's ink theme-free (the report's palette: roles.hue reads the live theme). A TARGET RANGE
+// (`band`: { lo, hi, label }, optional — the report's work-on pages) is drawn behind the run as a wash with its edges as
+// hairlines, and its label ("target range") at the right of the plot, in the band's ink; the inks are the caller's
+// (bandFill, bandEdge, bandInk: the report's accent), else quiet ones from the roles. No band: nothing changes.
 // objectName: chRun (+ readingId).
 Item {
     id: rb
@@ -39,6 +42,10 @@ Item {
     property bool showBox: true
     property var hueOf: null                    // print: key → colour, theme-free; null = roles.hue
     property real plotH: roles ? roles.u(roles.isPrint ? 84 : 96) : 96
+    property var band: null                     // a target range: { lo, hi, label }; null = none
+    property color bandFill: roles ? Qt.alpha(roles.ink3, 0.08) : "transparent"
+    property color bandEdge: roles ? roles.hair : "transparent"
+    property color bandInk: roles ? roles.ink3 : "grey"
     property bool atom: true
     readonly property var keyKinds: ["box", "ring", "fired"]
     signal shotActivated(int ordinal)
@@ -52,7 +59,9 @@ Item {
     readonly property real gutL: roles ? roles.u(40) : 40
     readonly property real boxW: showBox && roles ? roles.u(22) : 0
     readonly property real pTop: roles ? (showCaption ? capT.height + roles.u(6) : roles.u(6)) + (run && run.unitText ? roles.u(13) : 0) : 20
-    readonly property real pw: Math.max(10, width - gutL - boxW - (roles ? roles.u(showBox ? 12 : 4) : 12))
+    readonly property bool banded: !!band && !!roles && roles.fin(band.lo) && roles.fin(band.hi)
+    readonly property real gutR: banded && band.label ? (roles ? roles.u(52) : 52) : 0      // the band's label, right of the plot
+    readonly property real pw: Math.max(10, width - gutL - boxW - (roles ? roles.u(showBox ? 12 : 4) : 12) - gutR)
     function sx(ord) { return gutL + (ord - 0.5) / Math.max(1, n) * pw }
     function vy(v) { return pTop + (1 - (v - lo) / Math.max(1e-9, hi - lo)) * plotH }
     readonly property int step: roles ? roles.shotLabelStep(pw / Math.max(1, n), roles.u(14)) : 1
@@ -66,11 +75,29 @@ Item {
         text: rb.run ? (rb.run.caption || "") : ""
         font: rb.roles ? rb.roles.fSmall : Qt.font({}); color: rb.roles ? rb.roles.ink2 : "grey"
     }
+    // the target range: a wash between its edges (clipped to the scale), each edge a hairline; its label at the right
+    Rectangle {
+        visible: rb.banded
+        x: rb.gutL; width: rb.pw
+        y: visible ? rb.vy(Math.min(rb.hi, rb.band.hi)) : 0
+        height: visible ? Math.max(0, rb.vy(Math.max(rb.lo, rb.band.lo)) - y) : 0
+        color: rb.bandFill
+        Rectangle { width: parent.width; height: rb.roles ? rb.roles.hw : 1; color: rb.bandEdge }
+        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: rb.roles ? rb.roles.hw : 1; color: rb.bandEdge }
+    }
+    Text {
+        visible: rb.banded && !!rb.band.label
+        x: rb.width - rb.gutR + (rb.roles ? rb.roles.u(6) : 6)
+        y: visible ? (rb.vy(Math.min(rb.hi, rb.band.hi)) + rb.vy(Math.max(rb.lo, rb.band.lo))) / 2 - height / 2 : 0
+        text: visible ? rb.band.label : ""; font: rb.roles ? rb.roles.fLabelUnit : Qt.font({}); color: rb.bandInk; lineHeight: 1.1
+    }
     Repeater {
         model: rb.roles ? rb.yt : []
         delegate: Item {
             required property var modelData
-            Rectangle { x: rb.gutL; width: rb.pw; y: Math.round(rb.vy(modelData.v)); height: rb.roles.hw; color: rb.roles.grid; opacity: rb.roles.gridOpacity }
+            // a tick on a target range's edge has the edge for its line: a gridline there would be drawn over the edge
+            Rectangle { visible: !(rb.banded && (modelData.v === rb.band.lo || modelData.v === rb.band.hi))
+                        x: rb.gutL; width: rb.pw; y: Math.round(rb.vy(modelData.v)); height: rb.roles.hw; color: rb.roles.grid; opacity: rb.roles.gridOpacity }
             Text { x: rb.gutL - width - rb.roles.u(5); y: rb.vy(modelData.v) - height / 2; text: modelData.text; font: rb.roles.fFigLabel; color: rb.roles.ink3 }
         }
     }
@@ -104,10 +131,10 @@ Item {
                 onActivated: rb.shotActivated(modelData.ordinal)
             }
             // not measured: a stub on the foot, never a gap
-            Rectangle {
+            PpStub {
                 visible: !parent.has
-                width: Math.max(2, rb.roles.u(4)); height: rb.roles.stubH(rb.roles.u(12))
-                x: rb.sx(modelData.ordinal) - width / 2; y: rb.pTop + rb.plotH - height; color: rb.roles.ink3
+                roles: rb.roles; size: rb.roles.u(12)
+                x: rb.sx(modelData.ordinal) - width / 2; y: rb.pTop + rb.plotH - height
             }
             Text {
                 readonly property int pk: rb.brush ? rb.brush.pickedShot : -1

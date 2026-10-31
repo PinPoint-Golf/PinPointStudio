@@ -69,8 +69,8 @@ Item {
         reviewing:     root.reviewing
         connected:     launchMonitor.configured
         deviceName:    launchMonitor.deviceName
-        // The SAME setting MetricCatalog is bound to wherever it is hosted, so a corridor graded here
-        // carries the colour it carries on every other metric surface.
+        // The SAME setting every other metric surface grades by (Session diagnostics, the Charts
+        // presenters), so a corridor graded here carries the colour it carries everywhere else.
         gradePolicy:   appSettings.diagnosticsGradePolicy
         // Publishes the handedness convention (graphics.leftHanded): the values stay in the device's
         // convention and the body mirrors the art and the words.
@@ -130,13 +130,7 @@ Item {
     function _focusShot(shotId) {
         for (const s of root.shotList) {
             if (s.shotId !== shotId) continue
-            if (SessionMode.mode === SessionMode.analyse) {
-                SessionMode.focusedShotId   = s.shotId
-                SessionMode.focusedSwingDir = s.swingDir
-                SessionMode.enterAnalyse()
-            } else {
-                SessionMode.enterReplay(s.shotId, s.swingDir)
-            }
+            SessionMode.pickShot(s.shotId, s.swingDir)
             return true
         }
         return false

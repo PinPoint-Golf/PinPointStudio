@@ -1,7 +1,7 @@
 # 3-D body/IMU views
 
 *Directory:* `src/Gui/viz/`  
-*4 components · 1,600 lines of QML*
+*4 components · 1,721 lines of QML*
 
 QtQuick3D views of IMUs, the arm and the body, plus the View3D keep-alive guard.
 
@@ -10,7 +10,7 @@ QtQuick3D views of IMUs, the arm and the body, plus the View3D keep-alive guard.
 | Component | Lines | Root | Used by | Uses | Notes |
 |---|---:|---|---:|---:|---|
 | [ArmVizView](#armvizview) | 495 | `Item` | 2 | 1 | 1 local comp. |
-| [BodyVizView](#bodyvizview) | 880 | `Item` | 2 | 0 | 2 local comp. |
+| [BodyVizView](#bodyvizview) | 1001 | `Item` | 4 | 0 | 2 local comp. |
 | [ImuVizView](#imuvizview) | 181 | `View3D` | 2 | 0 | 1 local comp. |
 | [View3DKeepAlive](#view3dkeepalive) | 44 | `View3D` | 2 | 0 |  |
 
@@ -28,17 +28,17 @@ QtQuick3D views of IMUs, the arm and the body, plus the View3D keep-alive guard.
 - **Exercised by tests/tools:** `SetupDriver`, `tst_setup_check`, `tst_setup_guide_render`, `tst_setup_rolesviz`, `tst_setup_smoke`, `view3d_unload`
 
 ### BodyVizView
-`src/Gui/viz/BodyVizView.qml` · 880 lines · root `Item` · 4 hard-coded colour(s)
+`src/Gui/viz/BodyVizView.qml` · 1001 lines · root `Item` · 4 hard-coded colour(s)
 
 3-D full Y-bot body assembled from bone-local GLBs and driven by a pose source (optionally mirrored), with joint markers, lead-arm highlight, loading progress and orbit camera.  
 *(description written for this catalogue — the file has no header comment)*
 
-- **Properties:** `QtObject poseSource`, `bool mirroredSource`, `bool showJoints`, `bool rightHanded`, `bool highlightLeadArm`, `color leadArmColor`, `bool showOrientationTabs`, `bool useLeadArmOverride`, `quaternion leadArmOverrideRotation`, `quaternion leadForeArmOverrideRotation`, `bool useTrailArmOverride`, `quaternion trailArmOverrideRotation`, `quaternion trailForeArmOverrideRotation`, `readonly real hmCalRaiseDeg` … (+12 more)
-- **Signals:** `leadArmAnimFinished()`
-- **Functions:** `resetArmAnimation(fromQ, foreFromQ)`
+- **Properties:** `QtObject poseSource`, `bool mirroredSource`, `bool showJoints`, `bool rightHanded`, `bool highlightLeadArm`, `color leadArmColor`, `bool showOrientationTabs`, `bool useLeadArmOverride`, `quaternion leadArmOverrideRotation`, `quaternion leadForeArmOverrideRotation`, `bool useTrailArmOverride`, `quaternion trailArmOverrideRotation`, `quaternion trailForeArmOverrideRotation`, `readonly real hmCalRaiseDeg` … (+25 more)
+- **Signals:** `leadArmAnimFinished()`, `trunkAnimFinished()`
+- **Functions:** `resetArmAnimation(fromQ, foreFromQ)`, `trunkTurn(awayDeg)`, `resetTrunkAnimation(hipsQ, thoraxQ)`, `stopTrunkAnimation()`, `retargetTrunk()`
 - **Local components:** `OrientationTab`, `JointMarker`
-- **Used by (2):** `CapturePage`, `ImuCalibrationFlow`
-- **Exercised by tests/tools:** `CalibDriver`, `tst_setup_smoke`, `view3d_unload`
+- **Used by (4):** `CalibrateTrunkPage`, `CapturePage`, `CheckTrunkPage`, `ImuCalibrationFlow`
+- **Exercised by tests/tools:** `CalibDriver`, `trunk_guide`, `tst_setup_smoke`, `view3d_unload`
 
 ### ImuVizView
 `src/Gui/viz/ImuVizView.qml` · 181 lines · root `View3D` · 1 hard-coded colour(s)
@@ -69,4 +69,4 @@ QtQuick3D views of IMUs, the arm and the body, plus the View3D keep-alive guard.
 > the session_setup_ui suite are the checks.
 
 - **Used by (2):** `Main`, `PpSessionDiagnosticsWindow`
-- **Exercised by tests/tools:** `CalibDriver`, `SetupDriver`, `tst_setup_mounts`, `tst_setup_rolesviz`, `tst_setup_smoke`
+- **Exercised by tests/tools:** `CalibDriver`, `SetupDriver`, `tst_setup_rolesviz`, `tst_setup_smoke`

@@ -1,7 +1,7 @@
 # Typeset
 
 *Directory:* `src/Gui/typeset/`  
-*18 components · 2,113 lines of QML*
+*18 components · 2,253 lines of QML*
 
 The 'typeset system' (design system §15): the per-panel helper PpTypeset plus a shared plot/typography vocabulary (box plot, zone plot, brush, marks, section heads, pager, folio) that draws identically on screen and in print.
 
@@ -15,15 +15,15 @@ The 'typeset system' (design system §15): the per-panel helper PpTypeset plus a
 | [PpInlinePicker](#ppinlinepicker) | 74 | `Column` | 5 | 1 |  |
 | [PpMark](#ppmark) | 86 | `Item` | 13 | 0 |  |
 | [PpNotes](#ppnotes) | 54 | `Column` | 5 | 1 |  |
-| [PpPageKey](#pppagekey) | 170 | `Flow` | 6 | 3 |  |
-| [PpPager](#pppager) | 210 | `Item` | 1 | 3 |  |
+| [PpPageKey](#pppagekey) | 169 | `Flow` | 6 | 3 |  |
+| [PpPager](#pppager) | 239 | `Item` | 2 | 3 |  |
 | [PpPulseWash](#pppulsewash) | 60 | `Rectangle` | 5 | 0 |  |
 | [PpRunningHead](#pprunninghead) | 41 | `Item` | 2 | 1 |  |
-| [PpSectionHead](#ppsectionhead) | 55 | `Item` | 5 | 1 |  |
+| [PpSectionHead](#ppsectionhead) | 55 | `Item` | 8 | 1 |  |
 | [PpShotStrip](#ppshotstrip) | 116 | `Item` | 4 | 0 |  |
 | [PpStandfirst](#ppstandfirst) | 80 | `Column` | 3 | 1 |  |
-| [PpTabs](#pptabs) | 93 | `Item` | 4 | 1 |  |
-| [PpTypeset](#pptypeset) | 300 | `QtObject` | 18 | 0 |  |
+| [PpTabs](#pptabs) | 186 | `Item` | 5 | 1 |  |
+| [PpTypeset](#pptypeset) | 319 | `QtObject` | 20 | 0 |  |
 | [PpZonePlot](#ppzoneplot) | 109 | `Item` | 3 | 1 |  |
 
 ### PpBoxPlot
@@ -124,6 +124,7 @@ The 'typeset system' (design system §15): the per-panel helper PpTypeset plus a
 - **Properties:** `QtObject roles`, `var readout`, `string footer`, `string section`, `int page`, `int pageCount`, `var keyKinds`
 - **Uses:** `PpPageKey`, `PpTypeset`
 - **Used by (2):** `PpLmGraphicsBody`, `PpPager`
+- **Exercised by tests/tools:** `tst_session_report`
 
 ### PpInlinePicker
 `src/Gui/typeset/PpInlinePicker.qml` · 74 lines · root `Column` · no direct `Theme.*` refs
@@ -166,12 +167,12 @@ The 'typeset system' (design system §15): the per-panel helper PpTypeset plus a
 - **Exercised by tests/tools:** `typeset_gallery`
 
 ### PpPageKey
-`src/Gui/typeset/PpPageKey.qml` · 170 lines · root `Flow` · no direct `Theme.*` refs
+`src/Gui/typeset/PpPageKey.qml` · 169 lines · root `Flow` · no direct `Theme.*` refs
 
 > PAGEKEY — C's key: each entry a drawn mark and its word, flowed. On screen one key per view, above its
 > figures (never repeated per figure); in print the PpPager draws one key per page in the footer holding
 > only the marks that page uses (every block exposes `keyKinds`).
-> kinds: any of fired clean ring hover median fault pass corridor other bar tick stub (gap = stub) strip
+> kinds: any of fired clean ring hover median fault pass corridor bar tick stub (gap = stub) strip
 > box fit chance dots (the Charts panel's: a session box, a least-squares line clear of / inside
 > chance, raw samples)
 > n-fired n-clean n-root n-ghost n-outcome
@@ -187,7 +188,7 @@ The 'typeset system' (design system §15): the per-panel helper PpTypeset plus a
 - **Exercised by tests/tools:** `typeset_gallery`
 
 ### PpPager
-`src/Gui/typeset/PpPager.qml` · 210 lines · root `Item` · no direct `Theme.*` refs · 2 hard-coded colour(s)
+`src/Gui/typeset/PpPager.qml` · 239 lines · root `Item` · no direct `Theme.*` refs · 2 hard-coded colour(s)
 
 > PAGER — print: one document on A4. The blocks you put inside it are laid out ONCE as a galley at the
 > text-block width (so the same size classes apply: portrait ≈ compact, landscape ≈ medium), then cut
@@ -207,10 +208,10 @@ The 'typeset system' (design system §15): the per-panel helper PpTypeset plus a
 > 2. NO STRANDED PAGES. A head always travels with the next atom. When a keep-chain would leave a page
 > …
 
-- **Properties:** `QtObject roles`, `var brush`, `var readout`, `var source`, `string footer`, `string title`, `int printPage`, `bool showKeys`, `real minFill`, `int minWidow`, `real blockGap`, `alias content`, `readonly int pageCount`, `var pages` … (+4 more)
+- **Properties:** `QtObject roles`, `var brush`, `var readout`, `var source`, `string footer`, `string title`, `int printPage`, `bool showKeys`, `real minFill`, `int minWidow`, `real minTail`, `real blockGap`, `alias content`, `readonly int pageCount` … (+5 more)
 - **Functions:** `paginate()`, `pageOf(item)`, `repaginate()`
 - **Uses:** `PpFolio`, `PpRunningHead`, `PpTypeset`
-- **Used by (1):** `PpDiagPrint`
+- **Used by (2):** `PpDiagPrint`, `PpSessionReport`
 - **Exercised by tests/tools:** `typeset_gallery`
 
 ### PpPulseWash
@@ -237,6 +238,7 @@ The 'typeset system' (design system §15): the per-panel helper PpTypeset plus a
 - **Properties:** `QtObject roles`, `var source`, `var readout`, `string title`, `readonly var meta`
 - **Uses:** `PpTypeset`
 - **Used by (2):** `PpLmGraphicsBody`, `PpPager`
+- **Exercised by tests/tools:** `tst_session_report`
 
 ### PpSectionHead
 `src/Gui/typeset/PpSectionHead.qml` · 55 lines · root `Item` · no direct `Theme.*` refs
@@ -247,7 +249,7 @@ The 'typeset system' (design system §15): the per-panel helper PpTypeset plus a
 
 - **Properties:** `QtObject roles`, `var brush`, `string medium`, `string number`, `string title`, `string sub`, `bool rule`, `bool breakBefore`, `bool atom`, `bool keepNext`, `readonly string section`, `readonly var keyKinds`
 - **Uses:** `PpTypeset`
-- **Used by (5):** `PpChWristSession`, `PpChWristShotSection`, `PpChartsKindsView`, `PpChartsRelationsView`, `PpDiagPrint`
+- **Used by (8):** `PpChDeliverySession`, `PpChPostureAddress`, `PpChPostureSession`, `PpChWristSession`, `PpChWristShotSection`, `PpChartsKindsView`, `PpChartsRelationsView`, `PpDiagPrint`
 - **Exercised by tests/tools:** `typeset_gallery`
 
 ### PpShotStrip
@@ -286,7 +288,7 @@ The 'typeset system' (design system §15): the per-panel helper PpTypeset plus a
 - **Exercised by tests/tools:** `typeset_gallery`
 
 ### PpTabs
-`src/Gui/typeset/PpTabs.qml` · 93 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/typeset/PpTabs.qml` · 186 lines · root `Item`
 
 > TABS — the view toggles: label + quiet count, the current one ruled in ink. Chrome thins last and
 > least: counts go below compact (each view's head states its own), the review note on the right goes
@@ -294,15 +296,27 @@ The 'typeset system' (design system §15): the per-panel helper PpTypeset plus a
 > Round 4: `interactive` (false on an auto-closing cast: the tabs are drawn, never pressed); an optional
 > CHIP sits quietly at the far right of the row (the declared miss, F66: "Declare miss" / "Miss: Slice"),
 > a link while interactive, plain ink3 text otherwise; `chipOn` draws it in ink (its picker is open).
+> Phase 4a (Home's Coaching | Your swing bar), all opt-in, the default look unchanged:
+> • `size: "title"` sets the labels at Theme.fontSzTab in the display face, and the row grows to hold them;
+> • `accentUnderline` (implied by the title size) rules the current tab in accent, Theme.tabUnderline thick;
+> • `noteAfterTabs` puts the note LEFT, straight after the tabs, on the labels' baseline (Home's evidence
+> line) instead of on the right; the chip stays the right-aligned link and, with either option, sits on
+> the same baseline.
+> KEYBOARD (every instance, while interactive): the bar is ONE Tab stop (the current tab; the first when none
+> is current), Left/Right move between tabs (wrapping), Home/End go to the ends, Space/Enter/Return activate
+> the focused tab; a focused tab and a focused chip draw an accent focus ring. Tabs are Accessible.PageTab
+> (selected = current) in an Accessible.PageTabList; the chip is a Link.
+> …
 
-- **Properties:** `QtObject roles`, `var brush`, `string medium`, `bool interactive`, `var tabs`, `string current`, `string note`, `string chip`, `bool chipOn`, `string chipObjectName`, `readonly var keyKinds`, `readonly bool counts`
+- **Properties:** `QtObject roles`, `var brush`, `string medium`, `bool interactive`, `var tabs`, `string current`, `string note`, `string chip`, `bool chipOn`, `string chipObjectName`, `string size`, `bool accentUnderline`, `bool noteAfterTabs`, `readonly var keyKinds` … (+5 more)
 - **Signals:** `tabActivated(string key)`, `chipActivated()`
+- **Functions:** `focusTab(i)`
 - **Uses:** `PpTypeset`
-- **Used by (4):** `PpChartsRegister`, `PpDiagAnalyse`, `PpDiagReplay`, `PpLmGraphicsBody`
-- **Exercised by tests/tools:** `typeset_gallery`
+- **Used by (5):** `HmHomeTabs`, `PpChartsRegister`, `PpDiagAnalyse`, `PpDiagReplay`, `PpLmGraphicsBody`
+- **Exercised by tests/tools:** `components_gallery`, `tst_pp_tabs`, `typeset_gallery`
 
 ### PpTypeset
-`src/Gui/typeset/PpTypeset.qml` · 300 lines · root `QtObject` · 1 hard-coded colour(s)
+`src/Gui/typeset/PpTypeset.qml` · 319 lines · root `QtObject` · 1 hard-coded colour(s)
 
 > PPTYPESET — the per-panel helper of the typeset system (design system §15.3). It turns Theme's typeset
 > DATA (Theme.typeset for the aesthetic, Theme.typesetPrint for paper) into what a block draws with: the
@@ -317,9 +331,10 @@ The 'typeset system' (design system §15): the per-panel helper PpTypeset plus a
 > element tiers) lives in a subclass — PpDiagRoles for Session diagnostics — which adds tables through
 > extraFlows / extraTiers / extraElements and adds its own functions. No word of one panel belongs here.
 
-- **Properties:** `string medium`, `readonly bool isPrint`, `readonly var r`, `readonly var p`, `var extraFlows`, `var extraTiers`, `var extraElements`, `readonly var flows`, `readonly var tiers`, `readonly real em`, `readonly color ink`, `readonly color ink2`, `readonly color ink3`, `readonly color warn` … (+53 more)
+- **Properties:** `string medium`, `readonly bool isPrint`, `string fixedAesthetic`, `readonly var r`, `readonly var p`, `var extraFlows`, `var extraTiers`, `var extraElements`, `readonly var flows`, `readonly var tiers`, `readonly real em`, `readonly color ink`, `readonly color ink2`, `readonly color ink3` … (+54 more)
 - **Functions:** `u(n)`, `sizeClass(w)`, `rank(cls)`, `atLeast(w, cls)`, `shows(tier, w)`, `gutter(w)`, `columns(w, minEm, gap)`, `measureW(w)`, `railFolds(w)`, `marginFolds(w)` (+27)
-- **Used by (18):** `PpCameraFrame`, `PpChRoles`, `PpDataViewer`, `PpDiagRoles`, `PpFolio`, `PpInlinePicker`, `PpLmGraphicsBody`, `PpNotes`, `PpPageKey`, `PpPager` (+8)
+- **Used by (20):** `HmHomeTabs`, `PpCameraFrame`, `PpChRoles`, `PpDataViewer`, `PpDiagRoles`, `PpFolio`, `PpInlinePicker`, `PpLmGraphicsBody`, `PpNotes`, `PpPageKey` (+10)
+- **Exercised by tests/tools:** `SessionReportMock`, `components_gallery`, `tst_pp_tabs`
 
 ### PpZonePlot
 `src/Gui/typeset/PpZonePlot.qml` · 109 lines · root `Item` · no direct `Theme.*` refs

@@ -43,7 +43,7 @@ Item {
         spacing: ti.roles ? ti.roles.u(8) : 8
         Row {
             spacing: ti.roles ? ti.roles.u(14) : 14
-            Text { text: "Why"; font: ti.roles ? ti.roles.fSection : Qt.font({}); color: ti.roles ? ti.roles.ink : "black" }
+            PpSectionHead { roles: ti.roles; paged: false; pad: 0; title: "Why" }
             Text {
                 objectName: "trustInlineToPanel"
                 text: "Show in the Trust panel"

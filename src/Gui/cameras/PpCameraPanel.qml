@@ -34,6 +34,7 @@
 import QtQuick
 import QtQuick.Layouts
 import PinPointStudio
+import "camera_health.js" as CameraHealth
 
 Item {
     id: root
@@ -46,14 +47,8 @@ Item {
 
     // Attention once a connected camera is not "fixed in place" — a non-fixed camera
     // needs (stereo) calibration this session. Fixed cameras keep their calibration.
-    readonly property bool needsCalibration: {
-        var _dep  = cameraManager.instances
-        var list  = cameraManager.cameraList
-        var fixed = appSettings.cameraFixedInPlace
-        for (var i = 0; i < list.length; ++i)
-            if (list[i].selected && fixed[list[i].cameraKey] !== true) return true
-        return false
-    }
+    // Written once in camera_health.js for this panel and the toolbar.
+    readonly property bool needsCalibration: CameraHealth.anyNeedsCalibration(cameraManager, appSettings)
 
     // ── CR-02 CB6 — the torch, here and not as a sixth toolbar pill ────────
     //
@@ -163,15 +158,6 @@ Item {
             cameraManager.startAll()
     }
 
-    // Disconnect every connected camera (enabled or not). Stop the recording
-    // session first so isRecording doesn't stay true with zero instances.
-    function disconnectAll() {
-        if (cameraManager.isRecording) cameraManager.stopAll()
-        var list = cameraManager.cameraList
-        for (var i = 0; i < list.length; ++i)
-            if (list[i].selected) cameraManager.setSelected(list[i].index, false)
-    }
-
     // ── Header — the card's Micro title, and the count as an aside ─────────
     // The same heading as the IMU panel. Calibrate mode keeps the row with no top
     // navigation (the flow's Cancel returns to the list), titled in the tone.
@@ -206,15 +192,25 @@ Item {
         anchors { left: parent.left; right: parent.right; top: hairline.bottom }
 
         Row {
+            id: actions
             width: parent.width; padding: Theme.gap(12); spacing: Theme.gap(8)
-            ScopedAction { glyph: "⟳"; label: qsTr("Scan");    onTriggered: cameraManager.enumerate() }
-            ScopedAction {
+            // Three equal cells across the card, inside the padding and the two gaps.
+            readonly property real cellWidth: (root.width - Theme.sp(24) - Theme.sp(16)) / 3
+            PpScopedAction {
+                width: actions.cellWidth
+                glyph: "⟳"; label: qsTr("Scan"); onTriggered: cameraManager.enumerate()
+            }
+            PpScopedAction {
+                width: actions.cellWidth
                 glyph: "⇄"
                 label: root.allConnected ? qsTr("Disconnect") : qsTr("Connect")
                 connecting: !root.allConnected && cameraManager.anyConnecting
-                onTriggered: root.allConnected ? root.disconnectAll() : root.startConnect()
+                // Disconnect = the manager's own teardown (CameraManager::disconnectAll, as
+                // End Session): stop recording first, then every connected camera, enabled or not.
+                onTriggered: root.allConnected ? cameraManager.disconnectAll() : root.startConnect()
             }
-            ScopedAction {
+            PpScopedAction {
+                width: actions.cellWidth
                 glyph: "◳"; label: qsTr("Calibrate")
                 primary: root.needsCalibration
                 onTriggered: root.mode = "calibrate"
@@ -275,60 +271,6 @@ Item {
         onCancelled: root.mode = "list"
     }
 
-    component ScopedAction: Rectangle {
-        property string glyph: ""; property string label: ""; property bool primary: false
-        // Drives the traveling-light frame while a connect attempt is in flight.
-        property bool connecting: false
-        signal triggered()
-        width: (root.width - Theme.sp(24) - Theme.sp(16)) / 3
-        height: Theme.sp(50); radius: Theme.radius
-        // Hover brighten + scale/dip — the PpButton language. Primary (amber)
-        // lightens; the outline variant fades a faint fill in (alpha-ramped rest
-        // so no colour flash).
-        readonly property color _rest: primary ? Theme.colorAttentionLight
-                                               : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
-        color:        saMa.containsMouse ? (primary ? Qt.lighter(_rest, 1.08) : Theme.colorBg2)
-                                         : _rest
-        border.width: 1
-        border.color: primary ? Theme.colorAttention : Theme.colorBorderStrong
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-        Column {
-            anchors.centerIn: parent; spacing: Theme.gap(4)
-            Text { anchors.horizontalCenter: parent.horizontalCenter; text: glyph
-                   font.family: Theme.fontSymbol; font.pixelSize: Theme.sp(16)
-                   color: primary ? Theme.colorAttention : Theme.colorText2 }
-            Text { anchors.horizontalCenter: parent.horizontalCenter; text: label
-                   font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                   color: primary ? Theme.colorAttention : Theme.colorText }
-        }
-        PpPressable { id: saMa; onClicked: parent.triggered() }
-        PpConnectingFrame { anchors.fill: parent; radius: parent.radius; running: parent.connecting }
-    }
-
-    component TogglePill: Rectangle {
-        property bool checked: false
-        signal toggled(bool value)
-        width:  Theme.sp(34)
-        height: Theme.sp(18)
-        radius: Theme.sp(9)
-        color:  checked ? Theme.colorAccent : Theme.colorBg3
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-        Rectangle {
-            width:  Theme.sp(12)
-            height: Theme.sp(12)
-            radius: Theme.sp(6)
-            color:  Theme.dark ? Theme.colorText : Theme.colorSurface
-            anchors.verticalCenter: parent.verticalCenter
-            x: parent.checked ? parent.width - width - Theme.sp(3) : Theme.sp(3)
-            Behavior on x { NumberAnimation { duration: 120 } }
-        }
-        MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: parent.toggled(!parent.checked)
-        }
-    }
-
     component CamRow: Item {
         id: camRow
         property string camKey:   ""
@@ -348,7 +290,7 @@ Item {
         // written by `actuator_command_ack` (MSG 12.1c, the ACHIEVED state) and
         // by `actuator_state` (12.2a, a thermal cutoff or a local control),
         // inside PpcpLiveSession::observe(), and by NOTHING ELSE.  The click
-        // path — TogglePill.onToggled -> ppcpHost.setPhoneActuator ->
+        // path — the pill's onToggled -> ppcpHost.setPhoneActuator ->
         // PpcpLiveSession::setActuator -> ppcp_peer_actuator_command — writes
         // only `commandPending`, because that call returning success means the
         // command is on a QUEUE and no byte has left.  So this binding cannot
@@ -485,9 +427,10 @@ Item {
                         color: Theme.colorText2
                     }
 
-                    TogglePill {
+                    PpSwitch {
                         id: torchPill
                         anchors.verticalCenter: parent.verticalCenter
+                        knobColor: Theme.dark ? Theme.colorText : Theme.colorSurface
                         // ⭐ BOUND TO THE CAPTURE SETTING.  This pill used to be a
                         // light switch bound to the ack (trap 3's lesson: the click
                         // is not the light).  It is now "torch during capture", a
@@ -536,8 +479,9 @@ Item {
                 opacity: camRow.deviceEnabled ? 1.0 : 0.45
             }
 
-            TogglePill {
+            PpSwitch {
                 Layout.alignment: Qt.AlignVCenter
+                knobColor: Theme.dark ? Theme.colorText : Theme.colorSurface
                 Layout.leftMargin: camRow.hasTorch ? 0 : Theme.sp(6)
                 checked: camRow.deviceEnabled
                 onToggled: (v) => cameraManager.setSessionCameraEnabled(camRow.camKey, v)

@@ -20,8 +20,13 @@
 // inline `component StepIntro` (the retired ScreenSessionWizard.qml l.2244–2277). The pages bind `eyebrow`
 // to WizardPage.stepLabel, which the flow keeps in step with the indicator's numbering.
 //
-// Named Setup… because several other files still declare an inline StepIntro / CheckRow /
-// TogglePill of their own; a module type of the same name would sit beside each of them.
+// The two Check pages (CheckArmPage, CheckTrunkPage) set a larger heading and no hairline: their
+// figure sits straight under the text.
+//
+// The Ready page sets `flatHeading`: its heading is a plain display-font Text, never the brand
+// gradient, because it carries a colour of its own (`headingColor` — amber for "Not quite ready").
+// `headingColor` is also the non-gradient colour of the default heading (PpDisplayText.flatColor),
+// and `headingObjectName` names whichever heading is shown.
 import QtQuick
 import PinPointStudio
 
@@ -29,6 +34,11 @@ Column {
     property string eyebrow: ""
     property string heading: ""
     property string body:    ""
+    property real   headingPixelSize: Math.min(Theme.sp(20), Theme.fontSzDisplay)
+    property bool   rule:    true       // the hairline under the body
+    property bool   flatHeading: false  // a plain Text heading, never the gradient
+    property color  headingColor: Theme.colorText
+    property string headingObjectName: ""
     spacing: Theme.gap(8)
 
     Text {
@@ -39,9 +49,24 @@ Column {
         color:              Theme.colorText3
     }
     PpDisplayText {
+        objectName:     flatHeading ? "" : headingObjectName
+        visible:        !flatHeading
         width:          parent.width
         text:           heading
-        pixelSize:      Math.min(Theme.sp(20), Theme.fontSzDisplay)
+        pixelSize:      headingPixelSize
+        flatColor:      headingColor
+        wrapMode:       Text.WordWrap
+    }
+    Text {
+        objectName:     flatHeading ? headingObjectName : ""
+        visible:        flatHeading
+        width:          parent.width
+        text:           heading
+        font.family:    Theme.fontDisplay
+        font.italic:    Theme.fontDisplayItalic
+        font.weight:    Theme.fontDisplayWeight
+        font.pixelSize: headingPixelSize
+        color:          headingColor
         wrapMode:       Text.WordWrap
     }
     Text {
@@ -55,6 +80,7 @@ Column {
         lineHeight:     1.65
     }
     Rectangle {
+        visible: rule
         width: parent.width; height: 1
         color: Theme.colorBorderMid
     }

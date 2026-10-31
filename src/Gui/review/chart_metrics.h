@@ -221,7 +221,7 @@ public:
     // measurement, it is drawn dashed, and it may not draw on its valid neighbours (nor they on it).
     // So a caller can draw `mean` for the WHOLE curve and the bridged runs still show the persisted
     // values, exactly as they did before this phase. `ok` is NOT exported — the QML side already
-    // decides validity per sample (PpChartPlot._measured, the same short-mask rule), and a second
+    // decides validity per sample (ChartSamples.measured in chart_samples.js, the same short-mask rule), and a second
     // copy of that verdict crossing the bridge is a second chance to disagree with it.
     //
     // `sigma[i]` is the standard error of that mean about a local straight line — the same number
@@ -294,7 +294,7 @@ public:
     //
     // ⚠ NOT FOR PER-FRAME BINDINGS. Every call marshals the whole series across the QML boundary,
     // so a binding that depends on the cursor or the playhead must answer this in JS off a sample
-    // INDEX (PpChartPlot._measured / PpMetricChart._measuredAt) rather than call in here.
+    // INDEX (ChartSamples.measured / measuredAt in chart_samples.js) rather than call in here.
     Q_INVOKABLE bool measuredAt(const QVariantList &tUs, const QVariantList &valid,
                                 qint64 us, qint64 fromUs, qint64 toUs) const;
 
@@ -384,7 +384,8 @@ public:
 
     // formatValue = the number and its unit, for a surface with no header to lean on (legend
     // chips, the hover tooltip, the transit bead). Degrees keep the signed-deviation convention
-    // ("+12°", closed up); every other unit takes a space ("75 mph", "12 %").
+    // ("+12°"); the unit joins by the app's one rule (figure_format.h withUnit): "+12°" and "12%"
+    // close up, every other unit takes a no-break space ("75 mph").
     //
     // Rounded to the UNIT's decimals, ties away from zero: whole units, except a tempo ratio (":1")
     // and inches at one decimal and seconds at two (charts_words.h decimalsFor, the one rule — design
@@ -400,8 +401,8 @@ public:
     // Every "± x" on the panel: the series σ chip beside the card's unit, and the ± beside PEAK
     // (summaryMasked's `peakSigma`) and PK RATE (`rateSigma`). Returns the whole displayed string,
     // "± " included, so what a reader sees is one testable value; unsigned, because an uncertainty
-    // has no direction. `unit` appends a display token with formatValue's spacing (degrees close up,
-    // everything else spaced); EMPTY means no token, which is what the two tiles want because the
+    // has no direction. `unit` appends a display token joined by formatValue's rule (degrees and
+    // percent close up, everything else a no-break space); EMPTY means no token, which is what the two tiles want because the
     // card names their unit above them — note that this is the OPPOSITE of formatBare/formatValue,
     // where an empty unit falls back to degrees.
     //
@@ -435,7 +436,8 @@ public:
     Q_INVOKABLE QString formatUncertainty(double err, const QString &unit = QString()) const;
 
     // "Nice" Y-axis tick values across [lo, hi] at a 1/2/5×10ⁿ step chosen so there are
-    // about `maxTicks` of them. Returns the tick values (doubles) the chart labels + grids.
+    // about `maxTicks` of them (figure_format.h tickValues, the app's one tick rule). Returns the
+    // tick values (doubles) the chart labels + grids.
     Q_INVOKABLE QVariantList niceTicks(double lo, double hi, int maxTicks) const;
 
     // X-axis tick offsets in milliseconds relative to impact, for the domain
@@ -459,21 +461,6 @@ public:
     // design §5.1 makes happen) had its @impact reading tinted GREEN off an empty list, or off
     // the Address sample 900 ms away. The caller must treat "" as "no verdict", not as a pass.
     Q_INVOKABLE QString bandAtNearest(const QVariantList &phaseSamples, qint64 us) const;
-
-    // ── Corridor-bar backing (dashboard_reductions.h) ───────────────────────────
-
-    // The value→x domain of ONE corridor bar (NormativeBar):
-    //   { lo, hi, valid }
-    // Two-sided: the amber band padded 12% each side, falling back to green then to
-    // value±1. One-sided: the open side runs past the furthest of (aspiration, reading)
-    // by 35% of the graded span, leaving the room the caller fades the band across —
-    // without it a floor's Ideal readings all clamp to the last pixel of the track.
-    // valid=false when there is neither a corridor nor a finite reading; the bar then
-    // draws its rail and no bands, rather than a band pinned to the left edge.
-    Q_INVOKABLE QVariantMap barDomain(double greenLo, double greenHi,
-                                      double amberLo, double amberHi,
-                                      bool lowOpen, bool highOpen,
-                                      double value, bool hasValue) const;
 
     // ── Chart metric presets ────────────────────────────────────────────────────
     //

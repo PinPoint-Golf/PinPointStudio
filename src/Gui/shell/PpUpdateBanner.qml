@@ -18,12 +18,14 @@
 import QtQuick
 import QtQuick.Layouts
 import PinPointStudio
+import "update_states.js" as UpdateStates
 
 // Non-modal, dismissible launch banner for the Linux in-app updater (design §5,
 // surface A). Reads the global context properties (updateController, appSettings,
 // sessionController) directly. Suppressed during a session and for skipped
 // versions; the Settings → General Version row remains the always-available
-// surface B. Place anchored at the top of the window in Main.qml.
+// surface B. Place anchored at the top of the window in Main.qml. Its words and colour are
+// update_states.js's, the one place every updater surface reads them from.
 Item {
     id: bannerRoot
 
@@ -51,6 +53,7 @@ Item {
 
     readonly property bool isReady:   uState === "ready"
     readonly property bool isWorking: uState === "downloading" || uState === "verifying"
+    readonly property color toneColour: UpdateStates.bannerColour(uState, Theme)
 
     Rectangle {
         id: card
@@ -59,7 +62,7 @@ Item {
         color:  Theme.colorBg2
         radius: Theme.radius
         border.width: 1
-        border.color: bannerRoot.isReady ? Theme.colorGood : Theme.colorAccent
+        border.color: bannerRoot.toneColour
 
         ColumnLayout {
             id: contentCol
@@ -74,7 +77,7 @@ Item {
                 Rectangle {
                     Layout.alignment: Qt.AlignVCenter
                     width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(4)
-                    color: bannerRoot.isReady ? Theme.colorGood : Theme.colorAccent
+                    color: bannerRoot.toneColour
                 }
 
                 ColumnLayout {
@@ -83,10 +86,7 @@ Item {
 
                     Text {
                         Layout.fillWidth: true
-                        text: bannerRoot.isReady     ? qsTr("Update ready")
-                            : bannerRoot.uState === "downloading" ? qsTr("Downloading update…")
-                            : bannerRoot.uState === "verifying"   ? qsTr("Verifying update…")
-                            : qsTr("Update available — %1").arg(updateController.latestVersion)
+                        text: UpdateStates.bannerTitle(bannerRoot.uState, updateController.latestVersion)
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
                         color:          Theme.colorText
@@ -94,10 +94,8 @@ Item {
                     }
                     Text {
                         Layout.fillWidth: true
-                        text: bannerRoot.isReady ? qsTr("Restart to finish installing %1").arg(updateController.latestVersion)
-                            : bannerRoot.uState === "downloading" ? qsTr("%1%").arg(Math.round(updateController.progress * 100))
-                            : bannerRoot.uState === "verifying"   ? qsTr("Checking signature")
-                            : qsTr("You have %1").arg(updateController.currentVersion)
+                        text: UpdateStates.bannerDetail(bannerRoot.uState, updateController.latestVersion,
+                                                        updateController.currentVersion, updateController.progress)
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3

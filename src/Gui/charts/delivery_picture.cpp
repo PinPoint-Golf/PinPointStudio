@@ -17,6 +17,7 @@
  */
 
 #include "delivery_picture.h"
+#include "../../Core/figure_format.h"
 
 #include "posture_picture.h"                // the DTL frames, crop, ball and address grip: the Posture picture's reading
 #include "../report/report_stills_pure.h"   // which frame: the report stills' own rule
@@ -54,7 +55,7 @@ constexpr double kBallMargin = 0.06;
 // How far past the frame the slot's wash is drawn (in the line's own length from the ball): the frame clips it.
 constexpr double kWashReach = 40.0;
 
-bool fin(double v) { return std::isfinite(v); }
+using pinpoint::figures::fin;              // figure_format.h
 
 // AutoAnnotations.js's address window and the flags restsOnMeasurement refuses.
 constexpr qint64 kAddressWindowUs = 60000;

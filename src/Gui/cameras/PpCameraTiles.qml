@@ -57,7 +57,7 @@ Item {
     // has ONE QMediaPlayer with ONE sink — so only a VISIBLE session screen may
     // create replay tiles (else a hidden host steals the sink and the visible one
     // shows nothing). The session screen sits at StackLayout index AppScreen.Session.
-    readonly property bool _screenActive: navController.currentIndex === AppScreen.Session
+    readonly property bool _screenActive: SessionMode.sessionScreenActive
     readonly property bool _replayHere: _replay && _screenActive
 
     // Replay tiles are instantiated one event-loop turn AFTER _replayHere goes true.

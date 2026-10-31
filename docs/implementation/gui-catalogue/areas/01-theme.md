@@ -1,16 +1,16 @@
 # Theme
 
 *Directory:* `src/Gui/theme/`  
-*1 component · 881 lines of QML*
+*1 component · 939 lines of QML*
 
 The single source of visual tokens (colours, fonts, spacing functions, radii, per-aesthetic data). Every other component reads it; nothing should hard-code a colour, font or size.
 
 | Component | Lines | Root | Used by | Uses | Notes |
 |---|---:|---|---:|---:|---|
-| [Theme](#theme) | 881 | `QtObject` | 180 | 0 | singleton |
+| [Theme](#theme) | 939 | `QtObject` | 201 | 0 | singleton |
 
 ### Theme
-`src/Gui/theme/Theme.qml` · 881 lines · root `QtObject` · **singleton**
+`src/Gui/theme/Theme.qml` · 939 lines · root `QtObject` · **singleton**
 
 > Single source of truth for all visual tokens.
 > Set themeIndex to switch the entire UI. Never hardcode colours, fonts, or sizes in components.
@@ -23,7 +23,7 @@ The single source of visual tokens (colours, fonts, spacing functions, radii, pe
 > The tables are plain JS values on a `var`, not nested QtObjects, which avoids the
 > initialisation-order issues that cause "Unable to assign [undefined]" warnings.
 
-- **Properties:** `int themeIndex`, `real fontScale`, `string density`, `bool reduceMotion`, `real overlayOpacity`, `readonly var themeOrder`, `readonly int themeCount`, `readonly string aesthetic`, `readonly bool dark`, `readonly string serifFamily`, `readonly color colorBg`, `readonly color colorBg2`, `readonly color colorBg3`, `readonly color colorSurface` … (+93 more)
-- **Functions:** `cycleTheme()`, `sp(n)`, `gap(n)`, `themeInfo(i)`, `chartSeriesColor(i)`, `paletteDefault(name)`, `paletteKey(name)`, `paletteColor(name)`, `metricDefaultColorName(key)`, `metricColorName(key)` (+20)
-- **Used by (180):** `AnnotationTool`, `AppearancePanel`, `ArchivingPanel`, `ArmCalibrationStatus`, `ArmVizView`, `AthleteClubsSection`, `AudioPage`, `BallPage`, `BodyVizView`, `CameraCalibrationFlow` (+170)
-- **Exercised by tests/tools:** `SetupDriver`, `diag_print_pdf`, `metric_colours`, `ready_forecast`, `render_overlay`, `render_stage` (+22)
+- **Properties:** `int themeIndex`, `real fontScale`, `string density`, `bool reduceMotion`, `real overlayOpacity`, `readonly var themeOrder`, `readonly int themeCount`, `readonly string aesthetic`, `readonly bool dark`, `readonly string serifFamily`, `readonly color colorBg`, `readonly color colorBg2`, `readonly color colorBg3`, `readonly color colorSurface` … (+112 more)
+- **Functions:** `cycleTheme()`, `sp(n)`, `gap(n)`, `themeInfo(i)`, `chartSeriesColor(i)`, `paletteDefault(name)`, `paletteKey(name)`, `paletteColor(name)`, `metricDefaultColorName(key)`, `metricColorName(key)` (+23)
+- **Used by (201):** `AnnotationTool`, `AppearancePanel`, `ArchivingPanel`, `ArmCalibrationStatus`, `ArmVizView`, `AthleteClubsSection`, `AudioPage`, `BallPage`, `BodyVizView`, `CalibrateTrunkPage` (+191)
+- **Exercised by tests/tools:** `SessionReportMock`, `SetupDriver`, `charts_delivery`, `charts_posture`, `components_gallery`, `diag_print_pdf` (+44)

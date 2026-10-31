@@ -37,33 +37,22 @@ import PinPointStudio
 // Every word and number is ChartsPosturePresenter's (body.p*, each bound ONCE on the body); the choices go to the
 // body (body.choose: posturePattern, postureAgainst — persisted per screen × mode by the panel).
 // objectNames: chPostureSection, chPostureHead, chPosturePattern, chPostureControls, chPostureFold, chPosturePicture (+ the blocks').
-Item {
+// The shell (the fold head, its folded height, seek) is PpChSection's; the controls PpChSectionControls.
+PpChSection {
     id: ps
     objectName: "chPostureSection"
-    property QtObject roles: null
-    property var brush: null
-    property var body: null
-    property string reg: "Analyse"
-    property bool interactive: true
-    property bool cast: false
-    readonly property bool replay: reg === "Replay"
-    readonly property var ty: roles
+    key: "posture"; title: "Posture"
+    foldState: sh.patternLine || ""
+    has: !!roles && !!sh && sh.available === true
+    mainHeight: mainCol.height
     readonly property var pc: body ? body.pChoices : ({})
     readonly property var sh: body ? body.pShot : ({})
-    readonly property bool has: !!roles && !!sh && sh.available === true
     readonly property var prof: has ? (sh.profile || ({})) : ({})
     readonly property bool wide: has && ty.atLeast(width, "medium")
-    property bool controlsOpen: false
-    readonly property bool folded: !!body && !!body.collapsed && body.collapsed.posture === true
-    height: has ? secHead.height + (folded ? 0 : ty.u(14) + mainCol.height) : 0
 
-    function seekTo(us) { if (us >= 0 && typeof shotReplay !== "undefined" && shotReplay) shotReplay.seekToUs(us) }
     readonly property var sets: [
-        { key: "pattern", label: "Pattern", current: String(pc.pattern !== undefined ? pc.pattern : -1),
-          options: (pc.patterns || []).map(function (a) {
-              return { key: String(a.id), label: a.id === -1 && a.current && pc.patternAfter ? a.label + " " + pc.patternAfter : a.label } }) },
-        { key: "against", label: "Against", current: pc.against || "address",
-          options: (pc.againstOptions || []).map(function (a) { return { key: a.id, label: a.label, enabled: a.enabled } }) }
+        ps.autoChoice("pattern", "Pattern", pc.pattern, pc.patterns, pc.patternAfter),
+        ps.againstChoice(pc.against, pc.againstOptions)
     ]
     function picked(set, opt) {
         if (!body) return
@@ -71,14 +60,8 @@ Item {
         else if (set === "against") body.choose("postureAgainst", opt)
     }
 
-    PpChFoldHead { id: secHead; visible: ps.has; width: ps.width; roles: ps.ty; key: "posture"; title: "Posture"
-                   interactive: ps.interactive; collapsed: ps.folded
-                   state_: ps.folded ? (ps.sh.patternLine || "") : ""
-                   onToggled: if (ps.body) ps.body.toggleSection("posture") }
     Column {
         id: mainCol
-        visible: ps.has && !ps.folded
-        y: secHead.height + (ps.has ? ps.ty.u(14) : 0)
         width: ps.width
         spacing: ps.has ? ps.ty.u(14) : 0
 
@@ -102,36 +85,21 @@ Item {
         }
 
         // ── the quiet controls (Analyse); below medium folded to the one-line summary ──
-        Column {
+        PpChSectionControls {
             objectName: "chPostureControls"
-            visible: ps.has && !ps.replay && !ps.cast
             width: ps.width
-            spacing: ps.has ? ps.ty.u(4) : 0
-            PpChFoldHead {
-                objectName: "chPostureFold"
-                visible: !ps.wide
-                width: parent.width; roles: ps.ty; key: "postureControls"; title: "Controls"; interactive: ps.interactive
-                collapsed: !ps.controlsOpen
-                state_: ps.pc.summary || ""
-                onToggled: ps.controlsOpen = !ps.controlsOpen
-            }
-            PpChChoices {
-                visible: ps.wide || ps.controlsOpen
-                width: parent.width; roles: ps.ty; interactive: ps.interactive
-                sets: ps.sets
-                onPicked: (set, opt) => ps.picked(set, opt)
-            }
+            section: ps; foldName: "chPostureFold"; key: "postureControls"
+            summary: ps.pc.summary || ""; wide: ps.wide
+            sets: ps.sets
+            onPicked: (set, opt) => ps.picked(set, opt)
         }
 
         // ── the profile ──
         Column {
             width: ps.width
             spacing: ps.has ? ps.ty.u(8) : 0
-            Flow {
-                width: parent.width; spacing: ps.has ? ps.ty.u(10) : 0
-                Text { text: "Positions"; font: ps.has ? ps.ty.fSection : Qt.font({}); color: ps.has ? ps.ty.ink : "black" }
-                Text { visible: text !== ""; text: ps.prof.sub || ""; font: ps.has ? ps.ty.fSmall : Qt.font({}); color: ps.has ? ps.ty.ink3 : "grey" }
-            }
+            PpSectionHead { width: parent.width; roles: ps.ty; paged: false; pad: 0
+                            title: "Positions"; sub: ps.prof.sub || ""; subFit: "top"; subWrap: false }
             Text { visible: !!ps.prof.ghostRefusal; width: parent.width; wrapMode: Text.WordWrap
                    text: ps.prof.ghostRefusal || ""; font: ps.has ? ps.ty.fSmall : Qt.font({}); color: ps.has ? ps.ty.ink3 : "grey" }
             PpChPostureProfile {
@@ -142,7 +110,7 @@ Item {
                 positions: ps.prof.positions || []
                 selected: ps.body ? ps.body.pSelected : -1
                 mode: "shot"
-                onColumnActivated: (i) => { const p = (ps.prof.positions || [])[i]; if (p) ps.seekTo(p.seekUs) }
+                onColumnActivated: (i) => { const p = (ps.prof.positions || [])[i]; if (p) ps.seek(p.seekUs) }
             }
             Text { visible: !ps.replay && text !== ""; width: ps.has ? ps.ty.measureW(parent.width) : 0; wrapMode: Text.WordWrap
                    text: ps.prof.caption || ""; font: ps.has ? ps.ty.fSmall : Qt.font({}); color: ps.has ? ps.ty.ink3 : "grey" }
@@ -158,7 +126,7 @@ Item {
 
         PpChPostureMoved { visible: ps.has && !ps.replay && parts.length > 0; width: ps.width; roles: ps.ty; interactive: ps.interactive
                            moved: ps.has ? (ps.sh.whatMoved || ({})) : ({})
-                           onSeek: (us) => ps.seekTo(us) }
+                           onSeek: (us) => ps.seek(us) }
 
         // ── the picture strip: address, the top and impact (§5.4); at the glance too, with no affordance ──
         PpChPosturePicture {
@@ -168,7 +136,7 @@ Item {
             picture: ps.has ? (ps.sh.picture || null) : null
             interactive: ps.interactive && !ps.cast
             glance: ps.replay
-            onSeek: (us) => ps.seekTo(us)
+            onSeek: (us) => ps.seek(us)
         }
 
         // ── findings | working well ──
@@ -182,12 +150,12 @@ Item {
             PpChPostureLedger { id: fl; width: ledgers.colW; roles: ps.ty; title: "Findings"; items: ps.sh.findings || []
                                 interactive: ps.interactive; canOpen: !!ps.body && ps.body.canOpenCondition
                                 emptyText: ps.sh.findingsEmpty || ""
-                                onSeek: (us) => ps.seekTo(us); onOpenCondition: (id) => { if (ps.body) ps.body.openCondition(id) } }
+                                onSeek: (us) => ps.seek(us); onOpenCondition: (id) => { if (ps.body) ps.body.openCondition(id) } }
             PpChPostureLedger { id: sl; x: ledgers.two ? ledgers.colW + ps.ty.u(28) : 0; y: ledgers.two ? 0 : fl.height + ps.ty.u(18)
                                 width: ledgers.colW; roles: ps.ty; title: "Working well"; strengths: true; items: ps.sh.workingWell || []
                                 interactive: ps.interactive; canOpen: !!ps.body && ps.body.canOpenCondition
                                 emptyText: ps.sh.workingWellEmpty || ""
-                                onSeek: (us) => ps.seekTo(us); onOpenCondition: (id) => { if (ps.body) ps.body.openCondition(id) } }
+                                onSeek: (us) => ps.seek(us); onOpenCondition: (id) => { if (ps.body) ps.body.openCondition(id) } }
         }
     }
 }

@@ -66,19 +66,11 @@ Column {
     readonly property real shapeW: 214                  // the grid's column: its row labels and three cells
 
     // ═══ the head ═══
-    Column {
+    PpReportSectionHead {
         objectName: "reportDelivery"
-        property bool atom: true
-        property bool keepNext: true
-        property bool breakBefore: true
-        property string section: "Club delivery"
+        ro: dp.ro; kicker: dp.m.kicker || ""; title: "Club delivery"; standfirst: dp.m.head || ""
         visible: dp.on
         width: dp.width
-        Text { width: parent.width; text: dp.m.kicker || ""; font: dp.ro.fKicker; color: dp.ro.accent; wrapMode: Text.WordWrap }
-        Item { width: 1; height: 6 }
-        Text { width: parent.width; text: "Club delivery"; font: dp.ro.fH1; color: dp.ro.ink; wrapMode: Text.WordWrap; lineHeight: 1.08 }
-        Item { width: 1; height: 10 }
-        Text { width: parent.width; text: dp.m.head || ""; font: dp.ro.fStand; color: dp.ro.ink2; wrapMode: Text.WordWrap; lineHeight: 1.2 }
         Item { width: 1; height: 18 }
         Text { width: parent.width; text: "The plane at each position"; font: dp.ro.fH3; color: dp.ro.ink; wrapMode: Text.WordWrap }
         Item { width: 1; height: 3 }
@@ -238,55 +230,12 @@ Column {
     }
 
     // ═══ how far can I trust this? said once, open ═══
-    Column {
-        id: trustBlock
+    PpReportTrust {
         objectName: "reportDeliveryTrust"
-        property bool atom: true
+        ro: dp.ro; lines: dp.trust; more: dp.m.trustMore || ""; lineName: "reportDeliveryTrustLine"
+        columns: 2
         visible: dp.on && dp.trust.length > 0
         width: dp.width
-        readonly property real colGap: 18                 // the Order page's side-by-side columns (PpOrderPage ColsRow)
-        readonly property real colW: (width - colGap) / 2
-        // the lines in their order, split where the two columns come out most nearly level (by length: the columns share
-        // one width and one type, so a line's length stands for its height)
-        readonly property int split: {
-            const n = dp.trust.length
-            if (n < 2) return n
-            const len = dp.trust.map(function (t) { return String(t).length + 60 })   // + a line's own padding and ragged end
-            const total = len.reduce(function (a, b) { return a + b }, 0)
-            let best = 1, bestD = Infinity, acc = 0
-            for (let i = 1; i < n; ++i) {
-                acc += len[i - 1]
-                const d = Math.abs(total - 2 * acc)
-                if (d < bestD) { bestD = d; best = i }
-            }
-            return best
-        }
-        Item { width: 1; height: 8 }
-        Text { width: parent.width; text: "How far can I trust this?"; font: dp.ro.fH3; color: dp.ro.ink }
-        Item { width: 1; height: 5 }
-        // two columns across the full width, each under a hairline, as the Order page sets its short lists side by side; in
-        // the report's note style (fMicro at 1.25, the captions' and legends'), its smallest — never smaller
-        Row {
-            spacing: trustBlock.colGap
-            Repeater {
-                model: [dp.trust.slice(0, trustBlock.split), dp.trust.slice(trustBlock.split)]
-                delegate: Column {
-                    required property var modelData
-                    width: trustBlock.colW; spacing: 4
-                    Rectangle { width: parent.width; height: dp.ro.hw; color: dp.ro.hair }
-                    Repeater {
-                        model: modelData
-                        delegate: Text {
-                            required property var modelData
-                            objectName: "reportDeliveryTrustLine"
-                            width: trustBlock.colW
-                            text: String(modelData); font: dp.ro.fMicro; color: dp.ro.ink2; wrapMode: Text.WordWrap; lineHeight: 1.25
-                        }
-                    }
-                }
-            }
-        }
-        Text { width: parent.width; visible: text !== ""; topPadding: 3; text: dp.m.trustMore || ""; font: dp.ro.fMicro; color: dp.ro.ink3; wrapMode: Text.WordWrap }
     }
 
     // the scatter's axes: the payload's ticks (PpChScatter asks a ticker; paper has no presenter to ask). The x axis is

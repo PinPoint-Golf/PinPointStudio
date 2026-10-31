@@ -31,8 +31,12 @@ import PinPointStudio
 //
 // Unlike the scalar athlete fields (buffered until Save), club edits commit
 // IMMEDIATELY via athleteController — the section is only shown in edit mode.
-Rectangle {
+PpGroupCard {
     id: root
+
+    title:   qsTr("Clubs")
+    hint:    qsTr("Lengths and retro-band positions — saved as you edit")
+    spacing: Theme.gap(14)
 
     property string athleteUuid: ""
 
@@ -46,24 +50,14 @@ Rectangle {
             selectedClubId = configuredIds.length > 0 ? configuredIds[0] : ""
     }
 
-    width:        parent ? parent.width : implicitWidth
-    height:       cardCol.implicitHeight
-    radius:       Theme.radiusLg
-    border.width: 1
-    border.color: Theme.colorBorderMid
-    clip:         true
-    color:        "transparent"
-
     // Re-evaluates whenever the controller reloads (every commit calls reload()).
     readonly property var clubs: {
         void athleteController.athletes
         return athleteController.clubsFor(root.athleteUuid)
     }
     readonly property var configuredIds: {
-        var ids = Object.keys(root.clubs)
-        var vocab = athleteController.clubOptions()
-        ids.sort(function(a, b) { return vocab.indexOf(a) - vocab.indexOf(b) })
-        return ids
+        void athleteController.athletes
+        return athleteController.bagClubIds(root.athleteUuid)
     }
     readonly property var unconfiguredIds: {
         var out = []
@@ -111,424 +105,292 @@ Rectangle {
         return groups.join("–")
     }
 
-    Column {
-        id: cardCol
+    // ── Body (PpGroupCard's default content) ───────────────────────────────
+    Text {
         width: parent.width
-        spacing: 0
+        text: qsTr("Club length sets the shaft-tracker search radius. Shaft length (bottom of grip to top of hosel) and hands end (bottom of your hands from the butt) let the tracker measure an unmarked club. Band centres describe retroreflective tape (optional), measured from the butt end of the grip in millimetres.")
+        font.family:    Theme.fontBody
+        font.pixelSize: Theme.fontSzMicro
+        color:          Theme.colorText3
+        wrapMode:       Text.WordWrap
+    }
 
-        // Header strip
-        Rectangle {
-            width:  parent.width
-            height: Theme.sp(36)
-            color:  Theme.colorBg2
+    // Add club
+    Row {
+        spacing: Theme.gap(10)
 
-            RowLayout {
-                anchors { fill: parent; leftMargin: Theme.gap(14); rightMargin: Theme.gap(14) }
-                Text {
-                    text:           qsTr("Clubs")
-                    font.family:    Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                    color:          Theme.colorText2
-                    Layout.alignment: Qt.AlignVCenter
-                }
-                Item { Layout.fillWidth: true }
-                Text {
-                    text:           qsTr("Lengths and retro-band positions — saved as you edit")
-                    font.family:    Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    color:          Theme.colorText3
-                    Layout.alignment: Qt.AlignVCenter
-                }
-            }
-
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width:  parent.width
-                height: 1
-                color:  Theme.colorBorderMid
-            }
+        PpComboBox {
+            id: addCombo
+            implicitWidth: Theme.sp(220)
+            model: root.unconfiguredIds
+            displayFn: ClubFormat.display
+            enabled: root.unconfiguredIds.length > 0
         }
 
-        // Body
-        Rectangle {
-            width:  parent.width
-            height: body.implicitHeight + 36
-            color:  Theme.colorSurface
+        PpButton {
+            label:   qsTr("Add club")
+            primary: true
+            enabled: root.unconfiguredIds.length > 0
+            onClicked: {
+                var id = root.unconfiguredIds[addCombo.currentIndex]
+                if (!id) return
+                // factory spec defaults (loft/length/shaft) per club
+                athleteController.setClubRecord(root.athleteUuid, id,
+                    athleteController.defaultClubRecord(id))
+                root.selectedClubId = id
+            }
+        }
+    }
 
-            Column {
-                id: body
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(18) }
-                spacing: Theme.gap(14)
+    Text {
+        visible: root.configuredIds.length === 0
+        width: parent.width
+        text: qsTr("No clubs recorded for this athlete yet.")
+        font.family:    Theme.fontBody
+        font.pixelSize: Theme.fontSzBody2
+        color:          Theme.colorText3
+        wrapMode:       Text.WordWrap
+    }
 
-                Text {
-                    width: parent.width
-                    text: qsTr("Club length sets the shaft-tracker search radius. Shaft length (bottom of grip to top of hosel) and hands end (bottom of your hands from the butt) let the tracker measure an unmarked club. Band centres describe retroreflective tape (optional), measured from the butt end of the grip in millimetres.")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzMicro
-                    color:          Theme.colorText3
-                    wrapMode:       Text.WordWrap
+    // Club tabs — the athlete's configured clubs in the app's stage-tab
+    // language (see PpModeStage on the Wrist screen): no border, no
+    // pill; the active club carries a 2px accent underline (theme
+    // accent) and brighter text. A Flow, not the stage's Row, so a full
+    // bag — up to 17 clubs — wraps. Selecting a tab shows ONE detail card.
+    Flow {
+        width:   parent.width
+        spacing: Theme.gap(5)
+
+        Repeater {
+            model: root.configuredIds
+
+            Rectangle {
+                required property string modelData
+                readonly property bool sel: modelData === root.selectedClubId
+
+                height:  Theme.sp(30)
+                width:   tabTxt.implicitWidth + Theme.sp(26)
+                radius:  Theme.radius
+                // Faint fill on select/hover (alpha-ramped rest → no
+                // colour flash); selection is carried by the underline.
+                color:   sel || tabMa.containsMouse
+                             ? Theme.colorBg2
+                             : Qt.alpha(Theme.colorBg2, 0)
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+                Rectangle {  // active underline (theme accent)
+                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                    height: 2
+                    color:  sel ? Theme.colorAccent : "transparent"
                 }
 
-                // Add club
-                Row {
-                    spacing: Theme.gap(10)
-
-                    PpComboBox {
-                        id: addCombo
-                        implicitWidth: Theme.sp(220)
-                        model: root.unconfiguredIds
-                        displayFn: ClubFormat.display
-                        enabled: root.unconfiguredIds.length > 0
-                    }
-
-                    PpButton {
-                        label:   qsTr("Add club")
-                        primary: true
-                        enabled: root.unconfiguredIds.length > 0
-                        onClicked: {
-                            var id = root.unconfiguredIds[addCombo.currentIndex]
-                            if (!id) return
-                            // factory spec defaults (loft/length/shaft) per club
-                            athleteController.setClubRecord(root.athleteUuid, id,
-                                athleteController.defaultClubRecord(id))
-                            root.selectedClubId = id
-                        }
-                    }
-                }
-
                 Text {
-                    visible: root.configuredIds.length === 0
-                    width: parent.width
-                    text: qsTr("No clubs recorded for this athlete yet.")
+                    id: tabTxt
+                    anchors.centerIn: parent
+                    text:           ClubFormat.display(modelData)
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
-                    color:          Theme.colorText3
-                    wrapMode:       Text.WordWrap
+                    color:          sel ? Theme.colorText : Theme.colorText3
                 }
 
-                // Club tabs — the athlete's configured clubs in the app's stage-tab
-                // language (see PpModeStage on the Wrist screen): no border, no
-                // pill; the active club carries a 2px accent underline (theme
-                // accent) and brighter text. A Flow, not the stage's Row, so a full
-                // bag — up to 17 clubs — wraps. Selecting a tab shows ONE detail card.
-                Flow {
-                    width:   parent.width
-                    spacing: Theme.gap(5)
-
-                    Repeater {
-                        model: root.configuredIds
-
-                        Rectangle {
-                            required property string modelData
-                            readonly property bool sel: modelData === root.selectedClubId
-
-                            height:  Theme.sp(30)
-                            width:   tabTxt.implicitWidth + Theme.sp(26)
-                            radius:  Theme.radius
-                            // Faint fill on select/hover (alpha-ramped rest → no
-                            // colour flash); selection is carried by the underline.
-                            color:   sel || tabMa.containsMouse
-                                         ? Theme.colorBg2
-                                         : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                            Rectangle {  // active underline (theme accent)
-                                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                                height: 2
-                                color:  sel ? Theme.colorAccent : "transparent"
-                            }
-
-                            Text {
-                                id: tabTxt
-                                anchors.centerIn: parent
-                                text:           ClubFormat.display(modelData)
-                                font.family:    Theme.fontBody
-                                font.pixelSize: Theme.fontSzBody2
-                                color:          sel ? Theme.colorText : Theme.colorText3
-                            }
-
-                            PpPressable {
-                                id: tabMa
-                                onClicked: {
-                                    // Steal focus first so an in-edit field commits
-                                    // against the OUTGOING club before the switch.
-                                    root.forceActiveFocus()
-                                    root.selectedClubId = modelData
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Detail card for the selected club
-                Rectangle {
-                    visible: root.selectedClubId !== ""
-                    width:  body.width
-                    height: visible ? clubCol.implicitHeight + Theme.sp(28) : 0
-                    radius: Theme.radius
-                    color:  Theme.colorBg2
-                    border.width: 1
-                    border.color: Theme.colorBorder
-
-                    ColumnLayout {
-                        id: clubCol
-                        anchors { fill: parent; margins: Theme.gap(14) }
-                        spacing: Theme.gap(10)
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: Theme.gap(10)
-
-                                Text {
-                                    text: root.selectedClubId
-                                    font.family:    Theme.fontBody
-                                    font.pixelSize: Theme.fontSzBody
-                                    font.weight:    Font.DemiBold
-                                    color:          Theme.colorText
-                                }
-                                Text {
-                                    visible: root.recField(root.selectedClubId, "tapedOn", "") !== ""
-                                    text: qsTr("taped %1").arg(root.recField(root.selectedClubId, "tapedOn", ""))
-                                    font.family:    Theme.fontData
-                                    font.pixelSize: Theme.fontSzMicro
-                                    color:          Theme.colorText3
-                                }
-                                Item { Layout.fillWidth: true }
-                                PpButton {
-                                    label: qsTr("Remove")
-                                    destructive: true
-                                    onClicked: athleteController.removeClubRecord(root.athleteUuid, root.selectedClubId)
-                                }
-                            }
-
-                            GridLayout {
-                                Layout.fillWidth: true
-                                columns: 2
-                                columnSpacing: Theme.gap(20)
-                                rowSpacing: Theme.gap(8)
-
-                                Text {
-                                    text:               Theme.caps(qsTr("Shaft"))
-                                    font.family:        Theme.fontData
-                                    font.pixelSize:     Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingLabel
-                                    color:              Theme.colorText3
-                                }
-                                PpComboBox {
-                                    implicitWidth: Theme.sp(150)
-                                    model: [qsTr("steel"), qsTr("graphite")]
-                                    currentIndex: root.recField(root.selectedClubId, "shaftType", "steel") === "graphite" ? 1 : 0
-                                    onActivated: (index) => root.commitField(root.selectedClubId, "shaftType",
-                                                                             index === 1 ? "graphite" : "steel")
-                                }
-
-                                Text {
-                                    text:               Theme.capsUnit(qsTr("Loft"), "°")
-                                    font.family:        Theme.fontData
-                                    font.pixelSize:     Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingLabel
-                                    color:              Theme.colorText3
-                                }
-                                PpTextField {
-                                    implicitWidth: Theme.sp(120)
-                                    text: root.recField(root.selectedClubId, "loftDeg", 0) > 0
-                                          ? String(root.recField(root.selectedClubId, "loftDeg", 0)) : ""
-                                    placeholderText: qsTr("e.g. 34")
-                                    validator: DoubleValidator { bottom: 0; top: 80; decimals: 1 }
-                                    onEditingFinished: {
-                                        var v = parseFloat(text)
-                                        root.commitField(root.selectedClubId, "loftDeg", isNaN(v) ? 0 : v)
-                                    }
-                                }
-
-                                Text {
-                                    text:               Theme.capsUnit(qsTr("Club length"), "mm")
-                                    font.family:        Theme.fontData
-                                    font.pixelSize:     Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingLabel
-                                    color:              Theme.colorText3
-                                }
-                                PpTextField {
-                                    implicitWidth: Theme.sp(120)
-                                    text: root.recField(root.selectedClubId, "lengthMm", 0) > 0
-                                          ? String(root.recField(root.selectedClubId, "lengthMm", 0)) : ""
-                                    placeholderText: qsTr("e.g. 1120")
-                                    validator: IntValidator { bottom: 0; top: 1400 }
-                                    onEditingFinished: {
-                                        var v = parseInt(text, 10)
-                                        root.commitField(root.selectedClubId, "lengthMm", isNaN(v) ? 0 : v)
-                                    }
-                                }
-
-                                Text {
-                                    text:               Theme.capsUnit(qsTr("Shaft length"), "mm")
-                                    font.family:        Theme.fontData
-                                    font.pixelSize:     Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingLabel
-                                    color:              Theme.colorText3
-                                }
-                                PpTextField {
-                                    implicitWidth: Theme.sp(120)
-                                    text: root.recField(root.selectedClubId, "shaftLengthMm", 0) > 0
-                                          ? String(root.recField(root.selectedClubId, "shaftLengthMm", 0)) : ""
-                                    placeholderText: qsTr("e.g. 617")
-                                    validator: IntValidator { bottom: 0; top: 1400 }
-                                    onEditingFinished: {
-                                        var v = parseInt(text, 10)
-                                        root.commitField(root.selectedClubId, "shaftLengthMm", isNaN(v) ? 0 : v)
-                                    }
-                                }
-
-                                Text {
-                                    text:               Theme.capsUnit(qsTr("Hands end from butt"), "mm")
-                                    font.family:        Theme.fontData
-                                    font.pixelSize:     Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingLabel
-                                    color:              Theme.colorText3
-                                }
-                                PpTextField {
-                                    implicitWidth: Theme.sp(120)
-                                    text: root.recField(root.selectedClubId, "handsEndMm", 0) > 0
-                                          ? String(root.recField(root.selectedClubId, "handsEndMm", 0)) : ""
-                                    placeholderText: qsTr("e.g. 180")
-                                    validator: IntValidator { bottom: 0; top: 400 }
-                                    onEditingFinished: {
-                                        var v = parseInt(text, 10)
-                                        root.commitField(root.selectedClubId, "handsEndMm", isNaN(v) ? 0 : v)
-                                    }
-                                }
-
-                                Text {
-                                    text:               Theme.capsUnit(qsTr("Band width"), "mm")
-                                    font.family:        Theme.fontData
-                                    font.pixelSize:     Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingLabel
-                                    color:              Theme.colorText3
-                                }
-                                PpTextField {
-                                    implicitWidth: Theme.sp(120)
-                                    text: String(root.recField(root.selectedClubId, "bandWidthMm", 25))
-                                    validator: IntValidator { bottom: 0; top: 100 }
-                                    onEditingFinished: {
-                                        var v = parseInt(text, 10)
-                                        root.commitField(root.selectedClubId, "bandWidthMm", isNaN(v) ? 25 : v)
-                                    }
-                                }
-
-                                Text {
-                                    text:               Theme.capsUnit(qsTr("Band centres from butt"), "mm")
-                                    font.family:        Theme.fontData
-                                    font.pixelSize:     Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingLabel
-                                    color:              Theme.colorText3
-                                }
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: Theme.gap(4)
-
-                                    PpTextField {
-                                        id: centersField
-                                        Layout.fillWidth: true
-                                        placeholderText: qsTr("e.g. 270, 320, 555, 760, 810, 860")
-                                        text: {
-                                            var c = root.recField(root.selectedClubId, "bandCentersMm", [])
-                                            return c.length ? c.join(", ") : ""
-                                        }
-                                        hasError: root.parseCenters(text) === null
-                                        onEditingFinished: {
-                                            var parsed = root.parseCenters(text)
-                                            if (parsed === null) return   // keep hasError showing
-                                            root.commitField(root.selectedClubId, "bandCentersMm", parsed)
-                                            if (parsed.length > 0)
-                                                root.commitField(root.selectedClubId, "tapedOn",
-                                                                 Qt.formatDate(new Date(), "yyyy-MM-dd"))
-                                        }
-                                    }
-
-                                    Text {
-                                        readonly property var centers: root.recField(root.selectedClubId, "bandCentersMm", [])
-                                        text: centersField.hasError
-                                              ? qsTr("Invalid — comma-separated whole millimetres only")
-                                              : centers.length === 0
-                                                ? qsTr("Empty = untaped club (passive tracking only)")
-                                                : qsTr("%1 bands, pattern %2").arg(centers.length)
-                                                                              .arg(root.bandPattern(centers))
-                                        font.family:    Theme.fontData
-                                        font.pixelSize: Theme.fontSzMicro
-                                        color:          centersField.hasError ? Theme.colorWarn : Theme.colorText3
-                                    }
-                                }
-
-                                Text {
-                                    text:               Theme.capsUnit(qsTr("Hosel from butt"), "mm")
-                                    font.family:        Theme.fontData
-                                    font.pixelSize:     Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingLabel
-                                    color:              Theme.colorText3
-                                }
-                                PpTextField {
-                                    implicitWidth: Theme.sp(120)
-                                    text: root.recField(root.selectedClubId, "hoselFromButtMm", 0) > 0
-                                          ? String(root.recField(root.selectedClubId, "hoselFromButtMm", 0)) : ""
-                                    placeholderText: qsTr("e.g. 1090")
-                                    validator: IntValidator { bottom: 0; top: 1400 }
-                                    onEditingFinished: {
-                                        var v = parseInt(text, 10)
-                                        root.commitField(root.selectedClubId, "hoselFromButtMm", isNaN(v) ? 0 : v)
-                                    }
-                                }
-
-                                Text {
-                                    text:               Theme.caps(qsTr("Retro patch on head"))
-                                    font.family:        Theme.fontData
-                                    font.pixelSize:     Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingLabel
-                                    color:              Theme.colorText3
-                                }
-                                Rectangle {
-                                    id: patchPill
-                                    readonly property bool checked: root.recField(root.selectedClubId, "headPatch", false)
-                                    width:  Theme.sp(34)
-                                    height: Theme.sp(18)
-                                    radius: Theme.sp(9)
-                                    color:  patchPill.checked ? Theme.colorAccent : Theme.colorBg3
-                                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                                    Rectangle {
-                                        width:  Theme.sp(12)
-                                        height: Theme.sp(12)
-                                        radius: Theme.sp(6)
-                                        color:  "white"
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        x: patchPill.checked ? parent.width - width - Theme.sp(3) : Theme.sp(3)
-                                        Behavior on x { NumberAnimation { duration: 120 } }
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape:  Qt.PointingHandCursor
-                                        onClicked:    root.commitField(root.selectedClubId, "headPatch", !patchPill.checked)
-                                    }
-                                }
-
-                                Text {
-                                    text:               Theme.caps(qsTr("Notes"))
-                                    font.family:        Theme.fontData
-                                    font.pixelSize:     Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingLabel
-                                    color:              Theme.colorText3
-                                }
-                                PpTextField {
-                                    Layout.fillWidth: true
-                                    text: root.recField(root.selectedClubId, "notes", "")
-                                    placeholderText: qsTr("e.g. tape replaced, measured twice")
-                                    onEditingFinished: root.commitField(root.selectedClubId, "notes", text)
-                                }
-                            }
+                PpPressable {
+                    id: tabMa
+                    onClicked: {
+                        // Steal focus first so an in-edit field commits
+                        // against the OUTGOING club before the switch.
+                        root.forceActiveFocus()
+                        root.selectedClubId = modelData
                     }
                 }
             }
+        }
+    }
+
+    // Detail card for the selected club
+    Rectangle {
+        visible: root.selectedClubId !== ""
+        width:  parent.width
+        height: visible ? clubCol.implicitHeight + Theme.sp(28) : 0
+        radius: Theme.radius
+        color:  Theme.colorBg2
+        border.width: 1
+        border.color: Theme.colorBorder
+
+        ColumnLayout {
+            id: clubCol
+            anchors { fill: parent; margins: Theme.gap(14) }
+            spacing: Theme.gap(10)
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.gap(10)
+
+                    Text {
+                        text: root.selectedClubId
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        font.weight:    Font.DemiBold
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        visible: root.recField(root.selectedClubId, "tapedOn", "") !== ""
+                        text: qsTr("taped %1").arg(root.recField(root.selectedClubId, "tapedOn", ""))
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                    }
+                    Item { Layout.fillWidth: true }
+                    PpButton {
+                        label: qsTr("Remove")
+                        destructive: true
+                        onClicked: athleteController.removeClubRecord(root.athleteUuid, root.selectedClubId)
+                    }
+                }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 2
+                    columnSpacing: Theme.gap(20)
+                    rowSpacing: Theme.gap(8)
+
+                    PpFieldLabel { text: Theme.caps(qsTr("Shaft")) }
+                    PpComboBox {
+                        implicitWidth: Theme.sp(150)
+                        model: [qsTr("steel"), qsTr("graphite")]
+                        currentIndex: root.recField(root.selectedClubId, "shaftType", "steel") === "graphite" ? 1 : 0
+                        onActivated: (index) => root.commitField(root.selectedClubId, "shaftType",
+                                                                 index === 1 ? "graphite" : "steel")
+                    }
+
+                    PpFieldLabel { text: Theme.capsUnit(qsTr("Loft"), "°") }
+                    PpTextField {
+                        implicitWidth: Theme.sp(120)
+                        text: root.recField(root.selectedClubId, "loftDeg", 0) > 0
+                              ? String(root.recField(root.selectedClubId, "loftDeg", 0)) : ""
+                        placeholderText: qsTr("e.g. 34")
+                        validator: DoubleValidator { bottom: 0; top: 80; decimals: 1 }
+                        onEditingFinished: {
+                            var v = parseFloat(text)
+                            root.commitField(root.selectedClubId, "loftDeg", isNaN(v) ? 0 : v)
+                        }
+                    }
+
+                    PpFieldLabel { text: Theme.capsUnit(qsTr("Club length"), "mm") }
+                    PpTextField {
+                        implicitWidth: Theme.sp(120)
+                        text: root.recField(root.selectedClubId, "lengthMm", 0) > 0
+                              ? String(root.recField(root.selectedClubId, "lengthMm", 0)) : ""
+                        placeholderText: qsTr("e.g. 1120")
+                        validator: IntValidator { bottom: 0; top: 1400 }
+                        onEditingFinished: {
+                            var v = parseInt(text, 10)
+                            root.commitField(root.selectedClubId, "lengthMm", isNaN(v) ? 0 : v)
+                        }
+                    }
+
+                    PpFieldLabel { text: Theme.capsUnit(qsTr("Shaft length"), "mm") }
+                    PpTextField {
+                        implicitWidth: Theme.sp(120)
+                        text: root.recField(root.selectedClubId, "shaftLengthMm", 0) > 0
+                              ? String(root.recField(root.selectedClubId, "shaftLengthMm", 0)) : ""
+                        placeholderText: qsTr("e.g. 617")
+                        validator: IntValidator { bottom: 0; top: 1400 }
+                        onEditingFinished: {
+                            var v = parseInt(text, 10)
+                            root.commitField(root.selectedClubId, "shaftLengthMm", isNaN(v) ? 0 : v)
+                        }
+                    }
+
+                    PpFieldLabel { text: Theme.capsUnit(qsTr("Hands end from butt"), "mm") }
+                    PpTextField {
+                        implicitWidth: Theme.sp(120)
+                        text: root.recField(root.selectedClubId, "handsEndMm", 0) > 0
+                              ? String(root.recField(root.selectedClubId, "handsEndMm", 0)) : ""
+                        placeholderText: qsTr("e.g. 180")
+                        validator: IntValidator { bottom: 0; top: 400 }
+                        onEditingFinished: {
+                            var v = parseInt(text, 10)
+                            root.commitField(root.selectedClubId, "handsEndMm", isNaN(v) ? 0 : v)
+                        }
+                    }
+
+                    PpFieldLabel { text: Theme.capsUnit(qsTr("Band width"), "mm") }
+                    PpTextField {
+                        implicitWidth: Theme.sp(120)
+                        text: String(root.recField(root.selectedClubId, "bandWidthMm", 25))
+                        validator: IntValidator { bottom: 0; top: 100 }
+                        onEditingFinished: {
+                            var v = parseInt(text, 10)
+                            root.commitField(root.selectedClubId, "bandWidthMm", isNaN(v) ? 25 : v)
+                        }
+                    }
+
+                    PpFieldLabel { text: Theme.capsUnit(qsTr("Band centres from butt"), "mm") }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.gap(4)
+
+                        PpTextField {
+                            id: centersField
+                            Layout.fillWidth: true
+                            placeholderText: qsTr("e.g. 270, 320, 555, 760, 810, 860")
+                            text: {
+                                var c = root.recField(root.selectedClubId, "bandCentersMm", [])
+                                return c.length ? c.join(", ") : ""
+                            }
+                            hasError: root.parseCenters(text) === null
+                            onEditingFinished: {
+                                var parsed = root.parseCenters(text)
+                                if (parsed === null) return   // keep hasError showing
+                                root.commitField(root.selectedClubId, "bandCentersMm", parsed)
+                                if (parsed.length > 0)
+                                    root.commitField(root.selectedClubId, "tapedOn",
+                                                     Qt.formatDate(new Date(), "yyyy-MM-dd"))
+                            }
+                        }
+
+                        Text {
+                            readonly property var centers: root.recField(root.selectedClubId, "bandCentersMm", [])
+                            text: centersField.hasError
+                                  ? qsTr("Invalid — comma-separated whole millimetres only")
+                                  : centers.length === 0
+                                    ? qsTr("Empty = untaped club (passive tracking only)")
+                                    : qsTr("%1 bands, pattern %2").arg(centers.length)
+                                                                  .arg(root.bandPattern(centers))
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          centersField.hasError ? Theme.colorWarn : Theme.colorText3
+                        }
+                    }
+
+                    PpFieldLabel { text: Theme.capsUnit(qsTr("Hosel from butt"), "mm") }
+                    PpTextField {
+                        implicitWidth: Theme.sp(120)
+                        text: root.recField(root.selectedClubId, "hoselFromButtMm", 0) > 0
+                              ? String(root.recField(root.selectedClubId, "hoselFromButtMm", 0)) : ""
+                        placeholderText: qsTr("e.g. 1090")
+                        validator: IntValidator { bottom: 0; top: 1400 }
+                        onEditingFinished: {
+                            var v = parseInt(text, 10)
+                            root.commitField(root.selectedClubId, "hoselFromButtMm", isNaN(v) ? 0 : v)
+                        }
+                    }
+
+                    PpFieldLabel { text: Theme.caps(qsTr("Retro patch on head")) }
+                    PpSwitch {
+                        id: patchPill
+                        checked:   root.recField(root.selectedClubId, "headPatch", false)
+                        onToggled: (v) => root.commitField(root.selectedClubId, "headPatch", v)
+                    }
+
+                    PpFieldLabel { text: Theme.caps(qsTr("Notes")) }
+                    PpTextField {
+                        Layout.fillWidth: true
+                        text: root.recField(root.selectedClubId, "notes", "")
+                        placeholderText: qsTr("e.g. tape replaced, measured twice")
+                        onEditingFinished: root.commitField(root.selectedClubId, "notes", text)
+                    }
+                }
         }
     }
 }

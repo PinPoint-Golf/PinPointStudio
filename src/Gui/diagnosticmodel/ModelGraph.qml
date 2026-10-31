@@ -639,8 +639,7 @@ Item {
                                ? Theme.colorAccentLight
                            : nodeItem.modelData.latent
                                ? "transparent"
-                               : Qt.rgba(nodeItem.tint.r, nodeItem.tint.g, nodeItem.tint.b,
-                                         nodeItem.isFocus ? 0.22 : 0.10)
+                               : Qt.alpha(nodeItem.tint, nodeItem.isFocus ? 0.22 : 0.10)
                     border.width: nodeItem.borderW
                     border.color: nodeItem.hotTarget              ? Theme.colorAccent
                                 : nodeItem.inSelection            ? Theme.colorAccent

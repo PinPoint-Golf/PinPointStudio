@@ -84,6 +84,8 @@ PpTableRow {
     // A bulk job's words for this row (PpSessionBulkJobs via the list); "" when no job has it.
     property string jobWords:      ""
     property bool   jobFailed:     false
+    // The queue itself (the list's PpSessionBulkJobs), whose rules say what this row can have done.
+    property var    jobs:          null
 
     // ── Selection and focus (the list's) ─────────────────────────────────────
     property bool selected:     false
@@ -106,22 +108,15 @@ PpTableRow {
     // The ⋯ cell, for the list to open the menu under.
     readonly property Item moreItem: more
     readonly property bool shownHover: row.hovered || row.previewHover || row.menuOpen
-    readonly property bool _reportable: row.canReport && !row.isLive && !row.archived
-    readonly property bool _hasPdf: row.pdfPath !== "" && (row.reportState === "current" || row.reportState === "stale")
-    readonly property string _who: row.greeting !== "" ? row.greeting : qsTr("the golfer")
+    readonly property bool _reportable: !!row.jobs && row.jobs.reportable(row)
+    readonly property bool _hasPdf: !!row.jobs && row.jobs.hasPdf(row)
+    readonly property string _who: row.jobs ? row.jobs.who(row) : ""
     readonly property bool _errorNeedsSettings: row.error.indexOf(qsTr("Settings → Studio")) >= 0
-
-    function sizeWords(b) {
-        if (!(b > 0)) return ""
-        if (b >= 1024 * 1024) return (b / (1024 * 1024)).toFixed(1) + " MB"
-        return Math.max(1, Math.round(b / 1024)) + " KB"
-    }
 
     // The wash: the selection's accent, deepened under the pointer; else PpTableRow's own hover.
     highlighted: row.selected || row.previewHover || row.menuOpen || row.keyFocus
     hoverColor: row.selected
-                ? (row.shownHover ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b,
-                                            Math.min(1, Theme.colorAccentLight.a * 1.8))
+                ? (row.shownHover ? Qt.alpha(Theme.colorAccent, Math.min(1, Theme.colorAccentLight.a * 1.8))
                                   : Theme.colorAccentLight)
                 : Theme.colorBg3
 
@@ -245,7 +240,7 @@ PpTableRow {
                 elide: Text.ElideRight
                 text: reportCell.mode === "archived" ? qsTr("Archived")
                       : row.stateShort + (row.reportState === "current" && row.sizeBytes > 0
-                                          ? " · " + row.sizeWords(row.sizeBytes) : "")
+                                          ? " · " + Theme.formatBytes(row.sizeBytes) : "")
                 font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                 font.weight: Theme.fontBodyWeight
                 color: reportCell.mode === "archived"     ? Theme.colorText3
@@ -268,8 +263,6 @@ PpTableRow {
                     : row.reportState === "stale"   ? qsTr("Remake")
                     :                                 qsTr("Make")
                 interactive: row.reportState !== "current" || emailOk
-                color: !interactive ? Theme.colorText3
-                     : hovered ? Qt.lighter(Theme.colorAccent, 1.15) : Theme.colorAccent
                 pressMargin: Theme.sp(3)
                 ToolTip.visible: !interactive && emailHint.hovered
                 ToolTip.text: row.email === "" ? qsTr("Add %1's email first: ⋯ → Email").arg(row._who)
@@ -326,7 +319,7 @@ PpTableRow {
                 width: Math.min(implicitWidth, reportCell.width - sendLink.implicitWidth - cancelLink.implicitWidth - Theme.gap(10) * 2)
                 elide: Text.ElideMiddle
                 text: qsTr("Send to %1").arg(row.confirmTo)
-                      + (row.sizeBytes > 0 ? " · " + row.sizeWords(row.sizeBytes) : "")
+                      + (row.sizeBytes > 0 ? " · " + Theme.formatBytes(row.sizeBytes) : "")
                 font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                 font.weight: Theme.fontBodyWeight
                 color: Theme.colorText
@@ -394,8 +387,6 @@ PpTableRow {
                 anchors.baseline: errorWords.baseline
                 text: row._errorNeedsSettings ? qsTr("Settings") : qsTr("Email")
                 interactive: row._errorNeedsSettings || (row._hasPdf && row.email !== "" && !row.sendBusy)
-                color: !interactive ? Theme.colorText3
-                     : hovered ? Qt.lighter(Theme.colorAccent, 1.15) : Theme.colorAccent
                 pressMargin: Theme.sp(3)
                 onClicked: row._errorNeedsSettings ? row.studioSettingsRequested() : row.emailRequested()
             }
@@ -403,28 +394,12 @@ PpTableRow {
     }
 
     // ── ⋯ ────────────────────────────────────────────────────────────────────
-    Item {
+    PpMoreButton {
         id: more
         objectName: "sessionsMore"
         width:  Math.max(Theme.sp(24), row.columnWidth(6))
-        height: Theme.sp(24)
-        Rectangle {
-            anchors.centerIn: parent
-            width: Theme.sp(24); height: Theme.sp(24)
-            radius: Theme.radius
-            color: row.menuOpen || morePress.containsMouse ? Theme.colorBg2 : "transparent"
-            Text {
-                anchors.centerIn: parent
-                text: "⋯"
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody
-                color: row.menuOpen || morePress.containsMouse ? Theme.colorText : Theme.colorText3
-            }
-            PpPressable {
-                id: morePress
-                held: row.menuOpen
-                onClicked: row.menuRequested()
-            }
-        }
+        open: row.menuOpen
+        onClicked: row.menuRequested()
     }
 
     // ── Not cells (beyond the template, so left where they are put) ──────────

@@ -32,6 +32,7 @@
 import QtQuick
 import QtQuick.Layouts
 import PinPointStudio
+import "imu_health.js" as ImuHealth
 
 Item {
     id: root
@@ -43,18 +44,9 @@ Item {
         : Theme.sp(46) + 1 + listCol.implicitHeight
 
     // True when at least one connected IMU is not yet *successfully* calibrated.
-    // The rule is the device's own fullyCalibrated (ImuDeviceBase): Witmotion =
-    // anatomical solve AND both mount checks; HackMotion = the device's calibration
-    // state CALIBRATED. Never re-derive it here from one kind's properties (#50).
-    readonly property bool needsCalibration: {
-        var _dep = imuManager.instances
-        var list = imuManager.imuDeviceList
-        for (var i = 0; i < list.length; ++i) {
-            var inst = imuManager.instanceFor(list[i].id)
-            if (inst && inst.imuConnected && inst.fullyCalibrated !== true) return true
-        }
-        return false
-    }
+    // The rule is the device's own fullyCalibrated (ImuDeviceBase), written once in
+    // imu_health.js for this panel and the toolbar — never re-derived here (#50).
+    readonly property bool needsCalibration: ImuHealth.anyNeedsCalibration(imuManager)
 
     // ── Per-session IMU enablement ─────────────────────────────────────────────
     // Manager-owned (imuManager.sessionImuExcluded / setSessionImuEnabled) so the
@@ -78,18 +70,6 @@ Item {
             if (!inst || !inst.imuConnected) return false
         }
         return enabled > 0
-    }
-
-    // Disconnect every connected device (enabled or not), cancelling any
-    // in-flight paced-connect queue first so it can't reconnect afterwards.
-    // Disconnects are immediate — the 2 s BlueZ gap only matters between
-    // *connection* attempts.
-    function disconnectAll() {
-        imuManager.cancelPacedConnect()
-        var list = imuManager.imuDeviceList
-        for (var i = 0; i < list.length; ++i)
-            if (imuManager.instanceFor(list[i].id) !== null)
-                imuManager.setSelected(list[i].index, false)
     }
 
     // Paced connect of every enabled, not-yet-connected device. Sequential with a
@@ -143,22 +123,31 @@ Item {
 
         // Scoped actions: Scan / Connect / Calibrate
         Row {
+            id: actions
             width: parent.width
             padding: Theme.gap(12); spacing: Theme.gap(8)
-            ScopedAction {
+            // Three equal cells across the card, inside the padding and the two gaps.
+            readonly property real cellWidth: (root.width - Theme.sp(24) - Theme.sp(16)) / 3
+            PpScopedAction {
+                width: actions.cellWidth
                 glyph: "⟳"; label: qsTr("Scan")
                 onTriggered: imuManager.rescanImu()
             }
-            ScopedAction {
+            PpScopedAction {
+                width: actions.cellWidth
                 glyph: "⇄"
                 label: root.allConnected ? qsTr("Disconnect") : qsTr("Connect")
                 connecting: !root.allConnected && (imuManager.pacedConnectActive || imuManager.anyConnecting)
+                // Disconnect = the manager's own teardown (ImuManager::disconnectAll, as
+                // End Session): every connected device, enabled or not, and the paced-
+                // connect queue cancelled first so it can't reconnect afterwards.
                 onTriggered: {
-                    if (root.allConnected)          root.disconnectAll()
+                    if (root.allConnected)          imuManager.disconnectAll()
                     else if (!imuManager.pacedConnectActive) root.startConnect()
                 }
             }
-            ScopedAction {
+            PpScopedAction {
+                width: actions.cellWidth
                 glyph: "◳"; label: qsTr("Calibrate")
                 primary: root.needsCalibration                // attention-framed when work to do
                 onTriggered: root.mode = "calibrate"
@@ -227,43 +216,6 @@ Item {
         onActiveChanged: if (active) calibFlow.begin()   // auto-start on entering calibrate mode
     }
 
-    // ── Scoped action button ────────────────────────────────────────────────
-    component ScopedAction: Rectangle {
-        property string glyph:   ""
-        property string label:   ""
-        property bool   primary: false
-        // Drives the traveling-light frame while a connect attempt is in flight.
-        property bool   connecting: false
-        signal triggered()
-        width: (root.width - Theme.sp(24) - Theme.sp(16)) / 3
-        height: Theme.sp(50); radius: Theme.radius
-        // Hover brighten + scale/dip — the PpButton language. Primary (amber)
-        // lightens; the outline variant fades a faint fill in (alpha-ramped rest
-        // so no colour flash).
-        readonly property color _rest: primary ? Theme.colorAttentionLight
-                                               : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
-        color:        saMa.containsMouse ? (primary ? Qt.lighter(_rest, 1.08) : Theme.colorBg2)
-                                         : _rest
-        border.width: 1
-        border.color: primary ? Theme.colorAttention : Theme.colorBorderStrong
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-        Column {
-            anchors.centerIn: parent; spacing: Theme.gap(4)
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter; text: glyph
-                font.family: Theme.fontSymbol; font.pixelSize: Theme.sp(16)
-                color: primary ? Theme.colorAttention : Theme.colorText2
-            }
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter; text: label
-                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                color: primary ? Theme.colorAttention : Theme.colorText
-            }
-        }
-        PpPressable { id: saMa; onClicked: parent.triggered() }
-        PpConnectingFrame { anchors.fill: parent; radius: parent.radius; running: parent.connecting }
-    }
-
     // ── Per-IMU row ─────────────────────────────────────────────────────────
     component ImuRow: Item {
         id: imuRowItem
@@ -284,9 +236,7 @@ Item {
         // Discovering services… / Retrying… / Reconnecting… / Connected / Error / Not found /
         // Not ready — its settings didn't take, #105).
         readonly property string stateLabel: inst ? inst.stateLabel : ""
-        readonly property bool failed:  inst !== null && !connected
-                                        && (stateLabel === "Error" || stateLabel === "Not found"
-                                            || stateLabel === "Not ready")
+        readonly property bool failed:  ImuHealth.gaveUp(inst)   // the toolbar's rule too
         readonly property bool pending: inst !== null && !connected && !failed
         readonly property bool needsCal: connected && !calibratedOk
         // Only once a connected device reports a level.
@@ -408,31 +358,15 @@ Item {
             // Enable toggle — session-local. IMUs are calibrated collectively (the
             // T-pose flow calibrates every connected sensor at once), so there is no
             // per-row calibrate affordance. Toggling on marks the sensor for Connect;
-            // toggling off disconnects it if connected. Mirrors the wizard. Styled to
-            // match the standard app toggle (GeneralPanel): accent track, white knob.
-            Rectangle {
+            // toggling off disconnects it if connected. Mirrors the wizard. The knob
+            // takes a theme colour, as the camera panel's does.
+            PpSwitch {
                 id: enableToggle
                 Layout.alignment: Qt.AlignVCenter
-                width:  Theme.sp(34)
-                height: Theme.sp(18)
-                radius: Theme.sp(9)
-                color:  deviceEnabled ? Theme.colorAccent : Theme.colorBg3
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                Rectangle {
-                    width:  Theme.sp(12)
-                    height: Theme.sp(12)
-                    radius: Theme.sp(6)
-                    color:  Theme.dark ? Theme.colorText : Theme.colorSurface
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: deviceEnabled ? parent.width - width - Theme.sp(3) : Theme.sp(3)
-                    Behavior on x { NumberAnimation { duration: 120 } }
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    // Manager-owned; disabling a connected device also disconnects it.
-                    onClicked: imuManager.setSessionImuEnabled(devId, !deviceEnabled)
-                }
+                checked:   deviceEnabled
+                knobColor: Theme.dark ? Theme.colorText : Theme.colorSurface
+                // Manager-owned; disabling a connected device also disconnects it.
+                onToggled: (v) => imuManager.setSessionImuEnabled(devId, v)
             }
         }
     }

@@ -94,7 +94,6 @@ Item {
     // The library's PpQuestions decides WHICH questions exist (only those with an answer); the report words
     // the answers as short sentences, because a column of "fired together on 15 of its 15 shots" repeated
     // three times is noise on paper.
-    function listOf(xs) { return xs.length <= 1 ? xs.join("") : xs.slice(0, -1).join(", ") + " and " + xs[xs.length - 1] }
     // patterns that fired on exactly the same shots: said once, as a group, rather than eight times
     readonly property var together: {
         const groups = []
@@ -110,19 +109,19 @@ Item {
     function groupOf(card) { return together.find(g => g.cards.some(c => c.id === card.id)) || null }
     readonly property string togetherHtml: together.map(g =>
         ro.cap1(ro.word(g.cards.length)) + (g.n === root.shotCount ? " patterns fired on every one of the " + ro.figHtml(g.n) + " shots: " : " patterns fired on exactly the same " + ro.figHtml(g.n) + " shots: ")
-        + listOf(g.cards.map(c => ro.esc(String(c.rankText || "").replace("#", "")) + "&nbsp;" + ro.esc(c.name))) + ".").join(" ")
+        + ro.list(g.cards.map(c => ro.esc(String(c.rankText || "").replace("#", "")) + "&nbsp;" + ro.esc(c.name))) + ".").join(" ")
     function answersFor(card) {
         if (!card) return []
         const qs = qx.forCondition(card, readout, source), out = []
         qs.forEach(q => {
-            if (q.id === "clean") out.push("Clean on shot" + (q.shots.length > 1 ? "s " : " ") + listOf(q.shots.map(String)) + ".")
+            if (q.id === "clean") out.push("Clean on shot" + (q.shots.length > 1 ? "s " : " ") + ro.list(q.shots.map(String)) + ".")
             else if (q.id === "together") {
                 const grp = groupOf(card)
                 if (grp) { out.push("Fired with the other " + ro.word(grp.cards.length - 1) + " on every one of its shots (see above)."); return }
                 const t = qx.firedTogether(readout, card.id, 3)
                 const all = t.every(x => x.n === x.of)
-                if (all) out.push("Fired together with " + listOf(t.map(x => x.name)) + " on every one of its " + t[0].of + " firings.")
-                else out.push("Fired together with " + listOf(t.map(x => x.name + " (" + x.n + " of " + x.of + ")")) + ".")
+                if (all) out.push("Fired together with " + ro.list(t.map(x => x.name)) + " on every one of its " + t[0].of + " firings.")
+                else out.push("Fired together with " + ro.list(t.map(x => x.name + " (" + x.n + " of " + x.of + ")")) + ".")
             } else if (q.id === "worse") out.push("Getting worse: the misses grow from the first third of the run to the last.")
             else if (q.answer) out.push(q.answer)
         })
@@ -271,18 +270,16 @@ Item {
                 property bool atom: true
                 property bool keepNext: true
                 width: pager.textW; height: ih.height + ro.u(6)
-                Flow {
+                PpSectionHead {
                     id: ih
-                    width: parent.width; spacing: ro.u(8)
-                    Text { id: iht; font: ro.fSection; color: ro.ink
-                           text: root.shotName ? root.shotName + " · shot " + root.shotNo : "Index · inside the corridor on shot " + root.shotNo }
+                    width: parent.width
+                    roles: ro; paged: false; pad: 0; gap: 8
+                    title: root.shotName ? root.shotName + " · shot " + root.shotNo : "Index · inside the corridor on shot " + root.shotNo
                     // named, the count goes into words below: a bare figure after "shot 14" read as a measure
-                    Text { visible: !root.shotName; text: root.clean.length; font: ro.fFigS; color: ro.ink3; height: iht.height; verticalAlignment: Text.AlignVCenter }
-                    Item { width: ro.u(8); height: 1 }
-                    Text { width: Math.min(implicitWidth, ih.width); wrapMode: Text.WordWrap; height: Math.max(implicitHeight, iht.height); verticalAlignment: Text.AlignVCenter
-                           text: (root.shotName ? "The " + root.clean.length + " checks it passed, alphabetical, each with the reading it judged and, in brackets, where it would fault. " : "Alphabetical. In brackets: the fault line. ")
-                                 + "Ink: a session pattern, clean on this shot  ·  ° watching  ·  the rest clean all session"
-                           font: ro.fMicro; color: ro.ink3 }
+                    count: root.shotName ? "" : String(root.clean.length)
+                    sub: (root.shotName ? "The " + root.clean.length + " checks it passed, alphabetical, each with the reading it judged and, in brackets, where it would fault. " : "Alphabetical. In brackets: the fault line. ")
+                         + "Ink: a session pattern, clean on this shot  ·  ° watching  ·  the rest clean all session"
+                    subGap: 8; subFont: ro.fMicro; subFit: "grow"
                 }
                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: ro.hw; color: ro.hair }
             }

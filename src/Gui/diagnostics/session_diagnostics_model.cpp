@@ -79,17 +79,10 @@ constexpr int kRowWordsVersion = 1;
 const QString kDiagnosticsFile = QStringLiteral("diagnostics.json");
 const QString kProfileFile     = QStringLiteral("fault_profile.json");
 
-// The true minus, U+2212. Brief §6: the value slot and the corridor slot must agree, and a
-// hyphen-minus beside a typographic one in the same cell is the kind of thing a golfer reads
-// as a bug in the numbers.
-const QChar kMinus = QChar(0x2212);
-
-QString fmtNumber(double v, int decimals = 1)
-{
-    if (!std::isfinite(v)) return QStringLiteral("—");
-    QString s = QString::number(std::fabs(v), 'f', decimals);
-    return (v < 0.0) ? QString(kMinus) + s : s;
-}
+// Every figure through the app's one formatter (Core/figure_format.h): the true minus, "-" for none,
+// −0 as 0. Brief §6: the value slot and the corridor slot must agree, and a hyphen-minus beside a
+// typographic one in the same cell is the kind of thing a golfer reads as a bug in the numbers.
+namespace F = pinpoint::figures;
 
 // The corridor's shape as the ledger row records it — the one translation between
 // MeasureEvidence's two open-side flags and CorridorShape, so there is exactly one place
@@ -199,7 +192,7 @@ void addStrength(QVariantMap &m, const ConditionRow *r)
     // it — the same quantity either side of the band, and no sign to misread.
     m[QStringLiteral("strengthText")] =
         st.known ? QStringLiteral("%1 of 5 · %2 · %3× the distance to the corridor edge")
-                       .arg(level).arg(strengthPhrase(level), fmtNumber(st.excess))
+                       .arg(level).arg(strengthPhrase(level), F::fig(st.excess, 1))
                  : QString();
 }
 
@@ -332,26 +325,12 @@ QString topOf(const QStringList &order, const QHash<QString, int> &count)
     return best;
 }
 
-QString withUnit(const QString &s, const QString &unit)
-{
-    return unit.isEmpty() ? s : s + unit;
-}
-
 // A reading on the HOW-FAR surfaces (spreadFor, historyFor): `decimals` from the axis it is drawn
-// on (spreadDecimals — never from σ), a "-" where there is no number, the true minus, and a space
-// before a worded unit ("13 % hand rise", "92 mph") but not before a degree sign ("13°"). A value
-// that rounds to zero is printed as 0 rather than as a signed zero: "−0 %" reads as a direction
-// the reading does not have.
+// on (spreadDecimals — never from σ), joined to its unit by the one rule (figure_format.h withUnit:
+// "13% hand rise", "92 mph", "13°").
 QString fmtSpread(double v, int decimals, const QString &unit = QString())
 {
-    if (!std::isfinite(v)) return QStringLiteral("-");
-    const double scale = std::pow(10.0, decimals);
-    double r = std::round(v * scale) / scale;
-    if (r == 0.0) r = 0.0;
-    const QString n = fmtNumber(r, decimals);
-    if (unit.isEmpty()) return n;
-    if (unit.startsWith(QChar(0x00B0))) return n + unit;
-    return n + QLatin1Char(' ') + unit;
+    return F::withUnit(F::fig(v, decimals), unit);
 }
 
 // THE BOX A PpBoxPlot DRAWS, from the one box implementation (typeset/box_stats.h): its edges as axis
@@ -368,7 +347,7 @@ QVariantMap boxOf(const std::vector<double> &values, const std::vector<int> &sho
     if (!b.n) return m;
     const bool sym = !unit.isEmpty() && unit.size() <= 2
                      && std::none_of(unit.begin(), unit.end(), [](QChar ch) { return ch.isLetter(); });
-    const auto text = [&](double v) { return fmtSpread(v, a.decimals) + (sym ? unit : QString()); };
+    const auto text = [&](double v) { return F::fig(v, a.decimals) + (sym ? unit : QString()); };
     m[QStringLiteral("fLo")] = a.fraction(b.lo);   m[QStringLiteral("fHi")]  = a.fraction(b.hi);
     m[QStringLiteral("fQ1")] = a.fraction(b.q1);   m[QStringLiteral("fQ3")]  = a.fraction(b.q3);
     m[QStringLiteral("fMed")] = a.fraction(b.med);
@@ -382,13 +361,68 @@ QVariantMap boxOf(const std::vector<double> &values, const std::vector<int> &sho
     return m;
 }
 
-// The same, for a list of numbers sharing one unit: "22 → 19 → 13 % hand rise".
+// The same, for a list of numbers sharing one unit: "22 → 19 → 13% hand rise".
 QString fmtSpreadRun(const QStringList &numbers, const QString &unit)
 {
-    const QString joined = numbers.join(QStringLiteral(" → "));
-    if (unit.isEmpty() || numbers.isEmpty()) return joined;
-    if (unit.startsWith(QChar(0x00B0))) return joined + unit;
-    return joined + QLatin1Char(' ') + unit;
+    return numbers.isEmpty() ? QString() : F::withUnit(numbers.join(QStringLiteral(" → ")), unit);
+}
+
+// ── THE PARTS beside the strings (gui-catalogue C17) ────────────────────────────────────────────
+// A row's valueText, corridorText and recurrence are sentences; the registers set their figures in
+// the figure face, their units in a column of their own and their edges as key figures, and they
+// used to get those parts by parsing the sentences back with regexes. These publish the parts
+// beside each string, from the same figures, so a register sets them and parses nothing. The model
+// test holds every part to its string: recomposed, they are the string.
+
+// valueText ("13.2% hand rise") as valueNumber, the figure the figure face sets ("13.2", "−4.0";
+// a tempo's ":1" belongs to the figure, "2.6:1"), and valueUnit, what is set after it ("% hand
+// rise", "°", "mph"; "" for a ratio, a tempo or nothing). Nothing read — "-", or a slot holding a
+// gate's words or "not measurable" — is valueNumber "-" and no unit.
+void publishValueParts(QVariantMap &c, const QString &figure, const QString &unit)
+{
+    const QString u = unit.trimmed();
+    const bool read = !figure.isEmpty() && figure != F::kMissing;
+    const bool closed = u == QLatin1String(":1");
+    c[QStringLiteral("valueNumber")] = !read ? QString(F::kMissing) : closed ? F::withUnit(figure, u) : figure;
+    c[QStringLiteral("valueUnit")]   = !read || closed || u == QLatin1String("ratio") ? QString() : u;
+}
+
+// corridorText's edges, exactly as spreadCorridorWords quotes them (its precision, trailing zeros
+// dropped, no unit), with the sentence's form and its unit:
+//   { form: "ceiling", passHi, faultHi, unit }            "pass up to 8.7 · fault above 13% hand rise"
+//   { form: "floor", passLo, faultLo, unit }              "pass from 1.3 up · fault below 1.2"
+//   { form: "twoSided", passLo, passHi, faultLo, faultHi, unit }   "pass 5 to 25 · fault outside 0 to 30 mm"
+// Empty ({}) when the corridor slot holds no corridor (a reason, nothing authored, a composite).
+void publishCorridorParts(QVariantMap &c, const SpreadCorridor *sc, const QString &unit)
+{
+    QVariantMap p;
+    if (sc && sc->known) {
+        const int d = spreadDecimals(std::max(sc->faultHi - sc->faultLo, 1e-9));
+        auto n = [&](double v) { return spreadNumber(v, d, /*trimZeros*/ true); };
+        const QString form = sc->lowOpen  ? QStringLiteral("ceiling")
+                           : sc->highOpen ? QStringLiteral("floor")
+                                          : QStringLiteral("twoSided");
+        p[QStringLiteral("form")] = form;
+        if (form != QLatin1String("floor")) {
+            p[QStringLiteral("passHi")]  = n(sc->signalHi);
+            p[QStringLiteral("faultHi")] = n(sc->faultHi);
+        }
+        if (form != QLatin1String("ceiling")) {
+            p[QStringLiteral("passLo")]  = n(sc->signalLo);
+            p[QStringLiteral("faultLo")] = n(sc->faultLo);
+        }
+        p[QStringLiteral("unit")] = unit;
+    }
+    c[QStringLiteral("corridorFigures")] = p;
+}
+
+// recurrence ("8 of 12 measurable shots", recurrenceText) as its two counts. Not for a session-scope
+// condition, whose recurrence is a sentence about swings in order (#58), not a count of firings.
+void publishRecurrenceParts(QVariantMap &c, const ConditionLedger &l)
+{
+    if (l.sessionScope) return;
+    c[QStringLiteral("recurrenceFired")] = l.fired;
+    c[QStringLiteral("recurrenceOf")]    = l.assessable;
 }
 
 // What the corridor behind the shots IS, in words — the one thing that stops it being read as the
@@ -2331,6 +2365,70 @@ SpreadCorridor SessionDiagnosticsModel::spreadCorridorOf(const ConditionLedger &
     return c;
 }
 
+// ── WHERE A READING SITS AGAINST ITS CORRIDOR, for the figures (C21) ───────────────────────
+//
+// Until 31 Oct 2026 the QML worked both of these out from the band words: PpFigureScale named an edge
+// by its pair of grades, and PpSmallMultiple rebuilt a z ladder from the bands and folded it by the
+// sign of the session median. On a ONE-SIDED corridor (a ceiling, a floor, or a two-sided measure
+// whose condition watches one tail, #16) that fold could turn the tile upside down: with the median
+// on the open side, the fired shots went to the foot and the clean ones up into the window. The
+// corridor knows which tail grades, so the fold, the ladder and the edge names are decided here.
+
+QString SessionDiagnosticsModel::edgeKindAt(const SpreadCorridor &c, double v)
+{
+    if (!c.known || !std::isfinite(v)) return QString();
+    // the band boundaries ARE these doubles (spreadBands), so equality is all that is asked
+    const auto at = [v](double e) { return std::fabs(v - e) <= 1e-12 * std::max(1.0, std::fabs(e)); };
+    if ((!c.lowOpen && at(c.faultLo)) || (!c.highOpen && at(c.faultHi)))   return QStringLiteral("fault");
+    if ((!c.lowOpen && at(c.signalLo)) || (!c.highOpen && at(c.signalHi))) return QStringLiteral("pass");
+    if ((c.lowOpen || c.highOpen) && at(c.mu))                             return QStringLiteral("aim");
+    if ((!c.lowOpen && at(c.idealLo)) || (!c.highOpen && at(c.idealHi)))   return QStringLiteral("grid");
+    return QString();
+}
+
+double SessionDiagnosticsModel::ladderZ(const SpreadCorridor &c, double v, int side)
+{
+    const double NaN = std::numeric_limits<double>::quiet_NaN();
+    if (!c.known || !std::isfinite(v) || (c.lowOpen && c.highOpen)) return NaN;
+    // THE OPEN SIDE IS NO DISTANCE (readingStrength): a ceiling cleared by a mile sits with the reading
+    // that hit the aspiration point exactly
+    if ((c.lowOpen && v < c.mu) || (c.highOpen && v > c.mu)) return 0.0;
+    // the rungs, low to high (orderSpreadEdges keeps them in order): the fault line 3, the pass edge 2,
+    // the Ideal edge 1, each side; a one-sided corridor's aspiration point 0
+    struct Rung { double v, z; };
+    std::vector<Rung> all;
+    if (c.lowOpen) all.push_back({ c.mu, 0.0 });
+    else { all.push_back({ c.faultLo, -3.0 }); all.push_back({ c.signalLo, -2.0 }); all.push_back({ c.idealLo, -1.0 }); }
+    if (c.highOpen) all.push_back({ c.mu, 0.0 });
+    else { all.push_back({ c.idealHi, 1.0 }); all.push_back({ c.signalHi, 2.0 }); all.push_back({ c.faultHi, 3.0 }); }
+    // two edges on one value (an empty band): the outer one, as edgeKindAt names it — so where a monitor bound
+    // empties Watch (or Good and Watch), one-sided or two-sided, the shared edge is the fault line at 3, and a
+    // shot past it plots above the fault hairline (the QML's ladder put that edge at 2, or 1)
+    std::vector<Rung> r;
+    for (const Rung &x : all) {
+        if (!r.empty() && std::fabs(x.v - r.back().v) <= 1e-12 * std::max(1.0, std::fabs(x.v))) {
+            if (std::fabs(x.z) > std::fabs(r.back().z)) r.back() = x;
+            continue;
+        }
+        r.push_back(x);
+    }
+    if (r.size() < 2) return NaN;
+    // piecewise linear, and past either end along its last rung
+    size_t i = 0;
+    if (v >= r.back().v) i = r.size() - 2;
+    else if (v > r.front().v) while (i < r.size() - 2 && v > r[i + 1].v) ++i;
+    const Rung &p = r[i], &q = r[i + 1];
+    return side * (p.z + (v - p.v) / (q.v - p.v) * (q.z - p.z));
+}
+
+int SessionDiagnosticsModel::ladderSide(const SpreadCorridor &c, double median)
+{
+    if (c.known && c.lowOpen && !c.highOpen) return +1;
+    if (c.known && c.highOpen && !c.lowOpen) return -1;
+    const double z = ladderZ(c, median);
+    return std::isfinite(z) && z < 0.0 ? -1 : +1;
+}
+
 namespace {
 
 // The bands and the fault lines as the QML takes them: every position a fraction of
@@ -2345,15 +2443,21 @@ void publishCorridor(QVariantMap &out, const SpreadCorridor &c, const SpreadAxis
     out[QStringLiteral("corridorKnown")] = c.known;
     out[QStringLiteral("shape")]         = c.known ? corridorShapeToString(c.shape) : QStringLiteral("none");
 
+    // Each band names the zone edge it starts at (edgeKindAt), so a figure draws the fault line, the
+    // pass edge and the aspiration point without reading meaning back out of the grade words.
     QVariantList bands;
-    for (const SpreadBand &b : spreadBands(c, a))
+    const std::vector<SpreadBand> bs = spreadBands(c, a);
+    for (size_t i = 0; i < bs.size(); ++i) {
+        const SpreadBand &b = bs[i];
         bands.append(QVariantMap{
             { QStringLiteral("grade"), b.grade },
             { QStringLiteral("lo"),    b.lo },
             { QStringLiteral("hi"),    b.hi },
             { QStringLiteral("f0"),    a.fraction(b.lo) },
             { QStringLiteral("f1"),    a.fraction(b.hi) },
+            { QStringLiteral("edge"),  i ? SessionDiagnosticsModel::edgeKindAt(c, b.lo) : QString() },
         });
+    }
     out[QStringLiteral("bands")] = bands;
 
     // THE FAULT LINE IS WHERE ACTION BEGINS — the line an author states when they say "more than
@@ -2578,6 +2682,12 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
     // ── the run: EVERY shot, a not-assessable one included (PpTickRun's rule: never a gap) ─
     const int window = m_opt.resolvingWindow > 0 ? m_opt.resolvingWindow : 5;
     const std::vector<double> medians = trailingMedians(values, window);
+    // THE COMMON SCALE (PpSmallMultiple's tiles): every point's place on the ladder, folded so the graded
+    // side is up (ladderSide off the session median), at the value the axis draws (an off-scale shot at
+    // its edge, as on every other figure)
+    const double med  = spreadQuantile(placed, 0.5);
+    const int    fold = ladderSide(c, med);
+    const auto   zAt  = [&](double f) { return ladderZ(c, a.lo + f * (a.hi - a.lo), fold); };
     QVariantList run, median;
     int notAssessable = 0;
     for (int i = 0; i < n; ++i) {
@@ -2588,7 +2698,7 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
         const double fy = ok ? a.fraction(v, &cl) : 0.0;
         const double fx = n > 0 ? (double(i) + 0.5) / double(n) : 0.5;
         const int shotId = m_shots[size_t(i)].shotId;
-        run.append(QVariantMap{
+        QVariantMap pt{
             { QStringLiteral("index"),      i },
             { QStringLiteral("shotId"),     shotId },
             { QStringLiteral("swingDir"),   m_swingDirs.value(shotId) },
@@ -2608,14 +2718,22 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
             { QStringLiteral("gated"),      !ok && gatesOf[size_t(i)].on },
             { QStringLiteral("gateWords"),  !ok ? gatesOf[size_t(i)].words : QString() },
             { QStringLiteral("gateNote"),   !ok ? gateNoteOf(gatesOf[size_t(i)], m_swingDirs.value(shotId)) : QVariantMap() },
-        });
-        if (std::isfinite(medians[size_t(i)]))
-            median.append(QVariantMap{
+        };
+        // absent, never NaN, where the shot is not on the scale (no reading, or no corridor)
+        if (const double z = ok ? zAt(fy) : std::numeric_limits<double>::quiet_NaN(); std::isfinite(z))
+            pt[QStringLiteral("z")] = z;
+        run.append(pt);
+        if (std::isfinite(medians[size_t(i)])) {
+            const double mf = a.fraction(medians[size_t(i)]);
+            QVariantMap mp{
                 { QStringLiteral("index"), i },
                 { QStringLiteral("fx"),    fx },
-                { QStringLiteral("fy"),    a.fraction(medians[size_t(i)]) },
+                { QStringLiteral("fy"),    mf },
                 { QStringLiteral("value"), medians[size_t(i)] },
-            });
+            };
+            if (const double z = zAt(mf); std::isfinite(z)) mp[QStringLiteral("z")] = z;
+            median.append(mp);
+        }
     }
     out[QStringLiteral("run")]           = run;
     out[QStringLiteral("median")]        = median;
@@ -2631,7 +2749,6 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
     // fired count over its own assessable count — the recurrence line's numbers, so the card
     // cannot say 46 in one place and 45 in another. Not-assessable shots are not on the axis and
     // are COUNTED here instead, which is the strip's version of the short outlined tick.
-    const double med = spreadQuantile(placed, 0.5);
     QStringList parts, shortParts;
     if (!placed.empty()) {
         parts << QStringLiteral("median %1").arg(fmtSpread(med, a.decimals, unit));
@@ -3603,11 +3720,13 @@ void SessionDiagnosticsModel::buildCards()
     // The collapsed Watching row: seen, not yet evidence, never headlines.
     for (const ConditionLedger &l : m_ledgers) {
         if (l.tier != Tier::Watching) continue;
-        m_watching.append(QVariantMap{
+        QVariantMap watchRow{
             { QStringLiteral("id"),         l.id },
             { QStringLiteral("name"),       conditionName(l.id) },
             { QStringLiteral("recurrence"), l.recurrence },
-        });
+        };
+        publishRecurrenceParts(watchRow, l);
+        m_watching.append(watchRow);
     }
 
     // The coverage line — the quietest and most load-bearing sentence on the panel.
@@ -3718,6 +3837,8 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
         c[QStringLiteral("statePill")]          = QStringLiteral("SESSION");
         c[QStringLiteral("valueText")]          = l.recurrence;
         c[QStringLiteral("corridorText")]       = m_sequenceConsistency.value(QStringLiteral("spreadLine")).toString();
+        publishValueParts(c, QString(), QString());           // a sentence, no figure of one shot (C17)
+        publishCorridorParts(c, nullptr, QString());          // a spread line, not a corridor
         c[QStringLiteral("sessionExcess")]      = l.firingExcess;
         c[QStringLiteral("rankText")]           = m_rankText.value(id);
         c[QStringLiteral("reachesBall")]        = m_reachesBall.value(id, false);
@@ -3737,6 +3858,7 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
         // ONE wording for recurrence, and it comes out of the ledger header so an export and
         // the screen cannot disagree about what recurrence looks like.
         c[QStringLiteral("recurrence")]  = l.recurrence;
+        publishRecurrenceParts(c, l);                          // its two counts (C17)
         c[QStringLiteral("fired")]       = l.fired;
         c[QStringLiteral("assessable")]  = l.assessable;
         c[QStringLiteral("fresh")]       = l.freshThisShot;
@@ -3830,17 +3952,25 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
             c[QStringLiteral("valueText")]    = wc.value(QStringLiteral("dominant")).toMap().value(QStringLiteral("valueText")).toString();
             c[QStringLiteral("corridorText")] = QString();
             c[QStringLiteral("whatChanged")]  = wc;
+            const QVariantMap dom = wc.value(QStringLiteral("dominant")).toMap();
+            publishValueParts(c, dom.value(QStringLiteral("figure")).toString(), dom.value(QStringLiteral("unit")).toString());
+            publishCorridorParts(c, nullptr, QString());
         } else if (here && here->state != ShotState::NotAssessable) {
-            c[QStringLiteral("valueText")]    = withUnit(fmtNumber(here->value), unit);
+            c[QStringLiteral("valueText")]    = F::withUnit(F::fig(here->value, 1), unit);
             // THE PASS BAND AND THE FAULT LINE — the two edges the strip under it draws — and not
             // the stored Ideal band, which quoted "pass 0.0 to 4.3" over a strip whose fault line
             // sat at 13. One sentence, from session_spread.h, for every surface that states it.
             c[QStringLiteral("corridorText")] = spreadCorridorWords(corridorForRow(*here), unit);
+            publishValueParts(c, F::fig(here->value, 1), unit);
+            const SpreadCorridor hereCorridor = corridorForRow(*here);
+            publishCorridorParts(c, &hereCorridor, unit);
         } else {
             // the gate's or rule's words in the value slot where one accounts for it (§7.0), the reason
             // in the corridor slot as before; a record's reading opens in the Trust panel (addGate)
             c[QStringLiteral("valueText")]    = hereGate.on ? hereGate.words : QStringLiteral("not measurable");
             c[QStringLiteral("corridorText")] = here ? here->notAssessableReason : QString();
+            publishValueParts(c, QString(), QString());       // words in the slot, no figure
+            publishCorridorParts(c, nullptr, QString());      // a reason, not a corridor
         }
         addGate(c, here, fi >= 0 ? m_swingDirs.value(m_shots[size_t(fi)].shotId) : QString());
         // HOW FAR OUT, beside WHETHER it was out. The pill says fired or clean and the two
@@ -4484,11 +4614,16 @@ QVariantMap SessionDiagnosticsModel::shotReadout(int shotId) const
             c[QStringLiteral("corridorText")] = QString();
             c[QStringLiteral("reason")]       = QString();
             c[QStringLiteral("whatChanged")]  = wc;
+            const QVariantMap dom = wc.value(QStringLiteral("dominant")).toMap();
+            publishValueParts(c, dom.value(QStringLiteral("figure")).toString(), dom.value(QStringLiteral("unit")).toString());
+            publishCorridorParts(c, nullptr, QString());
         } else if (st != ShotState::NotAssessable && r) {
-            c[QStringLiteral("valueText")] = withUnit(fmtNumber(r->value), unit);
+            c[QStringLiteral("valueText")] = F::withUnit(F::fig(r->value, 1), unit);
             // The same sentence the card prints (spreadCorridorWords) — pass band and fault line.
             const SpreadCorridor sc = corridorForRow(*r);
             c[QStringLiteral("corridorText")] = spreadCorridorWords(sc, unit);
+            publishValueParts(c, F::fig(r->value, 1), unit);     // the parts of both (C17)
+            publishCorridorParts(c, &sc, unit);
             // the fault line alone, beside the reading in the index (unitless: the reading carries it)
             int side = 0;                                      // the condition's own tail, from its signal
             if (m_packProv)
@@ -4510,6 +4645,8 @@ QVariantMap SessionDiagnosticsModel::shotReadout(int shotId) const
             c[QStringLiteral("corridorText")] = r ? r->notAssessableReason
                                                   : missingReasonText(MissingKind::MetricNotProduced);
             c[QStringLiteral("reason")]       = c[QStringLiteral("corridorText")];
+            publishValueParts(c, QString(), QString());           // words in the slot, no figure
+            publishCorridorParts(c, nullptr, QString());          // a reason, not a corridor
             if (g.on) {
                 ++naGated;
                 if (!gatedWords.contains(g.words)) gatedOrder << g.words;
@@ -4521,6 +4658,7 @@ QVariantMap SessionDiagnosticsModel::shotReadout(int shotId) const
         addStrength(c, r);
         c[QStringLiteral("tierTag")]      = tierTag(l->tier);
         c[QStringLiteral("recurrence")]   = l->recurrence;
+        publishRecurrenceParts(c, *l);                            // its two counts (C17)
         c[QStringLiteral("ticks")]        = ticksFor(*l, idx);
         c[QStringLiteral("selectedIndex")]= idx;
         c[QStringLiteral("firingsAfter")] = after;
@@ -4745,6 +4883,8 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
         header[QStringLiteral("statePill")]        = QStringLiteral("NOT MEASURED");
         header[QStringLiteral("valueText")]        = QStringLiteral("not measurable");
         header[QStringLiteral("corridorText")]     = QString();
+        publishValueParts(header, QString(), QString());
+        publishCorridorParts(header, nullptr, QString());
         addStrength(header, nullptr);
     }
     const ChainNodeKind selfKind = kindOf(conditionId);

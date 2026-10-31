@@ -29,6 +29,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Shapes
 import PinPointStudio
+import "chart_samples.js" as ChartSamples
 
 Item {
     id: root
@@ -41,7 +42,7 @@ Item {
     // windowed mean at every sample, from ChartMetrics.windowedMean, which is the same array
     // ChartMetrics.summaryMasked reduces to produce the PEAK tile — so the line and the numbers are
     // one reduction and cannot drift apart. OPTIONAL: a caller that has not decorated it gets the
-    // persisted `value` stroked instead, exactly as before this phase (see _meanOf). `meanSigma` is
+    // persisted `value` stroked instead, exactly as before this phase (see ChartSamples.meanOf). `meanSigma` is
     // the per-sample standard error of that mean; nothing in here reads it yet — the ±σ ribbon quotes
     // the SERIES' σ, which is a different statement (the instrument's noise, not this window's).
     //
@@ -221,63 +222,13 @@ Item {
     // tile reports: design §4 principle 1 forbids the chart showing one thing while the card computes
     // another, and Phase 6's answer is to make them the same thing rather than to leave the line raw
     // and the tile windowed — which is what the reader was being asked to reconcile before.
-    function _hasDomain(s) {
-        return s.validFromUs !== undefined && s.validToUs !== undefined
-               && s.validToUs > s.validFromUs
-    }
-    // The INDEX form of the predicate — three comparisons, no marshalling. ChartMetrics.measuredAt
-    // is the same rule at an arbitrary instant and stays the reference implementation, but every
-    // call into it copies the whole series across the QML boundary, so it is reserved for bindings
-    // that change only with the DATA (the phase dots). Anything that re-evaluates with the cursor,
-    // the playhead or the view window answers it here instead.
     //
-    // Short-mask rule, shared with the C++ (chart_metrics.h) and with measure_sample.cpp: a `valid`
-    // list that does not cover the curve is a malformed document and is discarded WHOLESALE, not
-    // applied to the prefix it covers — two views of one curve must not disagree about it.
-    //
-    // ⚠ A NON-FINITE VALUE IS NOT A MEASUREMENT EITHER (F5), the same fold SeriesView::isValid makes
-    // on the C++ side and for the same reason: nothing in the pipeline should produce a NaN, which is
-    // exactly why it must not be trusted as an invariant. Here it is also a rendering matter — one
-    // NaN in a ShapePath's point list takes out the WHOLE run, so a single bad sample would silently
-    // erase a series' trace, its dots or its ribbon rather than showing a gap where it is.
-    function _measured(s, i) {
-        if (root._hasDomain(s) && (s.t_us[i] < s.validFromUs || s.t_us[i] > s.validToUs))
-            return false
-        if (!isFinite(s.value[i])) return false
-        if (!s.valid || s.valid.length < s.t_us.length) return true
-        return s.valid[i] !== 0
-    }
-    // Nearest sample index to `t`, or -1 on an empty curve — what the per-frame callers need so
-    // they can use the index form above.
-    function _nearestIndex(s, t) {
-        var tt = s.t_us
-        if (!tt || tt.length === 0) return -1
-        var best = -1, bd = Infinity
-        for (var i = 0; i < tt.length; ++i) {
-            var d = Math.abs(tt[i] - t)
-            if (d < bd) { bd = d; best = i }
-        }
-        return best
-    }
-    function _measuredAtT(s, t) {
-        var i = root._nearestIndex(s, t)
-        return i < 0 || root._measured(s, i)
-    }
-    // WHICH ARRAY IS THE CURVE: `mean` where the host decorated one (PpMetricChart._plottable), the
-    // persisted `value` otherwise. A "which array" choice rather than arithmetic, so it stays in QML;
-    // the identical pair is in PpMetricChart and PpSegmentBrush because all three are handed a
-    // `series` list and none of them may assume the others prepared it.
-    //
-    // The predicate is separate from the getter, and asked by name rather than by comparing the
-    // returned array against s.value: an array identity test would be answering "is there a
-    // reduction here" with a question about object lifetimes across the QML/C++ boundary, which is
-    // not something a drawing decision should depend on.
-    function _hasMean(s) {
-        return !!(s && s.mean && s.t_us && s.mean.length === s.t_us.length)
-    }
-    function _meanOf(s) {
-        return root._hasMean(s) ? s.mean : s.value
-    }
+    // WHETHER A SAMPLE WAS MEASURED (ChartSamples.measured, its index form; measuredAt at an
+    // instant), the nearest sample to an instant, and WHICH ARRAY IS THE CURVE (ChartSamples.meanOf:
+    // `mean` where the host decorated one, the persisted `value` otherwise) are written once in
+    // chart_samples.js, shared with PpSegmentBrush, PpMetricChart and PpChartSummary — all four are
+    // handed a `series` list and none may assume another prepared it. ChartMetrics.measuredAt is
+    // the same rule in C++, reserved for bindings that change only with the DATA (the phase dots).
 
     // Each series split into RUNS of one drawn state: [{ color, dashed, t:[…], v:[…] }] in time
     // order. Index ranges, not screen points, so a resize or a Y-range change re-runs only the
@@ -297,7 +248,7 @@ Item {
     // the same array at the shared endpoint (a valid sample, hence a mean on both sides).
     //
     // ⚠ THAT DEPENDS ON THE HOST HAVING COMPOSED THE MASK (F4), and it is the reason
-    // PpMetricChart._reduceMask exists. `_measured` below is `valid` AND in-domain, while
+    // PpMetricChart._reduceMask exists. `ChartSamples.measured` is `valid` AND in-domain, while
     // windowedMean only knows the mask it was given: hand it `valid` alone and on a swing whose
     // producer never marked the out-of-domain run, THAT run would be dashed at a mean rather than at
     // its persisted value, and its samples would be averaged into the in-domain anchors beside the
@@ -309,11 +260,11 @@ Item {
         for (var k = 0; k < (root.series ? root.series.length : 0); ++k) {
             var s = root.series[k]
             if (!s || !s.t_us || !s.value || s.t_us.length < 2) continue
-            var mv = root._meanOf(s)
+            var mv = ChartSamples.meanOf(s)
 
             // Per-sample drawn state first, so the run walk below reads a plain boolean array.
             var solid = []
-            for (var i = 0; i < s.t_us.length; ++i) solid.push(root._measured(s, i))
+            for (var i = 0; i < s.t_us.length; ++i) solid.push(ChartSamples.measured(s, i))
 
             var i0 = 0
             while (i0 < solid.length) {
@@ -326,8 +277,8 @@ Item {
                 }
                 if (b > a) {
                     var t = [], v = []
-                    // NON-FINITE POINTS ARE OMITTED FROM THE RUN, not drawn (F5). _measured already
-                    // refuses to call them measurements, but a DASHED run draws the persisted value —
+                    // NON-FINITE POINTS ARE OMITTED FROM THE RUN, not drawn (F5). ChartSamples.measured
+                    // already refuses to call them measurements, but a DASHED run draws the persisted value —
                     // and a NaN there is not a dash, it is the loss of every segment in the run. The
                     // line closes over the omitted sample exactly as it closes over a bridge.
                     for (var j = a; j <= b; ++j)
@@ -359,8 +310,8 @@ Item {
     // Unmeasured samples get no dot. A bridged or out-of-domain sample is not a measurement, so there
     // is nothing there to show as one — and the dashed stroke already draws its persisted value, so
     // the number is not being hidden either. Same predicate as everything else on this plot
-    // (_measured), so the dots, the dashes, the phase dots and the crosshair cannot disagree about
-    // which samples are readings.
+    // (ChartSamples.measured), so the dots, the dashes, the phase dots and the crosshair cannot
+    // disagree about which samples are readings.
     //
     // Skipped entirely when the series has no `mean`: the stroke is then the raw curve itself and a
     // dot on every sample would just thicken it. Also skipped, at one boolean test, when the dots are
@@ -371,10 +322,10 @@ Item {
         for (var k = 0; k < (root.series ? root.series.length : 0); ++k) {
             var s = root.series[k]
             if (!s || !s.t_us || !s.value || s.t_us.length < 2) continue
-            if (!root._hasMean(s)) continue               // no reduction ⇒ nothing to show behind
+            if (!ChartSamples.hasMean(s)) continue        // no reduction ⇒ nothing to show behind
             var t = [], v = []
             for (var i = 0; i < s.t_us.length; ++i)
-                if (root._measured(s, i)) { t.push(s.t_us[i]); v.push(s.value[i]) }
+                if (ChartSamples.measured(s, i)) { t.push(s.t_us[i]); v.push(s.value[i]) }
             if (t.length > 0) out.push({ color: s.color, t: t, v: v })
         }
         return out
@@ -406,7 +357,7 @@ Item {
         for (var k = 0; k < (root.series ? root.series.length : 0); ++k) {
             var s = root.series[k]
             if (!s || !s.t_us || !s.value || s.t_us.length < 2) continue
-            var mv = root._meanOf(s)
+            var mv = ChartSamples.meanOf(s)
             // ChartMetrics.seriesSigma, not a local guard: one implementation of "absent means
             // absent" (it was three). Called once per series here, on a binding that changes with
             // the DATA — never per frame; it marshals the whole series.
@@ -414,7 +365,7 @@ Item {
             if (!(sg > 0)) continue
             var t = [], v = []
             for (var i = 0; i < s.t_us.length; ++i) {
-                if (root._measured(s, i)) {
+                if (ChartSamples.measured(s, i)) {
                     t.push(s.t_us[i]); v.push(mv[i])
                 } else if (t.length > 0) {
                     if (t.length > 1) out.push({ color: s.color, sigma: sg, t: t, v: v })
@@ -750,8 +701,8 @@ Item {
                     readonly property bool measured:
                         cm.measuredAt(dots.modelData.t_us, dots.modelData.valid || [],
                                       dot.modelData.t_us,
-                                      root._hasDomain(dots.modelData) ? dots.modelData.validFromUs : 0,
-                                      root._hasDomain(dots.modelData) ? dots.modelData.validToUs   : 0)
+                                      ChartSamples.hasDomain(dots.modelData) ? dots.modelData.validFromUs : 0,
+                                      ChartSamples.hasDomain(dots.modelData) ? dots.modelData.validToUs   : 0)
                     visible: dot.measured && root._inDom(dot.modelData.t_us)
                     width: 2 * r; height: 2 * r
                     x: root.xForT(dot.modelData.t_us) - r
@@ -924,15 +875,15 @@ Item {
                 // mean and the raw sample after it (PpMetricChart._valueTextAt / _rawTextAt), so the
                 // marker, the line and the two numbers are one statement.
                 readonly property real cv: labels.valueAtNearest(cmark.modelData.t_us,
-                                                                 root._meanOf(cmark.modelData),
+                                                                 ChartSamples.meanOf(cmark.modelData),
                                                                  root.cursorUs)
-                // The readout beside it prints "—" here (PpMetricChart._valueTextAt), so the
+                // The readout beside it prints "-" here (PpMetricChart._valueTextAt), so the
                 // marker has to go too: a dot pinned to the bridged value with a dash beside it
                 // would tell the reader the number exists and is merely being withheld.
                 //
                 // JS, not cm.measuredAt: this binding re-evaluates on EVERY cursor move, and the
                 // C++ form would copy every series across the QML boundary each time.
-                visible: root._measuredAtT(cmark.modelData, root.cursorUs)
+                visible: ChartSamples.measuredAt(cmark.modelData, root.cursorUs)
                 width: 2 * r; height: 2 * r; radius: r
                 x: root.xForT(root.cursorUs) - r
                 y: root.yForV(cv) - r

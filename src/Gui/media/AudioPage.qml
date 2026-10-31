@@ -130,7 +130,7 @@ Item {
                                    ? Theme.colorWarnLight
                                    : Theme.colorBg3
                             border.width: stopListenButton.enabled ? 1 : 0
-                            border.color: Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.5)
+                            border.color: Qt.alpha(Theme.colorWarn, 0.5)
                             radius: Theme.radius
                         }
                     }
@@ -181,9 +181,9 @@ Item {
                         Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                         border.width: 1
                         border.color: controller.sttBackend === "Cloud"
-                                      ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.25)
+                                      ? Qt.alpha(Theme.colorAccent, 0.25)
                                       : controller.sttBackend !== "" && controller.sttBackend !== "CPU"
-                                        ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.25)
+                                        ? Qt.alpha(Theme.colorGood, 0.25)
                                         : Theme.colorBorderMid
                         implicitWidth: sttBackendBadge.implicitWidth + Theme.sp(10)
                         implicitHeight: sttBackendBadge.implicitHeight + Theme.sp(4)
@@ -312,7 +312,7 @@ Item {
                         background: Rectangle {
                             color: stopButton.enabled ? Theme.colorWarnLight : Theme.colorBg3
                             border.width: stopButton.enabled ? 1 : 0
-                            border.color: Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.5)
+                            border.color: Qt.alpha(Theme.colorWarn, 0.5)
                             radius: Theme.radius
                         }
                     }
@@ -401,9 +401,9 @@ Item {
                         Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                         border.width: 1
                         border.color: ttsController.ttsBackend === "Cloud"
-                                      ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.25)
+                                      ? Qt.alpha(Theme.colorAccent, 0.25)
                                       : ttsController.ttsBackend !== ""
-                                        ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.25)
+                                        ? Qt.alpha(Theme.colorGood, 0.25)
                                         : Theme.colorBorderMid
                         implicitWidth: backendBadge.implicitWidth + Theme.sp(10)
                         implicitHeight: backendBadge.implicitHeight + Theme.sp(4)

@@ -29,50 +29,11 @@
 
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Controls.Basic
 import QtQuick.Dialogs
 import PinPointStudio
 
-Item {
+SettingsPanelBase {
     id: root
-
-    // ── Search-scroll contract (ScreenSettings → SettingsIndex) ───────────────
-
-    property string lastHighlightId: ""
-
-    function findChild(parent, name) {
-        for (var i = 0; i < parent.children.length; i++) {
-            var child = parent.children[i]
-            if (child.objectName === name) return child
-            var found = findChild(child, name)
-            if (found) return found
-        }
-        return null
-    }
-
-    function scrollToItem(itemId) {
-        if (!itemId) return true
-        var target = findChild(contentCol, itemId)
-        if (!target) return false
-        var mapped = target.mapToItem(contentCol, 0, 0)
-        scrollView.contentItem.contentY = Math.max(0, Math.min(
-            mapped.y - Theme.sp(24),
-            scrollView.contentItem.contentHeight - scrollView.height
-        ))
-        target.searchHighlight = true
-        lastHighlightId = itemId
-        highlightTimer.restart()
-        return true
-    }
-
-    Timer {
-        id: highlightTimer
-        interval: 1800
-        onTriggered: {
-            var target = findChild(contentCol, lastHighlightId)
-            if (target) target.searchHighlight = false
-        }
-    }
 
     // ── Folder dialog ─────────────────────────────────────────────────────────
 
@@ -83,39 +44,6 @@ Item {
         // and trimming "file://" leaves a stray slash before a Windows drive letter,
         // which is exactly the platform this folder usually lives on.
         onAccepted: appSettings.launchMonitorPath = appSettings.urlToLocalFile(selectedFolder)
-    }
-
-    // ── Inline component — reusable toggle pill ───────────────────────────────
-
-    component TogglePill: Rectangle {
-        id: pill
-        property bool checked: false
-        property bool enabledPill: true
-        signal toggled(bool value)
-
-        width:   Theme.sp(34)
-        height:  Theme.sp(18)
-        radius:  Theme.sp(9)
-        opacity: pill.enabledPill ? 1.0 : 0.4
-        color:   pill.checked ? Theme.colorAccent : Theme.colorBg3
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-        Rectangle {
-            width:  Theme.sp(12)
-            height: Theme.sp(12)
-            radius: Theme.sp(6)
-            color:  "white"
-            anchors.verticalCenter: parent.verticalCenter
-            x: pill.checked ? parent.width - width - Theme.sp(3) : Theme.sp(3)
-            Behavior on x { NumberAnimation { duration: 120 } }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            enabled:      pill.enabledPill
-            cursorShape:  Qt.PointingHandCursor
-            onClicked:    pill.toggled(!pill.checked)
-        }
     }
 
     // ── Option model ──────────────────────────────────────────────────────────
@@ -152,430 +80,279 @@ Item {
       : launchMonitor.state === "waiting" ? Theme.colorAttention
       :                                     Theme.colorText3
 
-    // ── Main scroll view ──────────────────────────────────────────────────────
+    // ── Page header ───────────────────────────────────────────────────────────
 
-    ScrollView {
-        id: scrollView
-        anchors.fill: parent
-        contentWidth: availableWidth
-        contentHeight: contentCol.y + contentCol.implicitHeight + Theme.sp(28)
+    SettingsSectionHead { text: qsTr("Devices") }
 
-        ColumnLayout {
-            id: contentCol
-            x:       Theme.sp(32)
-            y:       Theme.sp(28)
-            width:   parent.width - Theme.sp(64)
-            spacing: Theme.gap(20)
+    PpDisplayText {
+        text: qsTr("Launch Monitor")
+    }
 
-            // ── Page header ───────────────────────────────────────────────────
+    Text {
+        text: qsTr("A launch monitor measures ball and club data we cannot see optically — face angle, spin, strike location — and measures several we estimate ourselves. Both are kept: its readings are stored alongside our own, never in place of them, so the two can be compared shot by shot.")
+        font.family:      Theme.fontBody
+        font.pixelSize:   Theme.fontSzBody2
+        font.weight:      Theme.fontBodyWeight
+        color:            Theme.colorText3
+        wrapMode:         Text.WordWrap
+        Layout.fillWidth: true
+    }
 
-            Text {
-                text:                qsTr("Devices")
-                font.family:         Theme.fontBody
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color:               Theme.colorText3
+    // ── Group 1 — Connection ──────────────────────────────────────────────────
+
+    SettingsSectionHead { text: qsTr("Connection") }
+
+    // Device
+    SettingsRow {
+        objectName: "setting_lmDevice"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+            SettingsRowTitle {
+                title:    qsTr("Device")
+                subtitle: root.isGsPro
+                          ? qsTr("Launch monitors connect TO PinPoint over the network. Point the device's own app at this machine's address and the port below")
+                          : qsTr("FSX2020 is Windows-only, but the folder it writes to can be a share — so this works from any machine that can see it")
             }
-
-            PpDisplayText {
-                text: qsTr("Launch Monitor")
+            PpComboBox {
+                Layout.preferredWidth: Theme.sp(240)
+                model: root.deviceOptions.map(function (o) { return o.label })
+                currentIndex: {
+                    for (var i = 0; i < root.deviceOptions.length; ++i)
+                        if (root.deviceOptions[i].value === appSettings.launchMonitorKind)
+                            return i
+                    return 0
+                }
+                onActivated: (index) => appSettings.launchMonitorKind = root.deviceOptions[index].value
             }
+        }
+    }
 
-            Text {
-                text: qsTr("A launch monitor measures ball and club data we cannot see optically — face angle, spin, strike location — and measures several we estimate ourselves. Both are kept: its readings are stored alongside our own, never in place of them, so the two can be compared shot by shot.")
-                font.family:      Theme.fontBody
-                font.pixelSize:   Theme.fontSzBody2
-                font.weight:      Theme.fontBodyWeight
-                color:            Theme.colorText3
-                wrapMode:         Text.WordWrap
+    // ── The switch ────────────────────────────────────────────────────────────
+    // Separate from the dropdown because "which device" and "is it running"
+    // are different decisions with different lifetimes. The case that forces
+    // it: GSPro itself wants port 921, so PinPoint's listener has to go
+    // dormant for an hour — and nobody should have to dismantle a working
+    // configuration to do that, or rebuild it afterwards.
+    SettingsRow {
+        objectName: "setting_lmEnabled"
+        visible: root.chosen
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+            SettingsRowTitle {
+                title:    qsTr("Enabled")
+                subtitle: root.isGsPro
+                          ? qsTr("Switch the link off to hand the port back — GSPro cannot use 921 while PinPoint is listening on it. Everything below is remembered, so switching it on again needs no setting up.")
+                          : qsTr("Switch the connector off without losing its configuration. Nothing is watched and no readings arrive while it is off.")
+            }
+            PpSwitch {
+                checked:   appSettings.launchMonitorEnabled
+                enabled:   root.chosen
+                opacity:   root.chosen ? 1.0 : 0.4
+                onToggled: (v) => appSettings.launchMonitorEnabled = v
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+    }
+
+    // Folder — the GCQuad's source. Hidden rather than disabled for the GSPro
+    // link: a listener has no folder, and a greyed-out folder picker invites
+    // the question "what should I put there?".
+    SettingsRow {
+        objectName: "setting_lmPath"
+        visible: !root.isGsPro
+        opacity: root.chosen ? 1.0 : 0.45
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+
+            ColumnLayout {
                 Layout.fillWidth: true
-            }
-
-            // ── Group 1 — Connection ──────────────────────────────────────────
-
-            Text {
-                text:                qsTr("Connection")
-                font.family:         Theme.fontBody
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color:               Theme.colorText3
-            }
-
-            // Device
-            RowLayout {
-                objectName: "setting_lmDevice"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-                    Text {
-                        text:           qsTr("Device")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           root.isGsPro
-                                        ? qsTr("Launch monitors connect TO PinPoint over the network. Point the device's own app at this machine's address and the port below")
-                                        : qsTr("FSX2020 is Windows-only, but the folder it writes to can be a share — so this works from any machine that can see it")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                        wrapMode:       Text.WordWrap
-                        Layout.fillWidth: true
-                    }
+                spacing: Theme.gap(3)
+                SettingsRowTitle {
+                    title:    qsTr("Shot data folder")
+                    subtitle: qsTr("The folder FSX2020 writes LastShot.CSV into — the folder, not the file")
                 }
-
-                PpComboBox {
-                    Layout.preferredWidth: Theme.sp(240)
-                    model: root.deviceOptions.map(function (o) { return o.label })
-                    currentIndex: {
-                        for (var i = 0; i < root.deviceOptions.length; ++i)
-                            if (root.deviceOptions[i].value === appSettings.launchMonitorKind)
-                                return i
-                        return 0
-                    }
-                    onActivated: (index) => appSettings.launchMonitorKind = root.deviceOptions[index].value
-                }
-            }
-
-            // ── The switch ────────────────────────────────────────────────────────
-            // Separate from the dropdown because "which device" and "is it running"
-            // are different decisions with different lifetimes. The case that forces
-            // it: GSPro itself wants port 921, so PinPoint's listener has to go
-            // dormant for an hour — and nobody should have to dismantle a working
-            // configuration to do that, or rebuild it afterwards.
-            RowLayout {
-                objectName: "setting_lmEnabled"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                visible: root.chosen
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-                    Text {
-                        text:           qsTr("Enabled")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           root.isGsPro
-                                        ? qsTr("Switch the link off to hand the port back — GSPro cannot use 921 while PinPoint is listening on it. Everything below is remembered, so switching it on again needs no setting up.")
-                                        : qsTr("Switch the connector off without losing its configuration. Nothing is watched and no readings arrive while it is off.")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                        wrapMode:       Text.WordWrap
-                        Layout.fillWidth: true
-                    }
-                }
-
-                TogglePill {
-                    checked:     appSettings.launchMonitorEnabled
-                    enabledPill: root.chosen
-                    onToggled:   (v) => appSettings.launchMonitorEnabled = v
-                    Layout.alignment: Qt.AlignVCenter
-                }
-            }
-
-            // Folder — the GCQuad's source. Hidden rather than disabled for the GSPro
-            // link: a listener has no folder, and a greyed-out folder picker invites
-            // the question "what should I put there?".
-            RowLayout {
-                objectName: "setting_lmPath"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                visible: !root.isGsPro
-                opacity: root.chosen ? 1.0 : 0.45
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-                    Text {
-                        Layout.fillWidth: true
-                        text:           qsTr("Shot data folder")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("The folder FSX2020 writes LastShot.CSV into — the folder, not the file")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight:   Theme.sp(28)
-                        color:            Theme.colorBg2
-                        radius:           Theme.radius
-                        border.width:     1
-                        border.color:     Theme.colorBorderMid
-                        Text {
-                            anchors.fill:            parent
-                            anchors.leftMargin:      Theme.gap(8)
-                            anchors.rightMargin:     Theme.gap(8)
-                            verticalAlignment:       Text.AlignVCenter
-                            elide:                   Text.ElideLeft
-                            text:                    appSettings.launchMonitorPath !== ""
-                                                     ? appSettings.launchMonitorPath
-                                                     : qsTr("No folder selected")
-                            font.family:             Theme.fontData
-                            font.pixelSize:          Theme.fontSzMicro
-                            color:                   appSettings.launchMonitorPath !== ""
-                                                     ? Theme.colorText : Theme.colorText3
-                        }
-                    }
-                }
-
-                ColumnLayout {
-                    spacing: Theme.gap(6)
-                    PpButton {
-                        label:     qsTr("Change…")
-                        enabled:   root.chosen
-                        onClicked: folderDialog.open()
-                    }
-                    PpButton {
-                        label:     qsTr("Open")
-                        enabled:   root.chosen && appSettings.launchMonitorPath !== ""
-                        onClicked: Qt.openUrlExternally(appSettings.fileUrlFor(appSettings.launchMonitorPath))
-                    }
-                }
-            }
-
-            // ── The GSPro link: where devices connect ─────────────────────────────
-            // Port and interface, and then the devices actually on the link. A folder
-            // is configured and that is the end of it; a launch monitor CONNECTS, says
-            // who it is, and can go away again — so this half of the panel answers a
-            // question the GCQuad half does not have.
-            RowLayout {
-                objectName: "setting_lmGsProLink"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                visible: root.isGsPro
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-                    Text {
-                        text:           qsTr("Link")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        // ⚠ 921 is the protocol's own port and it is BELOW 1024, which
-                        // costs something on two of the three platforms. The panel says
-                        // so here rather than only in an error nobody sees until it
-                        // fails: on macOS "All interfaces" is what makes 921 work at
-                        // all, and on Linux there is one sysctl or a higher port.
-                        text:           qsTr("Launch monitors connect to this port. 921 is the protocol's default; below 1024 it needs \"All interfaces\" on macOS, or a sysctl on Linux — any port above 1024 works everywhere, set the same one in the device's app")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                        wrapMode:       Text.WordWrap
-                        Layout.fillWidth: true
-                    }
-                }
-
-                ColumnLayout {
-                    spacing: Theme.gap(6)
-                    RowLayout {
-                        spacing: Theme.gap(8)
-                        Text {
-                            text:           qsTr("Port")
-                            font.family:    Theme.fontData
-                            font.pixelSize: Theme.fontSzMicro
-                            color:          Theme.colorText3
-                        }
-                        PpTextField {
-                            Layout.preferredWidth: Theme.sp(80)
-                            text:                  String(appSettings.gsProPort)
-                            inputMethodHints:      Qt.ImhDigitsOnly
-                            validator:             IntValidator { bottom: 1; top: 65535 }
-                            onEditingFinished:     appSettings.gsProPort = parseInt(text)
-                        }
-                    }
-                    PpComboBox {
-                        Layout.preferredWidth: Theme.sp(160)
-                        model: [ qsTr("All interfaces"), qsTr("This machine only") ]
-                        currentIndex: appSettings.gsProInterface === "loopback" ? 1 : 0
-                        onActivated: (index) => appSettings.gsProInterface = (index === 1 ? "loopback" : "any")
-                    }
-                }
-            }
-
-            // Status — the whole point of this row is answering "did I get the path right"
-            // without having to go and hit a ball.
-            RowLayout {
-                objectName: "setting_lmStatus"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                visible: root.configured
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
                 Rectangle {
-                    width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(4)
-                    color: root.statusColor
-                    Layout.alignment: Qt.AlignVCenter
-                }
-
-                ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.gap(3)
+                    implicitHeight:   Theme.sp(28)
+                    color:            Theme.colorBg2
+                    radius:           Theme.radius
+                    border.width:     1
+                    border.color:     Theme.colorBorderMid
                     Text {
-                        text:           launchMonitor.stateLabel
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text: launchMonitor.errorText !== "" ? launchMonitor.errorText
-                            : launchMonitor.lastReading !== "" ? qsTr("Last reading — %1").arg(launchMonitor.lastReading)
-                            : launchMonitor.sourceText !== "" ? launchMonitor.sourceText
-                            : qsTr("Nothing read yet")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                        wrapMode:       Text.WordWrap
-                        Layout.fillWidth: true
+                        anchors.fill:            parent
+                        anchors.leftMargin:      Theme.gap(8)
+                        anchors.rightMargin:     Theme.gap(8)
+                        verticalAlignment:       Text.AlignVCenter
+                        elide:                   Text.ElideLeft
+                        text:                    appSettings.launchMonitorPath !== ""
+                                                 ? appSettings.launchMonitorPath
+                                                 : qsTr("No folder selected")
+                        font.family:             Theme.fontData
+                        font.pixelSize:          Theme.fontSzMicro
+                        color:                   appSettings.launchMonitorPath !== ""
+                                                 ? Theme.colorText : Theme.colorText3
                     }
                 }
             }
 
-            PpDivider { Layout.fillWidth: true }
-
-            // ── Group 2 — Behaviour ───────────────────────────────────────────
-
-            Text {
-                text:                qsTr("Behaviour")
-                font.family:         Theme.fontBody
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color:               Theme.colorText3
-            }
-
-            // Arrival chime
-            RowLayout {
-                objectName: "setting_lmChime"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-                    Text {
-                        text:           qsTr("Chime when a reading arrives")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("A short, quiet tone a few seconds after the shot chime, when the monitor's data has been folded into the swing. The fourth dot in the capture toolbar shows the same thing silently.")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                        wrapMode:       Text.WordWrap
-                        Layout.fillWidth: true
-                    }
+            ColumnLayout {
+                spacing: Theme.gap(6)
+                PpButton {
+                    label:     qsTr("Change…")
+                    enabled:   root.chosen
+                    onClicked: folderDialog.open()
                 }
-
-                TogglePill {
-                    checked:     appSettings.launchMonitorChimeEnabled
-                    enabledPill: root.configured
-                    onToggled:   (v) => appSettings.launchMonitorChimeEnabled = v
-                    Layout.alignment: Qt.AlignVCenter
+                PpButton {
+                    label:     qsTr("Open")
+                    enabled:   root.chosen && appSettings.launchMonitorPath !== ""
+                    onClicked: Qt.openUrlExternally(appSettings.fileUrlFor(appSettings.launchMonitorPath))
                 }
             }
+        }
+    }
 
-            // Standalone shots — the one row here that changes what a shot IS.
-            RowLayout {
-                objectName: "setting_lmStandalone"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+    // ── The GSPro link: where devices connect ─────────────────────────────────
+    // Port and interface, and then the devices actually on the link. A folder
+    // is configured and that is the end of it; a launch monitor CONNECTS, says
+    // who it is, and can go away again — so this half of the panel answers a
+    // question the GCQuad half does not have.
+    SettingsRow {
+        objectName: "setting_lmGsProLink"
+        visible: root.isGsPro
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-                    Text {
-                        text:           qsTr("Record shots the monitor sees on its own")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Creates a swing from the monitor's reading alone, with no video and no analysis — only its own measurements. Only while CAPTURE IS ACTIVE, with an athlete selected and a session running. Leave this off unless you are hitting into the monitor without cameras: while capture is running it records every ball the monitor sees, including another player's.")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                        wrapMode:       Text.WordWrap
-                        Layout.fillWidth: true
-                    }
-                }
-
-                TogglePill {
-                    checked:     appSettings.launchMonitorStandalone
-                    enabledPill: root.configured
-                    onToggled:   (v) => appSettings.launchMonitorStandalone = v
-                    Layout.alignment: Qt.AlignVCenter
-                }
+            // ⚠ 921 is the protocol's own port and it is BELOW 1024, which
+            // costs something on two of the three platforms. The panel says
+            // so here rather than only in an error nobody sees until it
+            // fails: on macOS "All interfaces" is what makes 921 work at
+            // all, and on Linux there is one sysctl or a higher port.
+            SettingsRowTitle {
+                title:    qsTr("Link")
+                subtitle: qsTr("Launch monitors connect to this port. 921 is the protocol's default; below 1024 it needs \"All interfaces\" on macOS, or a sysctl on Linux — any port above 1024 works everywhere, set the same one in the device's app")
             }
 
-            // Poll interval
-            RowLayout {
-                objectName: "setting_lmPoll"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                opacity: root.configured ? 1.0 : 0.45
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
+            ColumnLayout {
+                spacing: Theme.gap(6)
+                RowLayout {
+                    spacing: Theme.gap(8)
                     Text {
-                        Layout.fillWidth: true
-                        text:           qsTr("Check for new shots every")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Raise this only if the folder is on a slow or busy network share")
+                        text:           qsTr("Port")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
                     }
+                    PpTextField {
+                        Layout.preferredWidth: Theme.sp(80)
+                        text:                  String(appSettings.gsProPort)
+                        inputMethodHints:      Qt.ImhDigitsOnly
+                        validator:             IntValidator { bottom: 1; top: 65535 }
+                        onEditingFinished:     appSettings.gsProPort = parseInt(text)
+                    }
                 }
-
                 PpComboBox {
-                    Layout.preferredWidth: Theme.sp(140)
-                    enabled: root.configured
-                    readonly property var msValues: [100, 250, 500, 1000, 2000]
-                    model: [qsTr("0.1 s"), qsTr("0.25 s"), qsTr("0.5 s"), qsTr("1 s"), qsTr("2 s")]
-                    currentIndex: Math.max(0, msValues.indexOf(appSettings.launchMonitorPollMs))
-                    onActivated: (index) => appSettings.launchMonitorPollMs = msValues[index]
+                    Layout.preferredWidth: Theme.sp(160)
+                    model: [ qsTr("All interfaces"), qsTr("This machine only") ]
+                    currentIndex: appSettings.gsProInterface === "loopback" ? 1 : 0
+                    onActivated: (index) => appSettings.gsProInterface = (index === 1 ? "loopback" : "any")
                 }
+            }
+        }
+    }
+
+    // Status — the whole point of this row is answering "did I get the path right"
+    // without having to go and hit a ball.
+    SettingsRow {
+        objectName: "setting_lmStatus"
+        visible: root.configured
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+
+            Rectangle {
+                width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(4)
+                color: root.statusColor
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            SettingsRowTitle {
+                title:    launchMonitor.stateLabel
+                subtitle: launchMonitor.errorText !== "" ? launchMonitor.errorText
+                        : launchMonitor.lastReading !== "" ? qsTr("Last reading — %1").arg(launchMonitor.lastReading)
+                        : launchMonitor.sourceText !== "" ? launchMonitor.sourceText
+                        : qsTr("Nothing read yet")
+            }
+        }
+    }
+
+    PpDivider { Layout.fillWidth: true }
+
+    // ── Group 2 — Behaviour ───────────────────────────────────────────────────
+
+    SettingsSectionHead { text: qsTr("Behaviour") }
+
+    // Arrival chime
+    SettingsRow {
+        objectName: "setting_lmChime"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+            SettingsRowTitle {
+                title:    qsTr("Chime when a reading arrives")
+                subtitle: qsTr("A short, quiet tone a few seconds after the shot chime, when the monitor's data has been folded into the swing. The fourth dot in the capture toolbar shows the same thing silently.")
+            }
+            PpSwitch {
+                checked:   appSettings.launchMonitorChimeEnabled
+                enabled:   root.configured
+                opacity:   root.configured ? 1.0 : 0.4
+                onToggled: (v) => appSettings.launchMonitorChimeEnabled = v
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+    }
+
+    // Standalone shots — the one row here that changes what a shot IS.
+    SettingsRow {
+        objectName: "setting_lmStandalone"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+            SettingsRowTitle {
+                title:    qsTr("Record shots the monitor sees on its own")
+                subtitle: qsTr("Creates a swing from the monitor's reading alone, with no video and no analysis — only its own measurements. Only while CAPTURE IS ACTIVE, with an athlete selected and a session running. Leave this off unless you are hitting into the monitor without cameras: while capture is running it records every ball the monitor sees, including another player's.")
+            }
+            PpSwitch {
+                checked:   appSettings.launchMonitorStandalone
+                enabled:   root.configured
+                opacity:   root.configured ? 1.0 : 0.4
+                onToggled: (v) => appSettings.launchMonitorStandalone = v
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+    }
+
+    // Poll interval
+    SettingsRow {
+        objectName: "setting_lmPoll"
+        opacity: root.configured ? 1.0 : 0.45
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+            SettingsRowTitle {
+                title:    qsTr("Check for new shots every")
+                subtitle: qsTr("Raise this only if the folder is on a slow or busy network share")
+            }
+            PpComboBox {
+                Layout.preferredWidth: Theme.sp(140)
+                enabled: root.configured
+                readonly property var msValues: [100, 250, 500, 1000, 2000]
+                model: [qsTr("0.1 s"), qsTr("0.25 s"), qsTr("0.5 s"), qsTr("1 s"), qsTr("2 s")]
+                currentIndex: Math.max(0, msValues.indexOf(appSettings.launchMonitorPollMs))
+                onActivated: (index) => appSettings.launchMonitorPollMs = msValues[index]
             }
         }
     }

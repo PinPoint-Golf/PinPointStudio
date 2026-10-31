@@ -31,7 +31,8 @@ import PinPointStudio
 //     few words, and is never ringed; under trunk bend at P3–P5 a second, smaller figure — the back line, the session's
 //     median of it — with its own ⚠ words (decision 16 of session_posture.h: not matched, no band of its own);
 //   · at address (§7.4.2): each rig-sensitive address reading, the session's box against the good-player band, the
-//     golfer's earlier sessions from the same set-up, and the ⚠ "depends on where the camera stands" under each;
+//     golfer's earlier sessions from the same set-up, and the ⚠ "depends on where the camera stands" under each — the
+//     Charts block itself (PpChPostureAddress) on paper: in the report's type and inks, its rows pager atoms;
 //   · what moved, at the top and at impact;
 //   · the pattern by shot (a mark per shot, ringed where it is not the session's pattern), the departures as counts,
 //     how repeatable it is;
@@ -67,24 +68,12 @@ Column {
     visible: on
     width: 600
 
-    // the address block's label column (the profile's own geometry is PpReportProfile's: the same label column)
-    readonly property real labelW: 122
-    function fin(v) { return v !== null && v !== undefined && isFinite(v) }
-
     // ═══ the head ═══
-    Column {
+    PpReportSectionHead {
         objectName: "reportPosture"
-        property bool atom: true
-        property bool keepNext: true
-        property bool breakBefore: true
-        property string section: "Posture"
+        ro: pp.ro; kicker: pp.m.kicker || ""; title: "Posture"; standfirst: pp.m.head || ""
         visible: pp.on
         width: pp.width
-        Text { width: parent.width; text: pp.m.kicker || ""; font: pp.ro.fKicker; color: pp.ro.accent; wrapMode: Text.WordWrap }
-        Item { width: 1; height: 6 }
-        Text { width: parent.width; text: "Posture"; font: pp.ro.fH1; color: pp.ro.ink; wrapMode: Text.WordWrap; lineHeight: 1.08 }
-        Item { width: 1; height: 10 }
-        Text { width: parent.width; text: pp.m.head || ""; font: pp.ro.fStand; color: pp.ro.ink2; wrapMode: Text.WordWrap; lineHeight: 1.2 }
         Item { width: 1; height: 8; visible: patLine.visible }
         Item {
             id: patLine
@@ -112,105 +101,15 @@ Column {
     // ═══ at address (§7.4.2): the rig-sensitive address readings — the session's box against the good-player band, the
     //     golfer's earlier sessions from the same set-up, and the ⚠ under every reading. A heading atom kept with the
     //     first reading, then one atom per reading. ═══
-    Column {
+    PpChPostureAddress {
         id: addr
         objectName: "reportPostureAddress"
-        readonly property var block: pp.m.address || null
-        readonly property var arows: block ? (block.rows || []).slice(0, 8) : []
-        readonly property real laneH: 13
-        readonly property real laneW: 92
-        readonly property real aPlotW: pp.width - pp.labelW - laneW
-        visible: pp.on && arows.length > 0
+        prefix: "reportPostureAddress"
+        roles: cr; ro: pp.ro
+        block: pp.m.address || null; cap: 8
+        mode: "session"; interactive: false
+        visible: pp.on && addr.rows.length > 0
         width: pp.width
-        Column {
-            property bool atom: true
-            property bool keepNext: true
-            width: pp.width
-            Item { width: 1; height: 18 }
-            Text { width: parent.width; text: addr.block ? (addr.block.title || "At address") : "At address"; font: pp.ro.fH3; color: pp.ro.ink }
-            Item { width: 1; height: 3 }
-            Text { width: parent.width; visible: text !== ""; text: addr.block ? (addr.block.sub || "") : ""; font: pp.ro.fSmall; color: pp.ro.ink3; wrapMode: Text.WordWrap }
-            Item { width: 1; height: 6 }
-        }
-        Repeater {
-            model: addr.arows
-            delegate: Item {
-                id: ar
-                required property var modelData
-                objectName: "reportPostureAddressRow"
-                property bool atom: true
-                readonly property var r: modelData
-                readonly property string measureId: r.measureId || ""
-                readonly property string text: r.text || "-"
-                readonly property bool warned: r.warned === true
-                readonly property bool hasHistory: r.hasHistory === true
-                readonly property color hue: pp.ro.hue(r.hueKey || r.metricKey || "")
-                readonly property real lo: pp.fin(r.xLo) ? r.xLo : 0
-                readonly property real hi: pp.fin(r.xHi) ? r.xHi : 1
-                function vx(v) { return pp.labelW + addr.aPlotW * (v - lo) / Math.max(1e-9, hi - lo) }
-                readonly property real plotH: 2 * addr.laneH + 3
-                width: pp.width
-                height: Math.max(alab.height + 6, 4 + plotH + 3 + afig.height + (awarn.visible ? awarn.height + 1 : 0) + 8)
-
-                Column {
-                    id: alab
-                    y: 4; width: pp.labelW - 12; spacing: 2
-                    Row { spacing: 6
-                        Rectangle { width: 7; height: 7; radius: 3.5; color: ar.hue; anchors.verticalCenter: parent.verticalCenter }
-                        Text { width: pp.labelW - 25; text: ar.r.label || ""; font: pp.ro.fBodyDM; color: pp.ro.ink; wrapMode: Text.WordWrap } }
-                    Text { width: parent.width; text: (ar.r.camera || "") + (ar.r.unit ? ", " + ar.r.unit : ""); font: pp.ro.fMicro; color: pp.ro.ink3; wrapMode: Text.WordWrap }
-                }
-                // the band across both lanes, in the reading's own colour
-                Rectangle {
-                    visible: ar.r.banded === true && pp.fin(ar.r.bandLo) && pp.fin(ar.r.bandHi)
-                    x: visible ? Math.max(pp.labelW, ar.vx(ar.r.bandLo)) : 0
-                    width: visible ? Math.max(1, Math.min(pp.labelW + addr.aPlotW, ar.vx(ar.r.bandHi)) - x) : 0
-                    y: 4; height: ar.plotH
-                    color: Qt.alpha(ar.hue, 0.16)
-                }
-                PpChBoxCell {
-                    x: pp.labelW; width: addr.aPlotW; y: 4; height: addr.laneH
-                    lo: ar.lo; hi: ar.hi
-                    roles: cr; brush: null; interactive: false; showPicked: false
-                    box: ar.r.box || null; values: ar.r.values || []; fired: []
-                    color: ar.hue
-                }
-                PpChBoxCell {
-                    visible: ar.hasHistory
-                    x: pp.labelW; width: addr.aPlotW; y: 4 + addr.laneH + 3; height: addr.laneH
-                    lo: ar.lo; hi: ar.hi
-                    roles: cr; brush: null; interactive: false; showPicked: false; muted: true
-                    box: ar.hasHistory ? ar.r.history : null; values: []; fired: []
-                }
-                Text { visible: !ar.hasHistory && text !== ""; x: pp.labelW + 4; width: addr.aPlotW - 8; y: 4 + addr.laneH + 3
-                       text: ar.r.historyWhy || ""; font: pp.ro.fMicro; color: pp.ro.ink3; wrapMode: Text.WordWrap }
-                Text { x: pp.labelW + addr.aPlotW + 6; y: 4; width: addr.laneW - 6; text: "this session"; font: pp.ro.fMicro; color: pp.ro.ink3 }
-                Text { x: pp.labelW + addr.aPlotW + 6; y: 4 + addr.laneH + 3; width: addr.laneW - 6; text: "earlier sessions"; font: pp.ro.fMicro; color: pp.ro.ink3 }
-                // the figures, then the ⚠ and its few words
-                Text {
-                    id: afig
-                    x: pp.labelW; y: 4 + ar.plotH + 3; width: pp.width - pp.labelW; wrapMode: Text.WordWrap
-                    text: [ar.text + (ar.r.valueWord ? " " + ar.r.valueWord : ""), ar.r.bandText || "", ar.r.boxText || "", ar.r.historyText || ""]
-                          .filter(function (x) { return x !== "" }).join("   ·   ")
-                    font: pp.ro.fSmall; color: pp.ro.ink2; lineHeight: 1.2
-                }
-                Text {
-                    id: awarn
-                    visible: ar.warned
-                    x: pp.labelW; y: afig.y + afig.height + 1; width: pp.width - pp.labelW; wrapMode: Text.WordWrap
-                    text: ar.warned ? (ar.r.warn || "⚠") + " " + (ar.r.warnShort || "") : ""
-                    font: pp.ro.fMicro; color: pp.ro.ink2
-                }
-                Rectangle { anchors.bottom: parent.bottom; anchors.bottomMargin: 3; width: parent.width; height: pp.ro.hw; color: pp.ro.faint }
-            }
-        }
-        Item {
-            property bool atom: true
-            property bool keepPrev: true
-            visible: !!addr.block && !!addr.block.legend
-            width: pp.width; height: visible ? alg.height + 8 : 0
-            Text { id: alg; y: 4; width: parent.width; text: addr.block ? (addr.block.legend || "") : ""; font: pp.ro.fMicro; color: pp.ro.ink3; wrapMode: Text.WordWrap; lineHeight: 1.25 }
-        }
     }
 
     // ═══ what moved ═══
@@ -413,23 +312,11 @@ Column {
     }
 
     // ═══ how far can I trust this? said once, open ═══
-    Column {
+    PpReportTrust {
         objectName: "reportPostureTrust"
-        property bool atom: true
+        ro: pp.ro; lines: pp.trust; more: pp.m.trustMore || ""
         visible: pp.on && pp.trust.length > 0
         width: pp.width
-        Item { width: 1; height: 18 }
-        Text { width: parent.width; text: "How far can I trust this?"; font: pp.ro.fH3; color: pp.ro.ink }
-        Item { width: 1; height: 4 }
-        Repeater {
-            model: pp.trust
-            delegate: Text {
-                required property var modelData
-                width: pp.width; leftPadding: 12; bottomPadding: 3
-                text: String(modelData); font: pp.ro.fSmall; color: pp.ro.ink2; wrapMode: Text.WordWrap; lineHeight: 1.25
-            }
-        }
-        Text { width: parent.width; visible: text !== ""; leftPadding: 12; text: pp.m.trustMore || ""; font: pp.ro.fMicro; color: pp.ro.ink3; wrapMode: Text.WordWrap }
     }
 
     // the Charts print roles in Folio light: the box's design values and its inks (PpChBoxCell reads a PpTypeset).

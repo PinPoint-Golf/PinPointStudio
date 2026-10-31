@@ -21,15 +21,13 @@ import PinPointStudio
 
 // One STATS HISTORY row: TIME / CATEGORY badge / MESSAGE. Values come
 // pre-formatted from ProfilerController — pure bindings here.
-Rectangle {
+RmZebraRow {
     id: root
 
     property var  statData
-    property bool isAlternate: false
 
     width: parent ? parent.width : 0
     height: msg.implicitHeight + Theme.sp(10)
-    color: isAlternate ? Theme.colorBg : Theme.colorSurface
 
     readonly property color catColor:
         statData.category === "GAUGE"  ? Theme.colorAccent :
@@ -56,9 +54,9 @@ Rectangle {
         width: Theme.sp(52)
         height: Theme.sp(16)
         radius: Theme.sp(3)
-        color: Qt.rgba(root.catColor.r, root.catColor.g, root.catColor.b, 0.12)
+        color: Qt.alpha(root.catColor, 0.12)
         border.width: 1
-        border.color: Qt.rgba(root.catColor.r, root.catColor.g, root.catColor.b, 0.35)
+        border.color: Qt.alpha(root.catColor, 0.35)
 
         Text {
             anchors.centerIn: parent

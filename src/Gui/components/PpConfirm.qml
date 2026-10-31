@@ -22,12 +22,13 @@ import QtQuick
 import QtQuick.Controls.Basic
 import PinPointStudio
 
-// The house confirmation prompt, as the session-active close interception in Main.qml draws it:
-// modal, centred, dimmed, Esc cancels, display-font title, right-aligned outlined primary followed by
-// a neutral Cancel. Written once here because this panel raises two of them and two hand-drawn copies
-// of one standard drift apart.
+// The house confirmation prompt: modal, centred, dimmed, Esc cancels, display-font title, right-aligned
+// outlined primary followed by a neutral Cancel. Used by the session-active close interception
+// (Main.qml), the Sessions screen's bulk actions and the Diagnostic Model's two prompts — written once
+// because hand-drawn copies of one standard drift apart.
 //
-// `tone` is the ONE thing the two callers differ on, and the difference is meant. Theme.colorAttention
+// `tone` is the meaningful difference between callers, and the difference is meant (`dialogWidth` and
+// `buttonHoverScale` exist only so the close prompt keeps the look it has always had). Theme.colorAttention
 // is defined as a call-to-action frame — "draws the eye to a row/control that needs the user to act" —
 // and the close prompt wears it because it interrupts something live, not because it destroys
 // anything. A prompt that discards saved work wears the error family instead, which is how the app
@@ -42,6 +43,12 @@ Popup {
     property string cancelText:  qsTr("Cancel")
     // "attention" — a call to act, nothing is lost. "error" — this destroys saved work.
     property string tone:        "attention"
+    // The prompt's width before the window clamps it. The close prompt in Main.qml has always been
+    // sp(20) narrower than the others and keeps its look.
+    property real   dialogWidth: Theme.sp(440)
+    // Hover growth on the two buttons. The prompts here sit still (1.0); the close prompt keeps the
+    // card/pill default growth it has always had.
+    property real   buttonHoverScale: 1.0
 
     signal confirmed()
     signal cancelled()
@@ -58,7 +65,7 @@ Popup {
     // that is asking about saved work is not an answer.
     closePolicy: Popup.CloseOnEscape
     padding: Theme.gap(20)
-    width: Math.min(Theme.sp(440), (parent ? parent.width : Theme.sp(600)) - Theme.sp(48))
+    width: Math.min(root.dialogWidth, (parent ? parent.width : Theme.sp(600)) - Theme.sp(48))
 
     // Escape, a click on Cancel and a programmatic close all land here, so the cancel path is stated
     // once. `_answered` is what keeps confirming from also reporting a cancel on the way out.
@@ -125,7 +132,7 @@ Popup {
                 }
                 PpPressable {
                     id: confirmMa
-                    hoverScale: 1.0
+                    hoverScale: root.buttonHoverScale
                     onClicked: {
                         root._answered = true
                         root.close()
@@ -151,7 +158,7 @@ Popup {
                     font.pixelSize: Theme.fontSzBody2
                     color:          Theme.colorText2
                 }
-                PpPressable { id: cancelMa; hoverScale: 1.0; onClicked: root.close() }
+                PpPressable { id: cancelMa; hoverScale: root.buttonHoverScale; onClicked: root.close() }
             }
         }
     }

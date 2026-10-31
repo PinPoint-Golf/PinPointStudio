@@ -21,7 +21,8 @@
 // connected, sensor roles assigned, enabled and connected, the HackMotion connected, the launch
 // monitor configured; no calibration gate). The rule is capability_facts.js in "home" mode — the
 // wizard's closing page uses the same helper in "wizard" mode — and the rows and their words are
-// setup_capability_rows.js, the ONE place that wording lives: describe, never instruct.
+// setup_capability_rows.js, the ONE place that wording lives: describe, never instruct. Each row is
+// a SetupCapabilityRow (compact), the row Ready draws, so both colour a family by the row's tone.
 //
 // Below a hairline, what today's DEVICES section carried that still belongs on Home: the PPCP pair
 // entry (pairPhoneButton), the sessions a connected phone is offering (PpcpOfferList) and the
@@ -64,18 +65,6 @@ Column {
                             noLm === null ? null : root._catalog.setupSummary(noLm))
     }
 
-    // A family's dot: measured (filled accent), estimated or partly (the accent at half strength),
-    // nothing recorded (an outline in the quiet ink).
-    function dotKind(state) {
-        if (state === "measured" || state === "measuredByLm" || state === "recorded") return "measured"
-        if (state === "none") return "unavailable"
-        return "estimated"
-    }
-    // The words beside the family: CapRows' own, minus the family label it leads `text` with.
-    function rowWords(r) {
-        return r.reason !== "" ? r.stateText + " · " + r.reason : r.stateText
-    }
-
     // ── Title ────────────────────────────────────────────────────────────────
     Item {
         width:  root.width
@@ -102,58 +91,15 @@ Column {
     Item { width: 1; height: Theme.sp(4) }
 
     // ── The families ─────────────────────────────────────────────────────────
+    // The row the setup Ready page draws, in its dense form; its dot takes the row's tone.
     Repeater {
         model: root.rows
 
-        Item {
-            id: capRow
+        SetupCapabilityRow {
             required property var modelData
-            readonly property string kind: root.dotKind(modelData.state)
-            objectName: "capabilityRow"
-            width:  root.width
-            height: Math.max(Theme.sp(30), Math.max(capLabel.implicitHeight, capWords.implicitHeight) + Theme.sp(10))
-
-            Accessible.role: Accessible.StaticText
-            Accessible.name: modelData.text
-
-            Rectangle {
-                id: dot
-                x: 0
-                anchors.verticalCenter: capLabel.verticalCenter
-                width:  Theme.sp(Theme.capDot); height: width; radius: width / 2
-                color:  capRow.kind === "measured"  ? Theme.colorAccent
-                      : capRow.kind === "estimated" ? Theme.colorAccentMid
-                      :                               "transparent"
-                border.width: capRow.kind === "measured" ? 0 : 1
-                border.color: capRow.kind === "estimated" ? Theme.colorAccent : Theme.colorText3
-            }
-            Text {
-                id: capLabel
-                x: dot.width + Theme.gap(12)
-                y: Theme.sp(5)
-                width: Math.min(implicitWidth, Math.round(root.width * 0.45))
-                text:           capRow.modelData.label
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody
-                font.weight:    Theme.fontBodyWeight
-                color:          capRow.kind === "unavailable" ? Theme.colorText3 : Theme.colorText
-                elide:          Text.ElideRight
-            }
-            Text {
-                id: capWords
-                objectName: "capabilityWords"
-                anchors { left: capLabel.right; leftMargin: Theme.gap(12); right: parent.right }
-                anchors.baseline: capLabel.baseline
-                text:                root.rowWords(capRow.modelData)
-                horizontalAlignment: Text.AlignRight
-                wrapMode:            Text.WordWrap
-                maximumLineCount:    2
-                elide:               Text.ElideRight
-                font.family:         Theme.fontData
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingData
-                color:               Theme.colorText3
-            }
+            width:   root.width
+            row:     modelData
+            compact: true
         }
     }
 
@@ -195,7 +141,7 @@ Column {
             PpQrGlyph {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Theme.sp(13); height: Theme.sp(13)
-                color: pairButton.hovered ? Qt.lighter(Theme.colorAccent, 1.15) : Theme.colorAccent
+                color: pairButton.inkColor
             }
             PpLink {
                 id: pairButton

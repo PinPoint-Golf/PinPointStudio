@@ -71,7 +71,7 @@ Item {
         // Dim track — the full outline, so the frame reads "active" even at the
         // point of the loop where the comet has just passed.
         ShapePath {
-            strokeColor: Qt.rgba(root.color.r, root.color.g, root.color.b, 0.22)
+            strokeColor: Qt.alpha(root.color, 0.22)
             strokeWidth: root.lineWidth
             fillColor:   "transparent"
             joinStyle:   ShapePath.RoundJoin

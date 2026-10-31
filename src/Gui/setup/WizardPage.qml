@@ -67,4 +67,14 @@ Item {
     // ── Lifecycle (called by the flow; a page overrides them) ───────────────────────────────────
     function enter(direction) {}
     function leave(reason)    {}
+
+    // ── Helpers ──────────────────────────────────────────────────────────────────────────────────
+    // A Check page's Recalibrate (N15): drop `group`'s outcome and jump back to its Calibrate step
+    // `step` with Calibrate and Check pending; that page then begins a fresh run, because nothing
+    // valid is recorded. Not named recalibrate(): CalibrateTrunkPage has one of its own that
+    // restarts its routine in place.
+    function redoCalibration(group, step) {
+        page.draft.clearOutcome(group)
+        page.flow.goTo(step, true)
+    }
 }

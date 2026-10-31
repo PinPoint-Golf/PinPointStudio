@@ -43,6 +43,7 @@
 // The backends are properties defaulting to the app's context objects, so a test hands in stand-ins.
 
 import QtQuick
+import PinPointStudio
 
 QtObject {
     id: jobs
@@ -86,19 +87,96 @@ QtObject {
     property int    _ok:     0
     property int    _failed: 0
 
-    function _same(a, b) {
-        const n = s => String(s || "").replace(/\/+/g, "/").replace(/\/$/, "")
-        return n(a) === n(b)
-    }
+    // The same session folder however it is spelled (SessionMode.sameFolder: one slash, none trailing,
+    // and a Windows path's backslashes read as slashes).
+    function _same(a, b) { return SessionMode.sameFolder(a, b) }
     function _isLive(f, dir) {
         return !!f.isLive || (!!jobs.review && !!jobs.review.liveSessionDir && jobs._same(jobs.review.liveSessionDir, dir))
     }
+    // ── What a session can have done to it, and why not ─────────────────────
+    // The one home of these rules: the rows (PpSessionsTableRow), the ⋯ menu (PpSessionRowMenu), the
+    // selection bar (PpSessionsSelectionBar) and the list all ask here. `f` is one session's facts — a
+    // row or the menu will do: {canReport, isLive, archived, pdfPath, reportState (or state), greeting}.
+
+    // Can have a report now: canReport (three swings or more), not the live session, not archived.
+    function reportable(f) { return !!f && !!f.canReport && !f.isLive && !f.archived }
+    // Has a PDF to open or send (an out-of-date one still opens).
+    function hasPdf(f) {
+        if (!f) return false
+        const st = f.reportState !== undefined ? f.reportState : f.state
+        return !!f.pdfPath && (st === "current" || st === "stale")
+    }
+    // Who the reports go to, in words: the golfer's greeting, else "the golfer".
+    function who(f) {
+        const g = f && f.greeting ? String(f.greeting) : ""
+        return g !== "" ? g : qsTr("the golfer")
+    }
+
+    // Why `verb` cannot be done, "" when it can. Two callers, each with its own words:
+    //   whyNot(verb, row)            one session — the ⋯ menu's quiet notes ("still recording"); `f` is
+    //                                the menu: the row's facts plus making, hasSwings, email, greeting,
+    //                                sendBusy, archiveReady, jobRunning
+    //   whyNot(verb, tally, count)   a selection — the bar's tooltips ("The live session is still
+    //                                recording"); `f` is the list's selectionInfo {live, archived,
+    //                                reportable} plus reportsBusy, email, greeting, sendBusy, archiveReady,
+    //                                archiverBusy, archiverStatus
+    // Verbs: make (the menu's report item), send (Email), export, archive (Archive / Restore), trash.
+    function whyNot(verb, f, count) {
+        f = f || {}
+        const one  = count === undefined
+        const n    = one ? 1 : count
+        const live = one ? (f.isLive ? 1 : 0) : (f.live || 0)
+        const arch = one ? (f.archived ? 1 : 0) : (f.archived || 0)
+        const canN = one ? (jobs.reportable(f) ? 1 : 0) : (f.reportable || 0)
+        const say  = (note, sentence) => one ? note : sentence
+        // Why none can have a report: all live, the rest archived, else too few swings.
+        const noReport = () => live === n        ? say(qsTr("still recording"), qsTr("The live session is still recording"))
+                             : arch + live === n ? say(qsTr("restore it first"), qsTr("Archived sessions need restoring first"))
+                             :                     say(qsTr("needs 3 swings"), qsTr("A report needs at least three swings"))
+        const busyMaking = say(qsTr("making it now"), qsTr("A report is being made: wait for it to finish"))
+        switch (verb) {
+        case "make":
+            if (canN === 0) return noReport()
+            if (f.making || f.reportsBusy) return busyMaking
+            return ""
+        case "send":
+            if (f.email === "") return say(qsTr("add %1's email"), qsTr("Add %1's email on their page first")).arg(jobs.who(f))
+            if (canN === 0) return noReport()
+            // One email sends the PDF there is; a bulk send makes a missing one first.
+            if (one && !jobs.hasPdf(f)) return qsTr("make report first")
+            if (f.sendBusy) return say(qsTr("another is sending"), qsTr("Another report is being sent"))
+            if (f.reportsBusy) return busyMaking
+            return ""
+        case "export":
+            if (live === n) return say(qsTr("export it from Live"), qsTr("The live session exports from Live"))
+            if (f.hasSwings === false) return qsTr("no swings")
+            if (f.jobRunning) return qsTr("another job is running")
+            return ""
+        case "archive":
+            // The menu names the live session first; a selection names the missing folder first.
+            if (one && live) return qsTr("still recording")
+            if (!f.archiveReady) return say(qsTr("set an archive folder in Settings → Archiving"),
+                                            qsTr("Set an archive folder in Settings → Archiving"))
+            if (f.archiverBusy) return qsTr("Archiving is busy: %1").arg(f.archiverStatus || "")
+            if (f.jobRunning) return qsTr("another job is running")
+            if (arch === n) return ""                       // all archived: it is Restore
+            if (n - arch - live === 0) return arch === 0 ? qsTr("The live session cannot be archived")
+                                                         : qsTr("Nothing to archive: the rest are archived already")
+            return ""
+        case "trash":
+            if (live === n) return say(qsTr("still recording"), qsTr("The live session cannot be deleted"))
+            if (f.jobRunning) return qsTr("another job is running")
+            return ""
+        }
+        return ""
+    }
+
     // Whether a session can take the verb.
     function canTake(verb, dir, f) {
         f = f || jobs.rowFor(dir) || {}
         const live = jobs._isLive(f, dir)
         switch (verb) {
-        case "make": case "send": return !!f.canReport && !live && !f.archived
+        case "make": case "send": return jobs.reportable(f) && !live
         case "archive":           return !f.archived && !live
         case "restore":           return !!f.archived
         case "trash": case "export": return !live

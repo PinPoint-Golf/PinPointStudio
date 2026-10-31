@@ -116,8 +116,6 @@ Item {
     // centred, unless the median label would then reach the zone labels (they start u(10) past the edge)
     readonly property real cx: Math.round(Math.max(boxW / 2 + roles.u(2), Math.min(width / 2, width + roles.u(7) - medM.advanceWidth - roles.u(3) - boxW / 2)))
     readonly property real capW: Math.round(boxW * 0.5)
-    readonly property real lw: medium === "print" ? roles.hw : 1            // the box's outline and the whiskers
-    readonly property real medW: medium === "print" ? 1 : 1.5               // the median rule
     function py(f) { return Math.round(scale.y(f) * 2) / 2 }
     readonly property bool hasBox: !!scale && dots.length > 0 && isFinite(fQ1) && isFinite(fQ3) && isFinite(fMedian)
 
@@ -160,8 +158,7 @@ Item {
         cross: bx.cx
         stats: bx.hasBox ? { lo: bx.fLoWhisker, q1: bx.fQ1, med: bx.fMedian, q3: bx.fQ3, hi: bx.fHiWhisker } : null
         bodyW: bx.boxW; capW: bx.capW; medianOver: bx.roles.u(2)
-        lw: bx.lw; medW: bx.medW
-        ink: bx.roles.ink2; medianInk: bx.roles.ink; fill: Qt.alpha(bx.roles.ink3, 0.10)
+        style: ({ print: bx.medium === "print" })          // the typeset's box: ink2 outline, ink median, faint fill
         marks: bx.marks; echo: bx.echo
         texts: bx.box.texts || null
         examined: bx.examining

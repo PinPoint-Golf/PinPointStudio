@@ -26,7 +26,7 @@ AREAS = collections.OrderedDict([
  ("components", ("Shared components", "The app-wide primitives: buttons, chips, cards, pills, badges, toasts and the coaching-card shell (PpCard family). The intended single home for anything reused by more than one area.")),
  ("typeset", ("Typeset", "The 'typeset system' (design system §15): the per-panel helper PpTypeset plus a shared plot/typography vocabulary (box plot, zone plot, brush, marks, section heads, pager, folio) that draws identically on screen and in print.")),
  ("shell", ("Shell", "The application window and chrome: Main.qml, rail, header, about dialog, update banner, detect cluster, analysing badge, and the dev-hatch PlayPage.")),
- ("home", ("Home", "The home screen: onboarding, athlete/club/session-type selection, the 'your swing' summary (focus, work-ons, goes-together), swing-diagnostics page, and PPCP phone pairing/offers.")),
+ ("home", ("Home", "The home screen: onboarding, athlete/club/session-type selection, the coaching tabs (focus, your swing, matchups) with faults opening in place, and PPCP phone pairing/offers.")),
  ("athlete", ("Athlete", "Athlete picker, athlete create/edit form and per-athlete club records.")),
  ("setup", ("Session setup", "The session-setup flow (replaced the old wizard; docs/design/session_wizard_refactor_design.md): a non-visual flow engine, step descriptors as data, a hardware-context object, a WizardPage contract, nine step pages and a few shared parts.")),
  ("calibration", ("Calibration", "IMU arm calibration routines (HackMotion, Witmotion), camera-calibration stub and the calibration guide, hosted both by the setup flow and the Wrist toolbar panel.")),
@@ -45,6 +45,7 @@ AREAS = collections.OrderedDict([
  ("viz", ("3-D body/IMU views", "QtQuick3D views of IMUs, the arm and the body, plus the View3D keep-alive guard.")),
  ("swing3d", ("Swing 3-D", "The skeleton3d swing visualisation view and its keep-alive host.")),
  ("print", ("Print", "PDF printing of paged registers.")),
+ ("report", ("Session report", "The printable session report (cover, profile, per-fault work-on pages, wrist/posture/delivery pages, launch-monitor appendix) and the Sessions screen's table, selection bar, row menu and bulk jobs, plus the mailer and stills C++ behind them.")),
 ])
 
 # ---------- helpers ----------------------------------------------------------------
@@ -101,6 +102,12 @@ def entry(c):
         out.append("- **Exercised by tests/tools:** " + ", ".join(f"`{u}`" for u in c["_tusers"][:6]) + (f" (+{len(c['_tusers'])-6})" if len(c["_tusers"]) > 6 else ""))
     out.append("")
     return "\n".join(out)
+
+_comp_names = {c["name"] for c in app if c["dir"] == "src/Gui/components"}
+def _components_used(dirs):
+    return sorted({r for c in app if any(c["dir"].startswith("src/Gui/" + d) for d in dirs) for r in c["references"]} & _comp_names)
+_ts_used = _components_used(["charts", "diagnostics", "trust"])
+_rep_used = _components_used(["report"])
 
 # ---------- per-area files ---------------------------------------------------------
 os.makedirs(os.path.join(D, "areas"), exist_ok=True)
@@ -172,7 +179,7 @@ ov = ["# GUI layer — overview", "",
       "## How the layer is put together", "",
       "- **One flat QML module.** Every app `.qml` file is listed in `cmake/PinPointQmlModule.cmake` (`PP_QML_FILES`) and compiled into a single module, `import PinPointStudio`. There are no per-area sub-modules, so a type name is global: two files cannot share a name, and any file can instantiate any other without an import. The directory layout is a convention, not an encapsulation boundary.",
       "- **Singletons** (`pragma Singleton`, and also listed in `PP_QML_SINGLETONS`): " + ", ".join(f"`{c['name']}`" for c in sorted(app, key=lambda c: c['name']) if c['singleton']) + ".",
-      "- **Two parallel vocabularies, not a stack.** `Theme` sits under everything. On top of it are (a) the *older* shared components in `components/` (buttons, chips, pills, badges, cards, toasts — the coaching-card look, design system §13) used by Settings, Home, Athlete, Setup, Monitor, Shell and the session toolbar, and (b) the *typeset* system (`typeset/` + the role objects `PpTypeset`/`PpDiagRoles`/`PpChRoles`, design system §15), used by the Charts, Session-diagnostics and Trust panels. Measured: the typeset-built areas use only 2 of the 37 `components/` files (`PpCardShell`, `PpMicro`) — they bring their own text, marks, tabs and plots. The design system calls typeset the target for every other stage panel and, later, whole screens (§15). Feature blocks and screens (`Screen*`, `Main.qml`) sit above both.",
+      "- **Two parallel vocabularies, not a stack.** `Theme` sits under everything. On top of it are (a) the *older* shared components in `components/` (buttons, chips, pills, badges, cards, toasts — the coaching-card look, design system §13) used by Settings, Home, Athlete, Setup, Monitor, Shell and the session toolbar, and (b) the *typeset* system (`typeset/` + the role objects `PpTypeset`/`PpDiagRoles`/`PpChRoles`, design system §15), used by the Charts, Session-diagnostics and Trust panels. Measured: the typeset-built areas use only " + str(len(_ts_used)) + " of the " + str(len(_comp_names)) + " `components/` files (" + ", ".join(f"`{n}`" for n in _ts_used) + ") — they bring their own text, marks, tabs and plots. The session report (`report/`) draws on both: " + str(len(_rep_used)) + " `components/` files, and typeset roles on some pages. The design system calls typeset the target for every other stage panel and, later, whole screens (§15). Feature blocks and screens (`Screen*`, `Main.qml`) sit above both.",
       "- **C++ ↔ QML seam.** Application state reaches QML two ways: " + str(len(inv["context_properties"])) + " *context properties* set in `src/Gui/main.cpp` (globals such as `appSettings`, `shotReplay`, `cameraManager`, `controller`), and " + str(sum(x["qml_element"] for x in cpp_app)) + " `QML_ELEMENT` declarations registered through the module. See [cpp-seam.md](cpp-seam.md). QML files reach for the globals by bare name, not through properties, so a component's real inputs are not visible from its API.",
       "- **Local (inline) components.** Files may declare `component Foo: …` inside themselves; there are " + str(sum(len(c['inline_components']) for c in app)) + " across " + str(sum(1 for c in app if c['inline_components'])) + " files. They are invisible to the module (not instantiable elsewhere) and are where most re-implementation of shared primitives hides — see [duplicates.md](duplicates.md).",
       "",

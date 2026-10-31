@@ -18,14 +18,15 @@
 
 #pragma once
 
-// Corridor-bar reduction — pure, header-only, no Qt-GUI. The maths behind the
-// review corridor bar (NormativeBar in metric detail): the value→x domain of a
-// single reading against a single normative corridor. Kept out of QML JS by the
+// Corridor-bar reduction — pure, header-only, no Qt-GUI. The maths behind a
+// corridor bar: the value→x domain of a single reading against a single
+// normative corridor. (Its one QML drawer, the metric-detail corridor bar, has
+// been deleted; no QML calls the façade today.) Kept out of QML JS by the
 // analysis pipeline guide's rule (§6.2): QML positions and paints, C++ decides
 // the numbers. (The file once carried the whole per-shot dashboard's reductions;
 // the corridor bar is what outlived that surface.)
 //
-// The QML façade is ChartMetrics::barDomain.
+// No QML façade calls it today (the corridor bar and ChartMetrics::barDomain were removed).
 // Unit-tested standalone in src/Analysis/tests/dashboard_reductions_test.cpp.
 
 #include <algorithm>

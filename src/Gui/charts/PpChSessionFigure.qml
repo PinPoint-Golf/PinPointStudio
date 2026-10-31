@@ -63,15 +63,6 @@ Item {
     // span is the shots' own ms from impact, which the canonical axis keeps (impact is every shot's anchor): it is
     // clipped to the window like any layer.
     property var planeLayers: ({})
-    function planeLayersOf(key) { return (planeLayers && key && planeLayers[key]) || [] }
-    // a value range [lo, hi] taken out, with a little room, to hold the layers' hairlines
-    function withPlane(lo, hi, ls) {
-        let a = lo, b = hi
-        for (const l of (ls || [])) if (l.k === "hline" && l.v !== null && l.v !== undefined && isFinite(l.v)) { a = Math.min(a, l.v); b = Math.max(b, l.v) }
-        if (a === lo && b === hi) return { lo: lo, hi: hi }
-        const pad = 0.04 * Math.max(1e-6, b - a)
-        return { lo: a < lo ? a - pad : lo, hi: b > hi ? b + pad : hi }
-    }
     readonly property var ovAxis: session && session.overlay ? session.overlay : null
     readonly property var keyKinds: []
     property bool atom: true
@@ -108,7 +99,6 @@ Item {
         return (list || []).filter(function (q) { return q.t1 < a - 0.5 || q.t0 > b + 0.5 })
     }
     function ownIndex() { for (let i = 0; i < groups.length; ++i) if (groups[i].own) return i; return 0 }
-    function byKey(list, key) { for (let i = 0; i < (list || []).length; ++i) if (list[i].key === key) return list[i]; return null }
     function panelOf(r, group) { const ps = r.panels || []; for (let i = 0; i < ps.length; ++i) if (ps[i].group === group) return ps[i]; return null }
     readonly property var pLines: pTicks.map(function (p) { return { t: p.canonMs, strong: p.tag === "P7" } })
 
@@ -148,7 +138,7 @@ Item {
         }
         if (band !== "fit" && r.part && r.part.found)
             out.push({ k: "vline", t: r.part.canonMs, color: roles.ink3, dash: [roles.u(2), roles.u(2.5)] })
-        for (const l of planeLayersOf(r.key)) out.push(roles.planeLayer(l))
+        for (const l of roles.listAt(planeLayers, r.key)) out.push(roles.planeLayer(l))
         return out
     }
 
@@ -205,8 +195,8 @@ Item {
                 readonly property real ph: ov && sf.figSide ? Math.max(sf.plotH, figCol.implicitHeight - cov) : sf.plotH
                 objectName: "chEnvelope:" + (ov ? "overlay" : r.key)
                 // the presenter's range, taken out to hold the Club delivery hairlines (see planeLayers)
-                readonly property var span_: sf.withPlane(ov ? (sf.ovAxis ? sf.ovAxis.yLo : 0) : r.yLo, ov ? (sf.ovAxis ? sf.ovAxis.yHi : 1) : r.yHi,
-                                                          ov ? [].concat.apply([], sf.rows.map(function (q) { return sf.planeLayersOf(q.key) })) : sf.planeLayersOf(r.key))
+                readonly property var span_: sf.roles.withHLines(ov ? (sf.ovAxis ? sf.ovAxis.yLo : 0) : r.yLo, ov ? (sf.ovAxis ? sf.ovAxis.yHi : 1) : r.yHi,
+                                                          ov ? [].concat.apply([], sf.rows.map(function (q) { return sf.roles.listAt(sf.planeLayers, q.key) })) : sf.roles.listAt(sf.planeLayers, r.key))
                 readonly property real lo0: span_.lo
                 readonly property real hi0: span_.hi
                 readonly property real lo: lo0
@@ -216,7 +206,7 @@ Item {
                 readonly property int ytStep: rw.ph < sf.roles.u(60) ? Math.max(1, yt0.length - 1) : rw.ph < sf.roles.u(90) && yt0.length > 4 ? 2 : 1
                 readonly property var yt: yt0.filter(function (t, i) { return (yt0.length - 1 - i) % ytStep === 0 })
                 readonly property real cov: sf.covAbove(covRows, covRows.length)
-                readonly property var nw: ov ? null : sf.byKey(sf.nowRows, r.key)
+                readonly property var nw: ov ? null : sf.roles.byKey(sf.nowRows, r.key)
                 // overlaid: each row's figures under its name, stacked
                 readonly property var figs: ov ? [].concat.apply([], sf.rows.map(function (q) {
                                                      return [{ label: q.label, text: "", head: true, key: q.key }].concat(q.figures || []) }))
@@ -261,8 +251,8 @@ Item {
                         PpChPlaneLabels {
                             x: sf.yGut; width: sf.innerW; height: rw.ph
                             roles: sf.roles
-                            layers: rw.ov ? [].concat.apply([], sf.rows.map(function (q) { return sf.planeLayersOf(q.key) })) : sf.planeLayersOf(rw.r.key)
-                            x0: sf.x0; x1: sf.x1; lo: rw.lo; hi: rw.hi
+                            layers: rw.ov ? [].concat.apply([], sf.rows.map(function (q) { return sf.roles.listAt(sf.planeLayers, q.key) })) : sf.roles.listAt(sf.planeLayers, rw.r.key)
+                            plot: plot
                             topInset: sf.nameBand
                             reserve: pn.index !== 0 ? [] : [rw.ov ? { x: 0, y: 0, w: sKey.width + sf.roles.u(10), h: sKey.height + sf.roles.u(3) }
                                                                   : { x: 0, y: 0, w: sName.width + sf.roles.u(10), h: Math.max(sf.nameBand, sName.height + sf.roles.u(3)) }]
@@ -320,9 +310,8 @@ Item {
                             cursorShape: sf.brush && sf.brush.hoveredShot > 0 ? Qt.PointingHandCursor : Qt.SizeHorCursor
                             property var hit: null
                             function seekTo(px) {
-                                if (!sf.presenter || typeof shotReplay === "undefined" || sf.pickedOrdinal <= 0) return
-                                const us = sf.presenter.seekUsFor(sf.pickedOrdinal, plot.tOf(Math.max(0, Math.min(width, px))))
-                                if (us >= 0) shotReplay.seekToUs(us)
+                                if (!sf.presenter || !PpChSeek.available() || sf.pickedOrdinal <= 0) return
+                                PpChSeek.to(sf.presenter.seekUsFor(sf.pickedOrdinal, plot.tOf(Math.max(0, Math.min(width, px)))))
                             }
                             onPositionChanged: (e) => {
                                 if (pressed && !hit) { seekTo(e.x); return }

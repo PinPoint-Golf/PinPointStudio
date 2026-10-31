@@ -24,7 +24,7 @@
 //            condition, how many swings it fired on of those that assessed it, the typical value
 //            with its unit and corridor, the grade word, and an action — Practise on an active or
 //            easing work-on, a "New" tag on a newly listed one, nothing otherwise. Every item opens
-//            in place (HmFaultDetail, its chevron at the right), one at a time.
+//            in place (HmFaultRow: HmFaultDetail, its chevron at the right), one at a time.
 //
 // `area` is one of WorkOnsController.areaItems (swing_areas.h AreaSummary, every string final):
 //   { group, label, measurable, measured, habits, occasional, clean, unclear, habitTrend, hasTrend,
@@ -47,13 +47,14 @@
 import QtQuick
 import QtQuick.Controls
 import PinPointStudio
+import "../typeset/figure_format.js" as Figures
 
 PpExpandRow {
     id: areaRow
     objectName: "areaRow"
 
     property var area: ({})
-    // The work-ons controller: an item opens to its faultDetail().
+    // The work-ons controller: an item opens to its faultDetail() (HmFaultRow).
     property var controller: null
     // The item open in place ("" when none): one at a time.
     property string openItem: ""
@@ -61,23 +62,13 @@ PpExpandRow {
     signal practiseRequested(string conditionId, string label)
     signal reviewSessionRequested(string sessionDir)
 
-    // A condition's detail (WorkOnsController.faultDetail: any condition a session measured, a
-    // listed work-on or not), or null. Reads detailsRevision so the binding follows each publish.
-    function faultFor(conditionId) {
-        const c = areaRow.controller
-        if (!c || !conditionId || typeof c.faultDetail !== "function") return null
-        if (c.detailsRevision < 0) return null
-        const d = c.faultDetail(conditionId)
-        return d && d.id ? d : null
-    }
-
     // ── The words as drawn (what a probe reads) ─────────────────────────────
     readonly property string group:      areaRow.area && areaRow.area.group ? String(areaRow.area.group) : ""
     readonly property string areaLabel:  areaRow.area && areaRow.area.label ? String(areaRow.area.label) : ""
     readonly property bool   measurable: !!(areaRow.area && areaRow.area.measurable)
     readonly property var    items:      areaRow.area && areaRow.area.items ? areaRow.area.items : []
     readonly property int    habits:     areaRow.count("habits")
-    readonly property string habitsText: areaRow.habits === 1 ? qsTr("1 habit") : qsTr("%1 habits").arg(areaRow.habits)
+    readonly property string habitsText: Theme.plural(areaRow.habits, qsTr("%1 habit"), qsTr("%1 habits"))
     readonly property bool   hasTrend:   !!(areaRow.area && areaRow.area.hasTrend)
     readonly property int    trend:      areaRow.count("habitTrend", true)
     readonly property string trendText:  !areaRow.hasTrend ? "–"
@@ -98,15 +89,11 @@ PpExpandRow {
     }
 
     // ── Item figures ────────────────────────────────────────────────────────
-    function figure(v) {
-        const n = Number(v)
-        return isFinite(n) ? n.toFixed(1).replace("-", "−") : ""
-    }
-    function withUnit(s, unit) {
-        const u = unit ? String(unit) : ""
-        if (u === "" || s === "") return s
-        return (u === "°" || u === "%") ? s + u : s + " " + u
-    }
+    // at one decimal, by the house rules (typeset/figure_format.js, Core/figure_format.h's twin): "-" when missing,
+    // the true minus, never "−0.0"; the unit by the one joining rule ("6.9 cm" with a no-break space, "7.0°", "°/s"
+    // and "% stance width" closed up)
+    function figure(v) { return Figures.figure(v, 1) }
+    function withUnit(s, unit) { return Figures.withUnit(s, unit) }
     // The corridor the typical value was graded against: both edges, or the one a one-sided
     // corridor grades (a floor's low edge, a ceiling's high one). A two-sided corridor that the
     // condition watches from one end (its `tail`) shows that end only: bowed at the top is "≤ 16.0",
@@ -264,39 +251,31 @@ PpExpandRow {
 
             Repeater {
                 model: areaRow.items
-                PpExpandRow {
+                HmFaultRow {
                     id: itemRow
                     objectName: "areaItemRow"
                     required property var modelData
                     // The words as drawn.
-                    readonly property string conditionId: itemRow.modelData.conditionId || ""
-                    // Its detail, which it opens to; null when no session measured it.
-                    readonly property var fault: areaRow.faultFor(itemRow.conditionId)
                     readonly property string label:       itemRow.modelData.label || ""
                     readonly property string countText:   (itemRow.modelData.fired || 0) + "/" + (itemRow.modelData.assessable || 0)
                     readonly property string typicalText: areaRow.typicalText(itemRow.modelData)
                     readonly property string gradeWord:   Theme.corridorWord(itemRow.modelData.grade || "")
+                    // Opens in place to the condition's detail (HmFaultRow), one at a time.
+                    controller:  areaRow.controller
+                    conditionId: itemRow.modelData.conditionId || ""
+                    openId:      areaRow.openItem
+                    onOpenRequested: (next) => areaRow.openItem = next
+                    onReviewSessionRequested: (dir) => areaRow.reviewSessionRequested(dir)
 
                     width: parent ? parent.width : 0
                     rowHeight: Theme.sp(Theme.itemRowH)
                     padH: 0
                     topRule: true
                     layout: areaRow.itemLayout(itemRow.width)
-                    chevronSide: "right"
-                    expanded:    areaRow.openItem !== "" && areaRow.openItem === itemRow.conditionId
-                    autoToggle:  false
-                    onToggled:   areaRow.openItem = itemRow.expanded ? "" : itemRow.conditionId
-                    accessibleName:  itemRow.label
-                    pressObjectName: "faultPress"
+                    accessibleName: itemRow.label
+                    // The detail spans the item row, short of the chevron's column.
+                    detailIndent:     0
                     detailRightInset: Theme.sp(10) + areaRow.itemGap
-                    detail: itemRow.fault ? faultDetail : null
-                    Component {
-                        id: faultDetail
-                        HmFaultDetail {
-                            item: itemRow.fault
-                            onReviewSessionRequested: (dir) => areaRow.reviewSessionRequested(dir)
-                        }
-                    }
 
                     Text {                      // the condition; the golfer's phrase on hover
                         width: itemRow.columnWidth(0)

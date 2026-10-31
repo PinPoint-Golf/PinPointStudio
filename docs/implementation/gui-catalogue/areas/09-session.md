@@ -1,7 +1,7 @@
 # Session screens
 
 *Directory:* `src/Gui/session/`  
-*14 components · 7,906 lines of QML*
+*13 components · 7,879 lines of QML*
 
 The live/replay/analyse session screens and their furniture: persistent toolbar, stage arranger (PpModeStage), toolbar panels (club, view, motion, launch monitor, markup), session drawer; plus the SessionMode and ViewLayout singletons.
 
@@ -10,19 +10,18 @@ The live/replay/analyse session screens and their furniture: persistent toolbar,
 | Component | Lines | Root | Used by | Uses | Notes |
 |---|---:|---|---:|---:|---|
 | [PpClubPanel](#ppclubpanel) | 171 | `Item` | 1 | 4 |  |
-| [PpLaunchMonitorPanel](#pplaunchmonitorpanel) | 176 | `Item` | 2 | 3 |  |
-| [PpLmGraphicsBody](#pplmgraphicsbody) | 2653 | `Item` | 1 | 8 | 28 local comp. |
-| [PpMarkupPanel](#ppmarkuppanel) | 1135 | `Item` | 2 | 6 | 2 local comp. |
-| [PpModeStage](#ppmodestage) | 497 | `Item` | 2 | 6 | 2 local comp. |
+| [PpLaunchMonitorPanel](#pplaunchmonitorpanel) | 177 | `Item` | 1 | 3 |  |
+| [PpLmGraphicsBody](#pplmgraphicsbody) | 2704 | `Item` | 2 | 8 | 28 local comp. |
+| [PpMarkupPanel](#ppmarkuppanel) | 1134 | `Item` | 1 | 6 | 2 local comp. |
+| [PpModeStage](#ppmodestage) | 497 | `Item` | 1 | 6 | 2 local comp. |
 | [PpMotionPanel](#ppmotionpanel) | 534 | `Item` | 1 | 5 | 4 local comp. |
-| [PpSessionDrawer](#ppsessiondrawer) | 405 | `Item` | 1 | 4 | 1 local comp. |
-| [PpSessionToolbar](#ppsessiontoolbar) | 882 | `Item` | 2 | 15 | 1 local comp. |
+| [PpSessionDrawer](#ppsessiondrawer) | 456 | `Item` | 1 | 6 | 1 local comp. |
+| [PpSessionToolbar](#ppsessiontoolbar) | 879 | `Item` | 1 | 15 | 1 local comp. |
 | [PpStagePanel](#ppstagepanel) | 31 | `Item` | 1 | 1 |  |
-| [PpViewPanel](#ppviewpanel) | 337 | `Item` | 1 | 5 | 3 local comp. |
-| [ScreenSessionMode](#screensessionmode) | 202 | `Item` | 0 | 15 | ⚠ unreferenced |
-| [ScreenWrist](#screenwrist) | 239 | `Item` | 1 | 15 |  |
-| [SessionMode](#sessionmode) | 157 | `QtObject` | 24 | 0 | singleton |
-| [ViewLayout](#viewlayout) | 487 | `QtObject` | 11 | 1 | singleton |
+| [PpViewPanel](#ppviewpanel) | 357 | `Item` | 1 | 5 | 3 local comp. |
+| [ScreenWrist](#screenwrist) | 236 | `Item` | 1 | 15 |  |
+| [SessionMode](#sessionmode) | 174 | `QtObject` | 24 | 0 | singleton |
+| [ViewLayout](#viewlayout) | 529 | `QtObject` | 11 | 1 | singleton |
 
 ### PpClubPanel
 `src/Gui/session/PpClubPanel.qml` · 171 lines · root `Item` · 1 hard-coded colour(s)
@@ -41,18 +40,18 @@ The live/replay/analyse session screens and their furniture: persistent toolbar,
 - **Used by (1):** `PpSessionToolbar`
 
 ### PpLaunchMonitorPanel
-`src/Gui/session/PpLaunchMonitorPanel.qml` · 176 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/session/PpLaunchMonitorPanel.qml` · 177 lines · root `Item` · no direct `Theme.*` refs
 
 > THE STAGE FRAMES IT. PpModeStage puts the panel in its LAUNCH MONITOR card, so the panel draws no
 > surface, border or title of its own.
 
 - **Properties:** `string title`, `readonly var sessionShots`, `readonly bool reviewing`, `alias tab`, `alias interactive`, `alias medium`, `alias surface`, `alias printOrientation`, `alias printPage`, `readonly int printPageCount`, `readonly Item graphicsBody`, `readonly var shotList`, `readonly var bands`
 - **Uses:** `PpCardNote`, `PpLmGraphicsBody`, `SessionMode`
-- **Used by (2):** `ScreenSessionMode`, `ScreenWrist`
-- **Exercised by tests/tools:** `LmPanelHost`
+- **Used by (1):** `ScreenWrist`
+- **Exercised by tests/tools:** `LmPanelHost`, `lm_board_after_reload`
 
 ### PpLmGraphicsBody
-`src/Gui/session/PpLmGraphicsBody.qml` · 2653 lines · root `Item` · 5 hard-coded colour(s)
+`src/Gui/session/PpLmGraphicsBody.qml` · 2704 lines · root `Item` · 5 hard-coded colour(s)
 
 > THE LAUNCH MONITOR PANEL'S BODY — Foresight FSX's graphic grammar set in the typeset themes
 > (docs/design/lm_panel_fsx.md; the signed-off spec is round 4c of mock A,
@@ -72,16 +71,16 @@ The live/replay/analyse session screens and their furniture: persistent toolbar,
 > No ellipse, club vote, club override or anchor table is computed here. A field the model does not
 > …
 
-- **Properties:** `var g`, `var bands`, `var shotList`, `string scopeText`, `string emptyText`, `string liveDeviceName`, `bool reviewing`, `int focusedShotId`, `bool interactive`, `string tab`, `string medium`, `string surface`, `string printOrientation`, `int printPage` … (+108 more)
+- **Properties:** `var g`, `var bands`, `var shotList`, `string scopeText`, `string emptyText`, `string shotEmptyText`, `string liveDeviceName`, `bool reviewing`, `int focusedShotId`, `bool interactive`, `string tab`, `string medium`, `string surface`, `string printOrientation` … (+121 more)
 - **Signals:** `shotRequested(int shotId)`, `excludeRequested(int shotId, bool excluded)`, `clubRequested(int shotId, string club)`, `undoMismatchRequested()`
-- **Functions:** `pinCard(id, src, pt)`, `unpinCard()`, `setHover(id, src, pt)`, `leaveHover(src)`, `focusOn(id)`, `toggleExclude(id)`, `setClub(id, club)`, `runAction(a)`, `gateOf(key)`, `isList(x)` (+91)
+- **Functions:** `pinCard(id, src, pt)`, `unpinCard()`, `setHover(id, src, pt)`, `leaveHover(src)`, `focusOn(id)`, `toggleExclude(id)`, `setClub(id, club)`, `runAction(a)`, `gateOf(key)`, `isList(x)` (+92)
 - **Local components:** `FigHead`, `Tile`, `TileBlock`, `ClubKey`, `ClubSummary`, `Anno`, `ClubCell`, `ClubQuad`, `ShotFigures`, `HalfHead`, `BallHalf`, `ClubHalf`, `ScatterFig`, `FlightFigure`, `LedgerBlock`, `LedgerHead`, `LedgerRow`, `ShotTable`, `HeadImage`, `FacePath`, `FaceInk`, `BallImage`, `ShotPicker`, `StripTicks`, `Chip`, `ShotControls`, `NotesBar`, `HoverCard`
 - **Uses:** `PpFolio`, `PpNotes`, `PpRunningHead`, `PpTabs`, `PpTrustInlineFor`, `PpTypeset`, `SessionMode`, `TrustFocus`
-- **Used by (1):** `PpLaunchMonitorPanel`
+- **Used by (2):** `PpLaunchMonitorPanel`, `PpLmAppendix`
 - **Exercised by tests/tools:** `tst_lm_graphics`
 
 ### PpMarkupPanel
-`src/Gui/session/PpMarkupPanel.qml` · 1135 lines · root `Item`
+`src/Gui/session/PpMarkupPanel.qml` · 1134 lines · root `Item`
 
 > Markup — a view-menu stage panel for in-app ground-truth labelling of the
 > currently-focused swing (load → edit → save). Scrub frame-accurately, click
@@ -101,11 +100,11 @@ The live/replay/analyse session screens and their furniture: persistent toolbar,
 > it — `panelActive` gates loadSwing so hidden-screen copies stay inert.
 > …
 
-- **Properties:** `int sessionType`, `string targetSwingDir`, `bool panelActive`, `bool pendingGrip`, `real gripNx`, `real gripNy`, `bool ballMode`, `int pendingPane`, `readonly var pDefs`, `readonly var cocoEdges`, `readonly real kpMinConf`, `int rhsTab`, `readonly var lightingOpts`, `readonly var lightingVals` … (+9 more)
+- **Properties:** `string targetSwingDir`, `bool panelActive`, `bool pendingGrip`, `real gripNx`, `real gripNy`, `bool ballMode`, `int pendingPane`, `readonly var pDefs`, `readonly var cocoEdges`, `readonly real kpMinConf`, `int rhsTab`, `readonly var lightingOpts`, `readonly var lightingVals`, `readonly var shaftOpts` … (+8 more)
 - **Functions:** `markEventByKey(k)`, `pComplete()`, `repaintPanes()`, `paneClick(pane, nx, ny)`
 - **Local components:** `MlPane`, `MlButton`
 - **Uses:** `ClubFormat`, `PpCardNote`, `PpComboBox`, `PpMicro`, `PpPopoverCard`, `PpSegmentedControl`
-- **Used by (2):** `ScreenSessionMode`, `ScreenWrist`
+- **Used by (1):** `ScreenWrist`
 
 ### PpModeStage
 `src/Gui/session/PpModeStage.qml` · 497 lines · root `Item`
@@ -127,7 +126,7 @@ The live/replay/analyse session screens and their furniture: persistent toolbar,
 - **Properties:** `Component cameraDelegate`, `Component chartsDelegate`, `Component sessionDiagnosticsDelegate`, `Component launchMonitorDelegate`, `Component tableDelegate`, `Component trustDelegate`, `Component markupDelegate`, `Component swing3dDelegate`, `readonly string arrangement`, `readonly var active`, `int tabIndex`
 - **Local components:** `PanelCard`, `Separator`
 - **Uses:** `PpCardNote`, `PpMicro`, `PpStageCard`, `PpStagePanel`, `SessionMode`, `ViewLayout`
-- **Used by (2):** `ScreenSessionMode`, `ScreenWrist`
+- **Used by (1):** `ScreenWrist`
 - **Exercised by tests/tools:** `plumb_bob_chart`
 
 ### PpMotionPanel
@@ -156,7 +155,7 @@ The live/replay/analyse session screens and their furniture: persistent toolbar,
 - **Used by (1):** `PpSessionToolbar`
 
 ### PpSessionDrawer
-`src/Gui/session/PpSessionDrawer.qml` · 405 lines · root `Item`
+`src/Gui/session/PpSessionDrawer.qml` · 456 lines · root `Item`
 
 > Session chooser drawer — the body of the "CHOOSE A SESSION" popup raised from
 > the carousel's session chip. Lists every session on disk for the current
@@ -165,14 +164,18 @@ The live/replay/analyse session screens and their furniture: persistent toolbar,
 > (loadSession) or returns to live (resumeLive); the host popup closes on the
 > emitted closeRequested(). Hosted as a Popup contentItem, so it reports its
 > natural size through implicitHeight and the popup clamps it below the toolbar.
+> Each row names the devices its swings were recorded with (cameras by view,
+> HackMotion, IMU, launch monitor), and the chips under the header filter the
+> saved sessions to those that used EVERY chosen device. The filter is the
+> model's (SessionListModel::deviceFilter), so it outlives the drawer closing.
 
 - **Signals:** `closeRequested()`, `sessionSelected()`, `exportRequested(string sessionId)`, `trashRequested(string sessionId)`
 - **Local components:** `Stat`
-- **Uses:** `PpCardNote`, `PpMicro`, `PpPopoverCard`, `PpPressable`
+- **Uses:** `PpCardNote`, `PpDeviceFilterBar`, `PpDeviceTags`, `PpMicro`, `PpPopoverCard`, `PpPressable`
 - **Used by (1):** `PpShotCarousel`
 
 ### PpSessionToolbar
-`src/Gui/session/PpSessionToolbar.qml` · 882 lines · root `Item` · 1 hard-coded colour(s)
+`src/Gui/session/PpSessionToolbar.qml` · 879 lines · root `Item` · 1 hard-coded colour(s)
 
 > Persistent session toolbar (Command-Bar direction): session clock + the one
 > session-global Capture verb + two device pills, each marked with the device
@@ -185,7 +188,7 @@ The live/replay/analyse session screens and their furniture: persistent toolbar,
 - **Properties:** `int sessionType`, `readonly var modeNames`, `readonly bool captureLive`, `readonly int camTotal`, `readonly int camConnected`, `readonly int camEnabled`, `readonly bool camNeedsAttention`, `readonly int imuTotal`, `readonly int imuConnected`, `readonly int imuEnabled`, `readonly bool imuFailed`, `readonly bool imuNeedsAttention`, `readonly int imuLowestBattery`, `readonly bool imuBatteryLow` … (+15 more)
 - **Local components:** `DevicePill`
 - **Uses:** `ClubFormat`, `PpBadge`, `PpCameraPanel`, `PpClubPanel`, `PpDivider`, `PpImuPanel`, `PpMicro`, `PpMotionPanel`, `PpPopoverCard`, `PpPressable`, `PpSegmentedControl`, `PpToolPill`, `PpViewPanel`, `SessionMode`, `ViewLayout`
-- **Used by (2):** `ScreenSessionMode`, `ScreenWrist`
+- **Used by (1):** `ScreenWrist`
 
 ### PpStagePanel
 `src/Gui/session/PpStagePanel.qml` · 31 lines · root `Item`
@@ -197,7 +200,7 @@ The live/replay/analyse session screens and their furniture: persistent toolbar,
 - **Used by (1):** `PpModeStage`
 
 ### PpViewPanel
-`src/Gui/session/PpViewPanel.qml` · 337 lines · root `Item` · 2 hard-coded colour(s)
+`src/Gui/session/PpViewPanel.qml` · 357 lines · root `Item` · 2 hard-coded colour(s)
 
 > View panel for the session toolbar. Two sections: an ARRANGEMENT schematic
 > group (tabs/split/stage) and a PANELS toggle grid. Both edit the CURRENT
@@ -208,42 +211,25 @@ The live/replay/analyse session screens and their furniture: persistent toolbar,
 - **Uses:** `PpDivider`, `PpMicro`, `PpPressable`, `SessionMode`, `ViewLayout`
 - **Used by (1):** `PpSessionToolbar`
 
-### ScreenSessionMode
-`src/Gui/session/ScreenSessionMode.qml` · 202 lines · root `Item` · ⚠ **no app file instantiates this**
-
-> Reusable session-mode screen (Swing, GRF and Coach rail screens; the Wrist
-> screen has its own ScreenWrist). Hosts the persistent session toolbar then a
-> View-driven layout — an optional timeline rail, the centre stage (camera tiles
-> today; charts/table land later), and an optional shot carousel —
-> each gated by the toolbar's View control (ViewLayout, per session type).
-> Replay and Analyse use the Transit timeline, in one of two orientations
-> (appSettings.timelineOrientation): HORIZONTAL lives in the top rail (opens down
-> from the toolbar); VERTICAL lives in a fixed-width panel to the LEFT of the
-> stage. Capture has no timeline (RmTimelineChart lives only on the resource monitor).
-
-- **Properties:** `string iconText`, `string titleText`, `int sessionType`
-- **Uses:** `PpCameraTiles`, `PpChartsPanel`, `PpDataViewer`, `PpLaunchMonitorPanel`, `PpMarkupPanel`, `PpModeStage`, `PpReplayTransport`, `PpSessionDiagnosticsPanel`, `PpSessionToolbar`, `PpShotCarousel`, `PpTopoBackground`, `PpTransitTimeline`, `PpTrustPanel`, `SessionMode`, `ViewLayout`
-
 ### ScreenWrist
-`src/Gui/session/ScreenWrist.qml` · 239 lines · root `Item`
+`src/Gui/session/ScreenWrist.qml` · 236 lines · root `Item`
 
-> Wrist Motion screen (contentStack index 2). Hosts the persistent session
-> toolbar, then a View-driven layout: an optional timeline rail, the centre
+> The session screen (contentStack index AppScreen.Session; every session opens here, and its
+> sessionType, Wrist, is only the persistence key). Hosts the persistent session toolbar, then a View-driven layout: an optional timeline rail, the centre
 > stage (camera tiles today; charts/table land later), and an
 > optional shot carousel. Which panels show, and how the stage packs them, is
-> owned by the toolbar's View control (ViewLayout, per session type). The
+> owned by the toolbar's View control (ViewLayout). The
 > toolbar's device panels run calibration entirely in-panel, so this screen
 > neither exposes nor routes any calibrate request.
 > Replay and Analyse use the Transit timeline, in one of two orientations
 > (appSettings.timelineOrientation): HORIZONTAL in the top rail, VERTICAL in a
-> fixed-width panel to the LEFT of the stage. Kept in lockstep with
-> ScreenSessionMode. Capture has no timeline (RmTimelineChart is resource-monitor only).
+> fixed-width panel to the LEFT of the stage. Capture has no timeline (RmTimelineChart is resource-monitor only).
 
 - **Uses:** `PpCameraTiles`, `PpChartsPanel`, `PpDataViewer`, `PpLaunchMonitorPanel`, `PpMarkupPanel`, `PpModeStage`, `PpReplayTransport`, `PpSessionDiagnosticsPanel`, `PpSessionToolbar`, `PpShotCarousel`, `PpTransitTimeline`, `PpTrustPanel`, `SessionMode`, `SwingViz3DHost`, `ViewLayout`
 - **Used by (1):** `Main`
 
 ### SessionMode
-`src/Gui/session/SessionMode.qml` · 157 lines · root `QtObject` · **singleton** · no direct `Theme.*` refs
+`src/Gui/session/SessionMode.qml` · 174 lines · root `QtObject` · **singleton** · no direct `Theme.*` refs
 
 > Session-screen MODE — the layout/activity axis (Capture | Replay | Analyse).
 > Effectively global: only one session screen is visible at a time, so a single
@@ -258,12 +244,13 @@ The live/replay/analyse session screens and their furniture: persistent toolbar,
 > shotReplay (a context property) is reachable from this singleton's root context.
 
 - **Properties:** `readonly int capture`, `readonly int replay`, `readonly int analyse`, `int mode`, `int focusedShotId`, `string focusedSwingDir`, `var sessionDiagnostics`, `var diagnosticsNav`, `var chartsNav`, `bool autoReturnToCapture`
-- **Functions:** `enterCapture()`, `enterAnalyse()`, `showReplay()`, `enterReplay(shotId, swingDir, fromCapture)`, `clearFocus()`, `enterLoadedSession()`
-- **Used by (24):** `AnnotationTool`, `Main`, `PpCameraFrame`, `PpCameraTiles`, `PpChartsBody`, `PpChartsPanel`, `PpDataViewer`, `PpHeader`, `PpLaunchMonitorPanel`, `PpLmGraphicsBody` (+14)
-- **Exercised by tests/tools:** `LmPanelHost`, `charts_ks_gates`, `detail_hover`, `diag_measure_tabs`, `diag_nav_survives_mode_switch`, `diag_not_judged` (+20)
+- **Signals:** `swingTrashed(string swingDir)`
+- **Functions:** `enterCapture()`, `enterAnalyse()`, `showReplay()`, `enterReplay(shotId, swingDir, fromCapture)`, `clearFocus()`, `moveFocus(shotId, swingDir)`, `enterLoadedSession()`
+- **Used by (24):** `AnnotationTool`, `Main`, `PpCameraFrame`, `PpCameraTiles`, `PpChPosturePicture`, `PpChartsBody`, `PpChartsPanel`, `PpDataViewer`, `PpHeader`, `PpLaunchMonitorPanel` (+14)
+- **Exercised by tests/tools:** `LmPanelHost`, `charts_delivery`, `charts_ks_gates`, `charts_posture`, `charts_session_impact`, `detail_hover` (+27)
 
 ### ViewLayout
-`src/Gui/session/ViewLayout.qml` · 487 lines · root `QtObject` · **singleton** · no direct `Theme.*` refs
+`src/Gui/session/ViewLayout.qml` · 529 lines · root `QtObject` · **singleton** · no direct `Theme.*` refs
 
 > Resolves the session-stage layout (which panels are visible + how the centre
 > stage packs them) per session MODE (Capture | Replay | Analyse), persisting to
@@ -283,7 +270,8 @@ The live/replay/analyse session screens and their furniture: persistent toolbar,
 > absent from every default, because a golfer with no monitor must never be shown an
 > …
 
-- **Functions:** `defaultLayout(mode)`, `presetCatalog()`, `enabledKeysFor(mode)`, `isPanelOn(mode, key)`, `arrangementFor(mode)`, `motionOn(mode)`, `motionPreset(mode)`, `motionFor(mode)`, `elementMode(mode, key)`, `motionTraceTarget(mode)` (+12)
+- **Properties:** `readonly var coachSetKeys`
+- **Functions:** `defaultLayout(mode)`, `presetCatalog()`, `enabledKeysFor(mode)`, `isPanelOn(mode, key)`, `arrangementFor(mode)`, `motionOn(mode)`, `motionPreset(mode)`, `motionFor(mode)`, `elementMode(mode, key)`, `motionTraceTarget(mode)` (+15)
 - **Uses:** `SessionMode`
-- **Used by (11):** `Main`, `PpCameraFrame`, `PpCameraTiles`, `PpModeStage`, `PpMotionPanel`, `PpSessionToolbar`, `PpTrustInline`, `PpViewPanel`, `ScreenSessionMode`, `ScreenWrist` (+1)
-- **Exercised by tests/tools:** `charts_ks_gates`, `detail_hover`, `diag_measure_tabs`, `diag_nav_survives_mode_switch`, `diag_not_judged`, `diag_print_pdf` (+11)
+- **Used by (11):** `Main`, `PpCameraFrame`, `PpCameraTiles`, `PpChPosturePicture`, `PpModeStage`, `PpMotionPanel`, `PpSessionToolbar`, `PpTrustInline`, `PpViewPanel`, `ScreenWrist` (+1)
+- **Exercised by tests/tools:** `charts_delivery`, `charts_ks_gates`, `charts_posture`, `charts_session_impact`, `detail_hover`, `diag_measure_tabs` (+16)

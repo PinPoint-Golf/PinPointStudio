@@ -470,6 +470,33 @@ bool AthleteController::validReportEmail(const QString &text) const
     return addresses > 0;
 }
 
+QString AthleteController::normaliseReportEmails(const QString &text) const
+{
+    QStringList out;
+    for (const QString &p : text.split(u',')) {
+        const QString a = p.trimmed();
+        if (!a.isEmpty()) out << a;
+    }
+    return out.join(QStringLiteral(", "));
+}
+
+QString AthleteController::greetingDefault(const QString &name) const
+{
+    return firstWordOf(name);
+}
+
+bool AthleteController::validDob(const QString &text) const
+{
+    const QString t = text.trimmed();
+    if (t.isEmpty()) return true;
+    // ASCII digits only, the exact shape — Qt::ISODate alone would also take "2026/10/31" and a
+    // trailing time. QDate::isValid then refuses a day the month does not have.
+    static const QRegularExpression shape(QStringLiteral("^([0-9]{4})-([0-9]{2})-([0-9]{2})$"));
+    const QRegularExpressionMatch m = shape.match(t);
+    if (!m.hasMatch()) return false;
+    return QDate::isValid(m.captured(1).toInt(), m.captured(2).toInt(), m.captured(3).toInt());
+}
+
 void AthleteController::setPhotosApproved(const QString &uuid, bool approved)
 {
     QSettings s = ppSettings();
@@ -590,6 +617,19 @@ QVariantMap AthleteController::clubsFor(const QString &uuid) const
 QStringList AthleteController::clubOptions() const
 {
     return pinpoint::clubVocabulary();
+}
+
+QStringList AthleteController::bagClubIds(const QString &uuid) const
+{
+    if (uuid.isEmpty()) return {};
+    // The record keys (QVariantMap: alphabetical), stably sorted by vocabulary position — the order
+    // every club picker shows. An id the vocabulary does not know has position -1 and goes first.
+    QStringList ids = clubsFor(uuid).keys();
+    const QStringList vocab = pinpoint::clubVocabulary();
+    std::stable_sort(ids.begin(), ids.end(), [&vocab](const QString &a, const QString &b) {
+        return vocab.indexOf(a) < vocab.indexOf(b);
+    });
+    return ids;
 }
 
 QString AthleteController::effectivePrimaryClub(const QString &uuid) const

@@ -62,7 +62,7 @@ Flow {
             radius: height / 2
             color:  _on ? Theme.colorAccentLight
                   : devMa.containsMouse ? Theme.colorBg2
-                  : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+                  : Qt.alpha(Theme.colorBg2, 0)
             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
             border.width: 1
             border.color: _on || devMa.containsMouse ? Theme.colorAccent : Theme.colorBorderMid

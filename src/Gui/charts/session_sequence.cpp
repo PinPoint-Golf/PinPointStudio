@@ -165,6 +165,40 @@ void rankSequence(ShotSequence &out)
     }
 }
 
+words::Sentence peakTimesSentence(const SegmentPeak &club, const SegmentPeak &pelvis)
+{
+    words::Sentence s;
+    if (club.placed) {
+        const words::ImpactTime t = words::impactTime(club.shotMs);
+        s.append(QStringLiteral("The club peaked ")).figure(t.figure).append(t.words);
+    }
+    if (pelvis.placed) {
+        const words::ImpactTime t = words::impactTime(pelvis.shotMs);
+        s.append(club.placed ? QStringLiteral(", the pelvis ") : QStringLiteral("The pelvis peaked ")).figure(t.figure).append(t.words);
+    }
+    if (!s.isEmpty()) s.append(QStringLiteral("."));
+    return s;
+}
+
+void appendProbableWhen(words::Sentence &s, double probableMs, double sigmaMs)
+{
+    const words::ImpactTime t = words::impactTime(probableMs);
+    const QString sigma = words::pm(sigmaMs);
+    if (t.atImpact()) {                                       // "at impact (± 8 ms)"
+        s.append(t.words);
+        if (!sigma.isEmpty()) s.append(QStringLiteral(" (")).figure(sigma + QStringLiteral("\u00A0ms")).append(QStringLiteral(")"));
+    } else {
+        s.figure(words::fig(std::abs(probableMs)) + (sigma.isEmpty() ? QString() : QStringLiteral(" ") + sigma) + QStringLiteral("\u00A0ms"))
+            .append(t.words);
+    }
+}
+
+void appendPeaksWhen(words::Sentence &s, const QString &label, double shotMs)
+{
+    const words::ImpactTime t = words::impactTime(shotMs);
+    s.append(label + QStringLiteral(" peaks ")).figure(t.figure).append(t.words);
+}
+
 UnplacedWhy unplacedWhy(const SegmentPeak &p)
 {
     namespace W = words;
@@ -240,11 +274,8 @@ QVariantList segmentGates(const SegmentPeak &p, int segment)
         const gates::GateEntry *e = gates::gateEntry(r.value(QStringLiteral("gate")).toString());
         if (!e) continue;
         QStringList tun;
-        for (const gates::GateTuning &t : e->tuning) {
-            if (t.unit == QLatin1String("switch")) continue;
-            const QString v = words::fig(t.value, std::fabs(t.value - std::round(t.value)) < 1e-9 ? 0 : 2);
-            tun << (t.unit == QStringLiteral("°") ? v + t.unit : t.unit.isEmpty() ? v : v + QChar(0x00A0) + t.unit);
-        }
+        for (const gates::GateTuning &t : e->tuning)
+            if (t.unit != QLatin1String("switch")) tun << gates::tuningValue(t);   // the catalogue's one threshold wording
         out << QVariantMap{ { QStringLiteral("gate"), e->id },
                             { QStringLiteral("effect"), eff },
                             { QStringLiteral("title"), e->title },
@@ -280,7 +311,7 @@ void summariseSequence(SessionSequence &out)
             SegmentSummary &sm = out.segments[size_t(i)];
             if (p.placed) ++sm.placed;
             if (p.probable) ++sm.probable;
-            if (p.timeMs() > 0) ++sm.afterImpact;
+            if (words::isAfterImpact(p.timeMs())) ++sm.afterImpact;   // past the 2 ms "at impact" window (Core/figure_format.h)
             if (p.late) ++sm.late;
         }
         const QString key = q.order.join(QLatin1Char(','));

@@ -230,7 +230,7 @@ Item {
             anchors.centerIn: parent
             width: Theme.sp(15); height: width; radius: width / 2
             visible: dd.armed
-            color: Qt.rgba(dd.baseColor.r, dd.baseColor.g, dd.baseColor.b, 0.22)
+            color: Qt.alpha(dd.baseColor, 0.22)
             SequentialAnimation on scale {
                 running: dd.armed && !Theme.reduceMotion
                 loops: Animation.Infinite
@@ -242,8 +242,8 @@ Item {
         Rectangle {
             anchors.fill: parent; radius: width / 2
             color: dd.presence && dd.armed
-                   ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.95)
-                   : Qt.rgba(dd.baseColor.r, dd.baseColor.g, dd.baseColor.b, dd._alpha)
+                   ? Qt.alpha(Theme.colorGood, 0.95)
+                   : Qt.alpha(dd.baseColor, dd._alpha)
             Behavior on color { ColorAnimation { duration: Theme.durationNormal } }
         }
         // Green detection flash, decays to reveal the core tier beneath.

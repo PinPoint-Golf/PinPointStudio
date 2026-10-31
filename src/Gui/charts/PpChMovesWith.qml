@@ -118,13 +118,12 @@ Column {
                     onPaint: {
                         const ctx = getContext("2d"); ctx.reset()
                         if (!pr || !pr.xs) return
-                        const ok = function (v) { return v !== null && v !== undefined && isFinite(v) }
                         const xr = pr.xRange || {}, yr = pr.yRange || {}
                         const x0 = xr.lo, x1 = xr.hi, y0 = yr.lo, y1 = yr.hi
-                        if (!ok(x0) || !ok(x1) || !ok(y0) || !ok(y1)) return
+                        if (!cl.roles.fin(x0) || !cl.roles.fin(x1) || !cl.roles.fin(y0) || !cl.roles.fin(y1)) return
                         ctx.fillStyle = cl.roles.ink2
                         for (let i = 0; i < pr.xs.length; ++i) {
-                            if (!ok(pr.xs[i]) || !ok(pr.ys[i])) continue
+                            if (!cl.roles.fin(pr.xs[i]) || !cl.roles.fin(pr.ys[i])) continue
                             const xx = 2 + (pr.xs[i] - x0) / Math.max(1e-9, x1 - x0) * (width - 4)
                             const yy = height - 2 - (pr.ys[i] - y0) / Math.max(1e-9, y1 - y0) * (height - 4)
                             ctx.fillRect(Math.round(xx) - 1, Math.round(yy) - 1, 2.5, 2.5)

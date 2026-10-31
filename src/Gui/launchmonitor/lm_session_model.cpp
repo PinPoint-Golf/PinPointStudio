@@ -718,10 +718,9 @@ void LmSessionModel::setLeftHanded(bool on)
 
 void LmSessionModel::setGradePolicy(const QString &name)
 {
-    // Resolved through the shared table rather than stored as handed in — the same rule
-    // MetricCatalog and NormModel follow: an unknown name must grade against the default
-    // AND read back as the default, or a typo in a binding would leave the property
-    // claiming a policy no corridor on screen was actually graded under.
+    // Resolved through the shared table rather than stored as handed in: an unknown name must
+    // grade against the default AND read back as the default, or a typo in a
+    // binding would leave the property claiming a policy no corridor on screen was actually graded under.
     const QString resolved = QString::fromLatin1(gradePolicyPresetFor(name).name);
     if (resolved == m_policyName) return;
     m_policyName = resolved;

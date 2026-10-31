@@ -19,8 +19,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Layouts
-import QtQuick.Controls.Basic
 import PinPointStudio
 
 // Type-ahead for every link. Click, type three characters, Enter — never a picker dialog and never
@@ -30,140 +28,26 @@ import PinPointStudio
 // corroborates-shadowing rules), so an illegal edit cannot be constructed. A control that offers a
 // choice it will then reject is a worse control than one that does not offer it, and it also teaches
 // the author that the rules are arbitrary.
-Popup {
+//
+// The type-ahead itself is ModelTypeAhead, which ModelCausePicker is also built on; this is that
+// with nothing to create and nothing below the list.
+ModelTypeAhead {
     id: root
 
-    // A function (searchText) -> [{ id, label, detail, tone }], asked again on every keystroke so
-    // the filtering stays in C++.
-    property var  candidateSource: null
-    property string title: ""
+    // candidateSource: a function (searchText) -> [{ id, label, detail, tone }], asked again on every
+    // keystroke so the filtering stays in C++. `title` is the caps line above the field.
 
     signal picked(string id)
 
-    width:   Theme.sp(360)
-    padding: 0
-    modal:   false
-    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+    width: Theme.sp(360)
 
-    onOpened: { searchField.text = ""; searchField.forceActiveFocus(); listView.currentIndex = 0 }
+    placeholderText:  qsTr("Type to narrow…")
+    countText:        qsTr("%n legal target(s)", "", root._candidates.length)
+    borderColor:      Theme.colorBorderStrong
+    countBottomGap:   Theme.gap(2)
+    listMinHeight:    Theme.sp(32)
+    listBottomMargin: Theme.gap(8)
+    detailWidthFraction: 0.4
 
-    background: Rectangle {
-        color:        Theme.colorSurface
-        radius:       Theme.radius
-        border.width: 1
-        border.color: Theme.colorBorderStrong
-    }
-
-    readonly property var _candidates:
-        candidateSource ? candidateSource(searchField.text) : []
-
-    contentItem: ColumnLayout {
-        spacing: 0
-
-        Text {
-            Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.gap(12)
-            Layout.rightMargin: Theme.gap(12)
-            Layout.topMargin:   Theme.gap(10)
-            text:                root.title
-            font.family:         Theme.fontBody
-            font.pixelSize:      Theme.fontSzMicro
-            font.letterSpacing:  Theme.trackingMicro
-            font.capitalization: Theme.capsFont
-            color:               Theme.colorText3
-        }
-
-        PpTextField {
-            id: searchField
-            Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.gap(10)
-            Layout.rightMargin: Theme.gap(10)
-            Layout.topMargin:   Theme.gap(6)
-            placeholderText: qsTr("Type to narrow…")
-
-            // Enter takes the highlighted candidate. With three characters typed that is usually
-            // the only one left, which is the whole budget: click, three characters, Enter.
-            Keys.onReturnPressed: root._take()
-            Keys.onEnterPressed:  root._take()
-            Keys.onDownPressed:   listView.currentIndex = Math.min(listView.currentIndex + 1,
-                                                                   listView.count - 1)
-            Keys.onUpPressed:     listView.currentIndex = Math.max(listView.currentIndex - 1, 0)
-        }
-
-        Text {
-            Layout.fillWidth:    true
-            Layout.leftMargin:   Theme.gap(12)
-            Layout.topMargin:    Theme.gap(6)
-            Layout.bottomMargin: Theme.gap(2)
-            text: qsTr("%n legal target(s)", "", root._candidates.length)
-            font.family:    Theme.fontData
-            font.pixelSize: Theme.fontSzMicro
-            color:          Theme.colorText3
-        }
-
-        ListView {
-            id: listView
-            Layout.fillWidth:       true
-            Layout.preferredHeight: Math.min(Theme.sp(240), Math.max(Theme.sp(32), count * Theme.sp(28)))
-            Layout.bottomMargin:    Theme.gap(8)
-            clip:  true
-            model: root._candidates
-
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-
-            delegate: Rectangle {
-                id: candidate
-                required property var modelData
-                required property int index
-
-                width:  listView.width
-                height: Theme.sp(28)
-                color: listView.currentIndex === index ? Theme.colorAccentLight
-                     : candidateHover.hovered          ? Theme.colorBg2
-                                                       : "transparent"
-
-                HoverHandler { id: candidateHover }
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin:  Theme.gap(12)
-                    anchors.rightMargin: Theme.gap(12)
-                    spacing: Theme.gap(8)
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: candidate.modelData.label
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody2
-                        font.weight:    Theme.fontBodyWeight
-                        color:          Theme.colorText
-                        elide:          Text.ElideRight
-                    }
-
-                    Text {
-                        text:    candidate.modelData.detail || ""
-                        visible: text.length > 0
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                        elide:          Text.ElideRight
-                        Layout.maximumWidth: root.width * 0.4
-                    }
-                }
-
-                PpPressable {
-                    hoverScale: 1.0
-                    onClicked: { root.picked(candidate.modelData.id); root.close() }
-                }
-            }
-        }
-    }
-
-    function _take() {
-        var list = root._candidates
-        if (!list || list.length === 0) return
-        var i = Math.max(0, Math.min(listView.currentIndex, list.length - 1))
-        root.picked(list[i].id)
-        root.close()
-    }
+    onChosen: (row) => root.picked(row.id)
 }

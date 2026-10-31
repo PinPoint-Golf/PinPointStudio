@@ -165,6 +165,90 @@ int main()
                  "curvature past 4.5 deg is a slice");
     }
 
+    // ── The shared classifier: lmShapeClass ─────────────────────────────────────
+    //
+    // The one classifier every shape-naming surface asks (the card through lmFlightShape, Club
+    // delivery and the report through session_delivery's deliveryShotShape, which tests its own
+    // agreement with the card in session_delivery_test). Club delivery once kept its own
+    // thresholds and called a 1.8 deg axis a fade; here it is straight, for both.
+    {
+        const std::optional<double> none;
+        const LmCurvature noCurve;
+        const auto k = [&](double start, std::optional<double> axis, std::optional<double> f2p,
+                           bool lh = false) { return lmShapeClass(start, axis, f2p, noCurve, lh); };
+
+        check(k(0.0, 1.8, none).curveIdx == 1, "a 1.8 deg axis is straight (Club delivery once said a fade)");
+        check(k(0.0, 2.0, none).curveIdx == 1 && k(0.0, 2.001, none).curveIdx == 2,
+              "the curve starts past 2.0 deg of axis, strictly");
+        check(k(1.0, 0.0, none).windowIdx == 1 && k(1.001, 0.0, none).windowIdx == 2,
+              "the window starts past 1.0 deg, strictly");
+
+        // "Slight": at or inside half of each severe boundary, never when severe, never when straight.
+        check(k(0.0, 2.001, none).slight, "just past the curve boundary is slight");
+        check(k(0.0, 5.0, none).slight, "axis exactly 5.0 (half of 10) is still slight");
+        check(!k(0.0, 5.001, none).slight && !k(0.0, 5.001, none).severe, "just past 5.0 is a plain fade");
+        check(!k(0.0, 9.999, none).severe && k(0.0, 10.0, none).severe && !k(0.0, 10.0, none).slight,
+              "axis 10 is severe, and severe is never slight");
+        check(!k(0.0, 1.8, none).slight, "a straight shot is never slight");
+        check(k(0.0, -4.0, none).slight && k(0.0, -4.0, none).curveIdx == 0, "slight mirrors to the draw side");
+
+        // The face-to-path fallback: curve past 1, slight to 2 (half of 4), severe strictly past 4.
+        check(k(0.0, none, 1.0).curveIdx == 1 && k(0.0, none, 1.001).curveIdx == 2, "f2p curve past 1.0");
+        check(k(0.0, none, -2.0).slight && !k(0.0, none, -2.001).slight, "f2p slight to 2.0, inclusive");
+        check(!k(0.0, none, 4.0).severe && k(0.0, none, 4.001).severe, "f2p severity is strict at 4.0");
+        check(!k(0.0, none, 4.0).slight && k(0.0, none, 4.0).curveIdx == 2, "f2p 4.0 is a plain fade");
+        check(!k(0.0, none, 2.0).fromAxis && k(0.0, 3.0, 2.0).fromAxis, "fromAxis says which signal spoke");
+
+        // Measured curvature: slight only while it is at most half of 4.5 deg too.
+        const double halfYd = 100.0 * std::tan(2.25 * kDegToRadIr);
+        const LmCurvature under = lmCurvature(0.0, 100.0, halfYd * 0.99);
+        const LmCurvature over  = lmCurvature(0.0, 100.0, halfYd * 1.01);
+        check(lmShapeClass(0.0, 3.0, none, under).slight, "axis 3, curvature just under 2.25 deg: slight");
+        check(!lmShapeClass(0.0, 3.0, none, over).slight && !lmShapeClass(0.0, 3.0, none, over).severe,
+              "axis 3, curvature just over 2.25 deg: a plain fade");
+
+        // Left-handed: the indices are in the gloss, as lmFlightShape's are.
+        const LmShapeClass lh = k(-2.0, 4.0, none, true);
+        check(lh.windowIdx == 2 && lh.curveIdx == 0 && lh.slight, "left-handed: 2 left, 4 right is a push, slight draw");
+
+        // No start, or nothing for the curve: no class.
+        check(!k(std::numeric_limits<double>::quiet_NaN(), 4.0, none).has, "NaN start: no class");
+        check(!k(0.0, none, none).has, "no curve signal: no class");
+
+        // A GUARD, not a proof: lmFlightShape calls lmShapeClass, so this holds by construction today. It is here so
+        // that a future edit giving lmFlightShape a comparison of its own (the drift this classifier replaced) fails
+        // here. That the CARD's answers did not move is pinned shot by shot in the block below.
+        bool same = true;
+        for (double st : { -3.0, -1.0, -0.5, 0.0, 1.0, 1.01, 3.0 })
+            for (double ax : { -12.0, -10.0, -9.5, -5.0, -2.0, -1.8, 0.0, 1.8, 2.0, 2.01, 4.5, 5.0, 5.01, 9.5, 10.0, 12.0 })
+                for (bool lhd : { false, true }) {
+                    const LmShapeClass c = k(st, ax, 1.0, lhd);
+                    const LmFlightShape f = shape(st, ax, 1.0, lhd);
+                    same = same && c.has == f.has && c.windowIdx == f.windowIdx
+                           && c.curveIdx == f.curveIdx && c.severe == f.severe;
+                }
+        check(same, "lmFlightShape's indices and severity are lmShapeClass's on a grid of shots");
+    }
+
+    // ── The card did not move: the shots Club delivery used to name differently ──
+    //
+    // Each name below is what the card said BEFORE the classifier was shared (the old Club delivery
+    // answer in the comment), so the extraction is pinned to the card's own behaviour, not to itself.
+    {
+        const std::optional<double> none;
+        checkStr(shape(0.5, 1.8).name, "Straight", "axis 1.8: Straight (Club delivery said 'Straight start, slight fade')");
+        checkStr(shape(-1.5, -2.0).name, "Pull", "axis -2.0 on the edge: Pull (Club delivery said 'Pull, slight draw')");
+        checkStr(shape(-2.0, -9.5).name, "Pull–draw", "axis -9.5: Pull–draw (Club delivery said 'Pull, hook')");
+        checkStr(shape(1.0, 10.0).name, "Slice", "axis 10 at start 1.0: Slice (Club delivery said 'Straight start, slice')");
+        check(lmShapeClass(2.0, 4.8, none, LmCurvature()).slight,
+              "axis 4.8 is slight now: 'Push, slight fade' (Club delivery said 'Push, fade'); the card's word is unchanged");
+        checkStr(shape(2.0, 4.8).name, "Push–fade", "…and the card still says Push–fade");
+        checkStr(lmFlightShape(-2.0, none, 6.0, none, none).name, "Pull–slice",
+                 "face-to-path 6.0, no axis: Pull–slice (Club delivery said 'Pull, fade')");
+        checkStr(lmFlightShape(-2.0, none, -2.5, none, none).name, "Pull–draw",
+                 "face-to-path -2.5, no axis: Pull–draw (Club delivery said 'Pull, slight draw'; now 'Pull, draw')");
+    }
+
     // ── Curvature is not offline ────────────────────────────────────────────────
     //
     // The distinction the whole severity tier rests on. Same finish, same axis, two very

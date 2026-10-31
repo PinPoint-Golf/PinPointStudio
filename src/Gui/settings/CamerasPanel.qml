@@ -18,12 +18,12 @@
 
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Controls.Basic
 import QtMultimedia
 import PinPointStudio
 
-Item {
+SettingsPanelBase {
     id: root
+    contentSpacing: Theme.gap(16)
 
     // Index of the camera row whose ROI panel is currently open (-1 = none).
     property int openRoiIndex: -1
@@ -176,8 +176,8 @@ Item {
         applyWideTuning(cameraKey, 0, db, liveInstance)
     }
 
-    // A selectable chip for the tuning rows — the same look as the mode and
-    // exposure chips, without the per-group copy of the Rectangle.
+    // A selectable chip: every chip group in a camera row (frame rate, trigger,
+    // impact mode, exposure, gain, view) — one Rectangle, not a copy per group.
     component TuneChip: Rectangle {
         id: tchip
         property string label: ""
@@ -188,7 +188,7 @@ Item {
         radius: Theme.radius
         color:  selected ? Theme.colorAccentLight
               : tchipArea.containsMouse
-                  ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                  ? Qt.alpha(Theme.colorAccentLight, 0.4)
                   : "transparent"
         border.width: 1
         border.color: selected ? Theme.colorAccent
@@ -224,40 +224,9 @@ Item {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Inline component — reusable toggle pill
-    // ─────────────────────────────────────────────────────────────────────────
-    component TogglePill: Rectangle {
-        id: pill
-        property bool checked: false
-        signal toggled(bool value)
-
-        width:  Theme.sp(34)
-        height: Theme.sp(18)
-        radius: Theme.sp(9)
-        color:  pill.checked ? Theme.colorAccent : Theme.colorBg3
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-        Rectangle {
-            width:  Theme.sp(12)
-            height: Theme.sp(12)
-            radius: Theme.sp(6)
-            color:  "white"
-            anchors.verticalCenter: parent.verticalCenter
-            x: pill.checked ? parent.width - width - Theme.sp(3) : Theme.sp(3)
-            Behavior on x { NumberAnimation { duration: 120 } }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            cursorShape:  Qt.PointingHandCursor
-            onClicked:    pill.toggled(!pill.checked)
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
     // Inline component — camera device row
     // ─────────────────────────────────────────────────────────────────────────
-    component CameraDeviceRow: Item {
+    component CameraDeviceRow: PpDeviceCard {
         id: camRow
 
         property var camData: ({})  // one entry from cameraManager.cameraList
@@ -317,60 +286,23 @@ Item {
         // alone left the card one margin short, which clipped the last line of
         // whatever section came last.
         implicitHeight: camRow.roiOpen
-                            ? headerRow.y + headerRow.height + bodyRow.height + wideTuneRow.height + impactRow.height + roiPanel.height
-                            : headerRow.y + headerRow.height + (camData.enabled ? bodyRow.height : excludedNote.height)
+                            ? camRow.headerRow.y + camRow.headerRow.height + bodyRow.height + wideTuneRow.height + impactRow.height + roiPanel.height
+                            : camRow.headerRow.y + camRow.headerRow.height + (camData.enabled ? bodyRow.height : excludedNote.height)
                               + wideTuneRow.height + impactRow.height
                               + (camRow.ballOpen ? ballPanel.height : 0)
 
         Behavior on implicitHeight { NumberAnimation { duration: Theme.durationFast } }
 
-        opacity: camData.enabled ? 1.0 : 0.5
-        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+        dimmed: !camData.enabled
+        borderColor: (camRow.roiOpen || camRow.ballOpen)
+                        ? Theme.colorAccent
+                        : (camData.enabled ? Theme.colorBorderStrong : Theme.colorBorderMid)
+        statusColor: camRow.realInstance && camRow.realInstance.isRecording
+                        ? Theme.colorGood
+                        : (camData.enabled ? Theme.colorWarn : Theme.colorText3)
 
-        // Background fill — drawn first, behind all content
-        Rectangle {
-            anchors.fill: parent
-            color:        Theme.colorSurface
-            radius:       Theme.radius
-        }
-
-        clip: true
-
-        // Border overlay — drawn last via z:100 so content never occludes it
-        Rectangle {
-            anchors.fill: parent
-            color:        "transparent"
-            border.width: 1
-            border.color: (camRow.roiOpen || camRow.ballOpen)
-                            ? Theme.colorAccent
-                            : (camData.enabled ? Theme.colorBorderStrong : Theme.colorBorderMid)
-            radius:       Theme.radius
-            z:            100
-            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-        }
-
-        // ── Header row ───────────────────────────────────────────────────────
-        RowLayout {
-            id: headerRow
-            anchors.top:   parent.top
-            anchors.left:  parent.left
-            anchors.right: parent.right
-            anchors.margins: Theme.gap(14)
-            height: Theme.sp(54)
-            spacing: Theme.gap(10)
-
-            // Status dot
-            Rectangle {
-                width:  Theme.sp(6)
-                height: Theme.sp(6)
-                radius: Theme.sp(3)
-                color: camRow.realInstance && camRow.realInstance.isRecording
-                            ? Theme.colorGood
-                            : (camData.enabled ? Theme.colorWarn : Theme.colorText3)
-                Layout.alignment: Qt.AlignVCenter
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-            }
-
+        // ── Header row (after the card's status dot) ─────────────────────────
+        headerItems: [
             // ── The live tile, for a phone, from the moment it connects ──────
             //
             // CORE 5.11.2 calls setup and framing preview's MAIN use, and a
@@ -418,7 +350,7 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     elide:            Text.ElideRight
                 }
-            }
+            },
 
             // Alias (editable) + meta
             ColumnLayout {
@@ -453,7 +385,7 @@ Item {
                         color:          Theme.colorText3
                     }
                 }
-            }
+            },
 
             // Enable toggle
             Row {
@@ -468,17 +400,17 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
-                TogglePill {
+                PpSwitch {
                     checked: camData.enabled
                     onToggled: (v) => cameraManager.setExcluded(camData.index, !v)
                 }
             }
-        }
+        ]
 
         // ── Excluded note (shown when disabled) ──────────────────────────────
         Item {
             id: excludedNote
-            anchors.top:   headerRow.bottom
+            anchors.top:   camRow.headerRow.bottom
             anchors.left:  parent.left
             anchors.right: parent.right
             height: camData.enabled ? 0 : implicitContentHeight + Theme.sp(14)
@@ -509,7 +441,7 @@ Item {
         // ── Body row (visible when enabled) ──────────────────────────────────
         RowLayout {
             id: bodyRow
-            anchors.top:    headerRow.bottom
+            anchors.top:    camRow.headerRow.bottom
             anchors.left:   parent.left
             anchors.right:  parent.right
             anchors.leftMargin:   Theme.gap(14)
@@ -634,7 +566,7 @@ Item {
 
                     color:        isMirrored ? Theme.colorAccent
                                 : mirrorPress.containsMouse
-                                    ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.6)
+                                    ? Qt.alpha(Theme.colorAccentLight, 0.6)
                                     : Theme.colorSurface
                     border.width: 1
                     border.color: isMirrored ? Theme.colorAccent
@@ -706,47 +638,15 @@ Item {
                     Repeater {
                         model: parent.fpsOptions
 
-                        delegate: Rectangle {
-                            id: fpsChip
+                        delegate: TuneChip {
                             required property var modelData
-
-                            readonly property bool isSelected: Math.abs(parent.selectedFps - modelData) < 0.5
-
-                            width:  fpsLabel.implicitWidth + Theme.sp(20)
-                            height: Theme.sp(24)
-                            radius: Theme.radius
-                            color:  isSelected ? Theme.colorAccentLight
-                                  : fpsArea.containsMouse
-                                      ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
-                                      : "transparent"
-                            border.width: 1
-                            border.color: isSelected ? Theme.colorAccent
-                                        : fpsArea.containsMouse ? Theme.colorAccentMid
-                                        : Theme.colorBorderStrong
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                            Text {
-                                id: fpsLabel
-                                anchors.centerIn: parent
-                                text:           (Math.round(modelData * 10) / 10) + qsTr(" fps")
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzMicro
-                                color:          fpsChip.isSelected ? Theme.colorAccent : Theme.colorText2
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
-
-                            MouseArea {
-                                id: fpsArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape:  Qt.PointingHandCursor
-                                onClicked: {
-                                    var map = appSettings.cameraTargetFps
-                                    map[camData.cameraKey] = modelData
-                                    appSettings.cameraTargetFps = map
-                                    cameraManager.setTargetFps(camData.index, modelData)
-                                }
+                            label:    (Math.round(modelData * 10) / 10) + qsTr(" fps")
+                            selected: Math.abs(parent.selectedFps - modelData) < 0.5
+                            onClicked: {
+                                var map = appSettings.cameraTargetFps
+                                map[camData.cameraKey] = modelData
+                                appSettings.cameraTargetFps = map
+                                cameraManager.setTargetFps(camData.index, modelData)
                             }
                         }
                     }
@@ -781,47 +681,15 @@ Item {
                                    { label: qsTr("HW sync"),  mode: "hwsync"  }]
                                 : [{ label: qsTr("Free-run"), mode: "freerun" }]
 
-                        delegate: Rectangle {
-                            id: trigChip
+                        delegate: TuneChip {
                             required property var modelData
-
-                            readonly property bool isSelected: parent.selectedMode === modelData.mode
-
-                            width:  trigLabel.implicitWidth + Theme.sp(20)
-                            height: Theme.sp(24)
-                            radius: Theme.radius
-                            color:  isSelected ? Theme.colorAccentLight
-                                  : trigArea.containsMouse
-                                      ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
-                                      : "transparent"
-                            border.width: 1
-                            border.color: isSelected ? Theme.colorAccent
-                                        : trigArea.containsMouse ? Theme.colorAccentMid
-                                        : Theme.colorBorderStrong
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                            Text {
-                                id: trigLabel
-                                anchors.centerIn: parent
-                                text:           modelData.label
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzMicro
-                                color:          trigChip.isSelected ? Theme.colorAccent : Theme.colorText2
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
-
-                            MouseArea {
-                                id: trigArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape:  Qt.PointingHandCursor
-                                onClicked: {
-                                    var map = appSettings.cameraTriggerMode
-                                    map[camData.cameraKey] = modelData.mode
-                                    appSettings.cameraTriggerMode = map
-                                    cameraManager.setTriggerMode(camData.index, modelData.mode)
-                                }
+                            label:    modelData.label
+                            selected: parent.selectedMode === modelData.mode
+                            onClicked: {
+                                var map = appSettings.cameraTriggerMode
+                                map[camData.cameraKey] = modelData.mode
+                                appSettings.cameraTriggerMode = map
+                                cameraManager.setTriggerMode(camData.index, modelData.mode)
                             }
                         }
                     }
@@ -845,7 +713,7 @@ Item {
                 RowLayout {
                     spacing: Theme.gap(6)
 
-                    TogglePill {
+                    PpSwitch {
                         readonly property bool fixedVal: {
                             var v = appSettings.cameraFixedInPlace[camData.cameraKey]
                             return v !== undefined ? !!v : false
@@ -897,7 +765,7 @@ Item {
                     radius: Theme.radius
                     color:  camRow.roiOpen ? Theme.colorAccentLight
                           : cropPress.containsMouse
-                              ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                              ? Qt.alpha(Theme.colorAccentLight, 0.4)
                               : "transparent"
                     border.width: 1
                     border.color: camRow.roiOpen ? Theme.colorAccent
@@ -965,7 +833,7 @@ Item {
                     radius: Theme.radius
                     color:  camRow.ballOpen ? Theme.colorAccentLight
                           : ballPress.containsMouse
-                              ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                              ? Qt.alpha(Theme.colorAccentLight, 0.4)
                               : "transparent"
                     border.width: 1
                     border.color: camRow.ballOpen ? Theme.colorAccent
@@ -1050,7 +918,7 @@ Item {
                     radius: Theme.radius
                     color:  camRow.tuningOpen ? Theme.colorAccentLight
                           : wideToggleArea.containsMouse
-                              ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                              ? Qt.alpha(Theme.colorAccentLight, 0.4)
                               : "transparent"
                     border.width: 1
                     border.color: camRow.tuningOpen ? Theme.colorAccent
@@ -1248,63 +1116,33 @@ Item {
                     Repeater {
                         model: camRow.impactModes
 
-                        delegate: Rectangle {
+                        delegate: TuneChip {
                             id: modeChip
                             required property var modelData
                             required property int index
 
+                            label: modelData.w + "×" + modelData.h + "  "
+                                   + Math.round(modelData.fps) + qsTr(" fps")
+                                   + (modeChip.index === 0 ? "  ★" : "")
                             // Selected when the stored crop is this size (to the
                             // node increment) and the stored rate is this rate.
-                            readonly property bool isSelected: {
+                            selected: {
                                 var r = modeFlow.storedRoi
                                 if (!r) return false
                                 return Math.abs(r.w * (camData.maxWidth  || 0) - modelData.w) < 8
                                     && Math.abs(r.h * (camData.maxHeight || 0) - modelData.h) < 8
                                     && Math.abs(modeFlow.storedFps - modelData.fps) < 1
                             }
-
-                            width:  modeLabel.implicitWidth + Theme.sp(20)
-                            height: Theme.sp(24)
-                            radius: Theme.radius
-                            color:  isSelected ? Theme.colorAccentLight
-                                  : modeArea.containsMouse
-                                      ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
-                                      : "transparent"
-                            border.width: 1
-                            border.color: isSelected ? Theme.colorAccent
-                                        : modeArea.containsMouse ? Theme.colorAccentMid
-                                        : Theme.colorBorderStrong
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                            Text {
-                                id: modeLabel
-                                anchors.centerIn: parent
-                                text:           modelData.w + "×" + modelData.h + "  "
-                                                + Math.round(modelData.fps) + qsTr(" fps")
-                                                + (modeChip.index === 0 ? "  ★" : "")
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzMicro
-                                color:          modeChip.isSelected ? Theme.colorAccent : Theme.colorText2
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
-
-                            MouseArea {
-                                id: modeArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape:  Qt.PointingHandCursor
-                                onClicked: {
-                                    // applyImpactMode rebuilds the rows — locals first.
-                                    var panelRoot = root
-                                    var key       = camData.cameraKey
-                                    var camIndex  = camData.index
-                                    var maxW      = camData.maxWidth
-                                    var maxH      = camData.maxHeight
-                                    var mode      = modeChip.modelData
-                                    var inst      = camRow.realInstance
-                                    panelRoot.applyImpactMode(key, camIndex, maxW, maxH, mode, inst)
-                                }
+                            onClicked: {
+                                // applyImpactMode rebuilds the rows — locals first.
+                                var panelRoot = root
+                                var key       = camData.cameraKey
+                                var camIndex  = camData.index
+                                var maxW      = camData.maxWidth
+                                var maxH      = camData.maxHeight
+                                var mode      = modeChip.modelData
+                                var inst      = camRow.realInstance
+                                panelRoot.applyImpactMode(key, camIndex, maxW, maxH, mode, inst)
                             }
                         }
                     }
@@ -1337,7 +1175,7 @@ Item {
                     radius: Theme.radius
                     color:  camRow.tuningOpen ? Theme.colorAccentLight
                           : tuningToggleArea.containsMouse
-                              ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                              ? Qt.alpha(Theme.colorAccentLight, 0.4)
                               : "transparent"
                     border.width: 1
                     border.color: camRow.tuningOpen ? Theme.colorAccent
@@ -1422,43 +1260,12 @@ Item {
                     Repeater {
                         model: [30, 50, 70, 100]
 
-                        delegate: Rectangle {
+                        delegate: TuneChip {
                             id: expChip
                             required property var modelData
-
-                            readonly property bool isSelected: Math.abs(exposureRow.selectedUs - modelData) < 0.5
-
-                            width:  expLabel.implicitWidth + Theme.sp(20)
-                            height: Theme.sp(24)
-                            radius: Theme.radius
-                            color:  isSelected ? Theme.colorAccentLight
-                                  : expArea.containsMouse
-                                      ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
-                                      : "transparent"
-                            border.width: 1
-                            border.color: isSelected ? Theme.colorAccent
-                                        : expArea.containsMouse ? Theme.colorAccentMid
-                                        : Theme.colorBorderStrong
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                            Text {
-                                id: expLabel
-                                anchors.centerIn: parent
-                                text:           modelData + qsTr(" µs")
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzMicro
-                                color:          expChip.isSelected ? Theme.colorAccent : Theme.colorText2
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
-
-                            MouseArea {
-                                id: expArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape:  Qt.PointingHandCursor
-                                onClicked: root.setImpactExposure(camData.cameraKey, expChip.modelData, camRow.realInstance)
-                            }
+                            label:    modelData + qsTr(" µs")
+                            selected: Math.abs(exposureRow.selectedUs - modelData) < 0.5
+                            onClicked: root.setImpactExposure(camData.cameraKey, expChip.modelData, camRow.realInstance)
                         }
                     }
 
@@ -1574,7 +1381,7 @@ Item {
                 spacing: Theme.gap(4)
                 Layout.alignment: Qt.AlignTop
                 TuneHeading { text: Theme.caps(qsTr("Strobe")) }
-                TogglePill {
+                PpSwitch {
                     checked: root.impactTuning(camData.cameraKey, "strobe", false)
                     onToggled: (v) => root.setImpactTuning(camData.cameraKey, "strobe", v, null)
                 }
@@ -1678,69 +1485,15 @@ Item {
                 }
 
                 // ── Camera capabilities strip ────────────────────────────────
-                RowLayout {
+                PpFactStrip {
                     Layout.fillWidth: true
-                    spacing: 0
-
-                    Repeater {
-                        model: [
-                            { key: qsTr("Sensor"),         val: (camData.vendorName || "") + " " + (camData.modelName || "") },
-                            { key: qsTr("Max resolution"),  val: (camData.maxWidth || 0) + " × " + (camData.maxHeight || 0) + " px" },
-                            { key: qsTr("Pixel format"),    val: camData.pixelFormat || "—" },
-                            { key: qsTr("Bit depth"),       val: (camData.bitsPerPixel || 0) + " bit" },
-                            { key: qsTr("Bytes / px"),      val: ((camData.bitsPerPixel || 0) / 8.0).toFixed(2) }
-                        ]
-
-                        delegate: Rectangle {
-                            required property var modelData
-                            required property int index
-
-                            Layout.fillWidth: true
-                            implicitHeight: capCol.implicitHeight + Theme.sp(18)
-                            color: Theme.colorBg2
-
-                            // Vertical separator (except last)
-                            Rectangle {
-                                anchors.right:  parent.right
-                                anchors.top:    parent.top
-                                anchors.bottom: parent.bottom
-                                width: 1
-                                color: Theme.colorBorderMid
-                                opacity: Theme.borderOpacityNormal
-                                visible: index < 4
-                            }
-
-                            ColumnLayout {
-                                id: capCol
-                                anchors {
-                                    left:   parent.left
-                                    right:  parent.right
-                                    top:    parent.top
-                                    leftMargin:  Theme.gap(14)
-                                    rightMargin: Theme.gap(14)
-                                    topMargin:   Theme.gap(9)
-                                }
-                                spacing: Theme.gap(3)
-
-                                Text {
-                                    text:            modelData.key
-                                    font.family:     Theme.fontData
-                                    font.pixelSize:  Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingMicro
-                                    font.capitalization: Theme.capsFont
-                                    color:           Theme.colorText3
-                                }
-                                Text {
-                                    text:            modelData.val
-                                    font.family:     Theme.fontData
-                                    font.pixelSize:  Theme.fontSzBody2
-                                    color:           Theme.colorText
-                                    elide:           Text.ElideRight
-                                    Layout.fillWidth: true
-                                }
-                            }
-                        }
-                    }
+                    cells: [
+                        { key: qsTr("Sensor"),         val: (camData.vendorName || "") + " " + (camData.modelName || "") },
+                        { key: qsTr("Max resolution"),  val: (camData.maxWidth || 0) + " × " + (camData.maxHeight || 0) + " px" },
+                        { key: qsTr("Pixel format"),    val: camData.pixelFormat || "—" },
+                        { key: qsTr("Bit depth"),       val: (camData.bitsPerPixel || 0) + " bit" },
+                        { key: qsTr("Bytes / px"),      val: ((camData.bitsPerPixel || 0) / 8.0).toFixed(2) }
+                    ]
                 }
 
                 // ── Preview + controls ───────────────────────────────────────
@@ -2461,7 +2214,7 @@ Item {
                                         height: Theme.sp(24)
                                         radius: Theme.radius
                                         color:  presetArea.containsMouse
-                                                    ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                                    ? Qt.alpha(Theme.colorAccentLight, 0.4)
                                                     : "transparent"
                                         border.width: 1
                                         border.color: presetArea.containsMouse ? Theme.colorAccentMid : Theme.colorBorderStrong
@@ -2693,7 +2446,7 @@ Item {
                                 height: Theme.sp(26)
                                 radius: Theme.radius
                                 color:  resetPress.containsMouse
-                                            ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                            ? Qt.alpha(Theme.colorAccentLight, 0.4)
                                             : "transparent"
                                 border.width: 1
                                 border.color: resetPress.containsMouse ? Theme.colorAccentMid : Theme.colorBorderStrong
@@ -2878,50 +2631,14 @@ Item {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // ── Search scroll-to support ──────────────────────────────────────────────
-
-    property string lastHighlightId: ""
-
-    function findChild(parent, name) {
-        for (var i = 0; i < parent.children.length; i++) {
-            var child = parent.children[i]
-            if (child.objectName === name) return child
-            var found = findChild(child, name)
-            if (found) return found
-        }
-        return null
-    }
-
-    function scrollToItem(itemId) {
-        if (!itemId) return true
-        var target = findChild(contentCol, itemId)
-        if (!target) return false
-        var mapped = target.mapToItem(contentCol, 0, 0)
-        scrollView.contentItem.contentY = Math.max(0, Math.min(
-            mapped.y - Theme.sp(24),
-            scrollView.contentItem.contentHeight - scrollView.height
-        ))
-        target.searchHighlight = true
-        lastHighlightId = itemId
-        highlightTimer.restart()
-        return true
-    }
-
-    Timer {
-        id: highlightTimer
-        interval: 1800
-        onTriggered: {
-            var target = findChild(contentCol, lastHighlightId)
-            if (target) target.searchHighlight = false
-        }
-    }
-
     // Informational notice shown when opening the crop editor stops an
     // active capture / disconnects the camera. Lives on the panel root so it
-    // survives the Repeater delegate rebuild triggered by setSelected().
+    // survives the Repeater delegate rebuild triggered by setSelected() —
+    // parented to the panel itself, over the scroll view, not laid out in
+    // its content column.
     PpToast {
         id: cropToast
+        parent: root
         showUndo: false
         glyph: "⚠"
         z: 1000
@@ -2930,219 +2647,153 @@ Item {
         anchors.bottomMargin: Theme.gap(24)
     }
 
-    // Main scroll view
-    // ─────────────────────────────────────────────────────────────────────────
-    ScrollView {
-        id: scrollView
-        anchors.fill: parent
-        contentWidth: availableWidth
-        contentHeight: contentCol.y + contentCol.implicitHeight + Theme.sp(28)
+    // ── Page header ────────────────────────────────────────────────
+    SettingsSectionHead { text: Theme.caps(qsTr("Hardware")) }
 
-        ColumnLayout {
-            id: contentCol
-            x: Theme.sp(32)
-            y: Theme.sp(28)
-            width: parent.width - Theme.sp(64)
+    PpDisplayText {
+        text: qsTr("Cameras")
+    }
+
+    Text {
+        text: qsTr("All detected cameras are listed below. Enable each device, assign it to a view, configure capture parameters, and optionally define a crop region to reduce frame storage and ring buffer size.")
+        font.family:    Theme.fontBody
+        font.pixelSize: Theme.fontSzBody2
+        font.weight:    Theme.fontBodyWeight
+        color:          Theme.colorText3
+        wrapMode:       Text.WordWrap
+        Layout.fillWidth: true
+    }
+
+    // ── Detected cameras section ───────────────────────────────────
+    RowLayout {
+        Layout.fillWidth: true
+
+        SettingsSectionHead {
+            text: Theme.caps(qsTr("Detected cameras"))
+            Layout.fillWidth: true
+        }
+
+        PpButton {
+            label: qsTr("Refresh")
+            onClicked: cameraManager.enumerate()
+        }
+    }
+
+    // Camera rows
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Theme.gap(8)
+
+        Repeater {
+            model: cameraManager.cameraList
+
+            delegate: CameraDeviceRow {
+                required property var modelData
+                camData: modelData
+                Layout.fillWidth: true
+            }
+        }
+
+        // Empty state
+        Text {
+            visible: cameraManager.cameraList.length === 0
+            text:    qsTr("No cameras detected. Connect a camera and click Refresh.")
+            font.family:    Theme.fontBody
+            font.pixelSize: Theme.fontSzBody2
+            font.weight:    Theme.fontBodyWeight
+            font.italic:    true
+            color:          Theme.colorText3
+            Layout.fillWidth: true
+        }
+    }
+
+    PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
+
+    // ── Global capture section ─────────────────────────────────────
+    SettingsSectionHead { text: Theme.caps(qsTr("Global capture")) }
+
+    // Pre-roll buffer row
+    SettingsRow {
+        objectName: "setting_preroll"
+        RowLayout {
+            Layout.fillWidth: true
             spacing: Theme.gap(16)
 
-            // ── Page header ────────────────────────────────────────────────
-            Text {
-                text: qsTr("Hardware")
-                font.family:         Theme.fontBody
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color: Theme.colorText3
+            SettingsRowTitle {
+                title:    qsTr("Pre-roll buffer")
+                subtitle: qsTr("Seconds of frames held before swing trigger — directly sets ring buffer size above")
             }
 
-            PpDisplayText {
-                text: qsTr("Cameras")
-            }
+            // Chip group for preroll values
+            Row {
+                spacing: Theme.gap(4)
+                Layout.alignment: Qt.AlignVCenter
 
-            Text {
-                text: qsTr("All detected cameras are listed below. Enable each device, assign it to a view, configure capture parameters, and optionally define a crop region to reduce frame storage and ring buffer size.")
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                font.weight:    Theme.fontBodyWeight
-                color:          Theme.colorText3
-                wrapMode:       Text.WordWrap
-                Layout.fillWidth: true
-            }
-
-            // ── Detected cameras section ───────────────────────────────────
-            RowLayout {
-                Layout.fillWidth: true
-
-                Text {
-                    text:           qsTr("Detected cameras")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                    font.capitalization: Theme.capsFont
-                    color:          Theme.colorText3
-                    Layout.fillWidth: true
-                }
-
-                PpButton {
-                    label: qsTr("Refresh")
-                    onClicked: cameraManager.enumerate()
-                }
-            }
-
-            // Camera rows
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.leftMargin: Theme.gap(26)
-                spacing: Theme.gap(8)
+                readonly property var prerollOptions: [
+                    { label: qsTr("0.5 s"), value: 0.5 },
+                    { label: qsTr("1.0 s"), value: 1.0 },
+                    { label: qsTr("2.0 s"), value: 2.0 }
+                ]
 
                 Repeater {
-                    model: cameraManager.cameraList
+                    model: parent.prerollOptions
 
-                    delegate: CameraDeviceRow {
+                    delegate: Rectangle {
+                        id: prerollChip
                         required property var modelData
-                        camData: modelData
-                        Layout.fillWidth: true
-                    }
-                }
 
-                // Empty state
-                Text {
-                    visible: cameraManager.cameraList.length === 0
-                    text:    qsTr("No cameras detected. Connect a camera and click Refresh.")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Theme.fontBodyWeight
-                    font.italic:    true
-                    color:          Theme.colorText3
-                    Layout.fillWidth: true
-                }
-            }
+                        readonly property bool isSelected: Math.abs(appSettings.cameraPreroll - modelData.value) < 0.01
 
-            PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
+                        width:  prerollLabel.implicitWidth + Theme.sp(20)
+                        height: Theme.sp(24)
+                        radius: Theme.radius
+                        color:  isSelected ? Theme.colorAccentLight
+                              : prerollPress.containsMouse
+                                  ? Qt.alpha(Theme.colorAccentLight, 0.4)
+                                  : "transparent"
+                        border.width: 1
+                        border.color: isSelected ? Theme.colorAccent
+                                    : prerollPress.containsMouse ? Theme.colorAccentMid
+                                    : Theme.colorBorderStrong
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
-            // ── Global capture section ─────────────────────────────────────
-            Text {
-                text:           qsTr("Global capture")
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color:          Theme.colorText3
-            }
-
-            // Pre-roll buffer row
-            RowLayout {
-                objectName: "setting_preroll"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-
-                    Text {
-                        text:           qsTr("Pre-roll buffer")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Seconds of frames held before swing trigger — directly sets ring buffer size above")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                        wrapMode:       Text.WordWrap
-                        Layout.fillWidth: true
-                    }
-                }
-
-                // Chip group for preroll values
-                Row {
-                    spacing: Theme.gap(4)
-                    Layout.alignment: Qt.AlignVCenter
-
-                    readonly property var prerollOptions: [
-                        { label: qsTr("0.5 s"), value: 0.5 },
-                        { label: qsTr("1.0 s"), value: 1.0 },
-                        { label: qsTr("2.0 s"), value: 2.0 }
-                    ]
-
-                    Repeater {
-                        model: parent.prerollOptions
-
-                        delegate: Rectangle {
-                            id: prerollChip
-                            required property var modelData
-
-                            readonly property bool isSelected: Math.abs(appSettings.cameraPreroll - modelData.value) < 0.01
-
-                            width:  prerollLabel.implicitWidth + Theme.sp(20)
-                            height: Theme.sp(24)
-                            radius: Theme.radius
-                            color:  isSelected ? Theme.colorAccentLight
-                                  : prerollPress.containsMouse
-                                      ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
-                                      : "transparent"
-                            border.width: 1
-                            border.color: isSelected ? Theme.colorAccent
-                                        : prerollPress.containsMouse ? Theme.colorAccentMid
-                                        : Theme.colorBorderStrong
+                        Text {
+                            id: prerollLabel
+                            anchors.centerIn: parent
+                            text:           modelData.label
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          prerollChip.isSelected ? Theme.colorAccent : Theme.colorText2
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+                        }
 
-                            Text {
-                                id: prerollLabel
-                                anchors.centerIn: parent
-                                text:           modelData.label
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzMicro
-                                color:          prerollChip.isSelected ? Theme.colorAccent : Theme.colorText2
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
-
-                            PpPressable {
-                                id: prerollPress
-                                onClicked:    appSettings.cameraPreroll = modelData.value
-                            }
+                        PpPressable {
+                            id: prerollPress
+                            onClicked:    appSettings.cameraPreroll = modelData.value
                         }
                     }
                 }
             }
+        }
+    }
 
-            // Synchronise cameras row
-            RowLayout {
-                objectName: "setting_camSync"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+    // Synchronise cameras row
+    SettingsRow {
+        objectName: "setting_camSync"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
+            SettingsRowTitle {
+                title:    qsTr("Synchronise cameras")
+                subtitle: qsTr("Lock frame timing across all enabled cameras")
+            }
 
-                    Text {
-                        Layout.fillWidth: true
-                        text:           qsTr("Synchronise cameras")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Lock frame timing across all enabled cameras")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                }
-
-                TogglePill {
-                    checked: appSettings.cameraSyncEnabled
-                    onToggled: (v) => appSettings.cameraSyncEnabled = v
-                    Layout.alignment: Qt.AlignVCenter
-                }
+            PpSwitch {
+                checked: appSettings.cameraSyncEnabled
+                onToggled: (v) => appSettings.cameraSyncEnabled = v
+                Layout.alignment: Qt.AlignVCenter
             }
         }
     }

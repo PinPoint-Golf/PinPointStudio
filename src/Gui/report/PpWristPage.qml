@@ -38,8 +38,10 @@ import PinPointStudio
 //     strip's idiom (filled where it fired, a hairline outline where it did not), the report's swing numbers under;
 //     then "N more";
 //   · "Repeatable?";
-//   · "What moves with the lead wrist at impact": a PRINT SIBLING of PpChMovesWith reading the same ledger rows (the
-//     screen's draws each reading's swatch through the live theme, and its rows are not pager atoms): the column heads
+//   · "What moves with the lead wrist at impact": a PRINT SIBLING of PpChMovesWith reading the same ledger rows — a
+//     different table, not the screen's in other inks: fixed columns sized for the page, the interval's figures under
+//     its rule, the tag set right in the name column, a plain dot for r (the screen's are em-sized tier columns, the
+//     figures folded onto a second line, a PpMark), so drawing it through PpChMovesWith would move every line. It draws: the column heads
 //     (repeated on a page that opens inside the list), one atom per reading — rank, the swatch in the reading's own
 //     colour (Folio light), its name and checkpoint, r (ink when it clears chance, ink3 inside it), the 95 % interval
 //     drawn on a −1…1 rule with its figures under, n, the slope, the pair — then the chance line and the note. When it
@@ -83,7 +85,6 @@ Column {
         for (let i = 0; i < list.length; i += n) out.push({ from: i, items: list.slice(i, i + n) })
         return out
     }
-    function fin(v) { return v !== null && v !== undefined && isFinite(v) }
 
     // the score run in PpChRunBox's RUN shape: a point's place is its order (the drift line's x is the same), its
     // label the report's swing number
@@ -97,19 +98,11 @@ Column {
     }
 
     // ═══ the head ═══
-    Column {
+    PpReportSectionHead {
         objectName: "reportWrist"
-        property bool atom: true
-        property bool keepNext: true
-        property bool breakBefore: true
-        property string section: "Wrist"
+        ro: wp.ro; kicker: wp.m.kicker || ""; title: "Wrist"; standfirst: wp.m.head || ""
         visible: wp.on
         width: wp.width
-        Text { width: parent.width; text: wp.m.kicker || ""; font: wp.ro.fKicker; color: wp.ro.accent; wrapMode: Text.WordWrap }
-        Item { width: 1; height: 6 }
-        Text { width: parent.width; text: "Wrist"; font: wp.ro.fH1; color: wp.ro.ink; wrapMode: Text.WordWrap; lineHeight: 1.08 }
-        Item { width: 1; height: 10 }
-        Text { width: parent.width; text: wp.m.head || ""; font: wp.ro.fStand; color: wp.ro.ink2; wrapMode: Text.WordWrap; lineHeight: 1.2 }
         Item { width: 1; height: 8; visible: styleLine.visible }
         Item {
             id: styleLine
@@ -417,11 +410,11 @@ Column {
                             Rectangle { width: parent.width; height: wp.ro.hw; y: 6; color: wp.ro.hair }
                             Rectangle { x: Math.round(parent.width / 2); width: wp.ro.hw; height: parent.height; color: wp.ro.ink3; opacity: 0.6 }
                             Rectangle {
-                                visible: wp.fin(mr.r.lo) && wp.fin(mr.r.hi)
+                                visible: cr.fin(mr.r.lo) && cr.fin(mr.r.hi)
                                 x: visible ? iv.px(mr.r.lo) : 0; width: visible ? Math.max(1, iv.px(mr.r.hi) - iv.px(mr.r.lo)) : 0
                                 y: 5; height: 1.5; color: mr.clear ? wp.ro.ink2 : wp.ro.ink3
                             }
-                            Rectangle { visible: wp.fin(mr.r.r); width: 5; height: 5; radius: 2.5; y: 4
+                            Rectangle { visible: cr.fin(mr.r.r); width: 5; height: 5; radius: 2.5; y: 4
                                         x: visible ? iv.px(mr.r.r) - 2.5 : 0; color: mr.clear ? wp.ro.ink : wp.ro.ink3 }
                         }
                         Text { width: parent.width; visible: text !== ""; horizontalAlignment: Text.AlignHCenter; text: mr.r.ciText || ""; font: wp.ro.fFigS; color: wp.ro.ink3 }
@@ -438,10 +431,10 @@ Column {
                             const ctx = getContext("2d"); ctx.reset()
                             if (!pr || !pr.xs) return
                             const xr = pr.xRange || {}, yr = pr.yRange || {}
-                            if (!wp.fin(xr.lo) || !wp.fin(xr.hi) || !wp.fin(yr.lo) || !wp.fin(yr.hi)) return
+                            if (!cr.fin(xr.lo) || !cr.fin(xr.hi) || !cr.fin(yr.lo) || !cr.fin(yr.hi)) return
                             ctx.fillStyle = wp.ro.ink2
                             for (let i = 0; i < pr.xs.length; ++i) {
-                                if (!wp.fin(pr.xs[i]) || !wp.fin(pr.ys[i])) continue
+                                if (!cr.fin(pr.xs[i]) || !cr.fin(pr.ys[i])) continue
                                 const xx = 2 + (pr.xs[i] - xr.lo) / Math.max(1e-9, xr.hi - xr.lo) * (width - 4)
                                 const yy = height - 2 - (pr.ys[i] - yr.lo) / Math.max(1e-9, yr.hi - yr.lo) * (height - 4)
                                 ctx.fillRect(Math.round(xx) - 1, Math.round(yy) - 1, 2.5, 2.5)
@@ -465,24 +458,11 @@ Column {
     }
 
     // ═══ how far can I trust this? said once, open ═══
-    Column {
+    PpReportTrust {
         objectName: "reportWristTrust"
-        property bool atom: true
+        ro: wp.ro; lines: wp.trust; more: wp.m.trustMore || ""; lineName: "reportWristTrustLine"
         visible: wp.on && wp.trust.length > 0
         width: wp.width
-        Item { width: 1; height: 18 }
-        Text { width: parent.width; text: "How far can I trust this?"; font: wp.ro.fH3; color: wp.ro.ink }
-        Item { width: 1; height: 4 }
-        Repeater {
-            model: wp.trust
-            delegate: Text {
-                required property var modelData
-                objectName: "reportWristTrustLine"
-                width: wp.width; leftPadding: 12; bottomPadding: 3
-                text: String(modelData); font: wp.ro.fSmall; color: wp.ro.ink2; wrapMode: Text.WordWrap; lineHeight: 1.25
-            }
-        }
-        Text { width: parent.width; visible: text !== ""; leftPadding: 12; text: wp.m.trustMore || ""; font: wp.ro.fMicro; color: wp.ro.ink3; wrapMode: Text.WordWrap }
     }
 
     // the score run's value axis: the payload's ticks (PpChRunBox asks a ticker; paper has no presenter to ask)

@@ -17,7 +17,6 @@
  */
 
 import QtQuick
-import QtQuick.Controls
 import PinPointStudio
 
 // PPCHARTSREGISTER — what the Charts registers share (PpChartsReplay and PpChartsAnalyse are this with their
@@ -102,25 +101,10 @@ Item {
                                          + (body && body.wristShotShown && body.wShot.profile ? 6 + 9 * (body.wShot.profile.rows || []).length : 0)
                                   : shown === "session" ? 12 + 5.5 * Math.max(1, body && body.tSession && body.tSession.rows ? body.tSession.rows.length : 1)
                                   : 30)
-    readonly property real zoom: cast ? Math.max(1, Math.min(1.6, width / (42 * ro.em), height / ((castEm + 4) * ro.em))) : 1
+    readonly property real zoom: cast ? ro.castZoom(width, height, castEm) : 1
 
-    component ViewFlick: Flickable {
-        id: vf
-        property string key: ""
-        property Component view: null
-        readonly property bool on: root.shown === key
-        readonly property var content: ld.item
-        property bool built: false
-        onOnChanged: if (on) built = true
-        Component.onCompleted: if (on) built = true
-        visible: on
-        anchors { top: under.bottom; left: surfaceItem.left; right: surfaceItem.right; bottom: surfaceItem.bottom; topMargin: ro.u(10) }
-        contentWidth: width; contentHeight: (ld.item ? ld.item.height : 0) + ro.u(20)
-        clip: true; boundsBehavior: Flickable.StopAtBounds
-        interactive: root.interactive && contentHeight > height
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-        Loader { id: ld; active: vf.built; width: vf.width - ro.u(8); sourceComponent: vf.view }
-    }
+    // each view's own named Flickable (PpViewFlick), under the tab row and its picker
+    component ViewFlick: PpViewFlick { roles: ro; shown: root.shown; below: under; gap: 10; foot: 20; scrolls: root.interactive }
 
     Item {
         id: surfaceItem

@@ -2,19 +2,19 @@
 
 A catalogue of every component in the GUI layer, built to (1) seed fuller developer documentation later and (2) find duplicated code in the GUI. It was built outside the repo while another session was editing, then moved here to `docs/implementation/gui-catalogue/`.
 
-Based on repo commit `8f5225a8` (the catalogue pages were not regenerated after later commits, so counts and line numbers may have drifted) (`src/Gui` and `cmake/` clean at the time of the final run). Scope: `src/Gui/**` — 290 app QML files (90k lines), 3 helper `.js`, 157 C++ files (73k lines). Test QML (80 files) and tool QML (15 files) are listed but not catalogued.
+First built at repo commit `8f5225a8` (19 Oct 2026); **regenerated and re-audited at `9ac19450` (31 Oct 2026)**. Scope: `src/Gui/**` — 340 app QML files (105k lines), 5 helper `.js`, 205 C++ files (98k lines). Test QML (112 files) and tool QML (20 files) are listed but not catalogued. Re-run the four *Regenerating* commands and re-check `duplicates.md` whenever the GUI has moved on; the scripted pages go stale silently.
 
 ## Read in this order
 
 | File | What it is |
 |---|---|
 | [00-overview.md](00-overview.md) | How the layer is put together, sizes, naming, most-reused and largest components, files nothing instantiates, Theme bypass |
-| [duplicates.md](duplicates.md) | **The findings.** 16 ranked themes, a **merge map** (§17: which components could become one, by confidence and by decision needed), **copied-code list** (§18), what is *not* duplicated (§19), **§20 — how the new typeset aesthetic changes the merge plan**, and dead/parked files |
-| [areas/](areas/) | One page per area (23 areas, 290 components): purpose, public API, what it uses, who uses it |
+| [duplicates.md](duplicates.md) | **The findings, as of 31 Oct.** Copies that already disagree (top), 17 ranked themes with their status since 19 Oct, a **merge map** (§18), **copied-code list** (§19), what is *not* duplicated (§20), **§21 — how the typeset aesthetic changes the merge plan**, dead/parked files, and a suggested fixing order |
+| [areas/](areas/) | One page per area (24 areas, 340 components): purpose, public API, what it uses, who uses it |
 | [cpp-seam.md](cpp-seam.md) | The C++↔QML boundary: 39 context-property globals (and which components lean on them), `QML_ELEMENT` types, C++ classes |
 | [data/components.csv](data/components.csv) | One row per QML file (area, lines, root type, fan-in, API size, Theme refs…) for sorting/filtering |
 | [data/duplicate-evidence.md](data/duplicate-evidence.md) | The mechanical signals behind the duplicate findings |
-| `findings/` | Raw per-cluster reports from the four review agents (before consolidation into duplicates.md) |
+| `findings/` | Raw per-cluster reports: `A-…`–`D-…` from 19 Oct, and `2026-10-31-A-…`–`D-…`, the re-check of every finding at `9ac19450` plus new findings |
 | `inventory.json`, `duplicates.json` | Not committed (2 MB, regenerable): produced by the first two commands under *Regenerating* |
 | `tools/` | The scripts that produced all of the above |
 
@@ -24,6 +24,7 @@ Based on repo commit `8f5225a8` (the catalogue pages were not regenerated after 
 2. **`tools/find_duplicates.py`** → `duplicates.json`: shingle similarity between files, shared runs of ≥7 normalised lines, identical function bodies.
 3. **`tools/build_catalogue.py`**, **`tools/build_evidence.py`** render the markdown and CSV.
 4. **Four read-only agents** read the code behind the mechanical hits and the "same job, different code" cases the scripts can't see, one per cluster (interactive primitives; containers/scaffolding; charts/dataviz; screens/flows). Their raw reports are in `findings/`; [duplicates.md](duplicates.md) consolidates them.
+5. **31 Oct re-check.** After regenerating 1–3 at `9ac19450`, the same four clusters were re-checked by read-only agents: every original finding re-counted on HEAD and on a `git archive 8f5225a8` copy with one method (so then → now is like for like), and every file added since read for new duplication. Reports: `findings/2026-10-31-*.md`; [duplicates.md](duplicates.md) was rewritten from them.
 
 **Descriptions.** Each component's description is its own header comment from the source (shown as a quote, up to 16 lines) — 250 of 290 have one. The 40 without were described by hand from their code and are marked *"description written for this catalogue"*; treat those as drafts. Counts (lines, fan-in, API size) are measured. "Used by" = other app files that name the component; it can miss components loaded from a string path, and `Used by 0` is checked against `src/`, `tools/`, `tests/` and `cmake/` in the overview.
 

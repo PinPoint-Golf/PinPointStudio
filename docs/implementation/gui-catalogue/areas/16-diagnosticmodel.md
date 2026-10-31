@@ -1,7 +1,7 @@
 # Diagnostic Model editor
 
 *Directory:* `src/Gui/diagnosticmodel/`  
-*19 components · 9,488 lines of QML*
+*18 components · 9,421 lines of QML*
 
 Settings > Reference > Diagnostic Model: a three-pane editor (type rail, table, relationship inspector) for the diagnostics model pack, with graph, corridor plot, ring menu and edit/unsaved tooling.
 
@@ -9,11 +9,10 @@ Settings > Reference > Diagnostic Model: a three-pane editor (type rail, table, 
 
 | Component | Lines | Root | Used by | Uses | Notes |
 |---|---:|---|---:|---:|---|
-| [DiagnosticModel](#diagnosticmodel) | 2029 | `Item` | 1 | 19 |  |
+| [DiagnosticModel](#diagnosticmodel) | 2031 | `Item` | 1 | 19 |  |
 | [ModelBarButton](#modelbarbutton) | 105 | `Rectangle` | 1 | 1 |  |
 | [ModelCausePicker](#modelcausepicker) | 343 | `Popup` | 2 | 2 | 1 local comp. |
 | [ModelChipRow](#modelchiprow) | 94 | `ColumnLayout` | 1 | 1 |  |
-| [ModelConfirm](#modelconfirm) | 159 | `Popup` | 1 | 1 |  |
 | [ModelCorridorPlot](#modelcorridorplot) | 522 | `Item` | 1 | 2 | 2 local comp. |
 | [ModelEdits](#modeledits) | 179 | `Item` | 1 | 1 |  |
 | [ModelEnumField](#modelenumfield) | 148 | `Rectangle` | 1 | 1 |  |
@@ -22,7 +21,7 @@ Settings > Reference > Diagnostic Model: a three-pane editor (type rail, table, 
 | [ModelMint](#modelmint) | 212 | `Popup` | 1 | 3 |  |
 | [ModelPicker](#modelpicker) | 170 | `Popup` | 1 | 2 |  |
 | [ModelPolicyPicker](#modelpolicypicker) | 119 | `Popup` | 1 | 1 |  |
-| [ModelTable](#modeltable) | 744 | `Item` | 1 | 1 |  |
+| [ModelTable](#modeltable) | 724 | `Item` | 1 | 2 |  |
 | [ModelTools](#modeltools) | 237 | `Popup` | 1 | 1 | 2 local comp. |
 | [ModelTrail](#modeltrail) | 114 | `Item` | 1 | 1 |  |
 | [ModelTypeRail](#modeltyperail) | 355 | `Item` | 1 | 1 |  |
@@ -30,10 +29,12 @@ Settings > Reference > Diagnostic Model: a three-pane editor (type rail, table, 
 | [RingMenu](#ringmenu) | 625 | `Popup` | 1 | 0 | 2 local comp. |
 
 ### DiagnosticModel
-`src/Gui/diagnosticmodel/DiagnosticModel.qml` · 2029 lines · root `Item`
+`src/Gui/diagnosticmodel/DiagnosticModel.qml` · 2031 lines · root `Item`
 
-> Settings → Reference → Diagnostic Model. One shell, three panes: type rail → table → relationship
-> inspector, with a trail of the chain you walked.
+> Settings → Reference → Swing model (Settings slot 10; "Swing model" is this editor's name wherever
+> users see it — it was "Diagnostic Model"). Not on the rail (Mark, 28 Oct): it is reached
+> mid-session through Settings, like every screen. One shell, three panes: type
+> rail → table → relationship inspector, with a trail of the chain you walked.
 > It REPLACED an earlier Diagnostics panel, which is now deleted. That one read the pack as saved
 > and could not show an unsaved edit, which is why this exists rather than growing out of it.
 > The organising rule: EVERY element of the model is editable in the fewest possible clicks. No
@@ -43,7 +44,7 @@ Settings > Reference > Diagnostic Model: a three-pane editor (type rail, table, 
 > holds an unsaved working copy, so one Save writes the lot and ⌘Z steps back through all of it.
 
 - **Functions:** `select(type, id, pushTrail)`, `selectFresh(type, id)`, `navigateTo(type, id)`, `openSubject(subject)`, `toggleFacet(key, value)`, `doCommit(id, field, value)`, `doSave()`, `doUndo()`, `doRedo()`, `doRevert()` (+10)
-- **Uses:** `ModelBarButton`, `ModelCausePicker`, `ModelConfirm`, `ModelGraph`, `ModelInspector`, `ModelMint`, `ModelPicker`, `ModelPolicyPicker`, `ModelTable`, `ModelTools`, `ModelTrail`, `ModelTypeRail`, `ModelUnsaved`, `PpButton`, `PpDisplayText`, `PpPressable` (+3)
+- **Uses:** `ModelBarButton`, `ModelCausePicker`, `ModelGraph`, `ModelInspector`, `ModelMint`, `ModelPicker`, `ModelPolicyPicker`, `ModelTable`, `ModelTools`, `ModelTrail`, `ModelTypeRail`, `ModelUnsaved`, `PpButton`, `PpConfirm`, `PpDisplayText`, `PpPressable` (+3)
 - **Used by (1):** `ScreenSettings`
 
 ### ModelBarButton
@@ -99,25 +100,6 @@ Settings > Reference > Diagnostic Model: a three-pane editor (type rail, table, 
 - **Signals:** `picked(string value)`
 - **Uses:** `PpPressable`
 - **Used by (1):** `ModelMint`
-
-### ModelConfirm
-`src/Gui/diagnosticmodel/ModelConfirm.qml` · 159 lines · root `Popup`
-
-> The house confirmation prompt, as the session-active close interception in Main.qml draws it:
-> modal, centred, dimmed, Esc cancels, display-font title, right-aligned outlined primary followed by
-> a neutral Cancel. Written once here because this panel raises two of them and two hand-drawn copies
-> of one standard drift apart.
-> `tone` is the ONE thing the two callers differ on, and the difference is meant. Theme.colorAttention
-> is defined as a call-to-action frame — "draws the eye to a row/control that needs the user to act" —
-> and the close prompt wears it because it interrupts something live, not because it destroys
-> anything. A prompt that discards saved work wears the error family instead, which is how the app
-> already draws a destructive action: removing something is a write to the user's pack, and is
-> styled as one. Two different events must not read alike.
-
-- **Properties:** `string title`, `string body`, `string confirmText`, `string cancelText`, `string tone`
-- **Signals:** `confirmed()`, `cancelled()`
-- **Uses:** `PpPressable`
-- **Used by (1):** `DiagnosticModel`
 
 ### ModelCorridorPlot
 `src/Gui/diagnosticmodel/ModelCorridorPlot.qml` · 522 lines · root `Item` · 1 hard-coded colour(s)
@@ -221,57 +203,7 @@ Settings > Reference > Diagnostic Model: a three-pane editor (type rail, table, 
 - **Signals:** `navigate(string type, string id)`, `addCauseRequested()`, `addMeasureRequested()`, `addCorridorRequested()`, `addRowRequested(string action)`, `removeRowRequested(string type, string id)`, `rowActionRequested(string action, string id)`, `claimStrengthChanged(string linkId, string strength)`, `collapseRequested()`, `fieldCommitted(string field, var value)`, `duplicateRequested()`, `removeRequested()`, `bindingCycled(string contextId, bool applicable, bool material, bool clear)`, `corridorHandleCommitted(string handle, real value)`, `corridorFieldCommitted(string field, string text)`, `corridorScanRequested()`
 - **Uses:** `ModelCorridorPlot`, `ModelEnumField`, `PpMetricSwatches`, `PpPressable`, `PpTextField`
 - **Used by (1):** `DiagnosticModel`
-- **Exercised by tests/tools:** `tst_inspector_citation`, `tst_inspector_report_fields`, probe `diagnostic_model_report_fields`
-
-#### The session report's content (#60)
-
-> Everything a client report prints about a habit, a measure and a gate is a field of this pane, so a
-> studio can read and correct the words its own reports carry. The pack loader and writer always
-> kept these fields; what was missing was any way to see or change them here.
-
-- **Habit fields, under a "Report" heading** (a second `fields` section after the habit's own
-  Fields; `fieldsOf()` marks them `group: "report"` and `inspect()` files them): In the golfer's
-  words (`golfer`), What they do well (`golferWell`), Why it matters (`golferWhy`, prose), Work-on
-  title (`goal`), Feel to practise (`cue`, prose), Check at home (`check`, prose), Picture /
-  Camera / Swing position / Line on the picture (`picture.kind` · `.camera` · `.phase` · `.line`),
-  and Held off reports because (`reportHold`; blank = not held, trimmed on write).
-- **The picture is picked, never typed.** Each of its four parts is a `ModelEnumField` whose options
-  are the loader's own lists — `reportPictureKinds()`, `reportPictureCameras()`, P1–P10
-  (`isReportPicturePhase()`), `reportPictureLines()` — led by a blank "Not set" and labelled in an
-  author's words ("Face-on", "Down the line", "Trail thigh", "P4 · Top"). A value outside a list is
-  refused by `setField()`; a token a hand-edited file misspelt is still offered, marked, beside the
-  error that names it. The kind's hint says what change / pair / typical / none each show.
-- **Measure fields, under "Report":** In the golfer's words (`golferName`), The number's sign
-  (`golferSign`: "Show the sign" = 1, "The words carry the sign" = −1 — the report then prints the
-  number without its minus), A high / low reading means (`golferHigh`, `golferLow`, prose).
-- **Inline wording checks.** Every report field arrives with `issues` — the loader's findings about
-  its current value from `reportFieldIssues()` (`characteristic_pack.h`), the same strings Health
-  lists. While the author types into a text or prose report field the pane asks
-  `ModelBrowser.fieldIssues(type, id, field, value)` through its `issuesFor` property (a function
-  the panel wires up; a hand-built pane leaves it null and shows the row's own `issues`). The answer
-  is drawn under the editor (`fieldIssues:<field>`), errors in `colorError`, warnings in
-  `colorWarn`. Nothing is written and nothing reaches the undo stack until the field commits. A
-  wording warning never blocks the write; a picture word outside its list does.
-- **Drills from the habit's end.** A habit's Drills section is always shown, empty or not, with the
-  action `drill`: "×" on a row calls `removeDrillAnswers()`, and "+ add drill" opens a
-  `ModelPicker` (`drillPicker` in DiagnosticModel) fed by `conditionDrillCandidates()` — every drill
-  in the DRAFT registry, user-created and unsaved included, that the habit does not already list —
-  and attaches with `addDrillAnswers()`. Health checks drill and screen references against the
-  draft's registries, so an attached drill that is not yet saved is not reported as dangling.
-- **The Gates page: golfer words.** A gate stays part of the analysis — no "+ New", Copy or Delete
-  (`objectActions` is off for gates) — but ONE field is content: In the golfer's words
-  (`golferWords`, prose), the clause the report's back page prints when that gate keeps a reading
-  from being checked, from `gate_words.json`. The ten readings the gates act on (`ks.pelvis` …
-  `shot`) are rows of kind Reading on the same page with the same single field, so both halves of
-  the back-page sentence are edited in one place. The words are a fifth undoable layer beside the
-  pack, norms, screens and drills: dirty marks, the unsaved count, revert, reset-to-standard and
-  Save (written fifth, then `resetSharedGateWordSet()`) all include them. The pane's closing note
-  reads "Only the golfer's words are editable" and says why.
-- **A half-filled picture saves.** A picture with its kind set and its camera, position or line blank
-  is the loader's `pictureIncomplete` error, shown under the field and in Health. The save is still
-  allowed: a user pack with that error loads with every other edit intact (`parsed`, not `loaded`,
-  in ModelBrowser, the file provider and the report's own pack assembly), so only that habit's still
-  is affected. Nothing is filled in on the author's behalf.
+- **Exercised by tests/tools:** `tst_inspector_citation`, `tst_inspector_report_fields`
 
 ### ModelMint
 `src/Gui/diagnosticmodel/ModelMint.qml` · 212 lines · root `Popup`
@@ -320,7 +252,7 @@ Settings > Reference > Diagnostic Model: a three-pane editor (type rail, table, 
 - **Used by (1):** `DiagnosticModel`
 
 ### ModelTable
-`src/Gui/diagnosticmodel/ModelTable.qml` · 744 lines · root `Item`
+`src/Gui/diagnosticmodel/ModelTable.qml` · 724 lines · root `Item`
 
 > The table. ONE delegate for every content type: the shell does not change, only the columns do,
 > and both the columns and the cells inside them are handed over by ModelBrowser. Nothing here
@@ -333,11 +265,17 @@ Settings > Reference > Diagnostic Model: a three-pane editor (type rail, table, 
 > dropped a caret into it, so navigating paid for editing. So: a click selects, and a click on a
 > row that is ALREADY selected edits. See the handler at the foot of the cell delegate for the
 > full reasoning and what it costs.
+> SELECTION DIFFERS FROM THE SESSIONS TABLE ON PURPOSE (sessions_screen_redesign.md S-D1). Here a plain
+> click REPLACES the selection (it drives the inspector's "current" row), Ctrl/⌘-click toggles, and
+> shift-click replaces the selection with the range from `selectedId`. The Sessions table
+> (report/PpSessionReportList.qml) is a list acted on in batches with no current-item pane: there a
+> plain click TOGGLES and shift-click ADDS the range from its own anchor. Do not "fix" one to match
+> …
 
 - **Properties:** `var columns`, `var rows`, `string selectedId`, `var selection`, `string sortKey`, `bool descending`, `bool editable`, `readonly int rowHeight`, `readonly bool editing`
 - **Signals:** `activated(string id)`, `commit(string id, string field, var value)`, `duplicateRequested(string id)`, `removeRequested(string id)`, `sortRequested(string key)`, `graphRequested(string id)`
 - **Functions:** `indexOfId(id)`, `selectRow(index)`, `beginEdit(rowId, col)`, `endEdit()`, `editNext(rowId, col, step)`
-- **Uses:** `PpPressable`
+- **Uses:** `PpPressable`, `PpRowAction`
 - **Used by (1):** `DiagnosticModel`
 
 ### ModelTools

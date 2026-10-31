@@ -41,11 +41,9 @@ Column {
     readonly property bool ok: !!roles && !!flight
     spacing: ok ? roles.u(6) : 6
 
-    function deg(v, dp, signed) {
-        if (v === null || v === undefined || !isFinite(v)) return "-"
-        const r = Number(Math.abs(v).toFixed(dp)), s = v < 0 && r !== 0 ? "−" : signed && r !== 0 ? "+" : ""
-        return s + r.toFixed(dp) + "°"
-    }
+    // a degree figure by the house rules (PpTypeset's figure / figureSigned + withUnit, figure_format.h's twins):
+    // "+3.2°", "−3°", "0°" (rounds to zero: no sign), "-" when missing
+    function deg(v, dp, signed) { return ok ? roles.withUnit(signed ? roles.figureSigned(v, dp) : roles.figure(v, dp), "°") : "-" }
     // the session a dot of another session came from: its folder's trailing number ("…_Wrist_02" → "session 2")
     function sessionWord(name) { const m = String(name || "").match(/_(\d+)$/); return m ? "session " + Number(m[1]) : "another session" }
     readonly property var sc: ok ? (flight.scatter || null) : null

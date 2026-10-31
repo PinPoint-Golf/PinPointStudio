@@ -120,9 +120,9 @@ Item {
                 Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                 border.width: 1
                 border.color: llmController.llmBackend === "Cloud"
-                              ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.25)
+                              ? Qt.alpha(Theme.colorAccent, 0.25)
                               : llmController.llmBackend !== "" && llmController.llmBackend !== "CPU"
-                                ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.25)
+                                ? Qt.alpha(Theme.colorGood, 0.25)
                                 : Theme.colorBorderMid
                 implicitWidth: llmBadgeLabel.implicitWidth + Theme.sp(10)
                 implicitHeight: llmBadgeLabel.implicitHeight + Theme.sp(4)
@@ -201,9 +201,7 @@ Item {
                         color: isCoach ? Theme.colorSurface : Theme.colorAccentLight
                         border.width: 1
                         border.color: isCoach ? Theme.colorBorderMid
-                                              : Qt.rgba(Theme.colorAccent.r,
-                                                        Theme.colorAccent.g,
-                                                        Theme.colorAccent.b, 0.25)
+                                              : Qt.alpha(Theme.colorAccent, 0.25)
 
                         Text {
                             id: bubbleText
@@ -259,7 +257,7 @@ Item {
                 Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                 border.width: 1
                 border.color: llmController.voiceInputEnabled
-                              ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.35)
+                              ? Qt.alpha(Theme.colorGood, 0.35)
                               : Theme.colorBorderMid
                 ToolTip.visible: voiceInHover.hovered
                 ToolTip.text: llmController.voiceInputEnabled
@@ -288,7 +286,7 @@ Item {
                 Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                 border.width: 1
                 border.color: llmController.voiceOutputEnabled
-                              ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.35)
+                              ? Qt.alpha(Theme.colorGood, 0.35)
                               : Theme.colorBorderMid
                 ToolTip.visible: voiceOutHover.hovered
                 ToolTip.text: llmController.voiceOutputEnabled
@@ -397,8 +395,7 @@ Item {
                                  : Theme.colorAccent))
                            : Theme.colorBg3
                     border.width: llmController.llmActive && sendButton.enabled ? 1 : 0
-                    border.color: Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g,
-                                          Theme.colorWarn.b, 0.5)
+                    border.color: Qt.alpha(Theme.colorWarn, 0.5)
                 }
             }
         }

@@ -36,17 +36,9 @@ import PinPointStudio
 // Then the club delivery section ("Club delivery", PpChDeliverySession) by the same rule (body.deliverySessionShown),
 // Analyse only; the session's median address line and shoulder plane are the figure's (body.planeLayers).
 // objectNames: chSessionView, chSessionHead, chSessionControls, chFacetPicker (Analyse), chFacetPickerGlance.
-Column {
+PpChViewBase {
     id: sv
     objectName: "chSessionView"
-    property QtObject roles: null
-    property var brush: null
-    property var body: null
-    property string reg: "Analyse"
-    property bool interactive: true
-    property bool cast: false
-    property real pageH: 500
-    readonly property bool replay: reg === "Replay"
     readonly property var se: body ? body.tSession : ({})
     readonly property var tc: body ? body.tChoices : ({})
     readonly property var tn: body ? body.tNow : ({})

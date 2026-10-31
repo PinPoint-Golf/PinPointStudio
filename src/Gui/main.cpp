@@ -55,7 +55,6 @@
 #endif
 #include "SecretsManager.h"
 #include "SecretsBridge.h"
-#include "film_controller.h"
 #include "imu_manager.h"
 #include "transcription_controller.h"
 #include "tts_controller.h"
@@ -247,7 +246,6 @@ int main(int argc, char *argv[])
     TtsController           ttsController(&appSettings);
     LlmController           llmController(&appSettings);
     CameraManager           cameraManager(&eventBuffer, &appSettings);
-    FilmController          filmController;
     BufferController        bufferController(&eventBuffer);
     AthleteController       athleteController;
     // Live lead-wrist metrics (vs neutral) for the wizard "Check your sensor" overlay.
@@ -967,7 +965,6 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("ttsController"),    &ttsController);
     engine.rootContext()->setContextProperty(QStringLiteral("llmController"),    &llmController);
     engine.rootContext()->setContextProperty(QStringLiteral("cameraManager"),    &cameraManager);
-    engine.rootContext()->setContextProperty(QStringLiteral("filmController"),   &filmController);
     engine.rootContext()->setContextProperty(QStringLiteral("bufferController"), &bufferController);
     engine.rootContext()->setContextProperty(QStringLiteral("resourceMonitor"),  &resourceMonitor);
     engine.rootContext()->setContextProperty(QStringLiteral("profiler"),         &profilerController);

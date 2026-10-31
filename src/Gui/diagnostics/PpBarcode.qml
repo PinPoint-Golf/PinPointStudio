@@ -58,7 +58,7 @@ Item {
     function rowOf(x) {
         const c = roles.byId((readout && readout.conditions) || [], x.id)
         return { id: x.id, name: x.name, rec: x.recurrence, ticks: c ? (c.ticks || []) : [], value: c && c.valueText ? c.valueText : "-",
-                 fig: c ? roles.fig(c.valueText) : "-", fired: !!c && c.stateKind === "fired", na: !c || c.stateKind === "notAssessable" }
+                 fig: c ? roles.fig(c) : "-", fired: !!c && c.stateKind === "fired", na: !c || c.stateKind === "notAssessable" }
     }
     readonly property var data_: (rows || []).map(x => rowOf(x))
     readonly property var dataAll: (rowsAll || []).map(x => rowOf(x))

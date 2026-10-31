@@ -17,7 +17,6 @@
  */
 
 import QtQuick
-import QtQuick.Layouts
 import QtQuick.Controls.Basic
 import PinPointStudio
 
@@ -48,20 +47,14 @@ Item {
     property bool   _photosStored:    false       // what the record held when the form loaded
     // Under 18 TODAY, from the date as typed — the form's preview. A report asks again with its
     // session's own date (athleteController.isJuniorOn), so an old session keeps its answer.
-    readonly property bool isJunior: root.dobOk(dobField.text)
+    readonly property bool isJunior: athleteController.validDob(dobField.text)
                                      && athleteController.isJuniorOn(dobField.text.trim(), 0)
+    // The text rules are the controller's (athlete_controller.cpp), beside the C++ that stores and
+    // reads the same fields: validReportEmail, normaliseReportEmails (the one stored spelling),
+    // greetingDefault (the first word a blank greeting falls back to) and validDob.
     function emailShapeOk(text) {
         var t = String(text).trim()
         return t.length === 0 || athleteController.validReportEmail(t)
-    }
-    // "a@b.com, , c@d.org," → "a@b.com, c@d.org": one spelling, whatever was typed between them.
-    function normaliseEmails(text) {
-        return String(text).split(",").map(function (x) { return x.trim() })
-                           .filter(function (x) { return x.length > 0 }).join(", ")
-    }
-    function firstWord(text) {
-        var w = String(text).trim().split(/\s+/)
-        return w.length > 0 ? w[0] : ""
     }
     function approvedWords(iso) {
         var d = new Date((iso && iso.length > 0 ? iso : Qt.formatDate(new Date(), "yyyy-MM-dd")) + "T00:00:00")
@@ -84,21 +77,6 @@ Item {
         return ""
     }
 
-    // Blank is VALID — both fields are optional and unset is a real answer. Only a non-empty value
-    // that is not a real date is an error, so a half-typed date does not accuse anybody of anything
-    // until they leave the field.
-    function dobOk(text) {
-        var t = String(text).trim()
-        if (t.length === 0) return true
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return false
-        // Built and read back in LOCAL time. Round-tripping through toISOString() compared a local
-        // midnight with its UTC date, so every date in British Summer Time came back as the day
-        // before and was rejected. The read-back still catches "2026-02-31", which rolls into March.
-        var p = t.split("-").map(Number)
-        var d = new Date(p[0], p[1] - 1, p[2])
-        return d.getFullYear() === p[0] && d.getMonth() === p[1] - 1 && d.getDate() === p[2]
-    }
-
     // "" = create mode; a uuid = edit that athlete.
     property string editUuid: ""
 
@@ -109,11 +87,8 @@ Item {
         void athleteController.athletes
         var vocab = athleteController.clubOptions()
         if (root.editUuid === "") return vocab
-        var bag = athleteController.clubsFor(root.editUuid)
-        var ids = Object.keys(bag)
-        if (ids.length === 0) return vocab
-        ids.sort(function (a, b) { return vocab.indexOf(a) - vocab.indexOf(b) })
-        return ids
+        var ids = athleteController.bagClubIds(root.editUuid)
+        return ids.length > 0 ? ids : vocab
     }
 
     onEditUuidChanged: loadForEdit()
@@ -187,7 +162,7 @@ Item {
 
     function validate(): bool {
         nameError = nameField.text.trim() === ""
-        dobError  = !root.dobOk(dobField.text)
+        dobError  = !athleteController.validDob(dobField.text)
         emailError = !root.emailShapeOk(reportEmailField.text)
         return !nameError && !dobError && !emailError
     }
@@ -220,7 +195,7 @@ Item {
             athleteController.updateAthlete(uuid, "sex", root.sex)
             // The report's details (§7.3), the same way. The approval goes through setPhotosApproved
             // only when it CHANGED, so re-saving the form never moves the date consent was given.
-            athleteController.updateAthlete(uuid, "reportEmail", root.normaliseEmails(reportEmailField.text))
+            athleteController.updateAthlete(uuid, "reportEmail", athleteController.normaliseReportEmails(reportEmailField.text))
             athleteController.updateAthlete(uuid, "reportGreeting", reportGreetingField.text.trim())
             if (root.photosApproved !== root._photosStored) {
                 athleteController.setPhotosApproved(uuid, root.photosApproved)
@@ -274,112 +249,41 @@ Item {
                 }
 
                 // ── Required group ───────────────────────────────────────────────
-                Rectangle {
-                    width:        parent.width
-                    height:       reqCol.implicitHeight
-                    radius:       Theme.radiusLg
-                    border.width: 1
-                    border.color: Theme.colorBorderMid
-                    clip:         true
-                    color:        "transparent"
+                PpGroupCard {
+                    title: qsTr("Required")
+                    hint:  qsTr("Name and handedness")
 
+                    // Name
                     Column {
-                        id: reqCol
-                        width: parent.width
-                        spacing: 0
-
-                        // Header strip
-                        Rectangle {
-                            width:  parent.width
-                            height: Theme.sp(36)
-                            color:  Theme.colorBg2
-
-                            RowLayout {
-                                anchors { fill: parent; leftMargin: Theme.gap(14); rightMargin: Theme.gap(14) }
-                                Text {
-                                    text:           qsTr("Required")
-                                    font.family:    Theme.fontData
-                                    font.pixelSize: Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingMicro
-                                    color:          Theme.colorText2
-                                    Layout.alignment: Qt.AlignVCenter
-                                }
-                                Item { Layout.fillWidth: true }
-                                Text {
-                                    text:           qsTr("Name and handedness")
-                                    font.family:    Theme.fontData
-                                    font.pixelSize: Theme.fontSzMicro
-                                    color:          Theme.colorText3
-                                    Layout.alignment: Qt.AlignVCenter
-                                }
-                            }
-
-                            // Bottom border
-                            Rectangle {
-                                anchors.bottom: parent.bottom
-                                width:  parent.width
-                                height: 1
-                                color:  Theme.colorBorderMid
-                            }
+                        width:   parent.width
+                        spacing: Theme.gap(4)
+                        PpFieldLabel { text: Theme.caps(qsTr("Name")) }
+                        PpTextField {
+                            id: nameField
+                            width:           parent.width
+                            placeholderText: qsTr("e.g. Mark Carter")
+                            hasError:        root.nameError
+                            onTextChanged:   if (root.nameError && text.trim() !== "") root.nameError = false
                         }
+                        Text {
+                            visible:        root.nameError
+                            height:         root.nameError ? implicitHeight : 0
+                            text:           qsTr("Name is required")
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          Theme.colorWarn
+                        }
+                    }
 
-                        // Body
-                        Rectangle {
-                            width:  parent.width
-                            height: reqBody.implicitHeight + 36
-                            color:  Theme.colorSurface
-
-                            Column {
-                                id: reqBody
-                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(18) }
-                                spacing: Theme.gap(12)
-
-                                // Name
-                                Column {
-                                    width:   parent.width
-                                    spacing: Theme.gap(4)
-                                    Text {
-                                        text:               Theme.caps(qsTr("Name"))
-                                        font.family:        Theme.fontData
-                                        font.pixelSize:     Theme.fontSzMicro
-                                        font.letterSpacing: Theme.trackingLabel
-                                        color:              Theme.colorText3
-                                    }
-                                    PpTextField {
-                                        id: nameField
-                                        width:           parent.width
-                                        placeholderText: qsTr("e.g. Mark Carter")
-                                        hasError:        root.nameError
-                                        onTextChanged:   if (root.nameError && text.trim() !== "") root.nameError = false
-                                    }
-                                    Text {
-                                        visible:        root.nameError
-                                        height:         root.nameError ? implicitHeight : 0
-                                        text:           qsTr("Name is required")
-                                        font.family:    Theme.fontData
-                                        font.pixelSize: Theme.fontSzMicro
-                                        color:          Theme.colorWarn
-                                    }
-                                }
-
-                                // Handedness
-                                Column {
-                                    width:   parent.width
-                                    spacing: Theme.gap(4)
-                                    Text {
-                                        text:               Theme.caps(qsTr("Handedness"))
-                                        font.family:        Theme.fontData
-                                        font.pixelSize:     Theme.fontSzMicro
-                                        font.letterSpacing: Theme.trackingLabel
-                                        color:              Theme.colorText3
-                                    }
-                                    PpChipGroup {
-                                        options:  ["Right", "Left"]
-                                        selected: root.handedness
-                                        onSelectionChanged: function(v) { root.handedness = v }
-                                    }
-                                }
-                            }
+                    // Handedness
+                    Column {
+                        width:   parent.width
+                        spacing: Theme.gap(4)
+                        PpFieldLabel { text: Theme.caps(qsTr("Handedness")) }
+                        PpChipGroup {
+                            options:  ["Right", "Left"]
+                            selected: root.handedness
+                            onSelectionChanged: function(v) { root.handedness = v }
                         }
                     }
                 }
@@ -387,285 +291,195 @@ Item {
                 Item { width: 1; height: Theme.sp(16) }
 
                 // ── Recommended group ────────────────────────────────────────────
-                Rectangle {
-                    width:        parent.width
-                    height:       recCol.implicitHeight
-                    radius:       Theme.radiusLg
-                    border.width: 1
-                    border.color: Theme.colorBorderMid
-                    clip:         true
-                    color:        "transparent"
+                PpGroupCard {
+                    title: qsTr("Recommended")
+                    hint:  qsTr("Improves analysis accuracy")
 
+                    // Height
                     Column {
-                        id: recCol
-                        width: parent.width
-                        spacing: 0
-
-                        // Header strip
-                        Rectangle {
-                            width:  parent.width
-                            height: Theme.sp(36)
-                            color:  Theme.colorBg2
-
-                            RowLayout {
-                                anchors { fill: parent; leftMargin: Theme.gap(14); rightMargin: Theme.gap(14) }
-                                Text {
-                                    text:           qsTr("Recommended")
-                                    font.family:    Theme.fontData
-                                    font.pixelSize: Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingMicro
-                                    color:          Theme.colorText2
-                                    Layout.alignment: Qt.AlignVCenter
-                                }
-                                Item { Layout.fillWidth: true }
-                                Text {
-                                    text:           qsTr("Improves analysis accuracy")
-                                    font.family:    Theme.fontData
-                                    font.pixelSize: Theme.fontSzMicro
-                                    color:          Theme.colorText3
-                                    Layout.alignment: Qt.AlignVCenter
-                                }
+                        width:   parent.width
+                        spacing: Theme.gap(4)
+                        PpFieldLabel { text: Theme.caps(qsTr("Height")) }
+                        Row {
+                            width:   parent.width
+                            spacing: 0
+                            PpTextField {
+                                id: heightField
+                                width:           parent.width - heightUnitToggle.width
+                                placeholderText: root.heightUnit === "ft" ? "e.g. 5'11\"" : "e.g. 180"
+                                inputMethodHints: Qt.ImhFormattedNumbersOnly
                             }
-                            Rectangle {
-                                anchors.bottom: parent.bottom
-                                width:  parent.width
-                                height: 1
-                                color:  Theme.colorBorderMid
+                            PpUnitToggle {
+                                id: heightUnitToggle
+                                units:    ["ft", "cm"]
+                                selected: root.heightUnit
+                                onSelectionChanged: function(unit) {
+                                    const val = parseFloat(heightField.text)
+                                    if (!isNaN(val) && val > 0) {
+                                        if (unit === "cm" && root.heightUnit === "ft")
+                                            heightField.text = (val * 30.48).toFixed(1)
+                                        else if (unit === "ft" && root.heightUnit === "cm")
+                                            heightField.text = (val / 30.48).toFixed(2)
+                                    }
+                                    root.heightUnit = unit
+                                }
                             }
                         }
+                    }
 
-                        // Body
-                        Rectangle {
-                            width:  parent.width
-                            height: recBody.implicitHeight + 36
-                            color:  Theme.colorSurface
-
-                            Column {
-                                id: recBody
-                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(18) }
-                                spacing: Theme.gap(12)
-
-                                // Height
-                                Column {
-                                    width:   parent.width
-                                    spacing: Theme.gap(4)
-                                    Text {
-                                        text:               Theme.caps(qsTr("Height"))
-                                        font.family:        Theme.fontData
-                                        font.pixelSize:     Theme.fontSzMicro
-                                        font.letterSpacing: Theme.trackingLabel
-                                        color:              Theme.colorText3
+                    // Weight
+                    Column {
+                        width:   parent.width
+                        spacing: Theme.gap(4)
+                        PpFieldLabel { text: Theme.caps(qsTr("Weight")) }
+                        Row {
+                            width:   parent.width
+                            spacing: 0
+                            PpTextField {
+                                id: weightField
+                                width:           parent.width - weightUnitToggle.width
+                                placeholderText: root.weightUnit === "lb" ? "e.g. 178" : "e.g. 80"
+                                inputMethodHints: Qt.ImhFormattedNumbersOnly
+                            }
+                            PpUnitToggle {
+                                id: weightUnitToggle
+                                units:    ["lb", "kg"]
+                                selected: root.weightUnit
+                                onSelectionChanged: function(unit) {
+                                    const val = parseFloat(weightField.text)
+                                    if (!isNaN(val) && val > 0) {
+                                        if (unit === "kg" && root.weightUnit === "lb")
+                                            weightField.text = (val / 2.20462).toFixed(1)
+                                        else if (unit === "lb" && root.weightUnit === "kg")
+                                            weightField.text = (val * 2.20462).toFixed(1)
                                     }
-                                    Row {
-                                        width:   parent.width
-                                        spacing: 0
-                                        PpTextField {
-                                            id: heightField
-                                            width:           parent.width - heightUnitToggle.width
-                                            placeholderText: root.heightUnit === "ft" ? "e.g. 5'11\"" : "e.g. 180"
-                                            inputMethodHints: Qt.ImhFormattedNumbersOnly
-                                        }
-                                        PpUnitToggle {
-                                            id: heightUnitToggle
-                                            units:    ["ft", "cm"]
-                                            selected: root.heightUnit
-                                            onSelectionChanged: function(unit) {
-                                                const val = parseFloat(heightField.text)
-                                                if (!isNaN(val) && val > 0) {
-                                                    if (unit === "cm" && root.heightUnit === "ft")
-                                                        heightField.text = (val * 30.48).toFixed(1)
-                                                    else if (unit === "ft" && root.heightUnit === "cm")
-                                                        heightField.text = (val / 30.48).toFixed(2)
-                                                }
-                                                root.heightUnit = unit
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Weight
-                                Column {
-                                    width:   parent.width
-                                    spacing: Theme.gap(4)
-                                    Text {
-                                        text:               Theme.caps(qsTr("Weight"))
-                                        font.family:        Theme.fontData
-                                        font.pixelSize:     Theme.fontSzMicro
-                                        font.letterSpacing: Theme.trackingLabel
-                                        color:              Theme.colorText3
-                                    }
-                                    Row {
-                                        width:   parent.width
-                                        spacing: 0
-                                        PpTextField {
-                                            id: weightField
-                                            width:           parent.width - weightUnitToggle.width
-                                            placeholderText: root.weightUnit === "lb" ? "e.g. 178" : "e.g. 80"
-                                            inputMethodHints: Qt.ImhFormattedNumbersOnly
-                                        }
-                                        PpUnitToggle {
-                                            id: weightUnitToggle
-                                            units:    ["lb", "kg"]
-                                            selected: root.weightUnit
-                                            onSelectionChanged: function(unit) {
-                                                const val = parseFloat(weightField.text)
-                                                if (!isNaN(val) && val > 0) {
-                                                    if (unit === "kg" && root.weightUnit === "lb")
-                                                        weightField.text = (val / 2.20462).toFixed(1)
-                                                    else if (unit === "lb" && root.weightUnit === "kg")
-                                                        weightField.text = (val * 2.20462).toFixed(1)
-                                                }
-                                                root.weightUnit = unit
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Handicap
-                                Column {
-                                    width:   parent.width
-                                    spacing: Theme.gap(4)
-                                    Text {
-                                        text:               Theme.caps(qsTr("Handicap"))
-                                        font.family:        Theme.fontData
-                                        font.pixelSize:     Theme.fontSzMicro
-                                        font.letterSpacing: Theme.trackingLabel
-                                        color:              Theme.colorText3
-                                    }
-                                    PpTextField {
-                                        id: handicapField
-                                        width:            Theme.sp(100)
-                                        placeholderText:  "e.g. 5"
-                                        inputMethodHints: Qt.ImhFormattedNumbersOnly
-                                    }
-                                }
-
-                                // Primary club
-                                Column {
-                                    width:   parent.width
-                                    spacing: Theme.gap(4)
-                                    Text {
-                                        text:               Theme.caps(qsTr("Primary club"))
-                                        font.family:        Theme.fontData
-                                        font.pixelSize:     Theme.fontSzMicro
-                                        font.letterSpacing: Theme.trackingLabel
-                                        color:              Theme.colorText3
-                                    }
-                                    // Sourced from the athlete's bag (canonical ids). Sync
-                                    // currentIndex imperatively — not via a binding — so
-                                    // picking an item doesn't sever the link on reload.
-                                    PpComboBox {
-                                        id: primaryClubCombo
-                                        implicitWidth: Theme.sp(220)
-                                        model: root.clubModel
-                                        displayFn: ClubFormat.display
-                                        onActivated: function (i) { root.primaryClub = root.clubModel[i] }
-                                        function syncFromValue() {
-                                            var idx = root.clubModel.indexOf(root.primaryClub)
-                                            if (idx < 0 && root.clubModel.length > 0) {
-                                                root.primaryClub = root.clubModel[0]
-                                                idx = 0
-                                            }
-                                            currentIndex = idx >= 0 ? idx : 0
-                                        }
-                                        Component.onCompleted: syncFromValue()
-                                        onModelChanged: syncFromValue()
-                                        Connections {
-                                            target: root
-                                            function onPrimaryClubChanged() { primaryClubCombo.syncFromValue() }
-                                        }
-                                    }
-                                }
-
-                                // ── Date of birth and sex ────────────────────────
-                                //
-                                // Both OPTIONAL, and the caption says so and says why. Asking somebody
-                                // for their sex without stating what it is used for is worse than not
-                                // asking; and unset has to read as a legitimate answer, because it is —
-                                // a golfer who leaves both blank is graded by the corridor that
-                                // describes everyone, never "not measured".
-                                Column {
-                                    width:   parent.width
-                                    spacing: Theme.gap(4)
-                                    Text {
-                                        text:               Theme.caps(qsTr("Date of birth"))
-                                        font.family:        Theme.fontData
-                                        font.pixelSize:     Theme.fontSzMicro
-                                        font.letterSpacing: Theme.trackingLabel
-                                        color:              Theme.colorText3
-                                    }
-                                    PpTextField {
-                                        id: dobField
-                                        width:           Theme.sp(140)
-                                        placeholderText: "YYYY-MM-DD"
-                                        hasError:        root.dobError
-                                        onTextChanged:   if (root.dobError && root.dobOk(text)) root.dobError = false
-                                        onEditingFinished: root.dobError = !root.dobOk(text)
-                                    }
-                                    Text {
-                                        visible:        root.dobError
-                                        height:         root.dobError ? implicitHeight : 0
-                                        text:           qsTr("Use YYYY-MM-DD, or leave it blank")
-                                        font.family:    Theme.fontData
-                                        font.pixelSize: Theme.fontSzMicro
-                                        color:          Theme.colorWarn
-                                    }
-                                }
-
-                                Column {
-                                    width:   parent.width
-                                    spacing: Theme.gap(4)
-                                    Text {
-                                        text:               Theme.caps(qsTr("Sex"))
-                                        font.family:        Theme.fontData
-                                        font.pixelSize:     Theme.fontSzMicro
-                                        font.letterSpacing: Theme.trackingLabel
-                                        color:              Theme.colorText3
-                                    }
-                                    // The chips show labels and carry TOKENS. Both come from C++
-                                    // (athleteController.sexOptions), so the stored spelling exists in
-                                    // one place — QML maps between the two over that list and never
-                                    // writes a token itself.
-                                    PpChipGroup {
-                                        options:  root.sexLabels
-                                        selected: root.sexLabelFor(root.sex)
-                                        onSelectionChanged: function(v) { root.sex = root.sexValueFor(v) }
-                                    }
-                                    Text {
-                                        width:          parent.width
-                                        text:           qsTr("Optional. Used only to pick the normative corridor a reading is graded against — leave either blank and you are graded against the general one.")
-                                        font.family:    Theme.fontBody
-                                        font.pixelSize: Theme.fontSzMicro
-                                        color:          Theme.colorText3
-                                        wrapMode:       Text.WordWrap
-                                    }
-
-                                    // What the two fields above actually RESOLVE to, live. Without it a
-                                    // date and a word have no visible consequence, and the band
-                                    // boundaries are discoverable only by reading a header comment.
-                                    //
-                                    // "Today" is said out loud because the band is derived at the SWING
-                                    // date, not stored — so this is a preview of now, and a swing from
-                                    // four years ago will resolve the band this golfer was in then.
-                                    Text {
-                                        width:   parent.width
-                                        visible: text.length > 0
-                                        text: {
-                                            if (root.dobError) return ""
-                                            var who = athleteController.cohortLabelFor(
-                                                dobField.text.trim(), root.sex,
-                                                Qt.formatDate(new Date(), "yyyy-MM-dd"))   // local today
-                                            return who.length > 0
-                                                ? qsTr("Today this places you in: %1").arg(who)
-                                                : ""
-                                        }
-                                        font.family:    Theme.fontBody
-                                        font.pixelSize: Theme.fontSzMicro
-                                        color:          Theme.colorAccent
-                                        wrapMode:       Text.WordWrap
-                                    }
+                                    root.weightUnit = unit
                                 }
                             }
+                        }
+                    }
+
+                    // Handicap
+                    Column {
+                        width:   parent.width
+                        spacing: Theme.gap(4)
+                        PpFieldLabel { text: Theme.caps(qsTr("Handicap")) }
+                        PpTextField {
+                            id: handicapField
+                            width:            Theme.sp(100)
+                            placeholderText:  "e.g. 5"
+                            inputMethodHints: Qt.ImhFormattedNumbersOnly
+                        }
+                    }
+
+                    // Primary club
+                    Column {
+                        width:   parent.width
+                        spacing: Theme.gap(4)
+                        PpFieldLabel { text: Theme.caps(qsTr("Primary club")) }
+                        // Sourced from the athlete's bag (canonical ids). Sync
+                        // currentIndex imperatively — not via a binding — so
+                        // picking an item doesn't sever the link on reload.
+                        PpComboBox {
+                            id: primaryClubCombo
+                            implicitWidth: Theme.sp(220)
+                            model: root.clubModel
+                            displayFn: ClubFormat.display
+                            onActivated: function (i) { root.primaryClub = root.clubModel[i] }
+                            function syncFromValue() {
+                                var idx = root.clubModel.indexOf(root.primaryClub)
+                                if (idx < 0 && root.clubModel.length > 0) {
+                                    root.primaryClub = root.clubModel[0]
+                                    idx = 0
+                                }
+                                currentIndex = idx >= 0 ? idx : 0
+                            }
+                            Component.onCompleted: syncFromValue()
+                            onModelChanged: syncFromValue()
+                            Connections {
+                                target: root
+                                function onPrimaryClubChanged() { primaryClubCombo.syncFromValue() }
+                            }
+                        }
+                    }
+
+                    // ── Date of birth and sex ────────────────────────
+                    //
+                    // Both OPTIONAL, and the caption says so and says why. Asking somebody
+                    // for their sex without stating what it is used for is worse than not
+                    // asking; and unset has to read as a legitimate answer, because it is —
+                    // a golfer who leaves both blank is graded by the corridor that
+                    // describes everyone, never "not measured".
+                    Column {
+                        width:   parent.width
+                        spacing: Theme.gap(4)
+                        PpFieldLabel { text: Theme.caps(qsTr("Date of birth")) }
+                        PpTextField {
+                            id: dobField
+                            width:           Theme.sp(140)
+                            placeholderText: "YYYY-MM-DD"
+                            hasError:        root.dobError
+                            // Blank is VALID — both fields are optional and unset is a real answer. Only a
+                            // non-empty value that is not a real date is an error, so a half-typed date
+                            // does not accuse anybody of anything until they leave the field.
+                            onTextChanged:   if (root.dobError && athleteController.validDob(text)) root.dobError = false
+                            onEditingFinished: root.dobError = !athleteController.validDob(text)
+                        }
+                        Text {
+                            visible:        root.dobError
+                            height:         root.dobError ? implicitHeight : 0
+                            text:           qsTr("Use YYYY-MM-DD, or leave it blank")
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          Theme.colorWarn
+                        }
+                    }
+
+                    Column {
+                        width:   parent.width
+                        spacing: Theme.gap(4)
+                        PpFieldLabel { text: Theme.caps(qsTr("Sex")) }
+                        // The chips show labels and carry TOKENS. Both come from C++
+                        // (athleteController.sexOptions), so the stored spelling exists in
+                        // one place — QML maps between the two over that list and never
+                        // writes a token itself.
+                        PpChipGroup {
+                            options:  root.sexLabels
+                            selected: root.sexLabelFor(root.sex)
+                            onSelectionChanged: function(v) { root.sex = root.sexValueFor(v) }
+                        }
+                        Text {
+                            width:          parent.width
+                            text:           qsTr("Optional. Used only to pick the normative corridor a reading is graded against — leave either blank and you are graded against the general one.")
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          Theme.colorText3
+                            wrapMode:       Text.WordWrap
+                        }
+
+                        // What the two fields above actually RESOLVE to, live. Without it a
+                        // date and a word have no visible consequence, and the band
+                        // boundaries are discoverable only by reading a header comment.
+                        //
+                        // "Today" is said out loud because the band is derived at the SWING
+                        // date, not stored — so this is a preview of now, and a swing from
+                        // four years ago will resolve the band this golfer was in then.
+                        Text {
+                            width:   parent.width
+                            visible: text.length > 0
+                            text: {
+                                if (root.dobError) return ""
+                                var who = athleteController.cohortLabelFor(
+                                    dobField.text.trim(), root.sex,
+                                    Qt.formatDate(new Date(), "yyyy-MM-dd"))   // local today
+                                return who.length > 0
+                                    ? qsTr("Today this places you in: %1").arg(who)
+                                    : ""
+                            }
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          Theme.colorAccent
+                            wrapMode:       Text.WordWrap
                         }
                     }
                 }
@@ -673,148 +487,79 @@ Item {
                 Item { width: 1; height: Theme.sp(16) }
 
                 // ── Optional group ───────────────────────────────────────────────
-                Rectangle {
-                    width:        parent.width
-                    height:       optCol.implicitHeight
-                    radius:       Theme.radiusLg
-                    border.width: 1
-                    border.color: Theme.colorBorderMid
-                    clip:         true
-                    color:        "transparent"
+                PpGroupCard {
+                    title: qsTr("Optional")
+                    hint:  qsTr("Personalises coaching output")
 
+                    // Driver speed target
                     Column {
-                        id: optCol
-                        width: parent.width
-                        spacing: 0
-
-                        // Header strip
-                        Rectangle {
-                            width:  parent.width
-                            height: Theme.sp(36)
-                            color:  Theme.colorBg2
-
-                            RowLayout {
-                                anchors { fill: parent; leftMargin: Theme.gap(14); rightMargin: Theme.gap(14) }
+                        width:   parent.width
+                        spacing: Theme.gap(4)
+                        PpFieldLabel { text: Theme.caps(qsTr("Driver speed target")) }
+                        Row {
+                            width:   parent.width
+                            spacing: 0
+                            PpTextField {
+                                id: speedField
+                                width:            parent.width - speedUnit.width
+                                placeholderText:  "e.g. 105"
+                                inputMethodHints: Qt.ImhFormattedNumbersOnly
+                            }
+                            Rectangle {
+                                id: speedUnit
+                                width:  Theme.sp(36)
+                                height: Theme.sp(34)
+                                color:  Theme.colorBg2
+                                border.width: 1
+                                border.color: Theme.colorBorderStrong
+                                radius: Theme.radius
                                 Text {
-                                    text:           qsTr("Optional")
-                                    font.family:    Theme.fontData
-                                    font.pixelSize: Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingMicro
-                                    color:          Theme.colorText2
-                                    Layout.alignment: Qt.AlignVCenter
-                                }
-                                Item { Layout.fillWidth: true }
-                                Text {
-                                    text:           qsTr("Personalises coaching output")
+                                    anchors.centerIn: parent
+                                    text:           "mph"
                                     font.family:    Theme.fontData
                                     font.pixelSize: Theme.fontSzMicro
                                     color:          Theme.colorText3
-                                    Layout.alignment: Qt.AlignVCenter
-                                }
-                            }
-                            Rectangle {
-                                anchors.bottom: parent.bottom
-                                width:  parent.width
-                                height: 1
-                                color:  Theme.colorBorderMid
-                            }
-                        }
-
-                        // Body fields
-                        Rectangle {
-                            width:  parent.width
-                            height: optBody.implicitHeight + 36
-                            color:  Theme.colorSurface
-
-                            Column {
-                                id: optBody
-                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(18) }
-                                spacing: Theme.gap(12)
-
-                                // Driver speed target
-                                Column {
-                                    width:   parent.width
-                                    spacing: Theme.gap(4)
-                                    Text {
-                                        text:               Theme.caps(qsTr("Driver speed target"))
-                                        font.family:        Theme.fontData
-                                        font.pixelSize:     Theme.fontSzMicro
-                                        font.letterSpacing: Theme.trackingLabel
-                                        color:              Theme.colorText3
-                                    }
-                                    Row {
-                                        width:   parent.width
-                                        spacing: 0
-                                        PpTextField {
-                                            id: speedField
-                                            width:            parent.width - speedUnit.width
-                                            placeholderText:  "e.g. 105"
-                                            inputMethodHints: Qt.ImhFormattedNumbersOnly
-                                        }
-                                        Rectangle {
-                                            id: speedUnit
-                                            width:  Theme.sp(36)
-                                            height: Theme.sp(34)
-                                            color:  Theme.colorBg2
-                                            border.width: 1
-                                            border.color: Theme.colorBorderStrong
-                                            radius: Theme.radius
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text:           "mph"
-                                                font.family:    Theme.fontData
-                                                font.pixelSize: Theme.fontSzMicro
-                                                color:          Theme.colorText3
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Notes
-                                Column {
-                                    width:   parent.width
-                                    spacing: Theme.gap(4)
-                                    Text {
-                                        text:               Theme.caps(qsTr("Notes / tags"))
-                                        font.family:        Theme.fontData
-                                        font.pixelSize:     Theme.fontSzMicro
-                                        font.letterSpacing: Theme.trackingLabel
-                                        color:              Theme.colorText3
-                                    }
-                                    PpTextField {
-                                        id: notesField
-                                        width:           parent.width
-                                        placeholderText: "e.g. junior, left-low, early ext"
-                                    }
                                 }
                             }
                         }
+                    }
 
-                        // Note strip
+                    // Notes
+                    Column {
+                        width:   parent.width
+                        spacing: Theme.gap(4)
+                        PpFieldLabel { text: Theme.caps(qsTr("Notes / tags")) }
+                        PpTextField {
+                            id: notesField
+                            width:           parent.width
+                            placeholderText: "e.g. junior, left-low, early ext"
+                        }
+                    }
+
+                    // Note strip
+                    footer: Rectangle {
+                        width:  parent.width
+                        height: noteText.implicitHeight + Theme.sp(20)
+                        color:  Theme.colorSurface
+                        border.width: 0
+
                         Rectangle {
-                            width:  parent.width
-                            height: noteText.implicitHeight + Theme.sp(20)
-                            color:  Theme.colorSurface
-                            border.width: 0
+                            anchors.top:  parent.top
+                            width:        parent.width
+                            height:       1
+                            color:        Theme.colorBorderMid
+                        }
 
-                            Rectangle {
-                                anchors.top:  parent.top
-                                width:        parent.width
-                                height:       1
-                                color:        Theme.colorBorderMid
-                            }
-
-                            Text {
-                                id: noteText
-                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(18); topMargin: Theme.gap(10) }
-                                text:           qsTr("Pinpoint builds baselines automatically from early sessions. You don't need to know your driver speed to get started.")
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzDataSm
-                                font.weight:    Font.Light
-                                color:          Theme.colorText3
-                                wrapMode:       Text.WordWrap
-                                lineHeight:     1.4
-                            }
+                        Text {
+                            id: noteText
+                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(18); topMargin: Theme.gap(10) }
+                            text:           qsTr("Pinpoint builds baselines automatically from early sessions. You don't need to know your driver speed to get started.")
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzDataSm
+                            font.weight:    Font.Light
+                            color:          Theme.colorText3
+                            wrapMode:       Text.WordWrap
+                            lineHeight:     1.4
                         }
                     }
                 }
@@ -826,212 +571,106 @@ Item {
                 // Where the golfer's session reports go, what they are called, and — for a junior only —
                 // whether a parent or guardian approved swing photos. These stay in the app's settings
                 // beside the rest of the record; they never go into a swing, a session folder or the share.
-                Rectangle {
+                PpGroupCard {
                     objectName: "athleteReportsGroup"
-                    width:        parent.width
-                    height:       repCol.implicitHeight
-                    radius:       Theme.radiusLg
-                    border.width: 1
-                    border.color: Theme.colorBorderMid
-                    clip:         true
-                    color:        "transparent"
+                    title: qsTr("Reports")
+                    hint:  qsTr("Used only to send this golfer their session reports.")
+                    elideHint: true
 
+                    // Email — shape-checked as it is typed, the message in place. Quiet while
+                    // the field has focus (a half-typed address is not a mistake yet), warn
+                    // once it is left or Save is pressed.
                     Column {
-                        id: repCol
-                        width: parent.width
-                        spacing: 0
+                        width:   parent.width
+                        spacing: Theme.gap(4)
+                        PpFieldLabel { text: Theme.caps(qsTr("Email")) }
+                        PpTextField {
+                            id: reportEmailField
+                            objectName: "athleteReportEmail"
+                            width:           parent.width
+                            placeholderText: qsTr("e.g. nick@example.com — several, separated by commas")
+                            inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoAutoUppercase
+                            hasError:        root.emailError || (!activeFocus && !root.emailShapeOk(text))
+                            onTextChanged:   if (root.emailError && root.emailShapeOk(text)) root.emailError = false
+                        }
+                        Text {
+                            objectName: "athleteReportEmailMessage"
+                            readonly property bool bad: !root.emailShapeOk(reportEmailField.text)
+                            visible:        bad
+                            width:          parent.width
+                            text:           qsTr("Not an email address yet. Use the form name@example.com, with a comma between two addresses.")
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          reportEmailField.activeFocus && !root.emailError ? Theme.colorText3 : Theme.colorWarn
+                            wrapMode:       Text.WordWrap
+                        }
+                        Text {
+                            visible:        root.isJunior
+                            width:          parent.width
+                            text:           qsTr("Under 18: use a parent's or guardian's address. Both can be listed.")
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          Theme.colorText3
+                            wrapMode:       Text.WordWrap
+                        }
+                    }
 
-                        // Header strip
-                        Rectangle {
-                            width:  parent.width
-                            height: Theme.sp(36)
-                            color:  Theme.colorBg2
+                    // Greeting — what the email and page 1 call them; blank = the first word.
+                    Column {
+                        width:   parent.width
+                        spacing: Theme.gap(4)
+                        PpFieldLabel { text: Theme.caps(qsTr("Greeting")) }
+                        PpTextField {
+                            id: reportGreetingField
+                            objectName: "athleteReportGreeting"
+                            width:           Theme.sp(220)
+                            readonly property string fallback: athleteController.greetingDefault(nameField.text)
+                            placeholderText: fallback.length > 0 ? fallback : qsTr("e.g. Nick")
+                        }
+                        Text {
+                            width:          parent.width
+                            text:           qsTr("What the email and the report call them. Left blank, the first word of the name.")
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          Theme.colorText3
+                            wrapMode:       Text.WordWrap
+                        }
+                    }
 
-                            RowLayout {
-                                anchors { fill: parent; leftMargin: Theme.gap(14); rightMargin: Theme.gap(14) }
-                                Text {
-                                    text:           qsTr("Reports")
-                                    font.family:    Theme.fontData
-                                    font.pixelSize: Theme.fontSzMicro
-                                    font.letterSpacing: Theme.trackingMicro
-                                    color:          Theme.colorText2
-                                    Layout.alignment: Qt.AlignVCenter
-                                }
-                                Item { Layout.fillWidth: true }
-                                Text {
-                                    text:           qsTr("Used only to send this golfer their session reports.")
-                                    font.family:    Theme.fontData
-                                    font.pixelSize: Theme.fontSzMicro
-                                    color:          Theme.colorText3
-                                    elide:          Text.ElideRight
-                                    Layout.fillWidth: true
-                                    horizontalAlignment: Text.AlignRight
-                                    Layout.alignment: Qt.AlignVCenter
-                                }
-                            }
-                            Rectangle {
-                                anchors.bottom: parent.bottom
-                                width:  parent.width
-                                height: 1
-                                color:  Theme.colorBorderMid
+                    // Photo approval — a junior only (under 18 on the date of birth above).
+                    Column {
+                        objectName: "athleteReportPhotos"
+                        visible: root.isJunior
+                        width:   parent.width
+                        spacing: Theme.gap(4)
+                        PpFieldLabel { text: Theme.caps(qsTr("Swing photos")) }
+                        PpCheckRow {
+                            id: photosCheck
+                            objectName: "athleteReportPhotosCheck"
+                            width:     parent.width
+                            label:     qsTr("A parent or guardian has approved sending swing photos")
+                            checked:   root.photosApproved
+                            onToggled: root.photosApproved = !root.photosApproved
+                            Text {
+                                objectName: "athleteReportPhotosDate"
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible:        root.photosApproved
+                                // The stored date while it stands; today's for a tick not yet saved.
+                                text:           root.approvedWords(root._photosStored ? root.photosApprovedOn : "")
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                color:          Theme.colorText3
                             }
                         }
-
-                        // Body
-                        Rectangle {
-                            width:  parent.width
-                            height: repBody.implicitHeight + 36
-                            color:  Theme.colorSurface
-
-                            Column {
-                                id: repBody
-                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(18) }
-                                spacing: Theme.gap(12)
-
-                                // Email — shape-checked as it is typed, the message in place. Quiet while
-                                // the field has focus (a half-typed address is not a mistake yet), warn
-                                // once it is left or Save is pressed.
-                                Column {
-                                    width:   parent.width
-                                    spacing: Theme.gap(4)
-                                    Text {
-                                        text:               Theme.caps(qsTr("Email"))
-                                        font.family:        Theme.fontData
-                                        font.pixelSize:     Theme.fontSzMicro
-                                        font.letterSpacing: Theme.trackingLabel
-                                        color:              Theme.colorText3
-                                    }
-                                    PpTextField {
-                                        id: reportEmailField
-                                        objectName: "athleteReportEmail"
-                                        width:           parent.width
-                                        placeholderText: qsTr("e.g. nick@example.com — several, separated by commas")
-                                        inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoAutoUppercase
-                                        hasError:        root.emailError || (!activeFocus && !root.emailShapeOk(text))
-                                        onTextChanged:   if (root.emailError && root.emailShapeOk(text)) root.emailError = false
-                                    }
-                                    Text {
-                                        objectName: "athleteReportEmailMessage"
-                                        readonly property bool bad: !root.emailShapeOk(reportEmailField.text)
-                                        visible:        bad
-                                        width:          parent.width
-                                        text:           qsTr("Not an email address yet. Use the form name@example.com, with a comma between two addresses.")
-                                        font.family:    Theme.fontData
-                                        font.pixelSize: Theme.fontSzMicro
-                                        color:          reportEmailField.activeFocus && !root.emailError ? Theme.colorText3 : Theme.colorWarn
-                                        wrapMode:       Text.WordWrap
-                                    }
-                                    Text {
-                                        visible:        root.isJunior
-                                        width:          parent.width
-                                        text:           qsTr("Under 18: use a parent's or guardian's address. Both can be listed.")
-                                        font.family:    Theme.fontBody
-                                        font.pixelSize: Theme.fontSzMicro
-                                        color:          Theme.colorText3
-                                        wrapMode:       Text.WordWrap
-                                    }
-                                }
-
-                                // Greeting — what the email and page 1 call them; blank = the first word.
-                                Column {
-                                    width:   parent.width
-                                    spacing: Theme.gap(4)
-                                    Text {
-                                        text:               Theme.caps(qsTr("Greeting"))
-                                        font.family:        Theme.fontData
-                                        font.pixelSize:     Theme.fontSzMicro
-                                        font.letterSpacing: Theme.trackingLabel
-                                        color:              Theme.colorText3
-                                    }
-                                    PpTextField {
-                                        id: reportGreetingField
-                                        objectName: "athleteReportGreeting"
-                                        width:           Theme.sp(220)
-                                        placeholderText: root.firstWord(nameField.text).length > 0
-                                                         ? root.firstWord(nameField.text) : qsTr("e.g. Nick")
-                                    }
-                                    Text {
-                                        width:          parent.width
-                                        text:           qsTr("What the email and the report call them. Left blank, the first word of the name.")
-                                        font.family:    Theme.fontBody
-                                        font.pixelSize: Theme.fontSzMicro
-                                        color:          Theme.colorText3
-                                        wrapMode:       Text.WordWrap
-                                    }
-                                }
-
-                                // Photo approval — a junior only (under 18 on the date of birth above).
-                                Column {
-                                    objectName: "athleteReportPhotos"
-                                    visible: root.isJunior
-                                    width:   parent.width
-                                    spacing: Theme.gap(4)
-                                    Text {
-                                        text:               Theme.caps(qsTr("Swing photos"))
-                                        font.family:        Theme.fontData
-                                        font.pixelSize:     Theme.fontSzMicro
-                                        font.letterSpacing: Theme.trackingLabel
-                                        color:              Theme.colorText3
-                                    }
-                                    Item {
-                                        id: photosCheck
-                                        objectName: "athleteReportPhotosCheck"
-                                        width:  parent.width
-                                        height: Math.max(Theme.sp(26), photosRow.implicitHeight)
-                                        Row {
-                                            id: photosRow
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            spacing: Theme.gap(10)
-                                            Rectangle {
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                width: Theme.sp(16); height: Theme.sp(16); radius: Theme.sp(4)
-                                                color:        root.photosApproved ? Theme.colorAccent : "transparent"
-                                                border.width: 1
-                                                border.color: root.photosApproved ? Theme.colorAccent : Theme.colorBorderStrong
-                                                Text {
-                                                    anchors.centerIn: parent
-                                                    visible:        root.photosApproved
-                                                    text:           "✓"
-                                                    font.family:    Theme.fontSymbol
-                                                    font.pixelSize: Theme.fontSzLabel
-                                                    color:          Theme.dark ? Theme.colorBg : Theme.colorSurface
-                                                }
-                                            }
-                                            Text {
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                text:           qsTr("A parent or guardian has approved sending swing photos")
-                                                font.family:    Theme.fontBody
-                                                font.pixelSize: Theme.fontSzBody
-                                                color:          Theme.colorText
-                                            }
-                                            Text {
-                                                objectName: "athleteReportPhotosDate"
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                visible:        root.photosApproved
-                                                // The stored date while it stands; today's for a tick not yet saved.
-                                                text:           root.approvedWords(root._photosStored ? root.photosApprovedOn : "")
-                                                font.family:    Theme.fontData
-                                                font.pixelSize: Theme.fontSzMicro
-                                                color:          Theme.colorText3
-                                            }
-                                        }
-                                        PpPressable {
-                                            hoverScale: 1.0
-                                            onClicked:  root.photosApproved = !root.photosApproved
-                                        }
-                                    }
-                                    Text {
-                                        width:          parent.width
-                                        text:           root.photosApproved
-                                                        ? qsTr("Reports include swing photos and the reference swing.")
-                                                        : qsTr("Until it is ticked, reports leave out swing photos and show the charts instead.")
-                                        font.family:    Theme.fontBody
-                                        font.pixelSize: Theme.fontSzMicro
-                                        color:          Theme.colorText3
-                                        wrapMode:       Text.WordWrap
-                                    }
-                                }
-                            }
+                        Text {
+                            width:          parent.width
+                            text:           root.photosApproved
+                                            ? qsTr("Reports include swing photos and the reference swing.")
+                                            : qsTr("Until it is ticked, reports leave out swing photos and show the charts instead.")
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          Theme.colorText3
+                            wrapMode:       Text.WordWrap
                         }
                     }
                 }

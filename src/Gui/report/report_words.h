@@ -39,6 +39,7 @@
 //   · STRINGS MARKED [styled] may carry <i>/<b>/<br>; anything typed by a person or authored in the pack
 //     goes through esc() before it is put in one.
 
+#include "../charts/charts_words.h"          // the number words, cap1, list, plural — and the figures (figure_format.h)
 #include "../diagnostics/session_spread.h"
 
 #include <QDate>
@@ -59,22 +60,11 @@ using pinpoint::analysis::spreadNumber;
 
 // ── Small words ─────────────────────────────────────────────────────────────────────────────────
 
-inline QString minusSign() { return QString(QChar(0x2212)); }
-
-// "no", "one" … "twenty", then figures.
-inline QString numberWord(int n)
-{
-    static const char *const W[] = { "no", "one", "two", "three", "four", "five", "six", "seven", "eight",
-        "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen",
-        "eighteen", "nineteen", "twenty" };
-    return (n >= 0 && n <= 20) ? QString::fromLatin1(W[n]) : QString::number(n);
-}
-
-inline QString cap1(QString s)
-{
-    if (!s.isEmpty()) s[0] = s[0].toUpper();
-    return s;
-}
+// "no", "one" … "twenty", then figures; "a, b and c"; cap1; plural — the Charts panel's words
+// (charts/charts_words.h), so a count reads the same in the report as on the panel.
+inline QString numberWord(int n) { return pinpoint::charts::words::word(n); }
+using pinpoint::charts::words::cap1;
+using pinpoint::charts::words::plural;
 inline QString low1(QString s)
 {
     // Lower-case the first letter of a sentence that is being folded into another — unless the first
@@ -83,15 +73,7 @@ inline QString low1(QString s)
     if (!s.isEmpty()) s[0] = s[0].toLower();
     return s;
 }
-
-inline QString plural(int n, const QString &one, const QString &many) { return n == 1 ? one : many; }
-
-// "a, b and c".
-inline QString andList(const QStringList &xs)
-{
-    if (xs.size() <= 1) return xs.join(QString());
-    return QStringList(xs.mid(0, xs.size() - 1)).join(QStringLiteral(", ")) + QStringLiteral(" and ") + xs.last();
-}
+inline QString andList(const QStringList &xs) { return pinpoint::charts::words::list(xs); }
 
 // Escape text going into a [styled] string (Qt StyledText): & < >.
 inline QString esc(QString s)
@@ -281,27 +263,16 @@ inline QString positionCaption(const QString &phase)
 
 // ── Figures ─────────────────────────────────────────────────────────────────────────────────────
 
-// A number with its unit as the report prints it: "22°", "11% hand rise", "125% shoulder width",
-// "9 cm", "12.6×" (a ratio), "1.33" (no unit). "-" stays "-".
-inline QString withUnit(const QString &number, const QString &unit)
-{
-    if (number == QLatin1String("-") || unit.isEmpty()) return number;
-    if (unit.startsWith(QChar(0x00B0))) return number + unit;
-    if (unit.startsWith(QLatin1Char('%'))) {
-        const QString rest = unit.mid(1).trimmed();
-        return number + QLatin1Char('%') + (rest.isEmpty() ? QString() : QLatin1Char(' ') + rest);
-    }
-    if (unit == QLatin1String("ratio") || unit == QLatin1String("x") || unit == QString(QChar(0x00D7)))
-        return number + QChar(0x00D7);
-    return number + QLatin1Char(' ') + unit;
-}
+// A number with its unit as the report prints it — the app's one rule (figure_format.h withUnit): "22°",
+// "11% hand rise", "125% shoulder width", "9 cm" (a no-break space), "1.33" (a ratio, or no unit).
+// "-" stays "-".
+using pinpoint::figures::withUnit;
 
 // A golfer-facing figure: raw × golferSign (never abs() — a habit's swing that went the other way must
 // read the other way), at the model's own decimals, the true minus, "-" for none.
 inline QString golferFigure(double raw, int decimals, int golferSign = 1)
 {
-    if (!std::isfinite(raw)) return QStringLiteral("-");
-    return spreadNumber(raw * (golferSign < 0 ? -1.0 : 1.0), std::max(0, decimals));
+    return pinpoint::figures::fig(raw * (golferSign < 0 ? -1.0 : 1.0), std::max(0, decimals));
 }
 inline QString golferValue(double raw, const QString &unit, int decimals, int golferSign = 1)
 {
@@ -309,14 +280,8 @@ inline QString golferValue(double raw, const QString &unit, int decimals, int go
 }
 
 // AN INSTANT AGAINST IMPACT (ms, negative = before): "87 ms before impact", "12 ms after impact",
-// "at impact" within half a millisecond. Never "−87 ms".
-inline QString timeVsImpact(double ms)
-{
-    if (!std::isfinite(ms)) return QStringLiteral("-");
-    const long x = std::lround(ms);
-    if (x == 0) return QStringLiteral("at impact");
-    return QStringLiteral("%1 ms %2").arg(std::labs(x)).arg(x < 0 ? QStringLiteral("before impact") : QStringLiteral("after impact"));
-}
+// "at impact" within 2 ms — the Charts panel's rule (figure_format.h whenImpact). Never "−87 ms".
+inline QString timeVsImpact(double ms) { return pinpoint::figures::whenImpact(ms); }
 // AN INSTANT, said against impact, is a measure in ms whose golfer words name a moment ("when your hips
 // reached full speed"); a DURATION in ms ("how long before the ball the club stopped speeding up") is a
 // plain figure. The words decide, because the unit is the same.
@@ -351,7 +316,8 @@ inline QString unitWords(const QString &unit)
 // THE TARGET RANGE IN WORDS, in the golfer's sign (session_report.h's rangeWords rule — the pass band's
 // edges, the open side never named, mirrored for golferSign −1 — printed with this header's units):
 // "12° or less", "1.3 or more", "18° to 58°", "−6 to 6 cm", "9% hand rise or less". An instant (vsImpact)
-// is said against impact: "no later than 20 ms before impact". Empty when there is no range.
+// is said against impact: "no later than 20 ms before impact", "between impact and 20 ms after impact". Empty
+// when there is no range.
 inline QString targetWords(const SpreadCorridor &c, const QString &unit, int golferSign = 1, bool vsImpact = false)
 {
     if (!c.known) return QString();
@@ -362,14 +328,18 @@ inline QString targetWords(const SpreadCorridor &c, const QString &unit, int gol
     if (lowOpen && highOpen) return QString();
     const int d = spreadDecimals(std::max(c.faultHi - c.faultLo, c.signalHi - c.signalLo));
     if (vsImpact) {
-        if (lowOpen)  return QStringLiteral("no later than ") + timeVsImpact(phi);
-        if (highOpen) return QStringLiteral("no earlier than ") + timeVsImpact(plo);
-        return QStringLiteral("between %1 and %2").arg(timeVsImpact(plo), timeVsImpact(phi));
+        // an edge at impact is the noun: "no later than impact", "between impact and 20 ms after impact"
+        const auto edge = [](double ms) {
+            return pinpoint::figures::impactTime(ms).atImpact() ? QStringLiteral("impact") : timeVsImpact(ms);
+        };
+        if (lowOpen)  return QStringLiteral("no later than ") + edge(phi);
+        if (highOpen) return QStringLiteral("no earlier than ") + edge(plo);
+        return QStringLiteral("between %1 and %2").arg(edge(plo), edge(phi));
     }
     auto n = [&](double v) { return spreadNumber(v, d, /*trimZeros*/ true); };
     if (lowOpen)  return withUnit(n(phi), unit) + QStringLiteral(" or less");
     if (highOpen) return withUnit(n(plo), unit) + QStringLiteral(" or more");
-    if (unit.startsWith(QChar(0x00B0)) || unit.startsWith(QLatin1Char('%')) || unit == QLatin1String("ratio"))
+    if (unit.startsWith(QChar(0x00B0)) || unit.startsWith(QLatin1Char('%')))
         return withUnit(n(plo), unit) + QStringLiteral(" to ") + withUnit(n(phi), unit);
     return withUnit(n(plo) + QStringLiteral(" to ") + n(phi), unit);
 }
@@ -811,11 +781,11 @@ inline QString sawSessionLevel(const QString &golfer) { return cap1(golfer) + QS
 inline QString timingSpreadSentence(const QString &segment, double value, double sigma)
 {
     if (!std::isfinite(value) || value < 0) return QString();
-    const QString pmText = (std::isfinite(sigma) && sigma > 0 && std::round(sigma * 10.0) > 0)
-                         ? QStringLiteral(" ± ") + QString::number(sigma, 'f', 1) : QString();
+    const QString pm = pinpoint::figures::pm(sigma, 1);
+    const QString pmText = pm.isEmpty() ? QString() : QLatin1Char(' ') + pm;
     const QString who = segment.isEmpty() ? QStringLiteral("Your") : QStringLiteral("Your ") + segment + QStringLiteral("'s");
     return QStringLiteral("%1 peak timing varied %2×%3 as widely as touring professionals' do.")
-        .arg(who, QString::number(value, 'f', 1), pmText);
+        .arg(who, pinpoint::figures::fig(value, 1), pmText);
 }
 // "In order on 3 of 9 swings" — a COUNT of the swings whose four peaks came hips, chest, arms, club;
 // never the inferred share. resolved 0: the order could not be judged.

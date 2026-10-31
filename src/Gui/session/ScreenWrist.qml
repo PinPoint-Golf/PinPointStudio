@@ -44,7 +44,7 @@ Item {
     // The transit timeline's stationLayout recompute is heavy and fires on every
     // shotReplay span change, so keep it UNLOADED unless this screen is visible —
     // otherwise an off-screen timeline re-lays-out on every swing reload.
-    readonly property bool _screenActive: navController.currentIndex === AppScreen.Session
+    readonly property bool _screenActive: SessionMode.sessionScreenActive
 
     // THE focused swing — the active replay, else the carousel's selection. One definition, because
     // three panels here bind it (data viewer, markup, and the app-wide `currentSwing` below) and it

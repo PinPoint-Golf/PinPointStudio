@@ -30,8 +30,9 @@
 // destroys it (measured 0.70° → 18.80° at the same pose, strap untouched), the library
 // makes resume un-expressible, and this UI matches that rather than papering over it.
 //
-// NON-VISUAL. Inputs are injected: the guide (CalibrationGuide, R9), the segments
-// { device, lowerArm, palm } and the pace.
+// NON-VISUAL, on CalibrationRoutineBase (the host contract, the entry points, the pace, the
+// app log and the guide's finished(); this file is the state machine). Injected: the guide
+// (CalibrationGuide, R9), the segments { device, lowerArm, palm } and the pace.
 //
 // ⚠ UNIT vs DEVICE. `segments.lowerArm` / `palm` are the VIZ objects (HmUnit) — they
 // carry the quaternions; `segments.device` is the PERIPHERAL (HmInstance) — every
@@ -47,16 +48,14 @@
 // Every stage change, marker and entry point writes ONE line to the app log (R10).
 import QtQuick
 
-QtObject {
+CalibrationRoutineBase {
     id: r
 
-    // ── Inputs ────────────────────────────────────────────────────────────────
-    property bool active: false
-    property var  guide: null
-    property var  segments: null          // { device, lowerArm, palm }
+    // segments: { device, lowerArm, palm }
+    logName: "hackmotion"
 
     // Every duration, in ms, and `scale` (1 in the app; tests set it, lint W7).
-    readonly property var defaultPace: ({
+    defaultPace: ({
         hmStart:      1500,   // read window before beginCalibration
         settle:       2000,   // _hmSettleMs — pose-0 settle before `a2 00`
         raiseAnim:    3000,   // _hmRaiseAnimMs
@@ -66,43 +65,28 @@ QtObject {
         presenceWait: 6000,   // _hmPresenceWaitMs
         scale:        1
     })
-    property var pace: defaultPace
-    readonly property var _p: {
-        var o = {}, k
-        for (k in defaultPace) o[k] = defaultPace[k]
-        if (pace) for (k in pace) o[k] = pace[k]
-        return o
-    }
-    function _ms(name) { return Math.round(_p[name] * _p.scale) }
 
     // The PERIPHERAL (see the header) and the lower-arm UNIT.
     readonly property QtObject leadDevice: segments && segments.device ? segments.device : null
     readonly property QtObject leadImu:    segments && segments.lowerArm ? segments.lowerArm : null
 
     // ── Outputs ───────────────────────────────────────────────────────────────
-    readonly property string stage: calibrationDone ? "hm5"
-                                  : !_running       ? "idle"
-                                  : hmStep === 9    ? "hmStopped"
-                                  :                   "hm" + hmStep
-    readonly property bool   done:        calibrationDone
-    readonly property bool   failed:      calibrationFailed
-    readonly property bool   mountFailed: false
-    readonly property int    phase:       0
-    readonly property string message:     hmFailMsg
-    readonly property string messageKind: hmFailMsg !== "" ? hmFailKind : ""
+    // (mountFailed and phase keep the base's false / 0: there is no mount check and no
+    // Witmotion phase here.)
+    stage: calibrationDone ? "hm5"
+         : !_running       ? "idle"
+         : hmStep === 9    ? "hmStopped"
+         :                   "hm" + hmStep
+    failed:      calibrationFailed
+    message:     hmFailMsg
+    messageKind: hmFailMsg !== "" ? hmFailKind : ""
 
-    signal completed()
-
-    // True between begin() and stop()/restore().
-    property bool _running: false
-
-    property bool calibrationDone:   false
     // Set when the routine stops on a failure. calibrationFailed is reused so the shared
     // StatusBadge and the host gates read correctly without a second flag.
     property bool calibrationFailed: false
 
-    // The rest pose the shared reset leaves the guide in until the routine poses pose 0.
-    readonly property quaternion leadArmDownQuat: Qt.quaternion(0.7071, 0.7071, 0, 0)
+    // The rest pose the shared reset leaves the guide in until the routine poses pose 0 is the
+    // base's leadArmDownQuat.
 
     // ═══ HackMotion — the device-native routine ════════════════════════════
     //
@@ -230,72 +214,51 @@ QtObject {
     property bool _hmRefSettleArmed:        false
     property bool _hmPresenceWaitArmed:     false
 
-    function _log(text) { appLog.info("Calib", "hackmotion " + text) }
-    // Created idle; every stage the routine moves to after that is one line.
-    property bool _created: false
-    Component.onCompleted: _created = true
-    onStageChanged: if (_created) _log("stage=" + stage)
+    // Completed: the moment calibrationDone goes true (a restore included — the host tells the two
+    // apart, ImuCalibrationFlow._restoring).
     onCalibrationDoneChanged: if (calibrationDone) r.completed()
 
-    // ── Entry points ──────────────────────────────────────────────────────────
-    // A fresh run. ⚠ Nothing to clear host-side — the device holds the calibration
-    // and clearCalibration()/setNominalCalibration() do not exist on it. An in-flight
-    // routine is aborted so a Recalibrate always starts from a known state.
-    function begin() {
-        _log("begin")
+    // ── Entry points (CalibrationRoutineBase: begin, stop, reset, restore) ────
+    // begin() / reset(): a fresh run, or the same clear without starting one. ⚠ Nothing to
+    // clear host-side — the device holds the calibration and clearCalibration() /
+    // setNominalCalibration() do not exist on it. An in-flight routine is aborted so a
+    // Recalibrate always starts from a known state; a begin poses the guide at rest.
+    on_Clearing: (forRun, wasRunning) => {
         _hmAbortIfActive()
         _hmResetState()
         _animStage        = ""
-        if (guide) guide.pose(leadArmDownQuat, Qt.quaternion(1, 0, 0, 0))
+        if (forRun && guide) guide.pose(leadArmDownQuat, Qt.quaternion(1, 0, 0, 0))
         calibrationFailed = false
         calibrationDone   = false
-        _running          = true
     }
 
-    // Leave: every timer off, the guide stopped, a live device routine aborted ONCE (with
-    // today's wording, see _hmAbortIfActive), the stage back to idle unless done. The
-    // abort's message is kept as the routine's last word.
-    function stop(reason) {
-        if (!_running) return
-        var was = stage
+    // stop(): every timer off and a live device routine aborted ONCE — while the run is still
+    // live, so the abort's own stop is its last stage (with today's wording, see
+    // _hmAbortIfActive) and its message the routine's last word. Then (the base cancels the
+    // guide) the stage goes back to idle unless done.
+    on_Stopping: {
         _hmDisarm()
-        if (guide) guide.cancel()
-        var aborted = _hmAbortIfActive()
-        _running = false
+        if (_hmAbortIfActive()) _stopNote = " aborted"
+    }
+    on_Stopped: {
         if (!calibrationDone) {
             hmStep             = 0
             hmAwaitingPresence = false
             calibrationFailed  = false
             _animStage         = ""
         }
-        _log("stop reason=" + reason + " stage=" + was + (aborted ? " aborted" : ""))
     }
 
-    // The host's reset(): what begin() does (an in-flight device routine aborted, the
-    // state cleared), without starting a run.
-    function reset() {
-        _log("reset")
-        _running = false
-        if (guide) guide.cancel()
-        _hmAbortIfActive()
-        _hmResetState()
-        _animStage        = ""
-        calibrationFailed = false
-        calibrationDone   = false
-    }
-
-    // Show complete from the DEVICE's live state; never re-runs. There is nothing
+    // restore(): complete from the DEVICE's live state; never re-runs. There is nothing
     // host-side to restore — the DEVICE holds the calibration and only its own state
     // says whether one is live. So the restore is a read of that state, never a
     // replay of stored fields, and it must not synthesise a Witmotion phase-2
     // completion.
-    function restore() {
+    on_Restoring: {
         _hmDisarm()
         var dev = leadDevice
-        hmStep          = (dev && dev.calibrationState === calCalibrated) ? 5 : 0
+        hmStep          = (dev && dev.fullyCalibrated === true) ? 5 : 0
         calibrationDone = (hmStep === 5)
-        _running        = false
-        _log("restore done=" + calibrationDone)
     }
 
     function _hmDisarm() {
@@ -495,8 +458,8 @@ QtObject {
 
     // ── The verdict ───────────────────────────────────────────────────────
     // Called on every calibration state change and on COMPLETE, and idempotent
-    // by construction. ⚠ calibrationDone comes from calibrationState ===
-    // WR_CAL_CALIBRATED and from nothing else: never from phase === COMPLETE
+    // by construction. ⚠ calibrationDone comes from the device's fullyCalibrated
+    // (calibrationState === WR_CAL_CALIBRATED) and from nothing else: never from phase === COMPLETE
     // (the device applies its transform for every attempt, including rejected
     // ones), and never from the presence angle being small (it INVERTS — the
     // attempt with no axis information scored best).
@@ -516,7 +479,7 @@ QtObject {
         // only happens after confirmReferencePose() — so requiring step 4 here
         // costs nothing and removes the last way a stale state could be read as
         // this attempt's success.
-        if (hmStep >= 4 && dev.calibrationState === calCalibrated) {
+        if (hmStep >= 4 && dev.fullyCalibrated === true) {
             _hmPresenceWaitArmed = false
             hmAwaitingPresence = false
             hmStep             = 5
@@ -623,8 +586,6 @@ QtObject {
         return qsTr("The calibration routine stopped before it finished. Tap Recalibrate.")
     }
 
-    onActiveChanged: if (!active) stop("inactive")
-
     // ── Device connections ─────────────────────────────────────────────────────
     // All four are reachable and each reads differently. ⚠ There is no return value
     // to check anywhere: the invokables are queued onto the I/O thread and return
@@ -679,27 +640,23 @@ QtObject {
         onTriggered: r._hmBegin()
     }
 
-    // Guide-animation completion chain.
-    property Connections _guideFinished: Connections {
-        target:  r.guide
-        enabled: r.active && r._running
-        function onFinished() {
-            if (r._animStage === "hmRaise") {
-                // ⚠ THE CHAIN ADVANCES HERE AND NOWHERE ELSE — never on a parallel
-                // wall-clock timer, which keeps counting while a stalled renderer
-                // shows nothing and would run the chain ahead of the athlete. The
-                // stakes are higher on this branch than on the Witmotion one: the
-                // DEVICE is measuring the very motion the guide is pacing, and a
-                // marker fired at an arm that never moved is the attempt that scores
-                // BEST on the presence check (0.70°, §8.2) while carrying no axis
-                // information at all.
-                r._animStage = ""
-                r._hmRaiseConfirmArmed = true   // short settle, then `a2 01`
-            } else if (r._animStage === "hmReturn") {
-                r._animStage = ""
-                r.guide.pose(r.guide.hmUpperArm, r.guide.hmForePose0)   // held, no motion
-                r._hmRefSettleArmed = true      // stillness settle, then the check
-            }
+    // Guide-animation completion chain (the base's _guideFinished).
+    on_GuideDone: {
+        if (r._animStage === "hmRaise") {
+            // ⚠ THE CHAIN ADVANCES HERE AND NOWHERE ELSE — never on a parallel
+            // wall-clock timer, which keeps counting while a stalled renderer
+            // shows nothing and would run the chain ahead of the athlete. The
+            // stakes are higher on this branch than on the Witmotion one: the
+            // DEVICE is measuring the very motion the guide is pacing, and a
+            // marker fired at an arm that never moved is the attempt that scores
+            // BEST on the presence check (0.70°, §8.2) while carrying no axis
+            // information at all.
+            r._animStage = ""
+            r._hmRaiseConfirmArmed = true   // short settle, then `a2 01`
+        } else if (r._animStage === "hmReturn") {
+            r._animStage = ""
+            r.guide.pose(r.guide.hmUpperArm, r.guide.hmForePose0)   // held, no motion
+            r._hmRefSettleArmed = true      // stillness settle, then the check
         }
     }
 

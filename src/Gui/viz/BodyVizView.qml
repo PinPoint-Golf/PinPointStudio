@@ -92,25 +92,12 @@ Item {
 
     // Sensor-mount orientation markers on the lead-arm segments — a bright ball on
     // each bone's local +Z face, indicating where the IMU is mounted and exposing
-    // bone roll. Mirrors ArmVizView's OrientationTab; sized 50% smaller here.
+    // bone roll. The marker is VizOrientationMarker, shared with ArmVizView; this preset adds this
+    // view's visibility rule and draws it 50% smaller.
     property bool showOrientationTabs: true
-    component OrientationTab: Node {
-        id: tabRoot
-        property real  along:    0.20
-        property color tabColor: Theme.colorImuA
-        property real  tabScale: 0.0003          // 50% of ArmVizView's 0.0006
-        property vector3d tabDir: Qt.vector3d(0, 0, -1)   // -Z = back/outer face = sensor mount
+    component OrientationTab: VizOrientationMarker {
+        tabScale: 0.0003          // 50% of ArmVizView's 0.0006
         visible: root.showOrientationTabs && root.highlightLeadArm && root.rightHanded
-        y: along
-        Model {
-            source:    "#Sphere"
-            scale:     Qt.vector3d(tabRoot.tabScale, tabRoot.tabScale, tabRoot.tabScale)
-            position:  Qt.vector3d(tabRoot.tabDir.x * 0.05, tabRoot.tabDir.y * 0.05, tabRoot.tabDir.z * 0.05)
-            materials: PrincipledMaterial {
-                baseColor: tabRoot.tabColor
-                lighting:  PrincipledMaterial.NoLighting
-            }
-        }
     }
 
     // Lead arm override (calibration phase 0 = arm-down, phase 2 = T-pose guide)
@@ -268,11 +255,55 @@ Item {
     property int  leadArmAnimDuration: 1500
     signal leadArmAnimFinished()
 
+    // ── The guide's motion clock — ONE implementation, two instances ─────────
+    // _leadArmAnim (the arm, below) and _trunkAnim (the trunk) are each a SlerpTrack: a
+    // FrameAnimation advancing a linear progress p from 0 to 1 over `duration` ms, with the stall
+    // clamp described above (a frame longer than one ~30 fps step counts as one step, so a stall
+    // PAUSES the motion rather than skipping it), an InOutCubic-eased copy t, and finished() when p
+    // lands. It carries no quaternions: each user keeps its own from/to pairs and its own re-anchor
+    // rule, because the arm and the trunk re-anchor differently on purpose (see each). The slerp
+    // itself is _slerp(), below.
+    component SlerpTrack: FrameAnimation {
+        id: track
+        property int  duration: 1500
+        property real p: 1.0   // linear progress 0 → 1 (frame-driven)
+        property real t: 1.0   // eased (InOutCubic) copy of p
+        signal finished()
+
+        // Runs the motion from its start: p = t = 0, then the clock.
+        function play() {
+            track.p = 0.0
+            track.t = 0.0
+            track.restart()
+        }
+        // Stops the clock and marks the motion landed, with no finished().
+        function settle() {
+            track.stop()
+            track.p = 1.0
+            track.t = 1.0
+        }
+
+        running: false
+        onTriggered: {
+            // Clamp a stalled frame to one ~30 fps step so shader-compile or
+            // load hitches pause the guide rather than fast-forwarding it.
+            const dt = Math.min(frameTime, 1 / 30)
+            track.p = Math.min(1.0, track.p + dt * 1000 / Math.max(1, track.duration))
+            const p = track.p   // InOutCubic, as the old NumberAnimation
+            track.t = p < 0.5 ? 4 * p * p * p
+                              : 1 - Math.pow(-2 * p + 2, 3) / 2
+            if (track.p >= 1.0) {
+                track.stop()
+                track.finished()
+            }
+        }
+    }
+
     // Internal slerp state — not part of the public API.
     property quaternion _leadArmFrom: Qt.quaternion(1, 0, 0, 0)
     property quaternion _leadArmTo:   Qt.quaternion(1, 0, 0, 0)
-    property real       _leadArmP:    1.0   // linear progress 0 → 1 (frame-driven)
-    property real       _leadArmT:    1.0   // eased (InOutCubic) copy of _leadArmP
+    property alias      _leadArmP:    _leadArmAnim.p   // linear progress 0 → 1 (tests read it)
+    property alias      _leadArmT:    _leadArmAnim.t   // eased (InOutCubic) copy of _leadArmP
     // The forearm's own from/to. ⚠ ONE CLOCK, TWO SEGMENTS: both slerps read
     // _leadArmT, so the upper arm and forearm always travel together and
     // leadArmAnimFinished() still means "the whole guide motion is done". Giving
@@ -322,34 +353,19 @@ Item {
     // forearm kept its relative angle. Anchoring to == from here makes "a segment
     // nobody retargeted does not move" true by construction instead of by protocol.
     function resetArmAnimation(fromQ, foreFromQ) {
-        _leadArmAnim.stop()
+        _leadArmAnim.settle()
         _leadArmFrom = fromQ
         _leadArmTo   = fromQ
         if (foreFromQ !== undefined) {
             _leadForeArmFrom = foreFromQ
             _leadForeArmTo   = foreFromQ
         }
-        _leadArmP    = 1.0
-        _leadArmT    = 1.0
     }
 
-    FrameAnimation {
+    SlerpTrack {
         id: _leadArmAnim
-        running: false
-        onTriggered: {
-            // Clamp a stalled frame to one ~30 fps step so shader-compile or
-            // load hitches pause the guide rather than fast-forwarding it.
-            const dt = Math.min(frameTime, 1 / 30)
-            root._leadArmP = Math.min(1.0, root._leadArmP
-                                           + dt * 1000 / root.leadArmAnimDuration)
-            const p = root._leadArmP   // InOutCubic, as the old NumberAnimation
-            root._leadArmT = p < 0.5 ? 4 * p * p * p
-                                     : 1 - Math.pow(-2 * p + 2, 3) / 2
-            if (root._leadArmP >= 1.0) {
-                stop()
-                root.leadArmAnimFinished()
-            }
-        }
+        duration: root.leadArmAnimDuration
+        onFinished: root.leadArmAnimFinished()
     }
 
     // ⚠ EITHER SEGMENT CHANGING STARTS THE MOTION, and the forearm handler is not
@@ -365,9 +381,7 @@ Item {
     // clock the first already reset to zero, which is harmless — the from/to pairs
     // were both captured before either restart.
     function _restartArmSlerp() {
-        root._leadArmP = 0.0
-        root._leadArmT = 0.0
-        _leadArmAnim.restart()
+        _leadArmAnim.play()
     }
 
     onLeadArmOverrideRotationChanged: {
@@ -427,15 +441,14 @@ Item {
     property quaternion _hipsTo:     Qt.quaternion(1, 0, 0, 0)
     property quaternion _thoraxFrom: Qt.quaternion(1, 0, 0, 0)
     property quaternion _thoraxTo:   Qt.quaternion(1, 0, 0, 0)
-    property real       _trunkP:     1.0
-    property real       _trunkT:     1.0
+    property alias      _trunkP:     _trunkAnim.p     // tests read it
+    property alias      _trunkT:     _trunkAnim.t
 
     // Shows a trunk pose with no motion (anchors from == to, as resetArmAnimation does).
     function resetTrunkAnimation(hipsQ, thoraxQ) {
-        _trunkAnim.stop()
+        _trunkAnim.settle()
         _hipsFrom = hipsQ;   _hipsTo = hipsQ
         _thoraxFrom = thoraxQ; _thoraxTo = thoraxQ
-        _trunkP = 1.0; _trunkT = 1.0
     }
     // Holds the motion where it is (no trunkAnimFinished()).
     function stopTrunkAnimation() { _trunkAnim.stop() }
@@ -446,26 +459,15 @@ Item {
         root._thoraxFrom = root._slerp(root._thoraxFrom, root._thoraxTo, root._trunkT)
         root._hipsTo     = root.hipsOverrideRotation
         root._thoraxTo   = root.thoraxOverrideRotation
-        root._trunkP = 0.0
-        root._trunkT = 0.0
-        _trunkAnim.restart()
+        _trunkAnim.play()
     }
     onHipsOverrideRotationChanged:   if (root.animateTrunk) retargetTrunk()
     onThoraxOverrideRotationChanged: if (root.animateTrunk) retargetTrunk()
 
-    FrameAnimation {
+    SlerpTrack {
         id: _trunkAnim
-        running: false
-        onTriggered: {
-            const dt = Math.min(frameTime, 1 / 30)      // a stall pauses the guide, never skips it
-            root._trunkP = Math.min(1.0, root._trunkP + dt * 1000 / Math.max(1, root.trunkAnimDuration))
-            const p = root._trunkP                      // InOutCubic, as the arm
-            root._trunkT = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2
-            if (root._trunkP >= 1.0) {
-                stop()
-                root.trunkAnimFinished()
-            }
-        }
+        duration: root.trunkAnimDuration
+        onFinished: root.trunkAnimFinished()
     }
 
     readonly property quaternion _hipsShown: root.animateTrunk && root._trunkT < 1.0

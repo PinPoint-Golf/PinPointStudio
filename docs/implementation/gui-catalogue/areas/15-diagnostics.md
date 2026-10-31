@@ -1,7 +1,7 @@
 # Session diagnostics
 
 *Directory:* `src/Gui/diagnostics/`  
-*32 components · 7,373 lines of QML*
+*33 components · 7,792 lines of QML*
 
 The Session-diagnostics stage panel and its three registers (Analyse, Replay, Print), built from typeset blocks: ledger, sparklines, small multiples, cause graph, history strips, questions.
 
@@ -13,34 +13,35 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 | [PpBoxStrip](#ppboxstrip) | 178 | `Item` | 1 | 3 |  |
 | [PpCauseGraph](#ppcausegraph) | 418 | `Item` | 2 | 3 | 1 local comp. |
 | [PpDetailBar](#ppdetailbar) | 63 | `Item` | 1 | 1 |  |
-| [PpDiagAnalyse](#ppdiaganalyse) | 757 | `Item` | 1 | 22 | 4 local comp. |
-| [PpDiagPrint](#ppdiagprint) | 292 | `Item` | 0 | 17 | ⚠ unreferenced |
-| [PpDiagReplay](#ppdiagreplay) | 556 | `Item` | 1 | 15 | 3 local comp. |
+| [PpDiagAnalyse](#ppdiaganalyse) | 792 | `Item` | 1 | 23 | 4 local comp. |
+| [PpDiagPrint](#ppdiagprint) | 320 | `Item` | 1 | 18 |  |
+| [PpDiagReplay](#ppdiagreplay) | 590 | `Item` | 1 | 16 | 3 local comp. |
 | [PpDiagReplayCold](#ppdiagreplaycold) | 52 | `Column` | 2 | 1 |  |
 | [PpDiagReplaySessionRows](#ppdiagreplaysessionrows) | 75 | `Item` | 1 | 2 |  |
-| [PpDiagReplayState](#ppdiagreplaystate) | 106 | `QtObject` | 2 | 0 |  |
-| [PpDiagRoles](#ppdiagroles) | 229 | `PpTypeset` | 24 | 2 |  |
-| [PpDotPlot](#ppdotplot) | 257 | `Item` | 2 | 3 |  |
+| [PpDiagReplayState](#ppdiagreplaystate) | 108 | `QtObject` | 2 | 0 |  |
+| [PpDiagRoles](#ppdiagroles) | 249 | `PpTypeset` | 24 | 2 |  |
+| [PpDotPlot](#ppdotplot) | 254 | `Item` | 2 | 3 |  |
 | [PpEntryFlow](#ppentryflow) | 186 | `Item` | 1 | 2 |  |
 | [PpExpectations](#ppexpectations) | 91 | `Column` | 1 | 1 |  |
-| [PpFeatureHead](#ppfeaturehead) | 172 | `Item` | 2 | 1 |  |
-| [PpFigureRow](#ppfigurerow) | 341 | `Item` | 2 | 7 | 2 local comp. |
+| [PpFeatureHead](#ppfeaturehead) | 174 | `Item` | 2 | 1 |  |
+| [PpFigureRow](#ppfigurerow) | 342 | `Item` | 2 | 7 | 2 local comp. |
 | [PpHistoryStrip](#pphistorystrip) | 191 | `Item` | 1 | 4 |  |
-| [PpIndexList](#ppindexlist) | 155 | `Item` | 1 | 1 |  |
-| [PpKeyFigures](#ppkeyfigures) | 96 | `Item` | 2 | 1 |  |
-| [PpLedgerTable](#ppledgertable) | 556 | `Item` | 3 | 5 |  |
+| [PpIndexList](#ppindexlist) | 161 | `Item` | 1 | 1 |  |
+| [PpKeyFigures](#ppkeyfigures) | 102 | `Item` | 2 | 1 |  |
+| [PpLedgerTable](#ppledgertable) | 559 | `Item` | 3 | 5 |  |
 | [PpMasthead](#ppmasthead) | 42 | `PpStandfirst` | 1 | 1 |  |
 | [PpPathChains](#pppathchains) | 259 | `Item` | 2 | 1 |  |
 | [PpQuestions](#ppquestions) | 155 | `Column` | 2 | 1 |  |
 | [PpRunChart](#pprunchart) | 242 | `Item` | 1 | 3 |  |
-| [PpSessionDiagnosticsBody](#ppsessiondiagnosticsbody) | 400 | `Item` | 1 | 5 |  |
-| [PpSessionDiagnosticsPanel](#ppsessiondiagnosticspanel) | 431 | `Item` | 3 | 2 |  |
+| [PpSessionDiagnosticsBody](#ppsessiondiagnosticsbody) | 420 | `Item` | 1 | 5 |  |
+| [PpSessionDiagnosticsPanel](#ppsessiondiagnosticspanel) | 487 | `Item` | 2 | 2 |  |
 | [PpShotRuler](#ppshotruler) | 141 | `Item` | 1 | 0 |  |
 | [PpSmallMultiple](#ppsmallmultiple) | 284 | `Item` | 1 | 3 |  |
 | [PpSmallMultiples](#ppsmallmultiples) | 97 | `Column` | 1 | 2 |  |
 | [PpSparkHead](#ppsparkhead) | 51 | `Item` | 1 | 1 |  |
 | [PpSparkRow](#ppsparkrow) | 103 | `Item` | 1 | 4 |  |
 | [PpSparkline](#ppsparkline) | 130 | `Item` | 2 | 3 |  |
+| [PpWhatChanged](#ppwhatchanged) | 209 | `Column` | 3 | 0 |  |
 
 ### PpBarcode
 `src/Gui/diagnostics/PpBarcode.qml` · 267 lines · root `Item` · no direct `Theme.*` refs
@@ -131,7 +132,7 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 - **Exercised by tests/tools:** `typeset_gallery`
 
 ### PpDiagAnalyse
-`src/Gui/diagnostics/PpDiagAnalyse.qml` · 757 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/diagnostics/PpDiagAnalyse.qml` · 792 lines · root `Item` · no direct `Theme.*` refs
 
 > ANALYSE — the read. The ledger leads (A): every view opens on the table that answers its question in
 > exact figures; B's sentences carry the "why" (standfirsts, the direction line under each pattern, the
@@ -154,11 +155,11 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 - **Properties:** `readonly string register`, `string view`, `var readout`, `var cards`, `var source`, `var header`, `var detail`, `string medium`, `string printOrientation`, `int printPage`, `readonly int printPageCount`, `var body`, `string demoState`, `string surface` … (+26 more)
 - **Functions:** `requestScreen(id)`, `openCondition(id)`, `pickView(key)`, `pickShot(dir, id)`, `setFilter(k)`, `stepThrough(ids)`, `firePulse()`, `q(card, id, only)`, `cleanQ(card)`, `togetherQ(card, only)` (+1)
 - **Local components:** `ViewFlick`, `Crosshead`, `Asks`, `ReviewFoot`
-- **Uses:** `PpBarcode`, `PpBrush`, `PpCauseGraph`, `PpDetailBar`, `PpDiagReplayCold`, `PpDiagReplayState`, `PpDiagRoles`, `PpDotPlot`, `PpFeatureHead`, `PpFigureRow`, `PpInlinePicker`, `PpKeyFigures`, `PpLedgerTable`, `PpNotes`, `PpPageKey`, `PpPathChains` (+6)
+- **Uses:** `PpBarcode`, `PpBrush`, `PpCauseGraph`, `PpDetailBar`, `PpDiagReplayCold`, `PpDiagReplayState`, `PpDiagRoles`, `PpDotPlot`, `PpFeatureHead`, `PpFigureRow`, `PpInlinePicker`, `PpKeyFigures`, `PpLedgerTable`, `PpNotes`, `PpPageKey`, `PpPathChains` (+7)
 - **Used by (1):** `PpSessionDiagnosticsBody`
 
 ### PpDiagPrint
-`src/Gui/diagnostics/PpDiagPrint.qml` · 292 lines · root `Item` · ⚠ **no app file instantiates this** · no direct `Theme.*` refs
+`src/Gui/diagnostics/PpDiagPrint.qml` · 320 lines · root `Item` · no direct `Theme.*` refs
 
 > PRINT — the report register (B's editorial voice). The same blocks as Replay and Analyse, laid out as a
 > document on A4 and cut into pages by the library PpPager (repeating list heads, no stranded pages):
@@ -170,13 +171,14 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 > row by row with its head repeated; PpKeyFigures excludes by key; shot labels are ordinals.
 > "Every pattern" would repeat the feature block once per card, each from a fresh page (see NOTES3_print).
 
-- **Properties:** `string view`, `var readout`, `var cards`, `var source`, `var header`, `var detail`, `string medium`, `string printOrientation`, `int printPage`, `readonly int printPageCount`, `var body`, `string demoState`, `string surface`, `readonly var conds` … (+18 more)
+- **Properties:** `string view`, `var readout`, `var cards`, `var source`, `var header`, `var detail`, `string medium`, `string printOrientation`, `int printPage`, `readonly int printPageCount`, `var body`, `string demoState`, `string surface`, `string printAesthetic` … (+24 more)
 - **Functions:** `listOf(xs)`, `groupOf(card)`, `answersFor(card)`, `answerHtml(card)`
-- **Uses:** `PpBarcode`, `PpBrush`, `PpDiagRoles`, `PpEntryFlow`, `PpFeatureHead`, `PpFigureRow`, `PpIndexList`, `PpKeyFigures`, `PpLedgerTable`, `PpMasthead`, `PpNotes`, `PpPager`, `PpPathChains`, `PpQuestions`, `PpSectionHead`, `PpStandfirst` (+1)
+- **Uses:** `PpBarcode`, `PpBrush`, `PpDiagRoles`, `PpEntryFlow`, `PpFeatureHead`, `PpFigureRow`, `PpIndexList`, `PpKeyFigures`, `PpLedgerTable`, `PpMasthead`, `PpNotes`, `PpPager`, `PpPathChains`, `PpQuestions`, `PpSectionHead`, `PpStandfirst` (+2)
+- **Used by (1):** `PpSessionReport`
 - **Exercised by tests/tools:** `diag_print_pdf`
 
 ### PpDiagReplay
-`src/Gui/diagnostics/PpDiagReplay.qml` · 556 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/diagnostics/PpDiagReplay.qml` · 590 lines · root `Item` · no direct `Theme.*` refs
 
 > REPLAY — the glance register (Replay, Capture, and the second-screen cast). It sits beside the video
 > for the whole replay, so it gives the answer in one look and then stays still.
@@ -196,10 +198,10 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 > Cast (surface "cast", always this register, D4): a running head names the shot; the WHOLE surface is
 > …
 
-- **Properties:** `readonly string register`, `string view`, `var readout`, `var cards`, `var source`, `var header`, `var detail`, `var body`, `string demoState`, `string surface`, `string medium`, `string printOrientation`, `int printPage`, `readonly int printPageCount` … (+28 more)
+- **Properties:** `readonly string register`, `string view`, `var readout`, `var cards`, `var source`, `var header`, `var detail`, `var body`, `string demoState`, `string surface`, `string medium`, `string printOrientation`, `int printPage`, `readonly int printPageCount` … (+30 more)
 - **Functions:** `n(x)`, `openCondition(id)`, `pickShot(dir, id)`, `pickView(key)`, `firePulse()`, `applyDemo()`
 - **Local components:** `Head`, `ReviewFoot`, `ViewFlick`
-- **Uses:** `PpBarcode`, `PpBrush`, `PpDiagReplayCold`, `PpDiagReplaySessionRows`, `PpDiagReplayState`, `PpDiagRoles`, `PpDotPlot`, `PpInlinePicker`, `PpLedgerTable`, `PpShotRuler`, `PpSmallMultiples`, `PpTabs`, `PpTrustInlineFor`, `PpTrustSummaryFold`, `TrustFocus`
+- **Uses:** `PpBarcode`, `PpBrush`, `PpDiagReplayCold`, `PpDiagReplaySessionRows`, `PpDiagReplayState`, `PpDiagRoles`, `PpDotPlot`, `PpInlinePicker`, `PpLedgerTable`, `PpShotRuler`, `PpSmallMultiples`, `PpTabs`, `PpTrustInlineFor`, `PpTrustSummaryFold`, `PpWhatChanged`, `TrustFocus`
 - **Used by (1):** `PpSessionDiagnosticsBody`
 
 ### PpDiagReplayCold
@@ -230,7 +232,7 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 - **Used by (1):** `PpDiagReplay`
 
 ### PpDiagReplayState
-`src/Gui/diagnostics/PpDiagReplayState.qml` · 106 lines · root `QtObject` · no direct `Theme.*` refs
+`src/Gui/diagnostics/PpDiagReplayState.qml` · 108 lines · root `QtObject` · no direct `Theme.*` refs
 
 > REPLAYSTATE — what the session IS right now, read once for both registers (PpDiagReplay and PpDiagAnalyse
 > each make one). The old body branched on the model's stage, the review badge,
@@ -249,7 +251,7 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 - **Used by (2):** `PpDiagAnalyse`, `PpDiagReplay`
 
 ### PpDiagRoles
-`src/Gui/diagnostics/PpDiagRoles.qml` · 229 lines · root `PpTypeset` · no direct `Theme.*` refs
+`src/Gui/diagnostics/PpDiagRoles.qml` · 249 lines · root `PpTypeset` · no direct `Theme.*` refs
 
 > PPDIAGROLES — the Session diagnostics vocabulary on top of the generic typeset helper (design system
 > §15.3). Everything a typeset block draws with comes from PpTypeset; what is particular to the
@@ -260,20 +262,22 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 > PpDiagRoles { id: ro; medium: root.medium }
 > Never give it the id `roles` (see PpTypeset). Generic blocks accept it too: it IS a PpTypeset.
 
-- **Functions:** `sparkGeo(w, n, spark)`, `fig(v)`, `unitOf(v)`, `shortUnit(s)`, `recParts(rec)`, `frac(rec)`, `fracOf(rec)`, `rate(rec)`, `shortCount(rec)`, `corridorShort(t)` (+13)
+- **Functions:** `sparkGeo(w, n, spark)`, `fig(v)`, `unitOf(v)`, `shortUnit(s)`, `recParts(rec)`, `frac(rec)`, `fracOf(rec)`, `firedFrac(c)`, `firedOf(c)`, `rate(rec)` (+15)
 - **Uses:** `PpCauseGraph`, `PpTypeset`
 - **Used by (24):** `PpBarcode`, `PpBoxStrip`, `PpCauseGraph`, `PpDetailBar`, `PpDiagAnalyse`, `PpDiagPrint`, `PpDiagReplay`, `PpDotPlot`, `PpEntryFlow`, `PpExpectations` (+14)
 - **Exercised by tests/tools:** `tst_session_diagnostics`, `typeset_figures`, `typeset_gallery`
 
 ### PpDotPlot
-`src/Gui/diagnostics/PpDotPlot.qml` · 257 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/diagnostics/PpDotPlot.qml` · 254 lines · root `Item` · no direct `Theme.*` refs
 
 > DOTPLOT — C's This-shot figure: every condition on ONE common, corridor-normalised scale. In those
 > steps a reading sits at 0 in the middle of its corridor, the pass edge is at 2 (where a condition
 > fires) and the fault line at 3; x = strengthExcess for this shot. Fired conditions are warn marks on a
-> warn stem from the pass edge; clean ones are clean marks inside the wash; "‹" = out on the other side,
-> so clean here. Rows sort by distance. Laid out in as many blocks as fit: rich (session tier · name ·
-> plot · value) from roles.flows.dotRich em a block, tight (names wrap, values never) from dotTight.
+> warn stem from the pass edge; clean ones are clean marks inside the wash. A clean reading out on the
+> side its condition never fires on scores 0 in the model (#16) and sits in the middle like any other
+> clean one: that reading is the other side's condition's. Rows sort by distance. Laid out in as many
+> blocks as fit: rich (session tier · name · plot · value) from roles.flows.dotRich em a block, tight
+> (names wrap, values never) from dotTight.
 > filter "fired" draws only the fired rows (Replay); the scale stays the same.
 > Round 4:
 > • showTier: the tier column FOLDS before the plot goes tight — between dotRich − the tier column and
@@ -323,7 +327,7 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 - **Exercised by tests/tools:** `typeset_gallery`
 
 ### PpFeatureHead
-`src/Gui/diagnostics/PpFeatureHead.qml` · 172 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/diagnostics/PpFeatureHead.qml` · 174 lines · root `Item` · no direct `Theme.*` refs
 
 > FEATUREHEAD — B's detail opening: kicker (No. 1 · P4 · measure), the condition's name as a feature
 > head, the standfirst (direction + consequence), the pull figures (this shot in warn when it fired,
@@ -342,7 +346,7 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 - **Exercised by tests/tools:** `typeset_gallery`
 
 ### PpFigureRow
-`src/Gui/diagnostics/PpFigureRow.qml` · 341 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/diagnostics/PpFigureRow.qml` · 342 lines · root `Item` · no direct `Theme.*` refs
 
 > FIGUREROW — C's chart-led detail figure: PpRunChart + PpBoxStrip | PpHistoryStrip on ONE value axis,
 > with the axis labels on the left, the zone labels once at the right of the last panel, and a caption
@@ -395,11 +399,12 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 - **Exercised by tests/tools:** `typeset_gallery`
 
 ### PpIndexList
-`src/Gui/diagnostics/PpIndexList.qml` · 155 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/diagnostics/PpIndexList.qml` · 161 lines · root `Item` · no direct `Theme.*` refs
 
 > INDEXLIST — A's index of the clean conditions: name, leader dots, value and unit on a right edge,
 > in as many columns as fit (roles.flows.index em each, column-major so it reads down). Ink marks a
-> session pattern clean on this shot, ° marks a watched condition. `grouped` adds B's group heads
+> session pattern clean on this shot, ° marks a watched condition; its fault line follows
+> in brackets, the fault line. `grouped` adds B's group heads
 > (patterns clean here / watched / clean all session), alphabetical within each group.
 
 - **Properties:** `QtObject roles`, `var brush`, `string medium`, `bool interactive`, `var conditions`, `bool grouped`, `string title`, `bool showHead`, `string legend`, `readonly var keyKinds`, `readonly var groupsDef`, `readonly var items`, `readonly real cg`, `readonly int cols` … (+2 more)
@@ -409,7 +414,7 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 - **Exercised by tests/tools:** `typeset_gallery`
 
 ### PpKeyFigures
-`src/Gui/diagnostics/PpKeyFigures.qml` · 96 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/diagnostics/PpKeyFigures.qml` · 102 lines · root `Item` · no direct `Theme.*` refs
 
 > KEYFIGURES — A's summary row of key figures under a heavy rule: label above, figure below, hairline
 > dividers. It wraps n → n/2 → n/4 per row (never a ragged 3-of-8), each figure ≥ roles.flows.keyFigure em.
@@ -421,7 +426,7 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 - **Exercised by tests/tools:** `typeset_gallery`
 
 ### PpLedgerTable
-`src/Gui/diagnostics/PpLedgerTable.qml` · 556 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/diagnostics/PpLedgerTable.qml` · 559 lines · root `Item` · no direct `Theme.*` refs
 
 > LEDGERTABLE — A's fold-don't-drop table. Columns come from a tier spec (roles.tiers.<kind>): a column
 > whose tier fits the width given is laid on the grid; the rest FOLD, in `fo` order and with their
@@ -525,7 +530,7 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 - **Exercised by tests/tools:** `typeset_gallery`
 
 ### PpSessionDiagnosticsBody
-`src/Gui/diagnostics/PpSessionDiagnosticsBody.qml` · 400 lines · root `Item`
+`src/Gui/diagnostics/PpSessionDiagnosticsBody.qml` · 420 lines · root `Item`
 
 > THE SESSION DIAGNOSTICS PANEL'S BODY: its data and view state, the frame on surfaces that have no
 > stage card round them, and the TYPESET REGISTER that draws everything else (design system §15).
@@ -545,7 +550,7 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 > fit factor here any more (house rule 2). The cast's viewing-distance zoom scales the whole surface
 > …
 
-- **Properties:** `var source`, `var readout`, `bool watchingExpanded`, `string cardFilter`, `bool interactive`, `string surface`, `string forceRegister`, `string demoState`, `string tab`, `readonly string view`, `readonly string detailConditionId`, `readonly var detail`, `readonly bool detailOpen`, `var pulseCue` … (+21 more)
+- **Properties:** `var source`, `var readout`, `bool watchingExpanded`, `string cardFilter`, `bool interactive`, `string surface`, `string forceRegister`, `string demoState`, `string tab`, `readonly string view`, `var focusController`, `readonly string detailConditionId`, `readonly var detail`, `readonly bool detailOpen` … (+22 more)
 - **Signals:** `screenRequested(string screenRef, string conditionId)`, `shotRequested(string swingDir, int shotId)`
 - **Functions:** `pulseAfterShot()`
 - **Uses:** `PpCardShell`, `PpDiagAnalyse`, `PpDiagReplay`, `PpMicro`, `SessionMode`
@@ -553,7 +558,7 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 - **Exercised by tests/tools:** `session_spread`, `tst_session_diagnostics`
 
 ### PpSessionDiagnosticsPanel
-`src/Gui/diagnostics/PpSessionDiagnosticsPanel.qml` · 431 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/diagnostics/PpSessionDiagnosticsPanel.qml` · 487 lines · root `Item` · no direct `Theme.*` refs
 
 > The session diagnostics stage panel: what keeps happening this session, and what the
 > model thinks is causing it. Per session and cumulative, and most of its design is the
@@ -573,10 +578,10 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 > CADENCE GATES SURFACING, NEVER THE ENGINE. ingestShot() below is wired straight to
 > …
 
-- **Properties:** `string title`, `alias framed`, `readonly string cardAside`, `alias source`, `alias interactive`, `alias surface`, `bool remembersNav`, `readonly string sessionDir`
+- **Properties:** `string title`, `alias framed`, `readonly string cardAside`, `alias source`, `alias interactive`, `alias surface`, `bool remembersNav`, `readonly string sessionDir`, `readonly bool liveSession`
 - **Signals:** `screenRequested(string screenRef, string conditionId)`
 - **Uses:** `PpSessionDiagnosticsBody`, `SessionMode`
-- **Used by (3):** `PpSessionDiagnosticsWindow`, `ScreenSessionMode`, `ScreenWrist`
+- **Used by (2):** `PpSessionDiagnosticsWindow`, `ScreenWrist`
 
 ### PpShotRuler
 `src/Gui/diagnostics/PpShotRuler.qml` · 141 lines · root `Item` · no direct `Theme.*` refs
@@ -679,3 +684,25 @@ The Session-diagnostics stage panel and its three registers (Analyse, Replay, Pr
 - **Uses:** `PpDiagRoles`, `PpFigureScale`, `PpMark`
 - **Used by (2):** `PpEntryFlow`, `PpSparkRow`
 - **Exercised by tests/tools:** `typeset_figures`, `typeset_gallery`
+
+### PpWhatChanged
+`src/Gui/diagnostics/PpWhatChanged.qml` · 209 lines · root `Column`
+
+> PPWHATCHANGED — "What changed" (posture_metrics_design.md §8): a composite finding read part by part,
+> because the composite's own number is never shown (session diagnostics principle 5). One line per part:
+> its name in the golfer's words, the reading at address and at impact (or the top) in the part's own unit
+> where the measure names both ends, the change, the part's own band colour (with the band's word, so the
+> colour is never the only channel) and an ordinal share — most of it, some, a little, against it. A part
+> not read shows "-"; WHY is the trust fold's line, said once there, never here.
+> Poor setup posture (mode "distance") draws the same table without a change column: the address reading
+> against its Ideal band, and the share.
+> Every string and the share ladder are the model's (SessionDiagnosticsModel::whatChangedOf); this file
+> positions and paints.
+> info      detail.whatChanged / a this-shot cell's whatChanged
+> sub       a name after the head (Replay names the condition; the detail page needs none)
+> printed   the report: set open under its kicker, nothing to click, one atom for PpPager
+> objectNames: sdWhatChanged, sdWhatChangedToggle, sdWhatChangedRow:<part>.
+
+- **Properties:** `QtObject roles`, `var info`, `string sub`, `bool open`, `bool printed`, `bool interactive`, `readonly bool atom`, `readonly bool keepNext`, `readonly var keyKinds`, `readonly bool distance`, `readonly var rows`, `readonly bool hasEnds`, `readonly string endWord`, `readonly var cols` … (+4 more)
+- **Functions:** `colW(c)`, `colX(i)`, `tone(g)`, `cell(r, k)`
+- **Used by (3):** `PpDiagAnalyse`, `PpDiagPrint`, `PpDiagReplay`

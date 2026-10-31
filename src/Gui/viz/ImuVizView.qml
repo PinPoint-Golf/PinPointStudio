@@ -19,6 +19,7 @@
 import QtQuick
 import QtQuick3D
 import PinPointStudio
+import "VizMath.js" as VizMath
 
 View3D {
     id: root
@@ -46,9 +47,10 @@ View3D {
     // an on-screen roll. Living on this PARENT Node makes it a left-multiply (C · q),
     // matching the composition ArmVizView applies via pinpoint::viz::worldToScene();
     // a conjugation (C · q · C⁻¹) would be wrong for a label-attached rigid body.
-    // docs/design/imu_frame_contract.md §6, src/Gui/cameras/viz_frame.h.
+    // docs/design/imu_frame_contract.md §6, src/Gui/cameras/viz_frame.h. The constant is
+    // VizMath.worldToScene(), the one ArmVizView composes with.
     Node {
-        rotation: Qt.quaternion(0.70710678, -0.70710678, 0, 0)
+        rotation: VizMath.worldToScene()
 
         Node {
             // Diagnostic cube: binds the RAW sensor quaternion DIRECTLY in its body frame.

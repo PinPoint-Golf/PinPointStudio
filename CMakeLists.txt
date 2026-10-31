@@ -731,7 +731,6 @@ qt_add_executable(PinPointStudio
     src/Gui/imu/trunk_ceremony_recorder.h    src/Gui/imu/trunk_ceremony_recorder.cpp
     src/Gui/media/transcription_controller.h src/Gui/media/transcription_controller.cpp
     src/Gui/media/tts_controller.h           src/Gui/media/tts_controller.cpp
-    src/Gui/media/film_controller.h          src/Gui/media/film_controller.cpp
     src/Gui/athlete/athlete_controller.h     src/Gui/athlete/athlete_controller.cpp
     # The session report (docs/design/session_report_design.md §11): the studio and its coach, the
     # model that builds the report map and prints it, its stills, its record, the session list with
@@ -933,6 +932,7 @@ target_compile_definitions(PinPointStudio PRIVATE
     PINPOINT_PROFILE=$<BOOL:${PINPOINT_PROFILE}>)
 
 target_sources(PinPointStudio PRIVATE
+    src/Core/figure_format.h
     src/Core/pp_debug.h
     src/Core/pp_debug.cpp
     src/Core/pp_log_stream.cpp

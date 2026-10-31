@@ -492,11 +492,11 @@ Item {
         var scale = root._blueprintScale(gx, gy, gs, cr)
         if (haveSpine && scale < 20) return
 
-        var cBone  = Qt.rgba(Theme.poseBone.r,        Theme.poseBone.g,        Theme.poseBone.b,        1)
-        var cTop   = Qt.rgba(Theme.poseSpineTop.r,    Theme.poseSpineTop.g,    Theme.poseSpineTop.b,    1)
-        var cBot   = Qt.rgba(Theme.poseSpineBottom.r, Theme.poseSpineBottom.g, Theme.poseSpineBottom.b, 1)
-        var cTick2 = Qt.rgba(Theme.poseSpineTick2.r,  Theme.poseSpineTick2.g,  Theme.poseSpineTick2.b,  1)
-        var cInk   = Qt.rgba(Theme.poseInk.r, Theme.poseInk.g, Theme.poseInk.b, Theme.poseInk.a)
+        var cBone  = Qt.alpha(Theme.poseBone, 1)
+        var cTop   = Qt.alpha(Theme.poseSpineTop, 1)
+        var cBot   = Qt.alpha(Theme.poseSpineBottom, 1)
+        var cTick2 = Qt.alpha(Theme.poseSpineTick2, 1)
+        var cInk   = Qt.alpha(Theme.poseInk, Theme.poseInk.a)
 
         ctx.lineCap = "round"
 
@@ -606,10 +606,10 @@ Item {
         function py(j) { return kp[j * 3 + 1] * cr.height + cr.y }
         function ps(j) { return kp[j * 3 + 2] }
         function vis(j) { return ps(j) >= kMinScore }
-        var cBone = Qt.rgba(Theme.poseBone.r, Theme.poseBone.g, Theme.poseBone.b, 1)
-        var cInk  = Qt.rgba(Theme.poseInk.r, Theme.poseInk.g, Theme.poseInk.b, Theme.poseInk.a)
-        var cTop  = Qt.rgba(Theme.poseSpineTop.r,    Theme.poseSpineTop.g,    Theme.poseSpineTop.b,    1)
-        var cBot  = Qt.rgba(Theme.poseSpineBottom.r, Theme.poseSpineBottom.g, Theme.poseSpineBottom.b, 1)
+        var cBone = Qt.alpha(Theme.poseBone, 1)
+        var cInk  = Qt.alpha(Theme.poseInk, Theme.poseInk.a)
+        var cTop  = Qt.alpha(Theme.poseSpineTop, 1)
+        var cBot  = Qt.alpha(Theme.poseSpineBottom, 1)
         ctx.lineCap = "round"
 
         function bone(a, b, w) {
@@ -1137,7 +1137,7 @@ Item {
                 var rib = (p && p.ribbon && p.ribbon.length >= 2) ? p.ribbon : (p && p.points ? p.points : null)
                 if (rib && rib.length >= 2) {
                     ctx.lineCap = "round"; ctx.lineJoin = "round"
-                    ctx.strokeStyle = Qt.rgba(accent.r, accent.g, accent.b, 0.5)
+                    ctx.strokeStyle = Qt.alpha(accent, 0.5)
                     ctx.lineWidth = lw
                     ctx.beginPath()
                     for (var k = 0; k < rib.length; ++k) {
@@ -1148,7 +1148,7 @@ Item {
                 // This frame: the ball outlined, and the head on the arc.
                 var idx = _indexAt(_clipTime())
                 var f = s[idx]
-                ctx.strokeStyle = Qt.rgba(accent.r, accent.g, accent.b, 0.5)
+                ctx.strokeStyle = Qt.alpha(accent, 0.5)
                 ctx.lineWidth = lw * 1.4
                 if (f.bx !== undefined) {
                     ctx.beginPath()
@@ -1421,14 +1421,14 @@ Item {
                 if (cr.width <= 0 || cr.height <= 0)
                     return
                 var t = root._replayPlayheadUs
-                var cGood   = Qt.rgba(Theme.colorGood.r,   Theme.colorGood.g,   Theme.colorGood.b,   1)
-                var cAccent = Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 1)
+                var cGood   = Qt.alpha(Theme.colorGood, 1)
+                var cAccent = Qt.alpha(Theme.colorAccent, 1)
                 // Accent "Biomech Blueprint" palette for the club — derived from
                 // the theme accent (reskins per aesthetic); node ink shared with
                 // the skeleton so club and body nodes read as one instrument.
                 var cClub    = cAccent
                 var cClubHi  = Qt.lighter(Theme.colorAccent, 1.35)
-                var cClubInk = Qt.rgba(Theme.poseInk.r, Theme.poseInk.g, Theme.poseInk.b, Theme.poseInk.a)
+                var cClubInk = Qt.alpha(Theme.poseInk, Theme.poseInk.a)
                 var clubMute = 0.9
 
                 // Frame-mode pose index + the shared club/fan scale (torso

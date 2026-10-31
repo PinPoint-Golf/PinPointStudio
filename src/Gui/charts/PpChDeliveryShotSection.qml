@@ -42,19 +42,15 @@ import PinPointStudio
 // objectNames: chDeliverySection, chDeliveryHead, chDeliveryStory (chDeliveryPos + tag), chDeliverySlot,
 // chDeliveryFlight, chDeliveryImpact (chDeliveryImpactLine + key), chDeliveryShape, chDeliveryPicture, chDeliveryTrust
 // (+ the blocks').
-Item {
+// The shell (the fold head, its folded height, seek) is PpChSection's.
+PpChSection {
     id: ds
     objectName: "chDeliverySection"
-    property QtObject roles: null
-    property var brush: null
-    property var body: null
-    property string reg: "Analyse"
-    property bool interactive: true
-    property bool cast: false
-    readonly property bool replay: reg === "Replay"
-    readonly property var ty: roles
+    key: "delivery"; title: "Club delivery"
+    foldState: sh.headText || ""
+    has: !!roles && !!sh && sh.available === true
+    mainHeight: mainCol.height
     readonly property var sh: body ? body.dShot : ({})
-    readonly property bool has: !!roles && !!sh && sh.available === true
     readonly property var story: has ? (sh.story || ({})) : ({})
     readonly property var slot: has ? (sh.slot || ({})) : ({})
     readonly property var shape: has ? (sh.shape || ({})) : ({})
@@ -62,20 +58,11 @@ Item {
     readonly property var marks: body && body.dSession && body.dSession.shapes ? (body.dSession.shapes.marks || []) : []
     readonly property real posTagH: roles ? roles.u(14) : 14
     readonly property real posRowH: roles ? roles.u(19) : 19
-    readonly property bool folded: !!body && !!body.collapsed && body.collapsed.delivery === true
-    height: has ? secHead.height + (folded ? 0 : ty.u(14) + mainCol.height) : 0
 
-    function seekTo(us) { if (us >= 0 && typeof shotReplay !== "undefined" && shotReplay) shotReplay.seekToUs(us) }
     function pick(o) { if (ds.body) ds.body.pickOrdinal(o) }
 
-    PpChFoldHead { id: secHead; visible: ds.has; width: ds.width; roles: ds.ty; key: "delivery"; title: "Club delivery"
-                   interactive: ds.interactive; collapsed: ds.folded
-                   state_: ds.folded ? (ds.sh.headText || "") : ""
-                   onToggled: if (ds.body) ds.body.toggleSection("delivery") }
     Column {
         id: mainCol
-        visible: ds.has && !ds.folded
-        y: secHead.height + (ds.has ? ds.ty.u(14) : 0)
         width: ds.width
         spacing: ds.has ? ds.ty.u(14) : 0
 
@@ -133,7 +120,7 @@ Item {
                                    font: ds.ty.fFigS; color: ds.ty.ink2 }
                         }
                         MouseArea { anchors.fill: parent; anchors.margins: -ds.ty.u(4); enabled: ds.interactive && pc.seekUs >= 0
-                                    cursorShape: Qt.PointingHandCursor; onClicked: ds.seekTo(pc.seekUs) }
+                                    cursorShape: Qt.PointingHandCursor; onClicked: ds.seek(pc.seekUs) }
                     }
                 }
             }
@@ -173,7 +160,7 @@ Item {
             picture: ds.has ? (ds.sh.picture || null) : null
             interactive: ds.interactive && !ds.cast
             glance: ds.replay
-            onSeek: (us) => ds.seekTo(us)
+            onSeek: (us) => ds.seek(us)
         }
 
         // ── Analyse: ball flight | at impact and the shot shape ──

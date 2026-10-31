@@ -619,6 +619,32 @@ QtObject {
         return "+" + Math.round(-h) + " hcp"
     }
 
+    // A size in bytes, in SI units (1 GB = 10⁹ bytes): "14.6 GB", "245.3 MB", "512 KB", "300 B". `empty`
+    // is what nothing (0, unknown, negative) reads; "0 MB" unless the caller says otherwise.
+    function formatBytes(n, empty) {
+        if (!(n > 0)) return empty !== undefined ? empty : "0 MB"
+        // Thresholds sit just under each tier so a size that ROUNDS to 1000 of one unit reads as
+        // 1.0 of the next (999.97 MB → "1.0 GB", not "1000.0 MB").
+        if (n >= 999.95e9) return (n / 1e12).toFixed(1) + " TB"
+        if (n >= 999.95e6) return (n / 1e9).toFixed(1)  + " GB"
+        if (n >= 999.5e3)  return (n / 1e6).toFixed(1)  + " MB"
+        if (n >= 999.5)    return (n / 1e3).toFixed(0)  + " KB"
+        return Math.round(n) + " B"
+    }
+
+    // One of two words by a count: plural(n, qsTr("%1 swing"), qsTr("%1 swings")).
+    function plural(n, one, many) { return n === 1 ? one.arg(n) : many.arg(n) }
+
+    // A local path as the file URL that opens THAT file: "/a/b #2.pdf" → "file:///a/b%20%232.pdf",
+    // "C:/x" → "file:///C:/x" (the third slash, else "C:" is a host). encodeURI leaves # and ? alone, and
+    // either would cut the path short. A URL already (file:…) passes through.
+    function fileUrl(path) {
+        let s = String(path)
+        if (s.indexOf("file:") === 0) return s
+        if (/^[A-Za-z]:\\/.test(s)) s = s.replace(/\\/g, "/")
+        return "file://" + (s.charAt(0) === "/" ? "" : "/") + encodeURI(s).replace(/#/g, "%23").replace(/\?/g, "%3F")
+    }
+
     // Shot-quality presentation helpers (PpQualityPill, PpShotFilter).
     // Quartile → quality colour ramp (red → rust → amber → green).
     function qualityColor(score) {
@@ -743,7 +769,7 @@ QtObject {
     // than a card's edge. colorBorder is already translucent, so this scales its alpha rather than
     // replacing it.
     readonly property color colorHairline: _v("colorHairline",
-        Qt.rgba(colorBorder.r, colorBorder.g, colorBorder.b, colorBorder.a * 0.6))
+        Qt.alpha(colorBorder, colorBorder.a * 0.6))
     // The how-often meter (PpMeter): ten segments, each meterSegW × meterSegH, meterSegGap apart.
     readonly property int meterSegW:      _v("meterSegW", 7)
     readonly property int meterSegH:      _v("meterSegH", 6)

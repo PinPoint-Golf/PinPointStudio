@@ -19,12 +19,11 @@
 #include "chart_metrics.h"
 
 #include "../../Metrics/series_reduce.h"    // C8 — reduceAt / reduceExtremum / reduceRate
-#include "../Coaching/dashboard_reductions.h"   // barDomain
 #include "timeline_labels.h"                    // the one phase-tag vocabulary (hasPositionTag)
 #include "../../Analysis/swing_analysis.h"      // SigmaKind (sigmaInfo)
 #include "../../Kinematics/kinematic_sequence.h" // seqSegmentFromKey (the tile's tie-break)
 #include "../../Core/pp_tuned_constants.h"     // tuned::uncertainty::kGrossWarn
-#include "../charts/charts_words.h"             // decimalsFor — the one per-unit decimals rule
+#include "../../Core/figure_format.h"           // the app's one figure formatter, unit rule and tick rule
 
 #include <QHash>
 #include <QSet>
@@ -592,7 +591,7 @@ bool ChartMetrics::measuredAt(const QVariantList &tUs, const QVariantList &valid
 {
     // Nearest sample. Linear, because the ONE remaining caller asks this once per phase dot
     // (≤10 a series) at data-change time — every per-frame caller answers it in JS off an index
-    // instead (PpChartPlot._measured), since marshalling a whole series per frame is not free.
+    // instead (ChartSamples.measured in chart_samples.js), since marshalling a whole series per frame is not free.
     const int n = tUs.size();
     int    best = -1;
     qint64 bestD = std::numeric_limits<qint64>::max();
@@ -607,7 +606,7 @@ bool ChartMetrics::measuredAt(const QVariantList &tUs, const QVariantList &valid
     // frame to P7 sat 2.9 ms BEFORE the face-on impact instant, so the snapped end was 2.9 ms
     // before `us` and the reading AT impact — of the very sample the domain was snapped to
     // include — printed "—". The reading comes from that sample, so that sample is what the domain
-    // judges. The index form (PpMetricChart._measuredIdx) always worked this way. No sample at all
+    // judges. The index form (ChartSamples.measured in chart_samples.js) always worked this way. No sample at all
     // falls back to `us` itself: no amount of validity makes a reading outside the domain mean
     // something, so the test does not depend on there being samples.
     const qint64 at = best >= 0 ? tUs.at(best).toLongLong() : us;
@@ -625,21 +624,10 @@ bool ChartMetrics::measuredAt(const QVariantList &tUs, const QVariantList &valid
 
 QVariantList ChartMetrics::niceTicks(double lo, double hi, int maxTicks) const
 {
+    // The app's one tick rule (figure_format.h tickValues: 1-2-5, at most 64), so this chart's grid
+    // and the Charts panel's axes step alike.
     QVariantList out;
-    if (!(hi > lo) || maxTicks < 1) return out;
-
-    const double span = hi - lo;
-    const double raw  = span / maxTicks;
-    const double mag  = std::pow(10.0, std::floor(std::log10(raw)));
-    const double norm = raw / mag;
-    const double step = (norm < 1.5 ? 1.0 : norm < 3.0 ? 2.0 : norm < 7.0 ? 5.0 : 10.0) * mag;
-    if (!(step > 0.0)) return out;
-
-    // Guard against a pathological range producing a huge tick count.
-    for (double v = std::ceil(lo / step) * step; v <= hi + step * 1e-6; v += step) {
-        if (out.size() > 64) break;
-        out.append(double(qRound64(v * 1.0e4)) / 1.0e4);   // tidy float noise
-    }
+    for (double v : pinpoint::figures::tickValues(lo, hi, maxTicks)) out.append(v);
     return out;
 }
 
@@ -733,21 +721,6 @@ QStringList ChartMetrics::colorNames() const
     return pinpoint::analysis::metricColorNames();
 }
 
-// ── Corridor-bar backing — marshalling only; the maths is dashboard_reductions.h ─
-
-QVariantMap ChartMetrics::barDomain(double greenLo, double greenHi,
-                                    double amberLo, double amberHi,
-                                    bool lowOpen, bool highOpen,
-                                    double value, bool hasValue) const
-{
-    const pinpoint::analysis::BarDomain d =
-        pinpoint::analysis::barDomain(greenLo, greenHi, amberLo, amberHi,
-                                      lowOpen, highOpen, value, hasValue);
-    return QVariantMap{ { QStringLiteral("lo"),    d.lo },
-                        { QStringLiteral("hi"),    d.hi },
-                        { QStringLiteral("valid"), d.valid } };
-}
-
 // ── Units ───────────────────────────────────────────────────────────────────────
 
 QString ChartMetrics::shortUnit(const QString &unit) const
@@ -755,10 +728,8 @@ QString ChartMetrics::shortUnit(const QString &unit) const
     // Percent of a body dimension. The denominator is what the phrase carries, and on this panel
     // the METRIC'S OWN NAME already carries it — "Sway" is a percentage of stance width because
     // that is what pelvis sway is measured in, and a reader who wants the denominator spelled out
-    // has the Metric Library. Four units, one token.
-    if (unit.startsWith(QLatin1Char('%')))
-        return QStringLiteral("%");
-    return unit;
+    // has the Metric Library. Four units, one token (figure_format.h shortUnit).
+    return pinpoint::figures::shortUnit(unit);
 }
 
 double ChartMetrics::seriesSigma(const QVariantMap &series) const
@@ -821,28 +792,21 @@ QString ChartMetrics::formatBare(double v, const QString &unit) const
     const QString u = shortUnit(unit.isEmpty() ? QStringLiteral("°") : unit);
     // Whole units, ties away from zero — EXCEPT where a whole unit says nothing: a 2.6:1 tempo, a
     // 1.4 in low point, a 0.73 s backswing (design charts_panel_traces_relations.md §7). The decimals
-    // are the UNIT's, from the one rule the Charts panel's words use too (charts_words.h
-    // decimalsFor), never derived from σ (chart_metrics.h): the ± beside the reading says how far to
-    // trust it.
-    if (!std::isfinite(v)) return QStringLiteral("-");          // missing is "-", never a number
-    const int dec = pinpoint::charts::words::decimalsFor(u);
-    const double p = std::pow(10.0, dec);
-    double r = std::round(v * p) / p;       // std::round: ties away from zero, as llround was
-    if (std::fabs(r) < 0.5 / p) r = 0.0;    // never "-0" / "-0.0"
+    // are the UNIT's (figure_format.h decimalsFor), never derived from σ (chart_metrics.h): the ±
+    // beside the reading says how far to trust it. The figure itself is figure_format.h's: "-" when
+    // missing, the true minus, never "−0".
+    const int dec = pinpoint::figures::decimalsFor(u);
     // The leading "+" is a DEGREES-ONLY convention and is deliberately not generalised: these are
     // signed deviations from a reference posture, where the sign is the reading. A "+75 mph" or a
     // "+2 in" would be decoration on a quantity whose sign nobody is asking about.
-    return ((r > 0 && u == QStringLiteral("°")) ? QStringLiteral("+") : QString())
-           + QString::number(r, 'f', dec);
+    return u == QStringLiteral("°") ? pinpoint::figures::figSigned(v, dec) : pinpoint::figures::fig(v, dec);
 }
 
 QString ChartMetrics::formatValue(double v, const QString &unit) const
 {
-    const QString u = shortUnit(unit.isEmpty() ? QStringLiteral("°") : unit);
-    // Degrees close up against the number, everything else takes a space. "12°" is one token to a
-    // reader and "12mph" is a typo.
-    return formatBare(v, unit)
-           + (u == QStringLiteral("°") ? QString() : QStringLiteral(" ")) + u;
+    // The figure and its short unit by the one joining rule (figure_format.h withUnit): "+12°" and
+    // "12%" close up, "75 mph" takes a no-break space.
+    return pinpoint::figures::withUnit(formatBare(v, unit), shortUnit(unit.isEmpty() ? QStringLiteral("°") : unit));
 }
 
 QString ChartMetrics::formatUncertainty(double err, const QString &unit) const
@@ -860,13 +824,11 @@ QString ChartMetrics::formatUncertainty(double err, const QString &unit) const
     // perfect measurement. "± 0.0" and "± 0" both read as that evidence, so neither is ever printed.
     const QString num = (e < 0.05) ? QStringLiteral("<0.1") : QString::number(e, 'f', 1);
 
-    // The unit token, with formatValue's spacing so a ± does not change shape between the chip and
-    // the tiles. EMPTY = no token (the card names the unit above the tile) — the opposite of
-    // formatBare/formatValue's empty-means-degrees, which is why the header spells it out.
-    if (unit.isEmpty()) return QStringLiteral("± ") + num;
-    const QString u = shortUnit(unit);
-    return QStringLiteral("± ") + num
-           + (u == QStringLiteral("°") ? QString() : QStringLiteral(" ")) + u;
+    // The unit token, joined by formatValue's rule (figure_format.h withUnit) so a ± does not change
+    // shape between the chip and the tiles. EMPTY = no token (the card names the unit above the
+    // tile) — the opposite of formatBare/formatValue's empty-means-degrees, which is why the header
+    // spells it out.
+    return pinpoint::figures::withUnit(QStringLiteral("± ") + num, shortUnit(unit));
 }
 
 // ── Chart metric presets ────────────────────────────────────────────────────────

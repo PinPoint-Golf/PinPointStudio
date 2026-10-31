@@ -1,11 +1,11 @@
 # Review (replay/analyse)
 
 *Directory:* `src/Gui/review/`  
-*17 components · 7,096 lines of QML*
+*15 components · 6,706 lines of QML*
 
 The older replay/analyse stack: metric charts, data viewer, coverage and sequence strips, replay transport, and the Metric Catalogue (library/detail/route).
 
-**C++ in this area:** `ChartMetrics`, `MetricCatalog`, `SessionListModel`, `SessionReviewController`, `SwingCoverageModel`, `SwingDataSource`, `SwingSeriesModel`, `TimelineLabels`  (see [cpp-seam.md](../cpp-seam.md))
+**C++ in this area:** `ChartMetrics`, `DeviceFilterModel`, `MetricCatalog`, `SessionListModel`, `SessionReviewController`, `SwingCoverageModel`, `SwingDataSource`, `SwingSeriesModel`, `TimelineLabels`  (see [cpp-seam.md](../cpp-seam.md))
 
 | Component | Lines | Root | Used by | Uses | Notes |
 |---|---:|---|---:|---:|---|
@@ -15,17 +15,15 @@ The older replay/analyse stack: metric charts, data viewer, coverage and sequenc
 | [MetricRow](#metricrow) | 216 | `Item` | 1 | 1 |  |
 | [NormativeBar](#normativebar) | 201 | `Item` | 1 | 0 |  |
 | [PpChartPlot](#ppchartplot) | 1008 | `Item` | 1 | 0 |  |
-| [PpChartSummary](#ppchartsummary) | 704 | `ColumnLayout` | 1 | 3 |  |
+| [PpChartSummary](#ppchartsummary) | 714 | `ColumnLayout` | 1 | 3 |  |
 | [PpCoverageStrip](#ppcoveragestrip) | 226 | `Column` | 1 | 1 |  |
-| [PpDataViewer](#ppdataviewer) | 639 | `Item` | 2 | 13 | 1 local comp. |
-| [PpMetricChart](#ppmetricchart) | 1550 | `Item` | 2 | 11 | 2 local comp. |
+| [PpDataViewer](#ppdataviewer) | 639 | `Item` | 1 | 13 | 1 local comp. |
+| [PpMetricChart](#ppmetricchart) | 1522 | `Item` | 1 | 10 | 2 local comp. |
 | [PpPropertiesPanel](#pppropertiespanel) | 151 | `Item` | 1 | 3 |  |
-| [PpReplayCharts](#ppreplaycharts) | 74 | `Item` | 0 | 2 | ⚠ unreferenced |
-| [PpReplayTransport](#ppreplaytransport) | 88 | `Item` | 2 | 3 | 1 local comp. |
+| [PpReplayTransport](#ppreplaytransport) | 88 | `Item` | 1 | 3 | 1 local comp. |
 | [PpSegmentBrush](#ppsegmentbrush) | 365 | `Item` | 1 | 0 |  |
-| [PpSequenceStrip](#ppsequencestrip) | 298 | `ColumnLayout` | 1 | 3 | 2 local comp. |
 | [PpSpeedSelector](#ppspeedselector) | 84 | `Rectangle` | 1 | 0 |  |
-| [PpTransitTimeline](#pptransittimeline) | 537 | `Item` | 2 | 3 |  |
+| [PpTransitTimeline](#pptransittimeline) | 537 | `Item` | 1 | 3 |  |
 
 ### MetricDetail
 `src/Gui/review/MetricDetail.qml` · 568 lines · root `Item`
@@ -130,7 +128,7 @@ The older replay/analyse stack: metric charts, data viewer, coverage and sequenc
 - **Exercised by tests/tools:** `plumb_bob_chart`, `tst_chart_presets`
 
 ### PpChartSummary
-`src/Gui/review/PpChartSummary.qml` · 704 lines · root `ColumnLayout`
+`src/Gui/review/PpChartSummary.qml` · 714 lines · root `ColumnLayout`
 
 > PpChartSummary — the per-window summary cards row: one card per series, each fed by
 > ChartMetrics.summaryMasked(series.t_us, series.value, series.valid, winStart, winEnd), where
@@ -180,10 +178,10 @@ The older replay/analyse stack: metric charts, data viewer, coverage and sequenc
 - **Functions:** `persistRegion(name)`, `srcColor(key)`, `stateMark(st)`
 - **Local components:** `SectionHeader`
 - **Uses:** `PpCardNote`, `PpChip`, `PpCoverageStrip`, `PpMicro`, `PpPopoverCard`, `PpPressable`, `PpPropertiesPanel`, `PpSegmentedControl`, `PpToast`, `PpTrustInlineFor`, `PpTypeset`, `SessionMode`, `TrustFocus`
-- **Used by (2):** `ScreenSessionMode`, `ScreenWrist`
+- **Used by (1):** `ScreenWrist`
 
 ### PpMetricChart
-`src/Gui/review/PpMetricChart.qml` · 1550 lines · root `Item`
+`src/Gui/review/PpMetricChart.qml` · 1522 lines · root `Item`
 
 > PpMetricChart — reusable, prop-driven metric chart. Toggles between a single overlaid
 > plot (all series, shared Y) and small multiples (one PpChartPlot per series, each Y
@@ -203,11 +201,11 @@ The older replay/analyse stack: metric charts, data viewer, coverage and sequenc
 > here draws and quotes the 40 ms centred WINDOWED MEAN — the array ChartMetrics.windowedMean
 > …
 
-- **Properties:** `var seriesList`, `var phases`, `var kinematicSequence`, `var sequenceChecks`, `real startUs`, `real endUs`, `real impactUs`, `real playheadUs`, `bool showPlayhead`, `real viewStartUs`, `real viewEndUs`, `bool splitMode`, `var enabledKeys`, `bool showDots` … (+10 more)
+- **Properties:** `var seriesList`, `var phases`, `var kinematicSequence`, `real startUs`, `real endUs`, `real impactUs`, `real playheadUs`, `bool showPlayhead`, `real viewStartUs`, `real viewEndUs`, `bool splitMode`, `var enabledKeys`, `bool showDots`, `bool showCursor` … (+8 more)
 - **Signals:** `seekRequested(real tUs)`, `scrubBegan()`, `scrubEnded()`
 - **Local components:** `SectionHeader`, `DotKey`
-- **Uses:** `PpCardNote`, `PpChartPlot`, `PpChartSummary`, `PpComboBox`, `PpMicro`, `PpPopoverCard`, `PpPressable`, `PpSegmentBrush`, `PpSegmentedControl`, `PpSequenceStrip`, `SessionMode`
-- **Used by (2):** `PpCameraTiles`, `PpReplayCharts`
+- **Uses:** `PpCardNote`, `PpChartPlot`, `PpChartSummary`, `PpComboBox`, `PpMicro`, `PpPopoverCard`, `PpPressable`, `PpSegmentBrush`, `PpSegmentedControl`, `SessionMode`
+- **Used by (1):** `PpCameraTiles`
 - **Exercised by tests/tools:** `instant_cards`, `ks_overlay_chart`, `ks_rising_chart`, `plumb_bob_chart`
 
 ### PpPropertiesPanel
@@ -219,18 +217,6 @@ The older replay/analyse stack: metric charts, data viewer, coverage and sequenc
 - **Properties:** `var metadata`, `string swingDir`
 - **Uses:** `PpCardNote`, `PpMicro`, `PpPressable`
 - **Used by (1):** `PpDataViewer`
-
-### PpReplayCharts
-`src/Gui/review/PpReplayCharts.qml` · 74 lines · root `Item` · ⚠ **no app file instantiates this** · no direct `Theme.*` refs
-
-> Charts stage-panel: the focused replay's metric traces (PpMetricChart),
-> scrubbing with the replay playhead, with split/overlay + chart-local segment
-> selection + per-window summary. Bound to shotReplay. Hosted by PpModeStage as the
-> "charts" panel, whose card is its frame and title; until a swing is reviewed the card holds
-> one quiet line.
-
-- **Properties:** `int sessionType`
-- **Uses:** `PpCardNote`, `PpMetricChart`
 
 ### PpReplayTransport
 `src/Gui/review/PpReplayTransport.qml` · 88 lines · root `Item`
@@ -244,7 +230,7 @@ The older replay/analyse stack: metric charts, data viewer, coverage and sequenc
 
 - **Local components:** `TBtn`
 - **Uses:** `PpMicro`, `PpPressable`, `PpSpeedSelector`
-- **Used by (2):** `ScreenSessionMode`, `ScreenWrist`
+- **Used by (1):** `ScreenWrist`
 
 ### PpSegmentBrush
 `src/Gui/review/PpSegmentBrush.qml` · 365 lines · root `Item`
@@ -269,28 +255,6 @@ The older replay/analyse stack: metric charts, data viewer, coverage and sequenc
 - **Properties:** `var series`, `var phases`, `real axisStartUs`, `real axisEndUs`, `real winStartUs`, `real winEndUs`, `real impactUs`, `real minWidthUs`
 - **Signals:** `viewWindowChanged(real startUs, real endUs)`
 - **Functions:** `xs(t)`, `toT(px)`
-- **Used by (1):** `PpMetricChart`
-
-### PpSequenceStrip
-`src/Gui/review/PpSequenceStrip.qml` · 298 lines · root `ColumnLayout`
-
-> PpSequenceStrip — the kinematic sequence TILE under the chart (2026-10-02), deliberately plain:
-> four rows in the order the segments SHOULD peak, each with the place it ACTUALLY peaked, when,
-> how fast, and that speed as a % of the tour-pro peak, each with its ±σ. It mirrors the plot:
-> every peak marked on a curve has a row with numbers; an unplaced one is dimmed with a "?". The
-> ACTUAL column carries the judgement as a mark beside the number — a tick in turn, a target out
-> of turn, a dashed ring where the peak could not be pinned — so a wrong order is a shape and a
-> colour, and nothing else needs reading. A first cut carried σ, timing windows, two order
-> sentences and a cohort paragraph — Mark: "way too wordy and almost unreadable".
-> Shown only under the "Kinematic sequence" preset. Every string is ChartMetrics.sequenceTable's
-> (chart_metrics_test asserts them); this file binds and picks colours and marks.
-> A SECTION OF THE CHART PANEL, NOT A CARD: it sits inside the panel's card, so it opens on a
-> hairline and a Micro heading like the panel's other sections rather than drawing a box.
-
-- **Properties:** `var kinematicSequence`, `real impactUs`, `bool collapsed`, `var checks`
-- **Signals:** `toggled()`
-- **Local components:** `HeadText`, `CellText`
-- **Uses:** `PpBadge`, `PpMicro`, `PpPressable`
 - **Used by (1):** `PpMetricChart`
 
 ### PpSpeedSelector
@@ -325,4 +289,4 @@ The older replay/analyse stack: metric charts, data viewer, coverage and sequenc
 
 - **Properties:** `string orientation`, `bool snapToPhases`, `readonly real contentHeight`
 - **Uses:** `PpCardNote`, `PpChip`, `PpMicro`
-- **Used by (2):** `ScreenSessionMode`, `ScreenWrist`
+- **Used by (1):** `ScreenWrist`

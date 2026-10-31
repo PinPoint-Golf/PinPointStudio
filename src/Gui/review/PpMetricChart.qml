@@ -48,6 +48,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import PinPointStudio
+import "chart_samples.js" as ChartSamples
 
 Item {
     id: root
@@ -345,7 +346,7 @@ Item {
                 // makes them incapable of disagreeing about it.
                 //
                 // ⚠ AND IT IS REDUCED THROUGH THE COMPOSED MASK, NOT `valid` (F4). What the chart
-                // calls a measurement is `valid` AND inside the phase domain (PpChartPlot._measured);
+                // calls a measurement is `valid` AND inside the phase domain (ChartSamples.measured);
                 // what a reducer knows about is `valid` alone. On a swing analysed BEFORE the
                 // producers began marking out-of-domain samples invalid the two disagree, and the
                 // disagreement is not cosmetic: the out-of-domain samples — a hip line past impact,
@@ -506,14 +507,14 @@ Item {
     }
     // A window the clamp EMPTIED: the reader picked a span (IMP→P8, say) that lies wholly outside
     // this metric's domain. Every reduction over it would be four confident numbers taken at one
-    // instant, so the readouts print "—" instead. Guarded on a non-empty selection so a chart that
+    // instant, so the readouts print "-" instead. Guarded on a non-empty selection so a chart that
     // has not sized its window yet is not reported as out of domain.
     function _domWinEmpty(s, winStart, winEnd) {
         return winEnd > winStart && root._domWinEnd(s, winStart, winEnd) <= root._domWinStart(s, winStart)
     }
 
     // The split-mode gutter's "@end" readout — domain-clamped and mask-aware like the cards, with the
-    // same "—" when the clamp emptied the window. (The reading itself is now the drawn line at the
+    // same "-" when the clamp emptied the window. (The reading itself is now the drawn line at the
     // window's last sample; see _facetEndText below for why, and what that gave up.)
     //
     // BARE: PpChartPlot's split gutter prints unitLabel directly above this, so spelling it again
@@ -543,9 +544,9 @@ Item {
     // drag, per facet, and it used to run a complete four-reducer summary — the whole series across
     // the boundary and back — to read one number off the end of it. It is now one JS scan.
     function _facetEndText(s) {
-        if (root._domWinEmpty(s, root.viewStartUs, root.viewEndUs)) return "@end —"
+        if (root._domWinEmpty(s, root.viewStartUs, root.viewEndUs)) return "@end -"
         var t = s.t_us
-        if (!t || t.length === 0) return "@end —"
+        if (!t || t.length === 0) return "@end -"
         var end = root._domWinEnd(s, root.viewStartUs, root.viewEndUs)
         // The last sample at or before the window end — not the NEAREST, which could sit outside the
         // window the reader has selected and report a value from beyond their own bracket.
@@ -554,11 +555,11 @@ Item {
             if (t[j] > end) break
             i = j
         }
-        // "—" where that sample was bridged, out of domain or non-finite: the same rule the hover
+        // "-" where that sample was bridged, out of domain or non-finite: the same rule the hover
         // readout and the summary card apply. A number printed there would be the value the producer
         // DREW across a gap, offered as the facet's headline reading.
-        return root._measuredIdx(s, i) ? "@end " + cm.formatBare(root._meanOf(s)[i], s.unit)
-                                       : "@end —"
+        return ChartSamples.measured(s, i) ? "@end " + cm.formatBare(ChartSamples.meanOf(s)[i], s.unit)
+                                           : "@end -"
     }
 
     // Was this series MEASURED at `t`, or is the value there bridged / outside the domain? Same
@@ -572,40 +573,19 @@ Item {
     // hundred samples that is millions of QVariant conversions a second. The C++ form stays as the
     // reference implementation and serves the one binding that changes only with the data.
     //
-    // The short-mask rule is the C++ one (chart_metrics.h): a mask that does not cover the curve
-    // is discarded wholesale, not applied to the part it does cover.
-    function _nearestIndex(s, t) {
-        var tt = s.t_us
-        if (!tt || tt.length === 0) return -1
-        var best = -1, bd = Infinity
-        for (var i = 0; i < tt.length; ++i) {
-            var d = Math.abs(tt[i] - t)
-            if (d < bd) { bd = d; best = i }
-        }
-        return best
-    }
-    // THE INDEX FORM IS THE REAL ONE (F3). Everything that re-evaluates with the cursor or the
-    // playhead now resolves the nearest INDEX once per row and asks these; the instant forms below are
-    // wrappers, kept because the probe calls them and because a caller with only a time should not
-    // have to know how the chart finds a sample.
+    // The rule itself — the nearest sample, and whether it was measured — is written once in
+    // chart_samples.js (ChartSamples.nearestIndex / measured / measuredAt), shared with PpChartPlot,
+    // PpSegmentBrush and PpChartSummary: same short-mask rule as the C++ (chart_metrics.h), and
+    // isFinite folded in (F5) — a NaN is not a measurement and must not be printed as one.
     //
-    // isFinite is folded in (F5) — the same rule as PpChartPlot._measured and SeriesView::isValid: a
-    // NaN is not a measurement and must not be printed as one.
-    function _measuredIdx(s, i) {
-        if (i < 0) return false
-        if (s.validFromUs !== undefined && s.validToUs !== undefined && s.validToUs > s.validFromUs
-            && (s.t_us[i] < s.validFromUs || s.t_us[i] > s.validToUs))
-            return false
-        if (!isFinite(s.value[i])) return false
-        if (!s.valid || s.valid.length < (s.t_us ? s.t_us.length : 0)) return true
-        return s.valid[i] !== 0
-    }
+    // THE INDEX FORM IS THE REAL ONE (F3). Everything that re-evaluates with the cursor or the
+    // playhead resolves the nearest INDEX once per row and asks ChartSamples.measured; the instant
+    // forms here are wrappers, kept because the probe calls them and because a caller with only a
+    // time should not have to know how the chart finds a sample.
     function _measuredAt(s, t) {
-        var tt = s.t_us
-        if (!tt || tt.length === 0) return true      // no curve: the caller's own "is there one" test
-        return root._measuredIdx(s, root._nearestIndex(s, t))
+        return ChartSamples.measuredAt(s, t)  // no curve: true, the caller's own "is there one" test
     }
-    // …and the value there as TEXT, or "—" where there was no measurement. One helper for the
+    // …and the value there as TEXT, or "-" where there was no measurement. One helper for the
     // hover tooltip and the legend readout, both of which print a number with a unit beside it
     // and so both make the same claim. Printing the bridged number is the confident absurdity
     // this whole design exists to stop; a blank or a "0" would each read as a measurement
@@ -617,36 +597,24 @@ Item {
     // marshalling at all, and the four numbers are guaranteed to be about the SAME sample, which two
     // independent nearest-sample searches only happened to be.
     function _valueTextAtIdx(s, i) {
-        return root._measuredIdx(s, i) ? cm.formatValue(root._meanOf(s)[i], s.unit) : "—"
+        return ChartSamples.measured(s, i) ? cm.formatValue(ChartSamples.meanOf(s)[i], s.unit) : "-"
     }
     function _rawTextAtIdx(s, i) {
-        if (!root._measuredIdx(s, i) || !root._hasMean(s)) return ""
+        if (!ChartSamples.measured(s, i) || !ChartSamples.hasMean(s)) return ""
         return qsTr("raw %1").arg(cm.formatBare(s.value[i], s.unit))
     }
     function _valueTextAt(s, t) {
-        return root._valueTextAtIdx(s, root._nearestIndex(s, t))
+        return root._valueTextAtIdx(s, ChartSamples.nearestIndex(s, t))
     }
     // ── WHICH ARRAY IS THE CURVE (Phase 6) ────────────────────────────────────────
     //
-    // `mean` where _plottable decorated one, the persisted `value` otherwise. A "which array"
-    // choice, not arithmetic, so it stays in QML: putting it in C++ would marshal a whole series to
-    // answer a question about an array's length. The same rule lives in PpChartPlot and
-    // PpSegmentBrush, which are standalone components taking a `series` list from anywhere.
-    //
-    // ⚠ THE FALLBACK IS NOT A SILENT DOWNGRADE. It fires only for a caller that never called
-    // windowedMean, or a curve whose arrays disagree in length — which _plottable already refuses to
-    // plot. In both cases the honest line is the persisted one, which is exactly what every surface
-    // drew before this phase, and the raw dots are then suppressed rather than doubling the stroke.
-    function _hasMean(s) {
-        return !!(s && s.mean && s.t_us && s.mean.length === s.t_us.length)
-    }
-    function _meanOf(s) {
-        return root._hasMean(s) ? s.mean : s.value
-    }
+    // `mean` where _plottable decorated one, the persisted `value` otherwise — ChartSamples.meanOf
+    // (chart_samples.js), the one rule PpChartPlot, PpSegmentBrush and PpChartSummary read too.
+    // Where it falls back to `value` the raw dots are suppressed rather than doubling the stroke.
     // The RAW sample beside the reading, for the hover row — "raw 34" in the dim colour after the
     // mean. It is what makes drawing a reduction honest rather than quiet: the reader can see the
     // sample the line declined to follow, at the instant they are pointing at, without a mode, a
-    // toggle or a second chart. "" where nothing was measured there (the reading is already "—", and
+    // toggle or a second chart. "" where nothing was measured there (the reading is already "-", and
     // a raw number beside a dash would say the value exists and is being withheld) and where there
     // is no mean at all (the line IS the raw sample; printing it twice says nothing).
     //
@@ -656,7 +624,7 @@ Item {
     // enough that the two print the same, that is worth seeing: it says the reduction moved nothing a
     // reader could have read off the panel anyway.
     function _rawTextAt(s, t) {
-        return root._rawTextAtIdx(s, root._nearestIndex(s, t))
+        return root._rawTextAtIdx(s, ChartSamples.nearestIndex(s, t))
     }
 
     // What the LEGEND lists — the preset's metrics, not the swing's. Listing every plottable
@@ -794,21 +762,22 @@ Item {
     //
     // JS all the way, and cached by its caller (the legend chip's `addr`): the Δ readout re-evaluates
     // on every replay frame, so neither the lookup nor the value may cross the QML boundary here —
-    // _nearestIndex is the same rule labels.valueAtNearest applies, without the marshalling.
+    // ChartSamples.nearestIndex is the same rule labels.valueAtNearest applies, without the
+    // marshalling.
     function _addrValue(s) {
         var ps = s.phaseSamples || []
-        var m  = root._meanOf(s)
+        var m  = ChartSamples.meanOf(s)
         for (var i = 0; i < ps.length; ++i)
             if (ps[i].phase === 0) {                                          // Address
-                if (!root._hasMean(s)) return ps[i].value
+                if (!ChartSamples.hasMean(s)) return ps[i].value
                 // ⚠ AND ONLY IF THAT SAMPLE WAS MEASURED (F6a). The Address sample can be bridged, or
                 // out of the metric's domain, or non-finite — and the mean array carries the RAW value
                 // at such a sample, so reading it blind would silently make the Δ a difference against
                 // a number the producer drew rather than measured. The phaseSample is the better
                 // answer there: it is a reading the producer stands behind, and it is the value of the
                 // dot the reader can see on the plot.
-                var j = root._nearestIndex(s, ps[i].t_us)
-                return root._measuredIdx(s, j) ? m[j] : ps[i].value
+                var j = ChartSamples.nearestIndex(s, ps[i].t_us)
+                return ChartSamples.measured(s, j) ? m[j] : ps[i].value
             }
         return (m && m.length) ? m[0] : 0
     }
@@ -1293,7 +1262,7 @@ Item {
                         gutterLeft:    root._gutterLeft
                         padR:          root._padR
                         facetName:     facetSeries ? root._name(facetSeries) : ""
-                        // Domain-clamped, mask-aware, and "—" on an emptied window — see
+                        // Domain-clamped, mask-aware, and "-" on an emptied window — see
                         // root._facetEndText, which states why for all three.
                         facetEndText:  facetSeries ? root._facetEndText(facetSeries) : ""
 
@@ -1342,8 +1311,8 @@ Item {
                             // and the measured test they share read it, so the row cannot end up
                             // describing two different samples, and a cursor move costs one JS scan
                             // instead of four whole-series marshals.
-                            readonly property int idx: root._nearestIndex(trow.modelData,
-                                                                          root._cursorUs)
+                            readonly property int idx: ChartSamples.nearestIndex(trow.modelData,
+                                                                                  root._cursorUs)
                             spacing: Theme.gap(8)
                             Rectangle {
                                 width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(2)
@@ -1359,7 +1328,7 @@ Item {
                             }
                             Text {
                                 // THE MEAN at the nearest sample (Phase 6 — the value the line is
-                                // drawn at and the tiles reduce), or "—" where that sample was
+                                // drawn at and the tiles reduce), or "-" where that sample was
                                 // bridged or lies outside the metric's domain: see
                                 // root._valueTextAt.
                                 text: root._valueTextAtIdx(trow.modelData, trow.idx)
@@ -1410,9 +1379,9 @@ Item {
                     // The sample at the playhead, resolved ONCE for both readouts (F3): this chip
                     // re-evaluates on every replay frame, and labels.valueAtNearest marshals the whole
                     // series per call — twenty chips at 240 fps is not somewhere to spend that.
-                    readonly property int  idx: root._nearestIndex(chip.modelData, root._readoutUs)
+                    readonly property int  idx: ChartSamples.nearestIndex(chip.modelData, root._readoutUs)
                     readonly property real val: chip.idx >= 0
-                                                ? root._meanOf(chip.modelData)[chip.idx] : 0
+                                                ? ChartSamples.meanOf(chip.modelData)[chip.idx] : 0
                     // The Δ baseline, resolved ONCE per chip: it depends on the data alone, and the
                     // Δ readout below re-evaluates on every replay frame.
                     readonly property real addr: root._addrValue(chip.modelData)
@@ -1437,11 +1406,11 @@ Item {
                         // able to withdraw it. The Δ-from-address goes with it — a difference
                         // against an unmeasured reading is not a smaller claim, it is the same
                         // one arithmetically disguised.
-                        readonly property bool measured: root._measuredIdx(chip.modelData, chip.idx)
+                        readonly property bool measured: ChartSamples.measured(chip.modelData, chip.idx)
                         text: chipVal.measured
                               ? cm.formatValue(chip.val, chip.modelData.unit)
                                 + "  Δ" + cm.formatValue(chip.val - chip.addr, chip.modelData.unit)
-                              : "—"
+                              : "-"
                         anchors.verticalCenter: parent.verticalCenter
                         font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                         color: Theme.colorText3

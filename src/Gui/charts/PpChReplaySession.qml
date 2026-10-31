@@ -59,8 +59,8 @@ Column {
                 text: modelData.tag
                 font: modelData.current ? rs.roles.fSmallM : (rs.interactive ? rs.roles.fSmallL : rs.roles.fSmall)
                 color: modelData.current ? rs.roles.ink : rs.interactive ? rs.roles.link : rs.roles.ink3
-                MouseArea { anchors.fill: parent; enabled: rs.interactive && !parent.modelData.current && typeof shotReplay !== "undefined" && parent.modelData.seekUs >= 0
-                            cursorShape: Qt.PointingHandCursor; onClicked: shotReplay.seekToUs(parent.modelData.seekUs) }
+                MouseArea { anchors.fill: parent; enabled: rs.interactive && !parent.modelData.current && PpChSeek.available() && parent.modelData.seekUs >= 0
+                            cursorShape: Qt.PointingHandCursor; onClicked: PpChSeek.to(parent.modelData.seekUs) }
             }
         }
     }

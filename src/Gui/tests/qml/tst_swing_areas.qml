@@ -243,7 +243,7 @@ Item {
             compare(all(ee, "areaItemGrade")[0].text, ee.gradeWord)
             verify(Qt.colorEqual(all(ee, "areaItemGrade")[0].color, Theme.corridorTone("action")))
             compare(ee.countText, "17/22")
-            compare(ee.typicalText, "6.9 cm · 0.0–3.0")
+            compare(ee.typicalText, "6.9\u00a0cm · 0.0–3.0")   // a no-break space before a worded unit
             compare(hs.typicalText, "")             // no typical: nothing printed
             compare(lp.typicalText, "7.0° · ≤ 5.0") // a ceiling grades its high edge only
         }

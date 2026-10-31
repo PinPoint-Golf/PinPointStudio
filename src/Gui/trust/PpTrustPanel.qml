@@ -36,13 +36,12 @@ Item {
     property int sessionType: -1                 // the host's session type; < 0 = no session-screen host (always active)
     property bool framed: true
 
-    readonly property bool _screenActive: root.sessionType < 0 || navController.currentIndex === AppScreen.Session
+    readonly property bool _screenActive: root.sessionType < 0 || SessionMode.sessionScreenActive
     readonly property string sessionDir:
         (sessionReviewController.reviewActive && sessionReviewController.activeSessionId !== "")
             ? sessionReviewController.activeSessionId
             : shotProcessor.activeSessionDir !== "" ? shotProcessor.activeSessionDir : sessionReviewController.liveSessionDir
-    function _folder(p) { return String(p || "").replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "") }
-    function _pointAtSession() { if (_folder(sessionDir) !== _folder(seriesModel.sessionDir)) seriesModel.activateSession(sessionDir) }
+    function _pointAtSession() { if (!SessionMode.sameFolder(sessionDir, seriesModel.sessionDir)) seriesModel.activateSession(sessionDir) }
     onSessionDirChanged: _pointAtSession()
     Component.onCompleted: { _pointAtSession(); _syncPick() }
 
@@ -144,8 +143,8 @@ Item {
                     readonly property var prev: index > 0 ? root.shot.readings[index - 1] : null
                     width: col.width
                     spacing: ro.u(4)
-                    Text { visible: !!rd.modelData.area && (!rd.prev || rd.prev.area !== rd.modelData.area)
-                           text: rd.modelData.area; font: ro.fSection; color: ro.ink; topPadding: ro.u(4) }
+                    PpSectionHead { visible: !!rd.modelData.area && (!rd.prev || rd.prev.area !== rd.modelData.area)
+                                    width: parent.width; roles: ro; paged: false; lead: 4; pad: 0; title: rd.modelData.area || "" }
                     PpTrustReading {
                         width: parent.width
                         roles: ro
@@ -166,7 +165,7 @@ Item {
                 spacing: ro.u(4)
                 topPadding: ro.u(10)
                 Rectangle { width: parent.width; height: ro.hw; color: ro.rule }
-                Text { text: "Across the session"; font: ro.fSection; color: ro.ink; topPadding: ro.u(6) }
+                PpSectionHead { width: parent.width; roles: ro; paged: false; lead: 6; pad: 0; title: "Across the session" }
                 Repeater {
                     model: root.session.summary ? (root.session.summary.lines || []) : []
                     delegate: Text {

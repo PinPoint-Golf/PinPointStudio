@@ -158,25 +158,14 @@ Popup {
                     color: sheet.words > sheet.maxWords ? Theme.colorWarn : Theme.colorText3
                 }
             }
-            TextArea {
+            PpTextArea {
                 id: noteArea
                 objectName: "reportSheetNote"
                 width: parent.width
                 enabled: !sheet.working
                 placeholderText: qsTr("A line or two in your own words. It goes on the cover.")
-                placeholderTextColor: Theme.colorText3
-                wrapMode: TextArea.Wrap
-                color: Theme.colorText
-                font.family: Theme.fontBody
-                font.pixelSize: Theme.fontSzBody
-                padding: Theme.gap(10)
+                topPadding: Theme.gap(10); bottomPadding: Theme.gap(10)
                 implicitHeight: Math.max(Theme.sp(84), contentHeight + Theme.sp(20))
-                background: Rectangle {
-                    color: Theme.colorSurface
-                    radius: Theme.radius
-                    border.width: 1
-                    border.color: noteArea.activeFocus ? Theme.colorAccent : Theme.colorBorderMid
-                }
             }
         }
 

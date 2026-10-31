@@ -20,6 +20,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import PinPointStudio
+import "update_states.js" as UpdateStates
 
 // About PinPoint Studio — modal dialog showing the icon, "PinPoint Studio for
 // <OS>", the version + build stats, and the bundled library versions. It surfaces
@@ -43,23 +44,10 @@ Popup {
     padding: Theme.gap(24)
     width: Math.min(Theme.sp(480), (parent ? parent.width : Theme.sp(480)) - Theme.sp(48))
 
-    // Live updater state + status-badge palette — mirrors GeneralPanel.qml's version row.
+    // Live updater state + its badge, in the words update_states.js gives every updater surface
+    // ("long": room for "Checking for updates…").
     readonly property string uState: updateController.state
-    readonly property var pal: {
-        switch (uState) {
-        case "checking":    return { text: qsTr("Checking for updates…"), fg: Theme.colorText2, bg: "transparent" }
-        case "available":   return { text: qsTr("Update available"),      fg: Theme.colorAccent, bg: Theme.colorAccentLight }
-        case "downloading": return { text: "",                             fg: Theme.colorAccent, bg: Theme.colorAccentLight }
-        case "verifying":   return { text: qsTr("Verifying…"),            fg: Theme.colorAccent, bg: Theme.colorAccentLight }
-        case "ready":       return { text: qsTr("Restart to update"),     fg: Theme.colorGood,  bg: Theme.colorGoodLight }
-        case "error":       return { text: qsTr("Update check failed"),   fg: Theme.colorWarn,  bg: Theme.colorWarnLight }
-        case "devbuild":    return { text: qsTr("Development build"),      fg: Theme.colorText3, bg: "transparent" }
-        // Never checked and never can — don't borrow GeneralPanel's "Up to date" here,
-        // which would claim a result the updater is in no position to have.
-        case "unsupported": return { text: qsTr("Updates not available"),  fg: Theme.colorText3, bg: "transparent" }
-        default:            return { text: qsTr("✓  Up to date"),         fg: Theme.colorGood,  bg: Theme.colorGoodLight }
-        }
-    }
+    readonly property var pal: UpdateStates.badge(uState, "long", updateController.progress, Theme)
 
     background: Rectangle {
         color: Theme.colorSurface
@@ -156,9 +144,7 @@ Popup {
                     Text {
                         id: badgeText
                         anchors.centerIn: parent
-                        text: root.uState === "downloading"
-                              ? qsTr("Downloading %1%").arg(Math.round(updateController.progress * 100))
-                              : root.pal.text
+                        text:           root.pal.text
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          root.pal.fg
@@ -172,18 +158,11 @@ Popup {
                 // on a devbuild / unsupported platform, where there is no engine to drive
                 // — so the row reads as "nothing to press yet" rather than as a gap.
                 PpButton {
-                    readonly property string mode:
-                        root.uState === "available" ? "download"
-                        : root.uState === "ready"   ? "restart"
-                        : (root.uState === "checking" || root.uState === "downloading"
-                           || root.uState === "verifying") ? ""
-                        : "check"
+                    readonly property string mode: UpdateStates.actionMode(root.uState)
                     visible: mode !== ""
                     enabled: updateController.supported
                     primary: mode === "download" || mode === "restart"
-                    label:   mode === "download" ? qsTr("Download & install")
-                           : mode === "restart"  ? qsTr("Restart now")
-                           : qsTr("Check for updates")
+                    label:   UpdateStates.actionLabel(mode, "long")
                     onClicked: {
                         if (mode === "download")     updateController.download()
                         else if (mode === "restart") updateController.relaunch()

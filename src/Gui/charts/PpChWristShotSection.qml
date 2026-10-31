@@ -40,34 +40,25 @@ import PinPointStudio
 // ★ writes appSettings.wristReferenceSwingDir (cross-session; the traces' Against "reference ★" reads it too).
 // objectNames: chWristSection, chWristHead, chWristScore, chWristControls, chWristFold, chWristRefLink,
 // chWristTrust (+ chWristTrustToggle, chWristTrustLine), chWristMoves (+ the blocks' own).
-Item {
+// The shell (the fold head, its folded height, seek) is PpChSection's; the controls PpChSectionControls.
+PpChSection {
     id: ws
     objectName: "chWristSection"
-    property QtObject roles: null
-    property var brush: null
-    property var body: null
-    property string reg: "Analyse"
-    property bool interactive: true
-    property bool cast: false
-    readonly property bool replay: reg === "Replay"
-    readonly property var ty: roles
+    // folds like every section after the Charts' Summary (Mark, 17 Oct 2026), saved with the others
+    key: "wrist"; title: "Wrist"
+    foldState: score && score.scoreText ? "score " + score.scoreText : ""
+    has: !!roles && !!sh && sh.available === true
+    mainHeight: rail ? Math.max(mainCol.height, railCol.height) : mainCol.height
     readonly property var wc: body ? body.wChoices : ({})
     readonly property var sh: body ? body.wShot : ({})
-    readonly property bool has: !!roles && !!sh && sh.available === true
     readonly property var score: has ? (sh.score || ({})) : ({})
     readonly property var prof: has ? (sh.profile || ({})) : ({})
     readonly property bool rail: has && !replay && ty.atLeast(width, "wide")
     readonly property real railW: has ? Math.min(ty.u(600), width * 0.3) : 0
     readonly property real mainW: rail ? width - railW - ty.u(48) : width
     readonly property bool wide: has && ty.atLeast(mainW, "medium")
-    property bool controlsOpen: false
     property string openId: ""
     readonly property string fid: openId !== "" ? openId : ((sh.findings || []).length ? sh.findings[0].id : "")
-    height: has ? secHead.height + (folded ? 0 : ty.u(14) + (rail ? Math.max(mainCol.height, railCol.height) : mainCol.height)) : 0
-    // folds like every section after the Charts' Summary (Mark, 17 Oct 2026), saved with the others
-    readonly property bool folded: !!body && !!body.collapsed && body.collapsed.wrist === true
-
-    function seekTo(us) { if (us >= 0 && typeof shotReplay !== "undefined" && shotReplay) shotReplay.seekToUs(us) }
     // WHY, ON DEMAND (trust stage 6 session 2): a gate's words where a value is missing open its reading in the
     // Trust panel, else in place under the profile (PpTrustInlineFor)
     property string trustSubject: ""
@@ -96,11 +87,8 @@ Item {
         appSettings.wristReferenceSwingDir = ref.isThisShot ? "" : (sh.swingDir || "")
     }
     readonly property var sets: [
-        { key: "archetype", label: "Bands", current: String(wc.archetype !== undefined ? wc.archetype : -1),
-          options: (wc.archetypes || []).map(function (a) {
-              return { key: String(a.id), label: a.id === -1 && a.current && wc.archetypeAfter ? a.label + " " + wc.archetypeAfter : a.label } }) },
-        { key: "against", label: "Against", current: wc.against || "address",
-          options: (wc.againstOptions || []).map(function (a) { return { key: a.id, label: a.label, enabled: a.enabled } }) },
+        ws.autoChoice("archetype", "Bands", wc.archetype, wc.archetypes, wc.archetypeAfter),
+        ws.againstChoice(wc.against, wc.againstOptions),
         { key: "curves", label: "Curves behind", current: wc.curvesBehind ? "on" : "off",
           options: (wc.curves || []).map(function (c) { return { key: c.id, label: c.label } }) }
     ]
@@ -111,15 +99,9 @@ Item {
         else if (set === "curves") body.choose("wristCurves", opt === "on")
     }
 
-    // the section head across the whole page width, the main column and the rail under it
-    PpChFoldHead { id: secHead; visible: ws.has; width: ws.width; roles: ws.ty; key: "wrist"; title: "Wrist"
-                   interactive: ws.interactive; collapsed: ws.folded
-                   state_: ws.folded && ws.score && ws.score.scoreText ? "score " + ws.score.scoreText : ""
-                   onToggled: if (ws.body) ws.body.toggleSection("wrist") }
+    // the section head across the whole page width (PpChSection's), the main column and the rail under it
     Column {
         id: mainCol
-        visible: ws.has && !ws.folded
-        y: secHead.height + (ws.has ? ws.ty.u(14) : 0)
         width: ws.mainW
         spacing: ws.has ? ws.ty.u(14) : 0
         // ── the head, the standfirst at the playhead's checkpoint, the score beside at medium+ ──
@@ -172,46 +154,32 @@ Item {
         }
 
         // ── the quiet controls (Analyse); below medium folded to the one-line summary (rule 5) ──
-        Column {
+        PpChSectionControls {
+            id: wctl
             objectName: "chWristControls"
-            visible: !ws.replay && !ws.cast
             width: ws.mainW
-            spacing: ws.ty.u(4)
-            PpChFoldHead {
-                objectName: "chWristFold"
-                visible: !ws.wide
-                width: parent.width; roles: ws.ty; key: "wristControls"; title: "Controls"; interactive: ws.interactive
-                collapsed: !ws.controlsOpen
-                state_: ws.wc.summary || ""
-                onToggled: ws.controlsOpen = !ws.controlsOpen
-            }
-            PpChChoices {
-                visible: ws.wide || ws.controlsOpen
-                width: parent.width; roles: ws.ty; interactive: ws.interactive
-                sets: ws.sets
-                onPicked: (set, opt) => ws.picked(set, opt)
-            }
+            section: ws; foldName: "chWristFold"; key: "wristControls"
+            summary: ws.wc.summary || ""; wide: ws.wide
+            sets: ws.sets
+            onPicked: (set, opt) => ws.picked(set, opt)
             Text {
                 objectName: "chWristRefLink"
                 readonly property var ref: ws.wc.reference || ({})
-                visible: (ws.wide || ws.controlsOpen) && ref.canSet === true
+                visible: wctl.shown && ref.canSet === true
                 text: ref.linkText || ""
                 font: ref.isThisShot ? ws.ty.fSmallM : (ws.interactive ? ws.ty.fSmallL : ws.ty.fSmall)
                 color: ref.isThisShot ? ws.ty.ink : (ws.interactive ? ws.ty.link : ws.ty.ink3)
                 MouseArea { anchors.fill: parent; enabled: ws.interactive; cursorShape: Qt.PointingHandCursor; onClicked: ws.setReference() }
             }
-            PpChText { visible: (ws.wide || ws.controlsOpen) && present; roles: ws.ty; sentence: ws.has && ws.sh.style ? ws.sh.style.line : null; measure: false }
+            PpChText { visible: wctl.shown && present; roles: ws.ty; sentence: ws.has && ws.sh.style ? ws.sh.style.line : null; measure: false }
         }
 
         // ── the checkpoint profile ──
         Column {
             width: ws.mainW
             spacing: ws.ty.u(8)
-            Flow {
-                width: parent.width; spacing: ws.ty.u(10)
-                Text { text: "Checkpoints"; font: ws.ty.fSection; color: ws.ty.ink }
-                Text { visible: text !== ""; text: ws.prof.sub || ""; font: ws.ty.fSmall; color: ws.ty.ink3 }
-            }
+            PpSectionHead { width: parent.width; roles: ws.ty; paged: false; pad: 0
+                            title: "Checkpoints"; sub: ws.prof.sub || ""; subFit: "top"; subWrap: false }
             Text { visible: !!ws.prof.ghostRefusal; width: parent.width; wrapMode: Text.WordWrap
                    text: ws.prof.ghostRefusal || ""; font: ws.ty.fSmall; color: ws.ty.ink3 }
             PpChWristProfile {
@@ -222,7 +190,7 @@ Item {
                 positions: ws.prof.positions || []
                 selected: ws.body ? ws.body.wSelected : -1
                 mode: "shot"
-                onColumnActivated: (i) => { const p = (ws.prof.positions || [])[i]; if (p) ws.seekTo(p.seekUs) }
+                onColumnActivated: (i) => { const p = (ws.prof.positions || [])[i]; if (p) ws.seek(p.seekUs) }
                 onTrustClicked: (subject) => ws.openTrust(subject)
             }
             Text { visible: !ws.replay; width: ws.ty.measureW(parent.width); wrapMode: Text.WordWrap
@@ -243,9 +211,8 @@ Item {
     }
     Column {
         id: railCol
-        visible: ws.rail && !ws.folded
+        visible: ws.rail
         x: ws.mainW + (ws.has ? ws.ty.u(48) : 0)
-        y: mainCol.y
         width: ws.railW
         spacing: ws.has ? ws.ty.u(26) : 0
         Loader { active: ws.rail; width: ws.railW; sourceComponent: ledgersC }
@@ -262,12 +229,12 @@ Item {
         PpChWristLedger { id: fl; width: ledgers.colW; roles: ws.ty; title: "Findings"; items: ws.sh.findings || []
                           openId: ws.fid; interactive: ws.interactive
                           emptyText: ws.sh.findingsEmpty || ""
-                          onSeek: (us) => ws.seekTo(us); onToggled: (id) => ws.openId = (ws.fid === id ? "-" : id) }
+                          onSeek: (us) => ws.seek(us); onToggled: (id) => ws.openId = (ws.fid === id ? "-" : id) }
         PpChWristLedger { id: sl; x: ledgers.two ? ledgers.colW + ws.ty.u(28) : 0; y: ledgers.two ? 0 : fl.height + ws.ty.u(18)
                           width: ledgers.colW; roles: ws.ty; title: "Working well"; strengths: true; items: ws.sh.strengths || []
                           openId: ws.openId; interactive: ws.interactive
                           emptyText: ws.sh.strengthsEmpty || ""
-                          onSeek: (us) => ws.seekTo(us); onToggled: (id) => ws.openId = (ws.openId === id ? "-" : id) }
+                          onSeek: (us) => ws.seek(us); onToggled: (id) => ws.openId = (ws.openId === id ? "-" : id) }
     }
     }
 

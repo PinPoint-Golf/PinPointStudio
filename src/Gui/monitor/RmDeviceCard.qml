@@ -120,9 +120,9 @@ Rectangle {
                     border.color: {
                         var s = root.deviceData.status
                         if (s === "streaming" || s === "connected")
-                            return Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.3)
+                            return Qt.alpha(Theme.colorGood, 0.3)
                         if (s === "stalled" || root.deviceData.hasWarning)
-                            return Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.3)
+                            return Qt.alpha(Theme.colorWarn, 0.3)
                         return Theme.colorBorderMid
                     }
                 }

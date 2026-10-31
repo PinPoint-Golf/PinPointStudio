@@ -407,6 +407,12 @@ QString ReportMailer::fromAddressFor(const QString &replyTo) const
     return m_s.username.contains(QLatin1Char('@')) ? m_s.username : replyTo.trimmed();
 }
 
+QString ReportMailer::senderName(const QString &coachName, const QString &studioName) const
+{
+    const QString coach = coachName.trimmed();
+    return coach.isEmpty() ? studioName.trimmed() : coach;
+}
+
 void ReportMailer::setSending(bool on)
 {
     if (m_sending == on) return;

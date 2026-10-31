@@ -200,7 +200,7 @@ Item {
               rankText: "#1", reachesBall: true, rootHere: true,
               recurrence: "4 of 5 measurable shots", fired: 4, assessable: 5,
               fresh: true, resolving: false, focused: false, thisShot: "fired", statePill: "FIRED",
-              valueText: "15 % hand rise", corridorText: "pass up to 8.7 · fault at 13 % hand rise",
+              valueText: "15% hand rise", corridorText: "pass up to 8.7 · fault at 13% hand rise",
               strengthKnown: true, strength: 4, strengthExcess: 2.2,
               strengthText: "4 of 5 · well outside the corridor · 2.2× the distance to the corridor edge",
               directionClaimed: true,
@@ -303,7 +303,7 @@ Item {
                  firedCount: 2, cleanCount: 1, notAssessableCount: 1, measurableSetCount: 3,
                  headline: "2 of 3 conditions fired on this swing · 1 of them pattern", note: "",
                  conditions: [
-                     cond("casting", "Casting", "fired", "15 % hand rise", "pass up to 8.7 · fault at 13 % hand rise", "pattern", 2.2,
+                     cond("casting", "Casting", "fired", "15% hand rise", "pass up to 8.7 · fault at 13% hand rise", "pattern", 2.2,
                           ticksOf(["fired", "notAssessable", "fired", "clean", "fired"], 4)),
                      cond("sway", "Lateral sway", "fired", "84 mm", "pass 20 to 55 mm", "watching", 2.05,
                           ticksOf(["clean", "clean", "clean", "clean", "fired"], 4)),
@@ -388,7 +388,7 @@ Item {
             measure: "wrist release rate", kind: "live", mark: "", kindText: "", rankText: "#1",
             recurrence: "4 of 6 measurable shots", fired: 4, assessable: 6,
             fresh: false, resolving: false, focused: false,
-            thisShot: "fired", statePill: "FIRED", valueText: "15 % hand rise",
+            thisShot: "fired", statePill: "FIRED", valueText: "15% hand rise",
             directionClaimed: true, directionText: "The high side on 4 of its 4 firings.",
             trend: "worsening", trendKnown: true, trendArrow: "↑", trendText: "worsening",
             recencyText: "fired on the last measurable shot", firingsAfterText: "",
@@ -579,47 +579,53 @@ Item {
         const run = []
         const states = ["fired", "notAssessable", "clean", "fired", "fired"]
         const fy = [0.45, 0, 0.2, 0.5, 1.0]
-        for (let i = 0; i < 5; ++i)
-            run.push({ index: i, shotId: i + 1, swingDir: "/lib/a/s/swing_000" + (i + 1),
-                       state: states[i], assessable: i !== 1, fx: (i + 0.5) / 5, fy: fy[i],
-                       clipped: i === 4 ? 1 : 0, current: i === 3, selected: i === 3,
-                       valueText: i === 1 ? "-" : "13 % hand rise",
-                       readout: i === 1 ? "shot 2 · - · not measured"
-                                        : "shot " + (i + 1) + " · 13 % hand rise · inside the pass band · " + states[i] })
+        // z: the common scale (SessionDiagnosticsModel::ladderZ) at −2 + 32 fy, rungs 0 → 0, 4.33 → 1, 8.67 → 2,
+        // 13 → 3, a ceiling folded high; none for the shot not measured
+        const z = [2.861, undefined, 1.016, 3.231, 6.926]
+        for (let i = 0; i < 5; ++i) {
+            const q = { index: i, shotId: i + 1, swingDir: "/lib/a/s/swing_000" + (i + 1),
+                        state: states[i], assessable: i !== 1, fx: (i + 0.5) / 5, fy: fy[i],
+                        clipped: i === 4 ? 1 : 0, current: i === 3, selected: i === 3,
+                        valueText: i === 1 ? "-" : "13% hand rise",
+                        readout: i === 1 ? "shot 2 · - · not measured"
+                                         : "shot " + (i + 1) + " · 13% hand rise · inside the pass band · " + states[i] }
+            if (z[i] !== undefined) q.z = z[i]
+            run.push(q)
+        }
         return {
             measure: "Hand path loop, through the transition", unit: "% hand rise",
             axisLo: -2, axisHi: 30, decimals: 0, corridorKnown: true, shape: "ceiling",
             bands: [
-                { grade: "open",   lo: -2,    hi: 0,     f0: 0,      f1: 0.0625 },
-                { grade: "ideal",  lo: 0,     hi: 4.33,  f0: 0.0625, f1: 0.198 },
-                { grade: "good",   lo: 4.33,  hi: 8.67,  f0: 0.198,  f1: 0.333 },
-                { grade: "watch",  lo: 8.67,  hi: 13,    f0: 0.333,  f1: 0.469 },
-                { grade: "action", lo: 13,    hi: 30,    f0: 0.469,  f1: 1 }
+                { grade: "open",   lo: -2,    hi: 0,     f0: 0,      f1: 0.0625, edge: "" },
+                { grade: "ideal",  lo: 0,     hi: 4.33,  f0: 0.0625, f1: 0.198,  edge: "aim" },
+                { grade: "good",   lo: 4.33,  hi: 8.67,  f0: 0.198,  f1: 0.333,  edge: "grid" },
+                { grade: "watch",  lo: 8.67,  hi: 13,    f0: 0.333,  f1: 0.469,  edge: "pass" },
+                { grade: "action", lo: 13,    hi: 30,    f0: 0.469,  f1: 1,      edge: "fault" }
             ],
-            faultLines: [{ value: 13, f: 0.469, text: "fault at 13 % hand rise", shortText: "13 % hand rise" }],
-            muF: 0.0625, muText: "0 % hand rise",
+            faultLines: [{ value: 13, f: 0.469, text: "fault at 13% hand rise", shortText: "13% hand rise" }],
+            muF: 0.0625, muText: "0% hand rise",
             normSource: "heuristic", normTag: "norm · coaching judgement",
             normTagLong: "The corridor is the norm's claim, and the norm is coaching judgement (heuristic), not measured data. It is not fitted to your shots.",
             normCitation: "",
             dots: [
-                { index: 0, shotId: 1, swingDir: "/lib/a/s/swing_0001", f: 0.45, clipped: 0, stack: 0, state: "fired", current: false, recent: true, valueText: "14 % hand rise" },
-                { index: 2, shotId: 3, swingDir: "/lib/a/s/swing_0003", f: 0.2,  clipped: 0, stack: 0, state: "clean", current: false, recent: true, valueText: "4 % hand rise" },
-                { index: 3, shotId: 4, swingDir: "/lib/a/s/swing_0004", f: 0.5,  clipped: 0, stack: 0, state: "fired", current: true,  recent: true, valueText: "15 % hand rise" },
-                { index: 4, shotId: 5, swingDir: "/lib/a/s/swing_0005", f: 1.0,  clipped: 1, stack: 0, state: "fired", current: false, recent: true, valueText: "200 % hand rise" }
+                { index: 0, shotId: 1, swingDir: "/lib/a/s/swing_0001", f: 0.45, clipped: 0, stack: 0, state: "fired", current: false, recent: true, valueText: "14% hand rise" },
+                { index: 2, shotId: 3, swingDir: "/lib/a/s/swing_0003", f: 0.2,  clipped: 0, stack: 0, state: "clean", current: false, recent: true, valueText: "4% hand rise" },
+                { index: 3, shotId: 4, swingDir: "/lib/a/s/swing_0004", f: 0.5,  clipped: 0, stack: 0, state: "fired", current: true,  recent: true, valueText: "15% hand rise" },
+                { index: 4, shotId: 5, swingDir: "/lib/a/s/swing_0005", f: 1.0,  clipped: 1, stack: 0, state: "fired", current: false, recent: true, valueText: "200% hand rise" }
             ],
-            stackMax: 0, clipHiCount: 1, clipHiText: "200 % hand rise", clipLoCount: 0, clipLoText: "",
+            stackMax: 0, clipHiCount: 1, clipHiText: "200% hand rise", clipLoCount: 0, clipLoText: "",
             // the model's box (SessionDiagnosticsModel boxOf, from typeset/box_stats.h): f 0.2 0.45 0.5 1.0 →
             // Q1 0.3875, median 0.475, Q3 0.625; no upper whisker (0.5 sits inside the box, 1.0 is past the fence)
             box: { n: 4, fLo: 0.2, fQ1: 0.3875, fMed: 0.475, fQ3: 0.625, fHi: 0.625, outliers: [5], outlierCount: 1,
                    texts: { lo: "4", q1: "10", med: "13", q3: "18", hi: "18" } },
             run: run,
-            median: [{ index: 2, fx: 0.5, fy: 0.42, value: 13 }, { index: 3, fx: 0.7, fy: 0.45, value: 14 },
-                     { index: 4, fx: 0.9, fy: 0.47, value: 14 }],
+            median: [{ index: 2, fx: 0.5, fy: 0.42, value: 13, z: 2.64 }, { index: 3, fx: 0.7, fy: 0.45, value: 14, z: 2.861 },
+                     { index: 4, fx: 0.9, fy: 0.47, value: 14, z: 3.009 }],
             medianWindow: 5, notAssessable: 1, pastFault: 3, placed: 4,
-            medianText: "14 % hand rise",
-            caption: "median 14 % hand rise · 3 past the fault line · 3 of 4 outside · 1 not measured · 1 off scale, at 200 % hand rise",
-            captionShort: "median 14 % hand rise · 3 past the fault line · 1 not measured · 1 off scale, at 200 % hand rise",
-            currentReadout: "shot 4 · 13 % hand rise · inside the pass band · fired",
+            medianText: "14% hand rise",
+            caption: "median 14% hand rise · 3 past the fault line · 3 of 4 outside · 1 not measured · 1 off scale, at 200% hand rise",
+            captionShort: "median 14% hand rise · 3 past the fault line · 1 not measured · 1 off scale, at 200% hand rise",
+            currentReadout: "shot 4 · 13% hand rise · inside the pass band · fired",
             yTicks: [{ value: 0, f: 0.0625, text: "0" }, { value: 10, f: 0.375, text: "10" },
                      { value: 20, f: 0.6875, text: "20" }],
             medianNumber: "14", currentNumber: "15", currentState: "fired",
@@ -645,7 +651,7 @@ Item {
                            col("5 Oct", false, [0.6, 0.66, 0.7], 0.66),
                            col("7 Oct", true,  [0.4, 0.45, 0.5], 0.45)],
                  yTicks: sp.yTicks, unit: "% hand rise", measure: sp.measure,
-                 caption: "median 22 → 19 → 13 % hand rise", loading: false, missing: 0,
+                 caption: "median 22 → 19 → 13% hand rise", loading: false, missing: 0,
                  hiddenEarlier: 0, hiddenLater: 0 }
     }
     // The forming source with card 0 carrying a spread (session median 14, this shot 15).
@@ -708,8 +714,8 @@ Item {
                  notAssessableCount: states[idx] === "notAssessable" ? 1 : 0, measurableSetCount: 1,
                  headline: "", note: "",
                  conditions: [cond("casting", "Casting", states[idx],
-                                   states[idx] === "notAssessable" ? "not measurable" : "13 % hand rise",
-                                   "pass up to 8.7 · fault at 13 % hand rise", "pattern",
+                                   states[idx] === "notAssessable" ? "not measurable" : "13% hand rise",
+                                   "pass up to 8.7 · fault at 13% hand rise", "pattern",
                                    states[idx] === "fired" ? 2.4 : 0.8)] }
     }
 
@@ -2177,7 +2183,7 @@ Item {
             setReview(spreadDetailSource(), spreadReadout(3))
             const fr = oneShown(viewOf("detail"), "sdFigureRow")
             compare(plain(oneShown(fr, "sdBoxCaption").text), "median 14", "the box's caption")
-            compare(oneShown(fr, "sdDetailHoverReadout").text, "shot 4 · 13 % hand rise · inside the pass band · fired",
+            compare(oneShown(fr, "sdDetailHoverReadout").text, "shot 4 · 13% hand rise · inside the pass band · fired",
                     "the run's line reads the picked shot")
             const hist = oneShown(fr, "sdHistoryStrip")
             const cols = findAll(hist, "sdHistoryColumn")
@@ -2445,7 +2451,7 @@ Item {
             const echo = boxMark(3)
             verify(!!echo && echo.hovered && echo.role === "hovered", "and on the box, together")
             fuzzyCompare(echo.cy, Math.round(strip.scale.y(0.2) * 2) / 2, 0.01, "at its value")
-            compare(line.text, "shot 3 · 13 % hand rise · inside the pass band · clean", "and the line reads it")
+            compare(line.text, "shot 3 · 13% hand rise · inside the pass band · clean", "and the line reads it")
 
             // the box's own mark (shot 5, past the whisker) hovers its shot in the run
             const out5 = boxMark(5)
@@ -2463,7 +2469,7 @@ Item {
             compare(line.text, "shot 2 · - · not measured", "an unmeasured shot reads '-'")
             strip.brush.hoverShot(2, false)
             laidOut()
-            compare(line.text, "shot 4 · 13 % hand rise · inside the pass band · fired", "leaving restores the picked shot")
+            compare(line.text, "shot 4 · 13% hand rise · inside the pass band · fired", "leaving restores the picked shot")
             compare(probe.shotCalls, 0, "hovering selects nothing")
         }
 
@@ -2475,10 +2481,10 @@ Item {
             if (extraShot) {
                 sp.run.push({ index: 5, shotId: 6, swingDir: "/lib/a/s/swing_0006", state: "clean",
                               assessable: true, fx: 0.95, fy: 0.15, clipped: 0, current: false, selected: false,
-                              valueText: "3 % hand rise", readout: "shot 6 · 3 % hand rise · inside the pass band · clean" })
+                              valueText: "3% hand rise", readout: "shot 6 · 3% hand rise · inside the pass band · clean" })
                 for (let i = 0; i < 5; ++i) sp.run[i].fx = (i + 0.5) / 6
                 sp.dots.push({ index: 5, shotId: 6, swingDir: "/lib/a/s/swing_0006", f: 0.15, clipped: 0, stack: 1,
-                               state: "clean", current: false, recent: true, valueText: "3 % hand rise" })
+                               state: "clean", current: false, recent: true, valueText: "3% hand rise" })
                 s.detail.header.ticks = ticksOf(["fired", "notAssessable", "clean", "fired", "fired", "clean"])
                 // and the model republishes its box: f 0.15 0.2 0.45 0.5 1.0 → Q1 0.2, median 0.45, Q3 0.5, 1.0 past the fence
                 sp.box = { n: 5, fLo: 0.15, fQ1: 0.2, fMed: 0.45, fQ3: 0.5, fHi: 0.5, outliers: [5], outlierCount: 1,
@@ -2508,7 +2514,7 @@ Item {
             check(3, "shot 4 picked")
             republish(detailAt(2, false), spreadReadout(2))
             check(2, "shot 3 picked")
-            compare(oneShown(fr(), "sdDetailHoverReadout").text, "shot 3 · 13 % hand rise · inside the pass band · clean",
+            compare(oneShown(fr(), "sdDetailHoverReadout").text, "shot 3 · 13% hand rise · inside the pass band · clean",
                     "the line follows the pick")
             republish(detailAt(1, false), spreadReadout(1))
             check(1, "the unmeasured shot picked")
@@ -2525,7 +2531,7 @@ Item {
             compare(oneShown(fr(), "sdBoxStrip").brush.hoveredShot, 3, "the hover survives the shot changing under it")
             const echo = findAll(oneShown(fr(), "sdBoxStrip"), "sdBoxMark").filter(function (m) { return m.visible && m.shotId === 3 })[0]
             verify(!!echo && echo.hovered, "still lit on the box")
-            compare(oneShown(fr(), "sdDetailHoverReadout").text, "shot 3 · 13 % hand rise · inside the pass band · clean",
+            compare(oneShown(fr(), "sdDetailHoverReadout").text, "shot 3 · 13% hand rise · inside the pass band · clean",
                     "and the line still reads it")
             park()
 
@@ -2537,7 +2543,7 @@ Item {
             compare(findAll(bx6, "sdBoxMark").filter(function (m) { return m.visible && m.ringed }).map(function (m) { return m.shotId }).join(), "6",
                     "the new shot ringed on the box")
             compare(one(oneShown(fr(), "sdRunChart"), "sdRunSelected").shotId, 6, "on the new shot")
-            compare(oneShown(fr(), "sdDetailHoverReadout").text, "shot 6 · 3 % hand rise · inside the pass band · clean")
+            compare(oneShown(fr(), "sdDetailHoverReadout").text, "shot 6 · 3% hand rise · inside the pass band · clean")
         }
 
         // ═══════════════════════════ review (13a) ═══════════════════════════

@@ -28,16 +28,9 @@ import PinPointStudio
 // Faults (past the fault line) · Outside (out of the corridor, faults included) · Inside (graded clean), each with its
 // count under the name filter; a reading no condition graded shows under All only (row.verdict, the presenter's).
 // objectName: chReadingsView, chReadingsFilter, chReadingsVerdict:<all|fault|outside|inside>.
-Column {
+PpChViewBase {
     id: rv
     objectName: "chReadingsView"
-    property QtObject roles: null
-    property var brush: null
-    property var body: null
-    property string reg: "Analyse"
-    property bool interactive: true
-    property bool cast: false
-    property real pageH: 500
     readonly property var rs: body ? body.rShot : ({})
     readonly property bool available: !!rs && rs.available === true && (rs.groups || []).length > 0
     property string filter: ""

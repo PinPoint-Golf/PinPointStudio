@@ -35,7 +35,7 @@ Item {
     // index AppScreen.Session), so without this gate a swing reload re-parsed swing.json
     // while the viewer was invisible (~230 ms each on the UI thread). Only the visible
     // session screen feeds its source. Mirrors PpCameraTiles.
-    readonly property bool _screenActive: navController.currentIndex === AppScreen.Session
+    readonly property bool _screenActive: SessionMode.sessionScreenActive
     // Left gutter for the control-row labels so REGION / SEGMENT / RESOLVES TO and
     // their wrapped chip rows all hang-indent to the same edge.
     readonly property int ctrlGutter: Theme.sp(82)

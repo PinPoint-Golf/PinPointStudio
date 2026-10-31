@@ -28,6 +28,8 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import PinPointStudio
+import "../imu/imu_health.js" as ImuHealth
+import "../cameras/camera_health.js" as CameraHealth
 
 Item {
     id: root
@@ -59,16 +61,9 @@ Item {
         return n
     }
     // True when a connected camera is not "fixed in place" — i.e. it still needs
-    // (stereo) calibration this session. Mirrors PpCameraPanel.needsCalibration;
-    // stays lit until the camera is calibrated/fixed.
-    readonly property bool camNeedsAttention: {
-        var _dep  = cameraManager.instances
-        var list  = cameraManager.cameraList
-        var fixed = appSettings.cameraFixedInPlace
-        for (var i = 0; i < list.length; ++i)
-            if (list[i].selected && fixed[list[i].cameraKey] !== true) return true
-        return false
-    }
+    // (stereo) calibration this session. The same rule as PpCameraPanel.needsCalibration
+    // (camera_health.js); stays lit until the camera is calibrated/fixed.
+    readonly property bool camNeedsAttention: CameraHealth.anyNeedsCalibration(cameraManager, appSettings)
 
     readonly property int  imuTotal:     imuManager.imuDeviceList.length
     readonly property int  imuConnected: imuManager.imuCount   // connected instance count
@@ -78,30 +73,13 @@ Item {
         for (var i = 0; i < list.length; ++i) if (list[i].sessionEnabled) ++n
         return n
     }
-    // A sensor whose connection gave up (the driver's own words, as the IMU panel reads them).
-    readonly property bool imuFailed: {
-        var _dep = imuManager.instances
-        var list = imuManager.imuDeviceList
-        for (var i = 0; i < list.length; ++i) {
-            var inst = imuManager.instanceFor(list[i].id)
-            if (inst && !inst.imuConnected
-                     && (inst.stateLabel === "Error" || inst.stateLabel === "Not found"
-                         || inst.stateLabel === "Not ready")) return true
-        }
-        return false
-    }
+    // A sensor whose connection gave up (the driver's own words; the IMU panel's
+    // per-row rule, imu_health.js).
+    readonly property bool imuFailed: ImuHealth.anyGaveUp(imuManager)
     // True when at least one connected IMU is not yet *successfully* calibrated →
-    // attention. Same rule as PpImuPanel.needsCalibration: the device's own
-    // fullyCalibrated (ImuDeviceBase) — never re-derived here (#50).
-    readonly property bool imuNeedsAttention: {
-        var _dep = imuManager.instances
-        var list = imuManager.imuDeviceList
-        for (var i = 0; i < list.length; ++i) {
-            var inst = imuManager.instanceFor(list[i].id)
-            if (inst && inst.imuConnected && inst.fullyCalibrated !== true) return true
-        }
-        return false
-    }
+    // attention. Same rule as PpImuPanel.needsCalibration (imu_health.js): the
+    // device's own fullyCalibrated (ImuDeviceBase) — never re-derived here (#50).
+    readonly property bool imuNeedsAttention: ImuHealth.anyNeedsCalibration(imuManager)
 
     // Lowest battery % across all connected IMUs (−1 when none report a level),
     // sourced from the manager's aggregate so it tracks live battery updates.
@@ -185,7 +163,7 @@ Item {
     // The session's active club (SessionController.activeClub — the SoT read at
     // shot-join). Empty before a session starts → fall back to the athlete's
     // default so the pill always names a club. Taped = the club record carries
-    // retro bands (non-empty bandCentersMm). Reactive to activeClub / athlete edits.
+    // retro bands (ClubFormat.isTaped). Reactive to activeClub / athlete edits.
     readonly property string activeClub: {
         void athleteController.athletes
         return sessionController.activeClub !== ""
@@ -197,7 +175,7 @@ Item {
         var c = root.activeClub
         if (!c || !athleteController.hasCurrentAthlete) return false
         var rec = athleteController.clubsFor(athleteController.currentUuid)[c]
-        return !!(rec && rec.bandCentersMm && rec.bandCentersMm.length > 0)
+        return ClubFormat.isTaped(rec)
     }
 
     // Start a session: choose its on-disk folder, then start the clock + capture.

@@ -25,9 +25,12 @@
 //
 // Moved out of ImuCalibrationFlow.qml with every string, colour and layout unchanged.
 // The `d` object below mirrors the names the sub-components always read, with the
-// values a not-yet-loaded routine would show.
+// values a not-yet-loaded routine would show, and works out what the status column says
+// for whichever routine is in play. The column itself — header, instruction, hold bar,
+// status line, failure, Recalibrate — is CalibrationStatusColumn, the one drawing of it that
+// the trunk's calibrate page shares; the parts only one routine has (the badge, the wG3's step
+// bar and readouts, the Witmotion's warnings) sit in its slots.
 import QtQuick
-import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import PinPointStudio
 
@@ -83,6 +86,107 @@ Item {
         readonly property int    calCalibrated:        _hmr ? _r.calCalibrated        : -1
         readonly property int    calLost:              _hmr ? _r.calLost              : -1
 
+        // ── What the status column says ────────────────────────────────────────────
+        // One instruction, one bar, one status line and one failure, worded for the routine in
+        // play. The Witmotion words say things that are simply untrue of a HackMotion (T-pose,
+        // hold-to-capture, arm-down), so each routine has its own.
+        readonly property string instruction: isHackMotion ? _hmInstruction() : _wtInstruction()
+        function _wtInstruction() {
+            if (calibPhase === 0)
+                return qsTr("Watch the guide — this shows the T-pose position you'll hold next.")
+            if (calibPhase === 1) {
+                if (_armDownCaptured)
+                    return qsTr("Follow the guide and raise your arm out to shoulder height.")
+                return qsTr("Let your lead arm hang relaxed at your side and hold still.")
+            }
+            return qsTr("Hold your arm at shoulder height and keep it still — the bar fills while you hold steady.")
+        }
+        function _hmInstruction() {
+            if (hmStep === 0)
+                return qsTr("The sensor calibrates itself from two positions. Rest your lead "
+                            + "forearm horizontal with the wrist straight — the guide shows the "
+                            + "position.")
+            if (hmStep === 1)
+                return qsTr("Rest your forearm horizontal, wrist straight, and hold still.")
+            if (hmStep === 2)
+                return qsTr("Now raise your forearm smoothly across your chest, following the "
+                            + "guide. The sensor watches the whole movement, so keep it to one "
+                            + "smooth motion.")
+            if (hmStep === 3)
+                return qsTr("The sensor is working out its own calibration.")
+            if (hmStep === 4)
+                return qsTr("Return to the first position — forearm horizontal, wrist straight — "
+                            + "and hold still while the sensor checks itself.")
+            if (hmStep === 5)
+                return qsTr("Calibrated. Hold the first position a moment longer: with the wrist "
+                            + "straight and at rest, the two sensor units should now read within "
+                            + "about a degree of each other.")
+            return qsTr("The routine stopped. Tap Recalibrate to run it again.")
+        }
+
+        // The Witmotion hold bar (the wG3 shows its discrete step bar instead).
+        readonly property real holdProgress: {
+            if (calibrationDone)        return 1.0
+            if (calibPhase === 2)       return phaseProgress
+            if (calibPhase === 1 && !_armDownCaptured)
+                return Math.min(phase1AccumMs / _captureHoldMs, 1.0)
+            return 0.0
+        }
+
+        // The status line: its words, whether it is set large (the athlete must act on it now),
+        // and its tone.
+        readonly property bool   _wtCapturing: (calibPhase === 1 && phase1AccumMs > 0 && !_armDownCaptured)
+                                               || calibPhase === 2
+        readonly property string status: isHackMotion ? _hmStatus() : _wtStatus()
+        readonly property bool   statusBig: isHackMotion ? (hmStep >= 1 && hmStep <= 4) : _wtCapturing
+        readonly property string statusTone: {
+            if (calibrationDone) return "good"
+            if (isHackMotion)
+                return hmStep === 9 ? (hmFailKind === "warn" ? "warn" : "error")
+                     : hmStep >= 1  ? "accent"
+                     :                ""
+            return _wtCapturing ? "accent" : ""
+        }
+        function _wtStatus() {
+            if (calibrationDone)    return Theme.caps(qsTr("Calibration complete"))
+            if (calibPhase === 0)   return Theme.caps(qsTr("Watch the guide"))
+            if (calibPhase === 1) {
+                if (_armDownCaptured) return Theme.caps(qsTr("Follow the guide"))
+                var imu = leadImu
+                if (!imu || !imu.imuConnected) return Theme.caps(qsTr("Waiting for sensor"))
+                if (phase1AccumMs > 0)         return qsTr("HOLD STILL — CAPTURING")
+                return Theme.caps(qsTr("Hold still"))
+            }
+            return qsTr("HOLD STILL — CAPTURING")
+        }
+        function _hmStatus() {
+            if (calibrationDone) return Theme.caps(qsTr("Calibration complete"))
+            if (hmStep === 9)    return Theme.caps(qsTr("Not calibrated"))
+            if (hmStep === 0)    return Theme.caps(qsTr("Ready"))
+            if (hmStep === 1)    return hmPhase === calpMarkingPose0
+                                        ? Theme.caps(qsTr("Marking position 1")) : Theme.caps(qsTr("Hold still"))
+            if (hmStep === 2)    return hmPhase === calpMarkingPose1
+                                        ? Theme.caps(qsTr("Marking position 2")) : Theme.caps(qsTr("Follow the guide"))
+            // ⚠ APPLYING and VERIFYING are NOT success. VERIFYING in particular means
+            // the transform is already applied and the check has NOT been taken — so
+            // no tick and nothing that reads as a verdict.
+            if (hmStep === 3)    return qsTr("APPLYING…")
+            if (hmStep === 4)    return hmAwaitingPresence ? qsTr("CHECKING…")
+                                                           : Theme.caps(qsTr("Hold still"))
+            return ""
+        }
+
+        // The failure. ⚠ The Witmotion's is the mount validation's, and WITMOTION ONLY: a
+        // HackMotion computes its own calibration on-device; there is no A/M to solve, nothing
+        // to store, and no mount check to fill the gap with. The wG3's is its routine's stop.
+        readonly property string message: isHackMotion ? (hmStep === 9 ? hmFailMsg : "")
+                                                       : ((mountFailed && !calibrationDone) ? mountFailMsg : "")
+        readonly property string messageKind: isHackMotion ? hmFailKind : "error"
+
+        readonly property bool showRecalibrate: calibPhase > 0 || calibrationDone
+                                                || calibrationFailed || mountFailed
+                                                || (isHackMotion && hmStep > 0)
+
         // Presentation helpers — every one of these is STATE, never a score.
         function _hmDeg(v) { return (v === undefined || isNaN(v)) ? "—" : v.toFixed(2) + "°" }
         function _hmStateText(s) {
@@ -100,58 +204,47 @@ Item {
     }
 
     // FULL — the wizard's status column.
+    // ⚠ "No wrist sensor assigned" stands where it always stood for each routine: under the
+    // badge for a HackMotion, under the status for a Witmotion.
     Component {
         id: fullColumn
 
-        Column {
-            width:   armStatus.width
-            spacing: Theme.gap(16)
+        CalibrationStatusColumn {
+            width:      armStatus.width
+            showHeader: armStatus.showHeader
+            stepLabel:  armStatus.stepLabel
+            title:      qsTr("Calibrate Sensors")
 
-            Text {
-                visible:            armStatus.showHeader
-                width:              parent.width
-                text:               armStatus.stepLabel
-                font.family:        Theme.fontData
-                font.pixelSize:     Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro
-                color:              Theme.colorText3
-            }
+            leading: [
+                StatusBadge  { width: implicitWidth },
+                NoImuWarning { width: parent.width; forHackMotion: true }
+            ]
+            instruction:  d.instruction
+            holdShown:    !d.isHackMotion
+            holdProgress: d.holdProgress
+            holdDone:     d.calibrationDone
+            belowBar: [
+                HmStepBar { width: parent.width }
+            ]
+            status:      d.status
+            statusBig:   d.statusBig
+            statusTone:  d.statusTone
+            statusTick:  !d.isHackMotion && d.calibrationDone
+            belowStatus: [
+                AngleWarning { width: parent.width },
+                NoImuWarning { width: parent.width; forHackMotion: false },
+                HmReadouts   { width: parent.width }
+            ]
+            message:     d.message
+            messageKind: d.messageKind
 
-            PpDisplayText {
-                visible:        armStatus.showHeader
-                width:          parent.width
-                text:           qsTr("Calibrate Sensors")
-                pixelSize:      Math.min(Theme.sp(18), Theme.fontSzDisplay)
-                wrapMode:       Text.WordWrap
-            }
-
-            StatusBadge   { width: implicitWidth }
-            PhaseText      { width: parent.width }
-            ProgressBar    { width: parent.width }
-            StatusLabel    { width: parent.width }
-            AngleWarning   { width: parent.width }
-            NoImuWarning   { width: parent.width }
-            MountFailText  { width: parent.width }
-
-            // Device-native routine — mutually exclusive with the four above.
-            HmPhaseText    { width: parent.width }
-            HmStepBar      { width: parent.width }
-            HmStatusLabel  { width: parent.width }
-            HmReadouts     { width: parent.width }
-            HmFailText     { width: parent.width }
-
-            PpButton {
-                visible: d.calibPhase > 0 || d.calibrationDone
-                         || d.calibrationFailed || d.mountFailed
-                         || (d.isHackMotion && d.hmStep > 0)
-                label:   qsTr("↺  Recalibrate")
-                primary: false
-                onClicked: armStatus.recalibrate()
-            }
+            showRecalibrate: d.showRecalibrate
+            onRecalibrate:   armStatus.recalibrate()
         }
     }
 
-    // COMPACT — the toolbar panel's status, under its guide view.
+    // COMPACT — the toolbar panel's status, under its guide view: the same parts
+    // (CalibrationStatusColumn's), laid out by the panel's ColumnLayout with no header or button.
     Component {
         id: compactColumn
 
@@ -160,19 +253,33 @@ Item {
             spacing: Theme.gap(12)
 
             StatusBadge  { Layout.alignment: Qt.AlignLeft }
-            PhaseText     { Layout.fillWidth: true }
-            ProgressBar   { Layout.fillWidth: true }
-            StatusLabel   { Layout.fillWidth: true }
-            AngleWarning  { Layout.fillWidth: true }
-            NoImuWarning  { Layout.fillWidth: true }
-            MountFailText { Layout.fillWidth: true }
-
-            // Device-native routine — mutually exclusive with the four above.
-            HmPhaseText   { Layout.fillWidth: true }
-            HmStepBar     { Layout.fillWidth: true }
-            HmStatusLabel { Layout.fillWidth: true }
-            HmReadouts    { Layout.fillWidth: true }
-            HmFailText    { Layout.fillWidth: true }
+            NoImuWarning { Layout.fillWidth: true; forHackMotion: true }
+            CalibrationStatusColumn.BodyText {
+                Layout.fillWidth: true
+                text: d.instruction
+            }
+            CalibrationStatusColumn.HoldBar {
+                Layout.fillWidth: true
+                visible:  !d.isHackMotion
+                progress: d.holdProgress
+                done:     d.calibrationDone
+            }
+            HmStepBar    { Layout.fillWidth: true }
+            CalibrationStatusColumn.StatusLine {
+                Layout.fillWidth: true
+                text: d.status
+                big:  d.statusBig
+                tone: d.statusTone
+                tick: !d.isHackMotion && d.calibrationDone
+            }
+            AngleWarning { Layout.fillWidth: true }
+            NoImuWarning { Layout.fillWidth: true; forHackMotion: false }
+            HmReadouts   { Layout.fillWidth: true }
+            CalibrationStatusColumn.MessageText {
+                Layout.fillWidth: true
+                text: d.message
+                kind: d.messageKind
+            }
         }
     }
 
@@ -224,106 +331,8 @@ Item {
         }
     }
 
-    // ⚠ The next four are the WITMOTION routine's status display and say things that
-    // are simply untrue of a HackMotion (T-pose, hold-to-capture, arm-down). Hidden
-    // rather than reworded, because the device-native routine has its own set below.
-    // An invisible child is skipped by both Column and ColumnLayout, so nothing is
-    // left holding space.
-    component PhaseText: Text {
-        visible:    !d.isHackMotion
-        wrapMode:   Text.WordWrap
-        lineHeight: 1.5
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody2
-        color:          Theme.colorText2
-        text: {
-            if (d.calibPhase === 0)
-                return qsTr("Watch the guide — this shows the T-pose position you'll hold next.")
-            if (d.calibPhase === 1) {
-                if (d._armDownCaptured)
-                    return qsTr("Follow the guide and raise your arm out to shoulder height.")
-                return qsTr("Let your lead arm hang relaxed at your side and hold still.")
-            }
-            return qsTr("Hold your arm at shoulder height and keep it still — the bar fills while you hold steady.")
-        }
-    }
-
-    component ProgressBar: Item {
-        visible: !d.isHackMotion
-        height:  Theme.sp(32)
-        Rectangle {
-            anchors.verticalCenter: parent.verticalCenter
-            width:  parent.width
-            height: Theme.sp(4)
-            radius: Theme.sp(2)
-            color:  Theme.colorBg3
-            Rectangle {
-                readonly property real fillFraction: {
-                    if (d.calibrationDone)        return 1.0
-                    if (d.calibPhase === 2)       return d.phaseProgress
-                    if (d.calibPhase === 1 && !d._armDownCaptured)
-                        return Math.min(d.phase1AccumMs / d._captureHoldMs, 1.0)
-                    return 0.0
-                }
-                width:  parent.width * fillFraction
-                height: parent.height
-                radius: parent.radius
-                color:  d.calibrationDone ? Theme.colorGood : Theme.colorAccent
-                Behavior on width { NumberAnimation { duration: 150 } }
-            }
-        }
-    }
-
-    component StatusLabel: Row {
-        visible: !d.isHackMotion
-        spacing: Theme.gap(6)
-        Rectangle {
-            visible:      d.calibrationDone
-            width:        Theme.sp(16)
-            height:       Theme.sp(16)
-            radius:       width / 2
-            color:        "transparent"
-            border.color: Theme.colorGood
-            border.width: Theme.sp(1.5)
-            y:            (statusLbl.implicitHeight - height) / 2
-            Text {
-                anchors.centerIn: parent
-                text:           "✓"
-                color:          Theme.colorGood
-                font.pixelSize: Theme.sp(9)
-                font.bold:      true
-            }
-        }
-        Text {
-            id: statusLbl
-            readonly property bool _capturing:
-                (d.calibPhase === 1 && d.phase1AccumMs > 0 && !d._armDownCaptured)
-                || d.calibPhase === 2
-            width:              parent.width - (d.calibrationDone ? Theme.sp(22) : 0)
-            wrapMode:           Text.WordWrap
-            font.family:        Theme.fontData
-            font.pixelSize:     _capturing ? Theme.fontSzHeading : Theme.fontSzMicro
-            font.bold:          _capturing
-            font.letterSpacing: Theme.trackingData
-            color: d.calibrationDone ? Theme.colorGood
-                 : _capturing         ? Theme.colorAccent
-                 :                       Theme.colorText3
-            text: {
-                if (d.calibrationDone)    return Theme.caps(qsTr("Calibration complete"))
-                if (d.calibPhase === 0)   return Theme.caps(qsTr("Watch the guide"))
-                if (d.calibPhase === 1) {
-                    if (d._armDownCaptured) return Theme.caps(qsTr("Follow the guide"))
-                    var imu = d.leadImu
-                    if (!imu || !imu.imuConnected) return Theme.caps(qsTr("Waiting for sensor"))
-                    if (d.phase1AccumMs > 0)       return qsTr("HOLD STILL — CAPTURING")
-                    return Theme.caps(qsTr("Hold still"))
-                }
-                return qsTr("HOLD STILL — CAPTURING")
-            }
-            Behavior on font.pixelSize { NumberAnimation { duration: Theme.durationNormal } }
-            Behavior on color           { ColorAnimation  { duration: Theme.durationNormal } }
-        }
-    }
+    // An invisible part is skipped by Column and ColumnLayout alike, so a part hidden for the
+    // routine not in play leaves nothing holding space.
 
     // Calibration angle warning — shown when arm-down→T-pose angle was outside
     // the expected ~90° range. ⚠ WITMOTION ONLY: it grades OUR two-pose capture,
@@ -344,8 +353,11 @@ Item {
         text:           qsTr("The arm positions didn't look quite right — the angle between arm-down and T-pose was much less than expected. For best results, make sure your arm is fully raised to shoulder height during the T-pose step, then tap Recalibrate.")
     }
 
+    // Drawn twice, each shown for one routine only (forHackMotion), so it keeps its place in
+    // each routine's column.
     component NoImuWarning: Text {
-        visible:    d.leadImu === null
+        property bool forHackMotion: false
+        visible:    d.leadImu === null && d.isHackMotion === forHackMotion
         wrapMode:   Text.WordWrap
         font.family:    Theme.fontBody
         font.pixelSize: Theme.fontSzMicro
@@ -353,53 +365,9 @@ Item {
         text:           qsTr("No wrist sensor assigned to slot A. Return to the Sensors step to assign one.")
     }
 
-    // ⚠ WITMOTION ONLY, like the mount validation that sets it. A HackMotion
-    // computes its own calibration on-device; there is no A/M to solve, nothing to
-    // store, and no mount check to fill the gap with.
-    component MountFailText: Text {
-        visible:    d.mountFailed && !d.calibrationDone && !d.isHackMotion
-        wrapMode:   Text.WordWrap
-        lineHeight: 1.5
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzMicro
-        color:          Theme.colorError
-        text:           d.mountFailMsg
-    }
-
     // ── HackMotion status sub-components ──────────────────────────────────────
     // Every one of these is hidden unless the slot-A device is a HackMotion, so the
     // two routines' displays never overlap.
-
-    component HmPhaseText: Text {
-        visible:    d.isHackMotion
-        wrapMode:   Text.WordWrap
-        lineHeight: 1.5
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody2
-        color:          Theme.colorText2
-        text: {
-            if (d.hmStep === 0)
-                return qsTr("The sensor calibrates itself from two positions. Rest your lead "
-                            + "forearm horizontal with the wrist straight — the guide shows the "
-                            + "position.")
-            if (d.hmStep === 1)
-                return qsTr("Rest your forearm horizontal, wrist straight, and hold still.")
-            if (d.hmStep === 2)
-                return qsTr("Now raise your forearm smoothly across your chest, following the "
-                            + "guide. The sensor watches the whole movement, so keep it to one "
-                            + "smooth motion.")
-            if (d.hmStep === 3)
-                return qsTr("The sensor is working out its own calibration.")
-            if (d.hmStep === 4)
-                return qsTr("Return to the first position — forearm horizontal, wrist straight — "
-                            + "and hold still while the sensor checks itself.")
-            if (d.hmStep === 5)
-                return qsTr("Calibrated. Hold the first position a moment longer: with the wrist "
-                            + "straight and at rest, the two sensor units should now read within "
-                            + "about a degree of each other.")
-            return qsTr("The routine stopped. Tap Recalibrate to run it again.")
-        }
-    }
 
     // Four steps, discrete. No indeterminate progress and no elapsed-time bar: the
     // pacing that matters is the guide animation's, and a second clock next to it
@@ -419,37 +387,6 @@ Item {
                      :                                Theme.colorBg3
             }
         }
-    }
-
-    component HmStatusLabel: Text {
-        visible:            d.isHackMotion
-        wrapMode:           Text.WordWrap
-        font.family:        Theme.fontData
-        font.pixelSize:     (d.hmStep >= 1 && d.hmStep <= 4) ? Theme.fontSzHeading : Theme.fontSzMicro
-        font.bold:          d.hmStep >= 1 && d.hmStep <= 4
-        font.letterSpacing: Theme.trackingData
-        color: d.calibrationDone   ? Theme.colorGood
-             : d.hmStep === 9      ? (d.hmFailKind === "warn" ? Theme.colorWarn : Theme.colorError)
-             : d.hmStep >= 1       ? Theme.colorAccent
-             :                       Theme.colorText3
-        text: {
-            if (d.calibrationDone) return Theme.caps(qsTr("Calibration complete"))
-            if (d.hmStep === 9)    return Theme.caps(qsTr("Not calibrated"))
-            if (d.hmStep === 0)    return Theme.caps(qsTr("Ready"))
-            if (d.hmStep === 1)    return d.hmPhase === d.calpMarkingPose0
-                                          ? Theme.caps(qsTr("Marking position 1")) : Theme.caps(qsTr("Hold still"))
-            if (d.hmStep === 2)    return d.hmPhase === d.calpMarkingPose1
-                                          ? Theme.caps(qsTr("Marking position 2")) : Theme.caps(qsTr("Follow the guide"))
-            // ⚠ APPLYING and VERIFYING are NOT success. VERIFYING in particular means
-            // the transform is already applied and the check has NOT been taken — so
-            // no tick and nothing that reads as a verdict.
-            if (d.hmStep === 3)    return qsTr("APPLYING…")
-            if (d.hmStep === 4)    return d.hmAwaitingPresence ? qsTr("CHECKING…")
-                                                              : Theme.caps(qsTr("Hold still"))
-            return ""
-        }
-        Behavior on font.pixelSize { NumberAnimation { duration: Theme.durationNormal } }
-        Behavior on color           { ColorAnimation  { duration: Theme.durationNormal } }
     }
 
     // One label/value line of the confirmation readout. Data font on the value so it
@@ -522,7 +459,7 @@ Item {
         HmReadout {
             label: qsTr("Sensor calibration state")
             value: d._hmStateText(d.leadDevice ? d.leadDevice.calibrationState : 0)
-            tint:  (d.leadDevice && d.leadDevice.calibrationState === d.calCalibrated)
+            tint:  (d.leadDevice && d.leadDevice.fullyCalibrated === true)
                        ? Theme.colorGood : Theme.colorWarn
         }
         HmReadout {
@@ -564,15 +501,5 @@ Item {
                        + "and a smaller number is not a better calibration, so do not re-run to "
                        + "chase it down.")
         }
-    }
-
-    component HmFailText: Text {
-        visible:    d.isHackMotion && d.hmStep === 9 && d.hmFailMsg !== ""
-        wrapMode:   Text.WordWrap
-        lineHeight: 1.5
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzMicro
-        color:          d.hmFailKind === "warn" ? Theme.colorWarn : Theme.colorError
-        text:           d.hmFailMsg
     }
 }

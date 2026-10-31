@@ -171,6 +171,15 @@ public:
     // One address or several, comma-separated, each shaped something@something.tld. A shape check,
     // never a verification. Empty is false — whether a blank is allowed is the caller's decision.
     Q_INVOKABLE bool validReportEmail(const QString &text) const;
+    // "a@b.com, , c@d.org," → "a@b.com, c@d.org": the one spelling the form stores, whatever was typed
+    // between the addresses. Each address trimmed, blanks dropped, joined by ", ".
+    Q_INVOKABLE QString normaliseReportEmails(const QString &text) const;
+    // What a blank greeting falls back to — the first word of the name, as reportDetails resolves it —
+    // so the form's placeholder previews exactly what the report will say. "" for a blank name.
+    Q_INVOKABLE QString greetingDefault(const QString &name) const;
+    // The form's date-of-birth check. Blank is VALID (the field is optional); otherwise exactly
+    // YYYY-MM-DD and a real calendar date ("2026-02-31" is refused).
+    Q_INVOKABLE bool validDob(const QString &text) const;
     // Tick or untick the photo approval. Ticking stamps today's date unless it was already approved
     // (the date records when consent was GIVEN, not when the box was last pressed); unticking clears it.
     Q_INVOKABLE void setPhotosApproved(const QString &uuid, bool approved);
@@ -178,6 +187,10 @@ public:
     Q_INVOKABLE QVariantMap clubsFor(const QString &uuid) const;
     Q_INVOKABLE QVariantMap defaultClubRecord(const QString &clubId) const;  // factory spec defaults (loft/length/shaft)
     Q_INVOKABLE QStringList clubOptions() const;   // canonical vocabulary (club_vocabulary.h)
+    // The athlete's bag: the club ids in their records, in vocabulary order (an id outside the
+    // vocabulary sorts first). Empty for no uuid or an empty bag. Not a property, so a QML binding
+    // that calls it reads athleteController.athletes to re-evaluate on every club commit.
+    Q_INVOKABLE QStringList bagClubIds(const QString &uuid) const;
     // The athlete's default/preferred club, always resolved to a real bag club:
     // the stored primaryClub (legacy tokens normalised to canonical) if it is in
     // the bag, else "DRIVER" if present, else the first bag club, else "". Read on

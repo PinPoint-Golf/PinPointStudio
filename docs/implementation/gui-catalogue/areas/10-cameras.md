@@ -1,7 +1,7 @@
 # Cameras
 
 *Directory:* `src/Gui/cameras/`  
-*8 components · 4,402 lines of QML*
+*8 components · 4,454 lines of QML*
 
 Camera frames/tiles, the toolbar camera panel and the analyse-view telestrator (annotation tool, layer, toolbar, icons).
 
@@ -13,9 +13,9 @@ Camera frames/tiles, the toolbar camera panel and the analyse-view telestrator (
 | [PpAnnotationIcon](#ppannotationicon) | 95 | `Canvas` | 2 | 0 |  |
 | [PpAnnotationLayer](#ppannotationlayer) | 344 | `Item` | 1 | 1 |  |
 | [PpAnnotationToolbar](#ppannotationtoolbar) | 174 | `Item` | 1 | 5 |  |
-| [PpCameraFrame](#ppcameraframe) | 2133 | `Item` | 6 | 10 | 1 local comp. |
+| [PpCameraFrame](#ppcameraframe) | 2185 | `Item` | 6 | 10 | 1 local comp. |
 | [PpCameraPanel](#ppcamerapanel) | 563 | `Item` | 1 | 7 | 3 local comp. |
-| [PpCameraTiles](#ppcameratiles) | 778 | `Item` | 2 | 10 | 1 local comp. |
+| [PpCameraTiles](#ppcameratiles) | 778 | `Item` | 1 | 10 | 1 local comp. |
 | [VideoPage](#videopage) | 234 | `Item` | 1 | 1 |  |
 
 ### AnnotationTool
@@ -79,7 +79,7 @@ Camera frames/tiles, the toolbar camera panel and the analyse-view telestrator (
 - **Used by (1):** `PpCameraTiles`
 
 ### PpCameraFrame
-`src/Gui/cameras/PpCameraFrame.qml` · 2133 lines · root `Item` · 17 hard-coded colour(s)
+`src/Gui/cameras/PpCameraFrame.qml` · 2185 lines · root `Item` · 17 hard-coded colour(s)
 
 > Reusable camera video frame — the one video view used by every rail screen
 > (Wrist, swing analysis, the Play capture tab, …). Just the aspect-locked
@@ -91,7 +91,7 @@ Camera frames/tiles, the toolbar camera panel and the analyse-view telestrator (
 > before it is connected (dim "Not connected" placeholder) and subscribes to
 > the instance's frame feed as soon as the instance arrives.
 
-- **Properties:** `QtObject instance`, `int replayStreamIndex`, `real viewGain`, `bool showLevels`, `string displayName`, `bool showPoseOverlay`, `bool showHittingArea`, `bool showHittingAreaHint`, `bool showBallOverlay`, `bool roiEditable`, `bool showPerspectiveBadge`, `bool showStatsOverlay`, `bool showReplayOverlay`, `bool showImpactOverlay` … (+20 more)
+- **Properties:** `QtObject instance`, `int replayStreamIndex`, `real viewGain`, `bool showLevels`, `string displayName`, `bool showPoseOverlay`, `bool showHittingArea`, `bool showHittingAreaHint`, `bool showBallOverlay`, `bool roiEditable`, `bool showPerspectiveBadge`, `bool showStatsOverlay`, `bool showReplayOverlay`, `bool showImpactOverlay` … (+23 more)
 - **Functions:** `paintBlueprint(ctx, cr, gx, gy, gs, alphaScale, emOn, maxJoint)`
 - **Local components:** `FeedState`
 - **Uses:** `PpAnnotationLayer`, `PpBadge`, `PpCardNote`, `PpChip`, `PpMicro`, `PpTrustInlineFor`, `PpTypeset`, `SessionMode`, `TrustFocus`, `ViewLayout`
@@ -138,7 +138,7 @@ Camera frames/tiles, the toolbar camera panel and the analyse-view telestrator (
 - **Properties:** `int sessionType`, `bool showHittingArea`, `readonly string cardAside`
 - **Local components:** `PipBtn`
 - **Uses:** `AnnotationTool`, `PpAnnotationIcon`, `PpAnnotationToolbar`, `PpCameraFrame`, `PpCardNote`, `PpMetricChart`, `PpMicro`, `PpPressable`, `SessionMode`, `ViewLayout`
-- **Used by (2):** `ScreenSessionMode`, `ScreenWrist`
+- **Used by (1):** `ScreenWrist`
 
 ### VideoPage
 `src/Gui/cameras/VideoPage.qml` · 234 lines · root `Item` · 3 hard-coded colour(s)

@@ -66,7 +66,6 @@ Column {
     readonly property real colW: plotW / 8
     readonly property real plotH: 50
     function cx(i) { return plotX + (i + 0.5) * colW }
-    function fin(v) { return v !== null && v !== undefined && isFinite(v) }
 
     Item {
         property bool atom: true
@@ -103,8 +102,8 @@ Column {
             readonly property var cells: (r.cells || []).slice(0, 8)
             readonly property var boxes: (r.boxes || []).slice(0, 8)
             readonly property color hue: rp.ro.hue(r.hueKey || r.metricKey || "")
-            readonly property real lo: rp.fin(r.yLo) ? r.yLo : -1
-            readonly property real hi: rp.fin(r.yHi) ? r.yHi : 1
+            readonly property real lo: rp.roles.fin(r.yLo) ? r.yLo : -1
+            readonly property real hi: rp.roles.fin(r.yHi) ? r.yHi : 1
             function vy(v) { return 4 + (rp.plotH - 8) * (1 - (v - lo) / Math.max(1e-9, hi - lo)) }
             width: rp.width
             height: Math.max(labCol.height + 6, rp.plotH + nums.height + 12)
@@ -128,16 +127,16 @@ Column {
                     required property var modelData
                     required property int index
                     readonly property var c: modelData
-                    readonly property bool banded: c.wash === "band" && rp.fin(c.bandLo) && rp.fin(c.bandHi)
+                    readonly property bool banded: c.wash === "band" && rp.roles.fin(c.bandLo) && rp.roles.fin(c.bandHi)
                     x: rp.cx(index) - rp.colW * 0.36; width: rp.colW * 0.72; height: rp.plotH
                     Rectangle { visible: parent.banded; width: parent.width
                                 y: parent.banded ? rw.vy(Math.min(rw.hi, parent.c.bandHi)) : 0
                                 height: parent.banded ? Math.max(1, rw.vy(Math.max(rw.lo, parent.c.bandLo)) - rw.vy(Math.min(rw.hi, parent.c.bandHi))) : 0
                                 color: Qt.alpha(rw.hue, 0.16) }
-                    Rectangle { visible: !!parent.c.faultHi && rp.fin(parent.c.faultHi.edge)
+                    Rectangle { visible: !!parent.c.faultHi && rp.roles.fin(parent.c.faultHi.edge)
                                 x: -rp.colW * 0.06; width: parent.width + rp.colW * 0.12; height: Math.max(0.75, rp.ro.hw)
                                 y: visible ? Math.round(rw.vy(parent.c.faultHi.edge)) : 0; color: Qt.alpha(rp.ro.warn, 0.7) }
-                    Rectangle { visible: !!parent.c.faultLo && rp.fin(parent.c.faultLo.edge)
+                    Rectangle { visible: !!parent.c.faultLo && rp.roles.fin(parent.c.faultLo.edge)
                                 x: -rp.colW * 0.06; width: parent.width + rp.colW * 0.12; height: Math.max(0.75, rp.ro.hw)
                                 y: visible ? Math.round(rw.vy(parent.c.faultLo.edge)) : 0; color: Qt.alpha(rp.ro.warn, 0.7) }
                 }

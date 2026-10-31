@@ -124,8 +124,7 @@ pp_add_test(segment_rates_test SOURCES segment_rates_test.cpp
             DEFINES PP_SEGMENT_RATES_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data/segment_rates")
 
 # Corridor-bar reduction (dashboard_reductions.h) — the corridor bar's value→x
-# domain, two-sided and one-sided. The backing for the review corridor bar
-# (ChartMetrics::barDomain façade).
+# domain, two-sided and one-sided (the QML corridor bar it once backed was deleted).
 pp_add_test(dashboard_reductions_test SOURCES dashboard_reductions_test.cpp)
 
 # Launch monitor session reductions (lm_session_reductions.h) — the n-1 spread, the

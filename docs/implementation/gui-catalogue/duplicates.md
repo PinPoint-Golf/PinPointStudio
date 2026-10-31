@@ -1,258 +1,320 @@
 # GUI duplication — consolidated findings
 
-Sources: four read-only review agents, one per cluster, 81 findings in all — [A interactive primitives](findings/A-interactive-primitives.md) (19), [B containers & scaffolding](findings/B-containers-scaffolding.md) (25), [C charts & data-viz](findings/C-charts-dataviz.md) (22), [D screens & flows](findings/D-screens-flows.md) (15) — plus the scripted evidence in [data/duplicate-evidence.md](data/duplicate-evidence.md). The agents overlapped heavily (the same toggle, `ScopedAction`, setting row and picker were found by two clusters each), so this page merges them into **16 themes** (§1–16), then re-cuts the same material as a **merge map** (§17: which components could become one), a **list of copied code that is not a component** (§18), and **§20, how the new typeset aesthetic changes the plan — read it before acting on §17.** Finding IDs (`A1`, `B3`…) point into the per-cluster reports, which hold the file:line locations, the proposed API and the effort/risk notes. Line numbers in those reports were read from the working tree and are approximate in places.
+**Re-audited 31 Oct 2026 at `9ac19450`** (first audit 19 Oct at `8f5225a8`; 80 commits to `src/Gui` since). Sources: four read-only re-check reports, one per cluster, which re-counted every original finding on both trees with one method and then read the code added since — [A interactive primitives](findings/2026-10-31-A-interactive-primitives.md), [B containers & scaffolding](findings/2026-10-31-B-containers-scaffolding.md), [C charts & data-viz](findings/2026-10-31-C-charts-dataviz.md), [D screens & flows](findings/2026-10-31-D-screens-flows.md) — plus the regenerated scripted evidence in [data/duplicate-evidence.md](data/duplicate-evidence.md). The 19 Oct reports ([A](findings/A-interactive-primitives.md), [B](findings/B-containers-scaffolding.md), [C](findings/C-charts-dataviz.md), [D](findings/D-screens-flows.md)) hold the original file:line detail and proposed APIs; the 31 Oct reports hold the current locations. Finding IDs (`A1`, `B3`…) point into them; IDs above the old ranges (A20–A24, B26–B34, C23–C36, D16–D24) are new.
 
-**Nothing here has been changed in the repo, and no finding was run in the app.** Visual-difference claims are read from code, not rendered. Anything that changes how something looks (corner radius, knob colour) needs Mark's eye before it is unified.
+**Nothing here has been changed in the repo, and no finding was run in the app.** Visual-difference and drift claims are read from code, not rendered. Anything that changes how something looks needs Mark's eye before it is unified.
 
 ## Headline
 
-- **The shared primitives exist but are not used.** `PpButton`, `PpChipGroup`, `PpTextField`, `PpComboBox`, `PpPopoverCard`, `PpCardNote`, `PpMicro` are all in `components/`, yet the code re-implements them inline: ~87 hand-rolled buttons in 31 files (A2), 21+ choice chips (A3), ~88 caps-micro labels (B4), 13 popup backgrounds (B7), 24 inline `PpCardNote` recipes (B16). Part of the reason is real: `PpButton` has no compact size or outlined-tone variant (A2), `PpChipGroup` cannot wrap (D7), and nothing shared exists for a switch, a search field, a setting row or a notice.
-- **The biggest single block is Settings.** All ten `settings/*Panel.qml` carry the same ~45-line scaffold (B1, ≈450 lines) and ~61–66 hand-built "title + subtitle + control + search-highlight" rows (A7/B2, ≈1,100 lines). Settings is 12.7k lines, 14 % of all QML.
-- **Roughly 2,300 lines are dead and a further ≈2,900 are only reachable as one compact plot** (theme 5 and the table at the end): the whole old `review/` chart stack is mounted in production only as a compact plot in the camera tiles, and a metric-catalogue chain has been replaced by the Diagnostic Model panel. Deleting is Mark's call.
-- **Business rules are copied between QML and C++, and between QML files** (theme 8) — including one place where the copy may already be wrong (below).
-- **What is *not* duplicated is also on record**: the one-box-plot rule holds (C6), the card family is correctly layered (B25), several same-named local components are deliberately different (D15, A16) — see §19.
+- **Nothing was consolidated in twelve days; the duplication grew.** Of the 81 original findings: **0 fixed by merging**, 3 fixed or moot only because files were deleted (B20, B18, C8), 7 partly better (D1's bug fix, deletions, Home's new shared rows), 47 unchanged, **24 worse** (more copies). 37 new findings were filed; 33 after merging the ones two clusters both found (A20 = B30, A22 = B31, A23 = B34; B33 re-counts D9).
+- **The GUI layer grew 17 %:** 290 → 340 app QML files, 90k → 105k lines; GUI C++ 73k → 98k. A whole new area, the session report and Sessions screen (`report/`, 22 files, 6.5k lines), was built since.
+- **New features were built by copying the nearest sibling, not by extracting a shared base.** Posture and Club delivery copied the Wrist chart files (C23–C26); Trunk calibration copied the arm routine, status column and Check page (D3, D4, D16); Settings → Studio copied ArchivingPanel's row furniture (B28); IntentPage copied GoalsPage's tile (A3). Each of these is now a three-way copy where it was two.
+- **Shared components did appear, and new code uses them** — `PpConfirm`, `PpCheckRow`, `PpRowAction`, `PpExpandRow`, `PpTableRow`, `PpFilePicker`, `PpCard{table}`, `HmFaultDetail`, `PpChTrustFold`, `PpChShotShapeGrid`, `PpReportProfile`; `PpChBoxCell` doubled its users and the one-box-plot rule holds. But **no old copy was migrated onto them** — `Main.qml`'s close prompt is still the hand-drawn original that `PpConfirm` was extracted from (A20).
+- **Copies are starting to disagree in ways a user can see** — see the next section. That is the strongest reason to act now.
 
-## ⚠ One bug found: D1 — confirmed by probe, issue #50
+## Status after the 31 Oct fixing run (uncommitted at the time of writing)
 
-**D1** — `_imuCalibratedOk(inst)` is copied verbatim into `imu/PpImuPanel.qml:50` and `session/PpSessionToolbar.qml:97` and tests `inst.mountDeviationDeg <= 15.0 && inst.mountGravityErrorDeg <= 25.0`. `ImuInstance` (Witmotion) has `mountDeviationDeg`; reading `imu/hm_instance.h` and `imu_device.h`, **`HmInstance` (HackMotion) declares no such property**, so for it `undefined <= 15` is `false`, and a connected, calibrated HackMotion would be reported "needs calibration" (toolbar IMU pill and panel). The C++ already has `ImuInstance::fullyCalibrated` (`imu_instance.h:96`) whose comment says not to re-derive it. `HmInstance` has no `anatCalibrated` either (only its two `HmUnit`s do), so it fails at the first test. **Confirmed 19 Oct** with a `--probe-qml` run that called the real `_imuCalibratedOk` of both files: a Witmotion-shaped object passes in range and fails at 40°; an `HmInstance`-shaped object fails even with `anatCalibrated` true. The two copies also disagree on a missing sensor (panel returns `false`, toolbar `undefined`). Not yet seen on a real wG3 (none attached; the HackMotion object in the probe was a stand-in with the properties the class declares, read from its generated metadata). Filed as GitHub issue #50.
+Each item was implemented, independently reviewed and shown on a before/after sheet (`build/run-me/gui-dedupe/REVIEW.md`,
+`sheets/`). Fixed: §1 Settings skeleton/rows/switch (all 11 panels, `SettingsPanelBase`, `SettingsRow`, `SettingsRowTitle`,
+`SettingsSectionHead`, `PpSwitch`) · §2 every switch · A20/B30/D13 close prompt · A21 links · A22/B31 menu rows · A23 `PpTextArea` ·
+A24 checkbox · A5 scoped action · A11/A13 pickers · A17/D24/D10-maths 3-D helpers · B5/C11 reader's place and session folder ·
+B8/B9 fact strip and device-card shell (settings) · B14/B13 section heads and trust toggle · B17/C10/C9 flick, review foot, cast zoom,
+column wrap · B19 avatar · B22 setup intros · B24 `Qt.alpha` (100 sites) · B26/B27/B29 Sessions helpers · B32/D6/D19/D20 Home ·
+C1/A18/D11 dead files and `FilmController` (≈3,500 lines) · C3 samples library · C5/C6/C20 typeset primitives · C21 corridor ladder
+published by C++ (fixed an upside-down one-sided tile) · C15/C16/C17/C33/C34/C35 one C++ `src/Core/figure_format.h` + its QML twin ·
+C23/C25/C26 Charts profile/picture/ledger · C24/C18 section shell and seek · C27 (At address)/C28/C30/C31 report reuse ·
+C32 one shot-shape classifier (LM thresholds) · D2 Resource Monitor · D3/D4/D18/D1 calibration base, status column, guide view ·
+D5 updater wording · D7/D9/D23 athlete · D16/D17 setup check pages · D21 capability row.
+Held on purpose: §21 look-bearing variants and typeset-pending pieces (A2, A3, A4, A8, A9, A10, A14, A15, B4, B6, B7, B10, B11,
+B12, B16, D8, D14), C2 (retire `PpMetricChart`), C29 (report roles), C27's What-moves-with print mode, D10 scene base, the monitor
+cards' chrome, the shown-session `sessionDir` expression ×3. Existing bugs found on the way: #127, #128, #129.
 
----
+## ⚠ Copies that already disagree (user-visible or rule drift)
 
-## Themes, ranked by value (instances × lines recoverable)
+| # | What | Where | Effect | Finding |
+|---|---|---|---|---|
+| 1 | Byte sizes: binary (1024³) vs SI (10⁹) | `ScreenSessions`/`PpSessionReportList`/`PpSessionsSelectionBar` `bytesWords` vs `StoragePanel`/`ArchivingPanel` `formatBytes` (+3 more formatters) | The same library reads ≈7 % different on Sessions and Settings → Storage; empty shows "0 MB", "" or "—" | B26 |
+| 2 | Shot shape classified twice in C++ | `LaunchMonitor/lm_inferred_reads.h:62` vs `charts/session_delivery.cpp:689` | A 1.8° spin axis is a curve in Club delivery and straight on the LM card; 9–10° axis is a slice in one, a fade in the other; names spelled differently | C32 |
+| 3 | Figure + unit joined 4 ways | `charts_words.h figUnit`, `session_spread.h`, `session_diagnostics_model.cpp`, `report_words.h` … (7 copies) | "13 % hand rise" (Diagnostics) / "13% hand rise" (report) / "13%" (Charts) | C33 |
+| 4 | "At impact" window | `charts_words.h:186` (±2 ms) vs `report_words.h:313` (rounds to 0) | 1.6 ms before impact reads "at impact" in Charts, "2 ms before impact" in the report | C34 |
+| 5 | Trunk heading re-derived in QML | `CheckTrunkPage.qml:65-82` vs C++ `trunk_angles::liveHeadingDeg` | Page shows a number where the C++ (and the routine) say "no reading" — non-finite, near-vertical, uncalibrated | D17 |
+| 6 | `file://` URL built without encoding | `PpSessionReportList.qml:234` vs `StudioPanel.qml:97`, `PpFilePicker.qml:86` | A PDF path with `#` or `%` would open the wrong file (from reading only) | D22 |
+| 7 | Capability dots, same state two colours | `ReadyPage.qml:241` vs `HmRigCapability.qml:68` (`dotKind` re-derives `CapRows.toneOf`) | "partly" is amber on Ready, accent on Home; "none" grey vs outline | D21 |
+| 8 | Session-action reasons worded twice | `PpSessionRowMenu`, `PpSessionsSelectionBar` (rule in 4 files) | "still recording" vs "The live session is still recording", etc. | B29 |
+| 9 | Updater wording (unchanged since 19 Oct) | `PpAboutDialog`, `GeneralPanel`, `PpUpdateBanner` | "Checking…" vs "Checking for updates…"; `unsupported` → "✓ Up to date" in one | D5 |
+| 10 | Calibration routine contract | `TrunkRoutine` vs the two arm routines | Trunk has no `reset()` and logs differently — the host contract does not bind it | D3 |
 
-### 1. Settings panel skeleton and setting rows — *A7, B1, B2, B8, B9, A6*
-- **B1 — TRUE DUPLICATE, high confidence.** `lastHighlightId`, `findChild`, `scrollToItem`, `highlightTimer` and the same ScrollView/`contentCol` numbers appear in all 10 panels (≈45 lines × 10). `MetricLibrary` and `DiagnosticModel` stub the same contract. → a `SettingsPanelBase`. Effort M.
-- **A7/B2.** The setting row (search-highlight rectangle ×60, title/subtitle column ×52) is hand-written 61–66 times; only `ArchivingPanel` extracted it (`RowTitle`). → `SettingsRow`. Effort M–L; **depends on B1**; risk: `SettingsIndex` finds rows by `objectName`.
-- **B8.** The "capabilities strip" is three ~55-line copies in Phones/Cameras/Imus (+ monitor `Reading`/`Cell`). **B9/A6.** The device-card shell (surface + z:100 border overlay + 54 px status-dot header) is copied across `CameraDeviceRow` (~2,600 lines), `ImuDeviceRow`, `PhoneDeviceRow` and two monitor cards; the agents advise extracting **the shell only**, not the bodies.
-
-### 2. One on/off switch, built 24 times — *A1, B3*
-7 inline `TogglePill` (settings ×6, `PpCameraPanel`), `SetupTogglePill` (its header says it mirrors the ImusPanel copy), 2 identical-ish `MiniToggle`, plus ~15 anonymous copies in `GeneralPanel`, `DisplaysPanel`, `AppearancePanel`, `PpImuPanel`, `PpShotFilter`, `AthleteClubsSection` — ≈44 use sites, ≈580 lines. **Drift:** the knob is `"white"` in 21 copies, theme-dependent in two, and 14 px in `MiniToggle`. → promote `SetupTogglePill` to **`PpSwitch`**. Effort S–M, high confidence, no behaviour change except the knob colour decision.
-
-### 3. Buttons, chips and tabs that bypass the shared ones — *A2, A3, A4, A9, A10, A19, B12*
-- **A2:** ~87 label-sized Rectangles used as buttons in 31 files (worst: `CamerasPanel` 14, `ScreenResourceMonitor` 12, `ImusPanel` 7, `PpSessionToolbar` 7). Fix is to **extend `PpButton`** (compact size, outlined-tone variant), not add a component.
-- **A3:** 21+ selectable chips in five visual dialects; `CamerasPanel` defines `TuneChip` (used 6×) yet has 4 more inline copies. → `PpChoiceChip` + a selectable-surface base (**B12**: ~12 hand-written selectable tiles).
-- **A4:** 17 stock `Button`s and 5 `TabButton`s hand-styled as `PpButton` in the lab pages (`AudioPage`, `CoachPage`, `FilmPage`, `CapturePage`, `VideoPage`).
-- **A9:** `PpSegmentedControl`, `ElementSegmented` (PpMotionPanel), `PpSpeedSelector` do one job; `PpUnitToggle` is a fourth. **A10:** `TBtn`, `PipBtn`, `MlButton`, `ModelBarButton` are four small icon buttons.
-
-### 4. Charts / Diagnostics / Trust panel shells are twins — *B5, C10, C11, B17, C9, C7, C12, B15*
-- **B5/C11:** the reader's-place save/restore (~90 lines in Charts, ~145 in Diagnostics) is the same algorithm; `_pickShot` is character-identical in both and in `PpLaunchMonitorPanel`; `_folder` ×4, `_pointAtSession` ×3. The comments in the Diagnostics copy record real traps, so unify carefully (effort M).
-- **C10/B17:** `ViewFlick` ×3, review-foot ×2, the cast-zoom formula ×2, a 7-property view-head preamble ×5.
-- **C9:** the two `KeyFigures` have an identical column-wrap line. **C7:** two run-chart implementations (`PpChRunBox`, `PpRunChart`). **C12:** ~15 copies of the value→pixel map, 5 of the y-axis gutter. **B15:** `PpChartsBody` and `PpSessionDiagnosticsBody` redraw the frame/title/aside that `PpStageCard` already draws — which is why the `framed`/`asideHosted` protocol exists in `PpModeStage`.
-
-### 5. The old `review/` chart stack — largely unreachable — *C1, C2, C8, C4*  ⚠ Mark's call
-- **C1 (high confidence): `MetricLibrary`, `MetricDetail`, `MetricRow`, `NormativeBar`** (≈1,316 lines) form a dead chain; `ScreenSettings.showMetricDetail` now goes to the Diagnostic Model panel. `PpReplayCharts` (73) is dead too — superseded by `charts/PpChartsPanel`.
-- **C2:** `PpMetricChart` (1,549 lines) is mounted in production only by `cameras/PpCameraTiles` with `compact: true`; so `PpChartSummary` (703), `PpSegmentBrush` (364), `PpSequenceStrip` (297) have no production path. Seven tests/probes pin this stack, and `PpChartPlot` carries an "honesty contract". Medium-high confidence; **retiring it is a product decision**, not a mechanical clean-up.
-- **C8:** `PpChSeqTable` and `PpSequenceStrip` share a pasted 55-line "Sequence checks" block (moot if C2 is actioned). **C4:** two curve painters (`PpChartPlot` Shape 1,007 lines vs `PpChPlot` Canvas 168 lines, shared by four Charts figures).
-
-### 6. `ScreenResourceMonitor.qml` is mostly copy-paste of itself — *D2*
-2,390 lines of which ≈700 are in-file duplicates: 4 identical underline tabs, 10 outline buttons, 2 filter boxes, 2 filter-chip rows, 2 memory tables, 6 empty-state rows; and five `Rm*Row` files re-declare the same zebra-row skeleton. It has **no QML test**, so the risk is "no safety net", not complexity. Effort M.
-
-### 7. Calibration — *D3, D4*
-`WitmotionArmRoutine` / `HackMotionArmRoutine` share ≈60 identical scaffold lines (pace merge, logging, begin/stop/reset/restore, guide-finished hook) → `ArmRoutineBase` (state machines stay separate). `ArmCalibrationStatus` carries two full copies of itself (13 local components; `PhaseText`/`HmPhaseText`, `StatusLabel`/`HmStatusLabel`…), and `ImuCalibrationFlow` repeats an 18-property `BodyVizView` block.
-
-### 8. Business rules copied instead of called — *D1, D5, D6, D7, D8, C3, C21, C17*
-- **D1** (above): device-health rules re-derived in four places with hard-coded 15°/25°; the "Error"/"Not found" label match is in three files.
-- **D5:** updater status presentation exists three times (`PpAboutDialog`, `GeneralPanel`, `PpUpdateBanner`) and has **drifted** (wording; `unsupported` treated differently). **GeneralPanel** and `PpAboutDialog` carry the same 8-state update palette (B11).
-- **D6:** Home's finding row (badge, headline, meter, chip, pips) built by hand in `HmFocus`, `HmSwingSummary`, `HmWorkOns`; `capitalised()`/`latestPips()` copied in `HmGoesTogether`.
-- **D7:** the athlete's bag (`clubModel`) computed three times (`ScreenHome:60` and `PpClubPanel:52` byte-identical; `ScreenAthleteForm:77`); `PpChipGroup` cannot wrap, which is why club chips are hand-built.
-- **D8:** the tone-name→colour switch written 5+ times (`ModelTable`, `ModelInspector`, `DiagnosticModel`, Rm cards, wizard) → `Theme.toneColor()`.
-- **C3:** measured/mean/nearest-sample predicates exist as four QML copies of C++ `ChartMetrics::measuredAt`; comments and a test already say "keep them equal". **C21:** `PpSmallMultiple` rebuilds the corridor ladder from `bands[]` in QML although `session_diagnostics_model.cpp:100` says it lives in C++ — *not checked whether they agree for one-sided corridors*. **C17:** `word`/`countWord`/`cap1`/`list` in both QML and C++; `PpDiagRoles` regex-parses C++-built strings back into parts and composes English prose in QML, which the Charts stack forbids.
-
-### 9. Typography: eyebrows, page heads, section heads — *B4, B6, B13, B14, B16, A16*
-~88 inline caps-micro labels (built two ways: `capsFont` and `Theme.caps()`, in two font families) plus 6 local one-off components for the same role (`SectionHead`, `TuneHeading`, `SectionLabel`, `Eyebrow`, `Heading`, `HeadText`); the same eyebrow + `PpDisplayText` + description page head re-typed on ~16 screens; collapsible section headers written four ways (`PpDataViewer`, `PpMetricChart` inline `SectionHeader`); 14 typeset "title + quiet sub-line" heads that are variants of `PpSectionHead`; `PpCardNote`'s recipe typed inline 24× in 19 files. → use `PpMicro`/`PpCardNote`/`PpSectionHead`; one page-header component.
-
-### 10. Popups, notices, cards, tiles — *B7, A12, D13, B10, B11, B25, B19, B20, B22, D9, A15*
-- **B7/A12/D13:** 13 inline popup/dialog backgrounds next to 14 uses of `PpPopoverCard` (radius/border differ — unifying **changes how the Diagnostic Model and pairing popups look**); four modals repeat the same 8-line `Popup` preamble (`PpcpGuidedPairDialog` deliberately inverts the footer and must keep its own).
-- **B10:** `PpToast` and `PpNotificationHost` are the same card; all 5 `PpToast` uses set `showUndo: false`. **B11:** ~12 hand-rolled notice boxes/status pills; `PpTypePill`'s comment says the design doc names a `PpPill`, but no such file exists.
-- **B19:** avatar palette/hash/initials copied between `PpAthleteCard` and `PpAthleteRow` (the layouts themselves are a legitimate variant). **B20:** `PpTopoBackground` + hover/tap handler block pasted into 3 screens. **B22:** `CheckArmPage` and `ReadyPage` re-inline `SetupStepIntro`; six pages repeat a wrapper Column. **D9:** the athlete form's three ~45-line group cards (and a "header strip over a body" card in four other places). **A15:** two status-mark vocabularies (`PpBadge` vs `SetupStatusCircle` + three 6 px status dots).
-
-### 11. Pickers and text inputs — *A11, B23, A13, A14, C22*
-`ModelPicker` is a strict subset of `ModelCausePicker` (~90 shared lines); `ModelEnumField` and `ModelTable`'s enum popup re-implement `PpComboBox`; text inputs bypass `PpTextField` (four crop fields in `CamerasPanel`, two filter fields in the monitor) and there is no shared search field. `PpTabs`/`PpInlinePicker`/`PpChReadingPicker` are legitimately separate (typeset-styled, different jobs).
-
-### 12. Colour spelling and one missing token — *B24, D14*
-`Qt.rgba(X.r, X.g, X.b, a)` is used **128 times in 34 files** where `Qt.alpha(X, a)` exists — this is what the inventory's "hard-coded colours" column mostly counts, so it is **spelling drift, not a Theme bypass**. The deliberate literals are the video overlays (`"black"`, `#080a0c` in `CamerasPanel`/`PpCameraFrame`) and the athlete avatar palette. Real gaps: no `Theme.colorOnAccent` (the ink-on-accent colour is written three different ways at ~23 sites and visibly differs in light mode) and the `"white"` switch knobs.
-
-### 13. 3-D scaffolding — *D10, A17*
-`ArmVizView`, `BodyVizView`, `SwingViz3DView` repeat the Quick3D scaffold (environment, orbit controller, three-light rig, "Drag · Scroll" hint); `OrientationTab` is copied between the first two. The views also each guard against a Qt 6.11 debug-render lifetime issue, so unify with care.
-
-### 14. Plot primitives — *C5, C6, C18, C19, C20*
-`PpSparkline` pastes `PpZonePlot`'s wash-splitting code; the break-slash glyph is drawn in three places; the "not measured" stub rectangle in six files; median polyline and "distance to travel" dimension twice each; scrub-to-seek `MouseArea` ×3 (each coupled straight to `shotReplay`); `byKey`/`byId` ×4; dash-stroking loop ×3. **C6:** three box-plot *adapters* (`PpChBoxCell`, `PpBoxStrip`, `PpHistoryStrip`) repeat marks-and-style assembly and `PpPageKey` hand-draws a miniature box glyph — fix is a `style` property on `PpBoxPlot`.
-
-### 15. C++ formatters — *C15, C16, C17*
-True-minus number formatting written 6× in C++ with **two different missing markers** (`"-"` in `fig`/`spreadNumber`, an em dash in `fmtNumber`; `ChartMetrics::formatBare` uses an ASCII hyphen where `fig` uses U+2212); nice-tick generation ×3 with slightly different cutoffs; `shortUnit` ×3. Output strings are pinned by many tests, so pick the cutoffs deliberately.
-
-### 16. Global-singleton coupling — *D12*  (a pattern, not a duplicate)
-56 of 126 files in cluster D read a context-property global directly — 1,086 references. Worst: `PpMarkupPanel` 135, `Main` 109, `ScreenResourceMonitor` 89, `AudioPage` 79, `CoachPage` 60, `PpSessionToolbar` 59 (nine kinds). `setup/` (no direct global reads, enforced by lint rule W4) and the diagnosticmodel popups are the model to follow; a toolbar facade would come with D1. Full table: [cpp-seam.md](cpp-seam.md).
+**D1 (issue #50) is fixed** — 58607538 gave `HmInstance` a `fullyCalibrated` and both QML copies read it. Residue: the 15°/25° literals still sit unguarded in `WitmotionArmRoutine.qml:410`, and "wG3 is calibrated" is re-derived as `calibrationState === 2` in three calibration files although `fullyCalibrated` now says exactly that (D1, D18).
 
 ---
 
-## 17. Merge map — which components could become one
+## Themes, ranked by value — status at 31 Oct
 
-> **Read §20 first.** This map treats `components/` as the shared base. The typeset aesthetic is the design target, and for look-bearing components (chips, pills, badges, buttons, notices, popups) §20 retargets or holds several rows here.
+Status key: **WORSE** = more copies than 19 Oct · STILL · PARTLY · FIXED/MOOT.
 
-The themes above group findings by *topic*; this is the same material by *action*: for each target, what it would absorb. "Lines" are the agents' estimates of code deleted. Confidence is theirs. Nothing here has been tried.
+### 1. Settings panel skeleton and setting rows — *A7, B1, B2, B28, B8, B9, A6* — **WORSE**
+- **B1:** the scroll/search skeleton (`lastHighlightId`, `findChild`, `scrollToItem`, `highlightTimer`, `contentCol`) is now in **11** panels (StudioPanel added).
+- **A7/B2:** hand-built highlight rows 60 → 61; but **StudioPanel already contains the proposed `SettingsRow`** as a private `component SettingRow` (`StudioPanel.qml:214`, 21 uses via `FieldRow`/`ImageRow`), with `RowTitle` copied from ArchivingPanel (**B28**). Promoting it to `settings/SettingsRow.qml` is the cheapest way into B2.
+- **B8/B9/A6:** capability strip ×3 + 2 and device-card shell ×3 + 2 — unchanged.
 
-### 17a. Near-identical copies — safe to collapse into one file each
+### 2. One on/off switch — *A1, B3* — **WORSE**
+24 → **26** implementations, 43 use sites: 8 inline `TogglePill` (StudioPanel new), `SetupTogglePill`, 2 `MiniToggle`, 15 anonymous (GeneralPanel's spoken-instructions toggle new). Knob `"white"` in 21. Still no `PpSwitch`.
 
-| Target (new unless stated) | Absorbs | Evidence | Lines | Effort | Finding |
-|---|---|---|---:|---|---|
-| `PpSwitch` (promote `SetupTogglePill`) | 7 inline `TogglePill`, `SetupTogglePill`, 2 `MiniToggle`, ~15 anonymous switches | same shell, only the knob colour drifted | ≈580 | S–M | A1, B3 |
-| `SettingsPanelBase` | the scroll/search-highlight skeleton in all 10 settings panels | `findChild`, `scrollToItem`, `highlightTimer` identical | ≈450 | M | B1 |
-| `SettingsRow` | 61–66 hand-built "title + subtitle + control + highlight" rows | `ArchivingPanel.RowTitle` is already half of it | ≈1,100 | M–L (after B1) | A7, B2 |
-| `ModelTypeAhead` | `ModelPicker` and `ModelCausePicker` | the first is a strict subset of the second | ≈120 | S–M | A11, B23 |
-| `PpScopedAction` | `ScopedAction` in `PpCameraPanel` and `PpImuPanel` | verbatim, both hard-code `root.width` | ≈55 | S | A5, B21 |
-| `PpViewFlick` (+ `PpNotes` as the one review foot) | `ViewFlick` ×3, `ReviewFoot` ×2 | `PpChartsRegister`, `PpDiagAnalyse`, `PpDiagReplay` | ≈100 | S–M | B17, C10 |
-| `PpAvatar` | avatar palette, hash and initials in `PpAthleteCard` and `PpAthleteRow` | copied code; the two layouts stay separate | ≈50 | S | B19 |
-| `VizOrientationMarker` | `OrientationTab` in `ArmVizView` and `BodyVizView` | copied | ≈40 | S | A17 |
-| `PpTopoBackdrop` | the topo background + hover/tap block in 3 screens | pasted | ≈40 | S | B20 |
-| `PpSequenceChecks` | pasted "Sequence checks" block in `PpChSeqTable` and `PpSequenceStrip` | ≈55 identical lines | ≈55 | S (moot if the old stack is retired) | C8 |
-| `ArmRoutineBase` | scaffold in `WitmotionArmRoutine` and `HackMotionArmRoutine` | ≈60 identical lines; state machines stay separate | ≈60 | M | D3 |
-| `PpUpdateStatus` | updater presentation in `PpAboutDialog`, `GeneralPanel`, `PpUpdateBanner` | three copies, already drifted | ≈100 | S (plus a wording decision) | D5 |
-| `HmFindingRow` | the finding row in `HmFocus`, `HmSwingSummary`, `HmWorkOns` | same badge/headline/meter/chip/pips | ≈150 | M | D6 |
-| `PpKeyFigureGrid` | `charts/PpChKeyFigures` and `diagnostics/PpKeyFigures` | identical column-wrap logic | ≈40 | S | C9 |
-| `PpFactStrip` | capabilities strip ×3 (Phones, Cameras, Imus) + monitor `Reading`/`Cell` | ≈55 lines ×3 | ≈170 | S–M | B8 |
-| `PpStagePanelBase` / `PpReaderPlace` | the shell of the Charts, Diagnostics and Trust panels | same save/restore algorithm, `_pickShot` character-identical | ≈250 | M (careful: the comments record real traps) | B5, C11 |
+### 3. Buttons, chips, links, menus that bypass the shared ones — *A2, A3, A4, A8–A10, A19, B12, A21, A22, A24* — **WORSE**
+- **A2:** 77 hand-sized buttons in 28 files — net zero (two migrated, two added). `PpButton` still has no compact size.
+- **A3:** choice chips 22 → **23**, now **6** visual dialects (`PpDeviceFilterBar` new, `IntentPage` copy of GoalsPage).
+- **A21 (new):** 22 accent links hand-rolled beside `PpLink`; `PpFilePicker` has its own `PlainLink`; 4 callers repeat the same disabled-colour override because `PpLink` has no disabled look.
+- **A22 = B31 (new):** popup menu rows written 3 ways — `PpSessionRowMenu.MenuLine` (best), `PpSessionDrawer`, `PpShotActionBar`; the ⋯ trigger built twice.
+- **A24 (new):** `ScreenAthleteForm` hand-draws the checkbox `PpCheckRow` now provides.
+- A4, A8, A9, A10, A19: unchanged.
 
-### 17b. Extend an existing component, then retire the copies
+### 4. Charts / Diagnostics / Trust panel shells, and now the chart *sections* — *B5, C10, C11, B17, C9, C7, C12, B15, C24* — **WORSE**
+- **B5/C11:** reader's place ×2, `_pickShot` ×2 (+`_focusShot`), `_folder` ×4 + a fifth variant (`PpSessionBulkJobs._same`, skips the backslash step), `_pointAtSession` ×3. 785f1c2f made the same edit to both reader's-place copies — the twins are maintained in lockstep by hand.
+- **C24 (new):** the Posture, Wrist and Delivery shot sections (and their Session twins) repeat the same ≈30-line shell: 8-line preamble, `seekTo`, fold head and folded height, `sets` builder, trust fold. **Every future Charts section will copy it again.** → `PpChSection`.
+- **C10:** view preamble 5 → 8; **C12:** value→pixel maps 19 → **27**; **C7:** run charts 2 → **3** (C28). C9, B15, B17 unchanged.
+
+### 5. The old `review/` chart stack — *C1, C2, C8, C4* — PARTLY  ⚠ Mark's call
+722cf3c2 deleted `PpReplayCharts` and `PpSequenceStrip` (C8 moot). Still dead: `MetricLibrary`, `MetricDetail`, `MetricRow`, `NormativeBar` (≈1,316 lines) and `PpGateNote`, all still in `cmake/PinPointQmlModule.cmake`. `PpMetricChart` (1,521) is still mounted only at `PpCameraTiles.qml:367` (compact) — the commit says it stays as the short replay graph. C4 (two curve painters) unchanged.
+
+### 6. `ScreenResourceMonitor.qml` copy-paste of itself — *D2* — STILL
+Untouched since 19 Oct (2,389 lines; 4 tabs, 10 outline buttons, 2 filter boxes, 2 memory tables, zebra rows ×6).
+
+### 7. Calibration — *D3, D4, D16, D18, D24* — **WORSE**
+- **D3:** the routine scaffold is now **three** copies (`TrunkRoutine` 887 lines); 51 lines are in all three, and the contract has already drifted (no `reset()`, different logging). → `CalibrationRoutineBase`.
+- **D4:** `CalibrateTrunkPage` is a third copy of `ArmCalibrationStatus`'s status column (same "HOLD STILL — CAPTURING" string, hold bar, Recalibrate); guide `BodyVizView` blocks 2 → 3; hand-written step headers 3 → 6. The on-screen cue words are separate from `spoken_instructions.js`, which calls itself "the ONE place each line's words live".
+- **D16 (new):** `CheckTrunkPage` is a clone of `CheckArmPage` (intro, readings box, Recalibrate link with a bare `MouseArea`).
+- **D18 (new):** C++ tuning constants mirrored in QML — guarded by lint W11 for the trunk routine, unguarded for `WitmotionArmRoutine`'s 15°/25°.
+- **D24 (new):** `BodyVizView` holds two copies of its slerp animation (arm and trunk).
+
+### 8. Business rules copied instead of called — *D1, D5–D8, C3, C21, C17, B29, C32, C34, D17, D20–D23* — **WORSE**
+- **D1** fixed (see above). **D5** updater ×3, drifted, unchanged. **D7** bag sort 3 → 4 (one missed on 19 Oct); Home club picker now a `PpComboBox`. **D8** tone→colour switch ≈9 → ≈11 sites.
+- **D6** PARTLY: Home rows now sit on `PpCard{table}`/`PpTableRow`/`PpExpandRow` and the opened fault is one `HmFaultDetail` — real progress — but **D19 (new):** the "fault opens in place" wiring and `faultFor` are written three times (`HmFocus`, `HmSwingSummary`, `HmAreaRow`). → `HmFaultRow`.
+- **D20 (new):** two Home components read-modify-write the same `homeViewByAthlete` map. **D21 (new):** capability *logic* is correctly in one place (`capability_facts.js`) — keep that pattern — but the rows are drawn twice in different colours. **D22/D23 (new):** Studio restates `ReportMailer`'s sender rules; athlete-form text rules beside C++ twins.
+- **B29, C32, C34, D17** — see the disagreement table.
+- **C3, C21** unchanged. **C17** WORSE: `report_words.h` (1,119 lines, new) carries its own number words, `cap1`, `plural` instead of including `charts_words.h`; `PpDiagRoles` still regex-parses C++ strings.
+
+### 9. Typography: eyebrows, page heads, section heads — *B4, B6, B13, B14, B16, A16, B32, B33* — **WORSE**
+Caps-micro labels 89 → 90; eyebrow + title page heads 17 → **20**; typeset `fSection` heads 16 → **21** (Posture/Delivery); local heading components 3 → 4 (StudioPanel's `SectionHead`, which applies `capsFont` *and* `Theme.caps()`); `PpCardNote` recipe inline 24 (churn); collapsible folds: `PpChTrustFold` redraws `PpTrustSummaryFold`'s toggle, and the new shared `PpExpandRow` chevron has no old users. **B32 (new):** `Caption` ×2 in Home copies `PpCard`'s caption. **B33 = D9:** athlete group card ×5, field label ×23.
+
+### 10. Popups, notices, cards, tiles — *B7, A12, D13, A20, B10, B11, B25, B19, B22, D9, A15* — **WORSE**
+- **A20 = B30 = D13 (new, cheapest win):** `Main.qml:178-278` close prompt is the hand-drawn original of `PpConfirm`; only the width differs. Hand-written popup preambles 4 → 7.
+- **B7/A12:** 13 inline popup backgrounds (unchanged); new popups chose `PpPopoverCard` (17 → 20).
+- **B10:** `PpToast` hosts 5 → 6, all `showUndo: false`. **B22:** setup pages bypassing `SetupStepIntro` 2 → 4. **B25** PARTLY: `PpCard` users 2 → 6. B11, B19, A15 unchanged. **B20 FIXED** by deletion (topo backdrop now one user).
+
+### 11. Pickers and text inputs — *A11, B23, A13, A14, A23, C22* — **WORSE**
+A14: inputs bypassing `PpTextField` 13 → 15; a fourth search-field variant (`ScreenSessions`). **A23 = B34 (new):** a boxed multi-line field built twice (`StudioPanel.AreaField`, `PpReportSheet`), border tokens already differ → `PpTextArea`. A11, A13, B23 unchanged; C22 still legitimate.
+
+### 12. Colour spelling and missing tokens — *B24, D14* — STILL
+`Qt.rgba(X.r,X.g,X.b,a)` 128 → 130 in 36 files (new code mostly writes `Qt.alpha`, +36, but nothing was swept). Ink-on-accent still written three ways at 23 sites; no `Theme.colorOnAccent`/`colorOnScrim`.
+
+### 13. 3-D scaffolding — *D10, A17* — STILL (+D24)
+
+### 14. Plot primitives — *C5, C6, C18–C20, C35, C36* — **WORSE**
+Scrub-to-seek ×3 plus 4 new direct `shotReplay` seeks (C18); `byKey` ×2, `byId` ×2 plus new identical `planeLayersOf`/`withPlane` pair (C19); **C35 (new):** QML `fin(v)` ×10, C++ `fin` ×7, `PpChPlaneLabels` re-declares `PpChPlot`'s map. C5, C6, C20 unchanged; `PpBoxPlot` still has no `style`. **C36:** Posture pattern strip hand-built beside `PpShotStrip`.
+
+### 15. C++ formatters — *C15, C16, C17, C33* — **WORSE**
+Base number formatters 6 → **9** (the two `r2` copies differ on "−.00"); QML twins 2 → 4; unit joining ×7 with 4 rules (C33). C16: tick generators still 3 with different cutoffs, but `axisTicks` is now the single source for Wrist, Posture, Delivery and the report — no fourth was added.
+
+### 16. Global-singleton coupling — *D12* — STILL (a pattern)
+1,058 → 1,086 references in 55 files. Top: `PpMarkupPanel` 130, `Main` 109, `ScreenResourceMonitor` 89, `AudioPage` 79, `FilmPage` 78 (dead), `PpSessionToolbar` 61 (repo-wide `GeneralPanel` 106). New Home cards (`HmHomeTabs`, `HmSwingAreas`) follow the injection convention; `HmRigCapability` reads globals directly.
+
+### 17. NEW — the session report re-implements Charts blocks — *C23, C25–C31, B26, B27* 
+Built since 19 Oct; reuses `PpChBoxCell`, `PpChScatter`, `PpChRunBox`, `PpChPostureFrame`, `PpChShotShapeGrid` in print roles (so reuse is proven possible), but also:
+- **C23:** the P1–P8 profile drawn three times (`PpChWristProfile`, `PpChPostureProfile` — "the wrist profile's form" — and `PpReportProfile`).
+- **C25:** `PpChDeliveryPicture` is "the twin of" `PpChPosturePicture` (containment 0.81). **C26:** `PpChPostureLedger` copies `PpChWristLedger` (0.81).
+- **C27:** report "At address" and "moves with the lead wrist" redraw `PpChPostureAddress`/`PpChMovesWith` (byte-identical `px(v)`).
+- **C28:** a third run chart in `PpWorkOnPage`. **C29:** the report has its own shot mark and a third roles vocabulary (`rr`, `PpTypeset`, `PpChRoles` on one page). **C30:** page head, trust block, `Para`, squeeze timer repeated per page. **C31:** fit-to-widest-word columns ×3.
+- Sessions-screen side: **B26** byte formatters, **B27** `plural` ×3 (bypasses Qt's `%n`), **B29** action rules ×5.
+
+---
+
+## 18. Merge map — which components could become one
+
+> **Read §21 first.** For look-bearing components (chips, pills, badges, buttons, notices, popups) §21 retargets or holds several rows. The "Now" column is the 31 Oct status.
+
+### 18a. Near-identical copies — safe to collapse into one file each
+
+| Target (new unless stated) | Absorbs | Lines | Effort | Now | Finding |
+|---|---|---:|---|---|---|
+| `PpConfirm` (exists) | `Main.qml` close prompt | ≈90 | S | new | A20, B30, D13 |
+| `PpSwitch` (promote `SetupTogglePill`) | 8 `TogglePill`, `SetupTogglePill`, 2 `MiniToggle`, 15 anonymous | ≈600 | S–M | worse (26) | A1, B3 |
+| `SettingsPanelBase` | skeleton in 11 settings panels | ≈500 | M | worse (11) | B1 |
+| `SettingsRow` + `SettingsRowTitle` (promote StudioPanel's) | 61 hand-built rows, `RowTitle` ×2, `SectionHead` ×2 | ≈1,100 | S to promote, M–L to adopt | worse | A7, B2, B28 |
+| `CalibrationRoutineBase` | scaffold in Witmotion, HackMotion and Trunk routines | ≈100 | M | worse (3) | D3 |
+| `PpChSection` (+ `PpChSeek`) | shell of Posture/Wrist/Delivery shot sections and Session twins; 4 direct seeks | ≈180 | M | new | C24, C18 |
+| `PpChPositionProfile` | `PpChWristProfile`, `PpChPostureProfile` (later `PpReportProfile`) | ≈300 | M (M–L with print) | new | C23 |
+| `PpChPictureStrip` | `PpChPosturePicture`, `PpChDeliveryPicture` | ≈90 | S | new | C25 |
+| `PpChFindingsLedger` | `PpChWristLedger`, `PpChPostureLedger` | ≈90 | S–M | new | C26 |
+| `HmFaultRow` | fault-opens-in-place wiring ×3, `faultFor` ×3 | ≈75 | S–M | new | D19 |
+| `PpMenuItem` / `PpMenuRule` (promote `MenuLine`) | drawer and action-bar menu rows, `ModelTools.Action` | ≈150 | S–M | new | A22, B31 |
+| `PpTextArea` | `StudioPanel.AreaField`, `PpReportSheet` note | ≈40 | S | new | A23, B34 |
+| `Theme.formatBytes` (or `QLocale::formattedDataSize` invokable) | 8 byte formatters (pick SI or binary) | ≈50 | S + decision | new | B26 |
+| `PpSessionBulkJobs.whyNot/reportable` | session-action rules in 5 files | ≈60 | S–M | new | B29 |
+| `SetupRecalibrateLink`, `SetupReadingsBox` (+ use `SetupStepIntro`) | `CheckTrunkPage` / `CheckArmPage` clones | ≈80 | S | new | D16, B22 |
+| `SetupCapabilityRow` | Ready and Home capability rows; drop `dotKind` | ≈60 | S + colour decision | new | D21 |
+| report: `PpReportSectionHead`, `PpReportTrust`, `PpReportPara`, `PpFitColumns` | per-page head/trust/Para ×3–4; column fit ×3 | ≈150 | S | new | C30, C31 |
+| `ModelTypeAhead` | `ModelPicker`, `ModelCausePicker` | ≈120 | S–M | still | A11, B23 |
+| `PpScopedAction` | `ScopedAction` ×2 | ≈55 | S | still | A5, B21 |
+| `PpViewFlick` (+ `PpNotes`) | `ViewFlick` ×3, `ReviewFoot` ×2 | ≈100 | S–M | still | B17, C10 |
+| `PpAvatar` | avatar code in `PpAthleteCard`/`PpAthleteRow` | ≈50 | S | still | B19 |
+| `VizOrientationMarker` | `OrientationTab` ×2 | ≈40 | S | still | A17 |
+| `PpUpdateStatus` | updater presentation ×3 | ≈100 | S + wording | still | D5 |
+| `PpKeyFigureGrid` | KeyFigures column-wrap ×2 (+2 in `PpLmGraphicsBody`) | ≈40 | S | still | C9 |
+| `PpFactStrip` | capability strip ×3 + monitor cells | ≈170 | S–M | still | B8 |
+| `PpStagePanelBase` / `PpReaderPlace` | Charts/Diagnostics/Trust panel shell | ≈250 | M (traps in comments) | still | B5, C11 |
+| ~~`PpTopoBackdrop`~~ | — | — | — | fixed by deletion | B20 |
+| ~~`PpSequenceChecks`~~ | — | — | — | moot | C8 |
+
+### 18b. Extend an existing component, then retire the copies
 
 | Existing component | Add | Retires | Finding |
 |---|---|---|---|
-| `PpButton` | `size` (normal/compact/icon), outlined `tone`, `active` | ~87 hand-built buttons in 31 files; `TBtn`, `PipBtn`, `MlButton`, `ModelBarButton`; 17 stock `Button`s in the lab pages; ~10 outline buttons in the monitor | A2, A4, A10, D2 |
-| `PpChipGroup` / `PpChip` | `wrap`; object options; a single-chip `PpChoiceChip` | 21+ hand-built choice chips (incl. 4 duplicates of `TuneChip` inside `CamerasPanel`); `PpTypePill` (a preset of `PpChip{tinted:false}`) | A3, A18, D7 |
-| `PpSegmentedControl` | object options, compact size, `solid`/`wash`/`outline` | `ElementSegmented`, `PpSpeedSelector` (and possibly `PpUnitToggle`) | A9 |
-| `PpComboBox` | nothing new — use `valueRole` | `ModelEnumField`, the enum popup in `ModelTable` | A13 |
-| `PpTextField` | `compact`, `monospace`, `clearable`; a `PpSearchField` sibling | boxed inputs in `CamerasPanel` (4 crop fields), the monitor (2 filters), others | A14 |
-| `PpToolPill` | badge kind/tone, chevron | `DevicePill` in `PpSessionToolbar` | A8 |
-| `PpPopoverCard` | `plain`/border colour | 13 inline popup backgrounds; option-row delegates | B7, A12 |
-| `PpMicro` / `PpCardNote` | `caps`, `body` | ~88 inline eyebrow labels, 6 local heading components, 24 inline note recipes | B4, B16, A16 |
-| `PpSectionHead` (typeset) | `count`, `subStyle`, `fold`, `layout` | `PpChFoldHead`, the two `SectionHeader`s, `PpExpectations`/`FigHead`/`HalfHead` heads | B13, B14 |
-| `PpBadge` | warn/error kinds | `SetupStatusCircle`; the three 6 px status dots | A15 |
-| `PpStageCard` | (use it) | the self-drawn frames in `PpChartsBody` and `PpSessionDiagnosticsBody`, and the `framed`/`asideHosted` protocol | B15 |
-| `PpCardShell` | (use it) | hand-rolled surface+hairline Rectangles | B25 |
-| `PpBoxPlot` | `style` property; draw the page-key glyph with it | marks/style assembly in `PpChBoxCell`, `PpBoxStrip`, `PpHistoryStrip`; the glyph in `PpPageKey` | C6 |
-| `PpLedgerTable` | lift column spec out | hand-laid column tables in Charts | C14 |
-| `PpTypeset` | `byKey`/`byId`, `dashPath`, `wrapColumns` | 4 `byKey`/`byId` copies, 3 dash-loop copies | C19, C20, C9 |
-| `charts/PpChPlot` | peak and σ-whisker layer kinds | `review/PpChartPlot` (1,007 lines) — only if the old stack stays | C4 |
+| `PpLink` | disabled colour from `interactive`; `current` state | `PlainLink`, 4 overrides, most of 22 inline links | A21 |
+| `PpCheckRow` | trailing slot/note | `ScreenAthleteForm` checkbox | A24 |
+| `PpExpandRow` | (use it) | the older hand-drawn folds | B13 |
+| `PpButton` | `size` (compact/icon), outlined `tone` | 77 hand-built buttons; `TBtn`, `PipBtn`, `MlButton`, `ModelBarButton`; the ⋯ tile | A2, A10, A22 |
+| `PpChipGroup` / `PpChip` | `wrap`, multi-select, object options | 23 hand-built choice chips | A3, D7 |
+| `PpSegmentedControl` | object options, compact, disabled segment | `ElementSegmented`, `PpSpeedSelector` | A9 |
+| `PpComboBox` | — (use `valueRole`) | `ModelEnumField`, `ModelTable` enum popup | A13 |
+| `PpTextField` | `compact`, `monospace`, `clearable`; `PpSearchField` | 15 boxed inputs; 4 search-field variants | A14 |
+| `PpPopoverCard` | `plain`/border colour | 13 inline popup backgrounds | B7, A12 |
+| `PpMicro` / `PpCardNote` | `caps`, `body`; a `label` variant | 90 eyebrows, 4 heading components, 24 note recipes, 23 athlete field labels, `Caption` ×2 | B4, B16, A16, B32, B33 |
+| `PpSectionHead` (typeset) | `count`, `subStyle`, `fold` | 21 hand-made `fSection` heads, `PpChFoldHead`, `SectionHeader` ×2 | B13, B14 |
+| `PpBadge` | warn/error kinds | `SetupStatusCircle`, the 6 px dots | A15 |
+| `PpStageCard` / `PpCardShell` | (use them) | self-drawn frames in two bodies; hand-rolled surfaces | B15, B25 |
+| `PpBoxPlot` | `style` | marks assembly in 3 adapters; `PpPageKey` glyph | C6 |
+| `PpChRunBox` | band + target label | `PpWorkOnPage.RunChart`; later `PpRunChart` | C7, C28 |
+| `PpChPostureAddress`, `PpChMovesWith` | print mode (pager atoms, folio hue) | report's redrawn blocks | C27 |
+| `PpTypeset` | `byKey`/`byId`, `fin`, `dashPath`, `wrapColumns` | 4 `byKey`/`byId`, 10 `fin`, 3 dash loops | C19, C20, C35, C9 |
+| `charts_words.h` / new `figure_format.h` (C++) | one `fig`, `figSigned`, `withUnit`, `whenImpact`, `fin`, number words | 9 formatters, 7 unit joiners, `report_words.h` word copies | C15, C17, C33, C34, C35 |
+| `lm_inferred_reads.h` | one shot-shape classifier returning indexes | `session_delivery.cpp deliveryShotShape` thresholds | C32 |
+| `ImuInstance` / `ImuManager` | `trunkTurnFrom(ref)`; tuned constants exposed to QML | `CheckTrunkPage` heading maths; QML-mirrored constants | D17, D18 |
+| `ReportMailer` | `fromAddress`, `senderName` | Studio's restated sender rules; a `toFileUrl` helper for D22 | D22 |
+| `AthleteController` | `bagClubIds`, `greetingDefault`, `normaliseReportEmails`, `validDob` | bag sort ×4; form rules | D7, D23 |
+| `AppSettings` | `homeView(uuid)` / `setHomeView` | the two read-modify-writes | D20 |
 
-### 17c. Merge only after a decision from Mark (look, behaviour, or product)
+### 18c. Merge only after a decision from Mark (look, behaviour, or product)
 
 | Candidate | Why it needs a decision | Finding |
 |---|---|---|
-| `PpToast` + `PpNotificationHost` → one notice card | same card; all 5 `PpToast` uses set `showUndo: false`; touches the notification-centre contract | B10 |
-| `PpChRunBox` + `PpRunChart` → `PpRunPlot` | heavily probed on both sides; a linear vs fault-forward scale | C7 |
-| `ScreenSessionMode` into `ScreenWrist` (or delete it) | the dead fork has already diverged | B18, D11 |
-| `PpDeviceCard` shell for the three settings device rows + two monitor cards | files are huge; extract the shell only | A6, B9 |
-| `PpDialog` for four modals | the pairing dialog deliberately inverts the footer convention and must keep it | D13 |
-| `PpPageHeader` (with `SetupStepIntro` as its setup variant) | same eyebrow + title + description on ~16 screens; small visual drift | B6, B22 |
-| `VizScene` base for `ArmVizView`, `BodyVizView`, `SwingViz3DView` | each guards a Qt 6.11 debug-render lifetime problem | D10 |
-| `Theme.toneColor()`, `Theme.colorOnAccent` | light-mode ink colour changes visibly at ~23 sites | D8, D14 |
-| `PpGroupCard` for the athlete form's three cards (+4 other header-over-body cards) | consolidation across screens | D9 |
-| Retire `review/PpMetricChart` and its dependants | product decision, 7 tests pin it | C2 |
+| Byte sizes: binary or SI | one screen's numbers change by ≈7 % | B26 |
+| One shot-shape classifier | thresholds and names are product choices; both pinned by tests | C32 |
+| One unit-joining rule; one "at impact" window | strings pinned by many tests | C33, C34 |
+| Capability-row colours (Ready vs Home) | which is right under "colour only for outside its corridor" | D21 |
+| `PpToast` + `PpNotificationHost` | notification-centre contract; all 6 `PpToast` uses set `showUndo: false` | B10 |
+| `PpChRunBox` + `PpRunChart` (+ report run chart) → one run plot | linear vs fault-forward scale; heavily probed | C7, C28 |
+| Report roles: one `PpReportRoles extends PpTypeset` | whether the report shares the typeset type scale | C29 |
+| `PpDeviceCard` shell | huge files; extract the shell only | A6, B9 |
+| `PpPageHeader` (with `SetupStepIntro` as setup variant) | 20 screens; small visual drift | B6, B22 |
+| `VizScene` base for the 3-D views | Qt 6.11 debug-render lifetime guards | D10, D24 |
+| `Theme.toneColor()`, `Theme.colorOnAccent` | light-mode ink changes visibly at ~23 sites | D8, D14 |
+| `PpGroupCard` for the athlete form (+ clubs section) | consolidation across screens | D9, B33 |
+| Retire `review/PpMetricChart` and dependants | product decision; Capture uses it as the short replay graph | C2 |
+| Delete the dead metric-catalogue chain, `PpGateNote`, `FilmPage` | deletion | C1, D11 |
 
-## 18. Likely copied code that is not a component
-
-Code (functions, formulas, small blocks) that exists in several places. Each has a single home it could move to. Those marked **C++** involve the C++ side and are pinned by tests.
+## 19. Likely copied code that is not a component
 
 | What is copied | Where | Copies | Single home | Finding |
 |---|---|---:|---|---|
-| `_imuCalibratedOk()` with 15°/25° hard-coded (see ⚠ above) | `PpImuPanel`, `PpSessionToolbar`, + 2 more health checks | 4 | `ImuManager` invokables (C++ already has `fullyCalibrated`) | D1 |
-| `findChild()` / `scrollToItem()` / `highlightTimer` | every settings panel (12 files carry `scrollToItem`) | 10–12 | `SettingsPanelBase` | B1 |
-| `_folder()` session-folder normaliser | `PpChartsPanel`, `PpTrustPanel`, `PpTrustSummaryFold`, +1 | 4 | one session-path function | C11 |
-| `_pointAtSession`, `_screenActive` bindings | Charts, Trust, Diagnostics | 3 | `SessionMode` | B5, C11 |
-| `_pickShot()` | Charts, Diagnostics, `PpLaunchMonitorPanel` | 3 | stage-panel base | B5 |
-| reader's-place save/restore | `PpChartsPanel` (~90 lines), `PpSessionDiagnosticsPanel` (~145) | 2 | `PpReaderPlace` | B5 |
-| measured / mean / nearest-sample predicates (`_meanOf`, `_hasMean`, …) | `PpChartPlot`, `PpChartSummary`, `PpMetricChart` + C++ `ChartMetrics::measuredAt` | 4 + C++ | a `.js` library, or one decorated mask | C3 |
-| `byKey` / `byId` | `PpChSessionFigure`, `PpChTraceFigure`, `PpTypeset`, `PpDiagReplayState` | 4 | `PpTypeset` | C19 |
-| value→pixel map (`vy`) and y-axis gutter | ~15 Charts figures / 5 gutters | 15 / 5 | `PpChScale`, `PpChYAxis` | C12 |
-| dash-pattern stroke loop | three plot components | 3 | one helper | C20 |
-| scrub-to-seek `MouseArea` | three Charts figures | 3 | `PpChScrubArea` | C18 |
-| cast-zoom formula | `PpDiagAnalyse`, `PpChartsRegister`/Replay | 2 | `PpCastSurface` | C10 |
-| "not measured" stub rectangle; break-slash glyph | six files; three files | 6 / 3 | `PpTypeset` helpers | C5 |
-| `capitalised()`, `latestPips()` | `HmFocus`, `HmGoesTogether`, `HmSwingSummary` | 3 | `HmText.js` | D6 |
-| `clubModel` (the athlete's bag) | `ScreenHome:60`, `PpClubPanel:52`, `ScreenAthleteForm:77` | 3 | `AthleteController::bagClubIds` | D7 |
-| tone-name → colour switch | `ModelTable`, `ModelInspector`, `DiagnosticModel`, monitor cards, wizard | 5+ | `Theme.toneColor()` | D8 |
-| updater state → text/colour palette (8 states) | `PpAboutDialog`, `GeneralPanel`, `PpUpdateBanner` | 3 | `UpdateStates.js` | D5, B11 |
-| `Qt.rgba(X.r, X.g, X.b, a)` instead of `Qt.alpha(X, a)` | 34 files | 128 | a lint rule or one replace | B24 |
-| ink-on-accent colour, written three ways | ≈23 sites | 23 | `Theme.colorOnAccent` | D14 |
-| `quatMul` / `quatInv` and the world→scene basis constant | the three Quick3D views | 3 | `VizMath.js` | D10 |
-| `word`, `countWord`, `cap1`, `list` | QML text helpers **and** C++ word helpers | 2 languages | C++ publishes the parts (C17) | C17 |
-| corridor ladder / pass edges | `PpSmallMultiple` (QML) **and** `session_diagnostics_model.cpp` | 2 languages | C++ publishes the edge list | C21 |
-| true-minus number formatting, with two different "missing" markers | **C++** ×6 (`fig`, `spreadNumber`, `fmtNumber` ×2, `formatBare`, `r2`) | 6 | `figure_format.h` | C15 |
-| nice-tick generation; `shortUnit` | **C++** ×3 each | 3 | `figure_format.h` | C16 |
-| `_typeName` | `MetricDetail`, `MetricLibrary`, `MetricRow` | 3 | dies with the dead chain | C1 |
+| "any connected IMU needs calibrating" loop; "connection gave up" label match | `PpImuPanel`, `PpSessionToolbar`; 3 files | 2 / 3 | `ImuManager` invokable | D1 |
+| `calibrationState === 2` for "wG3 calibrated"; 15°/25° literals | `ImuCalibrationFlow`, `HackMotionArmRoutine`, `ArmCalibrationStatus`; `WitmotionArmRoutine:410` | 3 / 1 | `fullyCalibrated`; exposed C++ constants | D1, D18 |
+| trunk heading and wrap | `CheckTrunkPage`, `TrunkRoutine._wrap180`, C++ `trunk_angles` | 3 | C++ | D17 |
+| `findChild` / `scrollToItem` / `highlightTimer` | 11 settings panels | 11 | `SettingsPanelBase` | B1 |
+| `bytesWords` (identical) + 5 other byte formatters | Sessions files; Storage, Archiving, monitor, file picker, table row | 3 + 5 | `Theme.formatBytes` | B26 |
+| `plural(n, one, many)` (identical) + inline | `ScreenSessions`, `PpSessionsSelectionBar`, `PpSessionReportList` + 7 inline | 3 + 7 | `qsTr("%n …", "", n)` | B27 |
+| can-report / has-PDF / who + reasons | 5 Sessions files | 4–5 | `PpSessionBulkJobs` | B29 |
+| `faultFor(conditionId)` | `HmFocus`, `HmSwingSummary`, `HmAreaRow` | 3 | `HmFaultRow` | D19 |
+| `homeViewByAthlete` read-modify-write | `HmHomeTabs`, `HmSwingAreas` | 2 | `AppSettings` | D20 |
+| sender address / name | `StudioPanel`, `PpSessionReportList`, C++ `ReportMailer` | 2 + C++ | `ReportMailer` | D22 |
+| path → `file://` URL | `StudioPanel`, `PpFilePicker`, `PpSessionReportList` (unencoded) | 3 | `QUrl::fromLocalFile` invokable | D22 |
+| `_folder()` session-folder normaliser | Charts, Trust ×2, +1; `PpSessionBulkJobs._same` (variant) | 4 + 1 | one session-path function | C11, B5 |
+| `_pointAtSession`, `_screenActive` | Charts, Trust, Diagnostics; 5 `_screenActive` | 3 / 5 | `SessionMode` | B5, C11 |
+| `_pickShot()` | Charts, Diagnostics (+ LM `_focusShot`) | 2 + 1 | stage-panel base | B5 |
+| reader's-place save/restore | Charts, Diagnostics | 2 | `PpReaderPlace` | B5 |
+| `seekTo(us)` (identical) + inline seek | 3 ShotSections + `PpChPostureSession` | 4 | `PpChSeek` | C18, C24 |
+| measured / mean / nearest predicates | 4 QML files (2 `_measuredAt`) + C++ | 4 + C++ | one helper | C3 |
+| `byKey` / `byId`; `planeLayersOf` / `withPlane` | Charts figures, `PpTypeset`, `PpDiagReplayState` | 4; 2 | `PpTypeset` | C19 |
+| value→pixel map; y-axis gutter | Charts and report figures | 27 / 8 | `PpChScale`, `PpChYAxis` | C12 |
+| finite test `fin` | 10 QML; 7 C++ | 17 | `PpTypeset.fin`; one C++ | C35 |
+| dash-stroke loop | 3 | 3 | one helper | C20 |
+| cast-zoom formula | 2 | 2 | `PpCastSurface` | C10 |
+| "not measured" stub; break slash | 6 / 3 | 6 / 3 | `PpTypeset` helpers | C5 |
+| fit-to-widest-word columns, `xOf` | `PpNumbersTable`, `PpLmAppendix` ×2 | 3 | `PpFitColumns` | C31 |
+| `capitalised()`, `maxPips`; dead copies in `HmGoesTogether` | Home files | 3 / 2 | `HmText.js`; delete the dead ones | D6 |
+| `clubModel` (the athlete's bag) | `ScreenHome`, `PpClubPanel` (byte-identical), `ScreenAthleteForm`, `AthleteClubsSection` | 4 | `AthleteController::bagClubIds` | D7 |
+| "this club is taped" | `PpClubPanel`, `PpSessionToolbar` | 2 | `ClubFormat` | D7 |
+| tone-name → colour switch | ≈11 sites | 11 | `Theme.toneColor()` | D8 |
+| updater state → text/colour | 3 | 3 | `UpdateStates.js` | D5 |
+| on-screen cue words vs spoken words | `CalibrateTrunkPage`, `spoken_instructions.js` | 2 | `spoken_instructions.js` | D4 |
+| slerp animation | `BodyVizView` arm and trunk | 2 | inline `SlerpTrack` | D24 |
+| `Qt.rgba(X.r,X.g,X.b,a)` | 36 files | 130 | a lint rule or one replace | B24 |
+| ink-on-accent | ≈23 sites | 23 | `Theme.colorOnAccent` | D14 |
+| `quatMul` / `quatInv`, world→scene basis | 3-D views | 3 | `VizMath.js` | D10 |
+| number words, `cap1`, `list`, `plural` | QML, `charts_words.h`, **`report_words.h`** | 3 languages-files | `charts_words.h` | C17 |
+| corridor ladder | `PpSmallMultiple` + C++ | 2 | C++ publishes edges | C21 |
+| number formatting (true minus, missing mark) | **C++** ×9 (+ QML ×4) | 13 | `figure_format.h` | C15 |
+| figure + unit joining; signed figures | **C++** ×7 (4 rules); ×4 | 11 | `figure_format.h` | C33 |
+| "at impact" wording | `charts_words.h`, `report_words.h`, `charts_traces_presenter.cpp` ×4 | 3+ | `whenImpact` | C34 |
+| shot-shape classification | `lm_inferred_reads.h`, `session_delivery.cpp` | 2 | `lm_inferred_reads.h` | C32 |
+| nice ticks; `shortUnit` | **C++** ×3 each | 3 | `figure_format.h` | C16 |
+| `_typeName` | dead chain | 3 | dies with it | C1 |
 
-## 19. Looks duplicated, is not — leave alone
-- **Same-named local components with different jobs** (D15, A16): the three `Chip`s, `Cell`, `Tile`, `Switch` — do not merge or promote to files with those names (they would collide in the flat module). `PpLmGraphicsBody`'s 29 local components are one deliberate `PpTypeset` design.
-- **`PpTypePill` ≠ `ModelChipRow`** (read-only label vs selectable chips); `PpLmGraphicsBody`'s `Chip` is typeset-themed and `SwingViz3DView`'s is a thin wrapper over `PpChip`; `PpTabs`, `PpInlinePicker`, `PpChReadingPicker` stay separate (A).
-- **The box-plot rule holds** (C6): `PpBoxPlot` is the only drawer and `typeset/box_stats.h` the only statistics code; all quantiles forward to `quantile7`.
-- **The card family is correctly layered** (B25): `PpCardShell` is the chassis; `PpCard`, `PpStageCard`, `PpPopoverCard` are legitimately distinct. The one gap: nothing for a tone-coloured notice (B11).
-- **`PpAthleteCard` / `PpAthleteRow`** are different layouts (B19); only the avatar is shared code.
-- **`PpcpGuidedPairDialog`** is parked on purpose (D11) — `ScreenHome` carries restore instructions and `ppcp_bootstrap_test.cpp` reads its source.
+## 20. Looks duplicated, is not — leave alone
+- **Same-named local components with different jobs** (D15, A16): the three `Chip`s, two `Cell`s — do not merge or promote under those names (flat module). The two `ShotTable`s (LM board vs report appendix) have different layouts — share the column code (C31), not the tables.
+- **`PpTypePill` ≠ `ModelChipRow`**; `PpTabs`, `PpInlinePicker`, `PpChReadingPicker`, `PpChChoices` stay separate (A, C22).
+- **The box-plot rule holds** (C6): every new box — Posture, Delivery, report — goes through `PpChBoxCell` → `PpBoxPlot`.
+- **The card family is correctly layered** (B25); `PpCard{table}` deliberately does not use `PpCardShell` (its header says why).
+- **Capability logic is shared** (D21): `capability_facts.js` + `setup_capability_rows.js`, with `HmRigCapability` building a draft-less `SetupContext` — the pattern D1/D12 asked for.
+- **`spoken_instructions.js`** is the one source of spoken phrases; **`HmFaultDetail`**, **`PpChTrustFold`**, **`PpChShotShapeGrid`**, **`PpReportProfile`**, **`PpRowAction`** are clean single components with several users; `report_posture/wrist/delivery.h` adapt presenter output rather than recompute it; `axisTicks` is the one tick source for the new presenters.
+- **`PpcpGuidedPairDialog`** is parked on purpose (restore notes now in `HmRigCapability.qml:166`).
+- **`BarButton`** (`PpSessionsSelectionBar`) is a thin `PpButton` wrapper for a disabled-reason tooltip, not a copy.
 
-## 20. How the new (typeset) aesthetic changes the merge plan
+## 21. How the typeset aesthetic changes the merge plan
 
-**Short answer: yes, in three ways — it changes which side to merge *toward*, it moves the best-value work, and it puts some of §17 on hold.** I wrote §17 as if `components/` were the shared base. Measuring it says otherwise.
+*(Unchanged in substance from 19 Oct; re-measured.)* The typeset-built areas (Charts, Session diagnostics, Trust) still use **2 of the now 46** `components/` files (`PpCardShell`, `PpMicro`); the new session report uses 10 alongside typeset roles on some pages. The design system (§15) makes typeset the target for every stage panel and later whole screens, and rejects pills, capsules, chip clouds, tone badges and coloured card rules.
 
-**What the evidence shows**
-- The Charts, Session-diagnostics and Trust panels (the typeset-built ones) use **2 of the 37** `components/` files — `PpCardShell` and `PpMicro`. They bring their own text roles, marks (`PpMark`), tabs (`PpTabs`), pickers (`PpInlinePicker`), section heads, notes and plots. They are a second vocabulary, not a layer on the first. (Counted from the inventory; the Charts blocks receive a `roles` object, so by-type counts understate how typeset they are.)
-- The design system (§15) says typeset *"is the target for every other stage panel and, later, for whole screens"*, and its rules reject what the old components are made of: pills, capsules, chip clouds, tone badges, frequency meters, a coloured card rule ("controls are quiet text"; colour only for "outside its corridor"). The stage-panel audit (playbook §7) lists "pills and segmented capsules are the default control" as a stage-wide fault, to be replaced by **one quiet selection control, `PpTabs`**.
-- Everything outside Charts/Diagnostics/Trust — Settings (12.7k lines), Home, Athlete, Setup, Monitor, Shell, the session toolbar — is still the old vocabulary.
+1. **For look-bearing components the merge direction flips:** selection controls converge on `PpTabs`/`PpInlinePicker` (Home's new tabs already use `PpTabs`), status marks on `PpMark`, headings on the typeset roles / `PpSectionHead`, notes on `PpNotes`. Do not design new `PpChip`/`PpBadge`/`PpButton` variants in the old style.
+2. **The best-value work is inside the typeset area** — and it has grown: the Charts *sections* (C23–C26, C24's shell) and the report pages (C27–C31) are now the code every later section and page will copy. Consolidating there is on the target path with certainty.
+3. **A pure collapse of look-bearing copies is still worth doing — only the collapse.** One `PpSwitch` with today's look makes the later restyle a one-file change instead of 26.
 
-**1. The direction of merging flips for look-bearing components.** Where §17 says "extend `PpChip` / `PpChipGroup` / `PpSegmentedControl` / `PpBadge` / `PpTypePill` / `PpButton` / `PpMicro`", the typeset answer is different: selection controls converge on `PpTabs` (and `PpInlinePicker`), status marks on `PpMark`, eyebrows and headings on the typeset text roles / `PpSectionHead` / `PpStandfirst`, notes on `PpNotes`. Building a `PpChoiceChip`, new `PpBadge` kinds or a compact/outlined `PpButton` would add API to the idiom the design has already decided to leave.
-
-**2. The best-value work moves into the typeset area.** The duplicates inside Charts/Diagnostics (C-series; B5, B13–B15, B17) are the code every later panel port will copy from. Duplication there multiplies with each port, and consolidating it is the one set of merges that is *on* the target path with certainty. §17b's rows for `PpSectionHead`, `PpBoxPlot` (`style`), `PpTypeset` helpers, `PpLedgerTable`, `PpStageCard`/`PpCardShell` adoption, and the panel-shell base (`PpStagePanelBase`/`PpReaderPlace`), plus `PpViewFlick`/`PpNotes`, `PpKeyFigureGrid`, `PpRunPlot` and `PpChPlot` as the curve painter (C4's direction is now settled), move to the front.
-
-**3. A pure collapse is still worth doing for look-bearing copies — but only the collapse.** Merging the 24 switch copies into one `PpSwitch` with *today's* look and no new variants costs little and makes the later restyle a one-file change instead of 24. What to avoid is designing variants (sizes, tones, outlined, chip kinds) in the old style. The same holds for popups and notices.
-
-**Re-labelled §17**
-
-| §17 item | Under the typeset direction |
+| Item | Under the typeset direction |
 |---|---|
-| Look-neutral structure and logic: `SettingsPanelBase` (scroll/highlight skeleton), `ModelTypeAhead`, `PpScopedAction`, `PpViewFlick`, `ArmRoutineBase`, `PpUpdateStatus` (logic), device-health rules (D1), `clubModel`, C++ formatters (C15–C17), dead-file deletion, `Qt.alpha` sweep | **Proceed as written.** Not affected by the aesthetic. |
-| Inside the typeset area: C3–C22, B5/C11 panel base, B13/B14 `PpSectionHead`, B15 `PpStageCard` framing, B17/C10, C6 `PpBoxPlot style` | **Raise to top priority.** This is the reference implementation. |
-| `PpSwitch`, `PpAvatar`, `PpFactStrip`, `HmFindingRow`, `PpTopoBackdrop`, `PpDeviceCard` shell, `SettingsRow` | **Collapse now, no variants; re-skin later.** `SettingsRow` as structure (id, title, subtitle, highlight, control slot) is fine; its look should come from typeset roles when Settings is ported. `HmFindingRow` and `PpFactStrip` use tone badges and meters that §15 removes — keep to a plain collapse. |
-| Extend `PpButton`, `PpChipGroup`/`PpChip`/`PpChoiceChip`, `PpSegmentedControl`, `PpBadge`, `PpTypePill`→`PpChip`, `PpToolPill`, `PpMicro`/`PpCardNote` (caps, body variants) | **Retarget or hold.** Chips, capsules, segmented controls → `PpTabs`/`PpInlinePicker` (A3, A9, A18, B12). Badge kinds → `PpMark` (A15). Eyebrows/headings → typeset roles (B4, B6, B16). Buttons: no typeset button exists yet — design that first (§15: "controls are quiet text"). |
-| Popup chrome (`PpPopoverCard plain`, `PpDialog`), notice card (`PpToast`+`PpNotificationHost`), `Theme.toneColor()` | **Hold.** No typeset answer; tone-coloured notices conflict with "colour means only outside its corridor". Decide the typeset equivalent, then merge into that. |
-| `PpTextField`/search field, `PpComboBox` (A13, A14) | **Hold** for a typeset input design; do A13 (a wrapper over `PpComboBox`) only if `ModelEnumField` is needed meanwhile. |
-| Retire the old review chart stack (C1, C2) | **Stronger case:** the old Charts panel (`PpReplayCharts`→`PpMetricChart`) is what the typeset Charts panel replaced on 14 Oct; the compact plot in the camera tiles is its last production use. Still Mark's call. |
+| Look-neutral logic and structure: `PpConfirm` adoption, `SettingsPanelBase`, `SettingsRow` (structure), `CalibrationRoutineBase`, `HmFaultRow`, session-action rules, byte/plural helpers, C++ formatters and words, shot-shape classifier, D17/D18/D22 rules, `ModelTypeAhead`, `PpScopedAction`, `PpViewFlick`, `PpUpdateStatus` (logic), `clubModel`, dead-file deletion, `Qt.alpha` sweep | **Proceed as written.** |
+| Inside the typeset area: `PpChSection`, `PpChPositionProfile`, `PpChPictureStrip`, `PpChFindingsLedger`, report blocks in print roles, C3–C22, panel base, `PpSectionHead`, `PpStageCard` framing, `PpBoxPlot style` | **Top priority.** |
+| `PpSwitch`, `PpMenuItem`, `PpTextArea`, `PpAvatar`, `PpFactStrip`, `PpDeviceCard` shell, `SetupCapabilityRow` | **Collapse now, no variants; re-skin later.** |
+| Extend `PpButton`, `PpChipGroup`/`PpChip`, `PpSegmentedControl`, `PpBadge`, `PpMicro`/`PpCardNote` variants | **Retarget or hold** (see 1). `PpLink`'s disabled state (A21) is a small fix to a component typeset pages already use — proceed. |
+| Popup chrome, notice card, `Theme.toneColor()`, `PpTextField`/search field | **Hold** for a typeset answer, except the pure collapses above. |
 
-**Gaps the typeset system has not answered yet** (these are where the old-vocabulary duplicates will otherwise keep reappearing): a switch, a button, a text/search field, a popup/dialog surface, a notice, a device row/card, and the settings-row layout. The design system lists "one quiet selection control" and Vector's selection style as proposed-not-done (§15.11). Until those exist, new screens will keep re-rolling the old pieces.
-
-**Revised order**
-1. ~~Probe D1~~ — done, confirmed, issue #50.
-2. Consolidate inside the typeset area (the C-series and panel base) — the reference everything else is ported from.
-3. Look-neutral structure and logic merges, dead-file deletion, `Qt.alpha`.
-4. Pure collapses of look-bearing copies (`PpSwitch` etc.), no new variants.
-5. Design the missing typeset controls (switch, button, field, notice, popup, device row), then port Settings/Home/Setup panels per the playbook, merging into those as each is ported. The old `components/` files then lose their users; re-run the catalogue to see which reach zero fan-in.
-
-**Not verified:** which panels beyond Charts, Diagnostics and Trust have been ported since the 11–14 October audit (the inventory shows none, but the audit documents more are planned); whether Vector and other themes need different decisions (§15.11 says other themes take the default typeset block, unjudged).
+**Gaps the typeset system has still not answered** — a switch, a button, a text/search field, a popup surface, a notice, a device row, a settings row. New screens since 19 Oct (Studio, Sessions, trunk setup) re-rolled exactly these pieces, as predicted.
 
 ---
 
 ## Dead, parked, test-only — verified file by file
-| File | Lines | Finding | Status |
+
+| File | Lines | Finding | Status 31 Oct |
 |---|---:|---|---|
-| `review/MetricLibrary.qml`, `MetricDetail.qml`, `MetricRow.qml`, `NormativeBar.qml` | ≈1,316 | C1 | dead chain, superseded by the Diagnostic Model panel |
-| `review/PpReplayCharts.qml` | 74 | C1 | dead; superseded by `charts/PpChartsPanel` |
-| `session/ScreenSessionMode.qml` | 202 | B18, D11 | dead; stale fork of `ScreenWrist` (already lacks the focused-swing binding, 3-D slot, today-carousel sync). Swing/GRF/Coach in `Main.qml` use `ScreenPlaceholder` |
-| `media/FilmPage.qml` | 597 | A4, D11 | dead (PlayPage no longer lists it). `filmController` / `media/film_controller.{h,cpp}` is still constructed and published in `main.cpp` |
-| `trust/PpGateNote.qml` | 75 | C13 | unreferenced, though the same "words ›" link is hand-coded in ~15 places |
-| `home/PpcpGuidedPairDialog.qml` | 377 | D11 | **parked on purpose**, not dead |
-| `diagnostics/PpDiagPrint.qml`, `print/PpPdfPrinter.qml` | 292 / 152 | overview | reached only from tests/probes (the print path has no in-app entry) |
-| review chart stack: `PpMetricChart`, `PpChartSummary`, `PpSegmentBrush`, `PpSequenceStrip` | ≈2,900 | C2 | production-reachable only as the compact plot in `PpCameraTiles`; Mark's call |
+| `review/MetricLibrary.qml`, `MetricDetail.qml`, `MetricRow.qml`, `NormativeBar.qml` | ≈1,316 | C1 | still dead, still in the cmake list |
+| `trust/PpGateNote.qml` | 74 | C13 | still unreferenced |
+| `media/FilmPage.qml` | 597 | D11 | still dead; `filmController` still built in `main.cpp` |
+| `home/PpcpGuidedPairDialog.qml` | 377 | D11 | parked on purpose |
+| `review/PpMetricChart` + `PpChartSummary`, `PpSegmentBrush`, `PpChartPlot` | ≈2,600 | C2 | production-reachable only as the compact plot in `PpCameraTiles`; Mark's call |
+| ~~`review/PpReplayCharts.qml`, `review/PpSequenceStrip.qml`~~ | — | C1, C8 | deleted 722cf3c2 |
+| ~~`session/ScreenSessionMode.qml`, `shell/ScreenPlaceholder.qml`~~ | — | B18, B20 | deleted 785f1c2f, ab1f795e |
+| ~~`diagnostics/PpDiagPrint.qml`, `print/PpPdfPrinter.qml`~~ | — | overview | now reached from the app (print path) |
 
 ---
 
-## Suggested order (first draft — superseded by §20's "Revised order")
+## Suggested order for fixing (31 Oct)
 
-1. **D1 is confirmed (issue #50)** — fix it with the shared health rule; check on a real wG3.
-2. **Cheap, mechanical, low-visual-risk:** `PpSwitch` (2), `ScopedAction` → shared (A5/B21), `Qt.alpha` sweep (12), `Theme.toneColor()` + `Theme.colorOnAccent` (D8, D14), `clubModel` (D7), delete the verified-dead files (§ above, after Mark agrees).
-3. **Highest line-count win:** `SettingsPanelBase` then `SettingsRow` (1) — ≈1,500 lines — and the monitor's in-file clean-up (6).
-4. **Needs a visual decision from Mark first:** popup chrome (B7), knob colour, hover-fill dialects (B12), unifying updater wording (D5).
-5. **Product decision:** retire the old review chart stack (5).
-6. **Larger refactors with real test pinning:** Charts/Diagnostics shell (4), C++ formatters (15), corridor ladder (C21).
+1. **Cheap, high-certainty collapses (S each):** `Main.qml` → `PpConfirm` (A20); `bytesWords`/`plural` → one helper each (B26/B27, after Mark picks SI or binary); `faultFor`/`HmFaultRow` (D19); `CheckTrunkPage` onto `SetupStepIntro` + shared readings box and link (D16); `PpTextArea` (A23); promote `MenuLine` (A22); promote StudioPanel's `SettingRow`/`RowTitle` (B28); `PpLink` disabled state (A21); `PpScopedAction` (A5); `fin`/`withPlane` helpers (C35); delete the dead `HmGoesTogether` helpers (D6).
+2. **Fix the drifted rules (decisions first):** shot shape (C32), unit joining and "at impact" (C33/C34), trunk heading → C++ (D17), `file://` encoding (D22), capability-row colours (D21), session-action reasons (B29), updater wording (D5), Witmotion 15°/25° → C++ constants (D18).
+3. **The three-way copies before a fourth arrives:** `CalibrationRoutineBase` (D3) and the status column (D4); `PpChSection` + `PpChPositionProfile` + `PpChPictureStrip` + `PpChFindingsLedger` (C23–C26) — before the next Charts section is built.
+4. **Highest line count:** `SettingsPanelBase` then adopt `SettingsRow` across the panels (B1/B2, ≈1,600 lines); `PpSwitch` (A1); the monitor's in-file clean-up (D2).
+5. **Report reuse:** print modes for `PpChPostureAddress`/`PpChMovesWith`, `PpChRunBox` for the work-on page, report section scaffolding and roles (C27–C31).
+6. **Product decisions:** retire the old review chart stack (C2); delete the dead files (C1, D11).
 
 ## Method and honesty notes
-- The agents read the code; none built, ran or probed anything, and the repo was not modified. Their line numbers are from the working tree on 19 Oct and some are approximate (the reports mark these with `~`).
-- Agents explicitly did **not** examine: the interiors of `CameraDeviceRow`/`ImuDeviceRow`, shot/home/calibration widgets (A); controls proper, media/capture/video page bodies, most of `PpLmGraphicsBody` and `diagnosticmodel/*` beyond B7/B23 (B); `PpChSessionFigure`/`PpChTraceFigure` bodies, `PpDataViewer`, `PpTransitTimeline`, `PpCauseGraph`, `PpPathChains`, `PpFigureRow`, the print pipeline, the Wrist Charts files and C++ presenter bodies (C). Sliders have no shared component and may be another gap (A). Absence from this page is therefore not evidence of no duplication in those areas.
-- Effort labels (S/M/L) are the agents' estimates; confidence is theirs too (high unless stated).
+- 31 Oct: four read-only agents, one per cluster, re-counted each original finding on HEAD and on a `git archive 8f5225a8` copy with the same script or grep, so "then → now" is like for like; where their baseline differed from the 19 Oct number they say so in their reports. They read every file added since `8f5225a8` in their cluster. Nothing was built, run or probed; line numbers are from HEAD `9ac19450`.
+- Drift claims in the disagreement table are derived from code and constants (B26 arithmetic, C32 thresholds, C33/C34 string rules, D17 guards, D22 encoding); none was seen on screen. B26's two divisors were spot-checked by hand.
+- Not examined (see each report's last section): interiors of `CameraDeviceRow`/`ImuDeviceRow`; sliders; `PpChPostureFrame`/picture C++ against `report_stills*`; whether `whatChangedOf` and `session_posture.cpp` compute posture readings twice; report pager logic against `PpPager`; `PpSessionsSelectionBar` vs `PpShotActionBar`; `PpDataViewer`, `PpTransitTimeline`, `PpCauseGraph`, `PpPathChains`; most of `ScreenResourceMonitor` beyond confirming no change. Absence from this page is not evidence of no duplication.
+- Effort labels (S/M/L) and confidence are the agents' estimates (high unless stated).

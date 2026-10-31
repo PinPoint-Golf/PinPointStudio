@@ -38,7 +38,7 @@ Item {
     height: implicitHeight
     visible: open
 
-    function _sessionOf(d) { const s = String(d || "").replace(/\\/g, "/").replace(/\/+$/, ""); return s.substring(0, s.lastIndexOf("/")) }
+    function _sessionOf(d) { const s = SessionMode.folderKey(d); return s.substring(0, s.lastIndexOf("/")) }
 
     Loader {
         id: ld

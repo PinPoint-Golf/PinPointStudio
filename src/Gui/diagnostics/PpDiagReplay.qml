@@ -17,7 +17,6 @@
  */
 
 import QtQuick
-import QtQuick.Controls
 import PinPointStudio
 
 // REPLAY — the glance register (Replay, Capture, and the second-screen cast). It sits beside the video
@@ -104,7 +103,7 @@ Item {
     readonly property var compositeTrustLines: firedComposites.map(c => ({ kind: "coverage", text: c.name + ": " + ro.lower1(c.whatChanged.coverageText || "") }))
     readonly property int firedPatterns: fired.filter(c => c.tierTag === "pattern").length
     readonly property var watching: (source && source.watching) || []
-    readonly property var watchingSorted: watching.slice().sort((a, b) => (ro.rate(b.recurrence) - ro.rate(a.recurrence)) || a.name.localeCompare(b.name))
+    readonly property var watchingSorted: watching.slice().sort((a, b) => (ro.rate(b) - ro.rate(a)) || a.name.localeCompare(b.name))
     readonly property int watchingFiredHere: watching.filter(w => { const c = ro.byId(conds, w.id); return c && c.stateKind === "fired" }).length
     readonly property int sessionFiredHere: (cards || []).filter(c => c.thisShot === "fired").length
     readonly property string shotWord: shot ? "shot " + ro.shotNo(shot) : ""
@@ -139,15 +138,7 @@ Item {
     // PpBrush carries it and every row block washes its own rows once (lib PpPulseWash), the focus first.
     property int _pulseToken: -1
     onPulseCueChanged: firePulse()
-    function firePulse() {
-        const c = root.pulseCue
-        if (!c) { br.pulseHold = false; br.pulseIds = []; _pulseToken = -1; return }   // a cue withdrawn: nothing held
-        if (c.token === undefined || c.token === _pulseToken) return
-        _pulseToken = c.token
-        br.pulseHold = !!c.hold                   // renders only: hold the wash for a still
-        // ids may arrive as afterShotDelta chips ({ id, … }) rather than ids: take the id either way
-        br.pulse((c.ids || []).map(x => x && typeof x === "object" ? x.id : x).filter(x => !!x), c.focusId || "")
-    }
+    function firePulse() { _pulseToken = ro.takePulse(br, root.pulseCue, _pulseToken) }
 
     // ── demo states (renderable interaction): only ever when demoState is non-empty (D8) ──
     property string _lastDemo: ""
@@ -177,31 +168,10 @@ Item {
                y: hd.title === "" ? 0 : hd.side ? tt.y + tt.baselineOffset - baselineOffset : tt.implicitHeight + ro.u(2) }
     }
     // the review note, folded to the foot of a view below medium (F7, RULES 3)
-    component ReviewFoot: Text {
-        objectName: "sdReviewNote"
-        visible: !root.cast && !!root.header && String(root.header.reviewNote || "") !== "" && (!ro.shows("reviewNote", width) || ss.missShown)
-        wrapMode: Text.WordWrap
-        text: root.header ? ro.cap1(root.header.reviewNote) + "." : ""
-        font: ro.fSmall; color: ro.ink3
-    }
+    component ReviewFoot: PpDiagReviewFoot { roles: ro; header: root.header; missShown: ss.missShown; cast: root.cast; glance: true }
 
     // ── one named Flickable per view, built on first show and never torn down (D8, §0.2-0.3) ──
-    component ViewFlick: Flickable {
-        id: vf
-        property string key: ""
-        property Component view: null
-        readonly property bool on: root.shown === key
-        property bool built: false
-        onOnChanged: if (on) built = true
-        Component.onCompleted: if (on) built = true
-        visible: on
-        anchors { top: under.bottom; left: surfaceItem.left; right: surfaceItem.right; bottom: surfaceItem.bottom; topMargin: ro.u(12) }
-        contentWidth: width; contentHeight: (ld.item ? ld.item.height : 0) + ro.u(16)
-        clip: true; boundsBehavior: Flickable.StopAtBounds
-        interactive: contentHeight > height
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-        Loader { id: ld; active: vf.built; width: vf.width - ro.u(8); sourceComponent: vf.view }
-        }
+    component ViewFlick: PpViewFlick { roles: ro; shown: root.shown; below: under; gap: 12; foot: 16 }
     // ═══════════════════════════ THE SURFACE (zoomed as a whole on the cast) ═══════════════════════════
     // The cast is read from across the room: the whole surface scales (like browser zoom) so that the
     // page it lays out is about one compact panel, never type growing inside a panel. The zoom is chosen
@@ -210,7 +180,7 @@ Item {
     readonly property real castEm: (shown === "shot" ? 9 + fired.length * 1.25
                                   : shown === "session" ? 6 + (cards || []).length * 2.3
                                   : 8 + watching.length * 1.95) + (castTabs ? 2.2 : 0)
-    readonly property real zoom: cast ? Math.max(1, Math.min(1.6, width / (42 * ro.em), height / ((castEm + 4) * ro.em))) : 1
+    readonly property real zoom: cast ? ro.castZoom(width, height, castEm) : 1
     Item {
         id: surfaceItem
         width: root.width / root.zoom; height: root.height / root.zoom
@@ -558,7 +528,7 @@ Item {
                 width: wv.width; roles: ro; brush: br; readout: null
                 rows: visible ? root.watchingSorted : []
                 spec: ss.watchSpec
-                getter: (w, key) => key === "name" ? { t: w.name } : { t: ro.frac(w.recurrence) }
+                getter: (w, key) => key === "name" ? { t: w.name } : { t: ro.frac(w) }
                 interactive: root.interactive && !root.cast
                 onConditionActivated: id => root.openCondition(id)
             }
@@ -578,7 +548,7 @@ Item {
     }
 
     // ── the shared objects, made once and passed down; declared LAST so they are destroyed last ──
-    PpDiagReplayState { id: ss; source: root.source; header: root.header; readout: root.readout; cards: root.cards || []; interactive: root.interactive }
+    PpDiagReplayState { id: ss; source: root.source; header: root.header; readout: root.readout; cards: root.cards || []; interactive: root.interactive; roles: ro }
     PpDiagRoles { id: ro; medium: root.medium }
     PpBrush {
         id: br

@@ -27,26 +27,22 @@ import PinPointStudio
 // A label that would leave the plot, or touch another label or a `reserve`d box (the row's name, the overlaid key), is
 // dropped — never squeezed. A line outside the plot's value range draws nothing and so names nothing.
 //   layers: the row's plotLayers (role, label, text; hline v)
-//   x0, x1, lo, hi: the plot's own mapping; reserve: [{ x, y, w, h }] in this item's coordinates; topInset: the name band
+//   plot: the PpChPlot it labels (its value range and mapping; this item lies over the plot's box); reserve:
+//   [{ x, y, w, h }] in this item's coordinates; topInset: the name band
 // objectName: chPlaneLabel (+ role) on each label drawn.
 Item {
     id: pl
     property QtObject roles: null
     property var layers: []
-    property real x0: 0
-    property real x1: 1
-    property real lo: 0
-    property real hi: 1
+    property PpChPlot plot: null                 // the plot labelled: its lo, hi and yOf
     property var reserve: []
     property real topInset: 0
 
     FontMetrics { id: fm; font: pl.roles ? pl.roles.fSmall : Qt.font({}) }
-    function xOf(t) { return (t - x0) / Math.max(1e-9, x1 - x0) * width }
-    function yOf(v) { return height - (v - lo) / Math.max(1e-9, hi - lo) * height }
     function hits(a, b) { return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h }
 
     readonly property var placed: {
-        if (!roles || width <= 0 || height <= 0) return []
+        if (!roles || !plot || width <= 0 || height <= 0) return []
         const pad = roles.u(3), h = Math.ceil(fm.height) + 2, out = [], taken = (reserve || []).slice()
         const fits = function (r) {
             if (r.x < 0 || r.y < 0 || r.x + r.w > pl.width || r.y + r.h > pl.height) return false
@@ -65,9 +61,9 @@ Item {
         // the hairlines first (they are what the eye reads off), address before the shoulders
         for (const role of ["address", "shoulders"])
             for (const l of ls) {
-                if (l.k !== "hline" || l.role !== role || l.v === null || l.v === undefined || !isFinite(l.v)) continue
-                if (l.v < lo || l.v > hi) continue
-                const y = yOf(l.v)
+                if (l.k !== "hline" || l.role !== role || !roles.fin(l.v)) continue
+                if (l.v < plot.lo || l.v > plot.hi) continue
+                const y = plot.yOf(l.v)
                 // at the right end over the line, else under it; on a short plot, further in
                 const words = (l.label || "") + (l.text ? " " + l.text : ""), w = fm.advanceWidth(words) + 2 * pad
                 const inner = Math.max(0, pl.width * 0.62 - w)

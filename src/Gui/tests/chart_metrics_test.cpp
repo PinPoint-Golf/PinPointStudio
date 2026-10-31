@@ -52,6 +52,7 @@
 // two implementations of one window, drifting.
 
 #include "chart_metrics.h"
+#include "../../Core/figure_format.h"
 
 #include "../../Metrics/metric_catalogue.h"
 
@@ -511,16 +512,16 @@ int main()
     // ── formatValue / formatBare: ONE rule, and the only place it can be asserted ─
     {
         std::printf("formatValue / formatBare — the shared rule\n");
-        // Degrees close up and carry a signed-deviation "+"; everything else takes a space and
-        // does not. This used to live three times in QML — twice as a copy of itself and once as
+        // Degrees carry a signed-deviation "+"; the unit joins by figure_format.h withUnit — degrees and
+        // percent close up, everything else takes a no-break space; the minus is U+2212. This used to live three times in QML — twice as a copy of itself and once as
         // a variant that concatenated with no separator, which is where "12mph" came from.
         checkStr("degrees, positive", cm.formatValue(12.4,  QStringLiteral("°")),  "+12°");
-        checkStr("degrees, negative", cm.formatValue(-8.2,  QStringLiteral("°")),  "-8°");
-        checkStr("percent",           cm.formatValue(12.4,  QStringLiteral("% stance width")), "12 %");
-        checkStr("mph gets a space",  cm.formatValue(75.2,  QStringLiteral("mph")), "75 mph");
+        checkStr("degrees, negative", cm.formatValue(-8.2,  QStringLiteral("°")),  "−8°");
+        checkStr("percent",           cm.formatValue(12.4,  QStringLiteral("% stance width")), "12%");
+        checkStr("mph gets a space",  cm.formatValue(75.2,  QStringLiteral("mph")), "75\u00A0mph");
         // Inches keep one decimal (charts_words.h decimalsFor, design §7: a 1.4 in low point is not
         // "1 in"); everything else here is whole units.
-        checkStr("inches, one decimal", cm.formatValue(1.6,   QStringLiteral("in")),  "1.6 in");
+        checkStr("inches, one decimal", cm.formatValue(1.6,   QStringLiteral("in")),  "1.6\u00A0in");
         // Empty unit reads as degrees — the pre-multi-unit default, kept so an uncatalogued
         // series does not render a bare number where every neighbour carries a token.
         checkStr("no unit ⇒ degrees", cm.formatValue(3.0,   QString()),             "+3°");
@@ -529,7 +530,7 @@ int main()
         // reading does not change shape between the summary card and the legend chip.
         checkStr("bare degrees",      cm.formatBare(12.4,   QStringLiteral("°")),  "+12");
         checkStr("bare percent",      cm.formatBare(12.4,   QStringLiteral("% stance width")), "12");
-        checkStr("bare negative",     cm.formatBare(-8.2,   QStringLiteral("°")),  "-8");
+        checkStr("bare negative",     cm.formatBare(-8.2,   QStringLiteral("°")),  "−8");
         // ⚠ The "+" is degrees-ONLY and deliberately not generalised: degrees here are signed
         // deviations from a reference posture, where the sign IS the reading. "+75 mph" would be
         // decoration on a quantity whose sign nobody is asking about.
@@ -545,7 +546,7 @@ int main()
         std::printf("formatBare/formatValue — whole units, no σ step\n");
         checkStr("81.6 mph ⇒ 82",  cm.formatBare(81.6, QStringLiteral("mph")), "82");
         checkStr("12.6° ⇒ +13",    cm.formatValue(12.6, QStringLiteral("°")), "+13°");
-        checkStr("397.7 °/s ⇒ 398", cm.formatValue(397.7, QStringLiteral("°/s")), "398 °/s");
+        checkStr("397.7 °/s ⇒ 398", cm.formatValue(397.7, QStringLiteral("°/s")), "398°/s");
         checkStr("−0.4 ⇒ 0 (no -0)", cm.formatBare(-0.4, QStringLiteral("°")), "0");
     }
 
@@ -557,9 +558,9 @@ int main()
     {
         std::printf("formatBare/formatValue — per-unit decimals\n");
         checkStr("tempo 2.596:1 ⇒ 2.6",     cm.formatBare(2.596, QStringLiteral(":1")), "2.6");
-        checkStr("low point −1.39 in ⇒ −1.4", cm.formatBare(-1.39, QStringLiteral("in")), "-1.4");
+        checkStr("low point −1.39 in ⇒ −1.4", cm.formatBare(-1.39, QStringLiteral("in")), "−1.4");
         checkStr("backswing 0.7301 s ⇒ 0.73", cm.formatBare(0.7301, QStringLiteral("s")), "0.73");
-        checkStr("seconds with the unit",   cm.formatValue(0.7301, QStringLiteral("s")), "0.73 s");
+        checkStr("seconds with the unit",   cm.formatValue(0.7301, QStringLiteral("s")), "0.73\u00A0s");
         checkStr("−0.04 in ⇒ 0.0 (no -0.0)", cm.formatBare(-0.04, QStringLiteral("in")), "0.0");
         checkStr("ties away from zero, 1.25 in ⇒ 1.3", cm.formatBare(1.25, QStringLiteral("in")), "1.3");
         checkStr("mph stays whole",         cm.formatBare(81.58, QStringLiteral("mph")), "82");
@@ -615,13 +616,13 @@ int main()
 
         // F3, the σ chip: the plumb bob's own σ is 0.03–0.06 in, and the local `.toFixed(1)` this
         // replaced printed "± 0.0in" — false exactness AND the unit jammed against the number, the
-        // same defect formatValue exists to prevent. The unit token takes formatValue's spacing:
-        // degrees close up, everything else spaced.
-        checkStr("chip: plumb bob σ 0.04 in", cm.formatUncertainty(0.04, QStringLiteral("in")), "± <0.1 in");
-        checkStr("chip: plumb bob σ 0.06 in", cm.formatUncertainty(0.06, QStringLiteral("in")), "± 0.1 in");
+        // same defect formatValue exists to prevent. The unit token takes formatValue's rule:
+        // degrees and percent close up, everything else a no-break space.
+        checkStr("chip: plumb bob σ 0.04 in", cm.formatUncertainty(0.04, QStringLiteral("in")), "± <0.1\u00A0in");
+        checkStr("chip: plumb bob σ 0.06 in", cm.formatUncertainty(0.06, QStringLiteral("in")), "± 0.1\u00A0in");
         checkStr("chip: degrees close up",    cm.formatUncertainty(2.5,  deg), "± 2.5°");
         checkStr("chip: percent short token", cm.formatUncertainty(1.2, QStringLiteral("% stance width")),
-                 "± 1.2 %");
+                 "± 1.2%");
         // ⚠ AN EMPTY UNIT MEANS NO TOKEN HERE, the opposite of formatBare/formatValue's
         // empty-means-degrees — the two tiles want no token because the card names their unit above
         // them. Pinned because the inversion is surprising and a caller passing an unresolved unit
@@ -635,6 +636,100 @@ int main()
         // "± nan" or "± inf". +inf is the one a real reducer can produce (a zero-variance basis).
         checkStr("NaN ⇒ nothing",  cm.formatUncertainty(std::nan("")), "");
         checkStr("+inf ⇒ nothing", cm.formatUncertainty(std::numeric_limits<double>::infinity()), "");
+    }
+
+    // ── figure_format.h: THE APP'S ONE FIGURE FORMATTER ──────────────────────────────────────
+    //
+    // Every surface (Charts, Session diagnostics, work-ons, these charts, the report) sets its figures
+    // through these functions, so the house rules are asserted once, here: missing "-", the U+2212
+    // minus, never "−0", one figure-and-unit rule, one "at impact" window, one tick rule.
+    {
+        namespace F = pinpoint::figures;
+        const double nan = std::numeric_limits<double>::quiet_NaN();
+        std::printf("figure_format — missing, minus, −0\n");
+        checkStr("missing fig",            F::fig(nan), "-");
+        checkStr("missing figUnit",        F::figUnit(nan, QStringLiteral("mph")), "-");
+        checkStr("missing joins no unit",  F::withUnit(QStringLiteral("-"), QStringLiteral("mph")), "-");
+        checkStr("missing thousands",      F::figThousands(nan), "-");
+        checkStr("missing signed",         F::figSigned(nan, 1), "-");
+        checkStr("missing r",              F::figR(nan), "-");
+        checkStr("missing instant",        F::whenImpact(nan), "-");
+        checkStr("−0.4 ⇒ 0",               F::fig(-0.4), "0");
+        checkStr("−0.04 at 1 dp ⇒ 0.0",    F::fig(-0.04, 1), "0.0");
+        checkStr("−0.0 ⇒ 0",               F::fig(-0.0), "0");
+        checkStr("signed −0.2 ⇒ 0, no sign", F::figSigned(-0.2, 0), "0");
+        checkStr("r −0.004 ⇒ .00",         F::figR(-0.004), ".00");
+        checkStr("true minus",             F::fig(-12.6), "−13");
+        checkStr("true minus, 1 dp",       F::fig(-1.39, 1), "−1.4");
+        checkStr("ties away from zero",    F::fig(-2.5), "−3");
+        checkStr("signed plus",            F::figSigned(3.4, 0), "+3");
+        checkStr("signed with unit",       F::figSigned(-3.4, QStringLiteral("mph")), "−3 mph");
+        checkStr("signed degrees",         F::figSigned(12.4, QStringLiteral("°")), "+12°");
+        checkStr("thousands",              F::figThousands(5009.4), "5,009");
+        checkStr("thousands, negative",    F::figThousands(-12345), "−12,345");
+        checkStr("r .62",                  F::figR(0.62), ".62");
+        checkStr("r −.88",                 F::figR(-0.884), "−.88");
+        checkStr("r 1.00",                 F::figR(1.0), "1.00");
+        checkStr("trim 13.0 ⇒ 13",         F::fig(13.0, 1, true), "13");
+        checkStr("trim 8.70 ⇒ 8.7",        F::fig(8.70, 2, true), "8.7");
+        checkStr("negative dec rounds to tens", F::fig(123.0, -1), "120");
+
+        std::printf("figure_format — the one unit rule\n");
+        checkStr("degrees close up",       F::withUnit(QStringLiteral("13"), QStringLiteral("°")), "13°");
+        checkStr("°/s closes up",          F::withUnit(QStringLiteral("1200"), QStringLiteral("°/s")), "1200°/s");
+        checkStr("percent closes up",      F::withUnit(QStringLiteral("13"), QStringLiteral("%")), "13%");
+        checkStr("words after % stay",     F::withUnit(QStringLiteral("13"), QStringLiteral("% hand rise")), "13% hand rise");
+        checkStr("double prime closes up", F::withUnit(QStringLiteral("4"), QStringLiteral("″")), "4″");
+        checkStr("tempo closes up",        F::withUnit(QStringLiteral("2.6"), QStringLiteral(":1")), "2.6:1");
+        checkStr("ratio: the bare number",  F::withUnit(QStringLiteral("1.33"), QStringLiteral("ratio")), "1.33");
+        checkStr("a word: no-break space", F::withUnit(QStringLiteral("82"), QStringLiteral("mph")), "82 mph");
+        checkStr("no unit",                F::withUnit(QStringLiteral("1.33"), QString()), "1.33");
+        checkStr("figUnit tempo",          F::figUnit(2.596, QStringLiteral(":1")), "2.6:1");
+        checkStr("figUnit inches",         F::figUnit(1.39, QStringLiteral("in")), "1.4 in");
+        checkStr("figUnit seconds",        F::figUnit(0.7301, QStringLiteral("s")), "0.73 s");
+        checkStr("shortUnit %",            F::shortUnit(QStringLiteral("% stance width")), "%");
+        checkStr("signedMs",               F::signedMs(-3.2), "−3 ms");
+        checkStr("figMs",                  F::figMs(58.4), "58 ms");
+
+        std::printf("figure_format — \"at impact\" within 2 ms\n");
+        checkStr("0 ms",                   F::whenImpact(0.0), "at impact");
+        checkStr("+1.6 ms",                F::whenImpact(1.6), "at impact");
+        checkStr("−1.6 ms",                F::whenImpact(-1.6), "at impact");
+        checkStr("+2 ms",                  F::whenImpact(2.0), "at impact");
+        checkStr("−2 ms",                  F::whenImpact(-2.0), "at impact");
+        checkStr("+2.4 ms",                F::whenImpact(2.4), "at impact");
+        checkStr("−2.4 ms",                F::whenImpact(-2.4), "at impact");
+        checkStr("+2.6 ms",                F::whenImpact(2.6), "3 ms after impact");
+        checkStr("−2.6 ms",                F::whenImpact(-2.6), "3 ms before impact");
+        checkStr("−87.4 ms",               F::whenImpact(-87.4), "87 ms before impact");
+        checkStr("parts: figure",          F::impactTime(-40.0).figure, "40 ms");
+        checkStr("parts: words",           F::impactTime(-40.0).words, " before impact");
+        checkTrue("parts: at impact has no figure", F::impactTime(1.0).atImpact());
+
+        std::printf("figure_format — ticks (1-2-5, cut at 1.5 / 3 / 7)\n");
+        const auto ticks = [](double lo, double hi, int n) { return F::tickValues(lo, hi, n); };
+        const std::vector<double> t10 = ticks(0, 10, 5);
+        checkEqI("0..10 / 5 ⇒ step 2, six ticks", qint64(t10.size()), 6);
+        checkExactD("…the last is 10", t10.empty() ? nan : t10.back(), 10.0);
+        const std::vector<double> t1 = ticks(0, 1, 4);
+        checkEqI("0..1 / 4 ⇒ step 0.2, six ticks", qint64(t1.size()), 6);
+        checkExactD("…3 × 0.2 is exactly 0.6", t1.size() > 3 ? t1[3] : nan, 0.6);
+        checkEqI("f = 1.5 ⇒ step 1",  qint64(ticks(0, 15, 10).size()), 16);
+        checkEqI("f = 3 ⇒ step 2",    qint64(ticks(0, 30, 10).size()), 16);
+        checkEqI("f = 3.2 ⇒ step 5",  qint64(ticks(0, 32, 10).size()), 7);
+        checkEqI("f = 7 ⇒ step 5",    qint64(ticks(0, 70, 10).size()), 15);
+        checkEqI("f = 7.2 ⇒ step 10", qint64(ticks(0, 72, 10).size()), 8);
+        const std::vector<double> tz = ticks(-7, 7, 5);
+        checkEqI("−7..7 ⇒ −6..6 by 2", qint64(tz.size()), 7);
+        checkTrue("…the middle tick is +0, not −0", tz.size() == 7 && tz[3] == 0.0 && !std::signbit(tz[3]));
+        checkEqI("no span ⇒ none", qint64(ticks(1, 1, 5).size()), 0);
+        checkEqI("NaN ⇒ none",     qint64(ticks(nan, 1, 5).size()), 0);
+        checkEqI("tickDecimals 0.2",  F::tickDecimals(0.2), 1);
+        checkEqI("tickDecimals 0.05", F::tickDecimals(0.05), 2);
+        checkEqI("tickDecimals 5",    F::tickDecimals(5.0), 0);
+        const QVariantList nt = cm.niceTicks(0, 1, 4);
+        checkEqI("ChartMetrics::niceTicks is tickValues", qint64(nt.size()), 6);
+        checkExactD("…the same 0.6", nt.size() > 3 ? nt[3].toDouble() : nan, 0.6);
     }
 
     // ── seriesSigma: ONE implementation of "absent means absent" ──────────────────
@@ -1328,7 +1423,7 @@ int main()
 
             std::printf("  · %s\n", f.name);
             // Parallel to the curve, always — a caller indexes mean[i] against value[i] and a
-            // shorter array would silently draw a truncated line (PpChartPlot._meanOf falls back to
+            // shorter array would silently draw a truncated line (ChartSamples.meanOf in chart_samples.js falls back to
             // the raw values on a length mismatch, so this is what keeps the mean reachable at all).
             checkEqI("   length == the curve", mean.size(), qMin(f.t.size(), f.v.size()));
             checkEqI("   sigma is parallel too", sig.size(), mean.size());
@@ -1521,7 +1616,7 @@ int main()
         checkExactD("…at its own value",   one.at(0).toDouble(), 7.0);
 
         // ⚠ MISMATCHED ARRAYS: the length follows the CURVE (the shorter of the two), which is what
-        // makes PpChartPlot._meanOf's `mean.length === t_us.length` guard fire and fall back to the
+        // makes ChartSamples.meanOf's `mean.length === t_us.length` guard fire and fall back to the
         // persisted values. A malformed pair draws the raw curve; it does not draw a truncated one.
         QVariantList vShort;
         for (int i = 0; i < 20; ++i) vShort.append(4.0);
@@ -1864,7 +1959,7 @@ int main()
         checkStr("no gap text on the last",     rows.at(2).toMap().value(QStringLiteral("gapText")).toString(), "");
         checkStr("an unplaced row carries no readings", rows.at(3).toMap().value(QStringLiteral("peakText")).toString(), "");
         // The peak is σ-governed like every reading: σ 20 → step 20 → 480 stays 480.
-        checkStr("peak text carries the unit", rows.at(0).toMap().value(QStringLiteral("peakText")).toString(), "480 °/s");
+        checkStr("peak text carries the unit", rows.at(0).toMap().value(QStringLiteral("peakText")).toString(), "480°/s");
 
         checkStr("partial verdict counts the placed nodes", cm.sequenceVerdictText(ks),
                  "placed nodes in order (3 of 4)");
@@ -2119,7 +2214,7 @@ int main()
             checkStr("pair placed: …its gap", pr.at(0).toMap().value(QStringLiteral("gapText")).toString(), "+19 ms");
             // Whole units like every other reading: σ 60 no longer rounds the chest's 727 °/s to 700.
             checkStr("pair placed: …and its reading, in whole units",
-                     pr.at(1).toMap().value(QStringLiteral("peakText")).toString(), "727 °/s");
+                     pr.at(1).toMap().value(QStringLiteral("peakText")).toString(), "727°/s");
             checkStr("pair placed: the ordinary verdict stands", cm.sequenceVerdictText(placed),
                      "pelvis → chest → arm → club");
             const QVariantMap ov = cm.sequenceOverlay(placed);

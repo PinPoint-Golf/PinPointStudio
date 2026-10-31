@@ -80,14 +80,17 @@
 //   9. FIGURES. Plane angles whole degrees; the monitor's path, face, attack, lie and loft one decimal
 //      (its own resolution, and the design's words: "path went 4.3° left"); our camera's whole degrees;
 //      a fit's slope one decimal, r two, scatter one; a middle half's ± one decimal. U+2212 minus.
-//  10. SHOT SHAPE (§4.6) is the monitor's alone, and the BALL's first: start from lm.launchDirection and curve
-//      from lm.spinAxis (the shape itself), else from the club, start from lm.faceAngle and curve from
-//      lm.faceToPath (else face − path) — the 5 Oct monitor gave no face but did give the ball's start and
-//      spin axis, and the grid stood empty (Mark, 29 Oct). Club: ±1° straight, "slight" up to
-//      kDeliverySlightCurveDeg, past kDeliveryBigCurveDeg a hook (left) or a slice (right) (Jess 20 Oct shot 3,
-//      face to path −13.8°, was a "draw"). Ball: the same start; the spin axis tilts about 1.5 times the face to
-//      path (the library's 80 shots with both: median 1.53, same sign on 71), so its curve steps are the club's
-//      × 1.5. Words mirror for a left-handed golfer.
+//  10. SHOT SHAPE (§4.6) is the monitor's alone, and CLASSIFIED BY THE LAUNCH MONITOR'S OWN CLASSIFIER,
+//      pa::lmShapeClass (LaunchMonitor/lm_inferred_reads.h) with its LmInferenceTuning, so this section, its
+//      grid and the report's Delivery page name every shot the way the launch monitor card does (they once
+//      kept thresholds of their own and drifted: a 1.8° spin axis was a fade here and straight there). Only
+//      the WORDS are this section's ("Pull, slight fade" against the card's "Pull–fade"), and "slight" is the
+//      classifier's too (half way to hook or slice). ONE PAIR, NEVER MIXED: the BALL's first — start from
+//      lm.launchDirection, curve from lm.spinAxis, and how far it actually curved from lm.carryDistance and
+//      lm.offline when both are there — else the CLUB's, start from lm.faceAngle and curve from lm.faceToPath
+//      (else face − path), as the classifier's face-to-path fallback. The 5 Oct monitor gave no face but did give
+//      the ball's start and spin axis, and the grid stood empty (Mark, 29 Oct). Words mirror for a left-handed
+//      golfer.
 //  11. LIE → FACE (§4.5): lm.lieAngle (toe up +) else shaftLie P7 − P1 (more upright +); loft lm.dynamicLoft
 //      else the club's factory loft (athlete_controller.cpp's defaultClubRecordFor table; the athlete's own
 //      club record is not in the snapshot). Δface = Δlie × sin(loft), toe up → face left (right-handed).
@@ -125,12 +128,6 @@ inline constexpr double kDeliveryFitMinR            = 0.5;   // Mark −0.80, Je
 inline constexpr double kDeliveryGoingBackDeg       = 3.0;   // |P3 − P1|: about twice the curve's σ at P3
 inline constexpr double kDeliveryHandsDeg           = 3.0;   // |steepening|: Jess's median +2.9 reads "on the plane"
 inline constexpr double kDeliveryDeliveredSameDeg   = 1.0;   // |P7 − P1| as printed: "where you set it" (§5.1)
-inline constexpr double kDeliveryShapeStartDeg      = 1.0;   // ±1° start: the monitor's own resolution class
-inline constexpr double kDeliveryShapeCurveDeg      = 1.0;   // ±1° face-to-path: the same
-inline constexpr double kDeliverySlightCurveDeg     = 3.0;   // decision 10: "slight fade" up to here
-inline constexpr double kDeliverySpinAxisPerFaceToPath = 1.5; // decision 10: spin axis ≈ 1.5 × face to path (library median 1.53)
-inline constexpr double kDeliveryBigCurveDeg        = 6.0;   // decision 10: over this the ball curves too far to call a
-                                                             // draw or a fade — a hook (left) or a slice (right)
 inline constexpr int    kDeliverySessionBandShots   = 5;     // the band means nothing below
 inline constexpr double kDeliveryUsualDeg           = 3.0;   // decision 6: the going-back word's own step
 inline constexpr double kDeliveryHandsCarryDeg      = 0.5;   // decision 5: the curve sits on the hand plane
@@ -180,6 +177,7 @@ struct DeliveryShotInput {
     double lmPath = kNaN, lmFace = kNaN, lmFaceToPath = kNaN, lmAttack = kNaN;
     double lmLoft = kNaN, lmLie = kNaN, lmLowPoint = kNaN;
     double lmLaunchDir = kNaN, lmSpinAxis = kNaN;     // the ball's start (+ right) and spin axis (+ curves right)
+    double lmCarry = kNaN, lmOffline = kNaN;          // yd: how far it actually curved (decision 10), not a delivery reading
     double nominalLoft = kNaN;
 
     // The curve as drawn (This shot's plot), ms from impact; and where the hands carry it (decision 5).
@@ -304,8 +302,9 @@ struct DeliveryImpactLine {
 std::vector<DeliveryImpactLine> deliveryImpactLines(const DeliveryShotInput &in);
 
 struct DeliveryShape {
-    bool    available = false;     // the ball's start and spin axis, else the face and its face-to-path (or path)
-    bool    fromBall = false;      // read off the ball (launch direction, spin axis), not the club
+    bool    available = false;     // the ball's pair (start, spin axis), else the club's (face, face-to-path or path); never mixed
+    bool    fromBall = false;      // the ball's pair decided the shape (launch direction, spin axis, + carry/offline), not the club's
+    bool    severe = false;        // a curve that is a hook or a slice rather than a draw or a fade; false when curve == 0
     double  face = kNaN, faceToPath = kNaN;
     double  launchDir = kNaN, spinAxis = kNaN;
     int     start = 0;             // −1 left, 0 straight, +1 right (of the target, the ball's start)

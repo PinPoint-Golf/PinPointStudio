@@ -1,7 +1,7 @@
 # Shots
 
 *Directory:* `src/Gui/shot/`  
-*9 components · 2,809 lines of QML*
+*9 components · 3,026 lines of QML*
 
 The shot carousel/card/filter/action bar, export options, swing edit panel, shot pip row, the data-warning format singleton, and the wall-cast session-diagnostics window.
 
@@ -9,18 +9,18 @@ The shot carousel/card/filter/action bar, export options, swing edit panel, shot
 
 | Component | Lines | Root | Used by | Uses | Notes |
 |---|---:|---|---:|---:|---|
-| [DataWarningFormat](#datawarningformat) | 92 | `QtObject` | 2 | 0 | singleton |
-| [PpExportOptionsSheet](#ppexportoptionssheet) | 197 | `Popup` | 1 | 5 | 1 local comp. |
+| [DataWarningFormat](#datawarningformat) | 111 | `QtObject` | 2 | 0 | singleton |
+| [PpExportOptionsSheet](#ppexportoptionssheet) | 160 | `Popup` | 2 | 5 |  |
 | [PpSessionDiagnosticsWindow](#ppsessiondiagnosticswindow) | 172 | `Window` | 1 | 2 |  |
-| [PpShotActionBar](#ppshotactionbar) | 431 | `Item` | 1 | 7 |  |
-| [PpShotCard](#ppshotcard) | 387 | `Rectangle` | 1 | 8 |  |
-| [PpShotCarousel](#ppshotcarousel) | 725 | `Item` | 2 | 12 |  |
+| [PpShotActionBar](#ppshotactionbar) | 497 | `Item` | 1 | 7 |  |
+| [PpShotCard](#ppshotcard) | 475 | `Rectangle` | 1 | 8 |  |
+| [PpShotCarousel](#ppshotcarousel) | 806 | `Item` | 1 | 12 |  |
 | [PpShotFilter](#ppshotfilter) | 450 | `Item` | 1 | 6 |  |
 | [PpShotPipRow](#ppshotpiprow) | 120 | `Item` | 1 | 0 |  |
 | [PpSwingEditPanel](#ppswingeditpanel) | 235 | `Item` | 1 | 12 |  |
 
 ### DataWarningFormat
-`src/Gui/shot/DataWarningFormat.qml` · 92 lines · root `QtObject` · **singleton** · no direct `Theme.*` refs
+`src/Gui/shot/DataWarningFormat.qml` · 111 lines · root `QtObject` · **singleton** · no direct `Theme.*` refs
 
 > The words for a shot's data-integrity warning, from its facts (ShotListModel's
 > dataWarningDetail: swing_doc.h dataWarningDetailFrom plus the shot processor's
@@ -28,23 +28,22 @@ The shot carousel/card/filter/action bar, export options, swing edit panel, shot
 > the film-strip card's tooltip and the swing panel's warning block — so the two
 > can never tell a reader different things about the same shot.
 
-- **Functions:** `reasons(detail)`, `subject(detail)`, `text(detail)`
+- **Functions:** `reasons(detail)`, `subject(detail)`, `clipped(d)`, `seconds(ms)`, `text(detail)`
 - **Used by (2):** `PpShotCard`, `PpSwingEditPanel`
 
 ### PpExportOptionsSheet
-`src/Gui/shot/PpExportOptionsSheet.qml` · 197 lines · root `Popup`
+`src/Gui/shot/PpExportOptionsSheet.qml` · 160 lines · root `Popup`
 
-> Bulk-export options popover — opened from the shot carousel's ⋯ menu. Lets the
-> user pick which cameras' video to include and whether to bundle the JSON data,
-> then emits confirmed() with the selection. The host (PpShotCarousel) calls
-> swingExporter.exportShots() and shows the completion toast. thumb.jpg is always
-> included; raw frames never are — so the only choices are cameras + JSON.
+> Bulk-export options popover — opened from the shot carousel's ⋯ menu, and from the Sessions screen
+> (one zip per session, PpSessionReportList). Lets the user pick which cameras' video to include and
+> whether to bundle the JSON data, then emits confirmed() with the selection. The host calls
+> swingExporter.exportShots() and shows the completion toast. thumb.jpg is always included; raw frames
+> never are — so the only choices are cameras + JSON.
 
-- **Properties:** `var cameras`, `var swingDirs`, `int shotCount`, `bool includeJson`
+- **Properties:** `var cameras`, `var swingDirs`, `int shotCount`, `string caption`, `string heading`, `bool includeJson`
 - **Signals:** `confirmed(var selectedVideoFiles, bool includeJson)`, `cancelled()`
-- **Local components:** `CheckRow`
-- **Uses:** `PpButton`, `PpCardNote`, `PpMicro`, `PpPopoverCard`, `PpPressable`
-- **Used by (1):** `PpShotCarousel`
+- **Uses:** `PpButton`, `PpCardNote`, `PpCheckRow`, `PpMicro`, `PpPopoverCard`
+- **Used by (2):** `PpSessionReportList`, `PpShotCarousel`
 
 ### PpSessionDiagnosticsWindow
 `src/Gui/shot/PpSessionDiagnosticsWindow.qml` · 172 lines · root `Window`
@@ -71,7 +70,7 @@ The shot carousel/card/filter/action bar, export options, swing edit panel, shot
 - **Used by (1):** `Main`
 
 ### PpShotActionBar
-`src/Gui/shot/PpShotActionBar.qml` · 431 lines · root `Item`
+`src/Gui/shot/PpShotActionBar.qml` · 497 lines · root `Item`
 
 > PpShotActionBar — the scope-aware action header of the shot carousel. ONE
 > surface for the two action scopes that survived the PpShotPanel removal:
@@ -82,18 +81,21 @@ The shot carousel/card/filter/action bar, export options, swing edit panel, shot
 > 1. focus + filter — identity left; this-shot actions; "all N shown ▾" control
 > 2. focus, no filter — identity left; this-shot actions only
 > 3. no focus, filter — set descriptor left; the actions act on the SET
+> ...and a fourth OVERRIDES them while the carousel has swings picked (#56):
+> 4. selection — "N selected" left; Move N to trash · Clear. The picked swings are the
+> scope, whatever is on the stage or filtered, so nothing else is offered beside them.
 > Re-analyse appears both as the focused-shot button (reanalyseShot) and, in the
 > "all shown" menu, as a set-scope action (reanalyseShown) for bulk corpus re-runs.
 > Host-injected: the bar owns no model lookups. Pure bindings — handlers only
 > forward a signal or open/close the menu; no computation lives here.
 
-- **Properties:** `var summary`, `bool filterActive`, `int visibleCount`, `int sourceCount`, `string filterLabel`
-- **Signals:** `exportShot()`, `reanalyseShot()`, `trashShot()`, `editRequested()`, `exportShown()`, `reanalyseShown()`, `trashShown()`
+- **Properties:** `var summary`, `bool filterActive`, `int visibleCount`, `int sourceCount`, `string filterLabel`, `int markedCount`
+- **Signals:** `exportShot()`, `reanalyseShot()`, `trashShot()`, `editRequested()`, `exportShown()`, `reanalyseShown()`, `trashShown()`, `trashMarked()`, `clearMarks()`
 - **Uses:** `ClubFormat`, `PpButton`, `PpMicro`, `PpPopoverCard`, `PpPressable`, `PpQualityPill`, `PpStarRating`
 - **Used by (1):** `PpShotCarousel`
 
 ### PpShotCard
-`src/Gui/shot/PpShotCard.qml` · 387 lines · root `Rectangle` · 3 hard-coded colour(s)
+`src/Gui/shot/PpShotCard.qml` · 475 lines · root `Rectangle` · 7 hard-coded colour(s)
 
 > One shot card in the carousel film-strip. Video still when recorded (or a
 > neutral placeholder until real thumbnails arrive), wrist-angle trace
@@ -108,15 +110,19 @@ The shot carousel/card/filter/action bar, export options, swing edit panel, shot
 > beside it: the row is that swing's whole diagnostic read at a glance, so a reader picks the
 > shot they want to open instead of stepping through them. It costs a null check when no
 > panel is up — see the Loader below.
+> ...and two hover actions beside the ordinal (#56): a tick that picks the swing for the
+> carousel's bulk actions, and a trash can that deletes it — both WITHOUT putting the swing on
+> the stage, because the swing most often deleted is one that should never have been a swing (a
+> …
 
-- **Properties:** `required int shotId`, `required int ordinal`, `required string timestampLabel`, `required string club`, `required bool hasVideo`, `required url thumbnailSource`, `required var tracePoints`, `required int score`, `required int rating`, `required string note`, `required var metrics`, `required string swingDir`, `required bool dataWarning`, `required var dataWarningDetail` … (+6 more)
-- **Signals:** `tapped()`, `rated(int newValue)`
+- **Properties:** `required int shotId`, `required int ordinal`, `required string timestampLabel`, `required string club`, `required bool hasVideo`, `required url thumbnailSource`, `required var tracePoints`, `required int score`, `required int rating`, `required string note`, `required var metrics`, `required string swingDir`, `required bool dataWarning`, `required var dataWarningDetail` … (+8 more)
+- **Signals:** `tapped()`, `rated(int newValue)`, `markToggled()`, `trashRequested()`
 - **Uses:** `DataWarningFormat`, `PpMicro`, `PpQualityPill`, `PpShotPipRow`, `PpStarRating`, `PpTrace`, `SessionMode`, `TrustFocus`
 - **Used by (1):** `PpShotCarousel`
 - **Exercised by tests/tools:** `tst_shot_card`
 
 ### PpShotCarousel
-`src/Gui/shot/PpShotCarousel.qml` · 725 lines · root `Item`
+`src/Gui/shot/PpShotCarousel.qml` · 806 lines · root `Item`
 
 > Session-shot carousel — the film-strip rail docked at the bottom of the
 > mode screens. Reusable: each screen supplies its own metricKeys (the panel's
@@ -130,9 +136,9 @@ The shot carousel/card/filter/action bar, export options, swing edit panel, shot
 > remembered per screen (Wrist separately from GRF) — the host supplies its
 > sessionType; see _collapseKey.
 
-- **Properties:** `var metricKeys`, `string traceLabel`, `Component transport`, `bool transportActive`, `int sessionType`, `bool expanded`, `int selectedShotId`, `Item selectedCard`, `readonly bool reviewing`, `readonly var activeModel`, `readonly real drawerWidth`
+- **Properties:** `var metricKeys`, `string traceLabel`, `Component transport`, `bool transportActive`, `int sessionType`, `bool expanded`, `int selectedShotId`, `Item selectedCard`, `var markedIds`, `readonly bool reviewing`, `readonly var activeModel`, `readonly real drawerWidth`
 - **Uses:** `PpChip`, `PpExportOptionsSheet`, `PpMicro`, `PpPopoverCard`, `PpPressable`, `PpSessionDrawer`, `PpShotActionBar`, `PpShotCard`, `PpShotFilter`, `PpSwingEditPanel`, `PpToast`, `SessionMode`
-- **Used by (2):** `ScreenSessionMode`, `ScreenWrist`
+- **Used by (1):** `ScreenWrist`
 
 ### PpShotFilter
 `src/Gui/shot/PpShotFilter.qml` · 450 lines · root `Item` · 2 hard-coded colour(s)

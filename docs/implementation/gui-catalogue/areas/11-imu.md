@@ -1,17 +1,17 @@
 # IMU
 
 *Directory:* `src/Gui/imu/`  
-*3 components · 1,029 lines of QML*
+*3 components · 1,028 lines of QML*
 
 The toolbar IMU device panel, the sensor-mount vocabulary singleton, and the dev-hatch capture page.
 
-**C++ in this area:** `HmUnit`, `HmInstance`, `ImuDeviceBase`, `ImuInstance`, `ImuManager`, `PacedConnectQueue`  (see [cpp-seam.md](../cpp-seam.md))
+**C++ in this area:** `HmUnit`, `HmInstance`, `ImuDeviceBase`, `ImuInstance`, `ImuManager`, `PacedConnectQueue`, `TrunkCeremonyRecorder`  (see [cpp-seam.md](../cpp-seam.md))
 
 | Component | Lines | Root | Used by | Uses | Notes |
 |---|---:|---|---:|---:|---|
 | [CapturePage](#capturepage) | 496 | `Item` | 1 | 4 |  |
-| [ImuMounts](#imumounts) | 87 | `QtObject` | 5 | 0 | singleton |
-| [PpImuPanel](#ppimupanel) | 446 | `Item` | 1 | 8 | 2 local comp. |
+| [ImuMounts](#imumounts) | 92 | `QtObject` | 5 | 0 | singleton |
+| [PpImuPanel](#ppimupanel) | 440 | `Item` | 1 | 8 | 2 local comp. |
 
 ### CapturePage
 `src/Gui/imu/CapturePage.qml` · 496 lines · root `Item` · 2 hard-coded colour(s)
@@ -24,7 +24,7 @@ IMU capture page: scan/connect, Viz and Log tabs, Arm and Body 3-D views (persis
 - **Used by (1):** `PlayPage`
 
 ### ImuMounts
-`src/Gui/imu/ImuMounts.qml` · 87 lines · root `QtObject` · **singleton**
+`src/Gui/imu/ImuMounts.qml` · 92 lines · root `QtObject` · **singleton** · no direct `Theme.*` refs
 
 > The sensor MOUNTS, by name — the one place a placement role becomes words on screen, and
 > the one place that says which mounts the pickers offer (session_wizard_refactor_design.md
@@ -35,12 +35,12 @@ IMU capture page: scan/connect, Viz and Log tabs, Arm and Body 3-D views (persis
 > survive only as the legacy imuPlacement view, which this file never reads.
 
 - **Properties:** `readonly var armRoles`, `readonly var trunkRoles`, `readonly var allRoles`, `readonly string hackMotionLabel`, `readonly string unassignedLabel`, `bool trunkMountsOffered`, `readonly var offeredRoles`
-- **Functions:** `isOffered(role)`, `label(role)`, `deviceMountLabel(isHackMotion, role)`
+- **Functions:** `isOffered(role)`, `label(role)`, `shortLabel(role)`, `deviceMountLabel(isHackMotion, role)`
 - **Used by (5):** `ArmVizView`, `ImusPage`, `ImusPanel`, `PpImuPanel`, `SetupContext`
 - **Exercised by tests/tools:** `setup_mounts_settings`, `tst_setup_mounts`
 
 ### PpImuPanel
-`src/Gui/imu/PpImuPanel.qml` · 446 lines · root `Item` · 2 hard-coded colour(s)
+`src/Gui/imu/PpImuPanel.qml` · 440 lines · root `Item` · 2 hard-coded colour(s)
 
 > IMU device panel for the session toolbar. Two modes:
 > "list"      — scoped action row (Scan / Connect / Calibrate) + device rows.

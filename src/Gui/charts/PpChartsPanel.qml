@@ -51,8 +51,10 @@
 //     The stage rebuilds its panels on every Capture↔Replay flip, so the place is saved as it changes and put
 //     back on build, stamped with the session folder (a different session starts at the defaults).
 //     chartsNav arrives with app build 2: every read and write goes through _nav()/_setNav(), which do nothing
-//     while SessionMode has no such property.
-//   • A SHOT PICKED ON A FIGURE goes to the carousel's own click path (_pickShot, as the diagnostics panel's).
+//     while SessionMode has no such property. The save/restore machinery is PpReaderPlace (shared with the
+//     diagnostics panel); the fields are this file's.
+//   • A SHOT PICKED ON A FIGURE goes to the carousel's own click path (PpReaderPlace.pickShot, as the diagnostics
+//     panel's).
 import QtQuick
 import PinPointStudio
 
@@ -87,13 +89,12 @@ Item {
     property bool remembersNav: true
 
     // ── the session, its model and the presenters ──
-    readonly property bool _screenActive: navController.currentIndex === AppScreen.Session
+    readonly property bool _screenActive: SessionMode.sessionScreenActive
     readonly property string sessionDir:
         (sessionReviewController.reviewActive && sessionReviewController.activeSessionId !== "")
             ? sessionReviewController.activeSessionId
             : shotProcessor.activeSessionDir !== "" ? shotProcessor.activeSessionDir : sessionReviewController.liveSessionDir
-    function _folder(p) { return String(p || "").replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "") }
-    function _pointAtSession() { if (_folder(sessionDir) !== _folder(seriesModel.sessionDir)) seriesModel.activateSession(sessionDir) }
+    function _pointAtSession() { if (!SessionMode.sameFolder(sessionDir, seriesModel.sessionDir)) seriesModel.activateSession(sessionDir) }
     onSessionDirChanged: _pointAtSession()
 
     SessionSeriesModel { id: seriesModel }
@@ -295,70 +296,23 @@ Item {
     // ── the reader's place: SessionMode.chartsNav (build 2), guarded so build 1 runs without it ──
     function _nav() { return SessionMode.chartsNav !== undefined ? SessionMode.chartsNav : null }
     function _setNav(v) { if (SessionMode.chartsNav !== undefined) SessionMode.chartsNav = v }
-    property bool _navReady: false
-    readonly property var _navFlicks: ["chShotFlick", "chSessionFlick", "chRelationsFlick", "chKindsFlick"]
-    function _findNamed(item, name) {
-        if (!item) return null
-        if (item.objectName === name) return item
-        const kids = item.children || []
-        for (let i = 0; i < kids.length; ++i) { const hit = _findNamed(kids[i], name); if (hit) return hit }
-        return null
-    }
-    property var _flickCache: ({})
-    function _flick(name) { let f = _flickCache[name]; if (!f) { f = _findNamed(body, name); if (f) _flickCache[name] = f } return f }
-    function _watchFlicks() {
-        _flickCache = ({})
-        for (let i = 0; i < flickWatch.count; ++i) { const c = flickWatch.objectAt(i); c.target = _flick(c.modelData) }
+    PpReaderPlace {
+        id: place
+        content: body
+        flickNames: ["chShotFlick", "chSessionFlick", "chRelationsFlick", "chKindsFlick"]
+        active: root.remembersNav
+        model: seriesModel
+        onSaveRequested: root._saveNav()
     }
     function _saveNav() {
-        if (!_navReady) return
-        const scroll = {}
-        for (const name of _navFlicks) {
-            if (_pendingScroll[name] !== undefined) { scroll[name] = _pendingScroll[name]; continue }
-            const f = _flick(name)
-            if (f && f.contentY > 0) scroll[name] = f.contentY
-        }
-        _setNav({ sessionDir: _folder(seriesModel.sessionDir), openId: body.openId, scroll: scroll })
+        const nav = place.capture({ openId: body.openId })
+        if (nav) _setNav(nav)
     }
     function _restoreNav() {
         const nav = _nav()
-        if (!nav || nav.sessionDir !== _folder(seriesModel.sessionDir)) return
+        if (!place.matches(nav)) return
         body.openId = nav.openId || ""
-        _pendingScroll = Object.assign({}, nav.scroll || {})
-        _scrollTries = {}
-        if (Object.keys(_pendingScroll).length > 0) scrollRestore.start()
-    }
-    property var _pendingScroll: ({})
-    property var _scrollTries: ({})
-    Timer {
-        id: scrollRestore
-        interval: 50; repeat: true
-        onTriggered: {
-            const left = {}
-            for (const name in root._pendingScroll) {
-                const want = root._pendingScroll[name], f = root._flick(name)
-                if (!f || !f.visible) { left[name] = want; continue }
-                const tries = (root._scrollTries[name] || 0) + 1
-                root._scrollTries[name] = tries
-                const most = Math.max(0, f.contentHeight - f.height)
-                f.contentY = Math.min(want, most)
-                if (most < want && tries < 10) left[name] = want
-            }
-            root._pendingScroll = left
-            if (Object.keys(left).every(function (n) { const f = root._flick(n); return !f || !f.visible })) stop()
-        }
-    }
-    Timer { id: scrollSave; interval: 300; onTriggered: root._saveNav() }
-    Instantiator {
-        id: flickWatch
-        model: root.remembersNav ? root._navFlicks : []
-        delegate: Connections {
-            required property string modelData
-            target: null
-            function onMovementStarted() { delete root._pendingScroll[modelData] }
-            function onContentYChanged() { if (root._pendingScroll[modelData] === undefined) scrollSave.restart() }
-            function onVisibleChanged() { if (root._pendingScroll[modelData] !== undefined) scrollRestore.start() }
-        }
+        place.restore(nav)
     }
     Connections {
         target: body
@@ -366,46 +320,21 @@ Item {
         function onSectionToggled(name, collapsed) { root._persistFold(name, collapsed) }
         function onNavChanged() { root._saveNav() }
         function onDemoReset() { root._restorePrefs(true); root._restoreFolds() }   // a render keeps the view it is on
-        function onRegisterItemChanged() { if (root.remembersNav) Qt.callLater(root._watchFlicks) }
-        function onViewChanged() { if (root.remembersNav) Qt.callLater(root._watchFlicks) }
+        function onRegisterItemChanged() { if (root.remembersNav) Qt.callLater(place.watch) }
+        function onViewChanged() { if (root.remembersNav) Qt.callLater(place.watch) }
     }
     Connections {
         target: seriesModel
         // a different session: the place does not carry over
-        function onSessionChanged() { if (root._navReady && root._nav() && root._nav().sessionDir !== root._folder(seriesModel.sessionDir)) body.openId = "" }
+        function onSessionChanged() { if (place.ready && root._nav() && !place.matches(root._nav())) body.openId = "" }
     }
 
     Component.onCompleted: {
         _restorePrefs(); _restoreFolds()
         _pointAtSession()
         _syncPick()
-        if (remembersNav) { _restoreNav(); Qt.callLater(_watchFlicks) }
-        _navReady = remembersNav
-    }
-
-    // ── a shot picked on a figure: the carousel's own click path ──
-    Instantiator {
-        id: carouselShots
-        model: sessionReviewController.activeShots
-        delegate: QtObject { required property int shotId; required property string swingDir }
-    }
-    function _pickShot(swingDir) {
-        if (!swingDir) return false
-        const want = _folder(swingDir), name = want.substring(want.lastIndexOf("/") + 1)
-        for (let i = 0; i < carouselShots.count; ++i) {
-            const s = carouselShots.objectAt(i)
-            if (!s || !s.swingDir) continue
-            const have = _folder(s.swingDir)
-            if (have === want || have.substring(have.lastIndexOf("/") + 1) === name) {
-                if (SessionMode.mode === SessionMode.analyse) {
-                    SessionMode.focusedShotId = s.shotId
-                    SessionMode.focusedSwingDir = s.swingDir
-                    SessionMode.enterAnalyse()
-                } else SessionMode.enterReplay(s.shotId, s.swingDir)
-                return true
-            }
-        }
-        return false
+        if (remembersNav) { _restoreNav(); Qt.callLater(place.watch) }
+        place.ready = remembersNav
     }
 
     PpChartsBody {
@@ -418,6 +347,7 @@ Item {
         deliveryP: deliveryPresenter
         playUs: root._playUs
         spanUs: root._spanUs
-        onShotRequested: (dir, id) => root._pickShot(dir)
+        // a shot picked on a figure: the carousel's own click path
+        onShotRequested: (dir, id) => place.pickShot(dir)
     }
 }

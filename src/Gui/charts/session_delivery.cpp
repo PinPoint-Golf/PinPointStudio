@@ -20,6 +20,7 @@
 
 #include "charts_words.h"
 #include "../../Diagnostics/measures/measure_sample.h"   // buildPhaseGrid: THE sampler
+#include "../../LaunchMonitor/lm_inferred_reads.h"       // lmShapeClass: THE shot-shape classifier (decision 10)
 
 #include <QHash>
 #include <QJsonArray>
@@ -43,7 +44,7 @@ constexpr int kP1 = 0, kP2 = 1, kP3 = 2, kP4 = 3, kP5 = 4, kP6 = 5, kP7 = 6;
 const QString kDot = QStringLiteral(" · ");
 constexpr double kPi = 3.14159265358979323846;
 
-bool fin(double v) { return std::isfinite(v); }
+using words::fin;                          // figure_format.h
 double med(std::vector<double> v)
 {
     v.erase(std::remove_if(v.begin(), v.end(), [](double x) { return !fin(x); }), v.end());
@@ -170,7 +171,9 @@ const QStringList &deliveryMetricKeys()
         QStringLiteral("lowPointAhead"), QStringLiteral("clubPath"), QStringLiteral("attackAngle"),
         QStringLiteral("lm.clubPath"), QStringLiteral("lm.faceAngle"), QStringLiteral("lm.faceToPath"),
         QStringLiteral("lm.attackAngle"), QStringLiteral("lm.dynamicLoft"), QStringLiteral("lm.lieAngle"),
-        QStringLiteral("lm.lowPointAhead"), QStringLiteral("lm.launchDirection"), QStringLiteral("lm.spinAxis") };
+        QStringLiteral("lm.lowPointAhead"), QStringLiteral("lm.launchDirection"), QStringLiteral("lm.spinAxis"),
+        // how far the ball actually curved (decision 10): read for the shot shape, never a curve on show
+        QStringLiteral("lm.carryDistance"), QStringLiteral("lm.offline") };
     return k;
 }
 
@@ -328,6 +331,8 @@ DeliveryShotInput deliveryInputFromGrid(const pa::SwingPhaseGrid &grid)
     in.lmLowPoint    = instant(QStringLiteral("lm.lowPointAhead"), pa::Phase::Impact);
     in.lmLaunchDir   = instant(QStringLiteral("lm.launchDirection"), pa::Phase::Impact);
     in.lmSpinAxis    = instant(QStringLiteral("lm.spinAxis"), pa::Phase::Impact);
+    in.lmCarry       = instant(QStringLiteral("lm.carryDistance"), pa::Phase::Impact);
+    in.lmOffline     = instant(QStringLiteral("lm.offline"), pa::Phase::Impact);
     return in;
 }
 
@@ -693,22 +698,29 @@ DeliveryShape deliveryShotShape(const DeliveryShotInput &in)
     s.faceToPath = fin(in.lmFaceToPath) ? in.lmFaceToPath : (fin(in.lmFace) && fin(in.lmPath) ? in.lmFace - in.lmPath : kNaN);
     s.launchDir = in.lmLaunchDir;
     s.spinAxis = in.lmSpinAxis;
-    // the ball first (its start and spin axis ARE the shape), else the club's face and face to path
+    // ONE PAIR, NEVER MIXED: the ball's (its start and spin axis ARE the shape, and how far it curved when the monitor
+    // gave carry and offline), else the club's (the face as the start, face to path as the curve). Never the ball's
+    // start with the club's curve or the reverse, so `fromBall` says what decided the shape.
     s.fromBall = fin(s.launchDir) && fin(s.spinAxis);
     if (!s.fromBall && (!fin(s.face) || !fin(s.faceToPath))) return s;
+    const auto opt = [](double v) { return fin(v) ? std::optional<double>(v) : std::optional<double>(); };
+    const std::optional<double> none;
+    // THE LAUNCH MONITOR'S CLASSIFIER, in physical space (handedness is mirrored below, in the words): the thresholds,
+    // the slight band and hook / slice are its, so this section and the launch monitor card name a shot alike.
+    const pa::LmShapeClass k = s.fromBall
+        ? pa::lmShapeClass(s.launchDir, s.spinAxis, none, pa::lmCurvature(s.launchDir, opt(in.lmCarry), opt(in.lmOffline)))
+        : pa::lmShapeClass(s.face, none, s.faceToPath, pa::LmCurvature());
+    if (!k.has) return s;
     s.available = true;
-    const double startDeg = s.fromBall ? s.launchDir : s.face;
-    const double k = s.fromBall ? kDeliverySpinAxisPerFaceToPath : 1.0;   // the curve's steps in its own measure
-    const double curveDeg = s.fromBall ? s.spinAxis : s.faceToPath;
-    s.start = startDeg > kDeliveryShapeStartDeg ? 1 : startDeg < -kDeliveryShapeStartDeg ? -1 : 0;
-    s.curve = curveDeg > k * kDeliveryShapeCurveDeg ? 1 : curveDeg < -k * kDeliveryShapeCurveDeg ? -1 : 0;
-    s.slight = s.curve != 0 && std::fabs(curveDeg) <= k * kDeliverySlightCurveDeg;
+    s.start = k.windowIdx - 1;
+    s.curve = k.curveIdx - 1;
+    s.slight = k.slight;
+    s.severe = k.severe && k.curveIdx != 1;   // a hook or a slice is a curve: never on a straight-curve shot
     // the words mirror for a left-handed golfer: right of the target is a pull, a curve right a draw
     const int st = in.leftHanded ? -s.start : s.start, cv = in.leftHanded ? -s.curve : s.curve;
     s.startWord = st > 0 ? QStringLiteral("push") : st < 0 ? QStringLiteral("pull") : QStringLiteral("straight");
-    const bool big = std::fabs(curveDeg) > k * kDeliveryBigCurveDeg;
-    const QString base = cv > 0 ? (big ? QStringLiteral("slice") : QStringLiteral("fade"))
-                                : (big ? QStringLiteral("hook") : QStringLiteral("draw"));
+    const QString base = cv > 0 ? (s.severe ? QStringLiteral("slice") : QStringLiteral("fade"))
+                                : (s.severe ? QStringLiteral("hook") : QStringLiteral("draw"));
     s.curveWord = s.curve == 0 ? QStringLiteral("straight") : (s.slight ? QStringLiteral("slight ") : QString()) + base;
     if (s.start == 0 && s.curve == 0)  s.word = QStringLiteral("Straight");
     else if (s.curve == 0)             s.word = W::cap1(s.startWord);

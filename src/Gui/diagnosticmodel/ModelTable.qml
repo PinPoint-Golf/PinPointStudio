@@ -507,62 +507,17 @@ Item {
                         // ── Enum popup ────────────────────────────────────────
                         // One click opens, one click picks: the budget for group / reach / tier /
                         // strength is exactly two clicks and this is both of them.
-                        Popup {
+                        ModelEnumMenu {
                             id: enumPopup
                             visible: cellItem.editing && cellItem.modelData.kind === "enum"
                             y: cellItem.height
-                            padding: Theme.gap(4)
-                            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                            fitContent: true
+                            options: cellItem.modelData.options || []
+                            value:   cellItem.modelData.value
                             onClosed: if (cellItem.editing) root.endEdit()
-
-                            background: Rectangle {
-                                color:        Theme.colorSurface
-                                radius:       Theme.radius
-                                border.width: 1
-                                border.color: Theme.colorBorderStrong
-                            }
-
-                            contentItem: Column {
-                                spacing: 0
-                                Repeater {
-                                    model: cellItem.modelData.options || []
-                                    delegate: Rectangle {
-                                        id: enumOption
-                                        required property var modelData
-                                        readonly property bool chosen:
-                                            modelData.value === cellItem.modelData.value
-
-                                        width:  Math.max(Theme.sp(150), optionText.implicitWidth + Theme.sp(24))
-                                        height: Theme.sp(28)
-                                        radius: Theme.radius
-                                        color:  optionHover.hovered ? Theme.colorBg2 : "transparent"
-
-                                        HoverHandler { id: optionHover }
-
-                                        Text {
-                                            id: optionText
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            anchors.left: parent.left
-                                            anchors.leftMargin: Theme.gap(10)
-                                            text: enumOption.modelData.label
-                                            font.family:    Theme.fontBody
-                                            font.pixelSize: Theme.fontSzBody2
-                                            font.weight:    Theme.fontBodyWeight
-                                            color: enumOption.chosen ? Theme.colorAccent
-                                                                     : Theme.colorText
-                                        }
-
-                                        PpPressable {
-                                            hoverScale: 1.0
-                                            onClicked: {
-                                                root.commit(rowItem.modelData.id,
-                                                            cellItem.modelData.field,
-                                                            enumOption.modelData.value)
-                                                root.endEdit()
-                                            }
-                                        }
-                                    }
-                                }
+                            onPicked: (value) => {
+                                root.commit(rowItem.modelData.id, cellItem.modelData.field, value)
+                                root.endEdit()
                             }
                         }
 

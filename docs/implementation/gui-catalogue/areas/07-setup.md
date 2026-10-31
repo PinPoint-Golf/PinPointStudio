@@ -1,26 +1,28 @@
 # Session setup
 
 *Directory:* `src/Gui/setup/` (+ `pages/`, `parts/`)  
-*21 components · 4,308 lines of QML*
+*23 components · 5,051 lines of QML*
 
 The session-setup flow (replaced the old wizard; docs/design/session_wizard_refactor_design.md): a non-visual flow engine, step descriptors as data, a hardware-context object, a WizardPage contract, nine step pages and a few shared parts.
 
 | Component | Lines | Root | Used by | Uses | Notes |
 |---|---:|---|---:|---:|---|
-| [ScreenSessionSetup](#screensessionsetup) | 419 | `Item` | 1 | 8 |  |
-| [SetupContext](#setupcontext) | 661 | `QtObject` | 1 | 1 |  |
-| [SetupDraft](#setupdraft) | 137 | `QtObject` | 1 | 0 |  |
-| [SetupFlow](#setupflow) | 391 | `QtObject` | 1 | 1 |  |
-| [SetupSteps](#setupsteps) | 292 | `QtObject` | 1 | 10 |  |
-| [StepDescriptor](#stepdescriptor) | 66 | `QtObject` | 1 | 0 |  |
-| [WizardPage](#wizardpage) | 71 | `Item` | 10 | 0 |  |
+| [ScreenSessionSetup](#screensessionsetup) | 480 | `Item` | 1 | 8 |  |
+| [SetupContext](#setupcontext) | 640 | `QtObject` | 2 | 1 |  |
+| [SetupDraft](#setupdraft) | 143 | `QtObject` | 1 | 0 |  |
+| [SetupFlow](#setupflow) | 388 | `QtObject` | 1 | 1 |  |
+| [SetupSteps](#setupsteps) | 320 | `QtObject` | 1 | 12 |  |
+| [StepDescriptor](#stepdescriptor) | 71 | `QtObject` | 1 | 0 |  |
+| [WizardPage](#wizardpage) | 71 | `Item` | 12 | 0 |  |
 | [BallPage](#ballpage) | 168 | `WizardPage` | 1 | 4 |  |
-| [CalibrateArmPage](#calibratearmpage) | 96 | `WizardPage` | 1 | 2 |  |
-| [CamerasPage](#cameraspage) | 204 | `WizardPage` | 1 | 3 |  |
+| [CalibrateArmPage](#calibratearmpage) | 126 | `WizardPage` | 1 | 2 |  |
+| [CalibrateTrunkPage](#calibratetrunkpage) | 350 | `WizardPage` | 1 | 6 |  |
+| [CamerasPage](#cameraspage) | 203 | `WizardPage` | 1 | 3 |  |
 | [CheckArmPage](#checkarmpage) | 189 | `WizardPage` | 1 | 3 |  |
+| [CheckTrunkPage](#checktrunkpage) | 226 | `WizardPage` | 1 | 3 |  |
 | [FramingPage](#framingpage) | 233 | `WizardPage` | 1 | 4 |  |
-| [GoalsPage](#goalspage) | 136 | `WizardPage` | 1 | 3 |  |
-| [ImusPage](#imuspage) | 412 | `WizardPage` | 1 | 5 |  |
+| [ImusPage](#imuspage) | 418 | `WizardPage` | 1 | 5 |  |
+| [IntentPage](#intentpage) | 192 | `WizardPage` | 1 | 3 |  |
 | [ReadyPage](#readypage) | 346 | `WizardPage` | 1 | 2 | 1 local comp. |
 | [TriangulatePage](#triangulatepage) | 98 | `WizardPage` | 1 | 4 |  |
 | [SetupCheckRow](#setupcheckrow) | 169 | `Item` | 4 | 4 |  |
@@ -32,7 +34,7 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 ## `setup/`
 
 ### ScreenSessionSetup
-`src/Gui/setup/ScreenSessionSetup.qml` · 419 lines · root `Item` · 3 hard-coded colour(s)
+`src/Gui/setup/ScreenSessionSetup.qml` · 480 lines · root `Item` · 3 hard-coded colour(s)
 
 > Session setup — the SHELL (session_wizard_refactor_design.md §4.2). The replacement for
 > ScreenSessionWizard.qml, built beside it in Stage 5a; Main has hosted it since Stage 5b, and the
@@ -52,15 +54,15 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 > - the header › is Continue only, disabled when Continue is; it never runs a page's primary
 > …
 
-- **Properties:** `readonly var presets`, `readonly int settingsPanelCameras`, `readonly int settingsPanelImus`, `readonly bool canHeaderBack`, `readonly bool canHeaderForward`, `readonly var flow`, `readonly var ctx`, `readonly var draft`, `readonly var steps`, `readonly int contentWidth`
-- **Signals:** `cancelled()`, `sessionStartRequested(int sessionType, var goalKeys)`, `cameraRecalibrateRequested()`, `navigateToSettings(int panelIndex)`, `exitRequested(string reason)`
-- **Functions:** `open(preset)`, `headerBack()`, `headerForward()`, `suspend()`, `resume()`
+- **Properties:** `readonly int settingsPanelCameras`, `readonly int settingsPanelImus`, `readonly bool canHeaderBack`, `readonly bool canHeaderForward`, `readonly var flow`, `readonly var ctx`, `readonly var draft`, `readonly var steps`, `readonly int contentWidth`
+- **Signals:** `cancelled()`, `sessionStartRequested(var request)`, `cameraRecalibrateRequested()`, `navigateToSettings(int panelIndex)`, `exitRequested(string reason)`
+- **Functions:** `open(request)`, `headerBack()`, `headerForward()`, `suspend()`, `resume()`
 - **Uses:** `PpButton`, `PpConnectingFrame`, `PpFlowIndicator`, `PpPressable`, `SetupContext`, `SetupDraft`, `SetupFlow`, `SetupSteps`
 - **Used by (1):** `Main`
 - **Exercised by tests/tools:** `CalibDriver`, `SetupDriver`, `setup_walk`, `tst_setup_smoke`
 
 ### SetupContext
-`src/Gui/setup/SetupContext.qml` · 661 lines · root `QtObject`
+`src/Gui/setup/SetupContext.qml` · 640 lines · root `QtObject` · no direct `Theme.*` refs
 
 > The hardware, as session setup sees it (session_wizard_refactor_design.md §4.8, R6). The ONE
 > object in the flow that touches the managers: descriptors, the flow and the pages read the
@@ -80,36 +82,36 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 > fakes without a child context if they want to.
 > …
 
-- **Properties:** `var cameraMgr`, `var imuMgr`, `var settings`, `var athlete`, `var launchMon`, `var draft`, `var liveWrist`, `readonly int settingsPanelCameras`, `readonly int settingsPanelImus`, `readonly var presets`, `readonly string athleteName`, `readonly bool leftHanded`, `readonly var cameraList`, `readonly var faceOn` … (+39 more)
+- **Properties:** `var cameraMgr`, `var imuMgr`, `var settings`, `var athlete`, `var launchMon`, `var draft`, `var liveWrist`, `var trunkCeremony`, `readonly int settingsPanelCameras`, `readonly int settingsPanelImus`, `var workOnsSource`, `readonly var focusChoices`, `readonly string athleteName`, `readonly bool leftHanded` … (+41 more)
 - **Signals:** `mountRefused(string deviceId, string role, string holderId)`
-- **Functions:** `cameraInstanceFor(cameraKey)`, `cameraPoseEnabled(inst)`, `setCameraPoseEnabled(inst, on)`, `connectCameras()`, `setCameraEnabled(cameraKey, on)`, `ensureBallRoi()`, `relearnBallBaseline()`, `connectSensors()`, `cancelPacedConnect()`, `setSensorEnabled(deviceId, on)` (+8)
+- **Functions:** `conditionLabel(id)`, `cameraInstanceFor(cameraKey)`, `cameraPoseEnabled(inst)`, `setCameraPoseEnabled(inst, on)`, `connectCameras()`, `setCameraEnabled(cameraKey, on)`, `ensureBallRoi()`, `relearnBallBaseline()`, `connectSensors()`, `cancelPacedConnect()` (+10)
 - **Uses:** `ImuMounts`
-- **Used by (1):** `ScreenSessionSetup`
+- **Used by (2):** `HmRigCapability`, `ScreenSessionSetup`
 - **Exercised by tests/tools:** `FlowShell`
 
 ### SetupDraft
-`src/Gui/setup/SetupDraft.qml` · 137 lines · root `QtObject` · no direct `Theme.*` refs
+`src/Gui/setup/SetupDraft.qml` · 143 lines · root `QtObject` · no direct `Theme.*` refs
 
 > One visit to session setup (session_wizard_refactor_design.md §4.6): what outlives the pages,
 > which exist only while current (R2). Reset by SetupFlow.open() and nowhere else.
-> ⚠ reset() IS THE ONLY PLACE SAVED SETTINGS ARE SEEDED (F4). Today's wizard re-seeded the goals
-> and the per-session camera/sensor enablement on every `visible` edge (wizard l.571–588), so a
-> trip to Settings and back threw away the choices made in this visit. A suspend/resume does not
-> touch this object.
+> ⚠ reset() IS THE ONLY PLACE THE VISIT IS SEEDED (F4) — the focus from the open() request, the
+> per-session camera/sensor enablement from saved settings. The retired wizard re-seeded on every
+> `visible` edge (wizard l.571–588), so a trip to Settings and back threw away the choices made in
+> this visit. A suspend/resume does not touch this object.
 > Every write REPLACES `states` / `outcomes` with a new object: bindings over a var property see
 > an assignment, never an in-place mutation.
 
-- **Properties:** `var ctx`, `int preset`, `var goals`, `bool goalsInteracted`, `var states`, `var outcomes`, `readonly var goalDefs`, `readonly var defaultGoal`
-- **Functions:** `state(key)`, `setState(key, s)`, `setStates(map)`, `toggleGoal(key)`, `goalsForStart()`, `recordOutcome(group, routine, devices)`, `clearOutcome(group)`, `outcome(group)`, `reset(presetIndex)`
+- **Properties:** `var ctx`, `string focusConditionId`, `string focusLabel`, `var requestedFocus`, `var states`, `var outcomes`
+- **Functions:** `state(key)`, `setState(key, s)`, `setStates(map)`, `setFocus(id, label)`, `startRequest()`, `recordOutcome(group, routine, devices)`, `clearOutcome(group)`, `outcome(group)`, `reset(request)`
 - **Used by (1):** `ScreenSessionSetup`
 - **Exercised by tests/tools:** `FlowShell`
 
 ### SetupFlow
-`src/Gui/setup/SetupFlow.qml` · 391 lines · root `QtObject`
+`src/Gui/setup/SetupFlow.qml` · 388 lines · root `QtObject`
 
 > The session-setup flow engine (session_wizard_refactor_design.md §4.5). Non-visual. It owns the
 > plan, the current step, the navigation queue and the page lifecycle; the decisions themselves are
-> the pure functions in setup_flow.js, and the visit's state (goals, step states, outcomes) lives
+> the pure functions in setup_flow.js, and the visit's state (focus, step states, outcomes) lives
 > in the SetupDraft.
 > ── Wiring (the host — the setup shell, or a test's FlowShell) ─────────────────────────────────
 > SetupContext { id: ctx; draft: draft }
@@ -125,36 +127,36 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 > R2  Exactly one page object is alive. A transition leaves the old page, unloads it, WAITS until it
 > …
 
-- **Properties:** `var registry`, `var ctx`, `var draft`, `Loader loader`, `bool isOpen`, `bool suspended`, `string current`, `WizardPage page`, `readonly bool wired`, `readonly int preset`, `readonly var descriptors`, `readonly var plan`, `readonly var numbering`, `readonly var states` … (+15 more)
-- **Signals:** `cancelled()`, `startRequested(int preset, var goals)`, `exitRequested(string reason)`, `settingsRequested(int panelIndex)`, `cameraRecalibrateRequested()`
-- **Functions:** `stepLabelFor(key)`, `open(presetIndex)`, `next(mark)`, `back()`, `goTo(key, resetStates)`, `suspend()`, `resume()`, `exit(reason)`, `canGoTo(key)`, `openSettings(panelIndex)` (+2)
+- **Properties:** `var registry`, `var ctx`, `var draft`, `Loader loader`, `bool isOpen`, `bool suspended`, `string current`, `WizardPage page`, `readonly bool wired`, `readonly var descriptors`, `readonly var plan`, `readonly var numbering`, `readonly var states`, `readonly var currentDescriptor` … (+14 more)
+- **Signals:** `cancelled()`, `startRequested(var request)`, `exitRequested(string reason)`, `settingsRequested(int panelIndex)`, `cameraRecalibrateRequested()`
+- **Functions:** `stepLabelFor(key)`, `open(request)`, `next(mark)`, `back()`, `goTo(key, resetStates)`, `suspend()`, `resume()`, `exit(reason)`, `canGoTo(key)`, `openSettings(panelIndex)` (+2)
 - **Uses:** `WizardPage`
 - **Used by (1):** `ScreenSessionSetup`
 - **Exercised by tests/tools:** `FlowShell`, `tst_setup_flow`
 
 ### SetupSteps
-`src/Gui/setup/SetupSteps.qml` · 292 lines · root `QtObject`
+`src/Gui/setup/SetupSteps.qml` · 320 lines · root `QtObject`
 
 > THE step registry (session_wizard_refactor_design.md §4.4, R1). A step exists here, as one
 > StepDescriptor, and in one page file under pages/ — nowhere else. Order here is the order of the
 > flow; nothing reorders it.
-> ⚠ R6 / §4.12 / lint W8: no `applies` and no `gate` below may mention the session type or the
-> preset. Steps come from the hardware in the session: with no arm sensor there is no arm
-> Calibrate or Check step, whatever the session was opened as.
+> ⚠ R6 / §4.12 / lint W8: no `applies` and no `gate` below may mention the session type (or the
+> retired preset). Steps come from the hardware in the session: with no arm sensor there is no arm
+> Calibrate or Check step, whatever the session is for.
 > The issue and summary texts are today's (wizard l.489–565, 1947–2015) wherever today had one;
 > the sensor issues are new because the per-type slot table they came from is gone (§4.12). Each
 > new string is marked DECISION(stage4), and Stage 6 re-baselines Ready's golden tables on purpose.
-> Adding a step (§4.10): one descriptor here, one page file. The trunk work adds the two lines
-> marked TRUNK below. A step can also be added from outside through `extensions` (test N17).
+> Adding a step (§4.10): one descriptor here, one page file — the two marked TRUNK below are the
+> worked example. A step can also be added from outside through `extensions` (test N17).
 
 - **Properties:** `var pageOverride`, `readonly var groupLabels`, `list<StepDescriptor> extensions`, `readonly list<StepDescriptor> builtIn`, `readonly var descriptors`, `readonly var keys`, `readonly var instrumentGroups`
 - **Functions:** `descriptor(key)`, `pageUrl(key)`
-- **Uses:** `BallPage`, `CalibrateArmPage`, `CamerasPage`, `CheckArmPage`, `FramingPage`, `GoalsPage`, `ImusPage`, `ReadyPage`, `StepDescriptor`, `TriangulatePage`
+- **Uses:** `BallPage`, `CalibrateArmPage`, `CalibrateTrunkPage`, `CamerasPage`, `CheckArmPage`, `CheckTrunkPage`, `FramingPage`, `ImusPage`, `IntentPage`, `ReadyPage`, `StepDescriptor`, `TriangulatePage`
 - **Used by (1):** `ScreenSessionSetup`
 - **Exercised by tests/tools:** `FlowShell`
 
 ### StepDescriptor
-`src/Gui/setup/StepDescriptor.qml` · 66 lines · root `QtObject`
+`src/Gui/setup/StepDescriptor.qml` · 71 lines · root `QtObject`
 
 > One step of session setup, as DATA (session_wizard_refactor_design.md §4.4, R1). A step is this
 > descriptor plus one page file and nothing else: the flow, the indicator, the numbering, the
@@ -165,10 +167,10 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 > else: no page property, no manager. Bindings that call them pick up their reactive
 > dependencies from the reads they make, so a predicate must READ what it depends on (a bare
 > `ctx.foo` statement is dropped by the compiler — memory note qml-dead-statement-bindings).
-> ⚠ No applies or gate may read the session type or the preset (§4.12, lint W8): hardware
-> decides which steps run, the preset only picks goals and where Start lands.
+> ⚠ No applies or gate may read the session type or the focus (§4.12, lint W8): hardware
+> decides which steps run; the focus only rides along to Start.
 
-- **Properties:** `string key`, `string title`, `string eyebrow`, `string group`, `string instrumentGroup`, `string page`, `string after`, `var applies`, `var gate`, `var issues`, `var summary`
+- **Properties:** `string key`, `string title`, `string eyebrow`, `string group`, `string instrumentGroup`, `string page`, `string after`, `var applies`, `var gate`, `var issues`, `var summary`, `var spokenPhrases`
 - **Used by (1):** `SetupSteps`
 - **Exercised by tests/tools:** `setup_soak`, `tst_setup_flow`, `tst_setup_nav`
 
@@ -193,7 +195,7 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 
 - **Properties:** `bool active`, `var flow`, `var ctx`, `var draft`, `string stepLabel`, `string stepKey`, `bool canContinue`, `bool canSkip`, `var primary`, `string hint`, `string hintTone`, `bool fullBleed`, `bool busy`
 - **Functions:** `enter(direction)`, `leave(reason)`
-- **Used by (10):** `BallPage`, `CalibrateArmPage`, `CamerasPage`, `CheckArmPage`, `FramingPage`, `GoalsPage`, `ImusPage`, `ReadyPage`, `SetupFlow`, `TriangulatePage`
+- **Used by (12):** `BallPage`, `CalibrateArmPage`, `CalibrateTrunkPage`, `CamerasPage`, `CheckArmPage`, `CheckTrunkPage`, `FramingPage`, `ImusPage`, `IntentPage`, `ReadyPage` (+2)
 - **Exercised by tests/tools:** `DummyPage`, `ExtraPage`
 
 ## `setup/pages/`
@@ -215,7 +217,7 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 - **Used by (1):** `SetupSteps`
 
 ### CalibrateArmPage
-`src/Gui/setup/pages/CalibrateArmPage.qml` · 96 lines · root `WizardPage` · no direct `Theme.*` refs
+`src/Gui/setup/pages/CalibrateArmPage.qml` · 126 lines · root `WizardPage` · no direct `Theme.*` refs
 
 > Session setup — Calibrate (the arm group's calibrate step; the retired ScreenSessionWizard.qml Panel 5,
 > l.1640–1660, with its footer hint and Skip, l.2098–2100, 2134). Design §4.7 "Hosts".
@@ -233,14 +235,42 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 > indicator read it there).
 > Recalibrate (the status column's button) begins a fresh run; the outcome is dropped from the
 > draft as the run's done goes false (below), so Continue closes at once.
+> …
 
-- **Functions:** `enter(direction)`
+- **Properties:** `readonly var trunkCeremony`
+- **Functions:** `enter(direction)`, `leave(reason)`
 - **Uses:** `ImuCalibrationFlow`, `WizardPage`
 - **Used by (1):** `SetupSteps`
 - **Exercised by tests/tools:** `setup_soak`
 
+### CalibrateTrunkPage
+`src/Gui/setup/pages/CalibrateTrunkPage.qml` · 350 lines · root `WizardPage`
+
+> Session setup — Calibrate trunk (the trunk group's calibrate step; trunk_imu_sequence_grf_design.md
+> §6.3 steps 1–3, §6.7; session_wizard_refactor_design.md §4.10, the recipe this is the worked
+> example of).
+> ONE guide view and ONE routine, as CalibrateArmPage: the BodyVizView the guide drives, and
+> TrunkRoutine over the hip and chest sensors. The page exists only while the step is current (R2),
+> so neither does the routine (R7).
+> The avatar demonstrates each step (§6.7 "Demonstrate, then verify"): it stands tall; for a turn it
+> crosses its arms, turns hips about 45° and chest about 90° away (or through), pauses, and turns
+> back. A turn is TAUGHT here, facing the screen — the demo and one large instruction — and then
+> run by the sensors (TrunkRoutine: armed on stillness, ended when the golfer is back facing the
+> screen); nothing on the page has to be read while turned away, and the verdict appears when the
+> golfer faces it again (Mark, 26 Oct). The guide (CalibrationGuide.qml) holds the pose; the view below binds it — the trunk through
+> the same useTrunkOverride binding the live check draws the sensors with, the crossed arms on the
+> arm overrides.
+> GOLF TERMS AND AN UNMISTAKABLE DIRECTION (Mark, third real-sensor run, 27 Oct: "the instructions and
+> the avatar need to be much much more clear — it's not clear at all which way I am supposed to turn —
+> …
+
+- **Properties:** `readonly var trunkCeremony`, `readonly alias routine`, `readonly alias guide`
+- **Functions:** `enter(direction)`, `leave(reason)`, `recalibrate()`
+- **Uses:** `BodyVizView`, `CalibrationGuide`, `PpButton`, `PpDisplayText`, `TrunkRoutine`, `WizardPage`
+- **Used by (1):** `SetupSteps`
+
 ### CamerasPage
-`src/Gui/setup/pages/CamerasPage.qml` · 204 lines · root `WizardPage`
+`src/Gui/setup/pages/CamerasPage.qml` · 203 lines · root `WizardPage`
 
 > Session setup — Cameras (the retired ScreenSessionWizard.qml Panel 1, l.917–1092, with its footer hint,
 > Skip, Connect and traveling-light frame, l.2075–2084, 2130, 2154–2158, 2200–2204, 2232),
@@ -250,10 +280,9 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 > connecting (F5, D2).
 > DECISION(stage5a): the two-camera branches of today's panel are not carried: the "Down-the-line
 > camera" placeholder row and the "Down-the-line camera not assigned" hint (l.964–965, 2081–2082)
-> and the two-view intro text (l.982) applied only when the session type required two cameras —
-> the three comingSoon types, which Home never opens. Nothing is "required" any more (§4.12), and
-> SetupContext.camsAllConnected already dropped the same clause in Stage 4. For every session
-> that can be opened, the page is today's.
+> and the two-view intro text (l.982) applied only when the session type required two cameras,
+> and no session does any more (§4.12): there is one kind of session, and SetupContext.
+> camsAllConnected already dropped the same clause in Stage 4.
 
 - **Functions:** `camDetail(d)`
 - **Uses:** `SetupCheckRow`, `SetupStepIntro`, `WizardPage`
@@ -278,6 +307,32 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 - **Used by (1):** `SetupSteps`
 - **Exercised by tests/tools:** `setup_soak`
 
+### CheckTrunkPage
+`src/Gui/setup/pages/CheckTrunkPage.qml` · 226 lines · root `WizardPage`
+
+> Session setup — Check trunk (the trunk group's check step; trunk_imu_sequence_grf_design.md §6.7
+> "Demonstrate, then verify", page 2: the live check).
+> The golfer turns freely and watches the readings follow. One line of numbers, per the tile rule:
+> hips 45° · chest 88° · X 43°
+> each the D13 turn (trunk_angles.h turnFromRad: the heading of q_anat·x̂) of the sensor's live
+> anatomical orientation RELATIVE TO THE MOMENT THIS PAGE OPENED, golfer-relative: + is AWAY from the
+> target, so turning away must read positive — the sign check made visible. X is chest − hips.
+> Nothing here is gated or recorded.
+> The live trunk FIGURE beside it: BodyVizView in IMU mode, whole-body framing — the hips from the
+> pelvis q_anat, the spine chain from the thorax relative to the pelvis (useTrunkOverride, the same
+> binding the guide demonstrates with). It draws the q_anat AS IS, not zeroed at page open: a forward
+> bend at address reads as a bend, which is the point of the optional "take your address" look (§6.7).
+> Turning away must turn the model away — the sign check made visible.
+> The lead upper arm is NOT drawn from its sensor: a Witmotion arm's q_anat lives in the limb world
+> (zeroed at its own arm-down pose, imu_frame_contract.md §5), not the trunk's stance world, and no
+> solve here relates the two. Both arms hang.
+> …
+
+- **Properties:** `readonly real hipsDeg`, `readonly real chestDeg`, `readonly real xDeg`, `readonly string readingLine`
+- **Functions:** `enter(direction)`, `recalibrate()`
+- **Uses:** `BodyVizView`, `PpDisplayText`, `WizardPage`
+- **Used by (1):** `SetupSteps`
+
 ### FramingPage
 `src/Gui/setup/pages/FramingPage.qml` · 233 lines · root `WizardPage`
 
@@ -299,19 +354,8 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 - **Uses:** `PpCameraFrame`, `SetupCheckRow`, `SetupStepIntro`, `WizardPage`
 - **Used by (1):** `SetupSteps`
 
-### GoalsPage
-`src/Gui/setup/pages/GoalsPage.qml` · 136 lines · root `WizardPage` · 1 hard-coded colour(s)
-
-> Session setup — Goals (the retired ScreenSessionWizard.qml Panel 0, l.807–915, and its footer hint,
-> l.2070–2074), ported with every string, colour and size unchanged. The picks live in the draft
-> (SetupDraft.goals), not here: this page exists only while current (R2), and a trip to Settings
-> no longer re-seeds them (F4).
-
-- **Uses:** `PpPressable`, `SetupStepIntro`, `WizardPage`
-- **Used by (1):** `SetupSteps`
-
 ### ImusPage
-`src/Gui/setup/pages/ImusPage.qml` · 412 lines · root `WizardPage` · 1 hard-coded colour(s)
+`src/Gui/setup/pages/ImusPage.qml` · 418 lines · root `WizardPage` · 1 hard-coded colour(s)
 
 > Session setup — Sensors (the retired ScreenSessionWizard.qml Panel 4, l.1289–1638, with its footer hint,
 > Skip, Connect and traveling-light frame, l.2093–2097, 2133, 2150–2152, 2175, 2187, 2206–2208,
@@ -322,17 +366,36 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 > - each row shows its MOUNT by name. A remembered mount is confirmed, not asked again (mounts
 > are settings and stick); a sensor that is in the session with no mount gets the question
 > "Where is this sensor worn?" in the row, and "change" reopens it for a mounted one. The
-> choices are the Settings ▸ IMUs combo's (ImuMounts, the manager's one-claim rule): a mount
-> another sensor holds is greyed and names its holder; a refusal leaves the mount as it was
-> and says who holds it, in the page;
+> choices are ImuMounts' offered mounts under the manager's one-claim rule: a mount another
+> sensor holds is greyed and names its holder; a refusal leaves the mount as it was and says
+> who holds it, in the page. THIS IS THE ONE PLACE A MOUNT IS SET OR CHANGED (Mark, 26 Oct):
+> Settings ▸ IMUs shows it read-only, so a mounted sensor's question also offers "Not worn";
 > - a mount whose sensor the scan cannot see is its own row, "<Mount> — <name> (not found)",
 > with today's "power it on and Scan" (D6, reworded from slot to mount);
 > - Connect is the paced connect in ImuManager (one call; a wG3 connects once, D4). The primary
-> reads "Connecting…" for as long as the queue or any sensor of the session is still
 > …
 
 - **Functions:** `chooseMount(deviceId, role)`
 - **Uses:** `ImuMounts`, `PpPressable`, `SetupCheckRow`, `SetupStepIntro`, `WizardPage`
+- **Used by (1):** `SetupSteps`
+
+### IntentPage
+`src/Gui/setup/pages/IntentPage.qml` · 192 lines · root `WizardPage` · 1 hard-coded colour(s)
+
+> Session setup — Focus (step key "intent"; phase 2 C5, replacing the retired Goals page). What
+> this session works on: one condition the session's diagnostics track from the first swing, or
+> none (Open assessment). Single choice, from SetupContext.focusChoices:
+> - Open assessment (focus "");
+> - the coaching summary's focus, marked "your focus";
+> - the active and easing work-ons;
+> plus the focus the visit was opened with when it is none of those (Practise on a cleared
+> condition: SetupDraft.requestedFocus). Every list but the first may be empty.
+> The pick lives in the draft (SetupDraft.focusConditionId / focusLabel), not here: this page
+> exists only while current (R2), and a trip to Settings keeps it (F4). Start hands it on.
+> The chips are the retired Goals page's (chip/tile language), single-select.
+
+- **Properties:** `readonly var choices`, `readonly bool onlyOpen`
+- **Uses:** `PpPressable`, `SetupStepIntro`, `WizardPage`
 - **Used by (1):** `SetupSteps`
 
 ### ReadyPage
@@ -408,7 +471,7 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 
 - **Properties:** `string eyebrow`, `string heading`, `string body`
 - **Uses:** `PpDisplayText`
-- **Used by (6):** `BallPage`, `CamerasPage`, `FramingPage`, `GoalsPage`, `ImusPage`, `TriangulatePage`
+- **Used by (6):** `BallPage`, `CamerasPage`, `FramingPage`, `ImusPage`, `IntentPage`, `TriangulatePage`
 
 ### SetupSummaryRow
 `src/Gui/setup/parts/SetupSummaryRow.qml` · 62 lines · root `Item`

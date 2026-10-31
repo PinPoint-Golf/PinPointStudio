@@ -96,27 +96,22 @@ Column {
     FontMetrics { id: figBoldFm; font: nt.ro.fFigB }
     FontMetrics { id: headFm; font: nt.ro.fMicroM }
     FontMetrics { id: typFm; font: nt.ro.fSmallM }
-    readonly property var widths: {
-        const n = cols.length + (habits ? 1 : 0)
-        const w = []
-        for (let c = 0; c < cols.length; ++c) {
-            let m = 0
-            for (const wd of String(cols[c] || "").split(" ")) m = Math.max(m, headFm.advanceWidth(wd))
-            m = Math.max(m, headFm.advanceWidth(String((tab.units || [])[c] || "")))
-            for (const r of rows) m = Math.max(m, figFm.advanceWidth(String((r.cells || [])[c] || "")))
-            for (const t of typical) m = Math.max(m, (c === 0 ? typFm : figBoldFm).advanceWidth(String((t.cells || [])[c] || "")))
-            w.push(Math.ceil(m))
+    PpFitColumns {
+        id: fit
+        width: nt.width; minGap: 6
+        measure: function () {
+            const w = []
+            for (let c = 0; c < nt.cols.length; ++c) {
+                let m = Math.max(fit.widestWord(headFm, nt.cols[c]), fit.widest(headFm, [(nt.tab.units || [])[c] || ""]))
+                m = Math.max(m, fit.widest(figFm, nt.rows.map(r => (r.cells || [])[c] || "")))
+                m = Math.max(m, fit.widest(c === 0 ? typFm : figBoldFm, nt.typical.map(t => (t.cells || [])[c] || "")))
+                w.push(Math.ceil(m))
+            }
+            if (nt.habits)
+                w.push(Math.ceil(Math.max(fit.widest(headFm, [nt.tab.habitsHead || ""]), fit.widest(figFm, nt.rows.map(r => r.habitsText || "")))))
+            return w
         }
-        if (habits) {
-            let m = headFm.advanceWidth(tab.habitsHead || "")
-            for (const r of rows) m = Math.max(m, figFm.advanceWidth(r.habitsText || ""))
-            w.push(Math.ceil(m))
-        }
-        const used = w.reduce((a, b) => a + b, 0)
-        const gap = n > 1 ? Math.max(6, (width - used) / (n - 1)) : 0
-        return { cols: w, gap: gap, total: used + gap * (n - 1) }
     }
-    function xOf(c) { let x = 0; for (let i = 0; i < c; ++i) x += widths.cols[i] + widths.gap; return x }
     // first column left (a label), the rest right-aligned to their column
     function align(c) { return c === 0 || (cols[c] === "Club") ? Text.AlignLeft : Text.AlignRight }
 
@@ -141,7 +136,7 @@ Column {
                     delegate: Column {
                         required property int index
                         readonly property bool habitCol: index >= nt.cols.length
-                        x: nt.xOf(index); width: nt.widths.cols[index]
+                        x: fit.xOf(index); width: fit.cols[index]
                         Text { width: parent.width; horizontalAlignment: parent.habitCol ? Text.AlignRight : nt.align(index)
                                text: parent.habitCol ? (nt.tab.habitsHead || "") : (nt.cols[index] || ""); font: nt.ro.fMicroM; color: nt.ro.ink; wrapMode: Text.WordWrap }
                         Text { width: parent.width; horizontalAlignment: nt.align(index); visible: text !== ""
@@ -166,12 +161,12 @@ Column {
                     delegate: Text {
                         required property var modelData
                         required property int index
-                        x: nt.xOf(index); y: 3; width: nt.widths.cols[index] || 0
+                        x: fit.xOf(index); y: 3; width: fit.cols[index] || 0
                         horizontalAlignment: nt.align(index)
                         text: modelData; font: nt.ro.fFig; color: nt.ro.ink
                     }
                 }
-                Text { visible: nt.habits; x: nt.xOf(nt.cols.length); y: 3; width: nt.widths.cols[nt.cols.length] || 0; horizontalAlignment: Text.AlignRight
+                Text { visible: nt.habits; x: fit.xOf(nt.cols.length); y: 3; width: fit.cols[nt.cols.length] || 0; horizontalAlignment: Text.AlignRight
                        text: nr.modelData.habitsText || ""; font: nt.ro.fFig; color: nt.ro.ink2 }
             }
         }
@@ -194,7 +189,7 @@ Column {
                         delegate: Text {
                             required property var modelData
                             required property int index
-                            x: nt.xOf(index); y: 3; width: nt.widths.cols[index] || 0
+                            x: fit.xOf(index); y: 3; width: fit.cols[index] || 0
                             horizontalAlignment: nt.align(index)
                             text: modelData; font: index === 0 ? nt.ro.fSmallM : nt.ro.fFigB; color: nt.ro.ink
                         }

@@ -39,8 +39,8 @@ Item {
     visible: parts.length > 0
     height: !ok || parts.length === 0 ? 0 : Math.max(hd.height, grid.y + grid.height)
 
-    Text { id: hd; visible: mv.ok; width: mv.headW > 0 ? mv.headW - (mv.ok ? mv.roles.u(10) : 10) : mv.width
-           text: "What moved"; font: mv.ok ? mv.roles.fSection : Qt.font({}); color: mv.ok ? mv.roles.ink : "black" }
+    PpSectionHead { id: hd; visible: mv.ok; width: mv.headW > 0 ? mv.headW - (mv.ok ? mv.roles.u(10) : 10) : mv.width
+                    roles: mv.roles; paged: false; pad: 0; title: "What moved" }
     Flow {
         id: grid
         x: mv.headW; y: mv.headW > 0 ? 0 : hd.height + (mv.ok ? mv.roles.u(6) : 6)

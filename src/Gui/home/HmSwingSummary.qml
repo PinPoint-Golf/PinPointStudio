@@ -43,11 +43,12 @@
 // This file positions and paints. Before the first summary lands it says it is reading, and with
 // no session to read it says "Nothing yet".
 //
-// The pips are the LATEST maxPips judged sessions, oldest first, so a long history keeps the row
+// The pips are the LATEST maxPips (hm_text.js) judged sessions, oldest first, so a long history keeps the row
 // its width; the "Sessions" caption heads them.
 
 import QtQuick
 import PinPointStudio
+import "hm_text.js" as HomeText
 
 Column {
     id: root
@@ -61,16 +62,7 @@ Column {
     // An open fault's "Review the … session →", here or on the focus card.
     signal reviewSessionRequested(string sessionDir)
 
-    // A condition's detail (WorkOnsController.faultDetail: any condition a session measured, a
-    // listed work-on or not), or null. Reads detailsRevision so the binding follows each publish.
-    function faultFor(conditionId) {
-        const c = root.controller
-        if (!c || !conditionId || typeof c.faultDetail !== "function") return null
-        if (c.detailsRevision < 0) return null
-        const d = c.faultDetail(conditionId)
-        return d && d.id ? d : null
-    }
-    // The Next on your list fault open in place ("" when none): one at a time.
+    // The Next on your list fault open in place ("" when none): one at a time (HmFaultRow).
     property string openId: ""
 
     readonly property var    doWell:    controller ? controller.doWellItems    : []
@@ -79,9 +71,6 @@ Column {
     readonly property bool   updating:  controller ? controller.summaryUpdating : false
     // The work-ons catch-up comes first; the summary is read off what it leaves current.
     readonly property bool   catchingUp: controller ? controller.updating       : false
-
-    // At most this many pips in a row: the latest sessions.
-    readonly property int maxPips: 8
 
     // Two cards side by side down to this width; below it they stack.
     readonly property bool stacked: width < Theme.sp(640)
@@ -106,20 +95,10 @@ Column {
     width:   parent ? parent.width : 0
     spacing: 0
 
-    function capitalised(s) { s = String(s); return s.length ? s.charAt(0).toUpperCase() + s.slice(1) : s }
-
     // ════════════════════════════════════════════════════════════════════════
     // Pieces
     // ════════════════════════════════════════════════════════════════════════
 
-    // A sentence-case caption, as PpCard draws its column captions.
-    component Caption: Text {
-        elide:          Text.ElideRight
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody2
-        font.weight:    Theme.fontBodyWeight
-        color:          Theme.colorText3
-    }
     // A card's own header row: its title in its tone, in the words column, and the captions of the
     // other columns on the same line (the mockup's single header band).
     component CardHeader: PpTableRow {
@@ -139,16 +118,8 @@ Column {
             font.weight:    Font.DemiBold
             color:          head.tone
         }
-        Caption { visible: head.captions; text: qsTr("How often"); width: Math.min(implicitWidth, head.columnWidth(2)) }
-        Caption { visible: head.captions; text: qsTr("Sessions");  width: Math.min(implicitWidth, head.columnWidth(3)) }
-    }
-    component Headline: Text {
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody
-        font.weight:    Theme.fontBodyWeight
-        color:          Theme.colorText
-        wrapMode:       Text.WordWrap
-        lineHeight:     1.2
+        PpCaption { visible: head.captions; text: qsTr("How often"); width: Math.min(implicitWidth, head.columnWidth(2)) }
+        PpCaption { visible: head.captions; text: qsTr("Sessions");  width: Math.min(implicitWidth, head.columnWidth(3)) }
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -233,7 +204,7 @@ Column {
                         objectName: "doWellItem"
                         required property var modelData
                         // The words as drawn — what a probe reads.
-                        readonly property string itemText:    root.capitalised(wellItem.modelData.text)
+                        readonly property string itemText:    HomeText.capitalised(wellItem.modelData.text)
                         readonly property string captionText: wellItem.modelData.caption
                         readonly property string plainText:   itemText + " — " + captionText
                         readonly property int    pipCount:    (wellItem.modelData.sessions || []).length
@@ -246,8 +217,8 @@ Column {
                             id: wellWords
                             width: wellItem.columnWidth(1)
                             spacing: Theme.gap(2)
-                            Headline { width: parent.width; text: wellItem.itemText }
-                            Caption {
+                            HmHeadline { width: parent.width; text: wellItem.itemText }
+                            PpCaption {
                                 width:    parent.width
                                 text:     wellItem.captionText
                                 elide:    Text.ElideNone
@@ -260,7 +231,7 @@ Column {
                         }
                         PpPips {
                             marks:   wellItem.modelData.sessions
-                            maxPips: root.maxPips
+                            maxPips: HomeText.maxPips
                             tone:    root.toneWell
                         }
                     }
@@ -271,7 +242,7 @@ Column {
                     visible: root.doWell.length === 0
                     hoverEnabled: false
                     Item { width: 1; height: 1 }
-                    Caption {
+                    PpCaption {
                         objectName: "doWellEmpty"
                         width: wellEmptyRow.columnWidth(1)
                         text:  qsTr("Nothing stands out here yet.")
@@ -296,37 +267,26 @@ Column {
 
                 Repeater {
                     model: root.needsWork
-                    PpExpandRow {
+                    HmFaultRow {
                         id: workItem
                         objectName: "nextItem"
                         required property var modelData
                         required property int index
-                        readonly property string faultId: workItem.modelData.conditionId || ""
-                        // Its detail, which it opens to; null when no session measured it.
-                        readonly property var    fault:   root.faultFor(workItem.faultId)
                         // The words as drawn — what a probe reads.
-                        readonly property string itemText:      root.capitalised(workItem.modelData.text)
+                        readonly property string itemText:      HomeText.capitalised(workItem.modelData.text)
                         readonly property string frequencyText: workItem.modelData.frequency
                         readonly property string plainText:     itemText + " — " + frequencyText
                         readonly property int    pipCount:      (workItem.modelData.sessions || []).length
+                        // Opens in place to the fault's detail (HmFaultRow), one at a time.
+                        controller:  root.controller
+                        conditionId: workItem.modelData.conditionId || ""
+                        openId:      root.openId
+                        onOpenRequested: (next) => root.openId = next
+                        onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
                         secondLine: true
                         rowHeight: Math.max(Theme.sp(Theme.rowH2), workWords.implicitHeight + Theme.sp(18))
                         showChevron: false
-                        expanded:    root.openId !== "" && root.openId === workItem.faultId
-                        autoToggle:  false
-                        onToggled:   root.openId = workItem.expanded ? "" : workItem.faultId
-                        accessibleName:  workItem.itemText
-                        pressObjectName: "faultPress"
-                        detailIndent:     workItem.columnX(1) + workItem.padH
-                        detailRightInset: workItem.padH
-                        detail: workItem.fault ? nextDetail : null
-                        Component {
-                            id: nextDetail
-                            HmFaultDetail {
-                                item: workItem.fault
-                                onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
-                            }
-                        }
+                        accessibleName: workItem.itemText
 
                         PpBadge { kind: "ring"; plain: true; tone: root.toneWork; size: root.markW }
                         Column {
@@ -337,7 +297,7 @@ Column {
                             Item {
                                 width:  parent.width
                                 height: Math.max(workHead.height, nextChip.visible ? nextChip.height : 0)
-                                Headline {
+                                HmHeadline {
                                     id: workHead
                                     width: parent.width - (nextChip.visible ? nextChip.width + Theme.sp(12) : 0)
                                     text:  workItem.itemText
@@ -358,7 +318,7 @@ Column {
                             Row {
                                 width: parent.width
                                 spacing: Theme.gap(8)
-                                Caption {
+                                PpCaption {
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: Math.min(implicitWidth, parent.width
                                                     - (workChip.visible ? workChip.width + parent.spacing : 0))
@@ -377,7 +337,7 @@ Column {
                         }
                         PpPips {
                             marks:   workItem.modelData.sessions
-                            maxPips: root.maxPips
+                            maxPips: HomeText.maxPips
                             tone:    Theme.colorText2
                         }
                     }
@@ -388,7 +348,7 @@ Column {
                     visible: root.needsWork.length === 0
                     hoverEnabled: false
                     Item { width: 1; height: 1 }
-                    Caption {
+                    PpCaption {
                         objectName: "needsWorkEmpty"
                         width: workEmptyRow.columnWidth(1)
                         text:  qsTr("Nothing else shows up on most of your swings.")

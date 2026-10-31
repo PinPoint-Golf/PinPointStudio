@@ -40,21 +40,6 @@ Column {
         return Math.min(14 * ro.em, w + 2.5 * ro.em)
     }
 
-    component Para: Item {
-        id: pa
-        property QtObject ro: null
-        property string label: ""
-        property string text: ""
-        property real labelW: 150
-        property bool atom: true
-        width: 300
-        visible: text !== ""
-        height: visible ? Math.max(pl.height, pt.height) + 14 : 0
-        Text { id: pl; y: 2; width: pa.labelW - 12; text: pa.label; font: pa.ro.fLabel; color: pa.ro.ink; wrapMode: Text.WordWrap }
-        Text { id: pt; x: pa.labelW; width: pa.width - x; text: pa.text; textFormat: Text.StyledText
-               font: pa.ro.fBody; color: pa.ro.ink; wrapMode: Text.WordWrap; lineHeight: 1.32 }
-    }
-
     Column {
         objectName: "reportAbout"
         property bool atom: true
@@ -67,14 +52,15 @@ Column {
         Text { width: parent.width; text: "How we measured, and how far to trust it"; font: ab.ro.fH1; color: ab.ro.ink; wrapMode: Text.WordWrap; lineHeight: 1.08 }
         Item { width: 1; height: 22 }
     }
-    Para { ro: ab.ro; labelW: ab.labelW; width: ab.width; label: "Dates"; text: ab.a.dates || "" }
-    Para { ro: ab.ro; labelW: ab.labelW; width: ab.width; label: "How we measured"; text: ab.a.measured || "" }
-    Para { ro: ab.ro; labelW: ab.labelW; width: ab.width; label: "Target ranges"; text: ab.a.ranges || "" }
-    Para { objectName: "reportNotChecked"; ro: ab.ro; labelW: ab.labelW; width: ab.width; label: "What we could not check"; text: ab.a.notChecked || "" }
+    // the paragraphs (PpReportPara, the work-on pages' too): the label in the margin column, 14 px under each
+    PpReportPara { foot: 14; ro: ab.ro; labelW: ab.labelW; width: ab.width; label: "Dates"; text: ab.a.dates || "" }
+    PpReportPara { foot: 14; ro: ab.ro; labelW: ab.labelW; width: ab.width; label: "How we measured"; text: ab.a.measured || "" }
+    PpReportPara { foot: 14; ro: ab.ro; labelW: ab.labelW; width: ab.width; label: "Target ranges"; text: ab.a.ranges || "" }
+    PpReportPara { objectName: "reportNotChecked"; foot: 14; ro: ab.ro; labelW: ab.labelW; width: ab.width; label: "What we could not check"; text: ab.a.notChecked || "" }
     // reportHold conditions that showed: off every work-on list, named here with the reason (CONTRACTS §1)
-    Para {
+    PpReportPara {
         objectName: "reportHeld"
-        ro: ab.ro; labelW: ab.labelW; width: ab.width; label: "Left off the list today"
+        foot: 14; ro: ab.ro; labelW: ab.labelW; width: ab.width; label: "Left off the list today"
         text: ab.held.map(h => "<b>" + (h.name || "") + "</b>: " + (h.reason || "")).join("<br>")
     }
 

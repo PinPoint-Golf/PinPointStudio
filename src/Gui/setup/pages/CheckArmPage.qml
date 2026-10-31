@@ -44,47 +44,20 @@ WizardPage {
     function enter(direction) { if (liveWrist) liveWrist.active = true }
     function leave(reason)    { if (liveWrist) liveWrist.active = false }
 
-    function recalibrate() {
-        page.draft.clearOutcome("arm")
-        page.flow.goTo("calibrateArm", true)
-    }
-
     ColumnLayout {
         anchors.fill:    parent
         anchors.margins: Theme.gap(8)
         spacing:         Theme.gap(12)
 
-        Column {
+        SetupStepIntro {
             Layout.fillWidth:    true
             Layout.maximumWidth: Theme.contentWidth(page.width)
             Layout.topMargin:    Theme.gap(32)
-            spacing:             Theme.gap(8)
-
-            Text {
-                text:               page.stepLabel
-                font.family:        Theme.fontData
-                font.pixelSize:     Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro
-                color:              Theme.colorText3
-            }
-
-            PpDisplayText {
-                width:          parent.width
-                text:           qsTr("Check your sensor")
-                pixelSize:      Math.min(Theme.sp(22), Theme.fontSzDisplay)
-                wrapMode:       Text.WordWrap
-            }
-
-            Text {
-                width:          parent.width
-                text:           qsTr("Move your arm slowly in all directions. The 3D model should track your movement precisely. If it doesn't, go back and recalibrate.")
-                font.family:    Theme.fontBody
-                font.weight:    Theme.fontBodyWeight
-                font.pixelSize: Theme.fontSzBody2
-                color:          Theme.colorText2
-                lineHeight:     1.65
-                wrapMode:       Text.WordWrap
-            }
+            eyebrow:          page.stepLabel
+            heading:          qsTr("Check your sensor")
+            body:             qsTr("Move your arm slowly in all directions. The 3D model should track your movement precisely. If it doesn't, go back and recalibrate.")
+            headingPixelSize: Math.min(Theme.sp(22), Theme.fontSzDisplay)
+            rule:             false
         }
 
         // Live tracking — the arm avatar is driven entirely by the calibrated sensors
@@ -98,59 +71,46 @@ WizardPage {
             // ── Live lead-wrist metrics (vs neutral) ──────────────────
             // A CHILD of the ArmVizView instance — ArmVizView.qml is not modified. Read-only
             // check; '—' until the sensors are calibrated (roll needs the optional upper arm).
-            Rectangle {
+            SetupReadingsBox {
                 visible: page.liveWrist !== null
-                anchors { top: parent.top; right: parent.right; margins: Theme.gap(10) }
-                width:   metricsCol.width  + Theme.sp(20)
-                height:  metricsCol.height + Theme.sp(14)
-                radius:  Theme.radius
-                color:   Qt.alpha(Theme.colorBg2, 0.85)
-                border.width: 1
-                border.color: Theme.colorBorderMid
 
-                Column {
-                    id: metricsCol
-                    anchors.centerIn: parent
-                    spacing: Theme.gap(6)
-
-                    Row {
-                        spacing: Theme.gap(10)
-                        Text {
-                            text: qsTr("Bow / cup"); width: Theme.sp(54)
-                            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
-                            color: Theme.colorText3
-                        }
-                        Text {
-                            text: liveWrist ? liveWrist.bowLabel : ""
-                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
-                            color: liveWrist && liveWrist.bowValid ? Theme.colorText : Theme.colorText3
-                        }
+                Row {
+                    spacing: Theme.gap(10)
+                    Text {
+                        text: qsTr("Bow / cup"); width: Theme.sp(54)
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
+                        color: Theme.colorText3
                     }
-                    Row {
-                        spacing: Theme.gap(10)
-                        Text {
-                            text: qsTr("Hinge"); width: Theme.sp(54)
-                            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
-                            color: Theme.colorText3
-                        }
-                        Text {
-                            text: liveWrist ? liveWrist.hingeLabel : ""
-                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
-                            color: liveWrist && liveWrist.bowValid ? Theme.colorText : Theme.colorText3
-                        }
+                    Text {
+                        text: liveWrist ? liveWrist.bowLabel : ""
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                        color: liveWrist && liveWrist.bowValid ? Theme.colorText : Theme.colorText3
                     }
-                    Row {
-                        spacing: Theme.gap(10)
-                        Text {
-                            text: liveWrist ? liveWrist.rollTitle : ""; width: Theme.sp(54)
-                            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
-                            color: Theme.colorText3
-                        }
-                        Text {
-                            text: liveWrist ? liveWrist.rollLabel : ""
-                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
-                            color: liveWrist && liveWrist.rollValid ? Theme.colorText : Theme.colorText3
-                        }
+                }
+                Row {
+                    spacing: Theme.gap(10)
+                    Text {
+                        text: qsTr("Hinge"); width: Theme.sp(54)
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
+                        color: Theme.colorText3
+                    }
+                    Text {
+                        text: liveWrist ? liveWrist.hingeLabel : ""
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                        color: liveWrist && liveWrist.bowValid ? Theme.colorText : Theme.colorText3
+                    }
+                }
+                Row {
+                    spacing: Theme.gap(10)
+                    Text {
+                        text: liveWrist ? liveWrist.rollTitle : ""; width: Theme.sp(54)
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
+                        color: Theme.colorText3
+                    }
+                    Text {
+                        text: liveWrist ? liveWrist.rollLabel : ""
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                        color: liveWrist && liveWrist.rollValid ? Theme.colorText : Theme.colorText3
                     }
                 }
             }
@@ -158,31 +118,12 @@ WizardPage {
 
         // Recalibrate affordance — returns to the Calibrate step for a fresh capture, used when
         // tracking looks wrong. Calibration itself happens there, not on this screen.
-        Row {
+        SetupRecalibrateLink {
             Layout.fillWidth:    true
             Layout.bottomMargin: Theme.gap(8)
-            spacing:             Theme.gap(6)
-
-            Text {
-                text:           qsTr("Not tracking your movement?")
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                color:          Theme.colorText3
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Text {
-                text:           qsTr("Recalibrate")
-                font.family:    Theme.fontBody
-                font.weight:    Theme.fontBodyWeight
-                font.pixelSize: Theme.fontSzBody2
-                color:          Theme.colorAccent
-                anchors.verticalCenter: parent.verticalCenter
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape:  Qt.PointingHandCursor
-                    onClicked:    page.recalibrate()
-                }
-            }
+            prompt:              qsTr("Not tracking your movement?")
+            linkObjectName:      "armCheckRecalibrate"
+            onActivated:         page.redoCalibration("arm", "calibrateArm")
         }
     }
 }

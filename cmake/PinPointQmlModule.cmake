@@ -38,6 +38,7 @@ set(PP_QML_SINGLETONS
     src/Gui/cameras/AnnotationTool.qml
     src/Gui/review/MetricRoute.qml
     src/Gui/imu/ImuMounts.qml
+    src/Gui/charts/PpChSeek.qml
 )
 
 set(PP_QML_FILES
@@ -54,9 +55,10 @@ set(PP_QML_FILES
     src/Gui/viz/ArmVizView.qml
     src/Gui/viz/BodyVizView.qml
     src/Gui/viz/View3DKeepAlive.qml
+    src/Gui/viz/VizOrientationMarker.qml
+    src/Gui/viz/VizMath.js
     src/Gui/swing3d/SwingViz3DView.qml
     src/Gui/swing3d/SwingViz3DHost.qml
-    src/Gui/media/FilmPage.qml
     src/Gui/cameras/VideoPage.qml
     src/Gui/cameras/PpCameraFrame.qml
     src/Gui/cameras/AutoAnnotations.js
@@ -87,12 +89,16 @@ set(PP_QML_FILES
     src/Gui/components/PpBandBar.qml
     src/Gui/components/PpStageCard.qml
     src/Gui/components/PpPopoverCard.qml
+    src/Gui/components/PpMenuItem.qml
+    src/Gui/components/PpMenuRule.qml
+    src/Gui/components/PpMoreButton.qml
     src/Gui/components/PpMicro.qml
     src/Gui/components/PpBadge.qml
     src/Gui/components/PpMeter.qml
     src/Gui/components/PpPip.qml
     src/Gui/components/PpPips.qml
     src/Gui/components/PpChip.qml
+    src/Gui/components/PpAvatar.qml
     src/Gui/components/PpDeviceFilterBar.qml
     src/Gui/components/PpDeviceTags.qml
     src/Gui/components/PpStrengthMark.qml
@@ -100,17 +106,27 @@ set(PP_QML_FILES
     src/Gui/components/PpInset.qml
     src/Gui/components/PpLink.qml
     src/Gui/components/PpCardNote.qml
+    src/Gui/components/PpCaption.qml
     src/Gui/components/PpFact.qml
+    src/Gui/components/PpFactStrip.qml
+    src/Gui/components/PpDeviceCard.qml
     src/Gui/shell/PpHeader.qml
     src/Gui/shell/PpUpdateBanner.qml
+    # The updater's state in words and colour (.pragma library, imported relatively by the banner,
+    # the About dialog and Settings → General's Version row; the ONE place those words live, D5).
+    src/Gui/shell/update_states.js
     src/Gui/shell/PpDetectCluster.qml
     src/Gui/shell/PpAnalysingBadge.qml
     src/Gui/shell/PlayPage.qml
     src/Gui/athlete/ScreenAthleteForm.qml
     src/Gui/athlete/ScreenSessions.qml
     src/Gui/athlete/AthleteClubsSection.qml
+    src/Gui/athlete/PpGroupCard.qml
+    src/Gui/athlete/PpFieldLabel.qml
     src/Gui/athlete/ScreenAthletePicker.qml
     src/Gui/components/PpTextField.qml
+    src/Gui/components/PpTextArea.qml
+    src/Gui/components/PpSwitch.qml
     src/Gui/components/PpComboBox.qml
     src/Gui/components/PpChipGroup.qml
     src/Gui/components/PpMetricSwatches.qml
@@ -129,6 +145,7 @@ set(PP_QML_FILES
     src/Gui/monitor/RmAnalysisRunRow.qml
     src/Gui/monitor/RmTimelineChart.qml
     src/Gui/monitor/RmWarningNotice.qml
+    src/Gui/monitor/RmZebraRow.qml
     # H15 (CR-02) — the PINPOINTCAPTURE tab's two delegates.  They read only
     # what is handed to them, so the offscreen QML suite can stand them up
     # without `ppcpHost` existing at all.
@@ -142,12 +159,20 @@ set(PP_QML_FILES
     # The athlete's swing in plain words, led by one focus (home_themes_design.md); a fault opens
     # its detail in place (HmFaultDetail), on Coaching and on Your swing.
     src/Gui/home/HmFaultDetail.qml
+    src/Gui/home/HmFaultRow.qml
+    src/Gui/home/HmHeadline.qml
+    # Home's sentence case and pip cap (.pragma library, imported relatively by HmFocus and
+    # HmSwingSummary).
+    src/Gui/home/hm_text.js
     src/Gui/home/HmSwingSummary.qml
     src/Gui/home/HmFocus.qml
     # Home's tabs and the area table (four-modes refactor, Phase 4).
     src/Gui/home/HmHomeTabs.qml
     src/Gui/home/HmSwingAreas.qml
     src/Gui/home/HmAreaRow.qml
+    # The per-athlete Home view state, appSettings.homeViewByAthlete (.pragma library, imported
+    # relatively by HmHomeTabs and HmSwingAreas).
+    src/Gui/home/hm_view_store.js
     src/Gui/home/HmRigCapability.qml
     # Home's Matchups tab: what travels together.
     src/Gui/home/HmGoesTogether.qml
@@ -180,11 +205,21 @@ set(PP_QML_FILES
     src/Gui/session/PpSessionToolbar.qml
     src/Gui/cameras/PpCameraPanel.qml
     src/Gui/imu/PpImuPanel.qml
+    # The device panels' scoped action tile, and the device health rules the panels and the
+    # session toolbar share (.pragma library, imported relatively; the ONE place each rule lives).
+    src/Gui/components/PpScopedAction.qml
+    src/Gui/imu/imu_health.js
+    src/Gui/cameras/camera_health.js
     # The mounts by name, and which of them the pickers offer (design §4.12–4.13).
     src/Gui/imu/ImuMounts.qml
     src/Gui/session/ScreenWrist.qml
     src/Gui/calibration/ImuCalibrationFlow.qml
     src/Gui/calibration/CalibrationGuide.qml
+    # The routines' shared scaffold and host contract (their root type), and the one status column
+    # and guide view the arm and trunk calibrate screens draw.
+    src/Gui/calibration/CalibrationRoutineBase.qml
+    src/Gui/calibration/CalibrationStatusColumn.qml
+    src/Gui/calibration/CalibrationGuideView.qml
     src/Gui/calibration/WitmotionArmRoutine.qml
     src/Gui/calibration/HackMotionArmRoutine.qml
     src/Gui/calibration/TrunkRoutine.qml
@@ -225,8 +260,10 @@ set(PP_QML_FILES
     src/Gui/setup/parts/SetupStepIntro.qml
     src/Gui/setup/parts/SetupCheckRow.qml
     src/Gui/setup/parts/SetupStatusCircle.qml
-    src/Gui/setup/parts/SetupTogglePill.qml
     src/Gui/setup/parts/SetupSummaryRow.qml
+    src/Gui/setup/parts/SetupCapabilityRow.qml
+    src/Gui/setup/parts/SetupReadingsBox.qml
+    src/Gui/setup/parts/SetupRecalibrateLink.qml
     src/Gui/components/PpFlowIndicator.qml
     src/Gui/shot/PpShotCarousel.qml
     src/Gui/shot/PpShotActionBar.qml
@@ -242,6 +279,7 @@ set(PP_QML_FILES
     # the Session diagnostics vocabulary and its blocks in src/Gui/diagnostics/. None is a singleton:
     # PpTypeset / PpDiagRoles are per-panel instances (the medium belongs to the instance).
     src/Gui/typeset/PpTypeset.qml
+    src/Gui/typeset/figure_format.js
     src/Gui/typeset/PpBrush.qml
     src/Gui/typeset/PpFigureScale.qml
     src/Gui/typeset/PpFolio.qml
@@ -257,6 +295,8 @@ set(PP_QML_FILES
     src/Gui/typeset/PpStandfirst.qml
     src/Gui/typeset/PpTabs.qml
     src/Gui/typeset/PpZonePlot.qml
+    src/Gui/typeset/PpBreakSlash.qml
+    src/Gui/typeset/PpStub.qml
     src/Gui/diagnostics/PpDiagRoles.qml
     src/Gui/diagnostics/PpBarcode.qml
     src/Gui/diagnostics/PpCauseGraph.qml
@@ -289,14 +329,17 @@ set(PP_QML_FILES
     src/Gui/diagnostics/PpDiagReplayState.qml
     src/Gui/diagnostics/PpDiagReplayCold.qml
     src/Gui/diagnostics/PpDiagReplaySessionRows.qml
+    src/Gui/diagnostics/PpDiagReviewFoot.qml
+    src/Gui/typeset/PpViewFlick.qml
     src/Gui/diagnostics/PpDiagReplay.qml
     src/Gui/diagnostics/PpDiagAnalyse.qml
     src/Gui/diagnostics/PpDiagPrint.qml
     # The Charts panel (docs/design/charts_panel_traces_relations.md; build/charts-build/STEP2B.md): the
     # wiring (PpChartsPanel, over SessionSeriesModel and the two presenters), the body, the registers
     # and views, and its blocks. All in src/Gui/charts/ for now; the generic ones move to src/Gui/typeset/
-    # later. None is a singleton.
+    # later. PpChSeek is the one singleton.
     src/Gui/charts/PpChartsPanel.qml
+    src/Gui/charts/PpReaderPlace.qml
     src/Gui/charts/PpChartsBody.qml
     src/Gui/charts/PpChartsRegister.qml
     src/Gui/charts/PpChartsReplay.qml
@@ -326,6 +369,9 @@ set(PP_QML_FILES
     src/Gui/charts/PpChScatter.qml
     src/Gui/charts/PpChMovesWith.qml
     src/Gui/charts/PpChWristShotSection.qml
+    src/Gui/charts/PpChPositionProfile.qml
+    src/Gui/charts/PpChFindingsLedger.qml
+    src/Gui/charts/PpChPictureStrip.qml
     src/Gui/charts/PpChWristProfile.qml
     src/Gui/charts/PpChWristLedger.qml
     src/Gui/charts/PpChWristSession.qml
@@ -336,6 +382,10 @@ set(PP_QML_FILES
     src/Gui/charts/PpChPostureMoved.qml
     src/Gui/charts/PpChPostureTrust.qml
     src/Gui/charts/PpChTrustFold.qml
+    src/Gui/charts/PpChSeek.qml
+    src/Gui/charts/PpChViewBase.qml
+    src/Gui/charts/PpChSection.qml
+    src/Gui/charts/PpChSectionControls.qml
     src/Gui/charts/PpChPostureSession.qml
     src/Gui/charts/PpChPosturePicture.qml
     src/Gui/charts/PpChPostureFrame.qml
@@ -358,29 +408,27 @@ set(PP_QML_FILES
     src/Gui/trust/PpTrustInline.qml
     src/Gui/trust/PpTrustInlineFor.qml
     src/Gui/trust/PpTrustSummaryFold.qml
-    src/Gui/trust/PpGateNote.qml
+    src/Gui/trust/PpTrustFoldToggle.qml
     src/Gui/session/PpLmGraphicsBody.qml
     src/Gui/shot/PpSessionDiagnosticsWindow.qml
     src/Gui/components/PpQualityPill.qml
     src/Gui/components/PpStarRating.qml
     src/Gui/components/PpTrace.qml
     src/Gui/components/PpToolPill.qml
-    src/Gui/components/PpTypePill.qml
     src/Gui/components/PpTopoBackground.qml
     src/Gui/review/PpMetricChart.qml
     src/Gui/review/PpChartPlot.qml
     src/Gui/review/PpSegmentBrush.qml
     src/Gui/review/PpChartSummary.qml
+    # The chart's sample rules — measured / nearest sample / which array is the curve (.pragma
+    # library, imported relatively by the four chart files above; the ONE QML place they live).
+    src/Gui/review/chart_samples.js
     src/Gui/review/PpSpeedSelector.qml
     src/Gui/components/PpToast.qml
     src/Gui/components/PpNotificationHost.qml
     src/Gui/review/PpDataViewer.qml
     src/Gui/review/PpCoverageStrip.qml
     src/Gui/review/PpPropertiesPanel.qml
-    src/Gui/review/MetricRow.qml
-    src/Gui/review/NormativeBar.qml
-    src/Gui/review/MetricDetail.qml
-    src/Gui/review/MetricLibrary.qml
     src/Gui/review/MetricRoute.qml
     src/Gui/diagnosticmodel/DiagnosticModel.qml
     src/Gui/diagnosticmodel/ModelTypeRail.qml
@@ -391,12 +439,14 @@ set(PP_QML_FILES
     src/Gui/diagnosticmodel/RingMenu.qml
     src/Gui/diagnosticmodel/ModelCausePicker.qml
     src/Gui/diagnosticmodel/ModelPicker.qml
+    src/Gui/diagnosticmodel/ModelTypeAhead.qml
     src/Gui/diagnosticmodel/ModelEdits.qml
     src/Gui/diagnosticmodel/ModelMint.qml
     src/Gui/diagnosticmodel/ModelChipRow.qml
     src/Gui/diagnosticmodel/ModelTools.qml
     src/Gui/diagnosticmodel/ModelBarButton.qml
     src/Gui/diagnosticmodel/ModelEnumField.qml
+    src/Gui/diagnosticmodel/ModelEnumMenu.qml
     src/Gui/diagnosticmodel/ModelPolicyPicker.qml
     src/Gui/diagnosticmodel/ModelUnsaved.qml
     src/Gui/diagnosticmodel/ModelCorridorPlot.qml
@@ -421,6 +471,11 @@ set(PP_QML_FILES
     src/Gui/report/PpLmAppendix.qml
     src/Gui/report/PpPosturePage.qml
     src/Gui/report/PpReportProfile.qml
+    src/Gui/report/PpReportSectionHead.qml
+    src/Gui/report/PpReportTrust.qml
+    src/Gui/report/PpReportPara.qml
+    src/Gui/report/PpReportSqueeze.qml
+    src/Gui/report/PpFitColumns.qml
     src/Gui/report/PpWristPage.qml
     src/Gui/report/PpDeliveryPage.qml
     src/Gui/report/PpReportAbout.qml
@@ -433,6 +488,10 @@ set(PP_QML_FILES
     src/Gui/report/PpReportSheet.qml
     # Settings → Studio (the studio and its one coach) and the in-app file picker it chooses a logo with.
     src/Gui/settings/StudioPanel.qml
+    src/Gui/settings/SettingsPanelBase.qml
+    src/Gui/settings/SettingsRow.qml
+    src/Gui/settings/SettingsRowTitle.qml
+    src/Gui/settings/SettingsSectionHead.qml
     src/Gui/components/PpFilePicker.qml
 )
 

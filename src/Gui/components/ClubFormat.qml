@@ -23,6 +23,10 @@
 //   "DRIVER" -> "Driver", "7 IRON" -> "7 iron", "GAP WEDGE" -> "Gap wedge"
 // Mirror of pinpoint::clubDisplayLabel (session_summary.h) for the C++ clubMix.
 // Never feed display() output back into storage or index lookups.
+//
+// Also the one spelling of "this club is taped": isTaped(record) is true when the
+// club record (AthleteController.clubsFor(uuid)[id]) carries retro-band centres —
+// a non-empty bandCentersMm. Empty or absent = an untaped (passive) club.
 
 pragma Singleton
 
@@ -33,5 +37,9 @@ QtObject {
         if (!id)
             return ""
         return id.charAt(0).toUpperCase() + id.slice(1).toLowerCase()
+    }
+    function isTaped(record) {
+        var c = record && record.bandCentersMm
+        return !!(c && c.length > 0)
     }
 }

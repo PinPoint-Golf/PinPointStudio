@@ -29,18 +29,10 @@ import PinPointStudio
 // Every sentence ends where the presenter ends it: co-occurrence, not a cause. The presenter's refusal (n < 3)
 // is what an empty view says.
 // objectName: chRelationsView.
-Column {
+PpChViewBase {
     id: rv
     objectName: "chRelationsView"
-    property QtObject roles: null
-    property var brush: null
-    property var body: null
-    property string reg: "Analyse"
-    property bool interactive: true
-    property bool cast: false
-    property real pageH: 500
     property string openPicker: ""               // renders only: "up" | "across"
-    readonly property bool replay: reg === "Replay"
     readonly property var rl: body ? body.rRel : ({})
     readonly property bool available: !!rl && rl.available === true
     readonly property bool side: !!roles && width >= 66 * roles.em

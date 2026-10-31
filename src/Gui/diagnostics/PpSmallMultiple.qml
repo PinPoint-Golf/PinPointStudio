@@ -53,40 +53,16 @@ Item {
 
     readonly property var c: card || ({})
     // ── the common scale (C) ──
-    function zPoints(s) {
-        const b = (s && s.bands) || []
-        let k = -1
-        for (let i = 0; i < b.length; ++i) if (b[i].grade === "ideal") { k = i; break }
-        if (k < 0) return null
-        const loOpen = k === 0 || b[k - 1].grade === "open", hiOpen = k === b.length - 1 || b[k + 1].grade === "open"
-        let zl = -1, zh = 1
-        if (loOpen && !hiOpen) { zl = 0; zh = 1 } else if (hiOpen && !loOpen) { zl = -1; zh = 0 }
-        const pts = [[b[k].lo, zl], [b[k].hi, zh]]
-        let z = zh
-        for (let i = k + 1; i < b.length; ++i) { if (b[i].grade === "open" || b[i].grade === "action") break; z += 1; pts.push([b[i].hi, z]) }
-        z = zl
-        for (let i = k - 1; i >= 0; --i) { if (b[i].grade === "open" || b[i].grade === "action") break; z -= 1; pts.unshift([b[i].lo, z]) }
-        return pts
-    }
-    function zOf(pts, v) {
-        const n = pts.length
-        if (n < 2 || v === undefined || !isFinite(v)) return NaN
-        let i = 0
-        if (v >= pts[n - 1][0]) i = n - 2
-        else if (v > pts[0][0]) { while (i < n - 2 && v > pts[i + 1][0]) ++i }
-        const a = pts[i], b = pts[i + 1]
-        return a[1] + (v - a[0]) / (b[0] - a[0]) * (b[1] - a[1])
-    }
+    // Every shot and every rolling-median point as the MODEL places it on the ladder (run[].z, median[].z:
+    // SessionDiagnosticsModel::ladderZ, folded by ladderSide so a one-sided corridor's graded tail is
+    // always up and its open side reads 0). A point the model leaves off the scale (no corridor) is not drawn.
+    function onScale(p) { return p.z !== undefined && p.z !== null && isFinite(p.z) }
     readonly property var fold: {
-        const s = c.spread || {}, pts = zPoints(s), out = { run: [], med: [], stubs: [] }, t = c.ticks || []
+        const s = c.spread || {}, out = { run: [], med: [], stubs: [] }, t = c.ticks || []
         for (let i = 0; i < t.length; ++i) if (t[i].state !== "fired" && t[i].state !== "clean") out.stubs.push((i + 0.5) / t.length)
-        if (!pts) return out
-        const lo = s.axisLo, hi = s.axisHi, val = f => lo + f * (hi - lo)
-        let side = 1
-        const zm = zOf(pts, s.medianValue)
-        if (isFinite(zm) && zm < 0) side = -1
-        out.run = (s.run || []).filter(r => r.assessable !== false).map(r => ({ fx: r.fx, z: side * zOf(pts, val(r.fy)), fired: r.state === "fired", shotId: r.shotId, swingDir: r.swingDir }))
-        out.med = (s.median || []).map(m => ({ fx: m.fx, z: side * zOf(pts, val(m.fy)) }))
+        out.run = (s.run || []).filter(r => r.assessable !== false && onScale(r))
+                               .map(r => ({ fx: r.fx, fy: r.fy, z: r.z, fired: r.state === "fired", shotId: r.shotId, swingDir: r.swingDir, current: !!r.current }))
+        out.med = (s.median || []).filter(onScale).map(m => ({ fx: m.fx, z: m.z }))
         return out
     }
     readonly property var book: roles ? roles.byId(source ? source.bookends : [], c.id) : null
@@ -109,15 +85,15 @@ Item {
     readonly property real breakPx: roles.u(6)
     // the picked shot's distance back to the pass edge, in the measure's own units
     readonly property var dist: {
-        const s = c.spread || {}, run = (s.run || []).filter(r => r.assessable !== false), fr = fold.run
+        const s = c.spread || {}, fr = fold.run
         if (s.axisLo === undefined) return null
         let k = -1
-        for (let i = 0; i < run.length; ++i) if (brush ? brush.isPicked(run[i].shotId) : run[i].current) k = i
-        if (k < 0) for (let i = 0; i < run.length; ++i) if (run[i].current) k = i
-        if (k < 0 || !fr[k] || !(fr[k].z > 2)) return null
-        const v = s.axisLo + run[k].fy * (s.axisHi - s.axisLo)
-        const b = s.bands || [], pass = []
-        for (let i = 1; i < b.length; ++i) if ([b[i - 1].grade, b[i].grade].sort().join("|") === "good|watch") pass.push(b[i].lo)
+        for (let i = 0; i < fr.length; ++i) if (brush ? brush.isPicked(fr[i].shotId) : fr[i].current) k = i
+        if (k < 0) for (let i = 0; i < fr.length; ++i) if (fr[i].current) k = i
+        if (k < 0 || !(fr[k].z > 2)) return null
+        const v = s.axisLo + fr[k].fy * (s.axisHi - s.axisLo)
+        // the pass edges, as the model names them (bands[].edge)
+        const pass = (s.bands || []).filter((b, i) => i > 0 && b.edge === "pass").map(b => b.lo)
         if (!pass.length) return null
         const pe = pass.reduce((a, x) => Math.abs(x - v) < Math.abs(a - v) ? x : a)
         return { fx: fr[k].fx, z: fr[k].z, d: Math.abs(v - pe) }
@@ -182,17 +158,7 @@ Item {
         // the corridor wash: from the pass edge down to the break, then the compressed band
         Rectangle { width: parent.width; y: chart.ty(2); height: chart.winBottom - chart.ty(2); color: tile.roles.wash }
         Rectangle { width: parent.width; y: chart.height - tile.bandPx; height: tile.bandPx; color: tile.roles.wash }
-        Canvas {
-            anchors.fill: parent
-            readonly property var deps: [tile.roles.ink3, width, height]
-            onDepsChanged: requestPaint()
-            onPaint: {
-                const ctx = getContext("2d"); ctx.reset()
-                ctx.strokeStyle = tile.roles.ink3; ctx.lineWidth = tile.roles.hw
-                const k = tile.roles.u(2.5), yc = chart.winBottom + tile.breakPx / 2
-                for (const x0 of [0, width - 2 * k]) for (const dx of [0, k]) { ctx.beginPath(); ctx.moveTo(x0 + dx, yc + k); ctx.lineTo(x0 + dx + k, yc - k); ctx.stroke() }
-            }
-        }
+        PpBreakSlash { anchors.fill: parent; roles: tile.roles; k: tile.roles.u(2.5); ys: [chart.winBottom + tile.breakPx / 2] }
         Text {
             visible: tile.labelBand
             anchors.right: parent.right; anchors.rightMargin: tile.roles.u(10)
@@ -223,9 +189,9 @@ Item {
         // the not-measured STUB (D5): a short flat ink3 mark on the baseline, never a gap
         Repeater {
             model: tile.roles ? (tile.fold.stubs) : []
-            delegate: Rectangle { required property var modelData; objectName: "sdTileStub"
-                                  width: Math.max(2, Math.min(tile.roles.u(4), chart.width / tile.nShots * 0.5)); height: tile.roles.stubH(tile.roles.u(12))
-                                  x: modelData * chart.width - width / 2; y: chart.height - height; color: tile.roles.ink3 }
+            delegate: PpStub { required property var modelData; objectName: "sdTileStub"
+                               roles: tile.roles; size: tile.roles.u(12); pitch: chart.width / tile.nShots
+                               x: modelData * chart.width - width / 2; y: chart.height - height }
         }
         Repeater {
             model: tile.roles ? (tile.fold.run) : []

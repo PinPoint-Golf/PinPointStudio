@@ -143,8 +143,9 @@ Item {
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                             color: ViewLayout.motionOn(root._mode) ? Theme.colorText : Theme.colorText2
                         }
-                        MiniToggle {
+                        PpSwitch {
                             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                            largeKnob: true
                             checked: ViewLayout.motionOn(root._mode)
                             onToggled: ViewLayout.setMotionOn(root._mode, !checked)
                         }
@@ -328,7 +329,7 @@ Item {
         // PpViewPanel's ArrangeCard exactly, just row-shaped.
         color: active                ? Theme.colorAccentLight
              : rowPress.containsMouse ? Theme.colorBg2
-             :                          Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+             :                          Qt.alpha(Theme.colorBg2, 0)
         border.width: 1
         border.color: active                ? Theme.colorAccent
                     : rowPress.containsMouse ? Theme.colorAccentMid
@@ -488,7 +489,7 @@ Item {
                     opacity: available ? 1.0 : 0.35
                     color: active               ? Theme.colorBg3
                          : segPress.containsMouse ? Theme.colorBg3
-                         :                          Qt.rgba(Theme.colorBg3.r, Theme.colorBg3.g, Theme.colorBg3.b, 0)
+                         :                          Qt.alpha(Theme.colorBg3, 0)
                     Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
                     Text {
@@ -507,27 +508,6 @@ Item {
                     }
                 }
             }
-        }
-    }
-
-    // ── compact on/off toggle — mirrors PpViewPanel's MiniToggle ────────────
-    component MiniToggle: Rectangle {
-        property bool checked: false
-        signal toggled()
-        width: Theme.sp(34); height: Theme.sp(18); radius: height / 2
-        color: checked ? Theme.colorAccent : Theme.colorBg3
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-        Rectangle {
-            width: Theme.sp(14); height: width; radius: width / 2
-            y: Theme.sp(2)
-            x: checked ? parent.width - width - Theme.sp(2) : Theme.sp(2)
-            color: checked ? (Theme.dark ? Theme.colorBg : Theme.colorSurface) : Theme.colorText3
-            Behavior on x { NumberAnimation { duration: Theme.durationFast } }
-        }
-        MouseArea {
-            anchors.fill: parent; hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: parent.toggled()
         }
     }
 }

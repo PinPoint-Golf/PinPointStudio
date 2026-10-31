@@ -98,7 +98,7 @@ namespace {
 
 constexpr int kPos = kDeliveryPositions;
 
-bool fin(double v) { return std::isfinite(v); }
+using W::fin;
 QVariant nv(double v) { return fin(v) ? QVariant(v) : QVariant::fromValue(nullptr); }
 QVariant nullv() { return QVariant::fromValue(nullptr); }
 QString cleanDir(const QString &d) { return d.trimmed().isEmpty() ? QString() : QDir::cleanPath(d.trimmed()); }

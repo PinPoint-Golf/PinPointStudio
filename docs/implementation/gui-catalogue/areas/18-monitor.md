@@ -125,7 +125,7 @@ Inline warning notice: warn-tinted rounded strip with a 'Warning' label and mess
 *(description written for this catalogue — the file has no header comment)*
 
 - **Properties:** `string message`
-- **Used by (1):** `ScreenHome`
+- **Used by (1):** `HmRigCapability`
 
 ### ScreenResourceMonitor
 `src/Gui/monitor/ScreenResourceMonitor.qml` · 2390 lines · root `Item` · 22 hard-coded colour(s)

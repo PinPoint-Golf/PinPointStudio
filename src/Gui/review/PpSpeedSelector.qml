@@ -55,8 +55,7 @@ Rectangle {
                 height: Theme.sp(20)
                 anchors.verticalCenter: parent.verticalCenter
                 radius: height / 2
-                color: active ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g,
-                                        Theme.colorAccent.b, 0.16)
+                color: active ? Qt.alpha(Theme.colorAccent, 0.16)
                               : segMa.containsMouse ? Theme.colorBg3 : "transparent"
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 

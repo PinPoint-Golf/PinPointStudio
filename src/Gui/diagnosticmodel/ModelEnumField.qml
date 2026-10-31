@@ -19,7 +19,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls.Basic
 import PinPointStudio
 
 // A one-of-many field: the value, in a box that looks like every other field, opened by clicking it.
@@ -33,7 +32,8 @@ import PinPointStudio
 // A reader should not have to learn a different gesture per field type, and a control that changes
 // shape with the number of options is one that renders differently on every object.
 //
-// One click opens, one click picks. That is the same two-click budget the table's enum cells keep.
+// One click opens, one click picks. That is the same two-click budget the table's enum cells keep,
+// and it is the same list (ModelEnumMenu) they open.
 Rectangle {
     id: root
 
@@ -92,56 +92,12 @@ Rectangle {
         onClicked:  menu.open()
     }
 
-    Popup {
+    ModelEnumMenu {
         id: menu
         y: root.height + Theme.sp(2)
-        width: root.width
-        padding: Theme.gap(4)
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-
-        background: Rectangle {
-            color:        Theme.colorSurface
-            radius:       Theme.radius
-            border.width: 1
-            border.color: Theme.colorBorderStrong
-        }
-
-        contentItem: Column {
-            spacing: 0
-            Repeater {
-                model: root.options || []
-                delegate: Rectangle {
-                    id: option
-                    required property var modelData
-                    readonly property bool chosen: modelData.value === root.value
-
-                    width:  menu.availableWidth
-                    height: Theme.sp(28)
-                    radius: Theme.radius
-                    color:  optionHover.hovered ? Theme.colorBg2 : "transparent"
-
-                    HoverHandler { id: optionHover }
-
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.left:        parent.left
-                        anchors.right:       parent.right
-                        anchors.leftMargin:  Theme.gap(10)
-                        anchors.rightMargin: Theme.gap(10)
-                        text: option.modelData.label
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody2
-                        font.weight:    Theme.fontBodyWeight
-                        color: option.chosen ? Theme.colorAccent : Theme.colorText
-                        elide: Text.ElideRight
-                    }
-
-                    PpPressable {
-                        hoverScale: 1.0
-                        onClicked: { root.picked(option.modelData.value); menu.close() }
-                    }
-                }
-            }
-        }
+        width:   root.width
+        options: root.options
+        value:   root.value
+        onPicked: (value) => root.picked(value)
     }
 }

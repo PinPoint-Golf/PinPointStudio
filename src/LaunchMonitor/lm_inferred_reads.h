@@ -69,6 +69,13 @@ struct LmInferenceTuning {
     // produce SOME read rather than the right one.
     double f2pCurveT      = 1.0;   // °
     double f2pSevereT     = 4.0;   // °
+    // "SLIGHT" HAS NO FIELD OF ITS OWN: it is HALF of each severe boundary above (severeAxisT,
+    // severeCurveDeg, f2pSevereT), computed in lmShapeClass, so moving a severe boundary moves its
+    // half with it. The panel never says it — its nine windows have no such word — but the Club
+    // delivery section and the report's Delivery page do ("Pull, slight fade"), and they ask THIS
+    // classifier rather than keeping thresholds of their own (they did once, and drifted: a 1.8°
+    // axis was a curve there and straight here). With these defaults: 5° of axis, 2.25° of measured
+    // curvature, 2° of face-to-path.
     double centreMm       = 3.0;   // mm — inside this in BOTH axes is flushed
     double severeVMm      = 10.0;  // mm — vertical miss beyond this is fat/thin, not high/low
     // The hosel, for the one strike this panel never names. `lmStrikeQuality` stops at "Heel"
@@ -186,6 +193,80 @@ inline QString lmSideText(double v, int decimals, const QString &unit,
     return mag + unit + QStringLiteral(" ") + (v < 0.0 ? leftWord : rightWord);
 }
 
+// THE ONE SHOT-SHAPE CLASSIFIER: where it started × which way it curved × how much.
+//
+// Every surface that names a shot's shape asks this — the launch monitor card through
+// lmFlightShape below, and the Club delivery section, its shot-shape grid and the report's
+// Delivery page through session_delivery's deliveryShotShape. Each puts its OWN words on the
+// answer ("Pull–fade" on the card, "Pull, slight fade" in Club delivery); the thresholds and the
+// classification are decided here, once, from LmInferenceTuning. There were two, and they
+// drifted: Club delivery called a 1.8° spin axis a fade while the card beside it said straight.
+//
+// Inputs are RAW device-frame readings; the indices come back in the GLOSS space (mirrored for a
+// left-hander), as lmFlightShape documents. `startDeg` is the start direction — a caller with no
+// ball reading may hand it the face angle as the start's proxy, which is its call to state, not
+// this function's. `curvature` is lmCurvature() of the same shot, or an empty one when the
+// distances are missing.
+//
+// THE COMPARISONS ARE MIXED ON PURPOSE and are the panel's, unchanged: the window and the curve
+// are strict (beyond the threshold), the axis and curvature severity are not (at or beyond), the
+// face-to-path severity is strict. `slight` is at-or-inside its half boundary.
+struct LmShapeClass {
+    bool has       = false;
+    int  windowIdx = 1;      // 0 pull · 1 straight · 2 push           (gloss)
+    int  curveIdx  = 1;      // 0 draw/hook · 1 straight · 2 fade/slice (gloss)
+    bool severe    = false;  // hook rather than draw, slice rather than fade — set whatever curveIdx
+    bool slight    = false;  // a curve (curveIdx ≠ 1), not severe, and at most halfway to severe
+    bool fromAxis  = false;  // the curve was read from the spin axis, not face-to-path
+};
+
+inline LmShapeClass lmShapeClass(const std::optional<double> &startDeg,
+                                 const std::optional<double> &spinAxisDeg,
+                                 const std::optional<double> &faceToPathDeg,
+                                 const LmCurvature &curvature,
+                                 bool leftHanded = false,
+                                 const LmInferenceTuning &t = LmInferenceTuning())
+{
+    LmShapeClass out;
+    const bool haveAxis = spinAxisDeg   && std::isfinite(*spinAxisDeg);
+    const bool haveF2p  = faceToPathDeg && std::isfinite(*faceToPathDeg);
+    // A start, and SOMETHING that speaks to the curve. Either alone names half a shot.
+    if (!startDeg || !std::isfinite(*startDeg) || (!haveAxis && !haveF2p))
+        return out;
+
+    const double flip  = leftHanded ? -1.0 : 1.0;
+    const double start = *startDeg * flip;
+    const double axis  = haveAxis ? *spinAxisDeg   * flip : 0.0;
+    const double f2p   = haveF2p  ? *faceToPathDeg * flip : 0.0;
+    const bool haveCurve = curvature.has;
+
+    // Direction from the axis where there is one, because the axis is what bends the
+    // ball. Face-to-path only when the device reported no axis at all.
+    const double curveSignal = haveAxis ? axis : f2p;
+    const double curveThresh = haveAxis ? t.curveT : t.f2pCurveT;
+
+    // Severity from what the ball DID, or from the axis when the distances are missing.
+    // The two are one boundary written twice: curvature runs at about half the axis, so
+    // 10° of axis and 4.5° of curvature fire at the same shot.
+    out.severe = (haveAxis  && std::abs(axis) >= t.severeAxisT)
+                 || (haveCurve && std::abs(curvature.deg) >= t.severeCurveDeg)
+                 || (!haveAxis && std::abs(f2p) > t.f2pSevereT);
+
+    out.windowIdx = start < -t.startT ? 0 : (start > t.startT ? 2 : 1);
+    out.curveIdx  = curveSignal < -curveThresh ? 0
+                  : (curveSignal >  curveThresh ? 2 : 1);
+
+    // Slight: every measure of the curve's size that is present sits at or inside HALF its severe
+    // boundary — derived here, never tuned on its own (see LmInferenceTuning).
+    out.slight = out.curveIdx != 1 && !out.severe
+                 && (haveAxis ? std::abs(axis) <= 0.5 * t.severeAxisT : std::abs(f2p) <= 0.5 * t.f2pSevereT)
+                 && (!haveCurve || std::abs(curvature.deg) <= 0.5 * t.severeCurveDeg);
+
+    out.fromAxis = haveAxis;
+    out.has = true;
+    return out;
+}
+
 // Classify the shot's shape.
 //
 // HANDEDNESS MIRRORS THE GLOSS, NEVER THE SIGN — the rule already stated for the whole
@@ -209,43 +290,24 @@ inline LmFlightShape lmFlightShape(const std::optional<double> &startDirDeg,
 {
     LmFlightShape out;
 
-    // A start direction, and SOMETHING that speaks to the curve. Either alone names half
-    // a shot, and half a shot stated confidently is worse than no read at all.
-    const bool haveAxis  = spinAxisDeg   && std::isfinite(*spinAxisDeg);
-    const bool haveF2p   = faceToPathDeg && std::isfinite(*faceToPathDeg);
-    // gate rule: PP_GATE("rule.lm.flightShape")
-    if (!startDirDeg || !std::isfinite(*startDirDeg) || (!haveAxis && !haveF2p))
-        return out;
-
-    const double flip  = leftHanded ? -1.0 : 1.0;
-    const double start = *startDirDeg * flip;
-    const double axis  = haveAxis ? *spinAxisDeg   * flip : 0.0;
-    const double f2p   = haveF2p   ? *faceToPathDeg * flip : 0.0;
-
     // How much the ball actually curved — see lmCurvature(), which owns the arithmetic.
     const LmCurvature c = lmCurvature(startDirDeg, carryYd, offlineYd);
-    const bool haveCurve = c.has;
-    const double curveDeg = c.deg;
+
+    // The classification is lmShapeClass's — the one every shape-naming surface shares.
+    // gate rule: PP_GATE("rule.lm.flightShape")
+    const LmShapeClass k = lmShapeClass(startDirDeg, spinAxisDeg, faceToPathDeg, c, leftHanded, t);
+    if (!k.has)
+        return out;
+    const bool haveAxis = k.fromAxis;
+
     out.hasCurve = c.has;
     out.curveYd  = c.yd;         // raw, unmirrored — it is a measurement
     out.curveDeg = c.deg;
 
-    // Direction from the axis where there is one, because the axis is what bends the
-    // ball. Face-to-path only when the device reported no axis at all.
-    const double curveSignal = haveAxis ? axis : f2p;
-    const double curveThresh = haveAxis ? t.curveT : t.f2pCurveT;
-
-    // Severity from what the ball DID, or from the axis when the distances are missing.
-    // The two are one boundary written twice: curvature runs at about half the axis, so
-    // 10° of axis and 4.5° of curvature fire at the same shot.
-    const bool severe = (haveAxis  && std::abs(axis) >= t.severeAxisT)
-                        || (haveCurve && std::abs(curveDeg * flip) >= t.severeCurveDeg)
-                        || (!haveAxis && std::abs(f2p) > t.f2pSevereT);
-    out.severe = severe;
-
-    out.windowIdx = start < -t.startT ? 0 : (start > t.startT ? 2 : 1);
-    out.curveIdx  = curveSignal < -curveThresh ? 0
-                  : (curveSignal >  curveThresh ? 2 : 1);
+    const bool severe = k.severe;
+    out.severe    = severe;
+    out.windowIdx = k.windowIdx;
+    out.curveIdx  = k.curveIdx;
 
     const QString window = out.windowIdx == 0 ? QStringLiteral("Pull")
                          : out.windowIdx == 2 ? QStringLiteral("Push")

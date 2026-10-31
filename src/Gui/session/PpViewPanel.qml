@@ -92,8 +92,9 @@ Item {
                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                     color: appSettings.timelineSnapToPhases ? Theme.colorText : Theme.colorText2
                 }
-                MiniToggle {
+                PpSwitch {
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    largeKnob: true
                     checked: appSettings.timelineSnapToPhases
                     onToggled: appSettings.timelineSnapToPhases = !checked
                 }
@@ -121,9 +122,10 @@ Item {
                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                     color: _replayToggle.checked ? Theme.colorText : Theme.colorText2
                 }
-                MiniToggle {
+                PpSwitch {
                     id: _replayToggle
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    largeKnob: true
                     checked: SessionMode.mode === SessionMode.capture ? appSettings.autoReplayAfterCapture
                                                                       : appSettings.autoReplayAfterSelect
                     onToggled: {
@@ -141,8 +143,9 @@ Item {
                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                     color: appSettings.replayTrimToSwing ? Theme.colorText : Theme.colorText2
                 }
-                MiniToggle {
+                PpSwitch {
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    largeKnob: true
                     checked: appSettings.replayTrimToSwing
                     onToggled: appSettings.replayTrimToSwing = !checked
                 }
@@ -178,9 +181,10 @@ Item {
                         font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                         color: parent._on ? Theme.colorText : Theme.colorText2
                     }
-                    MiniToggle {
+                    PpSwitch {
                         objectName: modelData.name + "Toggle"
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                        largeKnob: true
                         checked: parent._on
                         onToggled: ViewLayout.setCoachSet(SessionMode.mode, modelData.key, !checked)
                     }
@@ -222,8 +226,9 @@ Item {
                             color: ViewLayout.isPanelOn(SessionMode.mode, modelData.key)
                                    ? Theme.colorText : Theme.colorText2
                         }
-                        MiniToggle {
+                        PpSwitch {
                             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                            largeKnob: true
                             checked: ViewLayout.isPanelOn(SessionMode.mode, modelData.key)
                             onToggled: ViewLayout.setPanel(SessionMode.mode, modelData.key, !checked)
                         }
@@ -245,7 +250,7 @@ Item {
         // language; pairs with the PpPressable scale/dip below.
         color: active              ? Theme.colorAccentLight
              : cardMa.containsMouse ? Theme.colorBg2
-             :                        Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+             :                        Qt.alpha(Theme.colorBg2, 0)
         border.width: 1
         border.color: active              ? Theme.colorAccent
                     : cardMa.containsMouse ? Theme.colorAccentMid
@@ -301,7 +306,7 @@ Item {
         // language; pairs with the PpPressable scale/dip below.
         color: active                ? Theme.colorAccentLight
              : orientMa.containsMouse ? Theme.colorBg2
-             :                          Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+             :                          Qt.alpha(Theme.colorBg2, 0)
         border.width: 1
         border.color: active                ? Theme.colorAccent
                     : orientMa.containsMouse ? Theme.colorAccentMid
@@ -331,26 +336,5 @@ Item {
             }
         }
         PpPressable { id: orientMa; onClicked: appSettings.timelineOrientation = orientCard.value }
-    }
-
-    // ── compact on/off toggle ───────────────────────────────────────────────
-    component MiniToggle: Rectangle {
-        property bool checked: false
-        signal toggled()
-        width: Theme.sp(34); height: Theme.sp(18); radius: height / 2
-        color: checked ? Theme.colorAccent : Theme.colorBg3
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-        Rectangle {
-            width: Theme.sp(14); height: width; radius: width / 2
-            y: Theme.sp(2)
-            x: checked ? parent.width - width - Theme.sp(2) : Theme.sp(2)
-            color: checked ? (Theme.dark ? Theme.colorBg : Theme.colorSurface) : Theme.colorText3
-            Behavior on x { NumberAnimation { duration: Theme.durationFast } }
-        }
-        MouseArea {
-            anchors.fill: parent; hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: parent.toggled()
-        }
     }
 }

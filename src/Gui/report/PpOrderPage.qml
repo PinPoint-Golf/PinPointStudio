@@ -35,10 +35,9 @@ Column {
     readonly property var items: (ord.items || []).slice(0, 5)
     width: 600
     // TIGHT (as PpWorkOnPage): a section that would run on by less than a fifth of a page is set once more, closer.
-    property bool tight: false
-    Timer { id: fitCheck; interval: 40; onTriggered: if (!op.tight && op.height > op.pageH + 1 && op.height <= op.pageH * 1.2) op.tight = true }
-    onHeightChanged: fitCheck.restart()
-    onRepChanged: tight = false
+    PpReportSqueeze { id: squeeze; target: op; pageH: op.pageH }
+    readonly property bool tight: squeeze.level > 0
+    onRepChanged: squeeze.level = 0
     function gap(n) { return tight ? Math.round(n * 0.55) : n }
 
     Column {

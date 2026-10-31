@@ -56,7 +56,7 @@ Rectangle {
                 // colour flash). No scale — contiguous segments share the track.
                 color: active             ? (seg.solid ? Theme.colorAccent : Theme.colorBg3)
                      : segMa.containsMouse ? Theme.colorBg3
-                     :                       Qt.rgba(Theme.colorBg3.r, Theme.colorBg3.g, Theme.colorBg3.b, 0)
+                     :                       Qt.alpha(Theme.colorBg3, 0)
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
                 Text {

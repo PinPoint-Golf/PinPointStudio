@@ -86,7 +86,7 @@ Item {
         objectName: "sdSparkRowShot"
         x: sr.geo.valX; width: sr.geo.valW; horizontalAlignment: Text.AlignRight
         anchors.verticalCenter: parent.verticalCenter
-        text: sr.c.spread && sr.c.spread.currentNumber ? sr.c.spread.currentNumber : sr.roles.fig(sr.c.valueText)
+        text: sr.c.spread && sr.c.spread.currentNumber ? sr.c.spread.currentNumber : sr.roles.fig(sr.c)
         font: sr.roles.fFig; color: sr.c.thisShot === "fired" ? sr.roles.warn : sr.c.thisShot === "clean" ? sr.roles.ink : sr.roles.ink3
     }
     PpSparkline {

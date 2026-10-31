@@ -188,7 +188,7 @@ Column {
     function composeFor(dir, sessionMs) {
         const w = root.composeWords(sessionMs || 0, Date.now())
         return { to: root.addresses, replyTo: root.studio ? (root.studio.coachEmail || "") : "",
-                 fromName: root.studio ? (root.studio.coachName || root.studio.studioName || "") : "",
+                 fromName: root.mailer && root.mailer.senderName ? root.mailer.senderName(root.studio ? root.studio.coachName : "", root.studio ? root.studio.studioName : "") : "",
                  subject: w.subject, body: w.body }
     }
     // Hands one session's PDF to the mail app. The row's own facts are passed in (the PDF, the session's
@@ -231,7 +231,7 @@ Column {
         }
     }
     function openPdf(path) {
-        if (path) Qt.openUrlExternally("file://" + (path.startsWith("/") ? "" : "/") + path)
+        if (path) Qt.openUrlExternally(Theme.fileUrl(path))
     }
     function openSheet(dir, thenEmail) {
         const r = (root.model && typeof root.model.rowFor === "function") ? root.model.rowFor(dir) : ({})
@@ -287,7 +287,7 @@ Column {
             if (it.reportState === "stale") stale++
             if (it.isLive) live++
             if (it.archived) archived++
-            if (it.canReport && !it.isLive && !it.archived) reportable++
+            if (bulk.reportable(it)) reportable++
         }
         root.selectionInfo = { count: root.selection.length, bytes: bytes, stale: stale, swings: swings,
                                reportable: reportable, live: live, archived: archived }
@@ -396,13 +396,6 @@ Column {
     function closeRowMenu() { rowMenu.close() }
 
     // ── The bulk actions (§2.4–§2.6) ─────────────────────────────────────────
-    function bytesWords(b) {
-        if (!(b > 0)) return "0 MB"
-        const gb = b / (1024 * 1024 * 1024)
-        if (gb >= 1) return gb.toFixed(1) + " GB"
-        return Math.max(1, Math.round(b / (1024 * 1024))) + " MB"
-    }
-    function _plural(n, one, many) { return n === 1 ? one.arg(n) : many.arg(n) }
     // "Mon 5 Oct" this year, "Mon 5 Oct 2025" before; "· 2" for a second session that day.
     function _dayWords(f) {
         let d = String(f.dateLabel || "")
@@ -443,7 +436,7 @@ Column {
         const liveLeft = all.some(f => f.isLive)
         const leftOut = left === 0 ? ""
             : liveLeft && left === 1 ? " " + qsTr("The live session is left out.")
-            : " " + root._plural(left, qsTr("%1 session that cannot is left out."), qsTr("%1 sessions that cannot are left out."))
+            : " " + Theme.plural(left, qsTr("%1 session that cannot is left out."), qsTr("%1 sessions that cannot are left out."))
 
         if (verb === "make") return bulk.start("make", ok.map(f => f.dir), {})
 
@@ -476,12 +469,12 @@ Column {
             }).length
             const bytes = ok.reduce((a, f) => a + (f.state === "current" ? (Number(f.sizeBytes) || 0) : 0), 0)
             title = one ? qsTr("Email %1's report?").arg(root._dayWords(one))
-                        : qsTr("Email %1 reports to %2?").arg(ok.length).arg(root.greeting || qsTr("the golfer"))
-            body = qsTr("Send %1 to %2").arg(root._plural(ok.length, qsTr("%1 report"), qsTr("%1 reports")))
+                        : qsTr("Email %1 reports to %2?").arg(ok.length).arg(bulk.who(root))
+            body = qsTr("Send %1 to %2").arg(Theme.plural(ok.length, qsTr("%1 report"), qsTr("%1 reports")))
                        .arg(root.addresses.join(", "))
-                   + (bytes > 0 && needMake === 0 ? " · " + root.bytesWords(bytes) : "")
+                   + (bytes > 0 && needMake === 0 ? " · " + Theme.formatBytes(bytes) : "")
                    + (ok.length > 1 ? qsTr(", one email per session.") : ".")
-                   + (needMake > 0 ? " " + root._plural(needMake, qsTr("%1 report has to be made first."),
+                   + (needMake > 0 ? " " + Theme.plural(needMake, qsTr("%1 report has to be made first."),
                                                          qsTr("%1 reports have to be made first.")) : "")
                    + (root.sendReady ? "" : " " + qsTr("Each opens in your mail app to send."))
                    + leftOut
@@ -490,7 +483,7 @@ Column {
             title = one ? qsTr("Archive %1?").arg(root._dayWords(one))
                         : qsTr("Archive %1 sessions?").arg(ok.length)
             body = qsTr("Archiving keeps the summaries, scores, metrics and the report here, and moves the videos "
-                        + "and raw data to the archive folder, freeing up to %1 in the library.").arg(root.bytesWords(sum("sessionBytes")))
+                        + "and raw data to the archive folder, freeing up to %1 in the library.").arg(Theme.formatBytes(sum("sessionBytes")))
                    + " " + qsTr("Opening an archived session restores it.") + leftOut
             confirmText = qsTr("Archive")
         } else if (verb === "restore") {
@@ -509,14 +502,14 @@ Column {
                                          : qsTr("They are kept in the library's trash until you empty it."))
             if (one) {
                 title = qsTr("Move %1 to the library trash?").arg(root._dayWords(one))
-                body = (reports > 0 ? root._plural(one.swings || 0, qsTr("Its %1 swing and report go with it."),
+                body = (reports > 0 ? Theme.plural(one.swings || 0, qsTr("Its %1 swing and report go with it."),
                                                    qsTr("Its %1 swings and report go with it."))
-                                    : root._plural(one.swings || 0, qsTr("Its %1 swing goes with it."),
+                                    : Theme.plural(one.swings || 0, qsTr("Its %1 swing goes with it."),
                                                    qsTr("Its %1 swings go with it.")))
                        + " " + kept + leftOut
             } else {
                 title = qsTr("Move %1 sessions to the library trash?").arg(ok.length)
-                body = qsTr("Their %1 swings (%2)%3 go with them.").arg(sum("swings")).arg(root.bytesWords(sum("sessionBytes")))
+                body = qsTr("Their %1 swings (%2)%3 go with them.").arg(sum("swings")).arg(Theme.formatBytes(sum("sessionBytes")))
                            .arg(reports > 0 ? qsTr(" and reports") : "")
                        + " " + kept + leftOut
             }
@@ -690,6 +683,7 @@ Column {
                                           root.archiver ? (root.archiver.progress || 0) : 0,
                                           root.mailer ? (root.mailer.sendProgress || 0) : 0)
                 jobFailed: trow.jobStatus.indexOf("failed: ") === 0
+                jobs:      bulk
 
                 selected: root.selection.indexOf(trow.dir) >= 0
                 keyFocus: root.activeFocus && root.focusIndex === trow.rank
@@ -717,6 +711,7 @@ Column {
         sendBusy: root.sendBusy
         archiveReady: root.archiveReady
         jobRunning:   bulk.running
+        jobs:         bulk
         onClosed: root._menuDir = ""
         // The menu closes itself before it signals, so these read the row by dir, not _menuDir.
         onReviewRequested:      root.review(rowMenu.dir)

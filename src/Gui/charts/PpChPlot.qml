@@ -53,8 +53,6 @@ Canvas {
                                  brush ? brush.hoveredShot : -1, brush ? brush.highlightShots : []]
     onDepsChanged: requestPaint()
 
-    // a drawable number: null (a presenter's "missing") and NaN draw nothing
-    function fin(v) { return v !== null && v !== undefined && isFinite(v) }
     function xOf(t) { return (t - x0) / Math.max(1e-9, x1 - x0) * width }
     function yOf(v) { return height - (v - lo) / Math.max(1e-9, hi - lo) * height }
     function tOf(px) { return x0 + px / Math.max(1, width) * (x1 - x0) }
@@ -103,7 +101,7 @@ Canvas {
                 ctx.beginPath()
                 for (let i = 0; i < l.t.length; ++i) {
                     const a = l.lo[i], b = l.hi[i]
-                    if (!fin(a) || !fin(b)) { flush(); ctx.beginPath(); continue }
+                    if (!R.fin(a) || !R.fin(b)) { flush(); ctx.beginPath(); continue }
                     const x = xOf(l.t[i])
                     if (!open) { ctx.moveTo(x, yOf(b)); open = true } else ctx.lineTo(x, yOf(b))
                     back.push([x, yOf(a)])
@@ -114,7 +112,7 @@ Canvas {
                 const d = l.d || 2
                 for (let i = 0; i < l.t.length; ++i) {
                     const v = l.v[i], t = l.t[i]
-                    if (!fin(v) || t < x0 || t > x1) continue
+                    if (!R.fin(v) || t < x0 || t > x1) continue
                     ctx.fillRect(xOf(t) - d / 2, yOf(v) - d / 2, d, d)
                 }
             } else if (l.k === "vline" || l.k === "hline") {
@@ -130,7 +128,7 @@ Canvas {
                 ctx.lineWidth = Math.max(0.6, (l.w || 1) * 0.6); ctx.setLineDash([R.u(2), R.u(2)])
                 ctx.beginPath()
                 for (const b of (l.list || [])) {
-                    if (!fin(b.t0) || !fin(b.v0) || !fin(b.t1) || !fin(b.v1)) continue
+                    if (!R.fin(b.t0) || !R.fin(b.v0) || !R.fin(b.t1) || !R.fin(b.v1)) continue
                     ctx.moveTo(xOf(b.t0), yOf(b.v0)); ctx.lineTo(xOf(b.t1), yOf(b.v1))
                 }
                 ctx.stroke(); ctx.setLineDash([])
@@ -154,7 +152,7 @@ Canvas {
                     // join each run to the one before it, so a curve never shows a gap where it changes style
                     for (let i = Math.max(0, rn.from - 1); i <= Math.min(n - 1, rn.to); ++i) {
                         const v = l.v[i], t = l.t[i]
-                        if (!fin(v) || !fin(t)) { pen = false; continue }
+                        if (!R.fin(v) || !R.fin(t)) { pen = false; continue }
                         const x = xOf(t), y = yOf(v)
                         if (!pen) { ctx.moveTo(x, y); pen = true } else ctx.lineTo(x, y)
                     }

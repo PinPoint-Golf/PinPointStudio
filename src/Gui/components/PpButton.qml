@@ -54,7 +54,7 @@ Rectangle {
     readonly property color _restColor: primary     ? Theme.colorAccent
                                        : attention   ? Theme.colorAttention
                                        : destructive ? Theme.colorWarnLight
-                                       : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+                                       : Qt.alpha(Theme.colorBg2, 0)
 
     // Hover brighten — filled variants lighten, the outline variant fades a faint
     // bg fill in. Pairs with the PpPressable scale-grow / press-dip below so the

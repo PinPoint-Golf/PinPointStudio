@@ -47,7 +47,9 @@
 //       decides which steps run (§4.12).
 //   W11 TrunkRoutine.qml's mirrored gates (its still / upright / turn properties and the turn
 //       durations in `defaultPace`) equal their constants in Core/pp_tuned_constants.h
-//       (tuned::trunkRoutine, tuned::calib) — the QML cannot read the header, so this is the guard.
+//       (tuned::trunkRoutine, tuned::calib), and WitmotionArmRoutine.qml's mount-gate literals
+//       equal ImuInstance::kMountDeviationMaxDeg / kMountGravityErrorMaxDeg (imu/imu_instance.h)
+//       — the QML cannot read the headers, so this is the guard.
 //   W9  No QML outside tests/ uses the slot-letter API (the …ForSlot shims,
 //       setPlacementForDevice, appSettings.imuPlacement), except the site in kW9Allowed
 //       (PpDataViewer.qml:96, which labels old swings). Enforced (kEnforceW9); the shims were
@@ -1330,7 +1332,7 @@ void ruleW10()
 
 // ── The rule table ────────────────────────────────────────────────────────────────────────────
 
-// ── W11 — the trunk routine's mirrored gates equal their constants ─────────────────────────────
+// ── W11 — the routines' mirrored gates equal their constants ───────────────────────────────────
 
 void ruleW11()
 {
@@ -1371,6 +1373,46 @@ void ruleW11()
         check(std::abs(got - m.want) < 1e-6,
               QStringLiteral("%1 %2 = %3 equals its constant %4").arg(rel, name, found.first()).arg(m.want));
     }
+
+    // WitmotionArmRoutine.qml's mount gate (phase 2): `mountDeviationDeg <= N && mountGravityErrorDeg
+    // <= M` restates ImuInstance::kMountDeviationMaxDeg / kMountGravityErrorMaxDeg. imu_instance.h is
+    // a QObject header this Core-only test cannot include, so both sides are read as text: each
+    // literal once in the QML, each constant once in the header, and equal.
+    const QString wRel = QStringLiteral("calibration/WitmotionArmRoutine.qml");
+    const QString hRel = QStringLiteral("imu/imu_instance.h");
+    QString wRaw, hRaw;
+    if (!readText(absPath(wRel), &wRaw) || !readText(absPath(hRel), &hRaw)) {
+        check(false, QStringLiteral("W11 read %1 and %2").arg(wRel, hRel));
+        return;
+    }
+    const QString w = strip(wRaw, Lang::Qml);
+    const QString h = strip(hRaw, Lang::Cpp);
+    struct Gate { const char *qml; const char *cpp; };
+    const Gate gates[] = {
+        { "mountDeviationDeg",    "kMountDeviationMaxDeg"    },
+        { "mountGravityErrorDeg", "kMountGravityErrorMaxDeg" },
+    };
+    for (const Gate &g : gates) {
+        const QString qmlName = QString::fromLatin1(g.qml), cppName = QString::fromLatin1(g.cpp);
+        const auto all = [](const QString &text, const QRegularExpression &re) {
+            QStringList out;
+            auto it = re.globalMatch(text);
+            while (it.hasNext()) out << it.next().captured(1);
+            return out;
+        };
+        const QStringList inQml = all(w, QRegularExpression(
+            QStringLiteral(R"((?<![\w$])%1\s*<=\s*([0-9][0-9.]*))").arg(qmlName)));
+        const QStringList inCpp = all(h, QRegularExpression(
+            QStringLiteral(R"(\b%1\s*=\s*([0-9][0-9.]*))").arg(cppName)));
+        if (inQml.size() != 1 || inCpp.size() != 1) {
+            check(false, QStringLiteral("W11 found `%1 <= N` once in %2 (found %3) and %4 once in %5 (found %6)")
+                             .arg(qmlName, wRel).arg(inQml.size()).arg(cppName, hRel).arg(inCpp.size()));
+            continue;
+        }
+        check(std::abs(inQml.first().toDouble() - inCpp.first().toDouble()) < 1e-6,
+              QStringLiteral("%1 %2 <= %3 equals ImuInstance::%4 (%5)")
+                  .arg(wRel, qmlName, inQml.first(), cppName, inCpp.first()));
+    }
 }
 
 struct Rule
@@ -1391,7 +1433,7 @@ const Rule kRules[] = {
     { "W8", "no step's applies/gate reads the session type or preset", ruleW8 },
     { "W9", "no QML outside the allow-list uses the slot-letter API", ruleW9 },
     { "W10", "the shell and the indicator name no step", ruleW10 },
-    { "W11", "the trunk routine's mirrored gates equal pp_tuned_constants.h", ruleW11 },
+    { "W11", "the routines' mirrored gates equal their C++ constants", ruleW11 },
 };
 
 } // namespace

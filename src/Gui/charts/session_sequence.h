@@ -37,6 +37,7 @@
 // outOfTurn, which marks both ends of an inverted pair.
 
 #include "session_series_types.h"
+#include "charts_words.h"
 
 #include <QString>
 #include <QStringList>
@@ -118,6 +119,16 @@ struct UnplacedWhy {
     QString sentence;   // "peaked after −129 ms, out of the camera's sight" …
 };
 UnplacedWhy unplacedWhy(const SegmentPeak &p);
+
+// THE SHOT'S PEAK TIMES IN WORDS, each against impact by the one rule (Core/figure_format.h impactTime: "at
+// impact" within 2 ms): "The club peaked 49 ms before impact, the pelvis 20 ms after impact." — the pelvis' OWN
+// time, never the club→pelvis gap; "The club peaked at impact." Empty when neither is placed; figures are runs.
+words::Sentence peakTimesSentence(const SegmentPeak &club, const SegmentPeak &pelvis);
+// The chest's probable peak, when, appended to `s`: "40 ± 8 ms before impact", or "at impact (± 8 ms)" — the ±
+// kept either way (never withheld).
+void appendProbableWhen(words::Sentence &s, double probableMs, double sigmaMs);
+// A curve's peak, when, appended to `s`: "Clubhead speed peaks 12 ms before impact", "… peaks at impact".
+void appendPeaksWhen(words::Sentence &s, const QString &label, double shotMs);
 
 // THE GATES THAT FIRED ON ONE SEGMENT, opened (§7.1): one entry per record, the refusing one first —
 // { gate, effect, title, evidence (the filled sentence), explain, tuning ("20° (sequence.sightedTurnDeg)"),

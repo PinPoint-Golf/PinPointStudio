@@ -53,10 +53,10 @@ Row {
             // (unselected): a faint bg fill that only ramps alpha (RGB-matched rest)
             // so there's no colour flash; the border eases to accent on hover — the
             // home-tile / pill language.
-            color:   chip._disabled       ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+            color:   chip._disabled       ? Qt.alpha(Theme.colorBg2, 0)
                    : _sel                 ? Theme.colorAccentLight
                    : chipMa.containsMouse ? Theme.colorBg2
-                   :                        Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+                   :                        Qt.alpha(Theme.colorBg2, 0)
             border.width: 1
             border.color: chip._disabled       ? Theme.colorBorderStrong
                         : _sel                 ? Theme.colorAccent

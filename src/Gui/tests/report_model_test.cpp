@@ -334,8 +334,8 @@ int main(int argc, char **argv)
     std::printf("figures, units, the target range (signs: raw × golferSign, never abs)\n");
     eq(withUnit(QStringLiteral("125"), QStringLiteral("% shoulder width")), QStringLiteral("125% shoulder width"), "'125 %' keeps its words, closed up (§9.3)");
     eq(withUnit(QStringLiteral("22"), QStringLiteral("°")), QStringLiteral("22°"), "degrees close up");
-    eq(withUnit(QStringLiteral("9"), QStringLiteral("cm")), QStringLiteral("9 cm"), "a worded unit takes a space");
-    eq(withUnit(QStringLiteral("12.6"), QStringLiteral("ratio")), QStringLiteral("12.6×"), "a ratio");
+    eq(withUnit(QStringLiteral("9"), QStringLiteral("cm")), QStringLiteral("9\u00A0cm"), "a worded unit takes a no-break space");
+    eq(withUnit(QStringLiteral("1.33"), QStringLiteral("ratio")), QStringLiteral("1.33"), "a ratio prints the bare number, never ×");
     eq(withUnit(QStringLiteral("-"), QStringLiteral("°")), QStringLiteral("-"), "the NA dash takes no unit");
     eq(golferValue(-21.6, QStringLiteral("°"), 0, -1), QStringLiteral("22°"), "sign −1: a loss reads as a magnitude");
     eq(golferValue(2.0, QStringLiteral("°"), 0, -1), M + QStringLiteral("2°"), "sign −1 on a swing that GAINED: it reads the other way, never abs()");
@@ -343,20 +343,25 @@ int main(int argc, char **argv)
     eq(golferValue(-0.2, QStringLiteral("°"), 0, 1), QStringLiteral("0°"), "−0 prints as 0");
     eq(golferValue(std::nan(""), QStringLiteral("°"), 0, 1), QStringLiteral("-"), "no value: the dash");
     eq(golferValue(12.94, QStringLiteral("°"), 1, 1), QStringLiteral("12.9°"), "the model's own decimals, never σ-rounded");
-    eq(timeVsImpact(-87.4), QStringLiteral("87 ms before impact"), "before impact, never −87 ms");
-    eq(timeVsImpact(12), QStringLiteral("12 ms after impact"), "after impact");
+    eq(timeVsImpact(-87.4), QStringLiteral("87\u00A0ms before impact"), "before impact, never −87 ms");
+    eq(timeVsImpact(12), QStringLiteral("12\u00A0ms after impact"), "after impact");
     eq(timeVsImpact(0.3), QStringLiteral("at impact"), "at impact");
+    eq(timeVsImpact(-1.6), QStringLiteral("at impact"), "at impact within 2 ms, as the Charts panel says it");
     eq(targetWords(corridor(0, 12, true, false, 0, 18), QStringLiteral("°")), QStringLiteral("12° or less"), "ceiling");
     eq(targetWords(corridor(1.3, 5, false, true, 1.2, 5), QString()), QStringLiteral("1.3 or more"), "floor");
     eq(targetWords(corridor(18, 58, false, false, 8, 68), QStringLiteral("°")), QStringLiteral("18° to 58°"), "two-sided, degrees on both");
-    eq(targetWords(corridor(-6, 6, false, false, -9, 9), QStringLiteral("cm")), M + QStringLiteral("6 to 6 cm"), "two-sided, worded unit once");
+    eq(targetWords(corridor(-6, 6, false, false, -9, 9), QStringLiteral("cm")), M + QStringLiteral("6 to 6\u00A0cm"), "two-sided, worded unit once");
     eq(targetWords(corridor(82, 118, false, false, 70, 130), QStringLiteral("% shoulder width")),
        QStringLiteral("82% shoulder width to 118% shoulder width"), "two-sided, a percent of something");
     eq(targetWords(corridor(-12, 0, false, true, -18, 0), QStringLiteral("°"), -1), QStringLiteral("12° or less"),
        "sign −1 mirrors a floor into a ceiling: 'bend lost: 12° or less'");
     eq(targetWords(corridor(-80, -20, false, false, -120, 10), QStringLiteral("ms"), 1, true),
-       QStringLiteral("between 80 ms before impact and 20 ms before impact"), "an instant's window, said against impact");
-    eq(targetWords(corridor(0, 33, true, false, 0, 60), QStringLiteral("ms"), 1, false), QStringLiteral("33 ms or less"),
+       QStringLiteral("between 80\u00A0ms before impact and 20\u00A0ms before impact"), "an instant's window, said against impact");
+    eq(targetWords(corridor(0, 20, false, false, -30, 50), QStringLiteral("ms"), 1, true),
+       QStringLiteral("between impact and 20\u00A0ms after impact"), "an edge at impact is the noun 'impact'");
+    eq(targetWords(corridor(-40, 1.5, true, false, -60, 20), QStringLiteral("ms"), 1, true),
+       QStringLiteral("no later than impact"), "an open edge within 2 ms of impact: 'no later than impact'");
+    eq(targetWords(corridor(0, 33, true, false, 0, 60), QStringLiteral("ms"), 1, false), QStringLiteral("33\u00A0ms or less"),
        "a duration in ms is a plain figure");
     check(isInstantVsImpact(QStringLiteral("ms"), QStringLiteral("when your hips reached full speed"))
               && !isInstantVsImpact(QStringLiteral("ms"), QStringLiteral("how long before the ball the club stopped speeding up")),

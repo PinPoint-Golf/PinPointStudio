@@ -160,23 +160,10 @@ double lmValue(const QJsonObject &lm, const char *key)
     return v.isDouble() ? v.toDouble() : std::numeric_limits<double>::quiet_NaN();
 }
 
-// A launch-monitor figure: the true minus, "-" for none, thousands grouped where asked ("5,009").
+// A launch-monitor figure (figure_format.h): the true minus, "-" for none, thousands grouped where asked ("5,009").
 QString lmFig(double v, int dp, bool thousands = false)
 {
-    if (!std::isfinite(v)) return kNA;
-    const double p = std::pow(10.0, dp);
-    double x = std::round(v * p) / p;
-    if (std::fabs(x) < 0.5 / p) x = 0.0;
-    const QString body = (thousands && dp == 0) ? W::english().toString(qlonglong(std::llround(std::fabs(x))))
-                                                : QString::number(std::fabs(x), 'f', dp);
-    return x < 0 ? W::minusSign() + body : body;
-}
-QString lmSigned(double v, int dp)
-{
-    const QString f = lmFig(v, dp);
-    if (f == kNA) return f;
-    const double p = std::pow(10.0, dp);
-    return std::round(v * p) / p > 0 ? QStringLiteral("+") + f : f;
+    return thousands ? pinpoint::figures::figThousands(v, dp) : pinpoint::figures::fig(v, dp);
 }
 
 QString fileUrl(const QString &path) { return path.isEmpty() ? QString() : QUrl::fromLocalFile(path).toString(); }
@@ -861,7 +848,7 @@ QVariantList ballTiles(const Ctx &x, const QString &club)
             tiles << QVariantMap{ { QStringLiteral("label"), QStringLiteral("Club path") },
                                   { QStringLiteral("value"), lmFig(std::fabs(med), 0) + QStringLiteral("°") },
                                   { QStringLiteral("unit"), square ? QStringLiteral("square") : inToOut ? QStringLiteral("in-to-out") : QStringLiteral("out-to-in") },
-                                  { QStringLiteral("range"), lmSigned(*lo, 1) + QStringLiteral(" to ") + lmSigned(*hi, 1) } };
+                                  { QStringLiteral("range"), pinpoint::figures::figSigned(*lo, 1) + QStringLiteral(" to ") + pinpoint::figures::figSigned(*hi, 1) } };
         }
     }
     {

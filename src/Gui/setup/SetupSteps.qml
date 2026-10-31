@@ -90,8 +90,8 @@ QtObject {
                 if (skipped)
                     value = qsTr("Skipped — no video capture")
                 else if (ctx.camsAllConnected)
-                    value = ctx.connectedCameraCount === 1 ? qsTr("1 camera connected")
-                                                           : qsTr("%1 cameras connected").arg(ctx.connectedCameraCount)
+                    value = Theme.plural(ctx.connectedCameraCount, qsTr("%1 camera connected"),
+                                         qsTr("%1 cameras connected"))
                 else if (ctx.faceOn.length === 0)
                     value = qsTr("Face-on camera not assigned")
                 else

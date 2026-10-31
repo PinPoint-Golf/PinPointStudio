@@ -43,20 +43,12 @@ import PinPointStudio
 // Every word and number is a presenter's (body.t* = ChartsTracesPresenter, body.r* = ChartsRelationsPresenter,
 // each bound ONCE on the body). The presenters' own empty / refusal sentences are what an empty view says.
 // objectName: chShotView.
-Column {
+PpChViewBase {
     id: sv
     objectName: "chShotView"
-    property QtObject roles: null
-    property var brush: null
-    property var body: null
-    property string reg: "Analyse"
-    property bool interactive: true
-    property bool cast: false
-    property real pageH: 500
     // renders only (the register's demo state): a held hover, an open picker
     property var demoHoverMs: undefined
     property string openPicker: ""               // "" | "preset" | "against"
-    readonly property bool replay: reg === "Replay"
 
     readonly property var ts: body ? body.tShot : ({})
     readonly property var tc: body ? body.tChoices : ({})

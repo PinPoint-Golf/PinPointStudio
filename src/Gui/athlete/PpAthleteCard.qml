@@ -43,16 +43,6 @@ Rectangle {
     Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
     Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
-    readonly property var avatarColors: [
-        "#A8C4E0", "#7EBFAA", "#E0C4A8", "#C4A8E0", "#A8E0C4", "#E0A8C4"
-    ]
-    readonly property string avatarColor: {
-        const uuid = athleteData.uuid || ""
-        return uuid.length > 0
-            ? avatarColors[uuid.charCodeAt(0) % avatarColors.length]
-            : avatarColors[0]
-    }
-
     Column {
         anchors {
             left:    parent.left
@@ -63,21 +53,9 @@ Rectangle {
         spacing: Theme.gap(4)
 
         // Initials circle
-        Rectangle {
-            width:        Theme.sp(28)
-            height:       Theme.sp(28)
-            radius:       Theme.sp(14)
-            color:        root.avatarColor
-            border.width: 1
-            border.color: Qt.darker(root.avatarColor, 1.3)
-
-            Text {
-                anchors.centerIn: parent
-                text:           athleteData.initials || "?"
-                font.family:    Theme.fontData
-                font.pixelSize: Theme.sp(10)
-                color:          Qt.darker(root.avatarColor, 2.2)
-            }
+        PpAvatar {
+            uuid:     root.athleteData.uuid || ""
+            initials: root.athleteData.initials || ""
         }
 
         // Name

@@ -42,6 +42,7 @@ import QtQuick
 import PinPointStudio
 import "setup_capability_rows.js" as CapRows
 import "capability_facts.js" as CapFacts
+import "../imu/imu_health.js" as ImuHealth
 
 QtObject {
     id: ctx
@@ -320,9 +321,9 @@ QtObject {
             var label = inst !== null ? inst.stateLabel : ""
             // A connect that gave up (wizard l.1577: "Error" / "Not found"; "Not ready" = its
             // settings didn't take, #105) is not still connecting: the page offers Connect again
-            // rather than "Connecting…" for ever. (Stage 5b.)
-            var failed = inst !== null && !conn
-                         && (label === "Error" || label === "Not found" || label === "Not ready")
+            // rather than "Connecting…" for ever. (Stage 5b.) The rule is imu_health.js's, the
+            // same one the session toolbar and its IMU panel read.
+            var failed = ImuHealth.gaveUp(inst)
             out.push({ id: d.id, index: d.index, vendor: d.vendor, alias: d.alias || "",
                        description: d.description || "", transport: d.transport || "",
                        // Never a raw id (Stage 5d): the manager's remembered-name rule.

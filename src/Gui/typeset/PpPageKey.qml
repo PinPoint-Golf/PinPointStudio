@@ -102,14 +102,22 @@ Flow {
                 Rectangle { visible: ki.kind === "bar"; anchors.centerIn: parent; width: Math.max(3, pk.roles.u(4)); height: parent.height; radius: pk.roles.r.barRadius; color: pk.roles.warn }
                 Rectangle { visible: ki.kind === "tick"; anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom
                             width: 1; height: parent.height * 0.6; color: pk.roles.ink3 }
-                Rectangle { visible: ki.kind === "gap" || ki.kind === "stub"; anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom
-                            width: Math.max(3, pk.roles.u(4)); height: pk.roles.stubH(parent.height); color: pk.roles.ink3 }
-                // a box in miniature: whisker rule, the middle half, the median
-                Rectangle { visible: ki.kind === "box"; anchors.verticalCenter: parent.verticalCenter; width: parent.width; height: pk.roles.hw; color: pk.roles.ink2 }
-                Rectangle { visible: ki.kind === "box"; x: parent.width * 0.25; anchors.verticalCenter: parent.verticalCenter
-                            width: parent.width * 0.5; height: pk.roles.u(8); color: Qt.alpha(pk.roles.ink3, 0.10); border.width: pk.roles.hw; border.color: pk.roles.ink2 }
-                Rectangle { visible: ki.kind === "box"; x: parent.width * 0.45; anchors.verticalCenter: parent.verticalCenter
-                            width: 1.5; height: pk.roles.u(10); color: pk.roles.ink }
+                PpStub { visible: ki.kind === "gap" || ki.kind === "stub"; anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom
+                         roles: pk.roles; size: parent.height; minW: 3 }
+                // a box in miniature, drawn by THE box plot (whiskers and caps, the middle half, the median), so the
+                // key can never drift from the boxes it names
+                Loader {
+                    active: ki.kind === "box"
+                    anchors.fill: parent
+                    sourceComponent: PpBoxPlot {
+                        roles: pk.roles
+                        map: function (v) { return v * sw.width }
+                        stats: ({ lo: 0, q1: 0.25, med: 0.45, q3: 0.75, hi: 1 })
+                        bodyW: pk.roles.u(8); capW: pk.roles.u(4); medianOver: pk.roles.u(1)
+                        style: ({ print: pk.medium === "print" })
+                        namePrefix: "sdKeyBox"          // never counted with the figures' chBox* / sdBox* parts
+                    }
+                }
                 Rectangle { visible: ki.kind === "fit"; anchors.verticalCenter: parent.verticalCenter; width: parent.width
                             height: pk.roles.u(pk.roles.r.ch.fitLineW); color: pk.roles.ink2 }
                 Row {
@@ -140,9 +148,7 @@ Flow {
                         if (ki.kind === "pass" || ki.kind === "chance") {
                             const chance = ki.kind === "chance"
                             ctx.strokeStyle = chance ? R.ink3 : R.passEdge; ctx.lineWidth = chance ? R.u(R.r.ch.fitLineW) : 1
-                            const pat = chance ? R.r.ch.chanceDash.map(d => R.u(d)) : R.r.passDash; let x = 0, on = true
-                            ctx.beginPath()
-                            while (x < width) { const st = pat[on ? 0 : 1]; if (on) { ctx.moveTo(x, y); ctx.lineTo(Math.min(width, x + st), y) } x += st; on = !on }
+                            ctx.beginPath(); R.dashPath(ctx, 0, width, y, chance ? R.r.ch.chanceDash.map(d => R.u(d)) : R.r.passDash)
                             ctx.stroke(); return
                         }
                         // a link grade: the same stroke, weight, opacity and (only where it carries one) arrowhead
@@ -153,7 +159,7 @@ Flow {
                         const d = R.dashFor(st.stroke), pat = d ? (st.stroke === "dotted" ? [0.1, d[1] + 0.6] : d) : null
                         ctx.beginPath()
                         if (!pat) { ctx.moveTo(0, y); ctx.lineTo(width - head, y) }
-                        else { let x = 0, on = true; while (x < width - head) { const s2 = pat[on ? 0 : 1]; if (on) { ctx.moveTo(x, y); ctx.lineTo(Math.min(width - head, x + s2), y) } x += s2; on = !on } }
+                        else R.dashPath(ctx, 0, width - head, y, pat)
                         ctx.stroke()
                         if (head > 0) {
                             const hw = R.u(3) + st.width * 0.5

@@ -25,17 +25,15 @@ import PinPointStudio
 // per pool thread, and a waterfall of the stages in the order they started. Values
 // come pre-formatted from ProfilerController (the critical path is marked when the
 // run is recorded, analysis_profiling.cpp) — pure bindings and geometry here.
-Rectangle {
+RmZebraRow {
     id: root
 
     property var  runData
-    property bool isAlternate: false
     property bool expanded: false
 
     width: parent ? parent.width : 0
     implicitHeight: col.implicitHeight
     height: implicitHeight
-    color: isAlternate ? Theme.colorBg : Theme.colorSurface
 
     readonly property color okColor: (root.runData && root.runData.ok) ? Theme.colorGood : Theme.colorWarn
 
@@ -46,8 +44,8 @@ Rectangle {
     readonly property int  laneCount: (root.runData && root.runData.threads) ? root.runData.threads : 0
     readonly property real trackX: Theme.sp(34)
     readonly property real trackW: Math.max(0, root.width - root.trackX - Theme.sp(72))
-    readonly property color pathColor:  Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.85)
-    readonly property color otherColor: Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.30)
+    readonly property color pathColor:  Qt.alpha(Theme.colorAccent, 0.85)
+    readonly property color otherColor: Qt.alpha(Theme.colorAccent, 0.30)
 
     // Axis ticks at a round step, at most five intervals over the span.
     readonly property var ticks: {
@@ -107,9 +105,9 @@ Rectangle {
                     width: sessLbl.implicitWidth + Theme.sp(10)
                     height: Theme.sp(16)
                     radius: Theme.sp(3)
-                    color: Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.12)
+                    color: Qt.alpha(Theme.colorAccent, 0.12)
                     border.width: 1
-                    border.color: Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.35)
+                    border.color: Qt.alpha(Theme.colorAccent, 0.35)
                     Text {
                         id: sessLbl
                         anchors.centerIn: parent
@@ -127,9 +125,9 @@ Rectangle {
                     width: okLbl.implicitWidth + Theme.sp(10)
                     height: Theme.sp(16)
                     radius: Theme.sp(3)
-                    color: Qt.rgba(root.okColor.r, root.okColor.g, root.okColor.b, 0.12)
+                    color: Qt.alpha(root.okColor, 0.12)
                     border.width: 1
-                    border.color: Qt.rgba(root.okColor.r, root.okColor.g, root.okColor.b, 0.35)
+                    border.color: Qt.alpha(root.okColor, 0.35)
                     Text {
                         id: okLbl
                         anchors.centerIn: parent
@@ -249,7 +247,7 @@ Rectangle {
                             x: root.barX(modelData)
                             width: 1
                             height: lanes.lanesH - lanes.laneGap
-                            color: Qt.rgba(Theme.colorText3.r, Theme.colorText3.g, Theme.colorText3.b, 0.25)
+                            color: Qt.alpha(Theme.colorText3, 0.25)
                         }
                         Text {
                             y: lanes.lanesH + Theme.sp(1)
@@ -269,14 +267,14 @@ Rectangle {
             Repeater {
                 model: root.expanded && root.runData ? root.runData.stages : []
 
-                Rectangle {
+                RmZebraRow {
                     width: stagesCol.width
                     height: Theme.sp(22)
                     // Zebra-stripe the per-stage rows (like the scopes table) so the
                     // stage name on the left reads across to its value on the right.
                     // Offset by the run's own band so the first stage always contrasts
                     // with the summary row above — one continuous stripe per run.
-                    color: (index % 2 === (root.isAlternate ? 1 : 0)) ? Theme.colorBg : Theme.colorSurface
+                    isAlternate: index % 2 === (root.isAlternate ? 1 : 0)
 
                     // Drawn first, so the text stays on top and legible.
                     Rectangle {
@@ -287,8 +285,8 @@ Rectangle {
                         radius: Theme.sp(2)
                         visible: modelData.ran && root.spanMs > 0
                         color: modelData.critical
-                               ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.45)
-                               : Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.20)
+                               ? Qt.alpha(Theme.colorAccent, 0.45)
+                               : Qt.alpha(Theme.colorAccent, 0.20)
                     }
 
                     // Critical-path marker.

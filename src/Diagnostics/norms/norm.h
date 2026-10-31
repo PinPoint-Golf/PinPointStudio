@@ -92,7 +92,7 @@ struct GradePolicy {
 // The policy PRESETS, by name. The name is what is persisted and what crosses into QML, because the
 // policy has to be one comparable thing across athletes and shared packs — see GradePolicy's own
 // comment. Here rather than in the panel that renders them, because more than one surface now needs
-// name → numbers (the measures view, the corridor editor and the metric detail corridors),
+// name → numbers (the measures view, the corridor editor and the launch-monitor board's corridors),
 // and a second table would let two of them grade against different z's while showing
 // the same word.
 struct GradePolicyPreset {
@@ -545,8 +545,8 @@ inline void deviationEdges(const Norm &n, Shape shape, const GradePolicy &policy
 // ── The edges a norm DRAWS as ───────────────────────────────────────────────
 //
 // ONE definition, because three surfaces project a norm into a corridor to render it — the wrist
-// grid (NormBandProvider → Band → PpRagCell), the measures view (NormModel::normAt) and the metric
-// detail page's corridors (metric_corridor.h) — and each of them must draw the edge that
+// grid (NormBandProvider → Band → PpRagCell), the measures view and the
+// launch-monitor board's corridors (metric_corridor.h) — and each of them must draw the edge that
 // grade() actually applies. A second copy is how a surface ends up showing a corridor the app does
 // not use: the Watch edge is `monitorLo/Hi` when the norm states them and z-derived when it does
 // not, and that precedence has to be stated once.
@@ -688,7 +688,7 @@ QString    sexTokenList();
 QString    ageBandTokenList();
 
 // The user-facing words for a norm's provenance. WITH the enum, not in a façade: the measures view
-// and the metric detail page both render it, and two copies of four strings is how they drift.
+// and the model browser's norm rows both render it, and two copies of four strings is how they drift.
 QString    normSourceLabel(NormSource s);
 QString    gradeName(Grade g);
 bool       gradeFromName(const QString &s, Grade &out);

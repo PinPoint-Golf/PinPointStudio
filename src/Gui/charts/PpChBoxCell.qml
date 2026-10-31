@@ -107,11 +107,11 @@ Item {
         cross: bc.mid
         stats: bc.ok ? bc.box : null
         bodyW: bc.bw; capW: bc.bw / 2; medianOver: 2
-        lw: bc.roles && bc.roles.isPrint ? bc.roles.hw : 1
-        medW: bc.roles && bc.roles.isPrint ? 1 : 1.5
-        ink: !bc.roles ? "grey" : bc.muted ? bc.roles.ink3 : bc.color
-        medianInk: !bc.roles ? "grey" : bc.muted ? bc.roles.ink2 : bc.color
-        fill: bc.roles ? Qt.alpha(bc.muted ? bc.roles.ink3 : bc.color, bc.muted ? 0.08 : bc.roles.boxFill) : "transparent"
+        // the Charts look: a metric's box in its hue, muted to ink3 / ink2 at rest when asked
+        style: ({ print: !!bc.roles && bc.roles.isPrint,
+                  ink: !bc.roles ? "grey" : bc.muted ? bc.roles.ink3 : bc.color,
+                  medianInk: !bc.roles ? "grey" : bc.muted ? bc.roles.ink2 : bc.color,
+                  fill: bc.roles ? Qt.alpha(bc.muted ? bc.roles.ink3 : bc.color, bc.muted ? 0.08 : bc.roles.boxFill) : "transparent" })
         corridor: bc.cOk ? bc.corridor : null
         texts: bc.texts || (bc.box ? bc.box.texts : null) || null
         valuesOnHover: bc.valuesOnHover

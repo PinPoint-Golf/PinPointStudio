@@ -67,19 +67,12 @@ Item {
             property bool keepNext: true
             visible: ix.showHead
             width: ix.width; height: visible ? ihead.height + ix.roles.u(6) : 0
-            Flow {
+            PpSectionHead {
                 id: ihead
                 width: parent.width
-                spacing: ix.roles.u(8)
-                Text { id: ttl; text: ix.title; font: ix.roles.fSection; color: ix.roles.ink }
-                Text { text: (ix.conditions || []).length; font: ix.roles.fFigS; color: ix.roles.ink3; height: ttl.height; verticalAlignment: Text.AlignVCenter }
-                Item { width: ix.roles.u(8); height: 1 }
-                Text {
-                    visible: !ix.grouped && ix.legend.length > 0
-                    width: Math.min(implicitWidth, ihead.width); wrapMode: Text.WordWrap
-                    height: Math.max(implicitHeight, ttl.height); verticalAlignment: Text.AlignVCenter
-                    text: ix.legend; font: ix.roles.fMicro; color: ix.roles.ink3
-                }
+                roles: ix.roles; paged: false; pad: 0; gap: 8
+                title: ix.title; count: String((ix.conditions || []).length)
+                sub: ix.grouped ? "" : ix.legend; subGap: 8; subFont: ix.roles.fMicro; subFit: "grow"
             }
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: ix.roles.hw; color: ix.roles.hair }
         }
@@ -119,12 +112,12 @@ Item {
                         }
                         Text {
                             id: iunit; anchors.right: imed.left; anchors.baseline: inm.baseline
-                            text: ix.roles.shortUnit(ix.roles.unitOf(it.c.valueText)); font: ix.roles.fSmall; color: ix.roles.ink3
+                            text: ix.roles.shortUnit(ix.roles.unitOf(it.c)); font: ix.roles.fSmall; color: ix.roles.ink3
                         }
                         Text {
                             id: ival; anchors.right: iunit.left; anchors.rightMargin: iunit.text.length ? 3 : 0
                             anchors.baseline: inm.baseline
-                            text: ix.roles.fig(it.c.valueText); font: ix.roles.fFigS; color: ix.roles.ink2
+                            text: ix.roles.fig(it.c); font: ix.roles.fFigS; color: ix.roles.ink2
                         }
                         Text {
                             id: inm

@@ -25,6 +25,7 @@
 
 #include "charts/charts_traces_presenter.h"
 #include "charts/charts_words.h"
+#include "charts/session_sequence.h"
 #include "charts/session_series_model.h"
 #include "charts/session_warp.h"
 
@@ -1025,6 +1026,46 @@ private slots:
             QVERIFY2(!st.contains(QStringLiteral(" of the ")), qPrintable(st));       // no "one of the one shots"
             QCOMPARE(st, nb(QStringLiteral("The club peaked 49~ms before impact, the pelvis 20~ms after impact.")));
         }
+    }
+
+    // AN INSTANT WITHIN 2 ms OF IMPACT IS "AT IMPACT" (Core/figure_format.h impactTime), the same window the
+    // report and every other surface use: the club / pelvis standfirst, the chest's probable peak (its ± kept)
+    // and a curve's peak in the head. A peak at +1 ms is not counted "after impact" either.
+    void atImpactWording()
+    {
+        SegmentPeak club, pel;
+        club.placed = true; club.shotMs = -1.4;
+        pel.placed = true;  pel.shotMs = 20.0;
+        QCOMPARE(peakTimesSentence(club, pel).text(), nb(QStringLiteral("The club peaked at impact, the pelvis 20~ms after impact.")));
+        club.shotMs = -49.0; pel.shotMs = 1.0;
+        QCOMPARE(peakTimesSentence(club, pel).text(), nb(QStringLiteral("The club peaked 49~ms before impact, the pelvis at impact.")));
+        club.shotMs = 2.6;
+        QCOMPARE(peakTimesSentence(club, pel).text(), nb(QStringLiteral("The club peaked 3~ms after impact, the pelvis at impact.")));
+        SegmentPeak none;
+        QVERIFY(peakTimesSentence(none, none).isEmpty());
+        // the figure is a run in the figure face; "at impact" has none
+        int figRuns = 0;
+        for (const words::Sentence::Run &r : peakTimesSentence(club, pel).runs) figRuns += r.fig ? 1 : 0;
+        QCOMPARE(figRuns, 1);
+
+        words::Sentence chest;
+        appendProbableWhen(chest, 1.6, 8.0);
+        QCOMPARE(chest.text(), nb(QStringLiteral("at impact (± 8~ms)")));
+        words::Sentence chestNoSigma;
+        appendProbableWhen(chestNoSigma, -2.0, std::nan(""));
+        QCOMPARE(chestNoSigma.text(), QStringLiteral("at impact"));
+        words::Sentence chestBefore;
+        appendProbableWhen(chestBefore, -40.0, 8.0);
+        QCOMPARE(chestBefore.text(), nb(QStringLiteral("40 ± 8~ms before impact")));
+
+        words::Sentence head;
+        appendPeaksWhen(head, QStringLiteral("Clubhead speed"), 0.4);
+        QCOMPARE(head.text(), QStringLiteral("Clubhead speed peaks at impact"));
+        words::Sentence head2;
+        appendPeaksWhen(head2, QStringLiteral("Clubhead speed"), -12.0);
+        QCOMPARE(head2.text(), nb(QStringLiteral("Clubhead speed peaks 12~ms before impact")));
+
+        QVERIFY(!words::isAfterImpact(1.0) && !words::isAfterImpact(2.4) && words::isAfterImpact(2.6) && !words::isAfterImpact(-20.0));
     }
 
     void mixedClubsKicker()

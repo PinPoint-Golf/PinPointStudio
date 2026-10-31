@@ -32,8 +32,8 @@
 // comes from the norm set, resolved in the shot's own context, and from nowhere else.
 //
 // It is header-only and free-standing on purpose. Its callers are a QML façade
-// (`Gui/review/metric_catalog.cpp`, which feeds MetricDetail's corridor surfaces)
-// and its test — and a rule that exists only inside a façade is a rule nothing can test.
+// (`Gui/launchmonitor/lm_session_model.cpp`, the launch-monitor board's corridors)
+// and its tests — and a rule that exists only inside a façade is a rule nothing can test.
 
 namespace pinpoint::analysis {
 

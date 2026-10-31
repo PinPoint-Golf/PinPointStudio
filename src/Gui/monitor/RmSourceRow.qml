@@ -19,14 +19,12 @@
 import QtQuick
 import PinPointStudio
 
-Rectangle {
+RmZebraRow {
     id: root
 
     property var  sourceData
-    property bool isAlternate: false
 
     height: Theme.sp(40)
-    color: isAlternate ? Theme.colorBg : Theme.colorSurface
 
     Row {
         anchors { fill: parent; leftMargin: Theme.gap(10); rightMargin: Theme.gap(10) }

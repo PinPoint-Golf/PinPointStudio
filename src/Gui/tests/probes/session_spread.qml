@@ -247,7 +247,7 @@ Item {
                     probe.log("figures: median '" + (med ? med.text : "-") + "' · this shot '" + (cur ? cur.text : "-")
                               + "' (" + sp.currentState + ") · unit '" + (unit ? unit.text : "-") + "' · row "
                               + Math.round(card.width) + "×" + Math.round(card.height))
-                    // a folded median carries its unit after it ("14 % hand rise"), so it is read as a prefix
+                    // a folded median carries its unit after it ("14% hand rise"), so it is read as a prefix
                     probe.check(!!med && !!cur && String(med.text).indexOf(sp.medianNumber) === 0 && cur.text === sp.currentNumber,
                                 "…with the session median (" + (med ? med.text : "-") + ") and this shot (" + (cur ? cur.text : "-") + ")")
                     let inside = true
@@ -260,7 +260,7 @@ Item {
                     // The corridor is the MODEL's line on the card; the typeset ledger draws it in the
                     // fired table's corridor column and the detail's feature head, not on the session row.
                     probe.log("corridor line: \"" + (card.modelData.corridorText || "") + "\"")
-                    probe.check((card.modelData.corridorText || "") === "pass up to 8.7 · fault above 13 % hand rise",
+                    probe.check((card.modelData.corridorText || "") === "pass up to 8.7 · fault above 13% hand rise",
                                 "the card's corridor line states the pass band and the fault line")
                 }
                 probe.queueGrab(probe.appBody, "app_panel")
@@ -422,12 +422,11 @@ Item {
     function pickOrdinal(n) {
         for (let i = 0; i < shots.count; ++i) {
             const o = shots.objectAt(i)
-            // Analyse keeps Analyse — the panel's own path for a pick (PpSessionDiagnosticsPanel
-            // _pickShot): enterReplay() would switch the stage and rebuild the panel, model and all.
+            // The app's own path for a pick (SessionMode.pickShot, src/Gui/session/SessionMode.qml):
+            // in Analyse it keeps Analyse — enterReplay() would switch the stage and rebuild the
+            // panel, model and all. This probe is in Analyse (set up above), so that is the branch taken.
             if (o.ordinal === n) {
-                SessionMode.focusedShotId = o.shotId
-                SessionMode.focusedSwingDir = o.swingDir
-                SessionMode.enterAnalyse()
+                SessionMode.pickShot(o.shotId, o.swingDir)
                 return
             }
         }

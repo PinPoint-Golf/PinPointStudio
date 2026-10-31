@@ -39,6 +39,7 @@
 // dropped whole when any key inside it is missing. Evidence never carries prose, so a record read
 // with revised words still says the right thing.
 
+#include "../Core/figure_format.h"      // every evidence figure and threshold: the app's one formatter
 #include "../Core/pp_tuned_constants.h"
 #include "../Analysis/gate_record.h"
 
@@ -486,13 +487,10 @@ inline QString notJudgedClause(const QString &subject, const QString &gateId);
 
 namespace detail {
 
+// A figure as every surface sets it (Core/figure_format.h): the true minus, "+" only where asked, never "−0".
 inline QString minusSigned(double v, int dec, bool plus)
 {
-    const double p = std::pow(10.0, dec);
-    double x = std::round(v * p) / p;
-    if (std::fabs(x) < 0.5 / p) x = 0.0;
-    const QString body = QString::number(std::fabs(x), 'f', dec);
-    return (x < 0 ? QString(QChar(0x2212)) : (plus && x > 0 ? QStringLiteral("+") : QString())) + body;
+    return plus ? pinpoint::figures::figSigned(v, dec) : pinpoint::figures::fig(v, dec);
 }
 
 inline QString formatValue(const QVariant &v, const QString &fmt, const GateEntry &e, const QVariantMap &ev, int depth);
@@ -519,7 +517,6 @@ inline bool fill(const QString &tpl, const GateEntry &e, const QVariantMap &ev, 
 
 inline QString formatValue(const QVariant &v, const QString &fmt, const GateEntry &e, const QVariantMap &ev, int depth)
 {
-    const QChar nb(0x00A0);
     if (fmt == QLatin1String("code")) {
         const QString phrase = e.codes.value(v.toString());
         if (phrase.isEmpty() || depth > 2) return v.toString();
@@ -531,19 +528,29 @@ inline QString formatValue(const QVariant &v, const QString &fmt, const GateEntr
     if (v.typeId() == QMetaType::QString) return v.toString();
     if (v.typeId() == QMetaType::Bool) return v.toBool() ? QStringLiteral("on") : QStringLiteral("off");
     const double d = v.toDouble();
-    if (fmt == QLatin1String("t"))   return minusSigned(d, 0, true) + nb + QStringLiteral("ms");
-    if (fmt == QLatin1String("ms"))  return minusSigned(d, 0, false) + nb + QStringLiteral("ms");
-    if (fmt == QLatin1String("deg")) return minusSigned(d, 0, false) + QStringLiteral("°");
-    if (fmt == QLatin1String("mph")) return minusSigned(d, 0, false) + nb + QStringLiteral("mph");
-    if (fmt == QLatin1String("px"))  return minusSigned(d, 0, false) + nb + QStringLiteral("px");
-    if (fmt == QLatin1String("pct")) return minusSigned(d * 100.0, 0, false) + QStringLiteral("%");   // a fraction 0..1
-    if (fmt == QLatin1String("cm"))  return minusSigned(d, 0, false) + nb + QStringLiteral("cm");
-    if (fmt == QLatin1String("in"))  return minusSigned(d, 1, false) + nb + QStringLiteral("in");
+    // each figure joined to its unit by the app's one rule (Core/figure_format.h withUnit)
+    using pinpoint::figures::withUnit;
+    if (fmt == QLatin1String("t"))   return withUnit(minusSigned(d, 0, true), QStringLiteral("ms"));
+    if (fmt == QLatin1String("ms"))  return withUnit(minusSigned(d, 0, false), QStringLiteral("ms"));
+    if (fmt == QLatin1String("deg")) return withUnit(minusSigned(d, 0, false), QStringLiteral("°"));
+    if (fmt == QLatin1String("mph")) return withUnit(minusSigned(d, 0, false), QStringLiteral("mph"));
+    if (fmt == QLatin1String("px"))  return withUnit(minusSigned(d, 0, false), QStringLiteral("px"));
+    if (fmt == QLatin1String("pct")) return withUnit(minusSigned(d * 100.0, 0, false), QStringLiteral("%"));   // a fraction 0..1
+    if (fmt == QLatin1String("cm"))  return withUnit(minusSigned(d, 0, false), QStringLiteral("cm"));
+    if (fmt == QLatin1String("in"))  return withUnit(minusSigned(d, 1, false), QStringLiteral("in"));
     const bool whole = std::fabs(d - std::round(d)) < 1e-9;
     return minusSigned(d, whole ? 0 : 2, false);
 }
 
 } // namespace detail
+
+// One tuned threshold as the reader sees it: "20°", "47 ms", "0.3" (a ratio); whole values whole, else two
+// decimals; the unit by the one rule (Core/figure_format.h withUnit). A "switch" is the caller's to word.
+inline QString tuningValue(const GateTuning &t)
+{
+    const bool whole = std::fabs(t.value - std::round(t.value)) < 1e-9;
+    return pinpoint::figures::withUnit(detail::minusSigned(t.value, whole ? 0 : 2, false), t.unit);
+}
 
 // The record's evidence sentence: the entry's template, optional `[ … ]` blocks dropped when a key
 // inside is missing.
@@ -661,11 +668,8 @@ inline QVariantMap gateItem(const GateEntry &e, const QString &effect, const QVa
         return x;
     };
     QStringList tun;
-    for (const GateTuning &t : e.tuning) {
-        if (t.unit == QLatin1String("switch")) continue;
-        const QString v = detail::minusSigned(t.value, std::fabs(t.value - std::round(t.value)) < 1e-9 ? 0 : 2, false);
-        tun << (t.unit == QStringLiteral("°") ? v + t.unit : t.unit.isEmpty() ? v : v + QChar(0x00A0) + t.unit);
-    }
+    for (const GateTuning &t : e.tuning)
+        if (t.unit != QLatin1String("switch")) tun << tuningValue(t);
     return { { QStringLiteral("gate"), e.id },
              { QStringLiteral("effect"), effect },
              { QStringLiteral("effectWord"), effectWord(effect) },

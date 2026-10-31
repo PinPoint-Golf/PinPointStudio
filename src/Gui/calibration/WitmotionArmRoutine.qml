@@ -25,26 +25,23 @@
 // calibrationAngleValid), none of which exist on a HackMotion — which is why the host
 // picks this routine or HackMotionArmRoutine by vendor and never mixes them.
 //
-// NON-VISUAL. Inputs are injected: the guide (CalibrationGuide, R9), the segments
-// { a, b, c } (the forearm, hand and upper-arm UNITS — for a Witmotion each unit is its
-// own device), and the pace. ⚠ R3: every Timer.running and Connections.enabled below is
-// ANDed with `active` — never `visible`, never a step index. A routine runs only while
-// `active && <begin() called and stop() not>`; active going false is stop("inactive").
+// NON-VISUAL, on CalibrationRoutineBase (the host contract, the entry points, the pace, the
+// app log and the guide's finished(); this file is the state machine). Injected: the guide
+// (CalibrationGuide, R9), the segments { a, b, c } (the forearm, hand and upper-arm UNITS — for a
+// Witmotion each unit is its own device), and the pace. ⚠ R3: every Timer.running and
+// Connections.enabled below is ANDed with `active` — never `visible`, never a step index.
 //
 // Every stage change and every entry point writes ONE line to the app log (R10).
 import QtQuick
 
-QtObject {
+CalibrationRoutineBase {
     id: r
 
-    // ── Inputs ────────────────────────────────────────────────────────────────
-    property bool active: false
-    property var  guide: null
-    property var  segments: null          // { a, b, c } — A forearm (anchor), B hand, C upper arm
-    property bool rightHanded: true
+    // segments: { a, b, c } — A forearm (anchor), B hand, C upper arm
+    logName: "witmotion"
 
     // Every duration, in ms, and `scale` (1 in the app; tests set it, lint W7).
-    readonly property var defaultPace: ({
+    defaultPace: ({
         introStart:        3000,   // after the guide is ready, before the intro guide
         introAnim:         3000,   // the intro guide, up and then down
         introReady:        2000,   // settle before phase 1
@@ -56,17 +53,9 @@ QtObject {
         raiseReady:        2000,   // settle before phase 2
         scale:             1
     })
-    property var pace: defaultPace
-    readonly property var _p: {
-        var o = {}, k
-        for (k in defaultPace) o[k] = defaultPace[k]
-        if (pace) for (k in pace) o[k] = pace[k]
-        return o
-    }
-    function _ms(name) { return Math.round(_p[name] * _p.scale) }
 
     // ── Outputs ───────────────────────────────────────────────────────────────
-    readonly property string stage: {
+    stage: {
         if (calibrationDone)   return "done"
         if (mountFailed)       return "mountFailed"
         if (calibrationFailed) return "failed"
@@ -79,18 +68,11 @@ QtObject {
         }
         return "phase2"
     }
-    readonly property bool   done:        calibrationDone
-    readonly property bool   failed:      calibrationFailed
-    readonly property int    phase:       calibPhase
-    readonly property string message:     mountFailed ? mountFailMsg : ""
-    readonly property string messageKind: (mountFailed || calibrationFailed) ? "error" : ""
+    failed:      calibrationFailed
+    phase:       calibPhase
+    message:     mountFailed ? mountFailMsg : ""
+    messageKind: (mountFailed || calibrationFailed) ? "error" : ""
     readonly property real   captureHoldMs: _captureHoldMs
-
-    signal completed()
-
-    // True between begin() and stop() (it outlives done and the failures, which are
-    // stages of a run; only stop() and restore() end one).
-    property bool _running: false
 
     // ── State (relocated from the flow's `d`) ─────────────────────────────────
     // phase 0 — user holds lead arm straight down; wait for IMU stable
@@ -102,7 +84,6 @@ QtObject {
     // Captured reference quaternions from the lead-arm IMU.
     property var  calibArmDownQuat:  null   // phase 0 — arm relaxed at side
     property var  calibArmTPoseQuat: null   // phase 2 — arm raised to T-pose
-    property bool calibrationDone:   false
     // Diagnostic — Euler angles at each calibration capture (cleared by _reset)
     property var calibArmDownEuler:  null   // { roll, pitch, yaw } at arm-down capture
     property var calibArmTPoseEuler: null   // { roll, pitch, yaw } at T-pose capture
@@ -112,11 +93,7 @@ QtObject {
         ? Qt.quaternion( 0.9948, -0.0105, -0.0011,  0.1012)   // left arm
         : Qt.quaternion( 0.9948, -0.0105,  0.0011, -0.1011)   // right arm
 
-    // Arm-down: shoulder-local +Z = world -Y (verified by computing
-    // shoulder.rotation * (0,0,1) for both left and right shoulders).
-    // Rotating armNode's +Y to shoulder-local +Z = R_x(+90°) for both arms.
-    // The mirror symmetry of the shoulder nodes means both use the same value.
-    readonly property quaternion leadArmDownQuat:  Qt.quaternion(0.7071, 0.7071, 0, 0)
+    // Arm-down (leadArmDownQuat) is the base's: the rest pose both arm routines share.
 
     // ── Segments ──────────────────────────────────────────────────────────────
     // ⚠ UNITS. For a Witmotion the unit IS the peripheral, so imuConnected is asked of the
@@ -153,8 +130,7 @@ QtObject {
     property var _refA: null
     property var _refB: null
     property var _refC: null
-    // Mount validation outcome (set at phase-2 completion).
-    property bool   mountFailed: false
+    // Mount validation outcome (set at phase-2 completion), with `mountFailed`.
     property string mountFailMsg: ""
 
     // Phase 2: accumulate stable hold duration (target _captureHoldMs).
@@ -230,48 +206,24 @@ QtObject {
     property bool _captureTransitionArmed: false
     property bool _raiseReadyArmed:        false
 
-    function _log(text) { appLog.info("Calib", "witmotion " + text) }
-    // Created idle; every stage the routine moves to after that is one line.
-    property bool _created: false
-    Component.onCompleted: _created = true
-    onStageChanged: if (_created) _log("stage=" + stage)
-
+    // Completed: the moment calibrationDone goes true (a restore included — the host tells the two
+    // apart, ImuCalibrationFlow._restoring).
     onCalibrationDoneChanged: if (calibrationDone) r.completed()
 
-    // ── Entry points ──────────────────────────────────────────────────────────
-    // A fresh run: clears every connected segment's calibration, as the flow's
-    // begin() always did, then the chain starts from the intro.
-    function begin() {
-        _log("begin")
-        _reset()
-        _running = true
-    }
+    // ── Entry points (CalibrationRoutineBase: begin, stop, reset, restore) ────
+    // begin() / reset(): clears every connected segment's calibration, as the flow's begin()
+    // always did; a begin's chain then starts from the intro.
+    on_Clearing: _reset()
 
-    // Leave: every timer off, the guide stopped, the stage back to idle (unless done).
-    // Nothing on the sensors is cleared or written.
-    function stop(reason) {
-        if (!_running) return
-        var was = stage
-        _disarm()
-        _running = false
-        if (guide) guide.cancel()
-        if (!calibrationDone) _resetState()
-        _log("stop reason=" + reason + " stage=" + was)
-    }
+    // stop(): every timer off (while the run is still live, as it always was); then the stage back
+    // to idle (unless done). Nothing on the sensors is cleared or written.
+    on_Stopping: _disarm()
+    on_Stopped:  if (!calibrationDone) _resetState()
 
-    // The host's reset(): the clear begin() does, without starting a run.
-    function reset() {
-        _log("reset")
-        _running = false
-        if (guide) guide.cancel()
-        _reset()
-    }
-
-    // Restore the completed state WITHOUT re-running — used on backward nav into
-    // the wizard step, or when the lead IMU is already calibrated this session.
-    // Consolidates the wizard's two former restore branches; both ended in the
-    // same visible state (phase 2, progress full, done).
-    function restore() {
+    // restore(): the completed state WITHOUT re-running — used on backward nav into the wizard
+    // step, or when the lead IMU is already calibrated this session. Consolidates the wizard's two
+    // former restore branches; both ended in the same visible state (phase 2, progress full, done).
+    on_Restoring: {
         var imu = leadImu
         if (imu !== null && imu.calibrated) {
             calibArmDownQuat  = imu.calibArmDown
@@ -290,8 +242,6 @@ QtObject {
         _armDownCaptured   = true
         _phase1MinHoldDone = true
         calibrationDone    = true
-        _running           = false
-        _log("restore done=" + calibrationDone)
     }
 
     function _disarm() {
@@ -356,8 +306,6 @@ QtObject {
         calibArmTPoseEuler = null
     }
 
-    onActiveChanged: if (!active) stop("inactive")
-
     // ── Timers and connections (named properties: the test driver finds each by name) ──
 
     // Phase 2 hold timer.
@@ -407,6 +355,8 @@ QtObject {
                     var s2 = segs[k][0], ref = segs[k][1]
                     if (!ref) continue
                     s2.refineMountAboutLongAxis(ref, r._phiFromAbduction(s2), false)
+                    // ImuInstance::kMountDeviationMaxDeg / kMountGravityErrorMaxDeg (imu_instance.h),
+                    // which QML cannot read — lint W11 holds the two literals equal to them.
                     var ok = s2.mountDeviationDeg <= 15.0 && s2.mountGravityErrorDeg <= 25.0
                     if (!ok) { allPass = false; failNames.push(nameFor(s2)) }
                 }
@@ -457,26 +407,22 @@ QtObject {
         }
     }
 
-    // Guide-animation completion chain: each stage advances when the guide has
-    // actually FINISHED drawing (BodyVizView signals the slerp's end), so a
-    // stalled renderer delays the chain instead of being outrun by it.
-    property Connections _guideFinished: Connections {
-        target:  r.guide
-        enabled: r.active && r._running
-        function onFinished() {
-            if (r._animStage === "introUp") {
-                // Lower the arm back to rest at the same speed. The return starts
-                // from the top.
-                r._animStage = "introDown"
-                r.guide.pose(r.tPoseQuat)
-                r.guide.animate(r.leadArmDownQuat, undefined, r._ms("introAnim"))
-            } else if (r._animStage === "introDown") {
-                r._animStage = ""
-                r._introReadyArmed = true   // 2s settle pause, then phase 1
-            } else if (r._animStage === "raise") {
-                r._raiseReadyArmed = true   // 2s settle pause, then phase 2
-                r._animStage = ""
-            }
+    // Guide-animation completion chain (the base's _guideFinished): each stage advances when the
+    // guide has actually FINISHED drawing, so a stalled renderer delays the chain instead of
+    // being outrun by it.
+    on_GuideDone: {
+        if (r._animStage === "introUp") {
+            // Lower the arm back to rest at the same speed. The return starts
+            // from the top.
+            r._animStage = "introDown"
+            r.guide.pose(r.tPoseQuat)
+            r.guide.animate(r.leadArmDownQuat, undefined, r._ms("introAnim"))
+        } else if (r._animStage === "introDown") {
+            r._animStage = ""
+            r._introReadyArmed = true   // 2s settle pause, then phase 1
+        } else if (r._animStage === "raise") {
+            r._raiseReadyArmed = true   // 2s settle pause, then phase 2
+            r._animStage = ""
         }
     }
 

@@ -29,17 +29,15 @@ import PinPointStudio
 // `camData` is grouped by the wire's `source_id` and carries the full device id
 // ("ppcp:<peer_id>/<source_id>") that VideoInputPpcp::deviceIdFor() builds, so a
 // phone offering two Sources always shows two rows.
-Rectangle {
+RmZebraRow {
     id: root
 
     property var  camData
-    property bool isAlternate: false
 
     readonly property bool haveData: camData !== null && camData !== undefined
     readonly property string errText: haveData && camData.lastStreamError ? camData.lastStreamError : ""
 
     height: Theme.sp(38) + (errText !== "" ? errLbl.implicitHeight + Theme.sp(4) : 0)
-    color: isAlternate ? Theme.colorBg : Theme.colorSurface
 
     // One counter, label above value — the same shape the STATS cells use.
     component Cell: Column {

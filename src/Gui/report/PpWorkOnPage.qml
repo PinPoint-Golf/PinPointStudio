@@ -48,16 +48,15 @@ Column {
     // laid-out height (a one-shot check, so no binding loop), and only ever tightens: content that needs a second
     // page still flows onto it ("Work-on 3, continued").
     readonly property bool denseByContent: (causes.rows || []).length >= 2
-    property int squeeze: 0                             // 0 as laid out; 1 tight; 2 tighter (a second, last step)
+    PpReportSqueeze { id: fit; target: wp; pageH: wp.pageH; max: 2 }
+    readonly property int squeeze: fit.level            // 0 as laid out; 1 tight; 2 tighter (a second, last step)
     readonly property bool tight: squeeze > 0
     property real pageH: 950
     readonly property bool dense: denseByContent || tight
     readonly property real lead: squeeze > 1 ? 1.2 : tight ? 1.24 : 1.32
     function gap(n) { return squeeze > 1 ? Math.round(n * 0.4) : tight ? Math.round(n * 0.55) : (dense ? Math.round(n * 0.8) : n) }
     readonly property font bodyFont: dense ? ro.fBodyD : ro.fBody
-    Timer { id: fitCheck; interval: 40; onTriggered: if (wp.squeeze < 2 && wp.height > wp.pageH + 1 && wp.height <= wp.pageH * 1.2) wp.squeeze++ }
-    onHeightChanged: fitCheck.restart()
-    onWoChanged: squeeze = 0
+    onWoChanged: fit.level = 0
     width: 600
 
     // the labelled paragraphs' label column: sized from the widest label (it wraps beyond 12 em)
@@ -68,31 +67,15 @@ Column {
         return Math.min(12 * ro.em, w + 2.5 * ro.em)
     }
 
-    // A labelled paragraph: the label in the margin column (or above, `stacked`), the text in the measure.
-    component Para: Item {
-        id: pa
-        property QtObject ro: null
-        property string label: ""
-        property string text: ""
-        property real labelW: 118
-        property bool stacked: false
-        property bool bold: false
-        property bool dense: false
-        property real lead: 1.32
-        property bool atom: true
-        width: 300
-        visible: text !== ""
-        height: visible ? (stacked ? pl.height + 4 + pt.height : Math.max(pl.height, pt.height)) : 0
-        Text { id: pl; y: pa.stacked ? 0 : 2; width: pa.stacked ? pa.width : pa.labelW - 12; text: pa.label; font: pa.ro.fLabel; color: pa.ro.ink; wrapMode: Text.WordWrap }
-        Text { id: pt; x: pa.stacked ? 0 : pa.labelW; y: pa.stacked ? pl.height + 4 : 0; width: pa.width - x; text: pa.text
-               textFormat: Text.StyledText; font: pa.bold ? (pa.dense ? pa.ro.fBodyDM : pa.ro.fBodyM) : (pa.dense ? pa.ro.fBodyD : pa.ro.fBody); color: pa.ro.ink; wrapMode: Text.WordWrap; lineHeight: pa.lead }
-    }
-
-    // The run of the swings against the target range: one dot per swing (fired filled warn, clean a ring, not
-    // measured a stub on the baseline), the range as the accent wash with its edges ticked.
+    // The run of the swings against the target range: the Charts run (PpChRunBox) in the Charts print roles — a mark per
+    // swing (warn where it fired), a stub on the foot where it could not be measured, the swing numbers thinned as on
+    // screen — with the target range as the accent wash, its edges ticked on the value axis and labelled at the right;
+    // the figure's label under it. The run's scale holds the swings and the range (8 % of room). It keeps the height the
+    // page always gave it (the plot plus the swing numbers, and the label's line), so the page breaks do not move.
     component RunChart: Item {
         id: rc
         property QtObject ro: null
+        property QtObject roles: null
         property var fig: ({})
         property string label: ""
         property real plotH: 92
@@ -102,84 +85,45 @@ Column {
             const g = (fig.bands || []).filter(b => b.grade === "ideal" || b.grade === "good")
             return g.length ? { lo: Math.min.apply(null, g.map(b => b.lo)), hi: Math.max.apply(null, g.map(b => b.hi)) } : null
         }
-        readonly property var vals: pts.filter(p => p.value !== null && p.value !== undefined && isFinite(p.value)).map(p => p.value)
+        readonly property var vals: pts.filter(p => roles.fin(p.value)).map(p => p.value)
         readonly property var span: {
             const all = vals.concat(target ? [target.lo, target.hi] : [])
             if (!all.length) return { lo: 0, hi: 1 }
             const lo = Math.min.apply(null, all), hi = Math.max.apply(null, all), pad = Math.max(1e-6, (hi - lo) * 0.08)
             return { lo: lo - pad, hi: hi + pad }
         }
-        readonly property real px0: 34
-        readonly property real pw: width - px0 - 62
-        readonly property real pitch: pw / Math.max(1, pts.length)
-        readonly property real dot: Math.max(4, Math.min(9, pitch * 0.9))
-        readonly property int step: { for (const s of [1, 2, 5, 10, 20]) if (s * pitch >= 16) return s; return 50 }
-        function fx(i) { return px0 + (i + 0.5) * pitch }
-        function fy(v) { return plotH * (1 - (v - span.lo) / (span.hi - span.lo)) }
+        // the run in PpChRunBox's shape: a point's place is its order, its label the report's swing number
+        readonly property var run: ({ readingId: "workOnRun", key: "", unit: "", unitText: "", caption: "", yRange: span, box: null, drift: null,
+                                      points: pts.map((p, i) => ({ ordinal: i + 1, label: p.swing, value: roles.fin(p.value) ? p.value : null,
+                                                                   measured: roles.fin(p.value), fired: p.state === "fired" })) })
+        // the value axis: the target range's edges inside the scale, in the run's unit when it is short ("°", "%")
+        // the figure by the house rule (PpTypeset.figure: U+2212, never "−0"); a short unit closed up after it
         function tick(v) {
             const d = Math.abs(v - Math.round(v)) < 1e-6 ? 0 : Math.max(0, fig.decimals || 0)
-            const s = Math.abs(v).toFixed(d)
             const u = String(fig.unit || "")
-            return (v < 0 ? "−" : "") + s + (u.length <= 2 ? u : "")
+            return rc.roles.figure(v, d) + (u.length <= 2 ? u : "")
         }
-        Rectangle {
-            visible: !!rc.target
-            x: rc.px0; width: rc.pw
-            y: rc.target ? rc.fy(Math.min(rc.span.hi, rc.target.hi)) : 0
-            height: rc.target ? rc.fy(Math.max(rc.span.lo, rc.target.lo)) - y : 0
-            color: rc.ro.wash
-            Rectangle { width: parent.width; height: rc.ro.hw; color: Qt.alpha(rc.ro.accent, 0.5) }
-            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: rc.ro.hw; color: Qt.alpha(rc.ro.accent, 0.5) }
+        function ticks(lo, hi, n, unit) {
+            return rc.target ? [rc.target.lo, rc.target.hi].filter(v => v > rc.span.lo && v < rc.span.hi).map(v => ({ v: v, text: rc.tick(v) })) : []
         }
-        Text {
-            visible: !!rc.target
-            x: rc.px0 + rc.pw + 8
-            y: rc.target ? (rc.fy(Math.min(rc.span.hi, rc.target.hi)) + rc.fy(Math.max(rc.span.lo, rc.target.lo))) / 2 - height / 2 : 0
-            text: "target\nrange"; font: rc.ro.fMicro; color: rc.ro.accent; lineHeight: 1.1
+        PpChRunBox {
+            width: parent.width
+            roles: rc.roles; brush: null; ticker: rc; interactive: false
+            run: rc.run; showCaption: false; showBox: false
+            // the plot fills the height the old chart had: less the run's own head room and its swing-number line
+            plotH: rc.plotH + 20 - rc.roles.u(6) - rc.roles.u(22)
+            band: rc.target ? { lo: rc.target.lo, hi: rc.target.hi, label: "target\nrange" } : null
+            bandFill: rc.ro.wash; bandEdge: Qt.alpha(rc.ro.accent, 0.5); bandInk: rc.ro.accent
         }
-        Repeater {
-            model: rc.target ? [rc.target.lo, rc.target.hi].filter(v => v > rc.span.lo && v < rc.span.hi) : []
-            delegate: Text {
-                required property var modelData
-                x: 0; width: rc.px0 - 6; horizontalAlignment: Text.AlignRight
-                y: rc.fy(modelData) - height / 2
-                text: rc.tick(modelData); font: rc.ro.fFigS; color: rc.ro.ink3
-            }
-        }
-        Rectangle { x: rc.px0; y: rc.plotH; width: rc.pw; height: rc.ro.hw; color: rc.ro.hair }
-        Repeater {
-            model: rc.pts
-            delegate: Item {
-                required property var modelData
-                required property int index
-                readonly property bool measured: modelData.value !== null && modelData.value !== undefined && isFinite(modelData.value)
-                PpSwingGrid.SwingMark {
-                    ro: rc.ro
-                    x: rc.fx(index) - width / 2
-                    y: parent.measured ? rc.fy(modelData.value) - height / 2 : rc.plotH - 6
-                    state: parent.measured ? (modelData.state || "clean") : "na"; d: rc.dot
-                }
-                Text {
-                    visible: index === 0 || (index + 1) % rc.step === 0
-                    x: rc.fx(index) - width / 2; y: rc.plotH + 5
-                    text: modelData.swing; font: rc.ro.fFigS; color: rc.ro.ink3
-                }
-            }
-        }
-        Text { visible: rc.label !== ""; x: rc.px0; y: rc.plotH + 20; width: rc.width - rc.px0; text: rc.label; font: rc.ro.fFolio; color: rc.ro.ink3; wrapMode: Text.WordWrap }
+        Text { visible: rc.label !== ""; x: 34; y: rc.plotH + 20; width: rc.width - x; text: rc.label; font: rc.ro.fFolio; color: rc.ro.ink3; wrapMode: Text.WordWrap }
     }
 
     // ═══ the head: kicker, the goal, the coach's term ═══
-    Column {
+    PpReportSectionHead {
         objectName: "reportWorkOn" + wp.rank
-        property bool atom: true
-        property bool breakBefore: true
-        property bool keepNext: true
-        property string section: "Work-on " + wp.rank
+        ro: wp.ro; kicker: wp.wo.kicker || ""; title: wp.wo.goal || wp.wo.name || ""; showStandfirst: false
+        section: "Work-on " + wp.rank
         width: wp.width
-        Text { width: parent.width; text: wp.wo.kicker || ""; font: wp.ro.fKicker; color: wp.ro.accent; wrapMode: Text.WordWrap }
-        Item { width: 1; height: 6 }
-        Text { width: parent.width; text: wp.wo.goal || wp.wo.name || ""; font: wp.ro.fH1; color: wp.ro.ink; wrapMode: Text.WordWrap; lineHeight: 1.08 }
         Item { width: 1; height: 5; visible: !!wp.wo.coachTerm }
         Text { visible: !!wp.wo.coachTerm; width: parent.width; text: wp.wo.coachTerm || ""; textFormat: Text.StyledText
                font: wp.ro.fSmall; color: wp.ro.ink3; wrapMode: Text.WordWrap }
@@ -211,9 +155,9 @@ Column {
             id: sawCol
             x: stillRow.visible ? stillRow.width + 24 : 0
             width: wp.width - x; spacing: wp.gap(12)
-            Para { ro: wp.ro; dense: wp.dense; lead: wp.lead; label: "What we saw"; text: wp.wo.saw || ""; stacked: true; width: parent.width }
-            RunChart { visible: !!wp.wo.figure && (wp.wo.figure.points || []).length > 0; width: parent.width; ro: wp.ro; plotH: wp.squeeze > 1 ? 54 : wp.tight ? 62 : wp.dense ? 76 : 92; fig: wp.wo.figure || ({}); label: wp.wo.figureLabel || "" }
-            Para { ro: wp.ro; dense: wp.dense; lead: wp.lead; label: "Why it matters"; text: wp.wo.why || ""; stacked: true; width: parent.width }
+            PpReportPara { ro: wp.ro; dense: wp.dense; lead: wp.lead; label: "What we saw"; text: wp.wo.saw || ""; stacked: true; width: parent.width }
+            RunChart { visible: !!wp.wo.figure && (wp.wo.figure.points || []).length > 0; width: parent.width; ro: wp.ro; roles: chRoles; plotH: wp.squeeze > 1 ? 54 : wp.tight ? 62 : wp.dense ? 76 : 92; fig: wp.wo.figure || ({}); label: wp.wo.figureLabel || "" }
+            PpReportPara { ro: wp.ro; dense: wp.dense; lead: wp.lead; label: "Why it matters"; text: wp.wo.why || ""; stacked: true; width: parent.width }
         }
     }
 
@@ -223,7 +167,7 @@ Column {
         width: wp.width; height: visible ? wp.gap(24) + 1 : 0
         Rectangle { y: wp.gap(12); width: parent.width; height: wp.ro.hw; color: wp.ro.hair }
     }
-    Para { objectName: "reportCameWith" + wp.rank; ro: wp.ro; dense: wp.dense; lead: wp.lead; label: "What came with it"; text: wp.wo.cameWith || ""; labelW: wp.labelW; width: wp.width }
+    PpReportPara { objectName: "reportCameWith" + wp.rank; ro: wp.ro; dense: wp.dense; lead: wp.lead; label: "What came with it"; text: wp.wo.cameWith || ""; labelW: wp.labelW; width: wp.width }
 
     // ═══ what might be behind it (§3.3): the lead for the case, then each group ═══
     Item { width: 1; height: wp.gap(14); visible: !!wp.wo.cameWith && causesHead.visible }
@@ -276,7 +220,7 @@ Column {
         width: wp.width; height: visible ? todo.height + wp.gap(30) : 0
         Text { id: todo; y: wp.gap(18); text: "What to do"; font: wp.ro.fH2; color: wp.ro.ink }
     }
-    Para { objectName: "reportFeel" + wp.rank; ro: wp.ro; dense: wp.dense; lead: wp.lead; label: "The feel"; text: wp.wo.cue ? "<i>" + wp.wo.cue + "</i>" : ""; labelW: wp.labelW; width: wp.width }
+    PpReportPara { objectName: "reportFeel" + wp.rank; ro: wp.ro; dense: wp.dense; lead: wp.lead; label: "The feel"; text: wp.wo.cue ? "<i>" + wp.wo.cue + "</i>" : ""; labelW: wp.labelW; width: wp.width }
     Item { width: 1; height: wp.gap(12); visible: !!wp.wo.cue && drill.visible }
     PpDrillCard {
         id: drill
@@ -286,7 +230,11 @@ Column {
         also: wp.drills.length > 1 ? wp.drills[1] : null
     }
     Item { width: 1; height: wp.gap(14); visible: !!wp.wo.check && (drill.visible || !!wp.wo.cue) }
-    Para { objectName: "reportCheck" + wp.rank; ro: wp.ro; dense: wp.dense; lead: wp.lead; label: "Check it yourself"; text: wp.wo.check || ""; labelW: wp.labelW; width: wp.width }
+    PpReportPara { objectName: "reportCheck" + wp.rank; ro: wp.ro; dense: wp.dense; lead: wp.lead; label: "Check it yourself"; text: wp.wo.check || ""; labelW: wp.labelW; width: wp.width }
     Item { width: 1; height: wp.gap(10); visible: !!wp.wo.target }
-    Para { objectName: "reportNextTime" + wp.rank; ro: wp.ro; dense: wp.dense; lead: wp.lead; label: "Next time"; text: wp.wo.target || ""; bold: true; labelW: wp.labelW; width: wp.width }
+    PpReportPara { objectName: "reportNextTime" + wp.rank; ro: wp.ro; dense: wp.dense; lead: wp.lead; label: "Next time"; text: wp.wo.target || ""; bold: true; labelW: wp.labelW; width: wp.width }
+
+    // the Charts print roles in Folio light, for the run (PpChRunBox and its marks). LAST in the Column: children are
+    // destroyed first-declared first, so the run goes before its roles (see PpPosturePage).
+    PpChRoles { id: chRoles; medium: "print"; fixedAesthetic: "folio" }
 }

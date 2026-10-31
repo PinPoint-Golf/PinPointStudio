@@ -313,11 +313,8 @@ Item {
         const u = v ? String(v.unit) : ""
         return u === "ratio" ? 2 : (u === "rpm" || u === "mm" || u === "ft") ? 0 : 1
     }
-    function fmtKey(key, x) {
-        if (!isFinite(x)) return "-"
-        const d = decimalsOf(key), a = Math.abs(x).toFixed(d)
-        return (x < 0 && Number(a) !== 0 ? "−" : "") + a
-    }
+    // the figure itself by the house rule (PpTypeset's figure, figure_format.h's fig): U+2212, no "−0", "-" when missing
+    function fmtKey(key, x) { return ts.figure(x, decimalsOf(key)) }
     // ═══ DIRECTION WORDS (Mark: "words are clearer than symbols") ═══
     // LR: path, face, start, offline, spin axis, side spin → "2.3 R" / "1.3 L" (a side letter, target-relative);
     // UD: attack, lie → "0.2 DOWN" / "1.6 UP" (lie: toe up); OC: face to path → "1.2 OPEN" / "CLOSED";
@@ -529,8 +526,7 @@ Item {
         readonly property bool shortWin: height / root.em < root.lr.shortWinEm && rowsFor(root.heroTiles.length, mainW) > 1
         readonly property var tileDefs: root.heroTiles.filter(d => ts.shows(d.tier, pw) && !(shortWin && d.tier > 1))
         readonly property var foldedDefs: root.heroTiles.filter(d => !(ts.shows(d.tier, pw) && !(shortWin && d.tier > 1)))
-        function rowsFor(n, w) { const fit = ts.columns(w, root.lr.tileMinEm, root.tileGap)
-                                 const c = Math.max(1, fit >= n ? n : fit >= Math.ceil(n / 2) ? Math.ceil(n / 2) : Math.ceil(n / 4)); return Math.ceil(n / c) }
+        function rowsFor(n, w) { return Math.ceil(n / ts.wrapColumns(n, ts.columns(w, root.lr.tileMinEm, root.tileGap))) }
         readonly property real chromeH: (showTabs ? tabsTop.height : 0) + headRow.height + (notesBar.visible ? notesBar.height + gut * 0.6 : 0) + gut * 1.2
         // round 4b, This shot: the tiles first (the glance, always in view), then the club & impact figures in the height
         // left, then the flight in whatever room the club leaves (shotLayout)
@@ -953,7 +949,7 @@ Item {
         readonly property var alsoList: folded.concat(extra)
         readonly property int n: defs.length
         readonly property int fit: h.ts.columns(width, h.lr.tileMinEm, h.tileGap)
-        readonly property int cols: Math.max(1, fit >= n ? n : fit >= Math.ceil(n / 2) ? Math.ceil(n / 2) : Math.ceil(n / 4))
+        readonly property int cols: h.ts.wrapColumns(n, fit)
         readonly property real cw: (width - (cols - 1) * h.tileGap) / cols
         spacing: h.ts.u(5)
         Item {
@@ -1272,9 +1268,8 @@ Item {
         property string sub: ""
         readonly property QtObject t: h ? h.ts : null
         height: t ? hht.height + t.u(7) : 0
-        Text { id: hht; visible: !!hh.t; text: hh.title; font: hh.t ? hh.t.fSection : Qt.font({}); color: hh.t ? hh.t.ink : "transparent" }
-        Text { visible: !!hh.t; anchors.left: hht.right; anchors.leftMargin: hh.t ? hh.t.u(10) : 0; anchors.baseline: hht.baseline; width: hh.width - x
-               text: hh.sub; font: hh.t ? hh.t.fMicro : Qt.font({}); color: hh.t ? hh.t.ink3 : "transparent"; elide: Text.ElideNone; wrapMode: Text.NoWrap; clip: true }
+        PpSectionHead { id: hht; visible: !!hh.t; width: parent.width; roles: hh.t; paged: false; pad: 0
+                        title: hh.title; sub: hh.sub; subFont: hh.t ? hh.t.fMicro : Qt.font({}); subFit: "baseline"; subClip: true }
         Rectangle { visible: !!hh.t; anchors.bottom: parent.bottom; anchors.bottomMargin: hh.t ? hh.t.u(3) : 0; width: parent.width; height: hh.t ? hh.t.hw : 0; color: hh.t ? hh.t.rule : "transparent" }
     }
     // BALL: the dispersion (+ launch × spin beside it when the half has lr.lsPairEm), then six consistency tiles
@@ -1516,13 +1511,12 @@ Item {
             return out
         }
         spacing: h.ts.u(6)
-        Column {
-            visible: !lb.bare; width: parent.width; spacing: lb.h.ts.u(3)
-            Rectangle { width: parent.width; height: lb.h.ts.r.figureRuleTop; color: lb.h.ts.rule }
-            Flow { width: parent.width; spacing: lb.h.ts.u(10)
-                Text { id: lbt; text: lb.title ? lb.title : lb.indexMode ? "Every reading on shot " + lb.h.headNo : "Every reading, against the session"; font: lb.h.ts.fSection; color: lb.h.ts.ink }
-                Text { text: (lb.indexMode ? lb.h.readingN + " readings" : "shot " + lb.h.headNo + " against the " + lb.h.ts.word(lb.h.scopeN) + " " + (lb.h.focusClub ? lb.h.focusClub.name : "") + " shots") + "  ·  " + lb.h.corridorLine
-                       font: lb.h.ts.fMicro; color: lb.h.outKeys.length ? lb.h.ts.warn : lb.h.ts.ink3; height: lbt.height; verticalAlignment: Text.AlignVCenter } }
+        PpSectionHead {
+            visible: !lb.bare; width: parent.width; roles: lb.h.ts; paged: false; pad: 0
+            rule: true; ruleWeight: lb.h.ts.r.figureRuleTop; ruleGap: 3
+            title: lb.title ? lb.title : lb.indexMode ? "Every reading on shot " + lb.h.headNo : "Every reading, against the session"
+            sub: (lb.indexMode ? lb.h.readingN + " readings" : "shot " + lb.h.headNo + " against the " + lb.h.ts.word(lb.h.scopeN) + " " + (lb.h.focusClub ? lb.h.focusClub.name : "") + " shots") + "  ·  " + lb.h.corridorLine
+            subFont: lb.h.ts.fMicro; subColor: lb.h.outKeys.length ? lb.h.ts.warn : lb.h.ts.ink3; subWrap: false
         }
         Row {
             spacing: lb.gap
@@ -1542,8 +1536,9 @@ Item {
                             width: lcol.width
                             Item {
                                 width: parent.width; height: bh.height + lb.h.ts.u(10)
-                                Text { id: bh; anchors.bottom: parent.bottom; anchors.bottomMargin: lb.h.ts.u(3); text: bandCol.modelData.band; font: lb.h.ts.fSection; color: lb.h.ts.ink }
-                                Text { anchors.left: bh.right; anchors.leftMargin: lb.h.ts.u(8); anchors.baseline: bh.baseline; text: bandCol.modelData.count; font: lb.h.ts.fFigLabel; color: lb.h.ts.ink3 }
+                                PpSectionHead { id: bh; anchors.bottom: parent.bottom; anchors.bottomMargin: lb.h.ts.u(3); width: parent.width
+                                                roles: lb.h.ts; paged: false; pad: 0; gap: 8; title: bandCol.modelData.band
+                                                count: String(bandCol.modelData.count); countFont: lb.h.ts.fFigLabel; countOnBaseline: true }
                                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: lb.h.ts.hw; color: lb.h.ts.rule }
                             }
                             Repeater {
@@ -2683,7 +2678,7 @@ Item {
     }
     function swingDirOf(id) { for (const s of (shotList || [])) if (s.shotId === id) return s.swingDir || ""; return "" }
     function cardLine(s) {
-        const v = k => { const x = shotVal(s, k); return isFinite(x) ? (Math.abs(x) < 1e-9 ? "0" : (x < 0 ? "−" : "") + ts.num(Math.abs(x))) : "-" }
+        const v = k => ts.num(shotVal(s, k))           // the house figure: U+2212, a −0.03 is "0" (no direction), "-" when missing
         const p = []
         if (isFinite(s.carry)) p.push(ts.num(s.carry) + " yd carry")
         if (isFinite(s.offline)) p.push(dirStr("lm.offline", v("lm.offline")))

@@ -21,6 +21,7 @@
 #include "../../Coaching/diagnostic_ledger.h"
 #include "../../Diagnostics/norms/norm.h"
 #include "../typeset/box_stats.h"
+#include "../../Core/figure_format.h"
 
 #include <algorithm>
 #include <cmath>
@@ -388,29 +389,20 @@ inline std::vector<double> trailingMedians(const std::vector<double> &values, in
 //
 // ONE FORMATTER for every number these surfaces quote, so the strip's fault label, the hover
 // readout, the card's corridor sentence and the work-ons line cannot print the same edge two
-// ways. The true minus; a value that rounds to zero printed as 0, never "−0"; a space before a
-// worded unit ("13 % hand rise", "92 mph") and none before a degree sign ("13°"); and "-" where
-// there is no number (the panel's NA marker). Decimals come from the CALLER — an axis's span, or
-// a corridor's — and never from σ.
+// ways — and it is the app's one formatter (Core/figure_format.h), so they cannot differ from
+// the Charts panel or the report either. The true minus; a value that rounds to zero printed as
+// 0, never "−0"; "-" where there is no number. Decimals come from the CALLER — an axis's span, or
+// a corridor's — and never from σ. Kept under these names for Coaching/session_report.h.
 inline QString spreadNumber(double v, int decimals, bool trimZeros = false)
 {
-    if (!std::isfinite(v)) return QStringLiteral("-");
-    const double scale = std::pow(10.0, decimals);
-    double r = std::round(v * scale) / scale;
-    if (r == 0.0) r = 0.0;
-    QString n = QString::number(std::fabs(r), 'f', std::max(0, decimals));
-    if (trimZeros && n.contains(QLatin1Char('.'))) {
-        while (n.endsWith(QLatin1Char('0'))) n.chop(1);
-        if (n.endsWith(QLatin1Char('.'))) n.chop(1);
-    }
-    return r < 0.0 ? QString(QChar(0x2212)) + n : n;
+    return pinpoint::figures::fig(v, decimals, trimZeros);
 }
 
+// The figure and its unit by the one joining rule (figure_format.h withUnit): "13% hand rise",
+// "92 mph" with a no-break space, "13°".
 inline QString spreadWithUnit(const QString &number, const QString &unit)
 {
-    if (unit.isEmpty() || number == QLatin1String("-")) return number;
-    if (unit.startsWith(QChar(0x00B0))) return number + unit;
-    return number + QLatin1Char(' ') + unit;
+    return pinpoint::figures::withUnit(number, unit);
 }
 
 // THE CORRIDOR AS A SENTENCE, stating the two edges the strip draws: where the PASS band ends (the
@@ -418,7 +410,7 @@ inline QString spreadWithUnit(const QString &number, const QString &unit)
 // replaces "pass 0.0 to 4.3", which quoted the policy's Ideal band — mu to mu + σ — and so put a
 // number on the card that appears nowhere on the strip under it and is not where anything fires.
 //
-//   ceiling   "pass up to 8.7 · fault above 13 % hand rise"
+//   ceiling   "pass up to 8.7 · fault above 13% hand rise"
 //   floor     "pass from 1.3 up · fault below 1.2"
 //   twoSided  "pass 5 to 25 · fault outside 0 to 30 mm"
 //
@@ -460,7 +452,7 @@ inline QString spreadFaultWords(const SpreadCorridor &c, int side = 0)
 // band. The side that does not grade is inside the pass band — that is what not grading means.
 //
 // THE DISTANCE CARRIES NO UNIT. The readout already prints the reading with its unit one slot to
-// the left ("28 % hand rise · 15 past the fault line"); a second "% hand rise" on the distance
+// the left ("28% hand rise · 15 past the fault line"); a second "% hand rise" on the distance
 // doubled the line's length and said nothing the first one had not.
 inline QString spreadPositionWords(const SpreadCorridor &c, double v, int decimals)
 {
@@ -485,22 +477,13 @@ inline QString spreadPositionWords(const SpreadCorridor &c, double v, int decima
     return QStringLiteral("inside the pass band");
 }
 
-// ROUND TICKS for a value axis — the run's and the across-sessions chart's Y labels. A 1-2-5 step
-// chosen to land about `target` ticks inside the axis, every tick a multiple of the step so the
-// labels read 0 5 10 15, never 2.7 7.9 13.1. Values only; the caller formats them on the axis's
-// own decimals (spreadDecimals), never on σ.
+// ROUND TICKS for a value axis — the run's and the across-sessions chart's Y labels: the app's
+// one tick rule (figure_format.h tickValues, a 1-2-5 step for about `target` ticks), so the labels
+// read 0 5 10 15, never 2.7 7.9 13.1. Values only; the caller formats them on the axis's own
+// decimals (spreadDecimals), never on σ.
 inline std::vector<double> spreadTickValues(const SpreadAxis &a, int target = 5)
 {
-    std::vector<double> out;
-    const double span = a.hi - a.lo;
-    if (!(span > 0.0) || target < 1) return out;
-    const double raw  = span / double(target);
-    const double mag  = std::pow(10.0, std::floor(std::log10(raw)));
-    const double norm = raw / mag;
-    const double step = (norm < 1.5 ? 1.0 : norm < 3.5 ? 2.0 : norm < 7.5 ? 5.0 : 10.0) * mag;
-    for (double v = std::ceil(a.lo / step) * step; v <= a.hi + step * 1e-9; v += step)
-        out.push_back(std::fabs(v) < step * 1e-9 ? 0.0 : v);
-    return out;
+    return pinpoint::figures::tickValues(a.lo, a.hi, target);
 }
 
 } // namespace pinpoint::analysis

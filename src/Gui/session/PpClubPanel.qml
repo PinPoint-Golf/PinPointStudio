@@ -52,21 +52,15 @@ Item {
     readonly property var clubModel: {
         void athleteController.athletes
         if (!athleteController.hasCurrentAthlete) return []
-        var bag   = athleteController.clubsFor(athleteController.currentUuid)
-        var vocab = athleteController.clubOptions()
-        var ids   = Object.keys(bag)
-        ids.sort(function (a, b) { return vocab.indexOf(a) - vocab.indexOf(b) })
-        return ids
+        return athleteController.bagClubIds(athleteController.currentUuid)
     }
 
-    // Retro-band centres for a club (empty = untaped). void athletes keeps callers
+    // A club's record (null when there is none). void athletes keeps callers
     // reactive to club edits.
-    function _bands(id) {
+    function _record(id) {
         void athleteController.athletes
-        if (!id || !athleteController.hasCurrentAthlete) return []
-        var rec = athleteController.clubsFor(athleteController.currentUuid)[id]
-        var c = rec && rec.bandCentersMm
-        return (c && c.length) ? c : []
+        if (!id || !athleteController.hasCurrentAthlete) return null
+        return athleteController.clubsFor(athleteController.currentUuid)[id] || null
     }
 
     Column {
@@ -95,8 +89,9 @@ Item {
                     id: clubRow
                     required property string modelData
                     readonly property bool sel:   modelData === root.currentClub
-                    readonly property var  bands: root._bands(modelData)
-                    readonly property bool taped: bands.length > 0
+                    readonly property var  rec:   root._record(modelData)
+                    readonly property bool taped: ClubFormat.isTaped(rec)
+                    readonly property int  bandCount: taped ? rec.bandCentersMm.length : 0
 
                     width:  parent.width
                     height: Theme.sp(34)
@@ -106,7 +101,7 @@ Item {
                     // chip/tile language shared with the View panel cards.
                     color: sel                 ? Theme.colorAccentLight
                          : rowMa.containsMouse ? Theme.colorBg2
-                         :                        Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+                         :                        Qt.alpha(Theme.colorBg2, 0)
                     border.width: 1
                     border.color: sel                 ? Theme.colorAccent
                                 : rowMa.containsMouse ? Theme.colorAccentMid
@@ -139,7 +134,7 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 spacing: Theme.gap(2)
                                 Repeater {
-                                    model: Math.min(clubRow.bands.length, 4)
+                                    model: Math.min(clubRow.bandCount, 4)
                                     Rectangle {
                                         width: Theme.sp(2); height: Theme.sp(13); radius: 1
                                         color: Theme.colorGood

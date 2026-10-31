@@ -1,53 +1,69 @@
 # Charts panel
 
 *Directory:* `src/Gui/charts/`  
-*39 components · 6,923 lines of QML*
+*55 components · 9,641 lines of QML*
 
 The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views and their blocks, built on the typeset vocabulary.
 
-**C++ in this area:** `ChartsRelationsPresenter`, `ChartsTracesPresenter`, `ChartsWristPresenter`, `SessionSeriesModel`  (see [cpp-seam.md](../cpp-seam.md))
+**C++ in this area:** `ChartsDeliveryPresenter`, `ChartsPosturePresenter`, `ChartsRelationsPresenter`, `ChartsTracesPresenter`, `ChartsWristPresenter`, `SessionSeriesModel`  (see [cpp-seam.md](../cpp-seam.md))
 
 | Component | Lines | Root | Used by | Uses | Notes |
 |---|---:|---|---:|---:|---|
-| [PpChBoxCell](#ppchboxcell) | 124 | `Item` | 6 | 1 |  |
-| [PpChChoices](#ppchchoices) | 100 | `Flow` | 4 | 0 |  |
-| [PpChFoldHead](#ppchfoldhead) | 59 | `Item` | 3 | 0 |  |
+| [PpChBoxCell](#ppchboxcell) | 124 | `Item` | 12 | 1 |  |
+| [PpChChoices](#ppchchoices) | 100 | `Flow` | 5 | 0 |  |
+| [PpChDeliveryFlight](#ppchdeliveryflight) | 104 | `Column` | 2 | 1 |  |
+| [PpChDeliveryPicture](#ppchdeliverypicture) | 100 | `Column` | 1 | 1 |  |
+| [PpChDeliverySession](#ppchdeliverysession) | 164 | `Column` | 1 | 6 |  |
+| [PpChDeliveryShotSection](#ppchdeliveryshotsection) | 250 | `Item` | 1 | 6 |  |
+| [PpChFoldHead](#ppchfoldhead) | 59 | `Item` | 5 | 0 |  |
 | [PpChKeyFigures](#ppchkeyfigures) | 88 | `Item` | 1 | 0 |  |
 | [PpChKindCurve](#ppchkindcurve) | 169 | `Item` | 1 | 1 |  |
 | [PpChKindTable](#ppchkindtable) | 163 | `Column` | 1 | 1 |  |
 | [PpChMatrix](#ppchmatrix) | 86 | `Column` | 1 | 0 |  |
 | [PpChMovesWith](#ppchmoveswith) | 148 | `Column` | 2 | 1 |  |
+| [PpChPlaneLabels](#ppchplanelabels) | 93 | `Item` | 2 | 0 |  |
 | [PpChPlot](#ppchplot) | 169 | `Canvas` | 4 | 0 |  |
+| [PpChPostureAddress](#ppchpostureaddress) | 179 | `Column` | 2 | 2 |  |
+| [PpChPostureFrame](#ppchpostureframe) | 182 | `Item` | 3 | 0 |  |
+| [PpChPostureLedger](#ppchpostureledger) | 101 | `Column` | 1 | 0 |  |
+| [PpChPostureMoved](#ppchposturemoved) | 65 | `Item` | 1 | 0 |  |
+| [PpChPosturePicture](#ppchposturepicture) | 101 | `Column` | 1 | 3 |  |
+| [PpChPostureProfile](#ppchpostureprofile) | 312 | `Item` | 2 | 1 |  |
+| [PpChPostureSession](#ppchposturesession) | 187 | `Column` | 1 | 5 |  |
+| [PpChPostureShotSection](#ppchpostureshotsection) | 194 | `Item` | 1 | 9 |  |
+| [PpChPostureTrust](#ppchposturetrust) | 28 | `PpChTrustFold` | 2 | 1 |  |
 | [PpChProfile](#ppchprofile) | 218 | `Column` | 2 | 3 |  |
 | [PpChQuestions](#ppchquestions) | 68 | `Column` | 3 | 0 |  |
 | [PpChReadingPicker](#ppchreadingpicker) | 68 | `Column` | 1 | 0 |  |
 | [PpChReadingTrace](#ppchreadingtrace) | 139 | `Item` | 1 | 2 |  |
 | [PpChReplaySession](#ppchreplaysession) | 93 | `Column` | 1 | 3 |  |
-| [PpChRoles](#ppchroles) | 81 | `PpTypeset` | 1 | 1 |  |
-| [PpChRunBox](#ppchrunbox) | 132 | `Item` | 4 | 2 |  |
-| [PpChScatter](#ppchscatter) | 169 | `Item` | 2 | 2 |  |
-| [PpChSeqChain](#ppchseqchain) | 82 | `Column` | 1 | 1 |  |
-| [PpChSeqSession](#ppchseqsession) | 194 | `Column` | 1 | 2 |  |
-| [PpChSeqTable](#ppchseqtable) | 200 | `Column` | 1 | 0 |  |
-| [PpChSessionFigure](#ppchsessionfigure) | 361 | `Item` | 1 | 1 |  |
+| [PpChRoles](#ppchroles) | 93 | `PpTypeset` | 4 | 1 |  |
+| [PpChRunBox](#ppchrunbox) | 135 | `Item` | 5 | 2 |  |
+| [PpChScatter](#ppchscatter) | 236 | `Item` | 4 | 2 |  |
+| [PpChSeqChain](#ppchseqchain) | 83 | `Column` | 1 | 1 |  |
+| [PpChSeqSession](#ppchseqsession) | 220 | `Column` | 1 | 2 |  |
+| [PpChSeqTable](#ppchseqtable) | 204 | `Column` | 1 | 0 |  |
+| [PpChSessionFigure](#ppchsessionfigure) | 467 | `Item` | 1 | 2 |  |
+| [PpChShotShapeGrid](#ppchshotshapegrid) | 148 | `Column` | 3 | 0 |  |
 | [PpChSummary](#ppchsummary) | 127 | `Column` | 1 | 0 |  |
-| [PpChText](#ppchtext) | 41 | `Text` | 10 | 0 |  |
-| [PpChTraceFigure](#ppchtracefigure) | 576 | `Item` | 1 | 1 |  |
+| [PpChText](#ppchtext) | 41 | `Text` | 14 | 0 |  |
+| [PpChTraceFigure](#ppchtracefigure) | 620 | `Item` | 1 | 2 |  |
+| [PpChTrustFold](#ppchtrustfold) | 60 | `Column` | 5 | 0 |  |
 | [PpChWindowBrush](#ppchwindowbrush) | 159 | `Item` | 1 | 0 |  |
 | [PpChWristLedger](#ppchwristledger) | 118 | `Column` | 1 | 0 |  |
 | [PpChWristProfile](#ppchwristprofile) | 300 | `Item` | 2 | 1 |  |
-| [PpChWristSession](#ppchwristsession) | 170 | `Item` | 1 | 5 |  |
-| [PpChWristShotSection](#ppchwristshotsection) | 295 | `Item` | 1 | 9 |  |
+| [PpChWristSession](#ppchwristsession) | 176 | `Item` | 1 | 6 |  |
+| [PpChWristShotSection](#ppchwristshotsection) | 301 | `Item` | 1 | 10 |  |
 | [PpChartsAnalyse](#ppchartsanalyse) | 28 | `PpChartsRegister` | 1 | 1 |  |
-| [PpChartsBody](#ppchartsbody) | 347 | `Item` | 1 | 5 |  |
+| [PpChartsBody](#ppchartsbody) | 400 | `Item` | 1 | 5 |  |
 | [PpChartsKindsView](#ppchartskindsview) | 114 | `Column` | 1 | 5 |  |
-| [PpChartsPanel](#ppchartspanel) | 380 | `Item` | 2 | 2 |  |
+| [PpChartsPanel](#ppchartspanel) | 424 | `Item` | 1 | 2 |  |
 | [PpChartsReadingsView](#ppchartsreadingsview) | 204 | `Column` | 1 | 2 |  |
 | [PpChartsRegister](#ppchartsregister) | 216 | `Item` | 2 | 9 | 1 local comp. |
 | [PpChartsRelationsView](#ppchartsrelationsview) | 192 | `Column` | 1 | 10 |  |
 | [PpChartsReplay](#ppchartsreplay) | 28 | `PpChartsRegister` | 1 | 1 |  |
-| [PpChartsSessionView](#ppchartssessionview) | 240 | `Column` | 1 | 10 |  |
-| [PpChartsShotView](#ppchartsshotview) | 477 | `Column` | 1 | 18 |  |
+| [PpChartsSessionView](#ppchartssessionview) | 293 | `Column` | 1 | 12 |  |
+| [PpChartsShotView](#ppchartsshotview) | 502 | `Column` | 1 | 20 |  |
 
 ### PpChBoxCell
 `src/Gui/charts/PpChBoxCell.qml` · 124 lines · root `Item` · no direct `Theme.*` refs
@@ -74,7 +90,7 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 - **Signals:** `shotActivated(int ordinal)`
 - **Functions:** `pos(v)`, `valueOf(ord)`
 - **Uses:** `PpBoxPlot`
-- **Used by (6):** `PpChKindTable`, `PpChProfile`, `PpChReadingTrace`, `PpChRunBox`, `PpChScatter`, `PpChWristProfile`
+- **Used by (12):** `PpChDeliverySession`, `PpChKindTable`, `PpChPostureAddress`, `PpChPostureProfile`, `PpChProfile`, `PpChReadingTrace`, `PpChRunBox`, `PpChScatter`, `PpChWristProfile`, `PpDeliveryPage` (+2)
 
 ### PpChChoices
 `src/Gui/charts/PpChChoices.qml` · 100 lines · root `Flow` · no direct `Theme.*` refs
@@ -90,7 +106,94 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 
 - **Properties:** `QtObject roles`, `bool interactive`, `var sets`, `readonly var keyKinds`, `bool atom`
 - **Signals:** `picked(string set, string option)`
-- **Used by (4):** `PpChWristShotSection`, `PpChartsRelationsView`, `PpChartsSessionView`, `PpChartsShotView`
+- **Used by (5):** `PpChPostureShotSection`, `PpChWristShotSection`, `PpChartsRelationsView`, `PpChartsSessionView`, `PpChartsShotView`
+
+### PpChDeliveryFlight
+`src/Gui/charts/PpChDeliveryFlight.qml` · 104 lines · root `Column` · no direct `Theme.*` refs
+
+> PPCHDELIVERYFLIGHT — "Plane and your ball flight" (docs/design/club_delivery_chart_design.md §4.4), the Club delivery
+> section's reason to exist, on This shot and Session alike: the fit's sentence (shown, refused or too few — a refusal
+> is a finding and reads as one), the attack's when its own fit holds, this shot's place ("This one: 65° at P6, your
+> steepest third → path −4.3°"; on Session none), and the scatter (PpChScatter): the golfer's shots of the day, this
+> session's in ink and the day's other sessions faint, this shot ringed — or, with no monitor on it, a dashed hairline
+> at its plane — and the fitted line only where the fit holds. Hover a dot: its shot and values ON the plot; a click
+> opens a shot of this session. Every word is ChartsDeliveryPresenter's FLIGHT; QML maps values to pixels and spells
+> the hovered values (the plane in whole degrees, the monitor's to one decimal: session_delivery.h decision 9).
+> objectName: chDeliveryFlight (the scatter: chScatter, chDeliveryScatter on its holder).
+
+- **Properties:** `QtObject roles`, `var brush`, `QtObject ticker`, `var flight`, `bool interactive`, `bool showScatter`, `readonly bool ok`, `readonly var sc`, `readonly bool xSigned`, `readonly var adapted`, `readonly bool xOnly`
+- **Signals:** `shotActivated(int ordinal)`
+- **Functions:** `deg(v, dp, signed)`, `sessionWord(name)`
+- **Uses:** `PpChScatter`
+- **Used by (2):** `PpChDeliverySession`, `PpChDeliveryShotSection`
+
+### PpChDeliveryPicture
+`src/Gui/charts/PpChDeliveryPicture.qml` · 100 lines · root `Column` · 1 hard-coded colour(s)
+
+> PPCHDELIVERYPICTURE — THE CLUB DELIVERY PICTURE STRIP OF THIS SHOT (docs/design/club_delivery_chart_design.md §9 stage 6;
+> the twin of PpChPosturePicture): the golfer's own down-the-line frames at address, the top and P6, with the address line
+> (solid, from the ball up the shaft), the shoulder plane (dashed, from the ball through the trail shoulder) and the slot
+> between them (a faint wash), all FROZEN at address and drawn the same on every frame. ChartsDeliveryPresenter's
+> thisShot.picture, placed (PpChPostureFrame per frame, its "poly" mark the slot); a press on a frame seeks the replay
+> there (Analyse; the glance draws it with no affordance). The lines are the section's own reading — the plot's two
+> hairlines — so they are drawn whatever the reader's Coach lines toggles are (the picture's defaultSets). Nothing at
+> all with no down-the-line camera (no groups, nothing said).
+> objectNames: chDeliveryPicture, chDeliveryPictureFrame (×3: tag, seekUs, coachDrawn, polyDrawn, hasImage),
+> chDeliveryPictureLegend, chDeliveryPictureWhy.
+
+- **Properties:** `QtObject roles`, `var picture`, `bool interactive`, `bool glance`, `readonly var ty`, `readonly bool on`, `readonly var groups`, `readonly var why`, `readonly var sets`, `readonly real frameCap`
+- **Signals:** `seek(var us)`
+- **Functions:** `rowH(frames)`
+- **Uses:** `PpChPostureFrame`
+- **Used by (1):** `PpChDeliveryShotSection`
+
+### PpChDeliverySession
+`src/Gui/charts/PpChDeliverySession.qml` · 164 lines · root `Column` · no direct `Theme.*` refs
+
+> PPCHDELIVERYSESSION — THE CLUB DELIVERY SECTION OF SESSION (docs/design/club_delivery_chart_design.md §4.7, 4.9; built
+> the way PpChPostureSession is; PpChartsSessionView draws it under its own fold head "Club delivery", after the
+> standard session content, in Analyse only). "Does my plane repeat, and does my ball flight follow it?"
+> · the head (the fit's finding, or the plane's when there is no monitor);
+> · the plane, position by position: one box per P-position over the session's shots on one shared scale (PpChBoxCell
+> → PpBoxPlot, the ONE box plot; the hover lays the values on the plot), this shot ringed, the median and how wide
+> the middle half is under each — drawn from 5 shots with the curve (band.shown); then where it varies most;
+> · the usual set-up: the median address line, shoulder plane and the hands' steepening (the plot's lines are these);
+> · side by side when the width allows: "Ball flight" (PpChDeliveryFlight, the golfer's day, this shot ringed) | "Shot
+> shape" (PpChShotShapeGrid, every shot; a dot opens its swing);
+> · "How far can I trust this?" under them, closed (said once).
+> Every word and number is ChartsDeliveryPresenter.session's (body.dSession).
+> objectNames: chDeliverySession, chDeliverySessionHead, chDeliveryBand (chDeliveryBandCol + tag), chDeliveryVaries,
+> chDeliveryUsual, chDeliveryFlight, chDeliveryShape, chDeliveryTrust.
+
+- **Properties:** `QtObject roles`, `var brush`, `var body`, `bool interactive`, `readonly var se`, `readonly bool ok`, `readonly bool available`, `readonly var band`, `readonly var positions`, `readonly var usual`, `readonly var scale`
+- **Uses:** `PpChBoxCell`, `PpChDeliveryFlight`, `PpChShotShapeGrid`, `PpChText`, `PpChTrustFold`, `PpSectionHead`
+- **Used by (1):** `PpChartsSessionView`
+
+### PpChDeliveryShotSection
+`src/Gui/charts/PpChDeliveryShotSection.qml` · 250 lines · root `Item` · no direct `Theme.*` refs
+
+> PPCHDELIVERYSHOTSECTION — THE CLUB DELIVERY SECTION OF THIS SHOT (docs/design/club_delivery_chart_design.md §4.2–4.6,
+> 4.8, 4.9; built the way PpChPostureShotSection is). "What did my plane do, and what did it do to the ball?"
+> PpChartsShotView draws it under its traces only when this shot carries the swing plane curve or a monitor delivery
+> reading AND one of those curves is on show (body.deliveryShotShown) — in practice the Club delivery preset; a section
+> of the page, a fold after Summary that remembers its state ("delivery"), its head as the state when closed. The
+> plot's own lines (the address line, the shoulder plane, the slot, the hands' stretches) are the trace figure's
+> (PpChTraceFigure.planeLayers), above it.
+> Analyse: the head (§4.3) and the standfirst at the playhead's position; the plane story (§5.1) with the published
+> shape against it, the plane at each position (a press seeks there; the playhead's position in ink) and the slot;
+> then, side by side when the width allows, "Ball flight" (PpChDeliveryFlight: the fit, this shot's place and the
+> scatter over the golfer's day) | "At impact" (the presenter's lines, the monitor's first) and "Shot shape"
+> (PpChShotShapeGrid: this shot ringed, the session's shots behind it); "How far can I trust this?" under them,
+> closed (said once, §4.9).
+> The picture strip (PpChDeliveryPicture, stage 6): the down-the-line frames at address, the top and P6 with the
+> address line, the shoulder plane and the slot frozen at address, after the plane story; a press on a frame seeks there.
+> No down-the-line camera (thisShot.mode "noDtl", §4.3 rule 4): no plane story; the ball flight, the impact lines, the
+> …
+
+- **Properties:** `QtObject roles`, `var brush`, `var body`, `string reg`, `bool interactive`, `bool cast`, `readonly bool replay`, `readonly var ty`, `readonly var sh`, `readonly bool has`, `readonly var story`, `readonly var slot`, `readonly var shape`, `readonly var impactLines` … (+4 more)
+- **Functions:** `seekTo(us)`, `pick(o)`
+- **Uses:** `PpChDeliveryFlight`, `PpChDeliveryPicture`, `PpChFoldHead`, `PpChShotShapeGrid`, `PpChText`, `PpChTrustFold`
+- **Used by (1):** `PpChartsShotView`
 
 ### PpChFoldHead
 `src/Gui/charts/PpChFoldHead.qml` · 59 lines · root `Item` · no direct `Theme.*` refs
@@ -103,7 +206,7 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 
 - **Properties:** `QtObject roles`, `string key`, `string title`, `string sub`, `string state_`, `bool collapsed`, `bool foldable`, `bool interactive`, `readonly var keyKinds`, `bool atom`, `bool keepNext`
 - **Signals:** `toggled()`
-- **Used by (3):** `PpChWristShotSection`, `PpChartsSessionView`, `PpChartsShotView`
+- **Used by (5):** `PpChDeliveryShotSection`, `PpChPostureShotSection`, `PpChWristShotSection`, `PpChartsSessionView`, `PpChartsShotView`
 
 ### PpChKeyFigures
 `src/Gui/charts/PpChKeyFigures.qml` · 88 lines · root `Item` · no direct `Theme.*` refs
@@ -190,6 +293,24 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 - **Uses:** `PpMark`
 - **Used by (2):** `PpChWristShotSection`, `PpChartsRelationsView`
 
+### PpChPlaneLabels
+`src/Gui/charts/PpChPlaneLabels.qml` · 93 lines · root `Item` · no direct `Theme.*` refs
+
+> PPCHPLANELABELS — the words on the Club delivery lines (docs/design/club_delivery_chart_design.md §4.2): laid over a
+> plot's AREA (the PpChPlot's own box), it names the lines ChartsDeliveryPresenter.plotLayers drew there — "address 59°"
+> and "shoulders 69°" just over (else under) their hairlines at the right end, further in on a short plot. Labels on the drawn
+> things, never a legend; each on a knock-out in the text inks. The hands' stretches are NOT named: the shade speaks for
+> itself and a label over it hid the curve (Mark, 29 Oct); the trust fold says what the shade is.
+> A label that would leave the plot, or touch another label or a `reserve`d box (the row's name, the overlaid key), is
+> dropped — never squeezed. A line outside the plot's value range draws nothing and so names nothing.
+> layers: the row's plotLayers (role, label, text; hline v)
+> x0, x1, lo, hi: the plot's own mapping; reserve: [{ x, y, w, h }] in this item's coordinates; topInset: the name band
+> objectName: chPlaneLabel (+ role) on each label drawn.
+
+- **Properties:** `QtObject roles`, `var layers`, `real x0`, `real x1`, `real lo`, `real hi`, `var reserve`, `real topInset`, `readonly var placed`
+- **Functions:** `xOf(t)`, `yOf(v)`, `hits(a, b)`
+- **Used by (2):** `PpChSessionFigure`, `PpChTraceFigure`
+
 ### PpChPlot
 `src/Gui/charts/PpChPlot.qml` · 169 lines · root `Canvas` · no direct `Theme.*` refs
 
@@ -213,6 +334,186 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 - **Properties:** `QtObject roles`, `var brush`, `var layers`, `real x0`, `real x1`, `real lo`, `real hi`, `var pTicks`, `var yTicks`, `bool zeroLine`, `readonly var deps`
 - **Functions:** `fin(v)`, `xOf(t)`, `yOf(v)`, `tOf(px)`
 - **Used by (4):** `PpChKindCurve`, `PpChReadingTrace`, `PpChSessionFigure`, `PpChTraceFigure`
+
+### PpChPostureAddress
+`src/Gui/charts/PpChPostureAddress.qml` · 179 lines · root `Column` · no direct `Theme.*` refs
+
+> PPCHPOSTUREADDRESS — "AT ADDRESS" (docs/design/posture_chart_design.md §7.4.2): the rig-sensitive address readings
+> (forward bend, trail-knee bend, arm hang, head pitch, heel-to-toe balance, side lean — the pack's `rigSensitive`
+> measures), under the profile and above What moved, on This shot and on Session. Mark, 22 Oct: every reading we have
+> is SHOWN, with a ⚠ and short honest words where it may be unreliable; the full reason is said once, in the trust fold.
+> One row per reading the capture can produce:
+> · the golfer's name for it, its camera and unit;
+> · on the row's own scale: the good-player band as a wash in the reading's metric colour (identity, not judgement);
+> the upper lane this session's box (PpChBoxCell → PpBoxPlot, the ONE box plot) with — This shot — this swing's dot;
+> the lower lane the golfer's EARLIER sessions from the same set-up as a box, or the words why there is none;
+> · the figures under it: the number ("-" when this shot has none), the band, both boxes' medians and n;
+> · the ⚠ and its few words, "depends on where the camera stands", under every row.
+> Every word, number and scale is ChartsPosturePresenter's ADDRESSBLOCK (address: { title, sub, rows, legend }); QML
+> maps values to pixels only.
+> objectNames: chPostureAddress; each row chPostureAddressRow (+ measureId, text, warned, hasHistory, historyN, banded);
+> chPostureAddressBand, chPostureAddressDot, chPostureAddressSessionBox, chPostureAddressHistory (the history box),
+> chPostureAddressNoHistory (its words), chPostureAddressFigures, chPostureAddressWarn.
+
+- **Properties:** `QtObject roles`, `var brush`, `var block`, `string mode`, `bool interactive`, `readonly bool ok`, `readonly var rows`, `readonly bool shot`, `readonly bool sideLabel`, `readonly real labelW`, `readonly real laneW`, `readonly real plotX`, `readonly real plotW`, `readonly real laneH`
+- **Functions:** `fin(v)`
+- **Uses:** `PpChBoxCell`, `PpSectionHead`
+- **Used by (2):** `PpChPostureSession`, `PpChPostureShotSection`
+
+### PpChPostureFrame
+`src/Gui/charts/PpChPostureFrame.qml` · 182 lines · root `Item` · no direct `Theme.*` refs · 3 hard-coded colour(s)
+
+> PPCHPOSTUREFRAME — ONE FRAME OF THE POSTURE PICTURE STRIP (docs/design/posture_chart_design.md §5.4, stage 5), on
+> screen (PpChPosturePicture) and in print (PpPosturePage): the golfer's still at one position, the frozen address coach
+> lines, the band offsets at impact and the golfer's own butt line at impact, then its caption and note. EVERY coordinate,
+> line and word is the presenter's (charts/posture_picture.h: FRAME, MARK — each in the frame's own image pixels); this
+> only scales them by the drawn image (s = drawn height / frame.height) and picks colours. `sets` says which coach sets
+> are drawn (the reader's Coach lines toggles, else the picture's default sets); a band or ink mark is always drawn.
+> Also the Club delivery strip's frame (PpChDeliveryPicture; charts/delivery_picture.h), whose slot is a "poly" mark: a
+> filled polygon in the coach colour at polyAlpha, under the lines.
+> objectName: chPosturePictureFrame (+ tag, camera, seekUs, coachDrawn, bandDrawn, inkDrawn, hasImage).
+
+- **Properties:** `var frame`, `var sets`, `real frameH`, `color coachColor`, `real coachAlpha`, `color inkColor`, `color paper`, `color captionColor`, `color noteColor`, `font captionFont`, `font noteFont`, `var hueOf`, `real washAlpha`, `real polyAlpha` … (+14 more)
+- **Signals:** `activated(var frame)`
+- **Used by (3):** `PpChDeliveryPicture`, `PpChPosturePicture`, `PpPosturePage`
+
+### PpChPostureLedger
+`src/Gui/charts/PpChPostureLedger.qml` · 101 lines · root `Column` · no direct `Theme.*` refs
+
+> PPCHPOSTURELEDGER — FINDINGS / WORKING WELL in This shot's Posture section (docs/design/posture_chart_design.md
+> §5.2): the posture conditions that fired on this shot (the departures D1–D7, and the trail knee when it
+> straightened), or, as Working well, the posture conditions graded clean whose reading sits inside its band. A
+> row: the mark and its word (the session tier: pattern filled, watching a ring — a mark AND a word, never colour
+> alone; working ink3), the name — a link that opens the condition in Session diagnostics when that panel is up —
+> the positions, "Go to P7" (a seek), and the explanation (Working well: none — its name is its golferWell line; protect is ""). Every word is the
+> presenter's FINDING; nothing is composed here.
+> objectNames: chPostureFindings / chPostureWorkingWell (by `strengths`); each row chPostureFinding (+ findingId);
+> its name chPostureFindingName, its seek chPostureGoTo.
+
+- **Properties:** `QtObject roles`, `string title`, `var items`, `bool strengths`, `string emptyText`, `bool interactive`, `bool canOpen`
+- **Signals:** `seek(real us)`, `openCondition(string id)`
+- **Used by (1):** `PpChPostureShotSection`
+
+### PpChPostureMoved
+`src/Gui/charts/PpChPostureMoved.qml` · 65 lines · root `Item` · no direct `Theme.*` refs
+
+> PPCHPOSTUREMOVED — "WHAT MOVED" (docs/design/posture_chart_design.md §5.3): at the top and at impact, one line
+> each, built by the core from the rows read (hips in, head up / down, bend lost or gained and what it went to,
+> the trail leg's style once). Side by side when the width allows, stacked below that. The "when" ("At the top")
+> seeks to that position. Every word is the presenter's MOVED ({ when, line, seekUs }).
+> objectName: chPostureMoved; each line chPostureMovedLine (+ tag).
+
+- **Properties:** `QtObject roles`, `var moved`, `bool interactive`, `readonly bool ok`, `readonly var parts`, `readonly real headW`, `readonly bool two`, `readonly real colW`
+- **Signals:** `seek(real us)`
+- **Used by (1):** `PpChPostureShotSection`
+
+### PpChPosturePicture
+`src/Gui/charts/PpChPosturePicture.qml` · 101 lines · root `Column` · 1 hard-coded colour(s)
+
+> PPCHPOSTUREPICTURE — THE PICTURE STRIP OF THIS SHOT (docs/design/posture_chart_design.md §5.4, stage 5): the golfer's
+> own frames at address, the top and impact, down the line then face-on (each camera only where the swing has it), the
+> address coach lines frozen on all three, the good-player bands at impact drawn as offsets of the golfer's own lines,
+> and the golfer's own butt line at impact in ink. ChartsPosturePresenter's thisShot.picture, placed (PpChPostureFrame per
+> frame); a press on a frame seeks the replay there (Analyse; the glance draws it with no affordance). The coach sets are
+> the reader's Coach lines toggles when any is on, else the picture's own default sets (posture and head-and-hips):
+> the strip is about posture, so it never goes blank because the replay's coach lines are off.
+> objectNames: chPosturePicture, chPosturePictureGroup (+ camera), chPosturePictureFrame (×n), chPosturePictureLegend,
+> chPosturePictureWhy.
+
+- **Properties:** `QtObject roles`, `var picture`, `bool interactive`, `bool glance`, `readonly var ty`, `readonly bool on`, `readonly var groups`, `readonly var why`, `readonly var sets`, `readonly real frameCap`, `readonly int frameCount`
+- **Signals:** `seek(var us)`
+- **Functions:** `rowH(frames)`
+- **Uses:** `PpChPostureFrame`, `SessionMode`, `ViewLayout`
+- **Used by (1):** `PpChPostureShotSection`
+
+### PpChPostureProfile
+`src/Gui/charts/PpChPostureProfile.qml` · 312 lines · root `Item` · no direct `Theme.*` refs
+
+> PPCHPOSTUREPROFILE — THE POSTURE PROFILE (docs/design/posture_chart_design.md §5.2, §5.5): one row per posture
+> reading (head height, hip depth, trunk bend, lead knee, trail knee, pelvis height), P1…P8 as a discrete x axis,
+> the change from address on y. It is the wrist profile's form (PpChWristProfile), per cell:
+> · the chosen pattern's band as a wash in the row's metric colour (Theme.metricColor(hueKey): identity);
+> · the fault line (where the matching condition fires) as a hairline;
+> · This shot: this swing's dot in the hue, joined; outside the band a RING and its word under the number
+> ("in 7.6"), never colour alone; the Against ghost as hollow points on a dashed line;
+> · Session: the session's box per position (PpChBoxCell → PpBoxPlot, the ONE box plot), this shot ringed,
+> the median and how wide the middle half is under it;
+> · the numbers under each column: the figure, or "-" where nothing was read; a reading under a ⚠ keeps its
+> figure and says the ⚠'s few words under it (the full reason is said once, in the trust fold);
+> · the pole word at the row's right ("in ▲"); the trail knee's row labelled with its style word;
+> · a SECOND READING under a cell where the presenter gives one (trunk bend at P3–P5: the back line, decision 16 of
+> session_posture.h): a smaller figure on its own line under the numbers, "back line −3", and its own ⚠ words —
+> not ringed, no band of its own; a row with one (ROW.hasAlt) is that line taller.
+> A column head is a seek target (columnActivated); the playhead's position is the picked column through every row.
+> …
+
+- **Properties:** `QtObject roles`, `var brush`, `QtObject ticker`, `var rows`, `var positions`, `int selected`, `string mode`, `bool interactive`, `readonly bool ok`, `readonly bool session`, `readonly bool sideLabel`, `readonly real labelW`, `readonly real poleW`, `readonly real gutY` … (+11 more)
+- **Signals:** `columnActivated(int index)`
+- **Functions:** `cx(i)`, `fin(v)`, `rowHOf(r)`, `rowYOf(i)`
+- **Uses:** `PpChBoxCell`
+- **Used by (2):** `PpChPostureSession`, `PpChPostureShotSection`
+
+### PpChPostureSession
+`src/Gui/charts/PpChPostureSession.qml` · 187 lines · root `Column` · no direct `Theme.*` refs
+
+> PPCHPOSTURESESSION — THE POSTURE SECTION OF SESSION (docs/design/posture_chart_design.md §5.5, 5.6; built the
+> way PpChWristSession is; PpChartsSessionView draws it under its own fold head "Posture", after the standard
+> session content, in Analyse only). "Which pattern is my posture, and do I leave it the same way every time?"
+> · the head and the pattern line (the session's, on the medians);
+> · the profile in Session mode: one box per position per row over the pattern's band (PpChBoxCell → PpBoxPlot,
+> the ONE box plot; the hover lays the values on the plot), this shot ringed, the median and how wide the
+> middle half is under each; "How far can I trust this?" under it, closed (said once);
+> · "At address" (PpChPostureAddress): the rig-sensitive address readings, the session's box against the band and
+> the earlier sessions' box from the same set-up, each with its ⚠;
+> · the pattern by shot: a mark per shot, ringed where its nearest pattern is not the session's; a mark opens
+> that swing;
+> · the departures as counts across the shots, each name opening its condition in Session diagnostics (when
+> that panel is up);
+> · repeatability: the tightest and the loosest row and position.
+> Every word and number is ChartsPosturePresenter.session's (body.pSession).
+> objectNames: chPostureSession, chPostureSessionHead, chPostureStrip (marks chPostureMark + ordinal, differs),
+> …
+
+- **Properties:** `QtObject roles`, `var brush`, `var body`, `bool interactive`, `readonly var se`, `readonly bool ok`, `readonly bool available`, `readonly var prof`, `readonly var strip`, `readonly var rep`, `readonly bool canOpen`
+- **Uses:** `PpChPostureAddress`, `PpChPostureProfile`, `PpChPostureTrust`, `PpChText`, `PpSectionHead`
+- **Used by (1):** `PpChartsSessionView`
+
+### PpChPostureShotSection
+`src/Gui/charts/PpChPostureShotSection.qml` · 194 lines · root `Item` · no direct `Theme.*` refs
+
+> PPCHPOSTURESHOTSECTION — THE POSTURE SECTION OF THIS SHOT (docs/design/posture_chart_design.md §5.1–5.3, 5.6;
+> built the way PpChWristShotSection is). "Where did my body go, position by position, against good players?"
+> PpChartsShotView draws it under its traces only when this shot carries a posture reading AND a posture metric
+> is among the curves on show (body.postureShotShown) — in practice the Posture preset; a section of the page,
+> a fold after Summary that remembers its state ("posture"), with the pattern line as its state when closed.
+> Analyse: the head (the largest NAMED departure, else the W-D6 words), the standfirst at the playhead's
+> position, the pattern line; the quiet controls — Pattern (Auto → resolved · Level · Squat and push) and
+> Against (address · previous · reference ★ · session median), folded to one summary line below medium; the
+> profile (PpChPostureProfile, a column seeks); "How far can I trust this?" under it, closed (said once);
+> "At address" (PpChPostureAddress: the rig-sensitive address readings, band, boxes and ⚠ — §7.4.2);
+> what moved at the top and at impact (PpChPostureMoved); Findings | Working well (PpChPostureLedger), in
+> two columns when the width allows.
+> The picture strip (PpChPosturePicture, stage 5): the frames at address, the top and impact with the frozen coach
+> lines and the bands at impact, after what moved; a press on a frame seeks there.
+> Replay (the glance at the mat, and the cast): the head, the pattern line, the profile and the picture strip; no
+> controls, no ledgers, no trust fold, and the frames do not seek.
+> …
+
+- **Properties:** `QtObject roles`, `var brush`, `var body`, `string reg`, `bool interactive`, `bool cast`, `readonly bool replay`, `readonly var ty`, `readonly var pc`, `readonly var sh`, `readonly bool has`, `readonly var prof`, `readonly bool wide`, `bool controlsOpen` … (+2 more)
+- **Functions:** `seekTo(us)`, `picked(set, opt)`
+- **Uses:** `PpChChoices`, `PpChFoldHead`, `PpChPostureAddress`, `PpChPostureLedger`, `PpChPostureMoved`, `PpChPosturePicture`, `PpChPostureProfile`, `PpChPostureTrust`, `PpChText`
+- **Used by (1):** `PpChartsShotView`
+
+### PpChPostureTrust
+`src/Gui/charts/PpChPostureTrust.qml` · 28 lines · root `PpChTrustFold`
+
+> PPCHPOSTURETRUST — the Posture section's "How far can I trust this?" (docs/design/posture_chart_design.md §5.6): the
+> shared section fold (PpChTrustFold) with the Posture names, under its profile, CLOSED by default. TRUST.lines,
+> verbatim, said once.
+> objectNames: chPostureTrust, chPostureTrustToggle, chPostureTrustLine.
+
+- **Uses:** `PpChTrustFold`
+- **Used by (2):** `PpChPostureSession`, `PpChPostureShotSection`
 
 ### PpChProfile
 `src/Gui/charts/PpChProfile.qml` · 218 lines · root `Column` · no direct `Theme.*` refs
@@ -299,7 +600,7 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 - **Used by (1):** `PpChartsSessionView`
 
 ### PpChRoles
-`src/Gui/charts/PpChRoles.qml` · 81 lines · root `PpTypeset` · 2 hard-coded colour(s)
+`src/Gui/charts/PpChRoles.qml` · 93 lines · root `PpTypeset` · 2 hard-coded colour(s)
 
 > PPCHROLES — the Charts panel's vocabulary on top of the generic typeset helper (design system §15.3,
 > docs/design/charts_panel_traces_relations.md §5). A Charts register makes ONE and passes it to every
@@ -313,28 +614,30 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 > (ChartsTracesPresenter, ChartsRelationsPresenter) — "QML positions and paints, C++ decides the numbers".
 
 - **Properties:** `readonly var ch`, `readonly real envAlpha`, `readonly real boxFill`, `readonly color knock`, `readonly color surface`
-- **Functions:** `hue(key)`, `hueA(key, a)`, `dash(pat)`, `html(s, tone)`, `has(s)`, `str(x)`
+- **Functions:** `hue(key)`, `hueA(key, a)`, `dash(pat)`, `planeLayer(l)`, `html(s, tone)`, `has(s)`, `str(x)`
 - **Uses:** `PpTypeset`
-- **Used by (1):** `PpChartsRegister`
+- **Used by (4):** `PpChartsRegister`, `PpDeliveryPage`, `PpPosturePage`, `PpWristPage`
 
 ### PpChRunBox
-`src/Gui/charts/PpChRunBox.qml` · 132 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/charts/PpChRunBox.qml` · 135 lines · root `Item` · no direct `Theme.*` refs
 
 > PPCHRUNBOX — one reading through the session (ChartsRelationsPresenter RUN): one PpMark per shot in the order
 > struck (warn where a condition reading it fired), this shot ringed, a not-measured shot a STUB on the foot
 > (never a gap), and right of it the session's box on the same value axis (spec 15.8's run + box). The drift
 > line (least squares on shot order) is drawn only when the presenter gives one (it clears chance); the
-> caption always carries r and its interval. Ticks are the presenter's (ticks()).
+> caption always carries r and its interval. Ticks are the presenter's (ticks()). ON PAPER (the session report's
+> Wrist page) a point may carry its own `label` (the report's swing number, where the ordinal only places it), and
+> `hueOf` gives the metric's ink theme-free (the report's palette: roles.hue reads the live theme).
 > objectName: chRun (+ readingId).
 
-- **Properties:** `QtObject roles`, `var brush`, `QtObject ticker`, `var run`, `bool interactive`, `bool showCaption`, `bool showBox`, `real plotH`, `bool atom`, `readonly var keyKinds`, `readonly string readingId`, `readonly string key`, `readonly var pts`, `readonly int n` … (+8 more)
+- **Properties:** `QtObject roles`, `var brush`, `QtObject ticker`, `var run`, `bool interactive`, `bool showCaption`, `bool showBox`, `var hueOf`, `real plotH`, `bool atom`, `readonly var keyKinds`, `readonly string readingId`, `readonly string key`, `readonly var pts` … (+9 more)
 - **Signals:** `shotActivated(int ordinal)`
 - **Functions:** `sx(ord)`, `vy(v)`
 - **Uses:** `PpChBoxCell`, `PpMark`
-- **Used by (4):** `PpChProfile`, `PpChReplaySession`, `PpChWristSession`, `PpChartsRelationsView`
+- **Used by (5):** `PpChProfile`, `PpChReplaySession`, `PpChWristSession`, `PpChartsRelationsView`, `PpWristPage`
 
 ### PpChScatter
-`src/Gui/charts/PpChScatter.qml` · 169 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/charts/PpChScatter.qml` · 236 lines · root `Item` · no direct `Theme.*` refs
 
 > PPCHSCATTER — one reading against another (ChartsRelationsPresenter SCATTER; design §2.3): a mark per shot
 > (ink: a mark stands for a SHOT; warn + a tick where the facet's condition fired on it), this shot ringed,
@@ -342,16 +645,21 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 > squares line: ink2 and solid when it clears chance, ink3 dashed (ch.chanceDash) inside chance. The caption
 > is the presenter's ("r .62 (.17 to .86) · n 15 · inside chance"). Ranges are shared across facet panels
 > (the presenter gives the same xRange / yRange to every panel). Ticks are the presenter's.
-> objectName: chScatter.
+> Optional, for a caller with more to say per point (the Club delivery section's fit, §4.4): a point may carry
+> `faint` (drawn at half strength: a shot of another session that day, outside the Brush), `ring` (ringed whatever
+> the Brush says) and `label` (its values in words). With `hoverLabels` the plot itself takes the pointer: the
+> point nearest it lays its `label` ON the plot, and a click on a point of this session (ordinal > 0) opens it.
+> `markX` / `markXText`: a reading of this shot with no y (no monitor on it), drawn as a dashed hairline at its x.
+> objectName: chScatter (chScatterHover: the hovered point's words; chScatterMarkX: the x-only hairline).
 
-- **Properties:** `QtObject roles`, `var brush`, `QtObject ticker`, `var scatter`, `string xKey`, `string yKey`, `string title`, `bool interactive`, `bool showMarginals`, `bool showYLabels`, `bool showAxisNames`, `bool showCaption`, `real plotH`, `bool atom` … (+13 more)
+- **Properties:** `QtObject roles`, `var brush`, `QtObject ticker`, `var scatter`, `string xKey`, `string yKey`, `string title`, `bool interactive`, `bool showMarginals`, `bool showYLabels`, `bool showAxisNames`, `bool showCaption`, `real plotH`, `bool hoverLabels` … (+17 more)
 - **Signals:** `shotActivated(int ordinal)`
 - **Functions:** `px(v)`, `py(v)`, `byOrdinal(field)`, `firedByOrdinal()`
 - **Uses:** `PpChBoxCell`, `PpMark`
-- **Used by (2):** `PpChReplaySession`, `PpChartsRelationsView`
+- **Used by (4):** `PpChDeliveryFlight`, `PpChReplaySession`, `PpChartsRelationsView`, `PpDeliveryPage`
 
 ### PpChSeqChain
-`src/Gui/charts/PpChSeqChain.qml` · 82 lines · root `Column` · no direct `Theme.*` refs
+`src/Gui/charts/PpChSeqChain.qml` · 83 lines · root `Column` · no direct `Theme.*` refs
 
 > PPCHSEQCHAIN — one shot's kinematic sequence as ONE typeset chain (design §2.1: "Lead arm — 58 ms →
 > Club — 69 ms → Pelvis, late"), from ChartsTracesPresenter.thisShot.sequence: the placed peaks in the order
@@ -366,14 +674,17 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 - **Used by (1):** `PpChartsShotView`
 
 ### PpChSeqSession
-`src/Gui/charts/PpChSeqSession.qml` · 194 lines · root `Column` · no direct `Theme.*` refs
+`src/Gui/charts/PpChSeqSession.qml` · 220 lines · root `Column` · no direct `Theme.*` refs
 
 > PPCHSEQSESSION — the sequence across the session (design §2.2): an ORDER BARCODE (each segment's rank on
 > every shot, a late rank in warn and underlined — a mark plus a word in the head line) and a PEAK-TIME DOT
 > PLOT on one ms axis (each shot a PpMark, late ones warn, the median a rule, this shot ringed; marks that
 > would overprint stack upward). Every number is ChartsTracesPresenter.session.sequence's; the stand-first
 > sentence (stand) says the order count and the late pelvis neutrally. Hover a shot and it lights in both.
-> objectNames: chSeqBarcode, chSeqDots.
+> A PROBABLE peak (the chest bridged across the camera's gap, §2.2.1) keeps its rank and its mark, with its ⚠: the
+> segment's name carries the ⚠, its ranks are set in italic, its marks carry their ± as a whisker, and the ⚠'s
+> few words sit once under the dot plot (chSeqWarn; the full reason is the trust fold's).
+> objectNames: chSeqBarcode, chSeqDots, chSeqWarn.
 
 - **Properties:** `QtObject roles`, `var brush`, `var sequence`, `bool interactive`, `bool atom`, `readonly var keyKinds`, `readonly var segs`, `readonly int nShots`, `readonly real em`, `readonly real nameW`, `readonly bool figsSide`, `readonly real figW`, `readonly real plotW`, `readonly real pitch` … (+7 more)
 - **Signals:** `shotActivated(int ordinal)`
@@ -382,7 +693,7 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 - **Used by (1):** `PpChartsSessionView`
 
 ### PpChSeqTable
-`src/Gui/charts/PpChSeqTable.qml` · 200 lines · root `Column` · no direct `Theme.*` refs
+`src/Gui/charts/PpChSeqTable.qml` · 204 lines · root `Column` · no direct `Theme.*` refs
 
 > PPCHSEQTABLE — the per-segment peak table (CONTRACT Addendum, F31): in the order the segments should peak,
 > should / actual rank ("?" on an unplaced one, the late one in warn with its word), the peak's time ± σ,
@@ -396,7 +707,7 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 - **Used by (1):** `PpChartsShotView`
 
 ### PpChSessionFigure
-`src/Gui/charts/PpChSessionFigure.qml` · 361 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/charts/PpChSessionFigure.qml` · 467 lines · root `Item` · no direct `Theme.*` refs
 
 > PPCHSESSIONFIGURE — Session's figure (design §2.2, §4): every shot's curve for each metric of the preset,
 > P-ALIGNED (D9: the session's P-positions, no clock-time view), as shared-axis small multiples. Drawn from
@@ -413,14 +724,33 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 > • the P tags along the top and, once under the figure, the middle half of WHEN each P-position happened
 > across the shots in ms from impact (ticks[].when: the timing the warp removed, kept quietly);
 > • the playhead at the picked shot's canonical time (now.canonMs); click or drag seeks the picked shot;
-> over a shot's curve (every shot) the pointer lights that shot, and a click puts it in the carousel.
+> over a shot's curve (every shot) the pointer lights that shot, and a click puts it in the carousel;
 > …
 
-- **Properties:** `QtObject roles`, `var brush`, `QtObject presenter`, `bool interactive`, `var session`, `var nowRows`, `real playCanon`, `string figMode`, `int pickedOrdinal`, `real plotH`, `readonly var keyKinds`, `bool atom`, `readonly var rows`, `readonly var groups` … (+22 more)
+- **Properties:** `QtObject roles`, `var brush`, `QtObject presenter`, `bool interactive`, `var session`, `var nowRows`, `real playCanon`, `string figMode`, `int pickedOrdinal`, `real plotH`, `bool overlay`, `var planeLayers`, `readonly var ovAxis`, `readonly var keyKinds` … (+25 more)
 - **Signals:** `shotActivated(int ordinal)`
-- **Functions:** `covH(r)`, `ownIndex()`, `byKey(list, key)`, `panelOf(r, group)`, `layersFor(r, p, withPicked, withAlt)`
-- **Uses:** `PpChPlot`
+- **Functions:** `planeLayersOf(key)`, `withPlane(lo, hi, ls)`, `covH(r)`, `covAbove(list, i)`, `outsideEstimate(list, est)`, `ownIndex()`, `byKey(list, key)`, `panelOf(r, group)`, `layersFor(r, p, withPicked, withAlt)`
+- **Uses:** `PpChPlaneLabels`, `PpChPlot`
 - **Used by (1):** `PpChartsSessionView`
+
+### PpChShotShapeGrid
+`src/Gui/charts/PpChShotShapeGrid.qml` · 148 lines · root `Column` · no direct `Theme.*` refs
+
+> PPCHSHOTSHAPEGRID — the Club delivery section's shot shape (docs/design/club_delivery_chart_design.md §4.6): a 3×3
+> grid, where the ball STARTED (left · straight · right of the target, from the monitor's face) across, how it CURVED
+> (left · straight · right, from the face-to-path) down — the target's own left and right, so it reads the same for
+> either hand; the shot's words ("Pull, slight fade") are the presenter's and mirror for a left-hander. This shot is
+> the filled dot with a ring and its word; the session's shots are small dots in their cells, spread so a cell of
+> many shows many. The monitor's values only: a shot the monitor gave no face is in no cell (its word "-").
+> Hover a dot: its shot and words, under the grid; a click opens a session shot (shotActivated).
+> shot: SHAPE (thisShot.shape) | null — the ringed one; marks: session.shapes.marks; line: the words when nothing is
+> hovered (the session's commonest shape, or this shot's word).
+> objectNames: chShotShapeGrid, chShapeCell (+ start, curve, count), chShapeThis, chShapeMark (+ ordinal), chShapeWords.
+
+- **Properties:** `QtObject roles`, `var shot`, `var marks`, `string line`, `bool interactive`, `real cell`, `readonly bool ok`, `readonly var cols`, `readonly real labW`, `string hoverText`
+- **Signals:** `shotActivated(int ordinal)`
+- **Functions:** `dotsIn(start, curve)`, `spot(i, n)`
+- **Used by (3):** `PpChDeliverySession`, `PpChDeliveryShotSection`, `PpDeliveryPage`
 
 ### PpChSummary
 `src/Gui/charts/PpChSummary.qml` · 127 lines · root `Column` · no direct `Theme.*` refs
@@ -450,10 +780,10 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 > sentence is empty, so a block can always place it. Held to the prose measure unless `measure` is false.
 
 - **Properties:** `QtObject roles`, `var sentence`, `bool measure`, `var tone`, `readonly bool present`
-- **Used by (10):** `PpChReplaySession`, `PpChSeqChain`, `PpChSeqSession`, `PpChWristSession`, `PpChWristShotSection`, `PpChartsKindsView`, `PpChartsReadingsView`, `PpChartsRelationsView`, `PpChartsSessionView`, `PpChartsShotView`
+- **Used by (14):** `PpChDeliverySession`, `PpChDeliveryShotSection`, `PpChPostureSession`, `PpChPostureShotSection`, `PpChReplaySession`, `PpChSeqChain`, `PpChSeqSession`, `PpChWristSession`, `PpChWristShotSection`, `PpChartsKindsView` (+4)
 
 ### PpChTraceFigure
-`src/Gui/charts/PpChTraceFigure.qml` · 576 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/charts/PpChTraceFigure.qml` · 620 lines · root `Item` · no direct `Theme.*` refs
 
 > PPCHTRACEFIGURE — This shot's figure (design §2.1, CONTRACT Addendum): the preset's 40 ms windowed-mean
 > traces as shared-axis small multiples, or OVERLAID on one shared value axis (F6), on ONE time axis of ms
@@ -473,11 +803,28 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 > • Against (design §2.1): the reference curve in the same hue (median thin, a shot dashed, "like this one"
 > …
 
-- **Properties:** `QtObject roles`, `var brush`, `QtObject presenter`, `bool interactive`, `bool seekable`, `var rows`, `var ticks`, `var msTicks`, `real x0`, `real x1`, `bool overlay`, `var overlayAxis`, `bool showDots`, `bool showCursor` … (+29 more)
+- **Properties:** `QtObject roles`, `var brush`, `QtObject presenter`, `bool interactive`, `bool seekable`, `var rows`, `var ticks`, `var msTicks`, `real x0`, `real x1`, `bool overlay`, `var overlayAxis`, `bool showDots`, `bool showCursor` … (+30 more)
 - **Signals:** `trustClicked(string subject)`
-- **Functions:** `hoverAtMs(ms)`, `xOf(t)`, `tOf(px)`, `refRowOf(key)`, `byKey(list, key)`, `refStyle()`, `layersFor(r)`, `itemsFor(r, still)`
-- **Uses:** `PpChPlot`
+- **Functions:** `planeLayersOf(key)`, `withPlane(lo, hi, ls)`, `hoverAtMs(ms)`, `xOf(t)`, `tOf(px)`, `refRowOf(key)`, `byKey(list, key)`, `refStyle()`, `layersFor(r)`, `itemsFor(r, still)`
+- **Uses:** `PpChPlaneLabels`, `PpChPlot`
 - **Used by (1):** `PpChartsShotView`
+
+### PpChTrustFold
+`src/Gui/charts/PpChTrustFold.qml` · 60 lines · root `Column`
+
+> PPCHTRUSTFOLD — a Charts section's own "How far can I trust this?", under its profile, CLOSED by default, in the look
+> of the panel's own fold (PpTrustSummaryFold). The panel's fold speaks for the traces' readings (TrustPresenter) and
+> carries no section's words, so a section (Posture, Wrist) says its own, ONCE: the presenter's TRUST.lines, verbatim —
+> for posture which camera each row came from, the ⚠ reasons, the bands' sources, the datum, the rig rule
+> (docs/design/posture_chart_design.md §5.6); for the wrist each reading's source and confidence, what was not
+> measured and why in full, what is not graded, where the bands come from and which style
+> (docs/design/wrist_motion_into_charts.md §8). Nothing in the section's body repeats them: a cell says only its few
+> words. No lines: nothing drawn.
+> objectNames, from `prefix`: <prefix>Trust, <prefix>TrustToggle, <prefix>TrustLine ("chPosture": PpChPostureTrust;
+> "chWrist": the Wrist sections).
+
+- **Properties:** `string prefix`, `QtObject roles`, `var lines`, `bool open`
+- **Used by (5):** `PpChDeliverySession`, `PpChDeliveryShotSection`, `PpChPostureTrust`, `PpChWristSession`, `PpChWristShotSection`
 
 ### PpChWindowBrush
 `src/Gui/charts/PpChWindowBrush.qml` · 159 lines · root `Item` · no direct `Theme.*` refs
@@ -532,24 +879,27 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 - **Used by (2):** `PpChWristSession`, `PpChWristShotSection`
 
 ### PpChWristSession
-`src/Gui/charts/PpChWristSession.qml` · 170 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/charts/PpChWristSession.qml` · 176 lines · root `Item` · no direct `Theme.*` refs
 
 > PPCHWRISTSESSION — THE WRIST SECTION OF SESSION (docs/design/wrist_motion_into_charts.md §4; PpChartsSessionView
 > draws it under its own section head "Wrist", after the standard session content): "what is my wrist style, and
 > how repeatable is it?" The head and standfirst (the style each shot was graded as, the score's median, the most
 > and least repeatable checkpoint, the resemblance index against what Auto chose, the session's size said);
 > the checkpoint profile as one box per checkpoint across the shots over the picked shot's band, this shot
-> ringed, the median and how wide the middle half is under each; then — in a right rail at wide — the score shot
+> ringed, the median and how wide the middle half is under each, its caption, and under it the section's own
+> "How far can I trust this?" (PpChTrustFold, closed: session.trust.lines verbatim — the sources and confidence, the
+> shots with no reading / refused / not graded, the bands' sources and the style rule, no resemblance index, a small
+> session); then — in a right rail at wide — the score shot
 > by shot with its box (PpChRunBox), the style table, and what keeps firing as a mark per shot that picks that
 > swing. Every word and number is ChartsWristPresenter.session's.
-> objectName: chWristSession.
+> objectNames: chWristSession, chWristTrust (+ chWristTrustToggle, chWristTrustLine).
 
 - **Properties:** `QtObject roles`, `var brush`, `var body`, `bool interactive`, `readonly var se`, `readonly bool ok`, `readonly bool available`, `readonly bool rail`, `readonly real railW`, `readonly real mainW`
-- **Uses:** `PpChRunBox`, `PpChText`, `PpChWristProfile`, `PpMark`, `PpSectionHead`
+- **Uses:** `PpChRunBox`, `PpChText`, `PpChTrustFold`, `PpChWristProfile`, `PpMark`, `PpSectionHead`
 - **Used by (1):** `PpChartsSessionView`
 
 ### PpChWristShotSection
-`src/Gui/charts/PpChWristShotSection.qml` · 295 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/charts/PpChWristShotSection.qml` · 301 lines · root `Item` · no direct `Theme.*` refs
 
 > PPCHWRISTSHOTSECTION — THE WRIST SECTION OF THIS SHOT (docs/design/wrist_motion_into_charts.md §4, as Mark
 > re-surfaced it on 16 Oct: the standard curves first, the domain read added when it is meaningful). "At each
@@ -561,17 +911,17 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 > figure at the right at medium, one line under the head below); the quiet controls — Bands (Auto →
 > resolved), Against (address · previous · reference ★ · session median), Curves behind, and "★ set this
 > swing as your reference" — folded to one summary line below medium (decision rule 5); the resemblance
-> line; the checkpoint profile (PpChWristProfile, a column seeks); Findings | Working well
-> (PpChWristLedger) and what moves with the lead wrist at impact (PpChMovesWith), in a right rail at wide.
+> line; the checkpoint profile (PpChWristProfile, a column seeks), its caption and, under them, the section's own
+> "How far can I trust this?" (PpChTrustFold, closed: thisShot.trust.lines verbatim — each reading's source and
+> confidence, what was not measured and the gate's full reason, not graded yet, the bands' source and style, no
+> resemblance index); Findings | Working well (PpChWristLedger) and what moves with the lead wrist at impact
+> (PpChMovesWith), in a right rail at wide.
 > Replay (the glance at the mat, and the cast): the head, the standfirst, the score line and the profile;
-> no controls, no ledgers.
-> Every word and number is ChartsWristPresenter's (body.w*, each bound ONCE on the body); the choices go to the
-> body (body.choose: wristAgainst, wristCurves, wristArchetype — persisted per screen × mode by the panel). The
 > …
 
 - **Properties:** `QtObject roles`, `var brush`, `var body`, `string reg`, `bool interactive`, `bool cast`, `readonly bool replay`, `readonly var ty`, `readonly var wc`, `readonly var sh`, `readonly bool has`, `readonly var score`, `readonly var prof`, `readonly bool rail` … (+11 more)
 - **Functions:** `seekTo(us)`, `openTrust(subject)`, `esc(t)`, `setReference()`, `picked(set, opt)`
-- **Uses:** `PpChChoices`, `PpChFoldHead`, `PpChMovesWith`, `PpChText`, `PpChWristLedger`, `PpChWristProfile`, `PpSectionHead`, `PpTrustInlineFor`, `TrustFocus`
+- **Uses:** `PpChChoices`, `PpChFoldHead`, `PpChMovesWith`, `PpChText`, `PpChTrustFold`, `PpChWristLedger`, `PpChWristProfile`, `PpSectionHead`, `PpTrustInlineFor`, `TrustFocus`
 - **Used by (1):** `PpChartsShotView`
 
 ### PpChartsAnalyse
@@ -585,7 +935,7 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 - **Used by (1):** `PpChartsBody`
 
 ### PpChartsBody
-`src/Gui/charts/PpChartsBody.qml` · 347 lines · root `Item`
+`src/Gui/charts/PpChartsBody.qml` · 400 lines · root `Item`
 
 > THE CHARTS PANEL'S BODY: the reader's choices and view state, the frame on surfaces that have no stage card
 > round them, and the TYPESET REGISTER that draws everything else (design system §15; docs/design/
@@ -605,9 +955,9 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 > The register is handed `body: root` and reads and drives everything through this API.
 > …
 
-- **Properties:** `QtObject tracesP`, `QtObject relationsP`, `QtObject wristP`, `readonly var tChoices`, `readonly var tShot`, `readonly var tRef`, `readonly var tSession`, `readonly var tNow`, `readonly var rStatus`, `readonly var rShot`, `readonly var rOpen`, `readonly var rRel`, `readonly var rKinds`, `readonly var rReplay` … (+50 more)
+- **Properties:** `QtObject tracesP`, `QtObject relationsP`, `QtObject wristP`, `QtObject postureP`, `QtObject deliveryP`, `readonly var tChoices`, `readonly var tShot`, `readonly var tRef`, `readonly var tSession`, `readonly var tNow`, `readonly var rStatus`, `readonly var rShot`, `readonly var rOpen`, `readonly var rRel` … (+76 more)
 - **Signals:** `choiceMade(string name, var value)`, `sectionToggled(string name, bool collapsed)`, `navChanged()`, `demoReset()`, `shotRequested(string swingDir, int shotId)`
-- **Functions:** `choose(name, value)`, `toggleMetric(key)`, `chooseCustom(startUs, endUs)`, `chooseUp(id)`, `toggleSection(name)`, `openReading(id)`, `ask(q, brush)`, `clearAsk(brush)`, `questionById(id)`, `pickOrdinal(ord)` (+2)
+- **Functions:** `openCondition(id)`, `choose(name, value)`, `toggleMetric(key)`, `chooseCustom(startUs, endUs)`, `chooseUp(id)`, `toggleSection(name)`, `openReading(id)`, `ask(q, brush)`, `clearAsk(brush)`, `questionById(id)` (+3)
 - **Uses:** `PpCardShell`, `PpChartsAnalyse`, `PpChartsReplay`, `PpMicro`, `SessionMode`
 - **Used by (1):** `PpChartsPanel`
 
@@ -627,7 +977,7 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 - **Used by (1):** `PpChartsRegister`
 
 ### PpChartsPanel
-`src/Gui/charts/PpChartsPanel.qml` · 380 lines · root `Item` · no direct `Theme.*` refs
+`src/Gui/charts/PpChartsPanel.qml` · 424 lines · root `Item` · no direct `Theme.*` refs
 
 > THE CHARTS STAGE PANEL: this swing's metric curves and the session behind them, in two voices — Traces (the
 > instrument) and Relations (the workbench) — across four views: This shot · Session · Relations · Kinds
@@ -641,8 +991,8 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 > model is fed exactly as its header says: the session folder (the same binding as the diagnostics
 > panel), ShotProcessor.shotProcessed → ingestShot, the carousel's re-analysis → regradeShot, and the
 > diagnostics ledger written (SessionMode.sessionDiagnostics busy → false) → refreshDiagnostics.
-> • THE _screenActive GATE STAYS (INVENTORY F41, cbb63aae): all four session screens live in one
-> StackLayout, and both hosts (ScreenSessionMode, ScreenWrist) carry this panel. An invisible screen's
+> • THE _screenActive GATE STAYS (INVENTORY F41, cbb63aae): every screen lives in one StackLayout,
+> and the session screen (AppScreen.Session, ScreenWrist) carries this panel. An invisible screen's
 > presenters are fed nothing: the picked swing, its detail, the span and the playhead are copied in only
 > while this screen is the visible one, so a replay on another screen costs this one no recompute.
 > …
@@ -650,7 +1000,7 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 - **Properties:** `string title`, `int sessionType`, `string defaultTab`, `string defaultPreset`, `alias framed`, `readonly string cardAside`, `alias asideHosted`, `readonly bool asideActive`, `readonly bool asideOn`, `alias interactive`, `alias surface`, `alias demoState`, `alias tab`, `readonly string view` … (+3 more)
 - **Functions:** `activateAside()`
 - **Uses:** `PpChartsBody`, `SessionMode`
-- **Used by (2):** `ScreenSessionMode`, `ScreenWrist`
+- **Used by (1):** `ScreenWrist`
 - **Exercised by tests/tools:** `ChartsHarness`
 
 ### PpChartsReadingsView
@@ -727,13 +1077,14 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 - **Used by (1):** `PpChartsBody`
 
 ### PpChartsSessionView
-`src/Gui/charts/PpChartsSessionView.qml` · 240 lines · root `Column` · no direct `Theme.*` refs
+`src/Gui/charts/PpChartsSessionView.qml` · 293 lines · root `Column` · no direct `Theme.*` refs
 
 > SESSION — "what do my curves usually look like, and where do they part?" (design §2.2, A; D2, D3, D6, D9).
 > Analyse: the head built from the data (where the curves part, the facet, the fit's payoff), its
 > standfirst, the alignment note (§4.1), the mixed-club note, the co-occurrence caveat; the P-aligned
-> figure; "How far can I trust this?"; the Controls fold (Metrics, Window, Show: middle half · every shot ·
-> group fit, Facet: none by default, D3); up to three questions answered in place (a facet or band set, the
+> figure; "How far can I trust this?" (with the chest's probable peak said there, §2.2.1); the Controls fold
+> (Metrics, Window, Show: middle half · every shot · group fit, Line up: P-positions · impact (§2.2.1), Draw: small
+> multiples · overlaid (This shot's choice, shared), Facet: none by default, D3); up to three questions answered in place (a facet or band set, the
 > lit shots); then the sequence across the session (order barcode and peak-time dot plot), folded.
 > Replay (D6: follows the playhead): the head, the figure with "now" against "typical" in its column, and
 > the lead reading at the latest P-position the playhead has passed (PpChReplaySession).
@@ -741,15 +1092,18 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 > Then, in Analyse, the wrist section ("Wrist", PpChWristSession) when some shot of the session carries a wrist
 > reading and a wrist metric is among the curves on show (body.wristSessionShown; Mark, 16 Oct: the standard
 > curves first, the domain read added where it means something). The glance never adds it.
-> objectNames: chSessionView, chSessionHead, chSessionControls, chFacetPicker (Analyse), chFacetPickerGlance.
+> Then the posture section ("Posture", PpChPostureSession) by the same rule (body.postureSessionShown), Analyse only.
+> Then the club delivery section ("Club delivery", PpChDeliverySession) by the same rule (body.deliverySessionShown),
+> Analyse only; the session's median address line and shoulder plane are the figure's (body.planeLayers).
+> …
 
-- **Properties:** `QtObject roles`, `var brush`, `var body`, `string reg`, `bool interactive`, `bool cast`, `real pageH`, `readonly bool replay`, `readonly var se`, `readonly var tc`, `readonly var tn`, `readonly bool available`, `readonly int nRows`, `readonly real headEst` … (+8 more)
+- **Properties:** `QtObject roles`, `var brush`, `var body`, `string reg`, `bool interactive`, `bool cast`, `real pageH`, `readonly bool replay`, `readonly var se`, `readonly var tc`, `readonly var tn`, `readonly bool available`, `readonly int nRows`, `readonly real headEst` … (+11 more)
 - **Functions:** `currentLabel(list)`, `picked(set, opt)`, `firstClause(sentence)`
-- **Uses:** `PpChChoices`, `PpChFoldHead`, `PpChQuestions`, `PpChReplaySession`, `PpChSeqSession`, `PpChSessionFigure`, `PpChText`, `PpChWristSession`, `PpInlinePicker`, `PpTrustSummaryFold`
+- **Uses:** `PpChChoices`, `PpChDeliverySession`, `PpChFoldHead`, `PpChPostureSession`, `PpChQuestions`, `PpChReplaySession`, `PpChSeqSession`, `PpChSessionFigure`, `PpChText`, `PpChWristSession`, `PpInlinePicker`, `PpTrustSummaryFold`
 - **Used by (1):** `PpChartsRegister`
 
 ### PpChartsShotView
-`src/Gui/charts/PpChartsShotView.qml` · 477 lines · root `Column` · no direct `Theme.*` refs
+`src/Gui/charts/PpChartsShotView.qml` · 502 lines · root `Column` · no direct `Theme.*` refs
 
 > THIS SHOT — "what did this swing's curves do, and how does it differ from my usual swing?" (design §2.1).
 > One view, drawn in either register; the register chooses how much it says, never its encodings.
@@ -766,10 +1120,10 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 > The wrist section (PpChWristShotSection, "Wrist"), under the traces in either register, when this shot carries a
 > wrist reading and a wrist metric is among the curves on show (body.wristShotShown): the standard curves first,
 > the domain read added where it means something (Mark, 16 Oct).
-> Every word and number is a presenter's (body.t* = ChartsTracesPresenter, body.r* = ChartsRelationsPresenter,
+> The posture section (PpChPostureShotSection, "Posture"), after it, by the same rule (body.postureShotShown: a
 > …
 
 - **Properties:** `QtObject roles`, `var brush`, `var body`, `string reg`, `bool interactive`, `bool cast`, `real pageH`, `var demoHoverMs`, `string openPicker`, `readonly bool replay`, `readonly var ts`, `readonly var tc`, `readonly var tr`, `readonly var tn` … (+22 more)
 - **Functions:** `openTrust(subject, origin)`, `trustReadings(origin)`, `againstLabel()`, `windowLabel()`, `picked(set, opt)`
-- **Uses:** `PpChChoices`, `PpChFoldHead`, `PpChKeyFigures`, `PpChProfile`, `PpChQuestions`, `PpChSeqChain`, `PpChSeqTable`, `PpChSummary`, `PpChText`, `PpChTraceFigure`, `PpChWindowBrush`, `PpChWristShotSection`, `PpInlinePicker`, `PpNotes`, `PpPageKey`, `PpTrustInline` (+2)
+- **Uses:** `PpChChoices`, `PpChDeliveryShotSection`, `PpChFoldHead`, `PpChKeyFigures`, `PpChPostureShotSection`, `PpChProfile`, `PpChQuestions`, `PpChSeqChain`, `PpChSeqTable`, `PpChSummary`, `PpChText`, `PpChTraceFigure`, `PpChWindowBrush`, `PpChWristShotSection`, `PpInlinePicker`, `PpNotes` (+4)
 - **Used by (1):** `PpChartsRegister`

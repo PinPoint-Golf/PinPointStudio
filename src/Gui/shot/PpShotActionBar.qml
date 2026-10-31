@@ -197,7 +197,7 @@ Item {
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text:           root.markedCount === 1 ? qsTr("1 swing") : qsTr("%1 swings").arg(root.markedCount)
+                text:           Theme.plural(root.markedCount, qsTr("%1 swing"), qsTr("%1 swings"))
                 font.family:    Theme.fontData
                 font.pixelSize: Theme.fontSzBody2
                 color:          Theme.colorText
@@ -358,136 +358,38 @@ Item {
                 x: allCtl.width - width
                 padding: Theme.gap(5)
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-                contentWidth: Math.max(allExportRow.implicitWidth, allTrashRow.implicitWidth)
+                contentWidth: Math.max(allExportItem.contentImplicitWidth, allTrashItem.contentImplicitWidth)
                               + Theme.sp(28)
                 background: PpPopoverCard {}
 
                 contentItem: Column {
-
-                    Rectangle {   // Export all shown
-                        width: parent.width
-                        height: Theme.sp(34)
-                        radius: Theme.radius
-                        color: allExportMa.containsMouse ? Theme.colorBg2 : "transparent"
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                        Row {
-                            id: allExportRow
-                            anchors { left: parent.left; leftMargin: Theme.gap(10)
-                                      verticalCenter: parent.verticalCenter }
-                            spacing: Theme.gap(10)
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "⤓"
-                                font.family: Theme.fontSymbol
-                                font.pixelSize: Theme.fontSzBody
-                                color: Theme.colorText2
-                            }
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("Export all shown")
-                                font.family: Theme.fontBody
-                                font.pixelSize: Theme.fontSzBody
-                                color: Theme.colorText
-                            }
-                        }
-                        PpMicro {   // count tail
-                            anchors { right: parent.right; rightMargin: Theme.gap(10)
-                                      verticalCenter: parent.verticalCenter }
-                            text: qsTr("%1 shots").arg(root.visibleCount)
-                            font.letterSpacing: Theme.trackingData
-                        }
-                        PpPressable {
-                            id: allExportMa
-                            hoverScale: 1.0       // full-width menu item — press-dip only
-                            onClicked: { allMenu.close(); root.exportShown() }
-                        }
+                    PpMenuItem {   // Export all shown
+                        id: allExportItem
+                        glyph: "⤓"
+                        text: qsTr("Export all shown")
+                        tail: qsTr("%1 shots").arg(root.visibleCount)
+                        fontWeight: Font.Normal
+                        onTriggered: { allMenu.close(); root.exportShown() }
                     }
 
-                    Rectangle {   // Re-analyse all shown — re-run the latest analysis
-                        width: parent.width
-                        height: Theme.sp(34)
-                        radius: Theme.radius
-                        color: allReanalyseMa.containsMouse ? Theme.colorBg2 : "transparent"
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                        Row {
-                            anchors { left: parent.left; leftMargin: Theme.gap(10)
-                                      verticalCenter: parent.verticalCenter }
-                            spacing: Theme.gap(10)
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "↻"
-                                font.family: Theme.fontSymbol
-                                font.pixelSize: Theme.fontSzBody
-                                color: Theme.colorText2
-                            }
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("Re-analyse all shown")
-                                font.family: Theme.fontBody
-                                font.pixelSize: Theme.fontSzBody
-                                color: Theme.colorText
-                            }
-                        }
-                        PpMicro {   // count tail
-                            anchors { right: parent.right; rightMargin: Theme.gap(10)
-                                      verticalCenter: parent.verticalCenter }
-                            text: qsTr("%1 shots").arg(root.visibleCount)
-                            font.letterSpacing: Theme.trackingData
-                        }
-                        PpPressable {
-                            id: allReanalyseMa
-                            hoverScale: 1.0       // full-width menu item — press-dip only
-                            onClicked: { allMenu.close(); root.reanalyseShown() }
-                        }
+                    PpMenuItem {   // Re-analyse all shown — re-run the latest analysis
+                        glyph: "↻"
+                        text: qsTr("Re-analyse all shown")
+                        tail: qsTr("%1 shots").arg(root.visibleCount)
+                        fontWeight: Font.Normal
+                        onTriggered: { allMenu.close(); root.reanalyseShown() }
                     }
 
-                    Rectangle {   // separator — destructive action in its own group
-                        width: parent.width - Theme.sp(12)
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        height: 1
-                        color: Theme.colorBorderMid
-                        opacity: Theme.borderOpacityNormal
-                    }
+                    PpMenuRule {}   // destructive action in its own group
 
-                    Rectangle {   // Move all shown to trash (soft, recoverable)
-                        width: parent.width
-                        height: Theme.sp(34)
-                        radius: Theme.radius
-                        color: allTrashMa.containsMouse ? Theme.colorWarnLight : "transparent"
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                        Row {
-                            id: allTrashRow
-                            anchors { left: parent.left; leftMargin: Theme.gap(10)
-                                      verticalCenter: parent.verticalCenter }
-                            spacing: Theme.gap(10)
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "🗑"
-                                font.family: Theme.fontSymbol
-                                font.pixelSize: Theme.fontSzBody
-                                color: Theme.colorWarn
-                            }
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("Move all shown to trash")
-                                font.family: Theme.fontBody
-                                font.pixelSize: Theme.fontSzBody
-                                color: Theme.colorWarn
-                            }
-                        }
-                        PpMicro {   // count tail
-                            anchors { right: parent.right; rightMargin: Theme.gap(10)
-                                      verticalCenter: parent.verticalCenter }
-                            text: qsTr("%1 shots").arg(root.visibleCount)
-                            font.letterSpacing: Theme.trackingData
-                            color:   Theme.colorWarn
-                            opacity: 0.7
-                        }
-                        PpPressable {
-                            id: allTrashMa
-                            hoverScale: 1.0       // full-width menu item — press-dip only
-                            onClicked: { allMenu.close(); root.trashShown() }
-                        }
+                    PpMenuItem {   // Move all shown to trash (soft, recoverable)
+                        id: allTrashItem
+                        glyph: "🗑"
+                        text: qsTr("Move all shown to trash")
+                        tail: qsTr("%1 shots").arg(root.visibleCount)
+                        warn: true
+                        fontWeight: Font.Normal
+                        onTriggered: { allMenu.close(); root.trashShown() }
                     }
                 }
             }

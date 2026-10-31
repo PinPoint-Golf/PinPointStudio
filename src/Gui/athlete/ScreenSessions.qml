@@ -54,14 +54,6 @@ Item {
     readonly property bool hintSeen: typeof appSettings !== "undefined" && appSettings
                                      && appSettings.sessionsHintSeen === true
 
-    function bytesWords(b) {
-        if (!(b > 0)) return "0 MB"
-        const gb = b / (1024 * 1024 * 1024)
-        if (gb >= 1) return gb.toFixed(1) + " GB"
-        return Math.max(1, Math.round(b / (1024 * 1024))) + " MB"
-    }
-    function plural(n, one, many) { return n === 1 ? one.arg(n) : many.arg(n) }
-
     onVisibleChanged: if (visible) list.forceActiveFocus()
 
     Rectangle { anchors.fill: parent; color: Theme.colorBg }
@@ -103,9 +95,9 @@ Item {
                         anchors.baseline: title.baseline
                         readonly property int n: root.model && root.model.shownCount !== undefined ? root.model.shownCount : 0
                         readonly property int sw: root.model && root.model.shownSwings !== undefined ? root.model.shownSwings : 0
-                        text: [root.plural(n, qsTr("%1 session"), qsTr("%1 sessions")),
-                               root.plural(sw, qsTr("%1 swing"), qsTr("%1 swings")),
-                               root.bytesWords(root.model ? (root.model.shownBytes || 0) : 0)].join(" · ")
+                        text: [Theme.plural(n, qsTr("%1 session"), qsTr("%1 sessions")),
+                               Theme.plural(sw, qsTr("%1 swing"), qsTr("%1 swings")),
+                               Theme.formatBytes(root.model ? (root.model.shownBytes || 0) : 0)].join(" · ")
                         font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
                         font.letterSpacing: Theme.trackingData
                         color: Theme.colorText3

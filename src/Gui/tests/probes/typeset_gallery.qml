@@ -509,7 +509,7 @@ Item {
                                    onPicked: id => { root.demoMiss = id; root.pickerOpen = false } }
                     Caption { block: "PpLedgerTable"; note: "A · kind watching" }
                     PpLedgerTable { width: parent.width; roles: ro; brush: br; kind: "watching"; readout: root.readout
-                                  rows: root.watching.slice().sort((a, b) => (ro.rate(b.recurrence) - ro.rate(a.recurrence)) || a.name.localeCompare(b.name))
+                                  rows: root.watching.slice().sort((a, b) => (ro.rate(b) - ro.rate(a)) || a.name.localeCompare(b.name))
                                   onConditionActivated: id => root.openCondition(id); onShotActivated: (d, s) => root.pickShot(d, s) }
                 }
             }

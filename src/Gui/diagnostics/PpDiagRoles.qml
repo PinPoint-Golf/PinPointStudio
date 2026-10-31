@@ -109,35 +109,73 @@ PpTypeset {
     // ═══════════════════════════════════════════════════════════════════════════════════════════
     // TEXT HELPERS — figures, units and sentences built from the model's live data (A's parsers, B's copy).
     // ═══════════════════════════════════════════════════════════════════════════════════════════
+    // THE MODEL PUBLISHES THE PARTS (gui-catalogue C17). A row's valueText, corridorText and recurrence are
+    // sentences; beside each the model publishes its parts — valueNumber + valueUnit, corridorFigures,
+    // recurrenceFired + recurrenceOf (session_diagnostics_model.cpp publishValueParts & co., held to the strings by
+    // its test). Each helper below takes the ROW and sets the parts, parsing nothing; handed the bare string (a
+    // caller that does not pass the row yet, or a row from before the parts) it parses the string as it always did.
+    // shortUnit is PpTypeset's (figure_format.h's rule: any percent of a body dimension is "%").
+    function _row(x) { return x !== null && typeof x === "object" }
     readonly property var _numRe: /^\s*([−\-+]?\d[\d.,]*(?::1)?)\s*(.*)$/
-    function fig(v)    { const m = String(v === undefined || v === null ? "" : v).match(_numRe); return m ? m[1] : "-" }
-    function unitOf(v) { const m = String(v === undefined || v === null ? "" : v).match(_numRe); return m ? m[2] : "" }
-    function shortUnit(s) { return String(s || "").replace(/ (width|length)$/, "") }
-    function recParts(rec) { const m = String(rec || "").match(/(\d+)\s+of\s+(\d+)/); return m ? { n: +m[1], of: +m[2] } : null }
+    // a reading's figure ("13.2", "−4.0", "2.6:1"; "-" when nothing was read) and the unit set after it ("% hand rise")
+    function fig(v) {
+        if (_row(v)) return v.valueNumber !== undefined ? String(v.valueNumber) : fig(v.valueText)
+        const m = String(v === undefined || v === null ? "" : v).match(_numRe); return m ? m[1] : "-"
+    }
+    function unitOf(v) {
+        if (_row(v)) return v.valueUnit !== undefined ? String(v.valueUnit) : unitOf(v.valueText)
+        const m = String(v === undefined || v === null ? "" : v).match(_numRe); return m ? m[2] : ""
+    }
+    // the recurrence's two counts { n, of } ("8 of 12 measurable shots"); null for a sentence with no count
+    function recParts(rec) {
+        if (_row(rec)) return rec.recurrenceFired !== undefined ? { n: rec.recurrenceFired, of: rec.recurrenceOf } : recParts(rec.recurrence)
+        const m = String(rec || "").match(/(\d+)\s+of\s+(\d+)/); return m ? { n: +m[1], of: +m[2] } : null
+    }
     function frac(rec)   { const q = recParts(rec); return q ? q.n + "/" + q.of : "-" }
     function fracOf(rec) { const q = recParts(rec); return q ? q.n + " of " + q.of : "-" }
     // A row's FIRED figure. A session-scope pattern (#58) has no firings to count from its sentence ("In
     // sequence on 1 of 6 swings" counts swings IN order): its fired figure is the swings out of order of
     // those resolved, and only when the order share was read; otherwise "-".
     function firedFrac(c) {
-        if (!c || !c.sessionScope) return frac(c ? c.recurrence : "")
+        if (!c || !c.sessionScope) return frac(c || "")
         return c.consistency && c.consistency.shareAvailable ? c.fired + "/" + c.assessable : "-"
     }
     function firedOf(c) {
-        if (!c || !c.sessionScope) return fracOf(c ? c.recurrence : "")
+        if (!c || !c.sessionScope) return fracOf(c || "")
         return c.consistency && c.consistency.shareAvailable ? c.fired + " of " + c.assessable : "-"
     }
     function rate(rec)   { const q = recParts(rec); return q && q.of > 0 ? q.n / q.of : 0 }
     function shortCount(rec) { return String(rec || "").replace(" measurable shots", "") }
+    // the corridor's published edges { form, passLo, passHi, faultLo, faultHi, unit }; null for a string, or for a
+    // row whose corridor slot holds words (a reason, "no corridor authored") — _slotWords says which
+    function _cf(t) { const p = _row(t) ? t.corridorFigures : null; return p && p.form ? p : null }
+    function _slotWords(t) { return _row(t) && t.corridorFigures !== undefined && !_cf(t) }
+    function _ct(t) { return String((_row(t) ? t.corridorText : t) || "") }
+    // the short form's two key figures from the edges: no unit (the reading beside it carries one), except a
+    // tempo's ":1", which belongs to the figure
+    function _shortParts(p) {
+        const last = f => p.unit === ":1" ? f + ":1" : f
+        return p.form === "ceiling" ? [{ label: "Pass", figure: "≤ " + p.passHi }, { label: "Fault line", figure: "> " + last(p.faultHi) }]
+             : p.form === "floor"   ? [{ label: "Pass", figure: "≥ " + p.passLo }, { label: "Fault line", figure: "< " + last(p.faultLo) }]
+             : [{ label: "Pass", figure: p.passLo + " to " + p.passHi }, { label: "Fault outside", figure: p.faultLo + " to " + last(p.faultHi) }]
+    }
+    // "pass ≤ 8.7 · fault > 13" / "pass ≥ 1.3 · fault < 1.2" / "pass 5 to 25 · fault outside 0 to 30"
     function corridorShort(t) {
-        let s = String(t || "")
+        const p = _cf(t)
+        if (p) { const q = _shortParts(p); return "pass " + q[0].figure + (q[1].label === "Fault outside" ? " · fault outside " : " · fault ") + q[1].figure }
+        if (_slotWords(t)) return _ct(t)
+        let s = _ct(t)
         // one-sided: "pass ≤ 8.7 · fault > 13", the fault's direction kept (spreadFaultWords' style)
         s = s.replace(/pass up to /, "pass ≤ ").replace(/pass from (\S+) up/, "pass ≥ $1")
              .replace(/fault above /, "fault > ").replace(/fault below /, "fault < ")
         return s.replace(/(\d)[^\d]*$/, "$1")
     }
+    // the short form as key figures: [{ label: "Pass", figure: "≤ 8.7" }, { label: "Fault line", figure: "> 13" }]
     function corridorParts(t) {
+        const p = _cf(t)
+        if (p) return _shortParts(p)
         const out = []
+        if (_slotWords(t)) return out
         String(corridorShort(t)).split(" · ").forEach(q => {
             let m
             if ((m = q.match(/^pass (.*)$/)))               out.push({ label: "Pass", figure: m[1] })
@@ -146,7 +184,14 @@ PpTypeset {
         })
         return out
     }
+    // "passes up to 8.7; fault above 13% hand rise": the corridor in a sentence, its unit once at the end
     function corridorClause(ct) {
+        const p = _cf(ct)
+        if (p) return p.form === "ceiling" ? "passes up to " + p.passHi + "; fault above " + withUnit(p.faultHi, p.unit)
+                    : p.form === "floor"   ? "passes from " + p.passLo + " up; fault below " + withUnit(p.faultLo, p.unit)
+                    : "passes " + p.passLo + " to " + p.passHi + "; fault outside " + p.faultLo + " to " + withUnit(p.faultHi, p.unit)
+        if (_slotWords(ct)) return ""
+        ct = _ct(ct)
         if (!ct) return ""
         let pass = "", flt = ""
         String(ct).split(" · ").forEach(q => { if (q.indexOf("pass ") === 0) pass = q.slice(5); else if (q.indexOf("fault ") === 0) flt = q.slice(6) })
@@ -162,7 +207,7 @@ PpTypeset {
     }
     function recWords(rec, shotCount) {
         const q = recParts(rec)
-        if (!q) return esc(rec)
+        if (!q) return esc(_row(rec) ? rec.recurrence : rec)
         if (q.of === 0) return "never measurable"
         if (q.n === q.of) return "every one of the " + figHtml(q.of) + " shots"
         return figHtml(q.n) + " of " + figHtml(q.of) + (shotCount > 0 && q.of < shotCount ? " measurable" : "") + " shots"
@@ -213,10 +258,10 @@ PpTypeset {
     }
     function firedEntry(c, card, shotCount) {
         let h = strongHtml(c.name) + "&nbsp;&nbsp;" + figHtml(c.valueText, warn) + ". "
-        const cc = corridorClause(c.corridorText)
+        const cc = corridorClause(c)
         if (cc) h += "The corridor " + esc(cc) + ". "
-        if (c.tierTag === "pattern") h += cap1(recWords(c.recurrence, shotCount)) + ", " + trendWords(card) + "; " + afterWords(c.firingsAfter) + "."
-        else h += "Seen on " + recWords(c.recurrence, shotCount) + "; " + afterWords(c.firingsAfter) + "."
+        if (c.tierTag === "pattern") h += cap1(recWords(c, shotCount)) + ", " + trendWords(card) + "; " + afterWords(c.firingsAfter) + "."
+        else h += "Seen on " + recWords(c, shotCount) + "; " + afterWords(c.firingsAfter) + "."
         return h
     }
     function sessionEntry(c, withName, xrefPage, shotCount) {
@@ -228,7 +273,7 @@ PpTypeset {
         if (c.sessionScope) {
             h += esc(sentence(c.recurrence)) + " " + esc(sentence(c.recencyText))
         } else {
-            h += (c.fresh ? "New this session: " + recWords(c.recurrence, shotCount) : cap1(recWords(c.recurrence, shotCount))) + ", " + trendWords(c) + ". "
+            h += (c.fresh ? "New this session: " + recWords(c, shotCount) : cap1(recWords(c, shotCount))) + ", " + trendWords(c) + ". "
             h += esc(sentence(c.directionText)) + " Here " + figHtml(c.valueText, c.thisShot === "fired" ? warn : ink)
             if (sp.medianNumber !== undefined && sp.medianNumber !== "") h += " against a session median of " + figHtml(sp.medianNumber)
             h += "."

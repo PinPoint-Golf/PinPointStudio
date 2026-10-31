@@ -202,7 +202,7 @@ Item {
 
         Item { width: 1; height: Theme.sp(13) }
 
-        Item {   // has-video toggle (the CamerasPanel TogglePill idiom)
+        Item {   // has-video toggle
             width: parent.width; height: toggle.height
             Text {
                 anchors.left: parent.left
@@ -212,30 +212,11 @@ Item {
                 font.pixelSize: Theme.fontSzBody2
                 color:          Theme.colorText
             }
-            Rectangle {
+            PpSwitch {
                 id: toggle
                 anchors.right: parent.right
-                width:  Theme.sp(34)
-                height: Theme.sp(18)
-                radius: Theme.sp(9)
-                color:  root.proxy.hasVideoOnly ? Theme.colorAccent : Theme.colorBg3
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                Rectangle {
-                    width:  Theme.sp(12)
-                    height: Theme.sp(12)
-                    radius: Theme.sp(6)
-                    color:  "white"
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: root.proxy.hasVideoOnly ? parent.width - width - Theme.sp(3) : Theme.sp(3)
-                    Behavior on x { NumberAnimation { duration: Theme.durationFast } }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape:  Qt.PointingHandCursor
-                    onClicked:    root.proxy.hasVideoOnly = !root.proxy.hasVideoOnly
-                }
+                checked:   root.proxy.hasVideoOnly
+                onToggled: (v) => root.proxy.hasVideoOnly = v
             }
         }
 

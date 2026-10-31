@@ -27,11 +27,11 @@
 //   To fix before you start — the flow's issues, each with its settings link;
 //   What is set up — the flow's summary rows (one per step that has one) and the launch monitor;
 //   What this session will record — one row per family, from ctx.capability (the catalogue's
-//     resolver over the live setup, worded by setup_capability_rows.js — this page only draws it);
+//     resolver over the live setup, worded by setup_capability_rows.js), each a SetupCapabilityRow —
+//     the row Home's "What this rig can measure" draws too, coloured by the row's own tone;
 //   the notice.
 // Start is the footer's and is always allowed (§4.12): this page describes, it gates nothing.
 import QtQuick
-import QtQuick.Layouts
 import PinPointStudio
 
 WizardPage {
@@ -66,42 +66,20 @@ WizardPage {
         anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.gap(32) }
         spacing: Theme.gap(20)
 
-        Column {
-            width: parent.width
-            spacing: Theme.gap(8)
-
-            Text {
-                text:               page.stepLabel
-                font.family:        Theme.fontData
-                font.pixelSize:     Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro
-                color:              Theme.colorText3
-            }
-            // DECISION(stage5b): today's heading, "You're good to go" (the brief quoted it as
-            // "You're ready to go"; it also said "as today").
-            Text {
-                objectName:     "readyHeading"
-                width:          parent.width
-                text:           page._fullyReady ? qsTr("You're good to go") : qsTr("Not quite ready")
-                font.family:    Theme.fontDisplay
-                font.italic:    Theme.fontDisplayItalic
-                font.weight:    Theme.fontDisplayWeight
-                font.pixelSize: Math.min(Theme.sp(22), Theme.fontSzDisplay)
-                color:          page._fullyReady ? Theme.colorText : Theme.colorWarn
-                wrapMode:       Text.WordWrap
-            }
-            Text {
-                width:          parent.width
-                text:           page._fullyReady
-                    ? qsTr("Everything checked out. The moment you take your address and make your first swing, Pinpoint starts capturing. There's nothing else to press.")
-                    : qsTr("A few things couldn't be confirmed before this session. You can use ← Back to sort them out, or start anyway — Pinpoint will capture what it can, though some analysis may be limited or missing from your results.")
-                font.family:    Theme.fontBody
-                font.weight:    Theme.fontBodyWeight
-                font.pixelSize: Theme.fontSzBody2
-                color:          Theme.colorText2
-                wrapMode:       Text.WordWrap
-                lineHeight:     1.65
-            }
+        // DECISION(stage5b): today's heading, "You're good to go" (the brief quoted it as
+        // "You're ready to go"; it also said "as today").
+        SetupStepIntro {
+            width:             parent.width
+            eyebrow:           page.stepLabel
+            heading:           page._fullyReady ? qsTr("You're good to go") : qsTr("Not quite ready")
+            body:              page._fullyReady
+                ? qsTr("Everything checked out. The moment you take your address and make your first swing, Pinpoint starts capturing. There's nothing else to press.")
+                : qsTr("A few things couldn't be confirmed before this session. You can use ← Back to sort them out, or start anyway — Pinpoint will capture what it can, though some analysis may be limited or missing from your results.")
+            headingPixelSize:  Math.min(Theme.sp(22), Theme.fontSzDisplay)
+            flatHeading:       true
+            headingColor:      page._fullyReady ? Theme.colorText : Theme.colorWarn
+            headingObjectName: "readyHeading"
+            rule:              false
         }
 
         // ── To fix before you start ──────────────────────────────────
@@ -239,77 +217,9 @@ WizardPage {
                                 width: parent.width; height: 1; color: Theme.colorBorderMid
                             }
 
-                            Item {
-                                id: capRow
-                                objectName: "capabilityRow"
-                                // What the row says, for the tests: the row as one line.
-                                property string family:    modelData.label
-                                property string stateText: modelData.stateText
-                                property string reason:    modelData.reason
-                                property string tone:      modelData.tone
-                                property string gateLine:  modelData.gateLine || ""
-                                readonly property color _toneColor:
-                                    modelData.tone === "good" ? Theme.colorGood
-                                  : modelData.tone === "warn" ? Theme.colorWarn
-                                                              : Theme.colorText3
-
-                                width:  parent.width
-                                height: capCol.implicitHeight + Theme.sp(20)
-
-                                RowLayout {
-                                    anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
-                                              margins: Theme.gap(14) }
-                                    spacing: Theme.gap(10)
-
-                                    Rectangle {
-                                        Layout.alignment: Qt.AlignTop
-                                        Layout.topMargin: Theme.gap(7)
-                                        width: Theme.sp(6); height: Theme.sp(6); radius: Theme.sp(3)
-                                        color: capRow._toneColor
-                                    }
-                                    Column {
-                                        id: capCol
-                                        Layout.fillWidth: true
-                                        spacing: Theme.gap(2)
-                                        Text {
-                                            width:          parent.width
-                                            text:           modelData.label
-                                            font.family:    Theme.fontBody
-                                            font.pixelSize: Theme.fontSzBody2
-                                            color:          Theme.colorText
-                                        }
-                                        Text {
-                                            visible:            modelData.reason !== ""
-                                            width:              parent.width
-                                            text:               modelData.reason
-                                            font.family:        Theme.fontData
-                                            font.pixelSize:     Theme.fontSzMicro
-                                            font.letterSpacing: Theme.trackingData
-                                            color:              Theme.colorText3
-                                            wrapMode:           Text.WordWrap
-                                        }
-                                        // the forecast: a gate this setup's routes cannot lift (§7.4)
-                                        Text {
-                                            objectName:         "capabilityGateLine"
-                                            visible:            (modelData.gateLine || "") !== ""
-                                            width:              parent.width
-                                            text:               modelData.gateLine || ""
-                                            font.family:        Theme.fontData
-                                            font.pixelSize:     Theme.fontSzMicro
-                                            font.letterSpacing: Theme.trackingData
-                                            color:              Theme.colorText3
-                                            wrapMode:           Text.WordWrap
-                                        }
-                                    }
-                                    Text {
-                                        Layout.alignment:   Qt.AlignTop
-                                        text:               modelData.stateText
-                                        font.family:        Theme.fontData
-                                        font.pixelSize:     Theme.fontSzMicro
-                                        font.letterSpacing: Theme.trackingData
-                                        color:              capRow._toneColor
-                                    }
-                                }
+                            SetupCapabilityRow {
+                                width: parent.width
+                                row:   modelData
                             }
                         }
                     }

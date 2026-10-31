@@ -1159,10 +1159,10 @@ static void compositePresentationSuite(const QTemporaryDir &tmp)
               && trunk.value(QStringLiteral("dominant")).toBool(),
           "the trunk: address 34°, impact 25°, the change 9° in its words' direction (raw × golferSign), dominant");
     const QVariantMap depth = rows.value(1).toMap();
-    check(depth.value(QStringLiteral("startText")).toString().isEmpty() && figOf(depth.value(QStringLiteral("changeText")).toString(), QStringLiteral(" cm")) == 7.0,
+    check(depth.value(QStringLiteral("startText")).toString().isEmpty() && figOf(depth.value(QStringLiteral("changeText")).toString(), QStringLiteral("\u00A0cm")) == 7.0,
           "a part read at one instant names no address value — it is never invented");
     const QVariantMap lift = rows.value(3).toMap();
-    check(figOf(lift.value(QStringLiteral("changeText")).toString(), QStringLiteral(" %")) == -2.0
+    check(figOf(lift.value(QStringLiteral("changeText")).toString(), QStringLiteral("%")) == -2.0
               && lift.value(QStringLiteral("unitNote")).toString() == QStringLiteral("% stance width"),
           "a worded unit is said once (unitNote); the figure keeps its symbol");
     const QVariantMap head = rows.value(4).toMap();
@@ -2270,6 +2270,63 @@ int main(int argc, char **argv)
         check(minusOk, "negative values use a true minus, matching the corridor text");
         check(selectedOk, "the selected shot's tick is marked in every run");
 
+        // ── C17: the parts beside the strings ARE the strings ───────────────────────────
+        // valueNumber + valueUnit, corridorFigures and recurrenceFired/Of are what the registers set
+        // instead of parsing valueText, corridorText and recurrence back; recomposed by the same
+        // rules (figure_format.h withUnit, spreadCorridorWords' three forms, recurrenceText), every
+        // one must give back its string exactly, on the readout's rows, the cards and Watching.
+        {
+            namespace F = pinpoint::figures;
+            const auto corridorOf = [](const QVariantMap &p) {
+                const auto e = [&](const char *k) { return p.value(QLatin1String(k)).toString(); };
+                const QString form = e("form"), unit = e("unit");
+                if (form == QLatin1String("ceiling"))
+                    return F::withUnit(QStringLiteral("pass up to %1 · fault above %2").arg(e("passHi"), e("faultHi")), unit);
+                if (form == QLatin1String("floor"))
+                    return F::withUnit(QStringLiteral("pass from %1 up · fault below %2").arg(e("passLo"), e("faultLo")), unit);
+                return F::withUnit(QStringLiteral("pass %1 to %2 · fault outside %3 to %4")
+                                       .arg(e("passLo"), e("passHi"), e("faultLo"), e("faultHi")), unit);
+            };
+            int valued = 0, unvalued = 0, corridors = 0, counts = 0;
+            bool valueOk = true, corridorOk = true, countOk = true, everyRowOk = true;
+            const auto checkRow = [&](const QVariantMap &c, bool needsValue) {
+                if (needsValue && (!c.contains(QStringLiteral("valueNumber")) || !c.contains(QStringLiteral("corridorFigures"))))
+                    everyRowOk = false;
+                if (c.contains(QStringLiteral("valueNumber"))) {
+                    const QString num = c.value(QStringLiteral("valueNumber")).toString();
+                    const QString unit = c.value(QStringLiteral("valueUnit")).toString();
+                    const QString vt = c.value(QStringLiteral("valueText")).toString();
+                    if (num == QLatin1String("-")) {
+                        ++unvalued;
+                        if (!unit.isEmpty()) valueOk = false;     // nothing read carries no unit
+                    } else {
+                        ++valued;
+                        if (F::withUnit(num, unit) != vt) valueOk = false;
+                    }
+                }
+                const QVariantMap p = c.value(QStringLiteral("corridorFigures")).toMap();
+                if (!p.isEmpty()) {
+                    ++corridors;
+                    if (corridorOf(p) != c.value(QStringLiteral("corridorText")).toString()) corridorOk = false;
+                }
+                if (c.contains(QStringLiteral("recurrenceFired"))) {
+                    ++counts;
+                    if (recurrenceText(c.value(QStringLiteral("recurrenceFired")).toInt(), c.value(QStringLiteral("recurrenceOf")).toInt())
+                        != c.value(QStringLiteral("recurrence")).toString())
+                        countOk = false;
+                }
+            };
+            for (const QVariant &cv : conds) checkRow(cv.toMap(), true);
+            for (const QVariant &cv : m->cards()) checkRow(cv.toMap(), true);
+            for (const QVariant &cv : m->watching()) checkRow(cv.toMap(), false);
+            std::printf("      parts: %d figures, %d unread, %d corridors, %d recurrence counts\n",
+                        valued, unvalued, corridors, counts);
+            check(everyRowOk, "C17: every readout row and card publishes its value's parts and its corridor's");
+            check(valued > 0 && valueOk, "…valueNumber joined to valueUnit is valueText; nothing read is \"-\" with no unit");
+            check(corridorOk, "…corridorFigures in spreadCorridorWords' form is corridorText");
+            check(counts > 0 && countOk, "…recurrenceFired of recurrenceOf is the recurrence line");
+        }
+
         // The sparse capture is the one that has to explain itself: conditions the session
         // measured elsewhere and could not measure HERE. The corridor slot then carries the
         // REASON, and a blank there would read as a bug rather than as "we did not look".
@@ -2780,9 +2837,9 @@ int main(int argc, char **argv)
                     qPrintable(spreadCorridorWords(cc, hr)),
                     qPrintable(spreadCorridorWords(c2, QStringLiteral("mm"))),
                     qPrintable(spreadCorridorWords(cf, QString())));
-        check(spreadCorridorWords(cc, hr) == QStringLiteral("pass up to 4.7 · fault above 7 % hand rise"),
+        check(spreadCorridorWords(cc, hr) == QStringLiteral("pass up to 4.7 · fault above 7% hand rise"),
               "ceiling: \"pass up to <signal> · fault above <fault>\", trailing zeros dropped");
-        check(spreadCorridorWords(c2, QStringLiteral("mm")) == QStringLiteral("pass 5 to 25 · fault outside 0 to 30 mm"),
+        check(spreadCorridorWords(c2, QStringLiteral("mm")) == QStringLiteral("pass 5 to 25 · fault outside 0 to 30\u00A0mm"),
               "two-sided: both pass edges and both fault lines");
         check(spreadCorridorWords(cf, QString()) == QStringLiteral("pass from 1.3 up · fault below 1.2"),
               "floor: the mirror, never assuming high is bad");
@@ -2791,12 +2848,12 @@ int main(int argc, char **argv)
         {
             const SpreadCorridor hi = spreadCorridorOnSide(c2, FiringSide::High);
             const SpreadCorridor lo = spreadCorridorOnSide(c2, FiringSide::Low);
-            check(spreadCorridorWords(hi, QStringLiteral("mm")) == QStringLiteral("pass up to 25 · fault above 30 mm"),
+            check(spreadCorridorWords(hi, QStringLiteral("mm")) == QStringLiteral("pass up to 25 · fault above 30\u00A0mm"),
                   "#16: fires high only — \"pass up to 25 · fault above 30 mm\", no low fault line");
-            check(spreadCorridorWords(lo, QStringLiteral("mm")) == QStringLiteral("pass from 5 up · fault below 0 mm"),
+            check(spreadCorridorWords(lo, QStringLiteral("mm")) == QStringLiteral("pass from 5 up · fault below 0\u00A0mm"),
                   "#16: fires low only — \"pass from 5 up · fault below 0 mm\"");
             check(spreadCorridorWords(spreadCorridorOnSide(c2, FiringSide::Either), QStringLiteral("mm"))
-                      == QStringLiteral("pass 5 to 25 · fault outside 0 to 30 mm"),
+                      == QStringLiteral("pass 5 to 25 · fault outside 0 to 30\u00A0mm"),
                   "#16: a condition on both tails keeps both edges");
             check(spreadPositionWords(hi, -8.0, 0) == QStringLiteral("inside the pass band")
                       && spreadPositionWords(c2, -8.0, 0) == QStringLiteral("8 past the fault line"),
@@ -2817,6 +2874,67 @@ int main(int argc, char **argv)
                   && spreadPositionWords(cc, 7.04, 1) == QStringLiteral("at the fault line")
                   && spreadPositionWords(cc, 7.4, 1) == QStringLiteral("0.4 past the fault line"),
               "a reading placed in words: past the fault line by how much, at it (when the distance rounds to 0), past the pass band, inside, or -");
+
+        // WHERE A READING SITS, FOR THE FIGURES (C21): the zone edges each band starts at, and the common
+        // scale the session tiles share — decided off the corridor, not rebuilt in QML from the band words.
+        {
+            using SDM = SessionDiagnosticsModel;
+            const auto kindsOf = [](const SpreadCorridor &c, const SpreadAxis &a) {
+                const std::vector<SpreadBand> b = spreadBands(c, a);
+                QStringList k;
+                for (size_t i = 1; i < b.size(); ++i) k << SDM::edgeKindAt(c, b[i].lo);
+                return k.join(QLatin1Char(','));
+            };
+            const auto sameZ = [](double a, double b) { return std::isfinite(a) && std::fabs(a - b) < 1e-9; };
+            check(kindsOf(c2, spreadAxisFor(c2, { 15.0 })) == QLatin1String("fault,pass,grid,grid,pass,fault"),
+                  "C21 edges, two-sided: fault, pass, the Ideal edges, pass, fault");
+            check(kindsOf(cc, spreadAxisFor(cc, { 3, 5, 9 })) == QLatin1String("aim,grid,pass,fault"),
+                  "C21 edges, ceiling: the aspiration point where the open side meets Ideal, then Ideal, pass, fault");
+            check(kindsOf(cf, spreadAxisFor(cf, { 1.45 })) == QLatin1String("fault,pass,grid,aim"),
+                  "C21 edges, floor: the mirror");
+            check(kindsOf(cm, spreadAxisFor(cm, { 5.0 })) == QLatin1String("aim,grid,fault"),
+                  "C21 edges: a monitor bound that empties Watch leaves ONE edge, and it is the fault line "
+                  "(the QML's grade-pair rule called \"action|good\" a plain grid line)");
+
+            check(sameZ(SDM::ladderZ(c2, 15.0), 0.0) && sameZ(SDM::ladderZ(c2, 20.0), 1.0) && sameZ(SDM::ladderZ(c2, 25.0), 2.0)
+                      && sameZ(SDM::ladderZ(c2, 30.0), 3.0) && sameZ(SDM::ladderZ(c2, 35.0), 4.0) && sameZ(SDM::ladderZ(c2, 0.0), -3.0)
+                      && sameZ(SDM::ladderZ(c2, 0.0, -1), 3.0),
+                  "C21 ladder, two-sided: 1 at the Ideal edge, 2 at the pass edge, 3 at the fault line, on past it; folded by side");
+            check(SDM::ladderSide(c2, 12.0) == -1 && SDM::ladderSide(c2, 18.0) == +1,
+                  "C21 fold, two-sided: the side the session median is on goes up");
+            check(sameZ(SDM::ladderZ(cm, 15.0), 3.0), "C21 ladder: where the pass edge and the fault line coincide, a reading there is at the fault line");
+            // TWO-SIDED, a monitor bound that empties the high Watch band (the QML's ladder put that shared edge at 2),
+            // and one that empties Good and Watch both (the QML put it at 1): the edge is the fault line, at 3
+            {
+                SpreadCorridor tw;
+                tw.known = true; tw.shape = CorridorShape::TwoSided; tw.mu = 0.0; tw.sigmaLo = tw.sigmaHi = 10.0;
+                tw.idealLo = -10.0; tw.signalLo = -20.0; tw.faultLo = -30.0;
+                tw.idealHi = 10.0;  tw.signalHi = 15.0;  tw.faultHi = 15.0;
+                check(kindsOf(tw, spreadAxisFor(tw, { 0.0 })) == QLatin1String("fault,pass,grid,grid,fault")
+                          && sameZ(SDM::ladderZ(tw, 15.0), 3.0) && sameZ(SDM::ladderZ(tw, 10.0), 1.0) && SDM::ladderZ(tw, 16.0) > 3.0,
+                      "C21 two-sided, Watch emptied by a monitor bound: one edge, the fault line, at 3 on the ladder");
+                SpreadCorridor tg = tw;
+                tg.signalHi = tg.faultHi = 10.0;
+                check(kindsOf(tg, spreadAxisFor(tg, { 0.0 })) == QLatin1String("fault,pass,grid,fault")
+                          && sameZ(SDM::ladderZ(tg, 10.0), 3.0) && sameZ(SDM::ladderZ(tg, -10.0), -1.0),
+                      "C21 two-sided, Good and Watch emptied: the Ideal edge is the fault line, at 3");
+            }
+
+            // ONE-SIDED: the graded tail is up whatever the median does, and the open side is no distance.
+            // The QML folded by the median's sign: with it on the open side the tile was drawn upside down.
+            const SpreadCorridor hi = spreadCorridorOnSide(c2, FiringSide::High);
+            check(SDM::ladderSide(hi, 5.0) == +1 && SDM::ladderSide(cc, -1.0) == +1,
+                  "C21 fold, one-sided high (#16 tail, ceiling): up, even with the session median on the open side");
+            check(SDM::ladderZ(hi, 32.0, SDM::ladderSide(hi, 5.0)) > 3.0 && sameZ(SDM::ladderZ(hi, 5.0, +1), 0.0)
+                      && sameZ(SDM::ladderZ(hi, 15.0, +1), 0.0) && sameZ(SDM::ladderZ(hi, 30.0, +1), 3.0),
+                  "…a firing past the fault line reads above 3, a reading out on the open side reads 0, never below it");
+            check(SDM::ladderSide(cf, 1.6) == -1 && SDM::ladderZ(cf, 1.15, -1) > 3.0 && sameZ(SDM::ladderZ(cf, 1.6, -1), 0.0)
+                      && sameZ(SDM::ladderZ(cf, 1.2, -1), 3.0),
+                  "C21 fold, floor: the low tail is folded up, the open high side reads 0");
+            SpreadCorridor none;
+            check(!std::isfinite(SDM::ladderZ(none, 1.0)) && SDM::edgeKindAt(none, 1.0).isEmpty(),
+                  "C21: no corridor, no ladder and no edges");
+        }
 
         // ── The model's published surface, over a WRITTEN ledger ──────────────────────
         //
@@ -2878,8 +2996,8 @@ int main(int argc, char **argv)
                   && std::fabs(faults.first().toMap().value(QStringLiteral("value")).toDouble() - 13.0) < 1e-6,
               "…with ONE fault line, at the norm's Action edge of 13 % of the hand rise");
         check(!faults.isEmpty()
-                  && faults.first().toMap().value(QStringLiteral("text")).toString() == QLatin1String("fault at 13 % hand rise")
-                  && faults.first().toMap().value(QStringLiteral("shortText")).toString() == QLatin1String("13 % hand rise"),
+                  && faults.first().toMap().value(QStringLiteral("text")).toString() == QLatin1String("fault at 13% hand rise")
+                  && faults.first().toMap().value(QStringLiteral("shortText")).toString() == QLatin1String("13% hand rise"),
               "…worded in whole units, with the bare number for a narrow strip");
         std::printf("      fault line: \"%s\"  caption: \"%s\"  tag: \"%s\"\n",
                     qPrintable(faults.isEmpty() ? QString() : faults.first().toMap().value(QStringLiteral("text")).toString()),
@@ -2893,6 +3011,24 @@ int main(int argc, char **argv)
             bandGrades << b.toMap().value(QStringLiteral("grade")).toString();
         check(bandGrades.join(QLatin1Char(',')) == QLatin1String("open,ideal,good,watch,action"),
               "…bands: the open low side, then ideal good watch action on the graded high side");
+        {
+            // C21: each band names the edge it starts at, and every run point its place on the common scale —
+            // a ceiling, so folded high whatever the median does: 1 at the Ideal edge (13/3), 2 at the pass
+            // edge (26/3), 3 at the fault line (13)
+            QStringList bandEdges;
+            for (const QVariant &b : sp.value(QStringLiteral("bands")).toList())
+                bandEdges << b.toMap().value(QStringLiteral("edge")).toString();
+            check(bandEdges.join(QLatin1Char(',')) == QLatin1String(",aim,grid,pass,fault"),
+                  "C21: the published bands start at the aspiration point, the Ideal edge, the pass edge and the fault line");
+            const QVariantList rp = sp.value(QStringLiteral("run")).toList();
+            const auto zOf = [&](int i) { const QVariantMap m = rp.at(i).toMap(); return m.contains(QStringLiteral("z")) ? m.value(QStringLiteral("z")).toDouble() : std::numeric_limits<double>::quiet_NaN(); };
+            check(rp.size() == 10 && std::fabs(zOf(3) - 2.0 / (13.0 / 3.0)) < 1e-6 && std::fabs(zOf(0) - (2.0 + 10.0 / 13.0)) < 1e-6
+                      && !rp.at(4).toMap().contains(QStringLiteral("z")),
+                  "C21: run z — 2 % sits inside Ideal (0.46), 12 % between the pass edge and the fault line (2.77); none for the unmeasured shot");
+            bool medZ = !sp.value(QStringLiteral("median")).toList().isEmpty();
+            for (const QVariant &m : sp.value(QStringLiteral("median")).toList()) medZ = medZ && m.toMap().contains(QStringLiteral("z"));
+            check(medZ, "C21: …and every rolling-median point carries its z");
+        }
 
         const QVariantList dots = sp.value(QStringLiteral("dots")).toList();
         check(dots.size() == 9, "a dot for each of the 9 assessable shots — the unmeasured one is not placed");
@@ -2937,7 +3073,7 @@ int main(int argc, char **argv)
         std::printf("      readout shot 1: \"%s\"\n",
                     qPrintable(runPts.at(0).toMap().value(QStringLiteral("readout")).toString()));
         check(runPts.at(0).toMap().value(QStringLiteral("readout")).toString()
-                  == QStringLiteral("shot 1 · 12 % hand rise · past the pass band, 1 short of the fault line · fired"),
+                  == QStringLiteral("shot 1 · 12% hand rise · past the pass band, 1 short of the fault line · fired"),
               "a measured shot's readout: number, reading, place against the corridor, verdict");
         check(sp.value(QStringLiteral("currentReadout")).toString()
                   == runPts.last().toMap().value(QStringLiteral("readout")).toString(),
@@ -2947,7 +3083,8 @@ int main(int argc, char **argv)
             const std::vector<double> tv = spreadTickValues(ta);
             QStringList tt; for (double v : tv) tt << spreadNumber(v, 0, true);
             std::printf("      ticks over −7.9…29.3: %s\n", qPrintable(tt.join(QLatin1Char(' '))));
-            check(tt.join(QLatin1Char(' ')) == QString(QChar(0x2212)) + QStringLiteral("5 0 5 10 15 20 25"),
+            // 37.2 / 5 = 7.44 a tick: past the one tick rule's 7 cut (figure_format.h tickValues), so a step of 10
+            check(tt.join(QLatin1Char(' ')) == QStringLiteral("0 10 20"),
                   "the Y labels are round 1-2-5 steps inside the axis, on its decimals");
         }
         check(!sp.value(QStringLiteral("yTicks")).toList().isEmpty(), "the spread publishes its Y labels");
@@ -2987,14 +3124,30 @@ int main(int argc, char **argv)
                   && sp.value(QStringLiteral("dirRight")).toString() == QStringLiteral("worse →")
                   && sp.value(QStringLiteral("dirCentre")).toString().isEmpty(),
               "a ceiling reads \"← better   worse →\"");
-        check(sp.value(QStringLiteral("caption")).toString().contains(QStringLiteral("2 off scale, to 200 % hand rise")),
+        check(sp.value(QStringLiteral("caption")).toString().contains(QStringLiteral("2 off scale, to 200% hand rise")),
               "the off-scale readings are named in the caption, not over the dots");
         bool corridorWordsOk = false;
         for (const QVariant &cv : ms->cards())
             if (cv.toMap().value(QStringLiteral("id")).toString() == QLatin1String("over_the_top"))
                 corridorWordsOk = cv.toMap().value(QStringLiteral("corridorText")).toString()
-                                  == QStringLiteral("pass up to 8.7 · fault above 13 % hand rise");
+                                  == QStringLiteral("pass up to 8.7 · fault above 13% hand rise");
         check(corridorWordsOk, "the card's corridor line states the pass band and the fault line the strip draws");
+        // …and its parts, published beside it so no register parses the sentence back (C17)
+        bool corridorPartsOk = false;
+        for (const QVariant &cv : ms->cards())
+            if (cv.toMap().value(QStringLiteral("id")).toString() == QLatin1String("over_the_top")) {
+                const QVariantMap c = cv.toMap(), p = c.value(QStringLiteral("corridorFigures")).toMap();
+                corridorPartsOk = p.value(QStringLiteral("form")).toString() == QLatin1String("ceiling")
+                               && p.value(QStringLiteral("passHi")).toString() == QLatin1String("8.7")
+                               && p.value(QStringLiteral("faultHi")).toString() == QLatin1String("13")
+                               && !p.contains(QStringLiteral("passLo")) && !p.contains(QStringLiteral("faultLo"))
+                               && p.value(QStringLiteral("unit")).toString() == QLatin1String("% hand rise")
+                               && (c.value(QStringLiteral("valueNumber")).toString() == QLatin1String("-")
+                                   || (c.value(QStringLiteral("valueUnit")).toString() == QLatin1String("% hand rise")
+                                       && c.value(QStringLiteral("valueNumber")).toString() + QStringLiteral("% hand rise")
+                                              == c.value(QStringLiteral("valueText")).toString()));
+            }
+        check(corridorPartsOk, "…its parts: ceiling, pass up to 8.7, fault above 13, in % hand rise; the reading's figure and unit");
 
         // The card carries the same map.
         bool cardHasIt = false;

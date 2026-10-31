@@ -23,8 +23,11 @@
 //
 // Since Stage 2 of the session-setup refactor (session_wizard_refactor_design.md §4.7)
 // this file holds no state machine. It composes:
-//   • WitmotionArmRoutine / HackMotionArmRoutine — the two state machines, non-visual;
-//   • CalibrationGuide                            — the 3-D guide the routines drive;
+//   • WitmotionArmRoutine / HackMotionArmRoutine — the two state machines, non-visual, on
+//                                                   CalibrationRoutineBase (whose header is the
+//                                                   routine contract this file uses);
+//   • CalibrationGuide                            — the 3-D guide the routines drive, shown by
+//                                                   CalibrationGuideView;
 //   • ArmCalibrationStatus                        — the status column;
 // and keeps the public API the hosts already use (layoutMode, showHeader, stepLabel,
 // calibrationDone, calibrationFailed, mountFailed, phase, leadImu, isHackMotion,
@@ -56,7 +59,6 @@
 // makes resume un-expressible, and this UI matches that rather than papering over it.
 
 import QtQuick
-import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import PinPointStudio
 
@@ -180,7 +182,6 @@ Item {
     readonly property alias _guide: guide
 
     readonly property bool _rightHanded: athleteController.currentHandedness !== "Left"
-    readonly property quaternion _trailArmDownQuat: Qt.quaternion(0.7071, 0.7071, 0, 0)
 
     function _log(text) { appLog.info("Calib", "flow " + text) }
 
@@ -219,10 +220,11 @@ Item {
             || _vendorOf(imuManager.deviceIdForRole(role)) === "hackmotion"
     }
 
-    readonly property int  _calCalibrated: 2   // WR_CAL_CALIBRATED (HackMotionArmRoutine.calCalibrated)
+    // A wG3's outcome stands while the device says it is calibrated (HmInstance.fullyCalibrated:
+    // its calibration state reads WR_CAL_CALIBRATED).
     readonly property bool _outcomeValid: !isHackMotion
                                           || (_leadDevice !== null && _leadDevice.imuConnected
-                                              && _leadDevice.calibrationState === _calCalibrated)
+                                              && _leadDevice.fullyCalibrated === true)
 
     // The PERIPHERAL behind leadForearm — the object every wr_calibration_* call goes
     // to. For a Witmotion it is the same ImuInstance leadImu resolves to; for a
@@ -368,6 +370,15 @@ Item {
         useGuideCamera: flow.isHackMotion
     }
 
+    // The status column as both layouts host it: this flow's routine, lead unit/device and outcome.
+    component FlowStatus: ArmCalibrationStatus {
+        routine:         flow._routine
+        isHackMotion:    flow.isHackMotion
+        leadImu:         flow.leadImu
+        leadDevice:      flow._leadDevice
+        calibrationDone: flow.calibrationDone
+    }
+
     // Recalibrate is offered once anything has happened (both layouts).
     readonly property bool _showRecalibrate: {
         var r = _routine
@@ -383,7 +394,7 @@ Item {
         sourceComponent: flow.layoutMode === "compact" ? compactLayout : fullLayout
     }
 
-    // FULL — RowLayout: BodyVizView (fill) | status column (sp(360), right).
+    // FULL — RowLayout: the guide view (fill) | status column (sp(360), right).
     Component {
         id: fullLayout
 
@@ -392,56 +403,28 @@ Item {
             anchors.margins: Theme.gap(8)
             spacing:         Theme.gap(12)
 
-            BodyVizView {
-                id: calibBvvFull
+            CalibrationGuideView {
                 Layout.fillHeight:   true
                 Layout.fillWidth:    true
                 Layout.minimumWidth: Theme.sp(200)
-                Component.onCompleted: guide.view = calibBvvFull
-
-                poseSource:       null   // no camera input during calibration
-                rightHanded:      flow._rightHanded
-                highlightLeadArm: true
-                leadArmColor:     Theme.colorAccent
-
-                useLeadArmOverride:      true
-                leadArmOverrideRotation: guide.armTarget
-                // ⚠ THE HACKMOTION RAISE IS THIS PROPERTY. Its two poses share one
-                // upper-arm rotation (the elbow must not move), so the travel the
-                // device watches is a forearm rotation and the forearm target is
-                // what changes between the markers. Identity — unchanged — for the
-                // Witmotion routine. Derivation in BodyVizView.qml.
-                leadForeArmOverrideRotation: flow.isHackMotion ? guide.foreTarget
-                                                               : Qt.quaternion(1, 0, 0, 0)
-
-                useTrailArmOverride:          true
-                trailArmOverrideRotation:     flow._trailArmDownQuat
-                trailForeArmOverrideRotation: Qt.quaternion(1, 0, 0, 0)
-
-                animateLeadArm: guide.animating
-
-                // See the CalibrationGuide declaration above.
-                useGuideCamera: guide.useGuideCamera
+                guide:         flow._guide
+                rightHanded:   flow._rightHanded
+                followForearm: flow.isHackMotion
             }
 
-            ArmCalibrationStatus {
+            FlowStatus {
                 Layout.preferredWidth: Theme.sp(360)
                 Layout.fillHeight:     true
                 Layout.topMargin:      Theme.gap(32)
-                mode:            "full"
-                routine:         flow._routine
-                isHackMotion:    flow.isHackMotion
-                leadImu:         flow.leadImu
-                leadDevice:      flow._leadDevice
-                calibrationDone: flow.calibrationDone
-                showHeader:      flow.showHeader
-                stepLabel:       flow.stepLabel
-                onRecalibrate:   flow.begin()
+                mode:          "full"
+                showHeader:    flow.showHeader
+                stepLabel:     flow.stepLabel
+                onRecalibrate: flow.begin()
             }
         }
     }
 
-    // COMPACT — stacked BodyVizView (~sp(220)) + status, scrolling in a Flickable,
+    // COMPACT — stacked guide view (~sp(220)) + status, scrolling in a Flickable,
     // with the action bar PINNED at the bottom so it is always visible even when a
     // short window clamps the popup. The whole-panel attention frame is drawn by the
     // host panel; here the action bar is a plain container whose main action (Cancel)
@@ -494,48 +477,23 @@ Item {
                     width: parent.width
                     spacing: Theme.gap(12)
 
-                    BodyVizView {
-                        id: calibBvvCompact
+                    CalibrationGuideView {
                         Layout.fillWidth:       true
                         Layout.preferredHeight: Theme.sp(220)
                         Layout.leftMargin:      Theme.gap(12)
                         Layout.rightMargin:     Theme.gap(12)
                         Layout.topMargin:       Theme.gap(12)
-                        Component.onCompleted: guide.view = calibBvvCompact
-
-                        poseSource:       null
-                        rightHanded:      flow._rightHanded
-                        highlightLeadArm: true
-                        leadArmColor:     Theme.colorAccent
-
-                        useLeadArmOverride:      true
-                        leadArmOverrideRotation: guide.armTarget
-                        // See the full layout above: for HackMotion the RAISE itself
-                        // lives in this property; identity for the Witmotion routine.
-                        leadForeArmOverrideRotation: flow.isHackMotion ? guide.foreTarget
-                                                                       : Qt.quaternion(1, 0, 0, 0)
-
-                        useTrailArmOverride:          true
-                        trailArmOverrideRotation:     flow._trailArmDownQuat
-                        trailForeArmOverrideRotation: Qt.quaternion(1, 0, 0, 0)
-
-                        animateLeadArm: guide.animating
-
-                        // Same reason as the full layout — see the comment there.
-                        useGuideCamera: guide.useGuideCamera
+                        guide:         flow._guide
+                        rightHanded:   flow._rightHanded
+                        followForearm: flow.isHackMotion
                     }
 
-                    ArmCalibrationStatus {
+                    FlowStatus {
                         Layout.fillWidth:    true
                         Layout.leftMargin:   Theme.gap(15)
                         Layout.rightMargin:  Theme.gap(15)
                         Layout.bottomMargin: Theme.gap(12)
-                        mode:            "compact"
-                        routine:         flow._routine
-                        isHackMotion:    flow.isHackMotion
-                        leadImu:         flow.leadImu
-                        leadDevice:      flow._leadDevice
-                        calibrationDone: flow.calibrationDone
+                        mode: "compact"
                     }
                 }
             }

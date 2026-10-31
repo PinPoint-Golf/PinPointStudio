@@ -116,7 +116,7 @@ WizardPage {
                     // (alpha-ramped → no flash) and eases the border to accentMid.
                     color:        sel                    ? Theme.colorAccentLight
                                 : choiceMa.containsMouse ? Theme.colorBg2
-                                :                          Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
+                                :                          Qt.alpha(Theme.colorBg2, 0)
                     border.width: 1
                     border.color: sel                    ? Theme.colorAccent
                                 : choiceMa.containsMouse ? Theme.colorAccentMid

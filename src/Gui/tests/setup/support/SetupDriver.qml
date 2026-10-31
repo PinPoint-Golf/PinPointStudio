@@ -667,11 +667,17 @@ Item {
         return t.length ? t[0].text : ""
     }
     function clickScan() { _click(_scanButton(), "Scan button"); settle() }
-    // "Recalibrate" text link on Check (not the Triangulate page's PpButton of that name).
+    // "Recalibrate" text link on Check (not the Triangulate page's PpButton of that name): the
+    // SetupRecalibrateLink's PpLink, by its objectName; the old plain-Text match is the fallback.
     function clickRecalibrate() {
         if (current() !== "checkArm") throw new Error("SetupDriver.clickRecalibrate(): not on Check")
-        _click(find(flow.page, function(o) { return _isText(o) && o.text === "Recalibrate" && o.visible
-                                                    && o.children.length > 0 }), "Recalibrate link")
+        var link = find(flow.page, function(o) {
+            return (o.objectName === "armCheckRecalibrate" || o.objectName === "trunkCheckRecalibrate") && o.visible
+        })
+        if (!link)
+            link = find(flow.page, function(o) { return _isText(o) && o.text === "Recalibrate" && o.visible
+                                                        && o.children.length > 0 })
+        _click(link, "Recalibrate link")
         settle()
     }
 

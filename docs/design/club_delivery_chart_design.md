@@ -269,10 +269,15 @@ Physics, not grading. Each line appears only when its inputs exist; the monitor'
 
 ### 4.6 Shot shape
 
-A 3×3 grid: start line (push / straight / pull, from face angle) against curve (fade / straight / draw, from
-face-to-path), with tolerances ±1° start, ±1° face-to-path. This shot is the dot with a ring and a word ("pull,
-slight fade"); the session's shots are small dots. Monitor values only: our camera does not measure the face.
-For a left-handed golfer the words mirror.
+A 3×3 grid: start line (push / straight / pull) against curve (fade / straight / draw). The classification is
+the launch monitor card's own — `lmShapeClass` in `src/LaunchMonitor/lm_inferred_reads.h`, thresholds in
+`LmInferenceTuning` — so this section and the card name every shot alike; only the words are this section's.
+One pair, never mixed: the ball's (start from `lm.launchDirection`, curve from `lm.spinAxis`, and how far it
+actually curved from `lm.carryDistance` and `lm.offline` when both are there), else the club's (start from
+`lm.faceAngle`, curve from `lm.faceToPath`, else face − path, as the classifier's face-to-path fallback). Hook /
+slice and "slight" (half way to hook or slice) are the classifier's too. This shot is the dot with a ring and a
+word ("pull, slight fade"); the session's shots are small dots. Monitor values only: our camera does not measure
+the face. For a left-handed golfer the words mirror.
 
 ### 4.7 Session
 
@@ -350,7 +355,7 @@ the plane". Said only when the curve is outside the slot at that P by more than 
 | "Steepest third" | the golfer's library tertiles of the fitted reading | own range, own camera |
 | Going-back word | \|P3 − P1\| ≥ 3° | about twice the curve's σ at P3 |
 | Hands sentence | \|steepening\| ≥ 3° | Jess's median +2.9 reads as "on the plane" |
-| Shot-shape tolerances | ±1° start, ±1° face-to-path | the monitor's own resolution class |
+| Shot-shape tolerances | the launch monitor's `LmInferenceTuning`, through `lmShapeClass` (ball pair, else face + face-to-path) | one classifier for the card and this section |
 | Session band shown | ≥ 5 shots with the curve | the band means nothing below |
 
 All live in one header beside the presenter, each with its reason, the way `session_posture.h` carries its

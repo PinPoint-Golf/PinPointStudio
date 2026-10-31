@@ -66,7 +66,8 @@ Column {
         const ids = ((card && card.ticks) || []).map(t => t.shotId), k = Math.floor(ids.length / 3)
         return k > 0 ? ids.slice(0, k).concat(ids.slice(ids.length - k)) : []
     }
-    function list(xs) { return xs.length <= 1 ? xs.join("") : xs.slice(0, -1).join(", ") + " and " + xs[xs.length - 1] }
+    // "a, b and c": PpTypeset's list (charts_words.h's rule); kept by this name for the registers that call qh.list
+    function list(xs) { return roles.list(xs) }
     function forCondition(card, readout, source, opts) {
         if (!card) return []
         const o = opts || {}, subj = !!o.subject, nm = card.name || ""

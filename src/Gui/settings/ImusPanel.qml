@@ -16,52 +16,25 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+// Settings → Motion Sensors: every enumerated IMU as a device card (alias, enable switch, read-only
+// mount, output rate, capabilities strip, and a live Test panel), then the global motion-sensor
+// switches and the orientation-fusion choice. Stands on SettingsPanelBase (scroll + search contract).
+
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Controls.Basic
 import PinPointStudio
 
-Item {
+SettingsPanelBase {
     id: root
+    contentSpacing: Theme.gap(16)
 
     // Id of the IMU device whose test panel is currently open ("" = none).
     property string openTestId: ""
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Inline component — reusable toggle pill (copied verbatim from CamerasPanel)
-    // ─────────────────────────────────────────────────────────────────────────
-    component TogglePill: Rectangle {
-        id: pill
-        property bool checked: false
-        signal toggled(bool value)
-
-        width:  Theme.sp(34)
-        height: Theme.sp(18)
-        radius: Theme.sp(9)
-        color:  pill.checked ? Theme.colorAccent : Theme.colorBg3
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-        Rectangle {
-            width:  Theme.sp(12)
-            height: Theme.sp(12)
-            radius: Theme.sp(6)
-            color:  "white"
-            anchors.verticalCenter: parent.verticalCenter
-            x: pill.checked ? parent.width - width - Theme.sp(3) : Theme.sp(3)
-            Behavior on x { NumberAnimation { duration: 120 } }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            cursorShape:  Qt.PointingHandCursor
-            onClicked:    pill.toggled(!pill.checked)
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
     // Inline component — IMU device row
     // ─────────────────────────────────────────────────────────────────────────
-    component ImuDeviceRow: Item {
+    component ImuDeviceRow: PpDeviceCard {
         id: imuRow
 
         property var imuData: ({})
@@ -109,77 +82,37 @@ Item {
             var maxRate = rates.length > 0 ? Math.max.apply(null, rates) : 0
             var batPct = (imuRow.isConnected && imuRow.inst && imuRow.inst.batteryPercent >= 0)
                              ? imuRow.inst.batteryPercent : -1
+            // The battery reads green above 60%, amber above 20%, red at or below.
+            var batTint = batPct < 0 ? "" : batPct > 60 ? "good" : batPct > 20 ? "warn" : "error"
             return [
-                { key: qsTr("Transport"),   val: imuData.transport || "—",    isAccent: false, batPct: -1 },
-                { key: qsTr("Sensors"),     val: sensors.length > 0 ? sensors.join(" · ") : "—",
-                                                                               isAccent: false, batPct: -1 },
+                { key: qsTr("Transport"),   val: imuData.transport || "—" },
+                { key: qsTr("Sensors"),     val: sensors.length > 0 ? sensors.join(" · ") : "—" },
                 { key: qsTr("Accel range"), val: (imuData.accelRangeMax > 0)
-                                                    ? ("±" + imuData.accelRangeMax.toFixed(0) + " g") : "—",
-                                                                               isAccent: false, batPct: -1 },
+                                                    ? ("±" + imuData.accelRangeMax.toFixed(0) + " g") : "—" },
                 { key: qsTr("Gyro range"),  val: (imuData.gyroRangeMax > 0)
-                                                    ? ("±" + imuData.gyroRangeMax.toFixed(0) + " °/s") : "—",
-                                                                               isAccent: false, batPct: -1 },
-                { key: qsTr("Max rate"),    val: maxRate > 0 ? (maxRate + " Hz") : "—",
-                                                                               isAccent: true,  batPct: -1 },
-                { key: qsTr("Battery"),     val: batPct >= 0 ? (batPct + "%") : "—",
-                                                                               isAccent: false, batPct: batPct }
+                                                    ? ("±" + imuData.gyroRangeMax.toFixed(0) + " °/s") : "—" },
+                { key: qsTr("Max rate"),    val: maxRate > 0 ? (maxRate + " Hz") : "—", tint: "accent" },
+                { key: qsTr("Battery"),     val: batPct >= 0 ? (batPct + "%") : "—",    tint: batTint }
             ]
         }
 
         implicitHeight: testOpen && !isExcluded
-            ? headerRow.height + bodyWrap.height + testPanel.height
-            : headerRow.height + (isExcluded ? excludedNote.height : bodyWrap.height)
+            ? imuRow.headerRow.height + bodyWrap.height + testPanel.height
+            : imuRow.headerRow.height + (isExcluded ? excludedNote.height : bodyWrap.height)
 
         Behavior on implicitHeight { NumberAnimation { duration: Theme.durationFast } }
 
-        opacity: isExcluded ? 0.5 : 1.0
-        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+        dimmed: isExcluded
+        borderColor: imuRow.testOpen    ? Theme.colorAccent
+                   : imuRow.isConnected ? Theme.colorGood
+                   : imuRow.isExcluded  ? Theme.colorBorderMid
+                   :                      Theme.colorBorderStrong
+        statusColor: imuRow.isConnected ? Theme.colorGood
+                   : !imuRow.isExcluded  ? Theme.colorWarn
+                   :                       Theme.colorText3
 
-        // Background fill
-        Rectangle {
-            anchors.fill: parent
-            color:        Theme.colorSurface
-            radius:       Theme.radius
-        }
-
-        clip: true
-
-        // Border overlay — z:100 so content never occludes it
-        Rectangle {
-            anchors.fill: parent
-            color:        "transparent"
-            border.width: 1
-            border.color: imuRow.testOpen    ? Theme.colorAccent
-                        : imuRow.isConnected ? Theme.colorGood
-                        : imuRow.isExcluded  ? Theme.colorBorderMid
-                        :                      Theme.colorBorderStrong
-            radius: Theme.radius
-            z:      100
-            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-        }
-
-        // ── Header row ───────────────────────────────────────────────────────
-        RowLayout {
-            id: headerRow
-            anchors.top:     parent.top
-            anchors.left:    parent.left
-            anchors.right:   parent.right
-            anchors.margins: Theme.gap(14)
-            height:   Theme.sp(54)
-            spacing:  Theme.gap(10)
-
-            // Status dot
-            Rectangle {
-                width:  Theme.sp(6)
-                height: Theme.sp(6)
-                radius: Theme.sp(3)
-                color: imuRow.isConnected ? Theme.colorGood
-                     : !imuRow.isExcluded  ? Theme.colorWarn
-                     :                       Theme.colorText3
-                Layout.alignment: Qt.AlignVCenter
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-            }
-
+        // ── Header row (after the card's status dot) ─────────────────────────
+        headerItems: [
             // Alias (editable) + meta
             ColumnLayout {
                 Layout.fillWidth: true
@@ -199,7 +132,7 @@ Item {
                     Text { text: imuData.id || "";             font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }
                     Text { text: imuData.firmwareVersion || ""; font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }
                 }
-            }
+            },
 
             // Enable toggle
             Row {
@@ -214,7 +147,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
-                TogglePill {
+                PpSwitch {
                     checked: !imuRow.isExcluded
                     onToggled: (v) => {
                         var list = appSettings.imuExcluded
@@ -226,12 +159,12 @@ Item {
                     }
                 }
             }
-        }
+        ]
 
         // ── Excluded note ────────────────────────────────────────────────────
         Item {
             id: excludedNote
-            anchors.top:   headerRow.bottom
+            anchors.top:   imuRow.headerRow.bottom
             anchors.left:  parent.left
             anchors.right: parent.right
             height:  imuRow.isExcluded ? (excText.implicitHeight + Theme.sp(18)) : 0
@@ -260,7 +193,7 @@ Item {
         // ── Body wrap — chips + capabilities strip ───────────────────────────
         Item {
             id: bodyWrap
-            anchors.top:   headerRow.bottom
+            anchors.top:   imuRow.headerRow.bottom
             anchors.left:  parent.left
             anchors.right: parent.right
             height:  !imuRow.isExcluded ? (bodyCol.implicitHeight + Theme.sp(20)) : 0
@@ -360,7 +293,7 @@ Item {
                                     radius: Theme.radius
                                     color:  isSelected ? Theme.colorAccentLight
                                           : rateArea.containsMouse
-                                              ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                              ? Qt.alpha(Theme.colorAccentLight, 0.4)
                                               : "transparent"
                                     border.width: 1
                                     border.color: isSelected ? Theme.colorAccent
@@ -437,7 +370,7 @@ Item {
                         radius: Theme.radius
                         color:  active ? Theme.colorAccentLight
                               : testPress.containsMouse
-                                  ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                  ? Qt.alpha(Theme.colorAccentLight, 0.4)
                                   : "transparent"
                         border.width: 1
                         border.color: active ? Theme.colorAccent
@@ -474,69 +407,10 @@ Item {
                 }
 
                 // ── Capabilities strip ───────────────────────────────────────
-                RowLayout {
+                PpFactStrip {
                     Layout.fillWidth: true
-                    spacing: 0
-
-                    Repeater {
-                        model: imuRow.capsCells
-
-                        delegate: Rectangle {
-                            required property var modelData
-                            required property int index
-
-                            Layout.fillWidth: true
-                            implicitHeight: capsCol.implicitHeight + Theme.sp(18)
-                            color: Theme.colorBg2
-
-                            // Vertical separator (except last)
-                            Rectangle {
-                                anchors.right:  parent.right
-                                anchors.top:    parent.top
-                                anchors.bottom: parent.bottom
-                                width:   1
-                                color:   Theme.colorBorderMid
-                                opacity: Theme.borderOpacityNormal
-                                visible: index < 5
-                            }
-
-                            ColumnLayout {
-                                id: capsCol
-                                anchors {
-                                    left:   parent.left
-                                    right:  parent.right
-                                    top:    parent.top
-                                    leftMargin:  Theme.gap(14)
-                                    rightMargin: Theme.gap(14)
-                                    topMargin:   Theme.gap(9)
-                                }
-                                spacing: Theme.gap(3)
-
-                                Text {
-                                    text:                modelData.key
-                                    font.family:         Theme.fontData
-                                    font.pixelSize:      Theme.fontSzMicro
-                                    font.letterSpacing:  Theme.trackingMicro
-                                    font.capitalization: Theme.capsFont
-                                    color:               Theme.colorText3
-                                }
-                                Text {
-                                    text:  modelData.val
-                                    font.family:    Theme.fontData
-                                    font.pixelSize: Theme.fontSzBody2
-                                    color: modelData.isAccent ? Theme.colorAccent
-                                         : (modelData.batPct >= 0)
-                                               ? (modelData.batPct > 60 ? Theme.colorGood
-                                                 : modelData.batPct > 20 ? Theme.colorWarn
-                                                 :                         Theme.colorError)
-                                         : Theme.colorText
-                                    elide: Text.ElideRight
-                                    Layout.fillWidth: true
-                                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                                }
-                            }
-                        }
-                    }
+                    cells:       imuRow.capsCells
+                    animateTint: true
                 }
             }
         }
@@ -598,10 +472,10 @@ Item {
                         height: Theme.sp(26)
                         radius: Theme.radius
                         color:  connPress.containsMouse
-                                    ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                    ? Qt.alpha(Theme.colorAccentLight, 0.4)
                                     : "transparent"
                         border.width: 1
-                        border.color: connected ? Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.5)
+                        border.color: connected ? Qt.alpha(Theme.colorWarn, 0.5)
                                     : connPress.containsMouse ? Theme.colorAccentMid
                                     : Theme.colorBorderStrong
                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
@@ -1118,7 +992,7 @@ Item {
                                     height: Theme.sp(24)
                                     radius: Theme.radius
                                     color:  (parent.parent.enabled && zeroPress.containsMouse)
-                                                ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                                ? Qt.alpha(Theme.colorAccentLight, 0.4)
                                                 : "transparent"
                                     border.width: 1
                                     border.color: !parent.parent.enabled ? Theme.colorBorderMid
@@ -1197,503 +1071,354 @@ Item {
         }
     }
 
-    // ── Search scroll-to support ──────────────────────────────────────────────
+    // ── Page header ────────────────────────────────────────────────
+    SettingsSectionHead { text: Theme.caps(qsTr("Hardware")) }
 
-    property string lastHighlightId: ""
+    PpDisplayText {
+        text: qsTr("Motion Sensors")
+    }
 
-    function findChild(parent, name) {
-        for (var i = 0; i < parent.children.length; i++) {
-            var child = parent.children[i]
-            if (child.objectName === name) return child
-            var found = findChild(child, name)
-            if (found) return found
+    Text {
+        text: qsTr("All enumerated motion sensors are listed below. Each shows where it is worn — set in session setup, on the Sensors step. Configure the output rate here, and use the Test panel to verify orientation before a session.")
+        font.family:    Theme.fontBody
+        font.pixelSize: Theme.fontSzBody2
+        font.weight:    Theme.fontBodyWeight
+        color:          Theme.colorText3
+        wrapMode:       Text.WordWrap
+        Layout.fillWidth: true
+    }
+
+    // ── Enumerated devices header ──────────────────────────────────
+    RowLayout {
+        Layout.fillWidth: true
+
+        SettingsSectionHead {
+            text:             Theme.caps(qsTr("Enumerated devices"))
+            Layout.fillWidth: true
         }
-        return null
-    }
 
-    function scrollToItem(itemId) {
-        if (!itemId) return true
-        var target = findChild(contentCol, itemId)
-        if (!target) return false
-        var mapped = target.mapToItem(contentCol, 0, 0)
-        scrollView.contentItem.contentY = Math.max(0, Math.min(
-            mapped.y - Theme.sp(24),
-            scrollView.contentItem.contentHeight - scrollView.height
-        ))
-        target.searchHighlight = true
-        lastHighlightId = itemId
-        highlightTimer.restart()
-        return true
-    }
+        // Scan button — fixed width sized for the longer "Scanning…" label.
+        Rectangle {
+            id: scanBtn
+            // Bound to the manager's authoritative scan state — NOT a
+            // local 30 s timer. The discovery window is 90 s with
+            // HackMotion enabled, and a local clock that ran out early
+            // re-offered a Scan tap that the enumerator's re-entry guard
+            // silently swallowed for the rest of the real window.
+            readonly property bool scanning: imuManager.imuScanActive
 
-    Timer {
-        id: highlightTimer
-        interval: 1800
-        onTriggered: {
-            var target = findChild(contentCol, lastHighlightId)
-            if (target) target.searchHighlight = false
-        }
-    }
+            width:  scanningMeasure.implicitWidth + Theme.sp(24)
+            height: Theme.sp(26)
+            radius: Theme.radius
+            color:  scanning ? Theme.colorAccentLight
+                  : scanPress.containsMouse
+                      ? Qt.alpha(Theme.colorAccentLight, 0.4)
+                      : "transparent"
+            border.width: 1
+            border.color: scanning ? Theme.colorAccent
+                        : scanPress.containsMouse ? Theme.colorAccentMid
+                        : Theme.colorBorderStrong
+            Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
+            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Main scroll view
-    // ─────────────────────────────────────────────────────────────────────────
-    ScrollView {
-        id: scrollView
-        anchors.fill:  parent
-        contentWidth:  availableWidth
-        contentHeight: contentCol.y + contentCol.implicitHeight + Theme.sp(28)
-
-        ColumnLayout {
-            id: contentCol
-            x:       Theme.sp(32)
-            y:       Theme.sp(28)
-            width:   parent.width - Theme.sp(64)
-            spacing: Theme.gap(16)
-
-            // ── Page header ────────────────────────────────────────────────
+            // Invisible sizer — always measures the longer string.
             Text {
-                text:                qsTr("Hardware")
-                font.family:         Theme.fontBody
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color:               Theme.colorText3
-            }
-
-            PpDisplayText {
-                text: qsTr("Motion Sensors")
-            }
-
-            Text {
-                text: qsTr("All enumerated motion sensors are listed below. Each shows where it is worn — set in session setup, on the Sensors step. Configure the output rate here, and use the Test panel to verify orientation before a session.")
+                id: scanningMeasure
+                visible:        false
+                text:           qsTr("Scanning…")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
                 font.weight:    Theme.fontBodyWeight
-                color:          Theme.colorText3
-                wrapMode:       Text.WordWrap
-                Layout.fillWidth: true
             }
 
-            // ── Enumerated devices header ──────────────────────────────────
-            RowLayout {
+            Text {
+                id: scanBtnLabel
+                anchors.centerIn: parent
+                text:           scanBtn.scanning ? qsTr("Scanning…") : qsTr("Scan")
+                font.family:    Theme.fontBody
+                font.pixelSize: Theme.fontSzBody2
+                font.weight:    Theme.fontBodyWeight
+                color:          scanBtn.scanning ? Theme.colorAccent : Theme.colorText2
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            }
+
+            PpPressable {
+                id: scanPress
+                onClicked: imuManager.rescanImu()
+            }
+        }
+    }
+
+    // ── Device rows ────────────────────────────────────────────────
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Theme.gap(8)
+
+        Repeater {
+            model: imuManager.imuDeviceList
+
+            delegate: ImuDeviceRow {
+                required property var modelData
+                imuData:          modelData
                 Layout.fillWidth: true
+                // Dim (but keep listed + interactive) when absent from the
+                // latest scan, so a known device can still be renamed/forgotten.
+                opacity: modelData.present ? 1.0 : 0.45
+                Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+            }
+        }
 
-                Text {
-                    text:                qsTr("Enumerated devices")
-                    font.family:         Theme.fontBody
-                    font.pixelSize:      Theme.fontSzMicro
-                    font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Theme.capsFont
-                    color:               Theme.colorText3
-                    Layout.fillWidth:    true
-                }
+        // Empty state — distinguishes "discovery couldn't run" (e.g.
+        // Bluetooth off / no adapter, surfaced via imuScanError) from a
+        // genuine "no devices in range".
+        Text {
+            visible:        imuManager.imuDeviceList.length === 0
+            text:           imuManager.imuScanError !== ""
+                                ? qsTr("Bluetooth discovery error: %1").arg(imuManager.imuScanError)
+                                : qsTr("No motion sensors found. Click Scan to search for BLE devices.")
+            font.family:    Theme.fontBody
+            font.pixelSize: Theme.fontSzBody2
+            font.weight:    Theme.fontBodyWeight
+            font.italic:    true
+            color:          imuManager.imuScanError !== "" ? Theme.colorWarn : Theme.colorText3
+            wrapMode:       Text.WordWrap
+            Layout.fillWidth: true
+        }
+    }
 
-                // Scan button — fixed width sized for the longer "Scanning…" label.
-                Rectangle {
-                    id: scanBtn
-                    // Bound to the manager's authoritative scan state — NOT a
-                    // local 30 s timer. The discovery window is 90 s with
-                    // HackMotion enabled, and a local clock that ran out early
-                    // re-offered a Scan tap that the enumerator's re-entry guard
-                    // silently swallowed for the rest of the real window.
-                    readonly property bool scanning: imuManager.imuScanActive
+    // ── Status summary ─────────────────────────────────────────────
+    Rectangle {
+        id: summaryRect
+        Layout.fillWidth: true
+        // One line normally; taller only when a narrow window wraps a list.
+        Layout.preferredHeight: Math.max(Theme.sp(40), summaryRow.implicitHeight + 2 * Theme.gap(12))
+        color:   Theme.colorBg2
+        radius:  Theme.radius
+        border.width: 1
+        border.color: Theme.colorBorderMid
 
-                    width:  scanningMeasure.implicitWidth + Theme.sp(24)
-                    height: Theme.sp(26)
-                    radius: Theme.radius
-                    color:  scanning ? Theme.colorAccentLight
-                          : scanPress.containsMouse
-                              ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
-                              : "transparent"
-                    border.width: 1
-                    border.color: scanning ? Theme.colorAccent
-                                : scanPress.containsMouse ? Theme.colorAccentMid
-                                : Theme.colorBorderStrong
-                    Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
+        readonly property int enabledCount: {
+            var list = imuManager.imuDeviceList
+            var ex   = appSettings.imuExcluded
+            return list.filter(function(d) { return ex.indexOf(d.id) < 0 }).length
+        }
+        readonly property int connectedCount: imuManager.imuCount
+
+        // Mounts BY NAME, in picker order. Reads only the roles map's VALUES,
+        // never its keys, so a wG3's two unit keys count as the two mounts they
+        // fill. "Assigned" is every role claimed, offered or not; "Not worn" is the
+        // OFFERED mounts nobody claims (ImuMounts.offeredRoles). Not a warning: no
+        // mount is required (session_wizard_refactor_design.md §4.12), and since the
+        // trunk mounts are offered (W2.2) a wrist-only setup leaves two of them unworn.
+        readonly property var assignedRoles: {
+            var held = Object.values(appSettings.imuRoles)
+            return ImuMounts.allRoles.filter(function(r) { return held.indexOf(r) >= 0 })
+        }
+        // The SHORT names (ImuMounts.shortLabel): a one-line summary has no room for the
+        // trunk mounts' placement hints, which the Sensors page shows where they are chosen.
+        readonly property var assignedPlacements: assignedRoles.map(function(r) { return ImuMounts.shortLabel(r) })
+        readonly property var missingPlacements: ImuMounts.offeredRoles
+            .filter(function(r) { return summaryRect.assignedRoles.indexOf(r) < 0 })
+            .map(function(r) { return ImuMounts.shortLabel(r) })
+
+        RowLayout {
+            id: summaryRow
+            anchors.fill:    parent
+            anchors.margins: Theme.gap(12)
+            spacing:         Theme.gap(16)
+
+            Text {
+                text:  summaryRect.connectedCount + qsTr(" of ") + summaryRect.enabledCount + qsTr(" connected")
+                color: (summaryRect.connectedCount === summaryRect.enabledCount && summaryRect.enabledCount > 0)
+                            ? Theme.colorGood : Theme.colorWarn
+                font.family:    Theme.fontData
+                font.pixelSize: Theme.fontSzMicro
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            }
+
+            Rectangle { width: 1; height: Theme.sp(14); color: Theme.colorBorderStrong; opacity: 0.4 }
+
+            // The two lists SHARE the row, each in proportion to its length, and wrap
+            // within their share rather than run into each other: both stay readable at
+            // any window width (the box grows to the taller list).
+            Text {
+                text:  summaryRect.assignedPlacements.length > 0
+                           ? qsTr("Assigned: ") + summaryRect.assignedPlacements.join(qsTr(" · "))
+                           : qsTr("No placements assigned")
+                color:          Theme.colorText2
+                font.family:    Theme.fontData
+                font.pixelSize: Theme.fontSzMicro
+                wrapMode:       Text.WordWrap
+                Layout.fillWidth:               true
+                Layout.preferredWidth:          0
+                Layout.minimumWidth:            0
+                Layout.horizontalStretchFactor: Math.max(1, text.length)
+            }
+
+            Text {
+                visible:        summaryRect.missingPlacements.length > 0
+                text:           qsTr("Not worn: ") + summaryRect.missingPlacements.join(qsTr(" · "))
+                color:          Theme.colorText3
+                font.family:    Theme.fontData
+                font.pixelSize: Theme.fontSzMicro
+                wrapMode:       Text.WordWrap
+                horizontalAlignment: Text.AlignRight
+                Layout.fillWidth:               true
+                Layout.preferredWidth:          0
+                Layout.minimumWidth:            0
+                Layout.horizontalStretchFactor: Math.max(1, text.length)
+            }
+        }
+    }
+
+    PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
+
+    // ── Global IMU settings ────────────────────────────────────────
+    SettingsSectionHead { text: Theme.caps(qsTr("Global motion sensor settings")) }
+
+    // Auto-connect on session start
+    SettingsRow {
+        objectName: "setting_imuAutoConnect"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+            SettingsRowTitle {
+                title:    qsTr("Auto-connect on session start")
+                subtitle: qsTr("Connects all enabled devices before recording begins")
+            }
+            PpSwitch {
+                checked: appSettings.imuAutoConnect
+                onToggled: (v) => appSettings.imuAutoConnect = v
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+    }
+
+    // Auto-reconnect on signal loss
+    SettingsRow {
+        objectName: "setting_imuAutoReconnect"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+            SettingsRowTitle {
+                title:    qsTr("Auto-reconnect on signal loss")
+                subtitle: qsTr("Attempts reconnect if the BLE link drops during a session")
+            }
+            PpSwitch {
+                checked: appSettings.imuAutoReconnect
+                onToggled: (v) => appSettings.imuAutoReconnect = v
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+    }
+
+    // Look for a HackMotion wrist sensor
+    SettingsRow {
+        objectName: "setting_hackmotionEnabled"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+            SettingsRowTitle {
+                title:    qsTr("Look for a HackMotion wrist sensor")
+                // The wG3 advertises only for a few seconds after a button
+                // press, which is why discovery uses a 90 s scan window
+                // instead of the usual 30 s — turning this off also drops
+                // back to the shorter window, since that budget exists
+                // only for the wG3's advertising burst.
+                subtitle: qsTr("Off restores the shorter Bluetooth scan window used for other sensors")
+            }
+            PpSwitch {
+                checked: appSettings.hackmotionEnabled
+                onToggled: (v) => appSettings.hackmotionEnabled = v
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+    }
+
+    // Save calibration to device flash
+    SettingsRow {
+        objectName: "setting_imuFlash"
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+            SettingsRowTitle {
+                title:    qsTr("Save calibration to device flash")
+                subtitle: qsTr("Persists zero-orientation and mag calibration across power cycles")
+            }
+            PpSwitch {
+                checked: appSettings.imuSaveCalibrationToFlash
+                onToggled: (v) => appSettings.imuSaveCalibrationToFlash = v
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+    }
+
+    PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
+
+    // ── Orientation fusion (global) ────────────────────────────────
+    SettingsSectionHead { text: Theme.caps(qsTr("Orientation fusion")) }
+
+    ColumnLayout {
+        Layout.fillWidth:  true
+        spacing:           Theme.gap(6)
+
+        RowLayout {
+            spacing: Theme.gap(8)
+
+            Repeater {
+                model: [ { key: "Madgwick", label: qsTr("Madgwick Filter") },
+                         { key: "ESKF",     label: qsTr("Error State Kalman Filter (ESKF)") } ]
+
+                delegate: Rectangle {
+                    id: fusionSeg
+                    required property var modelData
+                    readonly property bool active:
+                        appSettings.imuOrientationFilter === modelData.key
+
+                    implicitWidth: segLabel.implicitWidth + Theme.sp(28)
+                    height:        Theme.sp(30)
+                    radius:        Theme.radius
+                    color:         active ? Theme.colorAccentLight
+                                 : fusionArea.containsMouse
+                                     ? Qt.alpha(Theme.colorAccentLight, 0.4)
+                                     : "transparent"
+                    border.width:  1
+                    border.color:  active ? Theme.colorAccent
+                                 : fusionArea.containsMouse ? Theme.colorAccentMid
+                                 : Theme.colorBorderStrong
+                    Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
                     Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
-                    // Invisible sizer — always measures the longer string.
                     Text {
-                        id: scanningMeasure
-                        visible:        false
-                        text:           qsTr("Scanning…")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody2
-                        font.weight:    Theme.fontBodyWeight
-                    }
-
-                    Text {
-                        id: scanBtnLabel
+                        id: segLabel
                         anchors.centerIn: parent
-                        text:           scanBtn.scanning ? qsTr("Scanning…") : qsTr("Scan")
+                        text:           fusionSeg.modelData.label
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody2
                         font.weight:    Theme.fontBodyWeight
-                        color:          scanBtn.scanning ? Theme.colorAccent : Theme.colorText2
+                        color:          fusionSeg.active ? Theme.colorAccent : Theme.colorText2
                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     }
 
-                    PpPressable {
-                        id: scanPress
-                        onClicked: imuManager.rescanImu()
+                    MouseArea {
+                        id: fusionArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
+                        onClicked:    imuManager.setOrientationFilter(fusionSeg.modelData.key)
                     }
                 }
             }
+        }
 
-            // ── Device rows ────────────────────────────────────────────────
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.leftMargin: Theme.gap(26)
-                spacing: Theme.gap(8)
-
-                Repeater {
-                    model: imuManager.imuDeviceList
-
-                    delegate: ImuDeviceRow {
-                        required property var modelData
-                        imuData:          modelData
-                        Layout.fillWidth: true
-                        // Dim (but keep listed + interactive) when absent from the
-                        // latest scan, so a known device can still be renamed/forgotten.
-                        opacity: modelData.present ? 1.0 : 0.45
-                        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-                    }
-                }
-
-                // Empty state — distinguishes "discovery couldn't run" (e.g.
-                // Bluetooth off / no adapter, surfaced via imuScanError) from a
-                // genuine "no devices in range".
-                Text {
-                    visible:        imuManager.imuDeviceList.length === 0
-                    text:           imuManager.imuScanError !== ""
-                                        ? qsTr("Bluetooth discovery error: %1").arg(imuManager.imuScanError)
-                                        : qsTr("No motion sensors found. Click Scan to search for BLE devices.")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Theme.fontBodyWeight
-                    font.italic:    true
-                    color:          imuManager.imuScanError !== "" ? Theme.colorWarn : Theme.colorText3
-                    wrapMode:       Text.WordWrap
-                    Layout.fillWidth: true
-                }
-            }
-
-            // ── Status summary ─────────────────────────────────────────────
-            Rectangle {
-                id: summaryRect
-                Layout.fillWidth: true
-                Layout.leftMargin: Theme.gap(26)
-                // One line normally; taller only when a narrow window wraps a list.
-                Layout.preferredHeight: Math.max(Theme.sp(40), summaryRow.implicitHeight + 2 * Theme.gap(12))
-                color:   Theme.colorBg2
-                radius:  Theme.radius
-                border.width: 1
-                border.color: Theme.colorBorderMid
-
-                readonly property int enabledCount: {
-                    var list = imuManager.imuDeviceList
-                    var ex   = appSettings.imuExcluded
-                    return list.filter(function(d) { return ex.indexOf(d.id) < 0 }).length
-                }
-                readonly property int connectedCount: imuManager.imuCount
-
-                // Mounts BY NAME, in picker order. Reads only the roles map's VALUES,
-                // never its keys, so a wG3's two unit keys count as the two mounts they
-                // fill. "Assigned" is every role claimed, offered or not; "Not worn" is the
-                // OFFERED mounts nobody claims (ImuMounts.offeredRoles). Not a warning: no
-                // mount is required (session_wizard_refactor_design.md §4.12), and since the
-                // trunk mounts are offered (W2.2) a wrist-only setup leaves two of them unworn.
-                readonly property var assignedRoles: {
-                    var held = Object.values(appSettings.imuRoles)
-                    return ImuMounts.allRoles.filter(function(r) { return held.indexOf(r) >= 0 })
-                }
-                // The SHORT names (ImuMounts.shortLabel): a one-line summary has no room for the
-                // trunk mounts' placement hints, which the Sensors page shows where they are chosen.
-                readonly property var assignedPlacements: assignedRoles.map(function(r) { return ImuMounts.shortLabel(r) })
-                readonly property var missingPlacements: ImuMounts.offeredRoles
-                    .filter(function(r) { return summaryRect.assignedRoles.indexOf(r) < 0 })
-                    .map(function(r) { return ImuMounts.shortLabel(r) })
-
-                RowLayout {
-                    id: summaryRow
-                    anchors.fill:    parent
-                    anchors.margins: Theme.gap(12)
-                    spacing:         Theme.gap(16)
-
-                    Text {
-                        text:  summaryRect.connectedCount + qsTr(" of ") + summaryRect.enabledCount + qsTr(" connected")
-                        color: (summaryRect.connectedCount === summaryRect.enabledCount && summaryRect.enabledCount > 0)
-                                    ? Theme.colorGood : Theme.colorWarn
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    }
-
-                    Rectangle { width: 1; height: Theme.sp(14); color: Theme.colorBorderStrong; opacity: 0.4 }
-
-                    // The two lists SHARE the row, each in proportion to its length, and wrap
-                    // within their share rather than run into each other: both stay readable at
-                    // any window width (the box grows to the taller list).
-                    Text {
-                        text:  summaryRect.assignedPlacements.length > 0
-                                   ? qsTr("Assigned: ") + summaryRect.assignedPlacements.join(qsTr(" · "))
-                                   : qsTr("No placements assigned")
-                        color:          Theme.colorText2
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        wrapMode:       Text.WordWrap
-                        Layout.fillWidth:               true
-                        Layout.preferredWidth:          0
-                        Layout.minimumWidth:            0
-                        Layout.horizontalStretchFactor: Math.max(1, text.length)
-                    }
-
-                    Text {
-                        visible:        summaryRect.missingPlacements.length > 0
-                        text:           qsTr("Not worn: ") + summaryRect.missingPlacements.join(qsTr(" · "))
-                        color:          Theme.colorText3
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        wrapMode:       Text.WordWrap
-                        horizontalAlignment: Text.AlignRight
-                        Layout.fillWidth:               true
-                        Layout.preferredWidth:          0
-                        Layout.minimumWidth:            0
-                        Layout.horizontalStretchFactor: Math.max(1, text.length)
-                    }
-                }
-            }
-
-            PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
-
-            // ── Global IMU settings ────────────────────────────────────────
-            Text {
-                text:                qsTr("Global motion sensor settings")
-                font.family:         Theme.fontBody
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color:               Theme.colorText3
-            }
-
-            // Auto-connect on session start
-            RowLayout {
-                objectName: "setting_imuAutoConnect"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-
-                    Text {
-                        Layout.fillWidth: true
-                        text:           qsTr("Auto-connect on session start")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Connects all enabled devices before recording begins")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                }
-
-                TogglePill {
-                    checked: appSettings.imuAutoConnect
-                    onToggled: (v) => appSettings.imuAutoConnect = v
-                    Layout.alignment: Qt.AlignVCenter
-                }
-            }
-
-            // Auto-reconnect on signal loss
-            RowLayout {
-                objectName: "setting_imuAutoReconnect"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-
-                    Text {
-                        Layout.fillWidth: true
-                        text:           qsTr("Auto-reconnect on signal loss")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Attempts reconnect if the BLE link drops during a session")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                }
-
-                TogglePill {
-                    checked: appSettings.imuAutoReconnect
-                    onToggled: (v) => appSettings.imuAutoReconnect = v
-                    Layout.alignment: Qt.AlignVCenter
-                }
-            }
-
-            // Look for a HackMotion wrist sensor
-            RowLayout {
-                objectName: "setting_hackmotionEnabled"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-
-                    Text {
-                        Layout.fillWidth: true
-                        text:           qsTr("Look for a HackMotion wrist sensor")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        // The wG3 advertises only for a few seconds after a button
-                        // press, which is why discovery uses a 90 s scan window
-                        // instead of the usual 30 s — turning this off also drops
-                        // back to the shorter window, since that budget exists
-                        // only for the wG3's advertising burst.
-                        text:           qsTr("Off restores the shorter Bluetooth scan window used for other sensors")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                }
-
-                TogglePill {
-                    checked: appSettings.hackmotionEnabled
-                    onToggled: (v) => appSettings.hackmotionEnabled = v
-                    Layout.alignment: Qt.AlignVCenter
-                }
-            }
-
-            // Save calibration to device flash
-            RowLayout {
-                objectName: "setting_imuFlash"
-                Layout.fillWidth: true
-                spacing: Theme.gap(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.gap(3)
-
-                    Text {
-                        Layout.fillWidth: true
-                        text:           qsTr("Save calibration to device flash")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Persists zero-orientation and mag calibration across power cycles")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                }
-
-                TogglePill {
-                    checked: appSettings.imuSaveCalibrationToFlash
-                    onToggled: (v) => appSettings.imuSaveCalibrationToFlash = v
-                    Layout.alignment: Qt.AlignVCenter
-                }
-            }
-
-            PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
-
-            // ── Orientation fusion (global) ────────────────────────────────
-            Text {
-                text:                qsTr("Orientation fusion")
-                font.family:         Theme.fontBody
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color:               Theme.colorText3
-            }
-
-            ColumnLayout {
-                Layout.fillWidth:  true
-                Layout.leftMargin: Theme.gap(26)
-                spacing:           Theme.gap(6)
-
-                RowLayout {
-                    spacing: Theme.gap(8)
-
-                    Repeater {
-                        model: [ { key: "Madgwick", label: qsTr("Madgwick Filter") },
-                                 { key: "ESKF",     label: qsTr("Error State Kalman Filter (ESKF)") } ]
-
-                        delegate: Rectangle {
-                            id: fusionSeg
-                            required property var modelData
-                            readonly property bool active:
-                                appSettings.imuOrientationFilter === modelData.key
-
-                            implicitWidth: segLabel.implicitWidth + Theme.sp(28)
-                            height:        Theme.sp(30)
-                            radius:        Theme.radius
-                            color:         active ? Theme.colorAccentLight
-                                         : fusionArea.containsMouse
-                                             ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
-                                             : "transparent"
-                            border.width:  1
-                            border.color:  active ? Theme.colorAccent
-                                         : fusionArea.containsMouse ? Theme.colorAccentMid
-                                         : Theme.colorBorderStrong
-                            Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                            Text {
-                                id: segLabel
-                                anchors.centerIn: parent
-                                text:           fusionSeg.modelData.label
-                                font.family:    Theme.fontBody
-                                font.pixelSize: Theme.fontSzBody2
-                                font.weight:    Theme.fontBodyWeight
-                                color:          fusionSeg.active ? Theme.colorAccent : Theme.colorText2
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
-
-                            MouseArea {
-                                id: fusionArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape:  Qt.PointingHandCursor
-                                onClicked:    imuManager.setOrientationFilter(fusionSeg.modelData.key)
-                            }
-                        }
-                    }
-                }
-
-                Text {
-                    text: qsTr("Software sensor-fusion algorithm used to derive orientation from the raw gyroscope + accelerometer. Applies to all motion sensors and takes effect immediately.")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Theme.fontBodyWeight
-                    color:          Theme.colorText3
-                    wrapMode:       Text.WordWrap
-                    Layout.fillWidth: true
-                }
-            }
+        Text {
+            text: qsTr("Software sensor-fusion algorithm used to derive orientation from the raw gyroscope + accelerometer. Applies to all motion sensors and takes effect immediately.")
+            font.family:    Theme.fontBody
+            font.pixelSize: Theme.fontSzBody2
+            font.weight:    Theme.fontBodyWeight
+            color:          Theme.colorText3
+            wrapMode:       Text.WordWrap
+            Layout.fillWidth: true
         }
     }
 }

@@ -21,7 +21,8 @@ import QtQuick
 // BOXPLOT — THE box plot. Every box in the app draws through this (Mark, 18 Oct 2026: "consolidate into a
 // reusable component and make hover work everywhere a box plot is shown"): the Charts rows, runs, traces,
 // kinds, scatter margins and Wrist rows (PpChBoxCell), Session diagnostics' Spread box (PpBoxStrip) and its
-// across-sessions boxes (PpHistoryStrip). No number is worked out here: the statistics come from the one C++
+// across-sessions boxes (PpHistoryStrip), and the page key's box swatch (PpPageKey), so the key cannot drift
+// from the figures. No number is worked out here: the statistics come from the one C++
 // implementation (typeset/box_stats.h) and the labels from whoever owns their formatting.
 //
 // Along an axis the caller maps (`map(v)` → px; across the item, or down it when `vertical`), centred on
@@ -40,9 +41,12 @@ import QtQuick
 //                  snaps it to half pixels; the vertical reading's ticks start at the exact value.
 //   cross          the box's centre line across the axis, px
 //   stats          { lo, q1, med, q3, hi } in the caller's units; absent or non-finite = no box
-//   bodyW, capW, medianOver, lw, medW   the box's thickness, the caps' length, how far the median rule reaches
-//                  past the box each side, the outline/whisker and median weights
-//   ink, medianInk, fill                the outline and whiskers, the median, the box's fill
+//   bodyW, capW, medianOver   the box's thickness, the caps' length, how far the median rule reaches past the
+//                  box each side
+//   style          the look, ONE object every adapter passes: { print, ink, medianInk, fill }, each optional.
+//                  `print` sets the paper weights (a hairline outline and whiskers and a 1 px median, against 1
+//                  and 1.5 on screen); ink defaults to ink2, medianInk to ink, fill to ink3 at 10 % — the
+//                  typeset's box. lw, medW, ink, medianInk, fill: the same, one at a time (set directly, they win)
 //   marks          [{ at, shotId, fired, role, ringed?, size?, ringSize?, step?, interactive?, emitsHover?, … }]:
 //                  a shot drawn at `at`, side-stepped `step` × stepPx across the axis; every field rides along to
 //                  markActivated / markHovered. Keep it independent of the hover: a list rebuilt as the pointer
@@ -67,11 +71,13 @@ Item {
     property real bodyW: 9
     property real capW: Math.round(bodyW / 2)
     property real medianOver: 2
-    property real lw: 1
-    property real medW: 1.5
-    property color ink: roles ? roles.ink2 : "grey"
-    property color medianInk: ink
-    property color fill: roles ? Qt.alpha(roles.ink3, 0.10) : "transparent"
+    property var style: ({})
+    readonly property var _st: style || ({})
+    property real lw: _st.print ? (roles ? roles.hw : 1) : 1
+    property real medW: _st.print ? 1 : 1.5
+    property color ink: _st.ink !== undefined ? _st.ink : (roles ? roles.ink2 : "grey")
+    property color medianInk: _st.medianInk !== undefined ? _st.medianInk : (roles ? roles.ink : ink)
+    property color fill: _st.fill !== undefined ? _st.fill : (roles ? Qt.alpha(roles.ink3, 0.10) : "transparent")
     property var marks: []
     property var echo: null
     property var brush: null

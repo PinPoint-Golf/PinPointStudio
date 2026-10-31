@@ -18,8 +18,6 @@
 
 #pragma once
 
-#include "../../Diagnostics/norms/norm_provider.h"
-#include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Metrics/metric_catalogue.h"
 
 #include <QObject>
@@ -28,19 +26,11 @@
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
-#include <memory>
-
 // MetricCatalog — the QML façade over pinpoint::analysis::MetricCatalogue (design §7), the same
 // shape as ChartMetrics / SwingDataSource: a QML_ELEMENT declared `MetricCatalog { id: mc }` whose
 // only job is to marshal registry value types into QVariant shapes. The catalogue is assembled once
-// in the constructor (makeMetricCatalogue) and read-only thereafter.
-//
-// A `shotCtx` QVariantMap parameterises per-shot availability + normative resolution. Shape (all
-// optional): { tier:int, imuRoles:[roleName…], hasFaceOn, hasDtl, hasClubTrack,
-// hasBallTrack, hasLaunchMonitor, hasHackMotion, archetype, club, shape }. roleName here is
-// segmentRoleName() ("LeadForearm") — NOT the persisted setup spelling setupSummary() takes. Omit it (or pass {}) for the context-free directory view;
-// pass a shot's capability (or the studio's configured capability) to drive availability chips.
-// Phases are emitted as Phase ints (the vocabulary QML already compares and TimelineLabels renders).
+// in the constructor (makeMetricCatalogue) and read-only thereafter. Its one caller today is
+// session setup (and the Home rig card), through setupSummary().
 
 class MetricCatalog : public QObject
 {
@@ -49,37 +39,12 @@ class MetricCatalog : public QObject
     Q_PROPERTY(QVariantList groups READ groups CONSTANT)   // distinct groups, manifest order
     Q_PROPERTY(QVariantList types  READ types  CONSTANT)   // ["summary","pointInTime",…]
 
-    // The pack-wide grade policy, by NAME ("standard" | "strict" | "lenient") — the same property
-    // NormModel exposes, for the same reason: a corridor's Watch edge is z-derived for any norm
-    // that states no monitor band (stance width and ball position, for example), so a façade
-    // grading against the default while the user has chosen Strict would
-    // draw a corridor the app does not use. Bound to AppSettings by whichever page hosts this
-    // object, so the façade itself stays free of the settings dependency.
-    Q_PROPERTY(QString gradePolicy READ gradePolicy WRITE setGradePolicy NOTIFY gradePolicyChanged)
-
 public:
     explicit MetricCatalog(QObject *parent = nullptr);
     ~MetricCatalog() override;
 
-    QString gradePolicy() const { return m_policyName; }
-    void    setGradePolicy(const QString &name);
-
     QVariantList groups() const;
     QVariantList types() const;
-
-    // Directory list. filters: { type?, group?, scored?, availableOnly? }.
-    // With availableOnly + a non-empty shotCtx, Unavailable metrics are dropped.
-    Q_INVOKABLE QVariantList query(const QVariantMap &filters,
-                                   const QVariantMap &shotCtx = {}) const;
-
-    // Full detail for the detail page (description / howToRead / normative corridors / requirement /
-    // availability / usedBy). Empty map when the key is unknown.
-    Q_INVOKABLE QVariantMap descriptor(const QString &key,
-                                       const QVariantMap &shotCtx = {}) const;
-
-    // Availability alone: { state, reason, tier } — e.g. a zone deciding whether to render a metric.
-    Q_INVOKABLE QVariantMap availability(const QString &key,
-                                         const QVariantMap &shotCtx) const;
 
     // What a session set up like this WILL record, per metric group, before any swing — the closing
     // page of session setup (session_wizard_refactor_design.md §4.14; summariseSetup in
@@ -92,14 +57,6 @@ public:
     //   deviceGaps, deviceGapIds }.
     Q_INVOKABLE QVariantList setupSummary(const QVariantMap &setup) const;
 
-signals:
-    void gradePolicyChanged();
-
 private:
     pinpoint::analysis::MetricCatalogue m_catalogue;
-    // The pack and the norm set: a corridor is now (metric, phase) → measure → norm, so the façade
-    // needs both registries. Assembled once and read-only thereafter, same as the catalogue.
-    std::unique_ptr<pinpoint::analysis::ICharacteristicPackProvider> m_pack;
-    std::shared_ptr<const pinpoint::analysis::INormProvider>         m_norms;
-    QString                                                          m_policyName;
 };

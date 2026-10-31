@@ -79,7 +79,6 @@ Item {
     // the column's box: just right of its centre line, the median's label just right of the box
     readonly property real boxL: roles.u(3)
     readonly property real boxW: roles.u(medium === "print" ? 6 : 8)
-    readonly property real lw: medium === "print" ? roles.hw : 1
     function maxStackOf(c) { const vs = c.values || []; let m = 0; for (let i = 0; i < vs.length; ++i) m = Math.max(m, vs[i].stack || 0); return m }
     function pitchOf(c) { return Math.min(roles.u(6), Math.max(roles.u(2), (colW * 0.5 - roles.u(8)) / Math.max(1, maxStackOf(c)))) }
     // how far a column's marks reach left of its centre
@@ -136,8 +135,7 @@ Item {
                 cross: hc.bc
                 stats: hc.measured && hc.box.n > 0 ? { lo: hc.box.fLo, q1: hc.box.fQ1, med: hc.box.fMed, q3: hc.box.fQ3, hi: hc.box.fHi } : null
                 bodyW: hs.boxW; capW: hs.roles.u(4); medianOver: hs.roles.u(1)
-                lw: hs.lw; medW: hs.medium === "print" ? 1 : 1.5
-                ink: hs.roles.ink2; medianInk: hs.roles.ink; fill: Qt.alpha(hs.roles.ink3, 0.10)
+                style: ({ print: hs.medium === "print" })  // the typeset's box: ink2 outline, ink median, faint fill
                 texts: hc.box.texts || null
                 examined: hc.index === hs.examIdx
                 footer: !hc.measured ? "" : (hc.box.n || 0) + (hc.box.n === 1 ? " shot" : " shots")

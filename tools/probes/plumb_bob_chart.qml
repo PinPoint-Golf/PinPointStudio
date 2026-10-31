@@ -578,15 +578,15 @@ Item {
             try {
                 probe.w("§5.3 CARD TEXT      "
                     + "@IMPACT '" + (impMeasured
-                            ? cm.formatBare(impV, raw.unit) : "—") + "'"
-                    + "   PEAK '" + (csum.edgeOk === false ? "—"
+                            ? cm.formatBare(impV, raw.unit) : "-") + "'"
+                    + "   PEAK '" + (csum.edgeOk === false ? "-"
                             : cm.formatBare(csum.peak, raw.unit) + "  "
                               + cm.formatUncertainty(csum.peakSigma)) + "'"
                     + "   PK RATE '" + (csum.rateOk === true
                             ? Math.round(Math.abs(csum.rate)) + " " + cm.shortUnit(raw.unit) + "/100ms  "
                               + cm.formatUncertainty(csum.rateSigma)
-                            : "—") + "'"
-                    + "   Δ SEGMENT '" + (csum.edgeOk === false ? "—"
+                            : "-") + "'"
+                    + "   Δ SEGMENT '" + (csum.edgeOk === false ? "-"
                             : cm.formatBare(csum.delta, raw.unit)) + "'"
                     + "   σ CHIP '" + (sg > 0 ? cm.formatUncertainty(sg, cm.shortUnit(raw.unit))
                                               : "(hidden — no σ)") + "'")
@@ -879,7 +879,7 @@ Item {
         try { walk(chart) } catch (e) { probe.miss("walk for PpChartPlot (" + e + ")") }
 
         // Does every visible series actually CARRY a mean? A series the host failed to decorate falls
-        // back to the raw curve (PpChartPlot._meanOf) — the pre-Phase-6 picture, silently, on that one
+        // back to the raw curve (ChartSamples.meanOf) — the pre-Phase-6 picture, silently, on that one
         // trace — so the count is reported rather than assumed.
         var withMean = 0, withoutMean = []
         try {

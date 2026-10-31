@@ -62,15 +62,9 @@ Item {
         minOmit: 0.18
     }
     function fy(f) { return sc.y(Math.max(0, Math.min(1, f))) }
-    // corridor wash, split at the break
+    // corridor wash, split at the break (PpFigureScale.washPieces)
     Repeater {
-        model: {
-            if (!sk.roles || !sc.corridor) return []
-            const c = sc.corridor, w = sc.win, out = []
-            const cuts = [0, sc.bandLo ? w.lo : 0, sc.bandHi ? w.hi : 1, 1]
-            for (let i = 0; i < 3; ++i) { const a = Math.max(c.lo, cuts[i]), b = Math.min(c.hi, cuts[i + 1]); if (b > a + 1e-6) out.push({ f0: a, f1: b }) }
-            return out
-        }
+        model: sk.roles ? sc.washPieces : []
         delegate: Rectangle {
             required property var modelData
             width: sk.width; y: sk.fy(modelData.f1); height: Math.max(0, sk.fy(modelData.f0) - sk.fy(modelData.f1)); color: sk.roles.wash
@@ -84,32 +78,18 @@ Item {
             width: sk.width; height: sk.roles.hw; y: Math.round(sk.fy(modelData.f)); color: sk.roles.fault
         }
     }
-    Canvas {
-        anchors.fill: parent
-        visible: sc.broken
-        readonly property var deps: [sc.win, sk.height, sk.roles.ink3]
-        onDepsChanged: requestPaint()
-        onPaint: {
-            const ctx = getContext("2d"); ctx.reset()
-            if (!sc.broken) return
-            ctx.strokeStyle = sk.roles.ink3; ctx.lineWidth = sk.roles.hw
-            const k = 2
-            const gaps = []
-            if (sc.bandLo) gaps.push((sc.winBottom + sc.loBandTop) / 2)
-            if (sc.bandHi) gaps.push((sc.winTop + sc.hiBandBottom) / 2)
-            for (const yc of gaps) for (const dx of [0, k]) { ctx.beginPath(); ctx.moveTo(dx, yc + k); ctx.lineTo(dx + k, yc - k); ctx.stroke() }
-        }
-    }
+    // the break, at the left end only
+    PpBreakSlash { anchors.fill: parent; visible: sc.broken; roles: sk.roles; k: 2; leftOnly: true; ys: sc.broken ? sc.breakYs : [] }
     Repeater {
         model: sk.roles ? ((sk.card && sk.card.ticks) || []) : []
         // the not-measured STUB (D5): a short flat ink3 mark on the foot, never a gap
-        delegate: Rectangle {
+        delegate: PpStub {
             required property var modelData
             required property int index
             objectName: "sdSparkStub"
             visible: modelData.state !== "fired" && modelData.state !== "clean"
-            width: Math.max(2, Math.min(sk.roles.u(3), sk.width / sk.n * 0.6)); height: sk.roles.stubH(sk.roles.u(9))
-            x: (index + 0.5) / sk.n * sk.width - width / 2; y: sk.height - height; color: sk.roles.ink3
+            roles: sk.roles; size: sk.roles.u(9); pitch: sk.width / sk.n; share: 0.6; maxW: sk.roles.u(3)
+            x: (index + 0.5) / sk.n * sk.width - width / 2; y: sk.height - height
         }
     }
     Repeater {

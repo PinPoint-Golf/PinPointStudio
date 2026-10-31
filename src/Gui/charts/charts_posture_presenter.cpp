@@ -116,20 +116,15 @@ const QString kLossOfPosture = QStringLiteral("loss_of_posture");
 
 // ── small words and numbers ─────────────────────────────────────────────────────────────────
 
-bool fin(double v) { return std::isfinite(v); }
+using W::fin;
 QVariant nv(double v) { return fin(v) ? QVariant(v) : QVariant::fromValue(nullptr); }
 QVariant nullv() { return QVariant::fromValue(nullptr); }
 QString cleanDir(const QString &d) { return d.trimmed().isEmpty() ? QString() : QDir::cleanPath(d.trimmed()); }
 QString golferSafe(const QString &t) { return t.contains(QLatin1Char('`')) ? QString() : t; }   // a backtick = an author's note
 
-QString joinUnit(const QString &fig, const QString &unit)
-{
-    if (fig == QLatin1String("-") || unit.isEmpty()) return fig;
-    return unit == QStringLiteral("°") ? fig + unit : fig + QChar(0x00A0) + unit;
-}
 const PostureRowSpec &specOf(PostureRow r) { return postureRowSpec(r); }
-QString valueText(PostureRow r, double v) { return joinUnit(postureFigure(r, v), specOf(r).unit); }
-QString bareText(PostureRow r, double v) { return joinUnit(W::fig(std::fabs(v), specOf(r).decimals), specOf(r).unit); }
+QString valueText(PostureRow r, double v) { return W::withUnit(postureFigure(r, v), specOf(r).unit); }
+QString bareText(PostureRow r, double v) { return W::withUnit(W::fig(std::fabs(v), specOf(r).decimals), specOf(r).unit); }
 
 bool hasPosture(const PostureShotInput &in) { return std::any_of(in.present.begin(), in.present.end(), [](bool b) { return b; }); }
 

@@ -126,7 +126,7 @@ Item {
                 color:          Theme.colorText3
                 anchors.verticalCenter: parent.verticalCenter
             }
-            SetupTogglePill {
+            PpSwitch {
                 checked:                cr.toggleChecked
                 anchors.verticalCenter: parent.verticalCenter
                 onToggled:              (v) => cr.toggled(v)

@@ -62,34 +62,23 @@ Column {
     visible: lines.length > 0
     spacing: roles ? roles.u(4) : 4
 
-    function _folder(p) { return String(p || "").replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "") }
-    function _sessionOf(d) { const s = _folder(d); return s.substring(0, s.lastIndexOf("/")) }
+    function _sessionOf(d) { const s = SessionMode.folderKey(d); return s.substring(0, s.lastIndexOf("/")) }
     readonly property string _session: sessionDir !== "" ? sessionDir : _sessionOf(swingDir)
     on_SessionChanged: _point()
     Component.onCompleted: { _ready = true; _point(); _read() }
-    function _point() { if (_session !== "" && _folder(_session) !== _folder(sm.sessionDir)) sm.activateSession(_session) }
+    function _point() { if (_session !== "" && !SessionMode.sameFolder(_session, sm.sessionDir)) sm.activateSession(_session) }
 
     SessionSeriesModel { id: sm }
     TrustPresenter { id: tp; model: sm; pickedSwingDir: fold.scope === "shot" ? fold.swingDir : ""
                      onResultsChanged: fold._read() }
 
     // the closed line: ▸ How far can I trust this?  pelvis and chest out of sight
-    Item {
+    PpTrustFoldToggle {
         objectName: "trustSummaryToggle"
         width: fold.width
-        height: toggleRow.height
-        Flow {
-            id: toggleRow
-            width: parent.width
-            spacing: fold.roles ? fold.roles.u(7) : 7
-            Text { text: fold.printed ? "How far can I trust this?" : (fold.open ? "▾" : "▸") + " How far can I trust this?"
-                   font: fold.roles ? (fold.printed ? fold.roles.fSmallM : fold.roles.fSmallL) : Qt.font({})
-                   color: fold.roles ? (fold.printed ? fold.roles.ink : fold.roles.link) : "grey" }
-            Text { visible: !fold._shown && text !== ""
-                   text: fold.summary ? (fold.summary.tail || "") : ""
-                   font: fold.roles ? fold.roles.fSmall : Qt.font({}); color: fold.roles ? fold.roles.ink3 : "grey" }
-        }
-        MouseArea { anchors.fill: parent; enabled: !fold.printed; cursorShape: Qt.PointingHandCursor; onClicked: fold.open = !fold.open }
+        roles: fold.roles; open: fold.open; printed: fold.printed
+        tail: fold.summary ? (fold.summary.tail || "") : ""
+        onToggled: fold.open = !fold.open
     }
     Repeater {
         model: fold._shown ? fold.lines : []

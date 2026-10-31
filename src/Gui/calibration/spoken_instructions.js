@@ -19,7 +19,8 @@
 
 // The calibration routines' SPOKEN INSTRUCTIONS (EXPERIMENTAL, AppSettings.experimentalSpokenInstructions)
 // — the ONE place each line's words live. The routine that says a line reads it from here
-// (TrunkRoutine.spokenPhrases / _startLine / _turnBackLine), and its step descriptor lists the same array
+// (TrunkRoutine.spokenPhrases / _startLine / _turnBackLine), the page that shows it on screen reads
+// the same words set for the screen (CalibrateTrunkPage, below), and its step descriptor lists the same array
 // (SetupSteps, StepDescriptor.spokenPhrases) so the session-setup shell can have ttsController PREPARE
 // them in advance, before the routine's page exists (Mark, 27 Oct 2026: "the phrases should be
 // prepared in advance, ideally when the session setup is instantiated — makes no sense to do it at
@@ -40,3 +41,13 @@ var trunkStartBackswing     = qsTr("Start your backswing turn.")
 var trunkStartFollowThrough = qsTr("Start your follow-through turn.")
 var trunkTurnBack           = qsTr("Turn back to address.")
 var trunk = [trunkStartBackswing, trunkStartFollowThrough, trunkTurnBack]
+
+// The same cues ON SCREEN (CalibrateTrunkPage's status line): the spoken words set as the status
+// line sets an instruction — capitals, no closing full stop ("START YOUR BACKSWING TURN"). Always
+// capitals, whatever the typeset's heading case (not Theme.caps): the cue is the one line the
+// golfer must catch at a glance. Derived here, so the screen and the voice cannot say different
+// things.
+function onScreen(line) { return String(line).replace(/\.$/, "").toUpperCase() }
+var trunkScreenStartBackswing     = onScreen(trunkStartBackswing)
+var trunkScreenStartFollowThrough = onScreen(trunkStartFollowThrough)
+var trunkScreenTurnBack           = onScreen(trunkTurnBack)

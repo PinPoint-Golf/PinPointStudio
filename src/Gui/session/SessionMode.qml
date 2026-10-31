@@ -81,6 +81,35 @@ QtObject {
     // the carousel's to reach, and this singleton is in every screen and every harness.
     signal swingTrashed(string swingDir)
 
+    // Whether the session screen is the one on show. Every screen stays instantiated in the shell's
+    // StackLayout (the session screen sits at index AppScreen.Session), so the session screen and the
+    // panels on it gate their costly work on this: a hidden host must not take the replay's one video
+    // sink (PpCameraTiles), re-parse swing.json on every reload (PpDataViewer), re-lay-out the transit
+    // timeline (ScreenWrist) or feed its presenters (PpChartsPanel, PpTrustPanel). Guarded because a
+    // test engine provides navController only when it asks for it.
+    readonly property bool sessionScreenActive:
+        typeof navController !== "undefined" && navController !== null
+        && navController.currentIndex === AppScreen.Session
+
+    // A session or swing folder as one spelling, so two can be compared: backslashes to slashes (a
+    // Windows path), runs of slashes to one (a library path ending in a slash gives "…/lib//athlete/…"
+    // from the processor and "…/lib/athlete/…" from the carousel), no trailing slash. "" for none.
+    function folderKey(p) { return String(p || "").replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "") }
+    function sameFolder(a, b) { return folderKey(a) === folderKey(b) }
+
+    // A shot picked on a figure (a value run, a dot, a reading) goes the carousel's own click path, so
+    // the stage, the carousel and every panel follow one change. Analyse keeps Analyse: promote the
+    // swing and reload, without the detour through Replay that enterReplay() would take.
+    function pickShot(shotId, swingDir) {
+        if (mode === analyse) {
+            focusedShotId   = shotId
+            focusedSwingDir = swingDir
+            enterAnalyse()
+        } else {
+            enterReplay(shotId, swingDir)
+        }
+    }
+
     // Capture IS the live current session: it shows live tiles, never the disk
     // replay. Returning to Capture exits any loaded past session (resumeLive is
     // idempotent) and drops that session's focused swing; the live-capture record

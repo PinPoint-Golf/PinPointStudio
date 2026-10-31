@@ -2181,8 +2181,8 @@ void installMetricManifest(MetricCatalogue &cat)
     // Both tempo metrics are anchored at IMPACT rather than a setup phase: they
     // describe the WHOLE swing, and Impact is the one instant every ladder has
     // (it is the acoustic marker, not a detection). The phase list must be
-    // non-empty or no corridor can reach QML — MetricCatalog::descriptor() builds
-    // the corridor list by looping `phases`.
+    // non-empty or no corridor can reach QML — the corridor builders loop
+    // `phases` (corridorForMetricAtPhase, as lm_session_model.cpp calls it).
 
     cat.addDescriptor({
         .key = QStringLiteral("tempoBackswing"),

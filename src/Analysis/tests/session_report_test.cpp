@@ -731,11 +731,11 @@ int main()
 
     // ── Range words and magnitude words (§10 rule 5) ────────────────────────────
     {
-        check(rangeWords(twoSided(5.0, 25.0, 0.0, 30.0), QStringLiteral("mm")) == QStringLiteral("5 to 25 mm"),
+        check(rangeWords(twoSided(5.0, 25.0, 0.0, 30.0), QStringLiteral("mm")) == QString::fromUtf8("5 to 25\u00A0mm"),
               "two-sided: '5 to 25 mm'");
         check(rangeWords(twoSided(-5.0, 10.0, -10.0, 15.0), QStringLiteral("°")) == QString::fromUtf8("−5° to 10°"),
               "degrees ride on both numbers, with the true minus");
-        check(rangeWords(ceilingAt(0.0, 8.666666, 13.0), QStringLiteral("% hand rise")) == QStringLiteral("8.7 % hand rise or less"),
+        check(rangeWords(ceilingAt(0.0, 8.666666, 13.0), QStringLiteral("% hand rise")) == QStringLiteral("8.7% hand rise or less"),
               "a ceiling: 'X or less', decimals off the corridor's span");
         check(rangeWords(floorAt(0.0, -12.0, -18.0), QStringLiteral("°")) == QString::fromUtf8("−12° or more"),
               "a floor in the raw sign: 'X or more'");

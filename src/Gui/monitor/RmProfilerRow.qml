@@ -22,15 +22,13 @@ import PinPointStudio
 // One scope row: NAME / CALLS / TOTAL / AVG / MAX / CPU. All values are
 // pre-formatted in ProfilerController — pure bindings here. Deep-only scopes
 // (those carrying per-scope CPU) grey out while the deep toggle is off.
-Rectangle {
+RmZebraRow {
     id: root
 
     property var  scopeData
-    property bool isAlternate: false
     property bool deepOn: false
 
     height: Theme.sp(28)
-    color: isAlternate ? Theme.colorBg : Theme.colorSurface
 
     readonly property color primaryColor:
         (root.scopeData.deep && !root.deepOn) ? Theme.colorText3 : Theme.colorText2

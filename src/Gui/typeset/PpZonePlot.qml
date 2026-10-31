@@ -29,19 +29,9 @@ Item {
     property QtObject roles: PpTypeset {}           // the register passes its one PpTypeset; this default only covers creation order
     property var scale: null
     readonly property var sc: scale
-    // the corridor wash, split at the breaks: [f0, f1] pieces within one region each
-    readonly property var washPieces: {
-        if (!sc || !sc.corridor) return []
-        const c = sc.corridor, w = sc.win, out = []
-        const cuts = [0, sc.bandLo ? w.lo : 0, sc.bandHi ? w.hi : 1, 1]
-        for (let i = 0; i < 3; ++i) {
-            const a = Math.max(c.lo, cuts[i]), b = Math.min(c.hi, cuts[i + 1])
-            if (b > a + 1e-6) out.push({ f0: a, f1: b })
-        }
-        return out
-    }
+    // the corridor wash, split at the breaks (PpFigureScale.washPieces)
     Repeater {
-        model: zp.roles ? zp.washPieces : []
+        model: zp.roles && zp.sc ? zp.sc.washPieces : []
         delegate: Rectangle {
             required property var modelData
             width: zp.width
@@ -69,36 +59,18 @@ Item {
                 onPaint: {
                     const ctx = getContext("2d"); ctx.reset()
                     ctx.strokeStyle = zp.roles.passEdge; ctx.lineWidth = zp.roles.hw
-                    const pat = zp.roles.r.passDash; let x = 0, on = true
-                    ctx.beginPath()
-                    while (x < width) { const st = pat[on ? 0 : 1]; if (on) { ctx.moveTo(x, 0.5); ctx.lineTo(Math.min(width, x + st), 0.5) } x += st; on = !on }
-                    ctx.stroke()
+                    ctx.beginPath(); zp.roles.dashPath(ctx, 0, width, 0.5, zp.roles.r.passDash); ctx.stroke()
                 }
             }
         }
     }
     // the breaks: a pair of slashes at each end of the gap
-    Canvas {
+    PpBreakSlash {
         anchors.fill: parent
         visible: !!zp.sc && zp.sc.broken
-        readonly property var deps: [zp.sc ? zp.sc.win : null, zp.sc ? zp.sc.plotHeight : 0, width, zp.roles.ink3]
-        onDepsChanged: requestPaint()
-        onPaint: {
-            const ctx = getContext("2d"); ctx.reset()
-            if (!zp.sc || !zp.sc.broken) return
-            ctx.strokeStyle = zp.roles.ink3; ctx.lineWidth = zp.roles.hw
-            const k = zp.roles.u(3), gaps = []
-            if (zp.sc.bandLo) gaps.push((zp.sc.winBottom + zp.sc.loBandTop) / 2)
-            if (zp.sc.bandHi) gaps.push((zp.sc.winTop + zp.sc.hiBandBottom) / 2)
-            for (let g = 0; g < gaps.length; ++g) {
-                const yc = gaps[g]
-                for (const x0 of [0, width - 2 * k]) {
-                    for (const dx of [0, k]) {
-                        ctx.beginPath(); ctx.moveTo(x0 + dx, yc + k); ctx.lineTo(x0 + dx + k, yc - k); ctx.stroke()
-                    }
-                }
-            }
-        }
+        roles: zp.roles
+        k: zp.roles.u(3)
+        ys: zp.sc && zp.sc.broken ? zp.sc.breakYs : []
     }
     Rectangle {
         visible: !!zp.sc

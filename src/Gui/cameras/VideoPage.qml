@@ -181,7 +181,7 @@ Item {
                 background: Rectangle {
                     color: stopButton.enabled ? Theme.colorWarnLight : Theme.colorBg3
                     border.width: stopButton.enabled ? 1 : 0
-                    border.color: Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.5)
+                    border.color: Qt.alpha(Theme.colorWarn, 0.5)
                     radius: Theme.radius
                 }
             }

@@ -1,7 +1,7 @@
 # Settings
 
 *Directory:* `src/Gui/settings/`  
-*12 components · 12,716 lines of QML*
+*13 components · 13,661 lines of QML*
 
 The Settings screen, its search index singleton and the panels: General, Appearance, Displays, Cameras, IMUs, Phones, Microphones, Launch Monitor, Storage, Archiving.
 
@@ -13,14 +13,15 @@ The Settings screen, its search index singleton and the panels: General, Appeara
 | [ArchivingPanel](#archivingpanel) | 348 | `Item` | 1 | 5 | 3 local comp. |
 | [CamerasPanel](#cameraspanel) | 3150 | `Item` | 1 | 8 | 4 local comp. |
 | [DisplaysPanel](#displayspanel) | 847 | `Item` | 1 | 5 |  |
-| [GeneralPanel](#generalpanel) | 1162 | `Item` | 1 | 8 | 2 local comp. |
-| [ImusPanel](#imuspanel) | 1827 | `Item` | 1 | 8 | 2 local comp. |
+| [GeneralPanel](#generalpanel) | 1222 | `Item` | 1 | 8 | 2 local comp. |
+| [ImusPanel](#imuspanel) | 1700 | `Item` | 1 | 7 | 2 local comp. |
 | [LaunchMonitorPanel](#launchmonitorpanel) | 583 | `Item` | 1 | 5 | 1 local comp. |
 | [MicrophonesPanel](#microphonespanel) | 787 | `Item` | 1 | 3 | 2 local comp. |
 | [PhonesPanel](#phonespanel) | 862 | `Item` | 1 | 3 | 1 local comp. |
-| [ScreenSettings](#screensettings) | 592 | `Item` | 1 | 13 |  |
-| [SettingsIndex](#settingsindex) | 445 | `QtObject` | 1 | 1 | singleton |
+| [ScreenSettings](#screensettings) | 616 | `Item` | 1 | 14 |  |
+| [SettingsIndex](#settingsindex) | 502 | `QtObject` | 1 | 1 | singleton |
 | [StoragePanel](#storagepanel) | 1093 | `Item` | 1 | 5 | 1 local comp. |
+| [StudioPanel](#studiopanel) | 931 | `Item` | 1 | 8 | 7 local comp. |
 
 ### AppearancePanel
 `src/Gui/settings/AppearancePanel.qml` · 1020 lines · root `Item` · 2 hard-coded colour(s)
@@ -75,7 +76,7 @@ Settings > Displays: connected screens (friendly vendor names from EDID codes) a
 - **Used by (1):** `ScreenSettings`
 
 ### GeneralPanel
-`src/Gui/settings/GeneralPanel.qml` · 1162 lines · root `Item` · 1 hard-coded colour(s)
+`src/Gui/settings/GeneralPanel.qml` · 1222 lines · root `Item` · 1 hard-coded colour(s)
 
 Settings > General: language (7 locales), measurement units, session behaviour (auto-detect swing start and sensitivity, AI coaching on session end), cloud fallback keys; lazily triggers the motion-capture hardware probe when first shown.  
 *(description written for this catalogue — the file has no header comment)*
@@ -87,7 +88,7 @@ Settings > General: language (7 locales), measurement units, session behaviour (
 - **Used by (1):** `ScreenSettings`
 
 ### ImusPanel
-`src/Gui/settings/ImusPanel.qml` · 1827 lines · root `Item` · 8 hard-coded colour(s)
+`src/Gui/settings/ImusPanel.qml` · 1700 lines · root `Item` · 8 hard-coded colour(s)
 
 Settings > IMUs (1.8k lines): device rows with alias/enable/exclude, per-device test panel with live 3-D view and sensor ranges/battery/transport, placement, and who holds a device (HackMotion vs Witmotion).  
 *(description written for this catalogue — the file has no header comment)*
@@ -95,7 +96,7 @@ Settings > IMUs (1.8k lines): device rows with alias/enable/exclude, per-device 
 - **Properties:** `string openTestId`, `string lastHighlightId`
 - **Functions:** `findChild(parent, name)`, `scrollToItem(itemId)`
 - **Local components:** `TogglePill`, `ImuDeviceRow`
-- **Uses:** `ImuMounts`, `ImuVizView`, `PpComboBox`, `PpConnectingFrame`, `PpDisplayText`, `PpDivider`, `PpPressable`, `PpTextField`
+- **Uses:** `ImuMounts`, `ImuVizView`, `PpConnectingFrame`, `PpDisplayText`, `PpDivider`, `PpPressable`, `PpTextField`
 - **Used by (1):** `ScreenSettings`
 - **Exercised by tests/tools:** `tst_setup_mounts`
 
@@ -158,19 +159,19 @@ Settings > Microphone: input devices (rescan, system default), use-for-shot-dete
 - **Exercised by tests/tools:** `tst_ppcp_pair_dialog`
 
 ### ScreenSettings
-`src/Gui/settings/ScreenSettings.qml` · 592 lines · root `Item`
+`src/Gui/settings/ScreenSettings.qml` · 616 lines · root `Item`
 
 The Settings screen: left navigation (General, Appearance, Displays; Hardware: Cameras, IMUs, Phones, Microphone, Launch Monitor; Data: Storage, Archiving, Diagnostic Model), search (SettingsIndex) with scroll-to-highlight, panel stack, and a pinned System Info action.  
 *(description written for this catalogue — the file has no header comment)*
 
 - **Properties:** `int cameraCount`, `int imuCount`, `int phoneCount`, `int activeNavIndex`, `string searchQuery`, `readonly bool shown`, `readonly bool isSearching`, `readonly var searchResults`, `readonly bool navCollapsed`
 - **Signals:** `resourceMonitorRequested()`
-- **Functions:** `navigateToResult(entry)`, `showMetricDetail(key)`, `showCharacteristicDetail(conditionId)`, `showMeasureDetail(measureId)`, `scrollWithRetry(panel, itemId, retries)`
-- **Uses:** `AppearancePanel`, `ArchivingPanel`, `CamerasPanel`, `DiagnosticModel`, `DisplaysPanel`, `GeneralPanel`, `ImusPanel`, `LaunchMonitorPanel`, `MicrophonesPanel`, `PhonesPanel`, `PpPressable`, `SettingsIndex`, `StoragePanel`
+- **Functions:** `openStudio()`, `navigateToResult(entry)`, `showMetricDetail(key)`, `showCharacteristicDetail(conditionId)`, `showMeasureDetail(measureId)`, `scrollWithRetry(panel, itemId, retries)`
+- **Uses:** `AppearancePanel`, `ArchivingPanel`, `CamerasPanel`, `DiagnosticModel`, `DisplaysPanel`, `GeneralPanel`, `ImusPanel`, `LaunchMonitorPanel`, `MicrophonesPanel`, `PhonesPanel`, `PpPressable`, `SettingsIndex`, `StoragePanel`, `StudioPanel`
 - **Used by (1):** `Main`
 
 ### SettingsIndex
-`src/Gui/settings/SettingsIndex.qml` · 445 lines · root `QtObject` · **singleton** · no direct `Theme.*` refs
+`src/Gui/settings/SettingsIndex.qml` · 502 lines · root `QtObject` · **singleton** · no direct `Theme.*` refs
 
 Singleton: full-text search index of every settings panel's entries (title, description, keywords, panelIndex and item id) that ScreenSettings searches and scrolls to.  
 *(description written for this catalogue — the file has no header comment)*
@@ -189,4 +190,31 @@ Settings > Storage: athlete-library location, folder-naming order (date/athlete/
 - **Functions:** `refreshDiskInfo()`, `rescanLibrarySize()`, `formatBytes(n)`, `formatMb(n)`, `formatGb(n)`, `countJsonSwings()`, `findChild(parent, name)`, `scrollToItem(itemId)`
 - **Local components:** `TogglePill`
 - **Uses:** `PpButton`, `PpComboBox`, `PpDisplayText`, `PpDivider`, `PpPressable`
+- **Used by (1):** `ScreenSettings`
+
+### StudioPanel
+`src/Gui/settings/StudioPanel.qml` · 931 lines · root `Item` · 3 hard-coded colour(s)
+
+> Settings → Studio (panelIndex 11). docs/design/session_report_design.md §7.1 and §7.2.
+> The studio and its one coach, entered once and printed on every session report: the masthead, the
+> running head, the sign-off box, page 8's "How to practise a change", and the email that carries the
+> PDF. Everything lives in StudioProfile (context property `studioProfile`, INI group Studio/); this
+> panel only edits it. Text commits on editingFinished (Return, or the field losing focus), the way
+> every other settings panel commits.
+> The logo and the coach's photo are chosen with the in-app file picker (PpFilePicker — this
+> application opens no native dialogs) and COPIED into the app's data folder by StudioProfile, so
+> moving or deleting the original never breaks a report.
+> Any change here moves studioProfile.stamp, which puts already-made reports out of date (§8.2) —
+> except the email subject and message, which are not in the PDF.
+> SENDING REPORTS (§8.3, "Changed (Mark, 21 October)") is the one section that is not the profile: it edits
+> the coach's own mail account on THIS computer through ReportMailer (context property `reportMailer`) —
+> provider (presets fill the server), login, and the password, which goes to the system's secure store
+> (Keychain, Windows Credential Manager) and is never shown again, only "Saved in …". Until it is set up,
+> a session row's Email hands the PDF to the mail program as before; once it is, Email sends it itself.
+> …
+
+- **Properties:** `readonly bool hasProfile`, `readonly bool hasMailer`, `readonly bool sendReady`, `string lastHighlightId`, `string pickFor`, `string pickError`, `string pickErrorFor`, `readonly alias filePicker`, `readonly var providerKeys`, `readonly var providerLabels`, `readonly string provider`, `readonly var securityKeys`, `readonly var securityLabels`, `readonly string passwordStore` … (+4 more)
+- **Functions:** `findChild(parent, name)`, `scrollToItem(itemId)`, `imageUrl(path)`, `pick(what)`, `sendTestNow()`
+- **Local components:** `TogglePill`, `SectionHead`, `RowTitle`, `SettingRow`, `FieldRow`, `AreaField`, `ImageRow`
+- **Uses:** `PpButton`, `PpChipGroup`, `PpDisplayText`, `PpDivider`, `PpFilePicker`, `PpLink`, `PpSegmentedControl`, `PpTextField`
 - **Used by (1):** `ScreenSettings`

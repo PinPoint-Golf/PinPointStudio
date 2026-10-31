@@ -20,7 +20,7 @@
 // §6.3 steps 1–3, §6.7; session_wizard_refactor_design.md §4.10, the recipe this is the worked
 // example of).
 //
-// ONE guide view and ONE routine, as CalibrateArmPage: the BodyVizView the guide drives, and
+// ONE guide view and ONE routine, as CalibrateArmPage: the CalibrationGuideView the guide drives, and
 // TrunkRoutine over the hip and chest sensors. The page exists only while the step is current (R2),
 // so neither does the routine (R7).
 //
@@ -57,9 +57,14 @@
 //   leave     — the routine stops (its open step is closed on the recorder; nothing fires after).
 //   completed — the outcome goes into the draft: the two sensor units, checked live from then on.
 // Recalibrate begins a fresh run; its done going false drops the outcome, so Continue closes at once.
+//
+// The status column is CalibrationStatusColumn — the arm's, shared — with the trunk's step list and
+// wait reason in its slots. The two cues' on-screen words are the spoken lines'
+// (spoken_instructions.js, the one place they live), set as the screen sets them.
 import QtQuick
 import QtQuick.Layouts
 import PinPointStudio
+import "../../calibration/spoken_instructions.js" as Spoken
 
 WizardPage {
     id: page
@@ -163,9 +168,9 @@ WizardPage {
             // (Mark, 27 Oct: it "tells me to turn … then before I have moved tells me to turn back").
             if (_sub === "arming")  return qsTr("HOLD STILL AT ADDRESS, FACING THE SCREEN")
             if (_sub === "armed" || (_sub === "turning" && !trunkRoutine.turnBackDue))
-                return _stage === "turnAway" ? qsTr("START YOUR BACKSWING TURN")
-                                             : qsTr("START YOUR FOLLOW-THROUGH TURN")
-            if (_sub === "turning") return qsTr("TURN BACK TO ADDRESS")
+                return _stage === "turnAway" ? Spoken.trunkScreenStartBackswing
+                                             : Spoken.trunkScreenStartFollowThrough
+            if (_sub === "turning") return Spoken.trunkScreenTurnBack
             if (_sub === "returned" || _sub === "timeout") return Theme.caps(qsTr("Checking"))
             if (_sub === "passed")  return _stage === "turnAway" ? Theme.caps(qsTr("Backswing turn checked"))
                                                                  : Theme.caps(qsTr("Follow-through turn checked"))
@@ -182,168 +187,96 @@ WizardPage {
         anchors.margins: Theme.gap(8)
         spacing:         Theme.gap(12)
 
-        BodyVizView {
-            id: trunkBvv
+        // The guide's view (CalibrationGuideView, trunk mode): the trunk through the same
+        // useTrunkOverride binding the live check draws the sensors with; both arms hang at the side
+        // (the routines' rest pose) for stand tall and fold on the chest for the turns — posed, never
+        // animated: the trunk routine moves only the trunk.
+        CalibrationGuideView {
             Layout.fillHeight:   true
             Layout.fillWidth:    true
             Layout.minimumWidth: Theme.sp(200)
-            Component.onCompleted: trunkGuide.view = trunkBvv
-
-            poseSource:  null   // no camera input during calibration
+            guide:       trunkGuide
+            trunk:       true
             rightHanded: !page.ctx.leftHanded
-
-            // The trunk: the guide's golfer-relative turns, as q_anat (the guide's header).
-            useTrunkOverride:       true
-            hipsOverrideRotation:   trunkGuide.hipsTarget
-            thoraxOverrideRotation: trunkGuide.thoraxTarget
-            animateTrunk:           trunkGuide.trunkAnimating
-
-            // Both arms hang at the side (the routines' rest pose) for stand tall, and fold on the
-            // chest for the turns. The arms are posed, never animated, here: the trunk routine
-            // moves only the trunk.
-            useLeadArmOverride:           true
-            leadArmOverrideRotation:      trunkGuide.armsCrossed ? trunkBvv.crossedLeadArmQuat     : trunkGuide.armTarget
-            leadForeArmOverrideRotation:  trunkGuide.armsCrossed ? trunkBvv.crossedLeadForeArmQuat : Qt.quaternion(1, 0, 0, 0)
-            useTrailArmOverride:          true
-            trailArmOverrideRotation:     trunkGuide.armsCrossed ? trunkBvv.crossedTrailArmQuat     : Qt.quaternion(0.7071, 0.7071, 0, 0)
-            trailForeArmOverrideRotation: trunkGuide.armsCrossed ? trunkBvv.crossedTrailForeArmQuat : Qt.quaternion(1, 0, 0, 0)
-            animateLeadArm:               false
         }
 
         // ── The status column ───────────────────────────────────────────────
-        Column {
+        CalibrationStatusColumn {
             Layout.preferredWidth: Theme.sp(360)
             Layout.fillHeight:     true
             Layout.topMargin:      Theme.gap(32)
-            spacing:               Theme.gap(16)
+            namePrefix: "trunk"     // trunkInstruction, trunkHoldBar, trunkStatus, trunkMessage, trunkRecalibrate
 
-            Text {
-                width:              parent.width
-                text:               page.stepLabel
-                font.family:        Theme.fontData
-                font.pixelSize:     Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro
-                color:              Theme.colorText3
-            }
-
-            PpDisplayText {
-                width:     parent.width
-                text:      qsTr("Calibrate the trunk sensors")
-                pixelSize: Math.min(Theme.sp(18), Theme.fontSzDisplay)
-                wrapMode:  Text.WordWrap
-            }
+            stepLabel: page.stepLabel
+            title:     qsTr("Calibrate the trunk sensors")
 
             // The three steps, ticked as they pass.
-            Column {
-                width:   parent.width
-                spacing: Theme.gap(6)
-                Repeater {
-                    model: [{ key: "standTall",   label: qsTr("Stand tall") },
-                            { key: "turnAway",    label: qsTr("Backswing turn") },
-                            { key: "turnThrough", label: qsTr("Follow-through turn") }]
-                    delegate: Text {
-                        required property var modelData
-                        readonly property int _at: ["standTall", "turnAway", "turnThrough"].indexOf(page._stage)
-                        readonly property int _me: ["standTall", "turnAway", "turnThrough"].indexOf(modelData.key)
-                        readonly property bool _passed: page._stage === "done" || (_at > _me)
-                                                        || (_at === _me && page._sub === "passed")
-                        readonly property bool _current: _at === _me && !_passed
-                        objectName: "trunkStep_" + modelData.key
-                        text: (_passed ? "✓  " : _current ? "›  " : "·  ") + modelData.label
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody2
-                        font.weight:    _current ? Theme.fontBodyWeight : Font.Normal
-                        color: _passed ? Theme.colorGood : _current ? Theme.colorText : Theme.colorText3
+            leading: [
+                Column {
+                    width:   parent.width
+                    spacing: Theme.gap(6)
+                    Repeater {
+                        model: [{ key: "standTall",   label: qsTr("Stand tall") },
+                                { key: "turnAway",    label: qsTr("Backswing turn") },
+                                { key: "turnThrough", label: qsTr("Follow-through turn") }]
+                        delegate: Text {
+                            required property var modelData
+                            readonly property int _at: ["standTall", "turnAway", "turnThrough"].indexOf(page._stage)
+                            readonly property int _me: ["standTall", "turnAway", "turnThrough"].indexOf(modelData.key)
+                            readonly property bool _passed: page._stage === "done" || (_at > _me)
+                                                            || (_at === _me && page._sub === "passed")
+                            readonly property bool _current: _at === _me && !_passed
+                            objectName: "trunkStep_" + modelData.key
+                            text: (_passed ? "✓  " : _current ? "›  " : "·  ") + modelData.label
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody2
+                            font.weight:    _current ? Theme.fontBodyWeight : Font.Normal
+                            color: _passed ? Theme.colorGood : _current ? Theme.colorText : Theme.colorText3
+                        }
                     }
                 }
-            }
+            ]
 
-            Text {
-                objectName: "trunkInstruction"
-                width:      parent.width
-                visible:    text !== ""
-                text:       page._instruction
-                wrapMode:   Text.WordWrap
-                lineHeight: page._turnStage ? 1.25 : 1.5
-                font.family:    Theme.fontBody
-                // A turn's one instruction is read BEFORE turning, from where the golfer stands: large.
-                font.pixelSize: page._turnStage ? Theme.fontSzData : Theme.fontSzBody2
-                color:          page._turnStage ? Theme.colorText : Theme.colorText2
-            }
+            // A turn's one instruction is read BEFORE turning, from where the golfer stands: large.
+            // So is a turn's verdict, read when the golfer is back facing the screen.
+            instruction: page._instruction
+            large:       page._turnStage
 
             // The hold bar (stand tall): fills while both sensors are still.
-            Item {
-                objectName: "trunkHoldBar"
-                readonly property real fillFraction: trunkRoutine.holdProgress
-                visible: page._stage === "standTall" || page._stage === "done"
-                width:   parent.width
-                height:  Theme.sp(32)
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width:  parent.width
-                    height: Theme.sp(4)
-                    radius: Theme.sp(2)
-                    color:  Theme.colorBg3
-                    Rectangle {
-                        width:  parent.width * parent.parent.fillFraction
-                        height: parent.height
-                        radius: parent.radius
-                        color:  trunkRoutine.done ? Theme.colorGood : Theme.colorAccent
-                        Behavior on width { NumberAnimation { duration: 150 } }
-                    }
-                }
-            }
+            holdShown:    page._stage === "standTall" || page._stage === "done"
+            holdProgress: trunkRoutine.holdProgress
+            holdDone:     trunkRoutine.done
 
             // Why stand tall is waiting, or the bar keeps emptying: the sensor that is the reason.
-            Text {
-                objectName: "trunkWaitReason"
-                width:      parent.width
-                visible:    text !== ""
-                text:       page._stage === "standTall" || page._turnStage ? trunkRoutine.waitReason : ""
-                wrapMode:   Text.WordWrap
-                lineHeight: 1.5
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                color:          Theme.colorWarn
-            }
+            belowBar: [
+                Text {
+                    objectName: "trunkWaitReason"
+                    width:      parent.width
+                    visible:    text !== ""
+                    text:       page._stage === "standTall" || page._turnStage ? trunkRoutine.waitReason : ""
+                    wrapMode:   Text.WordWrap
+                    lineHeight: 1.5
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody2
+                    color:          Theme.colorWarn
+                }
+            ]
 
-            Text {
-                objectName: "trunkStatus"
-                width:      parent.width
-                visible:    text !== ""
-                text:       page._status
-                wrapMode:   Text.WordWrap
-                font.family:        Theme.fontData
-                font.pixelSize:     page._bigStatus ? Theme.fontSzHeading : Theme.fontSzMicro
-                font.bold:          page._bigStatus
-                font.letterSpacing: Theme.trackingData
-                color: page._stage === "done"   ? Theme.colorGood
-                     : page._stage === "failed" ? Theme.colorError
-                     : page._bigStatus ? Theme.colorAccent
-                     : Theme.colorText3
-            }
+            status:         page._status
+            statusBig:      page._bigStatus
+            statusTone:     page._stage === "done"   ? "good"
+                          : page._stage === "failed" ? "error"
+                          : page._bigStatus          ? "accent"
+                          :                            ""
+            statusAnimated: false
 
-            // The failure, naming the sensor and the cause (the C++ records' words). A turn's verdict is
-            // read when the golfer is back facing the screen: large.
-            Text {
-                objectName: "trunkMessage"
-                width:      parent.width
-                visible:    text !== ""
-                text:       trunkRoutine.message
-                wrapMode:   Text.WordWrap
-                lineHeight: page._turnStage ? 1.25 : 1.5
-                font.family:    Theme.fontBody
-                font.pixelSize: page._turnStage ? Theme.fontSzData : Theme.fontSzBody2
-                color: trunkRoutine.messageKind === "warn" ? Theme.colorWarn : Theme.colorError
-            }
+            // The failure, naming the sensor and the cause (the C++ records' words).
+            message:     trunkRoutine.message
+            messageKind: trunkRoutine.messageKind
+            messageSize: Theme.fontSzBody2
 
-            PpButton {
-                objectName: "trunkRecalibrate"
-                visible: page._stage !== "idle" && page._stage !== "intro"
-                label:   qsTr("↺  Recalibrate")
-                primary: false
-                onClicked: page.recalibrate()
-            }
+            showRecalibrate: page._stage !== "idle" && page._stage !== "intro"
+            onRecalibrate:   page.recalibrate()
         }
     }
 }

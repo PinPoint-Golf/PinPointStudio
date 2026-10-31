@@ -46,7 +46,7 @@ namespace {
 
 constexpr int kP2 = 1, kP3 = 2, kP4 = 3, kP5 = 4, kP6 = 5, kP7 = 6, kP8 = 7;
 
-bool fin(double v) { return std::isfinite(v); }
+using words::fin;
 int  ri(PostureRow r) { return int(r); }
 
 std::array<PostureRowSpec, kPostureRows> buildSpecs()
@@ -99,11 +99,7 @@ int posOfPhase(pa::Phase ph)
 
 bool matchEligible(PostureRow r, int pos) { return r != PostureRow::TrailKnee && pos >= kP2 && pos <= kP7; }
 
-QString withUnit(const QString &fig, const QString &unit)
-{
-    if (fig == QLatin1String("-")) return fig;
-    return unit == QStringLiteral("°") ? fig + unit : fig + QChar(0x00A0) + unit;
-}
+using words::withUnit;                     // the one figure-and-unit rule (figure_format.h)
 // "+6.5 cm", "−10°"
 QString signedFig(PostureRow r, double v) { return withUnit(postureFigure(r, v), postureRowSpec(r).unit); }
 // "6.5 cm", "10°"
@@ -357,8 +353,7 @@ QString bandSourcesOf(const std::vector<const PostureBand *> &used)
     if (coaching) parts << QStringLiteral("a coaching chain's published observations");
     QString s;
     if (!parts.isEmpty()) {
-        const QString last = parts.takeLast();
-        s = QStringLiteral("Bands from ") + (parts.isEmpty() ? last : parts.join(QStringLiteral(", ")) + QStringLiteral(" and ") + last);
+        s = QStringLiteral("Bands from ") + W::list(parts);
         if (authored) s += QStringLiteral("; authored seeds where no source gives one");
     } else if (authored) {
         s = QStringLiteral("Bands from authored seeds where no source gives one");
@@ -637,13 +632,7 @@ QStringList postureConditionList(const PostureEnv &env)
     return out;
 }
 
-QString postureFigure(PostureRow r, double v)
-{
-    const QString f = W::fig(v, postureRowSpec(r).decimals);
-    if (f == QLatin1String("-")) return f;
-    const double p = std::pow(10.0, postureRowSpec(r).decimals);
-    return (std::round(v * p) / p > 0 ? QStringLiteral("+") : QString()) + f;
-}
+QString postureFigure(PostureRow r, double v) { return W::figSigned(v, postureRowSpec(r).decimals); }
 
 std::array<double, kPosturePositions> postureEmptyCells()
 {

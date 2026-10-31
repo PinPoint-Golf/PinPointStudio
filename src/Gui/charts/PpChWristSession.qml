@@ -31,20 +31,17 @@ import PinPointStudio
 // by shot with its box (PpChRunBox), the style table, and what keeps firing as a mark per shot that picks that
 // swing. Every word and number is ChartsWristPresenter.session's.
 // objectNames: chWristSession, chWristTrust (+ chWristTrustToggle, chWristTrustLine).
-Item {
+// A PpChSection with no head of its own (PpChartsSessionView heads and folds it).
+PpChSection {
     id: ws
     objectName: "chWristSession"
-    property QtObject roles: null
-    property var brush: null
-    property var body: null
-    property bool interactive: true
+    mainHeight: rail ? Math.max(mainCol.height, railCol.height) : mainCol.height
     readonly property var se: body ? body.wSession : ({})
     readonly property bool ok: !!roles
     readonly property bool available: !!se && se.available === true
     readonly property bool rail: ok && roles.atLeast(width, "wide")
     readonly property real railW: ok ? Math.min(roles.u(600), width * 0.3) : 0
     readonly property real mainW: rail ? width - railW - roles.u(48) : width
-    height: rail ? Math.max(mainCol.height, railCol.height) : mainCol.height
 
     Column {
         id: mainCol

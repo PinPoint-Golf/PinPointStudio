@@ -34,12 +34,13 @@
 //   expandedSeen   bool      set by the first write; until then the weakest measurable area (the
 //                            first measurable one, since areas arrive in display order) opens on
 //                            first show. After it, a table the golfer closed stays closed.
-// The map is read once per write and a modified copy written back (a QVariantMap property read is a
-// deep copy); the entry's other keys (the tab, ScreenHome's) are kept. With no map on the settings
-// object the state is this component's alone.
+// Read and written through hm_view_store.js (the map read once, a modified copy written back; the
+// entry's other keys — the tab, ScreenHome's — kept). With no map on the settings object the state is
+// this component's alone.
 
 import QtQuick
 import PinPointStudio
+import "hm_view_store.js" as ViewStore
 
 Column {
     id: root
@@ -66,20 +67,11 @@ Column {
 
     function isOpen(group) { return root.openGroups.indexOf(group) >= 0 }
 
-    function _hasStore() {
-        return root.settings && root.settings.homeViewByAthlete !== undefined && root.athleteUuid !== ""
-    }
     function _write(groups) {
         root.openGroups = groups
         root._seen = true
-        if (!root._hasStore()) return
-        const map  = root.settings.homeViewByAthlete || {}       // read ONCE
-        const next = Object.assign({}, map)
-        const entry = Object.assign({}, next[root.athleteUuid] || {})
-        entry.expanded     = groups.slice()
-        entry.expandedSeen = true
-        next[root.athleteUuid] = entry
-        root.settings.homeViewByAthlete = next
+        ViewStore.writeFields(root.settings, root.athleteUuid,
+                              { expanded: groups.slice(), expandedSeen: true })
     }
     function toggle(group) {
         const list = root.openGroups.slice()
@@ -92,13 +84,10 @@ Column {
         if (root._loadedFor !== root.athleteUuid) {
             root._loadedFor = root.athleteUuid
             let groups = [], seen = false
-            if (root._hasStore()) {
-                const map = root.settings.homeViewByAthlete || {}
-                const e = map[root.athleteUuid]
-                if (e) {
-                    groups = e.expanded ? Array.from(e.expanded).map(String) : []
-                    seen   = !!e.expandedSeen
-                }
+            const e = ViewStore.entry(root.settings, root.athleteUuid)
+            if (e) {
+                groups = e.expanded ? Array.from(e.expanded).map(String) : []
+                seen   = !!e.expandedSeen
             }
             root.openGroups = groups
             root._seen = seen

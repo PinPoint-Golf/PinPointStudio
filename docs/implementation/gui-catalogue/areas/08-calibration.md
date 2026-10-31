@@ -1,17 +1,18 @@
 # Calibration
 
 *Directory:* `src/Gui/calibration/`  
-*6 components · 2,772 lines of QML*
+*7 components · 3,732 lines of QML*
 
 IMU arm calibration routines (HackMotion, Witmotion), camera-calibration stub and the calibration guide, hosted both by the setup flow and the Wrist toolbar panel.
 
 | Component | Lines | Root | Used by | Uses | Notes |
 |---|---:|---|---:|---:|---|
 | [ArmCalibrationStatus](#armcalibrationstatus) | 579 | `Item` | 1 | 2 | 13 local comp. |
-| [CalibrationGuide](#calibrationguide) | 143 | `QtObject` | 1 | 0 |  |
+| [CalibrationGuide](#calibrationguide) | 207 | `QtObject` | 2 | 0 |  |
 | [CameraCalibrationFlow](#cameracalibrationflow) | 102 | `Item` | 2 | 2 |  |
-| [HackMotionArmRoutine](#hackmotionarmroutine) | 802 | `QtObject` | 1 | 0 |  |
-| [ImuCalibrationFlow](#imucalibrationflow) | 538 | `Item` | 2 | 6 |  |
+| [HackMotionArmRoutine](#hackmotionarmroutine) | 803 | `QtObject` | 1 | 0 |  |
+| [ImuCalibrationFlow](#imucalibrationflow) | 545 | `Item` | 2 | 6 |  |
+| [TrunkRoutine](#trunkroutine) | 888 | `QtObject` | 1 | 0 |  |
 | [WitmotionArmRoutine](#witmotionarmroutine) | 608 | `QtObject` | 1 | 0 |  |
 
 ### ArmCalibrationStatus
@@ -33,7 +34,7 @@ IMU arm calibration routines (HackMotion, Witmotion), camera-calibration stub an
 - **Used by (1):** `ImuCalibrationFlow`
 
 ### CalibrationGuide
-`src/Gui/calibration/CalibrationGuide.qml` · 143 lines · root `QtObject` · no direct `Theme.*` refs
+`src/Gui/calibration/CalibrationGuide.qml` · 207 lines · root `QtObject` · no direct `Theme.*` refs
 
 > CalibrationGuide — the 3-D guide as the calibration routines see it (design §4.7, R9),
 > and the real adapter over ONE BodyVizView.
@@ -45,18 +46,19 @@ IMU arm calibration routines (HackMotion, Witmotion), camera-calibration stub an
 > signal finished()
 > hmUpperArm, hmForePose0, hmForePose1, hmRaiseDeg   — the HackMotion poses
 > property bool useGuideCamera
+> function trunkPose(hipsDeg, chestDeg, armsCrossed)          the trunk routine's poses
+> function trunkAnimate(hipsDeg, chestDeg, armsCrossed, ms)   (TrunkRoutine.qml); finished()
+> The trunk angles are GOLFER-RELATIVE turns from address, in degrees: + is AWAY from the target
+> (toward the top), − toward it. Which way that is in the scene is the view's business (its
+> rightHanded), never the routine's. armsCrossed: the forearms folded on the chest (§6.3 step 2).
 > The test stand-in (tests/setup/fakes/FakeGuide.qml) has the same members. A routine
-> keeps its OWN stage ("introUp", "raise", …): the guide reports only "finished".
-> ── THE ADAPTER ────────────────────────────────────────────────────────────────────
-> The view binds to this object, never the other way round:
-> leadArmOverrideRotation:     guide.armTarget
-> leadForeArmOverrideRotation: guide.foreTarget   (identity for a Witmotion — the host)
 > …
 
-- **Properties:** `Item view`, `bool active`, `readonly bool ready`, `bool useGuideCamera`, `quaternion armTarget`, `quaternion foreTarget`, `bool animating`, `readonly quaternion hmUpperArm`, `readonly quaternion hmForePose0`, `readonly quaternion hmForePose1`, `readonly real hmRaiseDeg`
+- **Properties:** `Item view`, `bool active`, `readonly bool ready`, `bool useGuideCamera`, `quaternion armTarget`, `quaternion foreTarget`, `bool animating`, `readonly quaternion hmUpperArm`, `readonly quaternion hmForePose0`, `readonly quaternion hmForePose1`, `readonly real hmRaiseDeg`, `real hipsTargetDeg`, `real chestTargetDeg`, `bool armsCrossed` … (+3 more)
 - **Signals:** `finished()`
-- **Functions:** `pose(armQ, foreQ)`, `animate(armQ, foreQ, ms)`, `cancel()`
-- **Used by (1):** `ImuCalibrationFlow`
+- **Functions:** `pose(armQ, foreQ)`, `animate(armQ, foreQ, ms)`, `cancel()`, `trunkPose(hipsDeg, chestDeg, crossed)`, `trunkAnimate(hipsDeg, chestDeg, crossed, ms)`
+- **Used by (2):** `CalibrateTrunkPage`, `ImuCalibrationFlow`
+- **Exercised by tests/tools:** `trunk_guide`
 
 ### CameraCalibrationFlow
 `src/Gui/calibration/CameraCalibrationFlow.qml` · 102 lines · root `Item`
@@ -74,7 +76,7 @@ IMU arm calibration routines (HackMotion, Witmotion), camera-calibration stub an
 - **Used by (2):** `PpCameraPanel`, `TriangulatePage`
 
 ### HackMotionArmRoutine
-`src/Gui/calibration/HackMotionArmRoutine.qml` · 802 lines · root `QtObject` · no direct `Theme.*` refs
+`src/Gui/calibration/HackMotionArmRoutine.qml` · 803 lines · root `QtObject` · no direct `Theme.*` refs
 
 > The HackMotion (wG3) arm calibration — the DEVICE's routine, driven through libwrist
 > (design §4.7). Moved out of ImuCalibrationFlow.qml with its choreography, guards and
@@ -101,7 +103,7 @@ IMU arm calibration routines (HackMotion, Witmotion), camera-calibration stub an
 - **Exercised by tests/tools:** `CalibDriver`
 
 ### ImuCalibrationFlow
-`src/Gui/calibration/ImuCalibrationFlow.qml` · 538 lines · root `Item`
+`src/Gui/calibration/ImuCalibrationFlow.qml` · 545 lines · root `Item`
 
 > Wrist/arm positional calibration — the host-facing composition. The SAME flow runs in
 > two hosts:
@@ -127,6 +129,33 @@ IMU arm calibration routines (HackMotion, Witmotion), camera-calibration stub an
 - **Uses:** `ArmCalibrationStatus`, `BodyVizView`, `CalibrationGuide`, `HackMotionArmRoutine`, `PpButton`, `WitmotionArmRoutine`
 - **Used by (2):** `CalibrateArmPage`, `PpImuPanel`
 - **Exercised by tests/tools:** `CalibDriver`, `tst_setup_smoke`
+
+### TrunkRoutine
+`src/Gui/calibration/TrunkRoutine.qml` · 888 lines · root `QtObject` · no direct `Theme.*` refs
+
+> The trunk calibration — the golfer's ceremony for the hip and chest sensors
+> (trunk_imu_sequence_grf_design.md §6.3 steps 1–3, §6.7, §16.2 W2.2). The hop (step 4) is not in W2.
+> intro        the guide shows the stand-tall pose; nothing starts until the guide can be watched
+> standTall    ready: nothing runs until the golfer has the sensors on — BOTH upright (the live
+> long axis within the stand-tall gate) and still (gyroDps) for `ready` without a
+> break; the page says which sensor is the reason while it waits. Then settle, then the
+> hold bar: both sensors still and upright for `hold`, then calibrateTrunk() on both. A
+> failure names the sensor (the C++ record's own words), stays on screen for `retry`,
+> and stand tall begins again at ready — it waits for upright and still again, never a
+> blind re-run on a timer.
+> turnAway     the BACKSWING TURN (golfer-facing words: below).
+> demo: the guide turns away (hips 45°, chest 90°) and back, with ONE short instruction,
+> while the golfer faces the screen — everything to read is read here.
+> arming: both sensors still (gyroDps, `ready`'s rule) for `arm` → armed: the step's
+> recording begins NOW (stepStart), at address, never at the demo.
+> armed → turning: the chest's live heading (ImuInstance.trunkHeadingDeg) `_turnStartDeg`
+> …
+
+- **Properties:** `bool active`, `var guide`, `var segments`, `bool rightHanded`, `var trunkCeremony`, `bool speakInstructions`, `var ttsController`, `readonly var defaultPace`, `var pace`, `readonly string stage`, `readonly string substage`, `readonly bool done`, `readonly bool failed`, `readonly string message` … (+12 more)
+- **Signals:** `completed()`
+- **Functions:** `begin()`, `stop(reason)`, `restore()`
+- **Used by (1):** `CalibrateTrunkPage`
+- **Exercised by tests/tools:** `tst_setup_trunk`
 
 ### WitmotionArmRoutine
 `src/Gui/calibration/WitmotionArmRoutine.qml` · 608 lines · root `QtObject` · no direct `Theme.*` refs

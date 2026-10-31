@@ -1,7 +1,7 @@
 # Athlete
 
 *Directory:* `src/Gui/athlete/`  
-*5 components · 1,914 lines of QML*
+*6 components · 2,472 lines of QML*
 
 Athlete picker, athlete create/edit form and per-athlete club records.
 
@@ -12,8 +12,9 @@ Athlete picker, athlete create/edit form and per-athlete club records.
 | [AthleteClubsSection](#athleteclubssection) | 535 | `Rectangle` | 1 | 5 |  |
 | [PpAthleteCard](#ppathletecard) | 134 | `Rectangle` | 1 | 1 |  |
 | [PpAthleteRow](#ppathleterow) | 184 | `Item` | 1 | 1 |  |
-| [ScreenAthleteForm](#screenathleteform) | 806 | `Item` | 1 | 8 |  |
-| [ScreenAthletePicker](#screenathletepicker) | 255 | `Item` | 1 | 4 |  |
+| [ScreenAthleteForm](#screenathleteform) | 1084 | `Item` | 1 | 9 |  |
+| [ScreenAthletePicker](#screenathletepicker) | 272 | `Item` | 1 | 4 |  |
+| [ScreenSessions](#screensessions) | 263 | `Item` | 1 | 8 |  |
 
 ### AthleteClubsSection
 `src/Gui/athlete/AthleteClubsSection.qml` · 535 lines · root `Rectangle` · 1 hard-coded colour(s)
@@ -56,24 +57,48 @@ Compact list-row form of the athlete tile for the picker's list layout (same ava
 - **Used by (1):** `ScreenAthletePicker`
 
 ### ScreenAthleteForm
-`src/Gui/athlete/ScreenAthleteForm.qml` · 806 lines · root `Item`
+`src/Gui/athlete/ScreenAthleteForm.qml` · 1084 lines · root `Item`
 
 Full-screen create/edit form for an athlete (name, DOB, sex, handedness, height/weight with unit toggles, primary club). Buffers scalar fields until Save; hosts AthleteClubsSection in edit mode. Emits saved / savedAndStarted / cancelled.  
 *(description written for this catalogue — the file has no header comment)*
 
-- **Properties:** `bool nameError`, `bool dobError`, `string handedness`, `string heightUnit`, `string weightUnit`, `string primaryClub`, `string sex`, `readonly var sexOptions`, `readonly var sexLabels`, `string editUuid`, `readonly var clubModel`
+- **Properties:** `bool nameError`, `bool dobError`, `string handedness`, `string heightUnit`, `string weightUnit`, `string primaryClub`, `string sex`, `bool emailError`, `bool photosApproved`, `string photosApprovedOn`, `readonly bool isJunior`, `readonly var sexOptions`, `readonly var sexLabels`, `string editUuid` … (+1 more)
 - **Signals:** `cancelled()`, `saved(string uuid)`, `savedAndStarted(string uuid)`
-- **Functions:** `sexLabelFor(value)`, `sexValueFor(label)`, `dobOk(text)`, `resetForm()`, `loadForEdit()`, `validate()`, `doSave()`
-- **Uses:** `AthleteClubsSection`, `ClubFormat`, `PpButton`, `PpChipGroup`, `PpComboBox`, `PpDisplayText`, `PpTextField`, `PpUnitToggle`
+- **Functions:** `emailShapeOk(text)`, `normaliseEmails(text)`, `firstWord(text)`, `approvedWords(iso)`, `sexLabelFor(value)`, `sexValueFor(label)`, `dobOk(text)`, `resetForm()`, `loadForEdit()`, `validate()` (+1)
+- **Uses:** `AthleteClubsSection`, `ClubFormat`, `PpButton`, `PpChipGroup`, `PpComboBox`, `PpDisplayText`, `PpPressable`, `PpTextField`, `PpUnitToggle`
 - **Used by (1):** `Main`
 
 ### ScreenAthletePicker
-`src/Gui/athlete/ScreenAthletePicker.qml` · 255 lines · root `Item`
+`src/Gui/athlete/ScreenAthletePicker.qml` · 272 lines · root `Item`
 
 Full-screen athlete chooser: search, a 'Recent' section and 'All athletes' as PpAthleteCard grid or PpAthleteRow list; new athlete, import roster, edit and delete actions. Emits athleteSelected / newAthleteRequested / editAthleteRequested.  
 *(description written for this catalogue — the file has no header comment)*
 
-- **Properties:** `string selectedUuid`, `var filteredAthletes`
+- **Properties:** `string selectedUuid`, `readonly bool sessionRunning`, `var filteredAthletes`
 - **Signals:** `athleteSelected(string uuid)`, `newAthleteRequested()`, `editAthleteRequested(string uuid)`
 - **Uses:** `PpAthleteCard`, `PpAthleteRow`, `PpButton`, `PpDisplayText`
+- **Used by (1):** `Main`
+
+### ScreenSessions
+`src/Gui/athlete/ScreenSessions.qml` · 263 lines · root `Item`
+
+> SESSIONS — the rail's Sessions (Main.qml, AppScreen.Sessions): the current golfer's sessions, every
+> one, each with its report (docs/design/session_report_design.md §8.0), as a full-width table
+> (docs/design/sessions_screen_redesign.md §2.1). The rail mutes Sessions with no golfer, so the list
+> is always the current golfer's (main.cpp points sessionReportList at their library folder).
+> Sessions  10 sessions · 202 swings · 14.6 GB                       [Search work-ons, clubs]
+> RECORDED WITH (chips)   All reports | None 7 | Out of date 2 | Ready 1   Club: All ▾   ☐ Show archived (3)
+> the table (PpSessionReportList)
+> Click a row to select or deselect · … (until the first selection: appSettings.sessionsHintSeen)
+> [3 selected · 3.6 GB · 2 reports out of date · Clear   Make / remake reports  Email  Export…  Archive  Delete…]
+> floating, while anything is selected or a bulk job runs
+> Every filter is the model's (SessionReportListModel); this screen only draws their controls. The
+> list owns the rows, the selection and the ⋯ menu; its requests leave through this screen's signals,
+> which Main.qml handles. The selection bar (PpSessionsSelectionBar, §2.4) acts through the list too; a
+> bulk job's outcome comes back as the list's notice(), shown here in a toast.
+
+- **Properties:** `readonly var model`, `readonly int sidePad`, `readonly bool hintSeen`
+- **Signals:** `reviewSessionRequested(string sessionDir)`, `studioSettingsRequested()`, `golferDetailsRequested()`
+- **Functions:** `toTop()`, `bytesWords(b)`, `plural(n, one, many)`
+- **Uses:** `PpCheckRow`, `PpComboBox`, `PpDeviceFilterBar`, `PpSegmentedControl`, `PpSessionReportList`, `PpSessionsSelectionBar`, `PpTextField`, `PpToast`
 - **Used by (1):** `Main`

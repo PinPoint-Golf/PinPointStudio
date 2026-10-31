@@ -17,7 +17,6 @@
  */
 
 import QtQuick
-import QtQuick.Controls
 import PinPointStudio
 
 // ANALYSE — the read. The ledger leads (A): every view opens on the table that answers its question in
@@ -85,7 +84,7 @@ Item {
         return out
     }
     readonly property var watching: ((source && source.watching) || []).slice()
-                                    .sort((a, b) => (ro.rate(b.recurrence) - ro.rate(a.recurrence)) || a.name.localeCompare(b.name))
+                                    .sort((a, b) => (ro.rate(b) - ro.rate(a)) || a.name.localeCompare(b.name))
     readonly property var detailCard: detail ? (ro.byId(cards || [], detail.id) || detail.header || null) : null
     readonly property var shownCards: (cards || []).filter(c => cardFilter === "all" || (cardFilter === "ball" && c.reachesBall)
                                                           || (cardFilter === "roots" && c.rootHere))
@@ -114,7 +113,8 @@ Item {
         const lo = bands[0].grade === "open" ? -Infinity : Math.min(...graded.map(b => b.lo))
         const hi = bands[bands.length - 1].grade === "open" ? Infinity : Math.max(...graded.map(b => b.hi))
         const above = v > hi, below = v < lo
-        const fmt = x => (Math.round(Math.abs(x) * 10) / 10).toFixed(1).replace("-", "−")
+        // a distance, so no sign; at the strip's own precision, as the hover readout's "15 past the fault line" (C15)
+        const fmt = x => ro.figure(Math.abs(x), sp.decimals !== undefined ? sp.decimals : 1)
         const lab = "Shot " + (cur.index !== undefined ? cur.index + 1 : shotNo)
         const out = []
         if (above || below) {
@@ -123,7 +123,10 @@ Item {
                         .sort((a, b) => Math.abs(a.value - edge) - Math.abs(b.value - edge))[0]
             if (fl) {
                 const past = above ? v - fl.value : fl.value - v
-                out.push({ label: lab + " past the fault line", figure: past > 0 ? fmt(past) : "inside it" , word: past <= 0 })
+                // a distance that rounds to nothing at this precision is "at the fault line", as the hover readout
+                // says it (session_spread.h spreadPositionWords): never "0 past" or "inside it" by a rounding
+                const at = Number(fmt(past)) === 0
+                out.push({ label: lab + " past the fault line", figure: at ? "at the fault line" : past > 0 ? fmt(past) : "inside it", word: at || past <= 0 })
             }
             out.push({ label: lab + " from the pass edge", figure: fmt(above ? v - hi : lo - v) })
         } else {
@@ -165,15 +168,7 @@ Item {
     property bool missOpen: false
     property int _pulseToken: -1
     onPulseCueChanged: firePulse()
-    function firePulse() {
-        const c = root.pulseCue
-        if (!c) { br.pulseHold = false; br.pulseIds = []; _pulseToken = -1; return }   // a cue withdrawn: nothing held
-        if (c.token === undefined || c.token === _pulseToken) return
-        _pulseToken = c.token
-        br.pulseHold = !!c.hold                   // renders only: hold the wash for a still
-        // ids may arrive as afterShotDelta chips ({ id, … }) rather than ids: take the id either way
-        br.pulse((c.ids || []).map(x => x && typeof x === "object" ? x.id : x).filter(x => !!x), c.focusId || "")
-    }
+    function firePulse() { _pulseToken = ro.takePulse(br, root.pulseCue, _pulseToken) }
 
     // ═══════════════════════════ SHARPER QUESTIONS (computed; shown only when answerable) ═══════════════════════════
     // the lib's question engine, phrased with the subject's name ("<name>: …"), restricted to what is on screen
@@ -257,28 +252,9 @@ Item {
     }
 
     // ── one named Flickable per view, built on first show and never torn down (D8, §0.2-0.3) ──
-    component ViewFlick: Flickable {
-        id: vf
-        property string key: ""
-        property Component view: null
-        readonly property bool on: root.view === key
-        readonly property Item content: ld.item
-        property bool built: false
-        onOnChanged: if (on) built = true
-        Component.onCompleted: if (on) built = true
-        visible: on
-        anchors { top: under.bottom; left: screen.left; right: screen.right; bottom: screen.bottom; topMargin: ro.u(2) }
-        contentWidth: width; contentHeight: (ld.item ? ld.item.height : 0) + ro.u(24)
-        clip: true; boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-        Loader { id: ld; active: vf.built; width: vf.width - ro.u(8); sourceComponent: vf.view }
-    }
+    component ViewFlick: PpViewFlick { roles: ro; shown: root.view; below: under; gap: 2; foot: 24; lockWhenFits: false }
     // a small crosshead between the lead table and the figure that puts it among everything
-    component Crosshead: Text {
-        width: parent ? parent.width : 0
-        topPadding: ro.u(22); bottomPadding: ro.u(6)
-        font: ro.fSection; color: ro.ink
-    }
+    component Crosshead: PpSectionHead { width: parent ? parent.width : 0; roles: ro; paged: false; lead: 22; pad: 6 }
     // the view's questions, after its lead table
     component Asks: PpQuestions {
         objectName: "sdQuestions"
@@ -287,12 +263,7 @@ Item {
         onStepRequested: ids => root.stepThrough(ids)
     }
     // the review note, folded to the foot of a view below medium (F7), or when the miss chip takes the right
-    component ReviewFoot: PpNotes {
-        objectName: "sdReviewNote"
-        roles: ro
-        visible: !!root.header && String(root.header.reviewNote || "") !== "" && (!ro.shows("reviewNote", width) || ss.missShown)
-        text: root.header ? ro.cap1(root.header.reviewNote) + "." : ""
-    }
+    component ReviewFoot: PpDiagReviewFoot { roles: ro; header: root.header; missShown: ss.missShown }
 
     // ═══════════════════════════ SCREEN ═══════════════════════════
     Item {
@@ -427,7 +398,7 @@ Item {
                                  : "Out by: distance past the corridor edge, as a multiple of the distance to it.  Fired: shots outside the corridor, of those measurable.  A row opens its detail; a strip cell puts that shot in the carousel."
             }
             Asks { id: asks1; width: sc.width; questions: root.shotQuestions }
-            Crosshead { visible: !!ss.shot; text: ss.partial ? "Outside, on one scale" : "Every condition on one scale" }
+            Crosshead { visible: !!ss.shot; title: ss.partial ? "Outside, on one scale" : "Every condition on one scale" }
             PpPageKey { visible: !!ss.shot; width: sc.width; roles: ro; readout: root.shot; set: "shot" }
             PpDotPlot {
                 visible: !!ss.shot
@@ -610,7 +581,7 @@ Item {
                 width: wc.width; roles: ro; brush: br; readout: null
                 rows: visible ? root.watching : []
                 spec: ss.watchSpec
-                getter: (w, key) => key === "name" ? { t: w.name } : { t: ro.frac(w.recurrence) }
+                getter: (w, key) => key === "name" ? { t: w.name } : { t: ro.frac(w) }
                 interactive: root.interactive
                 onConditionActivated: id => root.openCondition(id)
             }
@@ -780,7 +751,7 @@ Item {
     PpQuestions { id: qh; visible: false; roles: ro; brush: br }
 
     // ── the shared objects, declared LAST so they are destroyed last ──
-    PpDiagReplayState { id: ss; source: root.source; header: root.header; readout: root.readout; cards: root.cards || []; interactive: root.interactive }
+    PpDiagReplayState { id: ss; source: root.source; header: root.header; readout: root.readout; cards: root.cards || []; interactive: root.interactive; roles: ro }
     PpDiagRoles { id: ro; medium: root.medium }
     PpBrush {
         id: br

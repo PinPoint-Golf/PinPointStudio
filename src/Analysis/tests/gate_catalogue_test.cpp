@@ -154,6 +154,13 @@ int main()
         for (const gates::GateTuning &t : band->tuning)
             if (t.key == QLatin1String("sequence.sightedTurnDeg") && t.value == tuned::sequence::kSightedTurnDeg) tuned = true;
         check(tuned, "tuning carries the compiled threshold (20° today)");
+        // a threshold as the reader sees it, by the app's one figure-and-unit rule (Core/figure_format.h)
+        check(gates::tuningValue({ QStringLiteral("k"), 20.0, QStringLiteral("°") }) == QStringLiteral("20°")
+                  && gates::tuningValue({ QStringLiteral("k"), 47.0, QStringLiteral("ms") }) == QStringLiteral("47") + nb + QStringLiteral("ms")
+                  && gates::tuningValue({ QStringLiteral("k"), 900.0, QStringLiteral("°/s") }) == QStringLiteral("900°/s")
+                  && gates::tuningValue({ QStringLiteral("k"), 0.3, QString() }) == QStringLiteral("0.30")
+                  && gates::tuningValue({ QStringLiteral("k"), -2.0, QStringLiteral("ratio") }) == minus + QStringLiteral("2"),
+              "tuningValue: degrees close up, a word takes a no-break space, a ratio is the bare number");
     }
 
     // ── what a finding a gate stopped says (stage 4, §4.4) ──

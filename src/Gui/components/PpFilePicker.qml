@@ -80,23 +80,19 @@ Popup {
         if (/^\/[A-Za-z]:\//.test(s)) s = s.substring(1)
         return s
     }
-    function _toUrl(p) {
-        var s = String(p)
-        if (s.indexOf("file:") === 0) return s
-        return "file://" + (/^[A-Za-z]:\//.test(s) ? "/" : "") + encodeURI(s)
-    }
-    function _formatSize(n) {
-        if (n === undefined || n < 0) return ""
-        if (n >= 1e6) return (n / 1e6).toFixed(1) + " MB"
-        if (n >= 1e3) return Math.round(n / 1e3) + " KB"
-        return n + " B"
-    }
+    // A size unknown reads nothing; an empty file, "0 B".
+    function _formatSize(n) { return (n === undefined || n < 0) ? "" : Theme.formatBytes(n, "0 B") }
     function _basename(p) { var s = String(p); var i = s.lastIndexOf("/"); return i >= 0 ? s.substring(i + 1) : s }
 
     // ── the probe / caller API ───────────────────────────────────────────────
+    // A folder is held in one form — a local path with no trailing separator ("/" and "C:/" keep
+    // theirs) — so "/Users/x/", "file:///Users/x" and "/Users/x" are the same folder, and the root
+    // link for it reads as the current one (currentFolder compares by string).
     function goTo(path) {
         root.selectedPath = ""
-        folderModel.folder = root._toUrl(path)
+        var p = root._toLocal(path)
+        if (!/^([A-Za-z]:)?[\/\\]$/.test(p)) p = p.replace(/[\/\\]+$/, "")
+        folderModel.folder = Theme.fileUrl(p.length > 0 ? p : "/")
         root._lastFolder = root._toLocal(folderModel.folder)
     }
     function up() {
@@ -148,29 +144,6 @@ Popup {
         nameFilters:     root.nameFilters
     }
 
-    // A quiet text control: a root, or "Up one level".
-    component PlainLink: Text {
-        id: pl
-        property bool on: false
-        property bool active: true
-        signal activated()
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody2
-        font.weight:    pl.on ? Font.DemiBold : Theme.fontBodyWeight
-        color: !pl.active ? Theme.colorText3
-             : pl.on ? Theme.colorText
-             : (plMa.containsMouse ? Qt.lighter(Theme.colorAccent, 1.15) : Theme.colorAccent)
-        MouseArea {
-            id: plMa
-            anchors.fill: parent
-            anchors.margins: -Theme.sp(4)
-            enabled: pl.active
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: pl.activated()
-        }
-    }
-
     contentItem: ColumnLayout {
         spacing: Theme.gap(10)
 
@@ -194,21 +167,27 @@ Popup {
             spacing: Theme.gap(18)
             Repeater {
                 model: root.roots
-                delegate: PlainLink {
+                // The folder you are in reads in ink; the links keep the body's weight.
+                delegate: PpLink {
+                    id: rootLink
                     required property var modelData
                     objectName: "filePickerRoot_" + modelData.key
                     text: modelData.label
                     visible: String(modelData.url).length > 0
-                    on: root._toLocal(modelData.url) === root.currentFolder
-                    onActivated: root.goTo(root._toLocal(modelData.url))
+                    current: root._toLocal(modelData.url) === root.currentFolder
+                    font.weight: rootLink.current ? Font.DemiBold : Theme.fontBodyWeight
+                    pressMargin: Theme.sp(4)
+                    onClicked: root.goTo(root._toLocal(modelData.url))
                 }
             }
             Item { Layout.fillWidth: true }
-            PlainLink {
+            PpLink {
                 objectName: "filePickerUp"
                 text: "↑ " + qsTr("Up one level")
-                active: String(folderModel.parentFolder).length > 0
-                onActivated: root.up()
+                interactive: String(folderModel.parentFolder).length > 0
+                font.weight: Theme.fontBodyWeight
+                pressMargin: Theme.sp(4)
+                onClicked: root.up()
             }
         }
         Text {
@@ -334,7 +313,7 @@ Popup {
                         mipmap: true
                         sourceSize.width:  Theme.sp(600)
                         sourceSize.height: Theme.sp(600)
-                        source: root.selectedPath.length > 0 ? root._toUrl(root.selectedPath) : ""
+                        source: root.selectedPath.length > 0 ? Theme.fileUrl(root.selectedPath) : ""
                     }
                     Text {
                         anchors.centerIn: parent

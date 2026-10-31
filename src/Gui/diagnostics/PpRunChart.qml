@@ -86,14 +86,13 @@ Item {
     Repeater {
         model: rc.roles ? (rc.ticks || []) : []
         // the not-measured STUB (D5): a short flat ink3 mark on the baseline, never a gap
-        delegate: Rectangle {
+        delegate: PpStub {
             required property var modelData
             required property int index
             objectName: "sdRunStub"
             visible: !!rc.scale && modelData.state !== "fired" && modelData.state !== "clean"
-            width: Math.max(2, Math.min(rc.roles.u(4), rc.width / rc.n * 0.5)); height: rc.roles.stubH(rc.roles.u(12))
+            roles: rc.roles; size: rc.roles.u(12); pitch: rc.width / rc.n
             x: (index + 0.5) / rc.n * rc.width - width / 2; y: rc.scale ? rc.scale.plotTop + rc.scale.plotHeight - height : 0
-            color: rc.roles.ink3
         }
     }
     Repeater {

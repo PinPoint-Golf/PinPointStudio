@@ -394,8 +394,8 @@ Item {
                                  : Theme.colorWarnLight
                             border.width: 1
                             border.color: ctrl && ctrl.batteryPercent > 60
-                                          ? Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.25)
-                                          : Qt.rgba(Theme.colorWarn.r, Theme.colorWarn.g, Theme.colorWarn.b, 0.25)
+                                          ? Qt.alpha(Theme.colorGood, 0.25)
+                                          : Qt.alpha(Theme.colorWarn, 0.25)
                             implicitWidth:  batLabel.implicitWidth + Theme.sp(10)
                             implicitHeight: batLabel.implicitHeight + Theme.sp(4)
 

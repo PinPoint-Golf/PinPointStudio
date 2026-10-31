@@ -21,7 +21,7 @@ pragma Singleton
 // MetricRoute — the one-line router that links a metric ANYWHERE in the app to its
 // catalogue detail page. A metric tile is typically instantiated several layers
 // inside a stage delegate (or a top-level cast Window), so it has no path to the
-// settings screen that hosts MetricLibrary/MetricDetail. Rather than thread a
+// settings screen whose Swing model panel shows the metric. Rather than thread a
 // signal up through every host, tiles call MetricRoute.open(key) and Main.qml — the
 // one place that owns navigation — performs the jump.
 //

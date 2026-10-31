@@ -59,19 +59,6 @@ const QString kRecordFile = QStringLiteral("work_ons.json");
 const QString kThemesFile = QStringLiteral("swing_themes.json");
 const QString kLedgerFile = QStringLiteral("diagnostics.json");
 
-QString fmtNumber(double v)
-{
-    QString s = QString::number(std::fabs(v), 'f', 1);
-    return v < 0.0 ? QString(QChar(0x2212)) + s : s;
-}
-
-// "62.0°" but "12.0 mm": a symbol closes up, a word does not.
-QString withUnit(const QString &s, const QString &unit)
-{
-    if (unit.isEmpty()) return s;
-    return unit.at(0).isLetter() ? s + QLatin1Char(' ') + unit : s + unit;
-}
-
 QString dayLabel(qint64 ms)
 {
     if (ms <= 0) return QString();
@@ -544,7 +531,7 @@ void WorkOnsController::publish()
                 const QString corridor = sc.known ? spreadCorridorWords(sc, unit) : QString();
                 if (!corridor.isEmpty())
                     text += QStringLiteral(" · typically %1 against %2")
-                                .arg(withUnit(fmtNumber(typical), unit), corridor);
+                                .arg(pinpoint::figures::withUnit(pinpoint::figures::fig(typical, 1), unit), corridor);
             }
             return text;
         };

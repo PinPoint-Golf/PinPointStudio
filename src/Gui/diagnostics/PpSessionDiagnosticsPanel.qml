@@ -149,10 +149,9 @@ Item {
     // COMPARED AS FOLDERS, NOT AS STRINGS: the two live sources spell the same folder
     // differently when the library path ends in a slash ("…/lib//athlete/…" from the
     // processor, "…/lib/athlete/…" from the carousel), and a session ending must not cost a
-    // second scan of the folder the panel is already on.
-    function _folder(p) { return p.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "") }
+    // second scan of the folder the panel is already on (SessionMode.sameFolder).
     function _pointAtSession() {
-        if (_folder(sessionDir) !== _folder(diagModel.sessionDir))
+        if (!SessionMode.sameFolder(sessionDir, diagModel.sessionDir))
             diagModel.activateSession(sessionDir)
         _adoptFocus()
     }
@@ -179,7 +178,7 @@ Item {
         && sessionController.running
         && !diagModel.reviewing
         && shotProcessor.activeSessionDir !== ""
-        && _folder(sessionDir) === _folder(shotProcessor.activeSessionDir)
+        && SessionMode.sameFolder(sessionDir, shotProcessor.activeSessionDir)
     onLiveSessionChanged: _adoptFocus()
 
     // ONLY ON A REAL DIFFERENCE, by id: re-adopting the focus already held would re-split it at
@@ -188,7 +187,7 @@ Item {
     // adoption then would land on rows not yet loaded and be overwritten by the file.
     function _adoptFocus() {
         if (!liveSession) return
-        if (_folder(diagModel.sessionDir) !== _folder(shotProcessor.activeSessionDir)) return
+        if (!SessionMode.sameFolder(diagModel.sessionDir, shotProcessor.activeSessionDir)) return
         const want = sessionController.focusConditionId || ""
         if (want === (diagModel.focusConditionId || "")) return
         if (want === "") diagModel.clearFocus()
@@ -226,9 +225,9 @@ Item {
         SessionMode.sessionDiagnostics = diagModel
         if (remembersNav) {
             _restoreNav()
-            _watchFlicks()
+            place.watch()
         }
-        _navReady = remembersNav
+        place.ready = remembersNav
     }
     // ...and released only if it is still OURS. A panel being torn down while a second one
     // holds the seam must not null a pointer it no longer owns — which is exactly what
@@ -249,64 +248,38 @@ Item {
     // SAVED AS IT CHANGES, NOT ON TEARDOWN: the stage builds the incoming panel BEFORE it
     // destroys the outgoing one, so a save in onDestruction lands after the restore it was for
     // (verified with diag_nav_survives_mode_switch.qml). Saving starts only once the restore is
-    // done (_navReady), so the fresh model's activateSession() clearing the detail on build
+    // done (place.ready), so the fresh model's activateSession() clearing the detail on build
     // cannot overwrite the place it is about to be given back.
     //
     // A DIFFERENT SESSION STARTS AT THE DEFAULTS — the same rule activateSession() applies to
     // the open detail — so the saved place is stamped with the folder it was read in.
-    property bool _navReady: false
-    readonly property var _navFlicks: ["sdShotCardsFlick", "sdCardsFlick", "sdWatchingFlick",
-                                       "sdDetailFlick"]
-    function _findNamed(item, name) {
-        if (!item) return null
-        if (item.objectName === name) return item
-        const kids = item.children || []
-        for (let i = 0; i < kids.length; ++i) {
-            const hit = _findNamed(kids[i], name)
-            if (hit) return hit
-        }
-        return null
-    }
-    // Looked up once and cached — and NEVER from a binding: a walk of `children` in a binding
-    // subscribes it to every child list in the body, and the body adds children by the hundred
-    // when a detail opens (the probe hung on exactly that).
-    property var _flickCache: ({})
-    // The named Flickables live in the body's REGISTER, which the body swaps when the mode changes
-    // (Replay ⇄ Analyse): forget the old ones and watch the new register's.
-    function _watchFlicks() {
-        _flickCache = ({})
-        for (let i = 0; i < flickWatch.count; ++i) {
-            const c = flickWatch.objectAt(i)
-            c.target = _flick(c.modelData)
-        }
-    }
-    function _flick(name) {
-        let f = _flickCache[name]
-        if (!f) { f = _findNamed(body, name); if (f) _flickCache[name] = f }
-        return f
+    //
+    // THE MACHINERY IS PpReaderPlace, shared with the Charts panel: the stamp, each list's scroll and
+    // its restore (a list's content arrives over the next few frames, and a list hidden behind an open
+    // detail is not laid out at all, so it waits, uncounted, until the detail closes), the flick
+    // watching and the cache it reads them through. What the place IS here — tab, filter, Watching
+    // fold, open characteristic and its measure — is this file's, below.
+    PpReaderPlace {
+        id: place
+        content: body
+        flickNames: ["sdShotCardsFlick", "sdCardsFlick", "sdWatchingFlick", "sdDetailFlick"]
+        active: root.remembersNav
+        model: diagModel
+        onSaveRequested: root._saveNav()
     }
     function _saveNav() {
-        if (!_navReady) return
-        const scroll = {}
-        for (const name of _navFlicks) {
-            // A list still waiting for its restore keeps the place it is waiting for.
-            if (_pendingScroll[name] !== undefined) { scroll[name] = _pendingScroll[name]; continue }
-            const f = _flick(name)
-            if (f && f.contentY > 0) scroll[name] = f.contentY
-        }
-        SessionMode.diagnosticsNav = {
-            sessionDir:        _folder(diagModel.sessionDir),
+        const nav = place.capture({
             tab:               body.tab,
             cardFilter:        body.cardFilter,
             watchingExpanded:  body.watchingExpanded,
             detailConditionId: diagModel.detailConditionId || "",
-            detailMeasureId:   (diagModel.detail && diagModel.detail.measurePicked) || "",
-            scroll:            scroll
-        }
+            detailMeasureId:   (diagModel.detail && diagModel.detail.measurePicked) || ""
+        })
+        if (nav) SessionMode.diagnosticsNav = nav
     }
     function _restoreNav() {
         const nav = SessionMode.diagnosticsNav
-        if (!nav || nav.sessionDir !== _folder(diagModel.sessionDir)) return
+        if (!place.matches(nav)) return
         body.tab              = nav.tab
         body.cardFilter       = nav.cardFilter
         body.watchingExpanded = nav.watchingExpanded
@@ -315,70 +288,23 @@ Item {
             if (nav.detailMeasureId)
                 diagModel.setDetailMeasure(nav.detailMeasureId)   // declined if not its measure
         }
-        _pendingScroll = Object.assign({}, nav.scroll || {})
-        _scrollTries = {}
-        if (Object.keys(_pendingScroll).length > 0) scrollRestore.start()
+        place.restore(nav)
     }
 
-    // A list's content arrives over the next few frames (Repeaters, then layout), so the
-    // scroll is re-applied until each list is tall enough to take it — for half a second of
-    // the list being ON SCREEN, after which a list that has shrunk keeps the furthest it can
-    // scroll to. A list hidden behind an open detail is not laid out at all, so it waits,
-    // uncounted, until the detail closes.
-    property var _pendingScroll: ({})
-    property var _scrollTries: ({})
-    Timer {
-        id: scrollRestore
-        interval: 50; repeat: true
-        onTriggered: {
-            const left = {}
-            for (const name in root._pendingScroll) {
-                const want = root._pendingScroll[name]
-                const f = root._flick(name)
-                if (!f || !f.visible) { left[name] = want; continue }
-                const tries = (root._scrollTries[name] || 0) + 1
-                root._scrollTries[name] = tries
-                const most = Math.max(0, f.contentHeight - f.height)
-                f.contentY = Math.min(want, most)
-                if (most < want && tries < 10) left[name] = want
-            }
-            root._pendingScroll = left
-            // Nothing left that is on screen: stop, and start again when the body shows more.
-            if (Object.keys(left).every(function (n) {
-                    const f = root._flick(n); return !f || !f.visible }))
-                stop()
-        }
-    }
-    function _resumeScrollRestore() {
-        if (Object.keys(_pendingScroll).length > 0) scrollRestore.start()
-    }
-
-    // The saves, on change. A scroll is saved a moment after it settles; the restore's own
-    // writes do not count, because a list is only written while it is still pending.
+    // The saves, on change (a scroll is saved by PpReaderPlace a moment after it settles; the
+    // restore's own writes do not count, because a list is only written while it is still pending).
+    // The body swapping its REGISTER (Replay ⇄ Analyse) swaps the named Flickables: watch the new ones.
     Connections {
         target: body
-        function onTabChanged()              { root._saveNav(); root._resumeScrollRestore() }
+        function onTabChanged()              { root._saveNav(); place.resume() }
         function onCardFilterChanged()       { root._saveNav() }
-        function onWatchingExpandedChanged() { root._saveNav(); root._resumeScrollRestore() }
-        function onDetailOpenChanged()       { root._resumeScrollRestore() }
-        function onRegisterItemChanged()     { if (root.remembersNav) { root._watchFlicks(); root._resumeScrollRestore() } }
+        function onWatchingExpandedChanged() { root._saveNav(); place.resume() }
+        function onDetailOpenChanged()       { place.resume() }
+        function onRegisterItemChanged()     { if (root.remembersNav) { place.watch(); place.resume() } }
     }
     Connections {
         target: diagModel
         function onDetailChanged() { root._saveNav() }
-    }
-    Timer { id: scrollSave; interval: 300; onTriggered: root._saveNav() }
-    Instantiator {
-        id: flickWatch
-        model: root.remembersNav ? root._navFlicks : []
-        delegate: Connections {
-            required property string modelData
-            target: null                                // set once, in Component.onCompleted
-            function onMovementStarted() { delete root._pendingScroll[modelData] }  // theirs now
-            function onContentYChanged() {
-                if (root._pendingScroll[modelData] === undefined) scrollSave.restart()
-            }
-        }
     }
 
     Connections {
@@ -439,40 +365,8 @@ Item {
     //
     // The carousel numbers its shots with its own counter, so the request (by swing folder, the
     // identity both sides share) is resolved against the shots the app is SHOWING — the loaded
-    // session's in review, the live carousel's otherwise.
-    Instantiator {
-        id: carouselShots
-        model: sessionReviewController.activeShots
-        delegate: QtObject {
-            required property int shotId
-            required property string swingDir
-        }
-    }
-    function _pickShot(swingDir) {
-        if (!swingDir) return false
-        const want = _folder(swingDir)
-        const name = want.substring(want.lastIndexOf("/") + 1)
-        for (let i = 0; i < carouselShots.count; ++i) {
-            const s = carouselShots.objectAt(i)
-            if (!s || !s.swingDir) continue
-            const have = _folder(s.swingDir)
-            // The folder first; its name when the ledger was written on another host and records
-            // the same swing under a different mount (shotIdForSwingDir's rule, the same reason).
-            if (have === want || have.substring(have.lastIndexOf("/") + 1) === name) {
-                if (SessionMode.mode === SessionMode.analyse) {
-                    // Analyse keeps Analyse: promote the swing and reload, without the detour
-                    // through Replay that enterReplay() would take.
-                    SessionMode.focusedShotId   = s.shotId
-                    SessionMode.focusedSwingDir = s.swingDir
-                    SessionMode.enterAnalyse()
-                } else {
-                    SessionMode.enterReplay(s.shotId, s.swingDir)
-                }
-                return true
-            }
-        }
-        return false
-    }
+    // session's in review, the live carousel's otherwise (PpReaderPlace.pickShot, as the Charts
+    // panel's).
 
     PpSessionDiagnosticsBody {
         id: body
@@ -481,6 +375,6 @@ Item {
         // Where a declaration made on this panel is written back, while it is live (above).
         focusController: root.liveSession ? sessionController : null
         onScreenRequested: (ref, cond) => root.screenRequested(ref, cond)
-        onShotRequested: (dir, id) => root._pickShot(dir)
+        onShotRequested: (dir, id) => place.pickShot(dir)
     }
 }

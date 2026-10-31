@@ -734,6 +734,13 @@ int main(int argc, char **argv)
         check(!r.value(QStringLiteral("ok")).toBool(), "a password before the user name: refused");
         mailer.setUsername(QStringLiteral("coach@gmail.com"));
         check(!mailer.sendConfigured(), "gmail, login, no password: not configured");
+        check(mailer.fromAddress(QStringLiteral("alex@studio.example")) == QLatin1String("coach@gmail.com"),
+              "fromAddress: the login when it is an address, not the coach's email");
+        check(mailer.senderName(QStringLiteral(" Alex Morgan "), QStringLiteral("Northfield")) == QLatin1String("Alex Morgan"),
+              "senderName: the coach's name, trimmed");
+        check(mailer.senderName(QStringLiteral("  "), QStringLiteral(" Northfield ")) == QLatin1String("Northfield"),
+              "senderName: no coach name: the studio's, trimmed");
+        check(mailer.senderName(QString(), QString()).isEmpty(), "senderName: neither: empty");
         r = mailer.setPassword(QStringLiteral(" abcd efgh\tijkl mnop "));
         check(r.value(QStringLiteral("ok")).toBool() && mailer.hasPassword(), "password saved");
         check(readMailPassword(mailAccount(QStringLiteral("coach@gmail.com"), QStringLiteral("smtp.gmail.com")))
@@ -764,6 +771,12 @@ int main(int argc, char **argv)
         check(!mailer.sendConfigured(), "none with a login and no password: not configured");
         mailer.setUsername(QString());
         check(mailer.sendConfigured(), "none with no login (open relay): configured");
+        check(mailer.fromAddress(QStringLiteral(" alex@studio.example ")) == QLatin1String("alex@studio.example"),
+              "fromAddress: no login: the coach's email, trimmed");
+        mailer.setUsername(QStringLiteral("alex"));
+        check(mailer.fromAddress(QStringLiteral("alex@studio.example")) == QLatin1String("alex@studio.example"),
+              "fromAddress: a login that is not an address: the coach's email");
+        mailer.setUsername(QString());
         mailer.setServer(QStringLiteral("relay.example.net"), 587, QStringLiteral("starttls"));
         check(!mailer.sendConfigured(), "starttls with no login: not configured");
         mailer.setServer(QString(), 587, QStringLiteral("none"));

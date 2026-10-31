@@ -70,15 +70,6 @@ Item {
     // plane curve's row, in PpChPlot's own layer shapes. Inked by role (roles.planeLayer) and named on the plot
     // (PpChPlaneLabels); overlaid, they join the one plot. {} draws nothing.
     property var planeLayers: ({})
-    function planeLayersOf(key) { return (planeLayers && key && planeLayers[key]) || [] }
-    // a value range [lo, hi] taken out, with a little room, to hold the layers' hairlines
-    function withPlane(lo, hi, ls) {
-        let a = lo, b = hi
-        for (const l of (ls || [])) if (l.k === "hline" && l.v !== null && l.v !== undefined && isFinite(l.v)) { a = Math.min(a, l.v); b = Math.max(b, l.v) }
-        if (a === lo && b === hi) return { lo: lo, hi: hi }
-        const pad = 0.04 * Math.max(1e-6, b - a)
-        return { lo: a < lo ? a - pad : lo, hi: b > hi ? b + pad : hi }
-    }
     readonly property var keyKinds: []
     property bool atom: true
 
@@ -109,7 +100,6 @@ Item {
         for (let i = 0; i < rs.length; ++i) if (rs[i].key === key) return rs[i]
         return null
     }
-    function byKey(list, key) { for (let i = 0; i < (list || []).length; ++i) if (list[i].key === key) return list[i]; return null }
     // the reference's stroke: the median thin, a shot dashed, "shots like this one" its own dash (ch roles)
     function refStyle() {
         const c = roles ? roles.ch : ({}), m = reference ? reference.mode : ""
@@ -139,7 +129,7 @@ Item {
             out.push({ k: "band", t: est.t, lo: est.lo, hi: est.hi, color: roles.hueA(r.key, roles.envAlpha) })
             out.push({ k: "line", t: est.t, v: est.v, color: col, w: c.thisShotW, dash: roles.dash(c.fitDash), z: 3 })
         }
-        for (const l of planeLayersOf(r.key)) out.push(roles.planeLayer(l))
+        for (const l of roles.listAt(planeLayers, r.key)) out.push(roles.planeLayer(l))
         return out
     }
     property bool showRawDots: true
@@ -150,11 +140,11 @@ Item {
     // `still` asks for the readings with no hover — what a row is sized from, so a hover never resizes it.
     function itemsFor(r, still) {
         if (!r) return []
-        const hv = !still && isFinite(hoverMs) ? byKey(hover.rows, r.key) : null
+        const hv = !still && isFinite(hoverMs) ? roles.byKey(hover.rows, r.key) : null
         if (hv) return [{ label: hover.when || "", text: hv.text, sub: hv.raw || "", warn: false, word: hv.grossWarn ? "⚠" : "", trust: hv.trust || "" }]
         const out = []
         if (figMode === "figures") for (const f of (r.figures || [])) out.push({ label: f.label, text: f.text, warn: f.warn === true, trust: f.trust || "" })
-        const nw = byKey(nowRows, r.key)
+        const nw = roles.byKey(nowRows, r.key)
         if (nw) {
             out.push({ label: figMode === "now" ? "now" : "at playhead", text: nw.text, sub: nw.addrText || "", trust: nw.trust || "" })
             if (refOn && (nw.refText || nw.gapText)) out.push({ label: "against", text: nw.refText || "-", sub: nw.gapText || "" })
@@ -218,8 +208,8 @@ Item {
                 readonly property real ph: ov ? tf.plotH * Math.min(2, Math.max(1, tf.rows.length * 0.6)) : tf.plotH
                 // the presenter's range, taken out to hold the Club delivery hairlines (an address line or a shoulder plane
                 // outside the curve's own range would otherwise be off the plot, unseen)
-                readonly property var span_: tf.withPlane(ov ? (tf.overlayAxis ? tf.overlayAxis.yLo : 0) : r.yLo, ov ? (tf.overlayAxis ? tf.overlayAxis.yHi : 1) : r.yHi,
-                                                          ov ? [].concat.apply([], tf.rows.map(function (q) { return tf.planeLayersOf(q.key) })) : tf.planeLayersOf(key))
+                readonly property var span_: tf.roles.withHLines(ov ? (tf.overlayAxis ? tf.overlayAxis.yLo : 0) : r.yLo, ov ? (tf.overlayAxis ? tf.overlayAxis.yHi : 1) : r.yHi,
+                                                          ov ? [].concat.apply([], tf.rows.map(function (q) { return tf.roles.listAt(tf.planeLayers, q.key) })) : tf.roles.listAt(tf.planeLayers, key))
                 readonly property real lo: span_.lo
                 readonly property real hi: span_.hi
                 // the value range is lifted so the curve clears the name band at the top
@@ -230,7 +220,7 @@ Item {
                 readonly property int ytStep: ph < tf.roles.u(60) ? Math.max(1, yt0.length - 1) : ph < tf.roles.u(90) && yt0.length > 4 ? 2 : 1
                 readonly property var yt: yt0.filter(function (t, i) { return (yt0.length - 1 - i) % ytStep === 0 })
                 readonly property var rref: ov ? null : tf.refRowOf(key)
-                readonly property bool hasDiff: tf.diffOn && !ov && !!rref && rref.diffLo !== null && rref.diffLo !== undefined && isFinite(rref.diffLo)
+                readonly property bool hasDiff: tf.diffOn && !ov && !!rref && tf.roles.fin(rref.diffLo)
                 readonly property var diffGap: hasDiff && rref.gap && rref.gap.found ? rref.gap : null
                 width: tf.width
                 height: Math.max(ph, ov && tf.figSide ? figCol.stillH : 0) + (tf.figSide ? 0 : foldMeasure.height + tf.roles.u(4))
@@ -290,8 +280,8 @@ Item {
                 PpChPlaneLabels {
                     x: tf.yGut; width: tf.innerW; height: rw.ph
                     roles: tf.roles
-                    layers: rw.ov ? [].concat.apply([], tf.rows.map(function (q) { return tf.planeLayersOf(q.key) })) : tf.planeLayersOf(rw.key)
-                    x0: tf.x0; x1: tf.x1; lo: rw.lo; hi: rw.hiL
+                    layers: rw.ov ? [].concat.apply([], tf.rows.map(function (q) { return tf.roles.listAt(tf.planeLayers, q.key) })) : tf.roles.listAt(tf.planeLayers, rw.key)
+                    plot: plot
                     topInset: tf.nameBand
                     // the row's name (or the overlaid key) and each peak's figure keep their place
                     reserve: [rw.ov ? { x: 0, y: 0, w: ovKey.width + tf.roles.u(10), h: ovKey.height + tf.roles.u(3) }
@@ -454,9 +444,8 @@ Item {
                         hoverEnabled: tf.showCursor
                         cursorShape: tf.seekable ? Qt.SizeHorCursor : Qt.ArrowCursor
                         function seekTo(px) {
-                            if (!tf.presenter || typeof shotReplay === "undefined") return
-                            const us = tf.presenter.seekUsForShotMs(plot.tOf(Math.max(0, Math.min(width, px))))
-                            if (us >= 0) shotReplay.seekToUs(us)
+                            if (!tf.presenter || !PpChSeek.available()) return
+                            PpChSeek.to(tf.presenter.seekUsForShotMs(plot.tOf(Math.max(0, Math.min(width, px)))))
                         }
                         onPressed: (e) => { if (!tf.seekable) return; if (typeof shotReplay !== "undefined") shotReplay.beginScrub(); seekTo(e.x) }
                         onPositionChanged: (e) => {

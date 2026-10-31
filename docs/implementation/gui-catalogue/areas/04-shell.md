@@ -1,23 +1,23 @@
 # Shell
 
 *Directory:* `src/Gui/shell/`  
-*11 components · 2,663 lines of QML when catalogued; `ScreenPlaceholder` (the holding screens for the old Swing/GRF/Coach modes) has since been deleted*
+*10 components · 2,604 lines of QML*
 
 The application window and chrome: Main.qml, rail, header, about dialog, update banner, detect cluster, analysing badge, and the dev-hatch PlayPage.
 
-**C++ in this area:** `NavigationController`  (see [cpp-seam.md](../cpp-seam.md))
+**C++ in this area:** `AppScreen`, `NavigationController`  (see [cpp-seam.md](../cpp-seam.md))
 
 | Component | Lines | Root | Used by | Uses | Notes |
 |---|---:|---|---:|---:|---|
 | [MacAboutMenu](#macaboutmenu) | 53 | `Labs.MenuBar` | 1 | 0 |  |
-| [Main](#main) | 910 | `ApplicationWindow` | 2 | 22 |  |
+| [Main](#main) | 908 | `ApplicationWindow` | 2 | 22 |  |
 | [PlayPage](#playpage) | 75 | `Item` | 1 | 4 |  |
 | [PpAboutDialog](#ppaboutdialog) | 270 | `Popup` | 1 | 3 |  |
 | [PpAnalysingBadge](#ppanalysingbadge) | 163 | `Rectangle` | 1 | 0 |  |
 | [PpDetectCluster](#ppdetectcluster) | 259 | `Item` | 1 | 1 | 1 local comp. |
 | [PpHeader](#ppheader) | 296 | `Item` | 1 | 4 |  |
-| [PpRail](#pprail) | 227 | `Item` | 1 | 3 |  |
-| [PpRailButton](#pprailbutton) | 137 | `Item` | 1 | 1 |  |
+| [PpRail](#pprail) | 206 | `Item` | 1 | 3 |  |
+| [PpRailButton](#pprailbutton) | 190 | `Item` | 1 | 1 |  |
 | [PpUpdateBanner](#ppupdatebanner) | 184 | `Item` | 1 | 1 |  |
 
 ### MacAboutMenu
@@ -36,14 +36,14 @@ The application window and chrome: Main.qml, rail, header, about dialog, update 
 - **Used by (1):** `Main`
 
 ### Main
-`src/Gui/shell/Main.qml` · 910 lines · root `ApplicationWindow`
+`src/Gui/shell/Main.qml` · 908 lines · root `ApplicationWindow`
 
 The application window (ApplicationWindow, created hidden then positioned on the chosen display): rail + header + screen stack (Home, Swing, Wrist, Ground forces, Coach, Developer, athletes, System, Settings), session-in-progress quit confirmation, about dialog, update banner, notification host, cast window and debounced geometry persistence.  
 *(description written for this catalogue — the file has no header comment)*
 
-- **Properties:** `readonly bool sessionScreenActive`, `readonly int screenHome`, `readonly int screenSwing`, `readonly int screenWrist`, `readonly int screenGrf`, `readonly int screenCoach`, `readonly int screenPlay`, `readonly int screenNewAthlete`, `readonly int screenAthletes`, `readonly int screenSystem`, `readonly int screenSettings`, `readonly int screenWizard`, `readonly int screenSwingDiagnostics`, `readonly var screenNames`
+- **Properties:** `readonly bool sessionScreenActive`, `readonly var screenNames`
 - **Functions:** `toggleFullscreen()`
-- **Uses:** `MacAboutMenu`, `MetricRoute`, `PlayPage`, `PpAboutDialog`, `PpHeader`, `PpNotificationHost`, `PpPressable`, `PpRail`, `PpSessionDiagnosticsWindow`, `PpUpdateBanner`, `ScreenAthleteForm`, `ScreenAthletePicker`, `ScreenHome`, `ScreenResourceMonitor`, `ScreenSessionSetup` (+6)
+- **Uses:** `MacAboutMenu`, `MetricRoute`, `PlayPage`, `PpAboutDialog`, `PpHeader`, `PpNotificationHost`, `PpPressable`, `PpRail`, `PpReportPrintHost`, `PpSessionDiagnosticsWindow`, `PpUpdateBanner`, `ScreenAthleteForm`, `ScreenAthletePicker`, `ScreenHome`, `ScreenResourceMonitor`, `ScreenSessionSetup` (+6)
 - **Used by (2):** `DisplaysPanel`, `SettingsIndex`
 - **Exercised by tests/tools:** `setup_walk`
 
@@ -127,23 +127,23 @@ Top header bar: screen name after a separator, back/forward, version pill (About
 - **Used by (1):** `Main`
 
 ### PpRail
-`src/Gui/shell/PpRail.qml` · 227 lines · root `Item`
+`src/Gui/shell/PpRail.qml` · 206 lines · root `Item`
 
 Left navigation rail (Home, Live, Sessions, Settings) of PpRailButtons plus the athlete avatar; locks only while the session wizard is open.  
 *(description written for this catalogue — the file has no header comment)*
 
-- **Properties:** `int currentPageIndex`, `bool locked`, `int sessionLockIndex`, `readonly bool anyLocked`
+- **Properties:** `int currentPageIndex`, `bool locked`, `readonly bool anyLocked`
 - **Signals:** `pageRequested(int index)`, `avatarClicked()`
 - **Uses:** `PpDivider`, `PpPressable`, `PpRailButton`
 - **Used by (1):** `Main`
 
 ### PpRailButton
-`src/Gui/shell/PpRailButton.qml` · 137 lines · root `Item`
+`src/Gui/shell/PpRailButton.qml` · 190 lines · root `Item`
 
 One rail button: icon and label, active/muted/attention states.  
 *(description written for this catalogue — the file has no header comment)*
 
-- **Properties:** `string iconText`, `string labelText`, `bool isActive`, `bool isMuted`, `bool attention`
+- **Properties:** `string iconText`, `string labelText`, `bool isActive`, `bool isMuted`, `bool attention`, `bool recording`
 - **Signals:** `clicked()`
 - **Uses:** `PpPressable`
 - **Used by (1):** `PpRail`
@@ -160,4 +160,3 @@ One rail button: icon and label, active/muted/attention states.
 - **Properties:** `bool dismissedThisRun`, `bool showNotes`, `bool allowed`, `readonly string uState`, `readonly bool offerFresh`, `readonly bool shouldShow`, `readonly bool isReady`, `readonly bool isWorking`
 - **Uses:** `PpButton`
 - **Used by (1):** `Main`
-

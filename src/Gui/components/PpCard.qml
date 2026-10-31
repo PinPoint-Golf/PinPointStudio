@@ -138,7 +138,7 @@ Item {
         font.letterSpacing: Theme.trackingData
     }
 
-    // The caption row: quiet sentence-case captions over the template's columns.
+    // The caption row: quiet sentence-case captions (PpCaption) over the template's columns.
     Item {
         id: captions
         visible: card.hasCaptions
@@ -146,7 +146,7 @@ Item {
         width: card.contentWidth; height: card.captionBandH
         Repeater {
             model: captions.visible ? card.columnLayout : []
-            Text {
+            PpCaption {
                 required property var modelData
                 x: modelData.x; width: modelData.width
                 anchors.verticalCenter: parent.verticalCenter
@@ -154,11 +154,6 @@ Item {
                 horizontalAlignment: modelData.align === "right"  ? Text.AlignRight
                                    : modelData.align === "center" ? Text.AlignHCenter
                                    :                                Text.AlignLeft
-                elide:          Text.ElideRight
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                font.weight:    Theme.fontBodyWeight
-                color:          Theme.colorText3
             }
         }
     }

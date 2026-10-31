@@ -17,6 +17,7 @@
  */
 
 import QtQuick
+import "figure_format.js" as Figures
 
 // PPTYPESET — the per-panel helper of the typeset system (design system §15.3). It turns Theme's typeset
 // DATA (Theme.typeset for the aesthetic, Theme.typesetPrint for paper) into what a block draws with: the
@@ -110,6 +111,13 @@ QtObject {
         const g = gap === undefined ? gutter(w) : gap
         return Math.max(1, Math.floor((w + g) / (minEm * em + g)))
     }
+    // a grid of n cells that wraps evenly: all on one row when `fit` columns hold them, else two rows, else four
+    // (the key figures, the launch monitor's tiles); `fit` is columns(w, minEm, gap)
+    function wrapColumns(n, fit) { return Math.max(1, fit >= n ? n : fit >= Math.ceil(n / 2) ? Math.ceil(n / 2) : Math.ceil(n / 4)) }
+    // the cast's zoom: a second screen is read from across the room, so the WHOLE surface scales (like browser zoom)
+    // until the page it lays out is about one compact panel (42 em) — 1 to 1.6, from `rowsEm`, an em estimate of the
+    // view's rows (data), never measured from its own layout
+    function castZoom(w, h, rowsEm) { return Math.max(1, Math.min(1.6, w / (42 * em), h / ((rowsEm + 4) * em))) }
     function measureW(w) { return Math.min(w, flows.measure * em) }
     // fold decisions, named once
     function railFolds(w) { return !shows("rail", w) }
@@ -229,6 +237,13 @@ QtObject {
         }
     }
     function dashFor(stroke) { return stroke === "dashed" ? [u(4), u(3)] : stroke === "dotted" ? [Math.max(1, u(1.2)), u(2.6)] : null }
+    // a dashed rule on a Canvas from x0 to x1 at y, pattern [on, off], added to the context's current path
+    // (the caller begins and strokes it): dash by dash, so each stays crisp on a half-pixel row, where
+    // setLineDash smears (the pass edge, the key's pass and chance swatches, a link grade's stroke)
+    function dashPath(ctx, x0, x1, y, pat) {
+        let x = x0, on = true
+        while (x < x1) { const st = pat[on ? 0 : 1]; if (on) { ctx.moveTo(x, y); ctx.lineTo(Math.min(x1, x + st), y) } x += st; on = !on }
+    }
 
     // ── type roles ─────────────────────────────────────────────────────────────────────────────
     function _f(fam, sz, w, extra) {
@@ -283,17 +298,40 @@ QtObject {
     function sentence(s) { s = String(s || "").trim(); if (!s) return ""; s = cap1(s); return /[.!?]$/.test(s) ? s : s + "." }
     function esc(s) { return String(s === undefined || s === null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") }
     function hex(c) { return String(c) }
-    function num(v) {
-        if (v === undefined || v === null || !isFinite(v)) return "-"
-        const x = Math.abs(v - Math.round(v)) < 0.05 ? Math.round(v) : Math.round(v * 10) / 10
-        return (x < 0 ? "−" : "") + String(Math.abs(x))
-    }
+    // ── FIGURES: the QML twin of Core/figure_format.h (figure_format.js, the one implementation), so a figure QML
+    // sets reads exactly as the C++ sets it (gui-catalogue C15–C17): missing "-", the true minus, never "−0", ties
+    // away from zero, a figure and its unit by withUnit's one rule. C++ fig() is figure() here: PpDiagRoles.fig() is
+    // something else (the figure OF a reading the model published).
+    function decimalsFor(unit) { return Figures.decimalsFor(unit) }                       // whole units, but :1/in 1, s 2
+    function figure(v, dec, trimZeros) { return Figures.figure(v, dec, trimZeros) }       // fig
+    function figureSigned(v, dec) { return Figures.figureSigned(v, dec) }                 // figSigned: "+3", "−3", "0"
+    function withUnit(f, unit) { return Figures.withUnit(f, unit) }                       // "82 mph", "13°", "13% hand rise"
+    function figureUnit(v, unit) { return Figures.figureUnit(v, unit) }                   // figUnit
+    function shortUnit(unit) { return Figures.shortUnit(unit) }                           // "% stance width" → "%"
+    // a figure at one decimal with trailing zeros dropped ("13", "8.7", "−2.5"): figure(v, 1, true)
+    function num(v) { return Figures.figure(v, 1, true) }
+    function list(xs) { return Figures.list(xs) }                                         // "a, b and c"
+    // the number words and cap1 above are charts_words.h word() and cap1(), word for word
     readonly property var _words: ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
         "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"]
     function word(n) { return (n >= 0 && n < _words.length) ? _words[n] : String(n) }
     // a count standing alone as a noun phrase ("outside on none of them"): zero is "none", never "no"
     function countWord(n) { return n === 0 ? "none" : word(n) }
+    // ── list and number lookups (generic: any block's data) ──
     function byId(list, id) { for (let i = 0; i < (list || []).length; ++i) if (list[i].id === id) return list[i]; return null }
+    function byKey(list, key) { for (let i = 0; i < (list || []).length; ++i) if (list[i].key === key) return list[i]; return null }
+    // a map's list under `key`: [] for no map, no key or nothing there
+    function listAt(map, key) { return (map && key && map[key]) || [] }
+    // a drawable number: null (a presenter's "missing"), undefined, NaN and ±∞ are not
+    function fin(v) { return v !== null && v !== undefined && isFinite(v) }
+    // a value range [lo, hi] taken out, with a little room, to hold the hairlines ({ k: "hline", v }) among `ls`
+    function withHLines(lo, hi, ls) {
+        let a = lo, b = hi
+        for (const l of (ls || [])) if (l.k === "hline" && fin(l.v)) { a = Math.min(a, l.v); b = Math.max(b, l.v) }
+        if (a === lo && b === hi) return { lo: lo, hi: hi }
+        const pad = 0.04 * Math.max(1e-6, b - a)
+        return { lo: a < lo ? a - pad : lo, hi: b > hi ? b + pad : hi }
+    }
     // the inline figure: the figure face inside a sentence, optionally coloured
     function figHtml(s, c) {
         return "<span style=\"font-family:'" + r.inlineFigureFamily + "';" + (c ? " color:" + hex(c) + ";" : "") + "\">"
@@ -314,5 +352,16 @@ QtObject {
             club: readout && readout.club ? String(readout.club).toLowerCase() : "",
             shot: shotOfText(readout)
         }
+    }
+
+    // the after-shot pulse (D1): a register hands its body's cue ({ token, ids, focusId, hold }) to its PpBrush once
+    // per token; ids may arrive as afterShotDelta chips ({ id, … }) rather than ids, and a withdrawn cue (null)
+    // releases what was held. Returns the token now taken (-1: none), which the register keeps for the next call.
+    function takePulse(brush, cue, token) {
+        if (!cue) { brush.pulseHold = false; brush.pulseIds = []; return -1 }
+        if (cue.token === undefined || cue.token === token) return token
+        brush.pulseHold = !!cue.hold                 // renders only: hold the wash for a still
+        brush.pulse((cue.ids || []).map(x => x && typeof x === "object" ? x.id : x).filter(x => !!x), cue.focusId || "")
+        return cue.token
     }
 }

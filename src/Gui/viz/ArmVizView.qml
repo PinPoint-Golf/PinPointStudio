@@ -21,6 +21,7 @@ import QtQuick3D
 import QtQuick3D.Helpers
 import QtQuick3D.AssetUtils
 import PinPointStudio
+import "VizMath.js" as VizMath
 
 // ArmVizView — rigid Y-bot arm segments driven by IMU quaternions.
 //
@@ -148,20 +149,7 @@ Item {
     }
 
     // ── Quaternion helpers ────────────────────────────────────────────────────
-
-    // Hamilton product of two quaternions (a × b).
-    // QML quaternion value type uses .scalar (not .w) for the W component.
-    function quatMul(a, b) {
-        return Qt.quaternion(
-            a.scalar*b.scalar - a.x*b.x - a.y*b.y - a.z*b.z,
-            a.scalar*b.x + a.x*b.scalar + a.y*b.z - a.z*b.y,
-            a.scalar*b.y - a.x*b.z + a.y*b.scalar + a.z*b.x,
-            a.scalar*b.z + a.x*b.y - a.y*b.x + a.z*b.scalar
-        )
-    }
-
-    // Conjugate = inverse for unit quaternions.
-    function quatInv(q) { return Qt.quaternion(q.scalar, -q.x, -q.y, -q.z) }
+    // quatMul / quatInv / worldToScene live in VizMath.js, shared with ImuVizView.
 
     // ── The HackMotion reference pose ─────────────────────────────────────────
     //
@@ -227,14 +215,14 @@ Item {
         if (imuInst.anatCalibrated) {
             var a = imuInst.anatQuat
             var q = Qt.quaternion(a.scalar, a.x, a.y, a.z)
-            return isHm ? root.quatMul(root.hmReferenceQuat, q) : q
+            return isHm ? VizMath.quatMul(root.hmReferenceQuat, q) : q
         }
         if (!imuInst.calibrated) return Qt.quaternion(1, 0, 0, 0)
         var cal = Qt.quaternion(imuInst.calibTransform.scalar,
                                 imuInst.calibTransform.x,
                                 imuInst.calibTransform.y,
                                 imuInst.calibTransform.z)
-        return quatMul(cal, raw)
+        return VizMath.quatMul(cal, raw)
     }
 
     // Bone rest-pose quaternion: the world orientation of the segment when its
@@ -254,16 +242,16 @@ Item {
     // Residual back-of-hand roll is handled by restRollDeg.
     // R0 is factored EXPLICITLY into the shared world→scene BASIS CHANGE composed with a
     // per-GLB REST OFFSET (the part that makes each segment hang). Canonical basis change:
-    // pinpoint::viz::worldToScene() (src/Gui/viz_frame.h), a fixed Rx(-90°); viz_frame_test
+    // pinpoint::viz::worldToScene() (src/Gui/cameras/viz_frame.h), a fixed Rx(-90°); viz_frame_test
     // pins that worldToScene·restOffset reproduces the old hand-tuned R0 constants, so the
     // avatar is unchanged. (docs/design/imu_frame_contract.md §6; imu_rearchitecture.md §3.4c.)
     //   left-handed lead  → restOffset = identity → R0 IS the pure basis change.
     //   right-handed lead → restOffset is the back-of-hand/forearm GLB rest rotation.
-    readonly property quaternion worldToScene:    Qt.quaternion(0.70710678, -0.70710678, 0, 0)
+    readonly property quaternion worldToScene:    VizMath.worldToScene()
     readonly property quaternion leftRestOffset:  Qt.quaternion(0.71184, -0.67833, 0.16334, -0.08089)
     readonly property quaternion rightRestOffset: Qt.quaternion(1, 0, 0, 0)
-    readonly property quaternion leftRestQuat:  quatMul(worldToScene, leftRestOffset)
-    readonly property quaternion rightRestQuat: quatMul(worldToScene, rightRestOffset)
+    readonly property quaternion leftRestQuat:  VizMath.quatMul(worldToScene, leftRestOffset)
+    readonly property quaternion rightRestQuat: VizMath.quatMul(worldToScene, rightRestOffset)
 
     // Constant roll about each segment's long axis (bone-local +Y), correcting the
     // rendered rest FACING. The IMUs all share the strap convention, so at the
@@ -286,27 +274,11 @@ Item {
     // local +Z (anatomical anterior) near its distal end. Because it sits OFF the
     // long axis it orbits visibly as the bone rolls, exposing roll on the otherwise
     // rotationally-symmetric arm segments. Add/remove via `showOrientationTabs`.
+    // The marker itself is VizOrientationMarker (shared with BodyVizView); this preset adds
+    // this view's visibility rule at its full size (tabScale 0.0006).
     property bool showOrientationTabs: true
-    component OrientationTab: Node {
-        id: tabRoot
-        property real  along:    0.20            // distance up the bone (local +Y)
-        property color tabColor: Theme.colorImuA
-        property real  tabScale: 0.0006
-        // Which local face the marker sits on. Empirically: +Z = palm (medial),
-        // +X = posterior; the IMU straps on the back/outer face = opposite the palm
-        // = local -Z (watch-like, away from the thigh). Tunable while we confirm.
-        property vector3d tabDir: Qt.vector3d(0, 0, -1)
+    component OrientationTab: VizOrientationMarker {
         visible: root.showOrientationTabs
-        y: along
-        Model {
-            source:    "#Sphere"
-            scale:     Qt.vector3d(tabRoot.tabScale, tabRoot.tabScale, tabRoot.tabScale)
-            position:  Qt.vector3d(tabRoot.tabDir.x * 0.05, tabRoot.tabDir.y * 0.05, tabRoot.tabDir.z * 0.05)
-            materials: PrincipledMaterial {
-                baseColor: tabRoot.tabColor       // id-qualified — `parent.tabColor` silently failed → white
-                lighting:  PrincipledMaterial.NoLighting
-            }
-        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -375,8 +347,8 @@ Item {
                     : Qt.quaternion(1, 0, 0, 0)
                 var ua = root.quatApplyCalib(root.imuLeadUpperArm, raw, root.leadUpperArmIsHm)
                 // W_upper = R0 · ua · rollFix
-                var w = root.quatMul(root.rightHanded ? root.leftRestQuat : root.rightRestQuat, ua)
-                return root.quatMul(w, root.rollFix)
+                var w = VizMath.quatMul(root.rightHanded ? root.leftRestQuat : root.rightRestQuat, ua)
+                return VizMath.quatMul(w, root.rollFix)
             }
 
             // ⚠ Drawn ONLY when leadUpperArm can say where the upper arm is — see upperArmKnown. The
@@ -405,8 +377,8 @@ Item {
                     var ua = root.quatApplyCalib(root.imuLeadUpperArm, rawUa, root.leadUpperArmIsHm)
                     var fa = root.quatApplyCalib(root.imuLeadForearm, rawFa, root.leadForearmIsHm)
                     // rollFix⁻¹ · (ua⁻¹·fa) · rollFix  — keeps W_fore = R0·fa·rollFix
-                    var rel = root.quatMul(root.quatInv(ua), fa)
-                    return root.quatMul(root.rollFixInv, root.quatMul(rel, root.rollFix))
+                    var rel = VizMath.quatMul(VizMath.quatInv(ua), fa)
+                    return VizMath.quatMul(root.rollFixInv, VizMath.quatMul(rel, root.rollFix))
                 }
 
                 RuntimeLoader {
@@ -428,8 +400,8 @@ Item {
                         var fa = root.quatApplyCalib(root.imuLeadForearm, rawFa, root.leadForearmIsHm)
                         var ha = root.quatApplyCalib(root.imuLeadHand, rawHa, root.leadHandIsHm)
                         // rollFix⁻¹ · (fa⁻¹·ha) · rollFix  — keeps W_hand = R0·ha·rollFix
-                        var rel = root.quatMul(root.quatInv(fa), ha)
-                        return root.quatMul(root.rollFixInv, root.quatMul(rel, root.rollFix))
+                        var rel = VizMath.quatMul(VizMath.quatInv(fa), ha)
+                        return VizMath.quatMul(root.rollFixInv, VizMath.quatMul(rel, root.rollFix))
                     }
 
                     RuntimeLoader {

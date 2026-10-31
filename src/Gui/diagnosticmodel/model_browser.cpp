@@ -686,11 +686,7 @@ QString gateTuningValue(const pinpoint::gates::GateTuning &t)
 {
     if (t.unit == QLatin1String("switch"))
         return t.value != 0.0 ? QObject::tr("on") : QObject::tr("off");
-    const bool    whole = std::fabs(t.value - std::round(t.value)) < 1e-9;
-    const QString v     = pinpoint::gates::detail::minusSigned(t.value, whole ? 0 : 2, false);
-    if (t.unit.isEmpty()) return v;
-    if (t.unit == QStringLiteral("°")) return v + t.unit;
-    return v + QChar(0x00A0) + t.unit;
+    return pinpoint::gates::tuningValue(t);           // the gate catalogue's own rule (Core/figure_format.h withUnit)
 }
 
 // The table's threshold cell: the numbers compared against, switches left to the inspector (a row of

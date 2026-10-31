@@ -36,6 +36,7 @@ QtObject {
     property var readout: null
     property var cards: []
     property bool interactive: true
+    property QtObject roles: null                // the register's typeset (its list helpers: byId)
 
     readonly property string stage: source ? String(source.stage || "") : ""
     readonly property bool reviewing: !!header && String(header.reviewBadge || "") !== ""
@@ -47,7 +48,7 @@ QtObject {
     readonly property int sessionShots: source ? (source.shotCount || (header ? header.shotCount || 0 : 0)) : 0
 
     readonly property var delta: source && source.afterShotDelta && source.afterShotDelta.shotId !== undefined ? source.afterShotDelta : null
-    readonly property var newest: (!readout && live && delta && sessionShots > 0) ? buildNewest() : null
+    readonly property var newest: (!readout && live && delta && sessionShots > 0 && !!roles) ? buildNewest() : null
     readonly property var shot: readout || newest
     readonly property bool partial: !!shot && !!shot.partial
     readonly property bool isNewest: !!shot && shot.shotIndex === sessionShots - 1
@@ -81,14 +82,13 @@ QtObject {
     // the newest swing publishes no per-shot run for a watched condition: Watching lists names and counts
     readonly property var watchSpec: [{ key: "name", tier: 1, kind: "name", w: 0, head: "Condition" },
                                       { key: "frac", tier: 1, kind: "figs", w: 3, head: "Fired", align: "r" }]
-    function byId(list, id) { for (let i = 0; i < (list || []).length; ++i) if (list[i].id === id) return list[i]; return null }
     // D3: the newest swing when nothing is picked live. thisShot carries the fired chips (id, name, tier,
     // strength*) and the delta the counts; a pattern's card adds its corridor and run. The value printed is
     // the out-by figure (the dot plot's own x), the one number published for EVERY fired chip.
     function buildNewest() {
         const d = delta, cs = cards || [], ws = (source && source.watching) || []
         const conds = ((source && source.thisShot) || []).filter(t => t.kind === "fired").map(t => {
-            const card = byId(cs, t.id), w = byId(ws, t.id)
+            const card = roles.byId(cs, t.id), w = roles.byId(ws, t.id)
             return { id: t.id, name: t.name, stateKind: "fired", tierTag: t.tier || "watching",
                      strengthExcess: t.strengthExcess, strengthKnown: t.strengthKnown !== false,
                      strengthSharp: t.strengthSharp === true,

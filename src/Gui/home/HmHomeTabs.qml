@@ -27,8 +27,8 @@
 // A fault on Coaching or Your swing opens its detail in place (HmFaultDetail); there is no page
 // behind Home. The bar carries the evidence line (controller.summarySubtitle) straight after the
 // tabs. The tab last chosen is remembered per athlete in appSettings.homeViewByAthlete[uuid].tab
-// ("coaching" | "swing" | "matchups"); HmSwingAreas keeps its own keys in the same entry. The map is
-// read once per write and a modified copy written back (a QVariantMap property read is a deep copy).
+// ("coaching" | "swing" | "matchups"); HmSwingAreas keeps its own keys in the same entry. Both read and
+// write it through hm_view_store.js.
 //
 // Signals go up to ScreenHome: Practise, and an open fault's "Review the … session →".
 //
@@ -38,6 +38,7 @@
 import QtQuick
 import QtQuick.Layouts
 import PinPointStudio
+import "hm_view_store.js" as ViewStore
 
 Column {
     id: root
@@ -56,32 +57,16 @@ Column {
     // The tab showing. Read from the settings for each athlete; "coaching" when none was chosen.
     property string current: "coaching"
 
-    function _hasStore() {
-        return root.settings !== null && root.settings !== undefined
-               && root.settings.homeViewByAthlete !== undefined && root.athleteUuid !== ""
-    }
     function _read() {
-        let tab = "coaching"
-        if (root._hasStore()) {
-            const map = root.settings.homeViewByAthlete || {}      // read ONCE
-            const e = map[root.athleteUuid]
-            if (e && root.tabKeys.indexOf(String(e.tab)) >= 0) tab = String(e.tab)
-        }
-        root.current = tab
+        const tab = String(ViewStore.read(root.settings, root.athleteUuid, "tab", "coaching"))
+        root.current = root.tabKeys.indexOf(tab) >= 0 ? tab : "coaching"
     }
-    // Show a tab, and remember it for this athlete.
+    // Show a tab, and remember it for this athlete (nothing written when it is already the one).
     function select(key) {
         key = String(key)
         if (root.tabKeys.indexOf(key) < 0) return
         root.current = key
-        if (!root._hasStore()) return
-        const map  = root.settings.homeViewByAthlete || {}          // read ONCE
-        const entry = Object.assign({}, map[root.athleteUuid] || {})
-        if (entry.tab === key) return
-        entry.tab = key
-        const next = Object.assign({}, map)
-        next[root.athleteUuid] = entry
-        root.settings.homeViewByAthlete = next
+        ViewStore.write(root.settings, root.athleteUuid, "tab", key)
     }
     Component.onCompleted: root._read()
     onAthleteUuidChanged:  root._read()

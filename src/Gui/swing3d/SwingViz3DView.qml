@@ -282,7 +282,7 @@ Item {
             id: annPlane
             element: "plane"
             lit: false
-            tint: Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.15)
+            tint: Qt.alpha(Theme.colorAccent, 0.15)
             visible: drv.available && mode !== "off" && drv.planeAvailable && geom.vertexCount > 0
         }
 
