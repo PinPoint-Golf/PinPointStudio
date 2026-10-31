@@ -116,6 +116,17 @@ PpTypeset {
     function recParts(rec) { const m = String(rec || "").match(/(\d+)\s+of\s+(\d+)/); return m ? { n: +m[1], of: +m[2] } : null }
     function frac(rec)   { const q = recParts(rec); return q ? q.n + "/" + q.of : "-" }
     function fracOf(rec) { const q = recParts(rec); return q ? q.n + " of " + q.of : "-" }
+    // A row's FIRED figure. A session-scope pattern (#58) has no firings to count from its sentence ("In
+    // sequence on 1 of 6 swings" counts swings IN order): its fired figure is the swings out of order of
+    // those resolved, and only when the order share was read; otherwise "-".
+    function firedFrac(c) {
+        if (!c || !c.sessionScope) return frac(c ? c.recurrence : "")
+        return c.consistency && c.consistency.shareAvailable ? c.fired + "/" + c.assessable : "-"
+    }
+    function firedOf(c) {
+        if (!c || !c.sessionScope) return fracOf(c ? c.recurrence : "")
+        return c.consistency && c.consistency.shareAvailable ? c.fired + " of " + c.assessable : "-"
+    }
     function rate(rec)   { const q = recParts(rec); return q && q.of > 0 ? q.n / q.of : 0 }
     function shortCount(rec) { return String(rec || "").replace(" measurable shots", "") }
     function corridorShort(t) {
@@ -209,10 +220,17 @@ PpTypeset {
     function sessionEntry(c, withName, xrefPage, shotCount) {
         const sp = c.spread || {}
         let h = withName ? strongHtml(c.name) + "&nbsp;&nbsp;" : ""
-        h += (c.fresh ? "New this session: " + recWords(c.recurrence, shotCount) : cap1(recWords(c.recurrence, shotCount))) + ", " + trendWords(c) + ". "
-        h += esc(sentence(c.directionText)) + " Here " + figHtml(c.valueText, c.thisShot === "fired" ? warn : ink)
-        if (sp.medianNumber !== undefined && sp.medianNumber !== "") h += " against a session median of " + figHtml(sp.medianNumber)
-        h += "."
+        // A session-scope pattern (#58) has no value on any one shot and its count is a sentence, not a "k of
+        // n" of firings ("In sequence on 1 of 6 swings", the spread, or both): it is said whole, then the line
+        // under it (the reference, what was not read) instead of a "Here" that would repeat it.
+        if (c.sessionScope) {
+            h += esc(sentence(c.recurrence)) + " " + esc(sentence(c.recencyText))
+        } else {
+            h += (c.fresh ? "New this session: " + recWords(c.recurrence, shotCount) : cap1(recWords(c.recurrence, shotCount))) + ", " + trendWords(c) + ". "
+            h += esc(sentence(c.directionText)) + " Here " + figHtml(c.valueText, c.thisShot === "fired" ? warn : ink)
+            if (sp.medianNumber !== undefined && sp.medianNumber !== "") h += " against a session median of " + figHtml(sp.medianNumber)
+            h += "."
+        }
         if (xrefPage > 0) h += " The feature on p.&nbsp;" + xrefPage + " reads it in full."
         return h
     }

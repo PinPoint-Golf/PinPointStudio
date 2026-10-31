@@ -189,7 +189,7 @@ Item {
             // a composite's multiple IS its number, never shown (posture_metrics_design.md §8): its meter step instead
             case "outby": return { t: r.stateKind === "fired" && r.strengthKnown ? (r.strengthSharp ? "sharp" : r.composite ? r.strength + "/5" : r.strengthExcess.toFixed(1) + "×") : "-" }
             case "strip": return { ticks: r.ticks }
-            case "frac": return { t: roles.frac(r.recurrence) }
+            case "frac": return { t: roles.firedFrac(r) }
             }
         } else if (kind === "session") {
             const sp = r.spread || {}, bk = bookend(r.id), unitFolded = folded.indexOf("unit") >= 0
@@ -200,7 +200,7 @@ Item {
                                      + (r.fresh ? "&nbsp;&nbsp;<i style='color:" + roles.hex(roles.ink2) + "; font-size:" + roles.fSmall.pixelSize + "px'>new</i>" : ""),
                                   f: roles.fBodyM, rich: true }
             case "strip": return { ticks: r.ticks }
-            case "frac": return { t: roles.frac(r.recurrence) }
+            case "frac": return { t: roles.firedFrac(r) }
             case "trend": return { t: roles.trendWord(r), c: r.trend === "worsening" ? roles.ink : roles.ink2 }
             case "median": return { t: (sp.medianNumber || "-") + (unitFolded && folded.indexOf("median") >= 0 ? " " + (sp.unit || "") : "") }
             // an unmeasured shot is "-" in ink3, so it never reads as a clean value (D5, INVENTORY #47)
@@ -221,7 +221,7 @@ Item {
                                  || { t: c ? roles.fig(c.valueText) : "-", c: c && c.stateKind === "fired" ? roles.warn : roles.ink2 }
             case "unit": return { t: c ? roles.unitOf(c.valueText) : "" }
             case "strip": return { ticks: c ? c.ticks : [] }
-            case "frac": return { t: roles.frac(r.recurrence) }
+            case "frac": return { t: roles.firedFrac(r) }
             }
         } else if (kind === "path") {
             const i = (rows || []).indexOf(r)
@@ -239,7 +239,9 @@ Item {
         if (kind === "session" && showDirection) {
             // review tense ("3 more firings after this shot"), else the live one ("last fired 2 shots ago", F29)
             const after = r.firingsAfterText || r.recencyText || ""
-            return [roles.sentence(r.directionText), after ? roles.sentence(after) : ""].filter(x => !!x).join("  ")
+            // a session-scope pattern has no strip and no fired fraction to read its count from: say it
+            const count = r.sessionScope ? r.recurrence || "" : ""
+            return [roles.sentence(count), roles.sentence(r.directionText), after ? roles.sentence(after) : ""].filter(x => !!x).join("  ")
                    + (isPrint && xrefPage > 0 && r.id === xrefId ? "  Detail on p. " + xrefPage + "." : "")
         }
         return ""

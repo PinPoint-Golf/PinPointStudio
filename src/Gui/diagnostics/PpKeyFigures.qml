@@ -45,10 +45,14 @@ Item {
             { key: "shot", label: "Shot " + shotNo, figure: roles.fig(c.valueText), warn: c.thisShot === "fired" }
         ]
         roles.corridorParts(c.corridorText).forEach(q => out.push(Object.assign({ key: q.label === "Pass" ? "pass" : q.label === "Fault line" ? "faultLine" : "faultOutside" }, q)))
-        out.push({ key: "fired", label: "Fired", figure: roles.fracOf(c.recurrence) })
-        out.push({ key: "pastFault", label: "Past the fault line", figure: (sp.pastFault !== undefined ? sp.pastFault + " of " + sp.placed : "-") })
-        if (c.firingsAfter !== undefined || !c.recencyText) out.push({ key: "after", label: "Firings after shot " + shotNo, figure: c.firingsAfter !== undefined ? String(c.firingsAfter) : "-" })
-        else out.push({ key: "after", label: "Last fired", figure: roles.cap1(c.recencyText), word: true })
+        out.push({ key: "fired", label: "Fired", figure: roles.firedOf(c) })
+        out.push({ key: "pastFault", label: "Past the fault line", figure: (sp.pastFault !== undefined && sp.placed > 0 ? sp.pastFault + " of " + sp.placed : "-") })
+        // a session-scope pattern (#58) has no "last fired" and no firings after a shot: the line under its count
+        // (the reference, what was not read) is a sentence, and the feature head's Recurrence row already says it
+        if (!c.sessionScope) {
+            if (c.firingsAfter !== undefined || !c.recencyText) out.push({ key: "after", label: "Firings after shot " + shotNo, figure: c.firingsAfter !== undefined ? String(c.firingsAfter) : "-" })
+            else out.push({ key: "after", label: "Last fired", figure: roles.cap1(c.recencyText), word: true })
+        }
         out.push({ key: "trend", label: "Trend", figure: roles.trendWord(c), word: true })
         const ex = exclude || []
         return ex.length ? out.filter(it => ex.indexOf(it.key) < 0) : out

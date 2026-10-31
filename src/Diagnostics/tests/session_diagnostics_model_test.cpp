@@ -756,6 +756,61 @@ static void sequenceConsistencySuite(const QTemporaryDir &tmp)
         check(arm.n == 5 && arm.dof == 4, "spread_absent_time_skipped: a swing with no placed arm peak is not counted");
     }
 
+    // count_line_by_clause (#58): the session card's count names the clause that fired.
+    {
+        // Spread only: the order checks never resolved (no chest peak), the arm scattered.
+        std::vector<ShotRecord> spreadOnly = consistencySession(0, 0, 6);
+        for (int i = 0; i < 6; ++i) addPeak(spreadOnly[size_t(i)], "m_leadArmPeakTime", -40.0 * i, 5.0);
+        const SessionSequenceConsistency so = sessionSequenceConsistency(spreadOnly, hard);
+        check(!so.share.available && so.share.resolved == 0 && so.spread.available && so.spread.value > 2.0,
+              "count_line_by_clause: spread only — the order share unread, the arm's spread past twice the pro's");
+        const QString soCount = sequenceConsistencyCountLine(so, sequenceCountClauses(so, false, true));
+        check(soCount == QStringLiteral("Peak-timing spread: lead arm %1× ± %2 the professional spread")
+                             .arg(QString::number(so.spread.value, 'f', 1), QString::number(so.spread.sigma, 'f', 1)),
+              "…the count is the spread, never \"not assessed\"");
+        const QString soAfter = sequenceConsistencyAfterLine(so, sequenceCountClauses(so, false, true));
+        check(soAfter == QStringLiteral("Professional spread: 8 ms SD, 19 PGA tour professionals, Cheetham 2008 · "
+                                       "peak order not read: needs 5 swings with all four peaks placed (none so far)"),
+              "…and the line under it names the reference and says the order was not read");
+        check(sequenceConsistencyCountLine(so, sequenceCountClauses(so, false, false)) == soCount,
+              "…clean or not, with the order unread the count is the spread that was read");
+
+        // Order only: every swing out of order, the arm repeating.
+        std::vector<ShotRecord> orderOnly = consistencySession(1, 5);
+        for (int i = 0; i < 6; ++i) addPeak(orderOnly[size_t(i)], "m_leadArmPeakTime", -40.0 - 0.5 * i, 5.0);
+        const SessionSequenceConsistency oo = sessionSequenceConsistency(orderOnly, hard);
+        check(sequenceConsistencyCountLine(oo, sequenceCountClauses(oo, true, false)) == QLatin1String("In sequence on 1 of 6 swings")
+                  && sequenceConsistencyAfterLine(oo, sequenceCountClauses(oo, true, false)) == sequenceSpreadLine(oo),
+              "…order only: the order count, and the spread in full under it, as before");
+
+        // Both: the count names both, and the line under it does not repeat the figure.
+        std::vector<ShotRecord> both = consistencySession(1, 5);
+        for (int i = 0; i < 6; ++i) addPeak(both[size_t(i)], "m_leadArmPeakTime", -40.0 * i, 5.0);
+        const SessionSequenceConsistency bo = sessionSequenceConsistency(both, hard);
+        const QString boCount = sequenceConsistencyCountLine(bo, sequenceCountClauses(bo, true, true));
+        check(boCount == QStringLiteral("In sequence on 1 of 6 swings · peak-timing spread: lead arm %1× ± %2 the professional spread")
+                             .arg(QString::number(bo.spread.value, 'f', 1), QString::number(bo.spread.sigma, 'f', 1)),
+              "…both: the count names both clauses");
+        check(sequenceConsistencyAfterLine(bo, sequenceCountClauses(bo, true, true))
+                  == QLatin1String("Professional spread: 8 ms SD, 19 PGA tour professionals, Cheetham 2008"),
+              "…and the line under it is the reference only");
+        std::printf("      %s | %s | %s\n", qPrintable(soCount), qPrintable(soAfter), qPrintable(boCount));
+
+        // Spread fired, order read and in sequence: the count is the spread, the order count follows it.
+        std::vector<ShotRecord> inOrder = consistencySession(6, 0);
+        for (int i = 0; i < 6; ++i) addPeak(inOrder[size_t(i)], "m_leadArmPeakTime", -40.0 * i, 5.0);
+        const SessionSequenceConsistency io = sessionSequenceConsistency(inOrder, hard);
+        check(sequenceConsistencyAfterLine(io, sequenceCountClauses(io, false, true))
+                  == QStringLiteral("Professional spread: 8 ms SD, 19 PGA tour professionals, Cheetham 2008 · "
+                                   "in sequence on 6 of 6 swings"),
+              "…spread fired with the order read in sequence: the order count follows the reference");
+
+        // Nothing read: as before.
+        const SessionSequenceConsistency none = sessionSequenceConsistency(consistencySession(0, 0, 2), hard);
+        check(sequenceConsistencyCountLine(none, sequenceCountClauses(none, false, false)) == QLatin1String("In sequence: not assessed over the session"),
+              "…nothing read: \"not assessed\" is only ever said when nothing was");
+    }
+
     // The soft counts carry each order check's pFire, with the warm-up weights.
     {
         LedgerOptions soft = hard;
@@ -867,15 +922,29 @@ static void sequenceConsistencySuite(const QTemporaryDir &tmp)
                 cardOk = c.value(QStringLiteral("sessionScope")).toBool()
                          && c.value(QStringLiteral("ticks")).toList().isEmpty()
                          && c.value(QStringLiteral("statePill")).toString() == QLatin1String("SESSION")
-                         && c.value(QStringLiteral("valueText")).toString() == QLatin1String("In sequence on 0 of 6 swings");
+                         && c.value(QStringLiteral("valueText")).toString()
+                                == sc.value(QStringLiteral("countLine")).toString()
+                         && c.value(QStringLiteral("recurrence")).toString()
+                                .startsWith(QStringLiteral("In sequence on 0 of 6 swings · peak-timing spread: lead arm "))
+                         && c.value(QStringLiteral("recencyText")).toString()
+                                == QLatin1String("Professional spread: 8 ms SD, 19 PGA tour professionals, Cheetham 2008");
             }
         }
         for (int i = 0; i < cards.size(); ++i)
             if (i > at && at >= 0 && cards[i].toMap().value(QStringLiteral("sessionExcess")).toDouble() > 0.0)
                 after = false;
-        check(at >= 0 && cardOk, "the session card: no ticks, a SESSION pill, the count as its value");
+        check(at >= 0 && cardOk, "the session card: no ticks, a SESSION pill, the count as its value — both "
+                                 "clauses fired (#58), so it names both, and the reference sits under it");
         check(at >= 0 && after,
               "session_ledger_ranks_after_magnitude: every pattern with a measured magnitude ranks ahead of it");
+        {
+            QStringList tabs;
+            for (const QVariant &tv : m->conditionDetail(QStringLiteral("inconsistent_sequence"))
+                                          .value(QStringLiteral("measures")).toList())
+                tabs << tv.toMap().value(QStringLiteral("countText")).toString();
+            check(tabs.contains(QStringLiteral("in sequence on 0 of 6 swings")) && tabs.contains(QStringLiteral("fired over the session")),
+                  "…its detail's measure tabs read both clauses over the session (#58)");
+        }
 
         // session_root_in_explanation — it enters explain() like any other ledger. With no authored
         // edge nothing can explain it and it explains nothing, so the engine's own rule lists it as
@@ -888,6 +957,73 @@ static void sequenceConsistencySuite(const QTemporaryDir &tmp)
         }
         check(unexplained && !asRoot && !explains,
               "session_root_in_explanation: it reaches the explanation as fired and unexplained, and explains nothing");
+    }
+
+    // spread_only_card (#58) — the order checks never resolved (the chest peak was not placed on any
+    // swing), the arm scattered: the condition fires on the spread alone, and its card says so instead
+    // of "In sequence: not assessed over the session".
+    {
+        QJsonObject root = diagnosticsJsonOf(dir);
+        QJsonObject ledger = root.value(QStringLiteral("ledger")).toObject();
+        QJsonArray shots = ledger.value(QStringLiteral("shots")).toArray();
+        for (int i = 0; i < shots.size(); ++i) {
+            QJsonObject so = shots.at(i).toObject();
+            QJsonArray sigs;
+            for (const char *sid : { "sig_sequenceOrder", "sig_armBeforeThorax", "sig_clubBeforeArm" })
+                sigs.append(QJsonObject{ { QStringLiteral("signalId"), QLatin1String(sid) },
+                                         { QStringLiteral("state"), QStringLiteral("notAssessable") },
+                                         { QStringLiteral("pFire"), -1.0 },
+                                         { QStringLiteral("quantified"), false } });
+            so[QStringLiteral("signals")] = sigs;
+            shots[i] = so;
+        }
+        ledger[QStringLiteral("shots")] = shots;
+        root[QStringLiteral("ledger")] = ledger;
+        check(writeDiagnosticsJson(dir, root), "the rows are rewritten: no swing's order resolved, the arm scattered");
+
+        auto m = freshModel();
+        m->activateSession(dir);
+        const QVariantMap sc = m->sequenceConsistency();
+        check(sc.value(QStringLiteral("state")).toString() == QLatin1String("fired")
+                  && !sc.value(QStringLiteral("shareAvailable")).toBool()
+                  && sc.value(QStringLiteral("spreadAvailable")).toBool()
+                  && sc.value(QStringLiteral("spreadSegment")).toString() == QLatin1String("lead arm"),
+              "spread_only_card: fired, the order share unavailable, the arm's spread read");
+        QVariantMap card;
+        for (const QVariant &cv : m->cards())
+            if (cv.toMap().value(QStringLiteral("id")).toString() == QLatin1String("inconsistent_sequence")) card = cv.toMap();
+        const QString want = QStringLiteral("Peak-timing spread: lead arm %1× ± %2 the professional spread")
+                                 .arg(QString::number(sc.value(QStringLiteral("spreadValue")).toDouble(), 'f', 1),
+                                      QString::number(sc.value(QStringLiteral("spreadSigma")).toDouble(), 'f', 1));
+        check(!card.isEmpty() && card.value(QStringLiteral("recurrence")).toString() == want
+                  && card.value(QStringLiteral("valueText")).toString() == want,
+              "…the card's count and value are the spread");
+        check(card.value(QStringLiteral("recencyText")).toString().endsWith(
+                  QLatin1String("peak order not read: needs 5 swings with all four peaks placed (none so far)"))
+                  && !card.value(QStringLiteral("recurrence")).toString().contains(QLatin1String("not assessed"))
+                  && !card.value(QStringLiteral("recencyText")).toString().contains(QLatin1String("not assessed")),
+              "…and the line under it says the order was not read, never that the habit was not assessed");
+        const ConditionLedger *sl = nullptr;
+        for (const ConditionLedger &l : m->ledgerRows())
+            if (l.id == QLatin1String("inconsistent_sequence")) sl = &l;
+        check(sl && sl->tier == Tier::Pattern && sl->recurrence == want,
+              "…the ledger's own recurrence carries the same count");
+        // The pattern's detail page: its measure tabs say how each was read over the session (#58) — the
+        // spread fired, the order share was not read — never "not read" for the reading it fired on.
+        const QVariantMap det = m->conditionDetail(QStringLiteral("inconsistent_sequence"));
+        QString orderTab, spreadTab;
+        for (const QVariant &tv : det.value(QStringLiteral("measures")).toList()) {
+            const QVariantMap t = tv.toMap();
+            if (t.value(QStringLiteral("id")).toString() == QLatin1String("m_ksOrderShare"))
+                orderTab = t.value(QStringLiteral("countText")).toString();
+            if (t.value(QStringLiteral("id")).toString() == QLatin1String("m_ksTimingSpread"))
+                spreadTab = t.value(QStringLiteral("countText")).toString();
+        }
+        check(spreadTab == QLatin1String("fired over the session") && orderTab == QLatin1String("not read")
+                  && det.value(QStringLiteral("measureId")).toString() == QLatin1String("m_ksTimingSpread"),
+              "…its detail's measure tabs: the spread fired over the session, the order not read; it opens on the spread");
+        std::printf("      %s · %s\n", qPrintable(card.value(QStringLiteral("recurrence")).toString()),
+                    qPrintable(card.value(QStringLiteral("recencyText")).toString()));
     }
 }
 

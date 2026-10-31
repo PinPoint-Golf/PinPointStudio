@@ -707,7 +707,7 @@ The hand-off thresholds are 80 % of the Cheetham professional ratios (19 PGA tou
 | `arms_ride_the_turn` | Arms ride the turn | "your arms don't speed up past your chest" / "your arms whip past your chest" | `sig_armGainLow` | draft |
 | `club_not_released` | Club not released | "the club doesn't speed up much past your arms" / "the club whips past your hands" | `sig_clubGainLow` | draft |
 | `no_pelvis_braking` | Hips don't brake | "your hips keep spinning at full speed into the ball" / "your hips slow just before impact and pass the speed on" | `sig_noPelvisBraking` | draft (NR-12: present/absent only) |
-| `inconsistent_sequence` | Sequence not repeatable | "your body fires in a different order from swing to swing" / "your body fires the same way every swing" | `sig_ksOrderShare`, `sig_ksTimingSpread` (`detection: any`) | draft until E2 |
+| `inconsistent_sequence` | Sequence not repeatable | "your body's timing changes from swing to swing" / "your body fires the same way every swing" (first drafted as "fires in a different order", which claimed the order changed when only the spread may have been read; #58) | `sig_ksOrderShare`, `sig_ksTimingSpread` (`detection: any`) | draft until E2 |
 
 **And one change to an existing node** (as first drafted; superseded 17 Oct by the single-signal `club_before_arms`, §18 D27): `casting` gains `sig_clubBeforeArm` as a second route (`detection: any`). Cheetham: "casting is directly observable — the club races ahead of the body and peaks early". It changes when `casting` fires, so it goes through the rank-shift report first (D27).
 

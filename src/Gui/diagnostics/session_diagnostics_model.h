@@ -393,8 +393,10 @@ public:
     // The session's sequence consistency (F10, §10.8 E2): "In sequence on 9 of 14 swings", the
     // peak-timing spread against the professional spread with the cohort named, and the engine's
     // verdict on the session condition (Coaching/sequence_checks.h sequenceConsistencyToVariant has
-    // the shape). Read over the session, never one swing. The Charts KS Session view binds this and
-    // must not recompute it.
+    // the shape), plus `countLine` / `afterLine`: the session card's count and the line under it, named
+    // by the clause that fired (sequenceConsistencyCountLine / AfterLine; absent with no session
+    // condition in the pack). Read over the session, never one swing. The Charts KS Session view binds
+    // this and must not recompute it.
     Q_INVOKABLE QVariantMap sequenceConsistency() const;
 
     // ── The condition detail ────────────────────────────────────────────────────────

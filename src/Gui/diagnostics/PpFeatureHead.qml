@@ -138,7 +138,9 @@ Item {
                 const h = op.dh, R = op.roles, out = []
                 const cc = R.corridorClause(h.corridorText)
                 if (cc) out.push({ k: "Corridor", v: R.esc(R.cap1(cc)) + (op.dsp && op.dsp.measure && op.dsp.measure !== h.measure ? ", on " + R.esc(R.lower1(h.measure)) : "") + "." })
-                out.push({ k: "Recurrence", v: R.cap1(R.recWords(h.recurrence, op.readout ? op.readout.shotCount : 0)) + ", " + R.trendWords(h) + "; " + R.esc(h.firingsAfterText || h.recencyText || "") + "." })
+                // a session-scope pattern's count is a sentence, not a "k of n" of firings (#58): said whole
+                if (h.sessionScope) out.push({ k: "Recurrence", v: R.esc(R.sentence(h.recurrence)) + " " + R.esc(R.sentence(h.recencyText)) })
+                else out.push({ k: "Recurrence", v: R.cap1(R.recWords(h.recurrence, op.readout ? op.readout.shotCount : 0)) + ", " + R.trendWords(h) + "; " + R.esc(h.firingsAfterText || h.recencyText || "") + "." })
                 const b = R.byId((op.source && op.source.bookends) || [], h.id)
                 if (b) out.push({ k: "Bookends", v: "Typical " + R.figHtml(b.representativeShotId, R.ink) + ", worst " + R.figHtml(b.worstShotId, R.ink) + ", best " + R.figHtml(b.bestShotId, R.ink) + "." })
                 const ms = (op.detail && op.detail.measures) || []

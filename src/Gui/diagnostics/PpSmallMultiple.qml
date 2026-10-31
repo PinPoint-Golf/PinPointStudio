@@ -273,7 +273,7 @@ Item {
         width: tile.width
         spacing: tile.roles.u(1)
         Text { visible: tile.showMeasure; width: parent.width; wrapMode: Text.WordWrap; font: tile.roles.fSmall; color: tile.roles.ink3; bottomPadding: tile.roles.u(3)
-               text: (tile.c.phase || "") + " · " + (tile.c.measure || "") + (tile.unit && !tile.symUnit ? " · in " + tile.unit : "") }
+               text: [tile.c.phase || "", tile.c.measure || "", tile.unit && !tile.symUnit ? "in " + tile.unit : ""].filter(s => s !== "").join(" · ") }
         Text { width: parent.width; wrapMode: Text.WordWrap; font: tile.roles.fSmall; color: tile.roles.ink2
                text: (tile.c.recurrence || "") + " · " + tile.roles.trendWord(tile.c) }
         Text { width: parent.width; wrapMode: Text.WordWrap; font: tile.roles.fSmall; color: tile.roles.ink3

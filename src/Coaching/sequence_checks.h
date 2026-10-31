@@ -622,6 +622,52 @@ inline QString sequenceConsistencyGapNote(const SessionSequenceConsistency &c)
         .arg(c.share.resolved == 0 ? QStringLiteral("none") : QString::number(c.share.resolved));
 }
 
+// WHICH CLAUSES THE SESSION CONDITION'S COUNT NAMES (#58). The condition fires on either clause
+// (`detection: any`), so the count names the one that fired — both when both did — and a verdict on
+// the spread alone never reads "In sequence: not assessed". With nothing fired it names what was
+// read: the order when it was, else the spread.
+struct SequenceCountClauses {
+    bool order  = false;   // the order share ("In sequence on k of n swings")
+    bool spread = false;   // the timing spread ("Peak-timing spread: …")
+};
+
+inline SequenceCountClauses sequenceCountClauses(const SessionSequenceConsistency &c, bool orderFired,
+                                                 bool spreadFired)
+{
+    SequenceCountClauses k;
+    k.order  = orderFired || (!spreadFired && c.share.resolved > 0);
+    k.spread = c.spread.available && (spreadFired || (!orderFired && c.share.resolved == 0));
+    return k;
+}
+
+// The session card's count, from those clauses.
+inline QString sequenceConsistencyCountLine(const SessionSequenceConsistency &c, const SequenceCountClauses &k)
+{
+    if (!k.spread) return sequenceConsistencyLine(c);
+    const SessionSpreadSegment &s = c.spread.segments[size_t(c.spread.best)];
+    const QString spread = QStringLiteral("%1 %2× ± %3 the professional spread")
+                               .arg(s.piece, QString::number(s.ratio, 'f', 1), QString::number(s.ratioSigma, 'f', 1));
+    if (k.order) return sequenceConsistencyLine(c) + QStringLiteral(" · peak-timing spread: ") + spread;
+    return QStringLiteral("Peak-timing spread: ") + spread;
+}
+
+// The line under that count: the spread in full when the count is the order alone (as it always was),
+// else what the count left out — the professional reference, and the order share when the count does
+// not carry it (why it was not read, or how it read).
+inline QString sequenceConsistencyAfterLine(const SessionSequenceConsistency &c, const SequenceCountClauses &k)
+{
+    if (!k.spread) return sequenceSpreadLine(c);
+    const SessionSpreadSegment &s = c.spread.segments[size_t(c.spread.best)];
+    QString out = QStringLiteral("Professional spread: %1 ms SD, %2")
+                      .arg(QString::number(int(std::lround(s.proSdMs))), sequenceSpreadCohort());
+    if (k.order) return out;
+    if (!c.share.available)
+        out += QStringLiteral(" · peak order not read: ") + sequenceConsistencyGapNote(c);
+    else
+        out += QStringLiteral(" · in sequence on %1 of %2 swings").arg(c.share.inOrder).arg(c.share.resolved);
+    return out;
+}
+
 // The QML shape — the Charts KS Session view and the session card bind it.
 //   { line, spreadLine, gapNote, whose, cohort, state, pFire, resolved, inOrder, shareValue,
 //     shareAvailable, spreadValue, spreadSigma, spreadAvailable, spreadSegment }

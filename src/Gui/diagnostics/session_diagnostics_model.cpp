@@ -1622,7 +1622,19 @@ void SessionDiagnosticsModel::appendSessionScope()
             const double hard = L.tier == Tier::Pattern ? 1.0 : 0.0;
             L.pPattern = (m_opt.softTier && f.pFire >= 0.f) ? double(f.pFire) : hard;
         }
-        L.recurrence = sequenceConsistencyLine(c);
+        // The count names the clause that fired (#58): a verdict on the timing spread alone is not
+        // reported as an order share that was never read.
+        bool orderFired = false, spreadFired = false;
+        if (f.state == FindingState::Fired) {
+            for (const QString &sid : f.firedSignals) {
+                const Signal *s = pack.signal(sid);
+                if (!s) continue;
+                orderFired  |= s->measures.contains(QStringLiteral("m_ksOrderShare"));
+                spreadFired |= s->measures.contains(QStringLiteral("m_ksTimingSpread"));
+            }
+        }
+        const SequenceCountClauses clauses = sequenceCountClauses(c, orderFired, spreadFired);
+        L.recurrence = sequenceConsistencyCountLine(c, clauses);
         m_ledgers.push_back(std::move(L));
 
         if (!published) {
@@ -1631,6 +1643,11 @@ void SessionDiagnosticsModel::appendSessionScope()
                                                                     : QStringLiteral("na");
             m_sequenceConsistency = sequenceConsistencyToVariant(c, state, assessed ? double(f.pFire) : -1.0);
             m_sequenceConsistency.insert(QStringLiteral("conditionId"), f.conditionId);
+            // the card's count and the line under it, by the clause that fired (cardMap)
+            m_sequenceConsistency.insert(QStringLiteral("orderFired"), orderFired);
+            m_sequenceConsistency.insert(QStringLiteral("spreadFired"), spreadFired);
+            m_sequenceConsistency.insert(QStringLiteral("countLine"), sequenceConsistencyCountLine(c, clauses));
+            m_sequenceConsistency.insert(QStringLiteral("afterLine"), sequenceConsistencyAfterLine(c, clauses));
             published = true;
         }
     }
@@ -3668,7 +3685,7 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
         c[QStringLiteral("trend")]              = QStringLiteral("stable");
         c[QStringLiteral("trendArrow")]         = QString();
         c[QStringLiteral("trendText")]          = m_sequenceConsistency.value(QStringLiteral("whose")).toString();
-        c[QStringLiteral("recencyText")]        = m_sequenceConsistency.value(QStringLiteral("spreadLine")).toString();
+        c[QStringLiteral("recencyText")]        = m_sequenceConsistency.value(QStringLiteral("afterLine")).toString();
         c[QStringLiteral("thisShot")]           = QStringLiteral("session");
         c[QStringLiteral("statePill")]          = QStringLiteral("SESSION");
         c[QStringLiteral("valueText")]          = l.recurrence;
@@ -5002,6 +5019,31 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
             QString best;
             for (const QString &mid : ms) {
                 int fired = 0, read = 0;
+                // A SESSION-scope condition (#58) has no per-shot rows to count: its measures were read
+                // once, over the session, and appendSessionScope() published how each one read.
+                if (l->sessionScope) {
+                    const QVariantMap &sc = m_sequenceConsistency;
+                    const bool order = mid == QLatin1String("m_ksOrderShare");
+                    const bool avail = sc.value(order ? QStringLiteral("shareAvailable") : QStringLiteral("spreadAvailable")).toBool();
+                    const bool fire  = sc.value(order ? QStringLiteral("orderFired") : QStringLiteral("spreadFired")).toBool();
+                    const QString text =
+                        !avail ? QStringLiteral("not read")
+                        : order ? QStringLiteral("in sequence on %1 of %2 swings")
+                                      .arg(sc.value(QStringLiteral("inOrder")).toInt())
+                                      .arg(sc.value(QStringLiteral("resolved")).toInt())
+                        : fire ? QStringLiteral("fired over the session")
+                               : QStringLiteral("read over the session, inside the limit");
+                    if (fire && (bestFired < 1 || best.isEmpty())) { bestFired = 1; best = mid; }
+                    else if (avail && best.isEmpty()) best = mid;
+                    tabs.append(QVariantMap{
+                        { QStringLiteral("id"),        mid },
+                        { QStringLiteral("label"),     measureLabelOf(mid) },
+                        { QStringLiteral("fired"),     fire ? 1 : 0 },
+                        { QStringLiteral("read"),      avail ? 1 : 0 },
+                        { QStringLiteral("countText"), text },
+                    });
+                    continue;
+                }
                 for (const ShotRecord &sh : m_shots) {
                     const ConditionRow *r = rowFor(sh, conditionId);
                     if (!r || r->state == ShotState::NotAssessable) continue;
@@ -5023,6 +5065,7 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
                                 : QStringLiteral("fired %1 of %2").arg(fired).arg(read) },
                 });
             }
+            if (best.isEmpty()) best = ms.first();
             measureId = ms.contains(m_detailMeasureId) ? m_detailMeasureId : best;
             out[QStringLiteral("measures")] = tabs;
             header[QStringLiteral("spread")] = spreadFor(*l, fi, selectedTick, measureId);
