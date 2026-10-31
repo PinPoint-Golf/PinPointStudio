@@ -131,7 +131,7 @@ WizardPage {
         active: page.active
     }
 
-    // ── What the golfer reads, per stage (§6.3, verbatim where it gives the words) ──
+    // ── What the golfer reads, per stage (§6.3, verbatim where it gives the words; the placement line §4.1) ──
     readonly property string _stage: trunkRoutine.stage
     readonly property string _sub:   trunkRoutine.substage
     readonly property bool _turnStage: _stage === "turnAway" || _stage === "turnThrough"
@@ -142,7 +142,7 @@ WizardPage {
         switch (_stage) {
         case "intro":       return qsTr("Watch the guide. You will stand tall, then make a backswing turn and a follow-through turn, about a minute in all.")
         case "standTall":   return _sub === "ready"
-                                   ? qsTr("Put the sensors on — hip on your belt, chest in the vest pocket, USB down, label out — and stand tall. It starts by itself when you're still.")
+                                   ? qsTr("Put the sensors on your back: the hip sensor in the middle of your lower back, below your waistband; the chest sensor in the vest's back pocket, vest snug. Both USB down, label out. Then stand tall — it starts by itself when you're still.")
                                    : qsTr("Stand tall, toes to the stick, arms relaxed. Hold still.")
         case "turnAway":    return qsTr("Arms crossed, make a slow backswing turn — then turn back to address.")
         case "turnThrough": return qsTr("Arms crossed, make a slow follow-through turn — then turn back to address.")

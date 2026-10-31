@@ -121,11 +121,11 @@
     },
     {
       "id": "body.pelvisFaceIn",
-      "golfer": "the hip sensor read a backward lean at address, so it is probably worn label-in; turn it label-out"
+      "golfer": "the hip sensor read a backward lean at address, so it is probably on the front of your body or worn label-in; wear it on your lower back, label out"
     },
     {
       "id": "body.thoraxFaceIn",
-      "golfer": "the chest sensor read a backward lean at address, so it is probably worn label-in; turn it label-out"
+      "golfer": "the chest sensor read a backward lean at address, so it is probably on the front of your body or worn label-in; wear it in the vest's back pocket, label out"
     },
     {
       "id": "body.xFactorStretchTop",

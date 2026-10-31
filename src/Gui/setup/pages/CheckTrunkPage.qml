@@ -184,7 +184,7 @@ WizardPage {
                     Text {
                         objectName:     "trunkAddressHint"
                         width:          parent.width
-                        text:           qsTr("Take your address: the figure should bend straight forward. If it leans to one side, a sensor is twisted in its pocket.")
+                        text:           qsTr("Take your address: the figure should bend straight forward. If it leans to one side, a sensor is twisted in its pocket. If it leans back, a sensor is on the front or facing in — wear both on your back, label out.")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody2
                         color:          Theme.colorText3
