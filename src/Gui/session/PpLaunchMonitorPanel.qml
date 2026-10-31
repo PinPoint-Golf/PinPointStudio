@@ -164,6 +164,7 @@ Item {
         shotList: root.shotList
         scopeText: board.scopeText
         emptyText: board.emptyText
+        shotEmptyText: board.shotEmptyText
         liveDeviceName: board.deviceName
         reviewing: root.reviewing
         focusedShotId: SessionMode.focusedShotId

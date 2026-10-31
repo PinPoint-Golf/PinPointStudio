@@ -56,6 +56,7 @@ Item {
     property var shotList: []                  // [{ shotId, ordinal, club }] as recorded — the heading's fallback only
     property string scopeText: ""              // LmSessionModel.scopeText
     property string emptyText: ""              // LmSessionModel.emptyText
+    property string shotEmptyText: ""          // LmSessionModel.shotEmptyText: the headline shot has no reading
     property string liveDeviceName: ""         // the live connector's name, when graphics.device is absent
     property bool reviewing: false
     property int focusedShotId: -1             // SessionMode.focusedShotId
@@ -158,6 +159,12 @@ Item {
     readonly property string gateSwingDir: (g && g.gateSwingDir) || ""
     function gateOf(key) { const m = g && g.gates; return (m && m[key] && m[key].words) ? m[key] : null }
     readonly property bool hasData: !!g && g.has === true
+    // The scope has readings (LmSessionModel graphics.sessionHas), whatever the headline shot carries: the
+    // Session view is drawn from g.shots / g.clubs, so a picked shot with no reading must not hide it.
+    readonly property bool sessionHasData: !!g && g.sessionHas === true
+    readonly property bool anyData: hasData || sessionHasData
+    // the session plan has something to draw: a shot of some club with a carry and an offline
+    readonly property bool sessionLanded: sessionHasData && clubs.some(c => c.shots.some(s => isFinite(s.carry) && isFinite(s.offline)))
     // every shot in the session, in shot order, with its EFFECTIVE club (graphics.shots). Until the model
     // publishes graphics.shots, the recorded list stands in for the heading only (no per-shot values).
     readonly property bool hasShots: !!g && isList(g.shots)
@@ -184,10 +191,14 @@ Item {
     readonly property int focusId: focusedShotId
     readonly property var focusShot: shotById(focusId)
     readonly property int shotNo: focusShot ? focusShot.ordinal : 0
-    // the SCOPE: the club picked in the key, else the focused shot's club
+    // the shot the board headlines: the focused one, else the model's (graphics.headlineShotId: the latest in scope)
+    readonly property var headShot: focusShot || (g && g.headlineShotId !== undefined ? shotById(g.headlineShotId) : null)
+    readonly property int headNo: headShot ? headShot.ordinal : 0      // the number of the shot This shot shows
+    // the SCOPE: the club picked in the key, else the headline shot's club (with nothing picked, the latest read
+    // shot's, as the model scopes it — without it a just-opened session's Session view had no club and read "-")
     readonly property string focusKey: {
         if (scopeKey !== "") for (const s of shots) if (s.clubKey === scopeKey) return s.clubKey
-        return focusShot ? focusShot.clubKey : ""
+        return headShot ? headShot.clubKey : ""
     }
     // the clubs: one per effective club, from graphics.clubs (stats and ellipses), plus any club whose shots
     // are all left out (its marks still draw, hollow). Hues by bag order, so a club keeps its hue whatever
@@ -229,6 +240,10 @@ Item {
     readonly property var scopedShots: focusClub ? focusClub.inc : []        // the statistics' shots (none left out)
     readonly property color focusHue: focusClub ? focusClub.hue : ts.ink2
     readonly property int scopeN: focusClub ? focusClub.inc.length : 0
+    // What the Session view may say about the focused shot: it has a strip tick only when it is in the scope with
+    // readings, and a ring on the dispersion only when it also landed. A shot the device never read has neither.
+    readonly property bool focusInScope: !!focusShot && scopedAll.some(s => s.shotId === focusId)
+    readonly property bool focusRinged: focusInScope && isFinite(focusShot.carry) && isFinite(focusShot.offline)
     readonly property var clubChoices: {
         const seen = {}, out = []
         for (const s of shots) for (const c of [s.rawClub, s.club]) { const k = String(c).toLowerCase(); if (k && !seen[k]) { seen[k] = 1; out.push(c) } }
@@ -358,8 +373,10 @@ Item {
     readonly property string corridorLine: !hasData ? "" : outKeys.length === 0
         ? (gradedN > 0 ? "nothing outside its corridor" : "no corridor for this club")
         : outKeys.map(t => label(t.key)).join(", ") + (outKeys.length === 1 ? " outside its corridor" : " outside their corridors")
-    readonly property string headLine: focusShot ? "Shot " + shotNo + " of " + shots.length + "  ·  " + clubName(focusShot.club)
-                                                   + (focusShot.relabelled ? " (recorded " + clubName(focusShot.rawClub).toLowerCase() + ")" : "") + (focusShot.out ? "  ·  left out" : "") : ""
+    // names the shot the tiles show: the picked one, else the headline (with nothing picked, the newest shot of the
+    // scoped club, which need not be the session's newest)
+    readonly property string headLine: headShot ? "Shot " + headNo + " of " + shots.length + "  ·  " + clubName(headShot.club)
+                                                  + (headShot.relabelled ? " (recorded " + clubName(headShot.rawClub).toLowerCase() + ")" : "") + (headShot.out ? "  ·  left out" : "") : ""
     // print: the club fixes and the shots left out, as plain sentences (no controls on paper)
     readonly property string printNotes: noteItems.map(n => n.print).join(" ")
     readonly property var shape: (g && g.shape) || ({})
@@ -479,14 +496,14 @@ Item {
         if (statsFor("lm.lowPointAhead")) t.push(sesTile("lm.lowPointAhead", "Low point"))
         return t
     }
-    readonly property string statKey: "Footers: shots · ±1 SD under an average; shortest · longest, or furthest left · right, under a range. Strips: every shot on ±3 SD, the band ±1 SD" + (focusShot ? ", the dark tick shot " + shotNo : "") + "."
-    readonly property string clubKeyText: "Footers: shots · ±1 SD. Strips: every shot" + (focusShot ? ", the dark tick shot " + shotNo : "") + "." + (statsFor("lm.lowPointAhead") ? "" : " Low point: not measured by the device, so no spread.")
+    readonly property string statKey: "Footers: shots · ±1 SD under an average; shortest · longest, or furthest left · right, under a range. Strips: every shot on ±3 SD, the band ±1 SD" + (focusInScope ? ", the dark tick shot " + shotNo : "") + "."
+    readonly property string clubKeyText: "Footers: shots · ±1 SD. Strips: every shot" + (focusInScope ? ", the dark tick shot " + shotNo : "") + "." + (statsFor("lm.lowPointAhead") ? "" : " Low point: not measured by the device, so no spread.")
     readonly property var strikeEll: { const e = focusClub && focusClub.ellipses ? focusClub.ellipses.strike : null; return ellOk(e) ? e : null }
     readonly property string mapCaption: {
         const n = scopedShots.filter(s => isFinite(shotV(s, "lm.strikeLocation")) && isFinite(shotV(s, "lm.strikeHeight"))).length
         return "Impact: the " + n + " " + (focusClub ? focusClub.name : "") + " strikes the device located, from "
              + (focusIron ? "Foresight's centre (between score lines 6 and 7)" : "the face centre")
-             + (strikeEll ? "; ellipse: all " + n : "") + (focusShot ? "; ring: shot " + shotNo : "") + "." + (markerKind ? " Dots: the " + deviceName + "'s club markers." : "")
+             + (strikeEll ? "; ellipse: all " + n : "") + (focusInScope ? "; ring: shot " + shotNo : "") + "." + (markerKind ? " Dots: the " + deviceName + "'s club markers." : "")
              + " Path × face: one dot per shot; the diagonal is face to path 0."
     }
 
@@ -502,6 +519,8 @@ Item {
         readonly property real gut: ts.gutter(pw)
         readonly property bool replay: root.register === "Replay"
         readonly property bool session: root.curTab === "session"
+        // What this view draws from: the headline shot on This shot, the scope on Session.
+        readonly property bool has: session ? root.sessionHasData : root.hasData
         readonly property bool showTabs: !root.isCast || root.castInteractive
         // round 4b: no shot list (the app's session view navigates); the panel has the whole width
         readonly property real mainW: pw
@@ -556,24 +575,24 @@ Item {
                         id: headFlow
                         width: parent.width - (castView.visible ? castView.width + ts.u(12) : 0)
                         spacing: ts.u(12)
-                        Text { id: headT; text: !root.hasData ? "" : page.session ? root.sessionHead : root.headLine; font: ts.fBodyM; color: ts.ink; visible: text.length > 0 }
-                        Text { visible: root.hasData; textFormat: Text.RichText
+                        Text { id: headT; text: !page.has ? "" : page.session ? root.sessionHead : root.headLine; font: ts.fBodyM; color: ts.ink; visible: text.length > 0 }
+                        Text { visible: page.has; textFormat: Text.RichText
                                text: page.session ? ts.esc(root.sessionCtx)
                                      : ts.esc(root.scopeLine) + "  ·  " + (root.outKeys.length ? ts.toneHtml(ts.esc(root.corridorLine), ts.warn) : ts.esc(root.corridorLine))
                                font: ts.fMicro; color: ts.ink3; height: headT.height; verticalAlignment: Text.AlignVCenter
                                width: Math.min(implicitWidth, headFlow.width); wrapMode: Text.WordWrap }
-                        Text { visible: !root.hasData; text: root.emptyText || "No launch monitor readings in this session"; font: ts.fBody; color: ts.ink3 }
+                        Text { visible: !page.has; text: root.emptyText || (page.session ? "" : root.shotEmptyText) || "No launch monitor reading to show"; font: ts.fBody; color: ts.ink3 }
                     }
-                    Text { id: castView; visible: root.isCast && !page.showTabs && root.hasData; anchors.right: parent.right; text: page.session ? "Session" : "This shot"; font: ts.fMicro; color: ts.ink2 }
+                    Text { id: castView; visible: root.isCast && !page.showTabs && page.has; anchors.right: parent.right; text: page.session ? "Session" : "This shot"; font: ts.fMicro; color: ts.ink2 }
                     Rectangle { visible: root.isCast && !page.showTabs; anchors.bottom: parent.bottom; width: parent.width; height: ts.hw; color: ts.rule }
                 }
 
                 // ── round 4: the quiet notes (club fixes, mismatches, shots left out), each with its inline action ──
-                NotesBar { id: notesBar; visible: root.hasData && root.noteItems.length > 0; width: parent.width; h: root }
+                NotesBar { id: notesBar; visible: page.has && root.noteItems.length > 0; width: parent.width; h: root }
 
                 // ── the body: the main column (round 4b: no shot list) ──
                 Item {
-                    visible: root.hasData
+                    visible: page.has
                     width: parent.width
                     height: page.session ? sesCol.height : shotCol.height
 
@@ -616,12 +635,12 @@ Item {
                 }
 
                 // ── below the fold ──
-                Item { visible: root.hasData && (!page.replay || page.session); width: 1; height: page.gut * 0.4 }
-                ClubSummary { visible: root.hasData && page.session && !root.isCast; width: parent.width; h: root }
-                LedgerBlock { visible: root.hasData && page.session && !page.replay; width: parent.width; h: root }
-                LedgerBlock { visible: !page.replay && root.hasData && !page.session; width: parent.width; h: root; indexMode: true }
+                Item { visible: page.has && (!page.replay || page.session); width: 1; height: page.gut * 0.4 }
+                ClubSummary { visible: page.has && page.session && !root.isCast; width: parent.width; h: root }
+                LedgerBlock { visible: page.has && page.session && !page.replay; width: parent.width; h: root }
+                LedgerBlock { visible: !page.replay && page.has && !page.session; width: parent.width; h: root; indexMode: true }
                 PpNotes {
-                    visible: !page.replay && root.hasData
+                    visible: !page.replay && page.has
                     width: parent.width; roles: ts; small: false
                     text: page.session ? root.sessionNotes : root.shotNotes
                 }
@@ -639,16 +658,17 @@ Item {
     readonly property Item cardLayerItem: cardLayer
     readonly property string sessionHead: focusClub ? focusClub.name + ", " + ts.word(scopeN) + " shots" : ""
     readonly property string sessionCtx: shots.length + " shots in the session  ·  " + clubs.map(c => c.name + " " + c.shots.length).join(", ")
-                                         + "  ·  shot " + shotNo + " ringed"
+                                         + (focusRinged ? "  ·  shot " + shotNo + " ringed" : "")
     readonly property string shotNotes:
-        "Every reading the " + (root.deviceName || "device") + " reported for shot " + shotNo + ". Tiles: the big figure is this shot; the band under it is the "
+        "Every reading the " + (root.deviceName || "device") + " reported for shot " + headNo + ". Tiles: the big figure is this shot; the band under it is the "
         + (focusClub ? focusClub.name : "") + " session average (left) and ±1 SD (right). " + ts.cap1(ts.word(gradedN)) + " of the " + readingN
         + " readings carry a corridor; a reading outside it is set in warn with the word, and inside looks like no corridor at all. "
         + "† measured, as the device labels it. The shot shape and the strike are PinPoint's inferred reads, not the device's. "
         + "Path and Spin draw angles ×" + lr.angleGain + "; Loft is true. " + patchLine + " Session holds every shot, the spreads, the dispersion and the impact map."
     readonly property string sessionNotes:
-        "The " + scopeN + " " + (focusClub ? focusClub.name : "") + " shots in scope, against which shot " + shotNo + " is read: the ball half (where it landed, how it launched) and the club half (where it struck, how it was delivered). The strip runs ±3 SD; the shaded band is ±1 SD and the tick is shot "
-        + shotNo + ". Each ellipse is the smallest that holds every shot of its club (none under three shots), drawn by PinPoint from the shots; other clubs are ghosts, dots and ellipse. "
+        "The " + scopeN + " " + (focusClub ? focusClub.name : "") + " shots in scope" + (focusInScope ? ", against which shot " + shotNo + " is read" : "")
+        + ": the ball half (where it landed, how it launched) and the club half (where it struck, how it was delivered). The strip runs ±3 SD; the shaded band is ±1 SD"
+        + (focusInScope ? " and the tick is shot " + shotNo : "") + ". Each ellipse is the smallest that holds every shot of its club (none under three shots), drawn by PinPoint from the shots; other clubs are ghosts, dots and ellipse. "
         + "The dispersion's distance axis starts at the first arc that holds a landing; the tee is behind the break."
 
     // ═══ PRINT ═══
@@ -686,7 +706,7 @@ Item {
             }
             Column {
                 visible: paper.on("tiles"); width: parent.width; spacing: ts.u(5)
-                FigHead { width: parent.width; h: root; n: 1; title: "Shot " + root.shotNo; sub: "under each figure: the " + (root.focusClub ? root.focusClub.name : "") + " session average · ±1 SD" }
+                FigHead { width: parent.width; h: root; n: 1; title: "Shot " + root.headNo; sub: "under each figure: the " + (root.focusClub ? root.focusClub.name : "") + " session average · ±1 SD" }
                 TileBlock { width: parent.width; defs: root.heroTiles; folded: []; h: root }
             }
             Column {
@@ -717,7 +737,7 @@ Item {
             }
             Column {
                 visible: paper.on("index"); width: parent.width; spacing: ts.u(6)
-                FigHead { width: parent.width; h: root; n: 1; table: true; title: "Every reading on shot " + root.shotNo; sub: root.readingN + " readings in five groups" }
+                FigHead { width: parent.width; h: root; n: 1; table: true; title: "Every reading on shot " + root.headNo; sub: root.readingN + " readings in five groups" }
                 LedgerBlock { width: parent.width; h: root; bare: true; indexMode: true }
             }
             // ── Session ──
@@ -788,12 +808,12 @@ Item {
             }
             Column {
                 visible: paper.on("ledger"); width: parent.width; spacing: ts.u(6)
-                FigHead { width: parent.width; h: root; n: 1; table: true; title: "Every reading, against the session"; sub: root.readingN + " readings; shot " + root.shotNo + " is the tick" }
+                FigHead { width: parent.width; h: root; n: 1; table: true; title: "Every reading, against the session"; sub: root.readingN + " readings" + (root.focusInScope ? "; shot " + root.shotNo + " is the tick" : "") }
                 LedgerBlock { width: parent.width; h: root; bare: true }
             }
             Column {
                 visible: paper.on("shots"); width: parent.width; spacing: ts.u(6)
-                FigHead { width: parent.width; h: root; n: 2; table: true; title: "The session's shots"; sub: root.shots.length + " shots, grouped by club; shot " + root.shotNo + " shaded" }
+                FigHead { width: parent.width; h: root; n: 2; table: true; title: "The session's shots"; sub: root.shots.length + " shots, grouped by club" + (root.focusShot ? "; shot " + root.shotNo + " shaded" : "") }
                 ShotTable { width: parent.width; h: root }
             }
             PpNotes { visible: paper.on("notes"); width: parent.width; roles: ts; text: root.sessionNotes + " " + root.printNotes + " Table 2 sets each shot's readings as the device reported them (* club relabelled; out: left out); its Avg and ± SD rows are of the " + (root.focusClub ? root.focusClub.name : "") + " shots not left out." }
@@ -813,10 +833,10 @@ Item {
     readonly property string sessionMast: !focusClub ? "" : focusClub.name + ": " + meanTxt("lm.carryDistance") + " yd average carry, "
                                           + (rangeOf("carry") ? ts.num(rangeOf("carry").hi - rangeOf("carry").lo) : "-") + " yd from shortest to longest"
     readonly property string board_reviewNote: (reviewing === true ? "Reviewed session" : "Session") + "  ·  " + scopeLine
-    readonly property string mastHead: !focusShot ? "" : "Shot " + shotNo + ": " + txt("lm.carryDistance") + " yd carry"
+    readonly property string mastHead: !headShot ? "" : "Shot " + headNo + ": " + txt("lm.carryDistance") + " yd carry"
                                        + (shape.has ? ", a " + String(shape.name).toLowerCase() : "")
-    readonly property string standfirst: !focusShot ? "" :
-        ts.cap1(clubName(focusShot.club)) + ", " + ts.figHtml(txt("lm.ballSpeed") + " mph") + " ball speed from " + ts.figHtml(txt("lm.clubheadSpeed") + " mph")
+    readonly property string standfirst: !headShot ? "" :
+        ts.cap1(clubName(headShot.club)) + ", " + ts.figHtml(txt("lm.ballSpeed") + " mph") + " ball speed from " + ts.figHtml(txt("lm.clubheadSpeed") + " mph")
         + " (smash " + ts.figHtml(txt("lm.smashFactor")) + "), launched at " + ts.figHtml(txt("lm.launchAngle") + "°") + " with " + ts.figHtml(txt("lm.spinRate") + " rpm")
         + ". It started " + ts.figHtml(dirParts("lm.launchDirection", txt("lm.launchDirection"), "°").num) + (num("lm.launchDirection") >= 0 ? " right" : " left")
         + " and landed " + ts.figHtml(dirParts("lm.offline", txt("lm.offline"), " yd").num) + (num("lm.offline") >= 0 ? " right" : " left")
@@ -1004,7 +1024,7 @@ Item {
             }
         }
         Row {
-            visible: !!ck.h.focusShot
+            visible: ck.h.focusRinged
             spacing: ck.h.ts.u(6)
             Item { width: ck.h.ts.ringD; height: kt2.height
                    Rectangle { anchors.centerIn: parent; width: ck.h.ts.ringD; height: width; radius: width / 2; color: "transparent"; border.width: 1; border.color: ck.h.ts.ink } }
@@ -1377,7 +1397,7 @@ Item {
                  pts: pts.map(p => ({ x: X(p.vx), y: Y(p.vy), focus: p.focus, id: p.id, out: p.out })), gx: gx, gy: gy }
     }
     function paintScatter(ctx, G) {
-        if (!hasData) return
+        if (!anyData) return
         const lw = ts.isPrint ? 0.75 : 1
         ctx.lineCap = "round"
         ctx.strokeStyle = ts.grid; ctx.lineWidth = lw
@@ -1500,8 +1520,8 @@ Item {
             visible: !lb.bare; width: parent.width; spacing: lb.h.ts.u(3)
             Rectangle { width: parent.width; height: lb.h.ts.r.figureRuleTop; color: lb.h.ts.rule }
             Flow { width: parent.width; spacing: lb.h.ts.u(10)
-                Text { id: lbt; text: lb.title ? lb.title : lb.indexMode ? "Every reading on shot " + lb.h.shotNo : "Every reading, against the session"; font: lb.h.ts.fSection; color: lb.h.ts.ink }
-                Text { text: (lb.indexMode ? lb.h.readingN + " readings" : "shot " + lb.h.shotNo + " against the " + lb.h.scopeN + " " + (lb.h.focusClub ? lb.h.focusClub.name : "") + " shots") + "  ·  " + lb.h.corridorLine
+                Text { id: lbt; text: lb.title ? lb.title : lb.indexMode ? "Every reading on shot " + lb.h.headNo : "Every reading, against the session"; font: lb.h.ts.fSection; color: lb.h.ts.ink }
+                Text { text: (lb.indexMode ? lb.h.readingN + " readings" : "shot " + lb.h.headNo + " against the " + lb.h.ts.word(lb.h.scopeN) + " " + (lb.h.focusClub ? lb.h.focusClub.name : "") + " shots") + "  ·  " + lb.h.corridorLine
                        font: lb.h.ts.fMicro; color: lb.h.outKeys.length ? lb.h.ts.warn : lb.h.ts.ink3; height: lbt.height; verticalAlignment: Text.AlignVCenter } }
         }
         Row {
@@ -1544,7 +1564,7 @@ Item {
         readonly property var c: h.ledgerCols(width, full && !indexOnly, indexOnly)
         height: h.labLH + h.ts.u(4)
         Text { x: 0; text: "Reading"; font: lh.h.fTileLabel; color: lh.h.ts.ink3 }
-        Text { x: lh.c.valR - width; text: "Shot " + lh.h.shotNo; font: lh.h.fTileLabel; color: lh.h.ts.ink3 }
+        Text { x: lh.c.valR - width; text: "Shot " + lh.h.headNo; font: lh.h.fTileLabel; color: lh.h.ts.ink3 }
         Text { visible: lh.full && !lh.indexOnly; x: lh.c.meanR - width; text: "Avg"; font: lh.h.fTileLabel; color: lh.h.ts.ink3 }
         Text { visible: lh.full && !lh.indexOnly; x: lh.c.sdR - width; text: "± SD"; font: lh.h.fTileLabel; color: lh.h.ts.ink3 }
         Text { visible: lh.full && !lh.indexOnly; x: lh.c.stripX; text: "−3  ±1 SD  +3"; font: lh.h.fTileLabel; color: lh.h.ts.ink3; width: lh.c.stripW; horizontalAlignment: Text.AlignHCenter }
@@ -1754,7 +1774,8 @@ Item {
     function flightGeom(W, H, mode, part) {
         const ses = mode === "session", sc = flightScale(mode), pt = ses ? "plan" : (part || "both")
         const planOn = pt !== "side", sideOn = !ses && pt !== "plan"
-        const ok = flight.has === true && W > 40 && H > 40
+        // the session plan draws every scoped landing, so it needs the scope's readings, not the headline shot's flight
+        const ok = (ses ? sessionLanded : flight.has === true) && W > 40 && H > 40
         const kW = (W - fPadL - fPadR) / (sc.maxYd - sc.lo)
         // shot: one scale k (px per yd) for the plan view (across and along) and the side view (up and along),
         // the largest the width and the height both allow; any height left over stays below the figure
@@ -2254,7 +2275,8 @@ Item {
     }
     function clubGeom(kind, w, h) {
         // the Session impact map needs no focused shot (it draws every scoped strike); the shot cells do
-        if (!hasData || !(w > 0) || !(h > 0) || (!focusShot && kind !== "map")) return null
+        // the map draws the scope's strikes; a shot cell only a shot the device read (a blank cell, never a square face)
+        if (!(kind === "map" ? anyData : hasData) || !(w > 0) || !(h > 0) || (!focusShot && kind !== "map")) return null
         const hand = g.leftHanded ? -1 : 1, G = lr.angleGain
         const model = focusHead, look = headLookA()
         // without the art (LmClubArt not in the build, or no anchors for this head) Path and Loft still draw
@@ -2372,7 +2394,7 @@ Item {
     // the figure around the head, in two layers: `under` the render (references, the path and attack lines,
     // which the head hides where it passes), `over` it (start and launch, loft, lie, the balls, the strike).
     function paintClub(ctx, kind, w, h, layer, pl) {
-        if (!hasData) return
+        if (!(kind === "map" ? anyData : hasData)) return
         const ink = ts.ink, ink2 = ts.ink2, ink3 = ts.ink3, paper = ts.isPrint ? "#FFFFFF" : Theme.colorBg
         const lw = ts.isPrint ? 0.75 : 1, rad = Math.PI / 180, G = lr.angleGain, hand = g.leftHanded ? -1 : 1
         const rb = pl && pl.rb > 0 ? pl.rb : ballR(w, h)

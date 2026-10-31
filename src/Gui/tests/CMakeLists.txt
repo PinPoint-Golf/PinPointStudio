@@ -216,6 +216,50 @@ pp_add_test(shot_ledger_test
             ${SRC}/Export ${SRC}/Export/tests
     LINK    Qt6::Qml Qt6::Test  AUTOMOC)
 
+# LmSessionModel — the launch monitor board's empty lines (#57): the picked shot with no reading, the
+# latest unread with nothing picked, and a session with none, each its own sentence; graphics.sessionHas
+# keeps the Session view drawing when only the headline shot is empty. Rows built in memory. The model
+# names a device through launch_monitor_factory, which brings both connectors, so libgspro links too.
+pp_require_gspro()
+pp_add_test(lm_session_model_test
+    SOURCES lm_session_model_test.cpp
+            ${GUI}/launchmonitor/lm_session_model.cpp
+            ${GUI}/shot/shot_list_model.cpp
+            ${GUI}/trust/trust_readings.cpp
+            ${GUI}/charts/session_sequence.cpp
+            ${GUI}/charts/session_curves.cpp
+            ${SRC}/Export/swing_doc.cpp
+            ${SRC}/Export/swing_paths.cpp
+            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+            ${SRC}/LaunchMonitor/launch_monitor_base.cpp
+            ${SRC}/LaunchMonitor/launch_monitor_factory.cpp
+            ${SRC}/LaunchMonitor/gcquad_monitor.cpp
+            ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
+            ${SRC}/LaunchMonitor/gspro_monitor.cpp
+            ${SRC}/LaunchMonitor/gspro_reading.cpp
+            ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
+            ${SRC}/Diagnostics/packs/file_pack_provider.cpp
+            ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
+            ${SRC}/Diagnostics/packs/characteristic_pack.cpp
+            ${SRC}/Diagnostics/packs/reference_pack.cpp
+            ${SRC}/Diagnostics/engine/characteristic.cpp
+            ${SRC}/Diagnostics/engine/pack_io.cpp
+            ${SRC}/Diagnostics/measures/measure_facets.cpp
+            ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
+            ${SRC}/Diagnostics/norms/norm.cpp
+            ${SRC}/Diagnostics/norms/norm_pack.cpp
+            ${SRC}/Diagnostics/norms/context_tree.cpp
+            ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
+            ${SRC}/Diagnostics/norms/file_norm_provider.cpp
+            ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${GUI} ${GUI}/shot ${GUI}/launchmonitor ${GUI}/charts ${GUI}/trust ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Export ${SRC}/Analysis
+            ${SRC}/Diagnostics ${SRC}/Metrics
+    LINK    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC)
+set_tests_properties(lm_session_model_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
+
 # NotificationCenter — the one notification sink: stable ids, coalescing,
 # cause-suppression and condition latching (design doc §7.4-7.5, item H-g).
 # Drives a clock it owns, so the 7 s dwell and 30 s grace window cost nothing.

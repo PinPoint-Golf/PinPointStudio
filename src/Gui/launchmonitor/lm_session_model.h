@@ -139,6 +139,12 @@ class LmSessionModel : public QAbstractListModel
     // The one line the panel shows INSTEAD of the board, or empty when the board
     // renders. Empty is the only "we are fine" signal — see §5.
     Q_PROPERTY(QString emptyText READ emptyText NOTIFY stateTextChanged)
+    // The board is up (emptyText is empty) but the shot it headlines carries no reading: the
+    // line the This shot view shows in place of the readings, said about THE SHOT (the one
+    // picked, or the latest when none is), never the session — the session has readings, or
+    // emptyText would have said so. Empty when the headline shot has readings, and whenever
+    // emptyText is not. The Session view gates on graphics.sessionHas instead.
+    Q_PROPERTY(QString shotEmptyText READ shotEmptyText NOTIFY stateTextChanged)
     // Shots in scope (the club's, or the session's when the club is unknown).
     Q_PROPERTY(int shotCount READ shotCount NOTIFY headerChanged)
     // WHICH CORRIDORS THESE ARE, in words — "7 iron", "Driver" — or empty when the scope
@@ -199,6 +205,7 @@ public:
     QString scopeText()  const { return m_scopeText; }
     QString valueLabel() const { return m_valueLabel; }
     QString      emptyText()  const;
+    QString      shotEmptyText() const;
     int          shotCount()  const { return m_shotCount; }
     QString      corridorScope() const { return m_corridorScope; }
     QVariantList bandCounts() const;
@@ -298,6 +305,8 @@ private:
     QString       m_corridorScope;
     int           m_shotCount = 0;
     bool          m_anyReadings = false;
+    bool          m_focusFound = false;        // the focused shot is in the list
+    bool          m_headlineHasReadings = false;   // the shot the board headlines carries a reading
 
     // The two registries a corridor comes from. Assembled once and read-only thereafter,
     // same as MetricCatalog's: the norm provider is the process-wide cached one, so a

@@ -815,6 +815,20 @@ QString LmSessionModel::emptyText() const
     return {};
 }
 
+QString LmSessionModel::shotEmptyText() const
+{
+    // Only once emptyText() has passed the session: it has readings, and for this club. What
+    // is left is the headline shot without any — the one picked, or the latest when none is —
+    // and that is not "no readings in this session", which would tell the golfer the monitor
+    // recorded nothing all session.
+    if (!emptyText().isEmpty() || m_headlineHasReadings)
+        return {};
+    // Nothing picked: the board headlines the latest shot in scope (rebuild()), so the line
+    // names that shot rather than asking for one.
+    return m_focusFound ? tr("No launch monitor reading for this shot")
+                        : tr("No launch monitor reading for the latest shot");
+}
+
 void LmSessionModel::rebuild()
 {
     beginResetModel();
@@ -825,6 +839,8 @@ void LmSessionModel::rebuild()
     m_valueLabel = tr("latest");
     m_shotCount = 0;
     m_anyReadings = false;
+    m_focusFound = false;
+    m_headlineHasReadings = false;
 
     if (!m_shots) {
         endResetModel();
@@ -885,11 +901,22 @@ void LmSessionModel::rebuild()
     int focusedRow = -1;
     for (size_t i = 0; i < rows.size() && m_focusedShotId >= 0; ++i)
         if (rows[i].id == m_focusedShotId) { focusedRow = int(i); break; }
+    m_focusFound = focusedRow >= 0;
 
     // Aggregating across a mixed bag is meaningless — a driver and a 9-iron in one
     // carry mean is a bug, not a feature. An unknown club on the focused shot falls
     // back to the whole session and SAYS SO in the header; it never silently mixes.
-    const QString club = focusedRow >= 0 ? rows[size_t(focusedRow)].club.trimmed() : QString();
+    // NOTHING PICKED (a session just opened): the board headlines the latest shot, so it
+    // scopes to the club of the latest shot a monitor READ — what picking that shot would
+    // show. Rows are newest-first. Not the latest shot outright: an unread swing of another
+    // club would scope a club with no readings and hide the session's (#57). Nor a shot the
+    // golfer left out: if it is its club's only reading, the scope has none. No read,
+    // kept shot at all leaves the whole session, as before.
+    int scopeRow = focusedRow;
+    for (size_t i = 0; i < rows.size() && scopeRow < 0; ++i)
+        if (!rows[i].values.isEmpty() && !rows[i].excluded)
+            scopeRow = int(i);
+    const QString club = scopeRow >= 0 ? rows[size_t(scopeRow)].club.trimmed() : QString();
 
     // A LEFT-OUT focused shot is still "this shot": its readings headline the tiles and the
     // figures. It is only absent from the scope the statistics are computed over.
@@ -933,8 +960,8 @@ void LmSessionModel::rebuild()
     }
     m_shotCount = int(scoped.size());
 
-    // Nothing focused: the newest shot in scope is the one to headline, which is row 0
-    // because the list is newest-first. Then the header's word really is "latest".
+    // Nothing focused: the newest shot in scope is the one to headline, the first scoped
+    // row because the list is newest-first. Then the header's word really is "latest".
     const bool focusIsNewest = !focusExcluded && latestIndex <= 0;
     if (latestIndex < 0 && !focusExcluded && !scoped.empty())
         latestIndex = 0;
@@ -1026,6 +1053,10 @@ void LmSessionModel::rebuild()
         }
         m_graphics.insert(QStringLiteral("gates"), gates);
         m_graphics.insert(QStringLiteral("gateSwingDir"), gateDir);
+        // Which shot the board headlines — the one picked, else the latest in scope — so the
+        // Session view scopes to its club when nothing is picked, as the model does.
+        m_graphics.insert(QStringLiteral("headlineShotId"),
+                          hr >= 0 && size_t(hr) < rows.size() ? rows[size_t(hr)].id : -1);
     }
 
     endResetModel();
@@ -1064,6 +1095,11 @@ void LmSessionModel::buildGraphics(const std::vector<LmFieldStats> &stats,
     }
     g.insert(QStringLiteral("values"), values);
     g.insert(QStringLiteral("has"), reported > 0);
+    m_headlineHasReadings = reported > 0;
+    // The SESSION view's own answer: the scope has readings, whether or not the headline shot
+    // does. "has" is the headline shot's; gating the Session view on it hid seven readings
+    // whenever the picked shot had none.
+    g.insert(QStringLiteral("sessionHas"), !m_bands.isEmpty());
 
     // The headline strip: the six figures a golfer reads first, in the design's order.
     // Named explicitly because this IS an editorial choice about what leads — unlike the
