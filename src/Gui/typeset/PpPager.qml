@@ -181,6 +181,10 @@ Item {
         return n
     }
     function repaginate() { timer.restart() }
+    // a repagination is due: the galley changed and `pages` still describes it as it was. The cut is debounced, so
+    // while a galley is still being built (each change restarts the timer) `pages` holds still at the OLD layout —
+    // a reader waiting for the pages to stop changing must also wait for this to clear (tst_session_report's load()).
+    readonly property bool paginating: timer.running
     Timer { id: timer; interval: 120; onTriggered: pg.paginate() }
     onWidthChanged: timer.restart()
     onHeightChanged: timer.restart()

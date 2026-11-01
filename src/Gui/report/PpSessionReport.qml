@@ -369,8 +369,14 @@ Item {
         readonly property real em: 13                                           // the body size: widths are counted in it
         readonly property real lead: 1.32
         readonly property real smallLead: 1.3
+        // UNHINTED, so a FontMetrics measures what a Text draws. The tables size their columns with FontMetrics
+        // (PpFitColumns), which is QFontMetricsF: with the platform's default hinting on Windows (DirectWrite, full)
+        // its advances are the hinted, per-glyph-rounded ones, while a Text (QtRendering) lays out in design metrics —
+        // "Typical" in Inter 11 DemiBold measured 37 and drew 39, past its column. Without hinting both read the
+        // outline's own advances (38.47), on every platform (macOS never hints; FreeType's full hinting would round
+        // as DirectWrite does). It is also the right thing for paper: a PDF has no pixel grid to fit.
         function f(fam, px, w, extra) {
-            const o = { family: fam, pixelSize: px, weight: w === undefined ? Font.Normal : w }
+            const o = { family: fam, pixelSize: px, weight: w === undefined ? Font.Normal : w, hintingPreference: Font.PreferNoHinting }
             if (extra) for (const k in extra) o[k] = extra[k]
             return Qt.font(o)
         }

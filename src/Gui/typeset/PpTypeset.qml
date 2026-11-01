@@ -250,8 +250,14 @@ QtObject {
     }
 
     // ── type roles ─────────────────────────────────────────────────────────────────────────────
+    // On paper the faces are UNHINTED, so a FontMetrics measures what a Text draws: with the platform's default
+    // hinting (Windows/DirectWrite: full) QFontMetricsF's advances are hinted and rounded per glyph while a Text
+    // (QtRendering) lays out in design metrics, and a block sized from one overruns by the other (the shot shape
+    // grid's cells, from advanceWidth("straight"), crossed the report's text width). macOS never hints; a PDF has no
+    // pixel grid to fit. The screen keeps the platform's hinting.
     function _f(fam, sz, w, extra) {
         const o = { family: fam, pixelSize: Math.round(u(sz)), weight: w }
+        if (isPrint) o.hintingPreference = Font.PreferNoHinting
         if (extra) for (const k in extra) o[k] = extra[k]
         return Qt.font(o)
     }

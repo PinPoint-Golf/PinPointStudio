@@ -66,20 +66,7 @@ Item {
 
         function signature() { return JSON.stringify(reg.pageInfo().map(p => [Math.round(p.from), Math.round(p.to)])) }
         // lay a fixture out and wait for the pager (and any one-shot tightening) to settle
-        function load(name) {
-            reg.report = null
-            reg.printPage = 0
-            wait(30)
-            reg.report = Fx.maps[name]
-            let last = "", same = 0
-            for (let i = 0; i < 80 && same < 3; ++i) {
-                wait(100)
-                const s = signature()
-                same = (s === last) ? same + 1 : 0
-                last = s
-            }
-            verify(same >= 3, name + ": the pagination never settled")
-        }
+        function load(name) { loadMap(Fx.maps[name], name) }
         function find(item, name) {
             if (!item) return null
             if (item.objectName === name) return item
@@ -335,7 +322,11 @@ Item {
             if (edit) edit(m.wrist, m)
             return m
         }
-        function loadMap(m) {
+        // Settled: the pages unchanged for three looks AND no repagination due. The pager's cut is debounced (120 ms after
+        // the galley last changed) and a squeeze's tightening re-lays a section after its own one-shot, so a slow build
+        // (a Debug build on Windows) could hold the OLD pages still for 300 ms while a cut was pending: the test then read
+        // a transient — 21 pages and stale section pages for the 18-page delivery fixture.
+        function loadMap(m, name) {
             reg.report = null
             reg.printPage = 0
             wait(30)
@@ -344,10 +335,10 @@ Item {
             for (let i = 0; i < 80 && same < 3; ++i) {
                 wait(100)
                 const s = signature()
-                same = (s === last) ? same + 1 : 0
+                same = (s === last && !reg.galleyPager.paginating) ? same + 1 : 0
                 last = s
             }
-            verify(same >= 3, "the pagination never settled")
+            verify(same >= 3, (name ? name + ": " : "") + "the pagination never settled")
         }
         // n swings: the score run, the style table and every finding's marks carried out to n from the fixture's own
         function longSession(w, n) {
