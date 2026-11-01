@@ -2361,7 +2361,11 @@ SettingsPanelBase {
 
             delegate: CameraDeviceRow {
                 required property var modelData
-                camData: modelData
+                // ⚠ `|| ({})`: when cameraList is replaced (a PPCP phone
+                // connecting rebuilds it) the outgoing rows see modelData go
+                // undefined before they are destroyed, and every camData.x
+                // binding still alive threw "Cannot read property … of undefined".
+                camData: modelData || ({})
                 Layout.fillWidth: true
             }
         }
