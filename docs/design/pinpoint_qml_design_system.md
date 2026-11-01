@@ -1,5 +1,11 @@
 # PINPOINT — QML DESIGN SYSTEM INSTRUCTIONS
 
+> **Values: see [`system/README.md`](system/README.md).** The rules and every token now live in
+> `docs/design/system/` (`README.md`, generated `tokens.json`, one page per component), generated from
+> `src/Gui/theme/Theme.qml`. This document keeps the design history and reasoning (§13 coaching-card
+> look, §14 themes as data, §15 typeset); where its older tables (§2–§7) disagree with Theme.qml or
+> `system/`, those win.
+
 This document instructs Claude Code on how to implement the Pinpoint visual design
 system in QML/Qt. Read this file before writing any QML. Every UI component must
 conform to the token system, typography rules, and component patterns defined here.

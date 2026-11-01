@@ -70,8 +70,14 @@ QtObject {
     // The same for SPACE between things — a layout's spacing, margins and padding, a card's pad —
     // as opposed to the size of a thing. It also follows the theme's spacingScale, so a theme can
     // breathe more without growing its type or its marks. 1.0 in every theme but Folio, where
-    // gap(n) is exactly sp(n).
-    function gap(n) { return Math.round(n * fontScale * spacingScale) }
+    // gap(n) is exactly sp(n). And it follows the user's Density setting (Settings → Appearance):
+    // densityScale is 0.75 compact, 1.0 default, 1.25 spacious (docs/design/system, "Density").
+    function gap(n) { return Math.round(n * fontScale * spacingScale * densityScale) }
+
+    // Density — the space between things, never their size. "default" is the app as it always was.
+    readonly property real densityScale: density === "compact" ? 0.75 : density === "spacious" ? 1.25 : 1.0
+    // A value per density, for the row geometry below: compact, default, spacious.
+    function _dens(c, d, s) { return density === "compact" ? c : density === "spacious" ? s : d }
 
     // Active aesthetic and mode — derived from themeIndex.
     // Can also be set directly to bind to C++ AppSettings at startup.
@@ -773,12 +779,12 @@ QtObject {
     // nothing drew from them before — so each default is the design's (ux_refactor_away_from_4_modes
     // A.3) in every theme, and a theme lists one only where it differs.
     readonly property int tableRadius:  _v("tableRadius", radiusLg)   // a table card's corner
-    readonly property int rowH:         _v("rowH", 48)                // a table row
-    readonly property int rowH2:        _v("rowH2", 56)               // a row with a second line
-    readonly property int itemRowH:     _v("itemRowH", 40)            // an expanded area's item row
-    readonly property int tableHeaderH: _v("tableHeaderH", 38)        // a table card's caption row
-    readonly property int rowPadH:      _v("rowPadH", 18)             // a row's horizontal padding
-    readonly property int itemIndent:   _v("itemIndent", 62)          // an item row's indent under its expand row
+    readonly property int rowH:         _v("rowH", _dens(40, 48, 56))                // a table row
+    readonly property int rowH2:        _v("rowH2", _dens(48, 56, 64))               // a row with a second line
+    readonly property int itemRowH:     _v("itemRowH", _dens(32, 40, 48))            // an expanded area's item row
+    readonly property int tableHeaderH: _v("tableHeaderH", _dens(32, 38, 44))        // a table card's caption row
+    readonly property int rowPadH:      _v("rowPadH", _dens(14, 18, 22))             // a row's horizontal padding
+    readonly property int itemIndent:   _v("itemIndent", _dens(58, 62, 66))          // an item row's indent under its expand row
     // The hairline between rows: the border at 0.6 of its own alpha, as PpDivider draws it — fainter
     // than a card's edge. colorBorder is already translucent, so this scales its alpha rather than
     // replacing it.
