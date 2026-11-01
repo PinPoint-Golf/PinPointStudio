@@ -45,6 +45,8 @@ Item {
     signal reviewSessionRequested(string sessionDir)
     // The rig pane's "Rig ▸": Settings → Studio.
     signal studioSettingsRequested()
+    // A setup card: "cameras" (Settings → Cameras) or "imus" (Settings → Motion sensors).
+    signal deviceSettingsRequested(string panel)
 
     // EMPTY, not a club. This is carried into SessionController.activeClub at session
     // start, and start() only seeds from the athlete's preferred club when activeClub is
@@ -234,14 +236,13 @@ Item {
 
                     Repeater {
                         model: [
-                            { icon: "⊞", title: qsTr("Connect a camera"), desc: qsTr("Basler or GenTL over USB3") },
-                            { icon: "⌖", title: qsTr("Pair wrist motion sensors"),   desc: qsTr("Lead and trail hand sensors") },
-                            { icon: "↗", title: qsTr("Read the docs"),     desc: qsTr("Setup guides and hardware") }
+                            { icon: "⊞", title: qsTr("Connect a camera"), desc: qsTr("Basler or GenTL over USB3"), panel: "cameras" },
+                            { icon: "⌖", title: qsTr("Pair wrist motion sensors"),   desc: qsTr("Lead and trail hand sensors"), panel: "imus" }
                         ]
 
                         delegate: Rectangle {
                             required property var modelData
-                            width:  (parent.width - 20) / 3
+                            width:  (parent.width - parent.spacing) / 2
                             height: secCardCol.implicitHeight + 28
                             radius: Theme.radius
                             color:  "transparent"
@@ -281,6 +282,7 @@ Item {
                                 cursorShape:  Qt.PointingHandCursor
                                 onEntered:    parent.color = Theme.colorBg2
                                 onExited:     parent.color = "transparent"
+                                onClicked:    root.deviceSettingsRequested(modelData.panel)
                             }
                         }
                     }

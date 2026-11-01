@@ -259,7 +259,7 @@ Item {
                 Label {
                     id: voiceInLabel
                     anchors.centerIn: parent
-                    text: qsTr("🎤 Voice in")
+                    text: qsTr("Voice in")
                     color: llmController.voiceInputEnabled ? Theme.colorGood : Theme.colorText3
                     font.family: Theme.fontBody
                     font.pixelSize: Theme.fontSzBody
@@ -285,7 +285,7 @@ Item {
                 Label {
                     id: voiceOutLabel
                     anchors.centerIn: parent
-                    text: qsTr("🔊 Voice out")
+                    text: qsTr("Voice out")
                     color: llmController.voiceOutputEnabled ? Theme.colorGood : Theme.colorText3
                     font.family: Theme.fontBody
                     font.pixelSize: Theme.fontSzBody

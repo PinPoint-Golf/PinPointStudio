@@ -42,6 +42,12 @@ Item {
         root.searchQuery = ""
         root.activeNavIndex = root._stackIndexOf(studioPanel)
     }
+    // Settings → Cameras or → Motion sensors, for Home's setup cards. Found by panel, like openStudio.
+    function openDevicePanel(which) {
+        searchInput.text = ""
+        root.searchQuery = ""
+        root.activeNavIndex = root._stackIndexOf(which === "imus" ? imusPanel : camerasPanel)
+    }
 
     // The Settings screen is actually on screen. `visible` alone is not enough: Main.qml's
     // StackLayout creates every screen visible and hides the non-current ones only once it lays

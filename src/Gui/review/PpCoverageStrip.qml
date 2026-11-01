@@ -196,9 +196,10 @@ Column {
         }
     }
 
-    // phase ladder
+    // phase ladder — the same label column and gap as the lanes above, so a phase sits over its bins
     Row {
         width: strip.width
+        spacing: Theme.gap(8)
         Item { width: strip.labelW; height: Theme.sp(12) }
         Item {
             width: parent.width - strip.labelW - Theme.gap(8); height: Theme.sp(12)

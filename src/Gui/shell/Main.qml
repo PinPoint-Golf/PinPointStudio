@@ -595,6 +595,11 @@ ApplicationWindow {
                     }
                     // The header's Switch →: the picker, as the rail's avatar opens it.
                     onAthletePickerRequested: navController.navigateRail(AppScreen.Athletes)
+                    // A setup card: Settings at its Cameras or Motion sensors panel.
+                    onDeviceSettingsRequested: (panel) => {
+                        settingsScreen.openDevicePanel(panel)
+                        navController.navigate(AppScreen.Settings)
+                    }
                     // Tapping the home avatar edits the current athlete's profile.
                     onEditCurrentAthleteRequested: {
                         athleteFormScreen.editUuid = athleteController.currentUuid
