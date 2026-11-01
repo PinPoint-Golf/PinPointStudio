@@ -962,3 +962,10 @@ if(PP_PPCP_PLAINTEXT_HARNESS)
             "pass -DPP_PPCP_SIM=/path/to/ppcp-sim.")
     endif()
 endif()
+
+# Windows: every test in this directory gets OpenSSL's DLL folder on its PATH. Before the v0.1-beta6 gate
+# they had never run here, and once OpenSSL was found they died with 0xc0000135 (libssl-3-x64.dll not
+# found). The list comes from the directory, not from names, so a suite added later is covered too.
+get_property(_pp_ppcp_tests DIRECTORY PROPERTY TESTS)
+pp_openssl_test_env(${_pp_ppcp_tests})
+unset(_pp_ppcp_tests)

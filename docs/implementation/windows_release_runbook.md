@@ -109,7 +109,7 @@ $Qt  = (Get-ChildItem C:\Qt -Directory | Where-Object { Test-Path "$($_.FullName
 $OCV = 'C:/tools/opencv/build'                          # Analysis & Pose need OpenCV
 $env:PATH = "$Qt/bin;$OCV/x64/vc16/bin;$env:PATH"       # so test exes resolve Qt/OpenCV DLLs
 if (Test-Path build/tests) { Remove-Item -Recurse -Force build/tests }  # see the warning below
-cmake -S tests -B build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_PREFIX_PATH=$Qt" "-DOpenCV_DIR=$OCV"
+cmake -S tests -B build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_PREFIX_PATH=$Qt" "-DOpenCV_DIR=$OCV" "-DOPENSSL_ROOT_DIR=C:/pp-vcpkg/vcpkg_installed/x64-windows"
 if ($LASTEXITCODE) { Write-Error 'RELEASE BLOCKED — configure failed'; return }
 cmake --build build/tests -j 6
 if ($LASTEXITCODE) { Write-Error 'RELEASE BLOCKED — build failed'; return }

@@ -32,3 +32,14 @@ if(APPLE)
     endif()
 endif()
 set_tests_properties(report_smtp_test PROPERTIES ENVIRONMENT "${_pp_smtp_env}" TIMEOUT 120)
+# Windows: Qt finds libssl-3-x64.dll on PATH or not at all, and falls back to Schannel, which cannot be
+# the fake server (every TLS case then fails with "remote host closed the connection"; first seen on the
+# v0.1-beta6 gate). pp_openssl_test_env (cmake/PinPointOpenSSL.cmake) puts vcpkg's bin on the test's PATH.
+if(WIN32)
+    pp_find_openssl()
+    if(PP_OPENSSL_BIN_DIR)
+        pp_openssl_test_env(report_smtp_test)
+    else()
+        message(WARNING "report_smtp_test: OpenSSL's DLLs not found, so its TLS cases will fail on Schannel.")
+    endif()
+endif()
