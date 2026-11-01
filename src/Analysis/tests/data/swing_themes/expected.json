@@ -125,7 +125,7 @@
    "sign": 1,
    "twoSided": true,
    "when": 1,
-   "metricKey": "ballBodyDistance"
+   "metricKey": "ballReachExcess"
   },
   "m_ballPosition": {
    "sign": 1,
@@ -8413,6 +8413,14 @@
    "drill": "drill.hipsToWall",
    "when": 7
   },
+  "backswing_plane_too_flat": {
+   "drill": "drill.buttToTheLine",
+   "when": 3
+  },
+  "backswing_plane_too_upright": {
+   "drill": "drill.buttToTheLine",
+   "when": 3
+  },
   "ball_back": {
    "drill": "drill.stanceGuide",
    "when": 1
@@ -8519,6 +8527,14 @@
   },
   "diving": {
    "drill": "drill.postureRod",
+   "when": 6
+  },
+  "downswing_plane_too_flat": {
+   "drill": "drill.pumpToDelivery",
+   "when": 6
+  },
+  "downswing_plane_too_steep": {
+   "drill": "drill.pumpToDelivery",
    "when": 6
   },
   "early_extension": {

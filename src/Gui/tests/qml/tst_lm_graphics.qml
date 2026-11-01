@@ -55,6 +55,7 @@ Item {
     readonly property var fixture: ({
         leftHanded: false,
         has: true,
+        sessionHas: true,                       // the Session view draws from this flag (LmSessionModel)
         values: {
             "lm.clubheadSpeed":   field(84.5, "84.5", "mph", "Clubhead speed", 0, 84.1, 2.1),
             "lm.attackAngle":     field(-3.5, "−3.5", "°", "Attack angle", 0, -3.2, 0.9),

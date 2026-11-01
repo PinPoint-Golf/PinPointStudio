@@ -55,6 +55,8 @@ Item {
             chevronSide: "right"
             onToggled: { probe.controlledToggles += 1; owned.open = !owned.open }
             Text { text: "Owned" }
+            // A row with no detail never opens, so it takes no press (PpExpandRow).
+            detail: Component { Item { height: 40 } }
         }
     }
 

@@ -195,6 +195,7 @@ Item {
 
         // ── the Coaching tab: HmFocus and HmSwingSummary on the table components ──
         function test_focus_practise_passes_the_focus_up() {
+            verify(waitForPolish(one(tabs, "focusCard").parent))
             const button = one(tabs, "focusPracticeButton")
             verify(drawn(button))
             mouseClick(button)
@@ -204,6 +205,7 @@ Item {
         }
 
         function test_focus_rows_and_why_how_one_click_down() {
+            verify(waitForPolish(one(tabs, "focusCard").parent))
             compare(one(tabs, "focusTitle").text, "Trail hip load and hold")
             compare(one(tabs, "focusReason").text, "covers 2 things on your list · comes earliest in your swing")
             const aims = all(tabs, "focusAim"), nows = all(tabs, "focusNow")
