@@ -2741,9 +2741,12 @@ int main(int argc, char **argv)
 
     std::printf("=== the retirement surfaces answer ===\n");
     {
-        check(!m.roadmap().isEmpty(), "the roadmap has rows");
+        // Asked once and read below: roadmap() is a pure read of the draft, and asking it again per
+        // capture gap inside the leak check made that check quadratic for no extra coverage.
+        const QVariantList roadmap = m.roadmap();
+        check(!roadmap.isEmpty(), "the roadmap has rows");
         bool anyIntegration = false, allNonZero = true;
-        for (const QVariant &v : m.roadmap()) {
+        for (const QVariant &v : roadmap) {
             if (v.toMap().value(QStringLiteral("integration")).toBool()) anyIntegration = true;
             if (v.toMap().value(QStringLiteral("label")).toString().isEmpty()) allNonZero = false;
         }
@@ -2753,12 +2756,12 @@ int main(int argc, char **argv)
         // A capture gap must NEVER appear as roadmap work: one row implying a producer that will
         // never be built corrupts the artefact's meaning for every other row.
         QSet<QString> roadmapIds;
-        for (const QVariant &v : m.roadmap())
+        for (const QVariant &v : roadmap)
             roadmapIds.insert(v.toMap().value(QStringLiteral("id")).toString());
         bool leaked = false;
         for (const QVariant &v : m.captureGaps()) {
             const QString gapId = v.toMap().value(QStringLiteral("id")).toString();
-            for (const QVariant &rv : m.roadmap())
+            for (const QVariant &rv : roadmap)
                 if (rv.toMap().value(QStringLiteral("label")).toString()
                     == v.toMap().value(QStringLiteral("label")).toString())
                     leaked = true;
@@ -3212,7 +3215,11 @@ int main(int argc, char **argv)
                                                QStringLiteral("label"), QStringLiteral("detail"),
                                                QStringLiteral("tone"),
                                                QStringLiteral("navigable") };
-        QStringList offenders;
+        //
+        // Badges are rendered by the same helper and read `label` and `tone`. Both are read off ONE
+        // inspect() of each object: the pane is the same answer either way, and building it twice
+        // over every row of every type was the costliest pass in this suite.
+        QStringList offenders, badgeOffenders;
         for (const QVariant &tv : m.types()) {
             const QString type = tv.toMap().value(QStringLiteral("key")).toString();
             if (type == QStringLiteral("health")) continue;   // findings are not inspectable objects
@@ -3229,27 +3236,16 @@ int main(int argc, char **argv)
                                                       s.value(QStringLiteral("title")).toString(),
                                                       key);
                 }
-            }
-        }
-        if (!offenders.isEmpty())
-            std::printf("      first offender: %s\n", qPrintable(offenders.first()));
-        check(offenders.isEmpty(),
-              "no section row anywhere skips a key the delegate binds");
-
-        // Badges are rendered by the same helper and read `label` and `tone`.
-        QStringList badgeOffenders;
-        for (const QVariant &tv : m.types()) {
-            const QString type = tv.toMap().value(QStringLiteral("key")).toString();
-            if (type == QStringLiteral("health")) continue;
-            for (const QVariant &rv : m.rows(type)) {
-                const QVariantMap pane = m.inspect(type,
-                                                   rv.toMap().value(QStringLiteral("id")).toString());
                 for (const QVariant &bv : pane.value(QStringLiteral("badges")).toList())
                     if (!bv.toMap().contains(QStringLiteral("label"))
                         || !bv.toMap().contains(QStringLiteral("tone")))
                         badgeOffenders << type;
             }
         }
+        if (!offenders.isEmpty())
+            std::printf("      first offender: %s\n", qPrintable(offenders.first()));
+        check(offenders.isEmpty(),
+              "no section row anywhere skips a key the delegate binds");
         check(badgeOffenders.isEmpty(), "and no badge does either");
     }
 

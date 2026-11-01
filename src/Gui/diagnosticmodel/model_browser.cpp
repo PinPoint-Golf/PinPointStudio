@@ -756,6 +756,51 @@ QHash<QString, ModelGateCounts> &gateCountCache()
     return cache;
 }
 
+// The shipped layers as the merged providers take them: a provider each assembly can OWN, over the
+// one copy the browser read at construction. Every answer is the shipped leaf's own, so an assembly
+// built over a view is the assembly built over a fresh read — without the read, the parse and the
+// standalone validation, which rebuild() used to repeat on every edit, undo and redo.
+class ShippedPackView final : public ICharacteristicPackProvider {
+public:
+    explicit ShippedPackView(std::shared_ptr<const ICharacteristicPackProvider> shipped)
+        : m_shipped(std::move(shipped)) {}
+
+    const CharacteristicPack  &pack() const override { return m_shipped->pack(); }
+    const ValidationReport    &report() const override { return m_shipped->report(); }
+    QString                    label() const override { return m_shipped->label(); }
+    PackOrigin                 origin() const override { return m_shipped->origin(); }
+    std::vector<PackLayerInfo> layers() const override { return m_shipped->layers(); }
+
+private:
+    std::shared_ptr<const ICharacteristicPackProvider> m_shipped;
+};
+
+class ShippedNormView final : public INormProvider {
+public:
+    explicit ShippedNormView(std::shared_ptr<const INormProvider> shipped)
+        : m_shipped(std::move(shipped)) {}
+
+    const NormPack         &norms() const override { return m_shipped->norms(); }
+    const ContextTree      &contexts() const override { return m_shipped->contexts(); }
+    const ValidationReport &report() const override { return m_shipped->report(); }
+    QString                 label() const override { return m_shipped->label(); }
+    PackOrigin              origin() const override { return m_shipped->origin(); }
+    const Norm *shippedNorm(const QString &measureId, const QString &contextId,
+                            const Cohort &cohort) const override
+    {
+        return m_shipped->shippedNorm(measureId, contextId, cohort);
+    }
+    bool isOverridden(const QString &measureId, const QString &contextId,
+                      const Cohort &cohort) const override
+    {
+        return m_shipped->isOverridden(measureId, contextId, cohort);
+    }
+    std::vector<NormSetInfo> layers() const override { return m_shipped->layers(); }
+
+private:
+    std::shared_ptr<const INormProvider> m_shipped;
+};
+
 } // namespace
 
 // ── Construction ────────────────────────────────────────────────────────────
@@ -763,6 +808,7 @@ QHash<QString, ModelGateCounts> &gateCountCache()
 ModelBrowser::ModelBrowser(QObject *parent)
     : QObject(parent)
     , m_core(makeResourcePackProvider())
+    , m_coreNorms(makeResourceNormProvider())
     , m_norms(sharedNormProvider())
     , m_cat(makeMetricCatalogue())
     , m_policyName(QStringLiteral("standard"))
@@ -870,18 +916,23 @@ void ModelBrowser::rebuild()
 {
     std::vector<std::unique_ptr<ICharacteristicPackProvider>> overlays;
     overlays.push_back(makeMemoryPackProvider(m_working, tr("Your edits")));
-    m_assembled = makeMergedPackProvider(makeResourcePackProvider(), std::move(overlays));
+    // Over a VIEW of the shipped pack the constructor read, not a fresh read: shipped content cannot
+    // change under a running browser, and re-reading, re-parsing and re-validating core.json here was
+    // most of what every edit, undo and redo cost. See ShippedPackView.
+    m_assembled = makeMergedPackProvider(std::make_unique<ShippedPackView>(m_core), std::move(overlays));
 
     // The norm side, assembled from the WORKING copy for the same reason the pack is: a corridor
     // edited but not saved has to be what the table, the inspector and the health strip all read,
     // or editing looks like nothing happening.
-    auto coreNorms = makeResourceNormProvider();
-    // The context tree comes from core — a user norm set does not carry one, and resolution is
+    //
+    // The shipped layer is a view of the constructor's read, as the pack's is above. The context
+    // tree comes from core — a user norm set does not carry one, and resolution is
     // meaningless without it.
-    const ContextTree tree = coreNorms->contexts();
+    const ContextTree &tree = m_coreNorms->contexts();
     std::vector<std::unique_ptr<INormProvider>> normOverlays;
     normOverlays.push_back(makeMemoryNormProvider(m_workingNorms, tree, tr("Your corridors")));
-    m_norms = makeMergedNormProvider(std::move(coreNorms), std::move(normOverlays));
+    m_norms = makeMergedNormProvider(std::make_unique<ShippedNormView>(m_coreNorms),
+                                     std::move(normOverlays));
 
     // Screens and drills, assembled the same way: core, then the working layer over it by id. A user
     // row REPLACES the shipped one rather than merging field by field — half a protocol from one
@@ -929,6 +980,7 @@ void ModelBrowser::invalidateDerived()
     // Every reach count is a fact about the causal edges, so one added link changes an unknown
     // number of them — the whole memo goes rather than any attempt to work out which entries moved.
     m_reach.clear();
+    m_reachGraphValid = false;
     emit modelChanged();
 }
 
@@ -939,9 +991,16 @@ const ModelBrowser::Reach &ModelBrowser::reachOf(const QString &conditionId) con
 
     const CharacteristicPack &p = pack();
     Reach                     r;
-    r.leadsTo  = int(causalClosure(p, conditionId, /*downstream*/ true).size());
-    r.outcomes = outcomeReachOf(p, conditionId);
-    r.causedBy = int(causalClosure(p, conditionId, /*downstream*/ false).size());
+    if (!m_reachGraphValid) {
+        m_reachDown       = causalAdjacency(p, /*downstream*/ true);
+        m_reachUp         = causalAdjacency(p, /*downstream*/ false);
+        m_reachGraphValid = true;
+    }
+    // outcomeReachOf()'s count, over the downstream closure this already walked.
+    const QSet<QString> down = causalClosure(m_reachDown, conditionId);
+    r.leadsTo  = int(down.size());
+    r.outcomes = outcomeCountOf(p, down);
+    r.causedBy = int(causalClosure(m_reachUp, conditionId).size());
     return *m_reach.insert(conditionId, r);
 }
 

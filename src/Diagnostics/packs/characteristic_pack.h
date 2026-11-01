@@ -26,8 +26,10 @@
 
 #include <QByteArray>
 #include <QJsonObject>
+#include <QHash>
 #include <QSet>
 #include <QString>
+#include <QStringList>
 
 #include <functional>   // MetricDomainFn — the pack asks for a domain, it never looks one up
 #include <vector>
@@ -393,6 +395,15 @@ bool hasCausalPath(const CharacteristicPack &pack, const QString &fromId, const 
 // conditions that are OFF SCREEN, which is why it cannot be a UI-side check over drawn nodes.
 QSet<QString> causalClosure(const CharacteristicPack &pack, const QString &id, bool downstream);
 
+// The Causes edges as an adjacency, one direction: `downstream` maps each condition to its effects,
+// otherwise to its causes. For a caller asking closures of MANY conditions of one pack — building it
+// is one pass over the edges, and causalClosure(pack, …) builds one per call.
+using CausalAdjacency = QHash<QString, QStringList>;
+CausalAdjacency causalAdjacency(const CharacteristicPack &pack, bool downstream);
+
+// causalClosure() over an adjacency already built, in the direction it was built for.
+QSet<QString> causalClosure(const CausalAdjacency &next, const QString &id);
+
 // How many BALL-FLIGHT conditions this one eventually reaches — the bad shots it explains.
 //
 // A separate question from the size of the downstream closure, and the pack is what proves it is not
@@ -406,6 +417,9 @@ QSet<QString> causalClosure(const CharacteristicPack &pack, const QString &id, b
 // Corroboration's refusal to multiply) on the grounds that nobody can defend the resulting number
 // when asked why one cause outranked another. A count always answers that with the members.
 int outcomeReachOf(const CharacteristicPack &pack, const QString &conditionId);
+
+// outcomeReachOf() over a downstream closure already walked: how many of `reached` are outcomes.
+int outcomeCountOf(const CharacteristicPack &pack, const QSet<QString> &reached);
 
 // Both tails of an axis, in pack order. Empty for a condition with no axis.
 QStringList tailsOfAxis(const CharacteristicPack &pack, const QString &axis);

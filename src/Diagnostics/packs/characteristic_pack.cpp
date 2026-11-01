@@ -325,8 +325,10 @@ QString goalProblem(const QString &goal)
     // Sentence case: no word after the first starts with a capital. "I" is the one exception a
     // sentence can carry; a proper noun cannot be told from Title Case here, and a work-on title
     // has no business naming one.
-    const QStringList words = s.split(QRegularExpression(QStringLiteral(R"(\s+)")),
-                                      Qt::SkipEmptyParts);
+    // Static, as every pattern in this file is: compiling it per call was most of what checking a
+    // pack's golfer wording cost, and validatePack() runs on every rebuild of an assembly.
+    static const QRegularExpression space(QStringLiteral(R"(\s+)"));
+    const QStringList words = s.split(space, Qt::SkipEmptyParts);
     for (qsizetype i = 1; i < words.size(); ++i) {
         QString w = words.at(i);
         while (!w.isEmpty() && !w.front().isLetterOrNumber()) w.remove(0, 1);
@@ -862,7 +864,25 @@ int coverageOf(const CharacteristicPack &pack, const QString &conditionId)
     return int(effectsOf(pack, conditionId).size());
 }
 
-bool causallyReaches(const CharacteristicPack &pack, const QString &fromId, const QString &toId)
+// The Causes edges as an adjacency, in ONE pass over the edge list. The walks below used to ask
+// effectsOf()/causesOf() per node they visited, which rescans every edge for every node reached —
+// conditions × edges per walk — and validatePack() and the Diagnostic Model ask these walks of
+// every condition or corroboration on each rebuild of an assembly. Built once, a walk is linear.
+CausalAdjacency causalAdjacency(const CharacteristicPack &pack, bool downstream)
+{
+    CausalAdjacency next;
+    for (const Edge &e : pack.edges) {
+        if (e.type != EdgeType::Causes) continue;
+        if (downstream) next[e.from].append(e.to);
+        else            next[e.to].append(e.from);
+    }
+    return next;
+}
+
+namespace {
+
+// causallyReaches() over a downstream adjacency already built.
+bool reachesIn(const CausalAdjacency &effects, const QString &fromId, const QString &toId)
 {
     QSet<QString> seen;
     QStringList   stack{ fromId };
@@ -871,7 +891,7 @@ bool causallyReaches(const CharacteristicPack &pack, const QString &fromId, cons
         if (cur == toId && cur != fromId) return true;
         if (seen.contains(cur)) continue;
         seen.insert(cur);
-        for (const QString &next : effectsOf(pack, cur)) {
+        for (const QString &next : effects.value(cur)) {
             if (next == toId) return true;
             stack << next;
         }
@@ -879,27 +899,41 @@ bool causallyReaches(const CharacteristicPack &pack, const QString &fromId, cons
     return false;
 }
 
+} // namespace
+
+bool causallyReaches(const CharacteristicPack &pack, const QString &fromId, const QString &toId)
+{
+    return reachesIn(causalAdjacency(pack, /*downstream*/ true), fromId, toId);
+}
+
 bool hasCausalPath(const CharacteristicPack &pack, const QString &fromId, const QString &toId)
 {
     // Either direction: a Corroborates edge is symmetric in meaning, so a causal path either way
     // makes it a double count.
-    return causallyReaches(pack, fromId, toId) || causallyReaches(pack, toId, fromId);
+    const CausalAdjacency effects = causalAdjacency(pack, /*downstream*/ true);
+    return reachesIn(effects, fromId, toId) || reachesIn(effects, toId, fromId);
 }
 
 QSet<QString> causalClosure(const CharacteristicPack &pack, const QString &id, bool downstream)
 {
-    // One pass over the edge list per frontier node rather than an adjacency map built up front:
-    // the frontier is bounded by the condition count, and building the map would cost the same walk
-    // it saves. `seen` is the visited set AND the result, so a cycle already in the pack terminates
-    // here instead of hanging the drag that asked.
+    // Over an adjacency built once (see causalAdjacency()).
+    return causalClosure(causalAdjacency(pack, downstream), id);
+}
+
+QSet<QString> causalClosure(const CausalAdjacency &next, const QString &id)
+{
+    // `seen` is the visited set AND the result, so a cycle already in the pack terminates here
+    // instead of hanging the drag that asked.
     QSet<QString> seen;
     QStringList   stack{ id };
     while (!stack.isEmpty()) {
         const QString cur = stack.takeLast();
-        for (const QString &next : downstream ? effectsOf(pack, cur) : causesOf(pack, cur)) {
-            if (seen.contains(next)) continue;
-            seen.insert(next);
-            stack << next;
+        const auto    it  = next.constFind(cur);
+        if (it == next.constEnd()) continue;
+        for (const QString &n : it.value()) {
+            if (seen.contains(n)) continue;
+            seen.insert(n);
+            stack << n;
         }
     }
     // Only if a cycle led back to it. The contract is "what this reaches", and a self entry would
@@ -915,8 +949,13 @@ int outcomeReachOf(const CharacteristicPack &pack, const QString &conditionId)
     // in the model that had to press the group into the other job, because there was nowhere else to
     // ask. The two sets are exactly coextensive over shipped content and `core_pack_test` asserts it
     // in both directions, so the change is a no-op by construction rather than by hope.
+    return outcomeCountOf(pack, causalClosure(pack, conditionId, /*downstream*/ true));
+}
+
+int outcomeCountOf(const CharacteristicPack &pack, const QSet<QString> &reached)
+{
     int n = 0;
-    for (const QString &id : causalClosure(pack, conditionId, /*downstream*/ true))
+    for (const QString &id : reached)
         if (const Condition *c = pack.condition(id))
             if (c->kind == ConditionKind::Outcome) ++n;
     return n;
@@ -1556,6 +1595,10 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
                 QStringLiteral("'%1' cannot relate to itself.").arg(e.from));
     }
 
+    // The Causes edges once, for the cycle walk and the corroboration check below — see
+    // causalAdjacency().
+    const CausalAdjacency effects = causalAdjacency(pack, /*downstream*/ true);
+
     // Cycle detection over Causes edges only. Corroborates and Excludes are not orderings.
     {
         QHash<QString, int> state;   // 0 unvisited, 1 on stack, 2 done
@@ -1564,7 +1607,7 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
             if (st == 1) return true;
             if (st == 2) return false;
             state[id] = 1;
-            for (const QString &next : effectsOf(pack, id))
+            for (const QString &next : effects.value(id))
                 if (visit(next)) return true;
             state[id] = 2;
             return false;
@@ -1579,11 +1622,12 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
         }
     }
 
-    // Corroborates must not shadow a causal claim.
+    // Corroborates must not shadow a causal claim. hasCausalPath()'s question, over the one
+    // adjacency above rather than one per edge asked about.
     for (const Edge &e : pack.edges) {
         if (e.type != EdgeType::Corroborates) continue;
         if (!conditionSet.contains(e.from) || !conditionSet.contains(e.to)) continue;
-        if (hasCausalPath(pack, e.from, e.to))
+        if (reachesIn(effects, e.from, e.to) || reachesIn(effects, e.to, e.from))
             err(r, QStringLiteral("corroboratesCausal"), e.from,
                 QStringLiteral("'%1' and '%2' are already causally linked, so they cannot also "
                                "corroborate — the pair would count twice in the ranking.")

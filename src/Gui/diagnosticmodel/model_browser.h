@@ -793,13 +793,16 @@ private:
         int outcomes = 0;   // of those, the BallFlight ones — the bad shots it explains
         int causedBy = 0;   // causalClosure(upstream): everything that eventually causes this
     };
-    // Memoised, because causalClosure() re-scans the whole edge list per frontier node by design
-    // (characteristic_pack.cpp says so) and three closures over 140 conditions is ~3.5M edge visits
-    // that rows(), facets() and types() would each pay again. Cleared by invalidateDerived() with
-    // m_dirtyIds, off the one invalidation point every mutation already goes through — a second
-    // place to remember would be a stale count on screen after an edit.
+    // Memoised, because rows(), facets() and types() would each pay the closures again. The walks
+    // read ONE pair of adjacencies built on the first miss after a mutation, rather than the pair
+    // causalClosure(pack, …) builds per call — three closures of every condition each re-reading
+    // the edge list was most of what listing the characteristics cost after an edit. All three are
+    // cleared by invalidateDerived() with m_dirtyIds, off the one invalidation point every mutation
+    // already goes through — a second place to remember would be a stale count on screen.
     const Reach &reachOf(const QString &conditionId) const;
-    mutable QHash<QString, Reach> m_reach;
+    mutable QHash<QString, Reach>               m_reach;
+    mutable pinpoint::analysis::CausalAdjacency m_reachDown, m_reachUp;
+    mutable bool                                m_reachGraphValid = false;
 
     // ── Facets cut from the data, rather than from a closed vocabulary ──────
     //
@@ -830,7 +833,12 @@ private:
 
     // The characteristics riding on one measure. Shared by usageOfMeasure (the count) and roadmap
 
-    std::unique_ptr<pinpoint::analysis::ICharacteristicPackProvider> m_core;
+    // The shipped pack and norm set, read ONCE per browser. Shipped content cannot change under a
+    // running browser, and rebuild() used to re-read and re-validate both from the file on every
+    // edit, undo and redo — two thirds of a rebuild's cost. Shared, because each assembly holds a
+    // view of them (see rebuild()).
+    std::shared_ptr<const pinpoint::analysis::ICharacteristicPackProvider> m_core;
+    std::shared_ptr<const pinpoint::analysis::INormProvider>               m_coreNorms;
     std::unique_ptr<pinpoint::analysis::ICharacteristicPackProvider> m_assembled;
     std::shared_ptr<const pinpoint::analysis::INormProvider>         m_norms;
     pinpoint::analysis::MetricCatalogue                              m_cat;
