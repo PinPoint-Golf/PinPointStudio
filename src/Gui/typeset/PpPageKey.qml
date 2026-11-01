@@ -76,14 +76,14 @@ Flow {
         return ks.filter((k, i) => ks.indexOf(k) === i)
     }
 
-    spacing: roles ? roles.u(14) : 0
+    spacing: roles ? roles.g(14) : 0
     Repeater {
         model: pk.roles ? (pk.list) : []
         delegate: Row {
             id: ki
             required property var modelData
             readonly property string kind: modelData
-            spacing: pk.roles.u(5)
+            spacing: pk.roles.g(5)
             Item {
                 id: sw
                 width: pk.roles.u(ki.kind.indexOf("l-") === 0 || ki.kind === "box" || ki.kind === "fit" || ki.kind === "chance" ? 22

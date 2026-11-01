@@ -46,7 +46,7 @@ RmZebraRow {
         property string value: "—"
         property color  tint: Theme.colorText2
         width: Theme.sp(48)
-        spacing: 1
+        spacing: Theme.gap(1)
         Text {
             text: cell.label
             font.family: Theme.fontData; font.pixelSize: Theme.sp(8)
@@ -64,7 +64,7 @@ RmZebraRow {
         id: ident
         anchors { left: parent.left; leftMargin: Theme.gap(10); top: parent.top; topMargin: Theme.gap(5) }
         width: Math.max(Theme.sp(40), parent.width - Theme.sp(10) - Theme.sp(360))
-        spacing: 1
+        spacing: Theme.gap(1)
         visible: root.haveData
 
         Row {

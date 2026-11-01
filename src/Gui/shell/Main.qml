@@ -730,8 +730,8 @@ ApplicationWindow {
     PpNotificationHost {
         id: notificationHost
         anchors.horizontalCenter: parent.horizontalCenter
-        width: Math.min(parent.width - Theme.sp(96), Theme.sp(620))
-        y: parent.height - height - Theme.sp(24)
+        width: Math.min(parent.width - Theme.gap(96), Theme.sp(620))
+        y: parent.height - height - Theme.gap(24)
         z: 100
     }
     Connections {
@@ -752,10 +752,10 @@ ApplicationWindow {
     PpUpdateBanner {
         id: updateBanner
         anchors.horizontalCenter: parent.horizontalCenter
-        width: Math.min(parent.width - Theme.sp(96), Theme.sp(620))
+        width: Math.min(parent.width - Theme.gap(96), Theme.sp(620))
         allowed: navController.currentIndex !== AppScreen.Wizard
         y: (notificationHost.count > 0 ? notificationHost.y : parent.height)
-           - height - Theme.sp(12)
+           - height - Theme.gap(12)
         z: 100
     }
 

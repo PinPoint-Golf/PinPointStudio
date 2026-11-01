@@ -34,12 +34,12 @@ Column {
     property bool open: true
     property bool foldable: true
     property bool highlight: false
-    spacing: roles ? roles.u(4) : 4
+    spacing: roles ? roles.g(4) : Theme.gap(4)
 
     // the head line: ▾ Pelvis peak · Bounded · after −129 ms
     Item {
         width: tr.width
-        height: headFlow.height + (tr.roles ? tr.roles.u(4) : 4)
+        height: headFlow.height + (tr.roles ? tr.roles.g(4) : Theme.gap(4))
         Rectangle {
             anchors.fill: parent; anchors.margins: tr.roles ? -tr.roles.u(3) : -3
             color: tr.roles ? tr.roles.pickWash : "transparent"
@@ -49,7 +49,7 @@ Column {
         Flow {
             id: headFlow
             width: parent.width
-            spacing: tr.roles ? tr.roles.u(7) : 7
+            spacing: tr.roles ? tr.roles.g(7) : Theme.gap(7)
             Text { visible: tr.foldable; text: tr.open ? "▾" : "▸"; font: tr.roles ? tr.roles.fSmall : Qt.font({}); color: tr.roles ? tr.roles.ink3 : "grey"
                    height: lab.height; verticalAlignment: Text.AlignVCenter }
             Rectangle { visible: !!tr.reading && !!tr.reading.key; width: tr.roles ? tr.roles.u(7) : 7; height: width; radius: width / 2
@@ -73,7 +73,7 @@ Column {
         objectName: "trustCovers:" + (tr.reading ? tr.reading.subject : "")
         visible: tr.open && !!tr.reading && (tr.reading.covers || []).length > 0
         width: tr.roles ? tr.roles.measureW(tr.width) : tr.width; wrapMode: Text.WordWrap
-        leftPadding: tr.roles ? tr.roles.u(14) : 14
+        leftPadding: tr.roles ? tr.roles.g(14) : Theme.gap(14)
         text: tr.reading ? "Not measured because of it: " + (tr.reading.covers || []).join(", ") + "." : ""
         font: tr.roles ? tr.roles.fSmall : Qt.font({}); color: tr.roles ? tr.roles.ink2 : "grey"
     }
@@ -82,7 +82,7 @@ Column {
         objectName: "trustBlocks:" + (tr.reading ? tr.reading.subject : "")
         visible: tr.open && !!tr.reading && (tr.reading.blocks || []).length > 0
         width: tr.roles ? tr.roles.measureW(tr.width) : tr.width; wrapMode: Text.WordWrap
-        leftPadding: tr.roles ? tr.roles.u(14) : 14
+        leftPadding: tr.roles ? tr.roles.g(14) : Theme.gap(14)
         text: tr.reading ? "Not judged because of it: " + (tr.reading.blocks || []).join(", ") + "." : ""
         font: tr.roles ? tr.roles.fSmall : Qt.font({}); color: tr.roles ? tr.roles.ink2 : "grey"
     }
@@ -94,12 +94,12 @@ Column {
             objectName: "trustGate:" + modelData.gate
             property bool why: false
             width: tr.width
-            leftPadding: tr.roles ? tr.roles.u(14) : 14
-            topPadding: tr.roles ? tr.roles.u(3) : 3
-            spacing: tr.roles ? tr.roles.u(2) : 2
+            leftPadding: tr.roles ? tr.roles.g(14) : Theme.gap(14)
+            topPadding: tr.roles ? tr.roles.g(3) : Theme.gap(3)
+            spacing: tr.roles ? tr.roles.g(2) : Theme.gap(2)
             readonly property real tw: tr.roles ? tr.roles.measureW(tr.width - leftPadding) : tr.width
             Row {
-                spacing: tr.roles ? tr.roles.u(6) : 6
+                spacing: tr.roles ? tr.roles.g(6) : Theme.gap(6)
                 Text { id: gt; text: g.modelData.title; font: tr.roles ? tr.roles.fSmallM : Qt.font({}); color: tr.roles ? tr.roles.ink : "black" }
                 Text { text: g.modelData.effectWord; font: tr.roles ? tr.roles.fSmall : Qt.font({}); color: tr.roles ? tr.roles.ink3 : "grey"; anchors.baseline: gt.baseline }
             }

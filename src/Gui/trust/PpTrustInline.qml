@@ -32,17 +32,17 @@ Item {
     signal closed()
     visible: (readings || []).length > 0
     width: parent ? parent.width : 0
-    implicitHeight: visible ? body.height + (roles ? roles.u(10) : 10) : 0
+    implicitHeight: visible ? body.height + (roles ? roles.g(10) : Theme.gap(10)) : 0
     height: implicitHeight
 
     Rectangle { x: 0; y: 0; width: ti.roles ? ti.roles.u(2) : 2; height: body.height; color: ti.roles ? ti.roles.rule : "grey" }
     Column {
         id: body
-        x: ti.roles ? ti.roles.u(12) : 12
+        x: ti.roles ? ti.roles.g(12) : Theme.gap(12)
         width: ti.width - x
-        spacing: ti.roles ? ti.roles.u(8) : 8
+        spacing: ti.roles ? ti.roles.g(8) : Theme.gap(8)
         Row {
-            spacing: ti.roles ? ti.roles.u(14) : 14
+            spacing: ti.roles ? ti.roles.g(14) : Theme.gap(14)
             PpSectionHead { roles: ti.roles; paged: false; pad: 0; title: "Why" }
             Text {
                 objectName: "trustInlineToPanel"

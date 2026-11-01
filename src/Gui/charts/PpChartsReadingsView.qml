@@ -35,7 +35,7 @@ PpChViewBase {
     readonly property bool available: !!rs && rs.available === true && (rs.groups || []).length > 0
     property string filter: ""
     property string verdict: "all"               // all | fault | outside | inside
-    spacing: roles ? roles.u(12) : 12
+    spacing: roles ? roles.g(12) : Theme.gap(12)
 
     function inVerdict(r, v) {
         return v === "all" || (v === "outside" ? (r.verdict === "fault" || r.verdict === "outside") : r.verdict === v)
@@ -85,7 +85,7 @@ PpChViewBase {
                font: rv.roles ? rv.roles.fBody : Qt.font({}); tone: rv.roles ? rv.roles.ink2 : "grey" }
     Column {
         visible: rv.available
-        width: rv.width; spacing: rv.roles ? rv.roles.u(4) : 4
+        width: rv.width; spacing: rv.roles ? rv.roles.g(4) : Theme.gap(4)
         Text { visible: !rv.cast && !!rv.body && !!rv.body.rStatus && !!rv.body.rStatus.kicker
                text: rv.body && rv.body.rStatus ? (rv.body.rStatus.kicker || "") : ""
                font: rv.roles ? rv.roles.fKicker : Qt.font({}); color: rv.roles ? rv.roles.ink3 : "grey" }
@@ -100,7 +100,7 @@ PpChViewBase {
     Flow {
         visible: rv.available && !rv.cast
         width: rv.width
-        spacing: rv.roles ? rv.roles.u(12) : 12
+        spacing: rv.roles ? rv.roles.g(12) : Theme.gap(12)
         Item {
             width: rv.roles ? rv.roles.u(260) : 260; height: fi.implicitHeight + (rv.roles ? rv.roles.u(8) : 8)
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: rv.roles ? rv.roles.hw : 1; color: rv.roles ? rv.roles.hair : "grey" }
@@ -124,7 +124,7 @@ PpChViewBase {
         Row {
             visible: rv.graded || rv.verdict !== "all"
             height: fi.implicitHeight + (rv.roles ? rv.roles.u(8) : 8)
-            spacing: rv.roles ? rv.roles.u(14) : 14
+            spacing: rv.roles ? rv.roles.g(14) : Theme.gap(14)
             Repeater {
                 model: [{ v: "all", word: "All" }, { v: "fault", word: "Faults" }, { v: "outside", word: "Outside" }, { v: "inside", word: "Inside" }]
                 delegate: Item {
@@ -139,7 +139,7 @@ PpChViewBase {
                     Row {
                         id: cr
                         anchors.bottom: parent.bottom; anchors.bottomMargin: rv.roles ? rv.roles.u(5) : 5
-                        spacing: rv.roles ? rv.roles.u(4) : 4
+                        spacing: rv.roles ? rv.roles.g(4) : Theme.gap(4)
                         Text { id: cw; text: chip.modelData.word; font: rv.roles ? rv.roles.fSmall : Qt.font({})
                                color: !rv.roles ? "grey" : chip.on ? rv.roles.ink : chip.live ? rv.roles.ink2 : rv.roles.ink3 }
                         Text { anchors.baseline: cw.baseline; text: chip.n; font: rv.roles ? rv.roles.fFigLabel : Qt.font({})
@@ -164,7 +164,7 @@ PpChViewBase {
     Flow {
         id: pf
         visible: rv.available
-        width: rv.width; spacing: rv.roles ? rv.roles.u(28) : 28
+        width: rv.width; spacing: rv.roles ? rv.roles.g(28) : Theme.gap(28)
         readonly property bool two: !!rv.roles && rv.roles.sizeClass(width) === "wide"
         readonly property real colW: two ? Math.floor((width - spacing) / 2) : width
         readonly property var cols: {

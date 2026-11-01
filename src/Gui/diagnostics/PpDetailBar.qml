@@ -38,7 +38,7 @@ Item {
     height: implicitHeight
     Row {
         anchors.verticalCenter: parent.verticalCenter
-        spacing: db.roles.u(14)
+        spacing: db.roles.g(14)
         Text {
             id: bk
             objectName: "sdDetailBack"

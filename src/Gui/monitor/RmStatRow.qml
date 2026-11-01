@@ -27,7 +27,7 @@ RmZebraRow {
     property var  statData
 
     width: parent ? parent.width : 0
-    height: msg.implicitHeight + Theme.sp(10)
+    height: msg.implicitHeight + Theme.gap(10)
 
     readonly property color catColor:
         statData.category === "GAUGE"  ? Theme.colorAccent :

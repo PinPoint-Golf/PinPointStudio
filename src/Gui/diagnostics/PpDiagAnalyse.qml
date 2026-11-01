@@ -246,7 +246,7 @@ Item {
             const f = [shotFlick, sessionFlick, watchingFlick, detailFlick].find(x => x.on)
             const a = f && f.content && f.content.asks
             if (!a) return
-            const y = a.mapToItem(f.contentItem, 0, 0).y + a.height + ro.u(16)
+            const y = a.mapToItem(f.contentItem, 0, 0).y + a.height + ro.g(16)
             f.contentY = Math.max(0, Math.min(f.contentHeight - f.height, y - f.height))
         }
     }
@@ -259,7 +259,7 @@ Item {
     component Asks: PpQuestions {
         objectName: "sdQuestions"
         roles: ro; brush: br; interactive: root.interactive
-        topPadding: ro.u(12)
+        topPadding: ro.g(12)
         onStepRequested: ids => root.stepThrough(ids)
     }
     // the review note, folded to the foot of a view below medium (F7), or when the miss chip takes the right
@@ -334,8 +334,8 @@ Item {
                 objectName: "sdShotEmpty"
                 visible: !ss.shot && ss.tense !== "none"
                 width: sc.width
-                topPadding: ro.u(10)
-                spacing: ro.u(2)
+                topPadding: ro.g(10)
+                spacing: ro.g(2)
                 Text { visible: ss.emptyTitle !== ""; text: ss.emptyTitle; font: ro.fTitle; color: ro.ink }
                 Text { width: parent.width; wrapMode: Text.WordWrap; text: ro.cap1(ss.emptyLine) + (ss.emptyTitle !== "" ? "." : "")
                        font: ss.emptyTitle !== "" ? ro.fSmall : ro.fBody; color: ss.emptyTitle !== "" ? ro.ink3 : ro.ink2 }
@@ -345,8 +345,8 @@ Item {
                 objectName: "sdQuietState"
                 visible: ss.quiet
                 width: sc.width
-                topPadding: ro.u(10); bottomPadding: ro.u(4)
-                spacing: ro.u(2)
+                topPadding: ro.g(10); bottomPadding: ro.g(4)
+                spacing: ro.g(2)
                 Text { objectName: "sdQuietLabel"; width: parent.width; wrapMode: Text.WordWrap
                        text: "Quiet shot — nothing new surfaced on this swing"; font: ro.fBodyM; color: ro.ink }
                 Text { objectName: "sdQuietLine"; width: parent.width; wrapMode: Text.WordWrap
@@ -368,11 +368,11 @@ Item {
             PpTrustSummaryFold {
                 visible: !!ss.shot && !ss.partial && !!root.readout && String(root.readout.swingDir || "") !== "" && lines.length > 0
                 width: sc.width; roles: ro; scope: "shot"
-                topPadding: ro.u(6)
+                topPadding: ro.g(6)
                 swingDir: root.readout ? String(root.readout.swingDir || "") : ""
                 sessionDir: root.source ? String(root.source.sessionDir || "") : ""
             }
-            Item { visible: !!ss.shot; width: 1; height: ro.u(10) }
+            Item { visible: !!ss.shot; width: 1; height: ro.g(10) }
             // S38 / F20: zero fired is one line, never an empty table
             PpNotes {
                 objectName: "sdFiredEmpty"
@@ -424,8 +424,8 @@ Item {
                 objectName: "sdNotJudged"
                 visible: !!ss.shot && !ss.partial && root.notJudgedGroups.length > 0
                 width: sc.width
-                spacing: ro.u(5)
-                topPadding: ro.u(5)
+                spacing: ro.g(5)
+                topPadding: ro.g(5)
                 property string openSubject: ""
                 Text {
                     text: "Not judged on this shot, because a gate refused the reading they need ("
@@ -439,7 +439,7 @@ Item {
                         required property var modelData
                         objectName: "sdNotJudged:" + modelData.subject
                         width: nj.width
-                        spacing: ro.u(4)
+                        spacing: ro.g(4)
                         Text {
                             width: Math.min(parent.width, ro.flows.measure * ro.em * 1.3)
                             wrapMode: Text.WordWrap; textFormat: Text.StyledText
@@ -473,7 +473,7 @@ Item {
             PpDiagReplayCold {
                 visible: ss.cold
                 width: ssc.width
-                topPadding: ro.u(10)
+                topPadding: ro.g(10)
                 roles: ro; header: root.header; expectations: root.source ? root.source.expectations : []
             }
             PpStandfirst {
@@ -490,10 +490,10 @@ Item {
             PpTrustSummaryFold {
                 visible: !ss.cold && ss.tense !== "none" && !!root.source && String(root.source.sessionDir || "") !== "" && lines.length > 0
                 width: ssc.width; roles: ro; scope: "session"
-                topPadding: ro.u(6); bottomPadding: ro.u(6)
+                topPadding: ro.g(6); bottomPadding: ro.g(6)
                 sessionDir: root.source ? String(root.source.sessionDir || "") : ""
             }
-            Item { visible: !ss.cold; width: 1; height: ro.u(10) }
+            Item { visible: !ss.cold; width: 1; height: ro.g(10) }
             PpLedgerTable {
                 visible: !ss.cold && (root.cards || []).length > 0
                 width: ssc.width; roles: ro; brush: br; kind: "session"; rows: root.shownCards; readout: root.shot; source: root.source
@@ -569,10 +569,10 @@ Item {
                 objectName: "sdWatchingEmpty"
                 visible: !wc.has && ss.tense !== "none"
                 width: wc.width; roles: ro; small: true; tone: 2
-                topPadding: ro.u(10)
+                topPadding: ro.g(10)
                 text: "Nothing below the pattern gate yet — a condition that fires but has not recurred enough to be a pattern is listed here."
             }
-            Item { visible: wc.has; width: 1; height: ro.u(6) }
+            Item { visible: wc.has; width: 1; height: ro.g(6) }
             PpPageKey { visible: wc.has && !!ss.shot && !ss.partial; width: wc.width; roles: ro; readout: root.shot; set: "watch" }
             // with no shot picked, or live with nothing picked (D3), there is no run per watched condition to
             // draw: its names and counts (a barcode of blanks would be a gap, never "not measured")
@@ -634,7 +634,7 @@ Item {
                     showPull: false              // PpKeyFigures carries this shot and the median
                     onShotActivated: (d, s) => root.pickShot(d, s)
                 }
-                Item { width: 1; height: ro.u(10) }
+                Item { width: 1; height: ro.g(10) }
                 // WHAT CHANGED, open on arrival; the coverage ("read from 3 of 4 parts") is said once, in the
                 // trust fold under it, never on the table
                 PpWhatChanged {
@@ -645,12 +645,12 @@ Item {
                     objectName: "sdWhatChangedTrust"
                     visible: dc.hasWc && lines.length > 0
                     width: dc.width; roles: ro; scope: "shot"
-                    topPadding: ro.u(8)
+                    topPadding: ro.g(8)
                     swingDir: root.detail ? String(root.detail.whatChangedSwingDir || "") : ""
                     sessionDir: root.source ? String(root.source.sessionDir || "") : ""
                     extraLines: dc.wc.trustLines || []
                 }
-                Item { visible: dc.hasWc; width: 1; height: ro.u(14) }
+                Item { visible: dc.hasWc; width: 1; height: ro.g(14) }
                 // A's key figures: this shot, the median and how many went past the fault line (the fact file already
                 // says corridor, recurrence, after and trend), then the distance to travel (round 3)
                 PpKeyFigures {
@@ -659,14 +659,14 @@ Item {
                     exclude: ["pass", "faultLine", "faultOutside", "fired", "after", "trend"]
                     items: kf.defaultItems.concat(root.travelItems)
                 }
-                Item { width: 1; height: ro.u(18) }
+                Item { width: 1; height: ro.g(18) }
                 // F49: one tab per measure, the shown one ruled; the pick goes to the model and survives a rebuild
                 Flow {
                     objectName: "sdDetailMeasureTabs"
                     visible: dc.measures.length > 1
                     width: dc.width
-                    spacing: ro.u(22)
-                    bottomPadding: ro.u(12)
+                    spacing: ro.g(22)
+                    bottomPadding: ro.g(12)
                     Repeater {
                         model: dc.measures.length > 1 ? dc.measures : []
                         delegate: Item {
@@ -691,7 +691,7 @@ Item {
                     }
                 }
                 PpPageKey { visible: !dc.composite; width: dc.width; roles: ro; readout: root.shot; set: "figure" }
-                Item { visible: !dc.composite; width: 1; height: ro.u(14) }
+                Item { visible: !dc.composite; width: 1; height: ro.g(14) }
                 PpFigureRow {
                     objectName: "sdFigureRow"
                     visible: !dc.composite
@@ -700,7 +700,7 @@ Item {
                     onShotActivated: (d, s) => root.pickShot(d, s)
                 }
                 Asks { id: asks4; width: dc.width; questions: root.detailQuestions }
-                Item { width: 1; height: ro.u(10) }
+                Item { width: 1; height: ro.g(10) }
                 PpCauseGraph {
                     visible: dc.graph
                     width: dc.width; roles: ro; brush: br; detail: visible ? root.detail : null; which: "causes"
@@ -727,8 +727,8 @@ Item {
                     objectName: "sdScreenRequests"
                     visible: root.screenedRoots.length > 0 && (!dc.graph || dc.hdr.kind === "screenedRoot")
                     width: dc.width
-                    spacing: ro.u(14)
-                    topPadding: ro.u(14)
+                    spacing: ro.g(14)
+                    topPadding: ro.g(14)
                     Text { text: "Settled by a physical screen, not by this capture:"; font: ro.fSmall; color: ro.ink3 }
                     Repeater {
                         model: root.screenedRoots

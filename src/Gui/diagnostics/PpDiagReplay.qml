@@ -158,14 +158,14 @@ Item {
         id: hd
         property string title: ""
         property string sub: ""
-        readonly property bool side: tt.implicitWidth + ro.u(14) + st.implicitWidth <= width
-        implicitHeight: title === "" ? st.implicitHeight : side ? tt.implicitHeight : tt.implicitHeight + ro.u(2) + st.implicitHeight
+        readonly property bool side: tt.implicitWidth + ro.g(14) + st.implicitWidth <= width
+        implicitHeight: title === "" ? st.implicitHeight : side ? tt.implicitHeight : tt.implicitHeight + ro.g(2) + st.implicitHeight
         height: implicitHeight
         Text { id: tt; visible: hd.title !== ""; text: hd.title; font: ro.fTitle; color: ro.ink; width: Math.min(implicitWidth, hd.width); wrapMode: Text.WordWrap }
         Text { id: st; text: hd.sub; font: ro.fSmall; color: ro.ink3; wrapMode: Text.WordWrap
                width: hd.side && hd.title !== "" ? implicitWidth : hd.width
-               x: hd.side && hd.title !== "" ? tt.implicitWidth + ro.u(14) : 0
-               y: hd.title === "" ? 0 : hd.side ? tt.y + tt.baselineOffset - baselineOffset : tt.implicitHeight + ro.u(2) }
+               x: hd.side && hd.title !== "" ? tt.implicitWidth + ro.g(14) : 0
+               y: hd.title === "" ? 0 : hd.side ? tt.y + tt.baselineOffset - baselineOffset : tt.implicitHeight + ro.g(2) }
     }
     // the review note, folded to the foot of a view below medium (F7, RULES 3)
     component ReviewFoot: PpDiagReviewFoot { roles: ro; header: root.header; missShown: ss.missShown; cast: root.cast; glance: true }
@@ -257,13 +257,13 @@ Item {
         Column {
             id: sc
             objectName: "sdShotView"
-            spacing: ro.u(10)
+            spacing: ro.g(10)
             // nothing to read: the tense says why (F19); the live one only while a swing can still come
             Column {
                 objectName: "sdShotEmpty"
                 visible: !ss.shot && ss.tense !== "none"
                 width: sc.width
-                spacing: ro.u(2)
+                spacing: ro.g(2)
                 Text { visible: ss.emptyTitle !== ""; text: ss.emptyTitle; font: ro.fTitle; color: ro.ink }
                 Text { width: parent.width; wrapMode: Text.WordWrap; text: ss.emptyLine
                        font: ss.emptyTitle !== "" ? ro.fSmall : ro.fBody; color: ss.emptyTitle !== "" ? ro.ink3 : ro.ink2 }
@@ -273,7 +273,7 @@ Item {
                 objectName: "sdQuietState"
                 visible: ss.quiet
                 width: sc.width
-                spacing: ro.u(2)
+                spacing: ro.g(2)
                 Text { objectName: "sdQuietLabel"; width: parent.width; wrapMode: Text.WordWrap
                        text: "Quiet shot — nothing new surfaced on this swing"; font: ro.fTitle; color: ro.ink }
                 Text { objectName: "sdQuietLine"; width: parent.width; wrapMode: Text.WordWrap
@@ -312,7 +312,7 @@ Item {
                 // Spare height admits the next tier: after the fired rows, the clean ones in order of how
                 // close they came to their edge, as many as fit — never bigger type, never a second block.
                 // the trust fold's height counts against the plot's (closed it is one line; opened, the plot gives way)
-                readonly property real room: shotFlick.height - ro.u(16) - shotHead.height - foot.height - 2 * sc.spacing
+                readonly property real room: shotFlick.height - ro.g(16) - shotHead.height - foot.height - 2 * sc.spacing
                                              - (shotTrust.visible ? shotTrust.height + sc.spacing : 0)
                                              - (njFoot.visible ? njFoot.height + sc.spacing : 0)
                                              - (wcList.visible ? wcList.height + sc.spacing : 0)
@@ -330,7 +330,7 @@ Item {
                 objectName: "sdWhatChangedList"
                 visible: !ss.quiet && !root.cast && root.firedComposites.length > 0
                 width: sc.width
-                spacing: ro.u(4)
+                spacing: ro.g(4)
                 Repeater {
                     model: wcList.visible ? root.firedComposites : []
                     delegate: PpWhatChanged {
@@ -353,10 +353,10 @@ Item {
                 readonly property real longest: fmFoot.font.pixelSize <= 0 ? 0 : fmFoot.advanceWidth(root.cleanN + " more inside their corridor · " + root.notMeasuredN + " not measurable")
                 // the ruler's one-line width at its wanted pitch (an estimate: never read off the ruler, no loop)
                 readonly property real rulerNatural: ro.u(60) + ro.u(19) * (ss.shot ? ss.shot.shotCount : 0)
-                readonly property bool side: !ss.quiet && hasRuler && longest + ro.u(32) + rulerNatural <= width
+                readonly property bool side: !ss.quiet && hasRuler && longest + ro.g(32) + rulerNatural <= width
                 height: !hasRuler ? (quiet.visible ? lineH : 0)
                        : side ? Math.max(lineH, ruler.height)
-                       : (quiet.visible ? lineH + ro.u(10) : 0) + ruler.height
+                       : (quiet.visible ? lineH + ro.g(10) : 0) + ruler.height
                 FontMetrics { id: fmFoot; font: ro.fSmall }
                 Text {
                     id: quiet
@@ -373,7 +373,7 @@ Item {
                     id: ruler
                     visible: foot.hasRuler
                     x: foot.side ? foot.width - width : 0
-                    y: foot.side ? 0 : (quiet.visible ? foot.lineH + ro.u(10) : 0)
+                    y: foot.side ? 0 : (quiet.visible ? foot.lineH + ro.g(10) : 0)
                     availableWidth: foot.side ? foot.rulerNatural : foot.width
                     roles: ro; brush: br; readout: root.shot; interactive: root.interactive
                     onShotActivated: (d, s) => root.pickShot(d, s)
@@ -386,7 +386,7 @@ Item {
                 objectName: "sdNotJudged"
                 visible: !!ss.shot && !ss.quiet && root.notJudgedGroups.length > 0
                 width: sc.width
-                spacing: ro.u(3)
+                spacing: ro.g(3)
                 property string openKey: ""
                 Repeater {
                     model: njFoot.visible ? root.notJudgedGroups : []
@@ -396,7 +396,7 @@ Item {
                         objectName: "sdNotJudged:" + (modelData.subject || modelData.clause)
                         readonly property bool canOpen: !!modelData.subject && root.interactive && !root.cast
                         width: njFoot.width
-                        spacing: ro.u(3)
+                        spacing: ro.g(3)
                         Text {
                             width: parent.width
                             wrapMode: Text.WordWrap; textFormat: Text.StyledText
@@ -426,7 +426,7 @@ Item {
         Column {
             id: sv
             objectName: "sdSessionView"
-            spacing: ro.u(10)
+            spacing: ro.g(10)
             PpDiagReplayCold {
                 visible: ss.cold
                 width: sv.width
@@ -453,7 +453,7 @@ Item {
             // HEIGHT IS A RESOURCE TOO: when the panel is tall enough for every pattern's small multiple, the
             // glance shows the tiles (the same run against the same corridor, larger); otherwise one sparkline
             // row per pattern. Measured, never guessed: the tiles lay out (hidden) to say how tall they are.
-            readonly property real room: sessionFlick.height - ro.u(16) - sessHead.height - sv.spacing - ro.u(24) - cov.height - sv.spacing
+            readonly property real room: sessionFlick.height - ro.g(16) - sessHead.height - sv.spacing - ro.u(24) - cov.height - sv.spacing
                                          - (sessTrust.visible ? sessTrust.height + sv.spacing : 0)
                                          - (closingNote.visible ? closingNote.height + sv.spacing : 0)
             readonly property bool hasCards: !ss.cold && (root.cards || []).length > 0
@@ -506,7 +506,7 @@ Item {
         Column {
             id: wv
             objectName: "sdWatchingView"
-            spacing: ro.u(10)
+            spacing: ro.g(10)
             Head {
                 objectName: "sdWatchingHead"
                 visible: ss.tense !== "none" && root.watching.length > 0

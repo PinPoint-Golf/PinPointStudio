@@ -119,7 +119,7 @@ Item {
     readonly property real fH: medium === "print" ? (isFault ? roles.u(132) : roles.u(92)) : (isFault ? roles.u(170) : roles.u(112))
     readonly property int shotNo: roles.shotNo(readout)
 
-    implicitHeight: Math.max(figCol.height + (notesBelow.visible ? notesBelow.height + roles.u(16) : 0), margin ? notesM.height + roles.u(40) : 0)
+    implicitHeight: Math.max(figCol.height + (notesBelow.visible ? notesBelow.height + roles.g(16) : 0), margin ? notesM.height + roles.u(40) : 0)
     height: implicitHeight
 
     PpFigureScale { id: sc; bands: fg.s.bands || []; faultLines: fg.s.faultLines || []; yTicks: fg.hist.yTicks || fg.s.yTicks || []; plotTop: fg.topY; plotHeight: fg.fH
@@ -279,7 +279,7 @@ Item {
     Column {
         id: figCol
         width: fg.mainW
-        spacing: fg.roles.u(18)
+        spacing: fg.roles.g(18)
         // stacked, the measure line may wrap: it stands above the figures instead of inside the first one
         Text {
             visible: fg.form === "stack"
@@ -305,12 +305,12 @@ Item {
         Flow {
             visible: fg.zoneBelow
             width: fg.mainW
-            spacing: fg.roles.u(12)
+            spacing: fg.roles.g(12)
             Repeater {
                 model: fg.roles && fg.zoneBelow ? sc.edges.filter(e => e.kind === "fault" || (e.kind === "pass" && sc.region(e.f) === 1)) : []
                 delegate: Row {
                     required property var modelData
-                    spacing: fg.roles.u(5)
+                    spacing: fg.roles.g(5)
                     Text { text: fg.roles.num(modelData.value); font: fg.roles.fFigLabel; color: modelData.kind === "fault" ? fg.roles.warn : fg.roles.ink3 }
                     Text { text: modelData.kind === "fault" ? (sc.region(modelData.f) === 1 ? "fault" : "fault ≈") : "pass edge"
                            font: fg.roles.fLabel; color: modelData.kind === "fault" ? fg.roles.warn : fg.roles.ink3 }
@@ -322,8 +322,8 @@ Item {
 
     component FigNotes: Flow {
         id: fn
-        spacing: fg.roles.u(9)
-        readonly property real gap: fg.roles.u(24)
+        spacing: fg.roles.g(9)
+        readonly property real gap: fg.roles.g(24)
         readonly property int cols: fg.roles.columns(width, fg.roles.flows.prose, gap)
         readonly property real colW: (width - (cols - 1) * gap) / cols
         Text { width: fn.colW; wrapMode: Text.WordWrap; font: fg.roles.fSmall; color: fg.roles.ink2
@@ -337,5 +337,5 @@ Item {
         Text { width: fn.colW; wrapMode: Text.WordWrap; font: fg.roles.fSmall; color: fg.roles.ink3; text: fg.roles.cap1(fg.hist.caption || "") + (fg.hist.caption ? "." : "") }
     }
     FigNotes { id: notesM; visible: fg.margin; x: fg.mainW + fg.roles.gutter(fg.width); y: fg.roles.u(40); width: fg.marginW }
-    FigNotes { id: notesBelow; visible: fg.showNotes && !fg.margin; y: figCol.height + fg.roles.u(16); width: fg.width }
+    FigNotes { id: notesBelow; visible: fg.showNotes && !fg.margin; y: figCol.height + fg.roles.g(16); width: fg.width }
 }

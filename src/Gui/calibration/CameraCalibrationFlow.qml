@@ -52,7 +52,7 @@ Item {
             width: parent.width
             spacing: Theme.gap(16)
 
-            Item { Layout.preferredHeight: Theme.sp(8) }   // top breathing room
+            Item { Layout.preferredHeight: Theme.gap(8) }   // top breathing room
 
             Text {
                 Layout.alignment: Qt.AlignHCenter

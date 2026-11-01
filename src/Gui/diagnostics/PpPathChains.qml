@@ -53,7 +53,7 @@ Item {
     readonly property int shotNo: roles.shotNo(readout)
     readonly property bool pair: which === "both" && width >= roles.flows.proseTwo * roles.em
     readonly property var sections: which === "both" ? ["causes", "effects"] : [which]
-    readonly property real colGap: roles.u(56)
+    readonly property real colGap: roles.g(56)
     readonly property real colW: pair ? (width - colGap) / 2 : width
 
     function isOpen(k, i) { return !!(openPaths || {})[k + ":" + i] }
@@ -128,10 +128,10 @@ Item {
     Rectangle { visible: pc.rule && pc.pair; width: parent.width; height: pc.roles.hw; color: pc.roles.rule }
     Grid {
         id: grid
-        y: pc.rule && pc.pair ? pc.roles.u(14) : 0
+        y: pc.rule && pc.pair ? pc.roles.g(14) : 0
         columns: pc.pair ? 2 : 1
         columnSpacing: pc.colGap
-        rowSpacing: pc.roles.u(26)
+        rowSpacing: pc.roles.g(26)
     Repeater {
         id: secRep
         model: pc.roles ? (pc.sections) : []
@@ -146,12 +146,12 @@ Item {
             readonly property var keyKinds: []
             readonly property string printGroup: "paths-" + k
             width: pc.colW
-            spacing: pc.roles.u(10)
+            spacing: pc.roles.g(10)
             Column {
                 property bool atom: true
                 property bool keepNext: true
                 width: sec.width
-                spacing: pc.roles.u(10)
+                spacing: pc.roles.g(10)
                 Rectangle { visible: pc.rule && !pc.pair; width: parent.width; height: pc.roles.hw; color: pc.roles.rule }
                 Text {
                     text: sec.k === "causes" ? "What might have caused this" : "What this leads to"
@@ -184,7 +184,7 @@ Item {
                     readonly property var ids: (modelData.nodes || []).map(n => n.id)
                     readonly property bool hot: pc.brush && pc.brush.hoveredCondition !== "" && ids.indexOf(pc.brush.hoveredCondition) >= 0 && pc.brush.hoveredCondition !== (pc.detail ? pc.detail.id : "")
                     width: pc.roles.measureW(sec.width)
-                    height: chain.height + (ev.visible ? ev.height + pc.roles.u(3) : 0) + (opened.visible ? opened.height + pc.roles.u(6) : 0)
+                    height: chain.height + (ev.visible ? ev.height + pc.roles.g(3) : 0) + (opened.visible ? opened.height + pc.roles.g(6) : 0)
                     Rectangle { anchors.fill: parent; anchors.margins: -pc.roles.u(2); visible: pth.hot; color: pc.roles.rowHover }
                     Text {
                         text: (pth.index + 1) + "."
@@ -203,7 +203,7 @@ Item {
                     Text {
                         id: ev
                         visible: pth.index === 0 && text !== "" && (pc.roles.shows("pathEvidence", pc.width) || pth.open)
-                        x: chain.x; y: chain.height + pc.roles.u(3); width: chain.width
+                        x: chain.x; y: chain.height + pc.roles.g(3); width: chain.width
                         wrapMode: Text.Wrap
                         text: { const ns = pth.modelData.nodes || []; const n = sec.k === "causes" ? ns[0] : ns[ns.length - 1]; return n && n.evidence ? n.evidence : "" }
                         font: pc.roles.fSmallI; color: pc.roles.ink3; lineHeight: pc.roles.r.smallLeading
@@ -212,8 +212,8 @@ Item {
                     Column {
                         id: opened
                         visible: pth.open
-                        x: chain.x + pc.roles.u(6); y: chain.height + (ev.visible ? ev.height + pc.roles.u(3) : 0) + pc.roles.u(6); width: chain.width - pc.roles.u(6)
-                        spacing: pc.roles.u(2)
+                        x: chain.x + pc.roles.g(6); y: chain.height + (ev.visible ? ev.height + pc.roles.g(3) : 0) + pc.roles.g(6); width: chain.width - pc.roles.g(6)
+                        spacing: pc.roles.g(2)
                         Rectangle { width: pc.roles.u(28); height: pc.roles.hw; color: pc.roles.hair }
                         Repeater {
                             model: pth.open ? (pth.modelData.nodes || []) : []
@@ -224,9 +224,9 @@ Item {
                                 Text { width: parent.width; wrapMode: Text.Wrap; textFormat: Text.RichText
                                        text: pc.nodeLine(modelData); font: pc.roles.fSmall; color: pc.roles.ink2; lineHeight: pc.roles.r.smallLeading }
                                 Text { visible: index < (pth.modelData.nodes || []).length - 1
-                                       x: pc.roles.u(10); width: parent.width - x; wrapMode: Text.Wrap; textFormat: Text.RichText
+                                       x: pc.roles.g(10); width: parent.width - x; wrapMode: Text.Wrap; textFormat: Text.RichText
                                        text: visible ? pc.linkLine((pth.modelData.links || [])[index]) : ""; font: pc.roles.fSmall; color: pc.roles.ink2
-                                       lineHeight: pc.roles.r.smallLeading; topPadding: pc.roles.u(1); bottomPadding: pc.roles.u(1) }
+                                       lineHeight: pc.roles.r.smallLeading; topPadding: pc.roles.g(1); bottomPadding: pc.roles.g(1) }
                             }
                         }
                     }
@@ -243,8 +243,8 @@ Item {
                 property bool keepPrev: true
                 visible: sec.paths.length > 0
                 width: pc.roles.measureW(sec.width)
-                spacing: pc.roles.u(6)
-                topPadding: pc.roles.u(4)
+                spacing: pc.roles.g(6)
+                topPadding: pc.roles.g(4)
                 Rectangle { width: pc.roles.u(28); height: pc.roles.hw; color: pc.roles.rule }
                 Text {
                     width: parent.width; wrapMode: Text.Wrap; textFormat: Text.RichText

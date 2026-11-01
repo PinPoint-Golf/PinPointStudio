@@ -62,9 +62,9 @@ Item {
 
     RowLayout {
         anchors.fill:        parent
-        anchors.leftMargin:  24
-        anchors.rightMargin: 16
-        spacing:             16
+        anchors.leftMargin:  Theme.gap(24)
+        anchors.rightMargin: Theme.gap(16)
+        spacing:             Theme.gap(16)
 
         // Back/forward navigation cluster
         Row {
@@ -267,7 +267,7 @@ Item {
             }
         }
 
-        Item { Layout.preferredWidth: Theme.sp(4) }
+        Item { Layout.preferredWidth: Theme.gap(4) }
     }
 
     // Centre slot of the title bar (moved up from the session toolbar). Both are

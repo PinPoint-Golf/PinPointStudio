@@ -261,11 +261,11 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
-                readonly property real gap:    markupController.hasDtl ? Theme.sp(8) : 0
+                readonly property real gap:    markupController.hasDtl ? Theme.gap(8) : 0
                 readonly property real aFace:  Math.max(0.05, markupController.videoAspect)
                 readonly property real aDtl:   markupController.hasDtl ? Math.max(0.05, markupController.dtlAspect) : 0
-                readonly property real availW: Math.max(0, width  - Theme.sp(16) - gap)
-                readonly property real availH: Math.max(0, height - Theme.sp(16))
+                readonly property real availW: Math.max(0, width  - Theme.gap(16) - gap)
+                readonly property real availH: Math.max(0, height - Theme.gap(16))
                 readonly property real paneH:  Math.max(0, Math.min(availH, availW / (aFace + aDtl)))
 
                 Row {

@@ -200,7 +200,7 @@ Item {
     Column {
         id: mainCol
         width: dg.mainW
-        spacing: dg.roles.u(8)
+        spacing: dg.roles.g(8)
         Rectangle { width: parent.width; height: dg.roles.hw; color: dg.roles.grid; opacity: dg.roles.gridOpacity }
         PpSectionHead { width: parent.width; roles: dg.roles; paged: false; lead: 6; pad: 0
                         title: dg.causes ? "What might have caused this" : "What this leads to" }
@@ -383,8 +383,8 @@ Item {
         Column {
             visible: !dg.margin
             width: dg.roles.measureW(parent.width)
-            spacing: dg.roles.u(8)
-            topPadding: dg.roles.u(4)
+            spacing: dg.roles.g(8)
+            topPadding: dg.roles.g(4)
             PpPageKey { visible: dg.showKey && dg.causes; width: parent.width; roles: dg.roles; kinds: dg.keyKinds }
             Repeater {
                 model: dg.roles ? (dg.causes && dg.detail ? (dg.detail.rivals || []) : []) : []
@@ -399,12 +399,12 @@ Item {
         visible: dg.margin
         x: dg.mainW + dg.roles.gutter(dg.width); y: dg.roles.u(44)
         width: dg.marginW
-        spacing: dg.roles.u(12)
+        spacing: dg.roles.g(12)
         Column {
             visible: dg.causes && dg.showKey
-            spacing: dg.roles.u(5)
+            spacing: dg.roles.g(5)
             Text { text: "Key"; font: dg.roles.fLabel; color: dg.roles.ink2 }
-            PpPageKey { width: dg.marginW; roles: dg.roles; kinds: dg.keyKinds; spacing: dg.roles.u(6) }
+            PpPageKey { width: dg.marginW; roles: dg.roles; kinds: dg.keyKinds; spacing: dg.roles.g(6) }
         }
         Text { visible: dg.causes; width: parent.width; wrapMode: Text.WordWrap; font: dg.roles.fSmall; color: dg.roles.ink3
                text: "Every root here is a physical limitation no camera can see: a screen would confirm it. The likely driver's path is drawn at full strength; an arrowhead only where the evidence gives a direction." }

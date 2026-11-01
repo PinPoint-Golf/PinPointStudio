@@ -47,7 +47,7 @@ Column {
     readonly property bool side: roles ? roles.atLeast(width, "compact") : true
     readonly property real nameW: side ? Math.round(12 * em) : width
     readonly property real cellW: Math.round(7.2 * em)
-    readonly property real gap: roles ? roles.u(12) : 12
+    readonly property real gap: roles ? roles.g(12) : Theme.gap(12)
     visible: all.length > 0
     Rectangle { width: sm.width; height: sm.roles ? sm.roles.r.figureRuleTop : 1; color: sm.roles ? sm.roles.rule : "black" }
     Repeater {
@@ -66,12 +66,12 @@ Column {
                 id: nameCol
                 y: sm.roles.u(5); width: sm.nameW
                 Row {
-                    spacing: sm.roles.u(5)
+                    spacing: sm.roles.g(5)
                     Rectangle { anchors.verticalCenter: nm.verticalCenter; width: sm.roles.u(sm.roles.ch.swatch); height: width; radius: sm.roles.square ? 0 : width / 2; color: sm.roles.hue(rw.key) }
                     Text { id: nm; text: rw.modelData.label; font: sm.roles.fBody; color: sm.roles.ink; width: Math.min(implicitWidth, sm.nameW - sm.roles.u(12)); wrapMode: Text.WordWrap }
                 }
                 Row {
-                    spacing: sm.roles.u(6)
+                    spacing: sm.roles.g(6)
                     Text { text: rw.modelData.unit || ""; font: sm.roles.fSmall; color: sm.roles.ink3 }
                     Text { visible: !!rw.modelData.sigmaText; text: rw.modelData.sigmaText || ""; font: sm.roles.fFigS; color: sm.roles.ink3 }
                     Text { visible: rw.modelData.partial === true; text: rw.modelData.partialWord || ""; font: sm.roles.fSmall; color: sm.roles.ink2 }
@@ -91,7 +91,7 @@ Column {
                         width: Math.max(sm.cellW, tv.implicitWidth + tsub.implicitWidth + tu.implicitWidth + sm.roles.u(8))
                         Text { text: modelData.label; font: sm.roles.fLabel; color: sm.roles.ink3 }
                         Row {
-                            spacing: sm.roles.u(4)
+                            spacing: sm.roles.g(4)
                             Text { id: tv
                                    readonly property bool why: !!modelData.trust
                                    objectName: why ? "chSummaryWhy:" + modelData.trust : ""

@@ -138,7 +138,7 @@ PpTableRow {
             Text {
                 objectName: "sessionsDate"
                 width: Math.min(implicitWidth, row.columnWidth(0) - (review.visible ? review.width + Theme.gap(8) : 0)
-                                               - (row.isLive ? Theme.sp(14) : 0))
+                                               - (row.isLive ? Theme.sp(7) + Theme.gap(7) : 0))
                 elide: Text.ElideRight
                 text: row.dateLabel + (row.sessionOfDay >= 2 ? " · " + row.sessionOfDay : "")
                 font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody

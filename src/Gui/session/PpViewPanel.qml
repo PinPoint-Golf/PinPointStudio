@@ -28,7 +28,7 @@ Item {
     id: root
 
     implicitWidth:  Theme.sp(300)
-    implicitHeight: col.implicitHeight + Theme.sp(26)
+    implicitHeight: col.implicitHeight + Theme.gap(26)
 
     // Camera leads, then session diagnostics, matching PpModeStage._defs. The two lists are read by different
     // people at different moments — this one when you choose panels, that one when you look at
@@ -60,7 +60,7 @@ Item {
             Row {
                 width: parent.width
                 spacing: Theme.gap(7)
-                readonly property real cardW: (width - 2 * Theme.sp(7)) / 3
+                readonly property real cardW: (width - 2 * Theme.gap(7)) / 3
                 ArrangeCard { value: "tabs";  label: qsTr("Tabs");  width: parent.cardW }
                 ArrangeCard { value: "split"; label: qsTr("Split"); width: parent.cardW }
                 ArrangeCard { value: "stage"; label: qsTr("Stage"); width: parent.cardW }
@@ -79,7 +79,7 @@ Item {
             Row {
                 width: parent.width
                 spacing: Theme.gap(7)
-                readonly property real cardW: (width - Theme.sp(7)) / 2
+                readonly property real cardW: (width - Theme.gap(7)) / 2
                 OrientCard { value: "horizontal"; label: qsTr("Horizontal"); horizontalGlyph: true;  width: parent.cardW }
                 OrientCard { value: "vertical";   label: qsTr("Vertical");   horizontalGlyph: false; width: parent.cardW }
             }
@@ -175,7 +175,7 @@ Item {
                     height: Theme.sp(20)
                     Text {
                         objectName: modelData.name + "Label"
-                        x: Theme.sp(12)                 // indented under the heading
+                        x: Theme.gap(12)                 // indented under the heading
                         anchors.verticalCenter: parent.verticalCenter
                         text: modelData.label
                         font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
@@ -213,7 +213,7 @@ Item {
                         readonly property bool _avail: !(modelData.key === "timeline"
                                                          && SessionMode.mode === SessionMode.capture)
                         visible: _avail
-                        width: (parent.width - Theme.sp(14)) / 2
+                        width: (parent.width - Theme.gap(14)) / 2
                         height: Theme.sp(20)
                         Text {
                             anchors.verticalCenter: parent.verticalCenter

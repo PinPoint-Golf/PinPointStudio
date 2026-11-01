@@ -73,7 +73,7 @@ Item {
     property real ruleWeight: _on ? roles.hw : 0
     property real ruleGap: 6
     readonly property bool _on: !!roles
-    readonly property real _g: _on ? roles.u(gap) : 0
+    readonly property real _g: _on ? roles.g(gap) : 0
     // where the sub-line starts on the title's line: the parts before it, each with its gap
     readonly property real _beforeSub: (foldable ? caret.width + _g : 0) + (number.length > 0 ? num.width + _g : 0) + st.width + _g
                                        + (count !== "" ? cnt.width + _g : 0) + (subGap > 0 ? spacer.width + _g : 0)
@@ -83,15 +83,15 @@ Item {
                        sub.length > 0 ? sb.implicitWidth : -1, note !== "" ? nt.implicitWidth : -1].filter(w => w >= 0)
         return parts.reduce((a, w) => a + w, 0) + _g * Math.max(0, parts.length - 1)
     }
-    implicitHeight: _on ? col.y + col.height + roles.u(pad) : 0
+    implicitHeight: _on ? col.y + col.height + roles.g(pad) : 0
     height: implicitHeight
     baselineOffset: col.y + fl.y + st.y + st.baselineOffset
     Column {
         id: col
         visible: sh._on
-        y: sh._on ? sh.roles.u(sh.lead) : 0
+        y: sh._on ? sh.roles.g(sh.lead) : 0
         width: parent.width
-        spacing: sh._on ? sh.roles.u(sh.ruleGap) : 0
+        spacing: sh._on ? sh.roles.g(sh.ruleGap) : 0
         Rectangle { visible: sh.rule; width: parent.width; height: sh.ruleWeight; color: sh._on ? sh.roles.rule : "transparent" }
         Flow {
             id: fl
@@ -106,7 +106,7 @@ Item {
                    topPadding: sh.countOnBaseline ? st.baselineOffset - cfm.ascent : 0
                    height: sh.countOnBaseline ? implicitHeight : st.height
                    verticalAlignment: sh.countOnBaseline ? Text.AlignTop : Text.AlignVCenter }
-            Item { id: spacer; visible: sh.subGap > 0; width: sh._on ? sh.roles.u(sh.subGap) : 0; height: 1 }
+            Item { id: spacer; visible: sh.subGap > 0; width: sh._on ? sh.roles.g(sh.subGap) : 0; height: 1 }
             // clipped, a hair under the rest of the line, so a rounding never sends it to a line of its own
             Text { id: sb; visible: sh.sub.length > 0; text: sh.sub; font: sh.subFont; color: sh.subColor
                    readonly property bool centred: sh.subFit === "line" || sh.subFit === "grow"

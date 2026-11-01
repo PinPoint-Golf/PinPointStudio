@@ -127,7 +127,7 @@ Item {
             width: parent.width
             padding: Theme.gap(12); spacing: Theme.gap(8)
             // Three equal cells across the card, inside the padding and the two gaps.
-            readonly property real cellWidth: (root.width - Theme.sp(24) - Theme.sp(16)) / 3
+            readonly property real cellWidth: (root.width - 2 * Theme.gap(12) - 2 * Theme.gap(8)) / 3
             PpScopedAction {
                 width: actions.cellWidth
                 glyph: "⟳"; label: qsTr("Scan")
@@ -189,7 +189,7 @@ Item {
         Item {
             visible: imuManager.imuDeviceList.length === 0
             width: parent.width
-            height: noImus.implicitHeight + Theme.sp(28)
+            height: noImus.implicitHeight + Theme.gap(28)
             PpCardNote {
                 id: noImus
                 anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter

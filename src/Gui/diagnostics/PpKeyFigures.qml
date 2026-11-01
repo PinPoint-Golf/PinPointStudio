@@ -63,7 +63,7 @@ Item {
     readonly property real cw: width / cols
     readonly property real ch: roles.u(50)
     readonly property real gridH: Math.ceil(n / cols) * ch
-    implicitHeight: roles.r.figureRuleTop + gridH + (showFoot ? foot.height + roles.u(6) : roles.u(4))
+    implicitHeight: roles.r.figureRuleTop + gridH + (showFoot ? foot.height + roles.g(6) : roles.g(4))
     height: implicitHeight
 
     Rectangle { width: parent.width; height: kf.roles.r.figureRuleTop; color: kf.roles.rule }
@@ -91,7 +91,7 @@ Item {
     Text {
         id: foot
         visible: kf.showFoot
-        y: kf.roles.r.figureRuleTop + kf.gridH + kf.roles.u(3)
+        y: kf.roles.r.figureRuleTop + kf.gridH + kf.roles.g(3)
         width: parent.width; wrapMode: Text.WordWrap
         font: kf.roles.fMicro; color: kf.roles.ink3
         // a composite's figures are its dominant part's (posture_metrics_design.md §8): the foot names the part

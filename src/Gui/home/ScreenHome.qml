@@ -154,7 +154,7 @@ Item {
             width:   root.hasGolfer ? Math.round(parent.width * 0.9) : Theme.contentWidth(parent.width)
             spacing: 0
 
-            Item { width: 1; height: root.hasGolfer ? Theme.sp(28) : Theme.sp(48) }
+            Item { width: 1; height: root.hasGolfer ? Theme.gap(28) : Theme.gap(48) }
 
             // ── First run: no golfer yet ─────────────────────────────────────
             // No athlete state
@@ -167,7 +167,7 @@ Item {
                 PpMicro {
                     text: Theme.caps(qsTr("Golf swing analysis"))
                 }
-                Item { width: 1; height: Theme.sp(12) }
+                Item { width: 1; height: Theme.gap(12) }
 
                 PpDisplayText {
                     width:          parent.width
@@ -175,7 +175,7 @@ Item {
                     wrapMode:       Text.WordWrap
                     lineHeight:     1.1
                 }
-                Item { width: 1; height: Theme.sp(10) }
+                Item { width: 1; height: Theme.gap(10) }
 
                 Text {
                     width:          parent.width
@@ -187,7 +187,7 @@ Item {
                     wrapMode:       Text.WordWrap
                     lineHeight:     1.7
                 }
-                Item { width: 1; height: Theme.sp(32) }
+                Item { width: 1; height: Theme.gap(32) }
 
                 Text {
                     width:          parent.width
@@ -196,7 +196,7 @@ Item {
                     font.pixelSize: Theme.fontSzBody
                     color:          Theme.colorText
                 }
-                Item { width: 1; height: Theme.sp(4) }
+                Item { width: 1; height: Theme.gap(4) }
 
                 PpCardNote {
                     kind:     "plain"
@@ -204,7 +204,7 @@ Item {
                     width:    parent.width
                     text:     qsTr("Every session belongs to someone. That's usually you.")
                 }
-                Item { width: 1; height: Theme.sp(16) }
+                Item { width: 1; height: Theme.gap(16) }
 
                 Rectangle {
                     width:  parent.width
@@ -226,7 +226,7 @@ Item {
                         onClicked:    root.addAthleteRequested()
                     }
                 }
-                Item { width: 1; height: Theme.sp(48) }
+                Item { width: 1; height: Theme.gap(48) }
 
                 Row {
                     width:   parent.width
@@ -253,13 +253,13 @@ Item {
                                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(14) }
                                 spacing: 0
 
-                                Item { width: 1; height: Theme.sp(14) }
+                                Item { width: 1; height: Theme.gap(14) }
                                 Text {
                                     text:           modelData.icon
                                     font.pixelSize: Theme.sp(16)
                                     color:          Theme.colorText2
                                 }
-                                Item { width: 1; height: 7 }
+                                Item { width: 1; height: Theme.gap(7) }
                                 Text {
                                     width:          parent.width
                                     text:           modelData.title
@@ -267,7 +267,7 @@ Item {
                                     font.pixelSize: Theme.fontSzBody2
                                     color:          Theme.colorText
                                 }
-                                Item { width: 1; height: 3 }
+                                Item { width: 1; height: Theme.gap(3) }
                                 PpCardNote {
                                     kind:  "list"
                                     width: parent.width
@@ -285,7 +285,7 @@ Item {
                         }
                     }
                 }
-                Item { width: 1; height: Theme.sp(24) }
+                Item { width: 1; height: Theme.gap(24) }
 
                 Text {
                     width:               parent.width
@@ -335,9 +335,9 @@ Item {
 
                 Column {
                     anchors.left:           avatarCircle.right
-                    anchors.leftMargin:     16
+                    anchors.leftMargin:     Theme.gap(16)
                     anchors.right:          switchLink.left
-                    anchors.rightMargin:    12
+                    anchors.rightMargin:    Theme.gap(12)
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: Theme.gap(3)
 
@@ -396,7 +396,7 @@ Item {
                 width:   parent.width
                 spacing: 0
 
-                Item { width: 1; height: Theme.sp(40) }
+                Item { width: 1; height: Theme.gap(40) }
 
                 // Banner — the hero title size (twice display, except where a theme sets its own).
                 PpDisplayText {
@@ -404,7 +404,7 @@ Item {
                     text:       qsTr("PinPoint Studio")
                     pixelSize:  Theme.fontSzHero
                 }
-                Item { width: 1; height: Theme.sp(28) }
+                Item { width: 1; height: Theme.gap(28) }
             }
 
             // ── 1. Start ─────────────────────────────────────────────────────
@@ -438,17 +438,17 @@ Item {
                         width: startCard.leftW - 2 * startCard.panePad
                         spacing: 0
 
-                        Item { width: 1; height: Theme.sp(8); visible: !startCard.stacked }
+                        Item { width: 1; height: Theme.gap(8); visible: !startCard.stacked }
                         PpMicro {
                             text: Theme.caps(qsTr("New session"))
                         }
-                        Item { width: 1; height: Theme.sp(10) }
+                        Item { width: 1; height: Theme.gap(10) }
                         PpDisplayText {
                             width:    parent.width
                             text:     qsTr("Hit some shots")
                             wrapMode: Text.WordWrap
                         }
-                        Item { width: 1; height: Theme.sp(10) }
+                        Item { width: 1; height: Theme.gap(10) }
                         Text {
                             width:          parent.width
                             text:           qsTr("Every shot is assessed against the swing model.")
@@ -458,7 +458,7 @@ Item {
                             color:          Theme.colorText2
                             wrapMode:       Text.WordWrap
                         }
-                        Item { width: 1; height: Theme.sp(20) }
+                        Item { width: 1; height: Theme.gap(20) }
 
                         // Start session, and the club beside it.
                         Flow {
@@ -513,7 +513,7 @@ Item {
                             }
                         }
 
-                        Item { width: 1; height: Theme.sp(18); visible: lastSessionLine.visible }
+                        Item { width: 1; height: Theme.gap(18); visible: lastSessionLine.visible }
                         Text {
                             id: lastSessionLine
                             objectName: "homeLastSession"
@@ -556,7 +556,7 @@ Item {
             // back into view, onVisibleChanged — a session may have ended since). Practise opens the
             // wizard with that condition as the focus; a fault opens its detail in place, and its
             // "Review the … session →" opens that session in Live.
-            Item { width: 1; height: Theme.sp(40); visible: homeTabs.visible }
+            Item { width: 1; height: Theme.gap(40); visible: homeTabs.visible }
 
             HmHomeTabs {
                 id: homeTabs
@@ -568,7 +568,7 @@ Item {
                 onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
             }
 
-            Item { width: 1; height: 60 }
+            Item { width: 1; height: Theme.gap(60) }
         }
     }
 }

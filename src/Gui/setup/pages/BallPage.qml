@@ -31,7 +31,7 @@ import PinPointStudio
 WizardPage {
     id: page
 
-    implicitHeight: ballCalCol.implicitHeight + Theme.sp(32)
+    implicitHeight: ballCalCol.implicitHeight + Theme.gap(32)
 
     canContinue: page.ctx.ballPresent
     canSkip:     !page.ctx.ballPresent

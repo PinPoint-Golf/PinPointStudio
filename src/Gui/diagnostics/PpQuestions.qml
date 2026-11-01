@@ -111,7 +111,7 @@ Column {
 
     objectName: "sdQuestions"
     visible: (questions || []).length > 0
-    spacing: roles.u(4)
+    spacing: roles.g(4)
     Text { visible: !qs.isPrint; text: qs.label; font: qs.roles.fLabel; color: qs.roles.ink3 }
     Repeater {
         model: qs.roles ? (qs.questions || []) : []
@@ -122,10 +122,10 @@ Column {
             readonly property string questionId: modelData.id
             readonly property bool on: qs.brush && qs.brush.question === modelData.id
             width: qs.width
-            spacing: qs.roles.u(2)
+            spacing: qs.roles.g(2)
             Row {
                 visible: !qs.isPrint
-                spacing: qs.roles.u(10)
+                spacing: qs.roles.g(10)
                 Text {
                     text: qd.modelData.text; font: qd.on ? qs.roles.fSmallM : qs.roles.fSmallL; color: qd.on ? qs.roles.ink : qs.roles.link
                     MouseArea { enabled: qs.interactive; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: qs.ask(qd.modelData) }

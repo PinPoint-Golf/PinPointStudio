@@ -83,7 +83,7 @@ Item {
     property Item _hoverChip: null
 
     implicitWidth:  Theme.sp(256)
-    implicitHeight: content.implicitHeight + Theme.sp(27)
+    implicitHeight: content.implicitHeight + Theme.gap(27)
 
     Column {
         id: content
@@ -107,11 +107,11 @@ Item {
             }
         }
 
-        Item { width: 1; height: Theme.sp(13) }
+        Item { width: 1; height: Theme.gap(13) }
 
         PpMicro { text: Theme.caps(qsTr("Quality")) }
 
-        Item { width: 1; height: Theme.sp(7) }
+        Item { width: 1; height: Theme.gap(7) }
 
         Row {   // traffic-light band chips — exact band select, tap again to clear
             width: parent.width
@@ -123,7 +123,7 @@ Item {
                 Rectangle {
                     readonly property bool bandSelected: root.proxy.qualityLo === modelData.lo
 
-                    width:  (parent.width - Theme.sp(18)) / 4
+                    width:  (parent.width - 3 * Theme.gap(6)) / 4
                     height: Theme.sp(32)
                     radius: Theme.radius
                     color:  bandSelected ? Theme.qualityColor(modelData.lo)
@@ -165,11 +165,11 @@ Item {
             }
         }
 
-        Item { width: 1; height: Theme.sp(13) }
+        Item { width: 1; height: Theme.gap(13) }
 
         PpMicro { text: Theme.caps(qsTr("Rating")) }
 
-        Item { width: 1; height: Theme.sp(7) }
+        Item { width: 1; height: Theme.gap(7) }
 
         Item {   // exact star-rating picker + hint
             width: parent.width; height: ratingStars.implicitHeight
@@ -192,7 +192,7 @@ Item {
             }
         }
 
-        Item { width: 1; height: Theme.sp(13) }
+        Item { width: 1; height: Theme.gap(13) }
 
         Rectangle {   // hairline before the toggle group
             width: parent.width; height: 1
@@ -200,7 +200,7 @@ Item {
             opacity: Theme.borderOpacityNormal
         }
 
-        Item { width: 1; height: Theme.sp(13) }
+        Item { width: 1; height: Theme.gap(13) }
 
         Item {   // has-video toggle
             width: parent.width; height: toggle.height
@@ -225,7 +225,7 @@ Item {
         //    positions an invisible child, so with the strip up the section adds no
         //    height; the grid is handed a null model then, so no chip is ever built.
 
-        Item { width: 1; height: Theme.sp(13); visible: root.showShots }
+        Item { width: 1; height: Theme.gap(13); visible: root.showShots }
 
         Rectangle {   // hairline — the picker is its own group, below the filters
             visible: root.showShots
@@ -234,14 +234,14 @@ Item {
             opacity: Theme.borderOpacityNormal
         }
 
-        Item { width: 1; height: Theme.sp(13); visible: root.showShots }
+        Item { width: 1; height: Theme.gap(13); visible: root.showShots }
 
         PpMicro {
             visible: root.showShots
             text:    Theme.caps(qsTr("Shots"))
         }
 
-        Item { width: 1; height: Theme.sp(7); visible: root.showShots }
+        Item { width: 1; height: Theme.gap(7); visible: root.showShots }
 
         // Contact sheet of ordinals, newest first — the film strip's own order, so the
         // chip on the left is the card on the left. Five to a row and capped at five
@@ -265,7 +265,7 @@ Item {
                 boundsBehavior: Flickable.StopAtBounds
                 model: root.showShots ? root.shots : null
                 cellWidth:  Math.floor(gridBand.width / 5)
-                cellHeight: Theme.sp(29)
+                cellHeight: Theme.sp(23) + Theme.gap(6)   // the chip (23) plus the gap between chips
 
                 // Nothing survived the filter — say so, rather than showing a blank band
                 // that reads as a picker that failed to load.
@@ -298,8 +298,8 @@ Item {
                     Rectangle {
                         id: chip
                         anchors.centerIn: parent
-                        width:  shotGrid.cellWidth  - Theme.sp(6)
-                        height: shotGrid.cellHeight - Theme.sp(6)
+                        width:  shotGrid.cellWidth  - Theme.gap(6)
+                        height: shotGrid.cellHeight - Theme.gap(6)
                         radius: Theme.radius
                         color:  cell.picked      ? Theme.qualityColor(cell.score)
                               : chipMa.containsMouse
@@ -367,7 +367,7 @@ Item {
             }
         }
 
-        Item { width: 1; height: Theme.sp(8); visible: root.showShots }
+        Item { width: 1; height: Theme.gap(8); visible: root.showShots }
 
         // Readout — what the cursor is over, else what is on the stage, else the
         // invitation. Fixed height, so the panel never jumps as the pointer crosses

@@ -16,6 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 import QtQuick
+import PinPointStudio
 
 // PPTRUSTFOLDTOGGLE — the ONE "▸ How far can I trust this?" line that opens a trust fold: the panel's summary
 // (PpTrustSummaryFold) and a Charts section's own (PpChTrustFold). A link-ink caret and question; while closed, an
@@ -31,7 +32,7 @@ Item {
     property real hitMargin: 0
     signal toggled()
     readonly property bool _tailShown: !open && !printed && tail !== ""
-    readonly property real _gap: roles ? roles.u(7) : 7
+    readonly property real _gap: roles ? roles.g(7) : Theme.gap(7)
     implicitWidth: q.implicitWidth + (_tailShown ? _gap + tl.implicitWidth : 0)
     height: row.height
     Flow {

@@ -86,7 +86,7 @@ Item {
     readonly property real textW: width - 2 * ro.p.marginX
     readonly property int sesCols: ro.columns(textW, ro.flows.entry, ro.gutter(textW))
     readonly property var sesRows: { const out = []; for (let i = 0; i < allCards.length; i += sesCols) out.push(allCards.slice(i, i + sesCols)); return out }
-    readonly property int indexCols: ro.columns(textW, ro.flows.index, ro.u(22))
+    readonly property int indexCols: ro.columns(textW, ro.flows.index, ro.g(22))
     readonly property int indexBand: 6                    // rows per index band: the unit print may cut between
     readonly property var cleanBands: { const n = indexCols * indexBand, out = []; for (let i = 0; i < clean.length; i += n) out.push(clean.slice(i, i + n)); return out }
 
@@ -173,7 +173,7 @@ Item {
                 text: root.togetherHtml }
         Column {
             width: pager.textW
-            spacing: ro.u(1)
+            spacing: ro.g(1)
             Repeater {
                 model: root.allCards.filter(c => root.answersFor(c).length > 0)
                 delegate: PpNotes {
@@ -269,7 +269,7 @@ Item {
                 readonly property string printGroup: "clean"
                 property bool atom: true
                 property bool keepNext: true
-                width: pager.textW; height: ih.height + ro.u(6)
+                width: pager.textW; height: ih.height + ro.g(6)
                 PpSectionHead {
                     id: ih
                     width: parent.width

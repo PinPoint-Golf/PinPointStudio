@@ -40,7 +40,7 @@ Item {
     signal closeRequested()
 
     implicitWidth:  Theme.sp(288)
-    implicitHeight: content.implicitHeight + Theme.sp(27)
+    implicitHeight: content.implicitHeight + Theme.gap(27)
 
     // Re-seed the editable controls from `summary` (the combo index and the note
     // field aren't plain bindings — the combo drives the model on select, and the
@@ -77,7 +77,7 @@ Item {
             }
         }
 
-        Item { width: 1; height: Theme.sp(3) }
+        Item { width: 1; height: Theme.gap(3) }
 
         Text {   // subtitle — #N · hh:mm:ss
             width: parent.width
@@ -196,10 +196,10 @@ Item {
             }
         }
 
-        Item { width: 1; height: Theme.sp(15) }
+        Item { width: 1; height: Theme.gap(15) }
 
         PpMicro { text: Theme.caps(qsTr("Club")) }
-        Item { width: 1; height: Theme.sp(7) }
+        Item { width: 1; height: Theme.gap(7) }
         PpComboBox {
             id: clubCombo
             width: parent.width
@@ -208,10 +208,10 @@ Item {
             onActivated: (i) => root.clubChosen(root.clubOptions[i])
         }
 
-        Item { width: 1; height: Theme.sp(15) }
+        Item { width: 1; height: Theme.gap(15) }
 
         PpMicro { text: Theme.caps(qsTr("Rating")) }
-        Item { width: 1; height: Theme.sp(7) }
+        Item { width: 1; height: Theme.gap(7) }
         PpStarRating {
             interactive: true
             value:       root.summary.rating !== undefined ? root.summary.rating : 0
@@ -220,10 +220,10 @@ Item {
             onRated:     (n) => root.rated(n)
         }
 
-        Item { width: 1; height: Theme.sp(15) }
+        Item { width: 1; height: Theme.gap(15) }
 
         PpMicro { text: Theme.caps(qsTr("Note")) }
-        Item { width: 1; height: Theme.sp(7) }
+        Item { width: 1; height: Theme.gap(7) }
         PpTextField {
             id: noteField
             width: parent.width

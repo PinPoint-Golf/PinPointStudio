@@ -37,18 +37,18 @@ Column {
     readonly property var keyKinds: []
     signal picked(string readingId)
     visible: open
-    spacing: roles ? roles.u(4) : 4
-    topPadding: roles ? roles.u(6) : 6; bottomPadding: roles ? roles.u(10) : 10
+    spacing: roles ? roles.g(4) : Theme.gap(4)
+    topPadding: roles ? roles.g(6) : Theme.gap(6); bottomPadding: roles ? roles.g(10) : Theme.gap(10)
     Text { text: vp.title; font: vp.roles ? vp.roles.fLabel : Qt.font({}); color: vp.roles ? vp.roles.ink3 : "grey" }
     Repeater {
         model: vp.open && vp.roles ? vp.catalogue : []
         delegate: Row {
             required property var modelData
-            width: vp.width; spacing: vp.roles.u(10)
+            width: vp.width; spacing: vp.roles.g(10)
             readonly property real nameW: Math.round(9 * vp.roles.em)
             Text { width: parent.nameW; text: modelData.name; font: vp.roles.fSmall; color: vp.roles.ink3; wrapMode: Text.WordWrap }
             Flow {
-                width: vp.width - parent.nameW - vp.roles.u(10); spacing: vp.roles.u(10)
+                width: vp.width - parent.nameW - vp.roles.g(10); spacing: vp.roles.g(10)
                 Repeater {
                     model: modelData.readings.filter(function (r) { return r.readingId !== vp.exclude })
                     delegate: Text {

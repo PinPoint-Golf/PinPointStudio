@@ -155,7 +155,7 @@ Item {
             x: index * (sf.panelW + sf.gap); width: sf.panelW; height: sf.topH
             Row {
                 visible: sf.hasHeads
-                x: sf.yGut; spacing: sf.roles.u(8)
+                x: sf.yGut; spacing: sf.roles.g(8)
                 Text { id: gh; text: hd.g ? hd.g.label : ""; font: sf.roles.fSmallM; color: sf.roles.ink2 }
                 // overlaid: the other group is the dashed line, named once
                 Text { visible: !sf.side && sf.nPanels > 1; text: "dashed:"; font: sf.roles.fLabel; color: sf.roles.ink3; anchors.baseline: gh.baseline }
@@ -267,7 +267,7 @@ Item {
                                 delegate: Row {
                                     required property var modelData
                                     objectName: "chSessionKey:" + modelData.key
-                                    spacing: sf.roles.u(5)
+                                    spacing: sf.roles.g(5)
                                     Rectangle { anchors.verticalCenter: kT.verticalCenter; width: sf.roles.u(sf.roles.ch.swatch); height: sf.roles.u(2); color: sf.roles.hue(modelData.key) }
                                     Text { id: kT; text: modelData.label; font: sf.roles.fSmall; color: sf.roles.ink
                                            Rectangle { z: -1; anchors.fill: parent; anchors.margins: -1; color: sf.roles.knock } }
@@ -278,7 +278,7 @@ Item {
                         Row {
                             id: sName
                             visible: pn.index === 0 && !rw.ov
-                            x: sf.yGut + sf.roles.u(4); y: sf.roles.u(1); spacing: sf.roles.u(5)
+                            x: sf.yGut + sf.roles.u(4); y: sf.roles.u(1); spacing: sf.roles.g(5)
                             Rectangle { anchors.verticalCenter: snm.verticalCenter; width: sf.roles.u(sf.roles.ch.swatch); height: sf.roles.u(2); color: rw.r ? sf.roles.hue(rw.r.key) : "transparent" }
                             Text { id: snm; text: rw.r ? rw.r.label : ""; font: sf.roles.fSmallM; color: sf.roles.ink
                                    Rectangle { z: -1; anchors.fill: parent; anchors.margins: -2; color: sf.roles.knock } }
@@ -394,12 +394,12 @@ Item {
                     id: foldFlow
                     visible: !sf.figSide
                     x: sf.yGut; y: rw.ph + rw.cov + sf.roles.u(2); width: sf.width - sf.yGut
-                    spacing: sf.roles.u(12)
+                    spacing: sf.roles.g(12)
                     Repeater {
                         model: sf.figSide ? [] : rw.figs
                         delegate: Row {
                             required property var modelData
-                            spacing: sf.roles.u(4)
+                            spacing: sf.roles.g(4)
                             Text { text: modelData.label; font: sf.roles.fLabel; color: sf.roles.ink3; anchors.baseline: fv.baseline }
                             Text { id: fv; text: modelData.text; font: sf.roles.fFigS; color: sf.roles.ink }
                         }
@@ -440,13 +440,13 @@ Item {
         id: whenFlow
         y: cap.y + cap.height + (sf.roles ? sf.roles.u(4) : 0)
         x: sf.yGut; width: sf.areaW - sf.yGut
-        spacing: sf.roles ? sf.roles.u(12) : 12
+        spacing: sf.roles ? sf.roles.g(12) : Theme.gap(12)
         Text { visible: sf.pTicks.length > 0; text: "When, middle half"; font: sf.roles ? sf.roles.fLabel : Qt.font({}); color: sf.roles ? sf.roles.ink3 : "grey" }
         Repeater {
             model: sf.roles ? sf.pTicks.filter(function (p) { return !!p.when }) : []
             delegate: Row {
                 required property var modelData
-                spacing: sf.roles.u(4)
+                spacing: sf.roles.g(4)
                 Text { text: modelData.tag; font: sf.roles.fFigLabel; color: sf.roles.ink2 }
                 Text { text: modelData.when; font: sf.roles.fFigLabel; color: sf.roles.ink3 }
             }

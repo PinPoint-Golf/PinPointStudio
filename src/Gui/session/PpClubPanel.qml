@@ -35,7 +35,7 @@ Item {
     signal requestClose()
 
     implicitWidth:  Theme.sp(258)
-    implicitHeight: col.implicitHeight + Theme.sp(26)
+    implicitHeight: col.implicitHeight + Theme.gap(26)
 
     // Current selection: the session's active club, else the athlete's default so
     // a not-yet-started session still highlights a sensible row. Reactive to

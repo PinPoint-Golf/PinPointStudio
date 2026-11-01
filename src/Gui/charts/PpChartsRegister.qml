@@ -120,7 +120,7 @@ Item {
             Text { anchors.verticalCenter: parent.verticalCenter
                    text: root.body && root.body.rStatus ? (root.body.rStatus.kicker || "") : ""; font: ro.fBody; color: ro.ink }
             Row {
-                anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; spacing: ro.u(8)
+                anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; spacing: ro.g(8)
                 Text { text: root.shown === "shot" ? "This shot" : root.shown === "session" ? "Session" : root.shown === "readings" ? "Readings" : "Relations"; font: ro.fSmall; color: ro.ink3 }
                 Text { text: "·"; font: ro.fSmall; color: ro.ink3 }
                 Text { text: root.tc.presetTitle || ""; font: ro.fSmall; color: ro.ink3 }

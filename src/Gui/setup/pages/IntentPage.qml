@@ -35,7 +35,7 @@ import PinPointStudio
 WizardPage {
     id: page
 
-    implicitHeight: intentCol.implicitHeight + Theme.sp(32)
+    implicitHeight: intentCol.implicitHeight + Theme.gap(32)
 
     // The choices: the context's, with the opened-with focus added (after the coaching focus) when
     // no other entry offers it.
@@ -107,7 +107,7 @@ WizardPage {
                     readonly property string choiceLabel: modelData.label
 
                     Layout.fillWidth:    true
-                    Layout.preferredHeight: chipCol.implicitHeight + Theme.sp(36)
+                    Layout.preferredHeight: chipCol.implicitHeight + Theme.gap(36)
 
                     // For the tests: whether this is the chosen one.
                     readonly property bool sel: page.draft !== null && page.draft.focusConditionId === modelData.id

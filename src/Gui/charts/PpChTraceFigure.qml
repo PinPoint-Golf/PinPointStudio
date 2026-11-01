@@ -252,7 +252,7 @@ Item {
                     objectName: "chTraceLabel:" + rw.key
                     visible: !rw.ov
                     x: tf.yGut + tf.roles.u(4); y: tf.roles.u(1)
-                    spacing: tf.roles.u(5)
+                    spacing: tf.roles.g(5)
                     Rectangle { anchors.verticalCenter: nmT.verticalCenter; width: tf.roles.u(tf.roles.ch.swatch); height: tf.roles.u(2); color: rw.ov ? "transparent" : tf.roles.hue(rw.key) }
                     Text { id: nmT; text: rw.r ? rw.r.label : ""; font: tf.roles.fSmallM; color: tf.roles.ink
                            Rectangle { z: -1; anchors.fill: parent; anchors.margins: -2; color: tf.roles.knock } }
@@ -268,7 +268,7 @@ Item {
                         delegate: Row {
                             required property var modelData
                             objectName: "chTraceLabel:" + modelData.key
-                            spacing: tf.roles.u(5)
+                            spacing: tf.roles.g(5)
                             Rectangle { anchors.verticalCenter: ovT.verticalCenter; width: tf.roles.u(tf.roles.ch.swatch); height: tf.roles.u(2); color: tf.roles.hue(modelData.key) }
                             Text { id: ovT; text: modelData.label; font: tf.roles.fSmall; color: tf.roles.ink
                                    Rectangle { z: -1; anchors.fill: parent; anchors.margins: -1; color: tf.roles.knock } }
@@ -497,13 +497,13 @@ Item {
                                 Row {
                                     width: parent.width
                                     Text { id: fl; text: modelData.label; font: modelData.head ? tf.roles.fSmallM : tf.roles.fLabel; color: modelData.head ? tf.roles.ink : tf.roles.ink3; anchors.baseline: fv.baseline }
-                                    Item { width: Math.max(tf.roles.u(4), parent.width - fl.implicitWidth - fv.implicitWidth - (fw.visible ? fw.implicitWidth + tf.roles.u(4) : 0)); height: 1 }
+                                    Item { width: Math.max(tf.roles.g(4), parent.width - fl.implicitWidth - fv.implicitWidth - (fw.visible ? fw.implicitWidth + tf.roles.g(4) : 0)); height: 1 }
                                     Text { id: fv; objectName: modelData.trust ? "chFigWhy:" + modelData.trust : ""
                                            text: modelData.text + (modelData.trust ? "  ›" : ""); font: tf.roles.fFigS
                                            color: modelData.warn ? tf.roles.warn : modelData.trust ? tf.roles.link : tf.roles.ink
                                            MouseArea { enabled: !!modelData.trust; anchors.fill: parent; anchors.margins: -2
                                                        cursorShape: Qt.PointingHandCursor; onClicked: tf.trustClicked(modelData.trust) } }
-                                    Item { visible: fw.visible; width: tf.roles.u(4); height: 1 }
+                                    Item { visible: fw.visible; width: tf.roles.g(4); height: 1 }
                                     Text { id: fw; visible: !!modelData.word; anchors.baseline: fv.baseline; text: modelData.word || ""; font: tf.roles.fSmall; color: tf.roles.warn }
                                 }
                                 Text { visible: !!modelData.sub; anchors.right: parent.right; y: tf.roles.u(14); text: modelData.sub || ""; font: tf.roles.fFigLabel; color: tf.roles.ink3 }
@@ -528,7 +528,7 @@ Item {
                         }
                         delegate: Row {
                             required property var modelData
-                            spacing: tf.roles.u(4)
+                            spacing: tf.roles.g(4)
                             Text { text: modelData.label; font: tf.roles.fLabel }
                             Text { text: modelData.text; font: tf.roles.fFigS }
                             Text { visible: !!modelData.sub; text: modelData.sub || ""; font: tf.roles.fFigLabel }
@@ -540,12 +540,12 @@ Item {
                     id: foldFlow
                     visible: !tf.figSide
                     x: tf.yGut; y: rw.ph + tf.roles.u(2); width: tf.width - tf.yGut
-                    spacing: tf.roles.u(12)
+                    spacing: tf.roles.g(12)
                     Repeater {
                         model: tf.figSide ? [] : figCol.items
                         delegate: Row {
                             required property var modelData
-                            spacing: tf.roles.u(4)
+                            spacing: tf.roles.g(4)
                             Text { text: modelData.label; font: tf.roles.fLabel; color: tf.roles.ink3; anchors.baseline: fv2.baseline }
                             Text { id: fv2; text: modelData.text + (modelData.trust ? "  ›" : ""); font: tf.roles.fFigS
                                    color: modelData.warn ? tf.roles.warn : modelData.trust ? tf.roles.link : tf.roles.ink

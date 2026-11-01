@@ -109,7 +109,7 @@ Popup {
     // While the PDF is being made the sheet stays: it is where the progress is.
     closePolicy: sheet.working ? Popup.NoAutoClose : (Popup.CloseOnEscape | Popup.CloseOnPressOutside)
     padding: Theme.gap(22)
-    width: Math.min(Theme.sp(520), (parent ? parent.width : Theme.sp(520)) - Theme.sp(48))
+    width: Math.min(Theme.sp(520), (parent ? parent.width : Theme.sp(520)) - Theme.gap(48))
 
     background: PpPopoverCard {}
 
@@ -165,7 +165,7 @@ Popup {
                 enabled: !sheet.working
                 placeholderText: qsTr("A line or two in your own words. It goes on the cover.")
                 topPadding: Theme.gap(10); bottomPadding: Theme.gap(10)
-                implicitHeight: Math.max(Theme.sp(84), contentHeight + Theme.sp(20))
+                implicitHeight: Math.max(Theme.sp(84), contentHeight + Theme.gap(20))
             }
         }
 

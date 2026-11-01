@@ -37,7 +37,7 @@ Column {
     readonly property var keyKinds: []
     readonly property var links: sequence && sequence.links ? sequence.links : []
     visible: links.length > 0
-    spacing: roles ? roles.u(3) : 3
+    spacing: roles ? roles.g(3) : Theme.gap(3)
     Flow {
         width: sc.width
         spacing: 0
@@ -47,8 +47,8 @@ Column {
                 required property var modelData
                 required property int index
                 objectName: modelData.late ? "chSeqLate:" + modelData.segment : "chSeqLink:" + modelData.segment
-                spacing: sc.roles.u(5)
-                rightPadding: sc.roles.u(5)
+                spacing: sc.roles.g(5)
+                rightPadding: sc.roles.g(5)
                 // a probable peak (the chest across the camera's gap) carries its ⚠
                 Text { id: w; text: modelData.word + (modelData.probable ? " ⚠" : ""); font: sc.roles.fBody; color: modelData.late ? sc.roles.warn : sc.roles.ink
                        Rectangle { visible: modelData.late; anchors.top: parent.baseline; anchors.topMargin: sc.roles.u(2); width: parent.width; height: 1; color: sc.roles.warn } }

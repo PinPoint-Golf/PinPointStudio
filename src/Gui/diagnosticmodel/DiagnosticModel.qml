@@ -781,7 +781,7 @@ Item {
                 Layout.maximumWidth: Theme.sp(420)
                 Layout.minimumWidth: Theme.sp(180)
                 Layout.preferredHeight: Theme.sp(30)
-                rightPadding: findHint.implicitWidth + Theme.sp(18)
+                rightPadding: findHint.implicitWidth + Theme.gap(18)
                 placeholderText: qsTr("Search every content type")
                 onTextChanged: {
                     table.endEdit()

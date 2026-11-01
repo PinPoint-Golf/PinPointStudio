@@ -327,7 +327,7 @@ SettingsPanelBase {
         color:  Theme.colorBg2
         border.width: 1
         border.color: Theme.colorBorderMid
-        implicitHeight: meterCol.implicitHeight + Theme.sp(28)
+        implicitHeight: meterCol.implicitHeight + Theme.gap(28)
 
         ColumnLayout {
             id: meterCol

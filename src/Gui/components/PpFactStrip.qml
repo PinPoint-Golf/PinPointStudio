@@ -45,7 +45,7 @@ RowLayout {
             required property int index
 
             Layout.fillWidth: true
-            implicitHeight: fsCol.implicitHeight + Theme.sp(18)
+            implicitHeight: fsCol.implicitHeight + Theme.gap(18)
             color: Theme.colorBg2
 
             // Vertical separator (except last)

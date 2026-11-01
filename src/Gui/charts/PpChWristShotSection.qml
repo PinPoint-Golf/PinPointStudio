@@ -103,7 +103,7 @@ PpChSection {
     Column {
         id: mainCol
         width: ws.mainW
-        spacing: ws.has ? ws.ty.u(14) : 0
+        spacing: ws.has ? ws.ty.g(14) : 0
         // ── the head, the standfirst at the playhead's checkpoint, the score beside at medium+ ──
         Item {
             id: headItem
@@ -113,7 +113,7 @@ PpChSection {
             Column {
                 id: headCol
                 width: scoreCol.visible ? ws.mainW - scoreCol.width - ws.ty.u(32) : ws.mainW
-                spacing: ws.ty.u(6)
+                spacing: ws.ty.g(6)
                 PpChText { roles: ws.ty; sentence: ws.has ? ws.sh.head : null; font: ws.ty.fStand; tone: ws.ty.ink }
                 PpChText { roles: ws.ty; sentence: ws.has && ws.body ? ws.body.wStandfirst : null; font: ws.ty.fBody }
                 // the score as one line below medium, and always at the glance
@@ -126,10 +126,10 @@ PpChSection {
                 visible: ws.wide && !ws.replay
                 anchors.right: parent.right
                 width: ws.ty.u(230)
-                spacing: ws.ty.u(3)
+                spacing: ws.ty.g(3)
                 Text { text: "Wrist score"; font: ws.ty.fKicker; color: ws.ty.ink3 }
                 Row {
-                    spacing: ws.ty.u(6)
+                    spacing: ws.ty.g(6)
                     // no score because a gate refused the wrist: the gate's words, quiet, opening the reason
                     Text { id: big
                            readonly property bool why: !!ws.score.trust
@@ -177,7 +177,7 @@ PpChSection {
         // ── the checkpoint profile ──
         Column {
             width: ws.mainW
-            spacing: ws.ty.u(8)
+            spacing: ws.ty.g(8)
             PpSectionHead { width: parent.width; roles: ws.ty; paged: false; pad: 0
                             title: "Checkpoints"; sub: ws.prof.sub || ""; subFit: "top"; subWrap: false }
             Text { visible: !!ws.prof.ghostRefusal; width: parent.width; wrapMode: Text.WordWrap
@@ -214,7 +214,7 @@ PpChSection {
         visible: ws.rail
         x: ws.mainW + (ws.has ? ws.ty.u(48) : 0)
         width: ws.railW
-        spacing: ws.has ? ws.ty.u(26) : 0
+        spacing: ws.has ? ws.ty.g(26) : 0
         Loader { active: ws.rail; width: ws.railW; sourceComponent: ledgersC }
         Loader { active: ws.rail; width: ws.railW; sourceComponent: movesC }
     }
@@ -244,7 +244,7 @@ PpChSection {
         id: moves
         objectName: "chWristMoves"
         readonly property var mw: ws.body ? ws.body.wMoves : ({})
-        spacing: ws.ty.u(5)
+        spacing: ws.ty.g(5)
         PpSectionHead { width: parent.width; roles: ws.ty; title: moves.mw && moves.mw.head && moves.mw.head.text ? moves.mw.head.text : "What moves with the lead wrist at impact"
                         sub: moves.mw ? (moves.mw.sub || "") : "" }
         PpChText { visible: present && !(moves.mw && moves.mw.available); roles: ws.ty; sentence: moves.mw ? moves.mw.refusal : null; tone: ws.ty.ink3 }

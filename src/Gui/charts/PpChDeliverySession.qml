@@ -59,11 +59,11 @@ PpChSection {
     Column {
         id: col
         width: ss.width
-        spacing: ss.ok ? ss.roles.u(18) : 18
+        spacing: ss.ok ? ss.roles.g(18) : Theme.gap(18)
 
         Column {
             objectName: "chDeliverySessionHead"
-            width: ss.width; spacing: ss.ok ? ss.roles.u(6) : 6
+            width: ss.width; spacing: ss.ok ? ss.roles.g(6) : Theme.gap(6)
             PpChText { roles: ss.roles; sentence: ss.se ? ss.se.head : null
                        font: ss.ok ? ss.roles.fStand : Qt.font({}); tone: ss.ok ? ss.roles.ink : "black" }
         }
@@ -72,7 +72,7 @@ PpChSection {
         Column {
             objectName: "chDeliveryBand"
             visible: ss.available && ss.band.shown === true && ss.positions.length > 0
-            width: ss.width; spacing: ss.ok ? ss.roles.u(8) : 8
+            width: ss.width; spacing: ss.ok ? ss.roles.g(8) : Theme.gap(8)
             readonly property real colW: ss.ok ? Math.max(ss.roles.u(52), Math.min(ss.roles.u(80), (width - ss.roles.u(40)) / Math.max(1, ss.positions.length))) : 60
             PpSectionHead { width: parent.width; roles: ss.roles; title: "The plane at each position"
                             sub: ss.band.n ? ss.band.n + " shots with the swing plane curve" : "" }
@@ -85,7 +85,7 @@ PpChSection {
                         objectName: "chDeliveryBandCol"
                         readonly property string tag: modelData.tag
                         width: parent.parent.colW
-                        spacing: ss.roles.u(2)
+                        spacing: ss.roles.g(2)
                         Text { width: parent.width; horizontalAlignment: Text.AlignHCenter; text: bcol.modelData.tag; font: ss.roles.fFigLabel; color: ss.roles.ink3 }
                         PpChBoxCell {
                             vertical: true
@@ -111,7 +111,7 @@ PpChSection {
         Flow {
             objectName: "chDeliveryUsual"
             visible: ss.available
-            width: ss.width; spacing: ss.ok ? ss.roles.u(10) : 10
+            width: ss.width; spacing: ss.ok ? ss.roles.g(10) : Theme.gap(10)
             Text { text: "Usually"; font: ss.ok ? ss.roles.fKicker : Qt.font({}); color: ss.ok ? ss.roles.ink3 : "grey" }
             Text { text: "address"; font: ss.ok ? ss.roles.fSmall : Qt.font({}); color: ss.ok ? ss.roles.ink3 : "grey" }
             Text { text: ss.usual.addressText || "-"; font: ss.ok ? ss.roles.fFigS : Qt.font({}); color: ss.ok ? ss.roles.ink : "black" }
@@ -126,7 +126,7 @@ PpChSection {
             id: cols
             visible: ss.available
             width: ss.width
-            readonly property real gap: ss.ok ? ss.roles.u(28) : 28
+            readonly property real gap: ss.ok ? ss.roles.g(28) : Theme.gap(28)
             readonly property bool two: ss.ok && ss.roles.columns(cols.width, 30, gap) >= 2
             readonly property real colW: two ? (cols.width - gap) / 2 : cols.width
             height: !visible ? 0 : two ? Math.max(fl.height, shp.height) : fl.height + ss.roles.u(18) + shp.height
@@ -141,9 +141,9 @@ PpChSection {
             Column {
                 id: shp
                 objectName: "chDeliveryShape"
-                x: cols.two ? cols.colW + cols.gap : 0; y: cols.two ? 0 : fl.height + ss.roles.u(18)
+                x: cols.two ? cols.colW + cols.gap : 0; y: cols.two ? 0 : fl.height + ss.roles.g(18)
                 width: cols.colW
-                spacing: ss.ok ? ss.roles.u(6) : 6
+                spacing: ss.ok ? ss.roles.g(6) : Theme.gap(6)
                 Text { text: "Shot shape"; font: ss.ok ? ss.roles.fKicker : Qt.font({}); color: ss.ok ? ss.roles.ink3 : "grey" }
                 PpChShotShapeGrid {
                     roles: ss.roles; interactive: ss.interactive

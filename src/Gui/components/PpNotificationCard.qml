@@ -49,8 +49,8 @@ Rectangle {
 
     readonly property bool _toast: style === "toast"
 
-    implicitWidth:  content.implicitWidth + Theme.sp(30)
-    implicitHeight: _toast ? Theme.sp(40) : Math.max(Theme.sp(40), content.implicitHeight + Theme.sp(16))
+    implicitWidth:  content.implicitWidth + Theme.gap(30)
+    implicitHeight: _toast ? Theme.sp(40) : Math.max(Theme.sp(40), content.implicitHeight + Theme.gap(16))
     radius: Theme.radiusLg
     color:  Theme.colorBg3
     border.width: 1

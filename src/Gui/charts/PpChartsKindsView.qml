@@ -31,14 +31,14 @@ PpChViewBase {
     objectName: "chKindsView"
     readonly property var kd: body ? body.rKinds : ({})
     readonly property bool available: !!kd && kd.available === true
-    spacing: roles ? roles.u(12) : 12
+    spacing: roles ? roles.g(12) : Theme.gap(12)
 
     PpChText { objectName: "chKindsWhy"; visible: !kv.available && !!kv.body && present; roles: kv.roles; sentence: kv.body && kv.body.rStatus ? kv.body.rStatus.refusal : null
                font: kv.roles ? kv.roles.fBody : Qt.font({}); tone: kv.roles ? kv.roles.ink2 : "grey" }
     Column {
         objectName: "chKindsHead"
         visible: kv.available
-        width: kv.width; spacing: kv.roles ? kv.roles.u(4) : 4
+        width: kv.width; spacing: kv.roles ? kv.roles.g(4) : Theme.gap(4)
         Text { visible: !kv.cast && !!kv.body && !!kv.body.rStatus.kicker; text: kv.body ? (kv.body.rStatus.kicker || "") : ""; font: kv.roles ? kv.roles.fKicker : Qt.font({}); color: kv.roles ? kv.roles.ink3 : "grey" }
         PpChText { roles: kv.roles; sentence: kv.kd.head; measure: false; font: kv.roles ? kv.roles.fTitle : Qt.font({}); tone: kv.roles ? kv.roles.ink : "black"; lineHeight: 1.08 }
         PpChText { roles: kv.roles; sentence: kv.kd.standfirst; font: kv.roles ? kv.roles.fStand : Qt.font({}); lineHeight: kv.roles ? kv.roles.r.leading : 1 }
@@ -56,15 +56,15 @@ PpChViewBase {
     Flow {
         id: cf
         visible: kv.available
-        width: kv.width; spacing: kv.roles ? kv.roles.u(20) : 20
+        width: kv.width; spacing: kv.roles ? kv.roles.g(20) : Theme.gap(20)
         readonly property int cols: kv.roles ? kv.roles.columns(width, kv.roles.isPrint ? kv.roles.ch.kindCurveEm : kv.roles.flows.kindCurve, kv.roles.u(20)) : 1
         Repeater {
             model: kv.available ? (kv.kd.curves || []) : []
             delegate: Column {
                 required property var modelData
-                width: Math.floor((cf.width - (cf.cols - 1) * kv.roles.u(20)) / cf.cols); spacing: kv.roles.u(4)
+                width: Math.floor((cf.width - (cf.cols - 1) * kv.roles.g(20)) / cf.cols); spacing: kv.roles.g(4)
                 Row {
-                    spacing: kv.roles.u(5)
+                    spacing: kv.roles.g(5)
                     Rectangle { anchors.verticalCenter: kl.verticalCenter; width: kv.roles.u(kv.roles.ch.swatch); height: width; radius: kv.roles.square ? 0 : width / 2; color: kv.roles.hue(modelData.key) }
                     Text { id: kl; text: modelData.label; font: kv.roles.fSmallM; color: kv.roles.ink }
                 }
@@ -77,13 +77,13 @@ PpChViewBase {
     Column {
         objectName: "chKindShapes"
         visible: kv.available && !!kv.kd.shapes && kv.kd.shapes.found === true
-        width: kv.width; spacing: kv.roles ? kv.roles.u(4) : 4
+        width: kv.width; spacing: kv.roles ? kv.roles.g(4) : Theme.gap(4)
         PpChText { roles: kv.roles; sentence: kv.kd.shapes ? kv.kd.shapes.sentence : null; font: kv.roles ? kv.roles.fBody : Qt.font({}) }
         Repeater {
             model: kv.available && kv.kd.shapes ? (kv.kd.shapes.groups || []) : []
             delegate: Flow {
                 required property var modelData
-                width: kv.width; spacing: kv.roles.u(10)
+                width: kv.width; spacing: kv.roles.g(10)
                 Text { text: modelData.label; font: kv.roles.fSmallM; color: kv.roles.ink2 }
                 Repeater {
                     model: modelData.ordinals || []

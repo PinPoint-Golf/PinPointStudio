@@ -48,7 +48,7 @@ Item {
     readonly property var dh: (detail && detail.header) || null
     readonly property var dsp: (dh && dh.spread) || null
     readonly property int shotNo: roles.shotNo(readout)
-    readonly property real gap: roles.u(40)
+    readonly property real gap: roles.g(40)
     readonly property int mode: width >= roles.flows.openingRow * roles.em ? 2 : width >= 36 * roles.em ? 1 : 0
     readonly property real pullW: showPull ? Math.max(pullRow.width, roles.u(150)) : 0
     readonly property string citation: (dsp && dsp.normCitation) || ""
@@ -59,7 +59,7 @@ Item {
     Column {
         id: opening
         width: op.mode === 2 ? 34 * op.roles.em : op.roles.measureW(op.width)
-        spacing: op.roles.u(8)
+        spacing: op.roles.g(8)
         Text {
             width: parent.width; wrapMode: Text.Wrap
             text: op.dh ? [String(op.dh.rankText || "").replace("#", "No. "), op.dh.phase, op.dh.measure].filter(x => x).join(" · ") : ""
@@ -79,7 +79,7 @@ Item {
         }
         Text {
             width: parent.width; wrapMode: Text.Wrap; textFormat: Text.RichText
-            topPadding: op.roles.u(2)
+            topPadding: op.roles.g(2)
             text: op.dh ? op.roles.esc(op.roles.sentence(op.dh.directionText)) + " "
                           + op.roles.esc(op.longForm ? (op.dh.consequence || "") : op.roles.consequenceSplit(op.dh)[0]) : ""
             font: op.roles.fStand; color: op.roles.ink2; lineHeight: op.roles.r.leading
@@ -89,12 +89,12 @@ Item {
         id: pullBox
         visible: op.showPull
         x: op.mode === 2 ? opening.width + op.gap : 0
-        y: op.mode === 2 ? 0 : opening.height + op.roles.u(20)
-        spacing: op.roles.u(5)
+        y: op.mode === 2 ? 0 : opening.height + op.roles.g(20)
+        spacing: op.roles.g(5)
         Rectangle { width: op.pullW; height: op.roles.hw; color: op.roles.rule }
         Row {
             id: pullRow
-            spacing: op.roles.u(30)
+            spacing: op.roles.g(30)
             Repeater {
                 model: op.roles && op.dsp ? [
                     // a "-" a gate or rule accounts for names it under the figure: "shot 4 · out of sight"
@@ -128,9 +128,9 @@ Item {
         id: facts
         visible: op.showFacts
         x: op.mode === 0 || !op.showPull ? (op.mode === 2 ? opening.width + op.gap : 0) : pullBox.x + op.pullW + op.gap
-        y: !op.showPull ? (op.mode === 2 ? 0 : opening.height + op.roles.u(20)) : op.mode === 0 ? pullBox.y + pullBox.height + op.roles.u(18) : pullBox.y
+        y: !op.showPull ? (op.mode === 2 ? 0 : opening.height + op.roles.g(20)) : op.mode === 0 ? pullBox.y + pullBox.height + op.roles.g(18) : pullBox.y
         width: Math.max(op.roles.u(120), Math.min(op.mode === 0 ? op.width : op.width - x, 30 * op.roles.em))
-        spacing: op.roles.u(5)
+        spacing: op.roles.g(5)
         Rectangle { width: parent.width; height: op.roles.hw; color: op.roles.rule }
         Repeater {
             model: {

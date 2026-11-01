@@ -37,7 +37,7 @@ Column {
     property bool atom: false
     readonly property var keyKinds: ["ring", "fired"]
     signal shotActivated(int ordinal)
-    spacing: roles ? roles.u(10) : 10
+    spacing: roles ? roles.g(10) : Theme.gap(10)
     readonly property var segs: sequence && sequence.segments ? sequence.segments : []
     readonly property int nShots: segs.length ? (segs[0].cells || []).length : 0
     readonly property real em: roles ? roles.em : 14
@@ -205,12 +205,12 @@ Column {
     }
     Flow {
         visible: !ss.figsSide
-        width: ss.width; spacing: ss.roles ? ss.roles.u(12) : 12
+        width: ss.width; spacing: ss.roles ? ss.roles.g(12) : Theme.gap(12)
         Repeater {
             model: ss.roles && !ss.figsSide ? ss.segs : []
             delegate: Row {
                 required property var modelData
-                spacing: ss.roles.u(4)
+                spacing: ss.roles.g(4)
                 Text { text: modelData.word; font: ss.roles.fSmall; color: ss.roles.ink2 }
                 Text { text: modelData.figText || ""; font: ss.roles.fFigLabel; color: ss.roles.ink3 }
             }

@@ -139,8 +139,8 @@ Item {
     // left of the chips). The chips row reserves _stripBandHeight so the filmstrip clears it;
     // the dock grows to fit. Nothing showing (e.g. Capture) → the base height, unchanged.
     readonly property bool _transportShown: root.transport !== null && root.transportActive
-    readonly property real _stripTopMargin:    Theme.sp(3.5)   // halved top/bottom padding
-    readonly property real _stripBottomMargin: Theme.sp(4)
+    readonly property real _stripTopMargin:    Theme.gap(3.5)   // halved top/bottom padding
+    readonly property real _stripBottomMargin: Theme.gap(4)
     readonly property real _stripBandHeight:   Theme.sp(40)    // header band height when the transport shows
     // Film-strip card height (16:9 card, sized off its width) — subtracted from the
     // dock height when collapsed, along with the railCol spacing above it.
@@ -514,7 +514,7 @@ Item {
     //    metrics while pointing the way THIS pane folds (down, into the bottom edge).
     Rectangle {
         id: collapseChip
-        x: root.width - Theme.sp(16) - width
+        x: root.width - Theme.gap(16) - width
         y: railCol.y + chipsRow.y + (chipsRow.height - height) / 2
         implicitWidth:  Theme.sp(26)
         implicitHeight: Theme.sp(22)
@@ -559,8 +559,8 @@ Item {
            + (root._stripBandHeight - height) / 2
         x: {
             var centreX = root.width / 2 - width / 2
-            var minX    = chipsRow.x + chipsRow.width + Theme.sp(12)
-            var maxX    = collapseChip.x - Theme.sp(12) - width
+            var minX    = chipsRow.x + chipsRow.width + Theme.gap(12)
+            var maxX    = collapseChip.x - Theme.gap(12) - width
             return Math.min(Math.max(centreX, minX), maxX)
         }
         active:  root._transportShown
@@ -573,8 +573,8 @@ Item {
         id: filterPopup
         objectName: "filterPopup"
         parent: root
-        x: Theme.sp(16)
-        y: -height - Theme.sp(10)
+        x: Theme.gap(16)
+        y: -height - Theme.gap(10)
         padding: 0
         margins: Theme.gap(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -612,8 +612,8 @@ Item {
         id: editPopup
         objectName: "editPopup"
         parent: root
-        x: Theme.sp(16)
-        y: -height - Theme.sp(10)
+        x: Theme.gap(16)
+        y: -height - Theme.gap(10)
         padding: 0
         margins: Theme.gap(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -636,7 +636,7 @@ Item {
         parent: root
         x: 0
         width: root.drawerWidth   // shared with the shot panel (siblings)
-        y: -height - Theme.sp(10)
+        y: -height - Theme.gap(10)
 
         // Clamp so the top stays below the toolbar. Window height (the overlay)
         // minus the header, toolbar and this carousel leaves the body band; the
@@ -680,8 +680,8 @@ Item {
         id: exportSheet
         objectName: "exportSheet"
         parent: root
-        x: Theme.sp(16)
-        y: -height - Theme.sp(10)
+        x: Theme.gap(16)
+        y: -height - Theme.gap(10)
         onConfirmed: (selectedVideoFiles, includeJson) =>
             swingExporter.exportShots(exportSheet.swingDirs, selectedVideoFiles, includeJson)
     }
@@ -799,7 +799,7 @@ Item {
     PpToast {
         id: toast
         placement: "above"
-        margin: Theme.sp(14)
+        margin: Theme.gap(14)
         showUndo: false
     }
 }

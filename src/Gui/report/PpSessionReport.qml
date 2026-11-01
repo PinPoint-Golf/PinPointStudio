@@ -428,6 +428,7 @@ Item {
         readonly property var p: Object.assign({}, ts.p, { marginX: 60, headY: 34, top: 80, bottom: 62 })
         readonly property string medium: "print"
         function u(n) { return ts.u(n) }
+        function g(n) { return ts.u(n) }        // print: space is u(n), as PpTypeset.g() in print
         readonly property font fLabel: ts.fLabel
         readonly property font fMicro: ts.fMicro
         readonly property font fSmall: ts.fSmall

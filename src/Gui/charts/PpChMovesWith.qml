@@ -44,7 +44,7 @@ Column {
     readonly property bool showIv: roles ? roles.shows(2, width) : true
     readonly property bool showNs: roles ? roles.shows(3, width) : true
     readonly property bool showSp: roles ? roles.shows(4, width) : false
-    readonly property real gap: roles ? roles.u(12) : 12
+    readonly property real gap: roles ? roles.g(12) : Theme.gap(12)
     readonly property real rankW: Math.round(1.8 * em)
     readonly property real rW: Math.round(3.4 * em)
     readonly property real ivW: Math.round(10 * em)
@@ -85,7 +85,7 @@ Column {
                 Text { width: cl.rankW; horizontalAlignment: Text.AlignRight; text: row.modelData.rank > 0 ? String(row.modelData.rank) : ""; font: cl.roles.fFigS; color: cl.roles.ink3; anchors.baseline: nm.baseline }
                 Text {
                     id: nm; width: cl.nameW; wrapMode: Text.WordWrap; textFormat: Text.StyledText
-                    leftPadding: cl.roles.u(cl.roles.ch.swatch) + cl.roles.u(5)
+                    leftPadding: cl.roles.u(cl.roles.ch.swatch) + cl.roles.g(5)
                     text: cl.roles.esc(row.modelData.label) + (row.modelData.same ? " " + cl.roles.esc(row.modelData.sameMark || "") : "")
                           + "  <font color=\"" + cl.roles.hex(cl.roles.ink3) + "\">" + cl.roles.esc(row.modelData.tag || "") + "</font>"
                     font: row.on ? cl.roles.fBodyM : cl.roles.fBody; color: cl.roles.ink
@@ -133,7 +133,7 @@ Column {
             }
             Row {
                 visible: row.two
-                x: cl.rankW + cl.gap; y: row.line1 - cl.roles.u(3); spacing: cl.roles.u(10)
+                x: cl.rankW + cl.gap; y: row.line1 - cl.roles.u(3); spacing: cl.roles.g(10)
                 Text { visible: !cl.showIv; text: row.modelData.ciText || ""; font: cl.roles.fFigLabel; color: cl.roles.ink3 }
                 Text { visible: !cl.showNs; text: "n"; font: cl.roles.fSmall; color: cl.roles.ink3 }
                 Text { visible: !cl.showNs; text: String(row.modelData.n); font: cl.roles.fFigLabel; color: cl.roles.ink3 }

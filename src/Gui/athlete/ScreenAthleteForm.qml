@@ -224,7 +224,7 @@ Item {
                 eyebrow:    Theme.caps(qsTr("Athlete profile"))
                 title:      root.editUuid === "" ? qsTr("New athlete") : qsTr("Edit athlete")
             }
-            Item { width: 1; height: 6 }
+            Item { width: 1; height: Theme.gap(6) }
 
             Column {
                 id: detailsCol
@@ -235,7 +235,7 @@ Item {
                     kind:          "form"
                     width:         parent.width
                     text:          qsTr("Only the first two fields are required. The rest sharpen analysis and personalise coaching output.")
-                    bottomPadding: 24
+                    bottomPadding: Theme.gap(24)
                 }
 
                 // ── Required group ───────────────────────────────────────────────
@@ -278,7 +278,7 @@ Item {
                     }
                 }
 
-                Item { width: 1; height: Theme.sp(16) }
+                Item { width: 1; height: Theme.gap(16) }
 
                 // ── Recommended group ────────────────────────────────────────────
                 PpGroupCard {
@@ -476,7 +476,7 @@ Item {
                     }
                 }
 
-                Item { width: 1; height: Theme.sp(16) }
+                Item { width: 1; height: Theme.gap(16) }
 
                 // ── Optional group ───────────────────────────────────────────────
                 PpGroupCard {
@@ -531,7 +531,7 @@ Item {
                     // Note strip
                     footer: Rectangle {
                         width:  parent.width
-                        height: noteText.implicitHeight + Theme.sp(20)
+                        height: noteText.implicitHeight + Theme.gap(20)
                         color:  Theme.colorSurface
                         border.width: 0
 
@@ -556,7 +556,7 @@ Item {
                     }
                 }
 
-                Item { width: 1; height: Theme.sp(16) }
+                Item { width: 1; height: Theme.gap(16) }
 
                 // ── Reports group (session report §7.3) ─────────────────────────
                 //
@@ -669,7 +669,7 @@ Item {
 
                 // ── Clubs (edit mode only — records commit immediately, unlike the
                 //    buffered scalar fields; a new athlete must be saved first) ─────
-                Item { visible: root.editUuid !== ""; width: 1; height: Theme.sp(16) }
+                Item { visible: root.editUuid !== ""; width: 1; height: Theme.gap(16) }
                 AthleteClubsSection {
                     visible:     root.editUuid !== ""
                     athleteUuid: root.editUuid
@@ -677,11 +677,11 @@ Item {
                 }
 
                 // ── Action row ───────────────────────────────────────────────────
-                Item { width: 1; height: Theme.sp(24) }
+                Item { width: 1; height: Theme.gap(24) }
                 Row {
                     anchors.right: parent.right
                     spacing: Theme.gap(8)
-                    bottomPadding: 32
+                    bottomPadding: Theme.gap(32)
 
                     PpButton {
                         label: qsTr("Cancel")
@@ -707,7 +707,7 @@ Item {
                         }
                     }
                 }
-                Item { width: 1; height: Theme.sp(32) }
+                Item { width: 1; height: Theme.gap(32) }
             }   // detailsCol
         }
     }

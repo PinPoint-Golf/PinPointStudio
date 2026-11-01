@@ -50,7 +50,7 @@ Item {
     function toTop() { flick.contentY = 0 }
 
     readonly property var model: list.model
-    readonly property int sidePad: Theme.sp(28)
+    readonly property int sidePad: Theme.gap(28)
     readonly property bool hintSeen: typeof appSettings !== "undefined" && appSettings
                                      && appSettings.sessionsHintSeen === true
 
@@ -62,7 +62,7 @@ Item {
         id: flick
         anchors.fill:  parent
         contentWidth:  width
-        contentHeight: mainCol.implicitHeight + Theme.sp(48) + (bar.visible ? bar.height + Theme.sp(24) : 0)
+        contentHeight: mainCol.implicitHeight + Theme.gap(48) + (bar.visible ? bar.height + Theme.gap(24) : 0)
         clip:          true
 
         Column {
@@ -71,7 +71,7 @@ Item {
             width:   Math.max(0, root.width - 2 * root.sidePad)
             spacing: 0
 
-            Item { width: 1; height: Theme.sp(36) }
+            Item { width: 1; height: Theme.gap(36) }
 
             // ── Header: title, what is shown, search ─────────────────────────
             Item {
@@ -228,7 +228,7 @@ Item {
         x: root.sidePad
         width: Math.max(0, root.width - 2 * root.sidePad)
         height: implicitHeight
-        anchors { bottom: parent.bottom; bottomMargin: Theme.sp(20) }
+        anchors { bottom: parent.bottom; bottomMargin: Theme.gap(20) }
     }
 
     // A bulk job's outcome (the exported zips' paths to copy), above the bar.
@@ -237,7 +237,7 @@ Item {
         objectName: "sessionsToast"
         showUndo: false
         clearOf: bar
-        margin: Theme.sp(16)
+        margin: Theme.gap(16)
     }
     Connections {
         target: list

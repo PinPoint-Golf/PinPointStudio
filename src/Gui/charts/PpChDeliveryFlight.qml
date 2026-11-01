@@ -39,7 +39,7 @@ Column {
     property bool showScatter: true
     signal shotActivated(int ordinal)
     readonly property bool ok: !!roles && !!flight
-    spacing: ok ? roles.u(6) : 6
+    spacing: ok ? roles.g(6) : Theme.gap(6)
 
     // a degree figure by the house rules (PpTypeset's figure / figureSigned + withUnit, figure_format.h's twins):
     // "+3.2°", "−3°", "0°" (rounds to zero: no sign), "-" when missing
@@ -67,7 +67,7 @@ Column {
                                   && sc.picked.x !== null && sc.picked.x !== undefined
 
     Flow {
-        width: parent.width; spacing: fb.ok ? fb.roles.u(10) : 10
+        width: parent.width; spacing: fb.ok ? fb.roles.g(10) : Theme.gap(10)
         Text { text: "Ball flight"; font: fb.ok ? fb.roles.fKicker : Qt.font({}); color: fb.ok ? fb.roles.ink3 : "grey" }
         Text { visible: text !== ""; text: fb.ok && fb.flight.pool ? (fb.flight.pool.words || "") : ""
                font: fb.ok ? fb.roles.fSmall : Qt.font({}); color: fb.ok ? fb.roles.ink3 : "grey" }

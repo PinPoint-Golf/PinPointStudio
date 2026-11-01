@@ -51,7 +51,7 @@ PpChViewBase {
         : overlaid ? Math.max(roles.u(90), Math.min(roles.u(200), (pageH - headEst) * 0.8))
         : Math.max(roles.u(replay ? 44 : 56), Math.min(roles.u(replay ? 120 : 120), (pageH - headEst) / nRows - roles.u(14)
                                    - (se && se.band === "fit" ? roles.u(26) : 0)))
-    spacing: roles ? roles.u(8) : 8
+    spacing: roles ? roles.g(8) : Theme.gap(8)
 
     function currentLabel(list) { const a = (list || []).filter(function (x) { return x.current }); return a.length ? a[0].label : "" }
     property string pickerOpen: ""
@@ -99,7 +99,7 @@ PpChViewBase {
     Column {
         objectName: "chSessionHead"
         visible: sv.available
-        width: sv.width; spacing: sv.roles ? sv.roles.u(4) : 4
+        width: sv.width; spacing: sv.roles ? sv.roles.g(4) : Theme.gap(4)
         Text { visible: !sv.cast && !!sv.se.kicker; text: sv.se.kicker || ""; font: sv.roles ? sv.roles.fKicker : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
         PpChText { roles: sv.roles; sentence: sv.se.head; measure: false; font: sv.roles ? sv.roles.fTitle : Qt.font({}); tone: sv.roles ? sv.roles.ink : "black"; lineHeight: 1.08 }
         PpChText { visible: !sv.replay && present; roles: sv.roles; sentence: sv.se.standfirst; font: sv.roles ? sv.roles.fStand : Qt.font({}); lineHeight: sv.roles ? sv.roles.r.leading : 1 }
@@ -137,7 +137,7 @@ PpChViewBase {
         readonly property string pickedDir: sv.body && sv.body.tShot ? (sv.body.tShot.swingDir || "") : ""
         visible: sv.available && pickedDir !== "" && lines.length > 0 && !sv.cast
         width: sv.width; roles: sv.roles; scope: "session"
-        topPadding: sv.roles ? sv.roles.u(6) : 6
+        topPadding: sv.roles ? sv.roles.g(6) : Theme.gap(6)
         swingDir: pickedDir
         // the chest's probable peak (§2.2.1): how it was made and what it assumes, said once, here
         extraLines: sv.available ? (sv.se.trustLines || []) : []
@@ -149,7 +149,7 @@ PpChViewBase {
         objectName: "chSessionControls"
         visible: !sv.replay && sv.available && !sv.cast
         width: sv.width
-        spacing: sv.roles ? sv.roles.u(8) : 8
+        spacing: sv.roles ? sv.roles.g(8) : Theme.gap(8)
         PpChFoldHead {
             width: parent.width; roles: sv.roles; key: "sessionControls"; title: "Controls"; interactive: sv.interactive
             collapsed: sv.controlsFolded
@@ -241,7 +241,7 @@ PpChViewBase {
         visible: active
         width: sv.width
         sourceComponent: Column {
-            spacing: sv.roles.u(14)
+            spacing: sv.roles.g(14)
             PpChFoldHead { width: parent.width; roles: sv.roles; key: "wristSession"; title: "Wrist"; interactive: sv.interactive
                            collapsed: sv.wristFolded
                            state_: sv.body && sv.body.wSession ? sv.firstClause(sv.body.wSession.head) : ""
@@ -257,7 +257,7 @@ PpChViewBase {
         visible: active
         width: sv.width
         sourceComponent: Column {
-            spacing: sv.roles.u(14)
+            spacing: sv.roles.g(14)
             PpChFoldHead { width: parent.width; roles: sv.roles; key: "postureSession"; title: "Posture"; interactive: sv.interactive
                            collapsed: sv.postureFolded
                            state_: sv.body && sv.body.pSession ? sv.firstClause(sv.body.pSession.head) : ""
@@ -273,7 +273,7 @@ PpChViewBase {
         visible: active
         width: sv.width
         sourceComponent: Column {
-            spacing: sv.roles.u(14)
+            spacing: sv.roles.g(14)
             PpChFoldHead { width: parent.width; roles: sv.roles; key: "deliverySession"; title: "Club delivery"; interactive: sv.interactive
                            collapsed: sv.deliveryFolded
                            state_: sv.body && sv.body.dSession ? sv.firstClause(sv.body.dSession.head) : ""

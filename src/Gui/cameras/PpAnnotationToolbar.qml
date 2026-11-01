@@ -30,7 +30,7 @@ import PinPointStudio
 Item {
     id: bar
 
-    implicitWidth:  content.implicitWidth + Theme.sp(16)
+    implicitWidth:  content.implicitWidth + Theme.gap(16)
     implicitHeight: Theme.sp(46)
 
     PpPopoverCard { anchors.fill: parent }

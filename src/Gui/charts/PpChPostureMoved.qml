@@ -45,7 +45,7 @@ Item {
         id: grid
         x: mv.headW; y: mv.headW > 0 ? 0 : hd.height + (mv.ok ? mv.roles.u(6) : 6)
         width: mv.width - mv.headW
-        spacing: mv.ok ? mv.roles.u(28) : 28
+        spacing: mv.ok ? mv.roles.g(28) : Theme.gap(28)
         Repeater {
             model: mv.parts
             delegate: Column {
@@ -53,7 +53,7 @@ Item {
                 objectName: "chPostureMovedLine"
                 readonly property string tag: modelData.tag || ""
                 width: mv.colW
-                spacing: mv.roles.u(3)
+                spacing: mv.roles.g(3)
                 Text { readonly property bool live: mv.interactive && modelData.seekUs >= 0
                        text: modelData.when || ""; font: live ? mv.roles.fSmallL : mv.roles.fSmallM; color: live ? mv.roles.link : mv.roles.ink2
                        MouseArea { anchors.fill: parent; enabled: parent.live; cursorShape: Qt.PointingHandCursor; onClicked: mv.seek(modelData.seekUs) } }

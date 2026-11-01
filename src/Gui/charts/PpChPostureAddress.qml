@@ -64,7 +64,7 @@ Column {
     readonly property real laneH: isPrint ? 13 : ok ? roles.u(18) : 18
     readonly property real laneGap: isPrint ? 3 : ok ? roles.u(4) : 4
     visible: ok && rows.length > 0
-    spacing: isPrint ? 0 : ok ? roles.u(8) : 8
+    spacing: isPrint ? 0 : ok ? roles.g(8) : Theme.gap(8)
 
     PpSectionHead { visible: !ad.isPrint; width: ad.width; roles: ad.roles; title: ad.block ? (ad.block.title || "At address") : "At address"; sub: ad.block ? (ad.block.sub || "") : "" }
     // paper: the heading in the report's type, one atom kept with the first reading
@@ -121,7 +121,7 @@ Column {
             Row {
                 id: labAbove
                 visible: !ad.sideLabel
-                spacing: rw.ty.u(6)
+                spacing: rw.ty.g(6)
                 Rectangle { width: rw.ty.u(7); height: width; radius: rw.ty.square ? 0 : width / 2; color: rw.hue; anchors.verticalCenter: parent.verticalCenter }
                 Text { id: nameA; text: rw.r.label || ""; font: rw.ty.fBodyM; color: rw.ty.ink }
                 Text { anchors.baseline: nameA.baseline; text: (rw.r.camera || "") + (rw.r.unit ? ", " + rw.r.unit : ""); font: rw.ty.fSmall; color: rw.ty.ink3 }
@@ -131,8 +131,8 @@ Column {
                 visible: ad.sideLabel
                 y: rw.pr ? 4 : 0
                 width: ad.labelW - (rw.pr ? 12 : rw.ty.u(12))
-                spacing: rw.pr ? 2 : rw.ty.u(2)
-                Row { spacing: rw.pr ? 6 : rw.ty.u(7)
+                spacing: rw.pr ? 2 : rw.ty.g(2)
+                Row { spacing: rw.pr ? 6 : rw.ty.g(7)
                     Rectangle { width: rw.pr ? 7 : rw.ty.u(7); height: width; radius: rw.pr ? 3.5 : rw.ty.square ? 0 : width / 2; color: rw.hue; anchors.verticalCenter: parent.verticalCenter }
                     Text { width: rw.pr ? ad.labelW - 25 : labCol.width - rw.ty.u(14); wrapMode: Text.WordWrap; text: rw.r.label || ""; font: rw.fName; color: rw.ink } }
                 Text { width: parent.width; wrapMode: Text.WordWrap; text: (rw.r.camera || "") + (rw.r.unit ? ", " + rw.r.unit : "")

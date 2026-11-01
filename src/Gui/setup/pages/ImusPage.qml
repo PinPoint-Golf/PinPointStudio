@@ -44,7 +44,7 @@ import PinPointStudio
 WizardPage {
     id: page
 
-    implicitHeight: imusCol.implicitHeight + Theme.sp(32)
+    implicitHeight: imusCol.implicitHeight + Theme.gap(32)
 
     readonly property bool _connecting: page.ctx.sensorsConnectingInSession
     readonly property bool _toConnect:  page.ctx.devicesToConnect.length > 0

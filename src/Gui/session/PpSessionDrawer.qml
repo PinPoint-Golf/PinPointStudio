@@ -54,8 +54,8 @@ Item {
     // so the drawer never reaches the toolbar). list.contentHeight is independent
     // of the view's own height, so there is no binding loop with the popup.
     implicitWidth:  Theme.sp(440)
-    implicitHeight: headerRow.implicitHeight + Theme.sp(26)
-                    + (deviceBar.visible ? deviceBar.implicitHeight + Theme.sp(10) : 0)
+    implicitHeight: headerRow.implicitHeight + Theme.gap(26)
+                    + (deviceBar.visible ? deviceBar.implicitHeight + Theme.gap(10) : 0)
                     + Math.max(list.contentHeight, Theme.sp(52))
                     // Room for the empty-list note below the live row, which it would otherwise sit on.
                     + (emptyNote.visible ? emptyNote.implicitHeight + Theme.gap(40) : 0)
@@ -166,8 +166,8 @@ Item {
             required property var    devices
             required property var    deviceLabels
 
-            width:  ListView.view.width - Theme.sp(16)
-            x:      Theme.sp(8)
+            width:  ListView.view.width - Theme.gap(16)
+            x:      Theme.gap(8)
             // A third line for the device tags when there are any to show.
             height: deviceLabels.length > 0 ? Theme.sp(76) : Theme.sp(58)
             readonly property real _mainH: deviceLabels.length > 0 ? Theme.sp(54) : height
@@ -306,7 +306,7 @@ Item {
                         objectName: "rowMenu"
                         parent: kebab.face                // grows with the tile, as it always has
                         x: kebab.face.width - width       // right edges aligned
-                        y: -height - Theme.sp(4)          // open upward, like the carousel
+                        y: -height - Theme.gap(4)         // open upward, like the carousel
                         padding: Theme.gap(5)
                         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
                         contentWidth: Math.max(exportItem.contentImplicitWidth, trashItem.contentImplicitWidth)

@@ -195,7 +195,7 @@ Item {
             id: actions
             width: parent.width; padding: Theme.gap(12); spacing: Theme.gap(8)
             // Three equal cells across the card, inside the padding and the two gaps.
-            readonly property real cellWidth: (root.width - Theme.sp(24) - Theme.sp(16)) / 3
+            readonly property real cellWidth: (root.width - 2 * Theme.gap(12) - 2 * Theme.gap(8)) / 3
             PpScopedAction {
                 width: actions.cellWidth
                 glyph: "⟳"; label: qsTr("Scan"); onTriggered: cameraManager.enumerate()
@@ -250,7 +250,7 @@ Item {
         Item {
             visible: cameraManager.cameraList.length === 0
             width: parent.width
-            height: noCams.implicitHeight + Theme.sp(28)
+            height: noCams.implicitHeight + Theme.gap(28)
             PpCardNote {
                 id: noCams
                 anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
@@ -482,7 +482,7 @@ Item {
             PpSwitch {
                 Layout.alignment: Qt.AlignVCenter
                 knobColor: Theme.colorKnob
-                Layout.leftMargin: camRow.hasTorch ? 0 : Theme.sp(6)
+                Layout.leftMargin: camRow.hasTorch ? 0 : Theme.gap(6)
                 checked: camRow.deviceEnabled
                 onToggled: (v) => cameraManager.setSessionCameraEnabled(camRow.camKey, v)
             }

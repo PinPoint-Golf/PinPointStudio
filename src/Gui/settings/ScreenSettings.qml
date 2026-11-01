@@ -341,7 +341,7 @@ Item {
                                         anchors.left:           parent.left
                                         anchors.leftMargin:     root.navCollapsed
                                                                     ? (parent.width - navItemIcon.width) / 2
-                                                                    : Theme.sp(16)
+                                                                    : Theme.gap(16)
                                         anchors.verticalCenter: parent.verticalCenter
                                         text:           modelData.icon
                                         font.family:    Theme.fontData
@@ -436,7 +436,7 @@ Item {
                             required property int index
 
                             width:         resultsList.width
-                            implicitHeight: resultContent.implicitHeight + Theme.sp(16)
+                            implicitHeight: resultContent.implicitHeight + Theme.gap(16)
                             color:          resultMouse.containsMouse ? Theme.colorAccentLight : "transparent"
                             radius:         Theme.radius
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
@@ -504,7 +504,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left:           parent.left
                         anchors.leftMargin:     root.navCollapsed
-                                                    ? (parent.width - width) / 2 : Theme.sp(10)
+                                                    ? (parent.width - width) / 2 : Theme.gap(10)
                         width:  Theme.sp(26)
                         height: Theme.sp(22)
                         radius: Theme.radius

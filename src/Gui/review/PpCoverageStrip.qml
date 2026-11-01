@@ -127,7 +127,7 @@ Column {
                     font.pixelSize: Theme.fontSzBody2
                 }
                 Text {
-                    width: strip.labelW - Theme.sp(14) - Theme.sp(5)
+                    width: strip.labelW - Theme.sp(14) - Theme.gap(5)
                     elide: Text.ElideRight
                     anchors.verticalCenter: parent.verticalCenter
                     text: strip.nameOf(label); color: Theme.colorText
@@ -140,7 +140,7 @@ Column {
             }
             Item {
                 id: binsArea
-                width: parent.width - strip.labelW - Theme.sp(8)
+                width: parent.width - strip.labelW - Theme.gap(8)
                 height: Theme.sp(13)
                 anchors.verticalCenter: parent.verticalCenter
                 Rectangle { anchors.fill: parent; color: Theme.colorBg; radius: Theme.sp(3) }
@@ -201,7 +201,7 @@ Column {
         width: strip.width
         Item { width: strip.labelW; height: Theme.sp(12) }
         Item {
-            width: parent.width - strip.labelW - Theme.sp(8); height: Theme.sp(12)
+            width: parent.width - strip.labelW - Theme.gap(8); height: Theme.sp(12)
             // playhead continuation under the lanes (drawn before labels so text wins)
             Rectangle {
                 visible: strip.interactive && strip.positionUs >= 0 && strip.spanUs > 0

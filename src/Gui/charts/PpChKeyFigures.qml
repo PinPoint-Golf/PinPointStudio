@@ -58,14 +58,14 @@ Item {
             readonly property real lx: col > 0 ? kf.roles.u(12) : 0
             Rectangle { visible: it.col > 0; width: kf.roles.hw; height: parent.height - kf.roles.u(14); y: kf.roles.u(7); color: kf.roles.hair }
             Row {
-                x: it.lx; y: kf.roles.u(6); spacing: kf.roles.u(5)
+                x: it.lx; y: kf.roles.u(6); spacing: kf.roles.g(5)
                 width: parent.width - x - kf.roles.u(4)
                 Rectangle { visible: it.key !== ""; anchors.verticalCenter: lb.verticalCenter; width: kf.roles.u(kf.roles.ch.swatch); height: width
                             radius: kf.roles.square ? 0 : width / 2; color: kf.roles.hue(it.key) }
                 Text { id: lb; width: parent.width - kf.roles.u(12); wrapMode: Text.WordWrap; text: it.modelData.label; font: kf.roles.fLabel; color: kf.roles.ink3 }
             }
             Row {
-                x: it.lx; y: kf.roles.u(21); spacing: kf.roles.u(4)
+                x: it.lx; y: kf.roles.u(21); spacing: kf.roles.g(4)
                 // a figure a gate refused (item.gated) is the gate's words, quiet, in the link colour; it opens the reason
                 Text { id: fg; text: it.modelData.figure + (it.modelData.gated ? " ›" : "")
                        font: it.modelData.gated ? kf.roles.fBody : kf.roles.fFigL

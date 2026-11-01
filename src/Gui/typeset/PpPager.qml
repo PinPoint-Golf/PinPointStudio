@@ -58,7 +58,7 @@ Item {
     // so that page carries at least that share — as long as the page being cut keeps at least half its room and the
     // tail still fits one page. 0 (the default) is the pager exactly as before.
     property real minTail: 0
-    property real blockGap: roles.u(18)
+    property real blockGap: roles.g(18)
     default property alias content: galley.data
     readonly property int pageCount: Math.max(1, pages.length)
     property var pages: [{ from: 0, to: 0, section: "", cont: "", keys: [], rep: null, repH: 0 }]
@@ -104,7 +104,7 @@ Item {
             const cont = (out.length > 0 && !first.section && !first.breakBefore) ? section : ""
             const hi = first.group ? headOf[first.group] : undefined
             const rep = (hi !== undefined && hi < i0 && !first.head) ? atoms[hi] : null
-            const repH = rep ? rep.bottom - rep.top + roles.u(8) : 0
+            const repH = rep ? rep.bottom - rep.top + roles.g(8) : 0
             const room = H - repH
             let best = -1, loose = -1, maxB = 0
             for (let j = i0; j < atoms.length; ++j) {
@@ -140,7 +140,7 @@ Item {
                 let tailBottom = 0
                 for (let j = best + 1; j <= end; ++j) tailBottom = Math.max(tailBottom, atoms[j].bottom)
                 const g0 = atoms[best + 1].group, h0 = g0 ? headOf[g0] : undefined
-                const want = pg.minTail * H, fits = H - (h0 !== undefined ? atoms[h0].bottom - atoms[h0].top + roles.u(8) : 0)
+                const want = pg.minTail * H, fits = H - (h0 !== undefined ? atoms[h0].bottom - atoms[h0].top + roles.g(8) : 0)
                 if (tailBottom - atoms[best + 1].top < want && tailBottom - atoms[best + 1].top <= fits) {
                     // the clean joints before the cut, latest first: j's bottom clears everything above it
                     let cand = -1
@@ -230,7 +230,7 @@ Item {
     }
     PpFolio {
         x: pg.roles.p.marginX; width: pg.textW
-        y: pg.height - pg.roles.u(14) - height
+        y: pg.height - pg.roles.g(14) - height
         roles: pg.roles; readout: pg.readout
         footer: pg.footer; section: pg.cur.section; page: pg.printPage + 1; pageCount: pg.pageCount
         keyKinds: pg.showKeys ? pg.cur.keys : []

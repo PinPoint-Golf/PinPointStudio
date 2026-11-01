@@ -39,13 +39,13 @@ PpChViewBase {
     property string pickerOpen: ""
     readonly property string picker: openPicker !== "" ? openPicker : pickerOpen
     property bool allRows: false
-    spacing: roles ? roles.u(10) : 10
+    spacing: roles ? roles.g(10) : Theme.gap(10)
 
     PpChText { objectName: "chRelationsWhy"; visible: !rv.available && present; roles: rv.roles; sentence: rv.rl ? rv.rl.refusal : null
                font: rv.roles ? rv.roles.fBody : Qt.font({}); tone: rv.roles ? rv.roles.ink2 : "grey" }
     Column {
         visible: rv.available
-        width: rv.width; spacing: rv.roles ? rv.roles.u(4) : 4
+        width: rv.width; spacing: rv.roles ? rv.roles.g(4) : Theme.gap(4)
         Text { visible: !rv.cast && !!rv.body && !!rv.body.rStatus.kicker; text: rv.body ? (rv.body.rStatus.kicker || "") : ""; font: rv.roles ? rv.roles.fKicker : Qt.font({}); color: rv.roles ? rv.roles.ink3 : "grey" }
         PpChText { roles: rv.roles; sentence: rv.rl.head; measure: false; font: rv.roles ? rv.roles.fTitle : Qt.font({}); tone: rv.roles ? rv.roles.ink : "black"; lineHeight: 1.08 }
         PpChText { roles: rv.roles; sentence: rv.replay ? rv.rl.short : rv.rl.standfirst; font: rv.replay ? (rv.roles ? rv.roles.fSmall : Qt.font({})) : (rv.roles ? rv.roles.fStand : Qt.font({}))
@@ -90,7 +90,7 @@ PpChViewBase {
     PpChText { visible: rv.available && !rv.replay && present; roles: rv.roles; sentence: rv.rl.facet ? rv.rl.facet.sentence : null; tone: rv.roles ? rv.roles.ink2 : "grey" }
     Flow {
         visible: rv.available
-        width: rv.width; spacing: rv.roles ? rv.roles.u(24) : 24
+        width: rv.width; spacing: rv.roles ? rv.roles.g(24) : Theme.gap(24)
         readonly property real half: rv.side && !rv.replay ? Math.floor((width - (rv.roles ? rv.roles.u(24) : 24)) * 0.55) : width
         Item {
             id: figBox
@@ -99,7 +99,7 @@ PpChViewBase {
             readonly property bool across: !!panels && panels.length > 1 && !!rv.roles && width >= 2 * rv.roles.flows.facet * rv.roles.em
             Flow {
                 id: fcol
-                width: parent.width; spacing: rv.roles ? rv.roles.u(10) : 10
+                width: parent.width; spacing: rv.roles ? rv.roles.g(10) : Theme.gap(10)
                 Repeater {
                     model: !rv.available ? [] : figBox.panels && !rv.replay ? figBox.panels : [{ title: "", scatter: rv.rl.scatter }]
                     delegate: PpChScatter {
@@ -163,14 +163,14 @@ PpChViewBase {
         id: drf
         objectName: "chDrift"
         visible: rv.available && !rv.replay
-        width: rv.width; spacing: rv.roles ? rv.roles.u(18) : 18
+        width: rv.width; spacing: rv.roles ? rv.roles.g(18) : Theme.gap(18)
         readonly property int cols: rv.roles ? rv.roles.columns(width, rv.roles.flows.facet, rv.roles.u(18)) : 1
         Repeater {
             model: rv.available && !rv.replay && rv.rl.drifts ? (rv.rl.drifts.items || []).slice(0, drf.cols * 2) : []
             delegate: Column {
                 required property var modelData
                 width: Math.floor((drf.width - (drf.cols - 1) * rv.roles.u(18)) / drf.cols)
-                spacing: rv.roles.u(2)
+                spacing: rv.roles.g(2)
                 PpChText { roles: rv.roles; sentence: modelData.sentence; measure: false; width: parent.width; tone: rv.roles.ink }
                 PpChRunBox {
                     width: parent.width; roles: rv.roles; brush: rv.brush; ticker: rv.body ? rv.body.relationsP : null; interactive: rv.interactive

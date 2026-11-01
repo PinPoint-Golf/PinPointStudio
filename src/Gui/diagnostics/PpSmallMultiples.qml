@@ -51,7 +51,7 @@ Column {
         for (let i = 0; i < words.length; ++i) { const ww = fmBody.advanceWidth(words[i]); if (cur === 0) cur = ww; else if (cur + sp + ww <= w - 3) cur += sp + ww; else { n++; cur = ww } }
         return n
     }
-    spacing: roles.u(18)
+    spacing: roles.g(18)
     Repeater {
         model: sm.roles ? (sm.rowsData) : []
         delegate: Row {

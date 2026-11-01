@@ -28,7 +28,7 @@ Item {
     property var readout: null
     property string title: "PinPoint Studio  ·  Session diagnostics"
     readonly property var meta: roles.sessionMeta(source, readout, false)
-    implicitHeight: lt.height + roles.u(6)
+    implicitHeight: lt.height + roles.g(6)
     height: implicitHeight
     Text { id: lt; text: rh.title; font: rh.roles.fMicro; color: rh.roles.ink2 }
     Text {

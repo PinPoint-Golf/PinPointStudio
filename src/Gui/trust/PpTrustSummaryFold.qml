@@ -60,7 +60,7 @@ Column {
     property bool _ready: false
     onScopeChanged: _read()
     visible: lines.length > 0
-    spacing: roles ? roles.u(4) : 4
+    spacing: roles ? roles.g(4) : Theme.gap(4)
 
     function _sessionOf(d) { const s = SessionMode.folderKey(d); return s.substring(0, s.lastIndexOf("/")) }
     readonly property string _session: sessionDir !== "" ? sessionDir : _sessionOf(swingDir)
@@ -87,11 +87,11 @@ Column {
             required property var modelData
             objectName: "trustSummaryLine:" + modelData.kind
             width: fold.width
-            spacing: fold.roles ? fold.roles.u(4) : 4
+            spacing: fold.roles ? fold.roles.g(4) : Theme.gap(4)
             readonly property bool gated: modelData.kind === "gated" && !!modelData.subject && !fold.printed
             Text {
                 width: fold.roles ? Math.min(fold.width, fold.roles.measureW(fold.width)) : fold.width
-                leftPadding: fold.printed ? 0 : fold.roles ? fold.roles.u(14) : 14
+                leftPadding: fold.printed ? 0 : fold.roles ? fold.roles.g(14) : Theme.gap(14)
                 wrapMode: Text.WordWrap; textFormat: Text.StyledText
                 text: (fold.roles ? fold.roles.esc(ln.modelData.text) : ln.modelData.text)
                       + (ln.gated && fold.roles ? "  <font color='" + fold.roles.link + "'>Why ›</font>" : "")

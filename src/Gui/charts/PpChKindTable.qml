@@ -39,13 +39,13 @@ Column {
     property bool atom: false
     readonly property var keyKinds: ["box", "ring"]
     signal shotActivated(int ordinal)
-    spacing: roles ? roles.u(14) : 14
+    spacing: roles ? roles.g(14) : Theme.gap(14)
     readonly property var groups: kinds && kinds.groups ? kinds.groups : []
     readonly property var names: kinds && kinds.names ? kinds.names : ["", ""]
     readonly property var sep: kinds && kinds.separation ? kinds.separation : null
     readonly property real em: roles ? roles.em : 14
     readonly property bool cols: roles ? roles.shows(3, width) : true
-    readonly property real gap: roles ? roles.u(12) : 12
+    readonly property real gap: roles ? roles.g(12) : Theme.gap(12)
     readonly property real medW: Math.round(4.8 * em)
     readonly property real unitW: Math.round(3.6 * em)
     readonly property real dW: Math.round(3 * em)
@@ -55,7 +55,7 @@ Column {
     // ── the members ──
     Column {
         objectName: "chKindMembers"
-        width: kt.width; spacing: kt.roles ? kt.roles.u(4) : 4
+        width: kt.width; spacing: kt.roles ? kt.roles.g(4) : Theme.gap(4)
         visible: kt.groups.length > 0
         Rectangle { width: parent.width; height: kt.roles ? kt.roles.r.figureRuleTop : 1; color: kt.roles ? kt.roles.rule : "black" }
         Repeater {
@@ -64,12 +64,12 @@ Column {
                 required property var modelData
                 width: kt.width; height: Math.max(kt.roles.u(26), fw.height + kt.roles.u(8))
                 Row {
-                    id: kn; y: kt.roles.u(5); width: Math.round(8 * kt.em); spacing: kt.roles.u(5)
+                    id: kn; y: kt.roles.u(5); width: Math.round(8 * kt.em); spacing: kt.roles.g(5)
                     Text { text: modelData.name; font: kt.roles.fBodyM; color: modelData.neutral ? kt.roles.ink2 : kt.roles.ink }
                     Text { text: String(modelData.n); font: kt.roles.fFig; color: kt.roles.ink3 }
                 }
                 Flow {
-                    id: fw; x: kn.width + kt.roles.u(12); y: kt.roles.u(5); width: parent.width - x; spacing: kt.roles.u(12)
+                    id: fw; x: kn.width + kt.roles.g(12); y: kt.roles.u(5); width: parent.width - x; spacing: kt.roles.g(12)
                     Repeater {
                         model: modelData.members || []
                         delegate: Text {
@@ -124,7 +124,7 @@ Column {
                 Row {
                     y: kt.roles.u(4); spacing: kt.gap
                     Text { id: nm; width: kt.nameW; wrapMode: Text.WordWrap; textFormat: Text.StyledText
-                           leftPadding: kt.roles.u(kt.roles.ch.swatch) + kt.roles.u(5)
+                           leftPadding: kt.roles.u(kt.roles.ch.swatch) + kt.roles.g(5)
                            text: kt.roles.esc(row.modelData.label) + (row.modelData.same ? " " + kt.roles.esc(row.modelData.sameMark || "") : "")
                                  + "  <font color=\"" + kt.roles.hex(kt.roles.ink3) + "\">" + kt.roles.esc(row.modelData.tag || "") + "</font>"
                            font: kt.roles.fBody; color: kt.roles.ink
@@ -147,7 +147,7 @@ Column {
                 }
                 Row {
                     visible: !kt.cols
-                    y: row.line1 - kt.roles.u(4); spacing: kt.roles.u(6)
+                    y: row.line1 - kt.roles.u(4); spacing: kt.roles.g(6)
                     Text { text: kt.names[0] || ""; font: kt.roles.fSmall; color: kt.roles.ink3 }
                     Text { text: row.modelData.medAText; font: kt.roles.fFigLabel; color: kt.roles.ink3 }
                     Text { text: "·"; font: kt.roles.fSmall; color: kt.roles.ink3 }

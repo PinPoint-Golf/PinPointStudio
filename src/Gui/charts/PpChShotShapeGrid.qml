@@ -44,7 +44,7 @@ Column {
     readonly property var cols: [-1, 0, 1]
     readonly property real labW: ok ? Math.ceil(Math.max(fm.advanceWidth("curves left"), fm.advanceWidth("curves right"))) + roles.u(8) : 60
     property string hoverText: ""
-    spacing: ok ? roles.u(4) : 4
+    spacing: ok ? roles.g(4) : Theme.gap(4)
     FontMetrics { id: fm; font: gr.ok ? gr.roles.fLabelUnit : Qt.font({}) }
 
     // the session's dots in a cell: spread on a small lattice round its centre, in shot order

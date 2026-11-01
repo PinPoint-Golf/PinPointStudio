@@ -81,7 +81,7 @@ Item {
         return w
     }
     readonly property int _flexWidth:
-        Math.max(Theme.sp(240), listView.width - _fixedWidth - Theme.sp(36))
+        Math.max(Theme.sp(240), listView.width - _fixedWidth - Theme.gap(36))
 
     function _columnWidth(col) { return col.flex ? _flexWidth : Theme.sp(col.width) }
 
@@ -92,7 +92,7 @@ Item {
     // index 1, with `Type` ahead of it, and hard-coding zero would park the chip over the type
     // badge. Exactly one column flexes — the row-shape test asserts it — so this cannot be ambiguous.
     readonly property int _flexColumnRight: {
-        var x = Theme.sp(18)                       // the Row's own left margin
+        var x = Theme.gap(18)                      // the Row's own left margin
         for (var i = 0; i < columns.length; i++) {
             var w = _columnWidth(columns[i])
             if (columns[i].flex) return x + w
@@ -189,8 +189,8 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left:           headerCell.alignRight ? undefined : parent.left
                         anchors.right:          headerCell.alignRight ? parent.right : undefined
-                        anchors.rightMargin:    headerCell.alignRight ? Theme.sp(10) : 0
-                        width:                  parent.width - Theme.sp(10)
+                        anchors.rightMargin:    headerCell.alignRight ? Theme.gap(10) : 0
+                        width:                  parent.width - Theme.gap(10)
                         horizontalAlignment:    headerCell.alignRight ? Text.AlignRight : Text.AlignLeft
                         // Emphasis is colour and case, never weight — the sorted column is accented
                         // and carries the caret, and everything else stays at the same weight.
@@ -319,7 +319,7 @@ Item {
                             visible: !cellItem.editing
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.left:       parent.left
-                            anchors.leftMargin: dot.visible ? Theme.sp(7) + Theme.sp(9) : 0
+                            anchors.leftMargin: dot.visible ? Theme.sp(7) + Theme.gap(9) : 0
                             anchors.right:      parent.right
                             // The flex column yields to the Graph chip rather than being covered by
                             // it. The chip is opaque and could simply occlude, but this is the
@@ -328,8 +328,8 @@ Item {
                             // honest where a covered tail is not.
                             anchors.rightMargin: (cellItem.col && cellItem.col.flex
                                                   && graphChip.visible)
-                                                     ? graphChip.width + Theme.sp(14)
-                                                     : Theme.sp(10)
+                                                     ? graphChip.width + Theme.gap(14)
+                                                     : Theme.gap(10)
                             horizontalAlignment: cellItem.col && cellItem.col.align === "right"
                                                      ? Text.AlignRight : Text.AlignLeft
                             text: cellItem.modelData.text
@@ -605,7 +605,7 @@ Item {
                          && root._editRowId !== rowItem.modelData.id
 
                 anchors.verticalCenter: parent.verticalCenter
-                x: root._flexColumnRight - width - Theme.sp(10)
+                x: root._flexColumnRight - width - Theme.gap(10)
 
                 // The word the Table/Graph toggle already uses, not a glyph — there is nothing to
                 // learn, and no font-coverage gamble on a symbol for "network".

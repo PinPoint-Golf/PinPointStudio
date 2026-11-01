@@ -43,7 +43,7 @@ Item {
     id: root
 
     implicitWidth:  Theme.sp(300)
-    implicitHeight: (page === 0 ? page1Col.implicitHeight : page2Col.implicitHeight) + Theme.sp(26)
+    implicitHeight: (page === 0 ? page1Col.implicitHeight : page2Col.implicitHeight) + Theme.gap(26)
 
     // 0 = Presets (default landing page), 1 = Customise.
     property int page: 0
@@ -127,7 +127,7 @@ Item {
             // ── PAGE 1 — Presets ────────────────────────────────────────────
             Item {
                 width: viewport.width
-                height: page1Col.implicitHeight + Theme.sp(26)
+                height: page1Col.implicitHeight + Theme.gap(26)
 
                 Column {
                     id: page1Col
@@ -223,7 +223,7 @@ Item {
             // ── PAGE 2 — Customise ──────────────────────────────────────────
             Item {
                 width: viewport.width
-                height: page2Col.implicitHeight + Theme.sp(26)
+                height: page2Col.implicitHeight + Theme.gap(26)
 
                 Column {
                     id: page2Col

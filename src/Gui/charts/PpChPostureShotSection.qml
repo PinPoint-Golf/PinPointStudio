@@ -63,13 +63,13 @@ PpChSection {
     Column {
         id: mainCol
         width: ps.width
-        spacing: ps.has ? ps.ty.u(14) : 0
+        spacing: ps.has ? ps.ty.g(14) : 0
 
         // ── the head, the standfirst at the playhead's position, the pattern line ──
         Column {
             objectName: "chPostureHead"
             width: ps.width
-            spacing: ps.has ? ps.ty.u(6) : 0
+            spacing: ps.has ? ps.ty.g(6) : 0
             PpChText { roles: ps.ty; sentence: ps.has ? ps.sh.head : null; font: ps.has ? ps.ty.fStand : Qt.font({}); tone: ps.has ? ps.ty.ink : "black" }
             PpChText { visible: !ps.replay && present; roles: ps.ty; sentence: ps.has && ps.body ? ps.body.pStandfirst : null; font: ps.has ? ps.ty.fBody : Qt.font({}) }
         }
@@ -78,7 +78,7 @@ PpChSection {
             readonly property string line: ps.sh.patternLine || ""
             visible: ps.has && line !== ""
             width: ps.width
-            spacing: ps.has ? ps.ty.u(10) : 0
+            spacing: ps.has ? ps.ty.g(10) : 0
             Text { text: "Pattern"; font: ps.has ? ps.ty.fKicker : Qt.font({}); color: ps.has ? ps.ty.ink3 : "grey" }
             Text { width: Math.min(implicitWidth, ps.width); wrapMode: Text.WordWrap
                    text: parent.line; font: ps.has ? ps.ty.fBody : Qt.font({}); color: ps.has ? ps.ty.ink : "black" }
@@ -97,7 +97,7 @@ PpChSection {
         // ── the profile ──
         Column {
             width: ps.width
-            spacing: ps.has ? ps.ty.u(8) : 0
+            spacing: ps.has ? ps.ty.g(8) : 0
             PpSectionHead { width: parent.width; roles: ps.ty; paged: false; pad: 0
                             title: "Positions"; sub: ps.prof.sub || ""; subFit: "top"; subWrap: false }
             Text { visible: !!ps.prof.ghostRefusal; width: parent.width; wrapMode: Text.WordWrap

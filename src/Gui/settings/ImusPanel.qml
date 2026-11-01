@@ -167,7 +167,7 @@ SettingsPanelBase {
             anchors.top:   imuRow.headerRow.bottom
             anchors.left:  parent.left
             anchors.right: parent.right
-            height:  imuRow.isExcluded ? (excText.implicitHeight + Theme.sp(18)) : 0
+            height:  imuRow.isExcluded ? (excText.implicitHeight + Theme.gap(18)) : 0
             visible: imuRow.isExcluded
             clip:    true
 
@@ -196,7 +196,7 @@ SettingsPanelBase {
             anchors.top:   imuRow.headerRow.bottom
             anchors.left:  parent.left
             anchors.right: parent.right
-            height:  !imuRow.isExcluded ? (bodyCol.implicitHeight + Theme.sp(20)) : 0
+            height:  !imuRow.isExcluded ? (bodyCol.implicitHeight + Theme.gap(20)) : 0
             visible: !imuRow.isExcluded
             clip:    true
 

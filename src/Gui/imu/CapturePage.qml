@@ -200,7 +200,7 @@ Item {
                             anchors.margins: Theme.gap(8)
                             clip:  true
                             model: imuLogModel
-                            spacing: 1
+                            spacing: Theme.gap(1)
 
                             delegate: Text {
                                 required property string entry

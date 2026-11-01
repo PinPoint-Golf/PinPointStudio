@@ -86,7 +86,7 @@ Item {
     }
     readonly property bool inline: roles.shows("barcodeNames", width) && nameNeed <= Math.max(roles.u(184), bodyW * 0.42)
     readonly property real noteW: margin ? roles.u(260) : 0
-    readonly property real bodyW: width - (margin ? noteW + roles.u(30) : 0)
+    readonly property real bodyW: width - (margin ? noteW + roles.g(30) : 0)
     readonly property real nameW: inline ? Math.max(roles.u(184), nameNeed) : 0
     readonly property real countW: roles.u(58)
     readonly property real valW: showValues ? roles.u(150) : 0
@@ -125,7 +125,7 @@ Item {
     Column {
         id: body
         width: mx.bodyW
-        spacing: mx.roles.u(10)
+        spacing: mx.roles.g(10)
         Repeater {
             model: mx.roles ? mx.segments : []
             delegate: Item {
@@ -256,7 +256,7 @@ Item {
         visible: mx.margin
         x: mx.width - mx.noteW; y: mx.headH
         width: mx.noteW
-        spacing: mx.roles.u(14)
+        spacing: mx.roles.g(14)
         PpPageKey { width: parent.width; roles: mx.roles; kinds: mx.keyKinds; readout: mx.readout }
         Text { width: parent.width; wrapMode: Text.WordWrap; font: mx.roles.fSmall; color: mx.roles.ink3
                text: "Each row is a condition seen on this session that has not yet recurred enough to be a pattern; each column a shot, in the order struck. The count is firings over the shots it could be measured on." }

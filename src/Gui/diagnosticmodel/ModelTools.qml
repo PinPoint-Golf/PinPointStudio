@@ -181,6 +181,6 @@ Popup {
             onTriggered: { root.resetRequested(); root.close() }
         }
 
-        Item { Layout.preferredHeight: Theme.sp(8) }
+        Item { Layout.preferredHeight: Theme.gap(8) }
     }
 }

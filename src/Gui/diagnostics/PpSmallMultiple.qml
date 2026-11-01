@@ -126,7 +126,7 @@ Item {
     Row {
         id: titleRow
         width: tile.width - tile.figW
-        spacing: tile.roles.u(6)
+        spacing: tile.roles.g(6)
         Text { text: tile.c.rankText || ""; font: tile.roles.fFig; color: tile.roles.ink3; anchors.baseline: tName.baseline }
         Text { id: tName; text: tile.c.name || ""; width: Math.min(implicitWidth, titleRow.width - tile.roles.u(44)); wrapMode: Text.WordWrap
                font: tile.hot ? tile.roles.fBodyM : tile.roles.fBody; color: tile.roles.ink }
@@ -134,7 +134,7 @@ Item {
     }
     Row {
         anchors.right: parent.right
-        spacing: tile.roles.u(14)
+        spacing: tile.roles.g(14)
         Column {
             Text { anchors.right: parent.right; text: ((tile.c.spread && tile.c.spread.medianNumber) || "-") + (tile.symUnit ? tile.unit : ""); font: tile.roles.fFig; color: tile.roles.ink2 }
             Text { anchors.right: parent.right; text: "median"; font: tile.roles.fLabel; color: tile.roles.ink3 }
@@ -147,7 +147,7 @@ Item {
     }
     Item {
         id: chart
-        y: tile.hdrH + tile.roles.u(8)
+        y: tile.hdrH + tile.roles.g(8)
         width: tile.width; height: tile.chartH
         readonly property real winBottom: height - tile.bandPx - tile.breakPx
         function ty(z) {
@@ -237,8 +237,8 @@ Item {
         id: foot
         y: chart.y + chart.height + tile.roles.u(20)
         width: tile.width
-        spacing: tile.roles.u(1)
-        Text { visible: tile.showMeasure; width: parent.width; wrapMode: Text.WordWrap; font: tile.roles.fSmall; color: tile.roles.ink3; bottomPadding: tile.roles.u(3)
+        spacing: tile.roles.g(1)
+        Text { visible: tile.showMeasure; width: parent.width; wrapMode: Text.WordWrap; font: tile.roles.fSmall; color: tile.roles.ink3; bottomPadding: tile.roles.g(3)
                text: [tile.c.phase || "", tile.c.measure || "", tile.unit && !tile.symUnit ? "in " + tile.unit : ""].filter(s => s !== "").join(" · ") }
         Text { width: parent.width; wrapMode: Text.WordWrap; font: tile.roles.fSmall; color: tile.roles.ink2
                text: (tile.c.recurrence || "") + " · " + tile.roles.trendWord(tile.c) }

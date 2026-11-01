@@ -33,7 +33,7 @@ Item {
         ColumnLayout {
             anchors.centerIn: parent
             spacing: Theme.gap(16)
-            width: Math.min(parent.width - Theme.sp(64), Theme.sp(400))
+            width: Math.min(parent.width - Theme.gap(64), Theme.sp(400))
 
             Label {
                 Layout.alignment: Qt.AlignHCenter
@@ -186,9 +186,9 @@ Item {
                     // Coach messages: left-aligned. User messages: right-aligned.
                     Rectangle {
                         id: bubble
-                        width: Math.min(bubbleText.implicitWidth + Theme.sp(20),
+                        width: Math.min(bubbleText.implicitWidth + Theme.gap(20),
                                         chatList.width * 0.82)
-                        height: bubbleText.implicitHeight + Theme.sp(16)
+                        height: bubbleText.implicitHeight + Theme.gap(16)
                         anchors.left:  isCoach ? parent.left  : undefined
                         anchors.right: isCoach ? undefined     : parent.right
                         radius: Theme.radius

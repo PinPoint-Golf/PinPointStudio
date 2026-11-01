@@ -91,9 +91,9 @@ Column {
                     readonly property bool placed:    pair.modelData.startStop >= 0
                     readonly property int strengthW: Theme.sp(68)
                     readonly property int linkIndent: Theme.sp(18)
-                    readonly property int chipRoom: chip.visible ? chip.width + Theme.sp(16) : 0
+                    readonly property int chipRoom: chip.visible ? chip.width + Theme.gap(16) : 0
                     width:  togetherCard.innerWidth
-                    height: topRule.height + Theme.sp(16) + pairBody.implicitHeight
+                    height: topRule.height + Theme.gap(16) + pairBody.implicitHeight
 
                     Rectangle {     // hairline between pairs (and under the intro)
                         id: topRule
@@ -103,7 +103,7 @@ Column {
 
                     PpStrengthMark {
                         x: 0
-                        y: topRule.height + Theme.sp(16) + Math.round(firstLine.lineCentre) - Theme.sp(9)
+                        y: topRule.height + Theme.gap(16) + Math.round(firstLine.lineCentre) - Theme.sp(9)
                         tier: pair.modelData.tier
                         tone: root.toneTogether
                     }
@@ -111,7 +111,7 @@ Column {
                     Item {
                         id: pairBody
                         x: pair.strengthW
-                        y: topRule.height + Theme.sp(16)
+                        y: topRule.height + Theme.gap(16)
                         width: parent.width - pair.strengthW
                         // The words, then the timeline (with its words beside it or beneath).
                         readonly property real wordsBottom: pair.hasSecond ? secondLine.y + secondLine.height
@@ -159,7 +159,7 @@ Column {
                             readonly property real lineCentre: (font.pixelSize * 1.3) / 2
                             visible: pair.hasSecond
                             x: pair.linkIndent
-                            y: firstLine.height + Theme.sp(6)
+                            y: firstLine.height + Theme.gap(6)
                             width: parent.width - pair.linkIndent - pair.chipRoom
                             text:  pair.modelData.second
                             font.family:    Theme.fontBody
@@ -185,7 +185,7 @@ Column {
                             id: timeline
                             visible: pair.placed
                             x: pair.linkIndent
-                            y: pairBody.wordsBottom + Theme.sp(14)
+                            y: pairBody.wordsBottom + Theme.gap(14)
                             width: pairBody.timelineW
                             start: Math.max(0, pair.modelData.startStop)
                             tone:  root.toneTogether
@@ -193,10 +193,10 @@ Column {
                         Text {
                             id: startWords
                             visible: pair.placed
-                            x: pairBody.wordsBeside ? timeline.x + timeline.width + Theme.sp(8)
+                            x: pairBody.wordsBeside ? timeline.x + timeline.width + Theme.gap(8)
                                                     : pair.linkIndent
                             y: pairBody.wordsBeside ? timeline.y + timeline.trackY - height / 2
-                                                    : timeline.y + timeline.implicitHeight + Theme.sp(6)
+                                                    : timeline.y + timeline.implicitHeight + Theme.gap(6)
                             text: pair.modelData.startWords
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzBody2

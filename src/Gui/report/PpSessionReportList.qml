@@ -390,7 +390,7 @@ Column {
         const more = it.moreItem
         const p = more.mapToItem(root, more.width, more.height)
         rowMenu.x = Math.round(p.x - rowMenu.width)
-        rowMenu.y = Math.round(p.y + Theme.sp(4))
+        rowMenu.y = Math.round(p.y + Theme.gap(4))
         rowMenu.open()
     }
     function closeRowMenu() { rowMenu.close() }

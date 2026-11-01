@@ -76,8 +76,8 @@ Rectangle {
             // Name + model/backend
             Column {
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 1
-                width: parent.width - Theme.sp(7) - Theme.sp(8) - pillItem.implicitWidth - Theme.sp(8)
+                spacing: Theme.gap(1)
+                width: parent.width - Theme.sp(7) - Theme.gap(8) - pillItem.implicitWidth - Theme.gap(8)
 
                 Text {
                     text: root.deviceData.name

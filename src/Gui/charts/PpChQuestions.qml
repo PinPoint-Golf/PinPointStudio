@@ -36,8 +36,8 @@ Column {
     readonly property var keyKinds: []
     signal asked(var q)
     visible: (questions || []).length > 0
-    spacing: roles ? roles.u(3) : 3
-    topPadding: roles ? roles.u(8) : 8
+    spacing: roles ? roles.g(3) : Theme.gap(3)
+    topPadding: roles ? roles.g(8) : Theme.gap(8)
     Text { text: "Ask"; font: qs.roles ? qs.roles.fLabel : Qt.font({}); color: qs.roles ? qs.roles.ink3 : "grey"; bottomPadding: qs.roles ? qs.roles.u(1) : 1 }
     Repeater {
         model: qs.roles ? (qs.questions || []).slice(0, 3) : []
@@ -47,7 +47,7 @@ Column {
             required property var modelData
             readonly property string questionId: modelData.id
             readonly property bool on: qs.active === modelData.id
-            width: qs.width; spacing: qs.roles.u(2)
+            width: qs.width; spacing: qs.roles.g(2)
             Text {
                 width: Math.min(implicitWidth, parent.width); wrapMode: Text.WordWrap
                 text: q.modelData.text
@@ -60,7 +60,7 @@ Column {
                 readonly property string html: !a ? "" : typeof a === "string" ? qs.roles.esc(a) : qs.roles.html(a)
                 visible: q.on && html !== ""
                 width: Math.min(parent.width, qs.roles.flows.measure * qs.roles.em); wrapMode: Text.WordWrap; textFormat: Text.RichText
-                text: html; font: qs.roles.fSmallI; color: qs.roles.ink2; bottomPadding: qs.roles.u(3)
+                text: html; font: qs.roles.fSmallI; color: qs.roles.ink2; bottomPadding: qs.roles.g(3)
             }
         }
     }

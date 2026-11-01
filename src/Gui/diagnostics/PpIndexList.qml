@@ -51,7 +51,7 @@ Item {
         other.forEach((c, i) => out.push({ c: c, head: i === 0 ? "Other" : "" }))
         return out
     }
-    readonly property real cg: roles.u(22)
+    readonly property real cg: roles.g(22)
     readonly property int cols: roles.columns(width, roles.flows.index, cg)
     readonly property real cw: (width - (cols - 1) * cg) / cols
     readonly property real rowH: Math.max(roles.u(12.6), roles.fSmall.pixelSize * 1.3 + roles.u(2))
@@ -66,7 +66,7 @@ Item {
             property bool atom: true
             property bool keepNext: true
             visible: ix.showHead
-            width: ix.width; height: visible ? ihead.height + ix.roles.u(6) : 0
+            width: ix.width; height: visible ? ihead.height + ix.roles.g(6) : 0
             PpSectionHead {
                 id: ihead
                 width: parent.width
@@ -76,7 +76,7 @@ Item {
             }
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: ix.roles.hw; color: ix.roles.hair }
         }
-        Item { width: 1; height: ix.roles.u(4) }
+        Item { width: 1; height: ix.roles.g(4) }
         Grid {
             id: grid
             property bool atom: true
@@ -91,13 +91,13 @@ Item {
                     required property var modelData
                     readonly property var c: modelData.c
                     readonly property bool hot: ix.brush && ix.brush.hoveredCondition === c.id
-                    width: ix.cw; height: (gh.visible ? gh.height : 0) + Math.max(ix.rowH, inm.height + ix.roles.u(2))
+                    width: ix.cw; height: (gh.visible ? gh.height : 0) + Math.max(ix.rowH, inm.height + ix.roles.g(2))
                     opacity: ix.brush ? ix.brush.conditionOpacity(c.id, ix.roles.dim) : 1
                     Behavior on opacity { NumberAnimation { duration: ix.roles.normal } }
                     Text {
                         id: gh
                         visible: !!it.modelData.head
-                        topPadding: ix.roles.u(6); bottomPadding: ix.roles.u(2)
+                        topPadding: ix.roles.g(6); bottomPadding: ix.roles.g(2)
                         text: it.modelData.head || ""
                         font: ix.roles.fSmallM; color: ix.roles.ink
                     }
@@ -122,7 +122,7 @@ Item {
                         Text {
                             id: inm
                             y: ix.roles.u(1)
-                            width: Math.min(implicitWidth, ix.cw - ival.width - iunit.width - imed.width - ix.roles.u(16))
+                            width: Math.min(implicitWidth, ix.cw - ival.width - iunit.width - imed.width - ix.roles.g(16))
                             wrapMode: Text.WordWrap
                             text: it.c.name + (!ix.grouped && it.c.tierTag === "watching" ? "°" : "")
                             font: ix.roles.fSmall
@@ -147,7 +147,7 @@ Item {
                 }
             }
         }
-        Item { width: 1; height: ix.roles.u(4) }
+        Item { width: 1; height: ix.roles.g(4) }
         Rectangle { width: ix.width; height: ix.roles.hw; color: ix.roles.hair }
     }
 }

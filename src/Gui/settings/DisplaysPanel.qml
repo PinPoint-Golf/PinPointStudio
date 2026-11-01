@@ -93,7 +93,7 @@ SettingsPanelBase {
     // ── Monitor diagram ───────────────────────────────────────────────
     Item {
         Layout.fillWidth: true
-        implicitHeight: monRow.implicitHeight + legend.implicitHeight + Theme.sp(8)
+        implicitHeight: monRow.implicitHeight + legend.implicitHeight + Theme.gap(8)
 
         Row {
             id: monRow

@@ -277,7 +277,7 @@ Item {
             property bool atom: true
             property bool keepNext: true
             readonly property bool hasTools: (tb.tools || []).length > 0 && !tb.isPrint
-            readonly property bool toolsAbove: hasTools && (ttl.implicitWidth + tb.roles.u(18) + toolsRow.implicitWidth > (tb.widths[tb.nameIdx] || 0))
+            readonly property bool toolsAbove: hasTools && (ttl.implicitWidth + tb.roles.g(18) + toolsRow.implicitWidth > (tb.widths[tb.nameIdx] || 0))
             width: tb.width
             height: ((tb.groups.length || toolsAbove) ? tb.roles.u(34) : tb.roles.u(21)) + tb.roles.r.figureRuleTop
             Rectangle { width: parent.width; height: tb.roles.r.figureRuleTop; color: tb.roles.rule }
@@ -292,9 +292,9 @@ Item {
             Row {
                 id: toolsRow
                 visible: head.hasTools
-                x: head.toolsAbove ? ttl.x : ttl.x + ttl.width + tb.roles.u(18)
+                x: head.toolsAbove ? ttl.x : ttl.x + ttl.width + tb.roles.g(18)
                 y: head.toolsAbove ? tb.roles.u(5) + tb.roles.r.figureRuleTop : ttl.y + ttl.baselineOffset - tb.roles.fLabel.pixelSize
-                spacing: tb.roles.u(12)
+                spacing: tb.roles.g(12)
                 Repeater {
                     model: tb.roles ? (head.hasTools ? tb.tools : []) : []
                     delegate: Text {
@@ -358,7 +358,7 @@ Item {
                 readonly property string thisShot: modelData.thisShot || ""
                 readonly property bool focused: !!modelData.focused
                 readonly property bool fresh: !!modelData.fresh
-                readonly property real padT: tb.roles.u(4)
+                readonly property real padT: tb.roles.g(4)
                 readonly property string extraText: tb.line2(modelData)
                 readonly property string evidenceText: tb.line3(modelData)
                 readonly property bool focusLink: tb.showFocus && !tb.isPrint && tb.kind === "session" && (rw.focused || (tb.interactive && rw.hot))
@@ -369,8 +369,8 @@ Item {
                 readonly property bool hot: tb.brush && rid !== "" && (tb.brush.hoveredCondition === rid)
                 readonly property bool open: tb.brush && rid !== "" && tb.brush.pickedCondition === rid
                 width: tb.width
-                height: padT + l1.height + (hasLine2 ? tb.roles.u(2) + l2.height : 0)
-                        + (gateInl.open ? tb.roles.u(4) + gateInl.height : 0) + tb.roles.u(5)
+                height: padT + l1.height + (hasLine2 ? tb.roles.g(2) + l2.height : 0)
+                        + (gateInl.open ? tb.roles.g(4) + gateInl.height : 0) + tb.roles.g(5)
                 opacity: tb.brush && rid !== "" ? tb.brush.conditionOpacity(rid, tb.roles.dim) : 1
                 Behavior on opacity { NumberAnimation { duration: tb.roles.normal } }
 
@@ -379,7 +379,7 @@ Item {
                             Behavior on opacity { NumberAnimation { duration: tb.roles.fast } } }
                 // the focused pattern, marked at rest (F33): a short ink bar at the row's left edge
                 Rectangle { objectName: "sdSessionRowFocusBar"; visible: tb.kind === "session" && rw.focused
-                            x: -tb.roles.u(6); y: rw.padT; width: 2; height: parent.height - rw.padT - tb.roles.u(5); color: tb.roles.ink }
+                            x: -tb.roles.u(6); y: rw.padT; width: 2; height: parent.height - rw.padT - tb.roles.g(5); color: tb.roles.ink }
                 // (marker for tests: present only on a fresh pattern; the word itself is in the name cell)
                 Item { objectName: rw.fresh ? tb.rowName + "Fresh" : ""; visible: rw.fresh; width: 0; height: 0
                        readonly property string text: "new" }
@@ -468,8 +468,8 @@ Item {
                     id: l2
                     visible: rw.hasLine2
                     x: tb.xs[tb.nameIdx] || 0; width: tb.width - x
-                    y: rw.padT + l1.height + tb.roles.u(2)
-                    spacing: tb.roles.u(2)
+                    y: rw.padT + l1.height + tb.roles.g(2)
+                    spacing: tb.roles.g(2)
                     Item {
                         objectName: tb.rowName + "Line2"
                         readonly property string text: rw.extraText
@@ -478,7 +478,7 @@ Item {
                         Text {
                             id: l2t
                             visible: rw.extraText.length > 0
-                            width: parent.width - (tb.showFocus && tb.kind === "session" && !tb.isPrint ? fl.implicitWidth + tb.roles.u(16) : 0); wrapMode: Text.WordWrap
+                            width: parent.width - (tb.showFocus && tb.kind === "session" && !tb.isPrint ? fl.implicitWidth + tb.roles.g(16) : 0); wrapMode: Text.WordWrap
                             text: rw.extraText; font: tb.roles.fSmallI; color: tb.roles.ink2
                         }
                         // the quiet focus link (F33): shown on hover and, once focused, at rest
@@ -502,7 +502,7 @@ Item {
                     }
                     Flow {
                         visible: rw.foldItems.length > 0
-                        width: parent.width + tb.roles.u(12)
+                        width: parent.width + tb.roles.g(12)
                         Repeater {
                             model: tb.roles ? (rw.foldItems) : []
                             delegate: Item {
@@ -511,14 +511,14 @@ Item {
                                 required property var modelData
                                 readonly property string text: modelData.v.t !== undefined ? String(modelData.v.t) : ""
                                 readonly property bool isStrip: modelData.c.kind === "strip"
-                                width: (isStrip ? fstrip.width : ft.implicitWidth) + tb.roles.u(12)
+                                width: (isStrip ? fstrip.width : ft.implicitWidth) + tb.roles.g(12)
                                 height: Math.max(ft.implicitHeight, fi.isStrip ? fstrip.height + 6 : tb.roles.stripH + 6)
                                 PpShotStrip {
                                     id: fstrip
                                     visible: fi.isStrip
                                     roles: tb.roles; brush: tb.brush; medium: tb.medium; interactive: tb.interactive
                                     ticks: fi.isStrip ? (fi.modelData.v.ticks || []) : []
-                                    availableWidth: Math.max(tb.roles.u(60), tb.width - (tb.xs[tb.nameIdx] || 0) - tb.roles.u(12))
+                                    availableWidth: Math.max(tb.roles.u(60), tb.width - (tb.xs[tb.nameIdx] || 0) - tb.roles.g(12))
                                     pickBand: true
                                     anchors.verticalCenter: parent.verticalCenter
                                     onShotActivated: (d, s) => tb.shotActivated(d, s)
@@ -542,7 +542,7 @@ Item {
                 PpTrustInlineFor {
                     id: gateInl
                     x: tb.xs[tb.nameIdx] || 0; width: tb.width - x
-                    y: rw.padT + l1.height + (rw.hasLine2 ? tb.roles.u(2) + l2.height : 0) + tb.roles.u(4)
+                    y: rw.padT + l1.height + (rw.hasLine2 ? tb.roles.g(2) + l2.height : 0) + tb.roles.g(4)
                     roles: tb.roles
                     subject: !tb.isPrint && tb.gateOpenRow !== "" && tb.gateOpenRow === rw.rid ? tb.gateOpenSubject : ""
                     swingDir: tb.gateOpenSwingDir

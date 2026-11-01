@@ -107,7 +107,7 @@ Item {
     readonly property var _tabDef: (stage.arrangement === "tabs" && stage.active.length > 0)
                                    ? stage.active[Math.min(stage.tabIndex, stage.active.length - 1)] : null
 
-    readonly property int _gap: Theme.sp(12)
+    readonly property int _gap: Theme.gap(12)
 
     // Both hooks are optional and only some panels declare them, so the panel is held untyped.
     function _asideOf(panel) {

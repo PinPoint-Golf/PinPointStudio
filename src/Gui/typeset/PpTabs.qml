@@ -83,7 +83,7 @@ Item {
         id: tabRow
         objectName: "sdTabRow"
         anchors.bottom: parent.bottom
-        spacing: tb.roles.atLeast(tb.width, "compact") ? tb.roles.u(26) : tb.roles.u(18)
+        spacing: tb.roles.atLeast(tb.width, "compact") ? tb.roles.g(26) : tb.roles.g(18)
         // the first label's baseline, so the note and chip can sit on it
         baselineOffset: tabRep.count > 0 && tabRep.itemAt(0) ? tabRep.itemAt(0).baselineOffset : 0
         Repeater {
@@ -118,7 +118,7 @@ Item {
                 Accessible.onPressAction: if (tb.interactive) tb.tabActivated(tab.key)
                 Row {
                     id: tl
-                    spacing: tb.roles.u(5)
+                    spacing: tb.roles.g(5)
                     anchors.verticalCenter: parent.verticalCenter
                     Text { id: tlt; objectName: "sdTabLabel"; text: tab.modelData.label; font: tb.tabFont; color: tab.on ? tb.roles.ink : tb.roles.ink2 }
                     Text { objectName: "sdTabCount"; visible: tb.counts && tab.modelData.count !== undefined; text: tab.modelData.count === undefined ? "" : tab.modelData.count
@@ -170,13 +170,13 @@ Item {
         objectName: "sdReviewNote"
         // on the right (default): it folds when it would meet the tabs; after the tabs: when it would meet the chip
         readonly property real room: tb.noteAfterTabs
-            ? tb.width - tabRow.width - tabRow.spacing - (chipT.visible ? chipT.width + tb.roles.u(24) : 0)
-            : tb.width - tabRow.width - (chipT.visible ? chipT.width + tb.roles.u(24) : 0) - tb.roles.u(24)
+            ? tb.width - tabRow.width - tabRow.spacing - (chipT.visible ? chipT.width + tb.roles.g(24) : 0)
+            : tb.width - tabRow.width - (chipT.visible ? chipT.width + tb.roles.g(24) : 0) - tb.roles.g(24)
         visible: tb.note.length > 0 && tb.roles.shows("reviewNote", tb.width) && implicitWidth <= room
         anchors.left: tb.noteAfterTabs ? tabRow.right : undefined
         anchors.leftMargin: tb.noteAfterTabs ? tabRow.spacing : 0
         anchors.right: tb.noteAfterTabs ? undefined : (chipT.visible ? chipT.left : parent.right)
-        anchors.rightMargin: !tb.noteAfterTabs && chipT.visible ? tb.roles.u(24) : 0
+        anchors.rightMargin: !tb.noteAfterTabs && chipT.visible ? tb.roles.g(24) : 0
         anchors.verticalCenter: tb.noteAfterTabs ? undefined : parent.verticalCenter
         anchors.baseline: tb.noteAfterTabs ? tabRow.baseline : undefined
         text: tb.note; font: tb.roles.fSmall; color: tb.roles.ink3

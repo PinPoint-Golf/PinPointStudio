@@ -97,6 +97,10 @@ QtObject {
 
     // ── scale and classes ──────────────────────────────────────────────────────────────────────
     function u(n) { return isPrint ? Math.round(n * p.printScale * 2) / 2 : Theme.sp(n) }
+    // The SPACE between things (spacing, margins, padding) — u(n) is the size of a thing. On screen it
+    // is Theme.gap(n), so it follows the theme's spacingScale and the user's Density setting; in print
+    // it is exactly u(n), so a printed page never depends on a screen preference.
+    function g(n) { return isPrint ? u(n) : Theme.gap(n) }
     readonly property real em: fBody.pixelSize
     function sizeClass(w) { const e = w / em; return e >= 90 ? "wide" : e >= 60 ? "medium" : e >= 42 ? "compact" : "narrow" }
     function rank(cls) { return cls === "wide" ? 4 : cls === "medium" ? 3 : cls === "compact" ? 2 : 1 }
@@ -106,7 +110,7 @@ QtObject {
         const t = typeof tier === "number" ? tier : ((tiers.elements[tier] || {}).tier || 1)
         return rank(sizeClass(w)) >= t
     }
-    function gutter(w) { return u(r.gutter[sizeClass(w)] || 14) }
+    function gutter(w) { return g(r.gutter[sizeClass(w)] || 14) }
     function columns(w, minEm, gap) {
         const g = gap === undefined ? gutter(w) : gap
         return Math.max(1, Math.floor((w + g) / (minEm * em + g)))

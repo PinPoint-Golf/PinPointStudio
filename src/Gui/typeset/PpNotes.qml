@@ -36,8 +36,8 @@ Column {
     property bool keepPrev: false
     readonly property var keyKinds: []
 
-    spacing: roles.u(5)
-    topPadding: roles.u(5)
+    spacing: roles.g(5)
+    topPadding: roles.g(5)
     Rectangle { visible: nt.rule; width: nt.roles.u(28); height: nt.roles.hw; color: nt.roles.rule }
     Text {
         visible: nt.kicker.length > 0

@@ -68,7 +68,7 @@ Item {
         spacing: 0
 
         // ── Top padding ──────────────────────────────────────────────────────
-        Item { Layout.preferredHeight: Theme.sp(16); Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.gap(16); Layout.fillWidth: true }
 
         // ── Athlete avatar ───────────────────────────────────────────────────
         Rectangle {
@@ -122,12 +122,12 @@ Item {
         }
 
         // ── Divider ──────────────────────────────────────────────────────────
-        Item { Layout.preferredHeight: Theme.sp(12); Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.gap(12); Layout.fillWidth: true }
         PpDivider {
             Layout.preferredWidth: Theme.sp(24)
             Layout.alignment: Qt.AlignHCenter
         }
-        Item { Layout.preferredHeight: Theme.sp(12); Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.gap(12); Layout.fillWidth: true }
 
         // ── Destinations ──────────────────────────────────────────────────────
         // No mode buttons: one session screen, the rail's Live, always there
@@ -147,7 +147,7 @@ Item {
 
         // Live — the session screen, always available: the running session, a past one opened
         // for review, or the cameras before a session starts.
-        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.gap(8); Layout.fillWidth: true }
 
         PpRailButton {
             Layout.alignment: Qt.AlignHCenter
@@ -161,7 +161,7 @@ Item {
             onClicked: root.pageRequested(AppScreen.Session)
         }
 
-        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.gap(8); Layout.fillWidth: true }
 
         // Sessions — the current golfer's sessions. Muted with no golfer, as the avatar's edit is:
         // with no athlete the form would open as a blank "New athlete" form.
@@ -184,7 +184,7 @@ Item {
             Layout.preferredWidth: Theme.sp(24)
             Layout.alignment: Qt.AlignHCenter
         }
-        Item { Layout.preferredHeight: Theme.sp(8); Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.gap(8); Layout.fillWidth: true }
 
         // Settings always active — allowed during the wizard. Stays
         // highlighted on the Developer and System (resource monitor) screens, which
@@ -200,6 +200,6 @@ Item {
             onClicked: root.pageRequested(AppScreen.Settings)
         }
 
-        Item { Layout.preferredHeight: Theme.sp(16); Layout.fillWidth: true }
+        Item { Layout.preferredHeight: Theme.gap(16); Layout.fillWidth: true }
     }
 }

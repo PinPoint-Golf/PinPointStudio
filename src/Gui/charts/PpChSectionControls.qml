@@ -36,7 +36,7 @@ Column {
     readonly property bool shown: wide || (!!section && section.controlsOpen)
     signal picked(string set, string option)
     visible: !!section && section.has && !section.replay && !section.cast
-    spacing: ty ? ty.u(4) : 0
+    spacing: ty ? ty.g(4) : 0
 
     PpChFoldHead {
         objectName: ctl.foldName

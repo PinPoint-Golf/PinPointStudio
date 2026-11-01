@@ -68,7 +68,7 @@ Column {
     readonly property real atW: Math.round(3.2 * em)
     readonly property real medW: Math.round(4.6 * em)
     readonly property real placeW: Math.round(8.6 * em)
-    readonly property real gap: roles ? roles.u(cls === "narrow" ? 8 : 12) : 12
+    readonly property real gap: roles ? roles.g(cls === "narrow" ? 8 : 12) : Theme.gap(12)
     readonly property real nameW: Math.max(6 * em, width - boxW - valW - unitW - gap * 3 - (wideCols ? atW + medW + (showPlace ? placeW + gap : 0) + gap * 2 : 0))
     // the display list: crossheads and rows, in the presenter's order
     readonly property var items: {
@@ -109,7 +109,7 @@ Column {
         id: cGroup
         Item {
             width: pt.width; height: pt.roles.u(30)
-            Text { anchors.bottom: parent.bottom; anchors.bottomMargin: pt.roles.u(5); text: parent.parent ? parent.parent.md.name : ""; font: pt.roles.fSmallM; color: pt.roles.ink2 }
+            Text { anchors.bottom: parent.bottom; anchors.bottomMargin: pt.roles.g(5); text: parent.parent ? parent.parent.md.name : ""; font: pt.roles.fSmallM; color: pt.roles.ink2 }
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: pt.roles.hw; color: pt.roles.hair }
         }
     }
@@ -136,7 +136,7 @@ Column {
                 spacing: pt.gap
                 Text {
                     id: name; width: pt.nameW; wrapMode: Text.WordWrap
-                    leftPadding: pt.roles.u(pt.roles.ch.swatch) + pt.roles.u(5)
+                    leftPadding: pt.roles.u(pt.roles.ch.swatch) + pt.roles.g(5)
                     text: row.r ? row.r.label : ""
                     font: row.open ? pt.roles.fBodyM : pt.roles.fBody; color: pt.roles.ink
                     Rectangle { y: Math.round(name.baselineOffset - height - name.font.pixelSize * 0.18); width: pt.roles.u(pt.roles.ch.swatch); height: width
@@ -173,7 +173,7 @@ Column {
             Row {
                 visible: row.two
                 y: row.line1 - pt.roles.u(3); x: pt.roles.u(12)
-                spacing: pt.roles.u(8)
+                spacing: pt.roles.g(8)
                 Text { visible: !pt.wideCols; text: row.r ? row.r.tag : ""; font: pt.roles.fSmall; color: pt.roles.ink3 }
                 Text { visible: !pt.wideCols; text: "median"; font: pt.roles.fSmall; color: pt.roles.ink3 }
                 Text { visible: !pt.wideCols; text: row.r ? row.r.medianText : ""; font: pt.roles.fFigLabel; color: pt.roles.ink3 }

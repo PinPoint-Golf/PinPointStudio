@@ -97,7 +97,7 @@ PpTypeset {
     // ── the Replay session row's geometry (PpSparkRow and PpSparkHead share it, so a head always aligns) ──
     // name (wraps) · strip · this shot's value · sparkline (tier 2)
     function sparkGeo(w, n, spark) {
-        const valW = u(48), gap = u(12)
+        const valW = u(48), gap = g(12)          // the column gap is space: follows Density
         const sk = spark === undefined ? shows(2, w) : spark
         const skW = sk ? flows.sparkline * em : 0
         const stripW = stripWidthFor(n || 15)

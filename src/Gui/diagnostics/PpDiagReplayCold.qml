@@ -28,14 +28,14 @@ Column {
     property QtObject roles: null
     property var header: null
     property var expectations: []
-    spacing: roles.u(14)
+    spacing: roles.g(14)
     objectName: "sdColdBody"
 
     readonly property var list: expectations || []
 
     Column {
         width: cb.width
-        spacing: cb.roles.u(3)
+        spacing: cb.roles.g(3)
         Text { objectName: "sdColdHeadline"; width: parent.width; wrapMode: Text.WordWrap
                text: cb.header ? (cb.header.coldLine || "") : ""; font: cb.roles.fTitle; color: cb.roles.ink }
         Text { objectName: "sdColdSubline"; width: parent.width; wrapMode: Text.WordWrap

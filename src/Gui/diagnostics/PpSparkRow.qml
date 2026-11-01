@@ -52,7 +52,7 @@ Item {
     readonly property real stripW: geo.stripW
     readonly property real gap: geo.gap
     readonly property real nameW: geo.nameW
-    readonly property real rowH: Math.max(roles.u(24), nm.implicitHeight + roles.u(8), strip.height + roles.u(10))
+    readonly property real rowH: Math.max(roles.u(24), nm.implicitHeight + roles.g(8), strip.height + roles.g(10))
     implicitHeight: rowH
     height: implicitHeight
     opacity: brush && c.id ? brush.conditionOpacity(c.id, roles.dim) : 1

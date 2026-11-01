@@ -73,7 +73,7 @@ Column {
     onSettingsChanged:     root._read()
 
     width:   parent ? parent.width : 0
-    spacing: Theme.sp(16)
+    spacing: Theme.gap(16)
 
     PpTabs {
         id: bar

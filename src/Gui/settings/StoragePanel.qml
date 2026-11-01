@@ -221,7 +221,7 @@ SettingsPanelBase {
     // Disk usage bar
     Rectangle {
         Layout.fillWidth:  true
-        implicitHeight:   diskContent.implicitHeight + Theme.sp(24)
+        implicitHeight:   diskContent.implicitHeight + Theme.gap(24)
         color:            Theme.colorBg2
         border.width:     1
         border.color:     Theme.colorBorderMid

@@ -36,7 +36,7 @@ import PinPointStudio
 WizardPage {
     id: page
 
-    implicitHeight: camsCol.implicitHeight + Theme.sp(32)
+    implicitHeight: camsCol.implicitHeight + Theme.gap(32)
 
     // Connect ↔ Continue: the primary is Connect while an enabled camera is not yet connected.
     // Cameras connect synchronously, so there is no "Connecting…" label (today's camConnectMode).

@@ -54,7 +54,7 @@ Column {
     }
     readonly property int frameCount: { let n = 0; for (let i = 0; i < groups.length; ++i) n += (groups[i].frames || []).length; return n }
     visible: on
-    spacing: on ? ty.u(8) : 0
+    spacing: on ? ty.g(8) : 0
 
     PpSectionHead { visible: pp.on; width: pp.width; roles: pp.ty; paged: false; pad: 0; title: pp.title }
     Repeater {
@@ -66,11 +66,11 @@ Column {
             readonly property var frames: modelData.frames || []
             readonly property real rowH: pp.rowH(frames)
             width: pp.width
-            spacing: pp.on ? pp.ty.u(4) : 0
+            spacing: pp.on ? pp.ty.g(4) : 0
             Text { text: modelData.label || ""; font: pp.on ? pp.ty.fKicker : Qt.font({}); color: pp.on ? pp.ty.ink3 : "grey" }
             Flow {
                 width: parent.width
-                spacing: pp.on ? pp.ty.u(10) : 0
+                spacing: pp.on ? pp.ty.g(10) : 0
                 Repeater {
                     model: grp.frames
                     delegate: PpChPostureFrame {

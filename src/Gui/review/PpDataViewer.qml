@@ -499,7 +499,7 @@ Item {
                 id: table
                 anchors { top: header.bottom; left: parent.left; right: parent.right
                           bottom: cellKey.visible ? cellKey.top : parent.bottom
-                          bottomMargin: cellKey.visible ? Theme.sp(6) : 0 }
+                          bottomMargin: cellKey.visible ? Theme.gap(6) : 0 }
                 model: src.table
                 clip: true
                 columnSpacing: 0; rowSpacing: 0
@@ -617,8 +617,8 @@ Item {
     Popup {
         id: propsPopup
         parent: root
-        width: Math.min(Theme.sp(320), root.width - Theme.sp(24))
-        height: root.height - Theme.sp(24); x: root.width - width - Theme.sp(12); y: Theme.sp(12)
+        width: Math.min(Theme.sp(320), root.width - Theme.gap(24))
+        height: root.height - Theme.gap(24); x: root.width - width - Theme.gap(12); y: Theme.gap(12)
         padding: 0
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         background: PpPopoverCard {}
@@ -629,7 +629,7 @@ Item {
     // full path on the clipboard so it can be pasted into a terminal or file dialog.
     PpToast {
         id: exportToast
-        margin: Theme.sp(16)
+        margin: Theme.gap(16)
         z: 50
         glyph: "⤓"
         showUndo: false

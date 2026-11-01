@@ -37,7 +37,7 @@ Column {
     readonly property var rows: sequence && sequence.table ? sequence.table : []
     readonly property bool wide: roles ? roles.shows(2, width) : true
     readonly property real em: roles ? roles.em : 14
-    readonly property real gap: roles ? roles.u(12) : 12
+    readonly property real gap: roles ? roles.g(12) : Theme.gap(12)
     readonly property real segW: Math.round(6.5 * em)
     readonly property real rankW: Math.round(3.6 * em)
     readonly property real peakW: Math.round(7.5 * em)
@@ -74,14 +74,14 @@ Column {
                 Text { width: st.rankW; horizontalAlignment: Text.AlignRight; anchors.baseline: sn.baseline
                        text: rw.modelData.shouldRank; font: st.roles.fFig; color: st.roles.ink2 }
                 Row {
-                    width: st.rankW; layoutDirection: Qt.RightToLeft; spacing: st.roles.u(4)
+                    width: st.rankW; layoutDirection: Qt.RightToLeft; spacing: st.roles.g(4)
                     Text { text: rw.modelData.actualRank; font.family: st.roles.fFig.family; font.pixelSize: st.roles.fFig.pixelSize
                            font.weight: st.roles.fFig.weight; font.italic: rw.modelData.probable === true
                            color: rw.modelData.late ? st.roles.warn : rw.modelData.placed || rw.modelData.probable ? st.roles.ink : st.roles.ink3 }
                     Text { visible: rw.modelData.late && !!rw.modelData.lateWord; text: rw.modelData.lateWord || ""; font: st.roles.fSmall; color: st.roles.warn }
                 }
                 Row {
-                    width: st.peakW; layoutDirection: Qt.RightToLeft; spacing: st.roles.u(4)
+                    width: st.peakW; layoutDirection: Qt.RightToLeft; spacing: st.roles.g(4)
                     Text { id: pkT
                            readonly property bool why: !!rw.modelData.trust
                            objectName: why ? "chSeqWhy:" + rw.modelData.trust : ""
@@ -96,7 +96,7 @@ Column {
             }
             Row {
                 visible: !st.wide
-                x: st.segW + st.gap; y: rw.line1 - st.roles.u(3); spacing: st.roles.u(10)
+                x: st.segW + st.gap; y: rw.line1 - st.roles.u(3); spacing: st.roles.g(10)
                 Text { id: fs; text: rw.modelData.speedText; font: st.roles.fFigS; color: st.roles.ink2 }
                 Text { anchors.baseline: fs.baseline; text: "°/s"; font: st.roles.fSmall; color: st.roles.ink3 }
                 Text { anchors.baseline: fs.baseline; text: rw.modelData.pctText; font: st.roles.fFigS; color: st.roles.ink2 }
@@ -140,7 +140,7 @@ Column {
             id: chkCol
             y: st.roles ? st.roles.u(6) : 6
             width: parent.width
-            spacing: st.roles ? st.roles.u(3) : 3
+            spacing: st.roles ? st.roles.g(3) : Theme.gap(3)
             Item {
                 width: parent.width
                 height: line.implicitHeight
@@ -148,14 +148,14 @@ Column {
                 Text { id: markProbe; visible: false; text: "✓"; font: st.roles ? st.roles.fFig : Qt.font({}) }
                 Row {
                     id: lineRow
-                    spacing: st.roles ? st.roles.u(10) : 10
+                    spacing: st.roles ? st.roles.g(10) : Theme.gap(10)
                     Text { id: line; objectName: "chSeqChecksLabel"; text: "Sequence checks"
                            font: st.roles ? st.roles.fBody : Qt.font({}); color: st.roles ? st.roles.ink : "black" }
                     // A Row places x only, so each child's y puts its baseline on the line's.
                     Row {
                         objectName: "chSeqChecksMarks"
                         y: line.baselineOffset - markProbe.baselineOffset
-                        spacing: st.roles ? st.roles.u(4) : 4
+                        spacing: st.roles ? st.roles.g(4) : Theme.gap(4)
                         Repeater {
                             model: chk.list
                             delegate: Text {
@@ -183,11 +183,11 @@ Column {
                 delegate: Row {
                     required property var modelData
                     objectName: "chSeqCheck:" + modelData.facet
-                    spacing: st.roles.u(8)
+                    spacing: st.roles.g(8)
                     Text { width: st.roles.u(14); horizontalAlignment: Text.AlignHCenter; text: modelData.mark
                            font: st.roles.fFigS; color: chk.ink(modelData.state) }
                     Text { width: chk.labelW; text: modelData.label; font: st.roles.fSmall; color: st.roles.ink }
-                    Text { width: Math.max(0, chk.width - chk.labelW - st.roles.u(30)); elide: Text.ElideRight
+                    Text { width: Math.max(0, chk.width - chk.labelW - st.roles.u(14) - 2 * st.roles.g(8)); elide: Text.ElideRight
                            text: modelData.detail; font: st.roles.fSmall; color: st.roles.ink3 }
                 }
             }
@@ -195,7 +195,7 @@ Column {
     }
     Text {
         visible: !!st.sequence && !!st.sequence.proNote
-        topPadding: st.roles ? st.roles.u(4) : 4
+        topPadding: st.roles ? st.roles.g(4) : Theme.gap(4)
         width: st.width; wrapMode: Text.WordWrap
         text: st.sequence ? (st.sequence.proNote || "") : ""
         font: st.roles ? st.roles.fSmall : Qt.font({}); color: st.roles ? st.roles.ink3 : "grey"

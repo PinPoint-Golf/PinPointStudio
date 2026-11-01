@@ -49,7 +49,7 @@ Column {
         Item { width: mx.nameW + Math.round(2 * mx.em); height: 1 }
         Repeater {
             model: mx.roles ? Math.max(0, mx.n - 1) : 0
-            delegate: Text { required property int index; width: mx.cellW; horizontalAlignment: Text.AlignRight; topPadding: mx.roles.u(5); rightPadding: mx.roles.u(4)
+            delegate: Text { required property int index; width: mx.cellW; horizontalAlignment: Text.AlignRight; topPadding: mx.roles.g(5); rightPadding: mx.roles.g(4)
                              text: String(index + 1); font: mx.roles.fFigLabel; color: mx.roles.ink3 }
         }
     }
@@ -74,7 +74,7 @@ Column {
                     readonly property string yId: modelData.yId
                     x: mx.nameW + Math.round(2 * mx.em) + index * mx.cellW; width: mx.cellW; height: rw.height
                     Rectangle { anchors.fill: parent; anchors.margins: 1; visible: modelData.on === true; color: mx.roles.pickWash }
-                    Text { anchors.right: parent.right; anchors.rightMargin: mx.roles.u(4); anchors.verticalCenter: parent.verticalCenter
+                    Text { anchors.right: parent.right; anchors.rightMargin: mx.roles.g(4); anchors.verticalCenter: parent.verticalCenter
                            text: modelData.defined ? modelData.rText : "-"; font: mx.roles.fFigS; color: modelData.defined && modelData.clear ? mx.roles.ink : mx.roles.ink3 }
                     MouseArea { anchors.fill: parent; enabled: mx.interactive && modelData.defined === true; cursorShape: Qt.PointingHandCursor; onClicked: mx.pairActivated(parent.xId, parent.yId) }
                 }

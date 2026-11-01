@@ -46,10 +46,10 @@ PpChSection {
     Column {
         id: mainCol
         width: ws.mainW
-        spacing: ws.ok ? ws.roles.u(18) : 18
+        spacing: ws.ok ? ws.roles.g(18) : Theme.gap(18)
         Column {
             objectName: "chWristSessionHead"
-            width: parent.width; spacing: ws.ok ? ws.roles.u(6) : 6
+            width: parent.width; spacing: ws.ok ? ws.roles.g(6) : Theme.gap(6)
             PpChText { roles: ws.roles; sentence: ws.se ? ws.se.head : null
                        font: ws.ok ? ws.roles.fStand : Qt.font({}); tone: ws.ok ? ws.roles.ink : "black" }
             PpChText { roles: ws.roles; sentence: ws.se ? ws.se.standfirst : null
@@ -57,7 +57,7 @@ PpChSection {
         }
         Column {
             visible: ws.available
-            width: parent.width; spacing: ws.ok ? ws.roles.u(8) : 8
+            width: parent.width; spacing: ws.ok ? ws.roles.g(8) : Theme.gap(8)
             PpSectionHead { width: parent.width; roles: ws.roles; title: "Checkpoints across the session"; sub: ws.se.sub || "" }
             PpChWristProfile {
                 width: parent.width
@@ -88,9 +88,9 @@ PpChSection {
     Component { id: sideC
     Column {
         id: side
-        spacing: ws.roles.u(26)
+        spacing: ws.roles.g(26)
         Column {
-            width: side.width; spacing: ws.roles.u(6)
+            width: side.width; spacing: ws.roles.g(6)
             PpSectionHead { width: parent.width; roles: ws.roles; title: "Score"; sub: "a mark per shot; the box is the session" }
             PpChRunBox { width: parent.width; roles: ws.roles; brush: ws.brush; ticker: ws.body ? ws.body.relationsP : null
                          run: ws.se.scoreRun || null; interactive: ws.interactive
@@ -100,7 +100,7 @@ PpChSection {
         Column {
             id: sty
             objectName: "chWristStyles"
-            width: side.width; spacing: ws.roles.u(4)
+            width: side.width; spacing: ws.roles.g(4)
             readonly property var st: ws.se.styles || ({})
             readonly property var cols: st.columns || []
             readonly property real lw: ws.roles.u(80)
@@ -141,7 +141,7 @@ PpChSection {
         Column {
             id: rec
             objectName: "chWristRecurring"
-            width: side.width; spacing: ws.roles.u(4)
+            width: side.width; spacing: ws.roles.g(4)
             PpSectionHead { width: parent.width; roles: ws.roles; title: "What keeps firing"; sub: "each finding, shot by shot: a mark where it fired (a mark opens that swing)" }
             Text { visible: (ws.se.recurring || []).length === 0; width: parent.width; wrapMode: Text.WordWrap
                    text: ws.se.recurringEmpty || ""; font: ws.roles.fBody; color: ws.roles.ink2 }

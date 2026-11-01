@@ -54,7 +54,7 @@ Rectangle {
 
     Column {
         anchors.centerIn: parent
-        width: parent.width - Theme.sp(24)
+        width: parent.width - Theme.gap(24)
         spacing: Theme.gap(5)
 
         Item {   // label left, elapsed time right

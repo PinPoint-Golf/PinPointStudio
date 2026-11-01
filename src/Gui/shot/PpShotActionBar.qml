@@ -326,7 +326,7 @@ Item {
                 id: allMenu
                 objectName: "allMenu"
                 parent: allCtl
-                y: -height - Theme.sp(4)
+                y: -height - Theme.gap(4)
                 x: allCtl.width - width
                 padding: Theme.gap(5)
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent

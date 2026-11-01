@@ -52,7 +52,7 @@ Rectangle {
     color: Theme.colorSurface
     clip: true
     visible: phone !== null
-    implicitHeight: header.height + body.implicitHeight + Theme.sp(20)
+    implicitHeight: header.height + body.implicitHeight + Theme.gap(20)
 
     // ── Formatters — every one of them maps a sentinel to an em dash ────────
     function fmtBattery() {
@@ -119,7 +119,7 @@ Rectangle {
         property string value: "—"
         property color  tint: Theme.colorText2
         width: Theme.sp(96)
-        spacing: 2
+        spacing: Theme.gap(2)
         Text {
             text: rd.label
             font.family: Theme.fontData; font.pixelSize: Theme.sp(8)
@@ -173,8 +173,8 @@ Rectangle {
 
             Column {
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 1
-                width: parent.width - Theme.sp(7) - Theme.sp(16) - statusPill.implicitWidth
+                spacing: Theme.gap(1)
+                width: parent.width - Theme.sp(7) - 2 * Theme.gap(8) - statusPill.implicitWidth
 
                 Text {
                     text: root.phone ? root.phone.name : ""
@@ -341,7 +341,7 @@ Rectangle {
                     Column {
                         anchors { left: parent.left; leftMargin: Theme.gap(10)
                                   verticalCenter: parent.verticalCenter }
-                        spacing: 1
+                        spacing: Theme.gap(1)
                         Text {
                             text: Theme.caps(qsTr("Ring buffer"))
                             font.family: Theme.fontData

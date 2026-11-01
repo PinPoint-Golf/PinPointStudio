@@ -62,7 +62,7 @@ SettingsPanelBase {
             readonly property int columns: 4
             readonly property int rows:    Math.ceil(root.themeData.length / columns)
             Layout.fillWidth: true
-            implicitHeight: Theme.sp(80) * rows + Theme.sp(10) * (rows - 1)
+            implicitHeight: Theme.sp(80) * rows + Theme.gap(10) * (rows - 1)
 
             Repeater {
                 model: root.themeData.length
@@ -72,10 +72,10 @@ SettingsPanelBase {
 
                     readonly property var   tData:      root.themeData[index]
                     readonly property bool  isSelected: Theme.themeIndex === index
-                    readonly property real  cardW:      (cardGrid.width - (cardGrid.columns - 1) * Theme.sp(10)) / cardGrid.columns
+                    readonly property real  cardW:      (cardGrid.width - (cardGrid.columns - 1) * Theme.gap(10)) / cardGrid.columns
 
-                    x: (index % cardGrid.columns) * (cardW + Theme.sp(10))
-                    y: Math.floor(index / cardGrid.columns) * (Theme.sp(80) + Theme.sp(10))
+                    x: (index % cardGrid.columns) * (cardW + Theme.gap(10))
+                    y: Math.floor(index / cardGrid.columns) * (Theme.sp(80) + Theme.gap(10))
                     width:  cardW
                     height: Theme.sp(80)
                     radius: Theme.radius
@@ -317,7 +317,7 @@ SettingsPanelBase {
 
                     Row {
                         anchors.verticalCenter: parent.verticalCenter
-                        x: Theme.sp(10)
+                        x: Theme.gap(10)
                         spacing: Theme.gap(10)
 
                         // A short trace, not a blob — a metric is a line on a chart, and a

@@ -37,7 +37,7 @@ import PinPointStudio
 WizardPage {
     id: page
 
-    implicitHeight: framingCol.implicitHeight + Theme.sp(32)
+    implicitHeight: framingCol.implicitHeight + Theme.gap(32)
 
     // ── The rule ─────────────────────────────────────────────────────────────────────────────────
     // A wrist or shoulder counts at MoveNet score ≥ 0.3 (the overlay draws from 0.25).

@@ -55,7 +55,7 @@ Column {
     signal seek(real us)
     signal toggled(string id)
     signal openCondition(string id)
-    spacing: roles ? roles.u(spacingU) : spacingU
+    spacing: roles ? roles.g(spacingU) : Theme.gap(spacingU)
 
     PpSectionHead { visible: !!lg.roles; width: lg.width; roles: lg.roles; paged: false; pad: 0; gap: 8
                     title: lg.title; count: (lg.items || []).length > 0 ? String((lg.items || []).length) : ""; countOnBaseline: true }
@@ -74,13 +74,13 @@ Column {
             readonly property bool opens: lg.interactive && lg.canOpen && en.findingId !== ""
             readonly property var ty: lg.roles
             width: lg.width
-            spacing: ty.u(3)
+            spacing: ty.g(3)
             Rectangle { width: parent.width; height: en.ty.hw; color: en.ty.hair }
             Item {
                 width: parent.width; height: Math.max(nm.implicitHeight, en.ty.u(20))
                 Row {
                     id: lead
-                    spacing: en.ty.u(7)
+                    spacing: en.ty.g(7)
                     anchors.verticalCenter: parent.verticalCenter
                     Rectangle { anchors.verticalCenter: parent.verticalCenter; width: en.ty.u(9); height: width; radius: en.ty.square ? 0 : width / 2
                                 color: lg.strengths ? en.ty.ink3 : (en.fault ? en.ty.warn : en.ty.surface)
@@ -97,7 +97,7 @@ Column {
                        text: en.f.pointsText || ""; font: en.ty.fFigS; color: en.ty.ink2 }
             }
             Flow {
-                width: parent.width; spacing: en.ty.u(8)
+                width: parent.width; spacing: en.ty.g(8)
                 // the positions one by one, the first a seek link
                 Repeater {
                     model: lg.goTo ? [] : (en.f.positions || [])
@@ -128,7 +128,7 @@ Column {
                    text: t; font: en.ty.fSmall; color: en.ty.ink2 }
             Column {
                 visible: en.open
-                width: parent.width; spacing: en.ty.u(3); topPadding: en.ty.u(2)
+                width: parent.width; spacing: en.ty.g(3); topPadding: en.ty.g(2)
                 Repeater {
                     model: en.open ? (en.f.more || []) : []
                     delegate: Text {

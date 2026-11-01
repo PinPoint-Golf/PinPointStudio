@@ -269,7 +269,7 @@ Item {
                         spacing: 0
 
                         Text {
-                            x: Theme.sp(18)
+                            x: Theme.gap(18)
                             topPadding:    Theme.gap(8)
                             bottomPadding: Theme.gap(3)
                             text:           facetGroup.modelData.label

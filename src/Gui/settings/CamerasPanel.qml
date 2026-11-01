@@ -383,11 +383,11 @@ SettingsPanelBase {
             anchors.top:   camRow.headerRow.bottom
             anchors.left:  parent.left
             anchors.right: parent.right
-            height: camData.enabled ? 0 : implicitContentHeight + Theme.sp(14)
+            height: camData.enabled ? 0 : implicitContentHeight + Theme.gap(14)
             visible: !camData.enabled
             clip: true
 
-            readonly property real implicitContentHeight: excText.implicitHeight + Theme.sp(14)
+            readonly property real implicitContentHeight: excText.implicitHeight + Theme.gap(14)
 
             Text {
                 id: excText
@@ -417,7 +417,7 @@ SettingsPanelBase {
             anchors.leftMargin:   Theme.gap(14)
             anchors.rightMargin:  Theme.gap(14)
             anchors.bottomMargin: Theme.gap(28)
-            height: camData.enabled ? implicitHeight + Theme.sp(28) : 0
+            height: camData.enabled ? implicitHeight + Theme.gap(28) : 0
             visible: camData.enabled
             spacing: Theme.gap(16)
             clip: true
@@ -787,7 +787,7 @@ SettingsPanelBase {
             anchors.right:  parent.right
             anchors.leftMargin:  Theme.gap(14)
             anchors.rightMargin: Theme.gap(14)
-            height: shown ? implicitHeight + Theme.sp(20) : 0
+            height: shown ? implicitHeight + Theme.gap(20) : 0
             visible: shown
             spacing: Theme.gap(14)
             clip: true
@@ -929,7 +929,7 @@ SettingsPanelBase {
             anchors.right:  parent.right
             anchors.leftMargin:  Theme.gap(14)
             anchors.rightMargin: Theme.gap(14)
-            height: (camData.enabled && camRow.isImpact) ? implicitHeight + Theme.sp(24) : 0
+            height: (camData.enabled && camRow.isImpact) ? implicitHeight + Theme.gap(24) : 0
             visible: camData.enabled && camRow.isImpact
             spacing: Theme.gap(14)
             clip: true
@@ -1397,7 +1397,7 @@ SettingsPanelBase {
                                 Text {
                                     anchors.centerIn: parent
                                     anchors.margins:  Theme.gap(16)
-                                    width:             parent.width - Theme.sp(32)
+                                    width:             parent.width - Theme.gap(32)
                                     text:              camRow.localPreviewInstance
                                                            ? camRow.localPreviewInstance.lastPreviewError
                                                            : ""
@@ -1990,7 +1990,7 @@ SettingsPanelBase {
                         Rectangle {
                             id: storageRect
                             Layout.fillWidth: true
-                            implicitHeight:   storageCol.implicitHeight + Theme.sp(24)
+                            implicitHeight:   storageCol.implicitHeight + Theme.gap(24)
                             color:  Theme.colorBg2
                             border.width: 1
                             border.color: Theme.colorBorderStrong

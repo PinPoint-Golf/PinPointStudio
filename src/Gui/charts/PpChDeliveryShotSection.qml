@@ -64,13 +64,13 @@ PpChSection {
     Column {
         id: mainCol
         width: ds.width
-        spacing: ds.has ? ds.ty.u(14) : 0
+        spacing: ds.has ? ds.ty.g(14) : 0
 
         // ── the head, and the standfirst at the playhead's position ──
         Column {
             objectName: "chDeliveryHead"
             width: ds.width
-            spacing: ds.has ? ds.ty.u(6) : 0
+            spacing: ds.has ? ds.ty.g(6) : 0
             PpChText { roles: ds.ty; sentence: ds.has ? ds.sh.head : null; font: ds.has ? ds.ty.fStand : Qt.font({}); tone: ds.has ? ds.ty.ink : "black" }
             PpChText { visible: !ds.replay && present; roles: ds.ty; sentence: ds.has && ds.body ? ds.body.dStandfirst : null; font: ds.has ? ds.ty.fBody : Qt.font({}) }
         }
@@ -80,10 +80,10 @@ PpChSection {
             objectName: "chDeliveryStory"
             visible: ds.has && ds.story.available === true
             width: ds.width
-            spacing: ds.has ? ds.ty.u(6) : 0
+            spacing: ds.has ? ds.ty.g(6) : 0
             Flow {
                 width: parent.width
-                spacing: ds.has ? ds.ty.u(10) : 0
+                spacing: ds.has ? ds.ty.g(10) : 0
                 Text { text: "Plane"; font: ds.has ? ds.ty.fKicker : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
                 Text { width: Math.min(implicitWidth, ds.has ? ds.ty.measureW(ds.width) : ds.width); wrapMode: Text.WordWrap
                        text: ds.story.text || ""; font: ds.has ? ds.ty.fBody : Qt.font({}); color: ds.has ? ds.ty.ink : "black" }
@@ -93,9 +93,9 @@ PpChSection {
             // the plane at each position, the hands' under it; a press seeks there, the playhead's position in ink
             Row {
                 visible: !ds.replay && (ds.story.positions || []).length > 0
-                spacing: ds.has ? ds.ty.u(16) : 0
+                spacing: ds.has ? ds.ty.g(16) : 0
                 Column {
-                    spacing: ds.has ? ds.ty.u(1) : 0
+                    spacing: ds.has ? ds.ty.g(1) : 0
                     Text { text: " "; height: ds.posTagH; font: ds.has ? ds.ty.fFigLabel : Qt.font({}) }
                     Text { text: "plane"; height: ds.posRowH; verticalAlignment: Text.AlignVCenter; font: ds.has ? ds.ty.fLabelUnit : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
                     Text { text: "hands"; height: ds.posRowH; verticalAlignment: Text.AlignVCenter; font: ds.has ? ds.ty.fLabelUnit : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
@@ -112,7 +112,7 @@ PpChSection {
                         width: pcol.width; height: pcol.height
                         Column {
                             id: pcol
-                            spacing: ds.ty.u(1)
+                            spacing: ds.ty.g(1)
                             Text { text: pc.modelData.tag; height: ds.posTagH; font: ds.ty.fFigLabel; color: pc.current ? ds.ty.ink : ds.ty.ink3 }
                             Text { text: pc.modelData.text || "-"; height: ds.posRowH; verticalAlignment: Text.AlignVCenter
                                    font: pc.current ? ds.ty.fBodyM : ds.ty.fFigS; color: ds.ty.ink }
@@ -129,7 +129,7 @@ PpChSection {
                 objectName: "chDeliverySlot"
                 visible: !ds.replay && ds.slot.available === true
                 width: parent.width
-                spacing: ds.has ? ds.ty.u(10) : 0
+                spacing: ds.has ? ds.ty.g(10) : 0
                 Text { text: "Slot"; font: ds.has ? ds.ty.fKicker : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
                 Text { text: "address"; font: ds.has ? ds.ty.fSmall : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
                 Text { text: ds.slot.addressText || "-"; font: ds.has ? ds.ty.fFigS : Qt.font({}); color: ds.has ? ds.ty.ink : "black" }
@@ -144,7 +144,7 @@ PpChSection {
         Row {
             objectName: "chDeliveryShape"
             visible: ds.replay && ds.shape.available === true
-            spacing: ds.has ? ds.ty.u(14) : 0
+            spacing: ds.has ? ds.ty.g(14) : 0
             Text { text: "Shot shape"; font: ds.has ? ds.ty.fKicker : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
             PpChShotShapeGrid { roles: ds.ty; shot: ds.shape; marks: []; line: ""; interactive: false
                                 cell: ds.has ? ds.ty.u(20) : 20 }
@@ -168,7 +168,7 @@ PpChSection {
             id: cols
             visible: ds.has && !ds.replay
             width: ds.width
-            readonly property real gap: ds.has ? ds.ty.u(28) : 28
+            readonly property real gap: ds.has ? ds.ty.g(28) : Theme.gap(28)
             readonly property bool two: ds.has && ds.ty.columns(cols.width, 30, gap) >= 2
             readonly property real colW: two ? (cols.width - gap) / 2 : cols.width
             height: !visible ? 0 : two ? Math.max(fl.height, rightCol.height) : fl.height + ds.ty.u(18) + rightCol.height
@@ -182,14 +182,14 @@ PpChSection {
             }
             Column {
                 id: rightCol
-                x: cols.two ? cols.colW + cols.gap : 0; y: cols.two ? 0 : fl.height + ds.ty.u(18)
+                x: cols.two ? cols.colW + cols.gap : 0; y: cols.two ? 0 : fl.height + ds.ty.g(18)
                 width: cols.colW
-                spacing: ds.has ? ds.ty.u(18) : 0
+                spacing: ds.has ? ds.ty.g(18) : 0
                 Column {
                     objectName: "chDeliveryImpact"
                     visible: ds.impactLines.length > 0
                     width: parent.width
-                    spacing: ds.has ? ds.ty.u(6) : 0
+                    spacing: ds.has ? ds.ty.g(6) : 0
                     Text { text: "At impact"; font: ds.has ? ds.ty.fKicker : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
                     Repeater {
                         model: ds.impactLines
@@ -205,9 +205,9 @@ PpChSection {
                 Column {
                     objectName: "chDeliveryShape"
                     width: parent.width
-                    spacing: ds.has ? ds.ty.u(6) : 0
+                    spacing: ds.has ? ds.ty.g(6) : 0
                     Flow {
-                        width: parent.width; spacing: ds.has ? ds.ty.u(10) : 0
+                        width: parent.width; spacing: ds.has ? ds.ty.g(10) : 0
                         Text { text: "Shot shape"; font: ds.has ? ds.ty.fKicker : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
                         Text { text: ds.shape.word || "-"; font: ds.has ? ds.ty.fBodyM : Qt.font({}); color: ds.has ? ds.ty.ink : "black" }
                         Text { visible: ds.shape.available === true

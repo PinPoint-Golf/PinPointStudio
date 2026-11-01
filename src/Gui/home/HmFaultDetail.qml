@@ -57,7 +57,7 @@ Column {
 
     FontMetrics { id: body2Metrics; font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2 }
 
-    Item { width: 1; height: Theme.sp(2) }
+    Item { width: 1; height: Theme.gap(2) }
 
     Text {
         width:          Math.min(parent.width, Theme.sp(720))
@@ -71,7 +71,7 @@ Column {
         lineHeight:     1.4
     }
 
-    Item { width: 1; height: Theme.sp(2) }
+    Item { width: 1; height: Theme.gap(2) }
 
     PpFact { width: parent.width; label: Theme.caps(qsTr("Now"));    text: root.str("statusText") }
     PpFact { width: parent.width; label: Theme.caps(qsTr("Latest")); text: root.str("latestText") }
@@ -157,5 +157,5 @@ Column {
         onClicked:  root.reviewSessionRequested(root.str("sessionDir"))
     }
 
-    Item { width: 1; height: Theme.sp(10) }
+    Item { width: 1; height: Theme.gap(10) }
 }

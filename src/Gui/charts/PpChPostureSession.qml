@@ -51,17 +51,17 @@ PpChSection {
     Column {
         id: col
         width: ss.width
-        spacing: ss.ok ? ss.roles.u(18) : 18
+        spacing: ss.ok ? ss.roles.g(18) : Theme.gap(18)
 
         Column {
             objectName: "chPostureSessionHead"
-            width: ss.width; spacing: ss.ok ? ss.roles.u(6) : 6
+            width: ss.width; spacing: ss.ok ? ss.roles.g(6) : Theme.gap(6)
             PpChText { roles: ss.roles; sentence: ss.se ? ss.se.head : null
                        font: ss.ok ? ss.roles.fStand : Qt.font({}); tone: ss.ok ? ss.roles.ink : "black" }
             Flow {
                 objectName: "chPostureSessionPattern"
                 visible: ss.available && !!ss.se.patternLine
-                width: parent.width; spacing: ss.ok ? ss.roles.u(10) : 10
+                width: parent.width; spacing: ss.ok ? ss.roles.g(10) : Theme.gap(10)
                 Text { text: "Pattern"; font: ss.ok ? ss.roles.fKicker : Qt.font({}); color: ss.ok ? ss.roles.ink3 : "grey" }
                 Text { width: Math.min(implicitWidth, ss.width); wrapMode: Text.WordWrap
                        text: ss.se.patternLine || ""; font: ss.ok ? ss.roles.fBody : Qt.font({}); color: ss.ok ? ss.roles.ink : "black" }
@@ -71,7 +71,7 @@ PpChSection {
         // ── the profile: a box per position, this shot ringed ──
         Column {
             visible: ss.available
-            width: ss.width; spacing: ss.ok ? ss.roles.u(8) : 8
+            width: ss.width; spacing: ss.ok ? ss.roles.g(8) : Theme.gap(8)
             PpSectionHead { width: parent.width; roles: ss.roles; title: "Positions across the session"; sub: ss.prof.sub || "" }
             PpChPostureProfile {
                 width: parent.width
@@ -99,7 +99,7 @@ PpChSection {
             id: strip
             objectName: "chPostureStrip"
             visible: ss.available && (ss.strip.marks || []).length > 0
-            width: ss.width; spacing: ss.ok ? ss.roles.u(6) : 6
+            width: ss.width; spacing: ss.ok ? ss.roles.g(6) : Theme.gap(6)
             readonly property var marks: ss.strip.marks || []
             readonly property real pitch: ss.ok ? Math.min(ss.roles.u(22), Math.max(ss.roles.u(10), (width - ss.roles.u(4)) / Math.max(1, marks.length))) : 16
             property string hoverLabel: ""
@@ -148,7 +148,7 @@ PpChSection {
         Column {
             objectName: "chPostureDepartures"
             visible: ss.available
-            width: ss.width; spacing: ss.ok ? ss.roles.u(4) : 4
+            width: ss.width; spacing: ss.ok ? ss.roles.g(4) : Theme.gap(4)
             readonly property var deps: ss.available ? (ss.se.departures || []) : []
             PpSectionHead { width: parent.width; roles: ss.roles; title: "Departures"; sub: "how many shots each fault was found on, and where it starts" }
             Text { visible: parent.deps.length === 0; width: parent.width; wrapMode: Text.WordWrap
@@ -179,7 +179,7 @@ PpChSection {
         Column {
             objectName: "chPostureRepeat"
             visible: ss.available && (!!ss.rep.words || (!!ss.rep.tightest && ss.rep.tightest.has) || (!!ss.rep.loosest && ss.rep.loosest.has))
-            width: ss.width; spacing: ss.ok ? ss.roles.u(4) : 4
+            width: ss.width; spacing: ss.ok ? ss.roles.g(4) : Theme.gap(4)
             PpSectionHead { width: parent.width; roles: ss.roles; title: "Repeatable?"; sub: "" }
             Text { visible: text !== ""; width: ss.ok ? ss.roles.measureW(parent.width) : 0; wrapMode: Text.WordWrap
                    text: ss.rep.words || ""; font: ss.ok ? ss.roles.fBody : Qt.font({}); color: ss.ok ? ss.roles.ink : "black" }

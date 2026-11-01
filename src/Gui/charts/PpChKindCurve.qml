@@ -102,13 +102,13 @@ Item {
     Column {
         x: kf.gutL + kf.pw + (kf.roles ? kf.roles.u(6) : 6); y: kf.pTop
         width: kf.gutR - (kf.roles ? kf.roles.u(6) : 6)
-        spacing: kf.roles ? kf.roles.u(6) : 6
+        spacing: kf.roles ? kf.roles.g(6) : Theme.gap(6)
         Repeater {
             model: kf.roles ? kf.fits : []
             delegate: Row {
                 required property var modelData
                 required property int index
-                spacing: kf.roles.u(4)
+                spacing: kf.roles.g(4)
                 // the legend line in the curve's own stroke: the first kind solid, the second dashed (ch.kindDash)
                 Canvas {
                     anchors.verticalCenter: lt.verticalCenter; width: kf.roles.u(16); height: kf.roles.u(4)

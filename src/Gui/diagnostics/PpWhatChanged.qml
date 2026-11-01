@@ -71,7 +71,7 @@ Column {
         return out
     }
     readonly property real fixedW: roles ? cols.reduce((s, c) => s + c.w * roles.em, 0) + (cols.length - 1) * gap : 0
-    readonly property real gap: roles ? roles.u(12) : 12
+    readonly property real gap: roles ? roles.g(12) : Theme.gap(12)
     // the table is a reading block, not a banner: the name takes what is left up to 20 em, never the whole width
     readonly property real tableW: Math.min(width, fixedW + (roles ? 20 * roles.em : 200))
     readonly property real nameW: Math.max(roles ? roles.u(90) : 90, tableW - fixedW)
@@ -99,7 +99,7 @@ Column {
     }
 
     visible: rows.length > 0
-    spacing: roles ? roles.u(4) : 4
+    spacing: roles ? roles.g(4) : Theme.gap(4)
 
     // the head: ▾ What changed · <sub>  (print: the kicker, no glyph)
     Item {
@@ -109,7 +109,7 @@ Column {
         Flow {
             id: headRow
             width: parent.width
-            spacing: wc.roles ? wc.roles.u(7) : 7
+            spacing: wc.roles ? wc.roles.g(7) : Theme.gap(7)
             Text { text: (wc.printed ? "" : (wc.open ? "▾ " : "▸ ")) + "What changed"
                    font: wc.roles ? (wc.printed ? wc.roles.fSmallM : wc.roles.fSmallL) : Qt.font({})
                    color: wc.roles ? (wc.printed || !wc.interactive ? wc.roles.ink : wc.roles.link) : "grey" }
@@ -128,7 +128,7 @@ Column {
         Column {
             id: tbl
             width: wc.tableW
-            topPadding: wc.roles ? wc.roles.u(4) : 4
+            topPadding: wc.roles ? wc.roles.g(4) : Theme.gap(4)
             // column heads
             Item {
                 width: tbl.width
@@ -154,7 +154,7 @@ Column {
                     objectName: "sdWhatChangedRow:" + (modelData.part || "")
                     readonly property bool read: !!modelData.read
                     width: tbl.width
-                    height: Math.max(nameMeasure.implicitHeight, wc.roles.u(18)) + wc.roles.u(8)
+                    height: Math.max(nameMeasure.implicitHeight, wc.roles.u(18)) + wc.roles.g(8)
                     Text { id: nameMeasure; visible: false; width: wc.nameW; wrapMode: Text.WordWrap
                            text: wc.cell(rowItem.modelData, "name"); font: wc.roles.fSmallM }
                     Repeater {
@@ -167,7 +167,7 @@ Column {
                             Text {
                                 id: tx
                                 visible: parent.k !== "band"
-                                y: wc.roles.u(4); width: parent.width
+                                y: wc.roles.g(4); width: parent.width
                                 wrapMode: parent.k === "name" ? Text.WordWrap : Text.NoWrap
                                 horizontalAlignment: modelData.r ? Text.AlignRight : Text.AlignLeft
                                 text: wc.cell(rowItem.modelData, parent.k)
@@ -180,14 +180,14 @@ Column {
                             // the band: a swatch in the band's colour and its word
                             Row {
                                 visible: parent.k === "band" && rowItem.read && String(rowItem.modelData.grade || "") !== ""
-                                y: wc.roles.u(4); spacing: wc.roles.u(5)
+                                y: wc.roles.g(4); spacing: wc.roles.g(5)
                                 Rectangle { width: wc.roles.u(9); height: width; radius: width / 2; anchors.verticalCenter: parent.verticalCenter
                                             color: wc.tone(rowItem.modelData.grade) }
                                 Text { text: String(rowItem.modelData.grade || ""); font: wc.roles.fSmall; color: wc.roles.ink2 }
                             }
                             Text {
                                 visible: parent.k === "band" && (!rowItem.read || String(rowItem.modelData.grade || "") === "")
-                                y: wc.roles.u(4); text: "-"; font: wc.roles.fSmall; color: wc.roles.ink3
+                                y: wc.roles.g(4); text: "-"; font: wc.roles.fSmall; color: wc.roles.ink3
                             }
                         }
                     }
@@ -196,7 +196,7 @@ Column {
             }
             Text {
                 width: wc.roles ? Math.min(tbl.width, wc.roles.measureW(tbl.width)) : tbl.width
-                topPadding: wc.roles ? wc.roles.u(5) : 5
+                topPadding: wc.roles ? wc.roles.g(5) : Theme.gap(5)
                 wrapMode: Text.WordWrap
                 text: wc.distance
                       ? "Each part at address against its own ideal band. Share: how much of the finding each part carries."

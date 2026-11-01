@@ -176,7 +176,7 @@ PpGroupCard {
     Rectangle {
         visible: root.selectedClubId !== ""
         width:  parent.width
-        height: visible ? clubCol.implicitHeight + Theme.sp(28) : 0
+        height: visible ? clubCol.implicitHeight + Theme.gap(28) : 0
         radius: Theme.radius
         color:  Theme.colorBg2
         border.width: 1

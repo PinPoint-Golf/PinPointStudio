@@ -35,23 +35,23 @@ Flow {
     readonly property var keyKinds: []
     property bool atom: true
     signal picked(string set, string option)
-    spacing: roles ? roles.u(4) : 4
+    spacing: roles ? roles.g(4) : Theme.gap(4)
     Repeater {
         model: cc.roles ? cc.sets : []
         delegate: Row {
             id: grp
             required property var modelData
             objectName: "chChoice:" + modelData.key
-            spacing: cc.roles.u(8)
-            rightPadding: cc.roles.u(18)
+            spacing: cc.roles.g(8)
+            rightPadding: cc.roles.g(18)
             readonly property var opts: modelData.options || []
             Text { id: lab; text: grp.modelData.label; font: cc.roles.fLabel; color: cc.roles.ink3; topPadding: cc.roles.u(1.5) }
             Flow {
                 width: Math.min(meas.implicitWidth + 4, cc.width - lab.implicitWidth - grp.spacing - grp.rightPadding)
-                spacing: cc.roles.u(7)
+                spacing: cc.roles.g(7)
                 // the options' natural width (one line), so the group wraps inside itself only when it must
                 Row {
-                    id: meas; visible: false; spacing: cc.roles.u(7)
+                    id: meas; visible: false; spacing: cc.roles.g(7)
                     Repeater { model: grp.opts
                                delegate: Text { required property var modelData; text: modelData.label + "  ·"; font: cc.roles.fSmallM } }
                 }
@@ -69,7 +69,7 @@ Flow {
                                                    : modelData.key === grp.modelData.current
                         readonly property bool live: cc.interactive && modelData.enabled !== false
                                                      && (grp.modelData.multi || grp.modelData.opens || !on)
-                        spacing: cc.roles.u(7)
+                        spacing: cc.roles.g(7)
                         // a metric's swatch: its own hue (identity), faint when it is switched off
                         Rectangle {
                             visible: !!opt.modelData.swatch

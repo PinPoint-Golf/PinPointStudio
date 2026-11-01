@@ -40,7 +40,7 @@ PpChViewBase {
     property bool controlsOpen: false
     readonly property bool folded: key !== "" && !!body && !!body.collapsed && body.collapsed[key] === true
     default property alias content: sectionBody.data
-    spacing: roles ? roles.u(14) : 0
+    spacing: roles ? roles.g(14) : 0
 
     function seek(us) { PpChSeek.to(us) }
     function autoChoice(key, label, current, list, after) {

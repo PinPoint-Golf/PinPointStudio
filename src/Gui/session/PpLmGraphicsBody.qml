@@ -400,7 +400,7 @@ Item {
     readonly property font fTileLabel: Qt.font({ family: ts.r.labelFamily, pixelSize: Math.round(ts.u(ts.r.labelSize)), weight: Font.Normal,
                                                  capitalization: Font.AllUppercase, letterSpacing: lr.tileLabelTracking })
     readonly property real em: ts.em
-    readonly property real tileGap: ts.u(lr.tileGap)
+    readonly property real tileGap: ts.g(lr.tileGap)
     FontMetrics { id: fmLab; font: root.fTileLabel }
     FontMetrics { id: fmHero; font: root.fHero }
     readonly property real labLH: Math.ceil(fmLab.height)
@@ -566,11 +566,11 @@ Item {
                 Item {
                     id: headRow
                     width: parent.width
-                    height: headFlow.height + ts.u(4)
+                    height: headFlow.height + ts.g(4)
                     Flow {
                         id: headFlow
-                        width: parent.width - (castView.visible ? castView.width + ts.u(12) : 0)
-                        spacing: ts.u(12)
+                        width: parent.width - (castView.visible ? castView.width + ts.g(12) : 0)
+                        spacing: ts.g(12)
                         Text { id: headT; text: !page.has ? "" : page.session ? root.sessionHead : root.headLine; font: ts.fBodyM; color: ts.ink; visible: text.length > 0 }
                         Text { visible: page.has; textFormat: Text.RichText
                                text: page.session ? ts.esc(root.sessionCtx)
@@ -690,10 +690,10 @@ Item {
         Column {
             id: printCol
             x: paper.mx; y: root.embedded ? 0 : ts.p.top; width: paper.textW
-            spacing: ts.u(14)
+            spacing: ts.g(14)
             // ── This shot ──
             Column {
-                visible: paper.on("mast"); width: parent.width; spacing: ts.u(6)
+                visible: paper.on("mast"); width: parent.width; spacing: ts.g(6)
                 Text { text: "This shot"; font: ts.fKicker; color: ts.ink3 }
                 Text { width: parent.width; wrapMode: Text.WordWrap; text: root.mastHead; font: ts.fTitle; color: ts.ink }
                 Text { width: Math.min(parent.width, ts.flows.measure * ts.em * 1.25); wrapMode: Text.WordWrap; textFormat: Text.RichText
@@ -701,23 +701,23 @@ Item {
                 Text { visible: root.printNotes.length > 0; width: parent.width; wrapMode: Text.WordWrap; text: root.printNotes; font: ts.fMicro; color: ts.ink3 }
             }
             Column {
-                visible: paper.on("tiles"); width: parent.width; spacing: ts.u(5)
+                visible: paper.on("tiles"); width: parent.width; spacing: ts.g(5)
                 FigHead { width: parent.width; h: root; n: 1; title: "Shot " + root.headNo; sub: "under each figure: the " + (root.focusClub ? root.focusClub.name : "") + " session average · ±1 SD" }
                 TileBlock { width: parent.width; defs: root.heroTiles; folded: []; h: root }
             }
             Column {
-                visible: paper.on("club"); width: parent.width; spacing: ts.u(5)
+                visible: paper.on("club"); width: parent.width; spacing: ts.g(5)
                 FigHead { width: parent.width; h: root; n: 2; title: "Club and impact"; sub: "Path, Spin, Loft and Impact, in FSX's quadrants" }
                 ClubQuad { h: root; arrangement: "quad"; gap: ts.gutter(parent.width); cw: Math.floor((parent.width - gap) / 2); ch: Math.floor(cw / 1.62) }
                 Text { width: parent.width; wrapMode: Text.WordWrap; text: "Path and Spin views ×" + root.lr.angleGain + "; Loft true. " + root.lowPointLine + " " + root.patchShort; font: ts.fMicro; color: ts.ink3 }
             }
             Column {
-                visible: paper.on("flight"); width: parent.width; spacing: ts.u(5)
+                visible: paper.on("flight"); width: parent.width; spacing: ts.g(5)
                 FigHead { width: parent.width; h: root; n: 3; title: "Flight"; sub: "from above and from the side, one scale on both axes" }
                 FlightFigure { width: parent.width; figH: naturalH(width) - captionH; mode: "shot"; h: root }
             }
             Column {
-                visible: paper.on("figs"); width: parent.width; spacing: ts.u(5)
+                visible: paper.on("figs"); width: parent.width; spacing: ts.g(5)
                 FigHead { width: parent.width; h: root; n: 2; title: "Club and impact · flight"; sub: "Path, Spin, Loft, Impact in FSX's quadrants; the flight beside, one scale on both axes" }
                 Item {
                     id: prFig
@@ -732,83 +732,83 @@ Item {
                 Text { width: parent.width; wrapMode: Text.WordWrap; text: "Path and Spin views ×" + root.lr.angleGain + "; Loft true. " + root.lowPointLine + " " + root.patchShort; font: ts.fMicro; color: ts.ink3 }
             }
             Column {
-                visible: paper.on("index"); width: parent.width; spacing: ts.u(6)
+                visible: paper.on("index"); width: parent.width; spacing: ts.g(6)
                 FigHead { width: parent.width; h: root; n: 1; table: true; title: "Every reading on shot " + root.headNo; sub: root.readingN + " readings in five groups" }
                 LedgerBlock { width: parent.width; h: root; bare: true; indexMode: true }
             }
             // ── Session ──
             Column {
-                visible: paper.on("sesHead"); width: parent.width; spacing: ts.u(6)
+                visible: paper.on("sesHead"); width: parent.width; spacing: ts.g(6)
                 Text { text: "Session"; font: ts.fKicker; color: ts.ink3 }
                 Text { width: parent.width; wrapMode: Text.WordWrap; text: root.sessionMast; font: ts.fTitle; color: ts.ink }
             }
             // round 2: the Session's two halves, as figures 4 (ball) and 5 (club)
             Column {
-                visible: paper.on("ballHalf"); width: parent.width; spacing: ts.u(5)
+                visible: paper.on("ballHalf"); width: parent.width; spacing: ts.g(5)
                 FigHead { width: parent.width; h: root; n: root.figNo > 0 ? root.figNo : 4; title: "Ball"; sub: "dispersion, launch × spin and consistency · " + (root.focusClub ? root.focusClub.name + ", " + root.scopeN + " shots" : "") }
                 BallHalf { width: parent.width; figH: ts.u(190); bare: true; h: root }
             }
             Column {
-                visible: paper.on("clubHalf"); width: parent.width; spacing: ts.u(5)
+                visible: paper.on("clubHalf"); width: parent.width; spacing: ts.g(5)
                 FigHead { width: parent.width; h: root; n: root.figNo > 0 ? root.figNo : 5; title: "Club"; sub: "impact, path × face and consistency · " + (root.focusClub ? root.focusClub.name + ", " + root.scopeN + " shots" : "") }
                 ClubHalf { width: parent.width; figH: ts.u(210); bare: true; h: root }
             }
             Row {
                 visible: paper.on("halves"); width: parent.width; spacing: ts.gutter(paper.textW) * 1.5
                 Column {
-                    width: paper.half; spacing: ts.u(5)
+                    width: paper.half; spacing: ts.g(5)
                     FigHead { width: parent.width; h: root; n: 4; title: "Ball"; sub: "dispersion · launch × spin · consistency" }
                     BallHalf { width: parent.width; figH: ts.u(132); bare: true; h: root }
                 }
                 Column {
-                    width: paper.half; spacing: ts.u(5)
+                    width: paper.half; spacing: ts.g(5)
                     FigHead { width: parent.width; h: root; n: 5; title: "Club"; sub: "impact · path × face · consistency" }
                     ClubHalf { width: parent.width; figH: ts.u(132); bare: true; h: root }
                 }
             }
             Column {
-                visible: paper.on("clubsum"); width: parent.width; spacing: ts.u(5)
-                Item { width: 1; height: ts.u(4) }
+                visible: paper.on("clubsum"); width: parent.width; spacing: ts.g(5)
+                Item { width: 1; height: ts.g(4) }
                 ClubSummary { width: parent.width; h: root }
             }
             Column {
-                visible: paper.on("stats"); width: parent.width; spacing: ts.u(5)
+                visible: paper.on("stats"); width: parent.width; spacing: ts.g(5)
                 FigHead { width: parent.width; h: root; n: 4; title: "Consistency"; sub: root.focusClub ? root.focusClub.name + ", " + root.scopeN + " shots" : "" }
                 TileBlock { width: parent.width; defs: root.statTiles; folded: []; h: root }
                 Text { width: parent.width; wrapMode: Text.WordWrap; text: root.statKey; font: ts.fMicro; color: ts.ink3 }
             }
             Column {
-                visible: paper.on("disp"); width: parent.width; spacing: ts.u(5)
+                visible: paper.on("disp"); width: parent.width; spacing: ts.g(5)
                 FigHead { width: parent.width; h: root; n: 5; title: "Dispersion"; sub: "every landing; each ellipse holds all its club's shots" }
                 ClubKey { width: parent.width; h: root }
                 FlightFigure { width: parent.width; figH: Math.min(naturalH(width), ts.u(300)); mode: "session"; h: root }
-                Item { width: 1; height: ts.u(4) }
+                Item { width: 1; height: ts.g(4) }
                 ClubSummary { width: parent.width; h: root }
             }
             Row {
                 visible: paper.on("statsDisp"); width: parent.width; spacing: ts.gutter(paper.textW) * 1.5
                 Column {
-                    width: paper.half; spacing: ts.u(5)
+                    width: paper.half; spacing: ts.g(5)
                     FigHead { width: parent.width; h: root; n: 4; title: "Dispersion"; sub: "every landing; each ellipse holds all its club's shots" }
                     ClubKey { width: parent.width; h: root }
                     FlightFigure { width: parent.width; figH: ts.u(250); mode: "session"; h: root }
                 }
                 Column {
-                    width: paper.half; spacing: ts.u(5)
+                    width: paper.half; spacing: ts.g(5)
                     FigHead { width: parent.width; h: root; n: 5; title: "Consistency"; sub: root.focusClub ? root.focusClub.name + ", " + root.scopeN + " shots" : "" }
                     TileBlock { width: parent.width; defs: root.statTiles; folded: []; h: root }
                     Text { width: parent.width; wrapMode: Text.WordWrap; text: root.statKey; font: ts.fMicro; color: ts.ink3 }
-                    Item { width: 1; height: ts.u(8) }
+                    Item { width: 1; height: ts.g(8) }
                     ClubSummary { width: parent.width; h: root }
                 }
             }
             Column {
-                visible: paper.on("ledger"); width: parent.width; spacing: ts.u(6)
+                visible: paper.on("ledger"); width: parent.width; spacing: ts.g(6)
                 FigHead { width: parent.width; h: root; n: 1; table: true; title: "Every reading, against the session"; sub: root.readingN + " readings" + (root.focusInScope ? "; shot " + root.shotNo + " is the tick" : "") }
                 LedgerBlock { width: parent.width; h: root; bare: true }
             }
             Column {
-                visible: paper.on("shots"); width: parent.width; spacing: ts.u(6)
+                visible: paper.on("shots"); width: parent.width; spacing: ts.g(6)
                 FigHead { width: parent.width; h: root; n: 2; table: true; title: "The session's shots"; sub: root.shots.length + " shots, grouped by club" + (root.focusShot ? "; shot " + root.shotNo + " shaded" : "") }
                 ShotTable { width: parent.width; h: root }
             }
@@ -850,10 +850,10 @@ Item {
         property bool table: false
         property string title: ""
         property string sub: ""
-        spacing: h.ts.u(4)
+        spacing: h.ts.g(4)
         Rectangle { width: parent.width; height: fh.h.ts.r.figureRuleTop * (fh.h.ts.isPrint ? 0.5 : 1); color: fh.h.ts.rule }
         Flow {
-            width: parent.width; spacing: fh.h.ts.u(8)
+            width: parent.width; spacing: fh.h.ts.g(8)
             Text { id: fhw; text: (fh.table ? "Table" : fh.h.ts.r.exhibitWord) + " " + fh.n; font: fh.h.ts.fMicro; color: fh.h.ts.ink3; height: fht.height; verticalAlignment: Text.AlignVCenter }
             Text { id: fht; text: fh.title; font: fh.h.ts.fBodyM; color: fh.h.ts.ink }
             Text { visible: fh.sub.length > 0; text: fh.sub; font: fh.h.ts.fMicro; color: fh.h.ts.ink3; height: fht.height; verticalAlignment: Text.AlignVCenter }
@@ -951,7 +951,7 @@ Item {
         readonly property int fit: h.ts.columns(width, h.lr.tileMinEm, h.tileGap)
         readonly property int cols: h.ts.wrapColumns(n, fit)
         readonly property real cw: (width - (cols - 1) * h.tileGap) / cols
-        spacing: h.ts.u(5)
+        spacing: h.ts.g(5)
         Item {
             width: parent.width
             readonly property real rowH: tb.h.tileH + (tb.defs.some(d => !!d.strip) ? tb.h.stripRowH : 0)
@@ -996,7 +996,7 @@ Item {
     component ClubKey: Flow {
         id: ck
         property var h
-        spacing: h.ts.u(16)
+        spacing: h.ts.g(16)
         Repeater {
             model: ck.h.clubs
             delegate: Item {
@@ -1009,7 +1009,7 @@ Item {
               Row {
                 id: ckr
                 readonly property var modelData: ckw.modelData
-                spacing: ck.h.ts.u(6)
+                spacing: ck.h.ts.g(6)
                 opacity: modelData.key === ck.h.focusKey ? 1 : 0.75
                 Rectangle { width: ck.h.ts.u(3); height: kt.height; color: modelData.hue; opacity: modelData.key === ck.h.focusKey ? 1 : ck.h.lr.ghostAlpha + 0.2 }
                 Text { id: kt; textFormat: Text.RichText; font: ck.h.ts.fMicro; color: ck.h.ts.ink2
@@ -1021,7 +1021,7 @@ Item {
         }
         Row {
             visible: ck.h.focusRinged
-            spacing: ck.h.ts.u(6)
+            spacing: ck.h.ts.g(6)
             Item { width: ck.h.ts.ringD; height: kt2.height
                    Rectangle { anchors.centerIn: parent; width: ck.h.ts.ringD; height: width; radius: width / 2; color: "transparent"; border.width: 1; border.color: ck.h.ts.ink } }
             Text { id: kt2; text: "shot " + ck.h.shotNo; font: ck.h.ts.fMicro; color: ck.h.ts.ink2 }
@@ -1281,7 +1281,7 @@ Item {
         readonly property bool lsOn: width / h.em >= h.lr.lsPairEm
         readonly property real gap: h.ts.gutter(width)
         readonly property real lsW: lsOn ? Math.max(14 * h.em, Math.min(width * 0.36, figH * 1.05)) : 0
-        spacing: h.ts.u(6)
+        spacing: h.ts.g(6)
         HalfHead { visible: !bh.bare; width: parent.width; h: bh.h; title: "Ball"; sub: "where it landed · how it launched" }
         ClubKey { width: parent.width; h: bh.h }
         Item {
@@ -1302,16 +1302,16 @@ Item {
         readonly property real gap: h.ts.gutter(width)
         readonly property real cw: pair ? (width - gap) * h.lr.mapShare : width
         readonly property real sw: pair ? width - gap - cw : width
-        spacing: h.ts.u(6)
+        spacing: h.ts.g(6)
         HalfHead { visible: !chf.bare; width: parent.width; h: chf.h; title: "Club"; sub: "where it struck · how it was delivered" }
         Item {
-            width: parent.width; height: chf.pair ? chf.figH : 2 * chf.figH + chf.h.ts.u(10)
+            width: parent.width; height: chf.pair ? chf.figH : 2 * chf.figH + chf.h.ts.g(10)
             Item {
                 width: chf.cw; height: chf.figH
                 Text { id: mt; text: "Impact · " + (chf.h.focusClub ? chf.h.focusClub.name.toLowerCase() : ""); font: chf.h.fTileLabel; color: chf.h.ts.ink2 }
                 ClubCell { y: mt.height + chf.h.ts.u(2); width: parent.width; height: parent.height - y; kind: "map"; h: chf.h }
             }
-            ScatterFig { x: chf.pair ? chf.cw + chf.gap : 0; y: chf.pair ? 0 : chf.figH + chf.h.ts.u(10); width: chf.sw; height: chf.figH; kind: "pf"; h: chf.h }
+            ScatterFig { x: chf.pair ? chf.cw + chf.gap : 0; y: chf.pair ? 0 : chf.figH + chf.h.ts.g(10); width: chf.sw; height: chf.figH; kind: "pf"; h: chf.h }
         }
         Text { width: parent.width; wrapMode: Text.WordWrap; text: chf.h.mapCaption; font: chf.h.ts.fMicro; color: chf.h.ts.ink3 }
         TileBlock { width: parent.width; defs: chf.h.clubTiles; folded: []; h: chf.h }
@@ -1325,7 +1325,7 @@ Item {
         property string kind: "pf"
         readonly property var geo: h.scatterGeom(kind, width, height)
         Text { id: sft; text: sf.kind === "pf" ? "Path ° × face °" : "Launch ° × spin rpm"; font: sf.h.fTileLabel; color: sf.h.ts.ink2 }
-        Text { anchors.left: sft.right; anchors.leftMargin: sf.h.ts.u(8); anchors.baseline: sft.baseline
+        Text { anchors.left: sft.right; anchors.leftMargin: sf.h.ts.g(8); anchors.baseline: sft.baseline
                text: sf.geo.n + " shots"; font: sf.h.ts.fMicro; color: sf.h.ts.ink3 }
         Canvas {
             anchors.fill: parent
@@ -1510,7 +1510,7 @@ Item {
             }
             return out
         }
-        spacing: h.ts.u(6)
+        spacing: h.ts.g(6)
         PpSectionHead {
             visible: !lb.bare; width: parent.width; roles: lb.h.ts; paged: false; pad: 0
             rule: true; ruleWeight: lb.h.ts.r.figureRuleTop; ruleGap: 3
@@ -2596,7 +2596,7 @@ Item {
         property var h
         property var shot: null
         readonly property bool open: !!shot && sc.h.chooserFor === shot.shotId
-        spacing: h.ts.u(6)
+        spacing: h.ts.g(6)
         Chip { h: sc.h; visible: !!sc.shot; text: sc.shot && sc.shot.out ? "Restore" : "Leave out"; onTapped: sc.h.toggleExclude(sc.shot.shotId) }
         Chip { h: sc.h; visible: !!sc.shot; on: sc.open
                text: !sc.shot ? "" : "Club: " + sc.h.clubName(sc.shot.club).toLowerCase() + (sc.shot.relabelled ? " (recorded " + sc.h.clubName(sc.shot.rawClub).toLowerCase() + ")" : "")
@@ -2618,7 +2618,7 @@ Item {
             model: nb.h.noteItems
             delegate: Flow {
                 required property var modelData
-                width: nb.width; spacing: nb.h.ts.u(8)
+                width: nb.width; spacing: nb.h.ts.g(8)
                 Text { text: modelData.text; font: nb.h.ts.fMicro; color: nb.h.ts.ink3; height: Theme.sp(nb.h.lr.hitPx); verticalAlignment: Text.AlignVCenter
                        width: Math.min(implicitWidth, nb.width); wrapMode: Text.WordWrap }
                 Repeater {
@@ -2638,7 +2638,7 @@ Item {
         property var h
         readonly property var shot: { for (const s of hc.h.shots) if (s.shotId === hc.h.hoverId) return s; return null }
         readonly property bool on: !!shot && hc.h.hoverFrom !== "" && hc.h.medium === "screen" && !hc.h.isCast
-        readonly property real pad: h.ts.u(9)
+        readonly property real pad: h.ts.g(9)
         visible: on
         width: Math.min(Math.max(hl1.implicitWidth, hl2.implicitWidth, hl3.visible ? hl3.implicitWidth : 0, ctl.visible ? h.ts.u(220) : 0) + 2 * pad, h.ts.u(360))
         height: hcol.implicitHeight + 2 * pad
@@ -2652,7 +2652,7 @@ Item {
         Column {
             id: hcol
             x: hc.pad; y: hc.pad; width: hc.width - 2 * hc.pad
-            spacing: hc.h.ts.u(3)
+            spacing: hc.h.ts.g(3)
             Text { id: hl1; textFormat: Text.RichText; font: hc.h.ts.fFigLabel; color: hc.h.ts.ink
                    text: !hc.shot ? "" : "Shot " + hc.shot.ordinal + " · " + hc.h.ts.esc(hc.h.clubName(hc.shot.club).toLowerCase())
                          + (hc.shot.relabelled ? hc.h.ts.toneHtml(" (recorded " + hc.h.ts.esc(hc.h.clubName(hc.shot.rawClub).toLowerCase()) + ")", hc.h.ts.ink3) : "")

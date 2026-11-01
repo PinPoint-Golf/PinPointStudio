@@ -799,5 +799,5 @@ SettingsPanelBase {
             wrapMode: Text.WordWrap; Layout.fillWidth: true
         }
     }
-    Item { Layout.preferredHeight: Theme.sp(8) }
+    Item { Layout.preferredHeight: Theme.gap(8) }
 }

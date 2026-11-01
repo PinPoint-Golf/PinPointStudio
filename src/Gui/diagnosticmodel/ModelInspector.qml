@@ -106,7 +106,7 @@ Item {
 
     Text {
         anchors.centerIn: parent
-        width: parent.width - Theme.sp(48)
+        width: parent.width - Theme.gap(48)
         visible: !root._found
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.WordWrap
@@ -403,8 +403,8 @@ Item {
                         topPadding:    Theme.gap(12)
 
                         RowLayout {
-                            width: sectionItem.width - Theme.sp(36)
-                            x:     Theme.sp(18)
+                            width: sectionItem.width - Theme.gap(36)
+                            x:     Theme.gap(18)
                             spacing: Theme.gap(8)
 
                             PpMicro {
@@ -428,8 +428,8 @@ Item {
                         // indistinguishable from a rendering fault.
                         Text {
                             visible: sectionItem.modelData.note !== ""
-                            x:     Theme.sp(18)
-                            width: sectionItem.width - Theme.sp(36)
+                            x:     Theme.gap(18)
+                            width: sectionItem.width - Theme.gap(36)
                             text:  sectionItem.modelData.note
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzMicro
@@ -446,12 +446,12 @@ Item {
                                 readonly property string kind: sectionItem.modelData.kind
 
                                 width:  sectionItem.width
-                                height: kind === "fields" ? fieldEditor.implicitHeight + Theme.sp(10)
-                                      : kind === "prose" ? proseText.implicitHeight + Theme.sp(4)
-                                      : kind === "quote" ? quoteBlock.implicitHeight + Theme.sp(10)
+                                height: kind === "fields" ? fieldEditor.implicitHeight + Theme.gap(10)
+                                      : kind === "prose" ? proseText.implicitHeight + Theme.gap(4)
+                                      : kind === "quote" ? quoteBlock.implicitHeight + Theme.gap(10)
                                       : kind === "claims" ? Math.max(Theme.sp(34),
-                                                                     rowLabel.implicitHeight + Theme.sp(10))
-                                      : Math.max(Theme.sp(24), rowLabel.implicitHeight + Theme.sp(8))
+                                                                     rowLabel.implicitHeight + Theme.gap(10))
+                                      : Math.max(Theme.sp(24), rowLabel.implicitHeight + Theme.gap(8))
 
                                 Rectangle {
                                     anchors.fill: parent
@@ -466,9 +466,9 @@ Item {
                                 Rectangle {
                                     id: quoteBlock
                                     visible: hubRow.kind === "quote"
-                                    x:      Theme.sp(18)
-                                    width:  sectionItem.width - Theme.sp(36)
-                                    implicitHeight: quoteText.implicitHeight + Theme.sp(20)
+                                    x:      Theme.gap(18)
+                                    width:  sectionItem.width - Theme.gap(36)
+                                    implicitHeight: quoteText.implicitHeight + Theme.gap(20)
                                     height: implicitHeight
                                     radius: Theme.radius
                                     color:  Theme.colorBg2
@@ -492,8 +492,8 @@ Item {
                                 Text {
                                     id: proseText
                                     visible: sectionItem.modelData.kind === "prose"
-                                    x:     Theme.sp(18)
-                                    width: sectionItem.width - Theme.sp(36)
+                                    x:     Theme.gap(18)
+                                    width: sectionItem.width - Theme.gap(36)
                                     text:  hubRow.modelData.label
                                     font.family:    Theme.fontBody
                                     font.pixelSize: Theme.fontSzBody2
@@ -569,9 +569,9 @@ Item {
                                     id: fieldEditor
                                     objectName: "fieldBox"
                                     visible: hubRow.kind === "fields"
-                                    x:     Theme.sp(18)
-                                    y:     Theme.sp(5)
-                                    width: sectionItem.width - Theme.sp(36)
+                                    x:     Theme.gap(18)
+                                    y:     Theme.gap(5)
+                                    width: sectionItem.width - Theme.gap(36)
                                     // A Layout that is not itself inside a Layout gets NO size from
                                     // anywhere — `width` was set and `height` was not, so this box
                                     // was 0 high and laid its children out into nothing: the label
@@ -984,7 +984,7 @@ Item {
                             objectName: "addAffordance:" + sectionItem.modelData.action
                             visible: root.editable && sectionItem.modelData.action !== ""
                                      && sectionItem.modelData.action !== "binding"
-                            x: Theme.sp(18)
+                            x: Theme.gap(18)
                             topPadding: Theme.gap(4)
                             text: sectionItem.modelData.action === "cause"     ? qsTr("+ add cause")
                                 : sectionItem.modelData.action === "corridor"  ? qsTr("+ add corridor")

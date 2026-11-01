@@ -84,7 +84,7 @@ Item {
             for (let i = 0; i < readingsRep.count; ++i) {
                 const it = readingsRep.itemAt(i)
                 if (it && it.subject === subject) {
-                    const y = it.mapToItem(flick.contentItem, 0, 0).y - ro.u(12)
+                    const y = it.mapToItem(flick.contentItem, 0, 0).y - ro.g(12)
                     flick.contentY = Math.max(0, Math.min(y, flick.contentHeight - flick.height))
                 }
             }
@@ -96,22 +96,22 @@ Item {
         id: flick
         objectName: "trustFlick"
         anchors.fill: parent
-        anchors.margins: ro.u(16)
+        anchors.margins: ro.g(16)
         contentWidth: width
-        contentHeight: col.height + ro.u(24)
+        contentHeight: col.height + ro.g(24)
         clip: true
         boundsBehavior: Flickable.StopAtBounds
 
         Column {
             id: col
             width: flick.width
-            spacing: ro.u(10)
+            spacing: ro.g(10)
 
             // ── the shot ──
             Column {
                 objectName: "trustHead"
                 width: parent.width
-                spacing: ro.u(4)
+                spacing: ro.g(4)
                 Text { text: root.shot.available ? (root.shot.kicker || "") : "No shot picked"
                        font: ro.fKicker; color: ro.ink2 }
                 // "How far can I trust this?" (§7.4): its few words as the standfirst, its lines under it —
@@ -142,7 +142,7 @@ Item {
                     readonly property string subject: modelData.subject
                     readonly property var prev: index > 0 ? root.shot.readings[index - 1] : null
                     width: col.width
-                    spacing: ro.u(4)
+                    spacing: ro.g(4)
                     PpSectionHead { visible: !!rd.modelData.area && (!rd.prev || rd.prev.area !== rd.modelData.area)
                                     width: parent.width; roles: ro; paged: false; lead: 4; pad: 0; title: rd.modelData.area || "" }
                     PpTrustReading {
@@ -162,8 +162,8 @@ Item {
                 objectName: "trustSession"
                 visible: (root.session.gates || []).length > 0 || !!root.session.head
                 width: parent.width
-                spacing: ro.u(4)
-                topPadding: ro.u(10)
+                spacing: ro.g(4)
+                topPadding: ro.g(10)
                 Rectangle { width: parent.width; height: ro.hw; color: ro.rule }
                 PpSectionHead { width: parent.width; roles: ro; paged: false; lead: 6; pad: 0; title: "Across the session" }
                 Repeater {
@@ -180,7 +180,7 @@ Item {
                         id: sg
                         required property var modelData
                         width: col.width
-                        height: Math.max(sgT.implicitHeight, sgSubs.implicitHeight) + ro.u(6)
+                        height: Math.max(sgT.implicitHeight, sgSubs.implicitHeight) + ro.g(6)
                         Text { id: sgT; width: parent.width * 0.45; wrapMode: Text.WordWrap
                                text: sg.modelData.title + (sg.modelData.acted ? "" : "  (marked on the chart only)")
                                font: ro.fSmallM; color: ro.ink }

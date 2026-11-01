@@ -46,7 +46,7 @@ Item {
 
     property var controller: (typeof workOns !== "undefined") ? workOns : null
     // Kept for callers that still set it; the card no longer lines up with the cards below it.
-    property int gridGap: Theme.sp(16)
+    property int gridGap: Theme.gap(16)
 
     // Practise: open the wizard with this focus.
     signal practiseRequested(string conditionId, string label)
@@ -325,8 +325,8 @@ Item {
             }
             detail: Component {
                 Column {
-                    topPadding:    Theme.sp(4)
-                    bottomPadding: Theme.sp(20)
+                    topPadding:    Theme.gap(4)
+                    bottomPadding: Theme.gap(20)
                     spacing: Theme.gap(16)
 
                     // WHY IT MATTERS

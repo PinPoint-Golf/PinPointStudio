@@ -37,7 +37,7 @@ Column {
     property var lines: []
     property bool open: false
     visible: (lines || []).length > 0
-    spacing: roles ? roles.u(4) : 4
+    spacing: roles ? roles.g(4) : Theme.gap(4)
 
     PpTrustFoldToggle {
         objectName: fold.prefix + "TrustToggle"
@@ -50,7 +50,7 @@ Column {
             required property var modelData
             objectName: fold.prefix + "TrustLine"
             width: fold.roles ? Math.min(fold.width, fold.roles.measureW(fold.width)) : fold.width
-            leftPadding: fold.roles ? fold.roles.u(14) : 14
+            leftPadding: fold.roles ? fold.roles.g(14) : Theme.gap(14)
             wrapMode: Text.WordWrap
             text: String(modelData)
             font: fold.roles ? fold.roles.fSmall : Qt.font({}); color: fold.roles ? fold.roles.ink2 : "grey"

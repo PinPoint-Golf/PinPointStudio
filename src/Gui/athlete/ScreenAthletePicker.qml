@@ -66,7 +66,7 @@ Item {
                 eyebrow: Theme.caps(qsTr("Athletes"))
                 title:   qsTr("Choose athlete")
             }
-            Item { width: 1; height: Theme.sp(24) }
+            Item { width: 1; height: Theme.gap(24) }
 
             // ── Recent section ───────────────────────────────────────────────
             Column {
@@ -103,7 +103,7 @@ Item {
 
             Item {
                 width:  1
-                height: athleteController.athletes.length > 0 ? Theme.sp(24) : 0
+                height: athleteController.athletes.length > 0 ? Theme.gap(24) : 0
             }
 
             // ── All athletes header row ───────────────────────────────────────
@@ -127,7 +127,7 @@ Item {
                 }
             }
 
-            Item { width: 1; height: Theme.sp(8) }
+            Item { width: 1; height: Theme.gap(8) }
 
             // ── Athletes list ─────────────────────────────────────────────────
             Rectangle {
@@ -177,7 +177,7 @@ Item {
             }
 
             // ── Action row ───────────────────────────────────────────────────
-            Item { width: 1; height: Theme.sp(20) }
+            Item { width: 1; height: Theme.gap(20) }
 
             Text {
                 objectName: "pickerSessionRunning"
@@ -189,7 +189,7 @@ Item {
                 font.pixelSize: Theme.fontSzBody2
                 color:          Theme.colorWarn
                 wrapMode:       Text.WordWrap
-                bottomPadding:  Theme.sp(10)
+                bottomPadding:  Theme.gap(10)
             }
 
             RowLayout {
@@ -235,7 +235,7 @@ Item {
                 }
             }
 
-            Item { width: 1; height: Theme.sp(32) }
+            Item { width: 1; height: Theme.gap(32) }
         }
     }
 }

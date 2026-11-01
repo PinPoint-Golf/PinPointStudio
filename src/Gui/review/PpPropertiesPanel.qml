@@ -105,7 +105,7 @@ Item {
 
             PpCardNote {
                 visible: panel.metadata.length === 0
-                width: col.width - Theme.sp(28)
+                width: col.width - 2 * Theme.gap(14)
                 text: qsTr("No properties recorded for this swing.")
             }
 
@@ -113,7 +113,7 @@ Item {
                 model: panel.metadata
                 delegate: Column {
                     required property var modelData
-                    width: col.width - Theme.sp(28)
+                    width: col.width - 2 * Theme.gap(14)
                     spacing: Theme.gap(4)
 
                     PpMicro {

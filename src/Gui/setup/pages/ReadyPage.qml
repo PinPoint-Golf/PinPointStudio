@@ -37,7 +37,7 @@ import PinPointStudio
 WizardPage {
     id: page
 
-    implicitHeight: readyCol.implicitHeight + Theme.sp(32)
+    implicitHeight: readyCol.implicitHeight + Theme.gap(32)
 
     readonly property bool _fullyReady: page.flow.issues.length === 0
 

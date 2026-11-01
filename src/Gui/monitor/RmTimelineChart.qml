@@ -67,9 +67,9 @@ Rectangle {
         id: chartArea
         anchors {
             top: chartTitle.bottom
-            topMargin: 6
+            topMargin: Theme.gap(6)
             bottom: footer.top
-            bottomMargin: 4
+            bottomMargin: Theme.gap(4)
             left: parent.left
             right: parent.right
             leftMargin: Theme.gap(14)

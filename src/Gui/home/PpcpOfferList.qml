@@ -49,7 +49,7 @@ Column {
     visible: offerCount > 0
 
     // ── Heading ────────────────────────────────────────────────────────────
-    Item { width: 1; height: Theme.sp(24) }
+    Item { width: 1; height: Theme.gap(24) }
 
     Item {
         width:  root.width
@@ -72,7 +72,7 @@ Column {
             horizontalAlignment: Text.AlignRight
         }
     }
-    Item { width: 1; height: 12 }
+    Item { width: 1; height: Theme.gap(12) }
 
     // ── One row per offered Session ────────────────────────────────────────
     Repeater {
@@ -132,7 +132,7 @@ Column {
                     height: parent.height
                     spacing: Theme.gap(2)
 
-                    Item { width: 1; height: Theme.sp(6) }
+                    Item { width: 1; height: Theme.gap(6) }
 
                     Text {
                         width:             parent.width

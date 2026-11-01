@@ -210,7 +210,7 @@ Column {
                         readonly property int    pipCount:    (wellItem.modelData.sessions || []).length
                         secondLine: true
                         hoverEnabled: false
-                        height: Math.max(Theme.sp(Theme.rowH2), wellWords.implicitHeight + Theme.sp(18))
+                        height: Math.max(Theme.sp(Theme.rowH2), wellWords.implicitHeight + Theme.gap(18))
 
                         PpBadge { kind: "dot"; plain: true; tone: root.toneWell; size: root.markW }
                         Column {
@@ -284,7 +284,7 @@ Column {
                         onOpenRequested: (next) => root.openId = next
                         onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
                         secondLine: true
-                        rowHeight: Math.max(Theme.sp(Theme.rowH2), workWords.implicitHeight + Theme.sp(18))
+                        rowHeight: Math.max(Theme.sp(Theme.rowH2), workWords.implicitHeight + Theme.gap(18))
                         showChevron: false
                         accessibleName: workItem.itemText
 

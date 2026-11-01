@@ -234,7 +234,7 @@ Item {
 
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: hdrInner.implicitHeight + Theme.sp(40)
+            Layout.preferredHeight: hdrInner.implicitHeight + Theme.gap(40)
 
             Item {
                 id: hdrBox
@@ -294,7 +294,7 @@ Item {
 
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: indicator.implicitHeight + Theme.sp(20)
+            Layout.preferredHeight: indicator.implicitHeight + Theme.gap(20)
             // Above the body, so a pip's hover text can overlap the page.
             z: 2
 
@@ -302,7 +302,7 @@ Item {
                 id: indicator
                 objectName: "setupIndicator"
                 anchors.centerIn: parent
-                width:    Math.max(0, Math.min(parent.width - Theme.sp(32), root.contentWidth))
+                width:    Math.max(0, Math.min(parent.width - Theme.gap(32), root.contentWidth))
                 model:    root._indicatorModel
                 groups:   stepsObj.groupLabels
                 progress: flowObj.progress

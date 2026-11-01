@@ -88,7 +88,7 @@ Column {
             onClicked:   root.studioSettingsRequested()
         }
     }
-    Item { width: 1; height: Theme.sp(4) }
+    Item { width: 1; height: Theme.gap(4) }
 
     // ── The families ─────────────────────────────────────────────────────────
     // The row the setup Ready page draws, in its dense form; its dot takes the row's tone.
@@ -104,7 +104,7 @@ Column {
     }
 
     // ── Pair, offers, warnings ───────────────────────────────────────────────
-    Item { width: 1; height: Theme.sp(10); visible: pairRow.visible }
+    Item { width: 1; height: Theme.gap(10); visible: pairRow.visible }
     Rectangle { width: root.width; height: 1; color: Theme.colorHairline; visible: pairRow.visible }
 
     // The pairing panel. A Popup parented to Overlay.overlay, so it covers the whole window from
@@ -166,7 +166,7 @@ Column {
     // ── The first resource warning ───────────────────────────────────────────
     Item {
         visible: resourceMonitor.warnings.length > 0
-        height:  visible ? (warnNotice.implicitHeight + Theme.sp(12)) : 0
+        height:  visible ? (warnNotice.implicitHeight + Theme.gap(12)) : 0
         width:   root.width
 
         PpNotice {

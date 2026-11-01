@@ -42,8 +42,8 @@ Column {
 
     visible: open
     spacing: 0
-    topPadding: roles.u(6); bottomPadding: roles.u(8)
-    Text { objectName: "sdMissPickerLabel"; text: ip.title; font: ip.roles.fLabel; color: ip.roles.ink3; bottomPadding: ip.roles.u(4) }
+    topPadding: roles.g(6); bottomPadding: roles.g(8)
+    Text { objectName: "sdMissPickerLabel"; text: ip.title; font: ip.roles.fLabel; color: ip.roles.ink3; bottomPadding: ip.roles.g(4) }
     Repeater {
         model: ip.roles && ip.open ? (ip.items || []) : []
         delegate: Item {
@@ -52,7 +52,7 @@ Column {
             required property var modelData
             readonly property string missId: modelData.id
             readonly property bool on: ip.current === modelData.id
-            width: ip.width; height: Math.max(ip.roles.u(24), lab.height + ip.roles.u(8))
+            width: ip.width; height: Math.max(ip.roles.u(24), lab.height + ip.roles.g(8))
             Rectangle { anchors.fill: parent; visible: ma.containsMouse; color: ip.roles.rowHover }
             Text { x: ip.roles.u(2); anchors.verticalCenter: parent.verticalCenter; text: it.on ? "●" : "○"; font: ip.roles.fSmall; color: it.on ? ip.roles.ink : ip.roles.ink3 }
             Text { id: lab; x: ip.roles.u(20); width: parent.width - x; anchors.verticalCenter: parent.verticalCenter; wrapMode: Text.WordWrap; textFormat: Text.StyledText

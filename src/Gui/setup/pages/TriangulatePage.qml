@@ -33,7 +33,7 @@ import PinPointStudio
 WizardPage {
     id: page
 
-    implicitHeight: triangulateCol.implicitHeight + Theme.sp(32)
+    implicitHeight: triangulateCol.implicitHeight + Theme.gap(32)
 
     canSkip: !page.ctx.triangulationValid
     hint: page.ctx.triangulationValid

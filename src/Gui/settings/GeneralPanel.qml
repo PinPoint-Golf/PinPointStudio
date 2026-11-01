@@ -381,7 +381,7 @@ SettingsPanelBase {
             visible: mcSection.promptHighDownload
                      || motionCaptureProbe.highModelDownloading
                      || motionCaptureProbe.highModelDownloadError !== ""
-            implicitHeight: dlCol.implicitHeight + Theme.sp(20)
+            implicitHeight: dlCol.implicitHeight + Theme.gap(20)
             radius: Theme.radius
             color:  Theme.colorBg2
             border.width: 1

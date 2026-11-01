@@ -27,8 +27,8 @@ Rectangle {
     id: box
 
     default property alias rows: col.data
-    property real padX:        Theme.sp(20)     // added to the rows' width
-    property real padY:        Theme.sp(14)     // added to the rows' height
+    property real padX:        Theme.gap(20)     // added to the rows' width
+    property real padY:        Theme.gap(14)     // added to the rows' height
     property real rowSpacing:  Theme.gap(6)
     // The rows' width. A row that fills the box (width: parent.width) needs this set, or the
     // column would size itself from that row.

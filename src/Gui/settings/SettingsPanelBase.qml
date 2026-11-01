@@ -121,14 +121,14 @@ Item {
         id: scroller
         anchors.fill: parent
         contentWidth: availableWidth
-        contentHeight: contentCol.y + contentCol.implicitHeight + Theme.sp(28)
+        contentHeight: contentCol.y + contentCol.implicitHeight + Theme.gap(28)
 
         ColumnLayout {
             id: contentCol
-            x:       Theme.sp(32)
-            y:       Theme.sp(28)
-            width:   base.maxContentWidth > 0 ? Math.min(parent.width - Theme.sp(64), base.maxContentWidth)
-                                              : parent.width - Theme.sp(64)
+            x:       Theme.gap(32)
+            y:       Theme.gap(28)
+            width:   base.maxContentWidth > 0 ? Math.min(parent.width - Theme.gap(64), base.maxContentWidth)
+                                              : parent.width - Theme.gap(64)
             spacing: base.contentSpacing
             enabled: base.contentEnabled
         }

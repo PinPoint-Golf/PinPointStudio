@@ -41,7 +41,7 @@ Column {
     signal chipActivated(string key)
 
     objectName: "sdStandfirst"
-    spacing: roles.u(7)
+    spacing: roles.g(7)
     Text {
         visible: sf.kicker.length > 0
         width: parent.width; wrapMode: Text.Wrap
@@ -56,12 +56,12 @@ Column {
     Text {
         visible: sf.standfirst.length > 0
         width: sf.roles.measureW(parent.width); wrapMode: Text.Wrap; textFormat: Text.RichText
-        topPadding: sf.roles.u(2)
+        topPadding: sf.roles.g(2)
         text: sf.standfirst; font: sf.roles.fStand; color: sf.roles.ink2; lineHeight: sf.roles.r.leading
     }
     Flow {
         visible: (sf.chips || []).length > 0 && sf.medium === "screen"
-        width: parent.width; spacing: sf.roles.u(12); topPadding: sf.roles.u(2)
+        width: parent.width; spacing: sf.roles.g(12); topPadding: sf.roles.g(2)
         Repeater {
             model: sf.roles ? (sf.chips || []) : []
             delegate: Text {

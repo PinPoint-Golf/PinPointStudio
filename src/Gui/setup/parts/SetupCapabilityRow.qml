@@ -56,7 +56,7 @@ Item {
         id: table
         visible: !cr.compact
         anchors.fill: parent
-        readonly property real rowHeight: capCol.implicitHeight + Theme.sp(20)
+        readonly property real rowHeight: capCol.implicitHeight + Theme.gap(20)
 
         RowLayout {
             anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter

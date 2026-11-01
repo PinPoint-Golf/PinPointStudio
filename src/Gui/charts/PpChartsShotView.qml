@@ -82,7 +82,7 @@ PpChViewBase {
     readonly property real railW: Math.round(27 * em)
     readonly property real gut: roles ? roles.gutter(width) : 14
     readonly property real mainW: rail ? width - railW - 2 * gut : width
-    spacing: roles ? roles.u(8) : 8
+    spacing: roles ? roles.g(8) : Theme.gap(8)
 
     // ── sizes from the data and the height given, never from our own laid-out height ──
     readonly property int nRows: body && body.overlay ? 1 : Math.max(1, rows.length)
@@ -141,14 +141,14 @@ PpChViewBase {
         id: headCol
         parent: sv.rail ? railHead : headSlot
         width: parent ? parent.width : 0
-        spacing: sv.roles ? sv.roles.u(8) : 8
+        spacing: sv.roles ? sv.roles.g(8) : Theme.gap(8)
         // nothing to read: the presenter's own sentence (S1 no swing, S2 no traces)
         PpChText { objectName: "chShotEmpty"; visible: !sv.available && present; roles: sv.roles; sentence: sv.ts ? sv.ts.empty : null
                    font: sv.roles ? sv.roles.fBody : Qt.font({}); tone: sv.roles ? sv.roles.ink2 : "grey" }
         Column {
             objectName: "chHead"
             visible: sv.available
-            width: parent.width; spacing: sv.roles ? sv.roles.u(4) : 4
+            width: parent.width; spacing: sv.roles ? sv.roles.g(4) : Theme.gap(4)
             Text { visible: !sv.cast && !!sv.ts.kicker; width: parent.width; wrapMode: Text.WordWrap; text: sv.ts.kicker || ""
                    font: sv.roles ? sv.roles.fKicker : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
             PpChText { roles: sv.roles; sentence: sv.ts.head; measure: false; font: sv.roles ? sv.roles.fTitle : Qt.font({}); tone: sv.roles ? sv.roles.ink : "black"; lineHeight: 1.08 }
@@ -163,7 +163,7 @@ PpChViewBase {
             id: findings
             objectName: "chFindings"
             width: parent.width
-            spacing: sv.roles ? sv.roles.u(28) : 28
+            spacing: sv.roles ? sv.roles.g(28) : Theme.gap(28)
             readonly property bool two: !!sv.roles && sv.roles.atLeast(width, "medium") && sv.hasSeq
             readonly property real colW: two ? Math.floor((width - spacing) / 2) : width
             PpChSeqChain {
@@ -176,12 +176,12 @@ PpChViewBase {
             }
             Column {
                 width: findings.colW
-                spacing: sv.roles ? sv.roles.u(8) : 8
+                spacing: sv.roles ? sv.roles.g(8) : Theme.gap(8)
                 // the window header (F15): which span, how long, which P-positions (the metric count is the Summary fold's)
                 Flow {
                     objectName: "chWindowHeader"
                     visible: !sv.replay && sv.available && !!sv.ts.window && sv.rows.length > 0
-                    width: findings.colW; spacing: sv.roles ? sv.roles.u(10) : 10
+                    width: findings.colW; spacing: sv.roles ? sv.roles.g(10) : Theme.gap(10)
                     Text { text: sv.ts.window ? (sv.ts.window.header || "") : ""; font: sv.roles ? sv.roles.fSmallM : Qt.font({}); color: sv.roles ? sv.roles.ink2 : "grey" }
                     Text { text: sv.ts.window ? (sv.ts.window.spanText || "") : ""; font: sv.roles ? sv.roles.fFigS : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
                     Text { text: sv.ts.window ? (sv.ts.window.tagsText || "") : ""; font: sv.roles ? sv.roles.fFigS : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
@@ -190,13 +190,13 @@ PpChViewBase {
                 Flow {
                     objectName: "chDotKey"
                     visible: !sv.replay && sv.available && sv.rows.length > 0 && !!sv.body && sv.body.showDots && (sv.ts.dotKey || []).length > 0
-                    width: findings.colW; spacing: sv.roles ? sv.roles.u(14) : 14
+                    width: findings.colW; spacing: sv.roles ? sv.roles.g(14) : Theme.gap(14)
                     Text { text: "P dots"; font: sv.roles ? sv.roles.fLabel : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
                     Repeater {
                         model: sv.roles && sv.available ? (sv.ts.dotKey || []) : []
                         delegate: Row {
                             required property var modelData
-                            spacing: sv.roles.u(5)
+                            spacing: sv.roles.g(5)
                             Item {
                                 width: sv.roles.u(10); height: sv.roles.u(10); anchors.verticalCenter: parent.verticalCenter
                                 readonly property string vd: modelData.verdict || ""
@@ -221,7 +221,7 @@ PpChViewBase {
         width: sv.width
         height: sv.rail ? Math.max(railCol.height, mainCol.height) : mainCol.height
         Column {
-            id: railCol; visible: sv.rail; width: sv.railW; spacing: sv.roles ? sv.roles.u(14) : 14
+            id: railCol; visible: sv.rail; width: sv.railW; spacing: sv.roles ? sv.roles.g(14) : Theme.gap(14)
             Column { id: railHead; width: parent.width }
         }
         Rectangle { visible: sv.rail; x: sv.railW + sv.gut - 1; width: sv.roles ? sv.roles.hw : 1; height: parent.height; color: sv.roles ? sv.roles.hair : "grey" }
@@ -229,7 +229,7 @@ PpChViewBase {
             id: mainCol
             x: sv.rail ? sv.railW + 2 * sv.gut : 0
             width: sv.mainW
-            spacing: sv.roles ? sv.roles.u(8) : 8
+            spacing: sv.roles ? sv.roles.g(8) : Theme.gap(8)
             Column { id: headSlot; width: parent.width; visible: !sv.rail }
             // Against: the largest gap said, or why the reference is refused
             PpChText { objectName: "chAgainstHead"; visible: !sv.replay && present; roles: sv.roles; sentence: sv.tr && sv.tr.active ? sv.tr.head : null; tone: sv.roles ? sv.roles.ink : "black"; font: sv.roles ? sv.roles.fBody : Qt.font({}) }
@@ -272,7 +272,7 @@ PpChViewBase {
     PpTrustSummaryFold {
         visible: sv.available && sv._pickedDir !== "" && lines.length > 0 && !sv.cast
         width: sv.width; roles: sv.roles; scope: "shot"
-        topPadding: sv.roles ? sv.roles.u(6) : 6
+        topPadding: sv.roles ? sv.roles.g(6) : Theme.gap(6)
         swingDir: sv._pickedDir
     }
 
@@ -283,7 +283,7 @@ PpChViewBase {
         objectName: "chControls"
         visible: !sv.replay && sv.available
         width: sv.width
-        spacing: sv.roles ? sv.roles.u(8) : 8
+        spacing: sv.roles ? sv.roles.g(8) : Theme.gap(8)
         // the controls (Analyse): foldable to one line that still says what is chosen
         PpChFoldHead {
             visible: !sv.replay && sv.available
@@ -425,7 +425,7 @@ PpChViewBase {
     Column {
         objectName: "chApart"
         visible: !sv.replay && !!sv.rs && sv.rs.available === true
-        width: sv.width; spacing: sv.roles ? sv.roles.u(8) : 8
+        width: sv.width; spacing: sv.roles ? sv.roles.g(8) : Theme.gap(8)
         // every section after the Summary folds the same way (Mark, 17 Oct 2026)
         PpChFoldHead {
             width: parent.width; roles: sv.roles; key: "apart"; title: sv.rs && sv.rs.head ? (sv.rs.head.text || "") : ""
@@ -461,13 +461,13 @@ PpChViewBase {
         // the fired conditions that read no reading on the profile, said once
         Flow {
             visible: !sv.apartFolded && (sv.rs.firedElsewhere || []).length > 0
-            width: parent.width; spacing: sv.roles ? sv.roles.u(10) : 10
+            width: parent.width; spacing: sv.roles ? sv.roles.g(10) : Theme.gap(10)
             Text { text: "Also fired on this shot"; font: sv.roles ? sv.roles.fLabel : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
             Repeater {
                 model: sv.roles ? (sv.rs.firedElsewhere || []) : []
                 delegate: Row {
                     required property var modelData
-                    spacing: sv.roles.u(4)
+                    spacing: sv.roles.g(4)
                     Text { text: modelData.name; font: sv.roles.fSmall; color: sv.roles.warn }
                     Text { text: modelData.instant || ""; font: sv.roles.fSmall; color: sv.roles.ink3 }
                 }

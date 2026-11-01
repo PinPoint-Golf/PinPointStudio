@@ -145,8 +145,8 @@ WizardPage {
 
             // The readings box, top right over the figure (as Check arm's live-wrist box).
             SetupReadingsBox {
-                padX:       Theme.sp(24)
-                padY:       Theme.sp(18)
+                padX:       Theme.gap(24)
+                padY:       Theme.gap(18)
                 rowSpacing: Theme.gap(8)
                 rowsWidth:  Math.min(Theme.sp(320), Math.max(readings.implicitWidth, Theme.sp(240)))
 

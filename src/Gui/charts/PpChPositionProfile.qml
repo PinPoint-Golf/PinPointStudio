@@ -84,7 +84,7 @@ Item {
     readonly property real headH: ok ? roles.u(tagNames ? 36 : 22) : 22
     readonly property real plotH: ok ? roles.u(plotU) : plotU
     readonly property real numH: ok ? roles.u(numU) : numU
-    readonly property real rowGap: ok ? roles.u(gapU) : gapU
+    readonly property real rowGap: ok ? roles.g(gapU) : Theme.gap(gapU)
     readonly property real altH: ok ? roles.u(40) : 40     // the second reading's line (ROW.hasAlt)
     function cx(i) { return plotX + (i + 0.5) * colW }
     readonly property real aboveH: sideLabel || !ok ? 0 : roles.u(22)
@@ -153,7 +153,7 @@ Item {
             // ── the label: beside at medium and up, above below that ──
             Row {
                 visible: !pf.sideLabel
-                spacing: rw.ty.u(6)
+                spacing: rw.ty.g(6)
                 Rectangle { visible: rw.r.dot === true; width: rw.ty.u(7); height: width; radius: rw.ty.square ? 0 : width / 2; color: rw.hue; anchors.verticalCenter: parent.verticalCenter }
                 Text { id: labName; text: rw.r.name || ""; font: rw.ty.fBodyM; color: rw.ty.ink }
                 Text { anchors.baseline: labName.baseline; text: rw.r.aboveSub || ""; font: rw.ty.fSmall; color: rw.ty.ink3 }
@@ -161,8 +161,8 @@ Item {
             Column {
                 visible: pf.sideLabel
                 y: rw.topY + rw.ty.u(rw.r.sideY || 0); width: pf.labelW - rw.ty.u(12)
-                spacing: rw.ty.u(2)
-                Row { spacing: rw.ty.u(7)
+                spacing: rw.ty.g(2)
+                Row { spacing: rw.ty.g(7)
                     Rectangle { visible: rw.r.dot === true; width: rw.ty.u(7); height: width; radius: rw.ty.square ? 0 : width / 2; color: rw.hue; anchors.verticalCenter: parent.verticalCenter }
                     Text { text: rw.r.name || ""; font: rw.ty.fBodyM; color: rw.ty.ink } }
                 Repeater {

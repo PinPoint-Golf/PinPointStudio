@@ -47,13 +47,13 @@ Rectangle {
     readonly property bool  _top:     style === "strip" || style === "para"
     readonly property bool  _bubble:  style === "bubble" || style === "bubbleSlim"
 
-    implicitWidth:  _warning ? warnRow.implicitWidth + Theme.sp(28)
-                  : _bubble  ? Math.min(centred.implicitWidth + Theme.sp(24), maxWidth)
+    implicitWidth:  _warning ? warnRow.implicitWidth + Theme.gap(28)
+                  : _bubble  ? Math.min(centred.implicitWidth + Theme.gap(24), maxWidth)
                   : _top     ? 0
                   :            centred.implicitWidth + Theme.sp(18)
-    implicitHeight: _warning ? warnRow.implicitHeight + Theme.sp(22)
-                  : _top     ? words.implicitHeight + Theme.sp(20)
-                  : _bubble  ? centred.implicitHeight + Theme.sp(style === "bubbleSlim" ? 14 : 16)
+    implicitHeight: _warning ? warnRow.implicitHeight + Theme.gap(22)
+                  : _top     ? words.implicitHeight + Theme.gap(20)
+                  : _bubble  ? centred.implicitHeight + Theme.gap(style === "bubbleSlim" ? 14 : 16)
                   :            Theme.sp(26)
     radius:       Theme.radius
     color:        Theme.toneLight(tone)
@@ -78,7 +78,7 @@ Rectangle {
 
         Column {
             spacing: Theme.gap(3)
-            width: parent.width - Theme.sp(24)
+            width: parent.width - Theme.sp(14) - Theme.gap(10)   // the ⚠ glyph and the row's spacing
 
             PpMicro {
                 text: notice.title
@@ -120,7 +120,7 @@ Rectangle {
         id: centred
         visible: !notice._warning && !notice._top
         anchors.centerIn: parent
-        width:    notice._bubble ? parent.width - Theme.sp(24) : implicitWidth
+        width:    notice._bubble ? parent.width - Theme.gap(24) : implicitWidth
         text:     !notice._warning && !notice._top ? notice.text : ""
         font.family:    Theme.fontBody
         font.weight:    notice.style === "chip" ? Theme.fontBodyWeight : Font.Normal

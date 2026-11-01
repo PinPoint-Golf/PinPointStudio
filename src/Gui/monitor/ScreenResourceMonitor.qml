@@ -270,7 +270,7 @@ Item {
         PpMicro {
             kind: "body"
             text: memTable.title
-            bottomPadding: memTable.note !== "" ? 2 : 8
+            bottomPadding: memTable.note !== "" ? Theme.gap(2) : Theme.gap(8)
         }
         Text {
             visible: memTable.note !== ""
@@ -280,7 +280,7 @@ Item {
             font.family: Theme.fontBody
             font.pixelSize: Theme.fontSzMicro
             color: Theme.colorText3
-            bottomPadding: 8
+            bottomPadding: Theme.gap(8)
         }
 
         Rectangle {
@@ -412,7 +412,7 @@ Item {
             PpMicro {
                 kind: "body"
                 text: Theme.caps(qsTr("Devices"))
-                bottomPadding: 8
+                bottomPadding: Theme.gap(8)
             }
 
             Repeater {
@@ -482,7 +482,7 @@ Item {
             PpMicro {
                 kind: "body"
                 text: Theme.caps(qsTr("Event buffer"))
-                bottomPadding: 8
+                bottomPadding: Theme.gap(8)
             }
 
             // Buffer state bar
@@ -630,7 +630,7 @@ Item {
                 PpMicro {
                     kind: "body"
                     text: Theme.caps(qsTr("Registered sources"))
-                    bottomPadding: 8
+                    bottomPadding: Theme.gap(8)
                 }
 
                 // Header row
@@ -957,7 +957,7 @@ Item {
                     PpMicro {
                         kind: "body"
                         text: Theme.caps(qsTr("Threads"))
-                        bottomPadding: 8
+                        bottomPadding: Theme.gap(8)
                     }
 
                     Repeater {
@@ -1013,7 +1013,7 @@ Item {
                     PpMicro {
                         kind: "body"
                         text: Theme.caps(qsTr("Scopes"))
-                        bottomPadding: 8
+                        bottomPadding: Theme.gap(8)
                     }
 
                     Rectangle {
@@ -1116,7 +1116,7 @@ Item {
                     PpMicro {
                         kind: "body"
                         text: Theme.caps(qsTr("Analysis stages"))
-                        bottomPadding: 2
+                        bottomPadding: Theme.gap(2)
                     }
                     Text {
                         text: qsTr("per shot-analysis pipeline stage, averaged/peaked across this session — CPU is not attributed per stage (see the process/thread gauge)")
@@ -1125,7 +1125,7 @@ Item {
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzMicro
                         color: Theme.colorText3
-                        bottomPadding: 8
+                        bottomPadding: Theme.gap(8)
                     }
 
                     Rectangle {
@@ -1447,7 +1447,7 @@ Item {
                         required property int  index
 
                         width: parent.width
-                        height: logMsg.implicitHeight + Theme.sp(12)
+                        height: logMsg.implicitHeight + Theme.gap(12)
                         isAlternate: index % 2 === 1
                         radius: 0
                         bottomLeftRadius:  index === msgLogColumn.filteredLog.length - 1 ? Theme.radius : 0
@@ -1837,7 +1837,7 @@ Item {
                 }
             }
 
-            Item { height: Theme.sp(16) }
+            Item { height: Theme.gap(16) }
         }
     }
 

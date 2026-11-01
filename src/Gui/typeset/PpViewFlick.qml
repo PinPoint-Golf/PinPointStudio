@@ -46,8 +46,8 @@ Flickable {
     function _u(n) { return roles ? roles.u(n) : n }
     visible: on
     anchors { top: below ? below.bottom : undefined; left: parent ? parent.left : undefined; right: parent ? parent.right : undefined
-              bottom: parent ? parent.bottom : undefined; topMargin: _u(gap) }
-    contentWidth: width; contentHeight: (ld.item ? ld.item.height : 0) + _u(foot)
+              bottom: parent ? parent.bottom : undefined; topMargin: roles ? roles.g(gap) : Theme.gap(gap) }
+    contentWidth: width; contentHeight: (ld.item ? ld.item.height : 0) + (roles ? roles.g(foot) : Theme.gap(foot))
     clip: true; boundsBehavior: Flickable.StopAtBounds
     interactive: scrolls && (!lockWhenFits || contentHeight > height)
     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }

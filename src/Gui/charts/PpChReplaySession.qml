@@ -41,17 +41,17 @@ Column {
     readonly property bool ok: !!info && !!info.readingId
     readonly property bool side: roles ? width >= 66 * roles.em : false
     visible: ok
-    spacing: roles ? roles.u(8) : 8
+    spacing: roles ? roles.g(8) : Theme.gap(8)
 
     Flow {
-        width: rs.width; spacing: rs.roles ? rs.roles.u(10) : 10
+        width: rs.width; spacing: rs.roles ? rs.roles.g(10) : Theme.gap(10)
         PpChText { roles: rs.roles; sentence: rs.ok ? rs.info.head : null; measure: false; width: Math.min(implicitWidth, rs.width)
                    font: rs.roles ? rs.roles.fBodyM : Qt.font({}); tone: rs.roles ? rs.roles.ink : "black" }
         Text { visible: rs.ok; text: rs.ok ? (rs.info.follows || "") : ""; font: rs.roles ? rs.roles.fSmall : Qt.font({}); color: rs.roles ? rs.roles.ink3 : "grey" }
     }
     // the instants it is read at: the reached one in ink, the others links that seek there
     Row {
-        spacing: rs.roles ? rs.roles.u(12) : 12
+        spacing: rs.roles ? rs.roles.g(12) : Theme.gap(12)
         Repeater {
             model: rs.ok && rs.roles ? (rs.info.phases || []) : []
             delegate: Text {
@@ -66,7 +66,7 @@ Column {
     }
     PpChText { roles: rs.roles; sentence: rs.ok && rs.info.now ? rs.info.now.sentence : null; font: rs.roles ? rs.roles.fBody : Qt.font({}); tone: rs.roles ? rs.roles.ink : "black" }
     Flow {
-        width: rs.width; spacing: rs.roles ? rs.roles.u(24) : 24
+        width: rs.width; spacing: rs.roles ? rs.roles.g(24) : Theme.gap(24)
         PpChRunBox {
             width: rs.side ? Math.floor((rs.width - rs.roles.u(24)) * 0.55) : rs.width
             roles: rs.roles; brush: rs.brush; ticker: rs.presenter; interactive: rs.interactive

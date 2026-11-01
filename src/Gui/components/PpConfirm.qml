@@ -63,7 +63,7 @@ Popup {
     // that is asking about saved work is not an answer.
     closePolicy: Popup.CloseOnEscape
     padding: Theme.gap(20)
-    width: Math.min(root.dialogWidth, (parent ? parent.width : Theme.sp(600)) - Theme.sp(48))
+    width: Math.min(root.dialogWidth, (parent ? parent.width : Theme.sp(600)) - Theme.gap(48))
 
     // Escape, a click on Cancel and a programmatic close all land here, so the cancel path is stated
     // once. `_answered` is what keeps confirming from also reporting a cancel on the way out.
@@ -98,7 +98,7 @@ Popup {
             lineHeight:     1.5
         }
 
-        Item { width: 1; height: Theme.sp(4) }
+        Item { width: 1; height: Theme.gap(4) }
 
         Row {
             anchors.right: parent.right

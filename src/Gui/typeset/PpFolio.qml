@@ -34,12 +34,12 @@ Item {
     Column {
         id: col
         width: parent.width
-        spacing: fo.roles.u(5)
-        PpPageKey { visible: (fo.keyKinds || []).length > 0; width: parent.width; roles: fo.roles; readout: fo.readout; kinds: fo.keyKinds; spacing: fo.roles.u(10) }
+        spacing: fo.roles.g(5)
+        PpPageKey { visible: (fo.keyKinds || []).length > 0; width: parent.width; roles: fo.roles; readout: fo.readout; kinds: fo.keyKinds; spacing: fo.roles.g(10) }
         Rectangle { width: parent.width; height: fo.roles.hw; color: fo.roles.hair }
         Item {
             width: parent.width; height: ft.height
-            Text { id: ft; width: parent.width - pn.width - fo.roles.u(20); wrapMode: Text.WordWrap
+            Text { id: ft; width: parent.width - pn.width - fo.roles.g(20); wrapMode: Text.WordWrap
                    text: fo.footer + "  ·  generated " + Qt.formatDate(new Date(), "d MMM yyyy"); font: fo.roles.fMicro; color: fo.roles.ink3 }
             Text { id: pn; anchors.right: parent.right; anchors.baseline: ft.baseline
                    text: (fo.section ? fo.section + "    " : "") + "Page " + fo.page + " of " + fo.pageCount; font: fo.roles.fMicro; color: fo.roles.ink2 }

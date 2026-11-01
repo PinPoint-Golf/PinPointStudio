@@ -92,13 +92,13 @@ Item {
     }
     Row {
         id: frow
-        y: lbl.visible ? lbl.implicitHeight + ef.roles.u(6) : 0
+        y: lbl.visible ? lbl.implicitHeight + ef.roles.g(6) : 0
         spacing: ef.g
         Repeater {
             model: ef.roles ? (ef.colsData) : []
             delegate: Column {
                 required property var modelData
-                width: ef.colW; spacing: ef.kind === "session" ? ef.roles.u(22) : ef.roles.u(12)
+                width: ef.colW; spacing: ef.kind === "session" ? ef.roles.g(22) : ef.roles.g(12)
                 Repeater {
                     model: ef.roles ? (modelData) : []
                     delegate: Item {
@@ -127,7 +127,7 @@ Item {
                         Text {
                             id: nameT
                             visible: ef.kind === "session" && !ef.margin
-                            x: ef.numW; width: ef.colW - ef.numW - ef.sparkW - ef.roles.u(12)
+                            x: ef.numW; width: ef.colW - ef.numW - ef.sparkW - ef.roles.g(12)
                             wrapMode: Text.Wrap
                             text: entry.c.name || ""
                             font: ef.roles.fBodyM; color: ef.roles.ink
@@ -135,8 +135,8 @@ Item {
                         Text {
                             id: para
                             x: ef.kind === "session" ? ef.numW : 0
-                            y: ef.kind !== "session" || ef.margin ? 0 : Math.max(nameT.visible ? nameT.height : 0, spark.y + spark.height) + ef.roles.u(3)
-                            width: ef.kind !== "session" ? ef.colW : ef.margin ? ef.colW - ef.numW - ef.sparkW - ef.roles.u(18) : ef.colW - ef.numW
+                            y: ef.kind !== "session" || ef.margin ? 0 : Math.max(nameT.visible ? nameT.height : 0, spark.y + spark.height) + ef.roles.g(3)
+                            width: ef.kind !== "session" ? ef.colW : ef.margin ? ef.colW - ef.numW - ef.sparkW - ef.roles.g(18) : ef.colW - ef.numW
                             wrapMode: Text.Wrap; textFormat: Text.RichText
                             text: ef.entryHtml(entry.c)
                             font: ef.roles.fBody; color: ef.roles.ink2; lineHeight: ef.roles.r.leading
@@ -144,11 +144,11 @@ Item {
                         Row {
                             id: meta
                             visible: ef.kind === "session"
-                            x: ef.numW; y: Math.max(para.y + para.height, ef.margin ? spark.y + spark.height : 0) + ef.roles.u(4)
+                            x: ef.numW; y: Math.max(para.y + para.height, ef.margin ? spark.y + spark.height : 0) + ef.roles.g(4)
                             width: para.width
-                            spacing: ef.roles.u(10)
+                            spacing: ef.roles.g(10)
                             Text {
-                                width: Math.min(implicitWidth, para.width - (focusT.visible ? focusT.width + ef.roles.u(10) : 0))
+                                width: Math.min(implicitWidth, para.width - (focusT.visible ? focusT.width + ef.roles.g(10) : 0))
                                 wrapMode: Text.Wrap; textFormat: Text.RichText
                                 text: ef.metaHtml(entry.c); font: ef.roles.fSmall; color: ef.roles.ink3
                             }
