@@ -136,8 +136,12 @@ else()
         ${PP_ROOT}/src/Export ${PP_ROOT}/src/LaunchMonitor ${PP_ROOT}/src/Audio ${PP_ROOT}/src/Video
         ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/app ${CMAKE_CURRENT_SOURCE_DIR}/review ${CMAKE_CURRENT_SOURCE_DIR}/viz ${CMAKE_CURRENT_SOURCE_DIR}/swing3d ${CMAKE_CURRENT_SOURCE_DIR}/shot ${CMAKE_CURRENT_SOURCE_DIR}/launchmonitor
         ${CMAKE_CURRENT_SOURCE_DIR}/diagnosticmodel ${CMAKE_CURRENT_SOURCE_DIR}/diagnostics ${CMAKE_CURRENT_SOURCE_DIR}/print ${CMAKE_CURRENT_SOURCE_DIR}/charts ${CMAKE_CURRENT_SOURCE_DIR}/trust ${CMAKE_CURRENT_SOURCE_DIR}/shell)
+    # PP_DIAG_RESOURCES_DIR: the shipped diagnostics content, which the binary falls back to for any
+    # PINPOINT_CORE_* variable its caller did not set (issue #140; see the qml_ui ENVIRONMENT below).
+    set(_pp_diag "${PP_ROOT}/src/Resources/diagnostics")
     target_compile_definitions(qml_ui_test PRIVATE
-        QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/qml")
+        QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/qml"
+        PP_DIAG_RESOURCES_DIR="${_pp_diag}")
     # NOT linked against QuickShapes, deliberately — PpLmGraphicsBody's FLIGHT card draws with
     # Shape/ShapePath and that plugin resolves off the QML import path at run time exactly as it
     # does for the app, which also links only Qt6::Quick.
@@ -170,7 +174,9 @@ else()
     # without these the presenters run on an EMPTY pack and no norms. The Posture section's "At
     # address" block is the pack's `rigSensitive` measures, so under ctest it had no rows and hid
     # while a direct run with the variables set passed. The same files the app ships, read live.
-    set(_pp_diag "${PP_ROOT}/src/Resources/diagnostics")
+    # Since issue #140 the binary ALSO defaults each unset variable to the same directory
+    # (PP_DIAG_RESOURCES_DIR above, QmlUiTestSetup's constructor), so a direct run of qml_ui_test.exe
+    # gets the shipped content too; these stay explicit, and an explicit value wins over the default.
     set_tests_properties(qml_ui PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PINPOINT_CORE_PACK=${_pp_diag}/core.json;PINPOINT_CORE_NORMS=${_pp_diag}/norms.json;PINPOINT_CORE_CONTEXTS=${_pp_diag}/contexts.json;PINPOINT_CORE_SCREENS=${_pp_diag}/screens.json;PINPOINT_CORE_DRILLS=${_pp_diag}/drills.json;PINPOINT_CORE_GATE_WORDS=${_pp_diag}/gate_words.json;PINPOINT_CORE_REFERENCES=${_pp_diag}/references.json"
         RUN_SERIAL TRUE)

@@ -382,6 +382,37 @@ class QmlUiTestSetup : public QObject
 {
     Q_OBJECT
 
+public:
+    // THE SHIPPED DIAGNOSTICS CONTENT, DEFAULTED HERE RATHER THAN LEFT TO CTEST (issue #140). The app
+    // embeds src/Resources/diagnostics/*.json as :/diagnostics; this binary does not, and reads them
+    // only through the PINPOINT_CORE_* seam. ctest sets those for the qml_ui test, but the documented
+    // way to see this binary's report is to run it directly (`-input <file> -o out.txt,txt`), and a
+    // direct run without them put the presenters on an EMPTY pack: Posture's "At address" block had
+    // no rows and hid, and tst_charts_panel failed with nothing to say why. So each variable the
+    // caller left unset points at the source tree's file. A value already set wins — ctest's
+    // explicit ENVIRONMENT, or a developer pointing a run at an edited pack.
+    //
+    // In the constructor because QUICK_TEST_MAIN_WITH_SETUP builds this object before the engine
+    // and any test file exist; the providers read the variables lazily, when a presenter or model
+    // first loads the shipped content, which is always after this.
+    QmlUiTestSetup()
+    {
+        static const struct { const char *var; const char *file; } kShipped[] = {
+            { "PINPOINT_CORE_PACK",       "core.json"       },
+            { "PINPOINT_CORE_NORMS",      "norms.json"      },
+            { "PINPOINT_CORE_CONTEXTS",   "contexts.json"   },
+            { "PINPOINT_CORE_SCREENS",    "screens.json"    },
+            { "PINPOINT_CORE_DRILLS",     "drills.json"     },
+            { "PINPOINT_CORE_GATE_WORDS", "gate_words.json" },
+            { "PINPOINT_CORE_REFERENCES", "references.json" },
+        };
+        const QDir dir(QStringLiteral(PP_DIAG_RESOURCES_DIR));
+        for (const auto &s : kShipped) {
+            if (!qEnvironmentVariableIsSet(s.var))
+                qputenv(s.var, QDir::toNativeSeparators(dir.filePath(QLatin1String(s.file))).toLocal8Bit());
+        }
+    }
+
 public slots:
     void qmlEngineAvailable(QQmlEngine *engine)
     {
