@@ -4,9 +4,10 @@
 **Code**: none yet. Would sit beside `src/LaunchMonitor/gcquad_monitor.{h,cpp}` and `gcquad_csv_parser.{h,cpp}`
 **Source**: direct inspection of the capture PC on 2026-10-23, `liver` account, after one Premier
 session of 91 shots with a 4-hybrid. Background: [`foresight_gcquad_data_sources.md`](../reference/foresight_gcquad_data_sources.md)
+A second look on 2026-10-31 followed a 26-shot training drill (ladder, wedge) on Premier 1.2.0 (§2.5).
 **Status**: 🔍 **PROPOSED**. The findings are from files left on disk after the session.
 Nothing has been watched live yet, and §6 is the plan for doing that before any code is written.
-**Written**: 2026-10-23
+**Written**: 2026-10-23. **Updated**: 2026-11-01 (§2.5, queue drain corrected in §2.1)
 
 ---
 
@@ -91,12 +92,18 @@ What the data shows:
 - **There is a real UTC timestamp per shot.** This is a material improvement on `LastShot.CSV`,
   which has none. `ShotPairing`'s arm-and-claim rule exists *because* the CSV can't say when
   a row was made (§4.3).
-- **The queue drains.** `ShotReplay\history.json` reaches back to 12:55 UTC, an earlier
-  Premier run (`Player-prev.log`, 72 shots). The queue holds **only** the session that started
-  at 13:14. So the earlier session left the queue, almost certainly on upload. The current
-  session is still present with `EndedAtSynced: false`. **The queue can't be the archive.**
-  The connector must take each shot as it appears and never assume an earlier one is still
-  there. §6 Block 6 confirms when entries leave.
+- **The queue drains on a successful upload, and only then.** `ShotReplay\history.json` reaches
+  back to 12:55 UTC, an earlier Premier run (`Player-prev.log`, 72 shots). The queue holds
+  **only** the session that started at 13:14, so the earlier session left the queue. **Correction
+  (2026-10-31):** that 13:14 session is *still* in the queue eight days later. Its upload fails
+  at every launch: `[SessionUploadProcessor] ProcessPendingInternalAsync: Session upload failed
+  for session 7b5fd196-…; will retry later. This session has already ended.` (logged 2026-10-27
+  10:42:48 and 2026-10-31 12:34:19). The queue file's mtime is that retry (12:34:19.15), so
+  **Premier rewrites the queue at startup even when no shot has been hit.** A failed upload
+  keeps a session in the queue indefinitely. A successful one removes it. The connector still
+  can't treat the queue as the archive. It must take each shot as it appears, never assume an
+  earlier one is still there, and never assume an old one has gone. Priming on `start()` (§4.1)
+  covers stale sessions. §6 Block 6 shows what a successful drain looks like.
 
 Unknown until watched (§6): whether a shot is written at ball launch and amended when
 `ClubData` lands, or written once complete. Also: whether the file is rewritten whole or in
@@ -141,6 +148,49 @@ Premier logs `SetVerboseLogging: FSS SDK verbose logging updated. isEnabled:Fals
 The reference doc notes that `BallLaunch.ToString()` prints values only under the SDK's debug
 flag. **If Premier exposes a verbose-logging setting, this log may start carrying values with
 an explicit contact offset.** That would be the only route to the true contact instant. §6 Block 7.
+
+### 2.5 Training drills (2026-10-31): nothing reached the queue, no club data
+
+The user ran a ladder drill (`ladder-rising-wedges`, Medium) on Premier **1.2.0** (released
+2026-10-26, after §2.1–§2.4 were written; Unity 6000.3.22f1). It had 26 shots from 12:36:03 to
+12:45:22 local, with the clock on UTC (GMT) by then. What happened:
+
+- **The upload queue was not touched.** The last write was 12:34:19, the startup upload
+  retry (§2.1). No drill shot appears in it.
+- **No shot group was created.** As the drill started, Premier logged `[ShotGroupCreateDuplicatePreventionInterceptor]
+  InterceptAsync: ShotGroupCreateCommand has invalid club name. Skipping creation.` (12:35:30).
+  The shots are recorded with the generic club `clubType: "IRON"`, `clubName: "IRON"`. That
+  probably explains the missing queue entries, since a queued shot lives inside a `ShotGroup`.
+- **Club data never attached to any shot.** At the 25th shot Premier logged
+  `Drained 24 stale pending club data entries; club data will be applied to most recent shot …`
+  (12:45:03). This is the §2.1 drain, but for the whole drill rather than 6 of 91. **The likely
+  cause is the club, not the mode.** The user hit a wedge with no fiducial stickers. The
+  Quad can't measure the club without them, which is the same reason FSX2020 gives
+  ("may need dots on club face"). The 2026-10-23 hybrid had stickers and got full club data. So
+  the warning means "shots waiting for club data that never came", and this drill tells us nothing about
+  club data in training mode.
+- **`history.json` and `Player.log` did get every shot.** In `history.json` that means ball data
+  and carry, with `courseName: "Shot Analysis"` and `holeNumber: -3`, newest first (confirmed).
+  In `Player.log` it means one `SimulateShotInternal` line per shot, plus per-shot
+  `PredictFlightCollisionAsync` (landing) and `OnBallStopDiagnosticsReceived` (ball at rest) lines.
+- **Drill targets are not on disk.** `training-drills.<userId>.json` holds only
+  `CustomDrills` and `BestScores` (`"ladder-rising-wedges|Medium": 26`). The drill definitions
+  are compiled into the app.
+
+What this means for the connector: club data needs a **stickered club**, which has always been
+true of the Quad. The separate open question is whether a **training drill, or an unnamed
+club, ever writes to the queue at all**. If not, the connector sees nothing in that mode even
+with a stickered club. At best it could fall back to ball-only readings from `Player.log` or
+`history.json`. §6 Block 2b separates the three variables: stickers, club name and mode.
+
+Also seen in the startup flags (ConfigCat, logged in `Player.log`):
+`"clubDataEntitlementEnabled": false`. Its meaning is unknown. Club data was present on
+2026-10-23, so for now it gates nothing we use. A flag with this name could later put club data behind a
+subscription tier, though. See §4.5.
+
+`Settings.json` gives `"DistanceUnit": 36, "SpeedUnit": 21, "UnitSystem": 0`. These are enum
+values with no labels. The files are SI regardless (§2.1, `carryDistanceMeters`), so
+this only matters for comparing against Premier's screen.
 
 ## 3. Comparison with the FSX2020 path
 
@@ -251,6 +301,12 @@ The CSV parser has `gcquad_csv_parser_test.cpp`. The Premier parser gets the sam
   unlikely, but §6 Block 6 settles it.
 - **Multiple Premier users** on one PC: several queue files. Take the most recently modified
   one, or all of them, keyed by `LocalShotId` either way.
+- **Mode-dependent.** Training drills write nothing to the queue and lose club data (§2.5). The
+  connector should say so in its status ("no club data in training mode") rather than look
+  broken. It could also fall back to ball-only readings from `Player.log`.
+- **Entitlement flag.** `clubDataEntitlementEnabled` (§2.5) suggests club data could become
+  tier-gated server-side. That would make the queue lose `ClubData` with no change on our side.
+  The missing-`ClubData` path (ball-only) already covers it, but the status should report it.
 
 ## 5. Implementation phases
 
@@ -290,9 +346,10 @@ Call out anything odd as it happens (a mishit, a shot you deleted). I'll note th
 
 | # | What you do | What it answers |
 |---|---|---|
-| 0 | Start Premier, open the range, hit nothing for 1 min | What Premier writes at startup and while idle; queue state for a fresh session |
+| 0 | Start Premier, open the range, hit nothing for 1 min | What Premier writes at startup and while idle; queue state for a fresh session. Expect a queue rewrite from the upload retry of the stuck 2026-10-23 session (§2.1). Note whether that upload now succeeds, and whether 1.2.0 changed the queue schema |
 | 1 | **5 shots**, one club (e.g. 7i) | Per-shot write sequence: when the shot appears in each file, whether `ClubData` arrives later as an amendment, whole-file rewrite vs append. Latency of each source vs the SDK's ball-launch line |
 | 2 | **5 shots**, a different club (driver), changing club in Premier first | `ClubName` / `ClubType` / tags / new `ShotGroup`. Whether full club data comes through for a second club (the "dots on club face" question) |
+| 2b | All with a **stickered** club: **2 shots** on the range with no club picked in Premier, then **3 shots** in a training drill. Then **2 range shots** with an **unstickered** club | Whether a queue entry needs a named club, or the range rather than a drill (§2.5); whether drills get club data when the club has stickers; what an unstickered shot looks like in the queue (no `ClubData`, or no entry) |
 | 3 | **5 shots quickly** (~6–8 s apart) | Whether club data falls behind and drains, as the 6 missing shots did; the settle time §4.1 needs |
 | 4 | One swing with no ball; one heavy mishit or top | Ghost-shot filtering: does anything reach the queue? Does a top produce a ball-only entry? |
 | 5 | Delete one shot in Premier's UI | Does `Hidden` flip, or does the entry disappear? |
@@ -319,3 +376,9 @@ Call out anything odd as it happens (a mishit, a shot you deleted). I'll note th
    offset? (Block 7)
 6. Does `history.json`'s `id` match the queue's `LocalShotId`? (Block 1 snapshots)
 7. What does the Premier EULA say about reading its local files? (desk check, before shipping)
+8. Do training drills, or shots with no club picked, write to the queue at all? The
+   2026-10-31 drill wrote nothing. Its missing club data is explained by an unstickered club
+   (§2.5). (Block 2b)
+9. Why does the 2026-10-23 session fail to upload, and does a successful upload drain the
+   queue mid-session? (Blocks 0, 6)
+10. What does `clubDataEntitlementEnabled` gate? (watch for it changing; desk check)
