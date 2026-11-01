@@ -34,7 +34,7 @@ Rectangle {
     property bool large: false
     property bool mark:  false
 
-    readonly property color _ink: Theme.dark ? Theme.colorBg : "#FFFFFF"
+    readonly property color _ink: Theme.colorOnAccentBright
 
     implicitHeight: large ? Theme.sp(24) : Theme.sp(17)
     implicitWidth:  pillRow.implicitWidth + (large ? Theme.sp(22) : Theme.sp(14))

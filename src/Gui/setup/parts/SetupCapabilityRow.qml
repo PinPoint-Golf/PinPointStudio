@@ -44,9 +44,7 @@ Item {
     readonly property string reason:    row.reason || ""
     readonly property string tone:      row.tone || ""
     readonly property string gateLine:  row.gateLine || ""
-    readonly property color  toneColor: cr.tone === "good" ? Theme.colorGood
-                                      : cr.tone === "warn" ? Theme.colorWarn
-                                                           : Theme.colorText3
+    readonly property color  toneColor: Theme.toneColor(cr.tone)
 
     height: compact ? dense.rowHeight : table.rowHeight
 

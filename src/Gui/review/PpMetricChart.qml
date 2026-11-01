@@ -1053,7 +1053,7 @@ Item {
                         Text {
                             anchors.centerIn: parent
                             visible: tog.modelData.on
-                            text: "✓"; color: Theme.dark ? Theme.colorBg : Theme.colorSurface
+                            text: "✓"; color: Theme.colorOnAccent
                             font.pixelSize: Theme.fontSzMicro
                         }
                     }

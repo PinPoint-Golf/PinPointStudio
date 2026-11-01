@@ -48,6 +48,9 @@ MouseArea {
     // Hold the grown state even without hover — e.g. while a popup this button owns
     // is open (mirrors the toolbar pills holding while their popup is up).
     property bool held:       false
+    // Drop the motion but keep the hover and the clicks — a control shown but inert
+    // (a toggle whose other half is missing), or one that has always sat still.
+    property bool moves:      true
 
     // Opt-in one-shot "tap" confirmation, layered on top of the hover/press scale.
     // Off by default so existing buttons are unchanged — turn it on for MOMENTARY
@@ -63,7 +66,7 @@ MouseArea {
     // Animated scale, mirrored onto the parent. A bound property + Behavior animates
     // every state change (binding re-evaluation included); the Binding pushes it to
     // the parent so the host item needs no scale/Behavior of its own.
-    property real _scale: !enabled                ? 1.0
+    property real _scale: (!enabled || !moves)    ? 1.0
                         : pressed                 ? pressScale
                         : (containsMouse || held) ? hoverScale
                         :                           1.0

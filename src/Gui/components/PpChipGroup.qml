@@ -16,14 +16,29 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+// A row of choice chips (PpChoiceChip) from a list, one picked. One line, sized to its chips; with
+// `wrap` it takes the width it is given and wraps onto further lines (a Flow sized by a RowLayout would
+// feed its own shrunken width back after a text-size change and stay wrapped, so wrapping is opt-in).
+// `options` are words, or objects
+// { label, value, count, tint, disabled } where the chip says one thing and stands for another (value
+// defaults to the label). `style` is any PpChoiceChip style.
+//
+// `multiSelect` makes each chip a toggle: `selectedValues` lists the ones on, and selectionChanged()
+// names the one tapped for the caller to add or drop.
+
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import PinPointStudio
 
-Row {
+Item {
     id: root
 
     property var    options:  []
     property string selected: ""
+    property bool   multiSelect:    false
+    property var    selectedValues: []
+    property string style:    ""
     // Chip labels that render greyed and non-selectable. A click on one emits
     // blockedClicked() instead of selectionChanged(). Default [] = all selectable
     // (backward-compatible with existing callers).
@@ -32,59 +47,41 @@ Row {
     signal selectionChanged(string value)
     signal blockedClicked(string value)
 
-    spacing: Theme.gap(6)
+    property real   spacing:  Theme.gap(6)
+    property bool   wrap:     false
 
-    Repeater {
-        model: root.options
+    implicitWidth:  flow.implicitWidth
+    implicitHeight: flow.implicitHeight
 
-        Rectangle {
-            id: chip
-            required property string modelData
-            required property int    index
+    Flow {
+        id: flow
+        width:   root.wrap ? root.width : undefined
+        spacing: root.spacing
 
-            readonly property bool _sel:      modelData === root.selected
-            readonly property bool _disabled: root.disabledOptions.indexOf(modelData) >= 0
+        Repeater {
+            model: root.options
 
-            height:  Theme.sp(28)
-            width:   chipLabel.implicitWidth + Theme.sp(24)
-            radius:  Theme.radius
-            opacity: chip._disabled ? 0.4 : 1.0
-            // Disabled: flat rest fill, no hover ramp. Selected: accent wash. Hover
-            // (unselected): a faint bg fill that only ramps alpha (RGB-matched rest)
-            // so there's no colour flash; the border eases to accent on hover — the
-            // home-tile / pill language.
-            color:   chip._disabled       ? Qt.alpha(Theme.colorBg2, 0)
-                   : _sel                 ? Theme.colorAccentLight
-                   : chipMa.containsMouse ? Theme.colorBg2
-                   :                        Qt.alpha(Theme.colorBg2, 0)
-            border.width: 1
-            border.color: chip._disabled       ? Theme.colorBorderStrong
-                        : _sel                 ? Theme.colorAccent
-                        : chipMa.containsMouse ? Theme.colorAccentMid
-                        :                        Theme.colorBorderStrong
-            Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+            PpChoiceChip {
+                id: chip
+                required property var modelData
 
-            Text {
-                id: chipLabel
-                anchors.centerIn: parent
-                text:           modelData
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody
-                font.weight:    _sel ? Font.Normal : Theme.fontBodyWeight
-                color:          chip._disabled ? Theme.colorText3
-                              : _sel           ? Theme.colorAccent
-                              :                  Theme.colorText2
-            }
+                readonly property bool   _obj:  typeof modelData === "object" && modelData !== null
+                readonly property string value: !_obj                       ? String(modelData)
+                                              : modelData.value !== undefined ? String(modelData.value)
+                                              :                               String(modelData.label)
+                readonly property bool   _disabled: (_obj && modelData.disabled === true)
+                                                    || root.disabledOptions.indexOf(value) >= 0
 
-            PpPressable {
-                id: chipMa
+                label:    _obj ? String(modelData.label) : String(modelData)
+                count:    _obj && modelData.count !== undefined ? String(modelData.count) : ""
+                tint:     _obj && modelData.tint !== undefined ? modelData.tint : Theme.colorAccent
+                style:    root.style
+                selected: root.multiSelect ? root.selectedValues.indexOf(value) >= 0 : value === root.selected
                 // Disabled chips keep click handling (to report the block) but drop
                 // the pointing-hand cursor and hover-grow.
-                hoverScale:  chip._disabled ? 1.0 : 1.02
-                cursorShape: chip._disabled ? Qt.ArrowCursor : Qt.PointingHandCursor
-                onClicked:   chip._disabled ? root.blockedClicked(chip.modelData)
-                                            : root.selectionChanged(chip.modelData)
+                dimmed:   _disabled
+                blocked:  _disabled
+                onClicked: chip._disabled ? root.blockedClicked(chip.value) : root.selectionChanged(chip.value)
             }
         }
     }

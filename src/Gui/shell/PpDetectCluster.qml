@@ -89,11 +89,9 @@ Item {
         anchors.centerIn: parent
         spacing: Theme.gap(8)
 
-        Text {
+        PpMicro {
             anchors.verticalCenter: parent.verticalCenter
             text: Theme.caps(qsTr("Detect"))
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
         }
         Row {
             anchors.verticalCenter: parent.verticalCenter

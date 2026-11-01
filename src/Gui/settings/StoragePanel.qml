@@ -148,25 +148,17 @@ SettingsPanelBase {
 
     // ── Page header ───────────────────────────────────────────────────────────
 
-    SettingsSectionHead { text: qsTr("Data") }
-
-    PpDisplayText {
-        text: qsTr("Storage")
-    }
-
-    Text {
-        text:             qsTr("Athlete library location, video recording format, and sensor data export. Retention and archiving policies are configured separately.")
-        font.family:      Theme.fontBody
-        font.pixelSize:   Theme.fontSzBody2
-        font.weight:      Theme.fontBodyWeight
-        color:            Theme.colorText3
-        wrapMode:         Text.WordWrap
+    PpPageHeader {
         Layout.fillWidth: true
+        spacing:     root.contentSpacing
+        eyebrow:     qsTr("Data")
+        title:       qsTr("Storage")
+        description: qsTr("Athlete library location, video recording format, and sensor data export. Retention and archiving policies are configured separately.")
     }
 
     // ── Group 1 — Athlete library ─────────────────────────────────────────────
 
-    SettingsSectionHead { text: qsTr("Athlete library") }
+    PpMicro { kind: "body"; text: qsTr("Athlete library") }
 
     // Library location
     SettingsRow {
@@ -241,13 +233,9 @@ SettingsPanelBase {
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(12) }
             spacing: Theme.gap(6)
 
-            Text {
-                text:                qsTr("Disk usage — ") + (root.diskInfo.volumeName || "—")
-                font.family:         Theme.fontData
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color:               Theme.colorText3
+            PpMicro {
+                kind: "caps"
+                text: qsTr("Disk usage — ") + (root.diskInfo.volumeName || "—")
             }
 
             // Sessions bar
@@ -430,7 +418,7 @@ SettingsPanelBase {
 
     // ── Group 2 — Video recording ─────────────────────────────────────────────
 
-    SettingsSectionHead { text: qsTr("Video recording") }
+    PpMicro { kind: "body"; text: qsTr("Video recording") }
 
     // Recording resolution
     SettingsRow {
@@ -451,40 +439,12 @@ SettingsPanelBase {
                 Repeater {
                     model: root.resolutionOptions
 
-                    delegate: Rectangle {
+                    delegate: PpChoiceChip {
                         required property var modelData
-
-                        readonly property bool isSelected: appSettings.videoResolutionMode === modelData.value
-
-                        width:        resLbl.implicitWidth + Theme.sp(20)
-                        height:       Theme.sp(24)
-                        radius:       Theme.radius
-                        color:        isSelected            ? Theme.colorAccentLight
-                                    : resMa.containsMouse   ? Qt.alpha(Theme.colorBg2, 0.6)
-                                    :                         "transparent"
-                        border.width: 1
-                        border.color: isSelected            ? Theme.colorAccent
-                                    : resMa.containsMouse   ? Theme.colorAccentMid
-                                    :                         Theme.colorBorderStrong
-                        Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
-                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                        Text {
-                            id: resLbl
-                            anchors.centerIn: parent
-                            text:           modelData.label
-                            font.family:    Theme.fontData
-                            font.pixelSize: Theme.fontSzMicro
-                            color:          isSelected ? Theme.colorAccent : Theme.colorText2
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                        }
-
-                        PpPressable {
-                            id: resMa
-                            onClicked: {
-                                appSettings.videoResolutionMode = modelData.value
-                            }
-                        }
+                        style:     "monoNeutral"
+                        label:     modelData.label
+                        selected:  appSettings.videoResolutionMode === modelData.value
+                        onClicked: appSettings.videoResolutionMode = modelData.value
                     }
                 }
             }
@@ -523,40 +483,12 @@ SettingsPanelBase {
                 Repeater {
                     model: root.codecOptions
 
-                    delegate: Rectangle {
+                    delegate: PpChoiceChip {
                         required property var modelData
-
-                        readonly property bool isSelected: appSettings.videoCodec === modelData.value
-
-                        width:        codecLbl.implicitWidth + Theme.sp(20)
-                        height:       Theme.sp(24)
-                        radius:       Theme.radius
-                        color:        isSelected            ? Theme.colorAccentLight
-                                    : codecMa.containsMouse ? Qt.alpha(Theme.colorBg2, 0.6)
-                                    :                         "transparent"
-                        border.width: 1
-                        border.color: isSelected            ? Theme.colorAccent
-                                    : codecMa.containsMouse ? Theme.colorAccentMid
-                                    :                         Theme.colorBorderStrong
-                        Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
-                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                        Text {
-                            id: codecLbl
-                            anchors.centerIn: parent
-                            text:           modelData.label
-                            font.family:    Theme.fontData
-                            font.pixelSize: Theme.fontSzMicro
-                            color:          isSelected ? Theme.colorAccent : Theme.colorText2
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                        }
-
-                        PpPressable {
-                            id: codecMa
-                            onClicked: {
-                                appSettings.videoCodec = modelData.value
-                            }
-                        }
+                        style:     "monoNeutral"
+                        label:     modelData.label
+                        selected:  appSettings.videoCodec === modelData.value
+                        onClicked: appSettings.videoCodec = modelData.value
                     }
                 }
             }
@@ -582,40 +514,12 @@ SettingsPanelBase {
                 Repeater {
                     model: root.qualityOptions
 
-                    delegate: Rectangle {
+                    delegate: PpChoiceChip {
                         required property var modelData
-
-                        readonly property bool isSelected: appSettings.videoQuality === modelData.value
-
-                        width:        qualLbl.implicitWidth + Theme.sp(20)
-                        height:       Theme.sp(24)
-                        radius:       Theme.radius
-                        color:        isSelected           ? Theme.colorAccentLight
-                                    : qualMa.containsMouse ? Qt.alpha(Theme.colorBg2, 0.6)
-                                    :                        "transparent"
-                        border.width: 1
-                        border.color: isSelected           ? Theme.colorAccent
-                                    : qualMa.containsMouse ? Theme.colorAccentMid
-                                    :                        Theme.colorBorderStrong
-                        Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
-                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                        Text {
-                            id: qualLbl
-                            anchors.centerIn: parent
-                            text:           modelData.label
-                            font.family:    Theme.fontData
-                            font.pixelSize: Theme.fontSzMicro
-                            color:          isSelected ? Theme.colorAccent : Theme.colorText2
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                        }
-
-                        PpPressable {
-                            id: qualMa
-                            onClicked: {
-                                appSettings.videoQuality = modelData.value
-                            }
-                        }
+                        style:     "monoNeutral"
+                        label:     modelData.label
+                        selected:  appSettings.videoQuality === modelData.value
+                        onClicked: appSettings.videoQuality = modelData.value
                     }
                 }
             }
@@ -663,28 +567,12 @@ SettingsPanelBase {
     }
 
     // Raw frames warning strip
-    Rectangle {
+    PpNotice {
         Layout.fillWidth: true
-        implicitHeight:   rawWarnText.implicitHeight + Theme.sp(20)
-        color:            Theme.colorWarnLight
-        border.width:     1
-        border.color:     Theme.colorWarn
-        radius:           Theme.radius
-        visible:          appSettings.saveRawFrames
-
-        Text {
-            id: rawWarnText
-            anchors {
-                left: parent.left; right: parent.right
-                top:  parent.top
-                leftMargin: Theme.gap(12); rightMargin: Theme.gap(12); topMargin: Theme.gap(10)
-            }
-            text:           qsTr("Raw Bayer frames are about 900 MB per camera per swing, against 2.5 MB for a Compact clip. Check the library volume has room before recording long sessions.")
-            font.family:    Theme.fontData
-            font.pixelSize: Theme.fontSzMicro
-            color:          Theme.colorWarn
-            wrapMode:       Text.WordWrap
-        }
+        visible: appSettings.saveRawFrames
+        style:   "strip"
+        tone:    "warn"
+        text:    qsTr("Raw Bayer frames are about 900 MB per camera per swing, against 2.5 MB for a Compact clip. Check the library volume has room before recording long sessions.")
     }
 
     // Estimated sizes
@@ -696,13 +584,9 @@ SettingsPanelBase {
             ColumnLayout {
                 spacing: Theme.gap(4)
 
-                Text {
-                    text:                qsTr("Per-swing clip")
-                    font.family:         Theme.fontData
-                    font.pixelSize:      Theme.fontSzMicro
-                    font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Theme.capsFont
-                    color:               Theme.colorText3
+                PpMicro {
+                    kind: "caps"
+                    text: qsTr("Per-swing clip")
                 }
                 Text {
                     text:           "~" + formatMb(root.clipMb)
@@ -743,13 +627,9 @@ SettingsPanelBase {
             ColumnLayout {
                 spacing: Theme.gap(4)
 
-                Text {
-                    text:                qsTr("Per hour (60 swings)")
-                    font.family:         Theme.fontData
-                    font.pixelSize:      Theme.fontSzMicro
-                    font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Theme.capsFont
-                    color:               Theme.colorText3
+                PpMicro {
+                    kind: "caps"
+                    text: qsTr("Per hour (60 swings)")
                 }
                 Text {
                     text:           "~" + formatGb(root.sessionMb / 1024)
@@ -772,13 +652,9 @@ SettingsPanelBase {
             ColumnLayout {
                 spacing: Theme.gap(4)
 
-                Text {
-                    text:                qsTr("Remaining capacity")
-                    font.family:         Theme.fontData
-                    font.pixelSize:      Theme.fontSzMicro
-                    font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Theme.capsFont
-                    color:               Theme.colorText3
+                PpMicro {
+                    kind: "caps"
+                    text: qsTr("Remaining capacity")
                 }
                 Text {
                     text:  root.diskInfo.freeBytes <= 0 ? "—"
@@ -797,7 +673,7 @@ SettingsPanelBase {
 
     // ── Group 3 — Sensor data ─────────────────────────────────────────────────
 
-    SettingsSectionHead { text: qsTr("Sensor data") }
+    PpMicro { kind: "body"; text: qsTr("Sensor data") }
 
     // Save pose keypoints
     SettingsRow {

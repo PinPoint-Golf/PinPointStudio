@@ -48,12 +48,7 @@ Popup {
     padding: Theme.gap(4)
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
-    background: Rectangle {
-        color:        Theme.colorSurface
-        radius:       Theme.radius
-        border.width: 1
-        border.color: Theme.colorBorderStrong
-    }
+    background: PpPopoverCard { style: "plainTight" }
 
     contentItem: Column {
         spacing: 0

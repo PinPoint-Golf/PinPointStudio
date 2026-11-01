@@ -309,6 +309,16 @@ QtObject {
     readonly property color colorAccentLight: _m.colorAccentLight
     readonly property color colorAccentMid: _m.colorAccentMid
 
+    // Ink on a solid accent (or status) fill: a filled button's label, a picked segment, a tick.
+    // Three inks are in use and they differ in a light theme, so each is its own token until the
+    // restyle (#131) picks one. In dark all three are the page ground (the knob: the text).
+    //   colorOnAccent        the theme's surface                    checks, toolbar, filters, markup
+    //   colorOnAccentBright  pure white                             buttons, segments, quality pill
+    //   colorKnob            a switch's knob, the text colour in dark
+    readonly property color colorOnAccent:       dark ? colorBg : colorSurface
+    readonly property color colorOnAccentBright: dark ? colorBg : "#FFFFFF"
+    readonly property color colorKnob:           dark ? colorText : colorSurface
+
     // ── Brand gradient tokens ────────────────────────────────────────────────
     // Signature warm→cool sweep from the marketing site: pelvis-amber through
     // light-amber to club-cyan — the kinematic-sequence colours. Used for large
@@ -391,6 +401,10 @@ QtObject {
     readonly property color poseInk:         "#c8121a23" // ring fill (dark ink, ~200 alpha)
     // The dark backing behind text laid over video (camera tiles, camera frame, markup).
     readonly property color colorScrim:      Qt.alpha(poseInk, 0.6)
+    // Words and marks ON the picture (camera chips, the stats pill, the picture-in-picture's
+    // transport, the markup HUDs), over that scrim: near-white in either theme — the text colour in
+    // dark, the page ground in light (colorText alone would be dark-on-dark in a light theme).
+    readonly property color colorOnScrim:    dark ? colorText : colorBg
     readonly property color poseSpineTop:    "#d6f2ff"   // spine neck end + end tick + diamonds
     readonly property color poseSpineBottom: "#4aa6c4"   // spine pelvis end
     readonly property color poseSpineTick2:  "#6cc3dc"   // pelvis-end spine tick
@@ -802,6 +816,61 @@ QtObject {
              : band === "occasional" ? colorAttention
              : band === "clean"      ? colorGood       // the corridor ramp's in-range colour (corridorTone, strengthColor), not the accent: in an amber-accent theme the accent reads as a fault
              :                         colorMeterUnlit
+    }
+
+    // A tone NAME to its colour, so a screen says what kind of news a thing is and Theme picks the
+    // hue: good (ok), watch (attention), warn, fault (error), accent, and the quiet dim / none. Any
+    // other word ("neutral", "info", "") is no tone and gets the caller's `other` (colorText3 if it
+    // passes none). toneLight is the same tone's wash, for the fill behind its text; hasTone says
+    // whether a word names a coloured tone at all.
+    function toneColor(tone, other) {
+        switch (tone) {
+        case "good":  case "ok":        return colorGood
+        case "watch": case "attention": return colorAttention
+        case "warn":                    return colorWarn
+        case "fault": case "error":     return colorError
+        case "accent":                  return colorAccent
+        case "dim":   case "none":      return colorText3
+        }
+        return other !== undefined ? other : colorText3
+    }
+    function toneLight(tone, other) {
+        switch (tone) {
+        case "good":  case "ok":        return colorGoodLight
+        case "watch": case "attention": return colorAttentionLight
+        case "warn":                    return colorWarnLight
+        case "fault": case "error":     return colorErrorLight
+        case "accent":                  return colorAccentLight
+        }
+        return other !== undefined ? other : "transparent"
+    }
+    function hasTone(tone) {
+        return ["good", "ok", "watch", "attention", "warn", "fault", "error", "accent"].indexOf(tone) >= 0
+    }
+
+    // A hover fill that fades in: `c` while hovered, else `c` at alpha 0 — the same RGB, so the colour
+    // animation only ramps alpha and there is no colour flash on the way in or out.
+    function hoverFill(hovered, c) { return hovered ? c : Qt.alpha(c, 0) }
+
+    // Selectable chrome: the fill and border of everything a user picks one of (choice chips,
+    // selectable tiles, the quiet and wash buttons). Selected is the accent wash inside an accent
+    // border; hover eases the border to accent-mid. `rest` names how it sits unselected:
+    //   "clear"  clear, a faint bg2 fading in on hover
+    //   "wash"   transparent, a faint accent wash on hover
+    //   "card"   on the surface, half bg2 on hover
+    // `restBorder` is the unselected, unhovered border (colorBorderStrong when not given).
+    function choiceFill(selected, hovered, rest) {
+        if (selected) return colorAccentLight
+        switch (rest) {
+        case "wash": return hovered ? Qt.alpha(colorAccentLight, 0.4) : "transparent"
+        case "card": return hovered ? Qt.alpha(colorBg2, 0.5) : colorSurface
+        }
+        return hoverFill(hovered, colorBg2)
+    }
+    function choiceBorder(selected, hovered, restBorder) {
+        return selected ? colorAccent
+             : hovered  ? colorAccentMid
+             : restBorder !== undefined ? restBorder : colorBorderStrong
     }
 
     // ── Charts ───────────────────────────────────────────────────────────────

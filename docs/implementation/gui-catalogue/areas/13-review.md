@@ -22,7 +22,6 @@ The older replay/analyse stack: metric charts, data viewer, coverage and sequenc
 | [PpPropertiesPanel](#pppropertiespanel) | 151 | `Item` | 1 | 3 |  |
 | [PpReplayTransport](#ppreplaytransport) | 88 | `Item` | 1 | 3 | 1 local comp. |
 | [PpSegmentBrush](#ppsegmentbrush) | 365 | `Item` | 1 | 0 |  |
-| [PpSpeedSelector](#ppspeedselector) | 84 | `Rectangle` | 1 | 0 |  |
 | [PpTransitTimeline](#pptransittimeline) | 537 | `Item` | 1 | 3 |  |
 
 ### MetricDetail
@@ -229,7 +228,7 @@ The older replay/analyse stack: metric charts, data viewer, coverage and sequenc
 > the carousel strip; it does not stretch to fill.
 
 - **Local components:** `TBtn`
-- **Uses:** `PpMicro`, `PpPressable`, `PpSpeedSelector`
+- **Uses:** `PpMicro`, `PpPressable`, `PpSegmentedControl` (style `speed`)
 - **Used by (1):** `ScreenWrist`
 
 ### PpSegmentBrush
@@ -257,17 +256,9 @@ The older replay/analyse stack: metric charts, data viewer, coverage and sequenc
 - **Functions:** `xs(t)`, `toT(px)`
 - **Used by (1):** `PpMetricChart`
 
-### PpSpeedSelector
-`src/Gui/review/PpSpeedSelector.qml` · 84 lines · root `Rectangle` · 1 hard-coded colour(s)
-
-> Segmented playback-speed selector — all speeds visible, the active one
-> highlighted with an accent-tinted capsule; click any segment to select it
-> directly. Used by the Replay transport (PpReplayTransport) to drive the
-> session-stage replay speed.
-
-- **Properties:** `readonly var speeds`, `real current`
-- **Signals:** `selected(real speed)`
-- **Used by (1):** `PpReplayTransport`
+### PpSpeedSelector (retired)
+Folded into `PpSegmentedControl` as its `speed` style (components/PpSegmentedControl.qml); the Replay
+transport (PpReplayTransport) draws the playback speeds through it.
 
 ### PpTransitTimeline
 `src/Gui/review/PpTransitTimeline.qml` · 537 lines · root `Item`

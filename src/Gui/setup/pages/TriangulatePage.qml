@@ -48,11 +48,12 @@ WizardPage {
         anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.gap(32) }
         spacing: Theme.gap(16)
 
-        SetupStepIntro {
-            width:   parent.width
-            eyebrow: page.stepLabel
-            heading: qsTr("Triangulating your cameras")
-            body:    qsTr("With a face-on and a down-the-line camera connected, Pinpoint can reconstruct your movement in 3D. Stereo calibration solves where the cameras sit relative to each other; triangulation confirms the result. If your setup hasn't moved since last time, you're good to go.")
+        PpPageHeader {
+            style:       "setup"
+            width:       parent.width
+            eyebrow:     page.stepLabel
+            title:       qsTr("Triangulating your cameras")
+            description: qsTr("With a face-on and a down-the-line camera connected, Pinpoint can reconstruct your movement in 3D. Stereo calibration solves where the cameras sit relative to each other; triangulation confirms the result. If your setup hasn't moved since last time, you're good to go.")
         }
 
         Column {

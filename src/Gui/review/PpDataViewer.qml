@@ -629,8 +629,7 @@ Item {
     // full path on the clipboard so it can be pasted into a terminal or file dialog.
     PpToast {
         id: exportToast
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: parent.height - height - Theme.sp(16)
+        margin: Theme.sp(16)
         z: 50
         glyph: "⤓"
         showUndo: false

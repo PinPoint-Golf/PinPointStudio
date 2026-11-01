@@ -86,12 +86,7 @@ ComboBox {
         // Cap tall lists; +2 accounts for the 1px top/bottom borders.
         implicitHeight: Math.min(listView.contentHeight + 2, Theme.sp(280))
 
-        background: Rectangle {
-            color:        Theme.colorSurface
-            radius:       Theme.radius
-            border.width: 1
-            border.color: Theme.colorBorderStrong
-        }
+        background: PpPopoverCard { style: "plainTight" }
 
         contentItem: ListView {
             id: listView

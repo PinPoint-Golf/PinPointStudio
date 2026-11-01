@@ -55,13 +55,9 @@ Column {
         width:  root.width
         height: Theme.sp(20)
 
-        Text {
+        PpMicro {
             anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-            text:               Theme.caps(qsTr("Sessions offered"))
-            font.family:        Theme.fontData
-            font.pixelSize:     Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingMicro
-            color:              Theme.colorText3
+            text: Theme.caps(qsTr("Sessions offered"))
         }
 
         Text {

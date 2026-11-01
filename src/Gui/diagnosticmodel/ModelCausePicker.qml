@@ -142,38 +142,19 @@ ModelTypeAhead {
         else                       root.picked(row.id)
     }
 
-    component Chip: Rectangle {
-        id: chip
-        required property string label
+    // A type chip: the shared chip's filled pill, which says "make one of these".
+    component Chip: PpChoiceChip {
         required property string key
 
-        radius: height / 2
-        implicitWidth: chipText.implicitWidth + Theme.sp(18)
-        Layout.preferredWidth:  implicitWidth
-        Layout.preferredHeight: Theme.sp(22)
-        color: root._type === key ? Theme.colorAccentLight : Theme.colorBg2
-        border.width: 1
-        border.color: root._type === key ? Theme.colorAccent : Theme.colorBorderMid
-
-        Text {
-            id: chipText
-            anchors.centerIn: parent
-            text: chip.label
-            font.family:    Theme.fontBody
-            font.pixelSize: Theme.fontSzMicro
-            color: root._type === chip.key ? Theme.colorAccent : Theme.colorText2
-        }
-
-        PpPressable {
-            hoverScale: 1.0
-            onClicked: {
-                root._type = chip.key
-                // Picking a type is saying "make one", so the highlight moves to the row
-                // that would — otherwise the chip would silently arm an Enter that still
-                // took whatever condition happened to be at the top of the list.
-                root.currentIndex = root.rows.length - 1
-                root.focusField()
-            }
+        style:    "pillFilled"
+        selected: root._type === key
+        onClicked: {
+            root._type = key
+            // Picking a type is saying "make one", so the highlight moves to the row
+            // that would — otherwise the chip would silently arm an Enter that still
+            // took whatever condition happened to be at the top of the list.
+            root.currentIndex = root.rows.length - 1
+            root.focusField()
         }
     }
 

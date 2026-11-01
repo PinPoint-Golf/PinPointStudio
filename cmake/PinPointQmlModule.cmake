@@ -98,6 +98,8 @@ set(PP_QML_FILES
     src/Gui/components/PpPip.qml
     src/Gui/components/PpPips.qml
     src/Gui/components/PpChip.qml
+    src/Gui/components/PpStatusPill.qml
+    src/Gui/components/PpNotice.qml
     src/Gui/components/PpAvatar.qml
     src/Gui/components/PpDeviceFilterBar.qml
     src/Gui/components/PpDeviceTags.qml
@@ -106,6 +108,7 @@ set(PP_QML_FILES
     src/Gui/components/PpInset.qml
     src/Gui/components/PpLink.qml
     src/Gui/components/PpCardNote.qml
+    src/Gui/components/PpPageHeader.qml
     src/Gui/components/PpCaption.qml
     src/Gui/components/PpFact.qml
     src/Gui/components/PpFactStrip.qml
@@ -126,12 +129,15 @@ set(PP_QML_FILES
     src/Gui/athlete/ScreenAthletePicker.qml
     src/Gui/components/PpTextField.qml
     src/Gui/components/PpTextArea.qml
+    src/Gui/components/PpSearchField.qml
     src/Gui/components/PpSwitch.qml
     src/Gui/components/PpComboBox.qml
     src/Gui/components/PpChipGroup.qml
+    src/Gui/components/PpChoiceChip.qml
+    src/Gui/components/PpSelectTile.qml
     src/Gui/components/PpMetricSwatches.qml
-    src/Gui/components/PpUnitToggle.qml
     src/Gui/components/PpButton.qml
+    src/Gui/components/PpTabButton.qml
     src/Gui/components/PpConnectingFrame.qml
     src/Gui/components/PpPressable.qml
     src/Gui/components/PpDisplayText.qml
@@ -144,7 +150,6 @@ set(PP_QML_FILES
     src/Gui/monitor/RmStatRow.qml
     src/Gui/monitor/RmAnalysisRunRow.qml
     src/Gui/monitor/RmTimelineChart.qml
-    src/Gui/monitor/RmWarningNotice.qml
     src/Gui/monitor/RmZebraRow.qml
     # H15 (CR-02) — the PINPOINTCAPTURE tab's two delegates.  They read only
     # what is handed to them, so the offscreen QML suite can stand them up
@@ -244,7 +249,7 @@ set(PP_QML_FILES
     # Session setup's shell, pages and the parts they share (design §4.2–4.3, §4.9; the shell
     # replaced ScreenSessionWizard.qml, deleted at Stage 5c). Page type names are unique in the
     # module; the parts are Setup…-prefixed because other files still declare inline CheckRow /
-    # StepIntro / TogglePill components of their own.
+    # TogglePill components of their own.
     src/Gui/setup/ScreenSessionSetup.qml
     src/Gui/setup/pages/IntentPage.qml
     src/Gui/setup/pages/CamerasPage.qml
@@ -257,9 +262,7 @@ set(PP_QML_FILES
     src/Gui/setup/pages/CalibrateTrunkPage.qml
     src/Gui/setup/pages/CheckTrunkPage.qml
     src/Gui/setup/pages/ReadyPage.qml
-    src/Gui/setup/parts/SetupStepIntro.qml
     src/Gui/setup/parts/SetupCheckRow.qml
-    src/Gui/setup/parts/SetupStatusCircle.qml
     src/Gui/setup/parts/SetupSummaryRow.qml
     src/Gui/setup/parts/SetupCapabilityRow.qml
     src/Gui/setup/parts/SetupReadingsBox.qml
@@ -423,9 +426,9 @@ set(PP_QML_FILES
     # The chart's sample rules — measured / nearest sample / which array is the curve (.pragma
     # library, imported relatively by the four chart files above; the ONE QML place they live).
     src/Gui/review/chart_samples.js
-    src/Gui/review/PpSpeedSelector.qml
     src/Gui/components/PpToast.qml
     src/Gui/components/PpNotificationHost.qml
+    src/Gui/components/PpNotificationCard.qml
     src/Gui/review/PpDataViewer.qml
     src/Gui/review/PpCoverageStrip.qml
     src/Gui/review/PpPropertiesPanel.qml
@@ -444,7 +447,6 @@ set(PP_QML_FILES
     src/Gui/diagnosticmodel/ModelMint.qml
     src/Gui/diagnosticmodel/ModelChipRow.qml
     src/Gui/diagnosticmodel/ModelTools.qml
-    src/Gui/diagnosticmodel/ModelBarButton.qml
     src/Gui/diagnosticmodel/ModelEnumField.qml
     src/Gui/diagnosticmodel/ModelEnumMenu.qml
     src/Gui/diagnosticmodel/ModelPolicyPicker.qml
@@ -491,7 +493,6 @@ set(PP_QML_FILES
     src/Gui/settings/SettingsPanelBase.qml
     src/Gui/settings/SettingsRow.qml
     src/Gui/settings/SettingsRowTitle.qml
-    src/Gui/settings/SettingsSectionHead.qml
     src/Gui/components/PpFilePicker.qml
 )
 

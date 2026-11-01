@@ -430,7 +430,7 @@ Item {
                     PpSwitch {
                         id: torchPill
                         anchors.verticalCenter: parent.verticalCenter
-                        knobColor: Theme.dark ? Theme.colorText : Theme.colorSurface
+                        knobColor: Theme.colorKnob
                         // ⭐ BOUND TO THE CAPTURE SETTING.  This pill used to be a
                         // light switch bound to the ack (trap 3's lesson: the click
                         // is not the light).  It is now "torch during capture", a
@@ -481,7 +481,7 @@ Item {
 
             PpSwitch {
                 Layout.alignment: Qt.AlignVCenter
-                knobColor: Theme.dark ? Theme.colorText : Theme.colorSurface
+                knobColor: Theme.colorKnob
                 Layout.leftMargin: camRow.hasTorch ? 0 : Theme.sp(6)
                 checked: camRow.deviceEnabled
                 onToggled: (v) => cameraManager.setSessionCameraEnabled(camRow.camKey, v)

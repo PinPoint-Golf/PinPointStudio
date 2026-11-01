@@ -775,7 +775,7 @@ Item {
                 Layout.fillWidth: false
             }
 
-            PpTextField {
+            PpSearchField {
                 id: searchField
                 Layout.fillWidth:    true
                 Layout.maximumWidth: Theme.sp(420)
@@ -817,8 +817,9 @@ Item {
             // Every band edge in every corridor on screen is drawn under this policy, so the answer
             // to "why is this corridor red" must not be behind a button called Tools. Promoted out
             // of the drawer to a value you can see and change in one click.
-            ModelBarButton {
+            PpButton {
                 id: gradingButton
+                style: "bar"; size: "compact"
                 Layout.fillWidth: false
                 label:   qsTr("Grading %1").arg(root._policyLabel)
                 hint:    "▾"
@@ -827,8 +828,9 @@ Item {
                 onClicked: root._dropUnder(policyPopup, gradingButton)
             }
 
-            ModelBarButton {
+            PpButton {
                 id: drawerButton
+                style: "bar"; size: "compact"
                 Layout.fillWidth: false
                 glyph:   "⋯"
                 tooltip: qsTr("Views, exports and norm sets")
@@ -849,34 +851,23 @@ Item {
             // strip, and the one thing that made the strip worth having survives: clicking it is a
             // WAY IN to the findings, not a description of a problem the reader then has to go and
             // locate.
-            Rectangle {
+            PpNotice {
                 id: validationChip
                 readonly property int errors:   browser.validationErrorCount
                 readonly property int warnings: browser.validationWarningCount
 
                 Layout.fillWidth: false
                 visible: errors + warnings > 0
-                implicitWidth:  chipText.implicitWidth + Theme.sp(18)
-                implicitHeight: Theme.sp(26)
-                radius: Theme.radius
-                color:  errors > 0 ? Theme.colorErrorLight : Theme.colorWarnLight
-
-                Text {
-                    id: chipText
-                    anchors.centerIn: parent
-                    text: {
-                        if (root._revision < 0) return ""
-                        var bits = []
-                        if (validationChip.errors > 0)
-                            bits.push(qsTr("%n error(s)", "", validationChip.errors))
-                        if (validationChip.warnings > 0)
-                            bits.push(qsTr("%n warning(s)", "", validationChip.warnings))
-                        return "⚠ " + bits.join(" · ")
-                    }
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzMicro
-                    font.weight:    Theme.fontBodyWeight
-                    color: validationChip.errors > 0 ? Theme.colorError : Theme.colorWarn
+                style: "chip"
+                tone:  errors > 0 ? "error" : "warn"
+                text: {
+                    if (root._revision < 0) return ""
+                    var bits = []
+                    if (validationChip.errors > 0)
+                        bits.push(qsTr("%n error(s)", "", validationChip.errors))
+                    if (validationChip.warnings > 0)
+                        bits.push(qsTr("%n warning(s)", "", validationChip.warnings))
+                    return "⚠ " + bits.join(" · ")
                 }
 
                 PpPressable {
@@ -893,7 +884,8 @@ Item {
             // Three items, always adjacent, always here. This is the only part of the chrome an
             // author touches every few seconds, and it used to be spread across three bands with
             // `revert` orphaned in the status bar and redo owning no button at all.
-            ModelBarButton {
+            PpButton {
+                style: "bar"; size: "compact"
                 Layout.fillWidth: false
                 glyph:   "↶"
                 enabled: browser.canUndo
@@ -902,7 +894,8 @@ Item {
                 onClicked: root.doUndo()
             }
 
-            ModelBarButton {
+            PpButton {
+                style: "bar"; size: "compact"
                 Layout.fillWidth: false
                 glyph:   "↷"
                 enabled: browser.canRedo
@@ -910,13 +903,14 @@ Item {
                 onClicked: root.doRedo()
             }
 
-            ModelBarButton {
+            PpButton {
                 id: unsavedButton
+                style: "bar"; size: "compact"
                 Layout.fillWidth: false
                 visible: browser.dirty
                 label:   qsTr("%n unsaved", "", browser.unsavedCount)
                 hint:    "▾"
-                tone:    Theme.colorAccent
+                tone:    "accent"
                 tooltip: qsTr("What Save would write")
                 active:  unsavedPopup.opened
                 onClicked: root._dropUnder(unsavedPopup, unsavedButton)
@@ -1021,15 +1015,7 @@ Item {
                             width:  Theme.sp(7)
                             height: Theme.sp(7)
                             radius: width / 2
-                            color: {
-                                switch (legendEntry.modelData.tone) {
-                                case "good":  return Theme.colorRagGood
-                                case "watch": return Theme.colorRagWatch
-                                case "fault": return Theme.colorRagFault
-                                case "none":  return Theme.colorRagNone
-                                }
-                                return Theme.colorText3
-                            }
+                            color: Theme.toneColor(legendEntry.modelData.tone)
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
@@ -1134,20 +1120,21 @@ Item {
             // quiet 28px icons, for three actions of equal standing that all operate on the same
             // list.
             //
-            // The rule for both bars, now stated: everything is a ModelBarButton, and `Save` is the
-            // sole PpButton because it is the sole action that leaves the draft. Weight among the
+            // The rule for both bars, now stated: everything is a bar-style PpButton, and `Save` is the
+            // sole full-size PpButton because it is the sole action that leaves the draft. Weight among the
             // three is carried by TONE, not by shape — accent for the one that makes something,
             // plain for the ones that copy and remove it.
             //
             // The label still NAMES the type. "New" answered a question the reader had to hold in
             // their head — new what? — while being the one control on the old toolbar that knew
             // what was selected at all.
-            ModelBarButton {
+            PpButton {
                 id: newButton
+                style: "bar"; size: "compact"
                 Layout.fillWidth: false
                 glyph:   "+"
                 label:   qsTr("New %1").arg(root._typeOne.toLowerCase())
-                tone:    Theme.colorAccent
+                tone:    "accent"
                 tooltip: qsTr("Create a %1").arg(root._typeOne.toLowerCase())
                 visible: root._canCreate
                 onClicked: {
@@ -1975,9 +1962,7 @@ Item {
 
     PpToast {
         id: toast
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: Theme.gap(44)
+        margin: Theme.gap(44)
         showUndo: false
         // Most of what reaches this toast is a removal, so 🗑 stays the default — but a notice that
         // carries a written file's path is a save, and a trash can on it says the opposite.

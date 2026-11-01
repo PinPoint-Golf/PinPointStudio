@@ -24,8 +24,12 @@
 //         id: root
 //         contentSpacing: Theme.gap(16)              // gap(20) unless set (Cameras/Imus/Mics/Phones: 16)
 //
-//         SettingsSectionHead { text: Theme.caps(qsTr("Library")) }
-//         PpDisplayText { text: qsTr("Archiving") }
+//         PpPageHeader {                             // the page's eyebrow, title and description
+//             Layout.fillWidth: true
+//             spacing: root.contentSpacing
+//             eyebrow: Theme.caps(qsTr("Library")); title: qsTr("Archiving"); description: qsTr("…")
+//         }
+//         PpMicro { kind: "body"; text: Theme.caps(qsTr("Space")) }      // a section head
 //         SettingsRow { objectName: "setting_archiveAge"; … }
 //     }
 //

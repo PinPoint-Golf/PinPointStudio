@@ -101,15 +101,16 @@ WizardPage {
         anchors.margins: Theme.gap(8)
         spacing:         Theme.gap(12)
 
-        SetupStepIntro {
+        PpPageHeader {
+            style:               "setup"
             Layout.fillWidth:    true
             Layout.maximumWidth: Theme.contentWidth(page.width)
             Layout.topMargin:    Theme.gap(32)
-            eyebrow:          page.stepLabel
-            heading:          qsTr("Check your trunk sensors")
-            body:             qsTr("Make a few backswing and follow-through turns. A backswing turn must read positive, and the chest must turn further than the hips. If it doesn't, go back and recalibrate.")
-            headingPixelSize: Math.min(Theme.sp(22), Theme.fontSzDisplay)
-            rule:             false
+            eyebrow:             page.stepLabel
+            title:               qsTr("Check your trunk sensors")
+            description:         qsTr("Make a few backswing and follow-through turns. A backswing turn must read positive, and the chest must turn further than the hips. If it doesn't, go back and recalibrate.")
+            titlePixelSize:      Math.min(Theme.sp(22), Theme.fontSzDisplay)
+            rule:                false
         }
 
         // ── The live trunk figure (§6.7 page 2) ─────────────────────────────────

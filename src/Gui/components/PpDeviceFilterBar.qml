@@ -49,45 +49,18 @@ Flow {
     Repeater {
         model: bar.model ? bar.model.availableDevices : []
 
-        Rectangle {
+        PpChoiceChip {
             id: devChip
             required property var modelData
-            readonly property bool _on: bar.model.deviceFilter.indexOf(modelData.id) >= 0
 
             objectName: "deviceChip_" + modelData.id
+            style:    "filter"
+            label:    modelData.label
+            count:    String(modelData.count)     // sessions left if this chip were on too (AND)
+            selected: bar.model.deviceFilter.indexOf(modelData.id) >= 0
             // Nothing would be left if this were added — quietened, still tappable.
-            opacity: !_on && modelData.count === 0 ? 0.45 : 1.0
-            width:  devRow.implicitWidth + Theme.sp(16)
-            height: Theme.sp(22)
-            radius: height / 2
-            color:  _on ? Theme.colorAccentLight
-                  : devMa.containsMouse ? Theme.colorBg2
-                  : Qt.alpha(Theme.colorBg2, 0)
-            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-            border.width: 1
-            border.color: _on || devMa.containsMouse ? Theme.colorAccent : Theme.colorBorderMid
-
-            Row {
-                id: devRow
-                anchors.centerIn: parent
-                spacing: Theme.gap(5)
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: devChip.modelData.label
-                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
-                    color: devChip._on ? Theme.colorAccent : Theme.colorText2
-                }
-                Text {   // sessions left if this chip were on too (AND)
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: devChip.modelData.count
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                    color: Theme.colorText3
-                }
-            }
-            PpPressable {
-                id: devMa
-                onClicked: bar.model.toggleDevice(devChip.modelData.id)
-            }
+            dimmed:   !selected && modelData.count === 0
+            onClicked: bar.model.toggleDevice(devChip.modelData.id)
         }
     }
 

@@ -117,7 +117,6 @@ Rectangle {
     //    whole card dips on press (scaling DOWN never clips). Durations come from
     //    Theme so reduceMotion zeroes them. ──
     readonly property real _mediaZoom: selected ? 1.06 : hovered ? 1.035 : 1.0
-    readonly property real _cardScale: clickArea.pressed ? 0.97 : 1.0
 
     // 16:9 media aspect
     width:  Theme.sp(139)
@@ -125,9 +124,7 @@ Rectangle {
     radius: Theme.radius
     clip:   true
     color:  Theme.colorBg
-    transformOrigin: Item.Center
-    scale: _cardScale
-    Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
+    transformOrigin: Item.Center   // the press dip: clickArea (PpPressable) below
 
     // ── Media (leans toward the viewer on hover/select — an inner zoom kept
     //    inside the frame by the card's clip): video still → placeholder →
@@ -398,10 +395,10 @@ Rectangle {
     // star row below doesn't steal the card's hover state as the cursor crosses it.
     HoverHandler { id: hover }
 
-    MouseArea {
+    PpPressable {
         id: clickArea
-        anchors.fill: parent
-        cursorShape:  Qt.PointingHandCursor
+        hoverEnabled: false   // hover is the HoverHandler's (above); this only dips on press
+        hoverScale:   1.0
         // Ctrl/⌘-click picks the swing for a bulk action and leaves the stage alone. (Qt names
         // ⌘ ControlModifier on macOS; MetaModifier is the Ctrl key there.)
         onClicked: (mouse) => (mouse.modifiers & (Qt.ControlModifier | Qt.MetaModifier))

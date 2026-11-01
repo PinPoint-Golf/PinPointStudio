@@ -243,19 +243,15 @@ Item {
                 z:       hovered ? 2 : 1
 
                 // Group label over its run (the run's width, left-aligned on the first pip).
-                Text {
+                PpMicro {
                     objectName: "flowGroupLabel"
+                    kind: "caps"
                     visible: root.groupHeight > 0 && cell._groupHead && !cell.asGroup
                     x: Math.round((cell.width - root.pipSize) / 2)
                     // Collapsed, only the current group keeps its label, and its run is whole.
                     width: Math.max(0, (cell._gs !== undefined ? cell._gs.count : 1) * root._cellW - x)
                     height: root.groupHeight
                     text: root.groups[cell.group] !== undefined ? root.groups[cell.group] : cell.group
-                    font.family:        Theme.fontData
-                    font.pixelSize:     Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                    font.capitalization: Theme.capsFont
-                    color: Theme.colorText3
                     elide: Text.ElideRight
                 }
 
@@ -330,7 +326,7 @@ Item {
                         font.pixelSize: root.compact ? Theme.sp(8) : Theme.fontSzMicro
                         color: {
                             var s = cell.stateName
-                            if (s === "current") return Theme.dark ? Theme.colorBg : "#FFFFFF"
+                            if (s === "current") return Theme.colorOnAccentBright
                             if (s === "done")    return Theme.colorGood
                             if (s === "skipped") return Theme.colorWarn
                             return Theme.colorText3

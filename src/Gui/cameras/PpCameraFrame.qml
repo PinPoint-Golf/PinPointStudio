@@ -134,12 +134,6 @@ Item {
     // Camera name shown in-frame (muted overlay; also the placeholder title).
     property string displayName: ""
 
-    // Marks that sit ON the picture (the chips, the stats pill): the overlay palette's own dark
-    // ink, fixed across themes like the skeleton it belongs to, under the palette's lightest
-    // words — so they read over any footage in either theme. Theme.colorText alone would be
-    // dark-on-dark in a light theme.
-    readonly property color _onScrim: Theme.dark ? Theme.colorText : Theme.colorBg
-
     // ── Per-screen overlay configuration ────────────────────────────────────
     property bool showPoseOverlay:      true   // skeleton canvas
     property bool showHittingArea:      true   // ROI overlay + detected ball circle
@@ -886,7 +880,7 @@ Item {
                          && root.instance !== null
                          && root.instance.perspective !== CameraInstance.None
                 tinted: false
-                tone:   root._onScrim
+                tone:   Theme.colorOnScrim
                 color:  Theme.colorScrim
                 text: !root.instance ? ""
                     : root.instance.perspective === CameraInstance.DownTheLine ? qsTr("DTL")
@@ -911,7 +905,7 @@ Item {
             // turns over: the scrim's light words on a warn fill.
             PpChip {
                 visible: root.instance !== null && root.instance.isPreviewFeed
-                tone:  Theme.dark ? Theme.colorWarn : root._onScrim
+                tone:  Theme.dark ? Theme.colorWarn : Theme.colorOnScrim
                 color: Theme.dark ? Qt.tint(Theme.colorScrim, Qt.alpha(Theme.colorWarn, 0.16))
                                   : Qt.alpha(Theme.colorWarn, 0.9)
                 text:  Theme.caps(qsTr("Preview"))
@@ -923,7 +917,7 @@ Item {
                 objectName: "overlayGateChip"
                 visible: root._overlayGate !== null
                 tinted: false
-                tone:   root._onScrim
+                tone:   Theme.colorOnScrim
                 color:  Theme.colorScrim
                 text:   root._overlayGate ? (root._overlayGate.effect === "downgraded"
                                              ? qsTr("club: %1 ›") : qsTr("club %1 ›")).arg(root._overlayGate.words) : ""
@@ -992,7 +986,7 @@ Item {
                                + "  clip " + (root.instance.levelClipped * 100).toFixed(1) + "%"
                                + (root.viewGain > 1.001 ? "  view ×" + root.viewGain : "")
                              : "")
-                color: root._onScrim
+                color: Theme.colorOnScrim
                 font.family: Theme.fontData
                 font.pixelSize: Theme.fontSzMicro
             }

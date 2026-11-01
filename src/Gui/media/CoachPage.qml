@@ -114,10 +114,6 @@ Item {
                        : llmController.llmBackend !== "" && llmController.llmBackend !== "CPU"
                          ? Theme.colorGoodLight
                          : Theme.colorBg3
-                scale: llmController.cloudLlmFallbackAvailable
-                       ? (llmBadgeTap.pressed ? 0.97 : llmBadgeHover.hovered ? 1.02 : 1.0)
-                       : 1.0
-                Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                 border.width: 1
                 border.color: llmController.llmBackend === "Cloud"
                               ? Qt.alpha(Theme.colorAccent, 0.25)
@@ -126,7 +122,7 @@ Item {
                                 : Theme.colorBorderMid
                 implicitWidth: llmBadgeLabel.implicitWidth + Theme.sp(10)
                 implicitHeight: llmBadgeLabel.implicitHeight + Theme.sp(4)
-                ToolTip.visible: llmBadgeHover.hovered
+                ToolTip.visible: llmBadgePress.containsMouse
                 ToolTip.text: llmController.cloudLlmFallbackAvailable
                     ? (llmController.llmBackend === "Cloud"
                        ? qsTr("Cloud AI (Gemini) — click to switch to local")
@@ -137,15 +133,13 @@ Item {
                          ? qsTr("Local AI — %1").arg(llmController.llmBackend)
                          : qsTr("Local AI — CPU"))
 
-                HoverHandler {
-                    id: llmBadgeHover
-                    cursorShape: llmController.cloudLlmFallbackAvailable
-                                 ? Qt.PointingHandCursor : Qt.ArrowCursor
-                }
-                TapHandler {
-                    id: llmBadgeTap
-                    enabled: llmController.cloudLlmFallbackAvailable
-                    onTapped: llmController.toggleLlmBackend()
+                // Hovers for its tooltip whatever the backend; moves and toggles only when
+                // there is a fallback to switch to.
+                PpPressable {
+                    id: llmBadgePress
+                    moves:       llmController.cloudLlmFallbackAvailable
+                    cursorShape: llmController.cloudLlmFallbackAvailable ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked:   if (llmController.cloudLlmFallbackAvailable) llmController.toggleLlmBackend()
                 }
 
                 Label {
@@ -253,18 +247,15 @@ Item {
                 height: voiceInLabel.implicitHeight + Theme.sp(8)
                 radius: height / 2
                 color: llmController.voiceInputEnabled ? Theme.colorGoodLight  : Theme.colorBg3
-                scale: voiceInTap.pressed ? 0.97 : voiceInHover.hovered ? 1.02 : 1.0
-                Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                 border.width: 1
                 border.color: llmController.voiceInputEnabled
                               ? Qt.alpha(Theme.colorGood, 0.35)
                               : Theme.colorBorderMid
-                ToolTip.visible: voiceInHover.hovered
+                ToolTip.visible: voiceInPress.containsMouse
                 ToolTip.text: llmController.voiceInputEnabled
                               ? qsTr("Voice input ON — STT sends to coach")
                               : qsTr("Voice input OFF — tap to enable")
-                HoverHandler { id: voiceInHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler   { id: voiceInTap; onTapped: llmController.setVoiceInput(!llmController.voiceInputEnabled) }
+                PpPressable { id: voiceInPress; onClicked: llmController.setVoiceInput(!llmController.voiceInputEnabled) }
                 Label {
                     id: voiceInLabel
                     anchors.centerIn: parent
@@ -282,18 +273,15 @@ Item {
                 height: voiceOutLabel.implicitHeight + Theme.sp(8)
                 radius: height / 2
                 color: llmController.voiceOutputEnabled ? Theme.colorGoodLight : Theme.colorBg3
-                scale: voiceOutTap.pressed ? 0.97 : voiceOutHover.hovered ? 1.02 : 1.0
-                Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                 border.width: 1
                 border.color: llmController.voiceOutputEnabled
                               ? Qt.alpha(Theme.colorGood, 0.35)
                               : Theme.colorBorderMid
-                ToolTip.visible: voiceOutHover.hovered
+                ToolTip.visible: voiceOutPress.containsMouse
                 ToolTip.text: llmController.voiceOutputEnabled
                               ? qsTr("Voice output ON — coach responses are spoken")
                               : qsTr("Voice output OFF — tap to enable")
-                HoverHandler { id: voiceOutHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler   { id: voiceOutTap; onTapped: llmController.setVoiceOutput(!llmController.voiceOutputEnabled) }
+                PpPressable { id: voiceOutPress; onClicked: llmController.setVoiceOutput(!llmController.voiceOutputEnabled) }
                 Label {
                     id: voiceOutLabel
                     anchors.centerIn: parent
@@ -307,22 +295,11 @@ Item {
             Item { Layout.fillWidth: true }
 
             // Clear history button
-            Button {
-                text: qsTr("Clear")
+            PpButton {
+                style: "labText"; size: "lab"
+                label: qsTr("Clear")
                 enabled: llmController.conversation.length > 0 && !llmController.llmActive
                 onClicked: llmController.clearHistory()
-                contentItem: Text {
-                    text: parent.text
-                    color: parent.enabled ? Theme.colorText3 : Theme.colorBg3
-                    font.family: Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment:   Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: parent.pressed ? Theme.colorBg3 : "transparent"
-                    radius: Theme.radius
-                }
             }
         }
 
@@ -331,25 +308,12 @@ Item {
             Layout.fillWidth: true
             spacing: Theme.gap(8)
 
-            TextArea {
+            PpTextArea {
                 id: messageInput
+                style: "lab"
                 Layout.fillWidth: true
                 placeholderText: qsTr("Ask your coach…")
-                placeholderTextColor: Theme.colorText3
-                wrapMode: TextArea.Wrap
-                color: Theme.colorText
-                font.family: Theme.fontBody
-                font.pixelSize: Theme.fontSzBody
-                padding: Theme.gap(10)
                 implicitHeight: Math.max(Theme.sp(40), contentHeight + Theme.sp(20))
-
-                background: Rectangle {
-                    color: Theme.colorSurface
-                    radius: Theme.radius
-                    border.color: messageInput.activeFocus
-                                  ? Theme.colorAccent : Theme.colorBorderMid
-                    border.width: 1
-                }
 
                 // Ctrl+Return sends the message.
                 Keys.onPressed: function(event) {
@@ -362,9 +326,10 @@ Item {
             }
 
             // Send / Stop button
-            Button {
+            PpButton {
                 id: sendButton
-                text: llmController.llmActive ? qsTr("Stop ■") : qsTr("Send ▶")
+                style: llmController.llmActive ? "labStop" : "labPrimary"; size: "lab"
+                label: llmController.llmActive ? qsTr("Stop ■") : qsTr("Send ▶")
                 enabled: llmController.llmActive
                          || (llmController.llmReady && messageInput.text.trim().length > 0)
                 onClicked: {
@@ -373,29 +338,6 @@ Item {
                     } else {
                         sendAndClear()
                     }
-                }
-                contentItem: Text {
-                    text: sendButton.text
-                    color: sendButton.enabled
-                           ? (llmController.llmActive ? Theme.colorWarn : Theme.colorBg)
-                           : Theme.colorText3
-                    font.family: Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    font.weight: Font.Normal
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment:   Text.AlignVCenter
-                }
-                background: Rectangle {
-                    radius: Theme.radius
-                    color: sendButton.enabled
-                           ? (llmController.llmActive
-                              ? Theme.colorWarnLight
-                              : (sendButton.pressed
-                                 ? Qt.darker(Theme.colorAccent, 1.1)
-                                 : Theme.colorAccent))
-                           : Theme.colorBg3
-                    border.width: llmController.llmActive && sendButton.enabled ? 1 : 0
-                    border.color: Qt.alpha(Theme.colorWarn, 0.5)
                 }
             }
         }

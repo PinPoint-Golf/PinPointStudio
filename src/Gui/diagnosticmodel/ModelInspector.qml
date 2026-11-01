@@ -98,17 +98,10 @@ Item {
     // A link is not an object with a place to go when it is removed — see the footer's comment.
     readonly property bool _isLink: _found && detail.type === "links"
 
+    // Theme's tones, but an `accent` row (a corridor of your own) stays in the plain text colour
+    // here, as it always has; the table draws the same word in the accent.
     function _toneColor(tone) {
-        switch (tone) {
-        case "good":   return Theme.colorRagGood
-        case "watch":  return Theme.colorRagWatch
-        case "warn":   return Theme.colorWarn
-        case "fault":  return Theme.colorRagFault
-        case "error":  return Theme.colorError
-        case "dim":    return Theme.colorText3
-        case "none":   return Theme.colorRagNone
-        }
-        return Theme.colorText
+        return tone === "accent" ? Theme.colorText : Theme.toneColor(tone, Theme.colorText)
     }
 
     Text {
@@ -176,13 +169,9 @@ Item {
                 Layout.fillWidth: true
                 spacing: Theme.gap(8)
 
-                Text {
-                    text:                root.detail.eyebrow || ""
-                    font.family:         Theme.fontBody
-                    font.pixelSize:      Theme.fontSzMicro
-                    font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Theme.capsFont
-                    color:               Theme.colorText3
+                PpMicro {
+                    kind: "body"
+                    text: root.detail.eyebrow || ""
                 }
 
                 Item { Layout.fillWidth: true }
@@ -323,14 +312,10 @@ Item {
                 Layout.fillWidth: true
                 spacing: Theme.gap(8)
 
-                Text {
-                    Layout.fillWidth:    true
-                    text:                qsTr("Plot colour")
-                    font.family:         Theme.fontBody
-                    font.pixelSize:      Theme.fontSzMicro
-                    font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Theme.capsFont
-                    color:               Theme.colorText3
+                PpMicro {
+                    kind:             "body"
+                    Layout.fillWidth: true
+                    text:             qsTr("Plot colour")
                 }
 
                 Rectangle {
@@ -422,15 +407,11 @@ Item {
                             x:     Theme.sp(18)
                             spacing: Theme.gap(8)
 
-                            Text {
-                                Layout.fillWidth:    true
-                                text:                sectionItem.modelData.title
-                                font.family:         Theme.fontBody
-                                font.pixelSize:      Theme.fontSzMicro
-                                font.letterSpacing:  Theme.trackingMicro
-                                font.capitalization: Theme.capsFont
-                                color:               Theme.colorText3
-                                elide:               Text.ElideRight
+                            PpMicro {
+                                kind:             "body"
+                                Layout.fillWidth: true
+                                text:             sectionItem.modelData.title
+                                elide:            Text.ElideRight
                             }
 
                             Text {
@@ -628,13 +609,9 @@ Item {
                                         Layout.fillWidth: true
                                         spacing: Theme.gap(6)
 
-                                        Text {
+                                        PpMicro {
+                                            kind: "body"
                                             text: hubRow.modelData.label
-                                            font.family:         Theme.fontBody
-                                            font.pixelSize:      Theme.fontSzMicro
-                                            font.letterSpacing:  Theme.trackingMicro
-                                            font.capitalization: Theme.capsFont
-                                            color:               Theme.colorText3
                                         }
                                         Text {
                                             Layout.fillWidth: true
@@ -803,29 +780,14 @@ Item {
                                     anchors.rightMargin: Theme.gap(18)
                                     spacing: Theme.gap(9)
 
-                                    Rectangle {
-                                        implicitWidth:  actionLbl.implicitWidth + Theme.sp(18)
+                                    PpButton {
+                                        style: "subtle"; size: "micro"
                                         implicitHeight: Theme.sp(24)
-                                        radius: Theme.radius
-                                        color:  actionMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
-                                        border.width: 1
-                                        border.color: Theme.colorBorderMid
-                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                                        Text {
-                                            id: actionLbl
-                                            anchors.centerIn: parent
-                                            text: hubRow.modelData.label
-                                            font.family:    Theme.fontBody
-                                            font.pixelSize: Theme.fontSzMicro
-                                            color:          Theme.colorText2
-                                        }
-                                        PpPressable {
-                                            id: actionMa
-                                            hoverScale: 1.0
-                                            onClicked: root.rowActionRequested(hubRow.modelData.id,
-                                                                               hubRow.modelData.label)
-                                        }
+                                        horizontalPadding: Theme.sp(18)
+                                        hoverScale: 1.0
+                                        label: hubRow.modelData.label
+                                        onClicked: root.rowActionRequested(hubRow.modelData.id,
+                                                                           hubRow.modelData.label)
                                     }
 
                                     Text {
@@ -1100,52 +1062,24 @@ Item {
 
             Item { Layout.fillWidth: true }
 
-            Rectangle {
-                implicitWidth:  copyLbl.implicitWidth + Theme.sp(22)
-                implicitHeight: Theme.sp(28)
-                radius: Theme.radius
-                color:  copyMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
-                border.width: 1
-                border.color: Theme.colorBorderMid
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                Text {
-                    id: copyLbl
-                    anchors.centerIn: parent
-                    text: qsTr("Copy")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    color:          Theme.colorText2
-                }
-                ToolTip.visible: copyMa.containsMouse
-                ToolTip.text: Qt.platform.os === "osx" ? qsTr("Duplicate this  ⌘D")
-                                                       : qsTr("Duplicate this  Ctrl+D")
-                ToolTip.delay: 400
-                PpPressable { id: copyMa; hoverScale: 1.0; onClicked: root.duplicateRequested() }
+            PpButton {
+                style: "subtle"; size: "compact"
+                horizontalPadding: Theme.sp(22)
+                hoverScale: 1.0
+                label: qsTr("Copy")
+                tooltip: Qt.platform.os === "osx" ? qsTr("Duplicate this  ⌘D")
+                                                  : qsTr("Duplicate this  Ctrl+D")
+                onClicked: root.duplicateRequested()
             }
 
-            Rectangle {
-                implicitWidth:  delLbl.implicitWidth + Theme.sp(22)
-                implicitHeight: Theme.sp(28)
-                radius: Theme.radius
-                color:  delMa.containsMouse ? Theme.colorErrorLight : "transparent"
-                border.width: 1
-                border.color: Theme.colorError
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                Text {
-                    id: delLbl
-                    anchors.centerIn: parent
-                    text: root._isLink ? qsTr("Delete link") : qsTr("Delete")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    color:          Theme.colorError
-                }
-                ToolTip.visible: delMa.containsMouse
-                ToolTip.text: root._isLink ? qsTr("⌘Z brings it back")
-                                           : qsTr("Move to trash — ⌘Z brings it back")
-                ToolTip.delay: 400
-                PpPressable { id: delMa; hoverScale: 1.0; onClicked: root.removeRequested() }
+            PpButton {
+                style: "tone"; tone: "error"; size: "compact"
+                horizontalPadding: Theme.sp(22)
+                hoverScale: 1.0
+                label: root._isLink ? qsTr("Delete link") : qsTr("Delete")
+                tooltip: root._isLink ? qsTr("⌘Z brings it back")
+                                      : qsTr("Move to trash — ⌘Z brings it back")
+                onClicked: root.removeRequested()
             }
         }
     }

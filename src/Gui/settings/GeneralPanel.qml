@@ -109,58 +109,31 @@ SettingsPanelBase {
                 onEditingFinished:     secrets.write(ckf.secretName, text)
             }
 
-            Rectangle {
+            PpButton {
                 id: revealBtn
                 property bool revealed: false
                 Layout.alignment: Qt.AlignVCenter
-                implicitWidth:  revealLabel.implicitWidth + Theme.sp(20)
+                style: "quiet"; size: "micro"; mono: true
                 implicitHeight: Theme.sp(34)
-                radius:         Theme.radius
-                border.width:   1
-                border.color:   revealMa.containsMouse ? Theme.colorAccentMid : Theme.colorBorderStrong
-                color:          revealMa.containsMouse ? Theme.colorBg2
-                                                       : Qt.alpha(Theme.colorBg2, 0)
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                Text {
-                    id: revealLabel
-                    anchors.centerIn: parent
-                    text:           revealBtn.revealed ? qsTr("Hide") : qsTr("Show")
-                    font.family:    Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    color:          Theme.colorText2
-                }
-
-                PpPressable {
-                    id: revealMa
-                    onClicked:    revealBtn.revealed = !revealBtn.revealed
-                }
+                label: revealBtn.revealed ? qsTr("Hide") : qsTr("Show")
+                onClicked: revealBtn.revealed = !revealBtn.revealed
             }
         }
     }
 
     // ── Page header ───────────────────────────────────────────────────────
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Configuration")) }
-
-    PpDisplayText {
-        text: qsTr("General")
-    }
-
-    Text {
-        text: qsTr("Language, measurement units, and application behaviour.")
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody2
-        font.weight:    Theme.fontBodyWeight
-        color:          Theme.colorText3
-        wrapMode:       Text.WordWrap
+    PpPageHeader {
         Layout.fillWidth: true
+        spacing:     root.contentSpacing
+        eyebrow:     Theme.caps(qsTr("Configuration"))
+        title:       qsTr("General")
+        description: qsTr("Language, measurement units, and application behaviour.")
     }
 
     // ── Group 1 — Localisation ────────────────────────────────────────────
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Localisation")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Localisation")) }
 
     // Language row
     SettingsRow {
@@ -204,10 +177,11 @@ SettingsPanelBase {
 
             SettingsRowTitle { title: qsTr("Units"); subtitle: qsTr("Speed and distance displayed throughout") }
 
-            PpUnitToggle {
-                units:    ["mph", "km/h"]
+            PpSegmentedControl {
+                style:    "unit"
+                options:  ["mph", "km/h"]
                 selected: appSettings.units === "mph" ? "mph" : "km/h"
-                onSelectionChanged: (unit) => appSettings.units = (unit === "mph" ? "mph" : "kmh")
+                onActivated: (unit) => appSettings.units = (unit === "mph" ? "mph" : "kmh")
                 Layout.alignment: Qt.AlignVCenter
             }
         }
@@ -217,7 +191,7 @@ SettingsPanelBase {
 
     // ── Group 2 — Session behaviour ───────────────────────────────────────
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Session behaviour")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Session behaviour")) }
 
     // Auto-detect swing start row
     SettingsRow {
@@ -299,7 +273,7 @@ SettingsPanelBase {
 
     // ── Group 3 — Motion capture ──────────────────────────────────────────
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Motion capture")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Motion capture")) }
 
     // Motion capture quality row + on-demand High-tier model download.
     ColumnLayout {
@@ -504,7 +478,7 @@ SettingsPanelBase {
 
     // ── Group 4 — Application ────────────────────────────────────────────
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Application")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Application")) }
 
     // Check for updates row
     SettingsRow {
@@ -588,59 +562,29 @@ SettingsPanelBase {
 
                 // Status badge — hidden in the neutral "idle" state (the action
                 // chip carries "Check now" there).
-                Rectangle {
+                PpStatusPill {
                     visible: verRow.uState !== "idle"
-                    implicitWidth:  badgeText.implicitWidth + Theme.sp(16)
-                    implicitHeight: Theme.sp(26)
-                    color:          verRow.pal.bg
-                    border.width:   1
-                    border.color:   verRow.pal.fg
-                    radius:         Theme.radius
-
-                    Text {
-                        id: badgeText
-                        anchors.centerIn: parent
-                        text:           verRow.pal.text
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          verRow.pal.fg
-                    }
+                    text: verRow.pal.text
+                    fg:   verRow.pal.fg
+                    bg:   verRow.pal.bg
+                    edge: verRow.pal.fg
                 }
 
                 // Contextual action: Check now / Download & install / Restart now.
                 // Hidden while a check/download/verify is in flight and on
                 // platforms whose updates are native (Sparkle/WinSparkle) or dev.
-                Rectangle {
+                PpButton {
                     id: updAction
                     readonly property string mode:
                         !updateController.supported ? "" : UpdateStates.actionMode(verRow.uState)
                     visible: mode !== ""
-                    implicitWidth:  updActionText.implicitWidth + Theme.sp(20)
-                    implicitHeight: Theme.sp(26)
-                    radius:         Theme.radius
-                    color:          updActionMa.containsMouse ? Theme.colorAccentLight : "transparent"
-                    border.width:   1
-                    border.color:   (mode === "download" || mode === "restart")
-                                    ? Theme.colorAccent : Theme.colorBorderStrong
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                    Text {
-                        id: updActionText
-                        anchors.centerIn: parent
-                        text:           UpdateStates.actionLabel(updAction.mode, "short")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color: (updAction.mode === "download" || updAction.mode === "restart")
-                               ? Theme.colorAccent : Theme.colorText2
-                    }
-
-                    PpPressable {
-                        id: updActionMa
-                        onClicked: {
-                            if (updAction.mode === "download")      updateController.download()
-                            else if (updAction.mode === "restart")  updateController.relaunch()
-                            else                                    updateController.checkNow()
-                        }
+                    style: "tone"; size: "micro"; mono: true
+                    tone: (mode === "download" || mode === "restart") ? "accent" : ""
+                    label: UpdateStates.actionLabel(updAction.mode, "short")
+                    onClicked: {
+                        if (updAction.mode === "download")      updateController.download()
+                        else if (updAction.mode === "restart")  updateController.relaunch()
+                        else                                    updateController.checkNow()
                     }
                 }
             }
@@ -680,51 +624,22 @@ SettingsPanelBase {
             }
 
             // "Enabled" badge when installed.
-            Rectangle {
+            PpStatusPill {
                 visible: cudaRuntime.runtimeInstalled
                 Layout.alignment: Qt.AlignVCenter
-                implicitWidth:  gpuBadge.implicitWidth + Theme.sp(16)
-                implicitHeight: Theme.sp(26)
-                color:          Theme.colorGoodLight
-                border.width:   1
-                border.color:   Theme.colorGood
-                radius:         Theme.radius
-                Text {
-                    id: gpuBadge
-                    anchors.centerIn: parent
-                    text:           qsTr("✓  Enabled")
-                    font.family:    Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    color:          Theme.colorGood
-                }
+                tone: "good"
+                text: qsTr("✓  Enabled")
             }
 
             // Install action when a GPU is present but the runtime isn't (opens the
             // official release page so the -cuda installer is fetched over HTTPS).
-            Rectangle {
+            PpButton {
                 id: gpuInstall
                 visible: cudaRuntime.shouldOffer
                 Layout.alignment: Qt.AlignVCenter
-                implicitWidth:  gpuInstallText.implicitWidth + Theme.sp(20)
-                implicitHeight: Theme.sp(26)
-                radius:         Theme.radius
-                color:          gpuInstallMa.containsMouse ? Theme.colorAccentLight : "transparent"
-                border.width:   1
-                border.color:   Theme.colorAccent
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                Text {
-                    id: gpuInstallText
-                    anchors.centerIn: parent
-                    text:           qsTr("Install GPU acceleration")
-                    font.family:    Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    color:          Theme.colorAccent
-                }
-                PpPressable {
-                    id: gpuInstallMa
-                    onClicked:    cudaRuntime.openDownloadPage()
-                }
+                style: "tone"; tone: "accent"; size: "micro"; mono: true
+                label: qsTr("Install GPU acceleration")
+                onClicked: cudaRuntime.openDownloadPage()
             }
         }
     }
@@ -733,15 +648,11 @@ SettingsPanelBase {
 
     // ── Group 4 — Cloud fallback ──────────────────────────────────────────
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Cloud fallback")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Cloud fallback")) }
 
-    Text {
+    PpCardNote {
+        kind: "plain"
         text: qsTr("Run speech and AI in the cloud when no local GPU is available — or always. Each provider needs an API key entered below; that key is the source used for the cloud service.")
-        font.family:      Theme.fontBody
-        font.pixelSize:   Theme.fontSzBody2
-        font.weight:      Theme.fontBodyWeight
-        color:            Theme.colorText3
-        wrapMode:         Text.WordWrap
         Layout.fillWidth: true
     }
 

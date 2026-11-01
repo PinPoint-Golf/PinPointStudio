@@ -49,15 +49,16 @@ WizardPage {
         anchors.margins: Theme.gap(8)
         spacing:         Theme.gap(12)
 
-        SetupStepIntro {
+        PpPageHeader {
+            style:               "setup"
             Layout.fillWidth:    true
             Layout.maximumWidth: Theme.contentWidth(page.width)
             Layout.topMargin:    Theme.gap(32)
-            eyebrow:          page.stepLabel
-            heading:          qsTr("Check your sensor")
-            body:             qsTr("Move your arm slowly in all directions. The 3D model should track your movement precisely. If it doesn't, go back and recalibrate.")
-            headingPixelSize: Math.min(Theme.sp(22), Theme.fontSzDisplay)
-            rule:             false
+            eyebrow:             page.stepLabel
+            title:               qsTr("Check your sensor")
+            description:         qsTr("Move your arm slowly in all directions. The 3D model should track your movement precisely. If it doesn't, go back and recalibrate.")
+            titlePixelSize:      Math.min(Theme.sp(22), Theme.fontSzDisplay)
+            rule:                false
         }
 
         // Live tracking — the arm avatar is driven entirely by the calibrated sensors

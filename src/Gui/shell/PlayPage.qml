@@ -34,28 +34,11 @@ Item {
 
             Repeater {
                 model: [qsTr("Motion sensor"), qsTr("Audio"), qsTr("AI"), qsTr("Pose")]
-                delegate: TabButton {
+                delegate: PpTabButton {
                     required property string modelData
                     required property int index
+                    style: "underline"
                     text: modelData
-                    contentItem: Text {
-                        text: parent.text
-                        color: parent.checked ? Theme.colorText : Theme.colorText3
-                        font.family: Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        font.weight: Font.Normal
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    background: Rectangle {
-                        color: parent.checked ? Theme.colorBg : Theme.colorBg2
-                        Rectangle {
-                            anchors.bottom: parent.bottom
-                            width: parent.width
-                            height: 2
-                            color: parent.parent.checked ? Theme.colorAccent : "transparent"
-                        }
-                    }
                 }
             }
         }

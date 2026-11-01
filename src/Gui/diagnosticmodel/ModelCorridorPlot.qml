@@ -301,7 +301,7 @@ Item {
                               + " " + (root._found ? root._shown.unit : "")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.dark ? Theme.colorBg : "#FFFFFF"
+                        color:          Theme.colorOnAccentBright
                     }
                 }
 

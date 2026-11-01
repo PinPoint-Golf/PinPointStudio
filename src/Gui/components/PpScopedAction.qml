@@ -40,10 +40,9 @@ Rectangle {
     // Hover brighten + scale/dip — the PpButton language. Primary (amber)
     // lightens; the outline variant fades a faint fill in (alpha-ramped rest
     // so no colour flash).
-    readonly property color _rest: primary ? Theme.colorAttentionLight
-                                           : Qt.alpha(Theme.colorBg2, 0)
-    color:        saMa.containsMouse ? (primary ? Qt.lighter(_rest, 1.08) : Theme.colorBg2)
-                                     : _rest
+    color:        primary ? (saMa.containsMouse ? Qt.lighter(Theme.colorAttentionLight, 1.08)
+                                                : Theme.colorAttentionLight)
+                          : Theme.hoverFill(saMa.containsMouse, Theme.colorBg2)
     border.width: 1
     border.color: primary ? Theme.colorAttention : Theme.colorBorderStrong
     Behavior on color { ColorAnimation { duration: Theme.durationFast } }

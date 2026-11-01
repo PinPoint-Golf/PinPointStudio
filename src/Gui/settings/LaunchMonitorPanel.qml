@@ -82,25 +82,17 @@ SettingsPanelBase {
 
     // ── Page header ───────────────────────────────────────────────────────────
 
-    SettingsSectionHead { text: qsTr("Devices") }
-
-    PpDisplayText {
-        text: qsTr("Launch Monitor")
-    }
-
-    Text {
-        text: qsTr("A launch monitor measures ball and club data we cannot see optically — face angle, spin, strike location — and measures several we estimate ourselves. Both are kept: its readings are stored alongside our own, never in place of them, so the two can be compared shot by shot.")
-        font.family:      Theme.fontBody
-        font.pixelSize:   Theme.fontSzBody2
-        font.weight:      Theme.fontBodyWeight
-        color:            Theme.colorText3
-        wrapMode:         Text.WordWrap
+    PpPageHeader {
         Layout.fillWidth: true
+        spacing:     root.contentSpacing
+        eyebrow:     qsTr("Devices")
+        title:       qsTr("Launch Monitor")
+        description: qsTr("A launch monitor measures ball and club data we cannot see optically — face angle, spin, strike location — and measures several we estimate ourselves. Both are kept: its readings are stored alongside our own, never in place of them, so the two can be compared shot by shot.")
     }
 
     // ── Group 1 — Connection ──────────────────────────────────────────────────
 
-    SettingsSectionHead { text: qsTr("Connection") }
+    PpMicro { kind: "body"; text: qsTr("Connection") }
 
     // Device
     SettingsRow {
@@ -293,7 +285,7 @@ SettingsPanelBase {
 
     // ── Group 2 — Behaviour ───────────────────────────────────────────────────
 
-    SettingsSectionHead { text: qsTr("Behaviour") }
+    PpMicro { kind: "body"; text: qsTr("Behaviour") }
 
     // Arrival chime
     SettingsRow {

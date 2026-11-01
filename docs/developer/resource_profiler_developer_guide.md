@@ -518,7 +518,7 @@ Three properties worth knowing:
 | `src/Gui/monitor/RmProfilerRow.qml` | Scope table row component. |
 | `src/Gui/monitor/RmStatRow.qml` | STATS HISTORY row component (time / category / message). |
 | `src/Gui/monitor/RmAnalysisRunRow.qml` | ANALYSIS RUNS row + the expandable timeline: critical-path line, thread lanes, waterfall (§5). |
-| `src/Gui/monitor/RmDeviceCard.qml`, `RmSourceRow.qml`, `RmTimelineChart.qml`, `RmWarningNotice.qml` | The buffer/device half of the screen. |
+| `src/Gui/monitor/RmDeviceCard.qml`, `RmSourceRow.qml`, `RmTimelineChart.qml` | The buffer/device half of the screen (its warning is the shared `PpNotice`). |
 | `src/Core/tests/` | 7 GoogleTest targets: `pp_profiler_test`, `pp_profiler_concurrency_test` (TSan), `pp_profiler_compileout_test`, `pp_os_metrics_test`, `pp_gpu_metrics_test`, `pp_stats_log_test`, `profiler_controller_test`. |
 
 ### Running the tests

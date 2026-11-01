@@ -62,11 +62,15 @@ Item {
         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
         spacing: Theme.gap(10)
 
-        SetupStatusCircle {
+        PpBadge {
+            kind:    "status"
+            size:    Theme.sp(17)
             opacity: cr.disabled ? 0.45 : 1.0
-            ok:    !cr.disabled && cr.ok
-            warn:  !cr.disabled && !cr.ok && cr.warn
-            error: !cr.disabled && !cr.ok && !cr.warn && !cr.optional
+            status:  cr.disabled ? ""
+                   : cr.ok       ? "good"
+                   : cr.warn     ? "warn"      // amber: found but not ready (assigned, not connected)
+                   : cr.optional ? ""
+                   :               "error"     // red: a hard failure (not found, not assigned)
         }
 
         Column {
@@ -142,27 +146,14 @@ Item {
         }
 
         // Status chip — e.g. "Connecting", "Connection Failed", "Connected"
-        Rectangle {
-            visible:        cr.chipText !== ""
-            implicitWidth:  chipLbl.implicitWidth + Theme.sp(14)
-            implicitHeight: Theme.sp(20)
-            radius:         Theme.sp(4)
-            color:          cr.chipColor
-            border.width:   1
-            border.color:   cr.chipTextColor
-            Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-            Text {
-                id: chipLbl
-                anchors.centerIn:   parent
-                text:               cr.chipText
-                font.family:        Theme.fontData
-                font.pixelSize:     Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingData
-                color:              cr.chipTextColor
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-            }
+        PpStatusPill {
+            visible:  cr.chipText !== ""
+            style:    "chip"
+            animated: true
+            text:     cr.chipText
+            fg:       cr.chipTextColor
+            bg:       cr.chipColor
+            edge:     cr.chipTextColor
         }
     }
 }

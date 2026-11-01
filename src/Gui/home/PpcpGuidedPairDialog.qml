@@ -105,12 +105,7 @@ Popup {
     padding: Theme.gap(24)
     width: Math.min(Theme.sp(520), (parent ? parent.width : Theme.sp(520)) - Theme.sp(48))
 
-    background: Rectangle {
-        color: Theme.colorSurface
-        radius: Theme.radiusLg
-        border.width: 1
-        border.color: Theme.colorBorderStrong
-    }
+    background: PpPopoverCard { style: "plain" }
 
     onClosed: {
         // 11.9a — closing mid-exchange ends the attempt and leaves no pairing

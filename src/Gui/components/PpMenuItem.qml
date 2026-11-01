@@ -31,8 +31,14 @@
 //   }
 //
 // A menu that sizes itself to its lines reads `contentImplicitWidth` (glyph + words, no margins).
+//
+// style "compact" is the model editor's ⋯ drawer row (ModelTools): 30 px and square-cornered, the
+// smaller words cut short rather than wrapped, `tail` in the data face after them, the hover wash
+// without a fade, and the error ink (not the warn) for a destructive row. No glyph, no note.
+// It is sized by its layout (an implicit height), as the drawer is a ColumnLayout.
 
 import QtQuick
+import QtQuick.Layouts
 import PinPointStudio
 
 Rectangle {
@@ -46,20 +52,26 @@ Rectangle {
     property bool   warn:     false     // destructive: the warn ink and hover wash
     property bool   linkNote: false     // the note is the way to fix it (accent)
     property int    fontWeight: Theme.fontBodyWeight
+    property string style:    ""        // "" | "compact"
     signal triggered()
+
+    readonly property bool _compact: style === "compact"
 
     readonly property real contentImplicitWidth: (lead.visible ? lead.implicitWidth + line.spacing : 0)
                                                  + words.implicitWidth
 
     width: parent ? parent.width : 0
-    height: Math.max(Theme.sp(34), words.implicitHeight + Theme.sp(14))
-    radius: Theme.radius
-    color: !it.active ? "transparent"
+    height: it._compact ? Theme.sp(30) : Math.max(Theme.sp(34), words.implicitHeight + Theme.sp(14))
+    implicitHeight: it._compact ? Theme.sp(30) : 0
+    radius: it._compact ? 0 : Theme.radius
+    color: it._compact ? (compactHover.hovered ? Theme.colorBg2 : "transparent")
+         : !it.active ? "transparent"
          : itPress.containsMouse ? (it.warn ? Theme.colorWarnLight : Theme.colorBg2) : "transparent"
-    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+    Behavior on color { enabled: !it._compact; ColorAnimation { duration: Theme.durationFast } }
 
     Row {
         id: line
+        visible: !it._compact
         anchors { left: parent.left; leftMargin: Theme.gap(10); verticalCenter: parent.verticalCenter }
         spacing: Theme.gap(10)
         Text {
@@ -89,12 +101,38 @@ Rectangle {
         }
     }
     PpMicro {   // count tail
-        visible: it.tail !== ""
+        visible: it.tail !== "" && !it._compact
         anchors { right: parent.right; rightMargin: Theme.gap(10); verticalCenter: parent.verticalCenter }
         text: it.tail
         font.letterSpacing: Theme.trackingData
         color:   it.warn ? Theme.colorWarn : Theme.colorText3
         opacity: it.warn ? 0.7 : 1.0
+    }
+    HoverHandler { id: compactHover; enabled: it._compact }
+    RowLayout {   // the compact row: words, then the tail
+        visible: it._compact
+        anchors.fill: parent
+        anchors.leftMargin:  Theme.gap(14)
+        anchors.rightMargin: Theme.gap(14)
+        spacing: Theme.gap(8)
+
+        Text {
+            Layout.fillWidth: true
+            text: it.text
+            font.family:    Theme.fontBody
+            font.pixelSize: Theme.fontSzBody2
+            font.weight:    it.fontWeight
+            color:          it.warn ? Theme.colorError : Theme.colorText
+            elide:          Text.ElideRight
+        }
+        Text {
+            text:    it.tail
+            visible: text.length > 0
+            font.family:    Theme.fontData
+            font.pixelSize: Theme.fontSzMicro
+            color:          it.warn ? Theme.colorError : Theme.colorText3
+            opacity:        it.warn ? 0.75 : 1.0
+        }
     }
     PpPressable {
         id: itPress

@@ -295,40 +295,23 @@ Item {
     // avoid. `calibrationFailed` is set by both routines, so _failed needs nothing.
     // ⚠ FAILED TAKES PRECEDENCE OVER CALIBRATING (CW4): a lead sensor that drops mid-run leaves
     // calibPhase ≥ 1, and testing that first kept the badge on "Calibrating" over a dead run.
-    component StatusBadge: Rectangle {
+    component StatusBadge: PpStatusPill {
         readonly property bool _complete:    d.calibrationDone
         readonly property bool _calibrating: !d.calibrationDone && !_failed
                                              && (d.calibPhase >= 1
                                                  || (d.isHackMotion && d.hmStep >= 1 && d.hmStep <= 4))
         readonly property bool _failed:      (d.calibrationFailed || d.mountFailed) && !d.calibrationDone
 
-        implicitWidth:  statusBadgeLbl.implicitWidth + Theme.sp(16)
-        implicitHeight: Theme.sp(22)
-        height:         Theme.sp(22)
-        radius:         Theme.sp(11)
-        color: _complete    ? Theme.colorGoodLight
-             : _calibrating ? Theme.colorAccentLight
-             : _failed      ? Theme.colorErrorLight
-             :                Theme.colorBg3
-        border.color: _complete    ? Theme.colorGood
-                    : _calibrating ? Theme.colorAccent
-                    : _failed      ? Theme.colorError
-                    :                Theme.colorBorderMid
-
-        Text {
-            id: statusBadgeLbl
-            anchors.centerIn: parent
-            text: parent._complete    ? qsTr("Complete")
-                : parent._calibrating ? qsTr("Calibrating")
-                : parent._failed      ? qsTr("Failed")
-                :                       qsTr("Pending")
-            font.family:    Theme.fontData
-            font.pixelSize: Theme.fontSzMicro
-            color: parent._complete    ? Theme.colorGood
-                 : parent._calibrating ? Theme.colorAccent
-                 : parent._failed      ? Theme.colorError
-                 :                       Theme.colorText3
-        }
+        style:  "round"
+        height: Theme.sp(22)
+        tone: _complete    ? "good"
+            : _calibrating ? "accent"
+            : _failed      ? "error"
+            :                ""
+        text: _complete    ? qsTr("Complete")
+            : _calibrating ? qsTr("Calibrating")
+            : _failed      ? qsTr("Failed")
+            :                qsTr("Pending")
     }
 
     // An invisible part is skipped by Column and ColumnLayout alike, so a part hidden for the

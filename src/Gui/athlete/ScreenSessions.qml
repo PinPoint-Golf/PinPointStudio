@@ -103,7 +103,7 @@ Item {
                         color: Theme.colorText3
                     }
                 }
-                PpTextField {
+                PpSearchField {
                     id: search
                     objectName: "sessionsSearch"
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
@@ -209,17 +209,14 @@ Item {
             }
 
             // ── The hint, until the first selection ──────────────────────────
-            Text {
+            PpCardNote {
                 objectName: "sessionsHint"
-                visible: !root.hintSeen && list.shown > 0
-                width:   mainCol.width
+                kind:       "plain"
+                visible:    !root.hintSeen && list.shown > 0
+                width:      mainCol.width
                 topPadding: Theme.gap(14)
-                text: [qsTr("Click a row to select or deselect"), qsTr("Shift-click for a range"),
-                       qsTr("Hover for Review, or double-click, to open in Live"), qsTr("Esc clears")].join("   ·   ")
-                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                font.weight: Theme.fontBodyWeight
-                color: Theme.colorText3
-                wrapMode: Text.WordWrap
+                text:       [qsTr("Click a row to select or deselect"), qsTr("Shift-click for a range"),
+                             qsTr("Hover for Review, or double-click, to open in Live"), qsTr("Esc clears")].join("   ·   ")
             }
         }
     }
@@ -239,8 +236,8 @@ Item {
         id: toast
         objectName: "sessionsToast"
         showUndo: false
-        anchors { horizontalCenter: parent.horizontalCenter; bottom: bar.visible ? bar.top : parent.bottom
-                  bottomMargin: Theme.sp(16) }
+        clearOf: bar
+        margin: Theme.sp(16)
     }
     Connections {
         target: list

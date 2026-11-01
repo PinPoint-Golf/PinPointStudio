@@ -239,24 +239,15 @@ Item {
     }
 
     // ── arrangement schematic card ──────────────────────────────────────────
-    component ArrangeCard: Rectangle {
+    // The shared tile (PpSelectTile): selected is the accent wash + accent border,
+    // hover a faint bg fill + accentMid border, with the press scale/dip.
+    component ArrangeCard: PpSelectTile {
         property string value: ""
         property string label: ""
         readonly property bool active: ViewLayout.arrangementFor(SessionMode.mode) === value
         height: Theme.sp(46)
-        radius: Theme.radius
-        // Selected: accent wash + accent border. Hover (unselected): faint bg fill
-        // (alpha-ramped → no flash) + border eases to accentMid — the chip/tile
-        // language; pairs with the PpPressable scale/dip below.
-        color: active              ? Theme.colorAccentLight
-             : cardMa.containsMouse ? Theme.colorBg2
-             :                        Qt.alpha(Theme.colorBg2, 0)
-        border.width: 1
-        border.color: active              ? Theme.colorAccent
-                    : cardMa.containsMouse ? Theme.colorAccentMid
-                    :                        Theme.colorBorderMid
-        Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+        selected: active
+        onClicked: ViewLayout.setArrangement(SessionMode.mode, value)
 
         Column {
             anchors.centerIn: parent
@@ -289,30 +280,18 @@ Item {
                 color: active ? Theme.colorAccent : Theme.colorText2
             }
         }
-        PpPressable { id: cardMa; onClicked: ViewLayout.setArrangement(SessionMode.mode, value) }
     }
 
     // ── timeline orientation card (mirrors ArrangeCard, writes appSettings) ──
-    component OrientCard: Rectangle {
+    component OrientCard: PpSelectTile {
         id: orientCard
         property string value: ""
         property string label: ""
         property bool   horizontalGlyph: true
         readonly property bool active: appSettings.timelineOrientation === value
         height: Theme.sp(46)
-        radius: Theme.radius
-        // Selected: accent wash + accent border. Hover (unselected): faint bg fill
-        // (alpha-ramped → no flash) + border eases to accentMid — the chip/tile
-        // language; pairs with the PpPressable scale/dip below.
-        color: active                ? Theme.colorAccentLight
-             : orientMa.containsMouse ? Theme.colorBg2
-             :                          Qt.alpha(Theme.colorBg2, 0)
-        border.width: 1
-        border.color: active                ? Theme.colorAccent
-                    : orientMa.containsMouse ? Theme.colorAccentMid
-                    :                          Theme.colorBorderMid
-        Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+        selected: active
+        onClicked: appSettings.timelineOrientation = orientCard.value
 
         Column {
             anchors.centerIn: parent
@@ -335,6 +314,5 @@ Item {
                 color: orientCard.active ? Theme.colorAccent : Theme.colorText2
             }
         }
-        PpPressable { id: orientMa; onClicked: appSettings.timelineOrientation = orientCard.value }
     }
 }

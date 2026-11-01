@@ -75,13 +75,13 @@ Item {
         spacing: Theme.gap(10)
 
         // Status dot
-        Rectangle {
-            width:  Theme.sp(6)
-            height: Theme.sp(6)
-            radius: Theme.sp(3)
-            color:  card.statusColor
+        PpBadge {
+            kind:     "dot"
+            plain:    true
+            size:     Theme.sp(6)
+            tone:     card.statusColor
+            animated: true
             Layout.alignment: Qt.AlignVCenter
-            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
         }
     }
 }

@@ -218,16 +218,11 @@ Item {
             y:       32
 
             // ── Header ───────────────────────────────────────────────────────
-            Text {
-                text:               Theme.caps(qsTr("Athlete profile"))
-                font.family:        Theme.fontData
-                font.pixelSize:     Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro
-                color:              Theme.colorText3
-                bottomPadding:      10
-            }
-            PpDisplayText {
-                text: root.editUuid === "" ? qsTr("New athlete") : qsTr("Edit athlete")
+            PpPageHeader {
+                style:      "screen"
+                eyebrowGap: 10
+                eyebrow:    Theme.caps(qsTr("Athlete profile"))
+                title:      root.editUuid === "" ? qsTr("New athlete") : qsTr("Edit athlete")
             }
             Item { width: 1; height: 6 }
 
@@ -236,16 +231,11 @@ Item {
                 width:   parent.width
                 spacing: 0
 
-                Text {
-                    width:          parent.width
-                    text:           qsTr("Only the first two fields are required. The rest sharpen analysis and personalise coaching output.")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Theme.fontBodyWeight
-                    color:          Theme.colorText3
-                    wrapMode:       Text.WordWrap
-                    lineHeight:     1.5
-                    bottomPadding:  24
+                PpCardNote {
+                    kind:          "form"
+                    width:         parent.width
+                    text:          qsTr("Only the first two fields are required. The rest sharpen analysis and personalise coaching output.")
+                    bottomPadding: 24
                 }
 
                 // ── Required group ───────────────────────────────────────────────
@@ -309,11 +299,12 @@ Item {
                                 placeholderText: root.heightUnit === "ft" ? "e.g. 5'11\"" : "e.g. 180"
                                 inputMethodHints: Qt.ImhFormattedNumbersOnly
                             }
-                            PpUnitToggle {
+                            PpSegmentedControl {
                                 id: heightUnitToggle
-                                units:    ["ft", "cm"]
+                                style:    "unit"
+                                options:  ["ft", "cm"]
                                 selected: root.heightUnit
-                                onSelectionChanged: function(unit) {
+                                onActivated: function(unit) {
                                     const val = parseFloat(heightField.text)
                                     if (!isNaN(val) && val > 0) {
                                         if (unit === "cm" && root.heightUnit === "ft")
@@ -341,11 +332,12 @@ Item {
                                 placeholderText: root.weightUnit === "lb" ? "e.g. 178" : "e.g. 80"
                                 inputMethodHints: Qt.ImhFormattedNumbersOnly
                             }
-                            PpUnitToggle {
+                            PpSegmentedControl {
                                 id: weightUnitToggle
-                                units:    ["lb", "kg"]
+                                style:    "unit"
+                                options:  ["lb", "kg"]
                                 selected: root.weightUnit
-                                onSelectionChanged: function(unit) {
+                                onActivated: function(unit) {
                                     const val = parseFloat(weightField.text)
                                     if (!isNaN(val) && val > 0) {
                                         if (unit === "kg" && root.weightUnit === "lb")

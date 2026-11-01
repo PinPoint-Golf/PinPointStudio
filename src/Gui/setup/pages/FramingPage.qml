@@ -163,11 +163,12 @@ WizardPage {
         anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.gap(32) }
         spacing: Theme.gap(16)
 
-        SetupStepIntro {
-            width:   parent.width
-            eyebrow: page.stepLabel
-            heading: qsTr("Frame the whole swing")
-            body:    qsTr("Hold your club at the top of your backswing, then at your finish. Every camera must see your hands below the top third of its frame and the clubhead in the picture.")
+        PpPageHeader {
+            style:       "setup"
+            width:       parent.width
+            eyebrow:     page.stepLabel
+            title:       qsTr("Frame the whole swing")
+            description: qsTr("Hold your club at the top of your backswing, then at your finish. Every camera must see your hands below the top third of its frame and the clubhead in the picture.")
         }
 
         Repeater {

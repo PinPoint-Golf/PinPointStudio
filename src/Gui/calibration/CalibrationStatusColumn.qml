@@ -80,22 +80,16 @@ Column {
 
     function _name(part) { return namePrefix !== "" ? namePrefix + part : "" }
 
-    Text {
-        visible:            col.showHeader
-        width:              parent.width
-        text:               col.stepLabel
-        font.family:        Theme.fontData
-        font.pixelSize:     Theme.fontSzMicro
-        font.letterSpacing: Theme.trackingMicro
-        color:              Theme.colorText3
-    }
-
-    PpDisplayText {
-        visible:   col.showHeader
-        width:     parent.width
-        text:      col.title
-        pixelSize: Math.min(Theme.sp(18), Theme.fontSzDisplay)
-        wrapMode:  Text.WordWrap
+    // The step label and the title, at the column's own spacing (no body, no hairline).
+    PpPageHeader {
+        visible:        col.showHeader
+        width:          parent.width
+        style:          "setup"
+        spacing:        col.spacing
+        rule:           false
+        eyebrow:        col.stepLabel
+        title:          col.title
+        titlePixelSize: Math.min(Theme.sp(18), Theme.fontSzDisplay)
     }
 
     // The slots are Columns at the column's own spacing: an empty one has no height and is skipped,
@@ -221,11 +215,7 @@ Column {
             font.pixelSize:     line.big ? Theme.fontSzHeading : Theme.fontSzMicro
             font.bold:          line.big
             font.letterSpacing: Theme.trackingData
-            color: line.tone === "good"   ? Theme.colorGood
-                 : line.tone === "error"  ? Theme.colorError
-                 : line.tone === "warn"   ? Theme.colorWarn
-                 : line.tone === "accent" ? Theme.colorAccent
-                 :                          Theme.colorText3
+            color: Theme.toneColor(line.tone)
             Behavior on font.pixelSize { enabled: line.animated; NumberAnimation { duration: Theme.durationNormal } }
             Behavior on color           { enabled: line.animated; ColorAnimation  { duration: Theme.durationNormal } }
         }

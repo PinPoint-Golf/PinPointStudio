@@ -41,25 +41,16 @@ Popup {
     padding: 0
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
-    background: Rectangle {
-        color:        Theme.colorSurface
-        radius:       Theme.radius
-        border.width: 1
-        border.color: Theme.colorBorderStrong
-    }
+    background: PpPopoverCard { style: "plainTight" }
 
     contentItem: ColumnLayout {
         spacing: 0
 
-        Text {
+        PpMicro {
+            kind:                "body"
             Layout.margins:      Theme.gap(14)
             Layout.bottomMargin: Theme.gap(4)
             text:                qsTr("How it grades")
-            font.family:         Theme.fontBody
-            font.pixelSize:      Theme.fontSzMicro
-            font.letterSpacing:  Theme.trackingMicro
-            font.capitalization: Theme.capsFont
-            color:               Theme.colorText3
         }
 
         // The policy is one comparable thing across athletes and shared packs, which is why it is

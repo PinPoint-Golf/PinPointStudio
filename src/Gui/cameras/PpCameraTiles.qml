@@ -109,10 +109,6 @@ Item {
          && ViewLayout.elementMode(SessionMode.mode, "shaft") === "frame")
         ? Theme.caps(qsTr("P  ● fitted  ○ sampled")) : ""
 
-    // Chrome that floats over the footage (the picture-in-picture's halo and transport): the
-    // overlay palette's dark ink, fixed across themes, under the palette's lightest words.
-    readonly property color _onScrim: Theme.dark ? Theme.colorText : Theme.colorBg
-
     // ── Best fit ────────────────────────────────────────────────────────────
     // The tiles scale to whatever box the stage gives the card — a full-width tab, a third, a
     // pane dragged narrow or tall. Every tile keeps its own aspect, and tiles side by side share
@@ -519,30 +515,15 @@ Item {
             readonly property real  pos:  shotReplay.impactPositionUs
             readonly property real  frac: (t1 > t0 && pos >= 0) ? Math.max(0, Math.min(1, (pos - t0) / (t1 - t0))) : 0
 
-            component PipBtn: Rectangle {
-                property string glyph: ""
-                signal acted()
-                width: Theme.sp(20); height: Theme.sp(18); radius: Theme.radius - 1
-                color: pbma.containsMouse ? Qt.alpha(root._onScrim, 0.16) : "transparent"
-                Text {
-                    anchors.centerIn: parent
-                    text: parent.glyph
-                    font.family: Theme.fontSymbol
-                    font.pixelSize: Theme.sp(11)
-                    color: root._onScrim
-                }
-                PpPressable { id: pbma; onClicked: parent.acted() }
-            }
-
             Row {
                 id: pipBtns
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.gap(4)
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.gap(2)
-                PipBtn { glyph: shotReplay.impactLoopPlaying ? "⏸" : "▶"; onActed: shotReplay.toggleImpactLoop() }
-                PipBtn { glyph: "◂"; onActed: shotReplay.stepImpactFrame(-1) }
-                PipBtn { glyph: "▸"; onActed: shotReplay.stepImpactFrame(1) }
+                PpButton { style: "scrim"; size: "iconSmall"; glyph: shotReplay.impactLoopPlaying ? "⏸" : "▶"; onClicked: shotReplay.toggleImpactLoop() }
+                PpButton { style: "scrim"; size: "iconSmall"; glyph: "◂"; onClicked: shotReplay.stepImpactFrame(-1) }
+                PpButton { style: "scrim"; size: "iconSmall"; glyph: "▸"; onClicked: shotReplay.stepImpactFrame(1) }
             }
 
             // The scrub track — the loop band, with the clip's own playhead.
@@ -559,7 +540,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.left: parent.left; anchors.right: parent.right
                     height: 2
-                    color: Qt.alpha(root._onScrim, 0.3)
+                    color: Qt.alpha(Theme.colorOnScrim, 0.3)
                 }
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter

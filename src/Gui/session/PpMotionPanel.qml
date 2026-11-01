@@ -312,49 +312,20 @@ Item {
     // ── preset list row — ArrangeCard's selection language, row-shaped ──────
     // Self-contained: resolves its own active state and applies itself
     // directly, needing only the preset's id/label/hint from the caller.
-    component PresetRow: Rectangle {
+    component PresetRow: PpSelectTile {
         property string presetId:    ""
         property string presetLabel: ""
         property string presetHint:  ""
-        readonly property bool active: {
+        selected: {
             var cur = ViewLayout.motionPreset(SessionMode.mode)
             return cur !== "custom" && cur === presetId
         }
 
         width: parent.width
         height: Theme.sp(46)
-        radius: Theme.radius
-        // Selected: accent wash + accent border. Hover (unselected): faint bg
-        // fill (alpha-ramped → no flash) + border eases to accentMid — mirrors
-        // PpViewPanel's ArrangeCard exactly, just row-shaped.
-        color: active                ? Theme.colorAccentLight
-             : rowPress.containsMouse ? Theme.colorBg2
-             :                          Qt.alpha(Theme.colorBg2, 0)
-        border.width: 1
-        border.color: active                ? Theme.colorAccent
-                    : rowPress.containsMouse ? Theme.colorAccentMid
-                    :                          Theme.colorBorderMid
-        Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-        Column {
-            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
-                      leftMargin: Theme.gap(12); rightMargin: Theme.gap(12) }
-            spacing: Theme.gap(2)
-            Text {
-                width: parent.width
-                text: presetLabel; elide: Text.ElideRight
-                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                color: active ? Theme.colorAccent : Theme.colorText
-            }
-            Text {
-                width: parent.width
-                text: presetHint; elide: Text.ElideRight
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                color: Theme.colorText3
-            }
-        }
-        PpPressable { id: rowPress; onClicked: ViewLayout.applyPreset(SessionMode.mode, presetId) }
+        title: presetLabel
+        text:  presetHint
+        onClicked: ViewLayout.applyPreset(SessionMode.mode, presetId)
     }
 
     // ── element row: label + 4-segment off/frame/fan/trace control ─────────
@@ -396,22 +367,24 @@ Item {
     }
 
     // ── compact 4-segment off/frame/fan/trace control ───────────────────────
-    // Local rather than PpSegmentedControl: segments need per-cell disable
-    // (Ball's fan/trace are ALWAYS disabled; any mode missing analysed data
-    // for the loaded swing is disabled too) and a glyph≠value mapping
-    // PpSegmentedControl doesn't support. Self-contained — reads SessionMode
-    // and shotReplay (both globally reachable) directly rather than needing
-    // values threaded in from the panel root.
-    component ElementSegmented: Rectangle {
+    // PpSegmentedControl's compact look: segments need per-cell disable (Ball's
+    // fan/trace are ALWAYS disabled; any mode missing analysed data for the
+    // loaded swing is disabled too) and a glyph≠value mapping, both of which it
+    // takes as object options. Self-contained — reads SessionMode and
+    // shotReplay (both globally reachable) directly rather than needing values
+    // threaded in from the panel root.
+    component ElementSegmented: PpSegmentedControl {
         id: seg
         property string elementKey: ""
-        readonly property var _segs: [
-            { value: "off",   glyph: "—" },
-            { value: "frame", glyph: "▣" },
-            { value: "fan",   glyph: "⧉" },
-            { value: "trace", glyph: "∿" }
+        style: "compact"
+        options: [
+            { value: "off",   label: "—", disabled: !seg._available("off")   },
+            { value: "frame", label: "▣", disabled: !seg._available("frame") },
+            { value: "fan",   label: "⧉", disabled: !seg._available("fan")   },
+            { value: "trace", label: "∿", disabled: !seg._available("trace") }
         ]
-        readonly property string _selected: ViewLayout.elementMode(SessionMode.mode, elementKey)
+        selected: ViewLayout.elementMode(SessionMode.mode, elementKey)
+        onActivated: (value) => ViewLayout.setElementMode(SessionMode.mode, seg.elementKey, value)
 
         // Why some of this element's modes are dimmed, in words ("" when every mode can draw).
         readonly property string reason: {
@@ -464,50 +437,6 @@ Item {
             // fan / trace — the additive smoothed series (re-analyse-gated;
             // missing on older swings, treated as unavailable).
             return !!(d && d.pose2d && d.pose2d.smoothed && d.pose2d.smoothed.length > 0)
-        }
-
-        width: Theme.sp(108); height: Theme.sp(24)
-        radius: height / 2
-        color: Theme.colorBg
-        border.width: 1
-        border.color: Theme.colorBorderMid
-
-        Row {
-            anchors.fill: parent
-            anchors.margins: Theme.gap(2)
-            spacing: Theme.gap(1)
-            Repeater {
-                model: seg._segs
-                delegate: Rectangle {
-                    required property var modelData
-                    readonly property bool active:    modelData.value === seg._selected
-                    readonly property bool available: seg._available(modelData.value)
-
-                    width:  (seg.width - Theme.sp(4) - Theme.sp(3)) / 4
-                    height: parent.height
-                    radius: height / 2
-                    opacity: available ? 1.0 : 0.35
-                    color: active               ? Theme.colorBg3
-                         : segPress.containsMouse ? Theme.colorBg3
-                         :                          Qt.alpha(Theme.colorBg3, 0)
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: modelData.glyph
-                        font.family: Theme.fontSymbol; font.pixelSize: Theme.fontSzBody2
-                        color: active ? Theme.colorAccent : Theme.colorText2
-                    }
-                    MouseArea {
-                        id: segPress
-                        anchors.fill: parent
-                        enabled: available
-                        hoverEnabled: true
-                        cursorShape: available ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        onClicked: ViewLayout.setElementMode(SessionMode.mode, seg.elementKey, modelData.value)
-                    }
-                }
-            }
         }
     }
 }

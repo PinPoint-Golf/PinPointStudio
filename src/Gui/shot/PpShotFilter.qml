@@ -151,7 +151,7 @@ Item {
                         font.pixelSize: Theme.fontSzMicro
                         // On its own quality colour: the page's dark in a dark theme, its
                         // surface in a light one.
-                        color:          bandSelected ? (Theme.dark ? Theme.colorBg : Theme.colorSurface)
+                        color:          bandSelected ? Theme.colorOnAccent
                                                      : Theme.qualityColor(modelData.lo)
                     }
 
@@ -323,7 +323,7 @@ Item {
                             PpBadge {
                                 anchors.verticalCenter: parent.verticalCenter
                                 kind: Theme.qualityMark(cell.score)
-                                tone: cell.picked ? (Theme.dark ? Theme.colorBg : Theme.colorSurface)
+                                tone: cell.picked ? Theme.colorOnAccent
                                                   : Theme.qualityColor(cell.score)
                                 size: Theme.sp(12)
                             }
@@ -332,7 +332,7 @@ Item {
                                 text:           cell.ordinal
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
-                                color:          cell.picked ? (Theme.dark ? Theme.colorBg : Theme.colorSurface)
+                                color:          cell.picked ? Theme.colorOnAccent
                                                             : Theme.qualityColor(cell.score)
                             }
                         }

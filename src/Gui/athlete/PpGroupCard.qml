@@ -61,12 +61,9 @@ Rectangle {
 
             RowLayout {
                 anchors { fill: parent; leftMargin: Theme.gap(14); rightMargin: Theme.gap(14) }
-                Text {
-                    text:           root.title
-                    font.family:    Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                    color:          Theme.colorText2
+                PpMicro {
+                    text:             root.title
+                    color:            Theme.colorText2
                     Layout.alignment: Qt.AlignVCenter
                 }
                 Item { Layout.fillWidth: true }

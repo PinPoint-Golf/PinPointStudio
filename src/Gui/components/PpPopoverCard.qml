@@ -18,11 +18,36 @@
 
 // A popup's background in the card family: the standard shell with a stronger hairline, so it
 // lifts off whatever it is drawn over, and a quiet rule. For a Popup's `background:`.
+//
+//   ""          the card: the rule in `tone` along the top (menus, sheets, the toolbar panels)
+//   plain       no rule, the large corner: a dialog's box (About, pairing, the confirm prompt)
+//   plainTight  no rule, the small corner: a dropdown's list and the model editor's popovers
+//
+// The plain styles draw only the surface and one hairline, in `borderColor` — a confirm prompt
+// rings in its tone, a picker that adds rather than picks in the accent.
 
 import QtQuick
 import PinPointStudio
 
-PpCardShell {
-    floating: true
-    tone:     Theme.colorText3
+Item {
+    id: card
+
+    property string style:       ""
+    property color  tone:        Theme.colorText3
+    property color  borderColor: Theme.colorBorderStrong
+
+    PpCardShell {
+        visible:      card.style === ""
+        anchors.fill: parent
+        floating:     true
+        tone:         card.tone
+    }
+    Rectangle {
+        visible:      card.style !== ""
+        anchors.fill: parent
+        radius:       card.style === "plainTight" ? Theme.radius : Theme.radiusLg
+        color:        Theme.colorSurface
+        border.width: 1
+        border.color: card.borderColor
+    }
 }

@@ -19,7 +19,7 @@ Audio (STT/TTS), AI Coach and Film pages; only reachable through PlayPage's deve
 Audio page (dev hatch): live speech-to-text transcript pane (CPU, GPU or Azure cloud) and a text-to-speech pane, in a vertical SplitView; model-download progress.  
 *(description written for this catalogue — the file has no header comment)*
 
-- **Uses:** `PpComboBox`
+- **Uses:** `PpComboBox`, `PpTextArea` (lab)
 - **Used by (1):** `PlayPage`
 
 ### CoachPage
@@ -29,6 +29,7 @@ AI Coach chat page: local LLM or cloud (Gemini) backend toggle, download/loading
 *(description written for this catalogue — the file has no header comment)*
 
 - **Functions:** `sendAndClear()`
+- **Uses:** `PpTextArea` (lab)
 - **Used by (1):** `PlayPage`
 
 ### FilmPage

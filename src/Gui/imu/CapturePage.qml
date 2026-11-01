@@ -89,7 +89,7 @@ Item {
             // One toggle chip per discovered IMU — same pattern as VideoPage camera chips.
             Repeater {
                 model: imuManager.imuList
-                delegate: Rectangle {
+                delegate: PpChoiceChip {
                     readonly property bool isConnecting: modelData.connecting
                     readonly property bool isConnected:  modelData.connected
 
@@ -97,38 +97,12 @@ Item {
                     // of range). A still-selected device stays present, so a
                     // connected IMU that stopped advertising is never hidden.
                     visible: modelData.present
-                    width:  imuChipLabel.implicitWidth + Theme.sp(16)
-                    height: Theme.sp(24)
-                    radius: Theme.radius
-
-                    color: modelData.selected
-                           ? (isConnected ? Theme.colorAccent : Theme.colorAccentLight)
-                           : Theme.colorSurface
-                    border.width: 1
-                    border.color: modelData.selected
-                                  ? Theme.colorAccent
-                                  : Theme.colorBorderMid
-
-                    Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
-                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                    scale: imuChipTap.pressed ? 0.97 : imuChipHover.hovered ? 1.02 : 1.0
-                    Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
-
-                    Text {
-                        id: imuChipLabel
-                        anchors.centerIn: parent
-                        text: modelData.alias || modelData.description
-                        color: (modelData.selected && isConnected)
-                               ? Theme.colorBg
-                               : modelData.selected
-                                 ? Theme.colorAccent
-                                 : Theme.colorText2
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody2
-                        font.weight:    Font.Normal
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    }
+                    // Solid once connected; picked but not yet connected is the accent wash.
+                    style:    "solidFlat"
+                    label:    modelData.alias || modelData.description
+                    selected: modelData.selected && isConnected
+                    pending:  modelData.selected && !isConnected
+                    onClicked: imuManager.setSelected(modelData.index, !modelData.selected)
 
                     // Pulsing ring while connecting
                     Rectangle {
@@ -145,17 +119,11 @@ Item {
                             NumberAnimation { to: 1.0; duration: 600; easing.type: Easing.InOutSine }
                         }
                     }
-
-                    TapHandler {
-                        id: imuChipTap
-                        onTapped: imuManager.setSelected(modelData.index, !modelData.selected)
-                    }
-                    HoverHandler { id: imuChipHover; cursorShape: Qt.PointingHandCursor }
                 }
             }
 
             // Scan button
-            Rectangle {
+            PpButton {
                 id: scanChip
                 // Bound to the manager's authoritative scan state — NOT a local
                 // 30 s timer. The discovery window is 90 s with HackMotion
@@ -164,42 +132,12 @@ Item {
                 // swallowed for the rest of the real window.
                 readonly property bool scanning: imuManager.imuScanActive
 
-                width:  scanMeasure.implicitWidth + Theme.sp(20)
-                height: Theme.sp(24)
-                radius: Theme.radius
-                color:  scanning ? Theme.colorAccentLight : "transparent"
-                border.width: 1
-                border.color: scanning ? Theme.colorAccent : Theme.colorBorderStrong
-                Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
-                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                scale: scanTap.pressed ? 0.97 : scanHover.hovered ? 1.02 : 1.0
-                Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
-
-                Text {
-                    id: scanMeasure
-                    visible: false
-                    text: qsTr("Scanning…")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Theme.fontBodyWeight
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    text:           scanChip.scanning ? qsTr("Scanning…") : qsTr("Scan")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Theme.fontBodyWeight
-                    color:          scanChip.scanning ? Theme.colorAccent : Theme.colorText2
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                }
-
-                TapHandler {
-                    id: scanTap
-                    onTapped: imuManager.rescanImu()
-                }
-                HoverHandler { id: scanHover; cursorShape: Qt.PointingHandCursor }
+                style: "washPlain"; size: "compact"
+                implicitHeight: Theme.sp(24)
+                active: scanning
+                sizeLabel: qsTr("Scanning…")
+                label: scanChip.scanning ? qsTr("Scanning…") : qsTr("Scan")
+                onClicked: imuManager.rescanImu()
             }
         }
 
@@ -232,73 +170,10 @@ Item {
                         border.color: Theme.colorBorderMid
                     }
 
-                    TabButton {
-                        text: qsTr("Viz")
-                        contentItem: Text {
-                            text: parent.text
-                            color: imuTabBar.currentIndex === 0 ? Theme.colorText : Theme.colorText3
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody
-                            font.weight:    Font.Normal
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment:   Text.AlignVCenter
-                        }
-                        background: Rectangle {
-                            color:  imuTabBar.currentIndex === 0 ? Theme.colorBg3 : "transparent"
-                            radius: Theme.radius - 1
-                        }
-                    }
-
-                    TabButton {
-                        text: qsTr("Log")
-                        contentItem: Text {
-                            text: parent.text
-                            color: imuTabBar.currentIndex === 1 ? Theme.colorText : Theme.colorText3
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody
-                            font.weight:    Font.Normal
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment:   Text.AlignVCenter
-                        }
-                        background: Rectangle {
-                            color:  imuTabBar.currentIndex === 1 ? Theme.colorBg3 : "transparent"
-                            radius: Theme.radius - 1
-                        }
-                    }
-
-                    TabButton {
-                        text: qsTr("Arm")
-                        contentItem: Text {
-                            text: parent.text
-                            color: imuTabBar.currentIndex === 2 ? Theme.colorText : Theme.colorText3
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody
-                            font.weight:    Font.Normal
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment:   Text.AlignVCenter
-                        }
-                        background: Rectangle {
-                            color:  imuTabBar.currentIndex === 2 ? Theme.colorBg3 : "transparent"
-                            radius: Theme.radius - 1
-                        }
-                    }
-
-                    TabButton {
-                        text: qsTr("Body")
-                        contentItem: Text {
-                            text: parent.text
-                            color: imuTabBar.currentIndex === 3 ? Theme.colorText : Theme.colorText3
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody
-                            font.weight:    Font.Normal
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment:   Text.AlignVCenter
-                        }
-                        background: Rectangle {
-                            color:  imuTabBar.currentIndex === 3 ? Theme.colorBg3 : "transparent"
-                            radius: Theme.radius - 1
-                        }
-                    }
+                    PpTabButton { text: qsTr("Viz") }
+                    PpTabButton { text: qsTr("Log") }
+                    PpTabButton { text: qsTr("Arm") }
+                    PpTabButton { text: qsTr("Body") }
                 }
 
                 // ── Persistent 3D views ───────────────────────────────────────
@@ -425,48 +300,20 @@ Item {
                         }
 
                         // Zero button
-                        Button {
+                        PpButton {
                             id: zeroBtn
-                            text: qsTr("Zero")
+                            style: "labOutline"; size: "lab"
+                            label: qsTr("Zero")
                             enabled: ctrl && ctrl.imuConnected
                             onClicked: if (ctrl) ctrl.zeroOrientation()
-                            contentItem: Text {
-                                text:  zeroBtn.text
-                                color: zeroBtn.enabled ? Theme.colorText2 : Theme.colorText3
-                                font.family:    Theme.fontBody
-                                font.pixelSize: Theme.fontSzBody
-                                font.weight:    Font.Normal
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment:   Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                color:        "transparent"
-                                border.width: 1
-                                border.color: zeroBtn.enabled ? Theme.colorBorderStrong : Theme.colorBorderMid
-                                radius: Theme.radius
-                            }
                         }
 
                         // Save Log button
-                        Button {
+                        PpButton {
                             id: saveLogBtn
-                            text: qsTr("Save Log")
+                            style: "labOutline"; size: "lab"
+                            label: qsTr("Save Log")
                             onClicked: if (ctrl) ctrl.saveLog()
-                            contentItem: Text {
-                                text:  saveLogBtn.text
-                                color: Theme.colorText2
-                                font.family:    Theme.fontBody
-                                font.pixelSize: Theme.fontSzBody
-                                font.weight:    Font.Normal
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment:   Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                color:        "transparent"
-                                border.width: 1
-                                border.color: Theme.colorBorderStrong
-                                radius: Theme.radius
-                            }
                         }
                     }
                 }

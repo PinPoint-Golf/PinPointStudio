@@ -271,16 +271,10 @@ Item {
 
             // Hover/press motion — the same language as the device pills, adapted
             // to a filled CTA: it brightens and grows a touch on hover, dips on
-            // press. A filled button has no border to ease, so the brighten plays
-            // the role bg2↔bg3 does on the pills. The colour Behavior also smooths
-            // the Capture↔Stop swap. Theme.durationFast + OutCubic; reduceMotion
-            // zeroes it.
-            transformOrigin: Item.Center
-            scale: capMa.pressed       ? 0.97
-                 : capMa.containsMouse ? 1.02
-                 :                       1.0
+            // press (PpPressable). A filled button has no border to ease, so the
+            // brighten plays the role bg2↔bg3 does on the pills. The colour
+            // Behavior also smooths the Capture↔Stop swap.
             Behavior on color { ColorAnimation  { duration: Theme.durationFast } }
-            Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
             Row {
                 id: captureLbl
                 anchors.centerIn: parent
@@ -289,21 +283,18 @@ Item {
                     width: Theme.sp(9); height: Theme.sp(9); radius: Theme.sp(4.5)
                     anchors.verticalCenter: parent.verticalCenter
                     color: root.captureLive ? Theme.colorError
-                                            : (Theme.dark ? Theme.colorBg : Theme.colorSurface)
+                                            : Theme.colorOnAccent
                 }
                 Text {
                     text: root.captureLive ? qsTr("Stop") : qsTr("Capture")
                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
                     color: root.captureLive ? Theme.colorError
-                                            : (Theme.dark ? Theme.colorBg : Theme.colorSurface)
+                                            : Theme.colorOnAccent
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
-            MouseArea {
+            PpPressable {
                 id: capMa
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     if (root.captureLive) {
                         cameraManager.stopCapture()
@@ -341,56 +332,23 @@ Item {
                     }
                     Row {
                         spacing: Theme.gap(8)
-                        Rectangle {
-                            width: extendLbl.implicitWidth + Theme.sp(20)
-                            height: Theme.sp(30); radius: Theme.radius
-                            color: extendMa.containsMouse ? Theme.colorAccentLight : "transparent"
-                            border.width: 1; border.color: Theme.colorAccentMid
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            Text {
-                                id: extendLbl
-                                anchors.centerIn: parent; text: qsTr("Extend")
-                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                                color: Theme.colorAccent
-                            }
-                            PpPressable {
-                                id: extendMa
-                                onClicked: { startPrompt.close(); root._beginSession(true) }
-                            }
+                        PpButton {
+                            style: "toneSoft"; tone: "accent"; size: "compact"
+                            implicitHeight: Theme.sp(30)
+                            label: qsTr("Extend")
+                            onClicked: { startPrompt.close(); root._beginSession(true) }
                         }
-                        Rectangle {
-                            width: newLbl.implicitWidth + Theme.sp(20)
-                            height: Theme.sp(30); radius: Theme.radius
-                            color: newMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
-                            border.width: 1; border.color: Theme.colorBorderMid
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            Text {
-                                id: newLbl
-                                anchors.centerIn: parent; text: qsTr("New session")
-                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                                color: Theme.colorText2
-                            }
-                            PpPressable {
-                                id: newMa
-                                onClicked: { startPrompt.close(); root._beginSession(false) }
-                            }
+                        PpButton {
+                            style: "subtle"; size: "compact"
+                            implicitHeight: Theme.sp(30)
+                            label: qsTr("New session")
+                            onClicked: { startPrompt.close(); root._beginSession(false) }
                         }
-                        Rectangle {
-                            width: cancelStartLbl.implicitWidth + Theme.sp(20)
-                            height: Theme.sp(30); radius: Theme.radius
-                            color: cancelStartMa.containsMouse ? Theme.colorBg3 : "transparent"
-                            border.width: 1; border.color: Theme.colorBorderMid
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            Text {
-                                id: cancelStartLbl
-                                anchors.centerIn: parent; text: qsTr("Cancel")
-                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                                color: Theme.colorText2
-                            }
-                            PpPressable {
-                                id: cancelStartMa
-                                onClicked: startPrompt.close()
-                            }
+                        PpButton {
+                            style: "ghost"; size: "compact"
+                            implicitHeight: Theme.sp(30)
+                            label: qsTr("Cancel")
+                            onClicked: startPrompt.close()
                         }
                     }
                 }
@@ -427,43 +385,19 @@ Item {
         // ── End Session (groups with the session controls) ──────────────────
         // Ghost button, only while a session is running. Confirmed via a small
         // anchored popup — the session clock can't be resumed once ended.
-        Rectangle {
+        // Matches the device pills' motion: held grown while the confirm popover
+        // is open. The border stays the quiet neutral — an End-session button
+        // shouldn't pull the accent.
+        PpButton {
             id: endBtn
             visible: sessionController.running && !sessionReviewController.reviewActive
             Layout.alignment: Qt.AlignVCenter
-            implicitWidth: endLbl.implicitWidth + Theme.sp(24)
+            style: "ghost"; size: "compact"
             implicitHeight: Theme.sp(40)
-            radius: Theme.radius
-            color: endMa.containsMouse ? Theme.colorBg2 : "transparent"
-            border.width: 1
-            border.color: Theme.colorBorderMid
-
-            // Hover/press motion — matches the device pills: subtle scale up on
-            // hover, held while the confirm popover is open, dip on press. The
-            // ghost fill (transparent↔bg2) already carries the hover brighten, and
-            // the border stays the quiet neutral — an End-session button shouldn't
-            // pull the accent. Theme.durationFast + OutCubic; reduceMotion zeroes it.
-            transformOrigin: Item.Center
-            scale: endMa.pressed                            ? 0.97
-                 : (endPopup.opened || endMa.containsMouse) ? 1.02
-                 :                                            1.0
-            Behavior on color { ColorAnimation  { duration: Theme.durationFast } }
-            Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
-
-            Text {
-                id: endLbl
-                anchors.centerIn: parent
-                text: qsTr("End Session")
-                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                color: Theme.colorText2
-            }
-            MouseArea {
-                id: endMa
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: endPopup.opened ? endPopup.close() : endPopup.open()
-            }
+            horizontalPadding: Theme.sp(24)
+            held: endPopup.opened
+            label: qsTr("End Session")
+            onClicked: endPopup.opened ? endPopup.close() : endPopup.open()
 
             // On a warn card: ending cannot be undone (the clock can't resume).
             Popup {
@@ -485,56 +419,34 @@ Item {
                     }
                     Row {
                         spacing: Theme.gap(8)
-                        Rectangle {
-                            width: confirmLbl.implicitWidth + Theme.sp(20)
-                            height: Theme.sp(30); radius: Theme.radius
-                            color: confirmMa.containsMouse ? Theme.colorErrorLight : "transparent"
-                            border.width: 1; border.color: Theme.colorError
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            Text {
-                                id: confirmLbl
-                                anchors.centerIn: parent; text: qsTr("End")
-                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                                color: Theme.colorError
-                            }
-                            PpPressable {
-                                id: confirmMa
-                                onClicked: {
-                                    endPopup.close()
-                                    cameraManager.stopCapture()
-                                    sessionController.endSession()
-                                    // Discard the session folder if it captured no
-                                    // new swings (moved to the OS trash — recoverable),
-                                    // then re-point the carousel at today's remaining
-                                    // most-recent session, or empty it.
-                                    shotProcessor.endSessionFolder()
-                                    shotModel.loadSessionDir(
-                                        shotProcessor.todaySessionDir(root.sessionType))
-                                    // Ending the session releases the devices:
-                                    // cameras stop + deselect, IMUs disconnect
-                                    // (BLE battery). The next session's wizard
-                                    // reconnects what it needs.
-                                    cameraManager.disconnectAll()
-                                    imuManager.disconnectAll()
-                                }
+                        PpButton {
+                            style: "tone"; tone: "error"; size: "compact"
+                            implicitHeight: Theme.sp(30)
+                            label: qsTr("End")
+                            onClicked: {
+                                endPopup.close()
+                                cameraManager.stopCapture()
+                                sessionController.endSession()
+                                // Discard the session folder if it captured no
+                                // new swings (moved to the OS trash — recoverable),
+                                // then re-point the carousel at today's remaining
+                                // most-recent session, or empty it.
+                                shotProcessor.endSessionFolder()
+                                shotModel.loadSessionDir(
+                                    shotProcessor.todaySessionDir(root.sessionType))
+                                // Ending the session releases the devices:
+                                // cameras stop + deselect, IMUs disconnect
+                                // (BLE battery). The next session's wizard
+                                // reconnects what it needs.
+                                cameraManager.disconnectAll()
+                                imuManager.disconnectAll()
                             }
                         }
-                        Rectangle {
-                            width: cancelLbl.implicitWidth + Theme.sp(20)
-                            height: Theme.sp(30); radius: Theme.radius
-                            color: cancelMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
-                            border.width: 1; border.color: Theme.colorBorderMid
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            Text {
-                                id: cancelLbl
-                                anchors.centerIn: parent; text: qsTr("Cancel")
-                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                                color: Theme.colorText2
-                            }
-                            PpPressable {
-                                id: cancelMa
-                                onClicked: endPopup.close()
-                            }
+                        PpButton {
+                            style: "subtle"; size: "compact"
+                            implicitHeight: Theme.sp(30)
+                            label: qsTr("Cancel")
+                            onClicked: endPopup.close()
                         }
                     }
                 }
@@ -609,13 +521,14 @@ Item {
         // battery/thermal deliberately: an unconverged clock during the first
         // ~2 minutes after connecting is EXPECTED, not a fault, so it reads
         // amber and never displaces a genuine battery/thermal problem.
-        DevicePill {
+        PpToolPill {
             id: camPill
             glyph: "◫"                 // ◫
-            title: Theme.caps(qsTr("Cameras"))
+            microLabel: Theme.caps(qsTr("Cameras"))
+            chevron: false
             active: camPopup.opened
             status: root.camStatus
-            valueText: root.camTotal === 0 ? qsTr("none")
+            label: root.camTotal === 0 ? qsTr("none")
                         : root.phoneBatteryLow ? qsTr("phone battery %1%").arg(root.phoneLowestBattery)
                         : root.phoneThermalWarn ? qsTr("phone %1").arg(root.phoneWorstThermal)
                         : root.phoneArmWarn ? qsTr("phone %1").arg(root.phoneArmState)
@@ -634,13 +547,14 @@ Item {
         // hint in the value line — a dying sensor is time-critical, and the message
         // names the level so the user knows how low (e.g. "battery 32%"). Critical
         // (≤20%) and failed read red.
-        DevicePill {
+        PpToolPill {
             id: imuPill
             glyph: "⦿"                 // ⦿
-            title: Theme.caps(qsTr("Motion sensors"))
+            microLabel: Theme.caps(qsTr("Motion sensors"))
+            chevron: false
             active: imuPopup.opened
             status: root.imuStatus
-            valueText: root.imuTotal === 0 ? qsTr("none")
+            label: root.imuTotal === 0 ? qsTr("none")
                         : root.imuFailed ? qsTr("failed")
                         : root.imuBatteryLow ? qsTr("battery %1%").arg(root.imuLowestBattery)
                         : root.imuNeedsAttention ? qsTr("calibrate")
@@ -758,99 +672,9 @@ Item {
         }
     }
 
-    // ── View pill — lighter sibling of DevicePill (no badge; shows the active
-    // mode and a chevron; accent ring while its popup is open) ────────────────
+    // ── Pills ───────────────────────────────────────────────────────────────
     // The View/Motion/Club/Cameras/IMUs pill is the SHARED PpToolPill
     // (src/Gui/components/PpToolPill.qml), so any surface outside the toolbar
     // can present the same item instead of a lookalike that drifts.
 
-    // ── Inline pill component ───────────────────────────────────────────────
-    // The glyph tile carries the device vocabulary's badge at its corner (a check,
-    // the dashed ring, or a target in the state's tone); the value line says the
-    // same thing in words, so the tone is never the only signal.
-    component DevicePill: Rectangle {
-        id: pill
-        property string glyph:     ""
-        property string title:     ""
-        property string valueText: ""
-        property string status:    "off"   // "ok" | "off" | "attention" | "error"
-        property bool   active:    false   // tints the glyph accent while the pill's popup is open
-        signal clicked()
-
-        readonly property color statusTone: status === "ok"        ? Theme.colorGood
-                                          : status === "attention" ? Theme.colorAttention
-                                          : status === "error"     ? Theme.colorError
-                                          :                          Theme.colorText3
-
-        Layout.alignment: Qt.AlignVCenter
-        implicitWidth: pillRow.implicitWidth + Theme.sp(24)
-        implicitHeight: Theme.sp(44)
-        radius: Theme.radius
-        color: pillMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
-        border.width: 1
-        border.color: active              ? Theme.colorAccent
-                    : pillMa.containsMouse ? Theme.colorAccentMid
-                    :                        Theme.colorBorderMid
-
-        // Same hover/press motion as PpToolPill (see note there): subtle scale up
-        // on hover, held while the popup is open, dip on press. No lift — keeps
-        // the pill anchored in the bar.
-        transformOrigin: Item.Center
-        scale: pillMa.pressed              ? 0.97
-             : (active || pillMa.containsMouse) ? 1.02
-             :                               1.0
-
-        Behavior on color        { ColorAnimation  { duration: Theme.durationFast } }
-        Behavior on border.color { ColorAnimation  { duration: Theme.durationFast } }
-        Behavior on scale        { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
-
-        RowLayout {
-            id: pillRow
-            anchors { fill: parent; leftMargin: Theme.gap(11); rightMargin: Theme.gap(13) }
-            spacing: Theme.gap(11)
-
-            Item {  // glyph + state badge
-                Layout.preferredWidth: Theme.sp(34); Layout.preferredHeight: Theme.sp(34)
-                Layout.alignment: Qt.AlignVCenter
-                Rectangle {
-                    anchors.fill: parent; radius: Theme.radius; color: Theme.colorSurface
-                    Text {
-                        anchors.centerIn: parent; text: pill.glyph
-                        font.family: Theme.fontSymbol; font.pixelSize: Theme.sp(18)
-                        color: pill.active ? Theme.colorAccent : Theme.colorText2
-                    }
-                }
-                // A disc of the pill's own fill under the badge cuts it out of the
-                // tile's corner, so its faint tint reads the same over both.
-                Rectangle {
-                    anchors { right: parent.right; top: parent.top
-                              rightMargin: -Theme.sp(6); topMargin: -Theme.sp(6) }
-                    width: Theme.sp(20); height: width; radius: width / 2
-                    color: pill.color
-                    PpBadge {
-                        anchors.centerIn: parent
-                        size: Theme.sp(18)
-                        kind: pill.status === "ok"  ? "check"
-                            : pill.status === "off" ? "unconfirmed"
-                            :                         "target"
-                        tone: pill.statusTone
-                    }
-                }
-            }
-            Column {
-                Layout.alignment: Qt.AlignVCenter; spacing: Theme.gap(2)
-                PpMicro { text: pill.title }
-                Text {
-                    text: pill.valueText; font.family: Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    color: pill.status === "attention" || pill.status === "error" ? pill.statusTone
-                                                                                   : Theme.colorText
-                }
-            }
-        }
-        MouseArea {
-            id: pillMa; anchors.fill: parent; hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor; onClicked: pill.clicked()
-        }
-    }
 }

@@ -54,13 +54,6 @@ WizardPage {
         return rows
     }
 
-    component SectionLabel: Text {
-        font.family:        Theme.fontData
-        font.pixelSize:     Theme.fontSzMicro
-        font.letterSpacing: Theme.trackingMicro
-        color:              Theme.colorText3
-    }
-
     Column {
         id: readyCol
         anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.gap(32) }
@@ -68,18 +61,19 @@ WizardPage {
 
         // DECISION(stage5b): today's heading, "You're good to go" (the brief quoted it as
         // "You're ready to go"; it also said "as today").
-        SetupStepIntro {
-            width:             parent.width
-            eyebrow:           page.stepLabel
-            heading:           page._fullyReady ? qsTr("You're good to go") : qsTr("Not quite ready")
-            body:              page._fullyReady
+        PpPageHeader {
+            style:           "setup"
+            width:           parent.width
+            eyebrow:         page.stepLabel
+            title:           page._fullyReady ? qsTr("You're good to go") : qsTr("Not quite ready")
+            description:     page._fullyReady
                 ? qsTr("Everything checked out. The moment you take your address and make your first swing, Pinpoint starts capturing. There's nothing else to press.")
                 : qsTr("A few things couldn't be confirmed before this session. You can use ← Back to sort them out, or start anyway — Pinpoint will capture what it can, though some analysis may be limited or missing from your results.")
-            headingPixelSize:  Math.min(Theme.sp(22), Theme.fontSzDisplay)
-            flatHeading:       true
-            headingColor:      page._fullyReady ? Theme.colorText : Theme.colorWarn
-            headingObjectName: "readyHeading"
-            rule:              false
+            titlePixelSize:  Math.min(Theme.sp(22), Theme.fontSzDisplay)
+            flatTitle:       true
+            titleColor:      page._fullyReady ? Theme.colorText : Theme.colorWarn
+            titleObjectName: "readyHeading"
+            rule:            false
         }
 
         // ── To fix before you start ──────────────────────────────────
@@ -88,7 +82,7 @@ WizardPage {
             width:   parent.width
             spacing: Theme.gap(6)
 
-            SectionLabel { text: Theme.caps(qsTr("To fix before you start")); bottomPadding: Theme.gap(4) }
+            PpMicro { text: Theme.caps(qsTr("To fix before you start")); bottomPadding: Theme.gap(4) }
 
             Repeater {
                 model: page.flow.issues
@@ -149,7 +143,7 @@ WizardPage {
             width:   parent.width
             spacing: Theme.gap(10)
 
-            SectionLabel { text: Theme.caps(qsTr("What is set up")) }
+            PpMicro { text: Theme.caps(qsTr("What is set up")) }
 
             Rectangle {
                 width:  parent.width
@@ -191,7 +185,7 @@ WizardPage {
             width:   parent.width
             spacing: Theme.gap(10)
 
-            SectionLabel { text: Theme.caps(qsTr("What this session will record")) }
+            PpMicro { text: Theme.caps(qsTr("What this session will record")) }
 
             Rectangle {
                 width:  parent.width
@@ -228,28 +222,14 @@ WizardPage {
         }
 
         // Notice box
-        Rectangle {
+        PpNotice {
+            objectName: "readyNotice"
             width: parent.width
-            height: noticeText.implicitHeight + Theme.sp(20)
-            radius: Theme.radius
-            color:  page._fullyReady ? Theme.colorGoodLight : Theme.colorWarnLight
-            border.width: 1
-            border.color: page._fullyReady ? Theme.colorGood : Theme.colorWarn
-
-            Text {
-                id: noticeText
-                objectName: "readyNotice"
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(12) }
-                text: page._fullyReady
-                          ? qsTr("Everything's set up and ready to go. Step up when you like — Pinpoint will start capturing the moment you take your address.")
-                          : qsTr("Starting with an incomplete setup is fine — partial data is often still useful. For the full picture though, it's worth coming back once the hardware is sorted. Your results will thank you for it.")
-                font.family:    Theme.fontBody
-                font.weight:    Theme.fontBodyWeight
-                font.pixelSize: Theme.fontSzBody2
-                color:          page._fullyReady ? Theme.colorGood : Theme.colorWarn
-                wrapMode:       Text.WordWrap
-                lineHeight:     1.5
-            }
+            style: "para"
+            tone:  page._fullyReady ? "good" : "warn"
+            text: page._fullyReady
+                      ? qsTr("Everything's set up and ready to go. Step up when you like — Pinpoint will start capturing the moment you take your address.")
+                      : qsTr("Starting with an incomplete setup is fine — partial data is often still useful. For the full picture though, it's worth coming back once the hardware is sorted. Your results will thank you for it.")
         }
     }
 }

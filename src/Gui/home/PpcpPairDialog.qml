@@ -145,12 +145,7 @@ Popup {
 
     property bool _showEndpoints: false
 
-    background: Rectangle {
-        color: Theme.colorSurface
-        radius: Theme.radiusLg
-        border.width: 1
-        border.color: Theme.colorBorderStrong
-    }
+    background: PpPopoverCard { style: "plain" }
 
     contentItem: Column {
         spacing: Theme.gap(16)
@@ -325,15 +320,11 @@ Popup {
             // The controller's own words, kept as detail rather than as the
             // headline.  It is the only place a TLS description or a listener
             // failure is ever said out loud.
-            Text {
-                width:          parent.width
-                visible:        root.controller && root.controller.status !== ""
-                text:           root.controller ? root.controller.status : ""
-                wrapMode:       Text.WordWrap
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                font.weight:    Theme.fontBodyWeight
-                color:          Theme.colorText3
+            PpCardNote {
+                kind:    "plain"
+                width:   parent.width
+                visible: root.controller && root.controller.status !== ""
+                text:    root.controller ? root.controller.status : ""
             }
         }
 

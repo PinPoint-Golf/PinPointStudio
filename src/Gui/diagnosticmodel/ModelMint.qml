@@ -55,26 +55,17 @@ Popup {
                                       reference: _reference, anchor: _anchor })
     readonly property var _preview: browser ? browser.previewMeasure(_facets) : ({})
 
-    background: Rectangle {
-        color:        Theme.colorSurface
-        radius:       Theme.radius
-        border.width: 1
-        border.color: Theme.colorBorderStrong
-    }
+    background: PpPopoverCard { style: "plainTight" }
 
     contentItem: ColumnLayout {
         spacing: Theme.gap(8)
 
-        Text {
-            Layout.fillWidth:  true
-            Layout.margins:    Theme.gap(14)
+        PpMicro {
+            kind:                "body"
+            Layout.fillWidth:    true
+            Layout.margins:      Theme.gap(14)
             Layout.bottomMargin: 0
             text:                qsTr("New measure")
-            font.family:         Theme.fontBody
-            font.pixelSize:      Theme.fontSzMicro
-            font.letterSpacing:  Theme.trackingMicro
-            font.capitalization: Theme.capsFont
-            color:               Theme.colorText3
         }
 
         // A typed phrase SEEDS the chips; it is not a query. Wrong guesses are corrected by tapping,

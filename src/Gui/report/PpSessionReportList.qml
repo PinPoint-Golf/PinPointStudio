@@ -574,31 +574,27 @@ Column {
     width: parent ? parent.width : implicitWidth
 
     // ── Nothing matched the filters ──────────────────────────────────────────
-    Text {
-        objectName: "sessionListNoMatch"
-        visible: root.total > 0 && root.shown === 0
-        width:   root.width
-        height:  visible ? Theme.sp(40) : 0
+    PpCardNote {
+        objectName:        "sessionListNoMatch"
+        kind:              "plain"
+        wrapMode:          Text.NoWrap
+        visible:           root.total > 0 && root.shown === 0
+        width:             root.width
+        height:            visible ? Theme.sp(40) : 0
         verticalAlignment: Text.AlignVCenter
-        text: qsTr("No sessions match those filters")
-        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-        font.weight: Theme.fontBodyWeight
-        color: Theme.colorText3
+        text:              qsTr("No sessions match those filters")
     }
 
     // ── Nothing yet ──────────────────────────────────────────────────────────
-    Text {
-        objectName: "sessionListEmpty"
-        visible: root.total === 0
-        width:   root.width
-        height:  visible ? Theme.sp(40) : 0
+    PpCardNote {
+        objectName:        "sessionListEmpty"
+        kind:              "plain"
+        visible:           root.total === 0
+        width:             root.width
+        height:            visible ? Theme.sp(40) : 0
         verticalAlignment: Text.AlignVCenter
-        text: (root.model && root.model.scanning) ? qsTr("Reading sessions…")
-                                                   : qsTr("No sessions yet. Every session you record is listed here.")
-        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-        font.weight: Theme.fontBodyWeight
-        color: Theme.colorText3
-        wrapMode: Text.WordWrap
+        text:              (root.model && root.model.scanning) ? qsTr("Reading sessions…")
+                                                                : qsTr("No sessions yet. Every session you record is listed here.")
     }
 
     // ── The table ────────────────────────────────────────────────────────────

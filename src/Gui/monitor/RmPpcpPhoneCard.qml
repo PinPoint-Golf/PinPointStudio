@@ -206,34 +206,14 @@ Rectangle {
                 }
             }
 
-            Item {
+            PpStatusPill {
                 id: statusPill
                 anchors.verticalCenter: parent.verticalCenter
-                implicitWidth: pillLbl.implicitWidth + Theme.sp(14)
-                implicitHeight: pillLbl.implicitHeight + Theme.sp(6)
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: height / 2
-                    color: root.phone && root.phone.status === "connected" ? Theme.colorGoodLight
-                         : root.phone && root.phone.status === "available" ? Theme.colorWarnLight
-                                                                           : Theme.colorBg3
-                    border.width: 1
-                    border.color: root.phone && root.phone.status === "connected" ? Theme.colorGood
-                                : root.phone && root.phone.status === "available" ? Theme.colorWarn
-                                                                                  : Theme.colorBorderMid
-                }
-                Text {
-                    id: pillLbl
-                    anchors.centerIn: parent
-                    text: root.phone ? root.phone.status : ""
-                    font.family: Theme.fontData
-                    font.pixelSize: Theme.sp(9)
-                    font.letterSpacing: Theme.trackingMicro
-                    color: root.phone && root.phone.status === "connected" ? Theme.colorGood
-                         : root.phone && root.phone.status === "available" ? Theme.colorWarn
-                                                                           : Theme.colorText3
-                }
+                style: "capsule"
+                tone:  root.phone && root.phone.status === "connected" ? "good"
+                     : root.phone && root.phone.status === "available" ? "warn"
+                     :                                                   ""
+                text:  root.phone ? root.phone.status : ""
             }
         }
     }

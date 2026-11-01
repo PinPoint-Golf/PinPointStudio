@@ -31,7 +31,7 @@ Settings > Appearance: aesthetic and colour-mode gallery (each card previews its
 
 - **Properties:** `readonly var themeData`, `string lastHighlightId`
 - **Functions:** `findChild(parent, name)`, `scrollToItem(itemId)`
-- **Uses:** `PpButton`, `PpChipGroup`, `PpDisplayText`, `PpDivider`, `PpPressable`, `PpTextField`
+- **Uses:** `PpButton`, `PpChipGroup`, `PpDivider`, `PpPageHeader`, `PpPressable`, `PpTextField`
 - **Used by (1):** `ScreenSettings`
 
 ### ArchivingPanel
@@ -49,7 +49,7 @@ Settings > Appearance: aesthetic and colour-mode gallery (each card previews its
 - **Properties:** `readonly bool hasController`, `string lastHighlightId`, `readonly var ageOptions`, `readonly var floorOptions`, `readonly var trashOptions`
 - **Functions:** `findChild(parent, name)`, `scrollToItem(itemId)`, `formatBytes(n)`, `indexOfValue(options, v)`
 - **Local components:** `TogglePill`, `SectionHead`, `RowTitle`
-- **Uses:** `PpButton`, `PpComboBox`, `PpDisplayText`, `PpDivider`, `PpTextField`
+- **Uses:** `PpButton`, `PpComboBox`, `PpDivider`, `PpPageHeader`, `PpTextField`
 - **Used by (1):** `ScreenSettings`
 
 ### CamerasPanel
@@ -60,8 +60,8 @@ Settings > Cameras (3.1k lines, largest file in the GUI): per-camera rows (alias
 
 - **Properties:** `int openRoiIndex`, `int openTuningIndex`, `int openBallIndex`, `bool ballAutoConnected`, `readonly double impactDefaultExposureUs`, `readonly double impactDefaultGainDb`, `readonly double impactDefaultViewGain`, `string lastHighlightId`
 - **Functions:** `closeBallPanel()`, `applyImpactMode(cameraKey, camIndex, maxW, maxH, mode, liveInstance)`, `setImpactExposure(cameraKey, us, liveInstance)`, `impactTuning(cameraKey, member, fallback)`, `setImpactTuning(cameraKey, member, value, liveInstance)`, `wideTuningKey(cameraKey)`, `wideExposureUs(cameraKey)`, `wideGainDb(cameraKey)`, `applyWideTuning(cameraKey, exposureUs, gainDb, liveInstance)`, `setWideExposure(cameraKey, us, liveInstance)` (+3)
-- **Local components:** `TuneChip`, `TuneHeading`, `TogglePill`, `CameraDeviceRow`
-- **Uses:** `PpButton`, `PpCameraFrame`, `PpComboBox`, `PpDisplayText`, `PpDivider`, `PpPressable`, `PpTextField`, `PpToast`
+- **Local components:** `TuneChip`, `TogglePill`, `CameraDeviceRow`
+- **Uses:** `PpButton`, `PpCameraFrame`, `PpComboBox`, `PpDivider`, `PpPageHeader`, `PpPressable`, `PpTextField`, `PpToast`
 - **Used by (1):** `ScreenSettings`
 
 ### DisplaysPanel
@@ -72,7 +72,7 @@ Settings > Displays: connected screens (friendly vendor names from EDID codes) a
 
 - **Properties:** `readonly var screenModel`, `string lastHighlightId`
 - **Functions:** `mainDisplayIndexFor(stored)`, `secondaryDisplayIndexFor(stored)`, `findChild(parent, name)`, `scrollToItem(itemId)`
-- **Uses:** `Main`, `PpChipGroup`, `PpComboBox`, `PpDisplayText`, `PpDivider`
+- **Uses:** `Main`, `PpChipGroup`, `PpComboBox`, `PpDivider`, `PpPageHeader`
 - **Used by (1):** `ScreenSettings`
 
 ### GeneralPanel
@@ -84,7 +84,7 @@ Settings > General: language (7 locales), measurement units, session behaviour (
 - **Properties:** `readonly var languageModel`, `bool hostVisible`, `string lastHighlightId`
 - **Functions:** `findChild(parent, name)`, `scrollToItem(itemId)`
 - **Local components:** `CloudFallbackRow`, `CloudKeyField`
-- **Uses:** `PpButton`, `PpChipGroup`, `PpComboBox`, `PpDisplayText`, `PpDivider`, `PpPressable`, `PpTextField`, `PpUnitToggle`
+- **Uses:** `PpButton`, `PpChipGroup`, `PpComboBox`, `PpDivider`, `PpPageHeader`, `PpPressable`, `PpSegmentedControl` (style `unit`), `PpTextField`
 - **Used by (1):** `ScreenSettings`
 
 ### ImusPanel
@@ -96,7 +96,7 @@ Settings > IMUs (1.8k lines): device rows with alias/enable/exclude, per-device 
 - **Properties:** `string openTestId`, `string lastHighlightId`
 - **Functions:** `findChild(parent, name)`, `scrollToItem(itemId)`
 - **Local components:** `TogglePill`, `ImuDeviceRow`
-- **Uses:** `ImuMounts`, `ImuVizView`, `PpConnectingFrame`, `PpDisplayText`, `PpDivider`, `PpPressable`, `PpTextField`
+- **Uses:** `ImuMounts`, `ImuVizView`, `PpConnectingFrame`, `PpDivider`, `PpPageHeader`, `PpPressable`, `PpTextField`
 - **Used by (1):** `ScreenSettings`
 - **Exercised by tests/tools:** `tst_setup_mounts`
 
@@ -115,7 +115,7 @@ Settings > IMUs (1.8k lines): device rows with alias/enable/exclude, per-device 
 - **Properties:** `string lastHighlightId`, `readonly var deviceOptions`, `readonly bool chosen`, `readonly bool switchedOn`, `readonly bool configured`, `readonly bool isGcQuad`, `readonly bool isGsPro`, `readonly color statusColor`
 - **Functions:** `findChild(parent, name)`, `scrollToItem(itemId)`
 - **Local components:** `TogglePill`
-- **Uses:** `PpButton`, `PpComboBox`, `PpDisplayText`, `PpDivider`, `PpTextField`
+- **Uses:** `PpButton`, `PpComboBox`, `PpDivider`, `PpPageHeader`, `PpTextField`
 - **Used by (1):** `ScreenSettings`
 
 ### MicrophonesPanel
@@ -127,7 +127,7 @@ Settings > Microphone: input devices (rescan, system default), use-for-shot-dete
 - **Properties:** `bool hostVisible`, `readonly bool shown`, `bool calibrating`, `readonly bool calActive`, `var devices`, `string lastHighlightId`, `int detectCount`, `real lastConfidence`, `bool pendingDet`
 - **Functions:** `refreshDevices()`, `deviceIsActive(d)`, `findChild(parent, name)`, `scrollToItem(itemId)`
 - **Local components:** `TogglePill`, `DeviceRow`
-- **Uses:** `PpDisplayText`, `PpDivider`, `PpPressable`
+- **Uses:** `PpDivider`, `PpPageHeader`, `PpPressable`
 - **Used by (1):** `ScreenSettings`
 
 ### PhonesPanel
@@ -154,7 +154,7 @@ Settings > Microphone: input devices (rescan, system default), use-for-shot-dete
 - **Properties:** `var controller`, `readonly bool havePpcp`, `readonly bool haveCameraManager`, `readonly var rows`, `var aliasDraft`, `string aliasFocusId`, `int aliasCursor`, `bool aliasFieldFocused`, `string lastHighlightId`
 - **Functions:** `noteAliasDraft(pairingId, txt, cursor)`, `clearAliasDraft(pairingId)`, `knownPairing(pairingId)`, `finishAliasEdit(pairingId, force)`, `findChild(parent, name)`, `scrollToItem(itemId)`
 - **Local components:** `PhoneDeviceRow`
-- **Uses:** `PpButton`, `PpDisplayText`, `PpTextField`
+- **Uses:** `PpButton`, `PpPageHeader`, `PpTextField`
 - **Used by (1):** `ScreenSettings`
 - **Exercised by tests/tools:** `tst_ppcp_pair_dialog`
 
@@ -167,7 +167,7 @@ The Settings screen: left navigation (General, Appearance, Displays; Hardware: C
 - **Properties:** `int cameraCount`, `int imuCount`, `int phoneCount`, `int activeNavIndex`, `string searchQuery`, `readonly bool shown`, `readonly bool isSearching`, `readonly var searchResults`, `readonly bool navCollapsed`
 - **Signals:** `resourceMonitorRequested()`
 - **Functions:** `openStudio()`, `navigateToResult(entry)`, `showMetricDetail(key)`, `showCharacteristicDetail(conditionId)`, `showMeasureDetail(measureId)`, `scrollWithRetry(panel, itemId, retries)`
-- **Uses:** `AppearancePanel`, `ArchivingPanel`, `CamerasPanel`, `DiagnosticModel`, `DisplaysPanel`, `GeneralPanel`, `ImusPanel`, `LaunchMonitorPanel`, `MicrophonesPanel`, `PhonesPanel`, `PpPressable`, `SettingsIndex`, `StoragePanel`, `StudioPanel`
+- **Uses:** `AppearancePanel`, `ArchivingPanel`, `CamerasPanel`, `DiagnosticModel`, `DisplaysPanel`, `GeneralPanel`, `ImusPanel`, `LaunchMonitorPanel`, `MicrophonesPanel`, `PhonesPanel`, `PpPressable`, `PpSearchField`, `SettingsIndex`, `StoragePanel`, `StudioPanel`
 - **Used by (1):** `Main`
 
 ### SettingsIndex
@@ -189,7 +189,7 @@ Settings > Storage: athlete-library location, folder-naming order (date/athlete/
 - **Properties:** `var diskInfo`, `readonly var videoMbPerCamera`, `readonly real codecMultiplier`, `readonly real resolutionMultiplier`, `readonly int cameras`, `readonly real rawMbPerCamera`, `readonly real documentMb`, `readonly real clipMb`, `readonly real sessionMb`, `readonly real remainingHours`, `readonly bool hasConverter`, `readonly var namingOptions`, `readonly var resolutionOptions`, `readonly var codecOptions` … (+3 more)
 - **Functions:** `refreshDiskInfo()`, `rescanLibrarySize()`, `formatBytes(n)`, `formatMb(n)`, `formatGb(n)`, `countJsonSwings()`, `findChild(parent, name)`, `scrollToItem(itemId)`
 - **Local components:** `TogglePill`
-- **Uses:** `PpButton`, `PpComboBox`, `PpDisplayText`, `PpDivider`, `PpPressable`
+- **Uses:** `PpButton`, `PpComboBox`, `PpDivider`, `PpPageHeader`, `PpPressable`
 - **Used by (1):** `ScreenSettings`
 
 ### StudioPanel
@@ -216,5 +216,5 @@ Settings > Storage: athlete-library location, folder-naming order (date/athlete/
 - **Properties:** `readonly bool hasProfile`, `readonly bool hasMailer`, `readonly bool sendReady`, `string lastHighlightId`, `string pickFor`, `string pickError`, `string pickErrorFor`, `readonly alias filePicker`, `readonly var providerKeys`, `readonly var providerLabels`, `readonly string provider`, `readonly var securityKeys`, `readonly var securityLabels`, `readonly string passwordStore` … (+4 more)
 - **Functions:** `findChild(parent, name)`, `scrollToItem(itemId)`, `imageUrl(path)`, `pick(what)`, `sendTestNow()`
 - **Local components:** `TogglePill`, `SectionHead`, `RowTitle`, `SettingRow`, `FieldRow`, `AreaField`, `ImageRow`
-- **Uses:** `PpButton`, `PpChipGroup`, `PpDisplayText`, `PpDivider`, `PpFilePicker`, `PpLink`, `PpSegmentedControl`, `PpTextField`
+- **Uses:** `PpButton`, `PpChipGroup`, `PpDivider`, `PpFilePicker`, `PpLink`, `PpPageHeader`, `PpSegmentedControl`, `PpTextField`
 - **Used by (1):** `ScreenSettings`

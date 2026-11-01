@@ -71,23 +71,15 @@ RowLayout {
                 }
                 spacing: Theme.gap(3)
 
-                Text {
-                    text:                modelData.key
-                    font.family:         Theme.fontData
-                    font.pixelSize:      Theme.fontSzMicro
-                    font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Theme.capsFont
-                    color:               Theme.colorText3
+                PpMicro {
+                    kind: "caps"
+                    text: modelData.key
                 }
                 Text {
                     text:           modelData.val
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzBody2
-                    color: modelData.tint === "accent" ? Theme.colorAccent
-                         : modelData.tint === "good"   ? Theme.colorGood
-                         : modelData.tint === "warn"   ? Theme.colorWarn
-                         : modelData.tint === "error"  ? Theme.colorError
-                         :                               Theme.colorText
+                    color: Theme.toneColor(modelData.tint, Theme.colorText)
                     elide:          Text.ElideRight
                     Layout.fillWidth: true
                     Behavior on color {

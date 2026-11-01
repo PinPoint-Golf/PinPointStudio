@@ -47,17 +47,13 @@ Rectangle {
     border.color: press.containsMouse ? Theme.colorAccent : Theme.colorBorderMid
     Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
-    Text {
-        id: label
-        objectName: "rowActionText"
+    PpMicro {
+        id:               label
+        objectName:       "rowActionText"
+        kind:             "bodyWeight"
         anchors.centerIn: parent
-        text:                chip.text
-        font.family:         Theme.fontBody
-        font.pixelSize:      Theme.fontSzMicro
-        font.weight:         Theme.fontBodyWeight
-        font.letterSpacing:  Theme.trackingMicro
-        font.capitalization: Theme.capsFont
-        color: press.containsMouse ? Theme.colorAccent : Theme.colorText2
+        text:             chip.text
+        color:            press.containsMouse ? Theme.colorAccent : Theme.colorText2
     }
 
     ToolTip.visible: press.containsMouse && chip.tooltip !== ""

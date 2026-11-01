@@ -336,11 +336,8 @@ Item {
     }
 
     // Hint text (top-right).
-    Text {
+    PpMicro {
         anchors { top: parent.top; right: parent.right; topMargin: Theme.gap(5); rightMargin: Theme.gap(8) }
         text: qsTr("drag to select · drag edges to resize")
-        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-        font.letterSpacing: Theme.trackingMicro
-        color: Theme.colorText3
     }
 }

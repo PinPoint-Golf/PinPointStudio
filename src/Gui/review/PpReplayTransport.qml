@@ -40,18 +40,26 @@ Item {
         anchors.centerIn: parent
         spacing: Theme.gap(4)
 
-        TBtn { glyph: "⏮"; onActed: shotReplay.seekToUs(shotReplay.startUs) }
-        TBtn { glyph: "◂"; onActed: shotReplay.stepFrame(-1) }
-        TBtn { glyph: shotReplay.playing ? "⏸" : "▶"; highlight: true
-               onActed: shotReplay.togglePlay() }
-        TBtn { glyph: "▸"; onActed: shotReplay.stepFrame(1) }
+        PpButton { style: "glyph"; size: "icon"; glyph: "⏮"; onClicked: shotReplay.seekToUs(shotReplay.startUs) }
+        PpButton { style: "glyph"; size: "icon"; glyph: "◂"; onClicked: shotReplay.stepFrame(-1) }
+        PpButton { style: "glyph"; size: "icon"; glyph: shotReplay.playing ? "⏸" : "▶"; active: true
+                   onClicked: shotReplay.togglePlay() }
+        PpButton { style: "glyph"; size: "icon"; glyph: "▸"; onClicked: shotReplay.stepFrame(1) }
 
         // Playback speed (capture-time multiplier; 1× = real time) — honoured by
         // the running replay immediately.
-        PpSpeedSelector {
+        // All speeds visible, slowest → full speed; the active one highlighted by
+        // proximity so float representation never breaks the match.
+        PpSegmentedControl {
+            readonly property var speeds: [0.1, 0.25, 0.5, 1.0]
             Layout.leftMargin: Theme.gap(8)
-            current: shotReplay.speed
-            onSelected: (speed) => shotReplay.setSpeed(speed)
+            style:    "speed"
+            options:  speeds.map(sp => ({ label: (sp >= 1 ? "1" : Number(sp).toString()) + "×", value: String(sp) }))
+            selected: {
+                const near = speeds.filter(sp => Math.abs(shotReplay.speed - sp) < 0.01)
+                return near.length > 0 ? String(near[0]) : ""
+            }
+            onActivated: (value) => shotReplay.setSpeed(parseFloat(value))
         }
 
         PpMicro {
@@ -59,29 +67,6 @@ Item {
             text: root._fmt(shotReplay.positionUs - shotReplay.startUs)
                   + " / " + root._fmt(shotReplay.endUs - shotReplay.startUs)
             font.letterSpacing: Theme.trackingData
-        }
-    }
-
-    // Compact icon button (mirrors the old PpReplayStage transport).
-    component TBtn: Rectangle {
-        property string glyph: ""
-        property bool   highlight: false
-        signal acted()
-        width: Theme.sp(34); height: Theme.sp(34); radius: Theme.radius
-        color: tbma.containsMouse ? Theme.colorBg3 : "transparent"
-        border.width: 1
-        border.color: highlight ? Theme.colorAccent : "transparent"
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-        Text {
-            anchors.centerIn: parent
-            text: parent.glyph
-            font.family: Theme.fontSymbol
-            font.pixelSize: Theme.sp(15)
-            color: Theme.colorText2
-        }
-        PpPressable {
-            id: tbma
-            onClicked: parent.acted()
         }
     }
 }

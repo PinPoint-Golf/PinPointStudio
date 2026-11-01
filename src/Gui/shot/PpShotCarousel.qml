@@ -798,8 +798,8 @@ Item {
     // ── Notice toast (export result / trash confirmation; no in-app undo) ─────
     PpToast {
         id: toast
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: -height - Theme.sp(14)
+        placement: "above"
+        margin: Theme.sp(14)
         showUndo: false
     }
 }

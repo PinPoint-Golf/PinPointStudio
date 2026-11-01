@@ -89,50 +89,20 @@ Item {
                 RowLayout {
                     spacing: Theme.gap(8)
 
-                    Button {
+                    PpButton {
                         id: listenButton
-                        text: qsTr("Listen ●")
+                        style: "labPrimary"; size: "lab"
+                        label: qsTr("Listen ●")
                         enabled: !controller.isListening
                         onClicked: controller.startListening()
-                        contentItem: Text {
-                            text: listenButton.text
-                            color: listenButton.enabled ? Theme.colorBg : Theme.colorText3
-                            font.family: Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody
-                            font.weight: Font.Normal
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                        background: Rectangle {
-                            color: listenButton.enabled
-                                   ? (listenButton.pressed ? Qt.darker(Theme.colorAccent, 1.1) : Theme.colorAccent)
-                                   : Theme.colorBg3
-                            radius: Theme.radius
-                        }
                     }
 
-                    Button {
+                    PpButton {
                         id: stopListenButton
-                        text: qsTr("Stop ■")
+                        style: "labStop"; size: "lab"
+                        label: qsTr("Stop ■")
                         enabled: controller.isListening
                         onClicked: controller.stopListening()
-                        contentItem: Text {
-                            text: stopListenButton.text
-                            color: stopListenButton.enabled ? Theme.colorWarn : Theme.colorText3
-                            font.family: Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody
-                            font.weight: Font.Normal
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                        background: Rectangle {
-                            color: stopListenButton.enabled
-                                   ? Theme.colorWarnLight
-                                   : Theme.colorBg3
-                            border.width: stopListenButton.enabled ? 1 : 0
-                            border.color: Qt.alpha(Theme.colorWarn, 0.5)
-                            radius: Theme.radius
-                        }
                     }
 
                     Rectangle {
@@ -175,10 +145,6 @@ Item {
                                : controller.sttBackend !== "" && controller.sttBackend !== "CPU"
                                  ? Theme.colorGoodLight
                                  : Theme.colorBg3
-                        scale: controller.cloudSttFallbackAvailable
-                               ? (sttBackendTap.pressed ? 0.97 : sttBackendHover.hovered ? 1.02 : 1.0)
-                               : 1.0
-                        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                         border.width: 1
                         border.color: controller.sttBackend === "Cloud"
                                       ? Qt.alpha(Theme.colorAccent, 0.25)
@@ -187,7 +153,7 @@ Item {
                                         : Theme.colorBorderMid
                         implicitWidth: sttBackendBadge.implicitWidth + Theme.sp(10)
                         implicitHeight: sttBackendBadge.implicitHeight + Theme.sp(4)
-                        ToolTip.visible: sttBackendHover.hovered
+                        ToolTip.visible: sttBackendPress.containsMouse
                         ToolTip.text: controller.cloudSttFallbackAvailable
                             ? (controller.sttBackend === "Cloud"
                                ? qsTr("Cloud STT (Azure) — click to switch to CPU")
@@ -195,15 +161,13 @@ Item {
                             : (controller.sttBackend === "CPU"   ? qsTr("CPU transcription")
                              : controller.sttBackend === "Cloud" ? qsTr("Cloud transcription via Azure")
                              : qsTr("GPU transcription via %1").arg(controller.sttBackend))
-                        HoverHandler {
-                            id: sttBackendHover
-                            cursorShape: controller.cloudSttFallbackAvailable
-                                         ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        }
-                        TapHandler {
-                            id: sttBackendTap
-                            enabled: controller.cloudSttFallbackAvailable
-                            onTapped: controller.toggleSttBackend()
+                        // Hovers for its tooltip whatever the backend; moves and toggles only when
+                        // there is a fallback to switch to.
+                        PpPressable {
+                            id: sttBackendPress
+                            moves:       controller.cloudSttFallbackAvailable
+                            cursorShape: controller.cloudSttFallbackAvailable ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked:   if (controller.cloudSttFallbackAvailable) controller.toggleSttBackend()
                         }
 
                         Label {
@@ -243,23 +207,12 @@ Item {
                     font.weight: Font.Normal
                 }
 
-                TextArea {
+                PpTextArea {
                     id: ttsInput
+                    style: "lab"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     placeholderText: qsTr("Type text to speak…")
-                    placeholderTextColor: Theme.colorText3
-                    wrapMode: TextArea.Wrap
-                    color: Theme.colorText
-                    font.family: Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    padding: Theme.gap(10)
-                    background: Rectangle {
-                        color: Theme.colorSurface
-                        radius: Theme.radius
-                        border.color: ttsInput.activeFocus ? Theme.colorAccent : Theme.colorBorderMid
-                        border.width: 1
-                    }
                     Keys.onPressed: function(event) {
                         if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
                                 && (event.modifiers & Qt.ControlModifier)) {
@@ -272,71 +225,29 @@ Item {
                 RowLayout {
                     spacing: Theme.gap(8)
 
-                    Button {
+                    PpButton {
                         id: speakButton
-                        text: ttsController.ttsActive ? qsTr("Speaking…") : qsTr("Speak ▶")
+                        style: "labPrimary"; size: "lab"
+                        label: ttsController.ttsActive ? qsTr("Speaking…") : qsTr("Speak ▶")
                         enabled: ttsController.ttsReady && !ttsController.ttsActive
                                  && ttsInput.text.trim().length > 0
                         onClicked: ttsController.speak(ttsInput.text)
-                        contentItem: Text {
-                            text: speakButton.text
-                            color: speakButton.enabled ? Theme.colorBg : Theme.colorText3
-                            font.family: Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody
-                            font.weight: Font.Normal
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                        background: Rectangle {
-                            color: speakButton.enabled
-                                   ? (speakButton.pressed ? Qt.darker(Theme.colorAccent, 1.1) : Theme.colorAccent)
-                                   : Theme.colorBg3
-                            radius: Theme.radius
-                        }
                     }
 
-                    Button {
+                    PpButton {
                         id: stopButton
-                        text: qsTr("Stop ■")
+                        style: "labStop"; size: "lab"
+                        label: qsTr("Stop ■")
                         enabled: ttsController.ttsActive
                         onClicked: ttsController.stopSpeaking()
-                        contentItem: Text {
-                            text: stopButton.text
-                            color: stopButton.enabled ? Theme.colorWarn : Theme.colorText3
-                            font.family: Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody
-                            font.weight: Font.Normal
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                        background: Rectangle {
-                            color: stopButton.enabled ? Theme.colorWarnLight : Theme.colorBg3
-                            border.width: stopButton.enabled ? 1 : 0
-                            border.color: Qt.alpha(Theme.colorWarn, 0.5)
-                            radius: Theme.radius
-                        }
                     }
 
-                    Button {
+                    PpButton {
                         id: replayButton
-                        text: qsTr("Replay ↺")
+                        style: "labOutline"; size: "lab"
+                        label: qsTr("Replay ↺")
                         enabled: ttsController.canReplay && !ttsController.ttsActive
                         onClicked: ttsController.replayLastAudio()
-                        contentItem: Text {
-                            text: replayButton.text
-                            color: replayButton.enabled ? Theme.colorText2 : Theme.colorText3
-                            font.family: Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody
-                            font.weight: Font.Normal
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                        background: Rectangle {
-                            color: "transparent"
-                            border.width: 1
-                            border.color: replayButton.enabled ? Theme.colorBorderStrong : Theme.colorBorderMid
-                            radius: Theme.radius
-                        }
                     }
 
                     Label {
@@ -395,10 +306,6 @@ Item {
                                : ttsController.ttsBackend !== ""
                                  ? Theme.colorGoodLight
                                  : Theme.colorBg3
-                        scale: ttsController.cloudTtsFallbackAvailable
-                               ? (backendTap.pressed ? 0.97 : backendHover.hovered ? 1.02 : 1.0)
-                               : 1.0
-                        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
                         border.width: 1
                         border.color: ttsController.ttsBackend === "Cloud"
                                       ? Qt.alpha(Theme.colorAccent, 0.25)
@@ -407,7 +314,7 @@ Item {
                                         : Theme.colorBorderMid
                         implicitWidth: backendBadge.implicitWidth + Theme.sp(10)
                         implicitHeight: backendBadge.implicitHeight + Theme.sp(4)
-                        ToolTip.visible: backendHover.hovered
+                        ToolTip.visible: backendPress.containsMouse
                         ToolTip.text: ttsController.cloudTtsFallbackAvailable
                             ? (ttsController.ttsBackend === "Cloud"
                                ? qsTr("Cloud TTS (Azure) — click to switch to CPU")
@@ -417,15 +324,13 @@ Item {
                                : ttsController.ttsBackend !== ""
                                ? qsTr("GPU inference via %1").arg(ttsController.ttsBackend)
                                : qsTr("CPU inference"))
-                        HoverHandler {
-                            id: backendHover
-                            cursorShape: ttsController.cloudTtsFallbackAvailable
-                                         ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        }
-                        TapHandler {
-                            id: backendTap
-                            enabled: ttsController.cloudTtsFallbackAvailable
-                            onTapped: ttsController.toggleTtsBackend()
+                        // Hovers for its tooltip whatever the backend; moves and toggles only when
+                        // there is a fallback to switch to.
+                        PpPressable {
+                            id: backendPress
+                            moves:       ttsController.cloudTtsFallbackAvailable
+                            cursorShape: ttsController.cloudTtsFallbackAvailable ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked:   if (ttsController.cloudTtsFallbackAvailable) ttsController.toggleTtsBackend()
                         }
 
                         Label {

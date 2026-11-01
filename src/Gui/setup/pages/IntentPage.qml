@@ -78,11 +78,12 @@ WizardPage {
         anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.gap(32) }
         spacing: Theme.gap(16)
 
-        SetupStepIntro {
-            width:   parent.width
-            eyebrow: page.stepLabel
-            heading: qsTr("What are you working on today?")
-            body:    qsTr("Pick one thing to work on and this session's diagnostics will follow it from your first swing. Choose Open assessment to look at everything with no focus.")
+        PpPageHeader {
+            style:       "setup"
+            width:       parent.width
+            eyebrow:     page.stepLabel
+            title:       qsTr("What are you working on today?")
+            description: qsTr("Pick one thing to work on and this session's diagnostics will follow it from your first swing. Choose Open assessment to look at everything with no focus.")
         }
 
         GridLayout {
@@ -94,7 +95,7 @@ WizardPage {
             Repeater {
                 model: page.choices
 
-                delegate: Rectangle {
+                delegate: PpSelectTile {
                     id: chip
                     objectName: "intentChoice"
                     required property var modelData
@@ -107,22 +108,15 @@ WizardPage {
 
                     Layout.fillWidth:    true
                     Layout.preferredHeight: chipCol.implicitHeight + Theme.sp(36)
-                    radius: Theme.radius
 
+                    // For the tests: whether this is the chosen one.
                     readonly property bool sel: page.draft !== null && page.draft.focusConditionId === modelData.id
 
-                    // Single-select card — the Goals page's chip/tile language: selected shows the
-                    // accent wash + accent border; hover (unselected) fades a faint bg fill in
-                    // (alpha-ramped → no flash) and eases the border to accentMid.
-                    color:        sel                    ? Theme.colorAccentLight
-                                : choiceMa.containsMouse ? Theme.colorBg2
-                                :                          Qt.alpha(Theme.colorBg2, 0)
-                    border.width: 1
-                    border.color: sel                    ? Theme.colorAccent
-                                : choiceMa.containsMouse ? Theme.colorAccentMid
-                                :                          Theme.colorBorderMid
-                    Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+                    // Single-select card in the shared tile language: selected shows the accent
+                    // wash + accent border; hover (unselected) fades a faint bg fill in and eases
+                    // the border to accentMid.
+                    selected: sel
+                    onClicked: page.draft.setFocus(chip.modelData.id, chip.modelData.label)
 
                     Column {
                         id: chipCol
@@ -165,27 +159,17 @@ WizardPage {
                             elide:              Text.ElideRight
                         }
                     }
-
-                    PpPressable {
-                        id: choiceMa
-                        onClicked: page.draft.setFocus(chip.modelData.id, chip.modelData.label)
-                    }
                 }
             }
         }
 
         // Nothing but Open assessment to offer: say why, so the single chip does not read as broken.
-        Text {
-            objectName:     "intentEmptyNote"
-            visible:        page.onlyOpen
-            width:          parent.width
-            text:           qsTr("No work-ons yet. Pinpoint finds them in your sessions as you hit more swings; until then each session is an open assessment.")
-            font.family:    Theme.fontBody
-            font.weight:    Theme.fontBodyWeight
-            font.pixelSize: Theme.fontSzBody2
-            color:          Theme.colorText3
-            wrapMode:       Text.WordWrap
-            lineHeight:     1.65
+        PpCardNote {
+            objectName: "intentEmptyNote"
+            kind:       "setup"
+            visible:    page.onlyOpen
+            width:      parent.width
+            text:       qsTr("No work-ons yet. Pinpoint finds them in your sessions as you hit more swings; until then each session is an open assessment.")
         }
     }
 }

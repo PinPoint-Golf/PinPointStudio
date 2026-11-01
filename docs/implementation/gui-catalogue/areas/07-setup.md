@@ -1,7 +1,7 @@
 # Session setup
 
 *Directory:* `src/Gui/setup/` (+ `pages/`, `parts/`)  
-*23 components · 5,051 lines of QML*
+*22 components · 4,989 lines of QML*
 
 The session-setup flow (replaced the old wizard; docs/design/session_wizard_refactor_design.md): a non-visual flow engine, step descriptors as data, a hardware-context object, a WizardPage contract, nine step pages and a few shared parts.
 
@@ -27,7 +27,6 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 | [TriangulatePage](#triangulatepage) | 98 | `WizardPage` | 1 | 4 |  |
 | [SetupCheckRow](#setupcheckrow) | 169 | `Item` | 4 | 4 |  |
 | [SetupStatusCircle](#setupstatuscircle) | 44 | `Rectangle` | 1 | 0 |  |
-| [SetupStepIntro](#setupstepintro) | 62 | `Column` | 6 | 1 |  |
 | [SetupSummaryRow](#setupsummaryrow) | 62 | `Item` | 1 | 0 |  |
 | [SetupTogglePill](#setuptogglepill) | 52 | `Rectangle` | 1 | 0 |  |
 
@@ -213,7 +212,7 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 
 - **Properties:** `bool learning`
 - **Functions:** `enter(direction)`, `leave(reason)`
-- **Uses:** `PpButton`, `PpCameraFrame`, `SetupStepIntro`, `WizardPage`
+- **Uses:** `PpButton`, `PpCameraFrame`, `PpPageHeader`, `WizardPage`
 - **Used by (1):** `SetupSteps`
 
 ### CalibrateArmPage
@@ -285,7 +284,7 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 > camsAllConnected already dropped the same clause in Stage 4.
 
 - **Functions:** `camDetail(d)`
-- **Uses:** `SetupCheckRow`, `SetupStepIntro`, `WizardPage`
+- **Uses:** `PpPageHeader`, `SetupCheckRow`, `WizardPage`
 - **Used by (1):** `SetupSteps`
 
 ### CheckArmPage
@@ -303,7 +302,7 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 
 - **Properties:** `readonly var liveWrist`
 - **Functions:** `enter(direction)`, `leave(reason)`, `recalibrate()`
-- **Uses:** `ArmVizView`, `PpDisplayText`, `WizardPage`
+- **Uses:** `ArmVizView`, `PpPageHeader`, `WizardPage`
 - **Used by (1):** `SetupSteps`
 - **Exercised by tests/tools:** `setup_soak`
 
@@ -330,7 +329,7 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 
 - **Properties:** `readonly real hipsDeg`, `readonly real chestDeg`, `readonly real xDeg`, `readonly string readingLine`
 - **Functions:** `enter(direction)`, `recalibrate()`
-- **Uses:** `BodyVizView`, `PpDisplayText`, `WizardPage`
+- **Uses:** `BodyVizView`, `PpPageHeader`, `WizardPage`
 - **Used by (1):** `SetupSteps`
 
 ### FramingPage
@@ -351,7 +350,7 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 
 - **Properties:** `readonly real minScore`, `readonly real minHeadroom`, `readonly int windowMs`, `var verdicts`
 - **Functions:** `verdictOf(key)`, `verdictText(key)`, `cameraLabel(c)`, `enter(direction)`, `leave(reason)`
-- **Uses:** `PpCameraFrame`, `SetupCheckRow`, `SetupStepIntro`, `WizardPage`
+- **Uses:** `PpCameraFrame`, `PpPageHeader`, `SetupCheckRow`, `WizardPage`
 - **Used by (1):** `SetupSteps`
 
 ### ImusPage
@@ -376,7 +375,7 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 > …
 
 - **Functions:** `chooseMount(deviceId, role)`
-- **Uses:** `ImuMounts`, `PpPressable`, `SetupCheckRow`, `SetupStepIntro`, `WizardPage`
+- **Uses:** `ImuMounts`, `PpPageHeader`, `PpPressable`, `SetupCheckRow`, `WizardPage`
 - **Used by (1):** `SetupSteps`
 
 ### IntentPage
@@ -395,7 +394,7 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 > The chips are the retired Goals page's (chip/tile language), single-select.
 
 - **Properties:** `readonly var choices`, `readonly bool onlyOpen`
-- **Uses:** `PpPressable`, `SetupStepIntro`, `WizardPage`
+- **Uses:** `PpPageHeader`, `PpPressable`, `WizardPage`
 - **Used by (1):** `SetupSteps`
 
 ### ReadyPage
@@ -415,8 +414,7 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 > the notice.
 > Start is the footer's and is always allowed (§4.12): this page describes, it gates nothing.
 
-- **Local components:** `SectionLabel`
-- **Uses:** `SetupSummaryRow`, `WizardPage`
+- **Uses:** `PpMicro`, `PpPageHeader`, `SetupSummaryRow`, `WizardPage`
 - **Used by (1):** `SetupSteps`
 - **Exercised by tests/tools:** `ready_forecast`
 
@@ -433,7 +431,7 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 > shell's footer reads "No longer needed — Continue" (SetupFlow.noLongerNeeded, N14); nothing
 > here has to know.
 
-- **Uses:** `CameraCalibrationFlow`, `SetupCheckRow`, `SetupStepIntro`, `WizardPage`
+- **Uses:** `CameraCalibrationFlow`, `PpPageHeader`, `SetupCheckRow`, `WizardPage`
 - **Used by (1):** `SetupSteps`
 
 ## `setup/parts/`
@@ -459,19 +457,6 @@ The session-setup flow (replaced the old wizard; docs/design/session_wizard_refa
 
 - **Properties:** `bool ok`, `bool warn`, `bool error`
 - **Used by (1):** `SetupCheckRow`
-
-### SetupStepIntro
-`src/Gui/setup/parts/SetupStepIntro.qml` · 62 lines · root `Column`
-
-> A setup page's eyebrow, heading and body, over a hairline. Ported verbatim from the wizard's
-> inline `component StepIntro` (the retired ScreenSessionWizard.qml l.2244–2277). The pages bind `eyebrow`
-> to WizardPage.stepLabel, which the flow keeps in step with the indicator's numbering.
-> Named Setup… because several other files still declare an inline StepIntro / CheckRow /
-> TogglePill of their own; a module type of the same name would sit beside each of them.
-
-- **Properties:** `string eyebrow`, `string heading`, `string body`
-- **Uses:** `PpDisplayText`
-- **Used by (6):** `BallPage`, `CamerasPage`, `FramingPage`, `ImusPage`, `IntentPage`, `TriangulatePage`
 
 ### SetupSummaryRow
 `src/Gui/setup/parts/SetupSummaryRow.qml` · 62 lines · root `Item`

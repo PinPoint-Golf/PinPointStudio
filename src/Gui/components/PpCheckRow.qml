@@ -52,7 +52,7 @@ Item {
                 text:           "✓"
                 font.family:    Theme.fontSymbol
                 font.pixelSize: Theme.fontSzLabel
-                color:          Theme.dark ? Theme.colorBg : Theme.colorSurface
+                color:          Theme.colorOnAccent
             }
         }
         Text {

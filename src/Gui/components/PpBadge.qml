@@ -26,10 +26,13 @@
 //                could renew
 //   dot          a filled 10-px dot, accent: a strength (a table row's mark)
 //   ring         a 2-px ring, amber: a fault (a table row's mark)
+//   status       a 1-px ring on the wash of `status` (a Theme tone name: good / warn / error), ticked
+//                when good; no status is an empty grey ring (the setup check row's mark)
 //
-// Every kind but unconfirmed sits on a faint fill of its tone, unless `plain` drops it: a table
-// row's bare ✓, dot or ring. Only the kind's own glyph is loaded, so a badge draws exactly what its
-// inline original drew.
+// Every kind but unconfirmed and status sits on a faint fill of its tone, unless `plain` drops it:
+// a table row's bare ✓, dot or ring. A plain dot at sp(6) is a device's status dot (Settings device
+// cards); `animated` fades its colour when it changes, as those dots always have. Only the kind's
+// own glyph is loaded, so a badge draws exactly what its inline original drew.
 
 pragma ComponentBehavior: Bound
 
@@ -47,12 +50,17 @@ Rectangle {
                         :                                         Theme.colorText3
     property int    size: Theme.sp(20)
     property bool   plain: false     // no fill circle: the glyph alone
+    property string status: ""       // kind "status" only: the Theme tone the ring is drawn in
+    property bool   animated: false  // the dot's colour fades when the tone changes
 
     // The row marks' own size, centred in the badge and never larger than it.
     readonly property int markSize: Math.min(badge.size, Theme.sp(10))
 
     width: badge.size; height: width; radius: width / 2
-    color: badge.plain || badge.kind === "unconfirmed" ? "transparent" : Qt.alpha(badge.tone, Theme.dark ? 0.16 : 0.12)
+    color: badge.kind === "status" ? Theme.toneLight(badge.status, "transparent")
+         : badge.plain || badge.kind === "unconfirmed" ? "transparent" : Qt.alpha(badge.tone, Theme.dark ? 0.16 : 0.12)
+    border.width: badge.kind === "status" ? 1 : 0
+    border.color: badge.kind === "status" ? Theme.toneColor(badge.status, Theme.colorBorderMid) : "transparent"
 
     Loader {
         anchors.fill: parent
@@ -61,6 +69,7 @@ Rectangle {
                        : badge.kind === "unconfirmed" ? unconfirmedGlyph
                        : badge.kind === "dot"         ? dotGlyph
                        : badge.kind === "ring"        ? ringGlyph
+                       : badge.kind === "status"      ? statusGlyph
                        :                                checkGlyph
     }
 
@@ -73,6 +82,20 @@ Rectangle {
                 anchors.centerIn: parent
                 width: badge.markSize; height: width; radius: width / 2
                 color: badge.tone
+                Behavior on color { enabled: badge.animated; ColorAnimation { duration: Theme.durationFast } }
+            }
+        }
+    }
+    // A check row's state: the ring is the badge itself; the tick only when it is good.
+    Component {
+        id: statusGlyph
+        Item {
+            Text {
+                anchors.centerIn: parent
+                visible:        badge.status === "good"
+                text:           "✓"
+                font.pixelSize: Theme.sp(10)
+                color:          Theme.colorGood
             }
         }
     }

@@ -263,25 +263,17 @@ Item {
                         color:          Theme.colorText
                     }
 
-                    Text {
-                        width:          parent.width
-                        text:           qsTr("Before you step up, let's make sure everything is ready. We'll confirm what you're working on, check your cameras, and connect your sensors — it only takes a moment.")
-                        font.family:    Theme.fontBody
-                        font.weight:    Theme.fontBodyWeight
-                        font.pixelSize: Theme.fontSzBody2
-                        color:          Theme.colorText2
-                        wrapMode:       Text.WordWrap
-                        lineHeight:     1.65
+                    PpCardNote {
+                        kind:  "setup"
+                        width: parent.width
+                        color: Theme.colorText2
+                        text:  qsTr("Before you step up, let's make sure everything is ready. We'll confirm what you're working on, check your cameras, and connect your sensors — it only takes a moment.")
                     }
 
-                    Text {
-                        text:               ctxObj.athleteName !== ""
-                                                ? Theme.caps(ctxObj.athleteName)
-                                                : Theme.caps(qsTr("No athlete"))
-                        font.family:        Theme.fontData
-                        font.pixelSize:     Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingMicro
-                        color:              Theme.colorText3
+                    PpMicro {
+                        text: ctxObj.athleteName !== ""
+                                  ? Theme.caps(ctxObj.athleteName)
+                                  : Theme.caps(qsTr("No athlete"))
                     }
                 }
 
@@ -378,9 +370,7 @@ Item {
                         font.family:        Theme.fontData
                         font.pixelSize:     Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingData
-                        color: root._hintTone === "good" ? Theme.colorGood
-                             : root._hintTone === "warn" ? Theme.colorWarn
-                                                         : Theme.colorText3
+                        color: Theme.toneColor(root._hintTone)
                         elide: Text.ElideRight
                     }
 
@@ -444,7 +434,7 @@ Item {
                                             : (root._fullyReady ? qsTr("▶  Start session") : qsTr("▶  Start anyway")))
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzBody
-                            color: Theme.dark ? Theme.colorBg : "#FFFFFF"
+                            color: Theme.colorOnAccentBright
                         }
 
                         PpPressable {
@@ -467,7 +457,7 @@ Item {
                         PpConnectingFrame {
                             anchors.fill: parent
                             radius:  parent.radius
-                            color:   Theme.dark ? Theme.colorBg : "#FFFFFF"
+                            color:   Theme.colorOnAccentBright
                             running: root._page !== null
                                      && (root._page.busy || (primaryBtn._offer !== null && primaryBtn._offer.busy === true))
                         }

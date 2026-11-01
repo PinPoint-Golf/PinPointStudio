@@ -82,20 +82,12 @@ SettingsPanelBase {
 
     // ── Page header ───────────────────────────────────────────────────
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Configuration")) }
-
-    PpDisplayText {
-        text: qsTr("Displays")
-    }
-
-    Text {
-        text: qsTr("Configure which monitors Pinpoint uses and how post-shot content is presented.")
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody2
-        font.weight:    Theme.fontBodyWeight
-        color:          Theme.colorText3
-        wrapMode:       Text.WordWrap
+    PpPageHeader {
         Layout.fillWidth: true
+        spacing:     root.contentSpacing
+        eyebrow:     Theme.caps(qsTr("Configuration"))
+        title:       qsTr("Displays")
+        description: qsTr("Configure which monitors Pinpoint uses and how post-shot content is presented.")
     }
 
     // ── Monitor diagram ───────────────────────────────────────────────
@@ -139,24 +131,14 @@ SettingsPanelBase {
                         Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
                         Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
-                        Rectangle {
+                        PpStatusPill {
                             visible: isMain || isSecondary
                             anchors.top:     parent.top
                             anchors.right:   parent.right
                             anchors.margins: Theme.gap(4)
-                            implicitWidth:  badgeText.implicitWidth + Theme.sp(8)
-                            implicitHeight: Theme.sp(14)
-                            radius: 1
-                            color:  isMain ? Theme.colorAccent : Theme.colorGood
-
-                            Text {
-                                id: badgeText
-                                anchors.centerIn: parent
-                                text:           isMain ? qsTr("Pinpoint") : qsTr("Post-shot")
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.sp(7)
-                                color:          Theme.colorSurface
-                            }
+                            style: "tag"
+                            tone:  isMain ? "accent" : "good"
+                            text:  isMain ? qsTr("Pinpoint") : qsTr("Post-shot")
                         }
 
                         Text {
@@ -233,7 +215,7 @@ SettingsPanelBase {
 
     // ── Group 1 — Main window ─────────────────────────────────────────
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Main window")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Main window")) }
 
     // Launch on row
     SettingsRow {
@@ -310,7 +292,7 @@ SettingsPanelBase {
 
     // ── Group 2 — Post-shot display ───────────────────────────────────
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Post-shot display")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Post-shot display")) }
 
     // WHAT the cast shows is no longer a choice, so it is stated once here rather
     // than offered as a control with one working value. The rows below decide WHERE
@@ -473,7 +455,7 @@ SettingsPanelBase {
 
     // ── Group 3 — Rendering ───────────────────────────────────────────
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Rendering")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Rendering")) }
 
     // Frame rate cap row
     SettingsRow {

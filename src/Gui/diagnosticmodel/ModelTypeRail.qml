@@ -65,15 +65,10 @@ Item {
             Layout.topMargin:    Theme.gap(12)
             Layout.bottomMargin: Theme.gap(6)
 
-            Text {
-                Layout.fillWidth:    true
-                text:                qsTr("Content")
-                font.family:         Theme.fontBody
-                font.pixelSize:      Theme.fontSzMicro
-                font.weight:         Theme.fontBodyWeight
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color:               Theme.colorText3
+            PpMicro {
+                kind:             "bodyWeight"
+                Layout.fillWidth: true
+                text:             qsTr("Content")
             }
 
             Rectangle {
@@ -191,18 +186,14 @@ Item {
             // thing you press to put the filters away is the thing that names them. Folded, it
             // carries the count of what is still narrowing the rows — the rail owes the reader that
             // whether or not the list itself is on screen.
-            Text {
-                Layout.fillWidth:    true
-                text: root.facetsFolded && root._activeFacetCount > 0
-                          ? qsTr("Filters (%1)").arg(root._activeFacetCount)
-                          : qsTr("Filters")
-                font.family:         Theme.fontBody
-                font.pixelSize:      Theme.fontSzMicro
-                font.weight:         Theme.fontBodyWeight
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color: root.facetsFolded && root._activeFacetCount > 0 ? Theme.colorAccent
-                                                                       : Theme.colorText3
+            PpMicro {
+                kind:             "bodyWeight"
+                Layout.fillWidth: true
+                text:             root.facetsFolded && root._activeFacetCount > 0
+                                      ? qsTr("Filters (%1)").arg(root._activeFacetCount)
+                                      : qsTr("Filters")
+                color:            root.facetsFolded && root._activeFacetCount > 0 ? Theme.colorAccent
+                                                                                  : Theme.colorText3
                 PpPressable { hoverScale: 1.0; onClicked: root.facetsFoldToggled() }
             }
 

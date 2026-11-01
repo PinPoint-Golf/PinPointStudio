@@ -29,6 +29,29 @@ Held on purpose: §21 look-bearing variants and typeset-pending pieces (A2, A3, 
 B12, B16, D8, D14), C2 (retire `PpMetricChart`), C29 (report roles), C27's What-moves-with print mode, D10 scene base, the monitor
 cards' chrome, the shown-session `sessionDir` expression ×3. Existing bugs found on the way: #127, #128, #129.
 
+## Status after the 1 Nov collapse run (uncommitted at the time of writing)
+
+Mark reversed the hold on the look-bearing items: collapse them all **in today's look**, so each control exists once and the
+typeset restyle ([#131](https://github.com/PinPoint-Golf/PinPointStudio/issues/131)) is one file per control. Six groups, each
+implemented, independently reviewed and shown on a before/after sheet (`build/run-me/gui-dedupe2/REVIEW.md`, `sheets/`):
+
+- **Status** (D8, D14, A15, B11): `Theme.toneColor()`/`toneLight`/`hasTone` and four ink-on-accent tokens; `PpBadge` kind
+  "status"; new `PpStatusPill` and `PpNotice`. Deleted `SetupStatusCircle`, `RmWarningNotice`.
+- **Buttons** (A2, A4, A8, A10): every hand-drawn button is a named `style`/`size` of `PpButton`; new `PpTabButton`;
+  `PpToolPill` replaces `DevicePill`; one press motion (`PpPressable`). Deleted `DevicePill`, `TBtn`, `PipBtn`,
+  `OutlineButton`, `ModelBarButton`.
+- **Chips** (A3, A9, B12): new `PpChoiceChip` and `PpSelectTile`; `PpChipGroup` wraps and multi-selects;
+  `PpSegmentedControl` styles; `Theme.hoverFill`/`choiceFill`/`choiceBorder`. Deleted `PpSpeedSelector`, `PpUnitToggle`.
+- **Fields** (A14): `PpTextField` sizes; new `PpSearchField`; `PpTextArea` lab style.
+- **Headings** (B4, B6, B16): `PpMicro` kinds (≈120 eyebrows), new `PpPageHeader` (23 screens), `PpCardNote` kinds.
+  Deleted `SettingsSectionHead`, `SetupStepIntro` and three local heading components.
+- **Popups** (B7, B10): `PpPopoverCard` styles (11 popup backgrounds), new `PpNotificationCard` (toast and notification
+  centre), one toast placement rule; `PpMenuItem` compact replaces ModelTools' local row.
+
+Copies left on purpose, each with its reason, are listed per group in REVIEW.md (e.g. the monitor filter box, `PpMetricChart`'s
+segment chip pending C2, annotation tool icons, RingMenu). The §21 table's "Retarget or hold" and "Hold" rows are now collapsed;
+the typeset answer for them is #131.
+
 ## ⚠ Copies that already disagree (user-visible or rule drift)
 
 | # | What | Where | Effect | Finding |
@@ -282,8 +305,8 @@ Built since 19 Oct; reuses `PpChBoxCell`, `PpChScatter`, `PpChRunBox`, `PpChPost
 | Look-neutral logic and structure: `PpConfirm` adoption, `SettingsPanelBase`, `SettingsRow` (structure), `CalibrationRoutineBase`, `HmFaultRow`, session-action rules, byte/plural helpers, C++ formatters and words, shot-shape classifier, D17/D18/D22 rules, `ModelTypeAhead`, `PpScopedAction`, `PpViewFlick`, `PpUpdateStatus` (logic), `clubModel`, dead-file deletion, `Qt.alpha` sweep | **Proceed as written.** |
 | Inside the typeset area: `PpChSection`, `PpChPositionProfile`, `PpChPictureStrip`, `PpChFindingsLedger`, report blocks in print roles, C3–C22, panel base, `PpSectionHead`, `PpStageCard` framing, `PpBoxPlot style` | **Top priority.** |
 | `PpSwitch`, `PpMenuItem`, `PpTextArea`, `PpAvatar`, `PpFactStrip`, `PpDeviceCard` shell, `SetupCapabilityRow` | **Collapse now, no variants; re-skin later.** |
-| Extend `PpButton`, `PpChipGroup`/`PpChip`, `PpSegmentedControl`, `PpBadge`, `PpMicro`/`PpCardNote` variants | **Retarget or hold** (see 1). `PpLink`'s disabled state (A21) is a small fix to a component typeset pages already use — proceed. |
-| Popup chrome, notice card, `Theme.toneColor()`, `PpTextField`/search field | **Hold** for a typeset answer, except the pure collapses above. |
+| Extend `PpButton`, `PpChipGroup`/`PpChip`, `PpSegmentedControl`, `PpBadge`, `PpMicro`/`PpCardNote` variants | **Retarget or hold** (see 1). `PpLink`'s disabled state (A21) is a small fix to a component typeset pages already use — proceed. *1 Nov: collapsed in today's look as named styles; typeset design is #131.* |
+| Popup chrome, notice card, `Theme.toneColor()`, `PpTextField`/search field | **Hold** for a typeset answer, except the pure collapses above. *1 Nov: collapsed in today's look; typeset design is #131.* |
 
 **Gaps the typeset system has still not answered** — a switch, a button, a text/search field, a popup surface, a notice, a device row, a settings row. New screens since 19 Oct (Studio, Sessions, trunk setup) re-rolled exactly these pieces, as predicted.
 

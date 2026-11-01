@@ -72,12 +72,7 @@ Popup {
 
     onOpened: { searchField.text = ""; searchField.forceActiveFocus(); listView.currentIndex = 0 }
 
-    background: Rectangle {
-        color:        Theme.colorSurface
-        radius:       Theme.radius
-        border.width: 1
-        border.color: root.borderColor
-    }
+    background: PpPopoverCard { style: "plainTight"; borderColor: root.borderColor }
 
     readonly property var _candidates:
         candidateSource ? candidateSource(searchField.text) : []
@@ -93,20 +88,16 @@ Popup {
     contentItem: ColumnLayout {
         spacing: 0
 
-        Text {
+        PpMicro {
+            kind:               "body"
             Layout.fillWidth:   true
             Layout.leftMargin:  Theme.gap(12)
             Layout.rightMargin: Theme.gap(12)
             Layout.topMargin:   Theme.gap(10)
-            text:                root.title
-            font.family:         Theme.fontBody
-            font.pixelSize:      Theme.fontSzMicro
-            font.letterSpacing:  Theme.trackingMicro
-            font.capitalization: Theme.capsFont
-            color:               Theme.colorText3
+            text:               root.title
         }
 
-        PpTextField {
+        PpSearchField {
             id: searchField
             Layout.fillWidth:   true
             Layout.leftMargin:  Theme.gap(10)

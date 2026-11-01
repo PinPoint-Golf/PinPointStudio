@@ -364,7 +364,7 @@ Item {
                 id: enableToggle
                 Layout.alignment: Qt.AlignVCenter
                 checked:   deviceEnabled
-                knobColor: Theme.dark ? Theme.colorText : Theme.colorSurface
+                knobColor: Theme.colorKnob
                 // Manager-owned; disabling a connected device also disconnects it.
                 onToggled: (v) => imuManager.setSessionImuEnabled(devId, v)
             }

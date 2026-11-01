@@ -35,8 +35,12 @@
 //             onCommit: (t) => studioProfile.booking = t
 //         }
 //
+// `style: "lab"` is the Developer page's look: 10 px in all round (14 px at the left, as the style's
+// own padding rule has it), normal weight, and a colorBorderMid edge at rest.
+//
 // Settings → Studio (the booking sentence, the practice steps, the email message), the report sheet's
-// note (PpReportSheet).
+// note (PpReportSheet); lab: the Developer page's text-to-speech box (AudioPage) and the coach's
+// message box (CoachPage).
 
 import QtQuick
 import QtQuick.Controls.Basic
@@ -46,20 +50,23 @@ TextArea {
     id: root
 
     property bool   hasError:     false
+    property string style:        "regular"   // "regular" | "lab"
     property bool   commitOnBlur: false
     property string value:        ""
     signal commit(string text)
 
     text: root.value
     wrapMode: TextArea.Wrap
-    leftPadding:   Theme.gap(10)
+    readonly property bool _lab: root.style === "lab"
+
+    leftPadding:   root._lab ? Theme.gap(10) + 4 : Theme.gap(10)
     rightPadding:  Theme.gap(10)
-    topPadding:    Theme.gap(8)
-    bottomPadding: Theme.gap(8)
+    topPadding:    root._lab ? Theme.gap(10) : Theme.gap(8)
+    bottomPadding: root._lab ? Theme.gap(10) : Theme.gap(8)
 
     font.family:    Theme.fontBody
     font.pixelSize: Theme.fontSzBody
-    font.weight:    Theme.fontBodyWeight
+    font.weight:    root._lab ? Font.Normal : Theme.fontBodyWeight
     color:          Theme.colorText
 
     placeholderTextColor: Theme.colorText3
@@ -76,6 +83,7 @@ TextArea {
         border.width: 1
         border.color: root.activeFocus
                           ? Theme.colorAccent
-                          : (root.hasError ? Theme.colorWarn : Theme.colorBorderStrong)
+                          : (root.hasError ? Theme.colorWarn
+                                           : root._lab ? Theme.colorBorderMid : Theme.colorBorderStrong)
     }
 }

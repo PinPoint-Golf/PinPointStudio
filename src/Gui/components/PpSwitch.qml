@@ -27,7 +27,7 @@
 //
 // `knobColor` is white, as nearly every switch has it; the toolbar camera panel (cameras/PpCameraPanel.qml)
 // and the toolbar IMU panel (imu/PpImuPanel.qml) take a theme colour instead
-// (Theme.dark ? Theme.colorText : Theme.colorSurface) and pass it here.
+// (Theme.colorKnob) and pass it here.
 // `largeKnob` gives the session View and Motion panels' look: the same pill with a round end, a
 // 14 px knob 2 px from the edge, surface-coloured when on and grey (colorText3) when off — knobColor
 // is not used then.
@@ -57,7 +57,7 @@ Rectangle {
         height: width
         radius: pill.largeKnob ? width / 2 : Theme.sp(6)
         color:  !pill.largeKnob ? pill.knobColor
-              : pill.checked    ? (Theme.dark ? Theme.colorBg : Theme.colorSurface)
+              : pill.checked    ? Theme.colorOnAccent
               :                   Theme.colorText3
         // Centred, or (largeKnob) pinned 2 px from the top as the session panels drew it — the two
         // differ by half a pixel at some font scales.

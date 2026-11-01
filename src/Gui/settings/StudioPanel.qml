@@ -225,12 +225,12 @@ SettingsPanelBase {
 
     // ── the page ──────────────────────────────────────────────────────────────
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Reports")) }
-    PpDisplayText { text: qsTr("Studio") }
-    Text {
-        text: qsTr("Your studio and its coach, as every session report you send shows them: the masthead, the sign-off, page 8's practice steps and the email that carries the PDF. Changing anything here puts reports already made out of date, so they can be made again.")
-        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; font.weight: Theme.fontBodyWeight
-        color: Theme.colorText3; wrapMode: Text.WordWrap; Layout.fillWidth: true
+    PpPageHeader {
+        Layout.fillWidth: true
+        spacing:     root.contentSpacing
+        eyebrow:     Theme.caps(qsTr("Reports"))
+        title:       qsTr("Studio")
+        description: qsTr("Your studio and its coach, as every session report you send shows them: the masthead, the sign-off, page 8's practice steps and the email that carries the PDF. Changing anything here puts reports already made out of date, so they can be made again.")
     }
 
     // What a report would still be missing, said once at the top, in the report sheet's words.
@@ -246,7 +246,7 @@ SettingsPanelBase {
     }
 
     // ── The studio ───────────────────────────────────────────────────
-    SettingsSectionHead { text: Theme.caps(qsTr("The studio")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("The studio")) }
     FieldRow {
         objectName: "setting_studioName"
         title: qsTr("Studio name")
@@ -340,7 +340,7 @@ SettingsPanelBase {
     PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
     // ── Contact ──────────────────────────────────────────────────────
-    SettingsSectionHead { text: Theme.caps(qsTr("Contact — each line prints only when it is filled in")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Contact — each line prints only when it is filled in")) }
     FieldRow {
         objectName: "setting_studioAddress"
         title: qsTr("Address")
@@ -390,7 +390,7 @@ SettingsPanelBase {
     PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
     // ── The coach ────────────────────────────────────────────────────
-    SettingsSectionHead { text: Theme.caps(qsTr("The coach — every report is from this coach")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("The coach — every report is from this coach")) }
     FieldRow {
         objectName: "setting_studioCoachName"
         title: qsTr("Name")
@@ -433,7 +433,7 @@ SettingsPanelBase {
     PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
     // ── How to practise ──────────────────────────────────────────────
-    SettingsSectionHead { text: Theme.caps(qsTr("How to practice a change — page 8 of every report")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("How to practice a change — page 8 of every report")) }
     SettingsRow {
         id: stepsCol
         objectName: "setting_studioPractice"
@@ -508,7 +508,7 @@ SettingsPanelBase {
     PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
     // ── The email ────────────────────────────────────────────────────
-    SettingsSectionHead { text: Theme.caps(qsTr("The email that carries the report")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("The email that carries the report")) }
     Text {
         text: qsTr("{first} is the golfer's greeting, {date} the session's date, {coach} the coach's name, {studio} the studio's name.")
         font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3
@@ -552,7 +552,7 @@ SettingsPanelBase {
     PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
     // ── Sending reports ──────────────────────────────────────────────
-    SettingsSectionHead { objectName: "studioSendingHead"; text: Theme.caps(qsTr("Sending reports")) }
+    PpMicro { kind: "body"; objectName: "studioSendingHead"; text: Theme.caps(qsTr("Sending reports")) }
     Text {
         objectName: "studioSendingStatus"
         text: root.provider === ""

@@ -155,54 +155,20 @@ PpGroupCard {
     // Club tabs — the athlete's configured clubs in the app's stage-tab
     // language (see PpModeStage on the Wrist screen): no border, no
     // pill; the active club carries a 2px accent underline (theme
-    // accent) and brighter text. A Flow, not the stage's Row, so a full
-    // bag — up to 17 clubs — wraps. Selecting a tab shows ONE detail card.
-    Flow {
+    // accent) and brighter text — the chip group's "tab" look, which wraps,
+    // so a full bag — up to 17 clubs — fits. Selecting a tab shows ONE detail card.
+    PpChipGroup {
         width:   parent.width
         spacing: Theme.gap(5)
-
-        Repeater {
-            model: root.configuredIds
-
-            Rectangle {
-                required property string modelData
-                readonly property bool sel: modelData === root.selectedClubId
-
-                height:  Theme.sp(30)
-                width:   tabTxt.implicitWidth + Theme.sp(26)
-                radius:  Theme.radius
-                // Faint fill on select/hover (alpha-ramped rest → no
-                // colour flash); selection is carried by the underline.
-                color:   sel || tabMa.containsMouse
-                             ? Theme.colorBg2
-                             : Qt.alpha(Theme.colorBg2, 0)
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                Rectangle {  // active underline (theme accent)
-                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                    height: 2
-                    color:  sel ? Theme.colorAccent : "transparent"
-                }
-
-                Text {
-                    id: tabTxt
-                    anchors.centerIn: parent
-                    text:           ClubFormat.display(modelData)
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    color:          sel ? Theme.colorText : Theme.colorText3
-                }
-
-                PpPressable {
-                    id: tabMa
-                    onClicked: {
-                        // Steal focus first so an in-edit field commits
-                        // against the OUTGOING club before the switch.
-                        root.forceActiveFocus()
-                        root.selectedClubId = modelData
-                    }
-                }
-            }
+        wrap:    true
+        style:   "tab"
+        options:  root.configuredIds.map(id => ({ label: ClubFormat.display(id), value: id }))
+        selected: root.selectedClubId
+        onSelectionChanged: (id) => {
+            // Steal focus first so an in-edit field commits
+            // against the OUTGOING club before the switch.
+            root.forceActiveFocus()
+            root.selectedClubId = id
         }
     }
 

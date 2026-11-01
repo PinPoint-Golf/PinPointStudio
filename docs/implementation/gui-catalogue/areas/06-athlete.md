@@ -65,7 +65,7 @@ Full-screen create/edit form for an athlete (name, DOB, sex, handedness, height/
 - **Properties:** `bool nameError`, `bool dobError`, `string handedness`, `string heightUnit`, `string weightUnit`, `string primaryClub`, `string sex`, `bool emailError`, `bool photosApproved`, `string photosApprovedOn`, `readonly bool isJunior`, `readonly var sexOptions`, `readonly var sexLabels`, `string editUuid` … (+1 more)
 - **Signals:** `cancelled()`, `saved(string uuid)`, `savedAndStarted(string uuid)`
 - **Functions:** `emailShapeOk(text)`, `normaliseEmails(text)`, `firstWord(text)`, `approvedWords(iso)`, `sexLabelFor(value)`, `sexValueFor(label)`, `dobOk(text)`, `resetForm()`, `loadForEdit()`, `validate()` (+1)
-- **Uses:** `AthleteClubsSection`, `ClubFormat`, `PpButton`, `PpChipGroup`, `PpComboBox`, `PpDisplayText`, `PpPressable`, `PpTextField`, `PpUnitToggle`
+- **Uses:** `AthleteClubsSection`, `ClubFormat`, `PpButton`, `PpChipGroup`, `PpComboBox`, `PpDisplayText`, `PpPressable`, `PpTextField`, `PpSegmentedControl` (style `unit`)
 - **Used by (1):** `Main`
 
 ### ScreenAthletePicker
@@ -76,7 +76,7 @@ Full-screen athlete chooser: search, a 'Recent' section and 'All athletes' as Pp
 
 - **Properties:** `string selectedUuid`, `readonly bool sessionRunning`, `var filteredAthletes`
 - **Signals:** `athleteSelected(string uuid)`, `newAthleteRequested()`, `editAthleteRequested(string uuid)`
-- **Uses:** `PpAthleteCard`, `PpAthleteRow`, `PpButton`, `PpDisplayText`
+- **Uses:** `PpAthleteCard`, `PpAthleteRow`, `PpButton`, `PpDisplayText`, `PpSearchField`
 - **Used by (1):** `Main`
 
 ### ScreenSessions
@@ -100,5 +100,5 @@ Full-screen athlete chooser: search, a 'Recent' section and 'All athletes' as Pp
 - **Properties:** `readonly var model`, `readonly int sidePad`, `readonly bool hintSeen`
 - **Signals:** `reviewSessionRequested(string sessionDir)`, `studioSettingsRequested()`, `golferDetailsRequested()`
 - **Functions:** `toTop()`, `bytesWords(b)`, `plural(n, one, many)`
-- **Uses:** `PpCheckRow`, `PpComboBox`, `PpDeviceFilterBar`, `PpSegmentedControl`, `PpSessionReportList`, `PpSessionsSelectionBar`, `PpTextField`, `PpToast`
+- **Uses:** `PpCheckRow`, `PpComboBox`, `PpDeviceFilterBar`, `PpSegmentedControl`, `PpSearchField`, `PpSessionReportList`, `PpSessionsSelectionBar`, `PpToast`
 - **Used by (1):** `Main`

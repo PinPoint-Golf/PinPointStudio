@@ -51,14 +51,10 @@ Item {
             Layout.bottomMargin: Theme.gap(8)
             spacing: Theme.gap(8)
 
-            Text {
-                Layout.fillWidth:    true
-                text:                qsTr("Edits")
-                font.family:         Theme.fontBody
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color:               Theme.colorText3
+            PpMicro {
+                kind:             "body"
+                Layout.fillWidth: true
+                text:             qsTr("Edits")
             }
 
             Text {

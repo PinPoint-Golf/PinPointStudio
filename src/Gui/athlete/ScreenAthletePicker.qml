@@ -61,16 +61,10 @@ Item {
             y:       32
 
             // ── Header ───────────────────────────────────────────────────────
-            Text {
-                text:               Theme.caps(qsTr("Athletes"))
-                font.family:        Theme.fontData
-                font.pixelSize:     Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro
-                color:              Theme.colorText3
-                bottomPadding:      Theme.gap(10)
-            }
-            PpDisplayText {
-                text: qsTr("Choose athlete")
+            PpPageHeader {
+                style:   "screen"
+                eyebrow: Theme.caps(qsTr("Athletes"))
+                title:   qsTr("Choose athlete")
             }
             Item { width: 1; height: Theme.sp(24) }
 
@@ -80,13 +74,9 @@ Item {
                 spacing: Theme.gap(8)
                 visible: athleteController.athletes.length > 0
 
-                Text {
-                    text:               Theme.caps(qsTr("Recent"))
-                    font.family:        Theme.fontData
-                    font.pixelSize:     Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                    color:              Theme.colorText3
-                    bottomPadding:      Theme.gap(2)
+                PpMicro {
+                    text:          Theme.caps(qsTr("Recent"))
+                    bottomPadding: Theme.gap(2)
                 }
 
                 Row {
@@ -120,40 +110,20 @@ Item {
             RowLayout {
                 width: parent.width
 
-                Text {
-                    text:           qsTr("All athletes · %1 total").arg(athleteController.athletes.length)
-                    font.family:    Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                    color:          Theme.colorText3
+                PpMicro {
+                    text:             qsTr("All athletes · %1 total").arg(athleteController.athletes.length)
                     Layout.alignment: Qt.AlignVCenter
                 }
                 Item { Layout.fillWidth: true }
 
-                Rectangle {
-                    width:  Theme.sp(180)
-                    height: Theme.sp(28)
-                    radius: Theme.radius
-                    color:  Theme.colorSurface
-                    border.width: 1
-                    border.color: searchField.activeFocus ? Theme.colorAccent : Theme.colorBorderStrong
+                PpSearchField {
+                    id: searchField
+                    size: "compact"
+                    padHit: false
+                    Layout.preferredWidth:  Theme.sp(180)
+                    Layout.preferredHeight: Theme.sp(28)
                     Layout.alignment: Qt.AlignVCenter
-
-                    TextField {
-                        id: searchField
-                        anchors { fill: parent; leftMargin: Theme.gap(8); rightMargin: Theme.gap(8) }
-                        placeholderText:      qsTr("⌕  Search…")
-                        placeholderTextColor: Theme.colorText3
-                        background:           null
-                        font.family:          Theme.fontBody
-                        font.pixelSize:       Theme.fontSzBody2
-                        color:                Theme.colorText
-                        leftPadding:          0
-                        rightPadding:         0
-                        topPadding:           0
-                        bottomPadding:        0
-                        verticalAlignment:    TextInput.AlignVCenter
-                    }
+                    placeholderText: qsTr("⌕  Search…")
                 }
             }
 

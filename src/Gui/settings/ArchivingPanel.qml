@@ -65,16 +65,16 @@ SettingsPanelBase {
         { label: qsTr("90 days"),            value: 90 }
     ]
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Library")) }
-    PpDisplayText { text: qsTr("Archiving") }
-    Text {
-        text: qsTr("Move whole sessions off the library to another drive and back. An archived session stays in your list with its scores and metrics; opening it brings the rest back. Every copy is checked byte for byte before anything in the library is removed.")
-        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; font.weight: Theme.fontBodyWeight
-        color: Theme.colorText3; wrapMode: Text.WordWrap; Layout.fillWidth: true
+    PpPageHeader {
+        Layout.fillWidth: true
+        spacing:     root.contentSpacing
+        eyebrow:     Theme.caps(qsTr("Library"))
+        title:       qsTr("Archiving")
+        description: qsTr("Move whole sessions off the library to another drive and back. An archived session stays in your list with its scores and metrics; opening it brings the rest back. Every copy is checked byte for byte before anything in the library is removed.")
     }
 
     // ── Space ─────────────────────────────────────────────────────────────
-    SettingsSectionHead { text: Theme.caps(qsTr("Space")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Space")) }
     SettingsRow {
         objectName: "setting_archiveSpace"
         RowLayout {
@@ -103,7 +103,7 @@ SettingsPanelBase {
     PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
     // ── Where archives go ─────────────────────────────────────────────────
-    SettingsSectionHead { text: Theme.caps(qsTr("Archive location")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Archive location")) }
     SettingsRow {
         objectName: "setting_archiveLocation"
         SettingsRowTitle {
@@ -137,7 +137,7 @@ SettingsPanelBase {
     PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
     // ── Automatic ─────────────────────────────────────────────────────────
-    SettingsSectionHead { text: Theme.caps(qsTr("Automatic — checked a minute after start-up")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Automatic — checked a minute after start-up")) }
     SettingsRow {
         objectName: "setting_archiveAge"
         RowLayout {
@@ -211,7 +211,7 @@ SettingsPanelBase {
     }
 
     // ── Sessions ──────────────────────────────────────────────────────────
-    SettingsSectionHead { text: Theme.caps(qsTr("Sessions")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Sessions")) }
     Text {
         visible: root.hasController && archiveController.sessions.length === 0
         text: qsTr("No sessions found in the library.")

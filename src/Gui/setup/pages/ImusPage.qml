@@ -119,14 +119,15 @@ WizardPage {
         anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.gap(32) }
         spacing: Theme.gap(16)
 
-        SetupStepIntro {
-            width:   parent.width
-            eyebrow: page.stepLabel
-            heading: qsTr("Attaching your motion sensors")
+        PpPageHeader {
+            style:       "setup"
+            width:       parent.width
+            eyebrow:     page.stepLabel
+            title:       qsTr("Attaching your motion sensors")
             // DECISION(stage5b): today's body said the positions were "specific to this session
             // type"; they are the sensors' own mounts now, remembered from one session to the next.
             // W2.2: this page is the one place a mount is set (Settings ▸ IMUs shows it read-only).
-            body:    qsTr("Switch each sensor on before stepping up. Each sensor below shows where it is worn — confirm it, change it, or choose a place for a new one — then pair them. Mounts are remembered from one session to the next.")
+            description: qsTr("Switch each sensor on before stepping up. Each sensor below shows where it is worn — confirm it, change it, or choose a place for a new one — then pair them. Mounts are remembered from one session to the next.")
         }
 
         // ── Scan header ─────────────────────────────────────────────
@@ -134,7 +135,7 @@ WizardPage {
             width: parent.width
             spacing: Theme.gap(8)
 
-            Text {
+            PpMicro {
                 Layout.fillWidth: true
                 text: {
                     var n = page.ctx.sensorsFound
@@ -142,51 +143,23 @@ WizardPage {
                         ? Theme.caps(qsTr("No devices found"))
                         : Theme.plural(n, qsTr("%1 DEVICE FOUND"), qsTr("%1 DEVICES FOUND"))
                 }
-                font.family:        Theme.fontData
-                font.pixelSize:     Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro
                 color: page.ctx.sensorsFound > 0 ? Theme.colorText3 : Theme.colorWarn
             }
 
             // Scan button — mirrors ImusPanel.qml. Bound to the manager's authoritative scan state
             // (D7), NOT a local timer: the window is 90 s with HackMotion enabled, and a local clock
             // that ran out early re-offered a Scan tap the enumerator's re-entry guard swallowed.
-            Rectangle {
+            PpButton {
                 id: scanBtn
                 objectName: "sensorScan"
                 readonly property bool scanning: page.ctx.sensorScanActive
 
-                implicitWidth:  scanMeasure.implicitWidth + Theme.sp(24)
-                implicitHeight: Theme.sp(28)
-                radius: Theme.radius
-                color:  scanning ? Theme.colorAccentLight
-                                 : (scanArea.containsMouse ? Theme.colorBg2
-                                        : Qt.alpha(Theme.colorBg2, 0))
-                border.width: 1
-                border.color: scanning ? Theme.colorAccent
-                                       : (scanArea.containsMouse ? Theme.colorAccentMid : Theme.colorBorderStrong)
-                Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                Text {
-                    id: scanMeasure
-                    visible: false
-                    text: qsTr("Scanning…")
-                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; font.weight: Theme.fontBodyWeight
-                }
-                Text {
-                    anchors.centerIn: parent
-                    text:           scanBtn.scanning ? qsTr("Scanning…") : qsTr("Scan")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Theme.fontBodyWeight
-                    color:          scanBtn.scanning ? Theme.colorAccent : Theme.colorText2
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                }
-                PpPressable {
-                    id: scanArea
-                    onClicked: page.ctx.rescanSensors()
-                }
+                style: "quiet"; size: "compact"
+                horizontalPadding: Theme.sp(24)
+                active: scanning
+                sizeLabel: qsTr("Scanning…")
+                label: scanBtn.scanning ? qsTr("Scanning…") : qsTr("Scan")
+                onClicked: page.ctx.rescanSensors()
             }
         }
 
@@ -326,45 +299,26 @@ WizardPage {
 
                                 Repeater {
                                     model: devRow._asking ? devRow._options : []
-                                    delegate: Rectangle {
+                                    delegate: PpChoiceChip {
                                         id: opt
                                         required property var modelData
                                         objectName: "mountOption"
                                         // For the tests: which mount, and whether it can be taken.
                                         property string role:      modelData.role
                                         property bool   taken:     modelData.taken
-                                        property string optionText: optText.text
-                                        readonly property bool current: devRow._dev.role === modelData.role
+                                        property string optionText: label
 
-                                        implicitWidth:  optText.implicitWidth + Theme.sp(20)
-                                        implicitHeight: Theme.sp(26)
-                                        radius:  Theme.sp(13)
-                                        opacity: taken ? 0.45 : 1.0
-                                        color:   current ? Theme.colorAccentLight
-                                                         : (optMa.containsMouse && !taken ? Theme.colorBg2 : "transparent")
-                                        border.width: 1
-                                        border.color: current ? Theme.colorAccent : Theme.colorBorderStrong
-
-                                        Text {
-                                            id: optText
-                                            anchors.centerIn: parent
-                                            // A mount another sensor holds says who, so the coach
-                                            // knows which sensor to change (ImusPanel's wording).
-                                            text: opt.modelData.taken
-                                                  ? qsTr("%1 — held by %2").arg(opt.modelData.label).arg(opt.modelData.holderName)
-                                                  : opt.modelData.label
-                                            font.family:    Theme.fontBody
-                                            font.pixelSize: Theme.fontSzBody2
-                                            color: opt.current ? Theme.colorAccent : Theme.colorText2
-                                        }
-                                        MouseArea {
-                                            id: optMa
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            enabled:      !opt.taken
-                                            cursorShape:  Qt.PointingHandCursor
-                                            onClicked:    page.chooseMount(devRow._dev.id, opt.modelData.role)
-                                        }
+                                        style:    "capsule"
+                                        selected: devRow._dev.role === modelData.role
+                                        dimmed:   taken
+                                        enabled:  !taken
+                                        // A mount another sensor holds says who, so the coach
+                                        // knows which sensor to change (ImusPanel's wording).
+                                        label: opt.modelData.taken
+                                               ? qsTr("%1 — held by %2").arg(opt.modelData.label).arg(opt.modelData.holderName)
+                                               : opt.modelData.label
+                                        moves:     false
+                                        onClicked: page.chooseMount(devRow._dev.id, opt.modelData.role)
                                     }
                                 }
                             }

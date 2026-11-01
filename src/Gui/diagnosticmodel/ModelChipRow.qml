@@ -36,14 +36,10 @@ ColumnLayout {
 
     spacing: Theme.gap(4)
 
-    Text {
-        Layout.leftMargin:   Theme.gap(14)
-        text:                root.label
-        font.family:         Theme.fontBody
-        font.pixelSize:      Theme.fontSzMicro
-        font.letterSpacing:  Theme.trackingMicro
-        font.capitalization: Theme.capsFont
-        color:               Theme.colorText3
+    PpMicro {
+        kind:              "body"
+        Layout.leftMargin: Theme.gap(14)
+        text:              root.label
     }
 
     Text {
@@ -55,39 +51,14 @@ ColumnLayout {
         color:          Theme.colorText3
     }
 
-    Flow {
+    PpChipGroup {
         Layout.fillWidth:   true
         Layout.leftMargin:  Theme.gap(14)
         Layout.rightMargin: Theme.gap(14)
-        spacing: Theme.gap(6)
-
-        Repeater {
-            model: root.options
-            delegate: Rectangle {
-                id: chip
-                required property var modelData
-
-                readonly property bool active: root.chosen === modelData.value
-
-                implicitWidth:  chipText.implicitWidth + Theme.sp(18)
-                implicitHeight: Theme.sp(24)
-                radius:         height / 2
-                color:          active ? Theme.colorAccentLight : "transparent"
-                border.width:   1
-                border.color:   active ? Theme.colorAccent : Theme.colorBorderMid
-
-                Text {
-                    id: chipText
-                    anchors.centerIn: parent
-                    text: chip.modelData.label
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzMicro
-                    font.weight:    Theme.fontBodyWeight
-                    color: chip.active ? Theme.colorAccent : Theme.colorText2
-                }
-
-                PpPressable { hoverScale: 1.0; onClicked: root.picked(chip.modelData.value) }
-            }
-        }
+        wrap:     true
+        style:    "pill"
+        options:  root.options
+        selected: root.chosen
+        onSelectionChanged: (value) => root.picked(value)
     }
 }

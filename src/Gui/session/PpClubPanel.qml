@@ -85,7 +85,7 @@ Item {
             Repeater {
                 model: root.clubModel
 
-                delegate: Rectangle {
+                delegate: PpSelectTile {
                     id: clubRow
                     required property string modelData
                     readonly property bool sel:   modelData === root.currentClub
@@ -95,19 +95,12 @@ Item {
 
                     width:  parent.width
                     height: Theme.sp(34)
-                    radius: Theme.radius
-                    // Selected: accent wash + accent border. Hover (unselected): faint
-                    // bg fill (alpha-ramped → no flash) + accentMid border — the
-                    // chip/tile language shared with the View panel cards.
-                    color: sel                 ? Theme.colorAccentLight
-                         : rowMa.containsMouse ? Theme.colorBg2
-                         :                        Qt.alpha(Theme.colorBg2, 0)
-                    border.width: 1
-                    border.color: sel                 ? Theme.colorAccent
-                                : rowMa.containsMouse ? Theme.colorAccentMid
-                                :                        Theme.colorBorderMid
-                    Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+                    // The shared tile language (PpSelectTile), shared with the View panel cards.
+                    selected: sel
+                    onClicked: {
+                        sessionController.activeClub = clubRow.modelData
+                        root.requestClose()
+                    }
 
                     RowLayout {
                         anchors { fill: parent; leftMargin: Theme.gap(11); rightMargin: Theme.gap(10) }
@@ -141,21 +134,11 @@ Item {
                                     }
                                 }
                             }
-                            Text {
+                            PpMicro {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: qsTr("taped")
-                                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                                font.letterSpacing: Theme.trackingMicro
                                 color: Theme.colorGood
                             }
-                        }
-                    }
-
-                    PpPressable {
-                        id: rowMa
-                        onClicked: {
-                            sessionController.activeClub = clubRow.modelData
-                            root.requestClose()
                         }
                     }
                 }

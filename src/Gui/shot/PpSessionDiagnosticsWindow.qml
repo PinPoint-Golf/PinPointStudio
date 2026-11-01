@@ -155,12 +155,10 @@ Window {
                     : (pinHover.hovered ? Theme.colorBorder : "transparent")
         Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
-        Text {
+        PpMicro {
             id: pinTxt
             anchors.centerIn: parent
             text: win.pinned ? Theme.caps(qsTr("Pinned")) : Theme.caps(qsTr("Pin"))
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingMicro
             color: win.pinned ? Theme.colorText2
                  : (pinHover.hovered ? Theme.colorText3 : "transparent")
             Behavior on color { ColorAnimation { duration: Theme.durationFast } }

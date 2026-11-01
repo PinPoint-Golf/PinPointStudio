@@ -40,7 +40,7 @@ Item {
     // so switching aesthetic never recolours marks already drawn.
     readonly property var _swatches: [ Theme.colorAccent, Theme.colorGood,
                                        Theme.colorWarn, Theme.colorError,
-                                       Theme.dark ? Theme.colorText : Theme.colorBg ]
+                                       Theme.colorOnScrim ]
 
     // Tool segments: cursor / line / ellipse / hollow square.
     readonly property var _tools: [
@@ -106,7 +106,7 @@ Item {
                             anchors.centerIn: parent
                             width: Theme.sp(16); height: Theme.sp(16)
                             kind: seg.modelData.kind
-                            iconColor: seg.active ? (Theme.dark ? Theme.colorBg : Theme.colorSurface)
+                            iconColor: seg.active ? Theme.colorOnAccent
                                                   : Theme.colorText2
                         }
                         MouseArea {

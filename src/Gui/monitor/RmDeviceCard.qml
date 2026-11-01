@@ -101,52 +101,23 @@ Rectangle {
             }
 
             // Status pill
-            Item {
+            PpStatusPill {
                 id: pillItem
                 anchors.verticalCenter: parent.verticalCenter
-                implicitWidth: pill.implicitWidth + Theme.sp(14)
-                implicitHeight: pill.implicitHeight + Theme.sp(6)
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: height / 2
-                    color: {
-                        var s = root.deviceData.status
-                        if (s === "streaming" || s === "connected") return Theme.colorGoodLight
-                        if (s === "stalled" || root.deviceData.hasWarning) return Theme.colorWarnLight
-                        return Theme.colorBg3
-                    }
-                    border.width: 1
-                    border.color: {
-                        var s = root.deviceData.status
-                        if (s === "streaming" || s === "connected")
-                            return Qt.alpha(Theme.colorGood, 0.3)
-                        if (s === "stalled" || root.deviceData.hasWarning)
-                            return Qt.alpha(Theme.colorWarn, 0.3)
-                        return Theme.colorBorderMid
-                    }
+                style: "capsuleSoft"
+                tone: {
+                    var s = root.deviceData.status
+                    if (s === "streaming" || s === "connected") return "good"
+                    if (s === "stalled" || root.deviceData.hasWarning) return "warn"
+                    return ""
                 }
-
-                Text {
-                    id: pill
-                    anchors.centerIn: parent
-                    text: {
-                        var s = root.deviceData.status
-                        if (s === "connected" && root.deviceData.dataRateHz > 0)
-                            return root.deviceData.dataRateHz.toFixed(0) + " Hz"
-                        // The status arrives in lower case. Sentence case first, so an
-                        // aesthetic that does not set labels in capitals still reads a label.
-                        return Theme.caps(s.charAt(0).toUpperCase() + s.slice(1))
-                    }
-                    font.family: Theme.fontData
-                    font.pixelSize: Theme.sp(9)
-                    font.letterSpacing: Theme.trackingMicro
-                    color: {
-                        var s = root.deviceData.status
-                        if (s === "streaming" || s === "connected") return Theme.colorGood
-                        if (s === "stalled" || root.deviceData.hasWarning) return Theme.colorWarn
-                        return Theme.colorText3
-                    }
+                text: {
+                    var s = root.deviceData.status
+                    if (s === "connected" && root.deviceData.dataRateHz > 0)
+                        return root.deviceData.dataRateHz.toFixed(0) + " Hz"
+                    // The status arrives in lower case. Sentence case first, so an
+                    // aesthetic that does not set labels in capitals still reads a label.
+                    return Theme.caps(s.charAt(0).toUpperCase() + s.slice(1))
                 }
             }
         }
@@ -283,9 +254,7 @@ Rectangle {
                     font.family: Theme.fontData
                     font.pixelSize: Theme.sp(11)
                     horizontalAlignment: Text.AlignRight
-                    color: modelData.cls === "good" ? Theme.colorGood
-                         : modelData.cls === "warn" ? Theme.colorWarn
-                         : Theme.colorText2
+                    color: Theme.toneColor(modelData.cls, Theme.colorText2)
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
@@ -326,14 +295,11 @@ Rectangle {
                 text: qsTr("Settings →")
                 font.family: Theme.fontBody
                 font.pixelSize: Theme.sp(10)
-                color: settingsLinkHover.hovered ? Qt.lighter(Theme.colorAccent, 1.08) : Theme.colorAccent
+                color: settingsLinkPress.containsMouse ? Qt.lighter(Theme.colorAccent, 1.08) : Theme.colorAccent
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                 transformOrigin: Item.Right
-                scale: settingsLinkTap.pressed ? 0.97 : settingsLinkHover.hovered ? 1.02 : 1.0
-                Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
-                HoverHandler { id: settingsLinkHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler  { id: settingsLinkTap; onTapped: root.openSettingsRequested() }
+                PpPressable { id: settingsLinkPress; onClicked: root.openSettingsRequested() }
             }
         }
     }

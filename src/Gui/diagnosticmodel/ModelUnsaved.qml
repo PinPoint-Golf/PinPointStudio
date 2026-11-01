@@ -46,12 +46,7 @@ Popup {
     padding: 0
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
-    background: Rectangle {
-        color:        Theme.colorSurface
-        radius:       Theme.radius
-        border.width: 1
-        border.color: Theme.colorBorderStrong
-    }
+    background: PpPopoverCard { style: "plainTight" }
 
     contentItem: ColumnLayout {
         spacing: 0
@@ -92,28 +87,11 @@ Popup {
                 wrapMode:       Text.WordWrap
             }
 
-            Rectangle {
-                implicitWidth:  revertLbl.implicitWidth + Theme.sp(20)
-                implicitHeight: Theme.sp(28)
-                radius: Theme.radius
-                color:  revertMa.containsMouse ? Theme.colorWarnLight : "transparent"
-                border.width: 1
-                border.color: Theme.colorWarn
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                Text {
-                    id: revertLbl
-                    anchors.centerIn: parent
-                    text: qsTr("Revert all")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    color:          Theme.colorWarn
-                }
-                PpPressable {
-                    id: revertMa
-                    hoverScale: 1.0
-                    onClicked: { root.revertAll(); root.close() }
-                }
+            PpButton {
+                style: "tone"; tone: "warn"; size: "compact"
+                hoverScale: 1.0
+                label: qsTr("Revert all")
+                onClicked: { root.revertAll(); root.close() }
             }
         }
     }

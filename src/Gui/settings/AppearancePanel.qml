@@ -40,25 +40,17 @@ SettingsPanelBase {
 
     // ── Page header ───────────────────────────────────────────────────
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Configuration")) }
-
-    PpDisplayText {
-        text: qsTr("Appearance")
-    }
-
-    Text {
-        text: qsTr("Aesthetic, colour mode, type scale and interface behaviour.")
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody2
-        font.weight:    Theme.fontBodyWeight
-        color:          Theme.colorText3
-        wrapMode:       Text.WordWrap
+    PpPageHeader {
         Layout.fillWidth: true
+        spacing:     root.contentSpacing
+        eyebrow:     Theme.caps(qsTr("Configuration"))
+        title:       qsTr("Appearance")
+        description: qsTr("Aesthetic, colour mode, type scale and interface behaviour.")
     }
 
     // ── Group 1 — Aesthetic & colour mode ────────────────────────────
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Aesthetic & colour mode")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Aesthetic & colour mode")) }
 
     // 4-wide card grid, one card per themeIndex, wrapping to as many rows as the themes
     // need (twelve → 3 rows, fourteen → 4 with Folio light and dark on the last).
@@ -246,7 +238,7 @@ SettingsPanelBase {
     // name is what a metric is assigned, the colour is the theme's, and a retune is the
     // user's version of the theme's. Which metric uses which name is set per metric in
     // Diagnostic Model → Metrics.
-    SettingsSectionHead { text: Theme.caps(qsTr("Metric colours")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Metric colours")) }
 
     SettingsRow {
         id: metricPalette
@@ -442,7 +434,7 @@ SettingsPanelBase {
 
     // ── Group 2 — Type scale ──────────────────────────────────────────
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Type scale")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Type scale")) }
 
     // Text size row
     SettingsRow {
@@ -664,7 +656,7 @@ SettingsPanelBase {
 
     // ── Group 3 — Interface ───────────────────────────────────────────
 
-    SettingsSectionHead { text: Theme.caps(qsTr("Interface")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Interface")) }
 
     // Density row
     SettingsRow {

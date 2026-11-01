@@ -1,7 +1,7 @@
 # Shared components
 
 *Directory:* `src/Gui/components/`  
-*46 components · 4,890 lines of QML*
+*49 components · 5,268 lines of QML*
 
 The app-wide primitives: buttons, chips, cards, pills, badges, toasts and the coaching-card shell (PpCard family). The intended single home for anything reused by more than one area.
 
@@ -12,7 +12,7 @@ The app-wide primitives: buttons, chips, cards, pills, badges, toasts and the co
 | [PpBandBar](#ppbandbar) | 103 | `Item` | 1 | 0 |  |
 | [PpButton](#ppbutton) | 112 | `Rectangle` | 34 | 1 |  |
 | [PpCard](#ppcard) | 202 | `Item` | 6 | 2 |  |
-| [PpCardNote](#ppcardnote) | 32 | `Text` | 17 | 0 |  |
+| [PpCardNote](#ppcardnote) | 48 | `Text` | 17 | 0 |  |
 | [PpCardShell](#ppcardshell) | 84 | `Item` | 5 | 0 |  |
 | [PpCheckRow](#ppcheckrow) | 68 | `Item` | 2 | 1 |  |
 | [PpChip](#ppchip) | 63 | `Rectangle` | 12 | 0 |  |
@@ -30,29 +30,33 @@ The app-wide primitives: buttons, chips, cards, pills, badges, toasts and the co
 | [PpFlowIndicator](#ppflowindicator) | 444 | `Item` | 1 | 0 |  |
 | [PpInset](#ppinset) | 62 | `Item` | 3 | 0 |  |
 | [PpLink](#pplink) | 51 | `Text` | 9 | 0 |  |
+| [PpMenuItem](#ppmenuitem) | 143 | `Rectangle` | 4 | 0 |  |
 | [PpMeter](#ppmeter) | 49 | `Row` | 2 | 0 |  |
 | [PpMetricSwatches](#ppmetricswatches) | 74 | `Flow` | 1 | 1 |  |
-| [PpMicro](#ppmicro) | 31 | `Text` | 39 | 0 |  |
-| [PpNotificationHost](#ppnotificationhost) | 158 | `ListView` | 1 | 1 |  |
+| [PpMicro](#ppmicro) | 46 | `Text` | 39 | 0 |  |
+| [PpNotificationCard](#ppnotificationcard) | 174 | `Rectangle` | 2 | 0 |  |
+| [PpNotificationHost](#ppnotificationhost) | 85 | `ListView` | 1 | 1 |  |
+| [PpPageHeader](#pppageheader) | 108 | `Column` | 23 | 3 |  |
 | [PpPip](#pppip) | 55 | `Item` | 2 | 0 |  |
 | [PpPips](#pppips) | 59 | `Row` | 2 | 1 |  |
-| [PpPopoverCard](#pppopovercard) | 29 | `PpCardShell` | 12 | 1 |  |
+| [PpPopoverCard](#pppopovercard) | 53 | `Item` | 23 | 1 |  |
 | [PpPressable](#pppressable) | 97 | `MouseArea` | 66 | 0 |  |
 | [PpQualityPill](#ppqualitypill) | 77 | `Rectangle` | 2 | 1 |  |
 | [PpRowAction](#pprowaction) | 74 | `Rectangle` | 2 | 1 |  |
+| [PpSearchField](#ppsearchfield) | 86 | `PpTextField` | 5 | 0 |  |
 | [PpSegmentedControl](#ppsegmentedcontrol) | 83 | `Rectangle` | 8 | 0 |  |
 | [PpStageCard](#ppstagecard) | 110 | `Item` | 1 | 2 |  |
 | [PpStarRating](#ppstarrating) | 60 | `Row` | 4 | 0 |  |
 | [PpStrengthMark](#ppstrengthmark) | 59 | `Column` | 1 | 1 |  |
 | [PpSwingTimeline](#ppswingtimeline) | 89 | `Item` | 1 | 1 |  |
 | [PpTableRow](#pptablerow) | 146 | `Item` | 4 | 0 |  |
-| [PpTextField](#pptextfield) | 56 | `TextField` | 19 | 0 |  |
-| [PpToast](#pptoast) | 156 | `Rectangle` | 6 | 1 |  |
+| [PpTextArea](#pptextarea) | 89 | `TextArea` | 4 | 0 |  |
+| [PpTextField](#pptextfield) | 120 | `TextField` | 14 | 0 |  |
+| [PpToast](#pptoast) | 93 | `PpNotificationCard` | 6 | 1 |  |
 | [PpToolPill](#pptoolpill) | 125 | `Rectangle` | 1 | 0 |  |
 | [PpTopoBackground](#pptopobackground) | 245 | `Item` | 1 | 0 |  |
 | [PpTrace](#pptrace) | 51 | `Item` | 1 | 0 |  |
 | [PpTypePill](#pptypepill) | 63 | `Rectangle` | 1 | 0 |  |
-| [PpUnitToggle](#ppunittoggle) | 88 | `Row` | 2 | 0 |  |
 
 ### ClubFormat
 `src/Gui/components/ClubFormat.qml` · 38 lines · root `QtObject` · **singleton**
@@ -147,10 +151,16 @@ The app's standard button: label and/or glyph/icon, with primary, destructive an
 - **Exercised by tests/tools:** `components_gallery`, `tst_table_card`
 
 ### PpCardNote
-`src/Gui/components/PpCardNote.qml` · 32 lines · root `Text`
+`src/Gui/components/PpCardNote.qml` · 48 lines · root `Text`
 
-> A card with nothing in it says so in one quiet line, so the card keeps its shape.
+> The app's quiet body line (body face, fontSzBody2, body weight, colorText3, word-wrapped): a card with
+> nothing in it says so in one quiet line; a page says what it is for under its title; an empty list says
+> why. `kind` sets the leading: `""` (the card note, lineHeight 1.3), `plain` (1.0: settings descriptions,
+> the Sessions hint, the report list's empty lines), `aside` (plain, italic: empty device lists), `list`
+> (1.4: Home's first-run feature list), `form` (1.5: the athlete form's lead) or `setup` (1.65: a setup
+> page's body, in ink 2 under PpPageHeader and the session-setup intro, and its notes).
 
+- **Properties:** `string kind` (`""` | `plain` | `aside` | `list` | `form` | `setup`)
 - **Used by (17):** `PpCameraFrame`, `PpCameraPanel`, `PpCameraTiles`, `PpClubPanel`, `PpDataViewer`, `PpExportOptionsSheet`, `PpImuPanel`, `PpLaunchMonitorPanel`, `PpMarkupPanel`, `PpMetricChart` (+7)
 
 ### PpCardShell
@@ -427,6 +437,21 @@ Hairline rule, horizontal or vertical, in the theme's border colour.
 - **Signals:** `clicked(var mouse)`
 - **Used by (9):** `HmFaultDetail`, `HmRigCapability`, `PpDeviceFilterBar`, `PpReportSheet`, `PpSessionsSelectionBar`, `PpSessionsTableRow`, `PpShotFilter`, `PpSwingEditPanel`, `StudioPanel`
 
+### PpMenuItem
+`src/Gui/components/PpMenuItem.qml` · 143 lines · root `Rectangle`
+
+> One line of a popup menu (Popup + PpPopoverCard): a 34-px hover row the menu's width — its words,
+> an optional quiet note after them, an optional leading glyph and a right-hand count tail; inactive
+> (greyed, no press) or destructive (`warn`: the warn ink and the warn hover wash). `style` `""` (that
+> row) or `compact` (the model editor's ⋯ drawer row: 30 px, square-cornered, smaller words elided,
+> `tail` in the data face after them, the hover wash without a fade, the error ink for `warn`; sized
+> by its layout).
+
+- **Properties:** `string text`, `string note`, `string glyph`, `string tail`, `bool active`, `bool warn`, `bool linkNote`, `int fontWeight`, `string style` (`""` | `compact`), `readonly real contentImplicitWidth`
+- **Signals:** `triggered()`
+- **Uses:** `PpMicro`, `PpPressable`
+- **Used by (4):** `PpSessionDrawer`, `PpSessionRowMenu`, `PpShotActionBar`; compact: `ModelTools`
+
 ### PpMeter
 `src/Gui/components/PpMeter.qml` · 49 lines · root `Row`
 
@@ -453,16 +478,36 @@ Hairline rule, horizontal or vertical, in the theme's border colour.
 - **Used by (1):** `ModelInspector`
 
 ### PpMicro
-`src/Gui/components/PpMicro.qml` · 31 lines · root `Text`
+`src/Gui/components/PpMicro.qml` · 46 lines · root `Text`
 
-> A micro heading: the app's mono caps, quiet by default. Callers tint it (a card's title in the
-> card's tone) or loosen its tracking (asides and counts use trackingData).
+> A micro heading: the app's one eyebrow (fontSzMicro, trackingMicro, colorText3) — over a page or a
+> group, a field's head, a pill's small label. Callers tint it or loosen its tracking. `kind` picks the
+> face and case: `""` (data face, mixed case: the caller spells capitals through Theme.caps; it also
+> carries live values, so it never capitalises), `caps` (data face, Theme.capsFont: Settings field heads,
+> PpFactStrip keys, PpFlowIndicator group labels), `body` (body face, Theme.capsFont: settings section
+> heads, the swing model's heads, the Resource monitor's heads) or `bodyWeight` (`body` at the theme's
+> body weight: the settings index's section heads, the model rail heads and table header, PpRowAction).
 
+- **Properties:** `string kind` (`""` | `caps` | `body` | `bodyWeight`)
 - **Used by (39):** `HmFaultDetail`, `HmFocus`, `HmSwingAreas`, `HmSwingSummary`, `PpCameraFrame`, `PpCameraPanel`, `PpCameraTiles`, `PpCard`, `PpChartSummary`, `PpChartsBody` (+29)
 - **Exercised by tests/tools:** `components_gallery`
 
+### PpNotificationCard
+`src/Gui/components/PpNotificationCard.qml` · 174 lines · root `Rectangle`
+
+> The notice card both notification surfaces draw: the window's notification centre
+> (PpNotificationHost, one per live notice) and a panel's own toast (PpToast). The elevated fill
+> with a hairline in the notice's tone, a glyph, the words, and the actions after hairlines —
+> copy, an action in the label face, a ✕ to dismiss. `style` `""` (the centre's: glyph set apart,
+> title + optional detail line, grows to fit) or `toast` (glyph tight to one line, 40 px).
+
+- **Properties:** `string style`, `string glyph`, `color glyphColor`, `color tone`, `string title`, `string detail`, `string copyText`, `string actionText`, `bool dismissible`
+- **Signals:** `copied()`, `actionClicked()`, `dismissClicked()`
+- **Uses:** `PpPressable`
+- **Used by (2):** `PpNotificationHost`, `PpToast`
+
 ### PpNotificationHost
-`src/Gui/components/PpNotificationHost.qml` · 158 lines · root `ListView`
+`src/Gui/components/PpNotificationHost.qml` · 85 lines · root `ListView`
 
 > The ONE window-level notification surface, rendering NotificationCenter.
 > ⛔ WHY THIS IS A MODEL AND NOT FOUR PpToasts.  Until this component the four
@@ -473,13 +518,29 @@ Hairline rule, horizontal or vertical, in the theme's border colour.
 > failures were one toast showing the tenth message. Identity, counting,
 > cause-suppression and latching all live in C++ now (see notification_center.h);
 > this file only draws what the model says is live.
-> PpToast itself is untouched and still serves the five panel-local imperative
-> confirmations (copy-to-clipboard, an export result) — those are not this
-> problem, per design §7.4.
+> PpToast still serves the panel-local imperative confirmations (copy-to-
+> clipboard, an export result) — those are not this problem, per design §7.4 —
+> and both draw the same card, PpNotificationCard.
 
 - **Properties:** `readonly int sevInfo`, `readonly int sevWarn`, `readonly int sevError`, `readonly int sevProgress`, `readonly int kindCondition`
-- **Uses:** `PpPressable`
+- **Uses:** `PpNotificationCard`
 - **Used by (1):** `Main`
+
+### PpPageHeader
+`src/Gui/components/PpPageHeader.qml` · 108 lines · root `Column`
+
+> A page's head: its eyebrow (PpMicro), its display title (PpDisplayText, or a flat display-font Text) and
+> the quiet line that says what the page is for (PpCardNote; left out when empty). `style`: `settings`
+> (the default: body-face caps eyebrow, the title at its own width, description PpCardNote `plain`;
+> `spacing` is the panel's contentSpacing), `screen` (data-face eyebrow `eyebrowGap` over the title,
+> no room between) or `setup` (eyebrow, title at `titlePixelSize` wrapping to the width, the body in ink 2
+> as PpCardNote `setup`, a hairline under it, gap(8) apart — the former SetupStepIntro).
+> `flatTitle` draws the title without the brand gradient in `titleColor` (Ready's amber "Not quite ready");
+> `titleObjectName` names whichever title is shown.
+
+- **Properties:** `string style` (`settings` | `screen` | `setup`), `string eyebrow`, `string title`, `string description`, `real titlePixelSize`, `bool rule`, `bool flatTitle`, `color titleColor`, `string titleObjectName`, `real eyebrowGap`
+- **Uses:** `PpCardNote`, `PpDisplayText`, `PpMicro`
+- **Used by (23):** the 11 Settings panels (`settings`), `ScreenAthletePicker`, `ScreenAthleteForm` (`screen`, `eyebrowGap: 10`), `BallPage`, `CamerasPage`, `CheckArmPage`, `CheckTrunkPage`, `FramingPage`, `ImusPage`, `IntentPage`, `ReadyPage` (flat title), `TriangulatePage`, `CalibrationStatusColumn` (`setup`, eyebrow and title only)
 
 ### PpPip
 `src/Gui/components/PpPip.qml` · 55 lines · root `Item`
@@ -509,13 +570,17 @@ Hairline rule, horizontal or vertical, in the theme's border colour.
 - **Exercised by tests/tools:** `components_gallery`, `tst_pp_pips`
 
 ### PpPopoverCard
-`src/Gui/components/PpPopoverCard.qml` · 29 lines · root `PpCardShell`
+`src/Gui/components/PpPopoverCard.qml` · 53 lines · root `Item`
 
 > A popup's background in the card family: the standard shell with a stronger hairline, so it
 > lifts off whatever it is drawn over, and a quiet rule. For a Popup's `background:`.
+> `style` `""` (the card, ruled in `tone`), `plain` (no rule, the large corner: About, pairing,
+> PpConfirm) or `plainTight` (no rule, the small corner: PpComboBox's list, the model editor's
+> popovers); the plain styles' hairline is `borderColor`.
 
+- **Properties:** `string style` (`""` | `plain` | `plainTight`), `color tone`, `color borderColor`
 - **Uses:** `PpCardShell`
-- **Used by (12):** `PpAnnotationToolbar`, `PpDataViewer`, `PpExportOptionsSheet`, `PpFilePicker`, `PpMarkupPanel`, `PpMetricChart`, `PpReportSheet`, `PpSessionDrawer`, `PpSessionRowMenu`, `PpSessionToolbar` (+2)
+- **Used by (23):** `PpAnnotationToolbar`, `PpDataViewer`, `PpExportOptionsSheet`, `PpFilePicker`, `PpMarkupPanel`, `PpMetricChart`, `PpReportSheet`, `PpSessionDrawer`, `PpSessionRowMenu`, `PpSessionToolbar`, `PpShotActionBar`, `PpShotCarousel`; plain: `PpAboutDialog`, `PpConfirm`, `PpcpGuidedPairDialog`, `PpcpPairDialog`; plainTight: `ModelEnumMenu`, `ModelMint`, `ModelPolicyPicker`, `ModelTools`, `ModelTypeAhead`, `ModelUnsaved`, `PpComboBox`
 
 ### PpPressable
 `src/Gui/components/PpPressable.qml` · 97 lines · root `MouseArea`
@@ -570,6 +635,16 @@ Hairline rule, horizontal or vertical, in the theme's border colour.
 - **Signals:** `clicked()`
 - **Uses:** `PpPressable`
 - **Used by (2):** `ModelTable`, `PpSessionsTableRow`
+
+### PpSearchField
+`src/Gui/components/PpSearchField.qml` · 86 lines · root `PpTextField`
+
+> The app's search field: a PpTextField with a search's chrome; what typing does stays with the caller.
+> `style`: `box` (PpTextField's box at its `size`) or `line` (no box: ⌕ glyph, the text, a 1 px rule 6 px
+> above the bottom; fills its strip, only the text's band takes a press).
+
+- **Properties:** `string style` (`box` | `line`)
+- **Used by (5):** `DiagnosticModel`, `ModelTypeAhead` (so `ModelPicker`, `ModelCausePicker`), `ScreenAthletePicker` (compact, `padHit: false`), `ScreenSessions`, `ScreenSettings` (line)
 
 ### PpSegmentedControl
 `src/Gui/components/PpSegmentedControl.qml` · 83 lines · root `Rectangle` · 2 hard-coded colour(s)
@@ -662,28 +737,44 @@ Hairline rule, horizontal or vertical, in the theme's border colour.
 - **Used by (4):** `HmFocus`, `HmSwingSummary`, `PpExpandRow`, `PpSessionsTableRow`
 - **Exercised by tests/tools:** `components_gallery`, `tst_table_card`, `tst_table_row`
 
+### PpTextArea
+`src/Gui/components/PpTextArea.qml` · 89 lines · root `TextArea`
+
+> A multi-line text field in PpTextField's look: surface, radius, 1 px border (colorBorderStrong at rest,
+> colorWarn on `hasError`, the accent while focused); body type; word wrap. Optional commit-on-blur.
+> `style: "lab"` is the Developer page's look (10 px all round, 14 at the left; normal weight;
+> colorBorderMid at rest).
+
+- **Properties:** `bool hasError`, `string style` (`regular` | `lab`), `bool commitOnBlur`, `string value`
+- **Signals:** `commit(string text)`
+- **Used by (4):** `AudioPage` (lab), `CoachPage` (lab), `PpReportSheet`, `StudioPanel`
+
 ### PpTextField
-`src/Gui/components/PpTextField.qml` · 56 lines · root `TextField`
+`src/Gui/components/PpTextField.qml` · 120 lines · root `TextField`
 
-Themed single-line text input (a styled TextField) with a hasError state.  
-*(description written for this catalogue — the file has no header comment)*
+> The app's one-line text field: surface box, radius, 1 px border (colorBorderStrong at rest, colorWarn on
+> `hasError`, the accent while focused); body type; colorText3 placeholder; emits editingFinished on
+> focus loss (`commitOnBlur`). `size`: `regular` (34 px, 10 px in, body size and weight) or `compact`
+> (24 px, 8 px in, fontSzBody2 at normal weight). `monospace` (data face), `animateFocus` (eased border),
+> `boxed: false` (no box), `padHit: false` (only the text's band takes a press / shows the I-beam).
+> Fields that were bare TextInputs set `editMenu: false`, `activeFocusOnTab: false`, `commitOnBlur: false` (the crop fields also hold the right and middle buttons).
 
-- **Properties:** `bool hasError`
-- **Used by (19):** `AppearancePanel`, `ArchivingPanel`, `AthleteClubsSection`, `CamerasPanel`, `DiagnosticModel`, `GeneralPanel`, `ImusPanel`, `LaunchMonitorPanel`, `MetricLibrary`, `ModelCausePicker` (+9)
+- **Properties:** `bool hasError`, `string size`, `bool monospace`, `bool animateFocus`, `bool commitOnBlur`, `bool editMenu`, `bool boxed`, `bool padHit`
+- **Used by (14):** `AppearancePanel`, `ArchivingPanel`, `AthleteClubsSection`, `CamerasPanel` (incl. `CropField`: compact, monospace), `GeneralPanel`, `ImusPanel`, `LaunchMonitorPanel`, `ModelCorridorPlot`, `ModelInspector`, `ModelMint`, `PhonesPanel`, `PpSwingEditPanel`, `ScreenAthleteForm`, `StudioPanel`; and `PpSearchField`
 
 ### PpToast
-`src/Gui/components/PpToast.qml` · 156 lines · root `Rectangle`
+`src/Gui/components/PpToast.qml` · 93 lines · root `PpNotificationCard`
 
-> Transient snackbar — elevated surface fill with a strong border so it
-> reads as a floating notice on any theme. Auto-hides on a Timer; the UNDO
-> action is the host's to wire (it restores via the model invokable). Soft
-> delete is reversible, so this replaces a modal confirm. Hosts can also set
-> copyText to expose a copy-to-clipboard action.
+> Transient snackbar — the notice card (PpNotificationCard, toast style). Auto-hides on a Timer;
+> the UNDO action is the host's to wire. Hosts can also set copyText to expose a copy-to-clipboard
+> action. It places itself, centred across its parent: `placement` `bottom` (`margin` above the
+> parent's bottom, or above `clearOf` while that is shown) or `above` (`margin` above the parent's
+> top edge, outside it).
 
-- **Properties:** `string message`, `string glyph`, `bool showUndo`, `string copyText`, `bool sticky`, `string severity`
+- **Properties:** `string message`, `bool showUndo`, `bool sticky`, `string severity`, `string placement`, `real margin`, `Item clearOf` (and the card's `glyph`, `copyText`)
 - **Signals:** `undoClicked()`
 - **Functions:** `show(msg)`
-- **Uses:** `PpPressable`
+- **Uses:** `PpNotificationCard`
 - **Used by (6):** `CamerasPanel`, `DiagnosticModel`, `PpDataViewer`, `PpShotCarousel`, `ScreenResourceMonitor`, `ScreenSessions`
 
 ### PpToolPill
@@ -744,12 +835,7 @@ Animated topographic contour-line background (noise-driven contours in three ton
 - **Properties:** `string label`
 - **Used by (1):** `MetricDetail`
 
-### PpUnitToggle
-`src/Gui/components/PpUnitToggle.qml` · 88 lines · root `Row`
+### PpUnitToggle (retired)
+Folded into `PpSegmentedControl` as its `unit` style (mph / km/h in GeneralPanel, ft / cm and lb / kg in
+ScreenAthleteForm).
 
-Compact segmented toggle between units (e.g. cm/ft-in, kg/lb). Emits selectionChanged.  
-*(description written for this catalogue — the file has no header comment)*
-
-- **Properties:** `var units`, `string selected`
-- **Signals:** `selectionChanged(string unit)`
-- **Used by (2):** `GeneralPanel`, `ScreenAthleteForm`

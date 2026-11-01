@@ -164,12 +164,8 @@ Item {
                 width:   parent.width
                 spacing: 0
 
-                Text {
-                    text:               Theme.caps(qsTr("Golf swing analysis"))
-                    font.family:        Theme.fontData
-                    font.pixelSize:     Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                    color:              Theme.colorText3
+                PpMicro {
+                    text: Theme.caps(qsTr("Golf swing analysis"))
                 }
                 Item { width: 1; height: Theme.sp(12) }
 
@@ -202,13 +198,11 @@ Item {
                 }
                 Item { width: 1; height: Theme.sp(4) }
 
-                Text {
-                    width:          parent.width
-                    text:           qsTr("Every session belongs to someone. That's usually you.")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Theme.fontBodyWeight
-                    color:          Theme.colorText3
+                PpCardNote {
+                    kind:     "plain"
+                    wrapMode: Text.NoWrap
+                    width:    parent.width
+                    text:     qsTr("Every session belongs to someone. That's usually you.")
                 }
                 Item { width: 1; height: Theme.sp(16) }
 
@@ -223,7 +217,7 @@ Item {
                         text:           qsTr("Add your first athlete")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
-                        color:          Theme.dark ? Theme.colorBg : "#FFFFFF"
+                        color:          Theme.colorOnAccentBright
                     }
 
                     MouseArea {
@@ -274,15 +268,10 @@ Item {
                                     color:          Theme.colorText
                                 }
                                 Item { width: 1; height: 3 }
-                                Text {
-                                    width:          parent.width
-                                    text:           modelData.desc
-                                    font.family:    Theme.fontBody
-                                    font.pixelSize: Theme.fontSzBody2
-                                    font.weight:    Theme.fontBodyWeight
-                                    color:          Theme.colorText3
-                                    wrapMode:       Text.WordWrap
-                                    lineHeight:     1.4
+                                PpCardNote {
+                                    kind:  "list"
+                                    width: parent.width
+                                    text:  modelData.desc
                                 }
                             }
 
@@ -450,12 +439,8 @@ Item {
                         spacing: 0
 
                         Item { width: 1; height: Theme.sp(8); visible: !startCard.stacked }
-                        Text {
-                            text:               Theme.caps(qsTr("New session"))
-                            font.family:        Theme.fontData
-                            font.pixelSize:     Theme.fontSzMicro
-                            font.letterSpacing: Theme.trackingMicro
-                            color:              Theme.colorText3
+                        PpMicro {
+                            text: Theme.caps(qsTr("New session"))
                         }
                         Item { width: 1; height: Theme.sp(10) }
                         PpDisplayText {

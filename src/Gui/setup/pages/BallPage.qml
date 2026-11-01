@@ -55,11 +55,12 @@ WizardPage {
         anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.gap(32) }
         spacing: Theme.gap(16)
 
-        SetupStepIntro {
-            width:   parent.width
-            eyebrow: page.stepLabel
-            heading: qsTr("Set up ball detection")
-            body:    qsTr("Pinpoint learns what your empty hitting area looks like, then detects the ball against it — no calibration needed. Frame the hitting area, empty the mat and press Learn, then place a ball to confirm it's detected.")
+        PpPageHeader {
+            style:       "setup"
+            width:       parent.width
+            eyebrow:     page.stepLabel
+            title:       qsTr("Set up ball detection")
+            description: qsTr("Pinpoint learns what your empty hitting area looks like, then detects the ball against it — no calibration needed. Frame the hitting area, empty the mat and press Learn, then place a ball to confirm it's detected.")
         }
 
         // Cameras step skipped / face-on not connected.

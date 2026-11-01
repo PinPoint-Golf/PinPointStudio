@@ -54,8 +54,6 @@ Popup {
     signal cancelled()
 
     readonly property color _strong: tone === "error" ? Theme.colorError : Theme.colorAttention
-    readonly property color _light:  tone === "error" ? Theme.colorErrorLight
-                                                      : Theme.colorAttentionLight
 
     parent: Overlay.overlay
     anchors.centerIn: parent
@@ -73,12 +71,7 @@ Popup {
     onOpened: root._answered = false
     onClosed: if (!root._answered) root.cancelled()
 
-    background: Rectangle {
-        color:        Theme.colorSurface
-        radius:       Theme.radiusLg
-        border.width: 1
-        border.color: root._strong
-    }
+    background: PpPopoverCard { style: "plain"; borderColor: root._strong }
 
     contentItem: Column {
         spacing: Theme.gap(12)
@@ -113,52 +106,26 @@ Popup {
 
             // The primary, outlined in the tone rather than filled: it is the consequential answer,
             // and a filled button here would read as the recommended one.
-            Rectangle {
-                width:  confirmLbl.implicitWidth + Theme.sp(24)
-                height: Theme.sp(32)
-                radius: Theme.radius
-                color:  confirmMa.containsMouse ? root._light : "transparent"
-                border.width: 1
-                border.color: root._strong
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                Text {
-                    id: confirmLbl
-                    anchors.centerIn: parent
-                    text: root.confirmText
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    color:          root._strong
-                }
-                PpPressable {
-                    id: confirmMa
-                    hoverScale: root.buttonHoverScale
-                    onClicked: {
-                        root._answered = true
-                        root.close()
-                        root.confirmed()
-                    }
+            PpButton {
+                style: "tone"; tone: root.tone === "error" ? "error" : "attention"; size: "compact"
+                implicitHeight: Theme.sp(32)
+                horizontalPadding: Theme.sp(24)
+                hoverScale: root.buttonHoverScale
+                label: root.confirmText
+                onClicked: {
+                    root._answered = true
+                    root.close()
+                    root.confirmed()
                 }
             }
 
-            Rectangle {
-                width:  cancelLbl.implicitWidth + Theme.sp(24)
-                height: Theme.sp(32)
-                radius: Theme.radius
-                color:  cancelMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
-                border.width: 1
-                border.color: Theme.colorBorderMid
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                Text {
-                    id: cancelLbl
-                    anchors.centerIn: parent
-                    text: root.cancelText
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    color:          Theme.colorText2
-                }
-                PpPressable { id: cancelMa; hoverScale: root.buttonHoverScale; onClicked: root.close() }
+            PpButton {
+                style: "subtle"; size: "compact"
+                implicitHeight: Theme.sp(32)
+                horizontalPadding: Theme.sp(24)
+                hoverScale: root.buttonHoverScale
+                label: root.cancelText
+                onClicked: root.close()
             }
         }
     }

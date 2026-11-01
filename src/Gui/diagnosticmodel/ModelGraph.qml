@@ -448,17 +448,13 @@ Item {
         // ── Rank headings ─────────────────────────────────────────────────────
         Repeater {
             model: root.layoutData.headings || []
-            delegate: Text {
+            delegate: PpMicro {
                 required property var modelData
-                x: modelData.x
-                y: modelData.y
-                width: modelData.w
+                kind:                "body"
+                x:                   modelData.x
+                y:                   modelData.y
+                width:               modelData.w
                 text:                modelData.label
-                font.family:         Theme.fontBody
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color:               Theme.colorText3
                 horizontalAlignment: Text.AlignHCenter
             }
         }
@@ -1894,32 +1890,18 @@ Item {
 
     // The reason, stated in the author's own terms, while the drag is still live. Only for the
     // node under the cursor — every other refusal is already written on its own node.
-    Rectangle {
+    PpNotice {
         readonly property var hovered: root._dragging && root._dragTarget !== ""
                                            ? root._refusalOf(root._dragTarget) : null
         visible: hovered !== null
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Theme.gap(16)
-        width:  Math.min(reasonText.implicitWidth + Theme.sp(24), root.width - Theme.sp(48))
-        height: reasonText.implicitHeight + Theme.sp(16)
-        radius: Theme.radius
-        color:  Theme.colorErrorLight
-        border.width: 1
-        border.color: Theme.colorError
+        style:    "bubble"
+        tone:     "error"
+        maxWidth: root.width - Theme.sp(48)
+        text:     hovered ? hovered.text : ""
         z: 20
-
-        Text {
-            id: reasonText
-            anchors.centerIn: parent
-            width: parent.width - Theme.sp(24)
-            text:  parent.hovered ? parent.hovered.text : ""
-            font.family:    Theme.fontBody
-            font.pixelSize: Theme.fontSzBody2
-            color:          Theme.colorError
-            wrapMode:       Text.WordWrap
-            horizontalAlignment: Text.AlignHCenter
-        }
     }
 
     // Where the gesture actually ends, said while it is still in flight.
@@ -1928,29 +1910,17 @@ Item {
     // most of them refuse, and an author watching a canvas full of dimmed boxes has no way to know
     // that open space is the answer rather than a dead end. Stating it is the difference between a
     // gesture that looks broken and one that looks finished.
-    Rectangle {
+    PpNotice {
         visible: root._dragging && root._armKind === "link" && root._dragTarget === ""
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Theme.gap(16)
-        width:  hintText.implicitWidth + Theme.sp(24)
-        height: hintText.implicitHeight + Theme.sp(14)
-        radius: Theme.radius
-        color:  Theme.colorAccentLight
-        border.width: 1
-        border.color: Theme.colorAccent
+        style: "bubbleSlim"
+        tone:  "accent"
+        text:  root._upstreamDrag
+                   ? qsTr("Release on open canvas to choose or create a cause")
+                   : qsTr("Release on open canvas to choose or create an effect")
         z: 19
-
-        Text {
-            id: hintText
-            anchors.centerIn: parent
-            text: root._upstreamDrag
-                      ? qsTr("Release on open canvas to choose or create a cause")
-                      : qsTr("Release on open canvas to choose or create an effect")
-            font.family:    Theme.fontBody
-            font.pixelSize: Theme.fontSzBody2
-            color:          Theme.colorAccent
-        }
     }
 
     // ── Scope, and the switches ───────────────────────────────────────────────

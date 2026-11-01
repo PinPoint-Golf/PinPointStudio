@@ -101,20 +101,6 @@ Item {
         return x
     }
 
-    function _toneColor(tone) {
-        switch (tone) {
-        case "good":   return Theme.colorRagGood
-        case "watch":  return Theme.colorRagWatch
-        case "warn":   return Theme.colorWarn
-        case "fault":  return Theme.colorRagFault
-        case "error":  return Theme.colorError
-        case "accent": return Theme.colorAccent
-        case "dim":    return Theme.colorText3
-        case "none":   return Theme.colorRagNone
-        }
-        return Theme.colorText
-    }
-
     function indexOfId(id) {
         for (var i = 0; i < rows.length; i++) if (rows[i].id === id) return i
         return -1
@@ -198,24 +184,20 @@ Item {
                     readonly property bool active:     root.sortKey === modelData.key
                     readonly property bool alignRight: modelData.align === "right"
 
-                    Text {
+                    PpMicro {
+                        kind:                   "bodyWeight"
                         anchors.verticalCenter: parent.verticalCenter
-                        anchors.left:  headerCell.alignRight ? undefined : parent.left
-                        anchors.right: headerCell.alignRight ? parent.right : undefined
-                        anchors.rightMargin: headerCell.alignRight ? Theme.sp(10) : 0
-                        width: parent.width - Theme.sp(10)
-                        horizontalAlignment: headerCell.alignRight ? Text.AlignRight : Text.AlignLeft
+                        anchors.left:           headerCell.alignRight ? undefined : parent.left
+                        anchors.right:          headerCell.alignRight ? parent.right : undefined
+                        anchors.rightMargin:    headerCell.alignRight ? Theme.sp(10) : 0
+                        width:                  parent.width - Theme.sp(10)
+                        horizontalAlignment:    headerCell.alignRight ? Text.AlignRight : Text.AlignLeft
                         // Emphasis is colour and case, never weight — the sorted column is accented
                         // and carries the caret, and everything else stays at the same weight.
-                        text: headerCell.modelData.title
-                              + (headerCell.active ? (root.descending ? "  ▾" : "  ▴") : "")
-                        font.family:         Theme.fontBody
-                        font.pixelSize:      Theme.fontSzMicro
-                        font.weight:         Theme.fontBodyWeight
-                        font.letterSpacing:  Theme.trackingMicro
-                        font.capitalization: Theme.capsFont
-                        color: headerCell.active ? Theme.colorAccent : Theme.colorText3
-                        elide: Text.ElideRight
+                        text:                   headerCell.modelData.title
+                                                + (headerCell.active ? (root.descending ? "  ▾" : "  ▴") : "")
+                        color:                  headerCell.active ? Theme.colorAccent : Theme.colorText3
+                        elide:                  Text.ElideRight
                     }
 
                     PpPressable {
@@ -326,7 +308,7 @@ Item {
                             radius: width / 2
                             visible: cellItem.index === 0 && rowItem.modelData.dot !== undefined
                                      && rowItem.modelData.dot !== ""
-                            color: root._toneColor(rowItem.modelData.dot)
+                            color: Theme.toneColor(rowItem.modelData.dot, Theme.colorText)
                         }
 
                         // The label. `fillWidth` + elide with trailing padding, because a nowrap
@@ -355,7 +337,7 @@ Item {
                                              ? Theme.fontData : Theme.fontBody
                             font.pixelSize: cellItem.index === 0 ? Theme.fontSzBody : Theme.fontSzBody2
                             font.weight:    Theme.fontBodyWeight
-                            color: root._toneColor(cellItem.modelData.tone)
+                            color: Theme.toneColor(cellItem.modelData.tone, Theme.colorText)
                             elide: Text.ElideRight
                         }
 

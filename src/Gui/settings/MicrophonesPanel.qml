@@ -85,23 +85,18 @@ SettingsPanelBase {
     // ─────────────────────────────────────────────────────────────────────────
     // Inline component — selectable input-device row (single active, radio-style)
     // ─────────────────────────────────────────────────────────────────────────
-    component DeviceRow: Rectangle {
+    component DeviceRow: PpSelectTile {
         id: devRow
         property var devData: ({})
         readonly property bool isActive: root.deviceIsActive(devData)
 
         Layout.fillWidth: true
         implicitHeight:   Theme.sp(46)
-        radius:           Theme.radius
-        color:            devRow.isActive ? Theme.colorAccentLight
-                        : devRowPress.containsMouse ? Qt.alpha(Theme.colorBg2, 0.5)
-                        : Theme.colorSurface
-        border.width:     1
-        border.color:     devRow.isActive ? Theme.colorAccent
-                        : devRowPress.containsMouse ? Theme.colorAccentMid
-                        : Theme.colorBorderStrong
-        Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+        style:            "card"
+        selected:         devRow.isActive
+        // Persisting the id triggers the main.cpp → controller.setInputDevice
+        // wiring (restarts capture in place if currently listening).
+        onClicked:        appSettings.audioInputDevice = devRow.devData.id
 
         RowLayout {
             anchors.fill:    parent
@@ -147,40 +142,23 @@ SettingsPanelBase {
                 }
             }
 
-            Text {
-                visible:        devRow.isActive
-                text:           qsTr("Active")
-                font.family:         Theme.fontData
-                font.pixelSize:      Theme.fontSzMicro
-                font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Theme.capsFont
-                color:               Theme.colorAccent
-                Layout.alignment:    Qt.AlignVCenter
+            PpMicro {
+                kind:             "caps"
+                visible:          devRow.isActive
+                text:             qsTr("Active")
+                color:            Theme.colorAccent
+                Layout.alignment: Qt.AlignVCenter
             }
-        }
-
-        PpPressable {
-            id: devRowPress
-            hoverScale: 1.0
-            // Persisting the id triggers the main.cpp → controller.setInputDevice
-            // wiring (restarts capture in place if currently listening).
-            onClicked:    appSettings.audioInputDevice = devRow.devData.id
         }
     }
 
     // ── Page header ────────────────────────────────────────────────────────
-    SettingsSectionHead { text: qsTr("Hardware") }
-    PpDisplayText {
-        text: qsTr("Microphone")
-    }
-    Text {
-        text: qsTr("Select the audio input used for acoustic shot detection, then calibrate its sensitivity so every struck ball registers. Use a wired microphone — Bluetooth audio buffering delays the strike sound unpredictably and degrades impact timing. Voice control uses the same microphone and is unaffected by the toggle below.")
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody2
-        font.weight:    Theme.fontBodyWeight
-        color:          Theme.colorText3
-        wrapMode:       Text.WordWrap
+    PpPageHeader {
         Layout.fillWidth: true
+        spacing:     root.contentSpacing
+        eyebrow:     qsTr("Hardware")
+        title:       qsTr("Microphone")
+        description: qsTr("Select the audio input used for acoustic shot detection, then calibrate its sensitivity so every struck ball registers. Use a wired microphone — Bluetooth audio buffering delays the strike sound unpredictably and degrades impact timing. Voice control uses the same microphone and is unaffected by the toggle below.")
     }
 
     // ── Shot-detection enable ──────────────────────────────────────────────
@@ -206,33 +184,17 @@ SettingsPanelBase {
     // ── Input devices ──────────────────────────────────────────────────────
     RowLayout {
         Layout.fillWidth: true
-        SettingsSectionHead {
+        PpMicro {
+            kind: "body"
             text:             qsTr("Input devices")
             Layout.fillWidth: true
         }
-        Rectangle {
+        PpButton {
             id: rescanBtn
-            implicitWidth:  rescanLabel.implicitWidth + Theme.sp(24)
-            implicitHeight: Theme.sp(28)
-            radius: Theme.radius
-            color:  rescanPress.containsMouse ? Theme.colorBg2 : Qt.alpha(Theme.colorBg2, 0)
-            border.width: 1
-            border.color: rescanPress.containsMouse ? Theme.colorAccentMid : Theme.colorBorderStrong
-            Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-            Text {
-                id: rescanLabel
-                anchors.centerIn: parent
-                text:           qsTr("Rescan")
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                font.weight:    Theme.fontBodyWeight
-                color:          Theme.colorText2
-            }
-            PpPressable {
-                id: rescanPress
-                onClicked:    root.refreshDevices()
-            }
+            style: "quiet"; size: "compact"
+            horizontalPadding: Theme.sp(24)
+            label: qsTr("Rescan")
+            onClicked: root.refreshDevices()
         }
     }
 
@@ -323,7 +285,8 @@ SettingsPanelBase {
     // ── Calibration ────────────────────────────────────────────────────────
     RowLayout {
         Layout.fillWidth: true
-        SettingsSectionHead {
+        PpMicro {
+            kind: "body"
             text:             qsTr("Calibration")
             Layout.fillWidth: true
         }
@@ -331,45 +294,16 @@ SettingsPanelBase {
         // Sized via implicit size (it lives in a RowLayout, which ignores
         // plain width/height) against a hidden sizer measuring the longer
         // label so the width stays stable when it switches to "Stop".
-        Rectangle {
+        PpButton {
             id: calBtn
-            implicitWidth:  calBtnSizer.implicitWidth + Theme.sp(24)
-            implicitHeight: Theme.sp(28)
-            radius: Theme.radius
-            color:  root.calibrating ? Theme.colorAccentLight
-                  : calPress.containsMouse ? Theme.colorBg2
-                  : Qt.alpha(Theme.colorBg2, 0)
-            border.width: 1
-            border.color: root.calibrating ? Theme.colorAccent
-                        : calPress.containsMouse ? Theme.colorAccentMid
-                        : Theme.colorBorderStrong
-            Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-            Text {
-                id: calBtnSizer
-                visible:        false
-                text:           qsTr("Start calibration")
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                font.weight:    Theme.fontBodyWeight
-            }
-
-            Text {
-                id: calBtnLabel
-                anchors.centerIn: parent
-                text:           root.calibrating ? qsTr("Stop") : qsTr("Start calibration")
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                font.weight:    Theme.fontBodyWeight
-                color:          root.calibrating ? Theme.colorAccent : Theme.colorText2
-            }
-            PpPressable {
-                id: calPress
-                onClicked: {
-                    if (!root.calibrating) { meter.clear(); root.detectCount = 0 }
-                    root.calibrating = !root.calibrating
-                }
+            style: "quiet"; size: "compact"
+            horizontalPadding: Theme.sp(24)
+            active: root.calibrating
+            sizeLabel: qsTr("Start calibration")
+            label: root.calibrating ? qsTr("Stop") : qsTr("Start calibration")
+            onClicked: {
+                if (!root.calibrating) { meter.clear(); root.detectCount = 0 }
+                root.calibrating = !root.calibrating
             }
         }
     }
@@ -619,28 +553,11 @@ SettingsPanelBase {
                 }
                 Item { Layout.fillWidth: true; visible: root.detectCount === 0 }
 
-                Rectangle {
+                PpButton {
                     id: resetBtn
-                    implicitWidth:  resetLabel.implicitWidth + Theme.sp(20)
-                    implicitHeight: Theme.sp(26)
-                    radius: Theme.radius
-                    color:  resetPress.containsMouse ? Theme.colorBg2 : Qt.alpha(Theme.colorBg2, 0)
-                    border.width: 1
-                    border.color: resetPress.containsMouse ? Theme.colorAccentMid : Theme.colorBorderStrong
-                    Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-                    Text {
-                        id: resetLabel
-                        anchors.centerIn: parent
-                        text:           qsTr("Reset")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText2
-                    }
-                    PpPressable {
-                        id: resetPress
-                        onClicked: { root.detectCount = 0; meter.clear() }
-                    }
+                    style: "quiet"; size: "micro"
+                    label: qsTr("Reset")
+                    onClicked: { root.detectCount = 0; meter.clear() }
                 }
             }
         }

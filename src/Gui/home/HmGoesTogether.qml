@@ -66,16 +66,11 @@ Column {
             tone:  root.toneTogether
             title: Theme.caps(qsTr("Faults that travel together"))
 
-            Text {
-                width: togetherCard.innerWidth
+            PpCardNote {
+                kind:    "aside"
+                width:   togetherCard.innerWidth
                 visible: root.together.length > 0
-                text:  qsTr("Things that rise and fall together from one swing to the next.")
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                font.weight:    Theme.fontBodyWeight
-                font.italic:    true
-                color:          Theme.colorText3
-                wrapMode:       Text.WordWrap
+                text:    qsTr("Things that rise and fall together from one swing to the next.")
             }
 
             Repeater {

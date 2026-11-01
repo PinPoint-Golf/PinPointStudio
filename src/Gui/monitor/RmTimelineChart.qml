@@ -33,14 +33,10 @@ Rectangle {
     clip: true
 
     // Title
-    Text {
+    PpMicro {
         id: chartTitle
         anchors { top: parent.top; left: parent.left; right: parent.right; margins: Theme.gap(14) }
         text: Theme.caps(qsTr("Timeline index — entries per 2 s window"))
-        font.family: Theme.fontData
-        font.pixelSize: Theme.fontSzMicro
-        font.letterSpacing: Theme.trackingMicro
-        color: Theme.colorText3
     }
 
     // Footer

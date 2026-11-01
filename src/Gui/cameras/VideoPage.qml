@@ -47,43 +47,14 @@ Item {
             // One toggle chip per discovered camera.
             Repeater {
                 model: cameraManager.cameraList
-                delegate: Rectangle {
-                    width: camChipLabel.implicitWidth + Theme.sp(16)
-                    height: Theme.sp(24)
-                    radius: Theme.radius
-                    color: modelData.selected
-                           ? Theme.colorAccent
-                           : camChipHover.hovered ? Qt.lighter(Theme.colorSurface, 1.08) : Theme.colorSurface
-                    border.width: 1
-                    border.color: modelData.selected
-                                  ? Theme.colorAccent
-                                  : camChipHover.hovered ? Theme.colorAccentMid : Theme.colorBorderMid
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                delegate: PpChoiceChip {
                     readonly property bool chipLocked: cameraManager.isRecording || shotProcessor.isReplaying
-                    opacity: chipLocked ? 0.5 : 1.0
-                    scale: chipLocked ? 1.0 : (camChipTap.pressed ? 0.97 : camChipHover.hovered ? 1.02 : 1.0)
-                    Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
-
-                    Text {
-                        id: camChipLabel
-                        anchors.centerIn: parent
-                        text: modelData.alias || modelData.description
-                        color: modelData.selected ? Theme.colorBg : Theme.colorText2
-                        font.family: Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody2
-                        font.weight: Font.Normal
-                    }
-
-                    TapHandler {
-                        id: camChipTap
-                        enabled: !parent.chipLocked
-                        onTapped: cameraManager.setSelected(modelData.index, !modelData.selected)
-                    }
-                    HoverHandler {
-                        id: camChipHover
-                        enabled: !parent.chipLocked
-                        cursorShape: Qt.PointingHandCursor
-                    }
+                    style:    "solidLift"
+                    label:    modelData.alias || modelData.description
+                    selected: modelData.selected
+                    dimmed:   chipLocked
+                    enabled:  !chipLocked
+                    onClicked: cameraManager.setSelected(modelData.index, !modelData.selected)
                 }
             }
         }
@@ -142,48 +113,20 @@ Item {
         RowLayout {
             spacing: Theme.gap(8)
 
-            Button {
+            PpButton {
                 id: startButton
-                text: qsTr("Start ●")
+                style: "labPrimary"; size: "lab"
+                label: qsTr("Start ●")
                 enabled: !cameraManager.isRecording && cameraManager.anySelected
                 onClicked: cameraManager.startAll()
-                contentItem: Text {
-                    text: startButton.text
-                    color: startButton.enabled ? Theme.colorBg : Theme.colorText3
-                    font.family: Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    font.weight: Font.Normal
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: startButton.enabled
-                           ? (startButton.pressed ? Qt.darker(Theme.colorAccent, 1.1) : Theme.colorAccent)
-                           : Theme.colorBg3
-                    radius: Theme.radius
-                }
             }
 
-            Button {
+            PpButton {
                 id: stopButton
-                text: qsTr("Stop ■")
+                style: "labStop"; size: "lab"
+                label: qsTr("Stop ■")
                 enabled: cameraManager.isRecording
                 onClicked: cameraManager.stopAll()
-                contentItem: Text {
-                    text: stopButton.text
-                    color: stopButton.enabled ? Theme.colorWarn : Theme.colorText3
-                    font.family: Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    font.weight: Font.Normal
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    color: stopButton.enabled ? Theme.colorWarnLight : Theme.colorBg3
-                    border.width: stopButton.enabled ? 1 : 0
-                    border.color: Qt.alpha(Theme.colorWarn, 0.5)
-                    radius: Theme.radius
-                }
             }
 
             Rectangle {

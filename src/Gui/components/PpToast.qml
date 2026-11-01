@@ -16,24 +16,26 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Transient snackbar — elevated surface fill with a strong border so it
-// reads as a floating notice on any theme. Auto-hides on a Timer; the UNDO
-// action is the host's to wire (it restores via the model invokable). Soft
-// delete is reversible, so this replaces a modal confirm. Hosts can also set
-// copyText to expose a copy-to-clipboard action.
+// Transient snackbar — the notice card (PpNotificationCard, toast style): elevated surface fill
+// with a strong border so it reads as a floating notice on any theme. Auto-hides on a Timer; the
+// UNDO action is the host's to wire (it restores via the model invokable). Soft delete is
+// reversible, so this replaces a modal confirm. Hosts can also set copyText to expose a
+// copy-to-clipboard action.
+//
+// It places itself, centred across its parent:
+//   bottom  `margin` above the parent's bottom edge — or above `clearOf`'s top while that is
+//           shown (a selection bar the toast must not cover)
+//   above   `margin` above the parent's top edge, outside it (a bar's toast, over what is above it)
 
 import QtQuick
 import PinPointStudio
 
-Rectangle {
+PpNotificationCard {
     id: root
 
     property string message: ""
-    property string glyph:   "🗑"
     // Hide the UNDO action for purely informational notices.
     property bool   showUndo: true
-    // When non-empty, a copy icon copies this text to the clipboard on tap.
-    property string copyText: ""
     // Suppresses the auto-hide timer — for notices whose lifetime is owned by
     // the caller (e.g. a "…in progress" toast that must stay up for the whole
     // duration of an operation of unknown length). The caller is responsible
@@ -45,10 +47,11 @@ Rectangle {
     // fill stays the neutral elevated surface).
     property string severity: "info"
 
-    readonly property color _severityColor:
-        severity === "error" ? Theme.colorError
-      : severity === "warn"  ? Theme.colorWarn
-      :                        Theme.colorBorderStrong
+    property string placement: "bottom"
+    property real   margin:    Theme.gap(24)
+    property Item   clearOf:   null
+
+    readonly property color _severityColor: Theme.toneColor(severity, Theme.colorBorderStrong)
 
     signal undoClicked()
 
@@ -61,95 +64,30 @@ Rectangle {
             hideTimer.restart()
     }
 
-    visible: false
-    implicitWidth:  toastRow.implicitWidth + Theme.sp(30)
-    implicitHeight: Theme.sp(40)
-    radius: Theme.radiusLg
-    color:  Theme.colorBg3
-    border.width: 1
-    border.color: root._severityColor
+    style:      "toast"
+    glyph:      "🗑"
+    visible:    false
+    title:      root.message
+    tone:       root._severityColor
+    glyphColor: root.severity === "info" ? Theme.colorText2 : root._severityColor
+    actionText: root.showUndo ? Theme.caps(qsTr("Undo")) : ""
+
+    anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
+    anchors.bottom: !parent                              ? undefined
+                  : root.placement === "above"           ? parent.top
+                  : root.clearOf && root.clearOf.visible ? root.clearOf.top
+                  :                                        parent.bottom
+    anchors.bottomMargin: root.margin
+
+    onCopied: hideTimer.restart()   // give the user time to see the confirmation
+    onActionClicked: {
+        root.visible = false
+        root.undoClicked()
+    }
 
     Timer {
         id: hideTimer
         interval: Theme.durationSlow * 21
         onTriggered: root.visible = false
-    }
-
-    Row {
-        id: toastRow
-        anchors.centerIn: parent
-        spacing: Theme.gap(14)
-
-        Row {
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Theme.gap(9)
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text:           root.glyph
-                font.family:    Theme.fontSymbol
-                font.pixelSize: Theme.fontSzBody
-                color:          root.severity === "info" ? Theme.colorText2
-                                                         : root._severityColor
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text:           root.message
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody
-                color:          Theme.colorText
-            }
-        }
-
-        Rectangle {   // hairline separator before the copy action
-            anchors.verticalCenter: parent.verticalCenter
-            width: 1; height: Theme.sp(18)
-            color: Theme.colorBorderStrong
-            visible: root.copyText.length > 0
-        }
-
-        Text {        // copy-to-clipboard action; flashes a check as feedback
-            anchors.verticalCenter: parent.verticalCenter
-            visible:        root.copyText.length > 0
-            text:           copyConfirm.running ? "✓" : "⧉"
-            font.family:    Theme.fontSymbol
-            font.pixelSize: Theme.fontSzBody
-            color:          copyConfirm.running ? Theme.colorGood : Theme.colorAccent
-
-            Timer { id: copyConfirm; interval: 1200 }
-
-            PpPressable {
-                anchors.margins: -Theme.sp(6)
-                onClicked: {
-                    clipboard.setText(root.copyText)
-                    copyConfirm.restart()
-                    hideTimer.restart()   // give the user time to see the confirmation
-                }
-            }
-        }
-
-        Rectangle {   // hairline separator before the action
-            anchors.verticalCenter: parent.verticalCenter
-            width: 1; height: Theme.sp(18)
-            color: Theme.colorBorderStrong
-            visible: root.showUndo
-        }
-
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            visible:        root.showUndo
-            text:           Theme.caps(qsTr("Undo"))
-            font.family:    Theme.fontData
-            font.pixelSize: Theme.fontSzBody2
-            font.letterSpacing: Theme.trackingLabel
-            color:          Theme.colorAccent
-
-            PpPressable {
-                anchors.margins: -Theme.sp(6)
-                onClicked: {
-                    root.visible = false
-                    root.undoClicked()
-                }
-            }
-        }
     }
 }

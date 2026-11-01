@@ -310,44 +310,16 @@ Item {
         }
 
         // ── "all N shown ▾" — the relocated, re-scoped bulk menu (state 1) ───
-        Rectangle {
+        PpButton {
             id: allCtl
             Layout.alignment: Qt.AlignVCenter
             visible: root._showAllCtl
-            implicitWidth:  allRow.implicitWidth + Theme.sp(20)
-            implicitHeight: Theme.sp(28)
-            radius: Theme.radius
-            color:  allMenu.opened || allMa.containsMouse ? Theme.colorBg3 : "transparent"
-            border.width: 1
-            border.color: allMenu.opened || allMa.containsMouse
-                              ? Theme.colorBorderMid : "transparent"
-            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-            Row {
-                id: allRow
-                anchors.centerIn: parent
-                spacing: Theme.gap(7)
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text:           qsTr("all %1 shown").arg(root.visibleCount)
-                    font.family:    Theme.fontData
-                    font.pixelSize: Theme.fontSzBody2
-                    color:          allMenu.opened || allMa.containsMouse
-                                        ? Theme.colorText : Theme.colorText2
-                }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text:           "▾"
-                    font.family:    Theme.fontSymbol
-                    font.pixelSize: Theme.fontSzMicro
-                    color:          Theme.colorText3
-                }
-            }
-            PpPressable {
-                id: allMa
-                held: allMenu.opened       // stay grown while the menu is up
-                onClicked: allMenu.opened ? allMenu.close() : allMenu.open()
-            }
+            style: "menu"; size: "compact"; mono: true
+            active: allMenu.opened
+            held: allMenu.opened       // stay grown while the menu is up
+            chevron: true
+            label: qsTr("all %1 shown").arg(root.visibleCount)
+            onClicked: allMenu.opened ? allMenu.close() : allMenu.open()
 
             // Opens UPWARD over the stage (dock convention), right-aligned to the control.
             Popup {

@@ -545,29 +545,19 @@ SettingsPanelBase {
     }
 
     // ── Page header ────────────────────────────────────────────────
-    SettingsSectionHead { text: Theme.caps(qsTr("Hardware")) }
-    PpDisplayText {
-        text: qsTr("Phones")
-    }
-    Text {
-        text: qsTr("A phone running PinPoint Capture pairs by scanning a code from the home screen, and its cameras then join the devices list. Once paired, a phone is remembered and can reconnect without a new code — until you forget it here.")
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody2
-        font.weight:    Theme.fontBodyWeight
-        color:          Theme.colorText3
-        wrapMode:       Text.WordWrap
+    PpPageHeader {
         Layout.fillWidth: true
+        spacing:     root.contentSpacing
+        eyebrow:     Theme.caps(qsTr("Hardware"))
+        title:       qsTr("Phones")
+        description: qsTr("A phone running PinPoint Capture pairs by scanning a code from the home screen, and its cameras then join the devices list. Once paired, a phone is remembered and can reconnect without a new code — until you forget it here.")
     }
 
     // ── The build has no PPCP at all ───────────────────────────────
-    Text {
-        visible: !root.havePpcp
-        text:    qsTr("This build was made without the PinPoint Connect libraries, so it cannot pair with a phone.")
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody2
-        font.weight:    Theme.fontBodyWeight
-        color:          Theme.colorText3
-        wrapMode:       Text.WordWrap
+    PpCardNote {
+        kind:             "plain"
+        visible:          !root.havePpcp
+        text:             qsTr("This build was made without the PinPoint Connect libraries, so it cannot pair with a phone.")
         Layout.fillWidth: true
     }
 
@@ -590,7 +580,7 @@ SettingsPanelBase {
         ColumnLayout {
             Layout.fillWidth: true
             spacing: Theme.gap(2)
-            SettingsSectionHead { text: Theme.caps(qsTr("This computer")) }
+            PpMicro { kind: "body"; text: Theme.caps(qsTr("This computer")) }
             Text {
                 text: qsTr("The name your phone shows for this Studio. A phone already "
                          + "paired picks up a change the next time it connects.")
@@ -615,22 +605,18 @@ SettingsPanelBase {
     }
 
     // ── Enumerated devices header ──────────────────────────────────
-    SettingsSectionHead {
+    PpMicro {
+        kind: "body"
         visible:          root.havePpcp
         text:             Theme.caps(qsTr("Remembered phones"))
         Layout.fillWidth: true
     }
 
     // ── Nothing paired yet ─────────────────────────────────────────
-    Text {
-        visible: root.havePpcp && root.rows.length === 0
-        text:    qsTr("No phone has paired with this computer yet. Use “Pair a device” on the home screen to scan a code.")
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody2
-        font.weight:    Theme.fontBodyWeight
-        font.italic:    true
-        color:          Theme.colorText3
-        wrapMode:       Text.WordWrap
+    PpCardNote {
+        kind:             "aside"
+        visible:          root.havePpcp && root.rows.length === 0
+        text:             qsTr("No phone has paired with this computer yet. Use “Pair a device” on the home screen to scan a code.")
         Layout.fillWidth: true
     }
 

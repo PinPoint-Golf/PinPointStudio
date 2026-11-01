@@ -1266,7 +1266,8 @@ The card's foot holds "6 more" (a link) and "2 cleared" (Micro, `colorGood`).
   | `PpCardShell` | the shell alone: `tone`, `hero` (4 px rule + wash), `floating` (a Popup's, `colorBorderStrong`) |
   | `PpCard` | shell + Micro `title` / `aside` + a body column (`pad`, `itemGap`, `bodyGap`) |
   | `PpStageCard` | a stage panel's card: quiet by default, a `heading` Component replaces the title (tabs) |
-  | `PpPopoverCard` | every `Popup`'s `background` |
+  | `PpPopoverCard` | every `Popup`'s `background`: `style` "" (ruled in `tone`), `plain` (a dialog's box), `plainTight` (a dropdown, the model editor's popovers), `borderColor` |
+  | `PpNotificationCard` | the notice card of the notification centre and of `PpToast` (`style` "" / `toast`); a toast places itself (`placement` bottom / above, `margin`, `clearOf`) |
   | `PpMicro`, `PpCardNote`, `PpLink`, `PpFact` | the text roles of 13.6 and the label/value row |
   | `PpInset` | the inset panel, with an optional tone `bar` |
   | `PpBadge` | `kind` check / target / easing / unconfirmed, `tone`, `size` |
@@ -1400,7 +1401,8 @@ The rules for using them:
   - Acronyms stay capitals in the source: IMU, CPU, DTL, GRF, LM, P1…P10.
   - `.arg()` goes after the case change, `Theme.caps(qsTr("Path %1")).arg(x)`, so the argument keeps
     its own case.
-  - Never capitalise inside a shared component: PpMicro carries live values as well as headings.
+  - PpMicro's default kind never capitalises (it carries live values); kinds `caps`/`body`/`bodyWeight` apply
+    `Theme.capsFont` and are for heading sites only.
   - Strings that arrive from C++ already in capitals are lower-cased at the display site before
     `caps()` (`_unshout()` in the session-diagnostics panel).
   - The launch-monitor board abbreviations are sentence case in `launch_monitor_reading.cpp`.

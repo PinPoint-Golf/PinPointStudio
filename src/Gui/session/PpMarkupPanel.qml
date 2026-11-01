@@ -52,10 +52,6 @@ Item {
     // True only for the visible session screen's panel (host passes _screenActive).
     property bool   panelActive: true
 
-    // What sits ON a frame (the pane HUDs): the overlay palette's dark ink, fixed across
-    // themes, under the palette's lightest words — so it reads over any still in either theme.
-    readonly property color _onScrim: Theme.dark ? Theme.colorText : Theme.colorBg
-
     // grip→head picking is two clicks; the first is held here until the second.
     property bool pendingGrip: false
     property real gripNx: 0
@@ -1070,19 +1066,17 @@ Item {
                 x: Theme.sp(8)
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.gap(10)
-                Text {
+                PpMicro {
                     text: pane.title
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                    color: pane.isActive ? root._onScrim : Qt.alpha(root._onScrim, 0.6)
+                    color: pane.isActive ? Theme.colorOnScrim : Qt.alpha(Theme.colorOnScrim, 0.6)
                 }
                 Text {
                     text: qsTr("%1 / %2").arg(pane.frameIdx).arg(Math.max(0, pane.frameTotal - 1))
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: root._onScrim
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Theme.colorOnScrim
                 }
                 Text {
                     text: pane.frameSec.toFixed(3) + "s"
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Qt.alpha(root._onScrim, 0.75)
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Qt.alpha(Theme.colorOnScrim, 0.75)
                 }
                 Text {
                     visible: pane.isActive
@@ -1092,42 +1086,22 @@ Item {
                              ? qsTr("◇ pick head") : qsTr("◇ pick grip"))
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
                     // The glyph carries the state: ◆ a shaft is placed, ◇ a click is wanted.
-                    color: pane.ballMode ? root._onScrim : Qt.alpha(root._onScrim, 0.6)
+                    color: pane.ballMode ? Theme.colorOnScrim : Qt.alpha(Theme.colorOnScrim, 0.6)
                 }
             }
         }
     }
 
-    // PpButton's look at the panel's compact size, kept local because every press hands the
-    // keyboard back to the panel (its P keys and a/d stepping) — PpButton does not.
-    component MlButton: Rectangle {
-        id: btn
-        property string text: ""
+    // The panel's button: PpButton at the compact size, sitting still, handing the keyboard back
+    // to the panel after every press (its P keys and a/d stepping). `accent` lights it.
+    component MlButton: PpButton {
+        property string text:   ""
         property bool   accent: false
-        signal clicked()
-        implicitWidth: lbl.width + Theme.sp(18)
-        implicitHeight: Theme.sp(28)
-        radius: Theme.radius
-        opacity: enabled ? 1.0 : 0.4
-        color: accent ? Theme.colorAccent
-             : bMa.containsMouse ? Theme.colorBg2 : "transparent"
-        border.width: accent ? 0 : 1
-        border.color: Theme.colorBorderStrong
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-        Text {
-            id: lbl
-            anchors.centerIn: parent
-            text: btn.text
-            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-            color: btn.accent ? (Theme.dark ? Theme.colorBg : Theme.colorSurface) : Theme.colorText
-        }
-        MouseArea {
-            id: bMa
-            anchors.fill: parent
-            hoverEnabled: true
-            enabled: btn.enabled
-            cursorShape: Qt.PointingHandCursor
-            onClicked: { btn.clicked(); root.forceActiveFocus() }
-        }
+        label: text
+        style: accent ? "accent" : "outline"
+        size:  "compact"
+        horizontalPadding: Theme.sp(18)
+        moves: false
+        focusOnClick: root
     }
 }

@@ -224,13 +224,9 @@ SettingsPanelBase {
                         spacing: Theme.gap(4)
                         Layout.alignment: Qt.AlignTop
 
-                        Text {
-                            text:                qsTr("Mount")
-                            font.family:         Theme.fontData
-                            font.pixelSize:      Theme.fontSzMicro
-                            font.letterSpacing:  Theme.trackingMicro
-                            font.capitalization: Theme.capsFont
-                            color:               Theme.colorText3
+                        PpMicro {
+                            kind: "caps"
+                            text: qsTr("Mount")
                         }
 
                         Text {
@@ -256,13 +252,9 @@ SettingsPanelBase {
                         spacing: Theme.gap(4)
                         Layout.alignment: Qt.AlignTop
 
-                        Text {
-                            text:                qsTr("Output rate")
-                            font.family:         Theme.fontData
-                            font.pixelSize:      Theme.fontSzMicro
-                            font.letterSpacing:  Theme.trackingMicro
-                            font.capitalization: Theme.capsFont
-                            color:               Theme.colorText3
+                        PpMicro {
+                            kind: "caps"
+                            text: qsTr("Output rate")
                         }
 
                         Row {
@@ -282,48 +274,18 @@ SettingsPanelBase {
                             Repeater {
                                 model: rateChipRow.rateOptions
 
-                                delegate: Rectangle {
+                                delegate: PpChoiceChip {
                                     id: rateChip
                                     required property var modelData
-
-                                    readonly property bool isSelected: rateChipRow.selectedRate === modelData
-
-                                    width:  rateChipLabel.implicitWidth + Theme.sp(20)
-                                    height: Theme.sp(24)
-                                    radius: Theme.radius
-                                    color:  isSelected ? Theme.colorAccentLight
-                                          : rateArea.containsMouse
-                                              ? Qt.alpha(Theme.colorAccentLight, 0.4)
-                                              : "transparent"
-                                    border.width: 1
-                                    border.color: isSelected ? Theme.colorAccent
-                                                : rateArea.containsMouse ? Theme.colorAccentMid
-                                                : Theme.colorBorderStrong
-                                    Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
-                                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                                    Text {
-                                        id: rateChipLabel
-                                        anchors.centerIn: parent
-                                        text:           modelData + qsTr(" Hz")
-                                        font.family:    Theme.fontData
-                                        font.pixelSize: Theme.fontSzMicro
-                                        color:          rateChip.isSelected ? Theme.colorAccent : Theme.colorText2
-                                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                                    }
-
-                                    MouseArea {
-                                        id: rateArea
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape:  Qt.PointingHandCursor
-                                        onClicked: {
-                                            var map = appSettings.imuOutputRateHz
-                                            map[imuData.id] = modelData
-                                            appSettings.imuOutputRateHz = map
-                                            if (imuRow.isConnected && imuRow.inst)
-                                                imuRow.inst.setOutputRateHz(modelData)
-                                        }
+                                    style:    "mono"; moves: false
+                                    label:    modelData + qsTr(" Hz")
+                                    selected: rateChipRow.selectedRate === modelData
+                                    onClicked: {
+                                        var map = appSettings.imuOutputRateHz
+                                        map[imuData.id] = modelData
+                                        appSettings.imuOutputRateHz = map
+                                        if (imuRow.isConnected && imuRow.inst)
+                                            imuRow.inst.setOutputRateHz(modelData)
                                     }
                                 }
                             }
@@ -340,13 +302,9 @@ SettingsPanelBase {
                         spacing: Theme.gap(4)
                         Layout.alignment: Qt.AlignTop
 
-                        Text {
-                            text:                qsTr("Output rate")
-                            font.family:         Theme.fontData
-                            font.pixelSize:      Theme.fontSzMicro
-                            font.letterSpacing:  Theme.trackingMicro
-                            font.capitalization: Theme.capsFont
-                            color:               Theme.colorText3
+                        PpMicro {
+                            kind: "caps"
+                            text: qsTr("Output rate")
                         }
 
                         Text {
@@ -362,45 +320,22 @@ SettingsPanelBase {
                     Item { Layout.fillWidth: true }
 
                     // ── Test button ──────────────────────────────────────────
-                    Rectangle {
+                    PpButton {
                         id: testBtn
-                        readonly property bool active: imuRow.testOpen
-                        width:  testBtnLabel.implicitWidth + Theme.sp(24)
-                        height: Theme.sp(26)
-                        radius: Theme.radius
-                        color:  active ? Theme.colorAccentLight
-                              : testPress.containsMouse
-                                  ? Qt.alpha(Theme.colorAccentLight, 0.4)
-                                  : "transparent"
-                        border.width: 1
-                        border.color: active ? Theme.colorAccent
-                                    : testPress.containsMouse ? Theme.colorAccentMid
-                                    : Theme.colorBorderStrong
+                        style: "wash"; size: "compact"
+                        implicitHeight: Theme.sp(26)
+                        horizontalPadding: Theme.sp(24)
+                        active: imuRow.testOpen
                         Layout.alignment: Qt.AlignVCenter
-                        Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
-                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+                        label: qsTr("Test")
 
-                        Text {
-                            id: testBtnLabel
-                            anchors.centerIn: parent
-                            text:           qsTr("Test")
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Theme.fontBodyWeight
-                            color:          testBtn.active ? Theme.colorAccent : Theme.colorText2
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                        }
-
-                        PpPressable {
-                            id: testPress
-                            onClicked: {
-                                if (imuRow.testOpen) {
-                                    root.openTestId = ""
-                                } else {
-                                    root.openTestId = imuData.id
-                                    if (!imuRow.isConnected)
-                                        imuManager.setSelected(imuData.index, true)
-                                }
+                        onClicked: {
+                            if (imuRow.testOpen) {
+                                root.openTestId = ""
+                            } else {
+                                root.openTestId = imuData.id
+                                if (!imuRow.isConnected)
+                                    imuManager.setSelected(imuData.index, true)
                             }
                         }
                     }
@@ -449,68 +384,35 @@ SettingsPanelBase {
                     Layout.bottomMargin: Theme.gap(12)
                     spacing: Theme.gap(8)
 
-                    Text {
+                    PpMicro {
+                        kind: "caps"
                         // The mount by name (imuRow.mountLabel — a wG3's pair reads
                         // "Lead forearm + hand"), then the device; just the device
                         // while it has no mount.
                         text: qsTr("Live test — ") + (imuRow.mountLabel !== ""
                                                           ? imuRow.mountLabel + " — " + imuData.description
                                                           : imuData.description)
-                        font.family:         Theme.fontData
-                        font.pixelSize:      Theme.fontSzMicro
-                        font.letterSpacing:  Theme.trackingMicro
-                        font.capitalization: Theme.capsFont
-                        color:               Theme.colorText3
-                        Layout.fillWidth:    true
+                        Layout.fillWidth: true
                     }
 
                     // Connect / Disconnect button — fixed width sized for the longer label.
-                    Rectangle {
+                    PpButton {
                         id: connBtn
                         readonly property bool connected: imuRow.isConnected
-                        width:  disconnectMeasure.implicitWidth + Theme.sp(24)
-                        height: Theme.sp(26)
-                        radius: Theme.radius
-                        color:  connPress.containsMouse
-                                    ? Qt.alpha(Theme.colorAccentLight, 0.4)
-                                    : "transparent"
-                        border.width: 1
-                        border.color: connected ? Qt.alpha(Theme.colorWarn, 0.5)
-                                    : connPress.containsMouse ? Theme.colorAccentMid
-                                    : Theme.colorBorderStrong
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+                        style: "wash"; size: "compact"
+                        implicitHeight: Theme.sp(26)
+                        horizontalPadding: Theme.sp(24)
+                        tone: connected ? "warn" : "accent"
+                        // Always measures the longer string so the button never shrinks when switching
+                        // between "Connect" and "Disconnect".
+                        sizeLabel: qsTr("Disconnect")
+                        label: connBtn.connected ? qsTr("Disconnect") : qsTr("Connect")
 
-                        // Invisible sizer — always measures the longer string so the button
-                        // never shrinks when switching between "Connect" and "Disconnect".
-                        Text {
-                            id: disconnectMeasure
-                            visible:        false
-                            text:           qsTr("Disconnect")
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Theme.fontBodyWeight
-                        }
-
-                        Text {
-                            id: connBtnLabel
-                            anchors.centerIn: parent
-                            text:           connBtn.connected ? qsTr("Disconnect") : qsTr("Connect")
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Theme.fontBodyWeight
-                            color:          connBtn.connected ? Theme.colorWarn : Theme.colorAccent
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                        }
-
-                        PpPressable {
-                            id: connPress
-                            onClicked: {
-                                if (imuRow.isConnected)
-                                    imuManager.setSelected(imuData.index, false)
-                                else
-                                    imuManager.setSelected(imuData.index, true)
-                            }
+                        onClicked: {
+                            if (imuRow.isConnected)
+                                imuManager.setSelected(imuData.index, false)
+                            else
+                                imuManager.setSelected(imuData.index, true)
                         }
 
                         // Traveling-light frame while this device's BLE connect
@@ -523,30 +425,14 @@ SettingsPanelBase {
                     }
 
                     // Done button — closes the test panel; does not disconnect
-                    Rectangle {
+                    PpButton {
                         id: testDoneBtn
-                        width:  doneBtnLabel.implicitWidth + Theme.sp(24)
-                        height: Theme.sp(26)
-                        radius: Theme.radius
-                        color:  testDonePress.containsMouse ? Qt.lighter(Theme.colorAccentLight, 1.08) : Theme.colorAccentLight
-                        border.width: 1
-                        border.color: Theme.colorAccent
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        style: "tonal"; tone: "accent"; size: "compact"
+                        implicitHeight: Theme.sp(26)
+                        horizontalPadding: Theme.sp(24)
+                        label: qsTr("Done")
 
-                        Text {
-                            id: doneBtnLabel
-                            anchors.centerIn: parent
-                            text:           qsTr("Done")
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Font.Normal
-                            color:          Theme.colorAccent
-                        }
-
-                        PpPressable {
-                            id: testDonePress
-                            onClicked:    root.openTestId = ""
-                        }
+                        onClicked:    root.openTestId = ""
                     }
                 }
 
@@ -631,13 +517,9 @@ SettingsPanelBase {
                                 required property var modelData
                                 spacing: Theme.gap(4)
 
-                                Text {
-                                    text:                modelData.label
-                                    font.family:         Theme.fontData
-                                    font.pixelSize:      Theme.fontSzMicro
-                                    font.letterSpacing:  Theme.trackingMicro
-                                    font.capitalization: Theme.capsFont
-                                    color:               Theme.colorText3
+                                PpMicro {
+                                    kind: "caps"
+                                    text: modelData.label
                                 }
 
                                 Item {
@@ -692,14 +574,14 @@ SettingsPanelBase {
                             spacing: Theme.gap(8)
 
                             // Status dot
-                            Rectangle {
-                                width:  Theme.sp(6)
-                                height: Theme.sp(6)
-                                radius: Theme.sp(3)
-                                color: imuRow.isConnected                     ? Theme.colorGood
-                                     : (imuRow.inst && imuRow.inst.busy)      ? Theme.colorAccent
-                                     :                                           Theme.colorText3
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            PpBadge {
+                                kind:     "dot"
+                                plain:    true
+                                size:     Theme.sp(6)
+                                tone: imuRow.isConnected                     ? Theme.colorGood
+                                    : (imuRow.inst && imuRow.inst.busy)      ? Theme.colorAccent
+                                    :                                           Theme.colorText3
+                                animated: true
                             }
 
                             // State label + data rate
@@ -816,13 +698,9 @@ SettingsPanelBase {
                             Layout.bottomMargin: Theme.gap(8)
                             spacing: Theme.gap(4)
 
-                            Text {
-                                text:                qsTr("Quaternion")
-                                font.family:         Theme.fontData
-                                font.pixelSize:      Theme.fontSzMicro
-                                font.letterSpacing:  Theme.trackingMicro
-                                font.capitalization: Theme.capsFont
-                                color:               Theme.colorText3
+                            PpMicro {
+                                kind: "caps"
+                                text: qsTr("Quaternion")
                             }
 
                             RowLayout {
@@ -858,13 +736,9 @@ SettingsPanelBase {
                                             anchors.rightMargin:   Theme.gap(8)
                                             spacing: Theme.gap(2)
 
-                                            Text {
+                                            PpMicro {
+                                                kind: "caps"
                                                 text: ["W", "X", "Y", "Z"][index]
-                                                font.family:         Theme.fontData
-                                                font.pixelSize:      Theme.fontSzMicro
-                                                font.letterSpacing:  Theme.trackingMicro
-                                                font.capitalization: Theme.capsFont
-                                                color:               Theme.colorText3
                                             }
                                             Text {
                                                 text: [
@@ -902,13 +776,9 @@ SettingsPanelBase {
                                     Layout.fillWidth: true
                                     spacing: Theme.gap(4)
 
-                                    Text {
-                                        text:                qsTr("Quaternion — ") + modelData.label
-                                        font.family:         Theme.fontData
-                                        font.pixelSize:      Theme.fontSzMicro
-                                        font.letterSpacing:  Theme.trackingMicro
-                                        font.capitalization: Theme.capsFont
-                                        color:               Theme.colorText3
+                                    PpMicro {
+                                        kind: "caps"
+                                        text: qsTr("Quaternion — ") + modelData.label
                                     }
 
                                     RowLayout {
@@ -936,13 +806,9 @@ SettingsPanelBase {
                                                     anchors.rightMargin:   Theme.gap(8)
                                                     spacing: Theme.gap(2)
 
-                                                    Text {
+                                                    PpMicro {
+                                                        kind: "caps"
                                                         text: ["W", "X", "Y", "Z"][index]
-                                                        font.family:         Theme.fontData
-                                                        font.pixelSize:      Theme.fontSzMicro
-                                                        font.letterSpacing:  Theme.trackingMicro
-                                                        font.capitalization: Theme.capsFont
-                                                        color:               Theme.colorText3
                                                     }
                                                     Text {
                                                         text: [
@@ -969,13 +835,9 @@ SettingsPanelBase {
                             spacing: Theme.gap(4)
                             enabled: imuRow.isConnected && imuRow.inst !== null
 
-                            Text {
-                                text:                qsTr("Calibration")
-                                font.family:         Theme.fontData
-                                font.pixelSize:      Theme.fontSzMicro
-                                font.letterSpacing:  Theme.trackingMicro
-                                font.capitalization: Theme.capsFont
-                                color:               Theme.colorText3
+                            PpMicro {
+                                kind: "caps"
+                                text: qsTr("Calibration")
                             }
 
                             Row {
@@ -985,37 +847,14 @@ SettingsPanelBase {
                                 // host-side zero on a HackMotion (imu_device.h);
                                 // a control that silently does nothing is worse
                                 // than no control.
-                                Rectangle {
+                                PpButton {
                                     id: zeroBtn
                                     visible: !imuRow.isHackMotion
-                                    width:  zeroLabel.implicitWidth + Theme.sp(20)
-                                    height: Theme.sp(24)
-                                    radius: Theme.radius
-                                    color:  (parent.parent.enabled && zeroPress.containsMouse)
-                                                ? Qt.alpha(Theme.colorAccentLight, 0.4)
-                                                : "transparent"
-                                    border.width: 1
-                                    border.color: !parent.parent.enabled ? Theme.colorBorderMid
-                                                : zeroPress.containsMouse ? Theme.colorAccentMid
-                                                : Theme.colorBorderStrong
-                                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+                                    style: "wash"; size: "compact"
+                                    implicitHeight: Theme.sp(24)
+                                    label: qsTr("Zero orientation")
 
-                                    Text {
-                                        id: zeroLabel
-                                        anchors.centerIn: parent
-                                        text:           qsTr("Zero orientation")
-                                        font.family:    Theme.fontBody
-                                        font.pixelSize: Theme.fontSzBody2
-                                        font.weight:    Theme.fontBodyWeight
-                                        color:          parent.parent.parent.enabled
-                                                            ? Theme.colorText2 : Theme.colorText3
-                                    }
-
-                                    PpPressable {
-                                        id: zeroPress
-                                        onClicked:    if (imuRow.inst) imuRow.inst.zeroOrientation()
-                                    }
+                                    onClicked:    if (imuRow.inst) imuRow.inst.zeroOrientation()
                                 }
 
                                 // Calibrate magnetometer (placeholder — no API yet)
@@ -1072,33 +911,26 @@ SettingsPanelBase {
     }
 
     // ── Page header ────────────────────────────────────────────────
-    SettingsSectionHead { text: Theme.caps(qsTr("Hardware")) }
-
-    PpDisplayText {
-        text: qsTr("Motion Sensors")
-    }
-
-    Text {
-        text: qsTr("All enumerated motion sensors are listed below. Each shows where it is worn — set in session setup, on the Sensors step. Configure the output rate here, and use the Test panel to verify orientation before a session.")
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody2
-        font.weight:    Theme.fontBodyWeight
-        color:          Theme.colorText3
-        wrapMode:       Text.WordWrap
+    PpPageHeader {
         Layout.fillWidth: true
+        spacing:     root.contentSpacing
+        eyebrow:     Theme.caps(qsTr("Hardware"))
+        title:       qsTr("Motion Sensors")
+        description: qsTr("All enumerated motion sensors are listed below. Each shows where it is worn — set in session setup, on the Sensors step. Configure the output rate here, and use the Test panel to verify orientation before a session.")
     }
 
     // ── Enumerated devices header ──────────────────────────────────
     RowLayout {
         Layout.fillWidth: true
 
-        SettingsSectionHead {
+        PpMicro {
+            kind: "body"
             text:             Theme.caps(qsTr("Enumerated devices"))
             Layout.fillWidth: true
         }
 
         // Scan button — fixed width sized for the longer "Scanning…" label.
-        Rectangle {
+        PpButton {
             id: scanBtn
             // Bound to the manager's authoritative scan state — NOT a
             // local 30 s timer. The discovery window is 90 s with
@@ -1107,45 +939,13 @@ SettingsPanelBase {
             // silently swallowed for the rest of the real window.
             readonly property bool scanning: imuManager.imuScanActive
 
-            width:  scanningMeasure.implicitWidth + Theme.sp(24)
-            height: Theme.sp(26)
-            radius: Theme.radius
-            color:  scanning ? Theme.colorAccentLight
-                  : scanPress.containsMouse
-                      ? Qt.alpha(Theme.colorAccentLight, 0.4)
-                      : "transparent"
-            border.width: 1
-            border.color: scanning ? Theme.colorAccent
-                        : scanPress.containsMouse ? Theme.colorAccentMid
-                        : Theme.colorBorderStrong
-            Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
-            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-            // Invisible sizer — always measures the longer string.
-            Text {
-                id: scanningMeasure
-                visible:        false
-                text:           qsTr("Scanning…")
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                font.weight:    Theme.fontBodyWeight
-            }
-
-            Text {
-                id: scanBtnLabel
-                anchors.centerIn: parent
-                text:           scanBtn.scanning ? qsTr("Scanning…") : qsTr("Scan")
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                font.weight:    Theme.fontBodyWeight
-                color:          scanBtn.scanning ? Theme.colorAccent : Theme.colorText2
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-            }
-
-            PpPressable {
-                id: scanPress
-                onClicked: imuManager.rescanImu()
-            }
+            style: "wash"; size: "compact"
+            implicitHeight: Theme.sp(26)
+            horizontalPadding: Theme.sp(24)
+            active: scanning
+            sizeLabel: qsTr("Scanning…")
+            label: scanBtn.scanning ? qsTr("Scanning…") : qsTr("Scan")
+            onClicked: imuManager.rescanImu()
         }
     }
 
@@ -1171,17 +971,13 @@ SettingsPanelBase {
         // Empty state — distinguishes "discovery couldn't run" (e.g.
         // Bluetooth off / no adapter, surfaced via imuScanError) from a
         // genuine "no devices in range".
-        Text {
-            visible:        imuManager.imuDeviceList.length === 0
-            text:           imuManager.imuScanError !== ""
-                                ? qsTr("Bluetooth discovery error: %1").arg(imuManager.imuScanError)
-                                : qsTr("No motion sensors found. Click Scan to search for BLE devices.")
-            font.family:    Theme.fontBody
-            font.pixelSize: Theme.fontSzBody2
-            font.weight:    Theme.fontBodyWeight
-            font.italic:    true
-            color:          imuManager.imuScanError !== "" ? Theme.colorWarn : Theme.colorText3
-            wrapMode:       Text.WordWrap
+        PpCardNote {
+            kind:             "aside"
+            visible:          imuManager.imuDeviceList.length === 0
+            text:             imuManager.imuScanError !== ""
+                                  ? qsTr("Bluetooth discovery error: %1").arg(imuManager.imuScanError)
+                                  : qsTr("No motion sensors found. Click Scan to search for BLE devices.")
+            color:            imuManager.imuScanError !== "" ? Theme.colorWarn : Theme.colorText3
             Layout.fillWidth: true
         }
     }
@@ -1274,7 +1070,7 @@ SettingsPanelBase {
     PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
     // ── Global IMU settings ────────────────────────────────────────
-    SettingsSectionHead { text: Theme.caps(qsTr("Global motion sensor settings")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Global motion sensor settings")) }
 
     // Auto-connect on session start
     SettingsRow {
@@ -1356,7 +1152,7 @@ SettingsPanelBase {
     PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
     // ── Orientation fusion (global) ────────────────────────────────
-    SettingsSectionHead { text: Theme.caps(qsTr("Orientation fusion")) }
+    PpMicro { kind: "body"; text: Theme.caps(qsTr("Orientation fusion")) }
 
     ColumnLayout {
         Layout.fillWidth:  true
@@ -1369,55 +1165,20 @@ SettingsPanelBase {
                 model: [ { key: "Madgwick", label: qsTr("Madgwick Filter") },
                          { key: "ESKF",     label: qsTr("Error State Kalman Filter (ESKF)") } ]
 
-                delegate: Rectangle {
+                delegate: PpChoiceChip {
                     id: fusionSeg
                     required property var modelData
-                    readonly property bool active:
-                        appSettings.imuOrientationFilter === modelData.key
-
-                    implicitWidth: segLabel.implicitWidth + Theme.sp(28)
-                    height:        Theme.sp(30)
-                    radius:        Theme.radius
-                    color:         active ? Theme.colorAccentLight
-                                 : fusionArea.containsMouse
-                                     ? Qt.alpha(Theme.colorAccentLight, 0.4)
-                                     : "transparent"
-                    border.width:  1
-                    border.color:  active ? Theme.colorAccent
-                                 : fusionArea.containsMouse ? Theme.colorAccentMid
-                                 : Theme.colorBorderStrong
-                    Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                    Text {
-                        id: segLabel
-                        anchors.centerIn: parent
-                        text:           fusionSeg.modelData.label
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody2
-                        font.weight:    Theme.fontBodyWeight
-                        color:          fusionSeg.active ? Theme.colorAccent : Theme.colorText2
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    }
-
-                    MouseArea {
-                        id: fusionArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape:  Qt.PointingHandCursor
-                        onClicked:    imuManager.setOrientationFilter(fusionSeg.modelData.key)
-                    }
+                    style:     "body"; moves: false
+                    label:     fusionSeg.modelData.label
+                    selected:  appSettings.imuOrientationFilter === modelData.key
+                    onClicked: imuManager.setOrientationFilter(fusionSeg.modelData.key)
                 }
             }
         }
 
-        Text {
+        PpCardNote {
+            kind: "plain"
             text: qsTr("Software sensor-fusion algorithm used to derive orientation from the raw gyroscope + accelerometer. Applies to all motion sensors and takes effect immediately.")
-            font.family:    Theme.fontBody
-            font.pixelSize: Theme.fontSzBody2
-            font.weight:    Theme.fontBodyWeight
-            color:          Theme.colorText3
-            wrapMode:       Text.WordWrap
             Layout.fillWidth: true
         }
     }

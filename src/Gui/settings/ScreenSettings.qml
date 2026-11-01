@@ -195,53 +195,14 @@ Item {
                     visible: !root.navCollapsed
                     clip:    true
 
-                    Row {
-                        id: searchRow
-                        anchors.left:            parent.left
-                        anchors.right:           parent.right
-                        anchors.verticalCenter:  parent.verticalCenter
+                    PpSearchField {
+                        id: searchInput
+                        style: "line"
+                        anchors.fill:        parent
                         anchors.leftMargin:  Theme.gap(10)
                         anchors.rightMargin: Theme.gap(10)
-                        spacing: Theme.gap(6)
-
-                        Text {
-                            id: searchIcon
-                            text: "⌕"
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzHeading
-                            color: searchInput.activeFocus ? Theme.colorText2 : Theme.colorText3
-                            anchors.verticalCenter: parent.verticalCenter
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                        }
-
-                        TextField {
-                            id: searchInput
-                            width:         searchRow.width - searchIcon.width - searchRow.spacing
-                            topPadding:    0
-                            bottomPadding: 0
-                            leftPadding:   0
-                            rightPadding:  0
-                            placeholderText:      qsTr("Search settings…")
-                            placeholderTextColor: Theme.colorText3
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Theme.fontBodyWeight
-                            color:          Theme.colorText
-                            background:     null
-                            onTextChanged: root.searchQuery = text.toLowerCase()
-                        }
-                    }
-
-                    Rectangle {
-                        anchors.bottom:       parent.bottom
-                        anchors.bottomMargin: Theme.gap(6)
-                        anchors.left:         parent.left
-                        anchors.right:        parent.right
-                        anchors.leftMargin:   Theme.gap(10)
-                        anchors.rightMargin:  Theme.gap(10)
-                        height: 1
-                        color: searchInput.activeFocus ? Theme.colorAccent : Theme.colorBorderMid
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        placeholderText: qsTr("Search settings…")
+                        onTextChanged: root.searchQuery = text.toLowerCase()
                     }
                 }
 
@@ -314,20 +275,15 @@ Item {
                                                                : Theme.sp(14) + eyebrow.implicitHeight + Theme.sp(4)
                                     visible: modelData.sectionHead !== ""
 
-                                    Text {
-                                        id: eyebrow
+                                    PpMicro {
+                                        id:                   eyebrow
+                                        kind:                 "bodyWeight"
                                         anchors.left:         parent.left
                                         anchors.leftMargin:   Theme.gap(16)
                                         anchors.bottom:       parent.bottom
                                         anchors.bottomMargin: Theme.gap(4)
                                         visible:              !root.navCollapsed
                                         text:                 modelData.sectionHead
-                                        font.family:          Theme.fontBody
-                                        font.pixelSize:       Theme.fontSzMicro
-                                        font.weight:          Theme.fontBodyWeight
-                                        font.letterSpacing:   Theme.trackingMicro
-                                        font.capitalization:  Theme.capsFont
-                                        color:                Theme.colorText3
                                     }
 
                                     Rectangle {
@@ -494,14 +450,10 @@ Item {
                                 }
                                 spacing: Theme.gap(2)
 
-                                Text {
-                                    text:                modelData.panelLabel + "  →  " + modelData.groupLabel
-                                    font.family:         Theme.fontData
-                                    font.pixelSize:      Theme.fontSzMicro
-                                    font.letterSpacing:  Theme.trackingMicro
-                                    color:               Theme.colorText3
-                                    elide:               Text.ElideRight
-                                    Layout.fillWidth:    true
+                                PpMicro {
+                                    text:             modelData.panelLabel + "  →  " + modelData.groupLabel
+                                    elide:            Text.ElideRight
+                                    Layout.fillWidth: true
                                 }
 
                                 Text {

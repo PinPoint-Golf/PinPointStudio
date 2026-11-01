@@ -26,7 +26,7 @@
 //
 // Below a hairline, what today's DEVICES section carried that still belongs on Home: the PPCP pair
 // entry (pairPhoneButton), the sessions a connected phone is offering (PpcpOfferList) and the
-// first resource warning (RmWarningNotice).
+// first resource warning (a PpNotice).
 //
 // The device readings come through a SetupContext with no draft: it is the one object that reads
 // cameraManager / imuManager / appSettings / launchMonitor with their reactive dependencies
@@ -169,10 +169,11 @@ Column {
         height:  visible ? (warnNotice.implicitHeight + Theme.sp(12)) : 0
         width:   root.width
 
-        RmWarningNotice {
+        PpNotice {
             id: warnNotice
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-            message: resourceMonitor.warnings.length > 0 ? resourceMonitor.warnings[0] : ""
+            style: "warning"
+            text:  resourceMonitor.warnings.length > 0 ? resourceMonitor.warnings[0] : ""
         }
     }
 }

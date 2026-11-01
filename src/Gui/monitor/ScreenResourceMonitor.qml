@@ -154,8 +154,8 @@ Item {
 
     // ── The screen's repeated pieces, each drawn once ───────────────────────
     //
-    // This screen keeps its own compact look (18 px buttons, 9 px chips) rather
-    // than the shared components/ controls; moving onto those is a look change.
+    // This screen keeps its own compact look: its 18 px buttons are PpButton's
+    // mini size, and the 9 px chips below stay local.
 
     // An underline tab in the bottom log area's tab bar.
     component LogTab: Item {
@@ -167,18 +167,14 @@ Item {
         width: tabLbl.implicitWidth
         height: Theme.sp(24)
         transformOrigin: Item.Left
-        scale: tabTap.pressed ? 0.97 : tabHover.hovered ? 1.02 : 1.0
-        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
-        Text {
+        PpMicro {
             id: tabLbl
+            kind: "body"
             anchors { left: parent.left; top: parent.top; topMargin: Theme.gap(3) }
             text: tab.text
-            font.family: Theme.fontBody
-            font.pixelSize: Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingMicro
             color: tab.selected ? Theme.colorText2
-                 : tabHover.hovered ? Theme.colorText2 : Theme.colorText3
+                 : tabPress.containsMouse ? Theme.colorText2 : Theme.colorText3
             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
         }
         Rectangle {
@@ -188,47 +184,7 @@ Item {
             color: Theme.colorAccent
             visible: tab.selected
         }
-        TapHandler   { id: tabTap; onTapped: tab.activated() }
-        HoverHandler { id: tabHover; cursorShape: Qt.PointingHandCursor }
-    }
-
-    // A small outline button (Scan, Reset, Clear, Export…). `busy` greys it and
-    // stops taps while its job runs; `restBorder`/`labelColor` are the resting
-    // border and label colours (Scan is drawn a step stronger than the rest).
-    component OutlineButton: Rectangle {
-        id: btn
-        property string text: ""
-        property bool   busy: false
-        property color  restBorder: Theme.colorBorderMid
-        property color  labelColor: Theme.colorText3
-        signal tapped()
-
-        width: btnLbl.implicitWidth + Theme.sp(16)
-        height: Theme.sp(18)
-        radius: Theme.radius
-        color: btnHover.hovered
-               ? Theme.colorBg2
-               : Qt.alpha(Theme.colorBg2, 0)
-        border.width: 1
-        border.color: btn.busy             ? Theme.colorBorderMid
-                    : btnHover.hovered     ? Theme.colorAccentMid
-                    :                        btn.restBorder
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-        opacity: btn.busy ? 0.5 : 1.0
-        scale: btn.busy ? 1.0 : (btnTap.pressed ? 0.97 : btnHover.hovered ? 1.02 : 1.0)
-        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
-
-        Text {
-            id: btnLbl
-            anchors.centerIn: parent
-            text: btn.text
-            font.family: Theme.fontBody
-            font.pixelSize: Theme.sp(10)
-            color: btn.busy ? Theme.colorText3 : btn.labelColor
-        }
-
-        TapHandler  { id: btnTap; enabled: !btn.busy; onTapped: btn.tapped() }
-        HoverHandler { id: btnHover; cursorShape: btn.busy ? Qt.ArrowCursor : Qt.PointingHandCursor }
+        PpPressable { id: tabPress; onClicked: tab.activated() }
     }
 
     // A log tab's inline text filter: a boxed field with a placeholder and a
@@ -276,45 +232,6 @@ Item {
         }
     }
 
-    // A log tab's filter chip (severity or stats category), tinted by `tint`
-    // while it is on.
-    component FilterChip: Rectangle {
-        id: chip
-        property string text: ""
-        property bool   active: false
-        property color  tint: Theme.colorAccent
-        signal toggled()
-
-        width:  chipLbl.implicitWidth + Theme.sp(10)
-        height: Theme.sp(18)
-        radius: Theme.sp(9)
-        color: active
-            ? Qt.alpha(tint, chipHover.hovered ? 0.22 : 0.15)
-            : chipHover.hovered
-              ? Qt.alpha(tint, 0.08)
-              : "transparent"
-        border.width: 1
-        border.color: active
-            ? Qt.alpha(tint, chipHover.hovered ? 0.55 : 0.4)
-            : chipHover.hovered
-              ? Qt.alpha(tint, 0.4)
-              : Theme.colorBorderMid
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-        Text {
-            id: chipLbl
-            anchors.centerIn: parent
-            text: chip.text
-            font.family: Theme.fontData
-            font.pixelSize: Theme.sp(9)
-            font.letterSpacing: Theme.trackingMicro
-            color: chip.active ? chip.tint : Theme.colorText3
-        }
-
-        TapHandler  { onTapped: chip.toggled() }
-        HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }
-    }
-
     // The empty state under a table. Flat (a 28 px surface band) under the
     // profiler tables; `boxed` (40 px, rounded, bordered) on the log tabs.
     component EmptyRow: Rectangle {
@@ -350,12 +267,9 @@ Item {
 
         spacing: 0
 
-        Text {
+        PpMicro {
+            kind: "body"
             text: memTable.title
-            font.family: Theme.fontBody
-            font.pixelSize: Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingMicro
-            color: Theme.colorText3
             bottomPadding: memTable.note !== "" ? 2 : 8
         }
         Text {
@@ -495,12 +409,9 @@ Item {
             spacing: Theme.gap(12)
 
             // Section label
-            Text {
+            PpMicro {
+                kind: "body"
                 text: Theme.caps(qsTr("Devices"))
-                font.family: Theme.fontBody
-                font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro
-                color: Theme.colorText3
                 bottomPadding: 8
             }
 
@@ -531,14 +442,13 @@ Item {
                     color: Theme.colorText3
                 }
 
-                OutlineButton {
+                PpButton {
                     id: scanBtn
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                    text: qsTr("Scan")
-                    busy: resourceMonitor.scanning
-                    restBorder: Theme.colorBorderStrong
-                    labelColor: Theme.colorText2
-                    onTapped: resourceMonitor.scanDevices()
+                    style: "quiet"; size: "mini"
+                    label: qsTr("Scan")
+                    enabled: !resourceMonitor.scanning
+                    onClicked: resourceMonitor.scanDevices()
                 }
             }
         }
@@ -569,12 +479,9 @@ Item {
             spacing: Theme.gap(16)
 
             // Section label
-            Text {
+            PpMicro {
+                kind: "body"
                 text: Theme.caps(qsTr("Event buffer"))
-                font.family: Theme.fontBody
-                font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro
-                color: Theme.colorText3
                 bottomPadding: 8
             }
 
@@ -720,12 +627,9 @@ Item {
                 spacing: 0
 
                 // Section label
-                Text {
+                PpMicro {
+                    kind: "body"
                     text: Theme.caps(qsTr("Registered sources"))
-                    font.family: Theme.fontBody
-                    font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                    color: Theme.colorText3
                     bottomPadding: 8
                 }
 
@@ -869,13 +773,10 @@ Item {
                     width: parent.width
                     height: Theme.sp(28)
 
-                    Text {
+                    PpMicro {
+                        kind: "body"
                         anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                         text: Theme.caps(qsTr("Profiler"))
-                        font.family: Theme.fontBody
-                        font.pixelSize: Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingMicro
-                        color: Theme.colorText3
                     }
 
                     Row {
@@ -883,47 +784,31 @@ Item {
                         spacing: Theme.gap(8)
 
                         // Deep toggle — greyed when the deep tier isn't compiled in
-                        Rectangle {
+                        PpChoiceChip {
                             id: deepChip
-                            readonly property bool on: profiler.deepEnabled
-                            width: deepLbl.implicitWidth + Theme.sp(16)
-                            height: Theme.sp(18)
-                            radius: Theme.sp(9)
-                            opacity: profiler.deepAvailable ? 1.0 : 0.4
-                            color: on ? Qt.alpha(Theme.colorAccent, 0.15)
-                                      : deepHover.hovered ? Theme.colorBg2
-                                      : Qt.alpha(Theme.colorBg2, 0)
-                            border.width: 1
-                            border.color: on ? Qt.alpha(Theme.colorAccent, 0.4)
-                                             : deepHover.hovered ? Theme.colorAccentMid : Theme.colorBorderMid
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            scale: profiler.deepAvailable ? (deepTap.pressed ? 0.97 : deepHover.hovered ? 1.02 : 1.0) : 1.0
-                            Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
-
-                            Text {
-                                id: deepLbl
-                                anchors.centerIn: parent
-                                text: Theme.caps(qsTr("Deep"))
-                                font.family: Theme.fontData
-                                font.pixelSize: Theme.sp(9)
-                                font.letterSpacing: Theme.trackingMicro
-                                color: parent.on ? Theme.colorAccent : Theme.colorText3
-                            }
-
-                            TapHandler  { id: deepTap; enabled: profiler.deepAvailable; onTapped: profiler.deepEnabled = !profiler.deepEnabled }
-                            HoverHandler { id: deepHover; cursorShape: profiler.deepAvailable ? Qt.PointingHandCursor : Qt.ArrowCursor }
+                            style:    "toggle"
+                            label:    Theme.caps(qsTr("Deep"))
+                            selected: profiler.deepEnabled
+                            // Hovers (and tints) even when the deep tier is missing; only moves and
+                            // toggles when it is there.
+                            dimmed:   !profiler.deepAvailable
+                            blocked:  !profiler.deepAvailable
+                            moves:    profiler.deepAvailable
+                            onClicked: if (profiler.deepAvailable) profiler.deepEnabled = !profiler.deepEnabled
                         }
 
                         // Reset
-                        OutlineButton {
-                            text: qsTr("Reset")
-                            onTapped: profiler.reset()
+                        PpButton {
+                            style: "faint"; size: "mini"
+                            label: qsTr("Reset")
+                            onClicked: profiler.reset()
                         }
 
                         // Dump to log
-                        OutlineButton {
-                            text: qsTr("Dump to log")
-                            onTapped: profiler.dumpToLog()
+                        PpButton {
+                            style: "faint"; size: "mini"
+                            label: qsTr("Dump to log")
+                            onClicked: profiler.dumpToLog()
                         }
                     }
                 }
@@ -1069,12 +954,9 @@ Item {
                     width: parent.width
                     spacing: 0
 
-                    Text {
+                    PpMicro {
+                        kind: "body"
                         text: Theme.caps(qsTr("Threads"))
-                        font.family: Theme.fontBody
-                        font.pixelSize: Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingMicro
-                        color: Theme.colorText3
                         bottomPadding: 8
                     }
 
@@ -1128,12 +1010,9 @@ Item {
                     width: parent.width
                     spacing: 0
 
-                    Text {
+                    PpMicro {
+                        kind: "body"
                         text: Theme.caps(qsTr("Scopes"))
-                        font.family: Theme.fontBody
-                        font.pixelSize: Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingMicro
-                        color: Theme.colorText3
                         bottomPadding: 8
                     }
 
@@ -1234,12 +1113,9 @@ Item {
                     width: parent.width
                     spacing: 0
 
-                    Text {
+                    PpMicro {
+                        kind: "body"
                         text: Theme.caps(qsTr("Analysis stages"))
-                        font.family: Theme.fontBody
-                        font.pixelSize: Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingMicro
-                        color: Theme.colorText3
                         bottomPadding: 2
                     }
                     Text {
@@ -1459,21 +1335,23 @@ Item {
                     }
 
                     // Clear button
-                    OutlineButton {
+                    PpButton {
                         id: clearBtn
+                        style: "faint"; size: "mini"
                         visible: resourceMonitor.messageLog.length > 0
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        text: qsTr("Clear")
-                        onTapped: resourceMonitor.clearLog()
+                        label: qsTr("Clear")
+                        onClicked: resourceMonitor.clearLog()
                     }
 
                     // Export button — writes the log to a text file in the home directory
-                    OutlineButton {
+                    PpButton {
                         id: exportBtn
+                        style: "faint"; size: "mini"
                         visible: resourceMonitor.messageLog.length > 0
                         anchors { right: clearBtn.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
-                        text: qsTr("Export")
-                        onTapped: {
+                        label: qsTr("Export")
+                        onClicked: {
                             var path = resourceMonitor.exportLog()
                             exportToast.copyText = path   // empty on failure → copy icon hidden
                             if (path.length > 0) exportToast.show(qsTr("Log exported to %1").arg(path))
@@ -1490,24 +1368,17 @@ Item {
                     }
 
                     // Severity filter chips
-                    Row {
+                    PpChipGroup {
                         id: filterChips
                         visible: resourceMonitor.messageLog.length > 0
                         anchors { right: exportBtn.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                         spacing: Theme.gap(4)
-
-                        Repeater {
-                            model: ["INFO", "WARN", "ERROR"]
-
-                            FilterChip {
-                                required property string modelData
-
-                                text: modelData
-                                active: msgLogColumn.activeFilters[modelData] !== false
-                                tint: msgLogColumn.severityColor(modelData)
-                                onToggled: msgLogColumn.toggleFilter(modelData)
-                            }
-                        }
+                        style: "tag"
+                        multiSelect: true
+                        options: ["INFO", "WARN", "ERROR"].map(sev => ({ label: sev, value: sev,
+                                                                       tint: msgLogColumn.severityColor(sev) }))
+                        selectedValues: ["INFO", "WARN", "ERROR"].filter(sev => msgLogColumn.activeFilters[sev] !== false)
+                        onSelectionChanged: (sev) => msgLogColumn.toggleFilter(sev)
                     }
                 }
 
@@ -1665,19 +1536,21 @@ Item {
                     height: Theme.sp(32)
 
                     // Clear
-                    OutlineButton {
+                    PpButton {
                         id: statsClearBtn
+                        style: "faint"; size: "mini"
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        text: qsTr("Clear")
-                        onTapped: profiler.clearStats()
+                        label: qsTr("Clear")
+                        onClicked: profiler.clearStats()
                     }
 
                     // Export
-                    OutlineButton {
+                    PpButton {
                         id: statsExportBtn
+                        style: "faint"; size: "mini"
                         anchors { right: statsClearBtn.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
-                        text: qsTr("Export")
-                        onTapped: {
+                        label: qsTr("Export")
+                        onClicked: {
                             var path = profiler.exportStats()
                             exportToast.copyText = path
                             if (path.length > 0) exportToast.show(qsTr("Stats exported to %1").arg(path))
@@ -1686,21 +1559,15 @@ Item {
                     }
 
                     // Category filter chips
-                    Row {
+                    PpChipGroup {
                         id: statsChips
                         anchors { right: statsExportBtn.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                         spacing: Theme.gap(4)
-
-                        Repeater {
-                            model: profiler.statsCategories
-
-                            FilterChip {
-                                text: modelData.name
-                                active: modelData.active
-                                tint: Theme.colorAccent
-                                onToggled: profiler.toggleStatsCategory(modelData.name)
-                            }
-                        }
+                        style: "tag"
+                        multiSelect: true
+                        options: profiler.statsCategories.map(c => c.name)
+                        selectedValues: profiler.statsCategories.filter(c => c.active).map(c => c.name)
+                        onSelectionChanged: (name) => profiler.toggleStatsCategory(name)
                     }
 
                     // Text filter
@@ -1794,19 +1661,21 @@ Item {
                     }
 
                     // Clear
-                    OutlineButton {
+                    PpButton {
                         id: anClearBtn
+                        style: "faint"; size: "mini"
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        text: qsTr("Clear")
-                        onTapped: profiler.clearAnalysisRuns()
+                        label: qsTr("Clear")
+                        onClicked: profiler.clearAnalysisRuns()
                     }
 
                     // Export
-                    OutlineButton {
+                    PpButton {
                         id: anExportBtn
+                        style: "faint"; size: "mini"
                         anchors { right: anClearBtn.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
-                        text: qsTr("Export")
-                        onTapped: {
+                        label: qsTr("Export")
+                        onClicked: {
                             var path = profiler.exportAnalysisRuns()
                             exportToast.copyText = path
                             if (path.length > 0) exportToast.show(qsTr("Analysis runs exported to %1").arg(path))
@@ -1977,8 +1846,6 @@ Item {
         id: exportToast
         showUndo: false
         glyph: "💾"
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: Theme.gap(24)
+        margin: Theme.gap(24)
     }
 }

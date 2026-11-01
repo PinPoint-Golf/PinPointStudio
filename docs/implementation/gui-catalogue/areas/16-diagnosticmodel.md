@@ -291,8 +291,8 @@ Settings > Reference > Diagnostic Model: a three-pane editor (type rail, table, 
 
 - **Properties:** `var browser`, `int revision`, `bool hasLocalContent`, `int changedCount`, `int yoursCount`
 - **Signals:** `exportRoadmapRequested()`, `exportReferencesRequested()`, `roadmapRequested()`, `glossaryRequested()`, `resetRequested()`
-- **Local components:** `Heading`, `Action`
-- **Uses:** `PpPressable`
+- **Local components:** `Action`
+- **Uses:** `PpMicro`, `PpPressable`
 - **Used by (1):** `DiagnosticModel`
 
 ### ModelTrail

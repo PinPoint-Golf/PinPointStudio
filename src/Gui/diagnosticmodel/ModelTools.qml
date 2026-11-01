@@ -57,98 +57,44 @@ Popup {
     padding: 0
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
-    background: Rectangle {
-        color:        Theme.colorSurface
-        radius:       Theme.radius
-        border.width: 1
-        border.color: Theme.colorBorderStrong
-    }
-
-    component Heading: Text {
-        font.family:         Theme.fontBody
-        font.pixelSize:      Theme.fontSzMicro
-        font.letterSpacing:  Theme.trackingMicro
-        font.capitalization: Theme.capsFont
-        color:               Theme.colorText3
-    }
-
-    component Action: Item {
-        id: action
-        property string label: ""
-        property string hint:  ""
-        // Styled as what it does. The app already draws a destructive row this way — see the per-row
-        // rule the app has always used: removing something is a write to the user's pack, and is
-        // styled as one.
-        property bool   destructive: false
-        signal triggered()
-
-        implicitHeight: Theme.sp(30)
-
-        Rectangle {
-            anchors.fill: parent
-            color: actionHover.hovered ? Theme.colorBg2 : "transparent"
-        }
-        HoverHandler { id: actionHover }
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin:  Theme.gap(14)
-            anchors.rightMargin: Theme.gap(14)
-            spacing: Theme.gap(8)
-
-            Text {
-                Layout.fillWidth: true
-                text: action.label
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                font.weight:    Theme.fontBodyWeight
-                color:          action.destructive ? Theme.colorError : Theme.colorText
-                elide:          Text.ElideRight
-            }
-            Text {
-                text:    action.hint
-                visible: text.length > 0
-                font.family:    Theme.fontData
-                font.pixelSize: Theme.fontSzMicro
-                color:          action.destructive ? Theme.colorError : Theme.colorText3
-                opacity:        action.destructive ? 0.75 : 1.0
-            }
-        }
-
-        PpPressable { hoverScale: 1.0; onClicked: action.triggered() }
-    }
+    background: PpPopoverCard { style: "plainTight" }
 
     contentItem: ColumnLayout {
         spacing: 0
 
-        Heading {
+        PpMicro {
+            kind: "body"
             Layout.margins:      Theme.gap(14)
             Layout.bottomMargin: Theme.gap(2)
             text: qsTr("Views and artefacts")
         }
 
-        Action {
+        PpMenuItem {
+            style: "compact"
             Layout.fillWidth: true
-            label: qsTr("Roadmap")
-            hint:  qsTr("what is not built yet")
+            text: qsTr("Roadmap")
+            tail: qsTr("what is not built yet")
             onTriggered: { root.roadmapRequested(); root.close() }
         }
-        Action {
+        PpMenuItem {
+            style: "compact"
             Layout.fillWidth: true
-            label: qsTr("Glossary")
-            hint:  qsTr("what a term means")
+            text: qsTr("Glossary")
+            tail: qsTr("what a term means")
             onTriggered: { root.glossaryRequested(); root.close() }
         }
-        Action {
+        PpMenuItem {
+            style: "compact"
             Layout.fillWidth: true
-            label: qsTr("Export roadmap")
-            hint:  qsTr("markdown")
+            text: qsTr("Export roadmap")
+            tail: qsTr("markdown")
             onTriggered: { root.exportRoadmapRequested(); root.close() }
         }
-        Action {
+        PpMenuItem {
+            style: "compact"
             Layout.fillWidth: true
-            label: qsTr("Export references")
-            hint:  qsTr("CSL-JSON")
+            text: qsTr("Export references")
+            tail: qsTr("CSL-JSON")
             onTriggered: { root.exportReferencesRequested(); root.close() }
         }
 
@@ -160,7 +106,8 @@ Popup {
             opacity: Theme.borderOpacityNormal
         }
 
-        Heading {
+        PpMicro {
+            kind: "body"
             Layout.margins:      Theme.gap(14)
             Layout.bottomMargin: Theme.gap(2)
             text: qsTr("Norm sets")
@@ -217,12 +164,15 @@ Popup {
             opacity: Theme.borderOpacityNormal
         }
 
-        Action {
+        PpMenuItem {
+            style: "compact"
             Layout.fillWidth: true
             visible: root.hasLocalContent
-            destructive: true
-            label: qsTr("Reset to the standard model…")
-            hint: {
+            // Styled as what it does: removing something is a write to the user's pack, and is
+            // styled as one — the error ink on the words and the count.
+            warn: true
+            text: qsTr("Reset to the standard model…")
+            tail: {
                 var bits = []
                 if (root.changedCount > 0) bits.push(qsTr("%n changed", "", root.changedCount))
                 if (root.yoursCount > 0)   bits.push(qsTr("%n yours", "", root.yoursCount))

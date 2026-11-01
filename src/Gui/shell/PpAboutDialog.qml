@@ -49,12 +49,7 @@ Popup {
     readonly property string uState: updateController.state
     readonly property var pal: UpdateStates.badge(uState, "long", updateController.progress, Theme)
 
-    background: Rectangle {
-        color: Theme.colorSurface
-        radius: Theme.radiusLg
-        border.width: 1
-        border.color: Theme.colorBorderStrong
-    }
+    background: PpPopoverCard { style: "plain" }
 
     contentItem: ColumnLayout {
         spacing: Theme.gap(18)
@@ -132,23 +127,12 @@ Popup {
                 spacing: Theme.gap(10)
 
                 // Status badge — hidden in the neutral idle state (the button carries it).
-                Rectangle {
-                    visible:        root.uState !== "idle"
-                    implicitWidth:  badgeText.implicitWidth + Theme.sp(16)
-                    implicitHeight: Theme.sp(26)
-                    radius:         Theme.radius
-                    color:          root.pal.bg
-                    border.width:   1
-                    border.color:   root.pal.fg
-
-                    Text {
-                        id: badgeText
-                        anchors.centerIn: parent
-                        text:           root.pal.text
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          root.pal.fg
-                    }
+                PpStatusPill {
+                    visible: root.uState !== "idle"
+                    text: root.pal.text
+                    fg:   root.pal.fg
+                    bg:   root.pal.bg
+                    edge: root.pal.fg
                 }
 
                 Item { Layout.fillWidth: true }

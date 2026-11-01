@@ -9,9 +9,9 @@
 // cause-suppression and latching all live in C++ now (see notification_center.h);
 // this file only draws what the model says is live.
 //
-// PpToast itself is untouched and still serves the five panel-local imperative
-// confirmations (copy-to-clipboard, an export result) — those are not this
-// problem, per design §7.4.
+// PpToast still serves the panel-local imperative confirmations (copy-to-
+// clipboard, an export result) — those are not this problem, per design §7.4 —
+// and both draw the same card, PpNotificationCard.
 
 import QtQuick
 import PinPointStudio
@@ -63,95 +63,23 @@ ListView {
           : severity === root.sevProgress ? "⋯"
           :                                 "◎"
 
-        Rectangle {
+        PpNotificationCard {
             id: card
             anchors.horizontalCenter: parent.horizontalCenter
-            width: content.implicitWidth + Theme.sp(30)
-            implicitHeight: Math.max(Theme.sp(40), content.implicitHeight + Theme.sp(16))
-            radius: Theme.radiusLg
-            color:  Theme.colorBg3
-            border.width: 1
-            border.color: row._severityColor
-
-            Row {
-                id: content
-                anchors.centerIn: parent
-                spacing: Theme.gap(14)
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text:           row._glyph
-                    font.family:    Theme.fontSymbol
-                    font.pixelSize: Theme.fontSzBody
-                    color:          row.severity === root.sevInfo ? Theme.colorText2
-                                                                  : row._severityColor
-                }
-
-                Column {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: Theme.gap(2)
-                    Text {
-                        // ⭐ The count is the diagnostically valuable part, and
-                        // the old shape lost it entirely.
-                        text: row.count > 1 ? qsTr("%1 (×%2)").arg(row.title).arg(row.count)
-                                            : row.title
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        visible:        row.detail.length > 0
-                        text:           row.detail
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody2
-                        color:          Theme.colorText2
-                        elide:          Text.ElideMiddle
-                        width:          Math.min(implicitWidth, Theme.sp(420))
-                    }
-                }
-
-                Rectangle {   // hairline before the action
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 1; height: Theme.sp(18)
-                    color: Theme.colorBorderStrong
-                    visible: row.actionLabel.length > 0
-                }
-
-                Text {        // the fix-this affordance — in-app navigation only
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible:        row.actionLabel.length > 0
-                    text:           row.actionLabel
-                    font.family:    Theme.fontData
-                    font.pixelSize: Theme.fontSzBody2
-                    font.letterSpacing: Theme.trackingLabel
-                    color:          Theme.colorAccent
-                    PpPressable {
-                        anchors.margins: -Theme.sp(6)
-                        onClicked: notifications.invokeAction(row.notificationId)
-                    }
-                }
-
-                Rectangle {   // hairline before dismiss
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 1; height: Theme.sp(18)
-                    color: Theme.colorBorderStrong
-                    // A condition does not auto-hide, so it needs a way out.
-                    visible: row.kind === root.kindCondition
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible:        row.kind === root.kindCondition
-                    text:           "✕"
-                    font.family:    Theme.fontSymbol
-                    font.pixelSize: Theme.fontSzBody
-                    color:          Theme.colorText2
-                    PpPressable {
-                        anchors.margins: -Theme.sp(6)
-                        onClicked: notifications.dismiss(row.notificationId)
-                    }
-                }
-            }
+            glyph:       row._glyph
+            glyphColor:  row.severity === root.sevInfo ? Theme.colorText2 : row._severityColor
+            tone:        row._severityColor
+            // ⭐ The count is the diagnostically valuable part, and
+            // the old shape lost it entirely.
+            title:       row.count > 1 ? qsTr("%1 (×%2)").arg(row.title).arg(row.count)
+                                       : row.title
+            detail:      row.detail
+            // The fix-this affordance — in-app navigation only.
+            actionText:  row.actionLabel
+            // A condition does not auto-hide, so it needs a way out.
+            dismissible: row.kind === root.kindCondition
+            onActionClicked:  notifications.invokeAction(row.notificationId)
+            onDismissClicked: notifications.dismiss(row.notificationId)
         }
     }
 }

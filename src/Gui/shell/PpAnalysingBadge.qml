@@ -61,14 +61,10 @@ Rectangle {
             width: parent.width
             height: analysingLbl.implicitHeight
 
-            Text {
+            PpMicro {
                 id: analysingLbl
                 anchors.left: parent.left
                 text: Theme.caps(qsTr("Analysing"))
-                font.family: Theme.fontData
-                font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro
-                color: Theme.colorText3
             }
 
             Text {
