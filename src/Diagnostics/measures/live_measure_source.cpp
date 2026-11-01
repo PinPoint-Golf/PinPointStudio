@@ -60,8 +60,9 @@ QString missingReasonText(MissingKind k)
 // ── Construction ────────────────────────────────────────────────────────────
 
 LiveMeasureSource::LiveMeasureSource(const QString &swingDir, const CharacteristicPack &pack,
-                                     bool writeSidecar, const PhaseGridConfig &cfg)
-    : m_grid(readPhaseGrid(swingDir, writeSidecar, cfg)), m_pack(pack)
+                                     bool writeSidecar, const PhaseGridConfig &cfg,
+                                     SwingStore::LazyDocument *parsed)
+    : m_grid(readPhaseGrid(swingDir, writeSidecar, cfg, parsed)), m_pack(pack)
 {
     // readPhaseGrid() sets swingDir on every path it returns a grid from, but not on the empty
     // grid it returns for a missing or unreadable document — and a source that cannot say which

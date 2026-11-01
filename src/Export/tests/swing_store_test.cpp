@@ -393,6 +393,38 @@ int main(int argc, char **argv)
         check(saved && !doc.isEmpty() && again == doc, "timing document loaded, saved and read back equal");
     }
 
+    // One parse shared by the phase-grid and summary readers (issue #142). Only a good parse is kept,
+    // so a reader that hits a transient failure leaves the next reader free to try again.
+    std::printf("\n=== LazyDocument: one parse, kept only when it succeeded ===\n");
+    {
+        const QString dir = tmp.filePath("lazy");
+        QDir().mkpath(dir);
+        SwingStore::LazyDocument doc(dir);
+        check(doc.root().isEmpty() && !doc.loaded(), "no document: empty, and nothing latched");
+        check(!doc.stillCurrent(), "…and nothing to call current");
+
+        writeText(SwingStore::jsonPath(dir), R"({"swing":{"index":3},"clock":{"wallc)");   // truncated
+        check(doc.root().isEmpty() && !doc.loaded(), "a truncated swing.json: empty, and not latched");
+
+        const QJsonObject good = awkwardTree();
+        writeText(SwingStore::jsonPath(dir), QJsonDocument(good).toJson());
+        check(doc.root() == good && doc.loaded(), "the next root() retries and keeps the good parse");
+        const SwingStore::DocInfo atParse = SwingStore::info(dir);
+        check(doc.parsedInfo().size == atParse.size && doc.parsedInfo().mtimeMs == atParse.mtimeMs,
+              "…stamped with the document it parsed");
+        check(doc.stillCurrent(), "…which is still the one on disk");
+
+        // Kept, not re-read: a later root() is the same parse even after the file moves on.
+        writeText(SwingStore::jsonPath(dir), R"({"swing":{"index":99}})");
+        check(doc.root() == good, "a kept parse is not re-read behind a reader's back");
+        check(!doc.stillCurrent(), "…and stillCurrent() says the file has moved on (size changed)");
+
+        doc.release();
+        check(!doc.loaded() && !doc.stillCurrent(), "release() drops the parse");
+        check(doc.root().value("swing").toObject().value("index").toInt() == 99 && doc.loaded(),
+              "…and the next root() parses the document as it is now");
+    }
+
     std::printf("\n%s (%d failed)\n", g_fail ? "FAILED" : "ALL PASSED", g_fail);
     return g_fail ? 1 : 0;
 }

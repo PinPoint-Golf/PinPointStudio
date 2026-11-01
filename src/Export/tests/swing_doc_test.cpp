@@ -1147,6 +1147,112 @@ int main()
         check(SwingDocReader::readSwingSummary(dirJ).ok,           "…and still returns good data");
     }
 
+    // ── One parse shared with the phase-grid reader (issue #142) ───────────────────────────────
+    // SessionDiagnosticsModel::detectShot hands the phase grid and this reader one LazyDocument, so
+    // a fresh swing is parsed once. "Shared" below means the other reader already paid for the
+    // parse (root() was called first); the summary must be exactly what its own parse would give.
+    const auto sameSummary = [](const SwingSummary &a, const SwingSummary &b) {
+        return a.ok == b.ok && a.ordinal == b.ordinal && a.timestampLabel == b.timestampLabel
+            && a.wallclockMs == b.wallclockMs && a.club == b.club && a.hasVideo == b.hasVideo
+            && a.thumbnailPath == b.thumbnailPath && a.score == b.score && a.metrics == b.metrics
+            && a.rating == b.rating && a.note == b.note && a.lmDeviceKind == b.lmDeviceKind
+            && a.dataWarning == b.dataWarning && a.dataWarningDetail == b.dataWarningDetail
+            && a.devices == b.devices && a.fromSidecar == b.fromSidecar;
+    };
+    std::printf("\n=== summary: a shared parse reads exactly as its own ===\n");
+    {
+        QFile::remove(sumPath);
+        const SwingSummary own = SwingDocReader::readSwingSummary(dirJ);
+        check(own.ok && !own.fromSidecar && QFile::exists(sumPath), "JSON: its own parse, sidecar written");
+
+        QFile::remove(sumPath);
+        SwingStore::LazyDocument doc(dirJ);
+        check(!doc.root().isEmpty(), "JSON: the other reader parsed first");
+        const SwingSummary shared = SwingDocReader::readSwingSummary(dirJ, /*writeSidecar=*/true, &doc);
+        check(sameSummary(shared, own), "JSON: the shared parse gives the identical summary");
+        check(QFile::exists(sumPath), "…and indexes it exactly as its own parse did");
+
+        SwingStore::LazyDocument untouched(dir);
+        const SwingSummary blockRead = SwingDocReader::readSwingSummary(dir, /*writeSidecar=*/true, &untouched);
+        check(sameSummary(blockRead, SwingDocReader::readSwingSummary(dir)),
+              ".ppsw: the same summary with or without a shared document");
+        check(blockRead.fromSidecar && !untouched.loaded(),
+              ".ppsw: answered from its summary block, and the shared document never parsed for it");
+    }
+
+    std::printf("\n=== summary: a corrupt document through a shared parse ===\n");
+    {
+        const QString bad = QStringLiteral("/tmp/swingdoc_test_corrupt");
+        QDir(bad).removeRecursively();
+        QDir().mkpath(bad);
+        const QString badSum = bad + QStringLiteral("/swing_summary.json");
+        const char *bodies[] = { "", "{\"swing\":{\"index\":3},\"clock\":{\"wallc", "not json at all", "[]" };
+        const char *names[]  = { "empty", "truncated", "garbage", "an array, not an object" };
+        for (int i = 0; i < 4; ++i) {
+            QFile o(bad + QStringLiteral("/swing.json"));
+            if (!o.open(QIODevice::WriteOnly | QIODevice::Truncate)) return 1;
+            o.write(bodies[i]);
+            o.close();
+            const SwingSummary own = SwingDocReader::readSwingSummary(bad);
+            SwingStore::LazyDocument doc(bad);
+            doc.root();   // the other reader tried first, and failed
+            const SwingSummary shared = SwingDocReader::readSwingSummary(bad, /*writeSidecar=*/true, &doc);
+            const QByteArray label = QByteArray("corrupt (") + names[i]
+                                     + "): !ok both ways, identical, nothing latched, no sidecar";
+            check(!own.ok && sameSummary(shared, own) && !doc.loaded() && !QFile::exists(badSum),
+                  label.constData());
+        }
+        QDir(bad).removeRecursively();
+    }
+
+    std::printf("\n=== summary: a failed first parse is retried by the second reader ===\n");
+    {
+        // The grid's parse failed (the file was mid-rename, or a scanner held it): nothing is
+        // latched, so by the time the summary reads, the document is there and it parses.
+        const QString late = QStringLiteral("/tmp/swingdoc_test_late");
+        QDir(late).removeRecursively();
+        QDir().mkpath(late);
+        SwingStore::LazyDocument doc(late);
+        check(doc.root().isEmpty() && !doc.loaded(), "first reader: no document yet");
+        QFile::copy(dirJ + QStringLiteral("/swing.json"), late + QStringLiteral("/swing.json"));
+        const SwingSummary s = SwingDocReader::readSwingSummary(late, /*writeSidecar=*/true, &doc);
+        check(s.ok && s.ordinal == SwingDocReader::readSwingJson(dirJ).ordinal && doc.loaded(),
+              "second reader: the document is parsed after all, and read");
+        check(QFile::exists(late + QStringLiteral("/swing_summary.json")), "…and indexed");
+        QDir(late).removeRecursively();
+    }
+
+    std::printf("\n=== summary: a rewrite after the shared parse is never indexed ===\n");
+    {
+        const QString moved = QStringLiteral("/tmp/swingdoc_test_moved");
+        QDir(moved).removeRecursively();
+        QDir().mkpath(moved);
+        const QString movedJson = moved + QStringLiteral("/swing.json");
+        const QString movedSum  = moved + QStringLiteral("/swing_summary.json");
+        QFile::copy(dirJ + QStringLiteral("/swing.json"), movedJson);
+        SwingStore::LazyDocument doc(moved);
+        const int oldOrdinal = doc.root().value(QStringLiteral("swing")).toObject()
+                                   .value(QStringLiteral("index")).toInt();
+        // A re-analysis rewrites the document between the grid's parse and the summary's write.
+        QJsonObject next = doc.root();
+        QJsonObject sw   = next.value(QStringLiteral("swing")).toObject();
+        sw.insert(QStringLiteral("index"), oldOrdinal + 100);
+        sw.insert(QStringLiteral("padding"), QStringLiteral("a size the old guard cannot match"));
+        next.insert(QStringLiteral("swing"), sw);
+        {
+            QFile o(movedJson);
+            if (!o.open(QIODevice::WriteOnly | QIODevice::Truncate)) return 1;
+            o.write(SwingStore::toJsonText(next));
+        }
+        const SwingSummary s = SwingDocReader::readSwingSummary(moved, /*writeSidecar=*/true, &doc);
+        check(s.ok && s.ordinal == oldOrdinal, "the shared (older) parse is what is returned");
+        check(!QFile::exists(movedSum), "…but it is NOT indexed under the rewritten document's guard");
+        const SwingSummary fresh = SwingDocReader::readSwingSummary(moved);
+        check(fresh.ok && fresh.ordinal == oldOrdinal + 100 && QFile::exists(movedSum),
+              "the next read parses the new document and indexes that");
+        QDir(moved).removeRecursively();
+    }
+
     std::printf("\n=== summary: missing and orphan documents ===\n");
     {
         const SwingSummary none = SwingDocReader::readSwingSummary(

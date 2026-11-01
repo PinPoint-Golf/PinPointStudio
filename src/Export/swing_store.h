@@ -38,6 +38,7 @@
 #include <QStringList>
 
 #include <functional>
+#include <utility>
 
 namespace pinpoint::SwingStore {
 
@@ -60,6 +61,70 @@ bool    hasDocument(const QString &swingDir);
 
 // The whole document. Empty on no document or any read/parse failure; *error says which.
 QJsonObject load(const QString &swingDir, QString *error = nullptr);
+
+// ONE FULL PARSE FOR SEVERAL READERS OF THE SAME SWING (issue #142). The phase-grid reader and
+// the summary reader each fall back to load() when their sidecar (or, for a swing.ppsw, its summary
+// block) cannot answer. A freshly filed JSON-era swing misses both sidecars: two full parses of a
+// ~33 MB document, back to back, for one shot. A caller that runs both readers hands each the same
+// LazyDocument, and whichever needs the document first pays for the parse; the other reuses it. A
+// reader that is answered without the document never touches it, so a swing whose sidecars are
+// warm (or a .ppsw with a current summary block, for the summary) parses nothing on its behalf.
+//
+// NOT A CACHE AND NOT SHARED: it lives on the caller's stack for one shot's reads and is never
+// handed to another thread. The document it holds is the one on disk at the moment of the parse. A
+// second reader that runs later gets THAT document, not a re-read: under a concurrent rewrite it
+// can be the older one. That is harmless for anything it returns (a caller that stamps the
+// document before reading, as SessionDiagnosticsModel::detectShot does, regrades on the next
+// activation) and is never indexed: stillCurrent() below gates every sidecar write.
+//
+// ONLY A GOOD PARSE IS KEPT. An empty result (no document, a sharing violation, a scanner holding
+// the file, an exporter mid-rename, a corrupt file) is not latched: the next root() tries again, so
+// the second reader gets the same chance it had when each reader parsed for itself.
+class LazyDocument {
+public:
+    explicit LazyDocument(QString swingDir) : m_dir(std::move(swingDir)) {}
+    const QJsonObject &root()
+    {
+        if (!m_loaded) {
+            const DocInfo before = info(m_dir);   // stamped BEFORE the read, as every sidecar guard is
+            QJsonObject   r      = load(m_dir);
+            if (!r.isEmpty()) {
+                m_info   = before;
+                m_root   = std::move(r);
+                m_loaded = true;
+            }
+        }
+        return m_root;     // empty after a failed parse; the next call retries
+    }
+    bool           loaded() const   { return m_loaded; }
+    // The document's size and mtime as stamped just before the parse root() holds (empty if none).
+    const DocInfo &parsedInfo() const { return m_info; }
+    const QString &swingDir() const { return m_dir; }
+
+    // Drop the parsed document (it can be ~100 MB in memory). A later root() parses again.
+    void release()
+    {
+        m_root   = QJsonObject();
+        m_info   = DocInfo();
+        m_loaded = false;
+    }
+
+    // Is the document on disk still the one root() parsed? A reader that writes a sidecar guarded
+    // on the file's CURRENT size and mtime asks first: a rewrite between the parse and the write
+    // would otherwise index old content under the new document's guard. False when nothing parsed.
+    bool stillCurrent() const
+    {
+        if (!m_loaded) return false;
+        const DocInfo now = info(m_dir);
+        return now.format == m_info.format && now.size == m_info.size && now.mtimeMs == m_info.mtimeMs;
+    }
+
+private:
+    QString     m_dir;
+    QJsonObject m_root;
+    DocInfo     m_info;
+    bool        m_loaded = false;
+};
 
 // Only the `summary` block, read from the root chunk of a swing.ppsw without decoding the rest.
 // Empty for a JSON document, a .ppsw written without one, or a read failure.

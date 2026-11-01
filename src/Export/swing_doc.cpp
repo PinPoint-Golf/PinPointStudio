@@ -2245,7 +2245,8 @@ bool SwingDocReader::writeSwingSummary(const PersistedShot &shot, QString *error
     return writeSummaryFile(summaryFromShot(shot), error);
 }
 
-SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writeSidecar)
+SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writeSidecar,
+                                              SwingStore::LazyDocument *parsed)
 {
     SwingSummary s;
     s.swingDir = swingDir;
@@ -2271,7 +2272,7 @@ SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writ
         // refreshes the block.
         if (!writeSidecar)
             return s;
-        return summaryFromRoot(SwingStore::load(swingDir), swingDir);
+        return summaryFromRoot(parsed ? parsed->root() : SwingStore::load(swingDir), swingDir);
     }
 
     // ── A JSON-era swing: the swing_summary.json sidecar ────────────────────────────────────────
@@ -2304,12 +2305,18 @@ SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writ
 
     // Parse the source document directly rather than going through readSwingJson(): this
     // skips building analysisDetail, whose pose2d keypoint track is the bulk of the cost.
-    const QJsonObject root = SwingStore::load(swingDir);
+    // The shared parse when the caller has one (the phase-grid reader may already have paid for it).
+    SwingStore::LazyDocument own(swingDir);
+    SwingStore::LazyDocument &shared = parsed ? *parsed : own;
+    const QJsonObject &root = shared.root();
     if (root.isEmpty())
         return s;
 
     s = summaryFromRoot(root, swingDir);
-    if (s.ok)
+    // The sidecar's guard is the file's size and mtime AT WRITE TIME (writeSummaryFile). A rewrite
+    // since the parse — after another reader paid for it, or during this one's own parse — would
+    // index old content under the new document's guard, so the summary is returned but not indexed.
+    if (s.ok && shared.stillCurrent())
         writeSummaryFile(s, nullptr);   // best-effort; a read-only library just stays slow
     return s;
 }

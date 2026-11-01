@@ -100,6 +100,8 @@
 // sample. Reading only the curve produced nothing for all of them, and the symptom is
 // indistinguishable from "no swing carries this measure".
 
+namespace pinpoint::SwingStore { class LazyDocument; }   // swing_store.h
+
 namespace pinpoint::analysis {
 
 // The schema this build writes. A sidecar declaring a HIGHER version is ignored and rebuilt rather
@@ -343,7 +345,12 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
 // `writeSidecar` follows SwingDocReader::readSwingSummary's contract for the same reason: a
 // GUI-thread caller that must never fat-parse passes false and gets an empty grid for an unindexed
 // swing, rather than a one-second stall per swing. The scan runs on a worker and passes true.
+//
+// `parsed`, when given, is where the fallback parse comes from (SwingStore::LazyDocument, issue #142):
+// a caller that also reads the swing's summary hands both readers the same one, so a swing whose
+// sidecars both miss is parsed once rather than twice. Null parses on its own, as before.
 SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar = true,
-                             const PhaseGridConfig &cfg = {});
+                             const PhaseGridConfig &cfg = {},
+                             SwingStore::LazyDocument *parsed = nullptr);
 
 } // namespace pinpoint::analysis

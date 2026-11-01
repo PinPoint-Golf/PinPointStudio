@@ -697,7 +697,8 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
     return grid;
 }
 
-SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const PhaseGridConfig &cfg)
+SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const PhaseGridConfig &cfg,
+                             SwingStore::LazyDocument *parsed)
 {
     SwingPhaseGrid grid;
 
@@ -731,7 +732,10 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const P
     if (!writeSidecar)
         return grid;
 
-    const QJsonObject root = SwingStore::load(swingDir);
+    // The shared parse when the caller has one (the summary reader may already have paid for it).
+    SwingStore::LazyDocument own(swingDir);
+    SwingStore::LazyDocument &doc = parsed ? *parsed : own;
+    const QJsonObject &root = doc.root();
     if (root.isEmpty())
         return grid;
 
@@ -759,6 +763,12 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const P
     // undeclared club leaves this empty and contextIdForClub() answers the default context,
     // whose rows were written for a swing of unknown club — see swingDocDeclaredClub().
     grid.club = swingDocDeclaredClub(root);
+
+    // The guard written is the size/mtime read at the top of this function. A shared parse can be
+    // older than that (another reader paid for it before a rewrite), and a rewrite can land between
+    // any parse and this write: either way the grid is returned but never indexed under that guard.
+    if (!doc.stillCurrent() || doc.parsedInfo().size != size || doc.parsedInfo().mtimeMs != mtimeMs)
+        return grid;
 
     // Best-effort: a library on read-only media still browses, it just re-parses each time.
     QSaveFile out(sidePath);

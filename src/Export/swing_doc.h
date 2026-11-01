@@ -465,7 +465,11 @@ public:
     // Pass writeSidecar=false on any GUI-thread path that must never fat-parse: the caller
     // then gets ok=false for an un-indexed swing and renders it without detail, rather than
     // stalling. The sidecar is pure cache — always safe to delete, always regenerable.
-    static SwingSummary readSwingSummary(const QString &swingDir, bool writeSidecar = true);
+    //
+    // `parsed`, when given, is where a fallback parse comes from (SwingStore::LazyDocument, #142): a
+    // caller that also reads the swing's phase grid shares one, so a fresh swing is parsed once.
+    static SwingSummary readSwingSummary(const QString &swingDir, bool writeSidecar = true,
+                                         SwingStore::LazyDocument *parsed = nullptr);
 
     // Derive a summary from an already-parsed shot and write its sidecar. Called where a
     // fat parse has happened anyway (session load), so indexing costs nothing extra.

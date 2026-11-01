@@ -26,13 +26,17 @@
 //   ctest --test-dir build/analyzer-tests -R measure_sample --output-on-failure
 
 #include "../measures/measure_sample.h"
+#include "../../Export/swing_store.h"   // LazyDocument: the parse shared with the summary reader
 
 #include "../../Metrics/series_reduce.h"
 #include "../../Metrics/line_angle.h"
 
+#include <QDir>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QTemporaryDir>
 
 #include <algorithm>
 #include <cmath>
@@ -1035,6 +1039,98 @@ int main()
         check(spansSame, "the spans stay on the continuous curve (its 572.5° top is still the max)");
         near(reduceOverGrid(plain, QStringLiteral("impactShaftLean"), at(Phase::Impact)).value_or(-999),
              354.5, "unmarked, the same curve grids as it always did (354.5°)", 1e-9);
+    }
+
+    // ── One parse shared with the summary reader (issue #142) ─────────────────────────────────
+    // SessionDiagnosticsModel::detectShot hands readPhaseGrid() and the summary reader one
+    // SwingStore::LazyDocument. "Shared" below means the other reader already paid for the parse;
+    // the grid must be exactly what its own parse gives, and a sidecar is only ever written under
+    // the guard of the document the grid was built from.
+    std::printf("\nreadPhaseGrid with a shared parse\n");
+    {
+        QTemporaryDir tmp;
+        check(tmp.isValid(), "a temporary library");
+        const QJsonObject swingDoc{
+            { QStringLiteral("swing"),    QJsonObject{ { QStringLiteral("index"), 4 } } },
+            { QStringLiteral("clock"),    QJsonObject{ { QStringLiteral("wallclock"),
+                                                         QStringLiteral("2026-07-10T09:15:02.250Z") } } },
+            { QStringLiteral("review"),   QJsonObject{ { QStringLiteral("club"), QStringLiteral("7 IRON") } } },
+            { QStringLiteral("analysis"), fixtureAnalysis() } };
+        const auto mkSwing = [&](const char *name) {
+            const QString d = tmp.filePath(QStringLiteral("2026-07-10_Session_01/") + QLatin1String(name));
+            QDir().mkpath(d);
+            return d;
+        };
+        const auto writeJson = [](const QString &d, const QByteArray &bytes) {
+            QFile o(pinpoint::SwingStore::jsonPath(d));
+            return o.open(QIODevice::WriteOnly | QIODevice::Truncate) && o.write(bytes) == bytes.size();
+        };
+        const auto same = [](const SwingPhaseGrid &a, const SwingPhaseGrid &b) {
+            return a.swingDir == b.swingDir && savePhaseGrid(a, 1, 1) == savePhaseGrid(b, 1, 1);
+        };
+        using pinpoint::SwingStore::LazyDocument;
+
+        // (a) parity, both formats
+        const QString j = mkSwing("swing_0001");
+        writeJson(j, QJsonDocument(swingDoc).toJson(QJsonDocument::Compact));
+        const SwingPhaseGrid ownJ = readPhaseGrid(j);
+        check(!ownJ.isEmpty() && ownJ.ordinal == 4 && QFile::exists(phaseGridPath(j)),
+              "JSON: its own parse builds the grid and indexes it");
+        QFile::remove(phaseGridPath(j));
+        LazyDocument docJ(j);
+        check(!docJ.root().isEmpty(), "JSON: the other reader parsed first");
+        check(same(readPhaseGrid(j, true, {}, &docJ), ownJ), "JSON: the shared parse gives the identical grid");
+        check(QFile::exists(phaseGridPath(j)), "...and indexes it exactly as its own parse did");
+
+        const QString b = mkSwing("swing_0002");
+        check(pinpoint::SwingStore::save(b, swingDoc), ".ppsw: written");
+        const SwingPhaseGrid ownB = readPhaseGrid(b);
+        QFile::remove(phaseGridPath(b));
+        LazyDocument docB(b);
+        docB.root();
+        check(!ownB.isEmpty() && same(readPhaseGrid(b, true, {}, &docB), ownB) && QFile::exists(phaseGridPath(b)),
+              ".ppsw: the shared parse gives the identical grid, indexed");
+
+        // (b) a corrupt document: nothing read, nothing latched, nothing indexed
+        const QString c = mkSwing("swing_0003");
+        const char *bodies[] = { "", "{\"analysis\":{\"phases\":[", "not json at all", "[]" };
+        const char *names[]  = { "empty", "truncated", "garbage", "an array, not an object" };
+        for (int i = 0; i < 4; ++i) {
+            writeJson(c, QByteArray(bodies[i]));
+            const SwingPhaseGrid own = readPhaseGrid(c);
+            LazyDocument doc(c);
+            doc.root();
+            const SwingPhaseGrid shared = readPhaseGrid(c, true, {}, &doc);
+            const QByteArray label = QByteArray("corrupt (") + names[i]
+                                     + "): empty both ways, nothing latched, no sidecar";
+            check(own.isEmpty() && shared.isEmpty() && !doc.loaded() && !QFile::exists(phaseGridPath(c)),
+                  label.constData());
+        }
+
+        // (c) the summary's parse failed first (no document yet); the grid's read retries
+        const QString r = mkSwing("swing_0004");
+        LazyDocument docR(r);
+        check(docR.root().isEmpty() && !docR.loaded(), "first reader: no document yet");
+        writeJson(r, QJsonDocument(swingDoc).toJson(QJsonDocument::Compact));
+        const SwingPhaseGrid late = readPhaseGrid(r, true, {}, &docR);
+        check(!late.isEmpty() && late.ordinal == 4 && docR.loaded() && QFile::exists(phaseGridPath(r)),
+              "second reader: the document is parsed after all, read and indexed");
+
+        // (d) a rewrite after the shared parse
+        const QString m = mkSwing("swing_0005");
+        writeJson(m, QJsonDocument(swingDoc).toJson(QJsonDocument::Compact));
+        LazyDocument docM(m);
+        docM.root();
+        QJsonObject next = swingDoc;
+        next.insert(QStringLiteral("swing"), QJsonObject{ { QStringLiteral("index"), 104 },
+                                                          { QStringLiteral("padding"), QStringLiteral("new size") } });
+        writeJson(m, QJsonDocument(next).toJson(QJsonDocument::Compact));
+        const SwingPhaseGrid old = readPhaseGrid(m, true, {}, &docM);
+        check(!old.isEmpty() && old.ordinal == 4, "a rewrite since the shared parse: that parse is what is returned");
+        check(!QFile::exists(phaseGridPath(m)), "...but it is NOT indexed under the rewritten document's guard");
+        const SwingPhaseGrid fresh = readPhaseGrid(m);
+        check(fresh.ordinal == 104 && QFile::exists(phaseGridPath(m)),
+              "the next read builds from the new document and indexes that");
     }
 
     std::printf("\n%s (%d failures)\n", g_fail ? "FAILED" : "OK", g_fail);

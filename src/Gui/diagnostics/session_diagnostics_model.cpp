@@ -883,19 +883,23 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
 
     const CharacteristicPack &pack = m_packProv->pack();
 
+    // ONE PARSE FOR BOTH READERS (issue #142). The phase grid and the summary each fall back to a
+    // full parse when they cannot be answered without the document: a freshly filed JSON-era swing
+    // misses both sidecars, which was two ~1 s parses of the same document back to back. They share
+    // this one, and whichever needs it first pays. A .ppsw answers the summary from its own block,
+    // so there only the grid can parse. Local to this call: the worker threads that run
+    // detectShot() never see each other's.
+    //
+    // Both reads happen HERE, before detection, and the document is released straight after them:
+    // nothing below needs it, and holding a ~33 MB swing's parse through detectForSwing() and the
+    // rows would keep it alive longer than either reader ever did on its own.
+    pinpoint::SwingStore::LazyDocument parsed(swingDir);
+
     // writeSidecar true: the phase grid is cached beside the swing, so a re-activation of the
     // same session costs a small read rather than a second fat parse of every document.
-    LiveMeasureSource src(swingDir, pack);
+    LiveMeasureSource src(swingDir, pack, /*writeSidecar=*/true, PhaseGridConfig{}, &parsed);
     src.setWithSigma(m_withSigma);
-    // The kinematic sequence checks' signals ride the SAME call, so each is evaluated on the graded
-    // source detect() read (§10.6 E4: the tile and the diagnosis cannot disagree).
-    const LiveDetection     d = detectForSwing(src, pack, m_norms, gradePolicyByName(m_policyName),
-                                               {}, QString(), sequenceCheckSignalIds());
 
-    ShotRecord rec;
-    rec.shotId    = shotId;
-    rec.club      = d.club;
-    rec.contextId = d.contextId;
     // ⚠ THE INSTANT THE DOCUMENT RECORDS, NOT THE INSTANT THE FILE WAS LAST TOUCHED.
     // This read the file's mtime, which is only incidentally the capture time: copying, moving or
     // restoring a session directory rewrites every shot's timestamp, and the corpus tooling moves
@@ -911,11 +915,23 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
     // The mtime stays as the fallback, for a document written before clock.wallclock existed or one
     // whose clock block will not parse — wallclockMs is 0 in both cases, never a plausible date.
     const pinpoint::SwingSummary summary =
-        pinpoint::SwingDocReader::readSwingSummary(swingDir, /*writeSidecar=*/true);
-    rec.timestampMs =
+        pinpoint::SwingDocReader::readSwingSummary(swingDir, /*writeSidecar=*/true, &parsed);
+    const qint64 timestampMs =
         summary.wallclockMs > 0
             ? summary.wallclockMs
             : pinpoint::SwingStore::info(swingDir).mtimeMs;
+    parsed.release();
+
+    // The kinematic sequence checks' signals ride the SAME call, so each is evaluated on the graded
+    // source detect() read (§10.6 E4: the tile and the diagnosis cannot disagree).
+    const LiveDetection     d = detectForSwing(src, pack, m_norms, gradePolicyByName(m_policyName),
+                                               {}, QString(), sequenceCheckSignalIds());
+
+    ShotRecord rec;
+    rec.shotId      = shotId;
+    rec.club        = d.club;
+    rec.contextId   = d.contextId;
+    rec.timestampMs = timestampMs;
     // Warm-up is the FIRST-N rule only, applied inside shotWeight(). A declared warm-up flag
     // has no producer yet and inventing one from the shot index would double-count the rule.
     rec.warmUp = false;

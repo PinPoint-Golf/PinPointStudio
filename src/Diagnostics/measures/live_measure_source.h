@@ -100,8 +100,10 @@ class LiveMeasureSource final : public IMeasureValueSource {
 public:
     // `writeSidecar` follows readPhaseGrid()'s contract exactly: false means "never fat-parse", and
     // an unindexed swing then reads as having no analysis rather than stalling a GUI thread.
+    // `parsed` is readPhaseGrid()'s: the one parse a caller also reading the summary shares (#142).
     LiveMeasureSource(const QString &swingDir, const CharacteristicPack &pack,
-                      bool writeSidecar = true, const PhaseGridConfig &cfg = {});
+                      bool writeSidecar = true, const PhaseGridConfig &cfg = {},
+                      SwingStore::LazyDocument *parsed = nullptr);
 
     // The batched form: the caller already has the grid (a session scan builds one per swing on a
     // worker) and this costs nothing.
