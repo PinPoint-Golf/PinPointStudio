@@ -16,6 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 import QtQuick
+import PinPointStudio
 
 // PPCHPOSTUREFRAME — ONE FRAME OF THE POSTURE PICTURE STRIP (docs/design/posture_chart_design.md §5.4, stage 5), on
 // screen (PpChPosturePicture) and in print (PpPosturePage): the golfer's still at one position, the frozen address coach
@@ -32,10 +33,10 @@ Item {
     property var frame: ({})
     property var sets: ({})
     property real frameH: 200
-    property color coachColor: "#2E8B57"
+    property color coachColor: Theme.colorGood        // every caller sets it
     property real coachAlpha: 0.8
     property color inkColor: "white"          // the golfer's own line: light over a dark halo, so it reads on any frame
-    property color paper: "#202020"
+    property color paper: Theme.colorBg3              // every caller sets it
     property color captionColor: "black"
     property color noteColor: "grey"
     property font captionFont: Qt.font({ pixelSize: 12 })

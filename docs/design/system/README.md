@@ -16,6 +16,7 @@ PinPoint Studio is a desktop instrument for golf swing analysis: quiet chrome, f
 - Never branch a component on `Theme.aesthetic`. If two aesthetics need different behaviour, that is a new optional key in the theme table (`_v(name, default)`), not an `if`.
 - Use the shared component from `src/Gui/components/` (or `src/Gui/typeset/`) rather than redrawing it. A restyle is one file. A screen never draws its own button, chip, field, heading, notice, badge, popup surface, switch, row or card from Rectangle + Text + MouseArea, and never copies a component's file to tweak it.
 - **Any change to the design system needs Mark's approval before it is built** — a new component, a new `style` / `size` / `kind` variant, a changed look or behaviour, a new or changed Theme token, or retiring a component. Propose the need, the screens affected and a before/after picture, then wait. This binds Claude sessions and agents too: if no component fits, stop and ask; never build a local copy.
+- **The rules are tested.** `design_system_lint_test` (ctest) reads every screen's QML and fails on a hand-drawn control (D1), a raw text input (D2), a popup that draws its own surface (D3), a literal colour (D4) or space that ignores Density (D5). Deliberate exceptions live in `src/Gui/tests/design_system_allowlist.txt`, each with its reason; adding one is a design-system decision. `design_system_tokens_check` fails when `tokens.json` is stale.
 - Colour is never the only channel: every tone comes with a shape, a word, or both.
 - Flat: no drop shadows, blur or decorative images; the only gradient is the display title's brand sweep.
 - Weight carries hierarchy, not size. Body emphasis is `Font.Medium` at most.
@@ -76,6 +77,8 @@ PinPoint Studio is a desktop instrument for golf swing analysis: quiet chrome, f
   | `itemIndent` | 58 | 62 | 66 |
 
   Default is the app as it always was. Anything that is space must use `gap()` (or a row token) or it will not respond to density; anything that is size must use `sp()` so it does not.
+- The typeset layer (`PpTypeset` and its roles objects) has the same pair: `u(n)` is size and `g(n)` is space. On screen `g(n)` is `Theme.gap(n)`; in print it equals `u(n)`, so a printed page never depends on a screen setting. Never put `Theme.gap` on a path that prints.
+- Space that does not follow Density is an error: spacing, margins and layout padding from `sp()`, `u()` or a literal of 4 px or more. Negative margins that enlarge a hit area, and 1–3 px optical nudges, are size and pass.
 - At Default: cards sit `gap(16)` apart, two side by side down to `sp(640)`; a card pads `gap(20)`; items inside sit `gap(18)` apart.
 - A centred column is `Theme.contentWidth(parent.width)`; every side panel is `Theme.sidenavWidth`.
 - Corners: `Theme.radius` for controls, `Theme.radiusLg` for cards, tables and popovers (Vector is square).

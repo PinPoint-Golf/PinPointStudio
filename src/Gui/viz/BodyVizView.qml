@@ -88,7 +88,7 @@ Item {
     // Highlight the lead arm with a coloured overlay — used to indicate which
     // arm the user should position during calibration.
     property bool  highlightLeadArm: false
-    property color leadArmColor:     "#5B9BD5"
+    property color leadArmColor:     Theme.colorAccent   // the caller sets it
 
     // Sensor-mount orientation markers on the lead-arm segments — a bright ball on
     // each bone's local +Z face, indicating where the IMU is mounted and exposing

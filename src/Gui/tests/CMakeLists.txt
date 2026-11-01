@@ -342,6 +342,23 @@ pp_add_test(session_setup_lint_test
     LINK    Qt6::Core
     COMPILE_OPTIONS -DPP_QML_ROOT="${GUI}")
 
+# Design-system lint (docs/design/system/README.md, #133). Reads every screen's QML and fails on a
+# hand-drawn control, a raw text input, a popup that draws its own surface, a literal colour, or space
+# that ignores the Density setting — outside the reasoned exceptions in design_system_allowlist.txt.
+pp_add_test(design_system_lint_test
+    SOURCES design_system_lint_test.cpp
+    INCLUDE ${GUI} ${SRC}
+    LINK    Qt6::Core
+    COMPILE_OPTIONS -DPP_QML_ROOT="${GUI}"
+                    -DPP_DS_ALLOWLIST="${CMAKE_CURRENT_SOURCE_DIR}/design_system_allowlist.txt")
+
+# docs/design/system/tokens.json is generated from theme/Theme.qml: fail when it is stale, so the
+# design-system docs cannot drift from the code. Skipped (not failed) where there is no Python 3.
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME design_system_tokens_check
+             COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/theme/make_design_system.py --check)
+endif()
 
 # ── The offscreen QML UI suite ────────────────────────────────────────────────
 #

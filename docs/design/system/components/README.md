@@ -103,4 +103,30 @@ The shared Qt Quick controls in `src/Gui/components/`. Use these rather than red
 
 - [PpTopoBackground](PpTopoBackground.md) — A theme-reactive, slowly drifting topographic-contour background: contour lines of a noise terrain, coloured along the brand sweep, with hover lift, tap ripples and an occasional light sweep.
 
-`ClubFormat` (a singleton that turns club ids into sentence-case labels) draws nothing and has no page.
+## Typeset
+
+The typeset controls live in `src/Gui/typeset/` and serve both screen and print: each reads its fonts, inks and sizes from the panel's one PpTypeset (passed as `roles`), whose `medium` is "screen" or "print".
+
+- [PpTypeset](PpTypeset.md) — The per-panel helper: the scale (`u()` size, `g()` space, `gutter()`), the medium, size classes and tiers, type roles, inks, marks and the figure helpers every block draws with.
+- [PpBrush](PpBrush.md) — A register's shared focus state — picked and hovered shot, open condition, highlights, the after-shot pulse — so a thing is shown once in every block that holds it.
+- [PpTabs](PpTabs.md) — The view toggles: label + quiet count, the current one ruled; an optional note and chip; Home's title-size bar.
+- [PpViewFlick](PpViewFlick.md) — One register view's own named Flickable under the tab row, built on first show and never torn down.
+- [PpInlinePicker](PpInlinePicker.md) — A choice that opens in place, never a pop-up: a quiet question, one row per choice, the clearing row.
+- [PpStandfirst](PpStandfirst.md) — A view's head block: kicker, display head, a standfirst sentence from the data, and quiet filter links.
+- [PpSectionHead](PpSectionHead.md) — THE typeset crosshead: a numbered or plain title with a quiet sub-line, count, caret or note; names the section print repeats.
+- [PpNotes](PpNotes.md) — Small print: a footnote paragraph, optionally under a kicker and a short rule, held to 1.3 × the prose measure.
+- [PpPageKey](PpPageKey.md) — The key: each mark drawn by the component the figures use, with its word — one per view on screen, one per page in print.
+- [PpMark](PpMark.md) — THE point mark of every chart: one shot, fired (warn) or clean (ink3), in the theme's one shape, with the picked or hovered ring.
+- [PpStub](PpStub.md) — The not-measured mark: a short flat ink3 bar on the foot of a figure or strip — present, never a gap.
+- [PpShotStrip](PpShotStrip.md) — The session strip: a cell per shot in the order struck — warn bar, ink3 tick or stub — narrowing then wrapping, never dropping a shot.
+- [PpBoxPlot](PpBoxPlot.md) — THE box plot: middle half, median, whiskers, the shots, an optional corridor, and its values on the plot while examined.
+- [PpBoxReading](PpBoxReading.md) — A stood-up box's full reading beside it — whisker ends, quartiles, median and count line — each ticked from its true height.
+- [PpFigureScale](PpFigureScale.md) — The value axis a figure row's panels share: f → y, the zone edges named once, fault-forward bands behind drawn breaks.
+- [PpZonePlot](PpZonePlot.md) — The ground under a value panel: corridor wash, zone edges and baseline through one PpFigureScale.
+- [PpBreakSlash](PpBreakSlash.md) — The pair of slashes that marks a broken value axis, at each break.
+- [PpPulseWash](PpPulseWash.md) — The after-shot pulse: one soft ink wash over a row whose condition changed on the shot just surfaced.
+- [PpPager](PpPager.md) — Print: one document on A4, laid out once as a galley and cut into pages only between atoms, with repeated heads and no stranded pages.
+- [PpRunningHead](PpRunningHead.md) — Print furniture at the head of a page: the title left, golfer · date · club · shot right, a rule under it.
+- [PpFolio](PpFolio.md) — Print furniture at the foot of a page: the page's key, a hairline, the footer and "Section · Page n of N".
+
+`ClubFormat` (a singleton that turns club ids into sentence-case labels) draws nothing and has no page. Nor do `src/Gui/typeset/figure_format.js` (the figure formatter, covered on the PpTypeset page) and `src/Gui/typeset/box_stats.h` (the box statistics, covered on the PpBoxPlot page).

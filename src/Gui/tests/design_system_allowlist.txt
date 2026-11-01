@@ -1,0 +1,69 @@
+# Design-system lint allow-list (design_system_lint_test.cpp, docs/design/system/README.md, #133).
+#
+# One line per file and rule:   path under src/Gui | rule | findings allowed | WHY it is deliberate
+# Rules: D1 hand-drawn control · D2 raw text input · D3 popup surface · D4 literal colour · D5 space that ignores Density.
+# A file that grows past its count fails the test; one that drops below it is reported so the count can be lowered.
+# Every entry needs a reason; "legacy" is not one. Adding a NEW entry is a design-system decision: ask Mark first.
+
+# ── Deliberate: the rule is right to see these, and the code is right to keep them ──
+cameras/PpAnnotationLayer.qml | D4 | 1 | annotation handle painted on the video: white with a dark stroke so it reads on any frame in every theme; the pose palette has no light ink
+charts/PpChRoles.qml | D4 | 2 | print medium: knock-out and surface are white paper; the screen path uses Theme.colorSurface
+diagnostics/PpRunChart.qml | D4 | 1 | print medium: the label halo is white paper; the screen path uses Theme.colorSurface
+diagnostics/PpSmallMultiple.qml | D4 | 1 | print medium: the label outline is white paper; the screen path uses Theme.colorSurface
+home/PpcpPairDialog.qml | D4 | 3 | QR code: pure white plate and background with pure black modules, or it does not scan
+report/PpBallTiles.qml | D5 | 6 | print-only report page: fixed print geometry, must not follow the screen Density setting
+report/PpDeliveryPage.qml | D5 | 4 | print-only report page: fixed print geometry, must not follow the screen Density setting
+report/PpDrillCard.qml | D5 | 1 | print-only report page: fixed print geometry, must not follow the screen Density setting
+report/PpLmAppendix.qml | D5 | 1 | print-only report page: fixed print geometry, must not follow the screen Density setting
+report/PpNumbersTable.qml | D5 | 3 | print-only report page: fixed print geometry, must not follow the screen Density setting
+report/PpOrderPage.qml | D5 | 4 | print-only report page: fixed print geometry, must not follow the screen Density setting
+report/PpPosturePage.qml | D4 | 1 | print-only report page (medium "print", Folio light): the dark picture mat behind the still
+report/PpPosturePage.qml | D5 | 1 | print-only report page: fixed print geometry, must not follow the screen Density setting
+report/PpReportAbout.qml | D5 | 2 | print-only report page: fixed print geometry, must not follow the screen Density setting
+report/PpReportCover.qml | D5 | 4 | print-only report cover fitted to one A4 page: fixed print geometry, must not follow the screen Density setting
+report/PpReportPrintHost.qml | D4 | 1 | the off-window A4 print sheet: white paper in every theme
+report/PpReportProfile.qml | D5 | 2 | print-only report page: fixed print geometry, must not follow the screen Density setting
+report/PpReportTrust.qml | D5 | 1 | print-only report page: fixed print geometry, must not follow the screen Density setting
+report/PpSessionReport.qml | D4 | 1 | the report's paper: the PDF is Folio light whatever the app theme (§7.1)
+report/PpSessionReport.qml | D5 | 6 | the print-only report register: fixed A4 page geometry, must not follow the screen Density setting
+report/PpStill.qml | D4 | 1 | print-only report still: the near-black picture mat
+report/PpStill.qml | D5 | 2 | print-only report page: fixed print geometry, must not follow the screen Density setting
+report/PpSwingGrid.qml | D5 | 8 | print-only report page: fixed print geometry, must not follow the screen Density setting
+report/PpWorkOnPage.qml | D5 | 2 | print-only report page: fixed print geometry, must not follow the screen Density setting
+session/PpLmGraphicsBody.qml | D4 | 5 | print medium: page fill, tile fill, halo and canvas paper are white paper; each screen path uses a Theme token
+swing3d/SwingViz3DView.qml | D4 | 4 | 3-D scene material colours (ball, shaft, head, body hull): View3D PrincipledMaterial, not UI chrome
+viz/ArmVizView.qml | D4 | 1 | 3-D scene light colour (DirectionalLight), not UI chrome
+viz/BodyVizView.qml | D4 | 2 | 3-D scene: the DirectionalLight colour and the debug joint-sphere material, not UI chrome
+
+shot/PpShotCard.qml | D1 | 1 | the card itself (line 44) is a picture tile: the swing's thumbnail (through an Item wrapper) with its caption and a press to open — a card, not a control
+
+# ── Held: existing copies frozen until Mark approves their replacement (#134). Never add to this group. ──
+charts/PpChartsReadingsView.qml | D2 | 1 | held (#134): an existing copy — use PpSearchField `style:"line"` (it would need to read the typeset roles); swapping it changes the look, so it waits for Mark's approval. Lines today: 107
+diagnosticmodel/DiagnosticModel.qml | D1 | 3 | held (#134): an existing copy — use PpButton (fold glyph tile) / PpChoiceChip `style:"filter"`, `selected:true`; swapping it changes the look, so it waits for Mark's approval. Lines today: 1059, 1184, 1588
+diagnosticmodel/ModelEnumField.qml | D1 | 1 | held (#134): an existing copy — use PpComboBox; swapping it changes the look, so it waits for Mark's approval. Lines today: 37
+diagnosticmodel/ModelEnumMenu.qml | D1 | 1 | held (#134): an existing copy — use PpMenuItem (`style:"compact"`); swapping it changes the look, so it waits for Mark's approval. Lines today: 57
+diagnosticmodel/ModelInspector.qml | D1 | 1 | held (#134): an existing copy — use PpButton (fold glyph tile); swapping it changes the look, so it waits for Mark's approval. Lines today: 122
+diagnosticmodel/ModelInspector.qml | D2 | 1 | held (#134): an existing copy — use PpTextArea (`commitOnBlur`); swapping it changes the look, so it waits for Mark's approval. Lines today: 704
+diagnosticmodel/ModelTable.qml | D2 | 1 | held (#134): an existing copy — use PpTextField `boxed:false`, `size:"compact"`, `monospace` (numbers), `editMenu:false`, `padHit:false`, `left/rightPadding:0`; swapping it changes the look, so it waits for Mark's approval. Lines today: 388
+diagnosticmodel/ModelTypeAhead.qml | D1 | 1 | held (#134): an existing copy — use PpMenuItem (glyph + words + tail); swapping it changes the look, so it waits for Mark's approval. Lines today: 145
+diagnosticmodel/ModelTypeRail.qml | D1 | 1 | held (#134): an existing copy — use PpButton (fold glyph tile); swapping it changes the look, so it waits for Mark's approval. Lines today: 74
+diagnostics/PpIndexList.qml | D5 | 2 | held (#134): typeset literals 4 and 5 (line 133) that should be roles.g(n); in print g() is n × 1.18, so the swap moves printed pages by under 1 px and waits for Mark's look approval
+home/ScreenHome.qml | D1 | 3 | held (#134): an existing copy — use PpAvatar / PpButton `primary`, `implicitHeight: Theme.sp(42)`, full width / PpSelectTile `style:""` with own content; swapping it changes the look, so it waits for Mark's approval. Lines today: 209, 242, 311
+media/AudioPage.qml | D1 | 2 | held (#134): an existing copy — use PpStatusPill (tone accent/good/quiet) + PpPressable / PpStatusPill + PpPressable; swapping it changes the look, so it waits for Mark's approval. Lines today: 141, 301
+media/CoachPage.qml | D1 | 3 | held (#134): an existing copy — use PpChoiceChip `style:"toggle"` / PpChoiceChip `style:"toggle"`, tint colorGood / PpStatusPill + PpPressable; swapping it changes the look, so it waits for Mark's approval. Lines today: 110, 244, 270
+monitor/ScreenResourceMonitor.qml | D2 | 1 | held (#134): an existing copy — use PpSearchField (a mini, clearable variant); swapping it changes the look, so it waits for Mark's approval. Lines today: 212
+review/PpMetricChart.qml | D1 | 2 | held (#134, and the chart's retirement decision): a collapsible SectionHeader (898, the same idiom as PpDataViewer's) and a toggle chip (1096, PpChoiceChip); swapping changes the look
+session/PpMarkupPanel.qml | D1 | 2 | held (#134): an existing copy — use PpButton `outline`, `size:"compact"`, `mono` / PpTableRow; swapping it changes the look, so it waits for Mark's approval. Lines today: 532, 565
+session/PpSessionDrawer.qml | D1 | 1 | held (#134): an existing copy — use PpSelectTile (`selected` = live); swapping it changes the look, so it waits for Mark's approval. Lines today: 152
+session/PpSessionToolbar.qml | D1 | 1 | held (#134): an existing copy — use PpButton `primary` + a leading-dot / live-swap variant; swapping it changes the look, so it waits for Mark's approval. Lines today: 260
+settings/AppearancePanel.qml | D1 | 2 | held (#134): an existing copy — use PpSelectTile (the theme preview as its content) / PpSelectTile `style:"card"` (`selected` = open); swapping it changes the look, so it waits for Mark's approval. Lines today: 69, 304
+settings/CamerasPanel.qml | D4 | 1 | held (#134): an existing copy — use Theme.colorBg2 (PpCameraFrame's frame fill), or a new video-mat token; swapping it changes the look, so it waits for Mark's approval. Lines today: 1346
+settings/ScreenSettings.qml | D1 | 2 | held (#134): an existing copy — use PpButton (fold glyph tile) / PpSelectTile with own content; swapping it changes the look, so it waits for Mark's approval. Lines today: 434, 502
+setup/ScreenSessionSetup.qml | D1 | 1 | held (#134): an existing copy — use PpButton `primary` + a toned primary (good/warn Start); swapping it changes the look, so it waits for Mark's approval. Lines today: 398
+shell/PpRail.qml | D1 | 1 | held (#134): an existing copy — use PpAvatar; swapping it changes the look, so it waits for Mark's approval. Lines today: 74
+shot/PpShotActionBar.qml | D1 | 1 | held (#134): an existing copy — use PpButton `style:"menu"`, `size:"compact"` + a content slot; swapping it changes the look, so it waits for Mark's approval. Lines today: 90
+shot/PpShotCard.qml | D1 | 3 | held (#134): existing copies — use PpButton `style:"scrim"` (round; + warn ink); swapping changes the look, so they wait for Mark's approval. Lines today: 345, 418, 446
+shot/PpShotCard.qml | D4 | 3 | held (#134): an existing copy — use Theme.colorOnScrim; swapping it changes the look, so it waits for Mark's approval. Lines today: 230, 431, 457
+shot/PpShotCarousel.qml | D1 | 3 | held (#134): an existing copy — use PpButton (`chevron`) + a content slot / PpButton (fold glyph tile); swapping it changes the look, so it waits for Mark's approval. Lines today: 361, 426, 515
+shot/PpShotFilter.qml | D1 | 2 | held (#134): an existing copy — use PpChoiceChip (a quality-filled variant); swapping it changes the look, so it waits for Mark's approval. Lines today: 123, 298
+viz/BodyVizView.qml | D4 | 1 | held (#134): the loading overlay's box (line 981) should be Theme.colorScrim with Theme.colorOnScrim words; swapping changes the look
