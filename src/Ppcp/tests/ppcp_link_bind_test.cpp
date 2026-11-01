@@ -196,9 +196,28 @@ TEST(PpcpLinkBind, ConcurrentDialsBindIntoSeparateLinks)
     Harness h;
     ASSERT_TRUE(h.ok());
 
-    // Both diallers run at once, and both accepts run at once, so nothing in
-    // the test imposes an order the transport could accidentally rely on.
-    auto acceptA = h.acceptAsync(10000);
+    // Both diallers run at once, and the listener is accepting for the whole
+    // of both dials, so nothing in the test imposes an order the transport
+    // could accidentally rely on.
+    //
+    // ⚠ ONE accept thread calling accept() TWICE, back to back — the shape of
+    // PpcpHostService's accept loop — and it must be started before the dials.
+    // A TLS handshake on the listener side only advances while some caller is
+    // inside accept(), and accept() returns the moment the FIRST link is
+    // complete.  This test used to make the second accept() call only after
+    // BOTH dials had returned, so whenever the second dialler's handshake was
+    // still in flight when the first link bound, nothing drove it and it timed
+    // out after 5 s (issue #138, ~1 in 3 runs on Windows, latent everywhere).
+    // A Listener is not thread-safe, so the two accepts cannot run on two threads.
+    auto accepts = std::async(std::launch::async, [&h] {
+        std::vector<std::unique_ptr<PeerConnection>> got;
+        for (int i = 0; i < 2; ++i) {
+            HandshakeFailure f;
+            got.push_back(h.listener().accept(10000, &f));
+            if (!got.back()) break;
+        }
+        return got;
+    });
 
     std::atomic<bool> go{false};
     auto dial = [&] {
@@ -216,10 +235,11 @@ TEST(PpcpLinkBind, ConcurrentDialsBindIntoSeparateLinks)
     ASSERT_NE(clientB, nullptr);
     EXPECT_NE(clientA->linkId(), clientB->linkId());
 
-    std::unique_ptr<PeerConnection> serverA = acceptA.get();
+    std::vector<std::unique_ptr<PeerConnection>> servers = accepts.get();
+    ASSERT_EQ(servers.size(), 2u);
+    std::unique_ptr<PeerConnection> serverA = std::move(servers[0]);
+    std::unique_ptr<PeerConnection> serverB = std::move(servers[1]);
     ASSERT_NE(serverA, nullptr);
-    HandshakeFailure f2;
-    std::unique_ptr<PeerConnection> serverB = h.listener().accept(10000, &f2);
     ASSERT_NE(serverB, nullptr);
 
     // Each accepted link is exactly two channels — one control, one bulk — and

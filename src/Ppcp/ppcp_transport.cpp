@@ -493,6 +493,20 @@ SSL_CTX *makeContext(bool server, const TlsCapabilities &caps)
         if (std::getenv("PINPOINT_PPCP_ALLOW_RESUME") == nullptr) {
             SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
             SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
+            // ⛔ AND NO TLS 1.3 NewSessionTicket EITHER (issue #138).  The two
+            // lines above stop a ticket being USED; they do not stop OpenSSL
+            // SENDING two (stateful ones, at SSL_OP_NO_TICKET) right after the
+            // handshake — tickets nothing can ever redeem, since the cache is
+            // off.  The dialler reads nothing before link_bind, so those bytes
+            // sit unread in its receive buffer, and a dialler that then closes
+            // (an abandoned dial, ENC 2.1c) closes with unread data, which TCP
+            // answers with an RST rather than a FIN.  Windows discards the
+            // listener's not-yet-read receive data on that RST: the stream's
+            // link_bind was never seen, SSL_read failed with WSAECONNABORTED,
+            // and the stream was refused as "malformed first frame".  MEASURED:
+            // 2-3 of 3 runs of AnAbandonedDialDoesNotDisturbTheNextLink on
+            // Windows before this line, 50 of 50 clean after it.
+            SSL_CTX_set_num_tickets(ctx, 0);
         }
     } else {
         SSL_CTX_set_psk_use_session_callback(ctx, pskUseSessionCb);
