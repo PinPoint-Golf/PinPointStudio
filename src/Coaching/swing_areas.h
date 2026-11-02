@@ -102,6 +102,10 @@ struct AreaConditionInfo {
     // ends, or only through a ratio or an order test — then the condition is graded on both. The
     // session panel's rows take the same side (firing_side.h conditionFiringSide).
     QHash<QString, QString> tailByMeasure;
+    // Every detecting signal is an order test or a threshold: a yes/no line with no band around it
+    // (the kinematic sequence's order, a peak after impact). A firing is the fault, so it grades
+    // Action; on the clean side how far from the line is a coach's judgement, so it grades nothing.
+    bool    binary = false;
 };
 
 // The counting rule, isolated so it is testable without a pack. `cls` is workOnClassFor()'s answer
@@ -179,12 +183,25 @@ struct AreaItem {
     // (AreaConditionInfo::tailByMeasure). The typical value is graded on this side only, so a
     // cupped wrist never reads as a bowed one's watch.
     QString  tail;
+    // A yes/no condition (AreaConditionInfo::binary), and the newest assessing session's unweighted
+    // counts its grade is read from (areaBinaryGrade).
+    bool     binary = false;
+    int      latestFired = 0, latestAssessable = 0;
     // On the golfer's work-ons list: "active", "easing", or "new" (Active and listed ONLY in the newest
     // substantive session). "" when never listed or cleared — the every-condition aggregate's status
     // for a never-listed pattern reads Active, so this is derived only when sessionsListed > 0.
     QString  workOn;
     int      sessionsListed = 0;
 };
+
+// A yes/no condition's grade: it fired on the typical swing of the newest session that assessed it —
+// more than half its assessed swings, the count's reading of the median the corridor grades use.
+// True grades Action; false grades nothing (before the line is the coach's call, not Ideal).
+inline bool areaBinaryFires(const AreaItem &it)
+{
+    return it.binary && !it.hasTypical && it.latestAssessable > 0
+        && 2 * it.latestFired > it.latestAssessable;
+}
 
 struct AreaSummary {
     QString group;               // ConditionGroup token
@@ -320,6 +337,11 @@ inline std::vector<AreaSummary> summariseAreas(const std::vector<SessionWorkOns>
                 it.corridorLo    = w->latestEvidence.corridorLo;
                 it.corridorHi    = w->latestEvidence.corridorHi;
                 it.corridorShape = corridorShapeToString(w->latestEvidence.corridorShape);
+            }
+            it.binary = ci.binary;
+            if (w->hasLatestEvidence) {
+                it.latestFired      = w->latestEvidence.fired;
+                it.latestAssessable = w->latestEvidence.assessable;
             }
             if (w->sessionsListed > 0) {
                 switch (w->status) {

@@ -63,9 +63,11 @@ inline QHash<QString, AreaConditionInfo> areaConditionInfoForPack(const Characte
         i.counts = areaConditionCounts(i.group, workOnClassFor(c), c.kind == ConditionKind::Outcome,
                                        !c.reportHold.isEmpty());
         bool anyMeasure = false, allLm = true;
+        bool allBinary = !c.detectedBy.isEmpty();
         for (const QString &sigId : c.detectedBy) {
             const Signal *sg = pack.signal(sigId);
-            if (!sg) { allLm = false; continue; }
+            if (!sg) { allLm = false; allBinary = false; continue; }
+            if (sg->test != SignalTest::Order && sg->test != SignalTest::Threshold) allBinary = false;
             for (const QString &mid : sg->measures) {
                 // The tail it watches here: the one derivation the session panel uses (firing_side.h).
                 // A ratio's measures get none — the quotient fires, not either measure (#16).
@@ -81,6 +83,7 @@ inline QHash<QString, AreaConditionInfo> areaConditionInfoForPack(const Characte
             }
         }
         i.lmOnly = anyMeasure && allLm;
+        i.binary = allBinary;
         out.insert(c.id, std::move(i));
     }
     return out;

@@ -38,6 +38,8 @@
 // a library that already has its ledgers, which is the one the app meets first.
 
 #include "Gui/diagnostics/work_ons_controller.h"
+#include "Coaching/swing_areas_pack.h"
+#include "Diagnostics/packs/characteristic_pack.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -471,8 +473,8 @@ static QStringList areaGroups(const WorkOnsController &c)
 
 // What Home's "Your swing" QML binds to: exactly these keys on every area and every item, the values in range,
 // and the two orders — areas measurable first and by habits, items habits first, then occasional,
-// then the rest, by share within each — and a grade exactly when there is a typical value (every
-// fixture here grades against a stored corridor).
+// then the rest, by share within each — and a corridor grade exactly when there is a typical value;
+// without one, only a yes/no condition's Action.
 static void checkAreasShape(const WorkOnsController &c, const char *when)
 {
     static const QStringList bands{ QStringLiteral("habit"), QStringLiteral("occasional"),
@@ -534,7 +536,8 @@ static void checkAreasShape(const WorkOnsController &c, const char *when)
                 && (it.value(QStringLiteral("workOn")).toString().isEmpty() || it.value(QStringLiteral("sessionsListed")).toInt() > 0);
             const bool typical = it.value(QStringLiteral("hasTypical")).toBool();
             const QString grade = it.value(QStringLiteral("grade")).toString();
-            gradeIff = gradeIff && (typical ? grades.contains(grade) : grade.isEmpty())
+            // Without a typical value only a yes/no condition grades, and only Action (areaBinaryFires).
+            gradeIff = gradeIff && (typical ? grades.contains(grade) : (grade.isEmpty() || grade == QLatin1String("action")))
                 && typical == !it.value(QStringLiteral("corridorShape")).toString().isEmpty();
             const int r = rank(band);
             itemOrder = itemOrder && (r > lastRank || (r == lastRank && share <= lastShare));
@@ -558,7 +561,7 @@ static void checkAreasShape(const WorkOnsController &c, const char *when)
     check(areaOrder, label);
     std::snprintf(label, sizeof label, "%s: items habits, then occasional, then the rest, by share within each", when);
     check(itemOrder, label);
-    std::snprintf(label, sizeof label, "%s: a grade (ideal | good | watch | action) exactly when there is a typical value", when);
+    std::snprintf(label, sizeof label, "%s: a corridor grade exactly when there is a typical value; without one, only a yes/no condition's action", when);
     check(gradeIff, label);
 }
 
@@ -979,6 +982,25 @@ int main(int argc, char **argv)
               && cup.value(QStringLiteral("grade")).toString() != QStringLiteral("ideal")
               && bow.value(QStringLiteral("grade")).toString() == QStringLiteral("ideal"),
               "…a cupped wrist grades the cup and leaves bowed at the top ideal, never 'watch' on both");
+    }
+
+    // ── Which shipped conditions are yes/no: every detecting signal an order test or a threshold ─────
+    {
+        QFile pf(qEnvironmentVariable("PINPOINT_CORE_PACK"));
+        const PackLoadResult pr = pf.open(QIODevice::ReadOnly) ? loadPack(pf.readAll(), QStringLiteral("core.json"))
+                                                               : PackLoadResult{};
+        check(pr.parsed, "the shipped core.json loads");
+        const QHash<QString, AreaConditionInfo> info = areaConditionInfoForPack(pr.pack);
+        const QStringList yesNo{ "sequence_order", "arms_before_chest", "club_before_arms", "upper_body_starts_down",
+                                 "hips_peak_after_impact", "chest_peak_after_impact", "arms_peak_after_impact",
+                                 "club_peak_after_impact" };
+        bool allYesNo = true;
+        for (const QString &id : yesNo) allYesNo = allYesNo && info.contains(id) && info.value(id).binary;
+        check(allYesNo, "the kinematic sequence's order tests and the four peaks after impact are yes/no");
+        check(info.contains(QStringLiteral("transition_rush")) && !info.value(QStringLiteral("transition_rush")).binary,
+              "a corridor condition (rushed transition) is not");
+        check(info.contains(QStringLiteral("arms_ride_the_turn")) && !info.value(QStringLiteral("arms_ride_the_turn")).binary,
+              "nor is a ratio (arms ride the turn): a gain is a matter of degree");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

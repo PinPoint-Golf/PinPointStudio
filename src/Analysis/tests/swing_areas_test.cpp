@@ -401,6 +401,36 @@ int main()
               "no typical in the newest session: none is quoted from an older one; the unit falls back to the condition's");
     }
 
+    // ── A yes/no condition grades Action on its typical swing, and nothing when clean ──────────────
+    {
+        QHash<QString, AreaConditionInfo> info{ { "late", ci("sequence", "Hips peak after impact") },
+                                                { "order", ci("sequence", "Out-of-order sequence") },
+                                                { "mostly", ci("sequence", "Chest peaks after impact") },
+                                                { "half", ci("sequence", "Arms outrun the chest") },
+                                                { "band", ci("sequence", "Rushed transition") } };
+        for (const char *id : { "late", "order", "mostly", "half" }) info[id].binary = true;
+        std::vector<SessionWorkOns> ss{
+            // the older session fired on every swing; the newest is what the grade reads
+            session("s1", 0, { { "late", 10, 10 }, { "order", 10, 10 }, { "mostly", 0, 10 }, { "half", 10, 10 },
+                               { "band", 10, 10 } }),
+            session("s2", 1, { { "late", 9, 10 }, { "order", 2, 10 }, { "mostly", 6, 10 }, { "half", 5, 10 },
+                               { "band", 9, 10 } }),
+        };
+        setTypical(ss[1], "band", 1.8, 2.2, 3.0);
+        const AreaSummary *sq = nullptr;
+        const std::vector<AreaSummary> ab = summariseAreas(ss, info);
+        sq = areaOf(ab, "sequence");
+        const AreaItem *late = itemOf(sq, "late"), *order = itemOf(sq, "order"), *mostly = itemOf(sq, "mostly"),
+                       *half = itemOf(sq, "half"), *band = itemOf(sq, "band");
+        check(late && late->binary && late->latestFired == 9 && late->latestAssessable == 10 && areaBinaryFires(*late),
+              "9 of 10 in the newest session: the typical swing fires, so a yes/no condition grades Action");
+        check(mostly && areaBinaryFires(*mostly), "6 of 10 newest fires, whatever an older session said");
+        check(order && !areaBinaryFires(*order), "2 of 10 newest: clean on the typical swing, so no grade, never Ideal");
+        check(half && !areaBinaryFires(*half), "exactly half is not the typical swing firing");
+        check(band && !band->binary && !areaBinaryFires(*band) && band->hasTypical,
+              "a condition with a band keeps its corridor grade and is never graded yes/no");
+    }
+
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;
 }

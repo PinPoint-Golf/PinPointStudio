@@ -624,6 +624,10 @@ void WorkOnsController::publishAreas(const CharacteristicPack &pack, const std::
                 band.corridorHi    = it.corridorHi;
                 band.corridorShape = corridorShapeFromString(it.corridorShape);
                 grade = gradeOnCorridor(watchingTail(spreadCorridorFromRow(band, policy), it.tail), it.typical);
+            } else if (areaBinaryFires(it)) {
+                // A yes/no condition (an order test, a peak after impact) on its typical swing: no band
+                // to grade a distance on, so a firing is Action and a clean one is left ungraded.
+                grade = gradeName(Grade::Action);
             }
             items.append(QVariantMap{
                 { QStringLiteral("conditionId"),    it.conditionId },
