@@ -82,18 +82,18 @@ PpChViewBase {
 
     PpChText { objectName: "chReadingsWhy"; visible: !rv.available && !!rv.body && present; roles: rv.roles
                sentence: rv.body && rv.body.rStatus ? rv.body.rStatus.refusal : null
-               font: rv.roles ? rv.roles.fBody : Qt.font({}); tone: rv.roles ? rv.roles.ink2 : "grey" }
+               font: rv.roles ? rv.roles.fBody : Qt.application.font; tone: rv.roles ? rv.roles.ink2 : "grey" }
     Column {
         visible: rv.available
         width: rv.width; spacing: rv.roles ? rv.roles.g(4) : Theme.gap(4)
         Text { visible: !rv.cast && !!rv.body && !!rv.body.rStatus && !!rv.body.rStatus.kicker
                text: rv.body && rv.body.rStatus ? (rv.body.rStatus.kicker || "") : ""
-               font: rv.roles ? rv.roles.fKicker : Qt.font({}); color: rv.roles ? rv.roles.ink3 : "grey" }
+               font: rv.roles ? rv.roles.fKicker : Qt.application.font; color: rv.roles ? rv.roles.ink3 : "grey" }
         Text { width: parent.width; wrapMode: Text.WordWrap; text: "Every reading against the session"
-               font: rv.roles ? rv.roles.fTitle : Qt.font({}); color: rv.roles ? rv.roles.ink : "black" }
+               font: rv.roles ? rv.roles.fTitle : Qt.application.font; color: rv.roles ? rv.roles.ink : "black" }
         Text { width: parent.width; wrapMode: Text.WordWrap
                text: "Pick a reading to see this shot's curve against the session's at every P-position; a reading without a curve shows its run through the session."
-               font: rv.roles ? rv.roles.fStand : Qt.font({}); color: rv.roles ? rv.roles.ink2 : "grey" }
+               font: rv.roles ? rv.roles.fStand : Qt.application.font; color: rv.roles ? rv.roles.ink2 : "grey" }
     }
     // the filter: one quiet line — the name, then the verdicts with their counts (the count alone when nothing is graded);
     // it wraps under the name when narrow
@@ -109,7 +109,7 @@ PpChViewBase {
                 objectName: "chReadingsFilter"
                 anchors.verticalCenter: parent.verticalCenter; width: parent.width
                 enabled: rv.interactive
-                font: rv.roles ? rv.roles.fBody : Qt.font({}); color: rv.roles ? rv.roles.ink : "black"
+                font: rv.roles ? rv.roles.fBody : Qt.application.font; color: rv.roles ? rv.roles.ink : "black"
                 selectByMouse: true; clip: true
                 onTextChanged: rv.filter = text
                 Keys.onEscapePressed: text = ""
@@ -119,7 +119,7 @@ PpChViewBase {
         Text { visible: !rv.graded && rv.verdict === "all"
                height: fi.implicitHeight + (rv.roles ? rv.roles.u(8) : 8); verticalAlignment: Text.AlignBottom; bottomPadding: rv.roles ? rv.roles.u(5) : 5
                text: rv.filter.trim() === "" ? rv.allCount + " readings" : rv.shownCount + " of " + rv.allCount
-               font: rv.roles ? rv.roles.fSmall : Qt.font({}); color: rv.roles ? rv.roles.ink3 : "grey" }
+               font: rv.roles ? rv.roles.fSmall : Qt.application.font; color: rv.roles ? rv.roles.ink3 : "grey" }
         // the verdicts: a word and its count each, the picked one in ink and underlined; one with nothing under it rests
         Row {
             visible: rv.graded || rv.verdict !== "all"
@@ -140,9 +140,9 @@ PpChViewBase {
                         id: cr
                         anchors.bottom: parent.bottom; anchors.bottomMargin: rv.roles ? rv.roles.u(5) : 5
                         spacing: rv.roles ? rv.roles.g(4) : Theme.gap(4)
-                        Text { id: cw; text: chip.modelData.word; font: rv.roles ? rv.roles.fSmall : Qt.font({})
+                        Text { id: cw; text: chip.modelData.word; font: rv.roles ? rv.roles.fSmall : Qt.application.font
                                color: !rv.roles ? "grey" : chip.on ? rv.roles.ink : chip.live ? rv.roles.ink2 : rv.roles.ink3 }
-                        Text { anchors.baseline: cw.baseline; text: chip.n; font: rv.roles ? rv.roles.fFigLabel : Qt.font({})
+                        Text { anchors.baseline: cw.baseline; text: chip.n; font: rv.roles ? rv.roles.fFigLabel : Qt.application.font
                                color: !rv.roles ? "grey" : chip.warm ? rv.roles.warn : chip.on ? rv.roles.ink : rv.roles.ink3 }
                     }
                     Rectangle { visible: chip.on; anchors.bottom: parent.bottom; width: parent.width
@@ -159,7 +159,7 @@ PpChViewBase {
                : rv.verdict === "fault" ? "No reading" + (rv.filter.trim() ? " named “" + rv.filter.trim() + "”" : "") + " is past its fault line on this shot."
                : rv.verdict === "outside" ? "No reading" + (rv.filter.trim() ? " named “" + rv.filter.trim() + "”" : "") + " is out of its corridor on this shot."
                : "No reading" + (rv.filter.trim() ? " named “" + rv.filter.trim() + "”" : "") + " was graded inside its corridor on this shot."
-           font: rv.roles ? rv.roles.fBody : Qt.font({}); color: rv.roles ? rv.roles.ink3 : "grey" }
+           font: rv.roles ? rv.roles.fBody : Qt.application.font; color: rv.roles ? rv.roles.ink3 : "grey" }
     // by family, two balanced columns at wide, never splitting a family
     Flow {
         id: pf

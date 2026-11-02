@@ -208,7 +208,7 @@ Item {
     BoxMark { m: bp.echo || ({}); visible: !!bp.echo && bp.fin(bp.echo.at) }
 
     // ── EXAMINED, across: the values in two lanes, above and below ──
-    FontMetrics { id: fm; font: bp.roles ? bp.roles.fFigLabel : Qt.font({}) }
+    FontMetrics { id: fm; font: bp.roles ? bp.roles.fFigLabel : Qt.application.font }
     readonly property var valueLabels: {
         if (!showingValues || vertical) return []
         const t = texts, L = []

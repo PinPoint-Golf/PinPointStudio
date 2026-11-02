@@ -39,7 +39,7 @@ Column {
     visible: open
     spacing: roles ? roles.g(4) : Theme.gap(4)
     topPadding: roles ? roles.g(6) : Theme.gap(6); bottomPadding: roles ? roles.g(10) : Theme.gap(10)
-    Text { text: vp.title; font: vp.roles ? vp.roles.fLabel : Qt.font({}); color: vp.roles ? vp.roles.ink3 : "grey" }
+    Text { text: vp.title; font: vp.roles ? vp.roles.fLabel : Qt.application.font; color: vp.roles ? vp.roles.ink3 : "grey" }
     Repeater {
         model: vp.open && vp.roles ? vp.catalogue : []
         delegate: Row {

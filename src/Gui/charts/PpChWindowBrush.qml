@@ -152,6 +152,6 @@ Item {
     Text {
         visible: wb.interactive
         anchors.right: parent.right; y: track.y + track.height + (wb.roles ? wb.roles.u(2) : 2)
-        text: "drag to select · drag edges to resize"; font: wb.roles ? wb.roles.fLabel : Qt.font({}); color: wb.roles ? wb.roles.ink3 : "grey"
+        text: "drag to select · drag edges to resize"; font: wb.roles ? wb.roles.fLabel : Qt.application.font; color: wb.roles ? wb.roles.ink3 : "grey"
     }
 }

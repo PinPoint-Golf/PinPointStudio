@@ -57,10 +57,10 @@ Item {
     readonly property var keyKinds: paged ? [] : undefined
     property string count: ""
     property bool countOnBaseline: false
-    property font countFont: _on ? roles.fFigS : Qt.font({})
+    property font countFont: _on ? roles.fFigS : Qt.application.font
     property bool foldable: false
     property bool folded: false
-    property font subFont: _on ? roles.fSmall : Qt.font({})
+    property font subFont: _on ? roles.fSmall : Qt.application.font
     property color subColor: _on ? roles.ink3 : "transparent"
     property real subGap: 0
     property string subFit: "line"
@@ -97,11 +97,11 @@ Item {
             id: fl
             width: parent.width
             spacing: sh._g
-            Text { id: caret; visible: sh.foldable; text: sh.folded ? "▸" : "▾"; font: sh._on ? sh.roles.fSmall : Qt.font({}); color: sh._on ? sh.roles.ink3 : "transparent"
+            Text { id: caret; visible: sh.foldable; text: sh.folded ? "▸" : "▾"; font: sh._on ? sh.roles.fSmall : Qt.application.font; color: sh._on ? sh.roles.ink3 : "transparent"
                    height: st.height; verticalAlignment: Text.AlignVCenter }
-            Text { id: num; visible: sh.number.length > 0; text: sh.number; font: sh._on ? sh.roles.fFigS : Qt.font({}); color: sh._on ? sh.roles.ink3 : "transparent"
+            Text { id: num; visible: sh.number.length > 0; text: sh.number; font: sh._on ? sh.roles.fFigS : Qt.application.font; color: sh._on ? sh.roles.ink3 : "transparent"
                    height: st.height; verticalAlignment: Text.AlignVCenter }
-            Text { id: st; text: sh.title; font: sh._on ? sh.roles.fSection : Qt.font({}); color: sh._on ? sh.roles.ink : "transparent" }
+            Text { id: st; text: sh.title; font: sh._on ? sh.roles.fSection : Qt.application.font; color: sh._on ? sh.roles.ink : "transparent" }
             Text { id: cnt; visible: sh.count !== ""; text: sh.count; font: sh.countFont; color: sh._on ? sh.roles.ink3 : "transparent"
                    topPadding: sh.countOnBaseline ? st.baselineOffset - cfm.ascent : 0
                    height: sh.countOnBaseline ? implicitHeight : st.height
@@ -116,7 +116,7 @@ Item {
                    topPadding: sh.subFit === "baseline" ? st.baselineOffset - sfm.ascent : 0
                    height: sh.subFit === "line" ? st.height : sh.subFit === "grow" ? Math.max(implicitHeight, st.height) : implicitHeight
                    verticalAlignment: centred ? Text.AlignVCenter : Text.AlignTop }
-            Text { id: nt; visible: sh.note !== ""; text: sh.note; font: sh._on ? sh.roles.fSmall : Qt.font({}); color: sh._on ? sh.roles.ink2 : "transparent"
+            Text { id: nt; visible: sh.note !== ""; text: sh.note; font: sh._on ? sh.roles.fSmall : Qt.application.font; color: sh._on ? sh.roles.ink2 : "transparent"
                    height: st.height; verticalAlignment: Text.AlignVCenter }
         }
     }

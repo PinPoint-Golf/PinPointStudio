@@ -67,12 +67,12 @@ Item {
         }
         return out
     }
-    FontMetrics { id: fmF; font: rl.roles ? rl.roles.fFigLabel : Qt.font({}) }
+    FontMetrics { id: fmF; font: rl.roles ? rl.roles.fFigLabel : Qt.application.font }
     // The labels are measured AS DRAWN, by two unseen Texts: FontMetrics.advanceWidth("outside") ignores the
     // label face's capitals and tracking (Vector sets labels in spaced capitals), which under-measured the
     // column and clipped "OUTSIDE" at the left edge on the Vector cast.
-    Text { id: mShots; visible: false; text: rl.shotsLabel; font: rl.roles ? rl.roles.fLabel : Qt.font({}) }
-    Text { id: mCounts; visible: false; text: rl.countsLabel; font: rl.roles ? rl.roles.fLabel : Qt.font({}) }
+    Text { id: mShots; visible: false; text: rl.shotsLabel; font: rl.roles ? rl.roles.fLabel : Qt.application.font }
+    Text { id: mCounts; visible: false; text: rl.countsLabel; font: rl.roles ? rl.roles.fLabel : Qt.application.font }
     readonly property real gapX: roles ? roles.u(8) : 8
     readonly property real autoLabelW: Math.ceil(Math.max(showShots ? mShots.implicitWidth : 0, showCounts ? mCounts.implicitWidth : 0)) + gapX
     readonly property real lw: labelW >= 0 ? labelW : autoLabelW

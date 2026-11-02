@@ -42,13 +42,13 @@ PpChViewBase {
     spacing: roles ? roles.g(10) : Theme.gap(10)
 
     PpChText { objectName: "chRelationsWhy"; visible: !rv.available && present; roles: rv.roles; sentence: rv.rl ? rv.rl.refusal : null
-               font: rv.roles ? rv.roles.fBody : Qt.font({}); tone: rv.roles ? rv.roles.ink2 : "grey" }
+               font: rv.roles ? rv.roles.fBody : Qt.application.font; tone: rv.roles ? rv.roles.ink2 : "grey" }
     Column {
         visible: rv.available
         width: rv.width; spacing: rv.roles ? rv.roles.g(4) : Theme.gap(4)
-        Text { visible: !rv.cast && !!rv.body && !!rv.body.rStatus.kicker; text: rv.body ? (rv.body.rStatus.kicker || "") : ""; font: rv.roles ? rv.roles.fKicker : Qt.font({}); color: rv.roles ? rv.roles.ink3 : "grey" }
-        PpChText { roles: rv.roles; sentence: rv.rl.head; measure: false; font: rv.roles ? rv.roles.fTitle : Qt.font({}); tone: rv.roles ? rv.roles.ink : "black"; lineHeight: 1.08 }
-        PpChText { roles: rv.roles; sentence: rv.replay ? rv.rl.short : rv.rl.standfirst; font: rv.replay ? (rv.roles ? rv.roles.fSmall : Qt.font({})) : (rv.roles ? rv.roles.fStand : Qt.font({}))
+        Text { visible: !rv.cast && !!rv.body && !!rv.body.rStatus.kicker; text: rv.body ? (rv.body.rStatus.kicker || "") : ""; font: rv.roles ? rv.roles.fKicker : Qt.application.font; color: rv.roles ? rv.roles.ink3 : "grey" }
+        PpChText { roles: rv.roles; sentence: rv.rl.head; measure: false; font: rv.roles ? rv.roles.fTitle : Qt.application.font; tone: rv.roles ? rv.roles.ink : "black"; lineHeight: 1.08 }
+        PpChText { roles: rv.roles; sentence: rv.replay ? rv.rl.short : rv.rl.standfirst; font: rv.replay ? (rv.roles ? rv.roles.fSmall : Qt.application.font) : (rv.roles ? rv.roles.fStand : Qt.application.font)
                    lineHeight: rv.roles ? rv.roles.r.leading : 1 }
     }
     // the quiet axis controls: each value a link that opens its picker in place
@@ -138,7 +138,7 @@ PpChViewBase {
     Text {
         visible: rv.available && !rv.replay && (rv.rl.ledger || []).length > 10
         text: rv.allRows ? "Show the first ten" : (rv.rl.restText || "")
-        font: rv.roles ? (rv.interactive ? rv.roles.fSmallL : rv.roles.fSmall) : Qt.font({}); color: rv.roles ? (rv.interactive ? rv.roles.link : rv.roles.ink3) : "grey"
+        font: rv.roles ? (rv.interactive ? rv.roles.fSmallL : rv.roles.fSmall) : Qt.application.font; color: rv.roles ? (rv.interactive ? rv.roles.link : rv.roles.ink3) : "grey"
         MouseArea { anchors.fill: parent; enabled: rv.interactive; cursorShape: Qt.PointingHandCursor; onClicked: rv.allRows = !rv.allRows }
     }
     PpChText { visible: rv.available && !rv.replay && present; roles: rv.roles; sentence: rv.rl.ledgerNote; tone: rv.roles ? rv.roles.ink3 : "grey" }

@@ -95,14 +95,14 @@ PpChViewBase {
     }
 
     PpChText { objectName: "chSessionWhy"; visible: !sv.available && present; roles: sv.roles; sentence: sv.se ? sv.se.why : null
-               font: sv.roles ? sv.roles.fBody : Qt.font({}); tone: sv.roles ? sv.roles.ink2 : "grey" }
+               font: sv.roles ? sv.roles.fBody : Qt.application.font; tone: sv.roles ? sv.roles.ink2 : "grey" }
     Column {
         objectName: "chSessionHead"
         visible: sv.available
         width: sv.width; spacing: sv.roles ? sv.roles.g(4) : Theme.gap(4)
-        Text { visible: !sv.cast && !!sv.se.kicker; text: sv.se.kicker || ""; font: sv.roles ? sv.roles.fKicker : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
-        PpChText { roles: sv.roles; sentence: sv.se.head; measure: false; font: sv.roles ? sv.roles.fTitle : Qt.font({}); tone: sv.roles ? sv.roles.ink : "black"; lineHeight: 1.08 }
-        PpChText { visible: !sv.replay && present; roles: sv.roles; sentence: sv.se.standfirst; font: sv.roles ? sv.roles.fStand : Qt.font({}); lineHeight: sv.roles ? sv.roles.r.leading : 1 }
+        Text { visible: !sv.cast && !!sv.se.kicker; text: sv.se.kicker || ""; font: sv.roles ? sv.roles.fKicker : Qt.application.font; color: sv.roles ? sv.roles.ink3 : "grey" }
+        PpChText { roles: sv.roles; sentence: sv.se.head; measure: false; font: sv.roles ? sv.roles.fTitle : Qt.application.font; tone: sv.roles ? sv.roles.ink : "black"; lineHeight: 1.08 }
+        PpChText { visible: !sv.replay && present; roles: sv.roles; sentence: sv.se.standfirst; font: sv.roles ? sv.roles.fStand : Qt.application.font; lineHeight: sv.roles ? sv.roles.r.leading : 1 }
         PpChText { visible: !sv.replay && present; roles: sv.roles; sentence: sv.se.alignNote; tone: sv.roles ? sv.roles.ink3 : "grey" }
         PpChText { visible: present; roles: sv.roles; sentence: sv.se.clubNote; tone: sv.roles ? sv.roles.ink2 : "grey" }
         PpChText { visible: !sv.replay && present; roles: sv.roles; sentence: sv.se.caveat; tone: sv.roles ? sv.roles.ink2 : "grey" }

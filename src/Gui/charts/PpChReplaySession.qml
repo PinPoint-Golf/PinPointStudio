@@ -46,8 +46,8 @@ Column {
     Flow {
         width: rs.width; spacing: rs.roles ? rs.roles.g(10) : Theme.gap(10)
         PpChText { roles: rs.roles; sentence: rs.ok ? rs.info.head : null; measure: false; width: Math.min(implicitWidth, rs.width)
-                   font: rs.roles ? rs.roles.fBodyM : Qt.font({}); tone: rs.roles ? rs.roles.ink : "black" }
-        Text { visible: rs.ok; text: rs.ok ? (rs.info.follows || "") : ""; font: rs.roles ? rs.roles.fSmall : Qt.font({}); color: rs.roles ? rs.roles.ink3 : "grey" }
+                   font: rs.roles ? rs.roles.fBodyM : Qt.application.font; tone: rs.roles ? rs.roles.ink : "black" }
+        Text { visible: rs.ok; text: rs.ok ? (rs.info.follows || "") : ""; font: rs.roles ? rs.roles.fSmall : Qt.application.font; color: rs.roles ? rs.roles.ink3 : "grey" }
     }
     // the instants it is read at: the reached one in ink, the others links that seek there
     Row {
@@ -64,7 +64,7 @@ Column {
             }
         }
     }
-    PpChText { roles: rs.roles; sentence: rs.ok && rs.info.now ? rs.info.now.sentence : null; font: rs.roles ? rs.roles.fBody : Qt.font({}); tone: rs.roles ? rs.roles.ink : "black" }
+    PpChText { roles: rs.roles; sentence: rs.ok && rs.info.now ? rs.info.now.sentence : null; font: rs.roles ? rs.roles.fBody : Qt.application.font; tone: rs.roles ? rs.roles.ink : "black" }
     Flow {
         width: rs.width; spacing: rs.roles ? rs.roles.g(24) : Theme.gap(24)
         PpChRunBox {

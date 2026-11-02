@@ -185,7 +185,7 @@ Item {
             readonly property real at: hov ? tf.hoverMs : tf.playMs
             x: isFinite(at) ? Math.max(0, Math.min(tf.areaW - width, tf.xOf(at) - width / 2)) : 0; y: 0
             text: hov ? (tf.hover.when || "") : tf.playText
-            font: tf.roles ? tf.roles.fFigLabel : Qt.font({}); color: tf.roles ? tf.roles.ink : "black"
+            font: tf.roles ? tf.roles.fFigLabel : Qt.application.font; color: tf.roles ? tf.roles.ink : "black"
             Rectangle { z: -1; anchors.fill: parent; anchors.margins: -2; color: tf.roles ? tf.roles.knock : "transparent" }
         }
     }
@@ -603,6 +603,6 @@ Item {
                 text: modelData.text; font: tf.roles.fFigLabel; color: tf.roles.ink3
             }
         }
-        Text { x: tf.yGut; y: tf.roles ? tf.roles.u(14) : 14; text: "ms from impact"; font: tf.roles ? tf.roles.fLabel : Qt.font({}); color: tf.roles ? tf.roles.ink3 : "grey" }
+        Text { x: tf.yGut; y: tf.roles ? tf.roles.u(14) : 14; text: "ms from impact"; font: tf.roles ? tf.roles.fLabel : Qt.application.font; color: tf.roles ? tf.roles.ink3 : "grey" }
     }
 }

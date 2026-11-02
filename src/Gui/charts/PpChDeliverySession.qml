@@ -65,7 +65,7 @@ PpChSection {
             objectName: "chDeliverySessionHead"
             width: ss.width; spacing: ss.ok ? ss.roles.g(6) : Theme.gap(6)
             PpChText { roles: ss.roles; sentence: ss.se ? ss.se.head : null
-                       font: ss.ok ? ss.roles.fStand : Qt.font({}); tone: ss.ok ? ss.roles.ink : "black" }
+                       font: ss.ok ? ss.roles.fStand : Qt.application.font; tone: ss.ok ? ss.roles.ink : "black" }
         }
 
         // ── the plane, position by position: a box per P-position, this shot ringed ──
@@ -104,7 +104,7 @@ PpChSection {
             }
             Text { objectName: "chDeliveryVaries"; visible: text !== ""; width: ss.ok ? ss.roles.measureW(parent.width) : 0; wrapMode: Text.WordWrap
                    text: ss.available && ss.se.varies ? (ss.se.varies.words || "") : ""
-                   font: ss.ok ? ss.roles.fBody : Qt.font({}); color: ss.ok ? ss.roles.ink : "black" }
+                   font: ss.ok ? ss.roles.fBody : Qt.application.font; color: ss.ok ? ss.roles.ink : "black" }
         }
 
         // ── the usual set-up: the lines on the plot, and the hands' steepening ──
@@ -112,13 +112,13 @@ PpChSection {
             objectName: "chDeliveryUsual"
             visible: ss.available
             width: ss.width; spacing: ss.ok ? ss.roles.g(10) : Theme.gap(10)
-            Text { text: "Usually"; font: ss.ok ? ss.roles.fKicker : Qt.font({}); color: ss.ok ? ss.roles.ink3 : "grey" }
-            Text { text: "address"; font: ss.ok ? ss.roles.fSmall : Qt.font({}); color: ss.ok ? ss.roles.ink3 : "grey" }
-            Text { text: ss.usual.addressText || "-"; font: ss.ok ? ss.roles.fFigS : Qt.font({}); color: ss.ok ? ss.roles.ink : "black" }
-            Text { text: "shoulders"; font: ss.ok ? ss.roles.fSmall : Qt.font({}); color: ss.ok ? ss.roles.ink3 : "grey" }
-            Text { text: ss.usual.shouldersText || "-"; font: ss.ok ? ss.roles.fFigS : Qt.font({}); color: ss.ok ? ss.roles.ink : "black" }
-            Text { text: "hands steeper coming down"; font: ss.ok ? ss.roles.fSmall : Qt.font({}); color: ss.ok ? ss.roles.ink3 : "grey" }
-            Text { text: ss.usual.steepeningText || "-"; font: ss.ok ? ss.roles.fFigS : Qt.font({}); color: ss.ok ? ss.roles.ink : "black" }
+            Text { text: "Usually"; font: ss.ok ? ss.roles.fKicker : Qt.application.font; color: ss.ok ? ss.roles.ink3 : "grey" }
+            Text { text: "address"; font: ss.ok ? ss.roles.fSmall : Qt.application.font; color: ss.ok ? ss.roles.ink3 : "grey" }
+            Text { text: ss.usual.addressText || "-"; font: ss.ok ? ss.roles.fFigS : Qt.application.font; color: ss.ok ? ss.roles.ink : "black" }
+            Text { text: "shoulders"; font: ss.ok ? ss.roles.fSmall : Qt.application.font; color: ss.ok ? ss.roles.ink3 : "grey" }
+            Text { text: ss.usual.shouldersText || "-"; font: ss.ok ? ss.roles.fFigS : Qt.application.font; color: ss.ok ? ss.roles.ink : "black" }
+            Text { text: "hands steeper coming down"; font: ss.ok ? ss.roles.fSmall : Qt.application.font; color: ss.ok ? ss.roles.ink3 : "grey" }
+            Text { text: ss.usual.steepeningText || "-"; font: ss.ok ? ss.roles.fFigS : Qt.application.font; color: ss.ok ? ss.roles.ink : "black" }
         }
 
         // ── ball flight | shot shape ──
@@ -144,7 +144,7 @@ PpChSection {
                 x: cols.two ? cols.colW + cols.gap : 0; y: cols.two ? 0 : fl.height + ss.roles.g(18)
                 width: cols.colW
                 spacing: ss.ok ? ss.roles.g(6) : Theme.gap(6)
-                Text { text: "Shot shape"; font: ss.ok ? ss.roles.fKicker : Qt.font({}); color: ss.ok ? ss.roles.ink3 : "grey" }
+                Text { text: "Shot shape"; font: ss.ok ? ss.roles.fKicker : Qt.application.font; color: ss.ok ? ss.roles.ink3 : "grey" }
                 PpChShotShapeGrid {
                     roles: ss.roles; interactive: ss.interactive
                     // this shot ringed among the session's

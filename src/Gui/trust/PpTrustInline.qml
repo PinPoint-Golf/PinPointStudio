@@ -47,7 +47,7 @@ Item {
             Text {
                 objectName: "trustInlineToPanel"
                 text: "Show in the Trust panel"
-                font: ti.roles ? ti.roles.fSmallL : Qt.font({}); color: ti.roles ? ti.roles.link : "grey"
+                font: ti.roles ? ti.roles.fSmallL : Qt.application.font; color: ti.roles ? ti.roles.link : "grey"
                 MouseArea { anchors.fill: parent; anchors.margins: -2; cursorShape: Qt.PointingHandCursor
                             onClicked: { ViewLayout.setPanel(SessionMode.mode, "trust", true)
                                          const r = (ti.readings || [])[0]
@@ -56,7 +56,7 @@ Item {
             Text {
                 objectName: "trustInlineClose"
                 text: "Close"
-                font: ti.roles ? ti.roles.fSmallL : Qt.font({}); color: ti.roles ? ti.roles.link : "grey"
+                font: ti.roles ? ti.roles.fSmallL : Qt.application.font; color: ti.roles ? ti.roles.link : "grey"
                 MouseArea { anchors.fill: parent; anchors.margins: -2; cursorShape: Qt.PointingHandCursor; onClicked: ti.closed() }
             }
         }

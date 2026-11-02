@@ -50,15 +50,15 @@ Column {
             id: headFlow
             width: parent.width
             spacing: tr.roles ? tr.roles.g(7) : Theme.gap(7)
-            Text { visible: tr.foldable; text: tr.open ? "▾" : "▸"; font: tr.roles ? tr.roles.fSmall : Qt.font({}); color: tr.roles ? tr.roles.ink3 : "grey"
+            Text { visible: tr.foldable; text: tr.open ? "▾" : "▸"; font: tr.roles ? tr.roles.fSmall : Qt.application.font; color: tr.roles ? tr.roles.ink3 : "grey"
                    height: lab.height; verticalAlignment: Text.AlignVCenter }
             Rectangle { visible: !!tr.reading && !!tr.reading.key; width: tr.roles ? tr.roles.u(7) : 7; height: width; radius: width / 2
                         color: tr.roles && tr.reading && tr.reading.key ? Theme.metricColor(tr.reading.key) : "transparent" }
-            Text { id: lab; text: tr.reading ? tr.reading.label : ""; font: tr.roles ? tr.roles.fBodyM : Qt.font({}); color: tr.roles ? tr.roles.ink : "black" }
-            Text { text: tr.reading ? tr.reading.levelWord : ""; font: tr.roles ? tr.roles.fSmallM : Qt.font({}); color: tr.roles ? tr.roles.ink2 : "grey"
+            Text { id: lab; text: tr.reading ? tr.reading.label : ""; font: tr.roles ? tr.roles.fBodyM : Qt.application.font; color: tr.roles ? tr.roles.ink : "black" }
+            Text { text: tr.reading ? tr.reading.levelWord : ""; font: tr.roles ? tr.roles.fSmallM : Qt.application.font; color: tr.roles ? tr.roles.ink2 : "grey"
                    height: lab.height; verticalAlignment: Text.AlignVCenter }
             Text { visible: !!tr.reading && tr.reading.figure && tr.reading.figure !== "-"
-                   text: tr.reading ? tr.reading.figure : ""; font: tr.roles ? tr.roles.fFig : Qt.font({}); color: tr.roles ? tr.roles.ink2 : "grey"
+                   text: tr.reading ? tr.reading.figure : ""; font: tr.roles ? tr.roles.fFig : Qt.application.font; color: tr.roles ? tr.roles.ink2 : "grey"
                    height: lab.height; verticalAlignment: Text.AlignVCenter }
         }
         MouseArea { anchors.fill: parent; enabled: tr.foldable; cursorShape: Qt.PointingHandCursor; onClicked: tr.open = !tr.open }
@@ -66,7 +66,7 @@ Column {
     Text {
         visible: tr.open && !!tr.reading && !!tr.reading.levelTip
         width: tr.roles ? tr.roles.measureW(tr.width) : tr.width; wrapMode: Text.WordWrap
-        text: tr.reading ? tr.reading.levelTip : ""; font: tr.roles ? tr.roles.fSmallI : Qt.font({}); color: tr.roles ? tr.roles.ink3 : "grey"
+        text: tr.reading ? tr.reading.levelTip : ""; font: tr.roles ? tr.roles.fSmallI : Qt.application.font; color: tr.roles ? tr.roles.ink3 : "grey"
     }
     // what a cascade took down with it (stage 6): a refused club track names the readings it removed
     Text {
@@ -75,7 +75,7 @@ Column {
         width: tr.roles ? tr.roles.measureW(tr.width) : tr.width; wrapMode: Text.WordWrap
         leftPadding: tr.roles ? tr.roles.g(14) : Theme.gap(14)
         text: tr.reading ? "Not measured because of it: " + (tr.reading.covers || []).join(", ") + "." : ""
-        font: tr.roles ? tr.roles.fSmall : Qt.font({}); color: tr.roles ? tr.roles.ink2 : "grey"
+        font: tr.roles ? tr.roles.fSmall : Qt.application.font; color: tr.roles ? tr.roles.ink2 : "grey"
     }
     // what this reading kept from being judged (the diagnostics' findings, §4.4)
     Text {
@@ -84,7 +84,7 @@ Column {
         width: tr.roles ? tr.roles.measureW(tr.width) : tr.width; wrapMode: Text.WordWrap
         leftPadding: tr.roles ? tr.roles.g(14) : Theme.gap(14)
         text: tr.reading ? "Not judged because of it: " + (tr.reading.blocks || []).join(", ") + "." : ""
-        font: tr.roles ? tr.roles.fSmall : Qt.font({}); color: tr.roles ? tr.roles.ink2 : "grey"
+        font: tr.roles ? tr.roles.fSmall : Qt.application.font; color: tr.roles ? tr.roles.ink2 : "grey"
     }
     Repeater {
         model: tr.open && tr.reading ? (tr.reading.gates || []) : []
@@ -100,23 +100,23 @@ Column {
             readonly property real tw: tr.roles ? tr.roles.measureW(tr.width - leftPadding) : tr.width
             Row {
                 spacing: tr.roles ? tr.roles.g(6) : Theme.gap(6)
-                Text { id: gt; text: g.modelData.title; font: tr.roles ? tr.roles.fSmallM : Qt.font({}); color: tr.roles ? tr.roles.ink : "black" }
-                Text { text: g.modelData.effectWord; font: tr.roles ? tr.roles.fSmall : Qt.font({}); color: tr.roles ? tr.roles.ink3 : "grey"; anchors.baseline: gt.baseline }
+                Text { id: gt; text: g.modelData.title; font: tr.roles ? tr.roles.fSmallM : Qt.application.font; color: tr.roles ? tr.roles.ink : "black" }
+                Text { text: g.modelData.effectWord; font: tr.roles ? tr.roles.fSmall : Qt.application.font; color: tr.roles ? tr.roles.ink3 : "grey"; anchors.baseline: gt.baseline }
             }
             Text { width: g.tw; wrapMode: Text.WordWrap; visible: text !== ""
-                   text: g.modelData.evidence || ""; font: tr.roles ? tr.roles.fSmall : Qt.font({}); color: tr.roles ? tr.roles.ink2 : "grey" }
+                   text: g.modelData.evidence || ""; font: tr.roles ? tr.roles.fSmall : Qt.application.font; color: tr.roles ? tr.roles.ink2 : "grey" }
             Text {
                 objectName: "trustWhy:" + g.modelData.gate
                 text: g.why ? "Why this gate  ▾" : "Why this gate  ▸"
-                font: tr.roles ? tr.roles.fSmall : Qt.font({}); color: tr.roles ? tr.roles.link : "grey"
+                font: tr.roles ? tr.roles.fSmall : Qt.application.font; color: tr.roles ? tr.roles.link : "grey"
                 MouseArea { anchors.fill: parent; anchors.margins: -2; cursorShape: Qt.PointingHandCursor; onClicked: g.why = !g.why }
             }
             Text { visible: g.why && text !== ""; width: g.tw; wrapMode: Text.WordWrap
-                   text: g.modelData.explain || ""; font: tr.roles ? tr.roles.fSmall : Qt.font({}); color: tr.roles ? tr.roles.ink3 : "grey"
+                   text: g.modelData.explain || ""; font: tr.roles ? tr.roles.fSmall : Qt.application.font; color: tr.roles ? tr.roles.ink3 : "grey"
                    lineHeight: tr.roles ? tr.roles.r.smallLeading : 1 }
             Text { visible: g.why && text !== ""; width: g.tw; wrapMode: Text.WordWrap
                    text: [g.modelData.tuning || "", g.modelData.lift || ""].filter(function (s) { return s !== "" }).join("  ·  ")
-                   font: tr.roles ? tr.roles.fSmall : Qt.font({}); color: tr.roles ? tr.roles.ink3 : "grey" }
+                   font: tr.roles ? tr.roles.fSmall : Qt.application.font; color: tr.roles ? tr.roles.ink3 : "grey" }
         }
     }
 }

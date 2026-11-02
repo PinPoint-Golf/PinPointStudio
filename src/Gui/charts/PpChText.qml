@@ -34,7 +34,7 @@ Text {
     wrapMode: Text.WordWrap
     textFormat: Text.RichText
     text: present ? roles.html(sentence) : ""
-    font: roles ? roles.fSmall : Qt.font({})
+    font: roles ? roles.fSmall : Qt.application.font
     color: tone !== undefined ? tone : (roles ? roles.ink2 : "grey")
     lineHeight: roles ? roles.r.smallLeading : 1
 }

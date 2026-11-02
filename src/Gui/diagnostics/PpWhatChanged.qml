@@ -111,12 +111,12 @@ Column {
             width: parent.width
             spacing: wc.roles ? wc.roles.g(7) : Theme.gap(7)
             Text { text: (wc.printed ? "" : (wc.open ? "▾ " : "▸ ")) + "What changed"
-                   font: wc.roles ? (wc.printed ? wc.roles.fSmallM : wc.roles.fSmallL) : Qt.font({})
+                   font: wc.roles ? (wc.printed ? wc.roles.fSmallM : wc.roles.fSmallL) : Qt.application.font
                    color: wc.roles ? (wc.printed || !wc.interactive ? wc.roles.ink : wc.roles.link) : "grey" }
             Text { visible: text !== ""
                    text: wc.sub !== "" ? wc.sub
                          : wc.distance ? "your address posture, part by part" : "from address to " + wc.endWord + ", part by part"
-                   font: wc.roles ? wc.roles.fSmall : Qt.font({}); color: wc.roles ? wc.roles.ink3 : "grey" }
+                   font: wc.roles ? wc.roles.fSmall : Qt.application.font; color: wc.roles ? wc.roles.ink3 : "grey" }
         }
         MouseArea { anchors.fill: parent; enabled: !wc.printed && wc.interactive; cursorShape: Qt.PointingHandCursor; onClicked: wc.open = !wc.open }
     }
@@ -201,7 +201,7 @@ Column {
                 text: wc.distance
                       ? "Each part at address against its own ideal band. Share: how much of the finding each part carries."
                       : "Change: " + wc.endWord + " against address, in the direction each part's name says. Share: how much of the finding each part carries; against it, a part that moved the other way."
-                font: wc.roles ? wc.roles.fMicro : Qt.font({}); color: wc.roles ? wc.roles.ink3 : "grey"
+                font: wc.roles ? wc.roles.fMicro : Qt.application.font; color: wc.roles ? wc.roles.ink3 : "grey"
             }
         }
     }

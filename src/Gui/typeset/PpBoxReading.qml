@@ -57,8 +57,8 @@ Item {
     property color paper: roles ? roles.paper : "white"
     readonly property bool ok: !!roles
     readonly property var texts: (items || []).map(it => it.text || "")
-    TextMetrics { id: numM; font: rd.roles ? rd.roles.fFigLabel : Qt.font({}); text: { let w = ""; for (const t of rd.texts) if (t.length > w.length) w = t; return w } }
-    TextMetrics { id: footM; font: rd.roles ? rd.roles.fLabel : Qt.font({}); text: rd.footer }
+    TextMetrics { id: numM; font: rd.roles ? rd.roles.fFigLabel : Qt.application.font; text: { let w = ""; for (const t of rd.texts) if (t.length > w.length) w = t; return w } }
+    TextMetrics { id: footM; font: rd.roles ? rd.roles.fLabel : Qt.application.font; text: rd.footer }
     readonly property real lineH: ok ? Math.ceil(numM.height) + roles.u(1) : 12
     readonly property real tickOut: ok ? roles.u(4) : 4
     readonly property real gap: ok ? roles.u(8) : 8
@@ -146,7 +146,7 @@ Item {
     Text {
         objectName: "sdBoxReadingCount"
         visible: rd.footer !== ""
-        text: rd.footer; font: rd.roles ? rd.roles.fLabel : Qt.font({}); color: rd.roles ? rd.roles.ink3 : "grey"
+        text: rd.footer; font: rd.roles ? rd.roles.fLabel : Qt.application.font; color: rd.roles ? rd.roles.ink3 : "grey"
         x: rd.onRight ? rd.edgeR + rd.gap : rd.edgeL - rd.gap - width
         y: Math.round(rd.footY + (rd.lineH - height) / 2)
     }

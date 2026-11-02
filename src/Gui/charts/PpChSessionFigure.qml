@@ -434,14 +434,14 @@ Item {
         y: sf.topH + rowsCol.height + (sf.roles ? sf.roles.u(10) : 0)
         x: sf.yGut; width: sf.areaW - sf.yGut; wrapMode: Text.WordWrap
         text: (sf.session && sf.session.axisCaption) ? sf.session.axisCaption : ""
-        font: sf.roles ? sf.roles.fLabel : Qt.font({}); color: sf.roles ? sf.roles.ink3 : "grey"
+        font: sf.roles ? sf.roles.fLabel : Qt.application.font; color: sf.roles ? sf.roles.ink3 : "grey"
     }
     Flow {
         id: whenFlow
         y: cap.y + cap.height + (sf.roles ? sf.roles.u(4) : 0)
         x: sf.yGut; width: sf.areaW - sf.yGut
         spacing: sf.roles ? sf.roles.g(12) : Theme.gap(12)
-        Text { visible: sf.pTicks.length > 0; text: "When, middle half"; font: sf.roles ? sf.roles.fLabel : Qt.font({}); color: sf.roles ? sf.roles.ink3 : "grey" }
+        Text { visible: sf.pTicks.length > 0; text: "When, middle half"; font: sf.roles ? sf.roles.fLabel : Qt.application.font; color: sf.roles ? sf.roles.ink3 : "grey" }
         Repeater {
             model: sf.roles ? sf.pTicks.filter(function (p) { return !!p.when }) : []
             delegate: Row {

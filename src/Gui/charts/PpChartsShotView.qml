@@ -144,15 +144,15 @@ PpChViewBase {
         spacing: sv.roles ? sv.roles.g(8) : Theme.gap(8)
         // nothing to read: the presenter's own sentence (S1 no swing, S2 no traces)
         PpChText { objectName: "chShotEmpty"; visible: !sv.available && present; roles: sv.roles; sentence: sv.ts ? sv.ts.empty : null
-                   font: sv.roles ? sv.roles.fBody : Qt.font({}); tone: sv.roles ? sv.roles.ink2 : "grey" }
+                   font: sv.roles ? sv.roles.fBody : Qt.application.font; tone: sv.roles ? sv.roles.ink2 : "grey" }
         Column {
             objectName: "chHead"
             visible: sv.available
             width: parent.width; spacing: sv.roles ? sv.roles.g(4) : Theme.gap(4)
             Text { visible: !sv.cast && !!sv.ts.kicker; width: parent.width; wrapMode: Text.WordWrap; text: sv.ts.kicker || ""
-                   font: sv.roles ? sv.roles.fKicker : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
-            PpChText { roles: sv.roles; sentence: sv.ts.head; measure: false; font: sv.roles ? sv.roles.fTitle : Qt.font({}); tone: sv.roles ? sv.roles.ink : "black"; lineHeight: 1.08 }
-            PpChText { visible: !sv.replay && present; roles: sv.roles; sentence: sv.ts.standfirst; font: sv.roles ? sv.roles.fStand : Qt.font({}); lineHeight: sv.roles ? sv.roles.r.leading : 1 }
+                   font: sv.roles ? sv.roles.fKicker : Qt.application.font; color: sv.roles ? sv.roles.ink3 : "grey" }
+            PpChText { roles: sv.roles; sentence: sv.ts.head; measure: false; font: sv.roles ? sv.roles.fTitle : Qt.application.font; tone: sv.roles ? sv.roles.ink : "black"; lineHeight: 1.08 }
+            PpChText { visible: !sv.replay && present; roles: sv.roles; sentence: sv.ts.standfirst; font: sv.roles ? sv.roles.fStand : Qt.application.font; lineHeight: sv.roles ? sv.roles.r.leading : 1 }
         }
         PpChKeyFigures { width: parent.width; roles: sv.roles; items: sv.available && sv.rs && sv.rs.keyFigures ? (sv.rs.keyFigures.items || []) : []
                          onTrustClicked: (subject) => sv.openTrust(subject, "figures") }
@@ -182,16 +182,16 @@ PpChViewBase {
                     objectName: "chWindowHeader"
                     visible: !sv.replay && sv.available && !!sv.ts.window && sv.rows.length > 0
                     width: findings.colW; spacing: sv.roles ? sv.roles.g(10) : Theme.gap(10)
-                    Text { text: sv.ts.window ? (sv.ts.window.header || "") : ""; font: sv.roles ? sv.roles.fSmallM : Qt.font({}); color: sv.roles ? sv.roles.ink2 : "grey" }
-                    Text { text: sv.ts.window ? (sv.ts.window.spanText || "") : ""; font: sv.roles ? sv.roles.fFigS : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
-                    Text { text: sv.ts.window ? (sv.ts.window.tagsText || "") : ""; font: sv.roles ? sv.roles.fFigS : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
+                    Text { text: sv.ts.window ? (sv.ts.window.header || "") : ""; font: sv.roles ? sv.roles.fSmallM : Qt.application.font; color: sv.roles ? sv.roles.ink2 : "grey" }
+                    Text { text: sv.ts.window ? (sv.ts.window.spanText || "") : ""; font: sv.roles ? sv.roles.fFigS : Qt.application.font; color: sv.roles ? sv.roles.ink3 : "grey" }
+                    Text { text: sv.ts.window ? (sv.ts.window.tagsText || "") : ""; font: sv.roles ? sv.roles.fFigS : Qt.application.font; color: sv.roles ? sv.roles.ink3 : "grey" }
                 }
                 // the P dots' key, in words (F23): only the kinds present
                 Flow {
                     objectName: "chDotKey"
                     visible: !sv.replay && sv.available && sv.rows.length > 0 && !!sv.body && sv.body.showDots && (sv.ts.dotKey || []).length > 0
                     width: findings.colW; spacing: sv.roles ? sv.roles.g(14) : Theme.gap(14)
-                    Text { text: "P dots"; font: sv.roles ? sv.roles.fLabel : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
+                    Text { text: "P dots"; font: sv.roles ? sv.roles.fLabel : Qt.application.font; color: sv.roles ? sv.roles.ink3 : "grey" }
                     Repeater {
                         model: sv.roles && sv.available ? (sv.ts.dotKey || []) : []
                         delegate: Row {
@@ -232,10 +232,10 @@ PpChViewBase {
             spacing: sv.roles ? sv.roles.g(8) : Theme.gap(8)
             Column { id: headSlot; width: parent.width; visible: !sv.rail }
             // Against: the largest gap said, or why the reference is refused
-            PpChText { objectName: "chAgainstHead"; visible: !sv.replay && present; roles: sv.roles; sentence: sv.tr && sv.tr.active ? sv.tr.head : null; tone: sv.roles ? sv.roles.ink : "black"; font: sv.roles ? sv.roles.fBody : Qt.font({}) }
+            PpChText { objectName: "chAgainstHead"; visible: !sv.replay && present; roles: sv.roles; sentence: sv.tr && sv.tr.active ? sv.tr.head : null; tone: sv.roles ? sv.roles.ink : "black"; font: sv.roles ? sv.roles.fBody : Qt.application.font }
             PpChText { visible: !sv.replay && present; roles: sv.roles; sentence: sv.tr && sv.tr.refused ? sv.tr.why : null; tone: sv.roles ? sv.roles.ink3 : "grey" }
             // a preset with no drawable curve (Club delivery, S6): its cards carry it
-            PpChText { objectName: "chNoTraces"; visible: present; roles: sv.roles; sentence: sv.available ? sv.ts.noTraces : null; font: sv.roles ? sv.roles.fBody : Qt.font({}) }
+            PpChText { objectName: "chNoTraces"; visible: present; roles: sv.roles; sentence: sv.available ? sv.ts.noTraces : null; font: sv.roles ? sv.roles.fBody : Qt.application.font }
             PpChTraceFigure {
                 visible: sv.available && sv.rows.length > 0
                 width: parent.width
@@ -355,7 +355,7 @@ PpChViewBase {
             readonly property var ref: sv.body && sv.body.wChoices ? (sv.body.wChoices.reference || ({})) : ({})
             visible: !sv.replay && !sv.cast && sv.available && ref.canSet === true && !!sv.roles && !(sv.body && sv.body.collapsed.controls === true)
             text: ref.linkText || ""
-            font: !sv.roles ? Qt.font({}) : ref.isThisShot ? sv.roles.fSmallM : (sv.interactive ? sv.roles.fSmallL : sv.roles.fSmall)
+            font: !sv.roles ? Qt.application.font : ref.isThisShot ? sv.roles.fSmallM : (sv.interactive ? sv.roles.fSmallL : sv.roles.fSmall)
             color: !sv.roles ? "grey" : ref.isThisShot ? sv.roles.ink : (sv.interactive ? sv.roles.link : sv.roles.ink3)
             MouseArea { anchors.fill: parent; enabled: sv.interactive; cursorShape: Qt.PointingHandCursor
                         onClicked: appSettings.wristReferenceSwingDir = parent.ref.isThisShot ? "" : (sv.ts.swingDir || "") }
@@ -434,7 +434,7 @@ PpChViewBase {
             state_: (sv.rs.apart || []).length > 0 ? (sv.rs.apart || []).length + ((sv.rs.apart || []).length === 1 ? " reading" : " readings") : ""
             onToggled: if (sv.body) sv.body.toggleSection("apart")
         }
-        PpChText { visible: !sv.apartFolded && present; roles: sv.roles; sentence: sv.rs ? sv.rs.standfirst : null; font: sv.roles ? sv.roles.fBody : Qt.font({}) }
+        PpChText { visible: !sv.apartFolded && present; roles: sv.roles; sentence: sv.rs ? sv.rs.standfirst : null; font: sv.roles ? sv.roles.fBody : Qt.application.font }
         PpPageKey {
             id: chKey1
             visible: !sv.apartFolded
@@ -462,7 +462,7 @@ PpChViewBase {
         Flow {
             visible: !sv.apartFolded && (sv.rs.firedElsewhere || []).length > 0
             width: parent.width; spacing: sv.roles ? sv.roles.g(10) : Theme.gap(10)
-            Text { text: "Also fired on this shot"; font: sv.roles ? sv.roles.fLabel : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
+            Text { text: "Also fired on this shot"; font: sv.roles ? sv.roles.fLabel : Qt.application.font; color: sv.roles ? sv.roles.ink3 : "grey" }
             Repeater {
                 model: sv.roles ? (sv.rs.firedElsewhere || []) : []
                 delegate: Row {

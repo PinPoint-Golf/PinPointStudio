@@ -66,7 +66,7 @@ Item {
             Text { x: tr.gutL - width - tr.roles.u(5); y: tr.vy(modelData.v) - height / 2; text: modelData.text; font: tr.roles.fFigLabel; color: tr.roles.ink3 }
         }
     }
-    Text { text: tr.trace ? (tr.trace.unitText || "") : ""; font: tr.roles ? tr.roles.fLabelUnit : Qt.font({}); color: tr.roles ? tr.roles.ink3 : "grey" }
+    Text { text: tr.trace ? (tr.trace.unitText || "") : ""; font: tr.roles ? tr.roles.fLabelUnit : Qt.application.font; color: tr.roles ? tr.roles.ink3 : "grey" }
     Repeater {
         model: tr.roles && tr.trace ? (tr.trace.phases || []) : []
         delegate: Item {
@@ -92,7 +92,7 @@ Item {
             text: modelData.text; font: tr.roles.fFigLabel; color: tr.roles.ink3
         }
     }
-    Text { id: msLab; x: tr.gutL + tr.pw - width; y: tr.pTop + tr.plotH + (tr.roles ? tr.roles.u(5) : 5); text: "ms from impact"; font: tr.roles ? tr.roles.fLabel : Qt.font({}); color: tr.roles ? tr.roles.ink3 : "grey" }
+    Text { id: msLab; x: tr.gutL + tr.pw - width; y: tr.pTop + tr.plotH + (tr.roles ? tr.roles.u(5) : 5); text: "ms from impact"; font: tr.roles ? tr.roles.fLabel : Qt.application.font; color: tr.roles ? tr.roles.ink3 : "grey" }
     PpChPlot {
         x: tr.gutL + tr.inset; y: tr.pTop; width: tr.pw - 2 * tr.inset; height: tr.plotH
         roles: tr.roles; zeroLine: false
@@ -132,7 +132,7 @@ Item {
         readonly property real px: tr.tx(tr.playMs)
         x: px + width + tr.roles.u(6) > tr.gutL + tr.pw ? px - width - tr.roles.u(4) : px + tr.roles.u(4)
         y: tr.pTop + tr.roles.u(1)
-        text: tr.playText; font: tr.roles ? tr.roles.fFigLabel : Qt.font({}); color: tr.roles ? tr.roles.ink : "black"
+        text: tr.playText; font: tr.roles ? tr.roles.fFigLabel : Qt.application.font; color: tr.roles ? tr.roles.ink : "black"
         Rectangle { z: -1; anchors.fill: parent; anchors.margins: -1; color: tr.roles ? tr.roles.knock : "transparent" }
     }
 }

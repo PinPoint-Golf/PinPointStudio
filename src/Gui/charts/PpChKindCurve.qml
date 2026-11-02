@@ -67,7 +67,7 @@ Item {
             Text { x: kf.gutL - width - kf.roles.u(5); y: kf.vy(modelData.v) - height / 2; text: modelData.text; font: kf.roles.fFigLabel; color: kf.roles.ink3 }
         }
     }
-    Text { text: kf.curve ? (kf.curve.unitText || "") : ""; font: kf.roles ? kf.roles.fLabelUnit : Qt.font({}); color: kf.roles ? kf.roles.ink3 : "grey" }
+    Text { text: kf.curve ? (kf.curve.unitText || "") : ""; font: kf.roles ? kf.roles.fLabelUnit : Qt.application.font; color: kf.roles ? kf.roles.ink3 : "grey" }
     Repeater {
         model: kf.roles && kf.curve && kf.hasWindow ? (kf.curve.phases || []).filter(function (p) { return p.tMs >= kf.t0 && p.tMs <= kf.t1 }) : []
         delegate: Item {
@@ -78,7 +78,7 @@ Item {
         }
     }
     Text { x: kf.gutL + kf.pw - width; y: kf.pTop + kf.plotH + (kf.roles ? kf.roles.u(5) : 5); text: "time lined up on the P-positions"
-           font: kf.roles ? kf.roles.fLabel : Qt.font({}); color: kf.roles ? kf.roles.ink3 : "grey" }
+           font: kf.roles ? kf.roles.fLabel : Qt.application.font; color: kf.roles ? kf.roles.ink3 : "grey" }
     PpChPlot {
         x: kf.gutL; y: kf.pTop; width: kf.pw; height: kf.plotH
         roles: kf.roles; zeroLine: false

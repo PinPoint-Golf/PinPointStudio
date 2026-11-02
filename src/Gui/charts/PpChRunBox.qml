@@ -73,7 +73,7 @@ Item {
         visible: rb.showCaption && !!rb.run
         width: parent.width; wrapMode: Text.WordWrap
         text: rb.run ? (rb.run.caption || "") : ""
-        font: rb.roles ? rb.roles.fSmall : Qt.font({}); color: rb.roles ? rb.roles.ink2 : "grey"
+        font: rb.roles ? rb.roles.fSmall : Qt.application.font; color: rb.roles ? rb.roles.ink2 : "grey"
     }
     // the target range: a wash between its edges (clipped to the scale), each edge a hairline; its label at the right
     Rectangle {
@@ -89,7 +89,7 @@ Item {
         visible: rb.banded && !!rb.band.label
         x: rb.width - rb.gutR + (rb.roles ? rb.roles.u(6) : 6)
         y: visible ? (rb.vy(Math.min(rb.hi, rb.band.hi)) + rb.vy(Math.max(rb.lo, rb.band.lo))) / 2 - height / 2 : 0
-        text: visible ? rb.band.label : ""; font: rb.roles ? rb.roles.fLabelUnit : Qt.font({}); color: rb.bandInk; lineHeight: 1.1
+        text: visible ? rb.band.label : ""; font: rb.roles ? rb.roles.fLabelUnit : Qt.application.font; color: rb.bandInk; lineHeight: 1.1
     }
     Repeater {
         model: rb.roles ? rb.yt : []
@@ -102,7 +102,7 @@ Item {
         }
     }
     Text { visible: !!rb.run && !!rb.run.unitText; x: 0; y: rb.pTop - height - (rb.roles ? rb.roles.u(1) : 1); text: rb.run ? (rb.run.unitText || "") : ""
-           font: rb.roles ? rb.roles.fLabelUnit : Qt.font({}); color: rb.roles ? rb.roles.ink3 : "grey" }
+           font: rb.roles ? rb.roles.fLabelUnit : Qt.application.font; color: rb.roles ? rb.roles.ink3 : "grey" }
     Rectangle { visible: !!rb.roles; x: rb.gutL; y: rb.pTop + rb.plotH; width: rb.pw; height: rb.roles ? rb.roles.hw : 1; color: rb.roles ? rb.roles.baseline : "grey" }
     // the drift line, in the metric's hue, only where it clears chance (the presenter's line)
     Canvas {

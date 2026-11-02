@@ -57,14 +57,14 @@ PpChSection {
             objectName: "chPostureSessionHead"
             width: ss.width; spacing: ss.ok ? ss.roles.g(6) : Theme.gap(6)
             PpChText { roles: ss.roles; sentence: ss.se ? ss.se.head : null
-                       font: ss.ok ? ss.roles.fStand : Qt.font({}); tone: ss.ok ? ss.roles.ink : "black" }
+                       font: ss.ok ? ss.roles.fStand : Qt.application.font; tone: ss.ok ? ss.roles.ink : "black" }
             Flow {
                 objectName: "chPostureSessionPattern"
                 visible: ss.available && !!ss.se.patternLine
                 width: parent.width; spacing: ss.ok ? ss.roles.g(10) : Theme.gap(10)
-                Text { text: "Pattern"; font: ss.ok ? ss.roles.fKicker : Qt.font({}); color: ss.ok ? ss.roles.ink3 : "grey" }
+                Text { text: "Pattern"; font: ss.ok ? ss.roles.fKicker : Qt.application.font; color: ss.ok ? ss.roles.ink3 : "grey" }
                 Text { width: Math.min(implicitWidth, ss.width); wrapMode: Text.WordWrap
-                       text: ss.se.patternLine || ""; font: ss.ok ? ss.roles.fBody : Qt.font({}); color: ss.ok ? ss.roles.ink : "black" }
+                       text: ss.se.patternLine || ""; font: ss.ok ? ss.roles.fBody : Qt.application.font; color: ss.ok ? ss.roles.ink : "black" }
             }
         }
 
@@ -84,7 +84,7 @@ PpChSection {
                 onColumnActivated: (i) => { const p = (ss.prof.positions || [])[i]; if (p) ss.seek(p.seekUs) }
             }
             Text { visible: text !== ""; width: ss.ok ? ss.roles.measureW(parent.width) : 0; wrapMode: Text.WordWrap; text: ss.prof.caption || ""
-                   font: ss.ok ? ss.roles.fSmall : Qt.font({}); color: ss.ok ? ss.roles.ink3 : "grey" }
+                   font: ss.ok ? ss.roles.fSmall : Qt.application.font; color: ss.ok ? ss.roles.ink3 : "grey" }
             PpChPostureTrust { width: parent.width; roles: ss.roles
                                lines: ss.available && ss.se.trust ? (ss.se.trust.lines || []) : [] }
         }
@@ -141,7 +141,7 @@ PpChSection {
             }
             Text { width: parent.width; wrapMode: Text.WordWrap
                    text: strip.hoverLabel !== "" ? strip.hoverLabel : (ss.strip.line || "")
-                   font: ss.ok ? ss.roles.fSmall : Qt.font({}); color: ss.ok ? ss.roles.ink2 : "grey" }
+                   font: ss.ok ? ss.roles.fSmall : Qt.application.font; color: ss.ok ? ss.roles.ink2 : "grey" }
         }
 
         // ── the departures: counts across the shots; a name opens its condition ──
@@ -152,7 +152,7 @@ PpChSection {
             readonly property var deps: ss.available ? (ss.se.departures || []) : []
             PpSectionHead { width: parent.width; roles: ss.roles; title: "Departures"; sub: "how many shots each fault was found on, and where it starts" }
             Text { visible: parent.deps.length === 0; width: parent.width; wrapMode: Text.WordWrap
-                   text: ss.se.departuresEmpty || ""; font: ss.ok ? ss.roles.fBody : Qt.font({}); color: ss.ok ? ss.roles.ink2 : "grey" }
+                   text: ss.se.departuresEmpty || ""; font: ss.ok ? ss.roles.fBody : Qt.application.font; color: ss.ok ? ss.roles.ink2 : "grey" }
             Repeater {
                 model: parent.deps
                 delegate: Item {
@@ -170,7 +170,7 @@ PpChSection {
                                        onClicked: if (ss.body) ss.body.openCondition(dr.conditionId) } }
                     Text { x: dn.x + dn.width + ss.roles.u(12); y: ss.roles.u(4); width: parent.width - x; elide: Text.ElideRight
                            text: dr.modelData.detail || ""
-                           font: ss.ok ? ss.roles.fSmall : Qt.font({}); color: ss.ok ? ss.roles.ink2 : "grey" }
+                           font: ss.ok ? ss.roles.fSmall : Qt.application.font; color: ss.ok ? ss.roles.ink2 : "grey" }
                 }
             }
         }
@@ -182,7 +182,7 @@ PpChSection {
             width: ss.width; spacing: ss.ok ? ss.roles.g(4) : Theme.gap(4)
             PpSectionHead { width: parent.width; roles: ss.roles; title: "Repeatable?"; sub: "" }
             Text { visible: text !== ""; width: ss.ok ? ss.roles.measureW(parent.width) : 0; wrapMode: Text.WordWrap
-                   text: ss.rep.words || ""; font: ss.ok ? ss.roles.fBody : Qt.font({}); color: ss.ok ? ss.roles.ink : "black" }
+                   text: ss.rep.words || ""; font: ss.ok ? ss.roles.fBody : Qt.application.font; color: ss.ok ? ss.roles.ink : "black" }
         }
     }
 }

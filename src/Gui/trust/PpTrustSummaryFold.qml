@@ -95,7 +95,7 @@ Column {
                 wrapMode: Text.WordWrap; textFormat: Text.StyledText
                 text: (fold.roles ? fold.roles.esc(ln.modelData.text) : ln.modelData.text)
                       + (ln.gated && fold.roles ? "  <font color='" + fold.roles.link + "'>Why ›</font>" : "")
-                font: fold.roles ? fold.roles.fSmall : Qt.font({}); color: fold.roles ? fold.roles.ink2 : "grey"
+                font: fold.roles ? fold.roles.fSmall : Qt.application.font; color: fold.roles ? fold.roles.ink2 : "grey"
                 MouseArea {
                     anchors.fill: parent
                     enabled: ln.gated

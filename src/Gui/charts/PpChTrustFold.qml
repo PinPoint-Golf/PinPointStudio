@@ -53,7 +53,7 @@ Column {
             leftPadding: fold.roles ? fold.roles.g(14) : Theme.gap(14)
             wrapMode: Text.WordWrap
             text: String(modelData)
-            font: fold.roles ? fold.roles.fSmall : Qt.font({}); color: fold.roles ? fold.roles.ink2 : "grey"
+            font: fold.roles ? fold.roles.fSmall : Qt.application.font; color: fold.roles ? fold.roles.ink2 : "grey"
         }
     }
 }

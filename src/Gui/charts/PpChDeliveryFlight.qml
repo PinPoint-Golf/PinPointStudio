@@ -68,16 +68,16 @@ Column {
 
     Flow {
         width: parent.width; spacing: fb.ok ? fb.roles.g(10) : Theme.gap(10)
-        Text { text: "Ball flight"; font: fb.ok ? fb.roles.fKicker : Qt.font({}); color: fb.ok ? fb.roles.ink3 : "grey" }
+        Text { text: "Ball flight"; font: fb.ok ? fb.roles.fKicker : Qt.application.font; color: fb.ok ? fb.roles.ink3 : "grey" }
         Text { visible: text !== ""; text: fb.ok && fb.flight.pool ? (fb.flight.pool.words || "") : ""
-               font: fb.ok ? fb.roles.fSmall : Qt.font({}); color: fb.ok ? fb.roles.ink3 : "grey" }
+               font: fb.ok ? fb.roles.fSmall : Qt.application.font; color: fb.ok ? fb.roles.ink3 : "grey" }
     }
     Text { visible: text !== ""; width: fb.ok ? fb.roles.measureW(fb.width) : 0; wrapMode: Text.WordWrap
-           text: fb.ok ? (fb.flight.text || "") : ""; font: fb.ok ? fb.roles.fBody : Qt.font({}); color: fb.ok ? fb.roles.ink : "black" }
+           text: fb.ok ? (fb.flight.text || "") : ""; font: fb.ok ? fb.roles.fBody : Qt.application.font; color: fb.ok ? fb.roles.ink : "black" }
     Text { visible: text !== ""; width: fb.ok ? fb.roles.measureW(fb.width) : 0; wrapMode: Text.WordWrap
-           text: fb.ok ? (fb.flight.attackText || "") : ""; font: fb.ok ? fb.roles.fBody : Qt.font({}); color: fb.ok ? fb.roles.ink2 : "grey" }
+           text: fb.ok ? (fb.flight.attackText || "") : ""; font: fb.ok ? fb.roles.fBody : Qt.application.font; color: fb.ok ? fb.roles.ink2 : "grey" }
     Text { visible: text !== ""; width: fb.ok ? fb.roles.measureW(fb.width) : 0; wrapMode: Text.WordWrap
-           text: fb.ok ? (fb.flight.thisLine || "") : ""; font: fb.ok ? fb.roles.fBodyM : Qt.font({}); color: fb.ok ? fb.roles.ink : "black" }
+           text: fb.ok ? (fb.flight.thisLine || "") : ""; font: fb.ok ? fb.roles.fBodyM : Qt.application.font; color: fb.ok ? fb.roles.ink : "black" }
     Item {
         objectName: "chDeliveryScatter"
         visible: fb.showScatter && !!fb.adapted && fb.adapted.points.length + (fb.xOnly ? 1 : 0) > 0

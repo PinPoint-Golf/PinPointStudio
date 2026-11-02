@@ -71,8 +71,8 @@ PpChSection {
             objectName: "chDeliveryHead"
             width: ds.width
             spacing: ds.has ? ds.ty.g(6) : 0
-            PpChText { roles: ds.ty; sentence: ds.has ? ds.sh.head : null; font: ds.has ? ds.ty.fStand : Qt.font({}); tone: ds.has ? ds.ty.ink : "black" }
-            PpChText { visible: !ds.replay && present; roles: ds.ty; sentence: ds.has && ds.body ? ds.body.dStandfirst : null; font: ds.has ? ds.ty.fBody : Qt.font({}) }
+            PpChText { roles: ds.ty; sentence: ds.has ? ds.sh.head : null; font: ds.has ? ds.ty.fStand : Qt.application.font; tone: ds.has ? ds.ty.ink : "black" }
+            PpChText { visible: !ds.replay && present; roles: ds.ty; sentence: ds.has && ds.body ? ds.body.dStandfirst : null; font: ds.has ? ds.ty.fBody : Qt.application.font }
         }
 
         // ── the plane story (§5.1); in Analyse the published shape, the positions and the slot ──
@@ -84,21 +84,21 @@ PpChSection {
             Flow {
                 width: parent.width
                 spacing: ds.has ? ds.ty.g(10) : 0
-                Text { text: "Plane"; font: ds.has ? ds.ty.fKicker : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
+                Text { text: "Plane"; font: ds.has ? ds.ty.fKicker : Qt.application.font; color: ds.has ? ds.ty.ink3 : "grey" }
                 Text { width: Math.min(implicitWidth, ds.has ? ds.ty.measureW(ds.width) : ds.width); wrapMode: Text.WordWrap
-                       text: ds.story.text || ""; font: ds.has ? ds.ty.fBody : Qt.font({}); color: ds.has ? ds.ty.ink : "black" }
+                       text: ds.story.text || ""; font: ds.has ? ds.ty.fBody : Qt.application.font; color: ds.has ? ds.ty.ink : "black" }
             }
             Text { visible: !ds.replay && text !== ""; width: ds.has ? ds.ty.measureW(parent.width) : 0; wrapMode: Text.WordWrap
-                   text: ds.story.shapeLine || ""; font: ds.has ? ds.ty.fSmall : Qt.font({}); color: ds.has ? ds.ty.ink2 : "grey" }
+                   text: ds.story.shapeLine || ""; font: ds.has ? ds.ty.fSmall : Qt.application.font; color: ds.has ? ds.ty.ink2 : "grey" }
             // the plane at each position, the hands' under it; a press seeks there, the playhead's position in ink
             Row {
                 visible: !ds.replay && (ds.story.positions || []).length > 0
                 spacing: ds.has ? ds.ty.g(16) : 0
                 Column {
                     spacing: ds.has ? ds.ty.g(1) : 0
-                    Text { text: " "; height: ds.posTagH; font: ds.has ? ds.ty.fFigLabel : Qt.font({}) }
-                    Text { text: "plane"; height: ds.posRowH; verticalAlignment: Text.AlignVCenter; font: ds.has ? ds.ty.fLabelUnit : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
-                    Text { text: "hands"; height: ds.posRowH; verticalAlignment: Text.AlignVCenter; font: ds.has ? ds.ty.fLabelUnit : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
+                    Text { text: " "; height: ds.posTagH; font: ds.has ? ds.ty.fFigLabel : Qt.application.font }
+                    Text { text: "plane"; height: ds.posRowH; verticalAlignment: Text.AlignVCenter; font: ds.has ? ds.ty.fLabelUnit : Qt.application.font; color: ds.has ? ds.ty.ink3 : "grey" }
+                    Text { text: "hands"; height: ds.posRowH; verticalAlignment: Text.AlignVCenter; font: ds.has ? ds.ty.fLabelUnit : Qt.application.font; color: ds.has ? ds.ty.ink3 : "grey" }
                 }
                 Repeater {
                     model: ds.has ? (ds.story.positions || []) : []
@@ -130,13 +130,13 @@ PpChSection {
                 visible: !ds.replay && ds.slot.available === true
                 width: parent.width
                 spacing: ds.has ? ds.ty.g(10) : 0
-                Text { text: "Slot"; font: ds.has ? ds.ty.fKicker : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
-                Text { text: "address"; font: ds.has ? ds.ty.fSmall : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
-                Text { text: ds.slot.addressText || "-"; font: ds.has ? ds.ty.fFigS : Qt.font({}); color: ds.has ? ds.ty.ink : "black" }
-                Text { text: "shoulders"; font: ds.has ? ds.ty.fSmall : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
-                Text { text: ds.slot.shouldersText || "-"; font: ds.has ? ds.ty.fFigS : Qt.font({}); color: ds.has ? ds.ty.ink : "black" }
-                Text { visible: text !== ""; text: ds.slot.widthText || ""; font: ds.has ? ds.ty.fSmall : Qt.font({}); color: ds.has ? ds.ty.ink2 : "grey" }
-                Text { visible: text !== ""; text: ds.slot.text ? "·  " + ds.slot.text : ""; font: ds.has ? ds.ty.fSmall : Qt.font({}); color: ds.has ? ds.ty.ink : "black" }
+                Text { text: "Slot"; font: ds.has ? ds.ty.fKicker : Qt.application.font; color: ds.has ? ds.ty.ink3 : "grey" }
+                Text { text: "address"; font: ds.has ? ds.ty.fSmall : Qt.application.font; color: ds.has ? ds.ty.ink3 : "grey" }
+                Text { text: ds.slot.addressText || "-"; font: ds.has ? ds.ty.fFigS : Qt.application.font; color: ds.has ? ds.ty.ink : "black" }
+                Text { text: "shoulders"; font: ds.has ? ds.ty.fSmall : Qt.application.font; color: ds.has ? ds.ty.ink3 : "grey" }
+                Text { text: ds.slot.shouldersText || "-"; font: ds.has ? ds.ty.fFigS : Qt.application.font; color: ds.has ? ds.ty.ink : "black" }
+                Text { visible: text !== ""; text: ds.slot.widthText || ""; font: ds.has ? ds.ty.fSmall : Qt.application.font; color: ds.has ? ds.ty.ink2 : "grey" }
+                Text { visible: text !== ""; text: ds.slot.text ? "·  " + ds.slot.text : ""; font: ds.has ? ds.ty.fSmall : Qt.application.font; color: ds.has ? ds.ty.ink : "black" }
             }
         }
 
@@ -145,10 +145,10 @@ PpChSection {
             objectName: "chDeliveryShape"
             visible: ds.replay && ds.shape.available === true
             spacing: ds.has ? ds.ty.g(14) : 0
-            Text { text: "Shot shape"; font: ds.has ? ds.ty.fKicker : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
+            Text { text: "Shot shape"; font: ds.has ? ds.ty.fKicker : Qt.application.font; color: ds.has ? ds.ty.ink3 : "grey" }
             PpChShotShapeGrid { roles: ds.ty; shot: ds.shape; marks: []; line: ""; interactive: false
                                 cell: ds.has ? ds.ty.u(20) : 20 }
-            Text { text: ds.shape.word || "-"; font: ds.has ? ds.ty.fBodyM : Qt.font({}); color: ds.has ? ds.ty.ink : "black" }
+            Text { text: ds.shape.word || "-"; font: ds.has ? ds.ty.fBodyM : Qt.application.font; color: ds.has ? ds.ty.ink : "black" }
         }
 
         // ── the picture strip: address, the top and P6 down the line, the lines frozen at address (stage 6); at the glance
@@ -190,7 +190,7 @@ PpChSection {
                     visible: ds.impactLines.length > 0
                     width: parent.width
                     spacing: ds.has ? ds.ty.g(6) : 0
-                    Text { text: "At impact"; font: ds.has ? ds.ty.fKicker : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
+                    Text { text: "At impact"; font: ds.has ? ds.ty.fKicker : Qt.application.font; color: ds.has ? ds.ty.ink3 : "grey" }
                     Repeater {
                         model: ds.impactLines
                         delegate: Text {
@@ -208,12 +208,12 @@ PpChSection {
                     spacing: ds.has ? ds.ty.g(6) : 0
                     Flow {
                         width: parent.width; spacing: ds.has ? ds.ty.g(10) : 0
-                        Text { text: "Shot shape"; font: ds.has ? ds.ty.fKicker : Qt.font({}); color: ds.has ? ds.ty.ink3 : "grey" }
-                        Text { text: ds.shape.word || "-"; font: ds.has ? ds.ty.fBodyM : Qt.font({}); color: ds.has ? ds.ty.ink : "black" }
+                        Text { text: "Shot shape"; font: ds.has ? ds.ty.fKicker : Qt.application.font; color: ds.has ? ds.ty.ink3 : "grey" }
+                        Text { text: ds.shape.word || "-"; font: ds.has ? ds.ty.fBodyM : Qt.application.font; color: ds.has ? ds.ty.ink : "black" }
                         Text { visible: ds.shape.available === true
                                text: ds.shape.fromBall ? "start " + (ds.shape.launchDirText || "-") + "  ·  spin axis " + (ds.shape.spinAxisText || "-")
                                                  : "face " + (ds.shape.faceText || "-") + "  ·  face to path " + (ds.shape.faceToPathText || "-")
-                               font: ds.has ? ds.ty.fFigS : Qt.font({}); color: ds.has ? ds.ty.ink2 : "grey" }
+                               font: ds.has ? ds.ty.fFigS : Qt.application.font; color: ds.has ? ds.ty.ink2 : "grey" }
                     }
                     PpChShotShapeGrid {
                         roles: ds.ty; interactive: ds.interactive && !ds.cast

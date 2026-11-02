@@ -40,11 +40,11 @@ Item {
         width: parent.width
         spacing: tg._gap
         Text { id: q; text: tg.printed ? "How far can I trust this?" : (tg.open ? "▾" : "▸") + " How far can I trust this?"
-               font: tg.roles ? (tg.printed ? tg.roles.fSmallM : tg.roles.fSmallL) : Qt.font({})
+               font: tg.roles ? (tg.printed ? tg.roles.fSmallM : tg.roles.fSmallL) : Qt.application.font
                color: tg.roles ? (tg.printed ? tg.roles.ink : tg.roles.link) : "grey" }
         Text { id: tl; visible: tg._tailShown
                text: tg.tail
-               font: tg.roles ? tg.roles.fSmall : Qt.font({}); color: tg.roles ? tg.roles.ink3 : "grey" }
+               font: tg.roles ? tg.roles.fSmall : Qt.application.font; color: tg.roles ? tg.roles.ink3 : "grey" }
     }
     MouseArea { anchors.fill: parent; anchors.margins: -tg.hitMargin; enabled: !tg.printed; cursorShape: Qt.PointingHandCursor; onClicked: tg.toggled() }
 }

@@ -82,7 +82,7 @@ Item {
         visible: text !== ""
         x: sc.title !== "" ? sc.gutL : 0; width: sc.width - x; wrapMode: Text.WordWrap
         text: sc.title !== "" ? sc.title : (sc.showAxisNames && sc.ok ? sc.scatter.yLabel : "")
-        font: sc.title !== "" ? (sc.roles ? sc.roles.fSmallM : Qt.font({})) : (sc.roles ? sc.roles.fLabelUnit : Qt.font({}))
+        font: sc.title !== "" ? (sc.roles ? sc.roles.fSmallM : Qt.application.font) : (sc.roles ? sc.roles.fLabelUnit : Qt.application.font)
         color: !sc.roles ? "black" : sc.title !== "" ? sc.roles.ink : (sc.yKey ? sc.roles.hue(sc.yKey) : sc.roles.ink3)
     }
     Rectangle { visible: !!sc.roles; x: sc.gutL; y: sc.pTop; width: sc.pw; height: sc.ph; color: "transparent"; border.width: sc.roles ? sc.roles.hw : 1; border.color: sc.roles ? sc.roles.hair : "grey" }
@@ -108,7 +108,7 @@ Item {
         y: sc.pTop + sc.ph + sc.mW + (sc.roles ? sc.roles.u(20) : 20)
         width: Math.min(implicitWidth, sc.pw); horizontalAlignment: Text.AlignRight; wrapMode: Text.WordWrap
         text: sc.ok ? sc.scatter.xLabel : ""
-        font: sc.roles ? sc.roles.fLabelUnit : Qt.font({}); color: sc.roles && sc.xKey ? sc.roles.hue(sc.xKey) : "grey"
+        font: sc.roles ? sc.roles.fLabelUnit : Qt.application.font; color: sc.roles && sc.xKey ? sc.roles.hue(sc.xKey) : "grey"
     }
     // the least-squares line: solid ink2 clear of chance, ink3 dashed inside it
     Canvas {
@@ -165,7 +165,7 @@ Item {
             visible: sc.markXText !== ""
             x: parent.x + width + (sc.roles ? sc.roles.u(4) : 4) > sc.gutL + sc.pw ? -width - (sc.roles ? sc.roles.u(3) : 3) : (sc.roles ? sc.roles.u(3) : 3)
             y: sc.roles ? sc.roles.u(2) : 2
-            text: sc.markXText; font: sc.roles ? sc.roles.fSmall : Qt.font({}); color: sc.roles ? sc.roles.ink2 : "grey"
+            text: sc.markXText; font: sc.roles ? sc.roles.fSmall : Qt.application.font; color: sc.roles ? sc.roles.ink2 : "grey"
             Rectangle { z: -1; anchors.fill: parent; anchors.margins: -1; color: sc.roles ? sc.roles.knock : "transparent" }
         }
     }
@@ -203,7 +203,7 @@ Item {
         x: cx + width + (sc.roles ? sc.roles.u(10) : 10) > sc.gutL + sc.pw ? cx - width - (sc.roles ? sc.roles.u(8) : 8) : cx + (sc.roles ? sc.roles.u(8) : 8)
         y: Math.max(sc.pTop, Math.min(sc.pTop + sc.ph - height, cy - height / 2))
         text: p && p.label ? p.label : ""
-        font: sc.roles ? sc.roles.fFigS : Qt.font({}); color: sc.roles ? sc.roles.ink : "black"
+        font: sc.roles ? sc.roles.fFigS : Qt.application.font; color: sc.roles ? sc.roles.ink : "black"
         Rectangle { z: -1; anchors.fill: parent; anchors.margins: -2; color: sc.roles ? sc.roles.knock : "transparent" }
     }
     PpChBoxCell {
@@ -230,6 +230,6 @@ Item {
         y: sc.height - height
         width: sc.width; wrapMode: Text.WordWrap
         text: sc.ok ? (sc.scatter.caption || "") : ""
-        font: sc.roles ? sc.roles.fSmall : Qt.font({}); color: sc.roles ? sc.roles.ink2 : "grey"
+        font: sc.roles ? sc.roles.fSmall : Qt.application.font; color: sc.roles ? sc.roles.ink2 : "grey"
     }
 }

@@ -70,8 +70,8 @@ PpChSection {
             objectName: "chPostureHead"
             width: ps.width
             spacing: ps.has ? ps.ty.g(6) : 0
-            PpChText { roles: ps.ty; sentence: ps.has ? ps.sh.head : null; font: ps.has ? ps.ty.fStand : Qt.font({}); tone: ps.has ? ps.ty.ink : "black" }
-            PpChText { visible: !ps.replay && present; roles: ps.ty; sentence: ps.has && ps.body ? ps.body.pStandfirst : null; font: ps.has ? ps.ty.fBody : Qt.font({}) }
+            PpChText { roles: ps.ty; sentence: ps.has ? ps.sh.head : null; font: ps.has ? ps.ty.fStand : Qt.application.font; tone: ps.has ? ps.ty.ink : "black" }
+            PpChText { visible: !ps.replay && present; roles: ps.ty; sentence: ps.has && ps.body ? ps.body.pStandfirst : null; font: ps.has ? ps.ty.fBody : Qt.application.font }
         }
         Flow {
             objectName: "chPosturePattern"
@@ -79,9 +79,9 @@ PpChSection {
             visible: ps.has && line !== ""
             width: ps.width
             spacing: ps.has ? ps.ty.g(10) : 0
-            Text { text: "Pattern"; font: ps.has ? ps.ty.fKicker : Qt.font({}); color: ps.has ? ps.ty.ink3 : "grey" }
+            Text { text: "Pattern"; font: ps.has ? ps.ty.fKicker : Qt.application.font; color: ps.has ? ps.ty.ink3 : "grey" }
             Text { width: Math.min(implicitWidth, ps.width); wrapMode: Text.WordWrap
-                   text: parent.line; font: ps.has ? ps.ty.fBody : Qt.font({}); color: ps.has ? ps.ty.ink : "black" }
+                   text: parent.line; font: ps.has ? ps.ty.fBody : Qt.application.font; color: ps.has ? ps.ty.ink : "black" }
         }
 
         // ── the quiet controls (Analyse); below medium folded to the one-line summary ──
@@ -101,7 +101,7 @@ PpChSection {
             PpSectionHead { width: parent.width; roles: ps.ty; paged: false; pad: 0
                             title: "Positions"; sub: ps.prof.sub || ""; subFit: "top"; subWrap: false }
             Text { visible: !!ps.prof.ghostRefusal; width: parent.width; wrapMode: Text.WordWrap
-                   text: ps.prof.ghostRefusal || ""; font: ps.has ? ps.ty.fSmall : Qt.font({}); color: ps.has ? ps.ty.ink3 : "grey" }
+                   text: ps.prof.ghostRefusal || ""; font: ps.has ? ps.ty.fSmall : Qt.application.font; color: ps.has ? ps.ty.ink3 : "grey" }
             PpChPostureProfile {
                 width: parent.width
                 roles: ps.ty; brush: ps.brush; interactive: ps.interactive
@@ -113,7 +113,7 @@ PpChSection {
                 onColumnActivated: (i) => { const p = (ps.prof.positions || [])[i]; if (p) ps.seek(p.seekUs) }
             }
             Text { visible: !ps.replay && text !== ""; width: ps.has ? ps.ty.measureW(parent.width) : 0; wrapMode: Text.WordWrap
-                   text: ps.prof.caption || ""; font: ps.has ? ps.ty.fSmall : Qt.font({}); color: ps.has ? ps.ty.ink3 : "grey" }
+                   text: ps.prof.caption || ""; font: ps.has ? ps.ty.fSmall : Qt.application.font; color: ps.has ? ps.ty.ink3 : "grey" }
             // why a reading is held back, said once, under the plot it explains (closed)
             PpChPostureTrust { visible: !ps.replay && !ps.cast && (lines || []).length > 0; width: parent.width; roles: ps.ty
                                lines: ps.has && ps.sh.trust ? (ps.sh.trust.lines || []) : [] }

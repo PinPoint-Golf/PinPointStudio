@@ -1269,7 +1269,7 @@ Item {
         readonly property QtObject t: h ? h.ts : null
         height: t ? hht.height + t.u(7) : 0
         PpSectionHead { id: hht; visible: !!hh.t; width: parent.width; roles: hh.t; paged: false; pad: 0
-                        title: hh.title; sub: hh.sub; subFont: hh.t ? hh.t.fMicro : Qt.font({}); subFit: "baseline"; subClip: true }
+                        title: hh.title; sub: hh.sub; subFont: hh.t ? hh.t.fMicro : Qt.application.font; subFit: "baseline"; subClip: true }
         Rectangle { visible: !!hh.t; anchors.bottom: parent.bottom; anchors.bottomMargin: hh.t ? hh.t.u(3) : 0; width: parent.width; height: hh.t ? hh.t.hw : 0; color: hh.t ? hh.t.rule : "transparent" }
     }
     // BALL: the dispersion (+ launch × spin beside it when the half has lr.lsPairEm), then six consistency tiles

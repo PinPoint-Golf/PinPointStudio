@@ -38,7 +38,7 @@ Item {
     property var reserve: []
     property real topInset: 0
 
-    FontMetrics { id: fm; font: pl.roles ? pl.roles.fSmall : Qt.font({}) }
+    FontMetrics { id: fm; font: pl.roles ? pl.roles.fSmall : Qt.application.font }
     function hits(a, b) { return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h }
 
     readonly property var placed: {

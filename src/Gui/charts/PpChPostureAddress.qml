@@ -74,9 +74,9 @@ Column {
         property bool keepNext: true
         width: ad.width
         Item { width: 1; height: 18 }
-        Text { width: parent.width; text: ad.block ? (ad.block.title || "At address") : "At address"; font: ad.isPrint ? ad.ro.fH3 : Qt.font({}); color: ad.isPrint ? ad.ro.ink : "transparent" }
+        Text { width: parent.width; text: ad.block ? (ad.block.title || "At address") : "At address"; font: ad.isPrint ? ad.ro.fH3 : Qt.application.font; color: ad.isPrint ? ad.ro.ink : "transparent" }
         Item { width: 1; height: 3 }
-        Text { width: parent.width; visible: text !== ""; text: ad.block ? (ad.block.sub || "") : ""; font: ad.isPrint ? ad.ro.fSmall : Qt.font({}); color: ad.isPrint ? ad.ro.ink3 : "transparent"; wrapMode: Text.WordWrap }
+        Text { width: parent.width; visible: text !== ""; text: ad.block ? (ad.block.sub || "") : ""; font: ad.isPrint ? ad.ro.fSmall : Qt.application.font; color: ad.isPrint ? ad.ro.ink3 : "transparent"; wrapMode: Text.WordWrap }
         Item { width: 1; height: 6 }
     }
 
@@ -217,14 +217,14 @@ Column {
         }
     }
     Text { visible: !ad.isPrint && ad.ok && text !== ""; width: ad.ok ? ad.roles.measureW(ad.width) : 0; wrapMode: Text.WordWrap
-           text: ad.block ? (ad.block.legend || "") : ""; font: ad.ok ? ad.roles.fSmall : Qt.font({}); color: ad.ok ? ad.roles.ink3 : "grey" }
+           text: ad.block ? (ad.block.legend || "") : ""; font: ad.ok ? ad.roles.fSmall : Qt.application.font; color: ad.ok ? ad.roles.ink3 : "grey" }
     // paper: the legend, one atom kept with the last reading
     Item {
         property bool atom: true
         property bool keepPrev: true
         visible: ad.isPrint && !!ad.block && !!ad.block.legend
         width: ad.width; height: visible ? alg.height + 8 : 0
-        Text { id: alg; y: 4; width: parent.width; text: ad.block ? (ad.block.legend || "") : ""; font: ad.isPrint ? ad.ro.fMicro : Qt.font({}); color: ad.isPrint ? ad.ro.ink3 : "grey"
+        Text { id: alg; y: 4; width: parent.width; text: ad.block ? (ad.block.legend || "") : ""; font: ad.isPrint ? ad.ro.fMicro : Qt.application.font; color: ad.isPrint ? ad.ro.ink3 : "grey"
                wrapMode: Text.WordWrap; lineHeight: 1.25 }
     }
 }

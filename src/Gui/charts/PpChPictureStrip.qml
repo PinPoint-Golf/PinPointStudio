@@ -67,7 +67,7 @@ Column {
             readonly property real rowH: pp.rowH(frames)
             width: pp.width
             spacing: pp.on ? pp.ty.g(4) : 0
-            Text { text: modelData.label || ""; font: pp.on ? pp.ty.fKicker : Qt.font({}); color: pp.on ? pp.ty.ink3 : "grey" }
+            Text { text: modelData.label || ""; font: pp.on ? pp.ty.fKicker : Qt.application.font; color: pp.on ? pp.ty.ink3 : "grey" }
             Flow {
                 width: parent.width
                 spacing: pp.on ? pp.ty.g(10) : 0
@@ -94,10 +94,10 @@ Column {
         }
     }
     Text { objectName: pp.prefix + "PictureLegend"; visible: pp.on && text !== ""; width: pp.on ? pp.ty.measureW(pp.width) : 0; wrapMode: Text.WordWrap
-           text: pp.on ? (pp.picture.legend || "") : ""; font: pp.on ? pp.ty.fSmall : Qt.font({}); color: pp.on ? pp.ty.ink3 : "grey" }
+           text: pp.on ? (pp.picture.legend || "") : ""; font: pp.on ? pp.ty.fSmall : Qt.application.font; color: pp.on ? pp.ty.ink3 : "grey" }
     Repeater {
         model: pp.glance ? [] : pp.why
         delegate: Text { objectName: pp.prefix + "PictureWhy"; width: pp.on ? pp.ty.measureW(pp.width) : 0; wrapMode: Text.WordWrap
-                         text: modelData; font: pp.on ? pp.ty.fSmall : Qt.font({}); color: pp.on ? pp.ty.ink3 : "grey" }
+                         text: modelData; font: pp.on ? pp.ty.fSmall : Qt.application.font; color: pp.on ? pp.ty.ink3 : "grey" }
     }
 }

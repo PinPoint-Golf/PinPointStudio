@@ -60,7 +60,7 @@ Column {
     PpSectionHead { visible: !!lg.roles; width: lg.width; roles: lg.roles; paged: false; pad: 0; gap: 8
                     title: lg.title; count: (lg.items || []).length > 0 ? String((lg.items || []).length) : ""; countOnBaseline: true }
     Text { visible: !!lg.roles && (lg.items || []).length === 0 && lg.emptyText !== ""; width: lg.width; wrapMode: Text.WordWrap
-           text: lg.emptyText; font: lg.roles ? lg.roles.fBody : Qt.font({}); color: lg.roles ? lg.roles.ink2 : "grey" }
+           text: lg.emptyText; font: lg.roles ? lg.roles.fBody : Qt.application.font; color: lg.roles ? lg.roles.ink2 : "grey" }
     Repeater {
         model: lg.roles ? (lg.items || []) : []
         delegate: Column {

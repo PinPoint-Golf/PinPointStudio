@@ -34,16 +34,16 @@ PpChViewBase {
     spacing: roles ? roles.g(12) : Theme.gap(12)
 
     PpChText { objectName: "chKindsWhy"; visible: !kv.available && !!kv.body && present; roles: kv.roles; sentence: kv.body && kv.body.rStatus ? kv.body.rStatus.refusal : null
-               font: kv.roles ? kv.roles.fBody : Qt.font({}); tone: kv.roles ? kv.roles.ink2 : "grey" }
+               font: kv.roles ? kv.roles.fBody : Qt.application.font; tone: kv.roles ? kv.roles.ink2 : "grey" }
     Column {
         objectName: "chKindsHead"
         visible: kv.available
         width: kv.width; spacing: kv.roles ? kv.roles.g(4) : Theme.gap(4)
-        Text { visible: !kv.cast && !!kv.body && !!kv.body.rStatus.kicker; text: kv.body ? (kv.body.rStatus.kicker || "") : ""; font: kv.roles ? kv.roles.fKicker : Qt.font({}); color: kv.roles ? kv.roles.ink3 : "grey" }
-        PpChText { roles: kv.roles; sentence: kv.kd.head; measure: false; font: kv.roles ? kv.roles.fTitle : Qt.font({}); tone: kv.roles ? kv.roles.ink : "black"; lineHeight: 1.08 }
-        PpChText { roles: kv.roles; sentence: kv.kd.standfirst; font: kv.roles ? kv.roles.fStand : Qt.font({}); lineHeight: kv.roles ? kv.roles.r.leading : 1 }
+        Text { visible: !kv.cast && !!kv.body && !!kv.body.rStatus.kicker; text: kv.body ? (kv.body.rStatus.kicker || "") : ""; font: kv.roles ? kv.roles.fKicker : Qt.application.font; color: kv.roles ? kv.roles.ink3 : "grey" }
+        PpChText { roles: kv.roles; sentence: kv.kd.head; measure: false; font: kv.roles ? kv.roles.fTitle : Qt.application.font; tone: kv.roles ? kv.roles.ink : "black"; lineHeight: 1.08 }
+        PpChText { roles: kv.roles; sentence: kv.kd.standfirst; font: kv.roles ? kv.roles.fStand : Qt.application.font; lineHeight: kv.roles ? kv.roles.r.leading : 1 }
     }
-    PpChText { visible: kv.available && present; roles: kv.roles; sentence: kv.kd.splitLine; font: kv.roles ? kv.roles.fBodyM : Qt.font({}); tone: kv.roles ? kv.roles.ink : "black" }
+    PpChText { visible: kv.available && present; roles: kv.roles; sentence: kv.kd.splitLine; font: kv.roles ? kv.roles.fBodyM : Qt.application.font; tone: kv.roles ? kv.roles.ink : "black" }
     PpChKindTable {
         visible: kv.available
         width: kv.width; roles: kv.roles; brush: kv.brush; interactive: kv.interactive
@@ -78,7 +78,7 @@ PpChViewBase {
         objectName: "chKindShapes"
         visible: kv.available && !!kv.kd.shapes && kv.kd.shapes.found === true
         width: kv.width; spacing: kv.roles ? kv.roles.g(4) : Theme.gap(4)
-        PpChText { roles: kv.roles; sentence: kv.kd.shapes ? kv.kd.shapes.sentence : null; font: kv.roles ? kv.roles.fBody : Qt.font({}) }
+        PpChText { roles: kv.roles; sentence: kv.kd.shapes ? kv.kd.shapes.sentence : null; font: kv.roles ? kv.roles.fBody : Qt.application.font }
         Repeater {
             model: kv.available && kv.kd.shapes ? (kv.kd.shapes.groups || []) : []
             delegate: Flow {

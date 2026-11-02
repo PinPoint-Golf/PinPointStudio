@@ -38,7 +38,7 @@ Column {
     visible: (questions || []).length > 0
     spacing: roles ? roles.g(3) : Theme.gap(3)
     topPadding: roles ? roles.g(8) : Theme.gap(8)
-    Text { text: "Ask"; font: qs.roles ? qs.roles.fLabel : Qt.font({}); color: qs.roles ? qs.roles.ink3 : "grey"; bottomPadding: qs.roles ? qs.roles.u(1) : 1 }
+    Text { text: "Ask"; font: qs.roles ? qs.roles.fLabel : Qt.application.font; color: qs.roles ? qs.roles.ink3 : "grey"; bottomPadding: qs.roles ? qs.roles.u(1) : 1 }
     Repeater {
         model: qs.roles ? (qs.questions || []).slice(0, 3) : []
         delegate: Column {

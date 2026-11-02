@@ -63,7 +63,7 @@ Column {
     Item {
         objectName: "chSeqBarcode"
         width: ss.width; height: ss.cellH * (ss.segs.length + 1) + (ss.roles ? ss.roles.u(6) : 6)
-        Text { y: 0; text: "Order"; font: ss.roles ? ss.roles.fLabel : Qt.font({}); color: ss.roles ? ss.roles.ink3 : "grey" }
+        Text { y: 0; text: "Order"; font: ss.roles ? ss.roles.fLabel : Qt.application.font; color: ss.roles ? ss.roles.ink3 : "grey" }
         Repeater {
             model: ss.roles && ss.segs.length ? ss.segs[0].cells : []
             delegate: Item {
@@ -115,7 +115,7 @@ Column {
         objectName: "chSeqDots"
         width: ss.width; height: (ss.roles ? ss.roles.u(16) : 16) + ss.segs.length * ss.dotRowH + (ss.roles ? ss.roles.u(30) : 30)
         readonly property real topY: ss.roles ? ss.roles.u(16) : 16
-        Text { text: ss.roles ? ss.roles.labelUnit("Peak time from impact", "ms") : ""; font: ss.roles ? ss.roles.fLabelUnit : Qt.font({}); color: ss.roles ? ss.roles.ink3 : "grey" }
+        Text { text: ss.roles ? ss.roles.labelUnit("Peak time from impact", "ms") : ""; font: ss.roles ? ss.roles.fLabelUnit : Qt.application.font; color: ss.roles ? ss.roles.ink3 : "grey" }
         Rectangle { x: Math.round(ss.xOf(0)); y: parent.topY; width: ss.roles ? ss.roles.hw : 1; height: ss.segs.length * ss.dotRowH; color: ss.roles ? ss.roles.ink2 : "grey" }
         Repeater {
             model: ss.roles && ss.sequence ? (ss.sequence.pTicks || []) : []
@@ -126,7 +126,7 @@ Column {
             }
         }
         Text { visible: !!ss.roles; x: ss.xOf(0) + (ss.roles ? ss.roles.u(3) : 3); y: (ss.roles ? ss.roles.u(16) : 16) + ss.segs.length * ss.dotRowH + (ss.roles ? ss.roles.u(2) : 2)
-               text: "P7 impact"; font: ss.roles ? ss.roles.fFigLabel : Qt.font({}); color: ss.roles ? ss.roles.ink2 : "grey" }
+               text: "P7 impact"; font: ss.roles ? ss.roles.fFigLabel : Qt.application.font; color: ss.roles ? ss.roles.ink2 : "grey" }
         Repeater {
             model: ss.roles ? ss.xt : []
             delegate: Text {
@@ -201,7 +201,7 @@ Column {
         visible: warned.length > 0
         width: ss.width; wrapMode: Text.WordWrap
         text: warned.map(function (g) { return g.warn + " " + g.word + ": " + (g.warnShort || "") }).join("   ")
-        font: ss.roles ? ss.roles.fSmall : Qt.font({}); color: ss.roles ? ss.roles.ink2 : "grey"
+        font: ss.roles ? ss.roles.fSmall : Qt.application.font; color: ss.roles ? ss.roles.ink2 : "grey"
     }
     Flow {
         visible: !ss.figsSide

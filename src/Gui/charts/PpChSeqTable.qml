@@ -120,7 +120,7 @@ Column {
         readonly property bool open: pinned || hov.hovered
         // The label column fits the longest label ("Lead arm peaks before impact"), never less than
         // the segment + rank columns it lines up under.
-        FontMetrics { id: chkFm; font: st.roles ? st.roles.fSmall : Qt.font({}) }
+        FontMetrics { id: chkFm; font: st.roles ? st.roles.fSmall : Qt.application.font }
         readonly property real labelW: {
             var w = st.segW + st.rankW
             for (var i = 0; i < list.length; ++i)
@@ -145,12 +145,12 @@ Column {
                 width: parent.width
                 height: line.implicitHeight
                 // The marks' face, unseen, so the marks' row can sit on the line's baseline.
-                Text { id: markProbe; visible: false; text: "✓"; font: st.roles ? st.roles.fFig : Qt.font({}) }
+                Text { id: markProbe; visible: false; text: "✓"; font: st.roles ? st.roles.fFig : Qt.application.font }
                 Row {
                     id: lineRow
                     spacing: st.roles ? st.roles.g(10) : Theme.gap(10)
                     Text { id: line; objectName: "chSeqChecksLabel"; text: "Sequence checks"
-                           font: st.roles ? st.roles.fBody : Qt.font({}); color: st.roles ? st.roles.ink : "black" }
+                           font: st.roles ? st.roles.fBody : Qt.application.font; color: st.roles ? st.roles.ink : "black" }
                     // A Row places x only, so each child's y puts its baseline on the line's.
                     Row {
                         objectName: "chSeqChecksMarks"
@@ -162,7 +162,7 @@ Column {
                                 required property var modelData
                                 objectName: "chSeqCheckMark:" + modelData.facet
                                 text: modelData.mark
-                                font: st.roles ? st.roles.fFig : Qt.font({}); color: chk.ink(modelData.state)
+                                font: st.roles ? st.roles.fFig : Qt.application.font; color: chk.ink(modelData.state)
                             }
                         }
                     }
@@ -174,7 +174,7 @@ Column {
                         width: Math.max(0, Math.min(implicitWidth, chk.width - x))
                         elide: Text.ElideRight
                         text: chk.cs ? (chk.cs.gapNote || "") : ""
-                        font: st.roles ? st.roles.fSmall : Qt.font({}); color: st.roles ? st.roles.ink3 : "grey"
+                        font: st.roles ? st.roles.fSmall : Qt.application.font; color: st.roles ? st.roles.ink3 : "grey"
                     }
                 }
             }
@@ -198,6 +198,6 @@ Column {
         topPadding: st.roles ? st.roles.g(4) : Theme.gap(4)
         width: st.width; wrapMode: Text.WordWrap
         text: st.sequence ? (st.sequence.proNote || "") : ""
-        font: st.roles ? st.roles.fSmall : Qt.font({}); color: st.roles ? st.roles.ink3 : "grey"
+        font: st.roles ? st.roles.fSmall : Qt.application.font; color: st.roles ? st.roles.ink3 : "grey"
     }
 }

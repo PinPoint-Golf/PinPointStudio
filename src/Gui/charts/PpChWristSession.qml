@@ -51,9 +51,9 @@ PpChSection {
             objectName: "chWristSessionHead"
             width: parent.width; spacing: ws.ok ? ws.roles.g(6) : Theme.gap(6)
             PpChText { roles: ws.roles; sentence: ws.se ? ws.se.head : null
-                       font: ws.ok ? ws.roles.fStand : Qt.font({}); tone: ws.ok ? ws.roles.ink : "black" }
+                       font: ws.ok ? ws.roles.fStand : Qt.application.font; tone: ws.ok ? ws.roles.ink : "black" }
             PpChText { roles: ws.roles; sentence: ws.se ? ws.se.standfirst : null
-                       font: ws.ok ? ws.roles.fBody : Qt.font({}) }
+                       font: ws.ok ? ws.roles.fBody : Qt.application.font }
         }
         Column {
             visible: ws.available
@@ -69,7 +69,7 @@ PpChSection {
                 mode: "session"
             }
             Text { width: parent.width; wrapMode: Text.WordWrap; text: ws.se.caption || ""
-                   font: ws.ok ? ws.roles.fSmall : Qt.font({}); color: ws.ok ? ws.roles.ink3 : "grey" }
+                   font: ws.ok ? ws.roles.fSmall : Qt.application.font; color: ws.ok ? ws.roles.ink3 : "grey" }
             // how far the session's wrist read can be trusted, said once, under the profile (closed)
             PpChTrustFold { prefix: "chWrist"; width: parent.width; roles: ws.roles
                             lines: ws.available && ws.se.trust ? (ws.se.trust.lines || []) : [] }

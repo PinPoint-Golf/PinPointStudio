@@ -45,7 +45,7 @@ Column {
     readonly property real labW: ok ? Math.ceil(Math.max(fm.advanceWidth("curves left"), fm.advanceWidth("curves right"))) + roles.u(8) : 60
     property string hoverText: ""
     spacing: ok ? roles.g(4) : Theme.gap(4)
-    FontMetrics { id: fm; font: gr.ok ? gr.roles.fLabelUnit : Qt.font({}) }
+    FontMetrics { id: fm; font: gr.ok ? gr.roles.fLabelUnit : Qt.application.font }
 
     // the session's dots in a cell: spread on a small lattice round its centre, in shot order
     function dotsIn(start, curve) {
@@ -61,7 +61,7 @@ Column {
     // the head across: where it started
     Row {
         Text { width: gr.labW - (gr.ok ? gr.roles.u(6) : 6); horizontalAlignment: Text.AlignRight; rightPadding: 0
-               text: "starts"; font: gr.ok ? gr.roles.fLabelUnit : Qt.font({}); color: gr.ok ? gr.roles.ink3 : "grey" }
+               text: "starts"; font: gr.ok ? gr.roles.fLabelUnit : Qt.application.font; color: gr.ok ? gr.roles.ink3 : "grey" }
         Item { width: gr.ok ? gr.roles.u(6) : 6; height: 1 }
         Repeater {
             model: gr.ok ? ["left", "straight", "right"] : []
@@ -142,6 +142,6 @@ Column {
         width: Math.max(gr.labW + 3 * gr.cell, implicitWidth)
         text: gr.hoverText !== "" ? gr.hoverText : gr.line
         visible: text !== ""
-        font: gr.ok ? gr.roles.fSmall : Qt.font({}); color: gr.ok ? gr.roles.ink2 : "grey"
+        font: gr.ok ? gr.roles.fSmall : Qt.application.font; color: gr.ok ? gr.roles.ink2 : "grey"
     }
 }
