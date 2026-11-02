@@ -1,0 +1,67 @@
+﻿{
+  "LocalSessionId": "6b0f1ce6-0612-4af8-ac72-8436dddc0559",
+  "BackendSessionId": null,
+  "Name": null,
+  "CreatedAtUtc": "2026-11-02T14:47:10.1641066Z",
+  "EndedAtUtc": "2026-11-02T14:53:47.0718783Z",
+  "EndedAtSynced": false,
+  "SessionType": 0,
+  "TrainingDetails": null,
+  "ShotGroups": [
+    {
+      "LocalGroupId": "08014210-47d0-41df-b7b7-0bd1b3d13f0f",
+      "BackendGroupId": null,
+      "UnwritableGroupReplaced": false,
+      "ColorHex": "#FF4FC5C9",
+      "CreatedAtUtc": "2026-11-02T14:47:10.1641066Z",
+      "Tags": [
+        "Gw"
+      ],
+      "Shots": [
+        {
+          "LocalShotId": "e6003d54-620e-4aaa-853c-0bffc9c2e635",
+          "BackendShotId": null,
+          "ClubType": "WEDGE",
+          "ClubName": "Gw",
+          "BallSpeedMs": 36.567872,
+          "AzimuthDeg": -2.2999999523162842,
+          "ElevationDeg": 28.200000762939453,
+          "BackSpinRpm": 7845.0,
+          "SideSpinRpm": -383.0,
+          "TotalSpinRpm": 7854.0,
+          "Hidden": false,
+          "CreatedAtUtc": "2026-11-02T14:53:25.707131Z",
+          "ClubData": {
+            "ClubSpeedMs": 31.873952,
+            "ClubSpeedAtImpactMs": 31.918656000000002,
+            "Efficiency": 1.1499999761581421,
+            "AngleOfAttackDeg": -4.6999998092651367,
+            "ClubPathDeg": -0.5,
+            "FaceToTargetDeg": -3.3,
+            "LieDeg": -0.10000000149011612,
+            "LoftDeg": 41.099998474121094,
+            "FAxisDeg": -3.2000000476837158,
+            "FaceImpactHorizontalMm": 1.6000000238418579,
+            "FaceImpactVerticalMm": -11.600000381469727,
+            "ClosureRateDegs": 2739.199951171875
+          }
+        },
+        {
+          "LocalShotId": "5d16a3d5-fad0-46e9-96ef-c8c2acc277ae",
+          "BackendShotId": null,
+          "ClubType": "WEDGE",
+          "ClubName": "Gw",
+          "BallSpeedMs": 35.852608000000004,
+          "AzimuthDeg": -1.1000000238418579,
+          "ElevationDeg": 29.5,
+          "BackSpinRpm": 9054.0,
+          "SideSpinRpm": 442.0,
+          "TotalSpinRpm": 9065.0,
+          "Hidden": false,
+          "CreatedAtUtc": "2026-11-02T14:53:47.0718783Z",
+          "ClubData": null
+        }
+      ]
+    }
+  ]
+}

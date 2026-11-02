@@ -82,6 +82,8 @@ else()
         # the file that pulls the whole set into any target that compiles it.
         ${PP_ROOT}/src/LaunchMonitor/gspro_monitor.cpp
         ${PP_ROOT}/src/LaunchMonitor/gspro_reading.cpp
+        ${PP_ROOT}/src/LaunchMonitor/premier_monitor.cpp
+        ${PP_ROOT}/src/LaunchMonitor/premier_session_parser.cpp
         ${PP_ROOT}/src/Export/swing_doc.cpp
         ${PP_ROOT}/src/Export/swing_paths.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
@@ -213,6 +215,8 @@ else()
             ${PP_ROOT}/src/LaunchMonitor/gcquad_csv_parser.cpp
             ${PP_ROOT}/src/LaunchMonitor/gspro_monitor.cpp
             ${PP_ROOT}/src/LaunchMonitor/gspro_reading.cpp
+            ${PP_ROOT}/src/LaunchMonitor/premier_monitor.cpp
+            ${PP_ROOT}/src/LaunchMonitor/premier_session_parser.cpp
             ${PP_ROOT}/src/Export/swing_doc.cpp
             ${PP_ROOT}/src/Export/swing_paths.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp

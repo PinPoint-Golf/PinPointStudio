@@ -237,6 +237,8 @@ pp_add_test(lm_session_model_test
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/LaunchMonitor/gspro_monitor.cpp
             ${SRC}/LaunchMonitor/gspro_reading.cpp
+            ${SRC}/LaunchMonitor/premier_monitor.cpp
+            ${SRC}/LaunchMonitor/premier_session_parser.cpp
             ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
             ${SRC}/Diagnostics/packs/file_pack_provider.cpp
             ${SRC}/Diagnostics/packs/merged_pack_provider.cpp

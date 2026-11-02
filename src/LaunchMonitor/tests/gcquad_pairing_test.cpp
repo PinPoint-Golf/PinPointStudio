@@ -175,6 +175,95 @@ TEST(ShotPairing, AParkedReadingDoesNotLeakIntoTheNextSwing)
     EXPECT_FALSE(p.noteSwingDir(QStringLiteral("/lib/a/s1/swing_next")).has_value());
 }
 
+// ════════════════════════════════════════ ShotPairing, with a stated contact time ══
+// Foresight Premier stamps each shot, and drops a shot hit before it is ready; the contact time
+// is what keeps the next reading from going to the wrong swing (shot_pairing.h).
+
+namespace {
+LaunchMonitorReading timedReading(const QString &id, qint64 contactMs)
+{
+    LaunchMonitorReading r = readingWithId(id);
+    r.contactAtMs = contactMs;
+    return r;
+}
+constexpr qint64 kT0 = 1'800'000'000'000;   // an arbitrary wall-clock instant, ms
+} // namespace
+
+TEST(ShotPairingTimed, ClaimsAReadingWhoseContactMatchesOurImpact)
+{
+    ShotPairing p;
+    p.noteShotDetected(kT0);
+    const auto offer = p.offerReading(timedReading(QStringLiteral("a"), kT0 + 200));
+    EXPECT_EQ(offer.disposition, ShotPairing::Disposition::Parked);
+    EXPECT_EQ(offer.timeCheck, ShotPairing::TimeCheck::Matched);
+    ASSERT_TRUE(offer.contactDeltaMs);
+    EXPECT_EQ(*offer.contactDeltaMs, 200);
+}
+
+TEST(ShotPairingTimed, AReadingFromBeforeOurImpactIsAnEarlierShotAndWeStayArmed)
+{
+    // A shot hit while we were busy, which we never saw, reported late. Not ours.
+    ShotPairing p;
+    p.noteShotDetected(kT0);
+    const auto stale = p.offerReading(timedReading(QStringLiteral("old"), kT0 - 6000));
+    EXPECT_EQ(stale.disposition, ShotPairing::Disposition::Discarded);
+    EXPECT_EQ(stale.timeCheck, ShotPairing::TimeCheck::BeforeImpact);
+    EXPECT_TRUE(p.armed()) << "our own reading may still be coming";
+
+    const auto ours = p.offerReading(timedReading(QStringLiteral("ours"), kT0 + 100));
+    EXPECT_EQ(ours.disposition, ShotPairing::Disposition::Parked);
+}
+
+TEST(ShotPairingTimed, AReadingFromAfterTheWindowMeansOursWasDropped)
+{
+    ShotPairing p;
+    p.noteShotDetected(kT0);
+    const auto late = p.offerReading(timedReading(QStringLiteral("next"), kT0 + 6000));
+    EXPECT_EQ(late.disposition, ShotPairing::Disposition::Discarded);
+    EXPECT_EQ(late.timeCheck, ShotPairing::TimeCheck::AfterWindow);
+    EXPECT_FALSE(p.armed()) << "the device dropped our shot; nothing later can be ours";
+}
+
+TEST(ShotPairingTimed, TheDroppedThenMissedShotNoLongerPairsWrongly)
+{
+    // design §4.3: Premier drops shot A (hit too soon); we then miss shot B, which Premier records.
+    // Order alone hands B's reading to A's swing, silently. The contact time refuses it.
+    ShotPairing p;
+    p.noteShotDetected(kT0);                    // swing A armed; Premier never reports A
+    const auto b = p.offerReading(timedReading(QStringLiteral("B"), kT0 + 7000));
+    EXPECT_EQ(b.disposition, ShotPairing::Disposition::Discarded);
+    EXPECT_FALSE(p.noteSwingDir(QStringLiteral("/swings/A")).has_value());
+}
+
+TEST(ShotPairingTimed, WithoutBothTimesOrderAloneDecides)
+{
+    ShotPairing p;
+    p.noteShotDetected();                       // no impact time
+    EXPECT_EQ(p.offerReading(timedReading(QStringLiteral("x"), kT0 + 99'000)).disposition,
+              ShotPairing::Disposition::Parked);
+
+    ShotPairing q;
+    q.noteShotDetected(kT0);                    // a reading with no contact time (FSX2020)
+    const auto o = q.offerReading(readingWithId(QStringLiteral("y")));
+    EXPECT_EQ(o.disposition, ShotPairing::Disposition::Parked);
+    EXPECT_EQ(o.timeCheck, ShotPairing::TimeCheck::None);
+}
+
+TEST(ShotPairingTimed, AFullerReadingReplacesTheParkedOneInPlace)
+{
+    ShotPairing p;
+    p.noteShotDetected(kT0);
+    p.offerReading(timedReading(QStringLiteral("s1"), kT0 + 100));
+    LaunchMonitorReading whole = timedReading(QStringLiteral("s1"), kT0 + 100);
+    whole.faceAngle = -2.0;
+    EXPECT_TRUE(p.replaceParked(whole));
+    EXPECT_FALSE(p.replaceParked(timedReading(QStringLiteral("other"), kT0)));
+    const auto flushed = p.noteSwingDir(QStringLiteral("/swings/1"));
+    ASSERT_TRUE(flushed);
+    ASSERT_TRUE(flushed->faceAngle);
+    EXPECT_DOUBLE_EQ(*flushed->faceAngle, -2.0);
+}
+
 // ═════════════════════════════════════════════════════════ GcQuadMonitor ══════
 
 TEST(GcQuadMonitor, DoesNotClaimAFileThatWasAlreadyThereAtStartup)

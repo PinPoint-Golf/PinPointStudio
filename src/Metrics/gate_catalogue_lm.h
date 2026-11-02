@@ -39,10 +39,10 @@ inline void appendLaunchMonitorGates(std::vector<GateEntry> &c)
             "Not measured by the launch monitor", "not measured",
             QStringLiteral("A GC Quad reads the club from the reflective stickers on its face. With none fitted, or none "
                            "it could see, the ball numbers are still measured and good but every club number is unknown. "
-                           "The device does not leave those cells empty: it fills them with a 'no data' marker "
-                           "(16777215, sometimes converted into other units). Taken at face value that is nonsense "
-                           "that looks like a number, so the reading is left out."),
-            "The launch monitor sent its no-data marker[ ({raw})] instead of a value.",
+                           "Through FSX2020 the device does not leave those cells empty: it fills them with a 'no data' "
+                           "marker (16777215, sometimes converted into other units), nonsense that looks like a number. "
+                           "Through Foresight Premier the value is simply missing. Either way the reading is left out."),
+            "The launch monitor gave no value for this[ — only its no-data marker ({raw})].",
             { GateEffect::Refused }, prod, design);
         e.tuning = { tune("lm.noDataMarker", 16777215.0, "") };
     }

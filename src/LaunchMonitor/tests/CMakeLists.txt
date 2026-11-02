@@ -122,3 +122,37 @@ pp_add_test(gspro_monitor_test
     INCLUDE ${LM} ${SRC}/Core
     LINK    gspro Qt6::Network Qt6::Test
     GTEST_NO_MAIN AUTOMOC)
+
+# --- Foresight Premier: the session files → readings -----------------------------
+# The connector reads Premier's own internal files (docs/design/foresight_premier_connector.md).
+# Every fixture is a real file Premier wrote on the capture PC on 2026-11-02, sanitised (backend
+# ids nulled, no user id), stored as the ordered sequence of versions Premier wrote — so the
+# monitor test replays the writes in the order Premier made them.
+set(PREMIER_FIXTURES ${CMAKE_CURRENT_SOURCE_DIR}/data/premier)
+
+# Pure parser: snapshot and queue share one schema.
+pp_add_test(premier_session_parser_test
+    SOURCES premier_session_parser_test.cpp
+            ${LM}/premier_session_parser.cpp
+            ${LM}/launch_monitor_reading.cpp
+    INCLUDE ${LM}
+    DEFINES PP_PREMIER_FIXTURES="${PREMIER_FIXTURES}"
+    GTEST)
+
+# The monitor over the captured write sequences: one reading per shot, its club data a shot
+# later, the queue read only while a shot waits on it. A QObject with a QTimer, so AUTOMOC and
+# the real log, as gcquad_pairing_test.
+pp_add_test(premier_monitor_test
+    SOURCES premier_monitor_test.cpp
+            ${LM}/premier_monitor.cpp
+            ${LM}/premier_session_parser.cpp
+            ${LM}/launch_monitor_base.cpp
+            ${LM}/launch_monitor_reading.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+            ${LM}/premier_monitor.h
+            ${LM}/launch_monitor_base.h
+    INCLUDE ${LM} ${SRC}/Core
+    DEFINES PP_PREMIER_FIXTURES="${PREMIER_FIXTURES}"
+    LINK    Qt6::Test
+    GTEST_NO_MAIN AUTOMOC)

@@ -56,6 +56,22 @@ namespace pinpoint::lm {
 // waiting at once. If that invariant is ever relaxed, this class needs a map and
 // this comment needs deleting.
 //
+// WHEN THE DEVICE STATES A CONTACT TIME, ORDER IS CHECKED AGAINST IT. Foresight Premier stamps
+// every shot (LaunchMonitorReading::contactAtMs) and also SILENTLY DROPS a shot hit before it is
+// ready (docs/design/foresight_premier_connector.md §2.6.3). Order alone then goes wrong without a
+// symptom: the swing whose shot Premier dropped stays armed, and if we in turn miss Premier's NEXT
+// shot, that reading is claimed by the wrong swing. So when both our impact time (given to
+// noteShotDetected) and the reading's contact time are known, a claim must agree to within
+// kContactWindowMs:
+//
+//     |Δ| ≤ window ─► claim, as above
+//     Δ  > window ─► the reading is for a LATER shot: our swing's reading is never coming
+//                    (Premier dropped it). Disarm, and the reading is unpaired.
+//     Δ  < −window ─► the reading is for an EARLIER shot we never saw. Discard it; stay armed.
+//
+// A reading with no contact time (FSX2020, GSPro) or a shot with no impact time is decided by
+// order alone, exactly as before.
+//
 // Pure logic, no Qt objects and no I/O, so all of it is exercised in a unit test.
 class ShotPairing
 {
@@ -66,16 +82,30 @@ public:
         Discarded,  // nothing was armed — not ours to attribute
     };
 
+    // How far a stated contact time may sit from our impact and still be this swing's. A
+    // starting value, not a measurement: both clocks are the same PC, and Premier's contact
+    // estimate is ±0.05 s (§2.6.6), but our side is unmeasured. Shots in a rapid-fire run
+    // were ~6 s apart, so this still tells neighbours apart. Every timed claim logs its Δ
+    // (LaunchMonitorController) so the cabin test can size it.
+    static constexpr qint64 kContactWindowMs = 1500;
+
+    // Why a timed reading was refused. None for every order-only decision.
+    enum class TimeCheck { None, Matched, BeforeImpact, AfterWindow };
+
     struct Offer {
         Disposition disposition = Disposition::Discarded;
         QString     swingDir;   // set only for Claimed
+        TimeCheck   timeCheck = TimeCheck::None;
+        std::optional<qint64> contactDeltaMs;   // reading contact − our impact, when both known
     };
 
     // A shot was committed. Arms for it, displacing any swing still waiting — that
-    // swing gets no launch monitor data, deliberately.
-    void noteShotDetected()
+    // swing gets no launch monitor data, deliberately. `impactUtcMs` is our impact on the
+    // wall clock (epoch ms), when the caller knows it.
+    void noteShotDetected(std::optional<qint64> impactUtcMs = std::nullopt)
     {
         m_armed = true;
+        m_impactUtcMs = impactUtcMs;
         m_swingDir.clear();
         // A parked reading here means the previous swing never reached a swingDir
         // (its analysis or export failed). It has nowhere to go.
@@ -87,13 +117,38 @@ public:
     {
         if (!m_armed)
             return {};                          // Discarded
+
+        TimeCheck check = TimeCheck::None;
+        std::optional<qint64> delta;
+        if (m_impactUtcMs && reading.contactAtMs) {
+            delta = *reading.contactAtMs - *m_impactUtcMs;
+            if (*delta < -kContactWindowMs)
+                return { Disposition::Discarded, QString(), TimeCheck::BeforeImpact, delta };
+            if (*delta > kContactWindowMs) {
+                m_armed = false;                // this swing's reading is never coming
+                return { Disposition::Discarded, QString(), TimeCheck::AfterWindow, delta };
+            }
+            check = TimeCheck::Matched;
+        }
         m_armed = false;
 
         if (!m_swingDir.isEmpty())
-            return { Disposition::Claimed, m_swingDir };
+            return { Disposition::Claimed, m_swingDir, check, delta };
 
         m_parked = reading;
-        return { Disposition::Parked, QString() };
+        return { Disposition::Parked, QString(), check, delta };
+    }
+
+    // A later, fuller statement of the reading already parked (the same deviceShotId —
+    // Premier's club data, which lands a shot late). Replaces it in place so the swing gets
+    // the whole reading when it reaches disk. False when nothing parked matches.
+    bool replaceParked(const LaunchMonitorReading &reading)
+    {
+        if (!m_parked || m_parked->deviceShotId.isEmpty()
+            || m_parked->deviceShotId != reading.deviceShotId)
+            return false;
+        m_parked = reading;
+        return true;
     }
 
     // The armed swing reached disk. Returns a reading if one was parked for it.
@@ -111,6 +166,7 @@ public:
     void noteShotFailed()
     {
         m_armed = false;
+        m_impactUtcMs.reset();
         m_parked.reset();
         m_swingDir.clear();
     }
@@ -120,6 +176,7 @@ public:
 
 private:
     bool    m_armed = false;
+    std::optional<qint64> m_impactUtcMs;           // our impact, wall clock, when known
     QString m_swingDir;                             // "" until shotProcessed
     std::optional<LaunchMonitorReading> m_parked;   // claimed, awaiting a destination
 };

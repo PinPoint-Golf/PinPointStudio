@@ -27,6 +27,7 @@ QString kindKey(Kind k)
     case Kind::None:   return QStringLiteral("none");
     case Kind::GcQuad: return QStringLiteral("gcquad");
     case Kind::GsPro:  return QStringLiteral("gspro");
+    case Kind::Premier: return QStringLiteral("premier");
     }
     return QStringLiteral("none");
 }
@@ -38,6 +39,8 @@ Kind kindFromKey(const QString &key)
         return Kind::GcQuad;
     if (k == QLatin1String("gspro"))
         return Kind::GsPro;
+    if (k == QLatin1String("premier"))
+        return Kind::Premier;
     return Kind::None;
 }
 

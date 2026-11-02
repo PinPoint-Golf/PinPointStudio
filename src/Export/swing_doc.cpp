@@ -906,6 +906,10 @@ QJsonObject lmRawBlock(const lm::LaunchMonitorReading &reading)
         { QStringLiteral("sourcePath"),    reading.sourcePath },
         { QStringLiteral("readAtMs"),      reading.readAtMs },
     };
+    // The device's own contact estimate (Foresight Premier only): additive, absent for every
+    // other connector and every swing written before it existed.
+    if (reading.contactAtMs)
+        raw.insert(QStringLiteral("contactAtMs"), double(*reading.contactAtMs));
     for (const lm::FieldDef &f : lm::fieldDefs())
         if (const auto &v = reading.*(f.member))
             raw.insert(QString::fromLatin1(f.rawName), *v);

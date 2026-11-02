@@ -29,9 +29,10 @@ enum class Kind {
     None,
     GcQuad,     // Foresight GC Quad via FSX2020's LastShot.CSV
     GsPro,      // any client speaking GSPro Open Connect v1, over TCP
+    Premier,    // Foresight GC Quad via Foresight Premier's session files
 };
 
-QString kindKey(Kind k);            // the settings token: "none", "gcquad", "gspro"
+QString kindKey(Kind k);            // the settings token: "none", "gcquad", "gspro", "premier"
 Kind    kindFromKey(const QString &key);
 
 // The state vocabulary, owned here so the base and every connector share one enum.

@@ -19,6 +19,7 @@
 
 #include "gcquad_monitor.h"
 #include "gspro_monitor.h"
+#include "premier_monitor.h"
 
 #include <QCoreApplication>
 
@@ -31,6 +32,8 @@ LaunchMonitorBase *makeLaunchMonitor(Kind kind, QObject *parent)
         return new GcQuadMonitor(parent);
     case Kind::GsPro:
         return new GsProMonitor(parent);
+    case Kind::Premier:
+        return new ForesightPremierMonitor(parent);
     case Kind::None:
         break;
     }
@@ -39,7 +42,7 @@ LaunchMonitorBase *makeLaunchMonitor(Kind kind, QObject *parent)
 
 QList<Kind> availableKinds()
 {
-    return { Kind::None, Kind::GcQuad, Kind::GsPro };
+    return { Kind::None, Kind::GcQuad, Kind::Premier, Kind::GsPro };
 }
 
 QString kindLabel(Kind kind)
@@ -48,7 +51,11 @@ QString kindLabel(Kind kind)
     case Kind::None:
         return QCoreApplication::translate("LaunchMonitor", "None");
     case Kind::GcQuad:
-        return QCoreApplication::translate("LaunchMonitor", "Foresight GC Quad (FSX2020)");
+        // Named for the PROGRAM holding the device: one GC Quad, two connectors, and only one
+        // program can hold the Quad at a time — so the user picks the one they are running.
+        return QCoreApplication::translate("LaunchMonitor", "GC Quad — FSX2020");
+    case Kind::Premier:
+        return QCoreApplication::translate("LaunchMonitor", "GC Quad — Foresight Premier");
     case Kind::GsPro:
         // Named for the PROTOCOL, not for a device: one connector receives from
         // everything that has an Open Connect bridge, so naming any single device
@@ -66,6 +73,8 @@ QString kindShortLabel(Kind kind)
     case Kind::None:
         return QString();
     case Kind::GcQuad:
+    case Kind::Premier:
+        // The DEVICE, not the program: panels name what measured the shot.
         return QCoreApplication::translate("LaunchMonitor", "GC Quad");
     case Kind::GsPro:
         return QCoreApplication::translate("LaunchMonitor", "GSPro");

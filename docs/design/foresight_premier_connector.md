@@ -1,15 +1,18 @@
 # GC Quad under Foresight Premier — a fourth launch-monitor connector
 
 **Audience**: whoever builds the Premier connector, and whoever runs the investigation session (§6)
-**Code**: none yet. Would sit beside `src/LaunchMonitor/gcquad_monitor.{h,cpp}` and `gcquad_csv_parser.{h,cpp}`
+**Code**: `src/LaunchMonitor/premier_session_parser.{h,cpp}` (pure parser), `premier_monitor.{h,cpp}`
+(`ForesightPremierMonitor`, `Kind::Premier`, token `"premier"`), timed pairing in `shot_pairing.h`, the late
+club update in `src/Gui/launchmonitor/launch_monitor_controller.cpp`. Tests: `src/LaunchMonitor/tests/premier_*`
+over the captured write sequences in `tests/data/premier/`
 **Source**: direct inspection of the capture PC on 2026-10-23, `liver` account, after one Premier
 session of 91 shots with a 4-hybrid. Background: [`foresight_gcquad_data_sources.md`](../reference/foresight_gcquad_data_sources.md)
 A second look on 2026-10-31 followed a 26-shot training drill (ladder, wedge) on Premier 1.2.0 (§2.5).
-**Status**: 🔍 **PROPOSED; INVESTIGATED LIVE 2026-11-02** (§2.6). Premier 1.2.1 changed the picture:
-live shots go to a new file, `SessionLiveSnapshot.<userId>.json`, and the upload queue only sees
-a session once it has ended. §4 is revised to read the snapshot. Go/no-go is in §2.6.7.
+**Status**: 🔧 **BUILT 2026-11-02, cabin test pending** (§5). Investigated live the same day (§2.6):
+Premier 1.2.1 sends live shots to `SessionLiveSnapshot.<userId>.json`, and the upload queue only sees
+a session once it has ended. §4 reads the snapshot; §4.6 records where the build sharpened §4.
 **Written**: 2026-10-23. **Updated**: 2026-11-01 (§2.5, queue drain corrected in §2.1);
-2026-11-02 (§2.6 live session, §4 revised, §7 answered)
+2026-11-02 (§2.6 live session, §4 revised, §7 answered; built, §4.6)
 
 ---
 
@@ -303,8 +306,10 @@ varied per shot. `ShotProcessor::buildSwingExportJob()` snapshots `wallclockAnch
 currentDateTimeUtc()` on the assumption that this is when the window was captured. In fact it runs from
 `startSwingSave()` after analysis and the pose pass. Every saved swing's absolute time is late by
 that shot's processing time. Fix: anchor = now − (`EventBuffer::nowMicros()` −
-`window.endTimestampUs()`). Not fixed yet. **The PinPoint↔Premier offset must be re-measured after
-the fix**, before timestamp-checked pairing can be sized.
+`window.endTimestampUs()`). **Fixed 2026-11-02:** `ShotProcessor::beginGather()` now takes the UTC
+instant in the same breath as it freezes the window end, and the export anchors on that. Swings saved
+before the fix keep their late anchor. **The PinPoint↔Premier offset must still be re-measured on the
+cabin** (§5 step 6) to size the pairing window; pairing itself no longer depends on the anchor (§4.6).
 
 #### 2.6.7 Other answers, and the verdict
 
@@ -431,10 +436,10 @@ the fast cadence that causes the first one, give a wrong pairing that nothing fl
 contact ≈ `CreatedAtUtc` − 0.58 s (±0.05 s, §2.6.6). Reject a claim whose contact is not within a
 window of our impact time, and disarm a swing whose window has passed.
 
-**Blocker:** PinPoint's own absolute impact time is wrong by 2–6 s (`clock.wallclock` is anchored
-when the save starts, not when the window was captured, §2.6.6). Fix that first, then re-run §6
-Block 9 to size the window. Both clocks are the same PC, so a ±0.5 s window should be
-ample once the anchor is right.
+~~**Blocker:**~~ PinPoint's saved absolute impact time was wrong by 2–6 s (§2.6.6), now fixed. The
+pairing does not use it anyway: it takes our impact on the wall clock **at detection** (§4.6). The
+window starts at **±1.5 s** and every timed claim logs its Δ, so the cabin test can tighten it. Both
+clocks are the same PC, so ±0.5 s should prove ample.
 
 ### 4.4 Tests
 
@@ -469,18 +474,61 @@ The CSV parser has `gcquad_csv_parser_test.cpp`. The Premier parser gets the sam
   tier-gated server-side. That would make the queue lose `ClubData` with no change on our side.
   The missing-`ClubData` path (ball-only) already covers it, but the status should report it.
 
+### 4.6 As built (2026-11-02)
+
+Where the build sharpened §4.1–§4.3:
+
+1. **The club update is a full re-reading, not a merge.** When a later write shows a shot's
+   `ClubData`, the snapshot holds that shot's ball *and* club data, so the connector re-parses it and
+   emits `readingUpdated` with the same `deviceShotId` (first `readAtMs` kept). The host replaces the
+   block through the existing `SwingDocWriter::updateLaunchMonitor`, which already re-derives the
+   `lm.*` rows and gates. No merge code exists.
+2. **A shot is final once it is no longer the newest in its session.** First sight: ball only, with
+   **no** club drops (pending, not missing). A write later: with its club data, or with every club
+   field a `noData` drop (no stickers). The newest shot is finalised from the queue's session-end
+   flush. If it reaches the queue still without club data, Premier was quit mid-session *or* the club
+   had no stickers. The file cannot say which, so the reading stays ball-only and the log says so.
+3. **The queue is never a source of new shots,** and is opened only while a shot waits on it (stat
+   first, open only on change, close at once). A test proves an unreadable queue goes unnoticed while
+   nothing waits on it.
+4. **Club updates are written only when the pipeline is idle.** An update lands ~0.7 s after the
+   *next* shot's contact, exactly as that capture starts, and a whole-document rewrite on the GUI
+   thread there is the known freeze. The controller holds updates while `ShotProcessor` is busy, and
+   while the re-analysis queue still owes the folder a write. An update for a claim still parked
+   replaces the parked reading in place. The carousel, diagnostics and an open replay re-read the
+   swing on `readingUpdatedForSwing`, as they do after a re-analysis; no chime.
+5. **Pairing takes our impact at detection.** `ShotController::shotDetected` carries `impactUs` on the
+   buffer's steady clock; `main.cpp` converts it to the wall clock there and then (`now − (nowMicros −
+   impactUs)`), so pairing never depended on the saved-anchor bug. A reading carries
+   `contactAtMs = CreatedAtUtc − 580 ms` (written to the raw block as `contactAtMs`, additive). Δ within
+   ±1.5 s claims; Δ later than the window disarms the swing (Premier dropped its shot) and the reading
+   is unpaired; Δ earlier discards the reading and stays armed. FSX2020 and GSPro readings state no
+   contact time and pair by order, as before.
+6. **Premier has its own folder setting,** `launchmonitor/premierPath`; empty means Premier's data
+   folder for this account. Choosing Premier never overwrites FSX2020's folder. The settings panel
+   lists "GC Quad — FSX2020" and "GC Quad — Foresight Premier"; both short labels are "GC Quad", so
+   the LM board, report and session summary name the device, not the program.
+7. **Ghost gate** at 10 mph ball speed: the 2.1 mph knock is never emitted.
+
+Verified on the desk (2026-11-02): parser, monitor and pairing tests over every captured write; the
+running app replaying the session-2 capture into a folder (a reading per shot, the club data a shot
+later, the knock ignored, the last shot finalised from the flush); and the controller driven end to
+end against a real swing (Δ −40 ms claim, ball-only write at save, club update held while busy and
+written when idle, 19 `lm.*` rows). The cabin test (step 6) is the first run against live Premier.
+
 ## 5. Implementation phases
 
 1. ✅ **Investigate** (§6, done 2026-11-02, §2.6). Fixtures captured.
-2. **Fix PinPoint's swing wallclock anchor** (§2.6.6), then re-run §6 Block 9 (5 shots) to
-   measure the PinPoint↔Quad offset.
-3. **Parser + tests**: `premier_session_parser.{h,cpp}` (snapshot and queue share a schema), pure,
+2. ✅ **Fix PinPoint's swing wallclock anchor** (§2.6.6). Re-running §6 Block 9 to measure the
+   PinPoint↔Quad offset moves into step 6.
+3. ✅ **Parser + tests**: `premier_session_parser.{h,cpp}` (snapshot and queue share a schema), pure,
    no Qt objects beyond JSON.
-4. **Monitor**: `ForesightPremierMonitor`, `Kind::Premier`, factory, settings token, settings
-   panel choice with the default path, the club-amendment signal and the host's merge into `lm`.
-5. **Timestamp-checked pairing** (§4.3).
+4. ✅ **Monitor**: `ForesightPremierMonitor`, `Kind::Premier`, factory, settings token, settings
+   panel choice with the default path, the club update signal and the host's write into the swing (§4.6).
+5. ✅ **Timestamp-checked pairing** (§4.3, §4.6).
 6. **Cabin test** with the real Quad: 20 shots including a rapid-fire run, every swing gets its
-   reading and its club data, values match Premier's screen.
+   reading and its club data, values match Premier's screen; the logged Δ sizes the pairing window
+   (§4.3), and new swings' `clock.wallclock + capture.impactUs` agree with Premier's contact.
 7. *(Optional)* carry from `history.json`.
 
 ## 6. Investigation session — you hit, I watch
@@ -553,6 +601,6 @@ Answered 2026-11-02 (§2.6) unless marked open.
 8. ✅ Drills write nothing, stickered or not. The range requires a club (§2.6.7).
 9. ✅ Server rejects it (`SESSION_ALREADY_ENDED` on `CreateShot`), so it never drains. Successful uploads drain at session end (§2.6.1).
 10. **Open.** Stayed `false` and gated nothing observable.
-11. **Open (new).** PinPoint↔Quad impact offset, after the wallclock fix (§2.6.6, §5 step 2).
+11. **Open.** PinPoint↔Quad impact offset. The wallclock fix is in (§2.6.6); the measurement is §5 step 6.
 12. **Open (new).** Does a club-data amendment ever arrive for the wrong shot around a dropped
     shot (the drain warning, §2.6.3)? Watch for it in the §5 cabin test.

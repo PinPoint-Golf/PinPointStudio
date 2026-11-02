@@ -799,6 +799,8 @@ qt_add_executable(PinPointStudio
     src/LaunchMonitor/gcquad_monitor.h           src/LaunchMonitor/gcquad_monitor.cpp
     src/LaunchMonitor/gspro_reading.h            src/LaunchMonitor/gspro_reading.cpp
     src/LaunchMonitor/gspro_monitor.h            src/LaunchMonitor/gspro_monitor.cpp
+    src/LaunchMonitor/premier_session_parser.h   src/LaunchMonitor/premier_session_parser.cpp
+    src/LaunchMonitor/premier_monitor.h          src/LaunchMonitor/premier_monitor.cpp
     src/Gui/launchmonitor/launch_monitor_controller.h src/Gui/launchmonitor/launch_monitor_controller.cpp
     src/Audio/onset_detector.h
     src/Audio/acoustic_shot_detector.h src/Audio/acoustic_shot_detector.cpp

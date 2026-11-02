@@ -1460,6 +1460,41 @@ int main()
                                      [QStringLiteral("metrics")].toArray();
         check(again.size() == mets.size(), "re-applying replaces rather than appending");
 
+        // ── A device that states its contact time, and a fuller reading later ──
+        // FSX2020 states none, so the key is absent — not 0, which would be a time.
+        check(!SwingStore::load(d3)[QStringLiteral("launchMonitor")].toObject()
+                   .contains(QStringLiteral("contactAtMs")),
+              "no contactAtMs for a device that does not state one");
+        // Foresight Premier writes a shot's club data with the NEXT shot, and the connector
+        // re-states the whole reading (premier_monitor.h). The second write must replace the
+        // first: the club fields arrive, and the contact time is kept as stated.
+        pinpoint::lm::LaunchMonitorReading ballOnly;
+        ballOnly.deviceKind   = QStringLiteral("premier");
+        ballOnly.deviceShotId = QStringLiteral("773c37ee-e2fd-4d18-a973-93995ba8b326");
+        ballOnly.ballSpeed    = 77.6;
+        ballOnly.contactAtMs  = 1793633871725LL;
+        check(SwingDocWriter::updateLaunchMonitor(d3, ballOnly, &lerr), "a ball-only reading lands");
+        QJsonObject pr = SwingStore::load(d3)[QStringLiteral("launchMonitor")].toObject();
+        check(qint64(pr[QStringLiteral("contactAtMs")].toDouble()) == 1793633871725LL,
+              "the device's contact time is stored to the millisecond");
+        check(!pr.contains(QStringLiteral("clubheadSpeed")),
+              "…and the FSX2020 reading it replaced is gone, club speed and all");
+        pinpoint::lm::LaunchMonitorReading whole = ballOnly;
+        whole.clubheadSpeed = 69.4;
+        whole.faceAngle     = -4.1;
+        check(SwingDocWriter::updateLaunchMonitor(d3, whole, &lerr), "the fuller reading lands");
+        pr = SwingStore::load(d3)[QStringLiteral("launchMonitor")].toObject();
+        check(qAbs(pr[QStringLiteral("faceAngle")].toDouble() - -4.1) < 1e-9,
+              "the late club data is in the block");
+        int lmFace = 0;
+        for (const QJsonValue &v : SwingStore::load(d3)[QStringLiteral("analysis")].toObject()
+                                       [QStringLiteral("metrics")].toArray())
+            if (v.toObject()[QStringLiteral("key")].toString() == QStringLiteral("lm.faceAngle"))
+                ++lmFace;
+        check(lmFace == 1, "…and its lm. row exists exactly once");
+        // Put the FSX2020 reading back for the re-analysis checks below.
+        check(SwingDocWriter::updateLaunchMonitor(d3, *reading, &lerr), "restore the FSX2020 reading");
+
         // ── Re-analysis must not evict the readings ─────────────────────────
         //
         // The whole existing document goes back in as the manifest, which is exactly what

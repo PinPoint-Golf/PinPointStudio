@@ -35,6 +35,7 @@ carries ball data only.
 
 **For a Premier-based workflow:** `SessionLiveSnapshot.<userId>.json` (range only) is the source of
 record, and the managed SDK log gives the contact instant. See [Source 5](#source-5--foresight-premier).
+PinPoint reads it with the "GC Quad — Foresight Premier" connector (`ForesightPremierMonitor`).
 
 ---
 

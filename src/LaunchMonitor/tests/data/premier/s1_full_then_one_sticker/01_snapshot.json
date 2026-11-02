@@ -1,0 +1,39 @@
+﻿{
+  "LocalSessionId": "6b0f1ce6-0612-4af8-ac72-8436dddc0559",
+  "BackendSessionId": null,
+  "Name": null,
+  "CreatedAtUtc": "2026-11-02T14:47:10.1641066Z",
+  "EndedAtUtc": "2026-11-02T14:53:25.707131Z",
+  "EndedAtSynced": false,
+  "SessionType": 0,
+  "TrainingDetails": null,
+  "ShotGroups": [
+    {
+      "LocalGroupId": "08014210-47d0-41df-b7b7-0bd1b3d13f0f",
+      "BackendGroupId": null,
+      "UnwritableGroupReplaced": false,
+      "ColorHex": "#FF4FC5C9",
+      "CreatedAtUtc": "2026-11-02T14:47:10.1641066Z",
+      "Tags": [
+        "Gw"
+      ],
+      "Shots": [
+        {
+          "LocalShotId": "e6003d54-620e-4aaa-853c-0bffc9c2e635",
+          "BackendShotId": null,
+          "ClubType": "WEDGE",
+          "ClubName": "Gw",
+          "BallSpeedMs": 36.567872,
+          "AzimuthDeg": -2.2999999523162842,
+          "ElevationDeg": 28.200000762939453,
+          "BackSpinRpm": 7845.0,
+          "SideSpinRpm": -383.0,
+          "TotalSpinRpm": 7854.0,
+          "Hidden": false,
+          "CreatedAtUtc": "2026-11-02T14:53:25.707131Z",
+          "ClubData": null
+        }
+      ]
+    }
+  ]
+}

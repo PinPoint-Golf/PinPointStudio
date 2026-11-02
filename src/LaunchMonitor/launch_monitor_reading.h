@@ -69,6 +69,11 @@ struct LaunchMonitorReading {
     QString deviceKind;
     QString sourcePath;         // the file this came from
     qint64  readAtMs = 0;       // wall clock when we read it (epoch ms)
+    // The device's own estimate of ball contact (epoch ms, UTC), when it states one. Foresight
+    // Premier stamps each shot (CreatedAtUtc, ~0.58 s after contact); FSX2020 and GSPro state
+    // none, and this stays empty. ShotPairing checks a claim against it: a reading whose
+    // contact is nowhere near our impact belongs to some other swing.
+    std::optional<qint64> contactAtMs;
 
     // ── Measured, where we also estimate ────────────────────────────────────
     // Each of these has a bare-keyed counterpart produced by our own pipeline

@@ -106,6 +106,8 @@ std::optional<lm::LaunchMonitorReading> readingFromRawBlock(const QJsonObject &r
     r.deviceClub   = raw.value(QStringLiteral("deviceClub")).toString();
     r.sourcePath   = raw.value(QStringLiteral("sourcePath")).toString();
     r.readAtMs     = qint64(raw.value(QStringLiteral("readAtMs")).toDouble());
+    if (raw.value(QStringLiteral("contactAtMs")).isDouble())
+        r.contactAtMs = qint64(raw.value(QStringLiteral("contactAtMs")).toDouble());
 
     for (const lm::FieldDef &f : lm::fieldDefs()) {
         const QJsonValue v = raw.value(QString::fromLatin1(f.rawName));
