@@ -209,7 +209,9 @@ struct HandshakeFailure {
     std::string message;        // uniform text; never says which check failed
     int alert = -1;             // TLS alert seen on the wire, -1 if none
     bool alertWasSent = false;  // true: we sent it; false: the peer sent it
-    double elapsedMs = 0.0;     // for the timing half of 7.7c / RT-11
+    double elapsedMs = 0.0;     // for the timing half of 7.7c / RT-11; on the
+                                // listener a handshake outcome runs from the
+                                // peer's first byte, a timeout from accept()
 
     // Which of the outcomes above this is.  `None` means nothing failed.
     FailureKind kind = FailureKind::None;

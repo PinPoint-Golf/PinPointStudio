@@ -216,6 +216,21 @@ bool waitFor(pp_socket_t s, bool forRead, double deadlineMs)
     return r > 0;
 }
 
+// True once the peer has sent its first byte on `s` — or closed it, or broken
+// it, either of which also ends the wait for a ClientHello.  A one-byte
+// MSG_PEEK, so nothing is consumed and the TLS layer reads the stream intact.
+bool peerHasSpoken(pp_socket_t s)
+{
+    char c;
+    const auto n = ::recv(s, &c, 1, MSG_PEEK);
+    if (n >= 0) return true;
+#ifdef _WIN32
+    return WSAGetLastError() != WSAEWOULDBLOCK;
+#else
+    return errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR;
+#endif
+}
+
 // ── The uniform rejection (RV 5.3c, 7.7c) ───────────────────────────────────
 // One string for every authentication outcome.  A message that named the cause
 // would be the distinguisher 7.7c forbids, and it costs nothing to withhold.
@@ -1591,7 +1606,15 @@ struct Listener::Impl {
         short  want = POLLIN;
         double deadline = 0.0;     // handshake, then bind
         std::vector<unsigned char> rx;
-        double started = 0.0;
+        double started = 0.0;      // accept(): what the timeouts run from
+        // The peer's first byte, i.e. its ClientHello: what a handshake
+        // OUTCOME's elapsedMs runs from (RV 5.3d).  Not accept(), because the
+        // gap between the two is the dialler's own connect latency, nothing
+        // this side did — on Windows a loopback dial spends 0, 1 or 2 timer
+        // ticks (15.6 ms each) there, which made RT-11 compare scheduler ticks
+        // instead of handshakes (#144).  0 until the first byte arrives.
+        double helloMs = 0.0;
+        double outcomeStart() const { return helloMs > 0.0 ? helloMs : started; }
     };
     std::vector<std::unique_ptr<Pending>> pending;
 
@@ -1974,6 +1997,7 @@ std::unique_ptr<PeerConnection> Listener::acceptImpl(int timeoutMs, HandshakeFai
             bool drop = false;
 
             if (!p.handshaken) {
+                if (p.helloMs == 0.0 && peerHasSpoken(p.impl->sock)) p.helloMs = nowMs();
                 const Step st = stepHandshake(p.impl->ssl, /*server=*/true, p.want);
                 if (st == Step::Failed) {
                     // RV 5.3c / 7.7c.  ONE report, ONE log line, for an
@@ -1989,7 +2013,7 @@ std::unique_ptr<PeerConnection> Listener::acceptImpl(int timeoutMs, HandshakeFai
                         fail->kind = FailureKind::Handshake;
                         fail->alert = p.impl->state->alert;
                         fail->alertWasSent = p.impl->state->alertWasSent;
-                        fail->elapsedMs = nowMs() - p.started;
+                        fail->elapsedMs = nowMs() - p.outcomeStart();
                     }
                     if (impl->log) impl->log(std::string(kUniformHandshakeFailure));
                     impl->pending.erase(it);
@@ -2005,7 +2029,7 @@ std::unique_ptr<PeerConnection> Listener::acceptImpl(int timeoutMs, HandshakeFai
                             // refused it (5.2b), so this is not one of the two
                             // outcomes 7.7c holds together.
                             fail->kind = FailureKind::NotForwardSecret;
-                            fail->elapsedMs = nowMs() - p.started;
+                            fail->elapsedMs = nowMs() - p.outcomeStart();
                         }
                         if (impl->log) impl->log("PPCP TLS refused: psk_ke (RV 5.2b)");
                         impl->pending.erase(it);

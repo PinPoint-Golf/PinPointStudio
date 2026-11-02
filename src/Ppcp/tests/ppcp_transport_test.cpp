@@ -323,72 +323,101 @@ TEST(PpcpTransport, HandshakeFailsWithMismatchedKtlsAndNeverFallsBack)
     EXPECT_EQ(accepted.get(), nullptr);
 }
 
+namespace {
+
+// One failed handshake of RT-11, everything both ends report about it.
+struct FailedHandshake {
+    HandshakeFailure client;
+    HandshakeFailure server;
+    std::vector<std::string> serverLog;
+};
+
+// Case A (unknownIdentity == false): the identity resolves, the key is wrong.
+// Case B (unknownIdentity == true):  no pairing resolves the identity at all.
+void runFailedHandshake(bool unknownIdentity, FailedHandshake &out)
+{
+    IdentityResolver resolver = unknownIdentity
+        ? IdentityResolver([](const unsigned char *, std::size_t, ResolvedPairing &) { return false; })
+        : oneKnownPairing(kTlsVector());
+    Harness h(std::move(resolver));
+    ASSERT_TRUE(h.ok());
+    auto accepted = h.acceptAsync(5000);
+    const Key clientKey = unknownIdentity ? kTlsVector() : otherKey();
+    EXPECT_EQ(Connector::connect(clientConfig(h.port(), clientKey), &out.client), nullptr);
+    EXPECT_EQ(accepted.get(), nullptr);
+    out.server = h.lastFailure();
+    out.serverLog = h.log().snapshot();
+}
+
+}  // namespace
+
 // ── RT-11 — unknown identity and wrong key are the same failure ────────────
 // RV 5.3c (same alert), 5.3d (same timing, via the dummy key), 7.7c (uniform in
 // content AND in how long it takes).  This is the row RV §9 calls one of the two
 // most likely to be skipped, so it is asserted on both halves.
 TEST(PpcpTransport, UnknownIdentityIsIndistinguishableFromAWrongKey)
 {
-    // Case A — the identity resolves, the key is wrong.
-    HandshakeFailure aClient;
-    std::vector<std::string> aServerLog;
-    HandshakeFailure aServer;
-    {
-        Harness h(oneKnownPairing(kTlsVector()));
-        ASSERT_TRUE(h.ok());
-        auto accepted = h.acceptAsync(5000);
-        EXPECT_EQ(Connector::connect(clientConfig(h.port(), otherKey()), &aClient), nullptr);
-        EXPECT_EQ(accepted.get(), nullptr);
-        aServer = h.lastFailure();
-        aServerLog = h.log().snapshot();
+    // Several rounds of each case, interleaved and alternating which goes first,
+    // so a scheduler stall or page-in lands on one sample rather than deciding
+    // the timing half.  (#144's ratios of 17-30 were not that, though: the
+    // listener timed from accept() and so included the dialler's own connect
+    // latency, 0, 1 or 2 Windows timer ticks.  It now times from the first
+    // ClientHello byte — see Listener::Impl::Pending::helloMs.)
+    constexpr int kRounds = 7;
+    double minA = 1e9, minB = 1e9;
+    std::string samples;   // every round's pair, for the failure message
+    for (int round = 0; round < kRounds; ++round) {
+        SCOPED_TRACE(testing::Message() << "round " << round);
+        FailedHandshake a, b;
+        if (round % 2 == 0) {
+            ASSERT_NO_FATAL_FAILURE(runFailedHandshake(false, a));
+            ASSERT_NO_FATAL_FAILURE(runFailedHandshake(true, b));
+        } else {
+            ASSERT_NO_FATAL_FAILURE(runFailedHandshake(true, b));
+            ASSERT_NO_FATAL_FAILURE(runFailedHandshake(false, a));
+        }
+
+        // Content — what the counterpart sees on the wire.
+        EXPECT_EQ(a.client.message, b.client.message);
+        EXPECT_EQ(a.client.alert, b.client.alert) << "RV 5.3c — the same alert for both";
+        EXPECT_EQ(a.client.alertWasSent, b.client.alertWasSent);
+
+        // Content — what we report and what we log.  A log line that named the
+        // cause would not cross the wire, but it is the distinguisher a support
+        // engineer would read out loud, and 7.7c does not carve out diagnostics.
+        EXPECT_EQ(a.server.message, b.server.message);
+        EXPECT_EQ(a.serverLog, b.serverLog) << "RV 7.7c — no distinguishing log";
+
+        // ⚠ AND THE KIND IS UNIFORM TOO.  `FailureKind` exists so the embedding
+        // can put a failed arrival on the screen, and it is the obvious place for
+        // a future maintainer to add "unknownIdentity" / "wrongKey" as a
+        // convenience.  That would defeat this whole row without touching a byte
+        // on the wire, so it is asserted here rather than left to the comment in
+        // the header.
+        EXPECT_EQ(a.server.kind, b.server.kind) << "RV 7.7c — the kind named the cause";
+        EXPECT_EQ(a.server.kind, FailureKind::Handshake);
+        EXPECT_EQ(a.client.kind, b.client.kind);
+        EXPECT_EQ(a.server.bind, BindRejection::None)
+            << "an authentication failure is not a bind rejection";
+
+        minA = std::min(minA, a.server.elapsedMs);
+        minB = std::min(minB, b.server.elapsedMs);
+        samples += " " + std::to_string(a.server.elapsedMs) + "/" + std::to_string(b.server.elapsedMs);
     }
-
-    // Case B — no pairing resolves the identity at all.
-    HandshakeFailure bClient;
-    std::vector<std::string> bServerLog;
-    HandshakeFailure bServer;
-    {
-        Harness h([](const unsigned char *, std::size_t, ResolvedPairing &) { return false; });
-        ASSERT_TRUE(h.ok());
-        auto accepted = h.acceptAsync(5000);
-        EXPECT_EQ(Connector::connect(clientConfig(h.port(), kTlsVector()), &bClient), nullptr);
-        EXPECT_EQ(accepted.get(), nullptr);
-        bServer = h.lastFailure();
-        bServerLog = h.log().snapshot();
-    }
-
-    // Content — what the counterpart sees on the wire.
-    EXPECT_EQ(aClient.message, bClient.message);
-    EXPECT_EQ(aClient.alert, bClient.alert) << "RV 5.3c — the same alert for both";
-    EXPECT_EQ(aClient.alertWasSent, bClient.alertWasSent);
-
-    // Content — what we report and what we log.  A log line that named the cause
-    // would not cross the wire, but it is the distinguisher a support engineer
-    // would read out loud, and 7.7c does not carve out diagnostics.
-    EXPECT_EQ(aServer.message, bServer.message);
-    EXPECT_EQ(aServerLog, bServerLog) << "RV 7.7c — no distinguishing log";
-
-    // ⚠ AND THE KIND IS UNIFORM TOO.  `FailureKind` exists so the embedding can
-    // put a failed arrival on the screen, and it is the obvious place for a
-    // future maintainer to add "unknownIdentity" / "wrongKey" as a convenience.
-    // That would defeat this whole row without touching a byte on the wire, so
-    // it is asserted here rather than left to the comment in the header.
-    EXPECT_EQ(aServer.kind, bServer.kind) << "RV 7.7c — the kind named the cause";
-    EXPECT_EQ(aServer.kind, FailureKind::Handshake);
-    EXPECT_EQ(aClient.kind, bClient.kind);
-    EXPECT_EQ(aServer.bind, BindRejection::None)
-        << "an authentication failure is not a bind rejection";
 
     // Timing — 5.3d is a SHOULD and the technique it names is the dummy key,
     // which this transport uses: both cases run to Finished verification.  The
     // bound is deliberately loose because a unit test on a loaded machine cannot
     // measure a side channel; what it can catch is the structural regression
     // where an unresolvable identity aborts early and returns in a fraction of
-    // the time.
-    const double a = aServer.elapsedMs, b = bServer.elapsedMs;
-    const double ratio = (a > b) ? (a / std::max(b, 0.001)) : (b / std::max(a, 0.001));
-    EXPECT_LT(ratio, 10.0) << "RV 5.3d — an early abort would show up here: "
-                           << a << "ms vs " << b << "ms";
+    // the time.  Each case's FASTEST handshake is its cost with the noise taken
+    // out (noise only ever adds time), so the ratio of minimums keeps the power
+    // to see an early abort without one slow sample deciding the result.
+    const double ratio = (minA > minB) ? (minA / std::max(minB, 0.001))
+                                       : (minB / std::max(minA, 0.001));
+    EXPECT_LT(ratio, 10.0) << "RV 5.3d — an early abort would show up here: fastest "
+                           << minA << "ms (wrong key) vs " << minB << "ms (unknown identity); "
+                           << "per round, wrong key/unknown identity:" << samples;
 }
 
 // ── CORE T2/T5 — the channels are independent ──────────────────────────────
