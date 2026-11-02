@@ -20,6 +20,7 @@
 
 #include "qml_payload.h"
 
+#include <QDateTime>
 #include <QElapsedTimer>
 #include <QFutureWatcher>
 #include <QJSValue>
@@ -333,6 +334,7 @@ private:
     // the snapshot would come back empty with nothing reporting an error.
     int64_t m_windowStartUs = 0;
     int64_t m_windowEndUs   = 0;
+    QDateTime m_windowEndUtc;   // m_windowEndUs on the wall clock, taken in the same breath
     // What each pull actually delivered, keyed by device id — coverage, gaps,
     // the fit and the overlap counters. Read by the exporter into swing.json's
     // per-stream provenance, so a swing says a year later what it was built from.

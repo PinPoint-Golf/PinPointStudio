@@ -878,6 +878,12 @@ void ShotProcessor::beginGather()
     m_stitchCounts.clear();
 
     m_windowEndUs   = pinpoint::EventBuffer::nowMicros();
+    // The same instant on the wall clock, read back to back with the line above. This — not
+    // the moment the save starts, which is after analysis and the pose pass, 2-37 s later —
+    // is when "wallclock ≈ endTimestampUs()" is true, and it is what clock.wallclock is
+    // computed from (buildSwingExportJob). Anchoring at save time put every swing's absolute
+    // time seconds late (docs/design/foresight_premier_connector.md §2.6.6).
+    m_windowEndUtc  = QDateTime::currentDateTimeUtc();
     m_windowStartUs = m_windowEndUs - kWindowDuration.count() * 1000LL;
 
     // ⚠ AND THE RESUME GUARD GOES UP HERE, for the same instant's reason (§3.5):
@@ -1575,8 +1581,11 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         job.athleteHeightM = m_athlete->currentHeightM();
     }
 
-    // Wallclock anchor: right now, wallclock ~= monotonic endTimestampUs().
-    job.wallclockAnchorUtc = QDateTime::currentDateTimeUtc();
+    // Wallclock anchor: the UTC instant taken when the window end was frozen (beginGather), so
+    // wallclock == monotonic endTimestampUs() by construction. NOT currentDateTimeUtc() here:
+    // this runs from startSwingSave(), after analysis, and "now" is seconds past the window.
+    job.wallclockAnchorUtc = m_windowEndUtc.isValid() ? m_windowEndUtc
+                                                      : QDateTime::currentDateTimeUtc();
 
     // Session context + host provenance for the manifest's "capture" block.
     job.sessionType = m_sessionType;

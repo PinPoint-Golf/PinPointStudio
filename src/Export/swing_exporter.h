@@ -375,8 +375,10 @@ struct SwingExportJob {
     double  priorClubLenVarPx = -1.0;
     int     priorClubLenN     = 0;
 
-    // UTC instant snapshotted on the UI thread right after the window was
-    // captured — at that moment wallclock ~= monotonic endTimestampUs().
+    // The UTC instant of the window's end: snapshotted on the UI thread in the
+    // same breath as the monotonic endTimestampUs() was frozen (ShotProcessor::
+    // beginGather), so the two name the same moment. The manifest subtracts the
+    // window duration to get clock.wallclock, the window START.
     QDateTime wallclockAnchorUtc;
 
     // Impact thumbnail (thumb.jpg in the swing dir): the frame nearest this

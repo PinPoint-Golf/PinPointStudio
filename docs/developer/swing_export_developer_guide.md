@@ -583,7 +583,7 @@ Two API details matter:
 | Field | Source |
 |---|---|
 | `t0_us` | `window.startTimestampUs()` — the monotonic capture clock (`EventBuffer::nowMicros()` epoch) |
-| `wallclock` | Honest approximation: a UTC anchor is snapshotted on the UI thread right after window capture (when wallclock ≈ monotonic `endTimestampUs()`), then the window duration is subtracted. Accurate to milliseconds. |
+| `wallclock` | UTC of the window **start**: a UTC anchor is taken on the UI thread in the same breath as the window end is frozen (`ShotProcessor::beginGather`, so wallclock = monotonic `endTimestampUs()`), then the window duration is subtracted. Accurate to milliseconds. `clock.wallclock + capture.impactUs` is impact on the wall clock. Swings saved before 2026-11-02 anchored at save time instead (after analysis), so theirs are 2–37 s late. |
 | `window.end_us` | `endTimestampUs() − t0` |
 | video `source.*`, `capture.*` | `CameraFormat` via `window.formatOf()` (`serial` from `FormatDescriptor::device_serial`) |
 | video `capture.exposureUs` / `exposureSource` / `exposureAuto` | `CameraFormat::exposure_us` / `exposure_source` — stamped from Spinnaker chunk data (`GetChunkData().GetExposureTime()`) or fps-derived; read back via `exposureSourceFromName()` |
