@@ -20,6 +20,11 @@ for GoldenCheetah); tests = anything under a tests/ or Tests/ directory; docs =
 Markdown; tools = py/sh/cmd/ps1/js scripts. Excluded: vendored code (third_party/,
 qwt/, contrib/ ...), build/, Mothballed/, CSV/JSON/images and other data.
 Lines are net (added minus deleted), so a move between folders is neutral.
+
+Open bugs: when a preset names GitHub repos in `issues`, the growth panel also
+carries the number of issues labelled `bug` open on each day, read with `gh` from each
+issue's opened and closed dates. A reopened bug counts from its first opening to its
+last close. --no-issues leaves them off.
 """
 import argparse
 import csv
@@ -53,6 +58,9 @@ PRESETS = {
         test_dirs={"tests", "Tests"}, extra_code=set(),
         sigma=7.0, since="2026-07-25", since_label="late July", xtick="2w",
         out="loc_history.png",
+        # PinPointCapture's issues are its v1-v3 roadmap (epics, decisions), not defects;
+        # the app's bug count is the stability signal.
+        issues=["PinPoint-Golf/PinPointStudio"],
         milestones=[
             ("Capture, IMU, audio, STT/TTS", "2026-04-29", 52, 0),
             ("Pose", "2026-05-08", 120, 0),
@@ -138,6 +146,33 @@ def read_repo(repo, ref, cfg):
     return deltas
 
 
+def open_bugs(repos, days):
+    """Bugs open at the end of each day across `repos`, or None if gh can't say."""
+    rows = []
+    for repo in repos:
+        try:
+            out = subprocess.run(["gh", "issue", "list", "-R", repo, "--state", "all", "--limit", "5000",
+                                  "--json", "createdAt,closedAt,labels"],
+                                 capture_output=True, text=True, check=True).stdout
+        except (OSError, subprocess.CalledProcessError) as e:
+            print(f"open bugs left off: gh issue list -R {repo} failed ({getattr(e, 'stderr', '') or e})".strip(), file=sys.stderr)
+            return None
+        import json
+        for it in json.loads(out):
+            opened = dt.date.fromisoformat(it["createdAt"][:10])
+            closed = dt.date.fromisoformat(it["closedAt"][:10]) if it.get("closedAt") else None
+            if any(l["name"] == "bug" for l in it["labels"]):
+                rows.append((opened, closed))
+    if not rows:
+        return None
+    bugs = np.full(len(days), np.nan)
+    first = min(o for o, _ in rows)
+    for i, d in enumerate(days):
+        if d >= first:
+            bugs[i] = sum(1 for o, c in rows if o <= d and (c is None or c > d))
+    return bugs
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     root = Path(__file__).resolve().parents[2]
@@ -147,6 +182,7 @@ def main():
     ap.add_argument("--csv", help="also write the daily cumulative series here")
     ap.add_argument("--open", action="store_true", help="open the PNG when done (macOS)")
     ap.add_argument("--sigma", type=float, help="smoothing of the growth rate, in days (default per preset)")
+    ap.add_argument("--no-issues", action="store_true", help="leave the open-bug count off the growth panel")
     args = ap.parse_args()
     cfg = PRESETS[args.project]
     sigma = args.sigma or cfg["sigma"]
@@ -171,13 +207,15 @@ def main():
             for c, n in per.items():
                 daily[c][i] += n
     cum = {c: np.cumsum(daily[c]) / 1000 for c in cats}
+    bugs = None if args.no_issues or not cfg.get("issues") else open_bugs(cfg["issues"], days)
 
     if args.csv:
         with open(args.csv, "w", newline="") as f:
             w = csv.writer(f)
-            w.writerow(["date", *cats])
+            w.writerow(["date", *cats, *(["open_bugs"] if bugs is not None else [])])
             for i, d in enumerate(days):
-                w.writerow([d.isoformat(), *(round(cum[c][i] * 1000) for c in cats)])
+                extra = [] if bugs is None else ["" if np.isnan(bugs[i]) else int(bugs[i])]
+                w.writerow([d.isoformat(), *(round(cum[c][i] * 1000) for c in cats), *extra])
 
     # Growth rate: Gaussian-smoothed daily net product lines, normalised at the
     # edges so the last days are not pulled toward zero.
@@ -238,6 +276,22 @@ def main():
         ax2.text(x[0] + 2, avg + 0.8, f"average since {cfg['since_label']}: {avg:.0f}k / week", color="#777", fontsize=9)
     ax2.set_ylabel("k lines / week")
     ax2.set_ylim(0, weekly.max() * 1.1)
+    ax2.plot([], [], color="#3a52a8", lw=2.4, label="Product growth, k lines / week (left)")
+
+    # Open bugs on a right-hand axis, a step line named at its last value.
+    if bugs is not None:
+        PURPLE = "#7a3e8f"
+        ax3 = ax2.twinx()
+        ax3.step(x, bugs, where="post", color=PURPLE, lw=2.2)
+        ax3.annotate(f"{bugs[-1]:.0f} open bugs", (x[-1], bugs[-1]), xytext=(0, 5), textcoords="offset points",
+                     ha="right", va="bottom", fontsize=9, color=PURPLE, fontweight="bold")
+        ax3.set_ylim(0, np.nanmax(bugs) * 1.25)
+        ax3.set_ylabel("open bugs", color=PURPLE)
+        ax3.tick_params(axis="y", colors=PURPLE)
+        ax3.spines["top"].set_visible(False)
+        ax3.spines["right"].set_color(PURPLE)
+        ax2.plot([], [], color=PURPLE, lw=2.2, label=f"Open bugs, {', '.join(r.split('/')[-1] for r in cfg['issues'])} (right)")
+        ax2.legend(loc="upper left", frameon=False, fontsize=8.5)
 
     # Release tags. Releases: diamond on the growth panel's baseline, a faint line up through
     # both panels and a name below. Other tags (alphas, RCs): a faint line or a small tick.
@@ -277,7 +331,8 @@ def main():
     fig.text(0.01, 0.005, f"Daily net lines on {', '.join(f'{r} ({ref})' for r, ref in cfg['repos'])}, {start:%-d %b %Y} – {end:%-d %b %Y}. "
              f"Excludes {', '.join(sorted(cfg['skip'] - {'node_modules'}))}/, test data and CSV/JSON.\n"
              f"Tests = anything under {'/, '.join(sorted(cfg['test_dirs'], key=str.lower))}/. "
-             f"Growth rate is a Gaussian-smoothed daily rate (σ = {sigma:g} days).",
+             f"Growth rate is a Gaussian-smoothed daily rate (σ = {sigma:g} days)."
+             + (f" Open bugs: issues labelled bug on GitHub ({', '.join(cfg['issues'])}), counted at the end of each day." if bugs is not None else ""),
              fontsize=8, color="#666")
     out = Path(args.out) if args.out else root / "build/history" / cfg["out"]
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -285,6 +340,8 @@ def main():
     print(f"product {cum['product'][-1]:.0f}k  tests {cum['tests'][-1]:.0f}k  docs {cum['docs'][-1]:.0f}k  tools {cum['tools'][-1]:.0f}k")
     wk = int(sigma)
     print(f"last {wk} days product net: {daily['product'][-wk:].sum()/1000:.1f}k; window before: {daily['product'][-2*wk:-wk].sum()/1000:.1f}k")
+    if bugs is not None:
+        print("open bugs, last 8 days: " + "  ".join(f"{days[i]:%-d %b} {bugs[i]:.0f}" for i in range(-8, 0)))
     print(out)
     if args.open:
         subprocess.run(["open", str(out)])
