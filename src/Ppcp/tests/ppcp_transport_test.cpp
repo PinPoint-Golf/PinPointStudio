@@ -1024,3 +1024,91 @@ TEST(PpcpTransportDialSeam, OwnershipTransfersOnReturnAndTheConnectorClosesIt)
     ::close(sp[0]);
 #endif
 }
+
+
+// ── #145 — a link's TCP channels dial at once, and a dial costs no timer tick ─
+namespace {
+
+// A loopback port with nothing listening on it: bound, read back, closed.
+std::uint16_t closedLoopbackPort()
+{
+#ifdef _WIN32
+    const SOCKET s = ::socket(AF_INET, SOCK_STREAM, 0);
+    int len = sizeof(sockaddr_in);
+#else
+    const int s = ::socket(AF_INET, SOCK_STREAM, 0);
+    socklen_t len = sizeof(sockaddr_in);
+#endif
+    sockaddr_in a{};
+    a.sin_family = AF_INET;
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ::bind(s, reinterpret_cast<sockaddr *>(&a), sizeof a);
+    ::getsockname(s, reinterpret_cast<sockaddr *>(&a), &len);
+#ifdef _WIN32
+    ::closesocket(s);
+#else
+    ::close(s);
+#endif
+    return ntohs(a.sin_port);
+}
+
+}  // namespace
+
+// The connect state is read from poll's revents on Windows, so a refused dial
+// must still show up as a failure there — and as one, not as a dial that runs
+// on to its deadline.  (Windows retries a refused loopback SYN for ~2 s.)
+TEST(PpcpTransportDial, ARefusedDialFailsAsUnreachableBeforeItsDeadline)
+{
+    ConnectorConfig cfg = clientConfig(closedLoopbackPort(), kTlsVector());
+    cfg.options.handshakeTimeoutMs = 8000;
+    HandshakeFailure fail;
+    const auto t0 = std::chrono::steady_clock::now();
+    EXPECT_EQ(Connector::connect(cfg, &fail), nullptr);
+    const double ms =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    EXPECT_EQ(fail.message, "no endpoint reachable");
+    EXPECT_LT(ms, 6000.0) << "the refusal was not seen; the dial ran to its deadline";
+}
+
+// Address fallback: "localhost" names ::1 as well as 127.0.0.1 on most hosts,
+// and the listener binds IPv4 only, so every channel's ::1 attempt fails and
+// the whole link moves to the next address together.
+TEST(PpcpTransportDial, AFailedAddressFallsBackToTheNextForEveryChannel)
+{
+    Harness h(oneKnownPairing(kTlsVector()));
+    ASSERT_TRUE(h.ok());
+    auto accepted = h.acceptAsync(10000);
+    ConnectorConfig cfg = clientConfig(h.port(), kTlsVector());
+    cfg.host = "localhost";
+    cfg.options.handshakeTimeoutMs = 8000;
+    HandshakeFailure fail;
+    std::unique_ptr<PeerConnection> client = Connector::connect(cfg, &fail);
+    ASSERT_NE(client, nullptr) << fail.message;
+    ASSERT_NE(accepted.get(), nullptr);
+}
+
+// Before #145 a Windows loopback dial queried the socket after WSAPoll said
+// it was writable, and that query blocked to the next timer tick (14-18 ms),
+// once per channel: a two-channel link took 15-30 ms against ~1.3 ms of real
+// work.  The fastest of several dials is far under one tick now.  (Old code
+// still dodged the tick now and then, so this catches a regression most runs,
+// not every run; it can never fail on a working build.)
+TEST(PpcpTransportDial, ALinkDialCostsNoTimerTick)
+{
+    double fastest = 1e9;
+    for (int i = 0; i < 8; ++i) {
+        Harness h(oneKnownPairing(kTlsVector()));
+        ASSERT_TRUE(h.ok());
+        auto accepted = h.acceptAsync(5000);
+        HandshakeFailure fail;
+        const auto t0 = std::chrono::steady_clock::now();
+        std::unique_ptr<PeerConnection> client =
+            Connector::connect(clientConfig(h.port(), kTlsVector()), &fail);
+        const double ms =
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        ASSERT_NE(client, nullptr) << fail.message;
+        ASSERT_NE(accepted.get(), nullptr);
+        fastest = (std::min)(fastest, ms);   // (): windows.h defines min
+    }
+    EXPECT_LT(fastest, 10.0) << "fastest two-channel link dial, ms";
+}

@@ -1255,9 +1255,54 @@ struct DialSlot {
     TlsOutcome outcome;
 };
 
-// Dials one TCP connection, bounded by `deadline`.  Address fallback is here
-// and nowhere else.
-pp_socket_t dialTcp(const ConnectorConfig &cfg, double deadline)
+// Where a non-blocking connect() stands, from the revents a poll() gave it.
+enum class ConnectState { Pending, Connected, Failed };
+
+ConnectState connectState(pp_socket_t s, short revents)
+{
+    if (revents == 0) return ConnectState::Pending;
+#ifdef _WIN32
+    // ⚠ revents ALONE, never a socket query, on the success path.  On Windows
+    // the first query after WSAPoll reports a loopback connect writable —
+    // getsockopt(SO_ERROR), getpeername(), any of them — blocks until the next
+    // timer tick, 14-18 ms, though the far side has already accepted (#145).
+    // Every dial paid it, once per channel.  WSAPoll reports a failed connect
+    // as POLLERR / POLLHUP (Windows 10 2004 and later; before that it reported
+    // nothing and the dial ran to its deadline, as it always had here).
+    (void)s;
+    if (revents & (POLLERR | POLLHUP | POLLNVAL)) return ConnectState::Failed;
+    return (revents & POLLOUT) ? ConnectState::Connected : ConnectState::Pending;
+#else
+    // POSIX reports a failed connect as writable too, so SO_ERROR is the
+    // answer here, and it costs nothing.
+    int err = 0;
+    socklen_t len = sizeof err;
+    if (getsockopt(s, SOL_SOCKET, SO_ERROR, &err, &len) != 0 || err != 0)
+        return ConnectState::Failed;
+    if (revents & POLLOUT) return ConnectState::Connected;
+    return (revents & (POLLERR | POLLHUP | POLLNVAL)) ? ConnectState::Failed
+                                                      : ConnectState::Pending;
+#endif
+}
+
+// True when a non-blocking connect() that returned -1 is still under way,
+// rather than already failed.
+bool connectInProgress()
+{
+#ifdef _WIN32
+    return WSAGetLastError() == WSAEWOULDBLOCK;
+#else
+    return errno == EINPROGRESS || errno == EINTR;
+#endif
+}
+
+// Dials `count` TCP connections to the configured endpoint, ALL AT ONCE, and
+// returns them all or none, bounded by `deadline`.  One after another, a link
+// paid one connect latency per channel — a round trip on Wi-Fi, a timer tick on
+// Windows loopback — before its first ClientHello (#145).  Address fallback is
+// here and nowhere else: every connection of a link goes to the same address,
+// and the next address is tried only when one of them fails there.
+std::vector<pp_socket_t> dialTcp(const ConnectorConfig &cfg, std::size_t count, double deadline)
 {
     addrinfo hints{};
     hints.ai_family = AF_UNSPEC;
@@ -1265,27 +1310,61 @@ pp_socket_t dialTcp(const ConnectorConfig &cfg, double deadline)
     addrinfo *res = nullptr;
     const std::string portText = std::to_string(cfg.port);
     if (getaddrinfo(cfg.host.c_str(), portText.c_str(), &hints, &res) != 0 || !res)
-        return PP_INVALID_SOCKET;
+        return {};
 
-    pp_socket_t s = PP_INVALID_SOCKET;
+    std::vector<pp_socket_t> socks;
+    auto closeAll = [&socks] {
+        for (pp_socket_t s : socks) pp_close_socket(s);
+        socks.clear();
+    };
+
     for (addrinfo *ai = res; ai; ai = ai->ai_next) {
-        s = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-        if (s == PP_INVALID_SOCKET) continue;
-        applyOptions(s, cfg.options);
-        setNonBlocking(s);
-        const int r = ::connect(s, ai->ai_addr, static_cast<socklen_t>(ai->ai_addrlen));
-        if (r == 0) break;
-        if (waitFor(s, false, deadline)) {
-            int err = 0;
-            socklen_t len = sizeof err;
-            getsockopt(s, SOL_SOCKET, SO_ERROR, reinterpret_cast<char *>(&err), &len);
-            if (err == 0) break;
+        bool failed = false;
+        std::vector<bool> connected;
+        for (std::size_t i = 0; i < count && !failed; ++i) {
+            const pp_socket_t s = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+            if (s == PP_INVALID_SOCKET) { failed = true; break; }
+            socks.push_back(s);
+            applyOptions(s, cfg.options);
+            setNonBlocking(s);
+            const int r = ::connect(s, ai->ai_addr, static_cast<socklen_t>(ai->ai_addrlen));
+            if (r != 0 && !connectInProgress()) failed = true;
+            connected.push_back(r == 0);
         }
-        pp_close_socket(s);
-        s = PP_INVALID_SOCKET;
+
+        while (!failed && std::find(connected.begin(), connected.end(), false) != connected.end()) {
+            const double remain = deadline - nowMs();
+            if (remain <= 0) { failed = true; break; }
+#ifdef _WIN32
+            std::vector<WSAPOLLFD> fds;
+#else
+            std::vector<struct pollfd> fds;
+#endif
+            std::vector<std::size_t> idx;
+            for (std::size_t i = 0; i < socks.size(); ++i) {
+                if (connected[i]) continue;
+                fds.emplace_back();
+                fds.back().fd = socks[i];
+                fds.back().events = POLLOUT;
+                idx.push_back(i);
+            }
+            if (pp_poll(fds.data(), static_cast<unsigned long>(fds.size()),
+                        static_cast<int>(remain)) < 0) {
+                failed = true;
+                break;
+            }
+            for (std::size_t k = 0; k < fds.size(); ++k) {
+                const ConnectState st = connectState(socks[idx[k]], fds[k].revents);
+                if (st == ConnectState::Failed) { failed = true; break; }
+                if (st == ConnectState::Connected) connected[idx[k]] = true;
+            }
+        }
+
+        if (!failed) break;
+        closeAll();
     }
     freeaddrinfo(res);
-    return s;
+    return socks;
 }
 
 // Writes the whole link_bind frame, bounded by `deadline`.  It is the first
@@ -1352,19 +1431,36 @@ std::vector<std::unique_ptr<TransportChannel>> dialLink(const ConnectorConfig &c
             reportFail("link_bind could not be encoded", nullptr);
             return {};
         }
+        slots.push_back(std::move(slot));
+    }
 
-        // Phase 1 contract C1 — the ONE call site of dialTcp().  A wired link
-        // supplies cfg.dial and gets a usbmux tunnel fd here instead of a TCP
-        // connection; everything below this line is identical either way, which
-        // is the whole point of putting the seam at exactly this depth.
-        const pp_socket_t s = cfg.dial ? cfg.dial(deadline) : dialTcp(cfg, deadline);
-        if (s == PP_INVALID_SOCKET) {
-            // Not an authentication outcome, so it may say what it is — RV 7.7c
-            // constrains the uniformity of a REJECTION, not of a dead socket.
+    // Phase 1 contract C1 — the ONE call site of the dial.  A wired link
+    // supplies cfg.dial and gets a usbmux tunnel fd per channel instead of a
+    // TCP connection; everything below this block is identical either way,
+    // which is the whole point of putting the seam at exactly this depth.
+    // cfg.dial may block, so its channels go one at a time; TCP dials every
+    // channel at once (#145).  Not an authentication outcome, so the failure
+    // may say what it is — RV 7.7c constrains the uniformity of a REJECTION,
+    // not of a dead socket.
+    if (cfg.dial) {
+        for (DialSlot &slot : slots) {
+            slot.impl->sock = cfg.dial(deadline);
+            if (slot.impl->sock == PP_INVALID_SOCKET) {
+                reportFail("no endpoint reachable", nullptr);
+                return {};
+            }
+        }
+    } else {
+        const std::vector<pp_socket_t> socks = dialTcp(cfg, slots.size(), deadline);
+        if (socks.size() != slots.size()) {
             reportFail("no endpoint reachable", nullptr);
             return {};
         }
-        slot.impl->sock = s;
+        for (std::size_t i = 0; i < slots.size(); ++i) slots[i].impl->sock = socks[i];
+    }
+
+    for (DialSlot &slot : slots) {
+        const pp_socket_t s = slot.impl->sock;
 
         // RV 5.2g: we dialled, so we are the TLS client.
         slot.impl->ctx = makeContext(/*server=*/false, caps);
@@ -1381,7 +1477,6 @@ std::vector<std::unique_ptr<TransportChannel>> dialLink(const ConnectorConfig &c
         SSL_set_ex_data(slot.impl->ssl, sslStateIndex(), slot.impl->state.get());
         SSL_set_fd(slot.impl->ssl, static_cast<int>(s));
         SSL_set_connect_state(slot.impl->ssl);
-        slots.push_back(std::move(slot));
     }
 
     // Every handshake at once.  H1 completed each before starting the next so
