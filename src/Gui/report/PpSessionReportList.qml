@@ -607,7 +607,9 @@ Column {
         // Fixed columns in design pixels (they scale with the text); Work-on takes what is left. Sized at
         // Mark's text scale (1.35) to their widest content: Date holds "Tue 18 Aug 2026 · 2" beside its
         // Review chip; Club "7 iron, Driver"; Recorded with three tags (Face-on HackMotion GC Quad) with
-        // a pixel or two to spare; Report "Ready · 8.1 MB  Email".
+        // a pixel or two to spare. Report (#146) holds the widest emailing line, the confirm for a short
+        // address, "Send to nick@example.com · 7.4 MB  Send  Cancel" (a longer address elides in the
+        // middle), and so "Making report… page 12 of 14", "Sending to Nick… 40%" and "Report queued".
         columnGap: Theme.gap(10)
         columns: [
             { title: qsTr("Date ▾"),        width: Theme.sp(202) },
@@ -615,7 +617,7 @@ Column {
             { title: qsTr("Swings"),        width: Theme.sp(44), align: "right" },
             { title: qsTr("Recorded with"), width: Theme.sp(202) },
             { title: qsTr("Work-on"),       fill: true },
-            { title: qsTr("Report"),        width: Theme.sp(138) },
+            { title: qsTr("Report"),        width: Theme.sp(302) },
             { title: "",                    width: Theme.sp(24), align: "right" }
         ]
 
