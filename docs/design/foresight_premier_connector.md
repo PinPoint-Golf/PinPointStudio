@@ -8,11 +8,11 @@ over the captured write sequences in `tests/data/premier/`
 **Source**: direct inspection of the capture PC on 2026-10-23, `liver` account, after one Premier
 session of 91 shots with a 4-hybrid. Background: [`foresight_gcquad_data_sources.md`](../reference/foresight_gcquad_data_sources.md)
 A second look on 2026-10-31 followed a 26-shot training drill (ladder, wedge) on Premier 1.2.0 (§2.5).
-**Status**: 🔧 **BUILT 2026-11-02, cabin test pending** (§5). Investigated live the same day (§2.6):
+**Status**: ✅ **BUILT 2026-11-02, first cabin run passed** (§5 step 6, §4.7). Pairing against camera swings is still unmeasured. Investigated live the same day (§2.6):
 Premier 1.2.1 sends live shots to `SessionLiveSnapshot.<userId>.json`, and the upload queue only sees
 a session once it has ended. §4 reads the snapshot; §4.6 records where the build sharpened §4.
 **Written**: 2026-10-23. **Updated**: 2026-11-01 (§2.5, queue drain corrected in §2.1);
-2026-11-02 (§2.6 live session, §4 revised, §7 answered; built, §4.6)
+2026-11-02 (§2.6 live session, §4 revised, §7 answered; built, §4.6; cabin run, §4.7)
 
 ---
 
@@ -516,6 +516,34 @@ later, the knock ignored, the last shot finalised from the flush); and the contr
 end against a real swing (Δ −40 ms claim, ball-only write at save, club update held while busy and
 written when idle, 19 `lm.*` rows). The cabin test (step 6) is the first run against live Premier.
 
+### 4.7 First cabin run (2026-11-02, 17:37–17:47)
+
+One range session, a 4-hybrid, Premier and PinPoint in the `liver` account. Read back from the
+swings it wrote (`2026-11-02_Mark-Liversedge_Wrist_02`):
+
+- **Eight shots, eight readings, all with club data.** Cameras were off, so every swing is a
+  launch-monitor-only document (no streams, `capture.impactUs` −1), written at first sight with ball data and rewritten
+  when the club data landed. Shots 1 and 3 have club speed, attack angle and path but face, lie,
+  loft, strike and closure as `noData`: the one-sticker pattern of §2.6.2, shown as "not measured".
+- **The last shot was finalised at session end,** its folder rewritten two minutes after its read,
+  when Premier flushed the session to the queue.
+- **Read latency:** each reading reached PinPoint 596–804 ms after contact (`readAtMs − contactAtMs`),
+  so 16–224 ms after Premier's `CreatedAtUtc`.
+- **The microphone missed a few shots** (a sports broadcast on the cabin TV). Detected shots and
+  missed ones (saved as standalone shots) give the same document here, so which is which, and
+  every `contact Δ`, is only in that run's app log.
+- **Two empty swing folders** (`swing_0007`, `swing_0009`, during the rapid-fire block) hold no
+  document and are not in the library trash. Probably microphone triggers with no reading inside
+  the window, most likely from the TV: the folder was made at detection and nothing claimed it.
+- **A launch monitor panel bug, not the connector's:** Path, Loft and Impact were drawn only for a
+  focused shot while the readings fall back to the latest one, so a capture with auto-replay off
+  showed full club readings beside three blank figures. Fixed in 30cc1a89.
+
+Not measured from the swings: the `contact Δ` spread that sizes the pairing window (still ±1.5 s)
+is in the app log only, and the `clock.wallclock + capture.impactUs` check against Premier's contact
+(§7 Q11) needs a capture with cameras. No club data was seen on the wrong shot (§7 Q12), but no dropped shot is known
+in this run either.
+
 ## 5. Implementation phases
 
 1. ✅ **Investigate** (§6, done 2026-11-02, §2.6). Fixtures captured.
@@ -526,7 +554,8 @@ written when idle, 19 `lm.*` rows). The cabin test (step 6) is the first run aga
 4. ✅ **Monitor**: `ForesightPremierMonitor`, `Kind::Premier`, factory, settings token, settings
    panel choice with the default path, the club update signal and the host's write into the swing (§4.6).
 5. ✅ **Timestamp-checked pairing** (§4.3, §4.6).
-6. **Cabin test** with the real Quad: 20 shots including a rapid-fire run, every swing gets its
+6. 🔧 **Cabin test**: first run passed 2026-11-02 (§4.7), cameras off. Still to do: the Δ spread
+   from an app log, and the wallclock check from a run with cameras. The original brief: 20 shots including a rapid-fire run, every swing gets its
    reading and its club data, values match Premier's screen; the logged Δ sizes the pairing window
    (§4.3), and new swings' `clock.wallclock + capture.impactUs` agree with Premier's contact.
 7. *(Optional)* carry from `history.json`.
@@ -597,10 +626,17 @@ Answered 2026-11-02 (§2.6) unless marked open.
 5. ✅ No. It is the remote flag `deviceSdkVerboseLoggingEnabled`, not a user setting. The contact
    instant is still available: SDK receive time − `TimeSinceContact` (§2.6.6).
 6. ✅ No. Join by time (`created` ≈ `CreatedAtUtc` + 0.8 s).
-7. **Open.** EULA desk check before shipping.
+7. ✅ Checked 2026-11-02 against the EULA shipped with FSX2020 and Foresight's current web copy,
+   which are the same text. The clause that matters is "Unauthorized Integrations": the System may
+   be used only with Foresight's software and authorised third-party software. It is aimed at
+   software that integrates with the device itself, which is what Foresight's Authorized
+   Integration Licenses are sold for. PinPoint never talks to the Quad; it reads files Foresight's
+   own software wrote, and that applies equally to the FSX2020 connector. PinPoint is personal and
+   non-commercial. Never decompile Foresight's software, and never read its sign-in files.
 8. ✅ Drills write nothing, stickered or not. The range requires a club (§2.6.7).
 9. ✅ Server rejects it (`SESSION_ALREADY_ENDED` on `CreateShot`), so it never drains. Successful uploads drain at session end (§2.6.1).
 10. **Open.** Stayed `false` and gated nothing observable.
-11. **Open.** PinPoint↔Quad impact offset. The wallclock fix is in (§2.6.6); the measurement is §5 step 6.
+11. **Open.** PinPoint↔Quad impact offset. The wallclock fix is in (§2.6.6); the first cabin run had
+    cameras off, so nothing to measure it on (§4.7).
 12. **Open (new).** Does a club-data amendment ever arrive for the wrong shot around a dropped
-    shot (the drain warning, §2.6.3)? Watch for it in the §5 cabin test.
+    shot (the drain warning, §2.6.3)? Not seen in the first cabin run, but no dropped shot is known there either (§4.7).
