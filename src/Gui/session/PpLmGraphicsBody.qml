@@ -386,7 +386,7 @@ Item {
         ? "Low point " + lowPt.text + " " + (lowPt.unit || "in") + (lowPt.source === "inferred" ? " · PPS est." : "") + "."
         : "Low point: not measured."
     // the head drawn under the impact map: the focused shot's club, else (nothing focused: a report) the scoped club's
-    readonly property string focusHead: focusShot ? headOf(focusShot.club) : focusClub ? (focusClub.head || headOf(focusClub.club)) : ""
+    readonly property string focusHead: headShot ? headOf(headShot.club) : focusClub ? (focusClub.head || headOf(focusClub.club)) : ""
     readonly property bool focusIron: focusHead === "iron" || focusHead === "wedge"
     readonly property string patchShort: !art ? "" : "Face: this strike, a " + patchMm(focusHead) + " mm patch" + (patchMm(focusHead) === 20 ? " (est.)" : "")
         + (markerKind ? "; dots: " + deviceName + " markers." : ".")
@@ -2271,7 +2271,9 @@ Item {
     function clubGeom(kind, w, h) {
         // the Session impact map needs no focused shot (it draws every scoped strike); the shot cells do
         // the map draws the scope's strikes; a shot cell only a shot the device read (a blank cell, never a square face)
-        if (!(kind === "map" ? anyData : hasData) || !(w > 0) || !(h > 0) || (!focusShot && kind !== "map")) return null
+        // the shot cells draw the shot the numbers show (headShot: the focused one, else the latest read). Capture
+        // with auto-replay off focuses nothing, and gating on focusShot left Path, Loft and Impact blank under full readings.
+        if (!(kind === "map" ? anyData : hasData) || !(w > 0) || !(h > 0) || (!headShot && kind !== "map")) return null
         const hand = g.leftHanded ? -1 : 1, G = lr.angleGain
         const model = focusHead, look = headLookA()
         // without the art (LmClubArt not in the build, or no anchors for this head) Path and Loft still draw

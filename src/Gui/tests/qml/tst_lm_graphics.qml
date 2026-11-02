@@ -324,5 +324,18 @@ Item {
             if (pk) { const p = pk.pts[0]; if (p) mouseClick(pk, p.x, p.y) }
             compare(shotSpy.count, 0, "nothing is asked for")
         }
+
+        // ── Capture with auto-replay off focuses nothing: the figures draw the headline shot ──
+        // (2 Nov 2026, Premier live: the readings showed shot 10 while Path, Loft and Impact stayed blank)
+        function test_11_figuresDrawTheHeadlineShotWithNothingFocused() {
+            body.g = Object.assign({}, probe.fixture, { headlineShotId: 5 })
+            body.focusedShotId = -1
+            wait(0)
+            verify(body.headShot !== null, "the headline shot stands in")
+            for (const k of ["top", "side", "axis", "faceQ"])
+                verify(body.clubGeom(k, 300, 180) !== null, k + " has a drawing")
+            body.focusedShotId = 5
+            wait(0)
+        }
     }
 }
