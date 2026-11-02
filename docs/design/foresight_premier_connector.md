@@ -5,9 +5,11 @@
 **Source**: direct inspection of the capture PC on 2026-10-23, `liver` account, after one Premier
 session of 91 shots with a 4-hybrid. Background: [`foresight_gcquad_data_sources.md`](../reference/foresight_gcquad_data_sources.md)
 A second look on 2026-10-31 followed a 26-shot training drill (ladder, wedge) on Premier 1.2.0 (§2.5).
-**Status**: 🔍 **PROPOSED**. The findings are from files left on disk after the session.
-Nothing has been watched live yet, and §6 is the plan for doing that before any code is written.
-**Written**: 2026-10-23. **Updated**: 2026-11-01 (§2.5, queue drain corrected in §2.1)
+**Status**: 🔍 **PROPOSED; INVESTIGATED LIVE 2026-11-02** (§2.6). Premier 1.2.1 changed the picture:
+live shots go to a new file, `SessionLiveSnapshot.<userId>.json`, and the upload queue only sees
+a session once it has ended. §4 is revised to read the snapshot. Go/no-go is in §2.6.7.
+**Written**: 2026-10-23. **Updated**: 2026-11-01 (§2.5, queue drain corrected in §2.1);
+2026-11-02 (§2.6 live session, §4 revised, §7 answered)
 
 ---
 
@@ -35,7 +37,8 @@ C:\Users\<user>\AppData\LocalLow\Foresight Sports\Foresight Premier\
 
 | File | Content | Club data | Clock | Notes |
 |---|---|---|---|---|
-| `SessionUploadQueue.<userId>.json` | Every shot of the **current, not-yet-synced** session, ball + club | **yes, full** | UTC, 100 ns | §2.1. The best source. It's a queue, so its contents get drained |
+| `SessionLiveSnapshot.<userId>.json` | Every shot of the **range session in progress**, ball + club (club data one shot behind) | **yes, full** | UTC, 100 ns | §2.6. **The live source** on 1.2.1. Exists only while a range session is open |
+| `SessionUploadQueue.<userId>.json` | **Ended** sessions not yet uploaded, ball + club | **yes, full** | UTC, 100 ns | §2.1. A session enters it when it ends and leaves it on a successful upload, seconds later |
 | `ShotReplay\history.json` | Rolling last **100** shots | no | UTC | §2.2. Ball + computed carry |
 | `Player.log` | Unity log; one `SimulateShotInternal` line per shot | no | local, ms | §2.3. Plain text, ball only |
 | `C:\ProgramData\Foresight\FSS_SDK_MANAGED_LOG.txt` | SDK protocol trace | no values | local, ms | §2.4. Timing and shot number only |
@@ -87,8 +90,9 @@ What the data shows:
 - **Units are SI**: m/s and degrees. Checks: `23.69312 m/s × 2.23694 = 53.0 mph`, which matches
   `Player.log` for the same shot. `Efficiency 1.16 = 53.0 / 45.5 mph`, so it is smash factor.
   `ElevationDeg` is vertical launch angle (29.9°, matches the log).
-- **`CreatedAtUtc` is ball-launch time** to within a few ms. `Player.log` logs the same shot
-  at 14:14:54.249 local (BST, UTC+1). The queue says 13:14:54.253 UTC.
+- **`CreatedAtUtc` is the `SimulateShotInternal` time** to within a few ms. `Player.log` logs the same shot
+  at 14:14:54.249 local (BST, UTC+1). The queue says 13:14:54.253 UTC. **Correction (2026-11-02):**
+  that is spin-arrival time, ~0.58 s after contact, not ball launch (§2.6.6).
 - **There is a real UTC timestamp per shot.** This is a material improvement on `LastShot.CSV`,
   which has none. `ShotPairing`'s arm-and-claim rule exists *because* the CSV can't say when
   a row was made (§4.3).
@@ -105,10 +109,9 @@ What the data shows:
   earlier one is still there, and never assume an old one has gone. Priming on `start()` (§4.1)
   covers stale sessions. §6 Block 6 shows what a successful drain looks like.
 
-Unknown until watched (§6): whether a shot is written at ball launch and amended when
-`ClubData` lands, or written once complete. Also: whether the file is rewritten whole or in
-place, how the write is locked, and the sign conventions of `AzimuthDeg`, `SideSpinRpm`,
-`ClubPathDeg`, `FaceToTargetDeg`, `FAxisDeg` and `FaceImpactHorizontalMm`.
+Answered by the live session (§2.6): on 1.2.1 the queue receives a session only when it **ends**.
+Live shots go to `SessionLiveSnapshot` (§2.6.1). The queue is rewritten whole, opened exclusively,
+once per shot during an upload. Signs are in §2.6.5.
 
 ### 2.2 `ShotReplay\history.json`
 
@@ -192,13 +195,142 @@ subscription tier, though. See §4.5.
 values with no labels. The files are SI regardless (§2.1, `carryDistanceMeters`), so
 this only matters for comparing against Premier's screen.
 
+### 2.6 Watched live (2026-11-02, Premier 1.2.1)
+
+The §6 session, run as planned except where noted. Premier `1.2.1+288521.d0cd50d` (released
+2026-10-29) in the `liver` account; a watcher in the developer account polled every 100 ms.
+Every file version it saw, the merged timeline and the scripts are kept outside the repo in
+`C:\PinPointStudio\scratch\premier_capture_20261102\` (not sanitised: user id in names, backend ids).
+About 45 shots: gap wedge (full stickers), 5-wood and 7-iron (one sticker each), 4-iron (none).
+The SDK log clock, `Player.log` and the UTC fields all read the same PC clock (GMT, so local = UTC).
+
+#### 2.6.1 The live source is `SessionLiveSnapshot.<userId>.json`, not the queue
+
+- **Created with the first shot of a range session.** It is not created when the session opens or a club is picked.
+  It holds one session object with the same schema as a queue session, plus `Name`,
+  `UnwritableGroupReplaced` and a group-level `CreatedAtUtc`. `BackendSessionId`/`BackendShotId`
+  are `null` (nothing is uploaded yet). `EndedAtUtc` tracks the latest shot.
+- **Rewritten whole once per shot**, ~0.1 s after `SimulateShotInternal`, which is ~0.46–0.69 s
+  after contact (when spin arrives). The first shot of a session is slower to land: ~1.6 s after spin.
+  No other event rewrites it. Club changes, deletions and club data arriving all wait for the next shot.
+- **`ClubData` is one shot behind.** It arrives from the Quad 1.6–2.3 s after contact, but a shot
+  is written with `ClubData: null` and its club data only reaches disk with the **next** shot's
+  write. This held 25/25 times. The last shot of a session gets its club data:
+  - **on exit to the menu** (session end flushes it into the queue), but
+  - **not on quitting the app** mid-session: `SessionLiveSnapshotWriter … Quit flush wrote live
+    session` rewrote the file **without** the last shot's club data, which had arrived 52 s
+    earlier. That club data is lost.
+- **Session end** (exit to menu): the session is appended to `SessionUploadQueue`, the snapshot is
+  deleted ~0.6 s later, and the upload starts at once. It rewrites the queue once per shot as backend ids
+  come back (~0.35 s apart), then removes the session: **"Session upload complete"**, and the
+  queue is back to its prior bytes. 14 shots took ~11 s.
+- **Abandoned session** (app quit mid-session): on the next launch Premier logs `Promoting
+  abandoned live session … to the upload outbox`. It queues, uploads and deletes the snapshot
+  within ~2 s of startup.
+- **The upload queue opens its file exclusively.** A 100 ms reader caused `Session upload failed
+  … Sharing violation on path …SessionUploadQueue…json`, leaving a half-uploaded session for a later retry.
+  It retried successfully at the next session end. **A connector must not hold or poll-open these
+  files blindly:** stat first, and open only when size or mtime has changed (§4.1). With that the
+  violations stopped.
+- The stuck 2026-10-23 session still fails at every startup and session end with
+  `SESSION_ALREADY_ENDED` from the server's `CreateShot`. It is a server-side rejection and never
+  drains. Premier rewrites the queue each time with identical bytes.
+
+#### 2.6.2 Club data and stickers
+
+| Club | Stickers | `ClubData` |
+|---|---|---|
+| Gap wedge | full set | every field |
+| 5-wood, 7-iron | **one** | `ClubSpeedMs`, `Efficiency`, `AngleOfAttackDeg`, `ClubPathDeg` only; the other eight are JSON **`null`** |
+| 4-iron | none | `null` (the whole object), even though the Quad sends a ClubData message |
+
+So full club data is a sticker property, not a Premier one (answers §7 Q3). Missing fields are
+per-field `null`s, not sentinels.
+
+#### 2.6.3 Shots Premier drops, and ghost shots
+
+- **Shots hit before Premier is ready are silently dropped.** In the rapid-fire block (§6 Block 3),
+  shot #224 was hit ~6 s after the previous one, before Premier had reset the tee for the next shot.
+  The SDK logged its ball, spin and club messages. Premier wrote no `SimulateShotInternal`, no snapshot entry and no
+  history record. **PinPoint would capture that swing and get no reading for it**. Under
+  arm-and-claim pairing, it would then be given the next shot's reading (§4.3).
+- **Club data drain:** `Drained 3 stale pending club data entries; club data will be applied to
+  most recent shot`. Unstickered shots and a 2.1 mph knock leave "pending" entries that
+  are only cleared when the next valid club data arrives. Around the dropped shot it can't be
+  shown whether the neighbouring shot carries its own club data or the dropped shot's.
+- **A practice swing (no ball) sends nothing.** The Quad uses a shot number internally (#227)
+  but emits no message.
+- **A 2.1 mph, 0° launch, −30° azimuth event was recorded as a real shot** (probably a ball knocked
+  while setting up). Premier does not filter it, so a connector should gate on ball speed.
+- A thin/toe mishit is an ordinary shot.
+
+#### 2.6.4 Deleting a shot
+
+Deleting a shot in Premier's UI **removes it from the snapshot entirely** on the next write. It does not set
+`Hidden: true`. `Hidden` was never seen `true`.
+
+#### 2.6.5 Sign conventions (right-handed golfer, gap wedge, confirmed against Premier's screen)
+
+| Field | Positive means | vs PinPoint |
+|---|---|---|
+| `AzimuthDeg` | ball starts right (pull read −10.1°) | same → `launchDirection` |
+| `SideSpinRpm` | curves right (fade +1887, draw −1042) | same → `sideSpin` |
+| `FAxisDeg` | spin axis tilted right (fade +13.2, draw −8.2) | same → `spinAxis` (prefer this over `atan2`) |
+| `ClubPathDeg` | in-to-out / right (pull −8.7, fade −12.1) | same → `clubPath` |
+| `FaceToTargetDeg` | open / right (screen "4.1 closed" = −4.1) | same → `faceAngle` |
+| `FaceImpactHorizontalMm` | **heel** (screen "low toe" = −24.0; heel strike +6.5) | **opposite → negate** for `strikeLocation` |
+| `FaceImpactVerticalMm` | high (low toe −5.1; heel +8.9) | — |
+
+Left-handed is untested. All signs above are "right of target" in the world frame, so they should
+hold for a left-hander too, except perhaps toe/heel.
+
+#### 2.6.6 Timing
+
+| Event | After contact |
+|---|---|
+| SDK `BallLaunch` received | 91–151 ms (`TimeSinceContact`; a 2 mph knock read 399 ms) |
+| SDK `SpinData`, then `SimulateShotInternal` and `CreatedAtUtc` | **+529 to +626 ms** (`CreatedAtUtc` − contact, 5 shots) |
+| Snapshot write | ~0.1 s after that (first shot of a session ~1.6 s) |
+| SDK `ClubData` | 1.6–2.3 s |
+| `history.json` write and `created` | ~0.8 s after `CreatedAtUtc` (ball landing) |
+
+So `CreatedAtUtc` is **spin-arrival time, not launch** (corrects §2.1). Contact ≈ `CreatedAtUtc` −
+0.58 s ± 0.05 s. The exact instant is in the SDK log: receive time minus `TimeSinceContact`.
+
+**Block 9 found a PinPoint bug, not a Premier one.** PinPoint's swing `clock.wallclock` +
+`capture.impactUs` came out **2.3–6.2 s later** than the Quad's contact on all 5 shots, and the gap
+varied per shot. `ShotProcessor::buildSwingExportJob()` snapshots `wallclockAnchorUtc =
+currentDateTimeUtc()` on the assumption that this is when the window was captured. In fact it runs from
+`startSwingSave()` after analysis and the pose pass. Every saved swing's absolute time is late by
+that shot's processing time. Fix: anchor = now − (`EventBuffer::nowMicros()` −
+`window.endTimestampUs()`). Not fixed yet. **The PinPoint↔Premier offset must be re-measured after
+the fix**, before timestamp-checked pairing can be sized.
+
+#### 2.6.7 Other answers, and the verdict
+
+- **Training drills write nothing to the snapshot or queue, stickers or not** (§7 Q8). The drill
+  logs `ShotGroupCreateCommand has invalid club name` and creates no group, and the Quad's club data
+  is discarded. `history.json` gets ball data, but **labels the shots with the last range club**
+  (`5w`/`WOOD` for wedge shots). Its club name can't be trusted in a drill.
+- The range will not start without a club, so "no club picked" can't happen there.
+- `history.json` `id` ≠ `LocalShotId` (§7 Q6). The join is by time: `created` ≈ `CreatedAtUtc` + 0.8 s.
+- No verbose or debug logging option exists in Premier's settings (§7 Q5). It is the remote ConfigCat flag
+  `deviceSdkVerboseLoggingEnabled` (false). `clubDataEntitlementEnabled` stayed `false` all session
+  and gated nothing.
+- `Player.log` is rotated to `Player-prev.log` at every launch. Nothing else carries over.
+
+**Verdict: GO, with the design changes in §4.** The snapshot is a clean, structured, per-shot source
+with full club data and real timestamps. Its two flaws can be handled. The one-shot club-data lag is handled by
+emitting the ball at once and amending with club data later, or by holding the shot. Dropped shots
+are handled by timestamp-checked pairing, which needs PinPoint's wallclock fixed first.
+
 ## 3. Comparison with the FSX2020 path
 
-|  | FSX2020 (`LastShot.CSV`) | Premier (upload queue) |
+|  | FSX2020 (`LastShot.CSV`) | Premier (`SessionLiveSnapshot`) |
 |---|---|---|
-| Club data | speed, AoA, path only (rest sentinel) | **all fields** (this session) |
-| Per-shot timestamp | none | **UTC, at ball launch** |
-| History | one row, overwritten | current session, until uploaded |
+| Club data | speed, AoA, path only (rest sentinel) | **all fields with a full sticker set**; speed/AoA/path with one sticker (§2.6.2); **one shot late** |
+| Per-shot timestamp | none | **UTC, ~0.58 s after contact** |
+| History | one row, overwritten | current range session; deleted at session end |
 | Carry / flight | yes | no (history.json has carry) |
 | Club name | yes | yes, plus `ClubType` and tags |
 | Units | m/s, m | m/s, deg |
@@ -218,21 +350,36 @@ FSX2020"* and *"GC Quad — Foresight Premier"*. Existing settings keep working 
   `%USERPROFILE%\AppData\LocalLow\Foresight Sports\Foresight Premier`, resolved for the
   account PinPoint runs under. PinPoint and Premier run under the same account on the cabin
   PC (`liver`). Reading another account's profile is not a supported case.
-- **Polling, not `QFileSystemWatcher`**, for the reasons `gcquad_monitor.h` gives. Re-parsing
-  ~100 KB of JSON every 250 ms is cheap but not free. Gate the parse on size+mtime *changing*,
-  which is safe here as it was not for the CSV, because the queue only grows within a session.
-  A plain byte compare also works.
+- **Files** (revised 2026-11-02): read **`SessionLiveSnapshot.*.json`** for live shots. Also read
+  **`SessionUploadQueue.*.json`** only to pick up club data for the last shot of a session that ends
+  normally (the flush, §2.6.1). Treat both the same way: sessions → groups → shots, keyed by `LocalShotId`.
+- **Polling, not `QFileSystemWatcher`**, for the reasons `gcquad_monitor.h` gives. **Stat first;
+  open only when size or mtime has changed, read once, close.** Premier opens the queue
+  exclusively, and a reader that opens it on every tick makes Premier's upload fail with a sharing violation
+  (§2.6.1). Open with full share flags, and treat a failed open as "try next tick", never as an error.
+  Both files are written whole and closed, so their stat is current. That isn't true of `Player.log`,
+  which is held open.
 - **Identity**: keep a set of `LocalShotId`s already emitted. On `start()`, prime the set from
-  whatever is in the queue **without emitting** (the base-class rule). A shot is new when its
-  id is not in the set.
-- **Completion**: if §6 shows shots are written at launch and amended with `ClubData` later,
-  hold a new shot until `ClubData` appears **or** a settle time passes with no change. The
-  settle time comes from §6; the expectation is about 3 s, given club data at ~1.7 s. Emit then.
-  A shot that settles without `ClubData` is emitted ball-only (the drain case in §2.1).
-- **Hidden shots**: `Hidden: true` (the user deleted the shot in Premier) → not emitted. If it
-  flips after emission, log it and do nothing; we don't retract readings.
-- **Drain tolerance**: entries leaving the queue (upload), the session list emptying, or the
-  file vanishing are all normal. None of them is an error state.
+  both files **without emitting** (the base-class rule). A shot is new when its id is not in the set.
+- **Emit the ball data immediately, and send club data as a late amendment.** Club data reaches disk only
+  with the *next* shot's write (§2.6.1). Holding a shot until then would hand its reading to the
+  wrong swing (§4.3). So:
+  1. A new shot is emitted at once as a ball-only `LaunchMonitorReading` (`ClubData` is always
+     `null` on first sight).
+  2. When a later write shows `ClubData` for an already-emitted `LocalShotId`, the connector emits
+     a **club amendment** for that id (new signal, e.g. `readingAmended(deviceShotId, reading)`).
+     The host keeps a small `deviceShotId → swingDir` map from its claims and merges the club
+     fields into that swing's `lm` block.
+  3. An amendment for an id that was never claimed (a dropped or missed shot) is logged and discarded.
+  The last shot of a session is amended from the queue on a normal exit. If Premier quits mid-session,
+  that club data is lost (§2.6.1). Report it, don't wait for it.
+- **Deleted shots** disappear from the snapshot (`Hidden` is not used in practice, §2.6.4). Not
+  emitted if they vanish first. If they vanish after emission, log and do nothing, because we don't retract.
+  Still skip `Hidden: true` in case a future build uses it.
+- **Ghost gate**: don't emit a shot below a ball-speed floor (e.g. 10 mph). Premier recorded a
+  2.1 mph knock as a shot (§2.6.3).
+- **Drain tolerance**: the snapshot vanishing (session end), sessions leaving the queue (upload) and
+  stale sessions that never leave (server-rejected) are all normal. None of them is an error state.
 - **Schema guard**: parse defensively. If the top-level shape or a required ball field is
   missing, go to `State::Error` with a clear message ("Premier's file format has changed")
   rather than emitting partial readings. Premier updates itself, so this will happen.
@@ -247,46 +394,56 @@ FSX2020"* and *"GC Quad — Foresight Premier"*. Existing settings keep working 
 | `ClubName` (`ClubType`) | `deviceClub` | `"4h"` (recorded only) |
 | `BallSpeedMs` | `ballSpeed` | × 2.236936 → mph |
 | `ElevationDeg` | `launchAngle` | ° |
-| `AzimuthDeg` | `launchDirection` | °, **sign TBD** |
-| `BackSpinRpm` / `SideSpinRpm` / `TotalSpinRpm` | `backSpin` / `sideSpin` / `spinRate` | rpm, side **sign TBD** |
-| derived | `spinAxis` | `atan2(side, back)` as today |
+| `AzimuthDeg` | `launchDirection` | °, right-positive, **as-is** (§2.6.5) |
+| `BackSpinRpm` / `SideSpinRpm` / `TotalSpinRpm` | `backSpin` / `sideSpin` / `spinRate` | rpm, side fade-positive, **as-is** |
+| `ClubData.FAxisDeg` | `spinAxis` | °, right-tilt positive, **as-is**; fall back to `atan2(side, back)` when `ClubData` is absent (it is *in* `ClubData` although it is a ball quantity) |
 | `ClubData.ClubSpeedMs` | `clubheadSpeed` | × 2.236936 → mph |
 | `ClubData.Efficiency` | `smashFactor` | ratio (cross-check against ball/club) |
 | `ClubData.AngleOfAttackDeg` | `attackAngle` | ° |
-| `ClubData.ClubPathDeg` | `clubPath` | °, **sign TBD** |
-| `ClubData.FaceToTargetDeg` | `faceAngle` | °, **sign TBD** |
-| derived | `faceToPath` | face − path, once signs are pinned |
+| `ClubData.ClubPathDeg` | `clubPath` | °, in-to-out positive, **as-is** |
+| `ClubData.FaceToTargetDeg` | `faceAngle` | °, open positive, **as-is** |
+| derived | `faceToPath` | face − path (fade read +12.3, draw −6.9) |
 | `ClubData.LoftDeg` | `dynamicLoft` | ° |
 | `ClubData.LieDeg` | `lieAngle` | ° |
 | `ClubData.ClosureRateDegs` | `closureRate` | °/s |
-| `ClubData.FaceImpactHorizontalMm` | `strikeLocation` | mm, heel(−)/toe(+) **TBD** |
-| `ClubData.FaceImpactVerticalMm` | `strikeHeight` | mm |
-| `ClubData.ClubSpeedAtImpactMs`, `FAxisDeg` | — | not mapped yet (meaning unconfirmed) |
+| `ClubData.FaceImpactHorizontalMm` | `strikeLocation` | mm, **negated**: Premier is heel-positive, ours toe-positive (§2.6.5) |
+| `ClubData.FaceImpactVerticalMm` | `strikeHeight` | mm, high-positive |
+| `ClubData.ClubSpeedAtImpactMs` | — | not mapped (within ±2 % of `ClubSpeedMs`; meaning unconfirmed) |
 
+Any `ClubData` field may be `null` on its own (one sticker, §2.6.2). Each `null` is a `dropped[]` entry.
 Signs follow [`pinpoint_sign_conventions.md`](pinpoint_sign_conventions.md). They come from
-deliberate shots in §6 Block 8, not from guesswork. The range checks and the `dropped[]`
+deliberate shots checked against Premier's screen on 2026-11-02 (§2.6.5), right-handed only. The range checks and the `dropped[]`
 bookkeeping the CSV parser applies (`DroppedField`) apply here too, so a Premier reading
 explains its absences the same way.
 
 ### 4.3 Pairing
 
-Phase 1 keeps `ShotPairing` as it is: arm on shot detected, claim the next reading. It already
-handles a reading arriving before or after the swing directory exists, and nothing about
-Premier breaks it.
+`ShotPairing` (arm on shot detected, the next reading claims it) still works for the ball reading,
+because that is emitted ~0.6–0.7 s after contact, well inside the same shot. Club data does **not** go through
+it. It is an amendment keyed by `deviceShotId` (§4.1).
 
-Phase 2, *optional and only if §6 supports it*: use `CreatedAtUtc` to check the claim. Reject a
-reading whose launch time is not within a window of our own detected impact time. This would
-end the one failure mode the arm rule can't see: a shot we missed whose reading is then given
-to the next swing. That needs the PC clock and Premier's clock to agree, which is the same
-machine, so they should. §6 measures the offset.
+**Timestamp-checked pairing is now required, not optional** (revised 2026-11-02). Premier
+silently drops a shot hit before it is ready (§2.6.3). On its own that is harmless: PinPoint arms
+for the swing, no reading comes, and the next detected swing displaces it. But a swing waits
+indefinitely for its reading. If PinPoint then misses the *next* shot, which Premier does record,
+that reading is claimed by the earlier swing, which is still armed. The two failures together, at
+the fast cadence that causes the first one, give a wrong pairing that nothing flags. Check every claim with `CreatedAtUtc`:
+contact ≈ `CreatedAtUtc` − 0.58 s (±0.05 s, §2.6.6). Reject a claim whose contact is not within a
+window of our impact time, and disarm a swing whose window has passed.
+
+**Blocker:** PinPoint's own absolute impact time is wrong by 2–6 s (`clock.wallclock` is anchored
+when the save starts, not when the window was captured, §2.6.6). Fix that first, then re-run §6
+Block 9 to size the window. Both clocks are the same PC, so a ±0.5 s window should be
+ample once the anchor is right.
 
 ### 4.4 Tests
 
 The CSV parser has `gcquad_csv_parser_test.cpp`. The Premier parser gets the same:
-- a fixture cut from the real queue file (sanitised: user id in the file name, backend ids
-  zeroed)
-- cases for the missing-`ClubData`, hidden-shot, drained-queue, multiple-session and
-  changed-schema paths
+- fixtures cut from the 2026-11-02 captures (`C:\PinPointStudio\scratch\premier_capture_20261102\snap`),
+  sanitised: user id in the file name, backend ids zeroed
+- cases for the per-field-`null` (one sticker), whole-`null` (no stickers), late-`ClubData`
+  amendment, deleted-shot, ghost-gate, snapshot-vanishes, queue-flush, stuck-session,
+  multiple-session and changed-schema paths
 - a monitor test driving `pollNow()` across a sequence of file versions captured in §6. The
   watcher saves every version, which makes this possible.
 
@@ -296,30 +453,45 @@ The CSV parser has `gcquad_csv_parser_test.cpp`. The Premier parser gets the sam
   in any update. Mitigations: schema guard, fixtures, a clear error state. Reading a plain
   JSON file the app leaves on disk needs no decoding. Still, the Premier EULA should be read for
   anything on reverse engineering or data access before shipping, as was done for GSPro.
-- **Upload timing.** If the queue drains mid-session, for example when a shot group closes,
-  shots could leave between polls. At 250 ms polling against seconds between shots this is
-  unlikely, but §6 Block 6 settles it.
+- **Upload timing.** Settled (§2.6.1): the queue never drains mid-session, because live shots aren't in it.
+  The live snapshot also changed between 1.2.0 and 1.2.1 with no notice, so expect the same again.
+- **Interfering with Premier.** Reading too eagerly broke its upload once (§2.6.1). The
+  stat-gated read in §4.1 is a requirement, not an optimisation.
+- **Club data one shot late, and lost on quit** (§2.6.1). This is inherent to how Premier writes. The amendment path
+  covers it except for the last shot before an app quit.
 - **Multiple Premier users** on one PC: several queue files. Take the most recently modified
   one, or all of them, keyed by `LocalShotId` either way.
-- **Mode-dependent.** Training drills write nothing to the queue and lose club data (§2.5). The
-  connector should say so in its status ("no club data in training mode") rather than look
-  broken. It could also fall back to ball-only readings from `Player.log`.
+- **Mode-dependent.** Training drills write nothing to the snapshot or queue, even with a stickered
+  club (§2.6.7). The connector should say so in its status ("no readings in training drills")
+  rather than look broken. A ball-only fallback from `Player.log` is possible. `history.json` is not,
+  because its club name is wrong in drills.
 - **Entitlement flag.** `clubDataEntitlementEnabled` (§2.5) suggests club data could become
   tier-gated server-side. That would make the queue lose `ClubData` with no change on our side.
   The missing-`ClubData` path (ball-only) already covers it, but the status should report it.
 
 ## 5. Implementation phases
 
-1. **Investigate** (§6). Output: answers to the TBDs above, plus a folder of captured file
-   versions to use as test fixtures.
-2. **Parser + tests**: `premier_queue_parser.{h,cpp}`, pure, no Qt objects beyond JSON.
-3. **Monitor**: `ForesightPremierMonitor`, `Kind::Premier`, factory, settings token, settings
-   panel choice with the default path.
-4. **Cabin test** with the real Quad: 20 shots, every swing gets its reading, values match
-   Premier's screen.
-5. *(Optional)* carry from `history.json`; timestamp-checked pairing.
+1. ✅ **Investigate** (§6, done 2026-11-02, §2.6). Fixtures captured.
+2. **Fix PinPoint's swing wallclock anchor** (§2.6.6), then re-run §6 Block 9 (5 shots) to
+   measure the PinPoint↔Quad offset.
+3. **Parser + tests**: `premier_session_parser.{h,cpp}` (snapshot and queue share a schema), pure,
+   no Qt objects beyond JSON.
+4. **Monitor**: `ForesightPremierMonitor`, `Kind::Premier`, factory, settings token, settings
+   panel choice with the default path, the club-amendment signal and the host's merge into `lm`.
+5. **Timestamp-checked pairing** (§4.3).
+6. **Cabin test** with the real Quad: 20 shots including a rapid-fire run, every swing gets its
+   reading and its club data, values match Premier's screen.
+7. *(Optional)* carry from `history.json`.
 
 ## 6. Investigation session — you hit, I watch
+
+> **Ran 2026-11-02; results in §2.6.** Changes from the plan below: Premier was already open, so
+> Block 0 was read from its log afterwards. Block 2 used a one-sticker 5-wood rather than a driver.
+> In Block 2b the "no club" case is impossible on the range. Block 7 found no option. A bonus block
+> quit Premier mid-session. **Watcher lesson:** the 100 ms open-and-hash below broke Premier's queue upload
+> (sharing violation). It was changed mid-session to stat first and open only on change. Keep that change
+> for any re-run. The directory listing's size lags for `Player.log` (held open), so tail that one
+> through a handle.
 
 **Goal**: answer every TBD in §2–§4 from live observation, and capture every version of every
 file Premier writes, as fixtures. About **60 balls, 45–60 min**. Premier runs in the `liver`
@@ -368,17 +540,19 @@ Call out anything odd as it happens (a mishit, a shot you deleted). I'll note th
 
 ## 7. Open questions
 
-1. Is a shot written once complete, or written at launch and amended with `ClubData`? (Block 1)
-2. When exactly does the queue drain, and can it happen mid-session? (Block 6)
-3. Is full club data a Premier property, or did this hybrid happen to be marked? (Block 2)
-4. Sign conventions of the direction, spin and impact fields. (Block 8)
-5. Can SDK verbose logging be turned on from Premier, and does it give values plus the contact
-   offset? (Block 7)
-6. Does `history.json`'s `id` match the queue's `LocalShotId`? (Block 1 snapshots)
-7. What does the Premier EULA say about reading its local files? (desk check, before shipping)
-8. Do training drills, or shots with no club picked, write to the queue at all? The
-   2026-10-31 drill wrote nothing. Its missing club data is explained by an unstickered club
-   (§2.5). (Block 2b)
-9. Why does the 2026-10-23 session fail to upload, and does a successful upload drain the
-   queue mid-session? (Blocks 0, 6)
-10. What does `clubDataEntitlementEnabled` gate? (watch for it changing; desk check)
+Answered 2026-11-02 (§2.6) unless marked open.
+
+1. ✅ Written when spin arrives with `ClubData: null`; club data arrives with the **next** shot's write (§2.6.1).
+2. ✅ Only after the session ends, never mid-session. Live shots aren't in the queue on 1.2.1 (§2.6.1).
+3. ✅ A sticker property: full set → all fields, one sticker → speed/AoA/path, none → `null` (§2.6.2).
+4. ✅ Right-positive throughout, except impact horizontal, which is heel-positive (§2.6.5). Left-handed untested.
+5. ✅ No. It is the remote flag `deviceSdkVerboseLoggingEnabled`, not a user setting. The contact
+   instant is still available: SDK receive time − `TimeSinceContact` (§2.6.6).
+6. ✅ No. Join by time (`created` ≈ `CreatedAtUtc` + 0.8 s).
+7. **Open.** EULA desk check before shipping.
+8. ✅ Drills write nothing, stickered or not. The range requires a club (§2.6.7).
+9. ✅ Server rejects it (`SESSION_ALREADY_ENDED` on `CreateShot`), so it never drains. Successful uploads drain at session end (§2.6.1).
+10. **Open.** Stayed `false` and gated nothing observable.
+11. **Open (new).** PinPoint↔Quad impact offset, after the wallclock fix (§2.6.6, §5 step 2).
+12. **Open (new).** Does a club-data amendment ever arrive for the wrong shot around a dropped
+    shot (the drain warning, §2.6.3)? Watch for it in the §5 cabin test.

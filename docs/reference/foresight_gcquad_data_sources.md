@@ -15,21 +15,26 @@ private GSPconnect↔GSPro channel — see [Excluded](#excluded).
 
 ## Summary
 
-Four files carry shot data. Which are live depends on which application is driving the Quad —
-only one application can hold the device at a time.
+Four files carry shot data under FSX and GSPro, and one more under Foresight Premier. Which are
+live depends on which application is driving the Quad, because only one application can hold the
+device at a time.
 
 | Source | Written by | Live when | Content | First data |
 |---|---|---|---|---|
 | `FSS_SDK_NATIVE_LOG.txt` | `FSX.exe` | FSX runs | Ball + spin + club + ball position, contact offsets | **~111 ms** |
 | `LastShot.CSV` | `FSX.exe` | FSX runs | Full precision + computed ball flight | after shot resolves |
 | `ConnectDebug.txt` | `GSPconnect.exe` | GSPro runs | Ball metrics only | ~500 ms |
-| `FSS_SDK_MANAGED_LOG.txt` | `DeviceAPIx64.dll` | GSPro runs | Timing and shot numbering, **no metrics** | ~111 ms |
+| `FSS_SDK_MANAGED_LOG.txt` | `DeviceAPIx64.dll` | GSPro or Premier runs | Timing and shot numbering, **no metrics** | ~111 ms |
+| `SessionLiveSnapshot.<userId>.json` | `ForesightPremier.exe` | a Premier range session is open | Ball + full club data (club **one shot late**), UTC per shot | ~0.6 s |
 
 **For an FSX-based workflow:** use the native log as the trigger and `LastShot.CSV` as the
 source of record. They are complementary, not competing.
 
 **For a GSPro-based workflow:** `ConnectDebug.txt` is the only live metric source, and it
 carries ball data only.
+
+**For a Premier-based workflow:** `SessionLiveSnapshot.<userId>.json` (range only) is the source of
+record, and the managed SDK log gives the contact instant. See [Source 5](#source-5--foresight-premier).
 
 ---
 
@@ -288,6 +293,28 @@ never sets it and `ForesightSDK.xml` does not expose it. What it does carry:
 the connector log alone cannot give — the same role the native log plays for FSX.
 
 Rotates near 1 MB into `FSS_SDK_MANAGED_LOG_<YYYY-MM-DD>_<HH-MM-SS>.txt`.
+
+Foresight Premier uses the same managed SDK, so this log is live under Premier too. Premier's
+`deviceSdkVerboseLoggingEnabled` remote flag is off and not user-settable, so there are still no values.
+
+---
+
+## Source 5 — Foresight Premier
+
+`C:\Users\<user>\AppData\LocalLow\Foresight Sports\Foresight Premier\`. Watched live on Premier 1.2.1,
+2026-11-02. Full detail, including signs, timing and failure modes, is in
+[`foresight_premier_connector.md`](../design/foresight_premier_connector.md) §2.6. In brief:
+
+- **`SessionLiveSnapshot.<userId>.json`**: the range session in progress, rewritten whole once per shot
+  ~0.6 s after contact. Each shot's `ClubData` is `null` when first written and appears with the
+  **next** shot's write. It is deleted at session end.
+- **`SessionUploadQueue.<userId>.json`**: ended sessions awaiting upload; drained seconds later on
+  success. Premier opens it **exclusively**, so a reader must stat first and open only on change.
+- **`ShotReplay\history.json`**: last 100 shots, ball + carry, no club data. Its club name is wrong in
+  training drills.
+- **`Player.log`**: one `SimulateShotInternal` line per shot (ball only). Rotated at every launch.
+- Training drills write nothing to the snapshot or queue. Shots hit before Premier is ready are
+  silently dropped. Club data needs the face stickers.
 
 ---
 
