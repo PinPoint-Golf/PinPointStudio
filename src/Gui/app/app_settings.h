@@ -321,11 +321,15 @@ class AppSettings : public QObject
 
     // ── Launch monitor ──────────────────────────────────────────────────────
     // Which connector, and where it writes. `launchMonitorKind` holds the token
-    // pinpoint::lm::kindKey() produces ("none" / "gcquad"); the path is a FOLDER, and
+    // pinpoint::lm::kindKey() produces ("none" / "gcquad" / "premier" / "gspro"); the path is a FOLDER, and
     // the connector finds LastShot.CSV inside it, because that is how FSX2020 is
     // configured — you tell it a directory, not a filename.
     Q_PROPERTY(QString launchMonitorKind         READ launchMonitorKind         WRITE setLaunchMonitorKind         NOTIFY launchMonitorKindChanged)
     Q_PROPERTY(QString launchMonitorPath         READ launchMonitorPath         WRITE setLaunchMonitorPath         NOTIFY launchMonitorPathChanged)
+    // Foresight Premier's data folder. Its OWN key, for the reason the GSPro link has its own:
+    // choosing Premier must not overwrite the FSX2020 folder. Empty (the default) means
+    // Premier's own folder for this account, resolved by the connector.
+    Q_PROPERTY(QString launchMonitorPremierPath  READ launchMonitorPremierPath  WRITE setLaunchMonitorPremierPath  NOTIFY launchMonitorPremierPathChanged)
     Q_PROPERTY(int     launchMonitorPollMs       READ launchMonitorPollMs       WRITE setLaunchMonitorPollMs       NOTIFY launchMonitorPollMsChanged)
     // The arrival chime. Separate from the shot chime deliberately: this one fires a
     // few seconds after that one, and a golfer who wants the shot confirmation may
@@ -577,6 +581,7 @@ public:
         m_launchMonitorEnabled      = ppSettings().value(QStringLiteral("launchmonitor/enabled"), true).toBool();
         m_launchMonitorKind         = ppSettings().value(QStringLiteral("launchmonitor/kind"), QStringLiteral("none")).toString();
         m_launchMonitorPath         = normaliseLibraryPath(ppSettings().value(QStringLiteral("launchmonitor/path"), QStringLiteral("")).toString());
+        m_launchMonitorPremierPath  = normaliseLibraryPath(ppSettings().value(QStringLiteral("launchmonitor/premierPath"), QStringLiteral("")).toString());
         m_launchMonitorPollMs       = ppSettings().value(QStringLiteral("launchmonitor/pollIntervalMs"), 250).toInt();
         m_launchMonitorChimeEnabled = ppSettings().value(QStringLiteral("launchmonitor/chimeEnabled"), true).toBool();
         m_launchMonitorStandalone   = ppSettings().value(QStringLiteral("launchmonitor/standaloneShots"), false).toBool();
@@ -714,6 +719,7 @@ public:
 
     QString launchMonitorKind()         const { return m_launchMonitorKind; }
     QString launchMonitorPath()         const { return m_launchMonitorPath; }
+    QString launchMonitorPremierPath()  const { return m_launchMonitorPremierPath; }
     int     launchMonitorPollMs()       const { return m_launchMonitorPollMs; }
     bool    launchMonitorChimeEnabled() const { return m_launchMonitorChimeEnabled; }
     bool    launchMonitorStandalone()   const { return m_launchMonitorStandalone; }
@@ -1588,6 +1594,14 @@ public:
         ppSettings().setValue(QStringLiteral("launchmonitor/path"), v);
         emit launchMonitorPathChanged();
     }
+    void setLaunchMonitorPremierPath(const QString &raw)
+    {
+        const QString v = normaliseLibraryPath(raw);
+        if (m_launchMonitorPremierPath == v) return;
+        m_launchMonitorPremierPath = v;
+        ppSettings().setValue(QStringLiteral("launchmonitor/premierPath"), v);
+        emit launchMonitorPremierPathChanged();
+    }
     void setLaunchMonitorPollMs(int v)
     {
         v = qBound(50, v, 10000);
@@ -1751,6 +1765,7 @@ signals:
     void saveImuStreamsChanged();
     void launchMonitorKindChanged();
     void launchMonitorPathChanged();
+    void launchMonitorPremierPathChanged();
     void launchMonitorPollMsChanged();
     void launchMonitorChimeEnabledChanged();
     void launchMonitorStandaloneChanged();
@@ -1882,6 +1897,7 @@ private:
     bool    m_saveImuStreams        = true;
     QString m_launchMonitorKind;
     QString m_launchMonitorPath;
+    QString m_launchMonitorPremierPath;
     int     m_launchMonitorPollMs = 250;
     bool    m_launchMonitorChimeEnabled = true;
     bool    m_launchMonitorStandalone = false;

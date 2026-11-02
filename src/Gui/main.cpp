@@ -28,6 +28,7 @@
 #ifdef HAVE_PPCP_TRANSPORT
 #include "../Ppcp/ppcp_host_service.h"
 #endif
+#include <QDateTime>
 #include <QDir>
 #include <algorithm>
 #include <QThreadPool>
@@ -533,11 +534,29 @@ int main(int argc, char *argv[])
     // swing; the analyzer/exporter join hands over a swingDir, which flushes whatever
     // the monitor delivered in the meantime. See ShotPairing for why order alone is
     // enough to decide which swing a reading belongs to.
+    //
+    // The impact also goes over on the WALL clock, for a connector whose readings carry the
+    // device's own contact time (Foresight Premier): the pairing checks the two agree, which is
+    // what catches a shot the device silently dropped. impactUs is on EventBuffer's steady
+    // clock, so it is carried across by "how long ago", taken back to back with the UTC read.
     QObject::connect(&shotController, &ShotController::shotDetected,
                      &launchMonitorController,
-                     [&launchMonitorController](ShotController::Source, qint64, int) {
-        launchMonitorController.onShotDetected();
+                     [&launchMonitorController](ShotController::Source, qint64 impactUs, int) {
+        const qint64 nowUtcMs = QDateTime::currentMSecsSinceEpoch();
+        const qint64 agoUs    = pinpoint::EventBuffer::nowMicros() - impactUs;
+        launchMonitorController.onShotDetected(impactUs > 0 ? nowUtcMs - agoUs / 1000 : 0);
     });
+    // A Premier shot's club data lands with the NEXT shot — while that one is being captured.
+    // It is held until the pipeline is idle, and until any re-analysis owed that folder is in.
+    QObject::connect(&shotProcessor, &ShotProcessor::busyChanged,
+                     &launchMonitorController, [&launchMonitorController, &shotProcessor] {
+        launchMonitorController.setPipelineBusy(shotProcessor.busy());
+    });
+    launchMonitorController.setFolderBusyCheck([&reanalysisController](const QString &dir) {
+        return reanalysisController.holds(dir);
+    });
+    QObject::connect(&reanalysisController, &ReanalysisController::reanalysed,
+                     &launchMonitorController, &LaunchMonitorController::onSwingRewritten);
     QObject::connect(&shotProcessor, &ShotProcessor::shotProcessed,
                      &launchMonitorController, &LaunchMonitorController::onShotProcessed);
     // The processor allocates the swing folder before it runs anything, so a shot that

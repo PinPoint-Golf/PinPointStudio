@@ -724,6 +724,35 @@ Item {
         }
     }
 
+    // A saved swing's document was rewritten under the screens showing it — by a re-analysis,
+    // or by a launch monitor's late club data (Foresight Premier writes a shot's club data with
+    // the NEXT shot). Everything that reads that document reads it again.
+    function _swingRewritten(swingDir) {
+        root.activeModel.refreshShot(swingDir)
+        // The session assessment is graded FROM this document, so it is graded again —
+        // otherwise the ledger keeps quoting the metrics the shot was first read with.
+        // Only when a diagnostics panel is up; with none, the next activateSession()
+        // notices the rewritten document and regrades it then.
+        if (SessionMode.sessionDiagnostics)
+            SessionMode.sessionDiagnostics.regradeShot(swingDir)
+        // The Replay/Analyse panel reads shotReplay.analysisDetail — a separate,
+        // independently cached disk read of swing.json (ShotReplayController /
+        // DiskReplaySource), not this model — so the model-only refresh above
+        // leaves it showing the pre-rewrite score/metrics/trace/skeleton while
+        // the shot stays focused. Force a reload when it's the one open now
+        // (mirrors what re-selecting the shot already does).
+        if (shotReplay.active && shotReplay.swingDir === swingDir)
+            shotReplay.start(shotReplay.shotId, swingDir, shotReplay.speed, shotReplay.playing)
+    }
+
+    // The launch monitor's late club data. No toast and no chime: the reading already
+    // announced itself when its ball data went in.
+    Connections {
+        target: typeof launchMonitor !== "undefined" ? launchMonitor : null
+        ignoreUnknownSignals: true
+        function onReadingUpdatedForSwing(swingDir) { root._swingRewritten(swingDir) }
+    }
+
     // Re-analyse feedback — a sticky notice toast for the whole batch (pinned, with a
     // live elapsed-time readout, instead of PpToast's usual ~7s auto-dismiss — a batch
     // can run several sequential ViTPose passes and take much longer than that), then a
@@ -741,23 +770,7 @@ Item {
                              : qsTr("Re-analysing · %1 shots").arg(root._reanalyseQueuedCount),
                          "info", "", true)
         }
-        function onReanalysed(swingDir) {
-            root.activeModel.refreshShot(swingDir)
-            // The session assessment is graded FROM this document, so it is graded again —
-            // otherwise the ledger keeps quoting the metrics the shot was first read with.
-            // Only when a diagnostics panel is up; with none, the next activateSession()
-            // notices the rewritten document and regrades it then.
-            if (SessionMode.sessionDiagnostics)
-                SessionMode.sessionDiagnostics.regradeShot(swingDir)
-            // The Replay/Analyse panel reads shotReplay.analysisDetail — a separate,
-            // independently cached disk read of swing.json (ShotReplayController /
-            // DiskReplaySource), not this model — so the model-only refresh above
-            // leaves it showing the pre-reanalysis score/metrics/trace/skeleton while
-            // the shot stays focused. Force a reload when it's the one open now
-            // (mirrors what re-selecting the shot already does).
-            if (shotReplay.active && shotReplay.swingDir === swingDir)
-                shotReplay.start(shotReplay.shotId, swingDir, shotReplay.speed, shotReplay.playing)
-        }
+        function onReanalysed(swingDir) { root._swingRewritten(swingDir) }
         function onReanalyseFinished(succeeded, failed, lastError) {
             root._reanalyseQueuedCount = 0
             const severity = failed === 0 ? "info" : succeeded === 0 ? "error" : "warn"

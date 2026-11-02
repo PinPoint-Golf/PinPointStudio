@@ -28,6 +28,7 @@
 #include "../../Export/swing_doc.h"
 
 #include "gspro_monitor.h"
+#include "premier_monitor.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -52,6 +53,8 @@ LaunchMonitorController::LaunchMonitorController(AppSettings *settings, ShotList
         connect(m_settings, &AppSettings::launchMonitorKindChanged,
                 this, &LaunchMonitorController::reconfigure);
         connect(m_settings, &AppSettings::launchMonitorPathChanged,
+                this, &LaunchMonitorController::reconfigure);
+        connect(m_settings, &AppSettings::launchMonitorPremierPathChanged,
                 this, &LaunchMonitorController::reconfigure);
         connect(m_settings, &AppSettings::launchMonitorPollMsChanged, this, [this]() {
             if (m_monitor) m_monitor->setPollIntervalMs(m_settings->launchMonitorPollMs());
@@ -105,6 +108,15 @@ void LaunchMonitorController::reconfigure()
         // is what keeps the base class out of it: a folder does not connect, and
         // giving LaunchMonitorBase a virtual for a question one connector can
         // answer would put an empty implementation in every future one.
+        // The same reasoning for the one connector whose readings arrive in two halves:
+        // Premier writes a shot's club data with the NEXT shot (premier_monitor.h).
+        if (auto *pm = qobject_cast<ForesightPremierMonitor *>(m_monitor))
+            connect(pm, &ForesightPremierMonitor::readingUpdated,
+                    this, &LaunchMonitorController::onReadingUpdated);
+        // A new connector's shot ids mean nothing to the old one's folders.
+        m_shotDirs.clear();
+        m_shotDirOrder.clear();
+        m_heldUpdates.clear();
         if (auto *gs = qobject_cast<GsProMonitor *>(m_monitor)) {
             connect(gs, &GsProMonitor::clientsChanged,
                     this, &LaunchMonitorController::devicesChanged);
@@ -126,6 +138,11 @@ void LaunchMonitorController::reconfigure()
         if (kind == Kind::GsPro) {
             m_monitor->setSourcePath(gsProSourcePath(m_settings->gsProPort(),
                                                      m_settings->gsProInterface()));
+        } else if (kind == Kind::Premier) {
+            // Its own folder setting, so choosing Premier never overwrites FSX2020's. Empty
+            // means Premier's own data folder for this account, which is nearly always right.
+            const QString p = m_settings->launchMonitorPremierPath();
+            m_monitor->setSourcePath(p.isEmpty() ? ForesightPremierMonitor::defaultFolder() : p);
         } else {
             m_monitor->setSourcePath(m_settings->launchMonitorPath());
         }
@@ -253,8 +270,14 @@ QString LaunchMonitorController::stateLabel() const
         // connector and it read a file; for the GSPro link the error is a bind
         // failure, and telling somebody to check a folder would send them looking
         // for something that does not exist.
-        return m_monitor->kind() == Kind::GsPro ? tr("Cannot listen")
-                                                : tr("Cannot read the folder");
+        if (m_monitor->kind() == Kind::GsPro)
+            return tr("Cannot listen");
+        // Premier updates itself, and its files are internal, not an export: a changed
+        // format is the error to expect, and "check the folder" would be the wrong advice.
+        if (m_monitor->kind() == Kind::Premier
+            && m_monitor->errorText().contains(QLatin1String("format")))
+            return tr("Premier's files have changed");
+        return tr("Cannot read the folder");
     }
     return tr("Not configured");
 }
@@ -267,6 +290,11 @@ QString LaunchMonitorController::waitingLabel() const
     if (m_monitor && m_monitor->kind() == Kind::GsPro)
         return deviceCount() > 0 ? tr("Waiting for a shot")
                                  : tr("Listening — no launch monitor yet");
+    // Premier writes shots only while a RANGE session is open — never in a training drill —
+    // so "waiting" there means "no range session", and saying so is what stops it looking
+    // broken in a drill.
+    if (m_monitor && m_monitor->kind() == Kind::Premier)
+        return tr("Waiting for a range session — training drills send no shots");
     return tr("Waiting for a shot");
 }
 
@@ -280,16 +308,21 @@ QString LaunchMonitorController::sourceText() const
     return m_monitor ? m_monitor->sourceDescription() : QString();
 }
 
+QString LaunchMonitorController::premierDefaultFolder() const
+{
+    return ForesightPremierMonitor::defaultFolder();
+}
+
 QString LaunchMonitorController::deviceName() const
 {
     return m_monitor ? kindShortLabel(m_monitor->kind()) : QString();
 }
 
-void LaunchMonitorController::onShotDetected()
+void LaunchMonitorController::onShotDetected(qint64 impactUtcMs)
 {
     m_destinationHasDoc = true;   // assume the pipeline will produce one, until it says otherwise
     m_destinationShotId = -1;
-    m_pairing.noteShotDetected();
+    m_pairing.noteShotDetected(impactUtcMs > 0 ? std::optional<qint64>(impactUtcMs) : std::nullopt);
 }
 
 void LaunchMonitorController::onShotProcessed(int shotId, const QString &swingDir)
@@ -329,6 +362,16 @@ void LaunchMonitorController::onShotFailed(const QString &swingDir, int shotId)
 void LaunchMonitorController::onReadingAvailable(const LaunchMonitorReading &reading)
 {
     const ShotPairing::Offer offer = m_pairing.offerReading(reading);
+    // Every timed decision is logged with its offset: the window is a starting value, and
+    // these lines are what size it (docs/design/foresight_premier_connector.md §4.3).
+    if (offer.contactDeltaMs) {
+        const char *what = offer.timeCheck == ShotPairing::TimeCheck::Matched      ? "matches our impact"
+                         : offer.timeCheck == ShotPairing::TimeCheck::BeforeImpact ? "is from before our impact — an earlier shot we did not see; still waiting"
+                                                                                    : "is too late for our impact — the device dropped our shot; this swing gets no reading";
+        ppInfo() << "LaunchMonitor: reading" << reading.deviceShotId << "contact Δ"
+                 << *offer.contactDeltaMs << "ms (window ±" << ShotPairing::kContactWindowMs
+                 << "ms)" << what;
+    }
     switch (offer.disposition) {
     case ShotPairing::Disposition::Discarded:
         // Nothing was waiting for it. Normally that is the end of the matter — a ball
@@ -405,13 +448,9 @@ bool LaunchMonitorController::writeDeviceOnly(const QString &swingDir,
     }
 
     ppInfo() << "LaunchMonitor: device-only shot" << r.deviceShotId << "written to" << swingDir;
+    rememberShotDir(r.deviceShotId, swingDir);
 
-    QStringList bits;
-    if (!r.deviceShotId.isEmpty()) bits << r.deviceShotId;
-    if (!r.deviceClub.isEmpty())   bits << r.deviceClub;
-    if (r.clubheadSpeed)           bits << tr("%1 mph").arg(*r.clubheadSpeed, 0, 'f', 1);
-    bits << tr("monitor only");
-    m_lastReading = bits.join(QStringLiteral(" · "));
+    m_lastReading = summaryOf(r) + QStringLiteral(" · ") + tr("monitor only");
     emit lastReadingChanged();
 
     emit deviceOnlyShotSaved(swingDir);
@@ -470,15 +509,94 @@ bool LaunchMonitorController::applyToSwing(const QString &swingDir, const Launch
     // on its next read rather than serving a grid with no launch monitor rows in it.
     if (m_shotModel)
         m_shotModel->refreshShot(swingDir);
+    rememberShotDir(r.deviceShotId, swingDir);
 
-    QStringList bits;
-    if (!r.deviceShotId.isEmpty()) bits << r.deviceShotId;
-    if (!r.deviceClub.isEmpty())   bits << r.deviceClub;
-    if (r.clubheadSpeed)           bits << tr("%1 mph").arg(*r.clubheadSpeed, 0, 'f', 1);
-    if (r.carryDistance)           bits << tr("%1 yd").arg(*r.carryDistance, 0, 'f', 0);
-    m_lastReading = bits.join(QStringLiteral(" · "));
+    m_lastReading = summaryOf(r);
     emit lastReadingChanged();
 
     emit readingApplied(swingDir);
     return true;
+}
+
+QString LaunchMonitorController::summaryOf(const LaunchMonitorReading &r) const
+{
+    QStringList bits;
+    // Premier's ids are GUIDs; the first block is enough to tell shots apart on one line.
+    if (!r.deviceShotId.isEmpty())
+        bits << (r.deviceShotId.size() > 12 ? r.deviceShotId.left(8) : r.deviceShotId);
+    if (!r.deviceClub.isEmpty())   bits << r.deviceClub;
+    if (r.clubheadSpeed)           bits << tr("%1 mph").arg(*r.clubheadSpeed, 0, 'f', 1);
+    else if (r.ballSpeed)          bits << tr("ball %1 mph").arg(*r.ballSpeed, 0, 'f', 1);
+    if (r.carryDistance)           bits << tr("%1 yd").arg(*r.carryDistance, 0, 'f', 0);
+    return bits.join(QStringLiteral(" · "));
+}
+
+void LaunchMonitorController::rememberShotDir(const QString &deviceShotId, const QString &swingDir)
+{
+    if (deviceShotId.isEmpty() || swingDir.isEmpty())
+        return;
+    if (!m_shotDirs.contains(deviceShotId))
+        m_shotDirOrder.append(deviceShotId);
+    m_shotDirs.insert(deviceShotId, swingDir);
+    while (m_shotDirOrder.size() > 32)
+        m_shotDirs.remove(m_shotDirOrder.takeFirst());
+}
+
+void LaunchMonitorController::onReadingUpdated(const LaunchMonitorReading &reading)
+{
+    // Still parked (the swing has not reached disk): the fuller reading simply takes the
+    // parked one's place, and goes in whole when the swing does.
+    if (m_pairing.replaceParked(reading)) {
+        ppInfo() << "LaunchMonitor: club data for" << reading.deviceShotId
+                 << "arrived before its swing was saved; it goes in with the ball data";
+        return;
+    }
+    const QString dir = m_shotDirs.value(reading.deviceShotId);
+    if (dir.isEmpty()) {
+        // A shot no swing claimed — dropped by the pairing, or never ours. Nothing to amend.
+        ppInfo() << "LaunchMonitor: club data for" << reading.deviceShotId
+                 << "belongs to no swing here; discarded";
+        return;
+    }
+    m_heldUpdates.insert(dir, reading);
+    flushUpdates();
+}
+
+void LaunchMonitorController::setPipelineBusy(bool busy)
+{
+    m_pipelineBusy = busy;
+    if (!busy)
+        flushUpdates();
+}
+
+void LaunchMonitorController::onSwingRewritten(const QString &swingDir)
+{
+    if (m_heldUpdates.contains(swingDir))
+        flushUpdates();
+}
+
+void LaunchMonitorController::flushUpdates()
+{
+    if (m_pipelineBusy || m_heldUpdates.isEmpty())
+        return;
+    // Keys first: the writes below emit signals, and nothing should be iterating the hash then.
+    const QStringList dirs = m_heldUpdates.keys();
+    for (const QString &dir : dirs) {
+        if (m_folderHeld && m_folderHeld(dir))
+            continue;                   // the re-analysis write goes first; onSwingRewritten retries
+        const LaunchMonitorReading r = m_heldUpdates.take(dir);
+
+        QString error;
+        if (!pinpoint::SwingDocWriter::updateLaunchMonitor(dir, r, &error)) {
+            ppWarn() << "LaunchMonitor: cannot write the club data for" << r.deviceShotId
+                     << "to" << dir << ":" << error;
+            continue;
+        }
+        ppInfo() << "LaunchMonitor: club data for" << r.deviceShotId << "written to" << dir;
+        if (m_shotModel)
+            m_shotModel->refreshShot(dir);
+        m_lastReading = summaryOf(r);
+        emit lastReadingChanged();
+        emit readingUpdatedForSwing(dir);
+    }
 }

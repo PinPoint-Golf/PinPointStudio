@@ -21,10 +21,14 @@
 #include "shot_pairing.h"
 #include "../../Export/swing_paths.h"
 
+#include <QHash>
 #include <QObject>
+#include <QStringList>
 #include <QVariantList>
 #include <QVariantMap>
 #include <QString>
+
+#include <functional>
 
 class AppSettings;
 class AthleteController;
@@ -38,10 +42,12 @@ class ShotListModel;
 // the shot's swing.json. The ImuManager analogue, and much smaller than one, because a
 // file-polling source has nothing to enumerate, select or register with the buffer.
 //
-// Three things wire into it from main.cpp:
-//   ShotController::shotDetected   → arm for this swing
+// Five things wire into it from main.cpp:
+//   ShotController::shotDetected   → arm for this swing (with its impact on the wall clock)
 //   ShotProcessor::shotProcessed   → a swingDir exists; flush anything parked
 //   ShotProcessor::shotFailed      → drop anything parked for a swing that died
+//   ShotProcessor::busyChanged     → write held club updates once the pipeline is idle
+//   ReanalysisController::reanalysed → write a club update that waited on a re-analysis
 //
 // State (the enum → string mapping) is translated here and nowhere else, so the QML
 // contract cannot drift — the same arrangement UpdateController has.
@@ -60,6 +66,9 @@ class LaunchMonitorController : public QObject
     // The short device name ("GC Quad") for panels that name the device in passing.
     // Empty when nothing is configured, so a caller can join it into a list unguarded.
     Q_PROPERTY(QString deviceName   READ deviceName   NOTIFY stateChanged)
+    // Foresight Premier's own data folder for this account — what the settings panel shows
+    // while the Premier folder setting is left empty.
+    Q_PROPERTY(QString premierDefaultFolder READ premierDefaultFolder CONSTANT)
     // A one-line summary of the last reading applied ("283 · Irn · 87.2 mph"), so the
     // settings panel can prove the connection works without opening a shot.
     Q_PROPERTY(QString lastReading  READ lastReading  NOTIFY lastReadingChanged)
@@ -97,6 +106,7 @@ public:
     QString errorText()  const;
     QString sourceText() const;
     QString deviceName() const;
+    QString premierDefaultFolder() const;
     QString lastReading() const { return m_lastReading; }
     QVariantList devices() const;
     // Split out only because stateLabel() would otherwise nest two questions.
@@ -116,17 +126,30 @@ public:
     Q_INVOKABLE void setPlayerClub(const QString &club, bool leftHanded);
     Q_INVOKABLE void setSessionActive(bool active);
 
+    // Whether the re-analysis queue still owes a write to a folder. A club update for such a
+    // folder waits for onSwingRewritten() rather than racing that write. Optional.
+    void setFolderBusyCheck(std::function<bool(const QString &)> holds) { m_folderHeld = std::move(holds); }
+
 public slots:
-    // ShotController::shotDetected. The extra arguments are ignored — which swing a
-    // reading belongs to is decided by ORDER, not by timestamp, since the file gives
-    // us no timestamp we could trust anyway.
-    void onShotDetected();
+    // ShotController::shotDetected. Which swing a reading belongs to is decided by ORDER
+    // (ShotPairing). `impactUtcMs` is our impact on the wall clock (epoch ms, 0 = unknown):
+    // it is checked against a reading's own contact time when the connector states one
+    // (Foresight Premier), which is what catches a shot the device dropped.
+    void onShotDetected(qint64 impactUtcMs = 0);
     void onShotProcessed(int shotId, const QString &swingDir);
     // The shot produced no document. `swingDir` is the folder the processor allocated
     // before it gave up — empty only when even that failed. A reading for this shot is
     // still worth keeping: a ball WAS struck and the monitor measured it, so the folder
     // becomes a device-only swing rather than being left empty.
     void onShotFailed(const QString &swingDir, int shotId);
+
+    // ShotProcessor::busyChanged. A club update arriving while a shot is in flight is held
+    // until the pipeline is idle: it lands ~0.7 s after the NEXT shot's contact, exactly when
+    // the next capture starts, and a whole-document rewrite on the GUI thread there is the
+    // known freeze.
+    void setPipelineBusy(bool busy);
+    // ReanalysisController::reanalysed. A held club update for that folder can go in now.
+    void onSwingRewritten(const QString &swingDir);
 
     // Rebuild the connector from settings. Called on construction and whenever the
     // configured kind or path changes.
@@ -144,6 +167,9 @@ signals:
     // alone. Distinct from readingApplied so the UI can say which happened — "analysis
     // failed" is the wrong thing to tell somebody whose shot was saved.
     void deviceOnlyShotSaved(const QString &swingDir);
+    // A shot's reading was REPLACED by a fuller one after the fact (Foresight Premier's club
+    // data, which lands a shot late). Everything showing that swing re-reads it; no chime.
+    void readingUpdatedForSwing(const QString &swingDir);
 
 private:
     void onReadingAvailable(const pinpoint::lm::LaunchMonitorReading &reading);
@@ -161,6 +187,13 @@ private:
     // Write to swing.json and refresh the carousel row. Returns false (and logs) when
     // the document cannot be updated.
     bool applyToSwing(const QString &swingDir, const pinpoint::lm::LaunchMonitorReading &r);
+
+    // ── Late club data (Foresight Premier) ──────────────────────────────────
+    void onReadingUpdated(const pinpoint::lm::LaunchMonitorReading &reading);
+    // Write every held update the pipeline and the re-analysis queue allow.
+    void flushUpdates();
+    void rememberShotDir(const QString &deviceShotId, const QString &swingDir);
+    QString summaryOf(const pinpoint::lm::LaunchMonitorReading &r) const;
 
     AppSettings                   *m_settings  = nullptr;
     ShotListModel                 *m_shotModel = nullptr;
@@ -183,6 +216,15 @@ private:
     // The row the processor already created for a shot that produced no document.
     int                            m_destinationShotId = -1;
     QString                        m_lastReading;
+    // Which folder each recent reading went into, by the device's shot id, so a later,
+    // fuller reading for the same shot finds its swing. Bounded: an update comes one shot
+    // late, so a handful is plenty; 32 survives a burst of standalone shots.
+    QHash<QString, QString>        m_shotDirs;
+    QStringList                    m_shotDirOrder;
+    // Updates waiting for the pipeline to go idle, by folder. The latest per folder wins.
+    QHash<QString, pinpoint::lm::LaunchMonitorReading> m_heldUpdates;
+    bool                           m_pipelineBusy = false;
+    std::function<bool(const QString &)> m_folderHeld;
     // Remembered so a connector rebuilt from a settings change is told again
     // without waiting for the next club selection.
     QString                        m_club;

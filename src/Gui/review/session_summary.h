@@ -82,6 +82,7 @@ inline QString deviceLabel(const QString &token)
     if (token == QLatin1String("hackmotion")) return QStringLiteral("HackMotion");
     if (token == QLatin1String("imu"))        return QStringLiteral("Motion sensor");
     if (token == QLatin1String("lm:gcquad"))  return QStringLiteral("GC Quad");
+    if (token == QLatin1String("lm:premier")) return QStringLiteral("GC Quad");   // the device, read through Premier
     if (token == QLatin1String("lm:gspro"))   return QStringLiteral("GSPro");
     if (token.startsWith(QLatin1String("lm:"))) return QStringLiteral("Launch monitor");
     return token;

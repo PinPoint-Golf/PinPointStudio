@@ -18,8 +18,9 @@
 
 // Settings → Launch Monitor (panelIndex 6).
 //
-// Connect a launch monitor and say where it writes. The first connector reads
-// Foresight's LastShot.CSV out of a folder FSX2020 is pointed at.
+// Connect a launch monitor and say where it writes. The GC Quad has two connectors, one per
+// program that can hold it: FSX2020's LastShot.CSV out of a folder it is pointed at, and
+// Foresight Premier's session files out of its own data folder.
 //
 // NO FILESYSTEM WORK ON COMPLETION. This panel is a direct StackLayout child, so it
 // is built at launch whether or not anybody opens Settings — see the warning in
@@ -39,18 +40,27 @@ SettingsPanelBase {
 
     FolderDialog {
         id: folderDialog
-        title: qsTr("Select the folder FSX2020 writes LastShot.CSV into")
+        title: root.isPremier ? qsTr("Select Foresight Premier's data folder")
+                              : qsTr("Select the folder FSX2020 writes LastShot.CSV into")
         // urlToLocalFile, never a string strip: QML's url type has no toLocalFile()
         // and trimming "file://" leaves a stray slash before a Windows drive letter,
         // which is exactly the platform this folder usually lives on.
-        onAccepted: appSettings.launchMonitorPath = appSettings.urlToLocalFile(selectedFolder)
+        // Each connector keeps its own folder, so choosing one never loses the other's.
+        onAccepted: {
+            const p = appSettings.urlToLocalFile(selectedFolder)
+            if (root.isPremier) appSettings.launchMonitorPremierPath = p
+            else                appSettings.launchMonitorPath = p
+        }
     }
 
     // ── Option model ──────────────────────────────────────────────────────────
 
     readonly property var deviceOptions: [
         { label: qsTr("None"),                        value: "none"   },
-        { label: qsTr("Foresight GC Quad (FSX2020)"), value: "gcquad" },
+        // One device, two connectors: only one program can hold the Quad, so the user
+        // picks the one they are running.
+        { label: qsTr("GC Quad — FSX2020"),             value: "gcquad"  },
+        { label: qsTr("GC Quad — Foresight Premier"),   value: "premier" },
         // ⚠ NAMED FOR THE PROTOCOL, NOT A DEVICE. One connector receives from
         // everything that has an Open Connect bridge, so naming any single monitor
         // would send everyone else looking for their own. The three in brackets are
@@ -73,6 +83,13 @@ SettingsPanelBase {
     readonly property bool configured: root.chosen && root.switchedOn
     readonly property bool isGcQuad:   appSettings.launchMonitorKind === "gcquad"
     readonly property bool isGsPro:    appSettings.launchMonitorKind === "gspro"
+    readonly property bool isPremier:  appSettings.launchMonitorKind === "premier"
+    // The folder the chosen connector reads. Premier's setting is empty until someone
+    // changes it, and empty means Premier's own data folder for this account.
+    readonly property string folderPath: root.isPremier
+        ? (appSettings.launchMonitorPremierPath !== "" ? appSettings.launchMonitorPremierPath
+                                                       : launchMonitor.premierDefaultFolder)
+        : appSettings.launchMonitorPath
 
     readonly property color statusColor:
         launchMonitor.state === "ready"   ? Theme.colorGood
@@ -104,6 +121,8 @@ SettingsPanelBase {
                 title:    qsTr("Device")
                 subtitle: root.isGsPro
                           ? qsTr("Launch monitors connect TO PinPoint over the network. Point the device's own app at this machine's address and the port below")
+                          : root.isPremier
+                          ? qsTr("Run Foresight Premier on this PC, under this Windows account. Shots arrive from the range, not from training drills, and each shot's club data follows a shot later")
                           : qsTr("FSX2020 is Windows-only, but the folder it writes to can be a share — so this works from any machine that can see it")
             }
             PpComboBox {
@@ -164,7 +183,9 @@ SettingsPanelBase {
                 spacing: Theme.gap(3)
                 SettingsRowTitle {
                     title:    qsTr("Shot data folder")
-                    subtitle: qsTr("The folder FSX2020 writes LastShot.CSV into — the folder, not the file")
+                    subtitle: root.isPremier
+                              ? qsTr("Foresight Premier's data folder for this Windows account, found for you. Change it only if Premier keeps its data somewhere else")
+                              : qsTr("The folder FSX2020 writes LastShot.CSV into — the folder, not the file")
                 }
                 Rectangle {
                     Layout.fillWidth: true
@@ -179,12 +200,12 @@ SettingsPanelBase {
                         anchors.rightMargin:     Theme.gap(8)
                         verticalAlignment:       Text.AlignVCenter
                         elide:                   Text.ElideLeft
-                        text:                    appSettings.launchMonitorPath !== ""
-                                                 ? appSettings.launchMonitorPath
+                        text:                    root.folderPath !== ""
+                                                 ? root.folderPath
                                                  : qsTr("No folder selected")
                         font.family:             Theme.fontData
                         font.pixelSize:          Theme.fontSzMicro
-                        color:                   appSettings.launchMonitorPath !== ""
+                        color:                   root.folderPath !== ""
                                                  ? Theme.colorText : Theme.colorText3
                     }
                 }
@@ -199,8 +220,8 @@ SettingsPanelBase {
                 }
                 PpButton {
                     label:     qsTr("Open")
-                    enabled:   root.chosen && appSettings.launchMonitorPath !== ""
-                    onClicked: Qt.openUrlExternally(appSettings.fileUrlFor(appSettings.launchMonitorPath))
+                    enabled:   root.chosen && root.folderPath !== ""
+                    onClicked: Qt.openUrlExternally(appSettings.fileUrlFor(root.folderPath))
                 }
             }
         }

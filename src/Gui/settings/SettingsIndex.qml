@@ -393,13 +393,13 @@ QtObject {
           itemId: "" },
 
         { panelIndex: 7,  panelLabel: qsTr("Launch Monitor"), groupLabel: qsTr("Connection"),
-          label: qsTr("Device"),                           subtitle: qsTr("Which launch monitor to read — Foresight GC Quad via FSX2020, or none"),
-          actions: "launch monitor device gcquad gc quad foresight fsx2020 fsx connect ball club data",
+          label: qsTr("Device"),                           subtitle: qsTr("Which launch monitor to read — a GC Quad through FSX2020 or Foresight Premier, GSPro Connect, or none"),
+          actions: "launch monitor device gcquad gc quad foresight fsx2020 fsx premier gspro connect ball club data",
           itemId: "setting_lmDevice" },
 
         { panelIndex: 7,  panelLabel: qsTr("Launch Monitor"), groupLabel: qsTr("Connection"),
-          label: qsTr("Shot data folder"),                 subtitle: qsTr("The folder FSX2020 writes LastShot.CSV into — a local path or a share"),
-          actions: "launch monitor folder path directory lastshot csv fsx2020 share network location",
+          label: qsTr("Shot data folder"),                 subtitle: qsTr("The folder FSX2020 writes LastShot.CSV into, or Foresight Premier's data folder"),
+          actions: "launch monitor folder path directory lastshot csv fsx2020 premier appdata locallow share network location",
           itemId: "setting_lmPath" },
 
         { panelIndex: 7,  panelLabel: qsTr("Launch Monitor"), groupLabel: qsTr("Connection"),

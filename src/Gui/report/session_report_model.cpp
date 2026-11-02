@@ -1145,7 +1145,9 @@ void SessionReportModel::build()
             ++x.lmSwings;
             if (x.lmDevice.isEmpty()) {
                 const QString k = d.lm.value(QStringLiteral("kind")).toString();
-                x.lmDevice = k == QLatin1String("gcquad") ? QStringLiteral("GC Quad") : k == QLatin1String("nova") ? QStringLiteral("Nova") : k;
+                // The DEVICE: a GC Quad is a GC Quad whether FSX2020 or Premier was holding it.
+                x.lmDevice = (k == QLatin1String("gcquad") || k == QLatin1String("premier")) ? QStringLiteral("GC Quad")
+                           : k == QLatin1String("nova") ? QStringLiteral("Nova") : k;
             }
         }
         for (const QString &a : d.videoAliases) if (!x.cameraAliases.contains(a)) x.cameraAliases << a;
