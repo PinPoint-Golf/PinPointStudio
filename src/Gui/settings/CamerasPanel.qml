@@ -199,13 +199,20 @@ SettingsPanelBase {
     component CameraDeviceRow: PpDeviceCard {
         id: camRow
 
-        property var camData: ({})  // one entry from cameraManager.cameraList
+        // One entry from cameraManager.cameraList.
+        // ⚠ ALWAYS `camRow.camData`, never a bare `camData`, inside the row.  A
+        // bare name is looked up through the row's context, and while the row
+        // is being destroyed that lookup fails (undefined, or a ReferenceError)
+        // even though `camRow.…` still resolves.  Any binding that re-runs in
+        // that window — e.g. one on `camRow.instance` as the preview instance
+        // stops — then logs "Cannot read property 'maxWidth' of undefined".
+        property var camData: ({})
 
         // The selected CameraInstance for this camera (null when not selected).
         readonly property var realInstance: {
             var instances = cameraManager.instances
             for (var i = 0; i < instances.length; ++i) {
-                if (instances[i].cameraKey === camData.cameraKey)
+                if (instances[i].cameraKey === camRow.camData.cameraKey)
                     return instances[i]
             }
             return null
@@ -232,24 +239,24 @@ SettingsPanelBase {
                                                 : (realInstance !== null ? realInstance
                                                                          : localPreviewInstance)
 
-        readonly property bool roiOpen: root.openRoiIndex === camData.index
-        readonly property bool tuningOpen: root.openTuningIndex === camData.index
-        readonly property bool ballOpen: root.openBallIndex === camData.index
+        readonly property bool roiOpen: root.openRoiIndex === camRow.camData.index
+        readonly property bool tuningOpen: root.openTuningIndex === camRow.camData.index
+        readonly property bool ballOpen: root.openBallIndex === camRow.camData.index
 
         // The club/ball impact camera: its row swaps the frame-rate chips for
         // the modes the camera itself reported at enumeration (crop × rate)
         // and adds a locked-exposure chip.
-        readonly property bool isImpact:    camData.perspective === CameraInstance.Impact
-        readonly property var  impactModes: camData.impactModes || []
+        readonly property bool isImpact:    camRow.camData.perspective === CameraInstance.Impact
+        readonly property var  impactModes: camRow.camData.impactModes || []
 
         // Effective fps for storage calculations:
         // priority: user-set target → live measured configuredFps → capability maxFps → 30
         readonly property double currentFps: {
-            var stored = appSettings.cameraTargetFps[camData.cameraKey]
+            var stored = appSettings.cameraTargetFps[camRow.camData.cameraKey]
             if (stored !== undefined && stored > 0) return stored
             if (camRow.instance && camRow.instance.configuredFps > 0)
                 return camRow.instance.configuredFps
-            return camData.maxFps > 0 ? camData.maxFps : 30
+            return camRow.camData.maxFps > 0 ? camRow.camData.maxFps : 30
         }
 
         // From where the header ENDS (its top margin included): summing heights
@@ -257,19 +264,19 @@ SettingsPanelBase {
         // whatever section came last.
         implicitHeight: camRow.roiOpen
                             ? camRow.headerRow.y + camRow.headerRow.height + bodyRow.height + wideTuneRow.height + impactRow.height + roiPanel.height
-                            : camRow.headerRow.y + camRow.headerRow.height + (camData.enabled ? bodyRow.height : excludedNote.height)
+                            : camRow.headerRow.y + camRow.headerRow.height + (camRow.camData.enabled ? bodyRow.height : excludedNote.height)
                               + wideTuneRow.height + impactRow.height
                               + (camRow.ballOpen ? ballPanel.height : 0)
 
         Behavior on implicitHeight { NumberAnimation { duration: Theme.durationFast } }
 
-        dimmed: !camData.enabled
+        dimmed: !camRow.camData.enabled
         borderColor: (camRow.roiOpen || camRow.ballOpen)
                         ? Theme.colorAccent
-                        : (camData.enabled ? Theme.colorBorderStrong : Theme.colorBorderMid)
+                        : (camRow.camData.enabled ? Theme.colorBorderStrong : Theme.colorBorderMid)
         statusColor: camRow.realInstance && camRow.realInstance.isRecording
                         ? Theme.colorGood
-                        : (camData.enabled ? Theme.colorWarn : Theme.colorText3)
+                        : (camRow.camData.enabled ? Theme.colorWarn : Theme.colorText3)
 
         // ── Header row (after the card's status dot) ─────────────────────────
         headerItems: [
@@ -287,7 +294,7 @@ SettingsPanelBase {
             // flag.
             Rectangle {
                 id: rowPreviewTile
-                visible: camData.isPpcp
+                visible: camRow.camData.isPpcp
                 Layout.preferredWidth:  Theme.sp(64)
                 Layout.preferredHeight: Theme.sp(36)
                 Layout.alignment: Qt.AlignVCenter
@@ -330,26 +337,26 @@ SettingsPanelBase {
                 PpTextField {
                     Layout.fillWidth: true
                     placeholderText:  qsTr("Device alias…")
-                    text:             camData.alias
-                    onEditingFinished: cameraManager.setCameraAlias(camData.cameraKey, text)
+                    text:             camRow.camData.alias
+                    onEditingFinished: cameraManager.setCameraAlias(camRow.camData.cameraKey, text)
                 }
 
                 Row {
                     spacing: Theme.gap(10)
                     Text {
-                        text:           camData.description || ""
+                        text:           camRow.camData.description || ""
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
                     }
                     Text {
-                        text:           camData.interface || ""
+                        text:           camRow.camData.interface || ""
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
                     }
                     Text {
-                        text:           camData.serialNumber || ""
+                        text:           camRow.camData.serialNumber || ""
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -371,8 +378,8 @@ SettingsPanelBase {
                 }
 
                 PpSwitch {
-                    checked: camData.enabled
-                    onToggled: (v) => cameraManager.setExcluded(camData.index, !v)
+                    checked: camRow.camData.enabled
+                    onToggled: (v) => cameraManager.setExcluded(camRow.camData.index, !v)
                 }
             }
         ]
@@ -383,8 +390,8 @@ SettingsPanelBase {
             anchors.top:   camRow.headerRow.bottom
             anchors.left:  parent.left
             anchors.right: parent.right
-            height: camData.enabled ? 0 : implicitContentHeight + Theme.gap(14)
-            visible: !camData.enabled
+            height: camRow.camData.enabled ? 0 : implicitContentHeight + Theme.gap(14)
+            visible: !camRow.camData.enabled
             clip: true
 
             readonly property real implicitContentHeight: excText.implicitHeight + Theme.gap(14)
@@ -417,8 +424,8 @@ SettingsPanelBase {
             anchors.leftMargin:   Theme.gap(14)
             anchors.rightMargin:  Theme.gap(14)
             anchors.bottomMargin: Theme.gap(28)
-            height: camData.enabled ? implicitHeight + Theme.gap(28) : 0
-            visible: camData.enabled
+            height: camRow.camData.enabled ? implicitHeight + Theme.gap(28) : 0
+            visible: camRow.camData.enabled
             spacing: Theme.gap(16)
             clip: true
 
@@ -449,7 +456,7 @@ SettingsPanelBase {
                             { label: qsTr("Face-on"),         perspective: CameraInstance.FaceOn },
                             { label: qsTr("Down-the-line"),   perspective: CameraInstance.DownTheLine }
                         ]
-                        if (camData.impactCapable || camData.perspective === CameraInstance.Impact)
+                        if (camRow.camData.impactCapable || camRow.camData.perspective === CameraInstance.Impact)
                             opts.push({ label: qsTr("Club/Ball Impact"), perspective: CameraInstance.Impact })
                         opts.push({ label: qsTr("Other"), perspective: CameraInstance.Other })
                         return opts
@@ -458,7 +465,7 @@ SettingsPanelBase {
                     model: viewOptions.map(function(o) { return o.label })
 
                     Component.onCompleted: {
-                        var p = appSettings.cameraPerspective[camData.cameraKey] || 0
+                        var p = appSettings.cameraPerspective[camRow.camData.cameraKey] || 0
                         for (var i = 0; i < viewOptions.length; i++) {
                             if (viewOptions[i].perspective === p) { currentIndex = i; break }
                         }
@@ -467,7 +474,7 @@ SettingsPanelBase {
                     Connections {
                         target: appSettings
                         function onCameraPerspectiveChanged() {
-                            var p = appSettings.cameraPerspective[camData.cameraKey] || 0
+                            var p = appSettings.cameraPerspective[camRow.camData.cameraKey] || 0
                             for (var i = 0; i < viewCombo.viewOptions.length; i++) {
                                 if (viewCombo.viewOptions[i].perspective === p) {
                                     viewCombo.currentIndex = i; break
@@ -483,10 +490,10 @@ SettingsPanelBase {
                         // everything into locals FIRST, write after.
                         var panelRoot = root
                         var mgr       = cameraManager
-                        var key       = camData.cameraKey
-                        var camIndex  = camData.index
-                        var maxW      = camData.maxWidth
-                        var maxH      = camData.maxHeight
+                        var key       = camRow.camData.cameraKey
+                        var camIndex  = camRow.camData.index
+                        var maxW      = camRow.camData.maxWidth
+                        var maxH      = camRow.camData.maxHeight
                         var modes     = camRow.impactModes
                         var inst      = camRow.realInstance
                         var storedFps = appSettings.cameraTargetFps[key]
@@ -520,7 +527,7 @@ SettingsPanelBase {
 
                 PpChoiceChip {
                     id: mirrorChip
-                    readonly property bool isMirrored: (appSettings.cameraIsMirrored[camData.cameraKey] === true)
+                    readonly property bool isMirrored: (appSettings.cameraIsMirrored[camRow.camData.cameraKey] === true)
 
                     style:    "solid"
                     label:    qsTr("Mirrored")
@@ -528,9 +535,9 @@ SettingsPanelBase {
                     onClicked: {
                         var map = appSettings.cameraIsMirrored
                         if (mirrorChip.isMirrored)
-                            delete map[camData.cameraKey]
+                            delete map[camRow.camData.cameraKey]
                         else
-                            map[camData.cameraKey] = true
+                            map[camRow.camData.cameraKey] = true
                         appSettings.cameraIsMirrored = map
                         if (camRow.realInstance)
                             cameraManager.setIsMirrored(camRow.realInstance, !mirrorChip.isMirrored)
@@ -555,7 +562,7 @@ SettingsPanelBase {
 
                     readonly property var fpsOptions: {
                         var opts = []
-                        var max = camData.maxFps > 0 ? camData.maxFps : 60
+                        var max = camRow.camData.maxFps > 0 ? camRow.camData.maxFps : 60
                         if (max >= 30) opts.push(30)
                         if (max >= 60 && max > 30) opts.push(60)
                         if (max >= 120 && max > 60) opts.push(120)
@@ -564,8 +571,8 @@ SettingsPanelBase {
                     }
 
                     readonly property double selectedFps: {
-                        var v = appSettings.cameraTargetFps[camData.cameraKey]
-                        return (v !== undefined && v > 0) ? v : (camData.maxFps > 0 ? camData.maxFps : 60)
+                        var v = appSettings.cameraTargetFps[camRow.camData.cameraKey]
+                        return (v !== undefined && v > 0) ? v : (camRow.camData.maxFps > 0 ? camRow.camData.maxFps : 60)
                     }
 
                     Repeater {
@@ -578,9 +585,9 @@ SettingsPanelBase {
                             selected: Math.abs(parent.selectedFps - modelData) < 0.5
                             onClicked: {
                                 var map = appSettings.cameraTargetFps
-                                map[camData.cameraKey] = modelData
+                                map[camRow.camData.cameraKey] = modelData
                                 appSettings.cameraTargetFps = map
-                                cameraManager.setTargetFps(camData.index, modelData)
+                                cameraManager.setTargetFps(camRow.camData.index, modelData)
                             }
                         }
                     }
@@ -601,12 +608,12 @@ SettingsPanelBase {
                     spacing: Theme.gap(4)
 
                     readonly property string selectedMode: {
-                        var v = appSettings.cameraTriggerMode[camData.cameraKey]
+                        var v = appSettings.cameraTriggerMode[camRow.camData.cameraKey]
                         return v !== undefined ? v : "freerun"
                     }
 
                     Repeater {
-                        model: camData.hwTrigger
+                        model: camRow.camData.hwTrigger
                                 ? [{ label: qsTr("Free-run"), mode: "freerun" },
                                    { label: qsTr("HW sync"),  mode: "hwsync"  }]
                                 : [{ label: qsTr("Free-run"), mode: "freerun" }]
@@ -618,9 +625,9 @@ SettingsPanelBase {
                             selected: parent.selectedMode === modelData.mode
                             onClicked: {
                                 var map = appSettings.cameraTriggerMode
-                                map[camData.cameraKey] = modelData.mode
+                                map[camRow.camData.cameraKey] = modelData.mode
                                 appSettings.cameraTriggerMode = map
-                                cameraManager.setTriggerMode(camData.index, modelData.mode)
+                                cameraManager.setTriggerMode(camRow.camData.index, modelData.mode)
                             }
                         }
                     }
@@ -642,20 +649,20 @@ SettingsPanelBase {
 
                     PpSwitch {
                         readonly property bool fixedVal: {
-                            var v = appSettings.cameraFixedInPlace[camData.cameraKey]
+                            var v = appSettings.cameraFixedInPlace[camRow.camData.cameraKey]
                             return v !== undefined ? !!v : false
                         }
                         checked: fixedVal
                         onToggled: (v) => {
                             var map = appSettings.cameraFixedInPlace
-                            map[camData.cameraKey] = v
+                            map[camRow.camData.cameraKey] = v
                             appSettings.cameraFixedInPlace = map
                         }
                     }
 
                     Text {
                         text: {
-                            var v = appSettings.cameraFixedInPlace[camData.cameraKey]
+                            var v = appSettings.cameraFixedInPlace[camRow.camData.cameraKey]
                             return (v !== undefined && !!v) ? qsTr("Yes") : qsTr("No")
                         }
                         font.family:    Theme.fontData
@@ -711,8 +718,8 @@ SettingsPanelBase {
                         var mgr         = cameraManager
                         var toast       = cropToast
                         var panelRoot   = root
-                        var idx         = camData.index
-                        var wasSelected = camData.selected
+                        var idx         = camRow.camData.index
+                        var wasSelected = camRow.camData.selected
                         var wasActive   = mgr.isRecording || wasSelected
                         var notice      = qsTr("Capture stopped — crop editing previews the full sensor")
                         if (mgr.isRecording)
@@ -732,7 +739,7 @@ SettingsPanelBase {
                 // explains inline.
                 PpButton {
                     id: ballBtn
-                    visible: camData.perspective === CameraInstance.FaceOn
+                    visible: camRow.camData.perspective === CameraInstance.FaceOn
                     style: "wash"; size: "compact"
                     implicitHeight: Theme.sp(26)
                     horizontalPadding: Theme.sp(24)
@@ -753,8 +760,8 @@ SettingsPanelBase {
                         // snapshot locals first.
                         var mgr         = cameraManager
                         var panelRoot   = root
-                        var idx         = camData.index
-                        var wasSelected = camData.selected
+                        var idx         = camRow.camData.index
+                        var wasSelected = camRow.camData.selected
                         panelRoot.closeBallPanel()   // restore any other row first
                         panelRoot.openRoiIndex = -1
                         panelRoot.ballAutoConnected = !wasSelected
@@ -778,9 +785,9 @@ SettingsPanelBase {
         // Collapsed to one line: the toggle and what the camera runs at now.
         ColumnLayout {
             id: wideTuneRow
-            readonly property bool shown: camData.enabled && !camRow.isImpact && camData.tuningLockable === true
-            readonly property double exposureUs: root.wideExposureUs(camData.cameraKey)
-            readonly property double gainDb:     root.wideGainDb(camData.cameraKey)
+            readonly property bool shown: camRow.camData.enabled && !camRow.isImpact && camRow.camData.tuningLockable === true
+            readonly property double exposureUs: root.wideExposureUs(camRow.camData.cameraKey)
+            readonly property double gainDb:     root.wideGainDb(camRow.camData.cameraKey)
             readonly property double framePeriodUs: camRow.currentFps > 0 ? 1e6 / camRow.currentFps : 0
             anchors.top:    bodyRow.bottom
             anchors.left:   parent.left
@@ -802,7 +809,7 @@ SettingsPanelBase {
                     active: camRow.tuningOpen
                     glyph: camRow.tuningOpen ? "▾" : "▸"
                     label: qsTr("Exposure and gain")
-                    onClicked: root.openTuningIndex = camRow.tuningOpen ? -1 : camData.index
+                    onClicked: root.openTuningIndex = camRow.tuningOpen ? -1 : camRow.camData.index
                 }
                 // What it runs at, and — while it streams — what the raw frame
                 // measures: the number to hold when an exposure is locked.
@@ -839,7 +846,7 @@ SettingsPanelBase {
                             style: "mono"; moves: false
                             label:    qsTr("Auto")
                             selected: wideTuneRow.exposureUs <= 0
-                            onClicked: root.setWideExposure(camData.cameraKey, 0, camRow.realInstance)
+                            onClicked: root.setWideExposure(camRow.camData.cameraKey, 0, camRow.realInstance)
                         }
                         // The frame period, as auto uses it today: the lock that keeps the
                         // blur the shaft tracker reads when more light would let auto
@@ -850,7 +857,7 @@ SettingsPanelBase {
                             visible:  us > 0
                             label:    qsTr("Full frame")
                             selected: wideTuneRow.exposureUs > 0 && Math.abs(wideTuneRow.exposureUs - us) < 0.5
-                            onClicked: root.setWideExposure(camData.cameraKey, us, camRow.realInstance)
+                            onClicked: root.setWideExposure(camRow.camData.cameraKey, us, camRow.realInstance)
                         }
                         PpTextField {
                             width:  Theme.sp(72)
@@ -865,7 +872,7 @@ SettingsPanelBase {
                             onEditingFinished: {
                                 var v = parseFloat(text)
                                 if (!(v > 0) || Math.abs(v - wideTuneRow.exposureUs) < 0.05) return
-                                root.setWideExposure(camData.cameraKey, v, camRow.realInstance)
+                                root.setWideExposure(camRow.camData.cameraKey, v, camRow.realInstance)
                             }
                         }
                     }
@@ -888,12 +895,12 @@ SettingsPanelBase {
                     Row {
                         id: wideGainRow
                         spacing: Theme.gap(4)
-                        readonly property double maxDb: camData.gainMaxDb > 0 ? camData.gainMaxDb : 24
+                        readonly property double maxDb: camRow.camData.gainMaxDb > 0 ? camRow.camData.gainMaxDb : 24
                         PpChoiceChip {
                             style: "mono"; moves: false
                             label:    qsTr("Auto")
                             selected: wideTuneRow.gainDb < 0
-                            onClicked: root.setWideGain(camData.cameraKey, -1, camRow.realInstance)
+                            onClicked: root.setWideGain(camRow.camData.cameraKey, -1, camRow.realInstance)
                         }
                         Repeater {
                             model: [0, 6, 12, 18, 24, 30, 36, 42, 48].filter(function(v) { return v <= wideGainRow.maxDb + 0.5 })
@@ -902,7 +909,7 @@ SettingsPanelBase {
                                 required property var modelData
                                 label:    modelData + qsTr(" dB")
                                 selected: wideTuneRow.gainDb >= 0 && Math.abs(wideTuneRow.gainDb - modelData) < 0.5
-                                onClicked: root.setWideGain(camData.cameraKey, modelData, camRow.realInstance)
+                                onClicked: root.setWideGain(camRow.camData.cameraKey, modelData, camRow.realInstance)
                             }
                         }
                     }
@@ -929,8 +936,8 @@ SettingsPanelBase {
             anchors.right:  parent.right
             anchors.leftMargin:  Theme.gap(14)
             anchors.rightMargin: Theme.gap(14)
-            height: (camData.enabled && camRow.isImpact) ? implicitHeight + Theme.gap(24) : 0
-            visible: camData.enabled && camRow.isImpact
+            height: (camRow.camData.enabled && camRow.isImpact) ? implicitHeight + Theme.gap(24) : 0
+            visible: camRow.camData.enabled && camRow.isImpact
             spacing: Theme.gap(14)
             clip: true
 
@@ -958,9 +965,9 @@ SettingsPanelBase {
                     Layout.preferredWidth: Theme.sp(520)
 
                     // The impact strip, stored apart from the camera's other-role crop (camera_roi.h).
-                    readonly property var    storedRoi: appSettings.cameraRoi[camData.cameraKey + "#impact"]
+                    readonly property var    storedRoi: appSettings.cameraRoi[camRow.camData.cameraKey + "#impact"]
                     readonly property double storedFps: {
-                        var v = appSettings.cameraTargetFps[camData.cameraKey]
+                        var v = appSettings.cameraTargetFps[camRow.camData.cameraKey]
                         return (v !== undefined && v > 0) ? v : 0
                     }
 
@@ -981,17 +988,17 @@ SettingsPanelBase {
                             selected: {
                                 var r = modeFlow.storedRoi
                                 if (!r) return false
-                                return Math.abs(r.w * (camData.maxWidth  || 0) - modelData.w) < 8
-                                    && Math.abs(r.h * (camData.maxHeight || 0) - modelData.h) < 8
+                                return Math.abs(r.w * (camRow.camData.maxWidth  || 0) - modelData.w) < 8
+                                    && Math.abs(r.h * (camRow.camData.maxHeight || 0) - modelData.h) < 8
                                     && Math.abs(modeFlow.storedFps - modelData.fps) < 1
                             }
                             onClicked: {
                                 // applyImpactMode rebuilds the rows — locals first.
                                 var panelRoot = root
-                                var key       = camData.cameraKey
-                                var camIndex  = camData.index
-                                var maxW      = camData.maxWidth
-                                var maxH      = camData.maxHeight
+                                var key       = camRow.camData.cameraKey
+                                var camIndex  = camRow.camData.index
+                                var maxW      = camRow.camData.maxWidth
+                                var maxH      = camRow.camData.maxHeight
                                 var mode      = modeChip.modelData
                                 var inst      = camRow.realInstance
                                 panelRoot.applyImpactMode(key, camIndex, maxW, maxH, mode, inst)
@@ -1029,7 +1036,7 @@ SettingsPanelBase {
                     glyph: camRow.tuningOpen ? "▾" : "▸"
                     label: camRow.tuningOpen ? qsTr("Hide exposure, gain and light")
                                              : qsTr("Exposure, gain and light")
-                    onClicked: root.openTuningIndex = camRow.tuningOpen ? -1 : camData.index
+                    onClicked: root.openTuningIndex = camRow.tuningOpen ? -1 : camRow.camData.index
                 }
                 Text {
                     text: qsTr("Defaults suit the studio; open this to tune to a room.")
@@ -1069,7 +1076,7 @@ SettingsPanelBase {
                     spacing: Theme.gap(4)
 
                     readonly property double selectedUs: {
-                        var v = appSettings.cameraExposureUs[camData.cameraKey]
+                        var v = appSettings.cameraExposureUs[camRow.camData.cameraKey]
                         return (v !== undefined && v > 0) ? v : root.impactDefaultExposureUs
                     }
 
@@ -1082,7 +1089,7 @@ SettingsPanelBase {
                             required property var modelData
                             label:    modelData + qsTr(" µs")
                             selected: Math.abs(exposureRow.selectedUs - modelData) < 0.5
-                            onClicked: root.setImpactExposure(camData.cameraKey, expChip.modelData, camRow.realInstance)
+                            onClicked: root.setImpactExposure(camRow.camData.cameraKey, expChip.modelData, camRow.realInstance)
                         }
                     }
 
@@ -1102,7 +1109,7 @@ SettingsPanelBase {
                         onEditingFinished: {
                             var v = parseFloat(text)
                             if (!(v > 0) || Math.abs(v - exposureRow.selectedUs) < 0.05) return
-                            root.setImpactExposure(camData.cameraKey, v, camRow.realInstance)
+                            root.setImpactExposure(camRow.camData.cameraKey, v, camRow.realInstance)
                         }
                     }
                 }
@@ -1140,8 +1147,8 @@ SettingsPanelBase {
                     id: gainRow
                     spacing: Theme.gap(4)
                     readonly property double selected:
-                        root.impactTuning(camData.cameraKey, "gainDb", root.impactDefaultGainDb)
-                    readonly property double maxDb: camData.gainMaxDb > 0 ? camData.gainMaxDb : 24
+                        root.impactTuning(camRow.camData.cameraKey, "gainDb", root.impactDefaultGainDb)
+                    readonly property double maxDb: camRow.camData.gainMaxDb > 0 ? camRow.camData.gainMaxDb : 24
                     Repeater {
                         model: [0, 6, 12, 18, 24, 30, 36, 42, 48].filter(function(v) { return v <= gainRow.maxDb + 0.5 })
                         delegate: PpChoiceChip {
@@ -1149,7 +1156,7 @@ SettingsPanelBase {
                             required property var modelData
                             label:    modelData + qsTr(" dB")
                             selected: Math.abs(gainRow.selected - modelData) < 0.5
-                            onClicked: root.setImpactTuning(camData.cameraKey, "gainDb", modelData, camRow.realInstance)
+                            onClicked: root.setImpactTuning(camRow.camData.cameraKey, "gainDb", modelData, camRow.realInstance)
                         }
                     }
                 }
@@ -1175,7 +1182,7 @@ SettingsPanelBase {
                     id: viewRow
                     spacing: Theme.gap(4)
                     readonly property double selected:
-                        root.impactTuning(camData.cameraKey, "viewGain", root.impactDefaultViewGain)
+                        root.impactTuning(camRow.camData.cameraKey, "viewGain", root.impactDefaultViewGain)
                     Repeater {
                         model: [1, 2, 4, 8, 16]
                         delegate: PpChoiceChip {
@@ -1183,7 +1190,7 @@ SettingsPanelBase {
                             required property var modelData
                             label:    "×" + modelData
                             selected: Math.abs(viewRow.selected - modelData) < 0.5
-                            onClicked: root.setImpactTuning(camData.cameraKey, "viewGain", modelData, null)
+                            onClicked: root.setImpactTuning(camRow.camData.cameraKey, "viewGain", modelData, null)
                         }
                     }
                 }
@@ -1201,8 +1208,8 @@ SettingsPanelBase {
                 Layout.alignment: Qt.AlignTop
                 PpMicro { kind: "caps"; text: Theme.caps(qsTr("Strobe")) }
                 PpSwitch {
-                    checked: root.impactTuning(camData.cameraKey, "strobe", false)
-                    onToggled: (v) => root.setImpactTuning(camData.cameraKey, "strobe", v, null)
+                    checked: root.impactTuning(camRow.camData.cameraKey, "strobe", false)
+                    onToggled: (v) => root.setImpactTuning(camRow.camData.cameraKey, "strobe", v, null)
                 }
                 Text {
                     text: qsTr("Line1 = exposure active. Next connect.")
@@ -1260,10 +1267,10 @@ SettingsPanelBase {
                     implicitHeight: Theme.sp(28)
                     font.pixelSize: Theme.fontSzMicro
                     placeholderText: qsTr("Lens, aperture, light — e.g. 8 mm f/1.4, two 100 W floods at 0.5 m")
-                    text: root.impactTuning(camData.cameraKey, "note", "")
+                    text: root.impactTuning(camRow.camData.cameraKey, "note", "")
                     onEditingFinished: {
-                        if (text === root.impactTuning(camData.cameraKey, "note", "")) return
-                        root.setImpactTuning(camData.cameraKey, "note", text, null)
+                        if (text === root.impactTuning(camRow.camData.cameraKey, "note", "")) return
+                        root.setImpactTuning(camRow.camData.cameraKey, "note", text, null)
                     }
                 }
                 Text {
@@ -1307,11 +1314,11 @@ SettingsPanelBase {
                 PpFactStrip {
                     Layout.fillWidth: true
                     cells: [
-                        { key: qsTr("Sensor"),         val: (camData.vendorName || "") + " " + (camData.modelName || "") },
-                        { key: qsTr("Max resolution"),  val: (camData.maxWidth || 0) + " × " + (camData.maxHeight || 0) + " px" },
-                        { key: qsTr("Pixel format"),    val: camData.pixelFormat || "—" },
-                        { key: qsTr("Bit depth"),       val: (camData.bitsPerPixel || 0) + " bit" },
-                        { key: qsTr("Bytes / px"),      val: ((camData.bitsPerPixel || 0) / 8.0).toFixed(2) }
+                        { key: qsTr("Sensor"),         val: (camRow.camData.vendorName || "") + " " + (camRow.camData.modelName || "") },
+                        { key: qsTr("Max resolution"),  val: (camRow.camData.maxWidth || 0) + " × " + (camRow.camData.maxHeight || 0) + " px" },
+                        { key: qsTr("Pixel format"),    val: camRow.camData.pixelFormat || "—" },
+                        { key: qsTr("Bit depth"),       val: (camRow.camData.bitsPerPixel || 0) + " bit" },
+                        { key: qsTr("Bytes / px"),      val: ((camRow.camData.bitsPerPixel || 0) / 8.0).toFixed(2) }
                     ]
                 }
 
@@ -1337,8 +1344,8 @@ SettingsPanelBase {
                             // picture has to fill it exactly — a 1280×1024 Chameleon3 in a
                             // 16:9 box was pillarboxed and the box sat off the picture.
                             readonly property real sensorAspect:
-                                (camData.maxWidth > 0 && camData.maxHeight > 0)
-                                    ? camData.maxWidth / camData.maxHeight : 16.0 / 9.0
+                                (camRow.camData.maxWidth > 0 && camRow.camData.maxHeight > 0)
+                                    ? camRow.camData.maxWidth / camRow.camData.maxHeight : 16.0 / 9.0
                             readonly property real boxW: Theme.sp(510)
                             readonly property real boxH: Theme.sp(288)
                             width:  sensorAspect >= boxW / boxH ? boxW : boxH * sensorAspect
@@ -1438,12 +1445,12 @@ SettingsPanelBase {
                             // here on a real PPCP camera's crop editor.
                             function persistRoi() {
                                 try {
-                                    if (!camData.cameraKey) return
+                                    if (!camRow.camData.cameraKey) return
                                     var roi = camRow.instance.cropRoi
                                     var map = appSettings.cameraRoi
                                     // The crop of the role the camera is in (camera_roi.h).
-                                    var roiKey = camData.cameraKey
-                                               + (camData.perspective === CameraInstance.Impact ? "#impact" : "")
+                                    var roiKey = camRow.camData.cameraKey
+                                               + (camRow.camData.perspective === CameraInstance.Impact ? "#impact" : "")
                                     if (roi.width > 0 && roi.height > 0)
                                         map[roiKey] = { x: roi.x, y: roi.y, w: roi.width, h: roi.height }
                                     else
@@ -1513,10 +1520,10 @@ SettingsPanelBase {
                             // behaviour exactly: nothing runs until the editor
                             // opens.
                             function syncPreview() {
-                                var want = camRow.roiOpen || camData.isPpcp
+                                var want = camRow.roiOpen || camRow.camData.isPpcp
                                 if (want) {
                                     if (!camRow.localPreviewInstance)
-                                        camRow.localPreviewInstance = cameraManager.createPreviewInstance(camData.index)
+                                        camRow.localPreviewInstance = cameraManager.createPreviewInstance(camRow.camData.index)
                                     var inst = camRow.localPreviewInstance
                                     if (!inst) return
                                     if (camRow.roiOpen) {
@@ -1541,13 +1548,19 @@ SettingsPanelBase {
                             }
 
                             Component.onCompleted: syncPreview()
+                            // ⚠ NO `localPreviewInstance = null` HERE.  The row is
+                            // going away, and nulling it changes `camRow.instance`,
+                            // which re-runs every crop/fps binding below inside a
+                            // context that is already half torn down — the
+                            // "Cannot read property 'maxWidth' of undefined" burst
+                            // each time a phone connecting rebuilt the list.
                             Component.onDestruction: {
-                                if (camRow.localPreviewInstance) {
-                                    camRow.localPreviewInstance.removeBayerItem(settingsBayerView)
-                                    camRow.localPreviewInstance.setSettingsSink(null)
-                                    camRow.localPreviewInstance.stopPreview()
-                                    cameraManager.destroyPreviewInstance(camRow.localPreviewInstance)
-                                    camRow.localPreviewInstance = null
+                                var inst = camRow.localPreviewInstance
+                                if (inst) {
+                                    inst.removeBayerItem(settingsBayerView)
+                                    inst.setSettingsSink(null)
+                                    inst.stopPreview()
+                                    cameraManager.destroyPreviewInstance(inst)
                                 }
                             }
 
@@ -1763,7 +1776,7 @@ SettingsPanelBase {
                                 readonly property double displayFps: {
                                     if (camRow.instance && camRow.instance.configuredFps > 0)
                                         return camRow.instance.configuredFps
-                                    return camData.maxFps > 0 ? camData.maxFps : 0
+                                    return camRow.camData.maxFps > 0 ? camRow.camData.maxFps : 0
                                 }
                                 visible: displayFps > 0
                                 text:    (Math.round(displayFps * 10) / 10).toFixed(1) + qsTr(" fps")
@@ -1792,8 +1805,8 @@ SettingsPanelBase {
 
                                 Text {
                                     text: {
-                                        var w = camData.maxWidth  || 0
-                                        var h = camData.maxHeight || 0
+                                        var w = camRow.camData.maxWidth  || 0
+                                        var h = camRow.camData.maxHeight || 0
                                         return w + " × " + h + " px (full)"
                                     }
                                     font.family:    Theme.fontData
@@ -1808,8 +1821,8 @@ SettingsPanelBase {
                                         if (!camRow.instance || camRow.instance.cropRoi.width <= 0)
                                             return ""
                                         var r  = camRow.instance.cropRoi
-                                        var rw = Math.round(r.width  * (camData.maxWidth  || 0))
-                                        var rh = Math.round(r.height * (camData.maxHeight || 0))
+                                        var rw = Math.round(r.width  * (camRow.camData.maxWidth  || 0))
+                                        var rh = Math.round(r.height * (camRow.camData.maxHeight || 0))
                                         return rw + " × " + rh + " px (ROI)"
                                     }
                                     font.family:    Theme.fontData
@@ -1848,12 +1861,12 @@ SettingsPanelBase {
 
                                 CropField {
                                     id: xField
-                                    text: camRow.instance ? Math.round(camRow.instance.cropRoi.x * (camData.maxWidth || 0)).toString() : "0"
+                                    text: camRow.instance ? Math.round(camRow.instance.cropRoi.x * (camRow.camData.maxWidth || 0)).toString() : "0"
                                     onEditingFinished: {
                                         if (!camRow.instance) return
                                         var val = parseInt(text) || 0
                                         var r   = camRow.instance.cropRoi
-                                        var nx  = Math.max(0, Math.min(1.0 - r.width, val / (camData.maxWidth || 1)))
+                                        var nx  = Math.max(0, Math.min(1.0 - r.width, val / (camRow.camData.maxWidth || 1)))
                                         camRow.instance.setCropRoi(Qt.rect(nx, r.y, r.width, r.height))
                                     }
                                 }
@@ -1868,12 +1881,12 @@ SettingsPanelBase {
 
                                 CropField {
                                     id: yField
-                                    text: camRow.instance ? Math.round(camRow.instance.cropRoi.y * (camData.maxHeight || 0)).toString() : "0"
+                                    text: camRow.instance ? Math.round(camRow.instance.cropRoi.y * (camRow.camData.maxHeight || 0)).toString() : "0"
                                     onEditingFinished: {
                                         if (!camRow.instance) return
                                         var val = parseInt(text) || 0
                                         var r   = camRow.instance.cropRoi
-                                        var ny  = Math.max(0, Math.min(1.0 - r.height, val / (camData.maxHeight || 1)))
+                                        var ny  = Math.max(0, Math.min(1.0 - r.height, val / (camRow.camData.maxHeight || 1)))
                                         camRow.instance.setCropRoi(Qt.rect(r.x, ny, r.width, r.height))
                                     }
                                 }
@@ -1902,12 +1915,12 @@ SettingsPanelBase {
 
                                 CropField {
                                     id: wField
-                                    text: camRow.instance ? Math.round(camRow.instance.cropRoi.width  * (camData.maxWidth  || 0)).toString() : (camData.maxWidth  || 0).toString()
+                                    text: camRow.instance ? Math.round(camRow.instance.cropRoi.width  * (camRow.camData.maxWidth  || 0)).toString() : (camRow.camData.maxWidth  || 0).toString()
                                     onEditingFinished: {
                                         if (!camRow.instance) return
-                                        var val = parseInt(text) || (camData.maxWidth || 0)
+                                        var val = parseInt(text) || (camRow.camData.maxWidth || 0)
                                         var r   = camRow.instance.cropRoi
-                                        var nw  = Math.max(0.01, Math.min(1.0 - r.x, val / (camData.maxWidth || 1)))
+                                        var nw  = Math.max(0.01, Math.min(1.0 - r.x, val / (camRow.camData.maxWidth || 1)))
                                         camRow.instance.setCropRoi(Qt.rect(r.x, r.y, nw, r.height))
                                     }
                                 }
@@ -1922,12 +1935,12 @@ SettingsPanelBase {
 
                                 CropField {
                                     id: hField
-                                    text: camRow.instance ? Math.round(camRow.instance.cropRoi.height * (camData.maxHeight || 0)).toString() : (camData.maxHeight || 0).toString()
+                                    text: camRow.instance ? Math.round(camRow.instance.cropRoi.height * (camRow.camData.maxHeight || 0)).toString() : (camRow.camData.maxHeight || 0).toString()
                                     onEditingFinished: {
                                         if (!camRow.instance) return
-                                        var val = parseInt(text) || (camData.maxHeight || 0)
+                                        var val = parseInt(text) || (camRow.camData.maxHeight || 0)
                                         var r   = camRow.instance.cropRoi
-                                        var nh  = Math.max(0.01, Math.min(1.0 - r.y, val / (camData.maxHeight || 1)))
+                                        var nh  = Math.max(0.01, Math.min(1.0 - r.y, val / (camRow.camData.maxHeight || 1)))
                                         camRow.instance.setCropRoi(Qt.rect(r.x, r.y, r.width, nh))
                                     }
                                 }
@@ -1972,8 +1985,8 @@ SettingsPanelBase {
                                                 camRow.instance.setCropRoi(Qt.rect(0.3, 0, 0.4, 1.0))
                                                 break
                                             case "16:9": {
-                                                var mw = camData.maxWidth  || 1
-                                                var mh = camData.maxHeight || 1
+                                                var mw = camRow.camData.maxWidth  || 1
+                                                var mh = camRow.camData.maxHeight || 1
                                                 var h  = mw * 9.0 / 16.0 / mh
                                                 var y  = (1.0 - h) / 2.0
                                                 camRow.instance.setCropRoi(Qt.rect(0, y, 1.0, h))
@@ -1998,28 +2011,28 @@ SettingsPanelBase {
 
                             // Slot sizing matches CameraInstance's ring buffer allocation exactly.
                             // slotBytesPerPixel = worst-case BPP (min 2), slotWidth/Height = max resolution.
-                            readonly property int  slotBpp:   camData.slotBytesPerPixel || 2
-                            readonly property int  slotW:     camData.slotWidth  || camData.maxWidth  || 0
-                            readonly property int  slotH:     camData.slotHeight || camData.maxHeight || 0
+                            readonly property int  slotBpp:   camRow.camData.slotBytesPerPixel || 2
+                            readonly property int  slotW:     camRow.camData.slotWidth  || camRow.camData.maxWidth  || 0
+                            readonly property int  slotH:     camRow.camData.slotHeight || camRow.camData.maxHeight || 0
                             readonly property real slotBytes: slotW * slotH * slotBpp
 
                             // Full-frame display values use the default (actual) format for the caption.
-                            readonly property real bpp:       (camData.bitsPerPixel > 0 ? camData.bitsPerPixel : 8) / 8.0
+                            readonly property real bpp:       (camRow.camData.bitsPerPixel > 0 ? camRow.camData.bitsPerPixel : 8) / 8.0
                             readonly property real fullBytes: slotBytes  // slot = full frame at worst-case BPP
 
                             // ROI crop dimensions (normalised → pixels using default resolution for display).
                             readonly property real roiCropW:  camRow.instance && camRow.instance.cropRoi.width  > 0
-                                                                ? camRow.instance.cropRoi.width  * (camData.maxWidth  || 0)
-                                                                : (camData.maxWidth  || 0)
+                                                                ? camRow.instance.cropRoi.width  * (camRow.camData.maxWidth  || 0)
+                                                                : (camRow.camData.maxWidth  || 0)
                             readonly property real roiCropH:  camRow.instance && camRow.instance.cropRoi.height > 0
-                                                                ? camRow.instance.cropRoi.height * (camData.maxHeight || 0)
-                                                                : (camData.maxHeight || 0)
+                                                                ? camRow.instance.cropRoi.height * (camRow.camData.maxHeight || 0)
+                                                                : (camRow.camData.maxHeight || 0)
                             // ROI bytes uses the slot BPP so the saving is relative to the allocated slot.
                             readonly property real roiBytes:  roiCropW * roiCropH * slotBpp
                             readonly property int  framePct:  fullBytes > 0 ? Math.round(roiBytes / fullBytes * 100) : 100
 
                             // Slot count mirrors SourceRing: nextPow2(ceil(fps × 5)).
-                            readonly property double slotFps: (camData.slotFps > 0 ? camData.slotFps : camRow.currentFps) || 60
+                            readonly property double slotFps: (camRow.camData.slotFps > 0 ? camRow.camData.slotFps : camRow.currentFps) || 60
                             readonly property int    slotCount: {
                                 var n = Math.ceil(slotFps * 5.0)
                                 if (n <= 0) return 1
@@ -2199,7 +2212,7 @@ SettingsPanelBase {
             Behavior on height { NumberAnimation { duration: Theme.durationFast } }
 
             readonly property bool fixedInPlace:
-                appSettings.cameraFixedInPlace[camData.cameraKey] === true
+                appSettings.cameraFixedInPlace[camRow.camData.cameraKey] === true
 
             ColumnLayout {
                 id: ballPanelContent
@@ -2254,7 +2267,7 @@ SettingsPanelBase {
                         }
                         sourceComponent: PpCameraFrame {
                             instance: camRow.realInstance
-                            displayName: camData.alias || camData.description
+                            displayName: camRow.camData.alias || camRow.camData.description
                             showPoseOverlay:      false
                             showHittingArea:      true
                             roiEditable:          true
@@ -2361,11 +2374,7 @@ SettingsPanelBase {
 
             delegate: CameraDeviceRow {
                 required property var modelData
-                // ⚠ `|| ({})`: when cameraList is replaced (a PPCP phone
-                // connecting rebuilds it) the outgoing rows see modelData go
-                // undefined before they are destroyed, and every camData.x
-                // binding still alive threw "Cannot read property … of undefined".
-                camData: modelData || ({})
+                camData: modelData
                 Layout.fillWidth: true
             }
         }
