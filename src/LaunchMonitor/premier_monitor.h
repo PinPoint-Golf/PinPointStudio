@@ -26,7 +26,9 @@
 #include <QString>
 #include <QTimer>
 
+#include <functional>
 #include <optional>
+#include <vector>
 
 namespace pinpoint::lm {
 
@@ -61,6 +63,16 @@ namespace pinpoint::lm {
 // Each file is stat'ed every tick (size + mtime) and opened only when one of them moved — and
 // the queue only while a shot is waiting on it. A failed open or a torn read is "try next tick".
 //
+// CARRY COMES FROM A THIRD FILE (issue #148). The session files hold only what the Quad
+// measured; Premier's carry is written to ShotReplay/history.json, live, ~0.8 s after the shot
+// (premier_session_parser.h). It is looked up when a reading becomes FINAL — by then the record
+// has had at least that long, usually a whole shot interval — and goes into that final reading.
+// If the record is not there yet it is tried once more kCarryRetryMs later (or sooner, when the
+// file changes) and sent as one more readingUpdated; failing that, it is left for sweepCarry(),
+// which PinPoint's End Session runs over every shot of the run still without carry, including
+// a newest shot still waiting for its club data. history.json is stat'ed only while a carry is
+// owed and opened only when it changed, the same rule as the other two files.
+//
 // Polling and not QFileSystemWatcher, for the reasons gcquad_monitor.h gives.
 class ForesightPremierMonitor : public LaunchMonitorBase
 {
@@ -84,12 +96,25 @@ public:
     // True while Premier has a range session open (a live snapshot exists).
     bool rangeSessionOpen() const { return !m_snapStamps.isEmpty(); }
 
+    // PinPoint's session ended: one last look in history.json for the carry of every shot this
+    // run emitted without one — final or still pending its club data. Each one found goes out
+    // as a readingUpdated; the rest are logged and given up (the record rolled out, or a drill).
+    void sweepCarry();
+
+    // Tests drive the retry without sleeping. Epoch ms.
+    void setClockForTesting(std::function<qint64()> clock) { m_clock = std::move(clock); }
+
     // Premier's data folder for the account PinPoint runs under. Reading another account's
     // profile is not a supported case (§4.1).
     static QString defaultFolder();
 
     static QString snapshotPattern() { return QStringLiteral("SessionLiveSnapshot.*.json"); }
     static QString queuePattern()    { return QStringLiteral("SessionUploadQueue.*.json"); }
+    static QString historyPath()     { return QStringLiteral("ShotReplay/history.json"); }
+
+    // A carry not in history.json when its reading went final is looked for once more this
+    // much later; after that only sweepCarry() tries again.
+    static constexpr qint64 kCarryRetryMs = 1000;
 
     // Below this a "shot" is a ball knocked while setting up: Premier recorded a 2.1 mph,
     // 0° launch, −30° azimuth event as a real shot (§2.6.3). Never emitted.
@@ -112,6 +137,13 @@ private:
         QString sessionId;
         qint64  firstReadAtMs = 0;
         QString sourcePath;
+        LaunchMonitorReading reading;   // as emitted: ball only
+    };
+    // A reading that went out without its carry, waiting for history.json.
+    struct CarryWait {
+        LaunchMonitorReading reading;   // as last emitted
+        qint64 retryAtMs = 0;
+        bool   retried   = false;
     };
 
     void prime();
@@ -124,6 +156,13 @@ private:
     void processSnapshot(const PremierFile &file, const QString &path);
     void processQueue(const PremierFile &file);
     void emitFinal(LaunchMonitorReading reading, Pending p);
+    // Puts the carry into a reading about to go out as final; when history.json does not have
+    // it yet, the reading is queued for the retry. Returns whether the carry went in.
+    bool attachCarryOrWait(LaunchMonitorReading &reading);
+    std::optional<double> lookUpCarry(const LaunchMonitorReading &reading);
+    // Re-reads history.json when its stamp moved. Returns true when a new version was read.
+    bool refreshHistory();
+    void serviceCarryWaits();
     void stamp(const QString &path, QHash<QString, Stamp> &stamps) const;
     void forgetVanished(QHash<QString, Stamp> &stamps, const QStringList &present) const;
     QStringList glob(const QString &pattern) const;
@@ -139,6 +178,13 @@ private:
     QSet<QString>         m_seen;           // every LocalShotId observed: primed, gated, emitted
     QHash<QString, Pending> m_pending;      // emitted, not final yet
     QString               m_formatError;    // last schema failure, "" when the files read fine
+
+    Stamp                              m_historyStamp;
+    std::vector<PremierHistoryRecord>  m_history;
+    QString                            m_historyError;   // logged once per distinct error
+    QHash<QString, CarryWait>          m_carryWaits;     // by deviceShotId
+    QHash<QString, double>             m_carryById;      // found for a shot still pending
+    std::function<qint64()>            m_clock = [] { return QDateTime::currentMSecsSinceEpoch(); };
 };
 
 } // namespace pinpoint::lm

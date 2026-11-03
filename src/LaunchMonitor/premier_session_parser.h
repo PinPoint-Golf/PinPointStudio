@@ -84,4 +84,38 @@ std::optional<PremierFile> parsePremierSessionFile(const QByteArray &bytes,
 // derived fields (face to path, spin loft) are covered by lm_gates' derivation table.
 void addClubNotMeasuredDrops(LaunchMonitorReading &reading);
 
+// ── ShotReplay\history.json: where Premier's carry lives (§2.2, issue #148) ──────────────
+//
+// The session files hold what the Quad MEASURED; carry is Premier's flight model, computed on
+// the PC, and only reaches disk here: {"version":1,"maxHistorySize":100,"records":[…]}, newest
+// first, rewritten whole once per shot ~0.8 s after the shot's CreatedAtUtc. There is no offline
+// field, and totalDistanceMeters is 0.0 throughout on the range, so neither is taken.
+//
+// THE JOIN IS BY TIME. A record's `id` is not the shot's LocalShotId (§7 Q6). The record for a
+// shot is the one created 0 to kPremierHistoryWindowMs after its CreatedAtUtc with the same ball
+// speed: on 2026-11-02 all 26 shots inside the file's window paired at +0.4 to +0.9 s with ball
+// speeds equal to 1e-5 mph, and records are never closer than 7 s to each other.
+//
+// IN A TRAINING DRILL the record's club name is the last range club, not the club hit (§2.6.7).
+// Only carry is taken from here, never the club.
+
+constexpr qint64 kPremierHistoryWindowMs    = 3000;
+constexpr double kPremierHistorySpeedTolMph = 0.2;
+
+struct PremierHistoryRecord {
+    qint64 createdUtcMs = 0;
+    double ballSpeedMph = 0.0;
+    std::optional<double> carryYd;    // absent when Premier wrote 0 (a knock) or nothing usable
+};
+
+// Same contract as parsePremierSessionFile: nullopt + formatChanged=false is a torn read (try
+// again); nullopt + formatChanged=true is a whole file of a shape we do not know.
+std::optional<std::vector<PremierHistoryRecord>>
+parsePremierHistoryFile(const QByteArray &bytes, QString *error = nullptr, bool *formatChanged = nullptr);
+
+// The carry Premier gave the shot stamped `createdUtcMs` with `ballSpeedMph`, or nullopt when
+// no record in the file is that shot (not written yet, or rolled out of the 100).
+std::optional<double> premierCarryFor(const std::vector<PremierHistoryRecord> &records,
+                                      qint64 createdUtcMs, double ballSpeedMph);
+
 } // namespace pinpoint::lm

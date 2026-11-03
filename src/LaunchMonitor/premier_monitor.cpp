@@ -79,6 +79,11 @@ void ForesightPremierMonitor::resetBookkeeping()
     m_seen.clear();
     m_pending.clear();
     m_formatError.clear();
+    m_historyStamp = Stamp{};
+    m_history.clear();
+    m_historyError.clear();
+    m_carryWaits.clear();
+    m_carryById.clear();
 }
 
 void ForesightPremierMonitor::start()
@@ -260,6 +265,9 @@ void ForesightPremierMonitor::pollNow()
     }
     forgetVanished(m_queueStamps, queues);
 
+    // ── history.json, only while a carry is owed ─────────────────────────────
+    serviceCarryWaits();
+
     if (sawFormatChange) {
         m_formatError = formatError;
         setState(State::Error, tr("Foresight Premier's file format has changed: %1").arg(formatError));
@@ -308,6 +316,7 @@ void ForesightPremierMonitor::processSnapshot(const PremierFile &file, const QSt
 
             if (s.hasClubData) {
                 ppInfo() << "LaunchMonitor: Premier shot" << s.localShotId << "read with its club data";
+                attachCarryOrWait(out);
                 emit readingAvailable(out);
                 continue;
             }
@@ -316,12 +325,13 @@ void ForesightPremierMonitor::processSnapshot(const PremierFile &file, const QSt
                 addClubNotMeasuredDrops(out);
                 ppInfo() << "LaunchMonitor: Premier shot" << s.localShotId
                          << "read after its club data was due — club not measured";
+                attachCarryOrWait(out);
                 emit readingAvailable(out);
                 continue;
             }
             ppInfo() << "LaunchMonitor: Premier shot" << s.localShotId
                      << "read, ball only — its club data comes with the next shot";
-            m_pending.insert(s.localShotId, Pending{ s.sessionId, out.readAtMs, path });
+            m_pending.insert(s.localShotId, Pending{ s.sessionId, out.readAtMs, path, out });
             emit readingAvailable(out);
             continue;
         }
@@ -376,7 +386,11 @@ void ForesightPremierMonitor::processQueue(const PremierFile &file)
             ppInfo() << "LaunchMonitor: Premier shot" << s.localShotId
                      << "reached the upload queue without club data (Premier quit mid-session, or"
                      << "no stickers); it stays ball-only";
+            // Final now, ball-only. Its carry is still owed: sent alone as an update when found.
+            LaunchMonitorReading r = it->reading;
             m_pending.remove(s.localShotId);
+            if (attachCarryOrWait(r))
+                emit readingUpdated(r);
         }
     }
 }
@@ -388,7 +402,157 @@ void ForesightPremierMonitor::emitFinal(LaunchMonitorReading reading, Pending p)
     reading.readAtMs   = p.firstReadAtMs;     // when we first read the shot, not the update
     const QString id = reading.deviceShotId;
     m_pending.remove(id);
+    attachCarryOrWait(reading);
     emit readingUpdated(reading);
+}
+
+// ── Carry, from ShotReplay/history.json (issue #148) ──────────────────────────
+
+bool ForesightPremierMonitor::refreshHistory()
+{
+    const QString path = QDir(m_dir).filePath(historyPath());
+    const QFileInfo fi(path);
+    if (!fi.exists()) {
+        m_history.clear();
+        m_historyStamp = Stamp{};
+        return false;
+    }
+    const Stamp now{ fi.size(), fi.lastModified() };
+    if (now == m_historyStamp)
+        return false;
+
+    QByteArray bytes;
+    {
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly))
+            return false;                       // Premier mid-write: next tick
+        bytes = f.readAll();
+    }
+    QString err;
+    bool changed = false;
+    auto parsed = parsePremierHistoryFile(bytes, &err, &changed);
+    if (!parsed) {
+        if (changed) {
+            // Carry is extra, never a reason to stop reading shots: log it, take the stamp.
+            m_historyStamp = now;
+            m_history.clear();
+            if (err != m_historyError)
+                ppWarn() << "LaunchMonitor: Premier's history.json has changed format, so no carry:" << err;
+            m_historyError = err;
+        }
+        return false;                           // torn: stamp untouched, read again
+    }
+    m_historyStamp = now;
+    m_history = std::move(*parsed);
+    m_historyError.clear();
+    return true;
+}
+
+std::optional<double> ForesightPremierMonitor::lookUpCarry(const LaunchMonitorReading &r)
+{
+    if (const auto it = m_carryById.constFind(r.deviceShotId); it != m_carryById.constEnd())
+        return *it;
+    if (!r.contactAtMs || !r.ballSpeed)
+        return std::nullopt;
+    return premierCarryFor(m_history, *r.contactAtMs + kPremierCreatedAfterContactMs, *r.ballSpeed);
+}
+
+bool ForesightPremierMonitor::attachCarryOrWait(LaunchMonitorReading &reading)
+{
+    if (reading.carryDistance)
+        return true;
+    if (!m_carryById.contains(reading.deviceShotId))
+        refreshHistory();
+    if (const auto c = lookUpCarry(reading)) {
+        reading.carryDistance = *c;
+        m_carryById.remove(reading.deviceShotId);
+        m_carryWaits.remove(reading.deviceShotId);
+        return true;
+    }
+    m_carryWaits.insert(reading.deviceShotId, CarryWait{ reading, m_clock() + kCarryRetryMs, false });
+    return false;
+}
+
+void ForesightPremierMonitor::serviceCarryWaits()
+{
+    if (m_carryWaits.isEmpty())
+        return;
+    const bool fresh = refreshHistory();
+    const qint64 now = m_clock();
+    QList<LaunchMonitorReading> found;
+    for (auto it = m_carryWaits.begin(); it != m_carryWaits.end();) {
+        const bool due = !it->retried && now >= it->retryAtMs;
+        if (!fresh && !due) {
+            ++it;
+            continue;
+        }
+        if (const auto c = lookUpCarry(it->reading)) {
+            LaunchMonitorReading r = it->reading;
+            r.carryDistance = *c;
+            found.append(r);
+            it = m_carryWaits.erase(it);
+            continue;
+        }
+        if (due) {
+            it->retried = true;
+            ppInfo() << "LaunchMonitor: Premier shot" << it.key()
+                     << "has no carry in history.json a second after it went final;"
+                     << "left for the end-of-session sweep";
+        }
+        ++it;
+    }
+    for (const LaunchMonitorReading &r : found) {
+        ppInfo() << "LaunchMonitor: Premier shot" << r.deviceShotId << "carry" << *r.carryDistance
+                 << "yd from history.json";
+        emit readingUpdated(r);
+    }
+}
+
+void ForesightPremierMonitor::sweepCarry()
+{
+    if (m_dir.isEmpty() || (m_carryWaits.isEmpty() && m_pending.isEmpty()))
+        return;
+    refreshHistory();
+
+    int filled = 0, missing = 0;
+    QList<LaunchMonitorReading> out;
+
+    // Final readings still owed their carry.
+    for (auto it = m_carryWaits.cbegin(); it != m_carryWaits.cend(); ++it) {
+        if (const auto c = lookUpCarry(it->reading)) {
+            LaunchMonitorReading r = it->reading;
+            r.carryDistance = *c;
+            out.append(r);
+            ++filled;
+        } else {
+            ppInfo() << "LaunchMonitor: Premier shot" << it.key()
+                     << "has no record in history.json at session end; it stays without carry";
+            ++missing;
+        }
+    }
+    m_carryWaits.clear();
+
+    // Shots still waiting for their club data: the carry goes out now with the ball data, and
+    // is remembered so the final reading carries it too.
+    for (auto it = m_pending.begin(); it != m_pending.end(); ++it) {
+        if (it->reading.carryDistance)
+            continue;
+        if (const auto c = lookUpCarry(it->reading)) {
+            it->reading.carryDistance = *c;
+            m_carryById.insert(it.key(), *c);
+            out.append(it->reading);
+            ++filled;
+        } else {
+            ppInfo() << "LaunchMonitor: Premier shot" << it.key()
+                     << "(waiting for its club data) has no record in history.json at session end";
+            ++missing;
+        }
+    }
+
+    ppInfo() << "LaunchMonitor: Premier end-of-session carry sweep:" << filled << "filled,"
+             << missing << "without a record in history.json";
+    for (const LaunchMonitorReading &r : out)
+        emit readingUpdated(r);
 }
 
 } // namespace pinpoint::lm

@@ -325,3 +325,88 @@ TEST(PremierClub, AClubPinPointDoesNotNameIsLeftAlone)
     for (const char *code : { "7w", "2i", "2h", "60", "Irn", "Wdg", "Fw", "", "w", "10i" })
         EXPECT_TRUE(premierClubToVocabulary(QString::fromLatin1(code)).isEmpty()) << code;
 }
+
+// ═══════════════════════════════════════════ history.json: Premier's carry (#148) ═══
+//
+// history_20261102.json is ShotReplay\history.json as it stood at the end of the 2 Nov capture,
+// cut to the 30 records 14:50–15:30 that the session fixtures overlap. Not otherwise edited.
+
+namespace {
+
+std::vector<PremierHistoryRecord> history()
+{
+    const auto h = parsePremierHistoryFile(fixture("history_20261102.json"));
+    return h ? *h : std::vector<PremierHistoryRecord>{};
+}
+
+} // namespace
+
+TEST(PremierHistory, ReadsEveryRecordWithItsCarryInYards)
+{
+    const auto h = history();
+    ASSERT_EQ(h.size(), 30u);
+    // Newest first, as Premier writes it.
+    EXPECT_GT(h.front().createdUtcMs, h.back().createdUtcMs);
+    for (const PremierHistoryRecord &r : h)
+        EXPECT_GT(r.ballSpeedMph, 0.0);
+}
+
+TEST(PremierHistory, EachSessionShotFindsItsOwnRecord)
+{
+    // The 5-wood at 15:00:29.895, 55.88 m/s: Premier's carry 169.1 m.
+    const auto f = parsePremierSessionFile(fixture("s1_full_then_one_sticker/11_queue.json"));
+    ASSERT_TRUE(f);
+    const auto h = history();
+    int paired = 0;
+    for (const PremierShot &s : f->shots) {
+        if (s.createdUtcMs < h.back().createdUtcMs)
+            continue;                                  // older than the cut: not in the fixture
+        const auto c = premierCarryFor(h, s.createdUtcMs, *s.reading.ballSpeed);
+        ASSERT_TRUE(c) << s.localShotId.toStdString();
+        ++paired;
+        if (s.localShotId.startsWith(QLatin1String("ce9eade0")))
+            EXPECT_NEAR(*c, 169.1 / 0.9144, 1e-6);
+    }
+    EXPECT_EQ(paired, 9) << "the nine shots of the 14:53 session this queue version holds, every one paired";
+}
+
+TEST(PremierHistory, TheJoinNeedsTheTimeAndTheBallSpeed)
+{
+    const auto h = history();
+    const qint64 t = QDateTime::fromString(QStringLiteral("2026-11-02T15:00:29.895Z"), Qt::ISODateWithMs)
+                         .toMSecsSinceEpoch();
+    const double mph = 55.88 * kMph;
+    EXPECT_TRUE(premierCarryFor(h, t, mph));
+    EXPECT_FALSE(premierCarryFor(h, t, mph + 1.0)) << "another shot's ball speed";
+    EXPECT_FALSE(premierCarryFor(h, t + 1500, mph)) << "the record is before the shot";
+    EXPECT_FALSE(premierCarryFor(h, t - kPremierHistoryWindowMs, mph)) << "too long after";
+    EXPECT_FALSE(premierCarryFor({}, t, mph));
+}
+
+TEST(PremierHistory, AKnockPremierNeverFlewHasNoCarry)
+{
+    // The 2.1 mph knock at 15:11:40.284: carryDistanceMeters 0.0, which is not a carry of 0.
+    const auto h = history();
+    const qint64 t = QDateTime::fromString(QStringLiteral("2026-11-02T15:11:40.284Z"), Qt::ISODateWithMs)
+                         .toMSecsSinceEpoch();
+    bool sawRecord = false;
+    for (const PremierHistoryRecord &r : h)
+        if (r.createdUtcMs > t && r.createdUtcMs - t < 1000) {
+            sawRecord = true;
+            EXPECT_FALSE(r.carryYd);
+        }
+    EXPECT_TRUE(sawRecord);
+    EXPECT_FALSE(premierCarryFor(h, t, 2.1));
+}
+
+TEST(PremierHistory, ATornReadIsNotAFormatChangeButAnotherShapeIs)
+{
+    const QByteArray whole = fixture("history_20261102.json");
+    bool changed = true;
+    EXPECT_FALSE(parsePremierHistoryFile(whole.left(whole.size() / 2), nullptr, &changed));
+    EXPECT_FALSE(changed);
+    EXPECT_FALSE(parsePremierHistoryFile("{\"version\":2,\"shots\":[]}", nullptr, &changed));
+    EXPECT_TRUE(changed);
+    EXPECT_FALSE(parsePremierHistoryFile("{\"records\":[{\"carryDistanceMeters\":10}]}", nullptr, &changed));
+    EXPECT_TRUE(changed) << "a record with no time or ball speed";
+}

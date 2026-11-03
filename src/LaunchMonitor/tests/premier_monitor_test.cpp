@@ -76,6 +76,23 @@ struct Folder {
         ASSERT_TRUE(f.setFileTime(clock, QFileDevice::FileModificationTime));
     }
 
+    // ShotReplay/history.json, where Premier keeps its carry (issue #148).
+    void writeHistory(const QByteArray &bytes)
+    {
+        ASSERT_TRUE(QDir(dir.path()).mkpath(QStringLiteral("ShotReplay")));
+        QFile f(dir.filePath(ForesightPremierMonitor::historyPath()));
+        ASSERT_TRUE(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        ASSERT_EQ(f.write(bytes), bytes.size());
+        clock = clock.addSecs(1);
+        ASSERT_TRUE(f.setFileTime(clock, QFileDevice::FileModificationTime));
+    }
+    void writeHistory() { writeHistory(historyFixture()); }
+    static QByteArray historyFixture()
+    {
+        QFile f(QStringLiteral(PP_PREMIER_FIXTURES "/history_20261102.json"));
+        return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+    }
+
     void apply(const Step &s)
     {
         if (s.source.isEmpty()) {
@@ -331,4 +348,126 @@ TEST(PremierMonitor, AMissingFolderIsAnError)
     ForesightPremierMonitor none;
     none.start();
     EXPECT_EQ(none.state(), State::Disabled);
+}
+
+// ═══════════════════════════════════════════ carry from history.json (issue #148) ═══
+
+TEST(PremierCarry, EveryFinalReadingCarriesPremiersCarry)
+{
+    const auto steps = stepsOf("s1_full_then_one_sticker");
+    Rig r;
+    r.folder.writeHistory();
+    r.startAfter(steps, 1);
+    r.play(steps, 1);
+
+    ASSERT_EQ(r.available.size(), 10);
+    ASSERT_EQ(r.updated.size(), 10) << "the carry rides in the final reading, not one more update";
+    for (int i = 0; i < r.available.size(); ++i)
+        EXPECT_FALSE(r.availableAt(i).carryDistance) << "a first, ball-only reading is too early for it";
+    for (int i = 0; i < r.updated.size(); ++i) {
+        const LaunchMonitorReading u = r.updatedAt(i);
+        ASSERT_TRUE(u.carryDistance) << u.deviceShotId.toStdString();
+        EXPECT_TRUE(u.clubheadSpeed) << "and the club data still with it";
+        if (u.deviceShotId.startsWith(QLatin1String("ce9eade0")))
+            EXPECT_NEAR(*u.carryDistance, 169.1 / 0.9144, 1e-6);
+    }
+}
+
+TEST(PremierCarry, ARecordWrittenLaterGoesOutAsOneMoreUpdate)
+{
+    const auto steps = stepsOf("s1_full_then_one_sticker");
+    Rig r;
+    r.startAfter(steps, 1);
+    r.play(steps, 1, 3);                       // the first shot is final, with no history.json
+    ASSERT_EQ(r.updated.size(), 1);
+    EXPECT_FALSE(r.updatedAt(0).carryDistance);
+
+    r.folder.writeHistory();
+    r.m.pollNow();
+    ASSERT_EQ(r.updated.size(), 2);
+    const LaunchMonitorReading u = r.updatedAt(1);
+    EXPECT_EQ(u.deviceShotId, r.updatedAt(0).deviceShotId);
+    EXPECT_TRUE(u.carryDistance);
+    EXPECT_TRUE(u.clubheadSpeed) << "the whole final reading, plus its carry";
+    EXPECT_EQ(u.readAtMs, r.updatedAt(0).readAtMs);
+
+    r.m.pollNow();
+    EXPECT_EQ(r.updated.size(), 2) << "found once, sent once";
+}
+
+TEST(PremierCarry, OneTimedRetryThenOnlyTheSweep)
+{
+    qint64 now = 1'000'000;
+    const auto steps = stepsOf("s1_full_then_one_sticker");
+    Rig r;
+    r.m.setClockForTesting([&] { return now; });
+    // A history.json that does not hold this shot yet (it holds nothing).
+    r.folder.writeHistory("{\"version\":1,\"maxHistorySize\":100,\"records\":[]}");
+    r.startAfter(steps, 1);
+    r.play(steps, 1, 3);
+    ASSERT_EQ(r.updated.size(), 1);
+    EXPECT_FALSE(r.updatedAt(0).carryDistance);
+
+    now += ForesightPremierMonitor::kCarryRetryMs;
+    r.m.pollNow();                              // the retry: still not there
+    EXPECT_EQ(r.updated.size(), 1);
+
+    // The record lands. The sweep, not the poll, is what finds it here: nothing polls between.
+    // It fills the final first shot AND the second, still waiting for its club data.
+    r.folder.writeHistory();
+    r.m.sweepCarry();
+    ASSERT_EQ(r.updated.size(), 3);
+    EXPECT_EQ(r.updatedAt(1).deviceShotId, r.updatedAt(0).deviceShotId);
+    EXPECT_TRUE(r.updatedAt(1).carryDistance);
+    EXPECT_TRUE(r.updatedAt(1).clubheadSpeed);
+    EXPECT_TRUE(r.updatedAt(2).carryDistance);
+    EXPECT_FALSE(r.updatedAt(2).clubheadSpeed);
+}
+
+TEST(PremierCarry, TheSweepGivesAShotStillWaitingForItsClubDataItsCarry)
+{
+    const auto steps = stepsOf("s1_full_then_one_sticker");
+    Rig r;
+    r.startAfter(steps, 1);
+    r.play(steps, 1, 2);                        // one shot, pending its club data
+    ASSERT_EQ(r.available.size(), 1);
+    ASSERT_EQ(r.updated.size(), 0);
+
+    r.folder.writeHistory();
+    r.m.sweepCarry();                           // PinPoint's End Session, Premier still open
+    ASSERT_EQ(r.updated.size(), 1);
+    EXPECT_TRUE(r.updatedAt(0).carryDistance);
+    EXPECT_FALSE(r.updatedAt(0).clubheadSpeed) << "its club data is still to come";
+    EXPECT_TRUE(r.updatedAt(0).dropped.empty()) << "pending, so nothing claimed missing";
+
+    // Its club data comes with the next shot: the final reading keeps the carry.
+    r.play(steps, 2, 3);
+    ASSERT_EQ(r.updated.size(), 2);
+    EXPECT_TRUE(r.updatedAt(1).clubheadSpeed);
+    EXPECT_TRUE(r.updatedAt(1).carryDistance);
+    EXPECT_EQ(*r.updatedAt(1).carryDistance, *r.updatedAt(0).carryDistance);
+}
+
+TEST(PremierCarry, ABallOnlyShotAtTheQueueStillGetsItsCarry)
+{
+    const auto steps = stepsOf("s3_quit_mid_session");
+    Rig r;
+    r.folder.writeHistory();
+    r.startAfter(steps, 1);
+    r.play(steps, 1);
+    EXPECT_EQ(r.available.size(), 1);
+    ASSERT_EQ(r.updated.size(), 1) << "ball-only for good, but the carry is Premier's to give";
+    EXPECT_TRUE(r.updatedAt(0).carryDistance);
+    EXPECT_FALSE(r.updatedAt(0).clubheadSpeed);
+}
+
+TEST(PremierCarry, NoHistoryFileChangesNothing)
+{
+    const auto steps = stepsOf("s1_full_then_one_sticker");
+    Rig r;
+    r.startAfter(steps, 1);
+    r.play(steps, 1);
+    r.m.sweepCarry();
+    EXPECT_EQ(r.updated.size(), 10);
+    EXPECT_EQ(r.m.state(), State::Waiting);
 }

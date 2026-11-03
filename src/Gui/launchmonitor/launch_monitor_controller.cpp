@@ -69,6 +69,18 @@ LaunchMonitorController::LaunchMonitorController(AppSettings *settings, ShotList
         connect(m_settings, &AppSettings::gsProInterfaceChanged,
                 this, &LaunchMonitorController::reconfigure);
     }
+
+    // End Session: Premier's carry lives in a file of its own (issue #148), looked up as each
+    // reading goes final. One last sweep catches any it missed; what it finds goes through
+    // onReadingUpdated like late club data.
+    if (m_session) {
+        connect(m_session, &SessionController::activeSessionTypeChanged, this, [this]() {
+            if (m_session->activeSessionType() != static_cast<int>(SessionController::Type::None))
+                return;
+            if (auto *pm = qobject_cast<ForesightPremierMonitor *>(m_monitor))
+                pm->sweepCarry();
+        });
+    }
 }
 
 LaunchMonitorController::~LaunchMonitorController()
@@ -616,14 +628,14 @@ void LaunchMonitorController::onReadingUpdated(const LaunchMonitorReading &readi
     // Still parked (the swing has not reached disk): the fuller reading simply takes the
     // parked one's place, and goes in whole when the swing does.
     if (m_pairing.replaceParked(reading)) {
-        ppInfo() << "LaunchMonitor: club data for" << reading.deviceShotId
+        ppInfo() << "LaunchMonitor: a fuller reading (club data or carry) for" << reading.deviceShotId
                  << "arrived before its swing was saved; it goes in with the ball data";
         return;
     }
     const QString dir = m_shotDirs.value(reading.deviceShotId);
     if (dir.isEmpty()) {
         // A shot no swing claimed — dropped by the pairing, or never ours. Nothing to amend.
-        ppInfo() << "LaunchMonitor: club data for" << reading.deviceShotId
+        ppInfo() << "LaunchMonitor: a fuller reading (club data or carry) for" << reading.deviceShotId
                  << "belongs to no swing here; discarded";
         return;
     }

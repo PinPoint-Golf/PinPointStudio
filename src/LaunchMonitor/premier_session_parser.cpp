@@ -279,6 +279,76 @@ std::optional<PremierFile> parsePremierSessionFile(const QByteArray &bytesIn, QS
     return out;
 }
 
+std::optional<std::vector<PremierHistoryRecord>>
+parsePremierHistoryFile(const QByteArray &bytesIn, QString *error, bool *formatChanged)
+{
+    if (formatChanged)
+        *formatChanged = false;
+    auto fail = [&](const QString &why, bool changed) -> std::optional<std::vector<PremierHistoryRecord>> {
+        if (error)
+            *error = why;
+        if (formatChanged)
+            *formatChanged = changed;
+        return std::nullopt;
+    };
+
+    // history.json was written without a BOM on 2026-11-02; skipped anyway, as the session files.
+    QByteArray bytes = bytesIn;
+    if (bytes.startsWith("\xEF\xBB\xBF"))
+        bytes.remove(0, 3);
+    if (bytes.trimmed().isEmpty())
+        return fail(QStringLiteral("empty file"), false);
+
+    QJsonParseError pe;
+    const QJsonDocument doc = QJsonDocument::fromJson(bytes, &pe);
+    if (pe.error != QJsonParseError::NoError)
+        return fail(QStringLiteral("not valid JSON: %1").arg(pe.errorString()), false);
+    if (!doc.isObject() || !doc.object().value(QStringLiteral("records")).isArray())
+        return fail(QStringLiteral("no records array"), true);
+
+    // Sanity bounds on carry, in yards: a sentinel filter, not a validator.
+    constexpr double kMetresToYards = 1.0 / 0.9144;
+    constexpr double kMaxCarryYd    = 500.0;
+
+    std::vector<PremierHistoryRecord> out;
+    for (const QJsonValue &v : doc.object().value(QStringLiteral("records")).toArray()) {
+        const QJsonObject o = v.toObject();
+        PremierHistoryRecord rec;
+        rec.createdUtcMs = parseUtcMs(o.value(QStringLiteral("created")));
+        const QJsonValue speed = o.value(QStringLiteral("ballSpeedMPH"));
+        if (rec.createdUtcMs == 0 || !speed.isDouble())
+            return fail(QStringLiteral("a record has no readable created time or ball speed"), true);
+        rec.ballSpeedMph = speed.toDouble();
+        const QJsonValue carry = o.value(QStringLiteral("carryDistanceMeters"));
+        if (carry.isDouble()) {
+            const double yd = carry.toDouble() * kMetresToYards;
+            // Premier writes 0.0 for a knock it never flew: "not measured", never a carry of 0.
+            if (std::isfinite(yd) && yd > 0.0 && yd <= kMaxCarryYd)
+                rec.carryYd = yd;
+        }
+        out.push_back(rec);
+    }
+    return out;
+}
+
+std::optional<double> premierCarryFor(const std::vector<PremierHistoryRecord> &records,
+                                      qint64 createdUtcMs, double ballSpeedMph)
+{
+    const PremierHistoryRecord *best = nullptr;
+    for (const PremierHistoryRecord &r : records) {
+        const qint64 after = r.createdUtcMs - createdUtcMs;
+        if (after < 0 || after > kPremierHistoryWindowMs)
+            continue;
+        if (std::fabs(r.ballSpeedMph - ballSpeedMph) > kPremierHistorySpeedTolMph)
+            continue;
+        if (!best || after < best->createdUtcMs - createdUtcMs)
+            best = &r;
+    }
+    if (!best)
+        return std::nullopt;
+    return best->carryYd;
+}
+
 void addClubNotMeasuredDrops(LaunchMonitorReading &r)
 {
     const QJsonObject none;
