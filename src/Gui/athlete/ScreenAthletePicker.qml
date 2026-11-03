@@ -53,7 +53,10 @@ Item {
 
     // Pre-select the current athlete whenever this screen becomes visible
     onVisibleChanged: {
-        if (visible) selectedUuid = athleteController.currentUuid
+        if (visible) {
+            selectedUuid = athleteController.currentUuid
+            athleteController.refreshActivity()     // sessions recorded since it was last open
+        }
     }
 
     Flickable {

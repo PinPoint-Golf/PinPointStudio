@@ -352,6 +352,56 @@ private slots:
         }
     }
 
+    // ── each golfer's activity, read from the library (the picker's counts and Recent order) ──────
+
+    void athleteActivityFromLibrary()
+    {
+        QTemporaryDir lib;
+        QVERIFY(lib.isValid());
+        const auto session = [&lib](const QString &golfer, const QString &folder, bool hit) {
+            const QString d = lib.path() + QLatin1Char('/') + golfer + QLatin1Char('/') + folder;
+            QVERIFY(QDir().mkpath(hit ? d + QStringLiteral("/swing_0001") : d));
+        };
+        session(QStringLiteral("Nick-Henn"), QStringLiteral("2026-10-20_Nick-Henn_Wrist_01"), true);
+        session(QStringLiteral("Nick-Henn"), QStringLiteral("2026-11-02_Nick-Henn_Wrist_01"), true);
+        session(QStringLiteral("Nick-Henn"), QStringLiteral("2026-11-03_Nick-Henn_Wrist_01"), false);  // nothing hit
+        session(QStringLiteral("Chris-Marriott"), QStringLiteral("2026-10-24_Chris-Marriott_Wrist_01"), true);
+
+        AthleteController a;
+        const QString nick  = a.saveAthlete(QString(), QStringLiteral("Nick Henn"));
+        const QString chris = a.saveAthlete(QString(), QStringLiteral("Chris Marriott"));   // created last
+        const QString jess  = a.saveAthlete(QString(), QStringLiteral("Jess Ratcliffe"));   // no folder at all
+
+        a.setSynchronousActivity(true);
+        a.setAthleteDirResolver([&lib](const QString &name) {
+            return lib.path() + QLatin1Char('/') + QString(name).replace(QLatin1Char(' '), QLatin1Char('-'));
+        });
+        const QVariantList list = a.athletes();
+        QCOMPARE(list.size(), 3);
+        const QVariantMap first = list.at(0).toMap(), second = list.at(1).toMap(), third = list.at(2).toMap();
+        QCOMPARE(first.value("uuid").toString(), nick);                // the most recent session first
+        QCOMPARE(first.value("sessionCount").toInt(), 2);              // the empty folder is not a session
+        QCOMPARE(first.value("lastSessionAt").toLongLong(),
+                 QDateTime(QDate(2026, 11, 2), QTime(0, 0)).toSecsSinceEpoch());
+        QCOMPARE(second.value("uuid").toString(), chris);
+        QCOMPARE(second.value("sessionCount").toInt(), 1);
+        QCOMPARE(third.value("uuid").toString(), jess);
+        QCOMPARE(third.value("sessionCount").toInt(), 0);
+        QCOMPARE(third.value("lastSessionAt").toLongLong(), 0LL);
+
+        // A session recorded later shows on the next refresh (the picker asks each time it opens),
+        // and a reload() (here, selecting) keeps the library's figures rather than the registry's.
+        session(QStringLiteral("Chris-Marriott"), QStringLiteral("2026-11-03_Chris-Marriott_Wrist_01"), true);
+        a.refreshActivity();
+        QCOMPARE(a.athletes().first().toMap().value("uuid").toString(), chris);
+        QCOMPARE(a.athletes().first().toMap().value("sessionCount").toInt(), 2);
+        a.selectAthlete(nick);
+        QCOMPARE(a.athletes().first().toMap().value("uuid").toString(), chris);
+        QCOMPARE(a.athletes().at(1).toMap().value("sessionCount").toInt(), 2);
+
+        QCOMPARE(AthleteController::scanActivity(lib.path() + QStringLiteral("/Nobody")).sessions, 0);
+    }
+
     // ── the golfer's report details on AthleteController ─────────────────────────────────────────
 
     void athleteReportFields()

@@ -23,6 +23,10 @@
 #include "club_standards.h"
 #include "../../Diagnostics/norms/norm_pack.h" // Cohort, cohortFor(), cohortToMap()
 #include <QDate>
+#include <QDir>
+#include <QFileInfo>
+#include <QPair>
+#include <QVector>
 #include <QUuid>
 #include <QDateTime>
 #include <QRegularExpression>
@@ -107,6 +111,11 @@ AthleteController::AthleteController(QObject *parent)
     reload();
 }
 
+AthleteController::~AthleteController()
+{
+    m_pool.waitForDone();
+}
+
 QString AthleteController::computeInitials(const QString &name)
 {
     const QStringList words = name.trimmed().split(u' ', Qt::SkipEmptyParts);
@@ -158,6 +167,11 @@ void AthleteController::reload()
         m[QStringLiteral("createdAt")]     = s.value(kCreatedAt,    0LL).toLongLong();
         m[QStringLiteral("lastSessionAt")] = s.value(kLastSessionAt,0LL).toLongLong();
         m[QStringLiteral("sessionCount")]  = s.value(kSessionCount, 0).toInt();
+        // The library's figures win over the registry's (which nothing updates) once a scan has run.
+        if (const auto it = m_activity.constFind(uuid); it != m_activity.cend()) {
+            m[QStringLiteral("lastSessionAt")] = it->lastAtSec;
+            m[QStringLiteral("sessionCount")]  = it->sessions;
+        }
         if (!s.contains(kClubs)) {
             // First sight of this athlete's bag: seed the standard set
             // (driver, 5-9 iron, GW, SW, putter) with factory defaults.
@@ -179,18 +193,11 @@ void AthleteController::reload()
         list.append(m);
     }
 
-    // Sort: lastSessionAt desc, createdAt desc as tie-breaker
-    std::sort(list.begin(), list.end(), [](const QVariant &a, const QVariant &b) {
-        const auto ma = a.toMap();
-        const auto mb = b.toMap();
-        const qint64 aLast = ma[QStringLiteral("lastSessionAt")].toLongLong();
-        const qint64 bLast = mb[QStringLiteral("lastSessionAt")].toLongLong();
-        if (aLast != bLast) return aLast > bLast;
-        return ma[QStringLiteral("createdAt")].toLongLong() > mb[QStringLiteral("createdAt")].toLongLong();
-    });
+    sortAthletes(list);
 
     m_athletes = list;
     emit athletesChanged();
+    refreshActivity();          // a rename moves the folder; a new golfer needs one
 
     // Resolve current athlete
     const QString wantedUuid = s.value(kCurrentUuid, QString()).toString();
@@ -214,6 +221,95 @@ void AthleteController::reload()
     }
 
     emit currentAthleteChanged();
+}
+
+// lastSessionAt desc, createdAt desc as tie-breaker.
+void AthleteController::sortAthletes(QVariantList &list)
+{
+    std::stable_sort(list.begin(), list.end(), [](const QVariant &a, const QVariant &b) {
+        const auto ma = a.toMap();
+        const auto mb = b.toMap();
+        const qint64 aLast = ma[QStringLiteral("lastSessionAt")].toLongLong();
+        const qint64 bLast = mb[QStringLiteral("lastSessionAt")].toLongLong();
+        if (aLast != bLast) return aLast > bLast;
+        return ma[QStringLiteral("createdAt")].toLongLong() > mb[QStringLiteral("createdAt")].toLongLong();
+    });
+}
+
+// Worker thread. Touches no member.
+AthleteController::Activity AthleteController::scanActivity(const QString &athleteDir)
+{
+    Activity a;
+    if (athleteDir.isEmpty()) return a;
+    const QFileInfoList sessions = QDir(athleteDir).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo &fi : sessions) {
+        // The Sessions list's rule: a folder nothing was hit in is not a session.
+        if (QDir(fi.absoluteFilePath()).entryList(QStringList{ QStringLiteral("swing_*") },
+                                                  QDir::Dirs | QDir::NoDotAndDotDot).isEmpty())
+            continue;
+        ++a.sessions;
+        const QDate named = QDate::fromString(fi.fileName().left(10), QStringLiteral("yyyy-MM-dd"));
+        const qint64 at = named.isValid() ? QDateTime(named, QTime(0, 0)).toSecsSinceEpoch()
+                                          : fi.lastModified().toSecsSinceEpoch();
+        a.lastAtSec = std::max(a.lastAtSec, at);
+    }
+    return a;
+}
+
+void AthleteController::setAthleteDirResolver(std::function<QString(const QString &)> resolver)
+{
+    m_dirFor = std::move(resolver);
+    refreshActivity();
+}
+
+void AthleteController::refreshActivity()
+{
+    if (!m_dirFor) return;
+    QVector<QPair<QString, QString>> dirs;                    // uuid, folder — taken on this thread
+    dirs.reserve(m_athletes.size());
+    for (const QVariant &v : std::as_const(m_athletes)) {
+        const QVariantMap m = v.toMap();
+        dirs.append({ m.value(QStringLiteral("uuid")).toString(),
+                      m_dirFor(m.value(QStringLiteral("name")).toString()) });
+    }
+    const int generation = ++m_activityGeneration;
+    const auto scanAll = [dirs]() {
+        QHash<QString, Activity> out;
+        for (const auto &d : dirs) out.insert(d.first, scanActivity(d.second));
+        return out;
+    };
+    if (m_syncActivity) { applyActivity(generation, scanAll()); return; }
+    m_pool.start([this, generation, scanAll]() {
+        const QHash<QString, Activity> out = scanAll();
+        QMetaObject::invokeMethod(this, [this, generation, out]() { applyActivity(generation, out); },
+                                  Qt::QueuedConnection);
+    });
+}
+
+// Patches the list in place — no reload(), which would re-announce the current golfer and re-point
+// everything that follows it.
+void AthleteController::applyActivity(int generation, const QHash<QString, Activity> &byUuid)
+{
+    if (generation != m_activityGeneration) return;          // a newer scan is on its way
+    m_activity = byUuid;
+    QVariantList list = m_athletes;
+    bool changed = false;
+    for (QVariant &v : list) {
+        QVariantMap m = v.toMap();
+        const auto it = byUuid.constFind(m.value(QStringLiteral("uuid")).toString());
+        if (it == byUuid.cend()) continue;
+        if (m.value(QStringLiteral("sessionCount")).toInt() == it->sessions
+            && m.value(QStringLiteral("lastSessionAt")).toLongLong() == it->lastAtSec)
+            continue;
+        m[QStringLiteral("sessionCount")]  = it->sessions;
+        m[QStringLiteral("lastSessionAt")] = it->lastAtSec;
+        v = m;
+        changed = true;
+    }
+    if (!changed) return;
+    sortAthletes(list);
+    m_athletes = list;
+    emit athletesChanged();
 }
 
 QString AthleteController::saveAthlete(

@@ -73,7 +73,7 @@ PpSelectTile {
             text: {
                 const hand = (athleteData.handedness || "R")[0] + "H"
                 const hcp  = Theme.formatHandicap(athleteData.handicap)
-                const sess = (athleteData.sessionCount || 0) + " sessions"
+                const sess = Theme.plural(athleteData.sessionCount || 0, qsTr("%1 session"), qsTr("%1 sessions"))
                 return hand + " · " + hcp + " · " + sess
             }
         }

@@ -367,6 +367,15 @@ int main(int argc, char *argv[])
             return root + QStringLiteral("/") + pinpoint::SwingPaths::sanitise(name);
         };
         const auto repoint = [&sessionReportList, athleteDir] { sessionReportList.setAthleteDir(athleteDir()); };
+        // Every golfer's session count and last session (the picker's rows, and its Recent order),
+        // read from each one's folder — the same root + sanitised name as the list above.
+        athleteController.setAthleteDirResolver([&appSettings](const QString &name) -> QString {
+            const QString root = appSettings.athleteLibraryPath();
+            if (root.isEmpty() || name.isEmpty()) return {};
+            return root + QStringLiteral("/") + pinpoint::SwingPaths::sanitise(name);
+        });
+        QObject::connect(&appSettings, &AppSettings::athleteLibraryPathChanged,
+                         &athleteController, &AthleteController::refreshActivity);
         QObject::connect(&athleteController, &AthleteController::currentAthleteChanged, &sessionReportList, repoint);
         QObject::connect(&appSettings, &AppSettings::athleteLibraryPathChanged, &sessionReportList, repoint);
         // setReportModel already follows stateChanged(dir) for that one row; a work-on record landing

@@ -18,10 +18,14 @@
 
 #pragma once
 
+#include <QHash>
 #include <QObject>
 #include <QString>
+#include <QThreadPool>
 #include <QVariantList>
 #include <QVariantMap>
+
+#include <functional>
 
 class AthleteController : public QObject
 {
@@ -58,6 +62,23 @@ class AthleteController : public QObject
 
 public:
     explicit AthleteController(QObject *parent = nullptr);
+    ~AthleteController() override;   // waits for a running activity scan (it posts back to this)
+
+    // ── Activity: each golfer's session count and last session, read from the library ──────────
+    // Nothing writes the registry's sessionCount / lastSessionAt, so both come from the golfer's
+    // folder, counted the way the Sessions list counts (a folder with at least one swing_* in it)
+    // and dated the way it dates one whose swings are not read (the yyyy-MM-dd its name starts
+    // with, else its mtime). They order `athletes` (newest first), so the picker's Recent cards
+    // follow who has been in. The scan runs on a pool thread; the result patches the list.
+    struct Activity { int sessions = 0; qint64 lastAtSec = 0; };
+    static Activity scanActivity(const QString &athleteDir);   // touches no member; public for the test
+    // name → that golfer's folder ("" = unknown). main.cpp supplies it (the library root and
+    // SwingPaths::sanitise), so this class needs neither. Setting it scans.
+    void setAthleteDirResolver(std::function<QString(const QString &name)> resolver);
+    // Re-reads every golfer's activity. Also run by every reload(); the picker asks on opening.
+    Q_INVOKABLE void refreshActivity();
+    // Tests: scan on the calling thread.
+    void setSynchronousActivity(bool on) { m_syncActivity = on; }
 
     bool         hasCurrentAthlete() const { return !m_currentUuid.isEmpty(); }
     QString      currentName()       const { return m_currentName; }
@@ -210,6 +231,8 @@ signals:
 private:
     void reload();
     static QString computeInitials(const QString &name);
+    static void sortAthletes(QVariantList &list);
+    void applyActivity(int generation, const QHash<QString, Activity> &byUuid);
 
     // One field off the CURRENT athlete's record, empty when there is none. Read out of m_athletes
     // rather than mirrored into a member beside m_currentName: those four are set when the current
@@ -231,4 +254,10 @@ private:
     QString      m_currentName;
     QString      m_currentInitials;
     QString      m_currentHandedness;
+
+    std::function<QString(const QString &)> m_dirFor;
+    QHash<QString, Activity> m_activity;      // uuid → last scan's result
+    int  m_activityGeneration = 0;
+    bool m_syncActivity = false;
+    QThreadPool m_pool;
 };
