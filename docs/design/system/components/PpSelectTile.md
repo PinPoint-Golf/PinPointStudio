@@ -6,7 +6,7 @@ Source: `src/Gui/components/PpSelectTile.qml`.
 
 **Use** when the choice needs more than a word — a title and a line, or custom content. **Don't** use for one-word choices (`PpChoiceChip`). It sizes to nothing of its own: set its height (and width).
 
-The consumer supplies the size, `selected`, `title` + `text` or its own content, and handles `clicked()`.
+The consumer supplies the size, `selected`, `title` + `text` or its own content, and handles `clicked()` (and `doubleClicked()` when a double click should act on the choice).
 
 | Prop | Type | Default | Meaning |
 |---|---|---|---|
@@ -17,6 +17,7 @@ The consumer supplies the size, `selected`, `title` + `text` or its own content,
 | `hoverScale` / `moves` / `held` | alias | 1.02 (card: 1.0) | PpPressable |
 | `hovered` | bool (ro) | | |
 | signal `clicked()` | | | |
+| signal `doubleClicked()` | | | after the second click of a double click (`clicked()` has already fired for the first) — e.g. an athlete card: pick, then open |
 
 **Styles** (rest → hover; selected = `colorAccentLight` fill inside `colorAccent` border; hover border → `colorAccentMid`):
 

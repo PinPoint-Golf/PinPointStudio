@@ -42,6 +42,15 @@ Item {
         })
     }
 
+    // Make `uuid` the current golfer and go Home (Main navigates on athleteSelected) — the
+    // "Select … ↗" button, each row's hover Switch chip and a click on a Recent card.
+    function switchTo(uuid) {
+        if (uuid === "" || sessionRunning) return
+        selectedUuid = uuid
+        athleteController.selectAthlete(uuid)
+        athleteSelected(uuid)
+    }
+
     // Pre-select the current athlete whenever this screen becomes visible
     onVisibleChanged: {
         if (visible) selectedUuid = athleteController.currentUuid
@@ -91,11 +100,13 @@ Item {
 
                         PpAthleteCard {
                             required property int index
+                            objectName:   "athleteRecentCard_" + index
                             width:        (recentRow.width - (recentRow.cardCount - 1) * recentRow.spacing)
                                               / recentRow.cardCount
                             athleteData:  athleteController.athletes[index]
                             isSelected:   athleteData.uuid === root.selectedUuid
-                            onClicked:    root.selectedUuid = athleteData.uuid
+                            // One click on a Recent card switches to that golfer and goes Home.
+                            onClicked:    root.switchTo(athleteData.uuid)
                         }
                     }
                 }
@@ -172,6 +183,9 @@ Item {
                             root.selectedUuid = modelData.uuid
                             root.editAthleteRequested(modelData.uuid)
                         }
+                        canSwitch:   !root.sessionRunning
+                                     && modelData.uuid !== athleteController.currentUuid
+                        onSwitchRequested: root.switchTo(modelData.uuid)
                     }
                 }
             }
@@ -228,10 +242,7 @@ Item {
                     }
                     primary: true
                     enabled: root.selectedUuid !== "" && !root.sessionRunning
-                    onClicked: {
-                        athleteController.selectAthlete(root.selectedUuid)
-                        root.athleteSelected(root.selectedUuid)
-                    }
+                    onClicked: root.switchTo(root.selectedUuid)
                 }
             }
 

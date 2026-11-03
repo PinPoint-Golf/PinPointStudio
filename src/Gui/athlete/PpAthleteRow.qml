@@ -26,8 +26,13 @@ Item {
     property bool isSelected:  false
     property int  rowIndex:    0
 
+    // The hover "Switch" chip shows on rows other than the current golfer, and never while a
+    // session runs (its swings are being saved to the current golfer; the picker says so).
+    property bool canSwitch: true
+
     signal clicked()
     signal editRequested()
+    signal switchRequested()
 
     height: Theme.sp(44)
 
@@ -49,6 +54,9 @@ Item {
             rightMargin:    Theme.gap(12)
         }
         spacing: Theme.gap(12)
+        // Above rowPress so the Switch chip takes its own press; the rest of the row has no
+        // mouse handling, so its presses still fall through to rowPress.
+        z: 1
 
         // Avatar circle
         PpAvatar {
@@ -57,15 +65,36 @@ Item {
             initials: root.athleteData.initials || ""
         }
 
-        // Name — fills remaining space
-        Text {
-            width:          parent.width - Theme.sp(28) - Theme.sp(60) - Theme.sp(60) - Theme.sp(60) - Theme.sp(72) - Theme.sp(16) - parent.spacing * 5
+        // Name — fills remaining space, with the hover Switch chip just to its right
+        Item {
+            id: nameCell
+            width:  parent.width - Theme.sp(28) - Theme.sp(60) - Theme.sp(60) - Theme.sp(60) - Theme.sp(72) - Theme.sp(16) - parent.spacing * 5
+            height: parent.height
             anchors.verticalCenter: parent.verticalCenter
-            text:           athleteData.name || ""
-            font.family:    Theme.fontBody
-            font.pixelSize: Theme.fontSzBody
-            color:          Theme.colorText
-            elide:          Text.ElideRight
+
+            Text {
+                id: nameText
+                anchors.verticalCenter: parent.verticalCenter
+                // Leave room for the chip so a long name elides rather than running under it.
+                width:          Math.min(implicitWidth,
+                                         nameCell.width - (switchChip.visible ? switchChip.width + Theme.gap(10) : 0))
+                text:           athleteData.name || ""
+                font.family:    Theme.fontBody
+                font.pixelSize: Theme.fontSzBody
+                color:          Theme.colorText
+                elide:          Text.ElideRight
+            }
+
+            PpRowAction {
+                id: switchChip
+                objectName: "athleteSwitch"
+                x:       nameText.width + Theme.gap(10)
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.canSwitch && (rowPress.containsMouse || switchChip.hovered)
+                text:    qsTr("Switch")
+                tooltip: qsTr("Switch to %1 and go to Home").arg(athleteData.name || "")
+                onClicked: root.switchRequested()
+            }
         }
 
         // Handedness

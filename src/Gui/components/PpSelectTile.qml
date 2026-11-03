@@ -43,6 +43,7 @@ Rectangle {
     readonly property bool hovered: press.containsMouse
 
     signal clicked()
+    signal doubleClicked()
 
     radius: style === "tint" ? Theme.radiusLg : Theme.radius
     color:  style === "tint" ? ((selected || hovered) ? Qt.tint(Theme.colorSurface, Theme.colorAccentLight)
@@ -78,5 +79,6 @@ Rectangle {
         z: 1                       // over whatever the caller puts in the tile
         hoverScale: tile.style === "card" ? 1.0 : 1.02
         onClicked:  tile.clicked()
+        onDoubleClicked: tile.doubleClicked()
     }
 }
