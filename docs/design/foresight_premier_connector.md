@@ -388,8 +388,9 @@ FSX2020"* and *"GC Quad — Foresight Premier"*. Existing settings keep working 
 - **Schema guard**: parse defensively. If the top-level shape or a required ball field is
   missing, go to `State::Error` with a clear message ("Premier's file format has changed")
   rather than emitting partial readings. Premier updates itself, so this will happen.
-- **Carry (optional, phase 2)**: join `history.json` by UTC timestamp to fill
-  `carryDistance`. It isn't needed for the validation use, so it's left out of phase 1.
+- **Carry**: join `history.json` by UTC timestamp to fill `carryDistance`. Left out of phase 1,
+  which made the first Premier session show "-" for carry, carry range and spray; built
+  2026-11-03 (§4.9, issue #148).
 
 ### 4.2 Field mapping to `LaunchMonitorReading`
 
@@ -570,6 +571,42 @@ Verified on the desk: mapping and document tests, the panel render, and the cont
 running app against a copy of a real camera swing (session on 7 IRON, Premier's `Gw` arrives: the
 session's club became GAP WEDGE, the swing was rewritten as GAP WEDGE and re-analysed).
 
+### 4.9 Carry from `history.json` (2026-11-03, issue #148)
+
+The first Premier session (2 Nov, 17:38, 8 shots) showed ball speed, launch and spin but "-" for
+Avg Carry, Carry Range and Spray, and an empty landing plot. The session files hold only what the
+Quad measured. Carry is Premier's flight model, computed on the PC, and only `history.json` has it.
+
+- **Written live.** One record per shot, about 0.8 s after `CreatedAtUtc` (§2.6.6): before club
+  data (+1.6 to 2.3 s after contact) and long before the shot goes final (the next shot's write).
+- **The join** (`premierCarryFor`, `premier_session_parser.h`): the record created 0 to 3 s after
+  the shot's `CreatedAtUtc` with ball speed within 0.2 mph. On the 2 Nov capture all 26 shots
+  inside the file's window paired at +0.4 to +0.9 s with ball speed equal to 1e-5 mph; on the
+  cabin's file all 8 shots of the 17:38 session paired the same way. Records are never closer
+  than 7 s apart. `carryDistanceMeters` 0.0 (a knock) is "no carry", never a carry of 0.
+- **When it is read**: as a reading goes **final** — club data arrived, club "not measured" a
+  shot later, or ball-only for good at the queue — `history.json` is stat'ed and read if it
+  changed, and the carry goes into that final reading. No extra update in the normal case.
+- **Not there yet**: the reading goes out without carry and waits. It is looked up again when
+  the file changes, and once more `kCarryRetryMs` (1 s) later; then it is left for the sweep.
+  A carry found later goes out as one more `readingUpdated`, through the controller's existing
+  late-update path (held until the pipeline is idle, then the swing is rewritten).
+- **End Session sweep**: `SessionController::activeSessionTypeChanged` to None calls
+  `ForesightPremierMonitor::sweepCarry()`. It fills every shot of the run still without carry,
+  including a newest shot still waiting for its club data (that carry is remembered, so the
+  final reading keeps it). What is still missing is logged and given up.
+- **Format change** in `history.json` is logged, never an error state: carry is extra, and the
+  shots keep coming.
+- **Not taken**: `totalDistanceMeters` (0.0 on the range) and the club name (wrong in drills).
+  There is **no offline field**, so Spray and the landing plot stay "-" for Premier. The flight
+  card's lateral already comes from the model when offline is absent (`lm_flight_path.h`).
+  `Player.log`'s per-shot `PredictFlightCollisionAsync` line is the candidate source for offline.
+
+Tests: `premier_session_parser_test` (`PremierHistory.*`, on `history_20261102.json`, the capture's
+file cut to 14:50–15:30) and `premier_monitor_test` (`PremierCarry.*`: carry in the final reading,
+a record written later, the timed retry then the sweep, the sweep on a pending shot, the
+ball-only queue path, and no file at all).
+
 ## 5. Implementation phases
 
 1. ✅ **Investigate** (§6, done 2026-11-02, §2.6). Fixtures captured.
@@ -584,7 +621,7 @@ session's club became GAP WEDGE, the swing was rewritten as GAP WEDGE and re-ana
    from an app log, and the wallclock check from a run with cameras. The original brief: 20 shots including a rapid-fire run, every swing gets its
    reading and its club data, values match Premier's screen; the logged Δ sizes the pairing window
    (§4.3), and new swings' `clock.wallclock + capture.impactUs` agree with Premier's contact.
-7. *(Optional)* carry from `history.json`.
+7. Carry from `history.json` (§4.9, done 2026-11-03).
 
 ## 6. Investigation session — you hit, I watch
 
