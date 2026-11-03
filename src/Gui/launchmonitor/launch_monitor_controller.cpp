@@ -28,11 +28,13 @@
 #include "../../Export/swing_doc.h"
 
 #include "gspro_monitor.h"
+#include "premier_club.h"
 #include "premier_monitor.h"
 
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QUrl>
 
 using namespace pinpoint::lm;
@@ -361,6 +363,9 @@ void LaunchMonitorController::onShotFailed(const QString &swingDir, int shotId)
 
 void LaunchMonitorController::onReadingAvailable(const LaunchMonitorReading &reading)
 {
+    // First: the club, so whatever the reading is attributed to below is recorded with it.
+    followDeviceClub(reading);
+
     const ShotPairing::Offer offer = m_pairing.offerReading(reading);
     // Every timed decision is logged with its offset: the window is a starting value, and
     // these lines are what size it (docs/design/foresight_premier_connector.md §4.3).
@@ -497,10 +502,23 @@ bool LaunchMonitorController::createStandaloneShot(const LaunchMonitorReading &r
 
 bool LaunchMonitorController::applyToSwing(const QString &swingDir, const LaunchMonitorReading &r)
 {
+    // Following Premier's club: followDeviceClub() set it as the reading arrived, which is
+    // normally before the shot's analysis began (the reading lands ~0.7 s after contact, the
+    // analysis ~1.25 s after detection). When the analysis won that race the swing was recorded
+    // under the old club: correct it in this same write and re-analyse with the right one.
+    const QString club = followedClub(r);
+    const QJsonObject captureClub = club.isEmpty() ? QJsonObject() : captureClubFor(club);
+    bool clubReplaced = false;
     QString error;
-    if (!pinpoint::SwingDocWriter::updateLaunchMonitor(swingDir, r, &error)) {
+    if (!pinpoint::SwingDocWriter::updateLaunchMonitor(swingDir, r, &error, captureClub, &clubReplaced)) {
         ppWarn() << "LaunchMonitor: cannot write reading to" << swingDir << ":" << error;
         return false;
+    }
+    if (clubReplaced) {
+        ppInfo() << "LaunchMonitor: swing" << swingDir << "was analysed before Premier named its club;"
+                 << "recorded as" << club << "and re-analysed";
+        if (m_reanalyse)
+            m_reanalyse(swingDir);
     }
 
     // Re-read the carousel row in place so the shot picks up its new metrics without
@@ -529,6 +547,57 @@ QString LaunchMonitorController::summaryOf(const LaunchMonitorReading &r) const
     else if (r.ballSpeed)          bits << tr("ball %1 mph").arg(*r.ballSpeed, 0, 'f', 1);
     if (r.carryDistance)           bits << tr("%1 yd").arg(*r.carryDistance, 0, 'f', 0);
     return bits.join(QStringLiteral(" · "));
+}
+
+QString LaunchMonitorController::followedClub(const LaunchMonitorReading &r)
+{
+    if (!m_settings || !m_settings->launchMonitorFollowClub()
+        || r.deviceKind != kindKey(Kind::Premier) || r.deviceClub.isEmpty())
+        return {};
+    const QString club = premierClubToVocabulary(r.deviceClub);
+    if (club.isEmpty() && r.deviceClub != m_unknownClubCode) {
+        m_unknownClubCode = r.deviceClub;
+        ppInfo() << "LaunchMonitor: Premier's club" << r.deviceClub
+                 << "is not one PinPoint names; the session's club is left as it is";
+    }
+    return club;
+}
+
+void LaunchMonitorController::followDeviceClub(const LaunchMonitorReading &r)
+{
+    // Only into a running session: outside one the active club is the Home pick waiting for the
+    // next session, and a ball hit on the simulator in between is not a choice of club.
+    if (!m_session || !m_session->running())
+        return;
+    const QString club = followedClub(r);
+    if (club.isEmpty() || club == m_session->activeClub())
+        return;
+    ppInfo() << "LaunchMonitor: Premier's club is" << r.deviceClub << "— the session's club is now"
+             << club << "(was" << m_session->activeClub() << ")";
+    m_session->setActiveClub(club);
+}
+
+QJsonObject LaunchMonitorController::captureClubFor(const QString &club) const
+{
+    // The same fields, from the same bag record, as the capture path (ShotProcessor's export job →
+    // swing_exporter.cpp). No length prior: that is the live fuse's state for the club the swing
+    // was analysed with, and re-analysis without one is the supported "cold key" case. A club
+    // missing from the bag writes its name alone, and re-analysis takes its standard length.
+    QVariantMap rec;
+    if (m_athletes)
+        rec = m_athletes->clubsFor(m_athletes->currentUuid()).value(club).toMap();
+    QJsonArray bands;
+    for (const QVariant &b : rec.value(QStringLiteral("bandCentersMm")).toList())
+        bands.append(b.toDouble());
+    return QJsonObject{
+        { QStringLiteral("lengthMm"),        double(qMax(0, rec.value(QStringLiteral("lengthMm")).toInt())) },
+        { QStringLiteral("shaftType"),       rec.value(QStringLiteral("shaftType")).toString() },
+        { QStringLiteral("bandCentersMm"),   bands },
+        { QStringLiteral("hoselFromButtMm"), qMax(0.0, rec.value(QStringLiteral("hoselFromButtMm")).toDouble()) },
+        { QStringLiteral("shaftLengthMm"),   rec.value(QStringLiteral("shaftLengthMm")).toDouble() },
+        { QStringLiteral("handsEndMm"),      rec.value(QStringLiteral("handsEndMm")).toDouble() },
+        { QStringLiteral("name"),            club },
+    };
 }
 
 void LaunchMonitorController::rememberShotDir(const QString &deviceShotId, const QString &swingDir)

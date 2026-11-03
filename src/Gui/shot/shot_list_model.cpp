@@ -270,10 +270,14 @@ void ShotListModel::refreshShot(const QString &swingDir)
     // is where they live — a row must never show a shot as left out that the file does not.
     s.lmExcluded        = p.excluded;
     s.lmClubOverride    = p.clubOverride;
+    // And the club: following Premier's club can correct it in the same rewrite (launchmonitor/
+    // premierFollowClub). An empty read keeps the row's club rather than blanking it.
+    if (!p.club.isEmpty())
+        s.club = p.club;
     emit dataChanged(index(row), index(row),
                      { ScoreRole, MetricsRole, AnalysisDetailRole, LmDeviceKindRole,
                        DataWarningRole, DataWarningDetailRole,
-                       LmExcludedRole, LmClubOverrideRole });
+                       LmExcludedRole, LmClubOverrideRole, ClubRole });
 }
 
 void ShotListModel::attachSwingDir(int id, const QString &swingDir)

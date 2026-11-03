@@ -1846,11 +1846,39 @@ bool SwingDocWriter::updateShotAnnotations(const QString &swingDir, bool exclude
 
 bool SwingDocWriter::updateLaunchMonitor(const QString &swingDir,
                                          const lm::LaunchMonitorReading &reading,
-                                         QString *error)
+                                         QString *error,
+                                         const QJsonObject &captureClub,
+                                         bool *clubReplaced)
 {
+    if (clubReplaced)
+        *clubReplaced = false;
     QJsonObject root = SwingStore::load(swingDir, error);
     if (root.isEmpty())
         return false;
+
+    // The club the device named, replacing the one the swing was recorded under (see the header).
+    // review.club is SEEDED by the live save with the session's club (writeSwingJson), so it is the
+    // user's own pick only when it names neither the recorded club nor the device's: then nothing
+    // changes. Otherwise both move to the device's club.
+    if (!captureClub.isEmpty()) {
+        QJsonObject review = root.value(QStringLiteral("review")).toObject();
+        const QString reviewClub = review.value(QStringLiteral("club")).toString().trimmed();
+        QJsonObject cap = root[QStringLiteral("capture")].toObject();
+        const QString recorded = cap.value(QStringLiteral("club")).toObject()
+                                    .value(QStringLiteral("name")).toString().trimmed();
+        const QString named = captureClub.value(QStringLiteral("name")).toString().trimmed();
+        const bool handSet = !reviewClub.isEmpty() && reviewClub != recorded && reviewClub != named;
+        if (!handSet && !named.isEmpty() && named != recorded) {
+            cap[QStringLiteral("club")] = captureClub;
+            root[QStringLiteral("capture")] = cap;
+            if (!reviewClub.isEmpty()) {
+                review[QStringLiteral("club")] = named;
+                root[QStringLiteral("review")] = review;
+            }
+            if (clubReplaced)
+                *clubReplaced = true;
+        }
+    }
 
     // ── The raw block: what the device said, in full ────────────────────────
     // Everything, including the columns no metric consumes. The reading is already

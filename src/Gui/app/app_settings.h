@@ -343,6 +343,11 @@ class AppSettings : public QObject
     // with it on, a session left capturing records every ball anyone hits on the
     // simulator.
     Q_PROPERTY(bool    launchMonitorStandalone READ launchMonitorStandalone WRITE setLaunchMonitorStandalone NOTIFY launchMonitorStandaloneChanged)
+    // Foresight Premier only: each reading's club (Premier's own club selection, "4h", "Gw")
+    // becomes the session's active club, so a golfer who changes club in Premier need not change
+    // it in PinPoint too. Off by default. FSX2020 names only a club family ("Irn", "Wdg") and is
+    // usually left unchanged, so it is never followed (LaunchMonitorController::followDeviceClub).
+    Q_PROPERTY(bool    launchMonitorFollowClub READ launchMonitorFollowClub WRITE setLaunchMonitorFollowClub NOTIFY launchMonitorFollowClubChanged)
     // Persistent per-athlete·club·camera club-length prior (club_length_fusion.h /
     // plan: robust club length — starry-shimmying-wind). Key = "athleteUuid|clubName|
     // cameraKey" -> {emaPx, varPx, n, disagreeRun, lengthMm, frameW, frameH,
@@ -585,6 +590,7 @@ public:
         m_launchMonitorPollMs       = ppSettings().value(QStringLiteral("launchmonitor/pollIntervalMs"), 250).toInt();
         m_launchMonitorChimeEnabled = ppSettings().value(QStringLiteral("launchmonitor/chimeEnabled"), true).toBool();
         m_launchMonitorStandalone   = ppSettings().value(QStringLiteral("launchmonitor/standaloneShots"), false).toBool();
+        m_launchMonitorFollowClub   = ppSettings().value(QStringLiteral("launchmonitor/premierFollowClub"), false).toBool();
         // ⚠ THE GSPro LINK KEEPS ITS OWN KEYS RATHER THAN REUSING launchmonitor/path.
         // That key holds the GCQuad's FOLDER; if the address lived there too, choosing
         // one connector would destroy the other's configuration, and a user switching
@@ -723,6 +729,7 @@ public:
     int     launchMonitorPollMs()       const { return m_launchMonitorPollMs; }
     bool    launchMonitorChimeEnabled() const { return m_launchMonitorChimeEnabled; }
     bool    launchMonitorStandalone()   const { return m_launchMonitorStandalone; }
+    bool    launchMonitorFollowClub()   const { return m_launchMonitorFollowClub; }
 
     QVariantMap clubLenPrior() const { return m_clubLenPrior; }
 
@@ -1652,6 +1659,14 @@ public:
         emit launchMonitorStandaloneChanged();
     }
 
+    void setLaunchMonitorFollowClub(bool v)
+    {
+        if (m_launchMonitorFollowClub == v) return;
+        m_launchMonitorFollowClub = v;
+        ppSettings().setValue(QStringLiteral("launchmonitor/premierFollowClub"), v);
+        emit launchMonitorFollowClubChanged();
+    }
+
     void setClubLenPrior(const QVariantMap &v)
     {
         if (m_clubLenPrior == v) return;
@@ -1769,6 +1784,7 @@ signals:
     void launchMonitorPollMsChanged();
     void launchMonitorChimeEnabledChanged();
     void launchMonitorStandaloneChanged();
+    void launchMonitorFollowClubChanged();
     void launchMonitorEnabledChanged();
     void gsProPortChanged();
     void gsProInterfaceChanged();
@@ -1901,6 +1917,7 @@ private:
     int     m_launchMonitorPollMs = 250;
     bool    m_launchMonitorChimeEnabled = true;
     bool    m_launchMonitorStandalone = false;
+    bool    m_launchMonitorFollowClub = false;
     bool    m_launchMonitorEnabled = true;
     int     m_gsProPort      = 921;
     QString m_gsProInterface = QStringLiteral("any");

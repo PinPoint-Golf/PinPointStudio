@@ -22,6 +22,7 @@
 #include "../../Export/swing_paths.h"
 
 #include <QHash>
+#include <QJsonObject>
 #include <QObject>
 #include <QStringList>
 #include <QVariantList>
@@ -129,6 +130,9 @@ public:
     // Whether the re-analysis queue still owes a write to a folder. A club update for such a
     // folder waits for onSwingRewritten() rather than racing that write. Optional.
     void setFolderBusyCheck(std::function<bool(const QString &)> holds) { m_folderHeld = std::move(holds); }
+    // Queue a swing for re-analysis (ReanalysisController::reanalyse). Used when following
+    // Premier's club changed the club of a swing that was already analysed. Optional.
+    void setReanalyseRequest(std::function<void(const QString &)> request) { m_reanalyse = std::move(request); }
 
 public slots:
     // ShotController::shotDetected. Which swing a reading belongs to is decided by ORDER
@@ -193,6 +197,16 @@ private:
     // Write every held update the pipeline and the re-analysis queue allow.
     void flushUpdates();
     void rememberShotDir(const QString &deviceShotId, const QString &swingDir);
+
+    // ── Following the device's club (launchmonitor/premierFollowClub) ───────
+    // The PinPoint club this reading names, or empty: the setting is off, the reading is not
+    // Premier's, or Premier's code names a club PinPoint has no name for (premier_club.h).
+    QString followedClub(const pinpoint::lm::LaunchMonitorReading &r);
+    // A reading arrived: make its club the session's active club, BEFORE the reading is
+    // attributed, so the shot it belongs to is analysed (or written device-only) with it.
+    void followDeviceClub(const pinpoint::lm::LaunchMonitorReading &r);
+    // capture.club for `club` from the athlete's bag, as the capture path writes it.
+    QJsonObject captureClubFor(const QString &club) const;
     QString summaryOf(const pinpoint::lm::LaunchMonitorReading &r) const;
 
     AppSettings                   *m_settings  = nullptr;
@@ -225,6 +239,8 @@ private:
     QHash<QString, pinpoint::lm::LaunchMonitorReading> m_heldUpdates;
     bool                           m_pipelineBusy = false;
     std::function<bool(const QString &)> m_folderHeld;
+    std::function<void(const QString &)> m_reanalyse;
+    QString                        m_unknownClubCode;   // logged once per code, not per shot
     // Remembered so a connector rebuilt from a settings change is told again
     // without waiting for the next club selection.
     QString                        m_club;

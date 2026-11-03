@@ -555,6 +555,10 @@ int main(int argc, char *argv[])
     launchMonitorController.setFolderBusyCheck([&reanalysisController](const QString &dir) {
         return reanalysisController.holds(dir);
     });
+    // Following Premier's club corrected a swing analysed under the old one: analyse it again.
+    launchMonitorController.setReanalyseRequest([&reanalysisController](const QString &dir) {
+        reanalysisController.reanalyse(QVariantList{ dir });
+    });
     QObject::connect(&reanalysisController, &ReanalysisController::reanalysed,
                      &launchMonitorController, &LaunchMonitorController::onSwingRewritten);
     QObject::connect(&shotProcessor, &ShotProcessor::shotProcessed,

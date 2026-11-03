@@ -1542,6 +1542,61 @@ int main()
 
         QDir(d3).removeRecursively();
         QDir(d4).removeRecursively();
+
+        // ── Following Premier's club: capture.club replaced in the same write ──────
+        // The live save seeds review.club with the session's club, so a review.club naming the
+        // recorded club moves with it; one naming neither club is the user's and wins.
+        const QString d5 = QStringLiteral("/tmp/swingdoc_test_lm_followclub");
+        const QJsonObject premierClub{ { QStringLiteral("lengthMm"), 1003.0 },
+                                       { QStringLiteral("name"), QStringLiteral("4 HYBRID") } };
+        auto fresh = [&](const QString &reviewClub) {
+            QDir(d5).removeRecursively();
+            QDir().mkpath(d5);
+            QJsonObject m5 = manifest;
+            m5[QStringLiteral("capture")] = QJsonObject{
+                { QStringLiteral("impactUs"), 1234567 },
+                { QStringLiteral("club"), QJsonObject{ { QStringLiteral("lengthMm"), 940.0 },
+                                                       { QStringLiteral("name"), QStringLiteral("7 IRON") } } } };
+            check(SwingDocWriter::writeSwingJson(d5, m5, &an, &werr, reviewClub), "write a 7-iron swing");
+        };
+        auto clubs = [&]() {
+            const QJsonObject r = SwingStore::load(d5);
+            return std::make_pair(r[QStringLiteral("capture")].toObject()[QStringLiteral("club")].toObject(),
+                                  r[QStringLiteral("review")].toObject()[QStringLiteral("club")].toString());
+        };
+        pinpoint::lm::LaunchMonitorReading pr5 = ballOnly;
+        bool replaced = false;
+
+        fresh(QStringLiteral("7 IRON"));            // seeded by the live save
+        check(SwingDocWriter::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "reading with Premier's club");
+        check(replaced, "a seeded club is replaced");
+        auto [cap5, rev5] = clubs();
+        check(cap5[QStringLiteral("name")].toString() == QStringLiteral("4 HYBRID")
+                  && cap5[QStringLiteral("lengthMm")].toDouble() == 1003.0,
+              "…capture.club is the 4 hybrid's, geometry and all");
+        check(rev5 == QStringLiteral("4 HYBRID"), "…and the seeded review.club moves with it");
+        check(SwingStore::load(d5).contains(QStringLiteral("launchMonitor")), "…in the same write as the reading");
+
+        check(SwingDocWriter::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "the same club again");
+        check(!replaced, "…changes nothing the second time");
+
+        fresh(QStringLiteral("4 HYBRID"));          // seeded AFTER the club changed: analysis had the old one
+        check(SwingDocWriter::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "review already right");
+        check(replaced && clubs().first[QStringLiteral("name")].toString() == QStringLiteral("4 HYBRID"),
+              "…capture.club still moves, so re-analysis uses the right club");
+
+        fresh(QStringLiteral("DRIVER"));            // the user's own pick
+        check(SwingDocWriter::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "hand-set club");
+        auto [cap6, rev6] = clubs();
+        check(!replaced && rev6 == QStringLiteral("DRIVER")
+                  && cap6[QStringLiteral("name")].toString() == QStringLiteral("7 IRON"),
+              "…a club the user set is never changed");
+
+        fresh(QStringLiteral("7 IRON"));
+        check(SwingDocWriter::updateLaunchMonitor(d5, pr5, &lerr, QJsonObject(), &replaced), "no club to follow");
+        check(!replaced && clubs().first[QStringLiteral("name")].toString() == QStringLiteral("7 IRON"),
+              "…leaves the club alone");
+        QDir(d5).removeRecursively();
     }
 
     std::printf("\n=== launch monitor: a shot only the device saw ===\n");

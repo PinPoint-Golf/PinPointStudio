@@ -8,6 +8,7 @@
 // (pull, fade, draw, toe, heel) were hit on purpose and read off Premier's own screen; each is
 // asserted here against what PinPoint's convention says it must be.
 
+#include "premier_club.h"
 #include "premier_session_parser.h"
 
 #include <gtest/gtest.h>
@@ -296,4 +297,31 @@ TEST(PremierParser, AnImpossibleValueIsDroppedAsOutOfRange)
     ASSERT_TRUE(d->raw);
     EXPECT_DOUBLE_EQ(*d->raw, 400.0);
     EXPECT_FALSE(f2->shots[0].reading.dynamicLoft);
+}
+
+// ── Premier's club → PinPoint's (launchmonitor/premierFollowClub) ─────────────────────────────
+// Every code seen in the 2 Nov capture, the driver and putter spellings Foresight uses elsewhere,
+// and the clubs PinPoint has no name for, which must come back empty rather than as a guess.
+TEST(PremierClub, MapsEveryCodeSeenToTheVocabulary)
+{
+    using pinpoint::lm::premierClubToVocabulary;
+    EXPECT_EQ(premierClubToVocabulary(QStringLiteral("4h")), QStringLiteral("4 HYBRID"));
+    EXPECT_EQ(premierClubToVocabulary(QStringLiteral("9i")), QStringLiteral("9 IRON"));
+    EXPECT_EQ(premierClubToVocabulary(QStringLiteral("4i")), QStringLiteral("4 IRON"));
+    EXPECT_EQ(premierClubToVocabulary(QStringLiteral("5w")), QStringLiteral("5 WOOD"));
+    EXPECT_EQ(premierClubToVocabulary(QStringLiteral("Gw")), QStringLiteral("GAP WEDGE"));
+    EXPECT_EQ(premierClubToVocabulary(QStringLiteral("Pw")), QStringLiteral("PITCHING WEDGE"));
+    EXPECT_EQ(premierClubToVocabulary(QStringLiteral("Sw")), QStringLiteral("SAND WEDGE"));
+    EXPECT_EQ(premierClubToVocabulary(QStringLiteral("Lw")), QStringLiteral("LOB WEDGE"));
+    EXPECT_EQ(premierClubToVocabulary(QStringLiteral("1w")), QStringLiteral("DRIVER"));
+    EXPECT_EQ(premierClubToVocabulary(QStringLiteral("Dr")), QStringLiteral("DRIVER"));
+    EXPECT_EQ(premierClubToVocabulary(QStringLiteral("Pt")), QStringLiteral("PUTTER"));
+    EXPECT_EQ(premierClubToVocabulary(QStringLiteral(" 3W ")), QStringLiteral("3 WOOD"));
+}
+
+TEST(PremierClub, AClubPinPointDoesNotNameIsLeftAlone)
+{
+    using pinpoint::lm::premierClubToVocabulary;
+    for (const char *code : { "7w", "2i", "2h", "60", "Irn", "Wdg", "Fw", "", "w", "10i" })
+        EXPECT_TRUE(premierClubToVocabulary(QString::fromLatin1(code)).isEmpty()) << code;
 }

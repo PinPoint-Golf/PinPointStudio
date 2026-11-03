@@ -348,6 +348,28 @@ SettingsPanelBase {
         }
     }
 
+    // Premier's club becomes the session's club. Premier only: FSX2020 names just a family
+    // ("Irn") and is usually left unchanged, so following it would make the club worse.
+    SettingsRow {
+        objectName: "setting_lmFollowClub"
+        visible: root.isPremier
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.gap(16)
+            SettingsRowTitle {
+                title:    qsTr("Use the club selected in Premier")
+                subtitle: qsTr("Each shot sets the session's club to the one chosen in Foresight Premier, so you change club in one place. A club PinPoint has no name for (a 7 wood, say) leaves the session's club as it is, and a club you set on a shot yourself is never changed.")
+            }
+            PpSwitch {
+                checked:   appSettings.launchMonitorFollowClub
+                enabled:   root.configured
+                opacity:   root.configured ? 1.0 : 0.4
+                onToggled: (v) => appSettings.launchMonitorFollowClub = v
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+    }
+
     // Poll interval
     SettingsRow {
         objectName: "setting_lmPoll"

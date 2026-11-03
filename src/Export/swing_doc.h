@@ -191,9 +191,19 @@ public:
     // existing `lm.` metric entries rather than appending duplicates. Refreshes the
     // summary sidecar for the same reason updateReview does — this rewrite moves
     // swing.json's size and mtime, which invalidates both sidecar guards.
+    //
+    // `captureClub`, when not empty, REPLACES capture.club in the same write: the club the
+    // swing was recorded under, with its geometry (lengthMm, bandCentersMm, …, name). Used only
+    // when the launch monitor names the club and the user asked PinPoint to follow it
+    // (launchmonitor/premierFollowClub). Replaced only when its name differs from the recorded
+    // one, and never over a hand-set review.club: one naming neither the recorded club nor the
+    // device's (the live save seeds review.club with the session's club, so a seeded one moves
+    // with capture.club). *clubReplaced says whether it was, so the caller can re-analyse.
     static bool updateLaunchMonitor(const QString &swingDir,
                                     const lm::LaunchMonitorReading &reading,
-                                    QString *error = nullptr);
+                                    QString *error = nullptr,
+                                    const QJsonObject &captureClub = {},
+                                    bool *clubReplaced = nullptr);
 
     // ── CORE §8.5 — where a stream's bytes came from, when they came off a wire ──
     //

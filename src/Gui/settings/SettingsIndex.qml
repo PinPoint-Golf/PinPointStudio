@@ -422,6 +422,11 @@ QtObject {
           actions: "launch monitor standalone device only no camera solo shots without cameras record alone",
           itemId: "setting_lmStandalone" },
 
+        { panelIndex: 7,  panelLabel: qsTr("Launch Monitor"), groupLabel: qsTr("Behaviour"),
+          label: qsTr("Use the club selected in Premier"), subtitle: qsTr("Each Foresight Premier shot sets the session's club to the club chosen in Premier"),
+          actions: "launch monitor premier foresight club follow device club selection active club override automatic",
+          itemId: "setting_lmFollowClub" },
+
         { panelIndex: 9,  panelLabel: qsTr("Archiving"), groupLabel: qsTr("Space"),
           label: qsTr("Capture time left"),                subtitle: qsTr("Free space as hours of capture at the swing size this library records"),
           actions: "space disk free hours minutes capture left remaining full storage",
