@@ -12,7 +12,7 @@ A second look on 2026-10-31 followed a 26-shot training drill (ladder, wedge) on
 Premier 1.2.1 sends live shots to `SessionLiveSnapshot.<userId>.json`, and the upload queue only sees
 a session once it has ended. §4 reads the snapshot; §4.6 records where the build sharpened §4.
 **Written**: 2026-10-23. **Updated**: 2026-11-01 (§2.5, queue drain corrected in §2.1);
-2026-11-02 (§2.6 live session, §4 revised, §7 answered; built, §4.6; cabin run, §4.7)
+2026-11-02 (§2.6 live session, §4 revised, §7 answered; built, §4.6; cabin run, §4.7; club, §4.8)
 
 ---
 
@@ -543,6 +543,32 @@ Not measured from the swings: the `contact Δ` spread that sizes the pairing win
 is in the app log only, and the `clock.wallclock + capture.impactUs` check against Premier's contact
 (§7 Q11) needs a capture with cameras. No club data was seen on the wrong shot (§7 Q12), but no dropped shot is known
 in this run either.
+
+### 4.8 Following Premier's club (2026-11-02)
+
+An option in Settings → Launch Monitor, shown for Premier only and off by default: "Use the club
+selected in Premier" (`launchmonitor/premierFollowClub`). The aim is one place to change club.
+
+- **Premier's club is specific; FSX2020's is not.** Premier writes the club chosen in Premier on every
+  shot (`ClubName`: `4h`, `9i`, `4i`, `5w`, `Gw` seen). FSX2020's CSV names only a family (`1w`, `Fw`,
+  `Irn`, `Wdg`), and across the library it disagreed with the club actually hit on most shots, so
+  FSX2020 is never followed.
+- **Mapping** (`premier_club.h`): number + `w`/`h`/`i` → "N WOOD/HYBRID/IRON"; `Pw`/`Gw`/`Sw`/`Lw`
+  → the wedges; `1w`/`Dr` → DRIVER; `Pt` → PUTTER. Premier's driver and putter codes are not yet
+  seen. A club outside PinPoint's vocabulary (7 wood, 2 iron) leaves the club alone, logged once.
+- **When:** each Premier reading, during a running session, sets the session's active club before
+  the reading is attributed. It normally arrives (~0.7 s after contact) before the shot's analysis
+  starts (~1.25 s after detection), so the swing is analysed with it; a device-only shot is written
+  with it.
+- **When the analysis won the race:** the claimed reading's write also replaces `capture.club` (with
+  the bag's geometry for the new club) and the seeded `review.club`, and the swing is queued for
+  re-analysis. A `review.club` naming neither club is the user's own pick and nothing changes.
+  Re-analysis keeps the live shaft track by design (`swing_reanalyzer.cpp`); everything downstream
+  is recomputed under the new club.
+
+Verified on the desk: mapping and document tests, the panel render, and the controller in the
+running app against a copy of a real camera swing (session on 7 IRON, Premier's `Gw` arrives: the
+session's club became GAP WEDGE, the swing was rewritten as GAP WEDGE and re-analysed).
 
 ## 5. Implementation phases
 
