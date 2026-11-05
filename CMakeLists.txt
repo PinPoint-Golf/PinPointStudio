@@ -938,8 +938,6 @@ target_sources(PinPointStudio PRIVATE
     src/Core/pp_debug.h
     src/Core/pp_debug.cpp
     src/Core/pp_log_stream.cpp
-    src/Core/pp_colorspace_pin.h
-    src/Core/pp_colorspace_pin.cpp
     src/Core/app_info.h
     src/Core/app_info.cpp
     src/Core/pp_settings.h
@@ -3016,7 +3014,6 @@ if(APPLE)
         "-framework CoreVideo"
         "-framework Accelerate"
         "-framework Speech"
-        "-framework CoreGraphics"  # pp_colorspace_pin.cpp — CGColorSpace lifetime
         "-framework Metal"        # pp_gpu_metrics_mac.mm — MTLDevice memory query
         "-framework Foundation"
         "-framework AppKit"       # report_mailer_mac.mm — NSSharingService (compose email)

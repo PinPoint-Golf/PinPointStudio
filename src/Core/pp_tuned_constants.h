@@ -694,10 +694,9 @@ inline constexpr int    kInnovRun = 3;
 // reader as it was. The live ring path (BayerRG8) never reads these.
 //
 // ⚠ WHAT "AS IT WAS" IS DEPENDS ON THE HOST. OpenCV opens with its priority list: on
-// macOS (Homebrew OpenCV, FFmpeg built in) that is FFmpeg in software, 0.11–0.16 ms a
-// frame; on the studio, whose build dir has no opencv_videoio_ffmpeg4130_64.dll (the
-// root CMakeLists bundles only opencv_world), it is Media Foundation on D3D11 at
-// 1.0–1.3 ms a frame. No two of the decoders give the same pixels (frame 300 of
+// macOS and Linux (FFmpeg linked in) that is FFmpeg in software, 0.11–0.16 ms a frame on
+// macOS; on a Windows install, which ships no opencv_videoio_ffmpeg plugin, it is Media
+// Foundation on D3D11 at 1.0–1.3 ms a frame. No two of the decoders give the same pixels (frame 300 of
 // swing_0013: 0.2–2 grey levels mean, up to 47 at edges), and the analysis is not
 // indifferent: the same swing through FFmpeg software on the studio moved the face-on
 // shaft coverage 0.974 → 0.807 and the DTL schedule 441 → 492 frames. So
