@@ -8,45 +8,71 @@
 # at launch. That happened on 3 Nov 2026, when OpenEXR moved on and opencv@4 did not.
 # It also ships OpenBLAS and a second libomp, neither of which the app needs.
 #
+# On Linux the distribution's package is the problem instead: every release is whatever
+# version that machine happens to ship, with OpenBLAS and TBB behind it.
+#
 # What is built: only the four modules the code includes, as static libraries, with only
 # PNG and JPEG for image files. PinPoint needs no LAPACK, TBB, OpenCL, OpenEXR, TIFF or WebP.
 #
-# ⚠ FFmpeg is required, and its absence must be an error, not a smaller build. Without it
-# videoio still builds, cv::CAP_FFMPEG then fails at run time, and re-analysing a swing
-# from its MP4 stops working with nothing at build time to say so.
+# ⚠ FFmpeg, PNG and JPEG are required, and their absence must be an error, not a smaller
+# build. OpenCV configures happily without any of them. cv::CAP_FFMPEG or cv::imwrite then
+# fail at run time, and re-analysing a swing from its MP4 stops working with nothing at
+# build time to say so.
 #
-# macOS only for now. Elsewhere this does nothing and the platform's existing OpenCV is
-# used. -DPP_OPENCV_NO_PIN=ON opts out and honours -DOpenCV_DIR=.
+# ⚠ Linux links the system's libjpeg, libpng and zlib, and must not use OpenCV's bundled
+# copies. On ELF, symbols in a static library inside the executable can interpose the same
+# names in shared libraries that are loaded alongside it, and OpenCV's JPEG is built with
+# a different ABI from the system's. macOS's two-level namespace cannot do that.
+#
+# Windows does nothing here yet, and uses its installed OpenCV. -DPP_OPENCV_NO_PIN=ON opts
+# out on every platform and honours -DOpenCV_DIR=.
 include_guard(GLOBAL)
 
 option(PP_OPENCV_NO_PIN "Do not build the pinned OpenCV; honour OpenCV_DIR instead" OFF)
-if(NOT APPLE OR PP_OPENCV_NO_PIN)
+if(WIN32 OR PP_OPENCV_NO_PIN)
     return()
 endif()
 
 set(_pp_ocv_version 4.14.0)
 set(_pp_ocv_sha256  ee8fb9b30eb60850431b4656447080e3737b56e45719c92b67f245950609f86e)
-set(PP_OPENCV_JOBS 6 CACHE STRING "Parallel jobs for the one-off OpenCV build")
+set(PP_OPENCV_JOBS 4 CACHE STRING "Parallel jobs for the one-off OpenCV build")
 
 get_filename_component(_pp_ocv_repo "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(PP_OPENCV_ROOT "${_pp_ocv_repo}/build/_opencv" CACHE PATH
     "Where the pinned OpenCV is built; shared by every build tree")
 
-# FFmpeg comes from Homebrew and is linked by the app as well. OpenCV records FFmpeg's
-# versioned Cellar folder in its CMake config, so that folder name is part of the key
-# below: a Homebrew rebuild can change it without changing FFmpeg's own version.
-find_program(_pp_ocv_brew brew HINTS /opt/homebrew/bin /usr/local/bin)
+# FFmpeg is the platform's own, and the app links it as well. Its version is part of the
+# key below, because OpenCV is compiled against it.
 find_program(_pp_ocv_pkgconfig NAMES pkg-config pkgconf HINTS /opt/homebrew/bin /usr/local/bin)
-set(_pp_ocv_ffmpeg "")
-if(_pp_ocv_brew)
-    execute_process(COMMAND "${_pp_ocv_brew}" --prefix ffmpeg
-        OUTPUT_VARIABLE _pp_ocv_ffmpeg OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+set(_pp_ocv_pc_path "$ENV{PKG_CONFIG_PATH}")
+if(APPLE)
+    # OpenCV records FFmpeg's versioned Cellar folder in its CMake config, so the key uses
+    # that folder name: a Homebrew rebuild can change it without changing FFmpeg's version.
+    find_program(_pp_ocv_brew brew HINTS /opt/homebrew/bin /usr/local/bin)
+    set(_pp_ocv_ffmpeg "")
+    if(_pp_ocv_brew)
+        execute_process(COMMAND "${_pp_ocv_brew}" --prefix ffmpeg
+            OUTPUT_VARIABLE _pp_ocv_ffmpeg OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    endif()
+    if(NOT EXISTS "${_pp_ocv_ffmpeg}/lib/pkgconfig/libavcodec.pc" OR NOT _pp_ocv_pkgconfig)
+        message(FATAL_ERROR "OpenCV: needs FFmpeg and pkg-config. Run: brew install ffmpeg pkgconf")
+    endif()
+    get_filename_component(_pp_ocv_ffmpeg_real "${_pp_ocv_ffmpeg}" REALPATH)
+    get_filename_component(_pp_ocv_ffmpeg_ver "${_pp_ocv_ffmpeg_real}" NAME)
+    set(_pp_ocv_pc_path "${_pp_ocv_ffmpeg}/lib/pkgconfig:${_pp_ocv_pc_path}")
+    set(_pp_ocv_bundle_image_libs ON)
+else()
+    set(_pp_ocv_ffmpeg_ver "")
+    if(_pp_ocv_pkgconfig)
+        execute_process(COMMAND "${_pp_ocv_pkgconfig}" --modversion libavcodec
+            OUTPUT_VARIABLE _pp_ocv_ffmpeg_ver OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    endif()
+    if(NOT _pp_ocv_ffmpeg_ver)
+        message(FATAL_ERROR "OpenCV: needs FFmpeg and pkg-config. Run: sudo apt install "
+            "pkg-config libavcodec-dev libavformat-dev libavutil-dev libswscale-dev")
+    endif()
+    set(_pp_ocv_bundle_image_libs OFF)
 endif()
-if(NOT EXISTS "${_pp_ocv_ffmpeg}/lib/pkgconfig/libavcodec.pc" OR NOT _pp_ocv_pkgconfig)
-    message(FATAL_ERROR "OpenCV: needs FFmpeg and pkg-config. Run: brew install ffmpeg pkgconf")
-endif()
-get_filename_component(_pp_ocv_ffmpeg_real "${_pp_ocv_ffmpeg}" REALPATH)
-get_filename_component(_pp_ocv_ffmpeg_ver "${_pp_ocv_ffmpeg_real}" NAME)
 
 if(CMAKE_OSX_ARCHITECTURES)
     set(_pp_ocv_arch "${CMAKE_OSX_ARCHITECTURES}")
@@ -60,7 +86,7 @@ else()
 endif()
 
 # Bump _pp_ocv_recipe when the options below change, so existing builds are replaced.
-set(_pp_ocv_recipe 1)
+set(_pp_ocv_recipe 2)
 set(_pp_ocv_key "${_pp_ocv_version}-r${_pp_ocv_recipe}-${_pp_ocv_arch}-${_pp_ocv_min}-ffmpeg${_pp_ocv_ffmpeg_ver}")
 set(_pp_ocv_dir     "${PP_OPENCV_ROOT}/${_pp_ocv_key}")
 set(_pp_ocv_install "${_pp_ocv_dir}/install")
@@ -95,17 +121,19 @@ if(NOT EXISTS "${_pp_ocv_stamp}")
         "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
         "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
         -DBUILD_LIST=core,imgproc,imgcodecs,videoio
-        -DBUILD_SHARED_LIBS=OFF
+        -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_DOCS=OFF
         -DBUILD_opencv_apps=OFF -DBUILD_JAVA=OFF -DBUILD_opencv_python3=OFF
         -DOPENCV_GENERATE_PKGCONFIG=OFF -DENABLE_PRECOMPILED_HEADERS=OFF
-        # Image files: PNG and JPEG, from OpenCV's own bundled copies.
-        -DBUILD_ZLIB=ON -DBUILD_PNG=ON -DBUILD_JPEG=ON
+        # Image files: PNG and JPEG. See the ELF warning at the top of this file.
+        -DBUILD_ZLIB=${_pp_ocv_bundle_image_libs}
+        -DBUILD_PNG=${_pp_ocv_bundle_image_libs}
+        -DBUILD_JPEG=${_pp_ocv_bundle_image_libs}
         -DWITH_TIFF=OFF -DWITH_WEBP=OFF -DWITH_OPENEXR=OFF -DWITH_OPENJPEG=OFF -DWITH_JASPER=OFF
         -DWITH_AVIF=OFF -DWITH_JPEGXL=OFF -DWITH_SPNG=OFF -DWITH_GDAL=OFF -DWITH_GDCM=OFF
         -DWITH_IMGCODEC_HDR=OFF -DWITH_IMGCODEC_SUNRASTER=OFF
         -DWITH_IMGCODEC_PXM=OFF -DWITH_IMGCODEC_PFM=OFF
-        # Maths and threads: OpenCV's own code, and Grand Central Dispatch on macOS.
+        # Maths and threads: OpenCV's own code, with GCD on macOS and pthreads on Linux.
         -DWITH_LAPACK=OFF -DWITH_EIGEN=OFF -DWITH_OPENCL=OFF -DWITH_TBB=OFF -DWITH_IPP=OFF
         -DWITH_ITT=OFF -DWITH_PROTOBUF=OFF -DWITH_ADE=OFF -DWITH_QUIRC=OFF -DWITH_OBSENSOR=OFF
         # Video: FFmpeg linked in, nothing else, no run-time plugins.
@@ -125,7 +153,7 @@ if(NOT EXISTS "${_pp_ocv_stamp}")
         list(APPEND _pp_ocv_args "-DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}")
     endif()
 
-    set(_pp_ocv_env "PKG_CONFIG_PATH=${_pp_ocv_ffmpeg}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+    set(_pp_ocv_env "PKG_CONFIG_PATH=${_pp_ocv_pc_path}")
     execute_process(
         COMMAND "${CMAKE_COMMAND}" -E env "${_pp_ocv_env}"
                 "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}"
@@ -137,10 +165,13 @@ if(NOT EXISTS "${_pp_ocv_stamp}")
         message(FATAL_ERROR "OpenCV: configure failed, see ${_pp_ocv_dir}/configure.log")
     endif()
 
-    # See the FFmpeg warning at the top of this file.
+    # See the warning at the top of this file about what OpenCV silently leaves out.
     file(STRINGS "${_pp_ocv_dir}/configure.log" _pp_ocv_ff REGEX "FFMPEG: +YES")
-    if(NOT _pp_ocv_ff)
-        message(FATAL_ERROR "OpenCV: FFmpeg was not picked up, see ${_pp_ocv_dir}/configure.log")
+    file(STRINGS "${_pp_ocv_dir}/configure.log" _pp_ocv_img REGEX "^--     (PNG|JPEG): +[^N ]")
+    list(LENGTH _pp_ocv_img _pp_ocv_img_n)
+    if(NOT _pp_ocv_ff OR NOT _pp_ocv_img_n EQUAL 2)
+        message(FATAL_ERROR "OpenCV: FFmpeg, PNG or JPEG was not picked up, see "
+            "${_pp_ocv_dir}/configure.log. On Linux: sudo apt install libpng-dev libjpeg-dev")
     endif()
 
     execute_process(

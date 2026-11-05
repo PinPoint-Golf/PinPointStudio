@@ -36,8 +36,8 @@ updater won't offer it.
 **A release MUST NOT be cut while any test is failing or not building.** PinPoint's unit
 tests are *not* part of the app build — they are nine standalone CTest suites that the
 `tests/` umbrella configures, builds and runs as a single registry (see
-[`../../BUILDING.md`](../../BUILDING.md) § Testing). OpenCV is found from the system, so
-no `OpenCV_DIR` is needed:
+[`../../BUILDING.md`](../../BUILDING.md) § Testing). No `OpenCV_DIR` is needed: the first
+configure builds the pinned OpenCV from source (`cmake/PinPointOpenCV.cmake`):
 ```bash
 QT=~/Qt/6.11.3/gcc_64
 rm -rf build/tests \

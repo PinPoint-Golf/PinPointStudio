@@ -9,7 +9,7 @@ This document outlines the dependencies and steps required to build PinPoint Stu
 - **C++ Compiler**: C++20 capable (`CMAKE_CXX_STANDARD 20`, required) — GCC 10+, Clang 12+, or MSVC 2022.
 - **OpenCV**: 3.0 or newer, but not 5.x, which configure rejects (required on all platforms — pose preprocessing, swing export demosaic).
 - **OpenSSL** 1.1.1+ and **libppcp** (optional, but both or neither): the PPCP capture-device link — TLS 1.3 with an external pre-shared key — that lets a phone running PinPoint Capture join a session as a camera. Missing either one, the build warns and produces an app with no phone support; it never falls back to an unencrypted link. Two further pieces are per-platform *capabilities* on top: a DNS-SD provider for reconnection discovery, and a usbmux provider for the wired (USB) link. Per-platform instructions below.
-- **FFmpeg** (optional): libavcodec/libavformat/libavutil/libswscale dev libraries with **libx264**, located via `pkg-config`. Powers the swing-export H.264/MP4 encoder. Without it the app still builds and runs, but swing video export is disabled. GPL FFmpeg builds are fine — the project is GPLv2+.
+- **FFmpeg**: libavcodec/libavformat/libavutil/libswscale dev libraries with **libx264**, located via `pkg-config`. Powers the swing-export H.264/MP4 encoder. On Windows it is optional: without it the app still builds and runs, but swing video export is disabled. On macOS and Linux it is required, because the pinned OpenCV reads MP4s through it. GPL FFmpeg builds are fine — the project is GPLv2+.
 
 ---
 
@@ -38,10 +38,10 @@ sudo apt install libglib2.0-dev libaravis-dev
 # Camera device identifier lookup (USB serial numbers for V4L2 cameras)
 sudo apt install libudev-dev
 
-# Pose estimation and video pre-processing
-sudo apt install libopencv-dev
+# Image files for OpenCV, which the first configure builds from source
+sudo apt install libjpeg-dev libpng-dev zlib1g-dev
 
-# Swing video export (H.264 via libx264) — optional but recommended
+# Video reading through OpenCV, and swing export (H.264 via libx264)
 sudo apt install libavcodec-dev libavformat-dev libavutil-dev libswscale-dev
 
 # Optional: espeak-ng (built from source if absent)
@@ -604,7 +604,7 @@ The following are fetched at `cmake ..` time — no manual steps required:
 | whisper.cpp v1.7.2 | Built from source | — | Always |
 | espeak-ng 1.52.0 | Built from source | — | Only if not found on system |
 | libsamplerate 0.2.2 | Built from source | — | Always |
-| OpenCV 4.14.0 | Built from source, once, into `build/_opencv/` (core, imgproc, imgcodecs, videoio) | ~30 MB | macOS only; Linux and Windows use an installed OpenCV |
+| OpenCV 4.14.0 | Built from source, once, into `build/_opencv/` (core, imgproc, imgcodecs, videoio) | ~30 MB | macOS and Linux; Windows uses an installed OpenCV |
 | Eigen 3.4.0 | Header-only (IMU EKF) | ~few MB | Always |
 | libwrist (`main`) | Built from source (HackMotion wG3 wrist sensor) | ~2 MB | Always — unless a sibling `../libwrist` checkout is found, see below |
 | libgspro (`main`) | Built from source (GSPro Open Connect launch monitor server) | ~1 MB | Always — unless a sibling `../libgspro` checkout is found, see below |
@@ -754,7 +754,7 @@ ORT on Linux with Intel integrated graphics runs on CPU — see the note above o
 | `-DPINPOINT_DEBUG_LEVEL=<n>` | 1 | Log verbosity (2 = startup info + warnings/errors) |
 | `-DASSEMBLYAI_API_KEY=<key>` | — | Seed AssemblyAI API key into settings at build time |
 | `-DOpenCV_DIR=<path>` | — | Path to OpenCV CMake config (Windows, non-standard location) |
-| `-DPP_OPENCV_NO_PIN=ON` | OFF | macOS: skip the pinned OpenCV build and use `OpenCV_DIR` instead |
+| `-DPP_OPENCV_NO_PIN=ON` | OFF | Skip the pinned OpenCV build and use `OpenCV_DIR` instead |
 | `-DFFMPEG_DIR=<path>` | — | FFmpeg root for swing export (Windows, non-standard location; must contain `lib/pkgconfig`) |
 
 ---

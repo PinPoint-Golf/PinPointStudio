@@ -180,7 +180,7 @@ if have appimageupdatetool; then cp -Lv "$(command -v appimageupdatetool)" "$APP
 # bundled yt-dlp (Film tab) — see tools/ / cache; copy if present.
 [[ -x "$REPO_ROOT/tools/yt-dlp" ]] && cp -v "$REPO_ROOT/tools/yt-dlp" "$APPDIR/usr/bin/"
 
-log "bundling ONNX Runtime / FFmpeg(x264) / OpenCV / Aravis / espeak-ng"
+log "bundling ONNX Runtime / FFmpeg(x264) / Aravis / espeak-ng"
 # ORT (CMake fetched it under the build tree's _deps). TODO: confirm exact path.
 copy_lib "$BUILD_DIR"/_deps/onnxruntime*/lib/libonnxruntime*.so*
 # FFmpeg — MUST be the GPL build WITH libx264 (same trap as the windeployqt x264
@@ -191,8 +191,8 @@ copy_lib /usr/lib/x86_64-linux-gnu/libavcodec.so* \
          /usr/lib/x86_64-linux-gnu/libavutil.so* \
          /usr/lib/x86_64-linux-gnu/libswscale.so* \
          /usr/lib/x86_64-linux-gnu/libswresample.so*
-# OpenCV, Aravis, espeak-ng — usually linuxdeploy finds these from the binary's
-# NEEDED entries; copy_lib here is a backstop, harmless if duplicated.
+# Aravis, espeak-ng — usually linuxdeploy finds these from the binary's NEEDED
+# entries; copy_lib here is a backstop, harmless if duplicated. OpenCV is static.
 
 log "bundling GPU runtime (CUDA 12 + cuDNN 9) — required for GPU ORT"
 [[ -n "${CUDA_LIB_DIR:-}"  ]] && copy_lib "$CUDA_LIB_DIR"/libcudart.so* "$CUDA_LIB_DIR"/libcublas*.so* "$CUDA_LIB_DIR"/libcufft.so* || log "WARN: CUDA_LIB_DIR unset — GPU ORT will fall back to CPU on hosts without CUDA"
