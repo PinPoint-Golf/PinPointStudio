@@ -68,7 +68,7 @@ if [[ -z "${CMAKE_PREFIX:-}" ]]; then
         [[ -x "$_qt/bin/macdeployqt" ]] && CMAKE_PREFIX="$_qt"
     done
 fi
-CMAKE_PREFIX="${CMAKE_PREFIX:-$HOME/Qt/6.11.1/macos}"
+CMAKE_PREFIX="${CMAKE_PREFIX:-$HOME/Qt/6.11.3/macos}"
 JOBS="${JOBS:-6}"
 DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-13.0}"   # our own code's floor (macOS 13 Ventura)
 GH_OWNER="PinPoint-Golf"

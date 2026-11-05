@@ -5,9 +5,9 @@ This document outlines the dependencies and steps required to build PinPoint Stu
 ## General Requirements
 
 - **CMake**: 3.16 or higher (3.24+ recommended — `DOWNLOAD_EXTRACT_TIMESTAMP` support).
-- **Qt 6.11**: Quick, QuickControls2, Quick3D, SerialPort, Bluetooth, Multimedia, Network, WebSockets, Concurrent, ShaderTools, GuiPrivate, CorePrivate (the Private modules back the RHI Bayer-demosaic video item).
+- **Qt 6.11** (6.11.2 or newer on macOS; the release builds use 6.11.3): Quick, QuickControls2, Quick3D, SerialPort, Bluetooth, Multimedia, Network, WebSockets, Concurrent, ShaderTools, GuiPrivate, CorePrivate (the Private modules back the RHI Bayer-demosaic video item).
 - **C++ Compiler**: C++20 capable (`CMAKE_CXX_STANDARD 20`, required) — GCC 10+, Clang 12+, or MSVC 2022.
-- **OpenCV**: 3.0+ (required on all platforms — pose preprocessing, swing export demosaic).
+- **OpenCV**: 3.0 or newer, but not 5.x, which configure rejects (required on all platforms — pose preprocessing, swing export demosaic).
 - **OpenSSL** 1.1.1+ and **libppcp** (optional, but both or neither): the PPCP capture-device link — TLS 1.3 with an external pre-shared key — that lets a phone running PinPoint Capture join a session as a camera. Missing either one, the build warns and produces an app with no phone support; it never falls back to an unencrypted link. Two further pieces are per-platform *capabilities* on top: a DNS-SD provider for reconnection discovery, and a usbmux provider for the wired (USB) link. Per-platform instructions below.
 - **FFmpeg** (optional): libavcodec/libavformat/libavutil/libswscale dev libraries with **libx264**, located via `pkg-config`. Powers the swing-export H.264/MP4 encoder. Without it the app still builds and runs, but swing video export is disabled. GPL FFmpeg builds are fine — the project is GPLv2+.
 
@@ -114,9 +114,14 @@ builds and runs identically, minus one feature each, and CMake says so with a
 Dependencies are best managed via [Homebrew](https://brew.sh/).
 
 ### 1. Install Dependencies
+Install Xcode first; the dev Mac and the release runners both build with it. Then:
 ```bash
-brew install cmake espeak-ng aravis opencv@4 ffmpeg openssl@3
+brew install pkgconf espeak-ng aravis opencv@4 ffmpeg openssl@3
 ```
+`cmake` and `ninja` are also needed. Take them from the Qt installer (step 2), or add them to the line above.
+
+`pkgconf` provides `pkg-config`, which CMake needs to find FFmpeg. `glib` and `gettext` come in with `aravis`.
+
 `opencv@4`, not `opencv`: the plain formula is 5.x now, which does not build here (see the macOS packaging section).
 `openssl@3` is the PPCP capture-device link (`src/Ppcp`, TLS with a pre-shared
 key). It is keg-only, so CMake probes `brew --prefix openssl@3` directly rather
@@ -137,12 +142,24 @@ still need **libppcp** beside this repository — see
 > fix are in
 > [Phone capture troubleshooting](docs/user/phone_capture.md#troubleshooting--a-wired-link-that-keeps-dropping-macos).
 
-### 2. Install Qt 6.11
-Use the [Qt Online Installer](https://www.qt.io/download-qt-installer) or:
+### 2. Install Qt 6.11.2 or newer
+Use the [Qt Online Installer](https://www.qt.io/download-qt-installer), into the default `~/Qt`. Select:
+
+- **Qt 6.11.3 → macOS**
+- **Additional Libraries:** Qt Quick 3D, Qt Multimedia, Qt WebSockets, Qt Shader Tools, Qt Serial Port, Qt Connectivity
+- **Developer and Designer Tools:** CMake and Ninja, unless you installed them with Homebrew
+
+WebAssembly, Android and iOS are not needed.
+
+⚠ **Do not build against Homebrew's Qt.** It has no Quick 3D and no QtMultimedia backend. `opencv@4` installs it anyway as a dependency, so leave it installed; CMake keeps it off the link line (see the note on `OpenCV_DIR` in `CMakeLists.txt`).
+
+⚠ **Qt 6.11.1 and older crash on macOS 27.3.** Qt frees an image's colour space too early when it hands the image to CoreGraphics. Older macOS versions usually hid this; on the macOS 27.3 beta it crashes every time, typically when a cursor is drawn. Qt 6.11.2 fixed it.
+
+Qt Creator has the same bug if its own bundled Qt is older, and crashes when it opens this project. Updating the kit does not help, because Creator's bundled Qt is separate. To see which Qt it bundles:
 ```bash
-brew install qt@6
-export PATH="$(brew --prefix qt@6)/bin:$PATH"
+otool -L ~/Qt/Qt\ Creator.app/Contents/Frameworks/QtGui.framework/Versions/A/QtGui | sed -n 2p
 ```
+If that shows a `current version` below 6.11.2, update Qt Creator with the Qt Maintenance Tool.
 
 ### 3. GPU Acceleration
 
@@ -161,7 +178,7 @@ tools/setup_dev_signing.sh
 
 Run once per machine. Without it the dev bundle is left **unsigned** and the build prints a warning; everything still compiles and runs, but **camera / microphone / speech / Bluetooth permissions have to be granted again after every rebuild**. macOS keys those grants (TCC) to the binary's code signature, and an unsigned build has no durable identity to match — the app shows as "enabled" in System Settings while every entitled API returns Denied.
 
-The script creates a self-signed `PinPoint Dev` identity in a **dedicated keychain** (`~/Library/Keychains/pinpoint-dev.keychain-db`, password in `~/.config/pinpoint/dev-keychain.pass`, mode 0600) and `cmake/DevCodesign.cmake` signs the finished bundle with it at POST_BUILD.
+The script creates a self-signed `PinPoint Dev` identity in a **dedicated keychain** (`~/Library/Keychains/pinpoint-dev.keychain-db`, password in `~/.config/pinpoint/dev-keychain.pass`, mode 0600) and `cmake/DevCodesign.cmake` signs the finished bundle with it, through the `PinPointStudio_codesign` target. That target is part of a normal build, but building `--target PinPointStudio` alone skips it and leaves the bundle ad-hoc signed.
 
 The dedicated keychain is the point, not an implementation detail. The login keychain unlocks only by **prompting**, so any build not driven from a desktop session — an agent or CI job over SSH, which launchd reports as session `Background` rather than `Aqua` — cannot use it, and codesign fails `errSecInternalComponent` with no way to ask. A keychain whose password is on disk unlocks with no interaction, which is the same reason fastlane ships `create_keychain`/`setup_ci`.
 
@@ -171,6 +188,19 @@ The dedicated keychain is the point, not an implementation detail. The login key
 > ```
 
 Troubleshooting: `codesign` resolves `-s <name>` through the keychain **search list, in order** (its `--keychain` flag does *not* affect identity lookup — it reports `no identity found`), so `pinpoint-dev.keychain-db` must come first in `security list-keychains -d user`. A stale copy of the same identity in an earlier keychain shadows it and fails. This is entirely separate from the release path in `tools/package_macos.sh`, which signs with a Developer ID cert from the login keychain in a real desktop session.
+
+### 5. After a Homebrew Upgrade
+
+The app links Homebrew's libraries at run time, so a `brew` change can stop a build that was working, with no change to this repository.
+
+**`Library not loaded` at launch, before Qt starts.** Homebrew upgraded a library but not everything that uses it. The `dyld` message names the missing library.
+
+This happened on 3 Nov 2026: `openexr` went from 3.4 to 3.5 and `openjph` from 0.31 to 0.32, while the installed `opencv@4` 4.14.0 still wanted the 3.4 libraries. There are two ways out:
+
+- **Upgrade the formula that is out of date**, for example `brew upgrade opencv@4`. This is the proper fix, but it can bring dozens of other upgrades with it. Check first with `--dry-run`, then rebuild as described below.
+- **Link the old library back.** Old versions usually stay in `/opt/homebrew/Cellar` until `brew cleanup` removes them, so a symlink in the current version's `lib` folder restores the name. Link the old library's own dependencies too; the old OpenEXR needs `libopenjph.0.31.dylib`. Nothing changes version, but a later `brew` run can remove the links.
+
+**Rebuild after upgrading anything the app links.** Its run-time search path holds versioned folders for `espeak-ng`, `aravis` and `glib` (`/opt/homebrew/Cellar/aravis/0.8.36/lib`, for example), and a new version leaves those paths stale. Re-run CMake and rebuild.
 
 ---
 
@@ -281,6 +311,19 @@ is the usual one), suspect the prefix before the component. That message is what
 you get when CMake finds a *different* Qt — a Homebrew or distro one — rather
 than a Qt that is genuinely missing a module. The `-- PinPoint: using Qt prefix …`
 line at the top of the configure says which one was picked.
+
+**Moving an existing build tree to a new Qt.** That search only runs on a fresh
+configure; an existing tree keeps the Qt recorded in its `CMakeCache.txt`. Change
+the version there, then build as usual:
+
+```bash
+sed -i '' 's#/Qt/6.11.1/#/Qt/6.11.3/#g' <build-dir>/CMakeCache.txt    # GNU sed: -i without ''
+cmake -S . -B <build-dir>
+cmake --build <build-dir> -j 8
+```
+
+Deleting the tree also works, but downloads the models again (over 1 GB). In Qt
+Creator, the kit has to move as well; the build folder's name does not need to.
 
 On first configure, CMake downloads all required models and binaries (see table below). Subsequent configures reuse the cache in `build/_deps/` — only a full directory wipe triggers re-downloads.
 
