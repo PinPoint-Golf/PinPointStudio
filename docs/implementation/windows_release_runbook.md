@@ -106,10 +106,9 @@ shell with CMake + Ninja on `PATH`:
 # the failure reads like a broken suite rather than a wrong path. (Same rule as build_installer.ps1.)
 $Qt  = (Get-ChildItem C:\Qt -Directory | Where-Object { Test-Path "$($_.FullName)\msvc2022_64\bin\qmake.exe" } |
         Sort-Object Name -Descending | Select-Object -First 1).FullName + '\msvc2022_64'
-$OCV = 'C:/tools/opencv/build'                          # Analysis & Pose need OpenCV
-$env:PATH = "$Qt/bin;$OCV/x64/vc16/bin;$env:PATH"       # so test exes resolve Qt/OpenCV DLLs
+$env:PATH = "$Qt/bin;$env:PATH"                         # so test exes resolve Qt DLLs
 if (Test-Path build/tests) { Remove-Item -Recurse -Force build/tests }  # see the warning below
-cmake -S tests -B build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_PREFIX_PATH=$Qt" "-DOpenCV_DIR=$OCV" "-DOPENSSL_ROOT_DIR=C:/pp-vcpkg/vcpkg_installed/x64-windows"
+cmake -S tests -B build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_PREFIX_PATH=$Qt" "-DOPENSSL_ROOT_DIR=C:/pp-vcpkg/vcpkg_installed/x64-windows"
 if ($LASTEXITCODE) { Write-Error 'RELEASE BLOCKED — configure failed'; return }
 cmake --build build/tests -j 6
 if ($LASTEXITCODE) { Write-Error 'RELEASE BLOCKED — build failed'; return }
@@ -128,9 +127,6 @@ it and re-run before you tag.** Do not proceed to the build/sign steps below.
 > reported 134/134, and deleting it and reconfiguring **at the same commit** immediately
 > surfaced a failure. Nothing had changed but the staleness. Deleting costs one rebuild per
 > release; not deleting costs a green gate that means nothing.
->
-> On this platform it also settles the stale-`CMakeCache.txt` trap described below in one
-> step — a bad `OpenCV_DIR` is cached and re-used on every retry until the directory goes.
 
 > **Use the umbrella, never a per-suite loop.** `tests/CMakeLists.txt` enumerates the
 > suites, so one added later is picked up by this gate automatically. The hand-rolled loop
@@ -139,28 +135,6 @@ it and re-run before you tag.** Do not proceed to the build/sign steps below.
 > than no gate. It also pointed at `src/Buffer`, which stopped being the tests' location
 > when they moved to `src/Buffer/tests`; the umbrella builds the `pinpoint_buffer` library
 > first and then pulls those tests in, which the loop never did.
-
-> **If configure fails on OpenCV, suspect the path before you suspect the code.** Only the
-> Analysis and Pose suites need OpenCV, and there are two traps that compound:
->
-> - **The `-D` arguments must reach CMake expanded.** They have arrived as the literal
->   strings `$Qt` / `$OCV` — `find_package(OpenCV)` then looks up a nonsense path and
->   reports the generic "did not find OpenCVConfig.cmake", which reads exactly like a
->   missing OpenCV install. Confirm what CMake actually received:
->   ```powershell
->   Select-String 'OpenCV_DIR|CMAKE_PREFIX_PATH' build/tests/CMakeCache.txt
->   ```
->   Real paths, not `$OCV`. The `-D` arguments are quoted above (`"-DOpenCV_DIR=$OCV"`)
->   precisely so PowerShell expands them before CMake sees them — keep the quotes.
-> - **The failure is then CACHED.** A failed lookup writes `OpenCV_DIR-NOTFOUND` into
->   `build/tests/CMakeCache.txt`, so every retry fails identically *even after the
->   argument is fixed*. Delete `build/tests` and configure again, or you are debugging a
->   stale answer. (Under the umbrella this is one cache for all nine suites, so a bad path
->   now blocks the whole gate rather than one suite — and one deletion clears it.)
->
-> What must exist on disk is `C:\tools\opencv\build\OpenCVConfig.cmake`. If it is there
-> and the cache holds real paths, only then is the suite itself worth investigating.
-> (Both traps cost real time during the v0.1-alpha10 gate.)
 
 ### 3. Build the `-core` installer (the update payload)
 Either let CI do it, or build locally — pick one.

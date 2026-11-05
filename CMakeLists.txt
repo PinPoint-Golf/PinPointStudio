@@ -2638,7 +2638,7 @@ endif()
 # is not Homebrew's. Elsewhere it does nothing and the platform's OpenCV is found below.
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/PinPointOpenCV.cmake)
 
-# Windows: probe common install locations; user can override with -DOpenCV_DIR=
+# Windows with PP_OPENCV_NO_PIN: probe common install locations, or take -DOpenCV_DIR=
 if(WIN32 AND NOT OpenCV_DIR)
     file(GLOB _opencv_candidates LIST_DIRECTORIES true "C:/opencv/build" "C:/tools/opencv/build")
     if(_opencv_candidates)
@@ -2686,26 +2686,11 @@ target_compile_definitions(PinPointStudio PRIVATE HAVE_OPENCV)
 target_include_directories(PinPointStudio PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(PinPointStudio PRIVATE ${PP_OPENCV_LIBS})
 
-# Windows OpenCV runtime: previously resolved only from the dev PATH (e.g.
-# C:\tools\opencv\build\x64\vc16\bin) — nothing was copied or installed. Bundle
-# the world DLL (config-aware via the imported target). The app no longer uses
-# OpenCV's videoio, so its loose FFmpeg backend DLL is not bundled here (the
-# swinglab_run tool, which does use videoio, bundles it under its own target).
-if(WIN32)
-    set(_opencv_runtime_files "")
-    if(TARGET opencv_world)
-        list(APPEND _opencv_runtime_files "$<TARGET_FILE:opencv_world>")
-    else()
-        message(WARNING "OpenCV: 'opencv_world' target not found — modular OpenCV "
-            "build? The world DLL will not be bundled; installer may be incomplete.")
-    endif()
-    if(_opencv_runtime_files)
-        pp_win_bundle_dll(core ${_opencv_runtime_files})
-        message(STATUS "OpenCV runtime: bundling ${_opencv_runtime_files}")
-    else()
-        message(WARNING "OpenCV runtime DLLs not located under ${OpenCV_DIR} — "
-            "installer may be incomplete (set OpenCV_DIR to the build/ or lib/ dir).")
-    endif()
+# Windows with an installed OpenCV (PP_OPENCV_NO_PIN). The pinned build is static, so it
+# has no DLL to bundle. Its FFmpeg plugin is deliberately left out of the installer: the
+# installed app decodes with Media Foundation, as it always has.
+if(WIN32 AND TARGET opencv_world)
+    pp_win_bundle_dll(core "$<TARGET_FILE:opencv_world>")
 endif()
 target_sources(PinPointStudio PRIVATE
     src/Video/video_preprocessor_opencv.h
@@ -3401,6 +3386,15 @@ if(PINPOINT_BUILD_TOOLS)
     endfunction()
 
     add_executable(swinglab_run tools/swinglab/src/swinglab_run.cpp ${_pinpoint_offline_sources})
+    # swinglab_run decodes through FFmpeg. On Windows that is OpenCV's plugin, and without
+    # a copy beside the exe it falls back to Media Foundation, whose output differs, so a
+    # sweep's numbers would change with no error to notice.
+    if(PP_OPENCV_FFMPEG_PLUGIN)
+        add_custom_command(TARGET swinglab_run POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${PP_OPENCV_FFMPEG_PLUGIN}" "$<TARGET_FILE_DIR:swinglab_run>"
+            VERBATIM)
+    endif()
     pinpoint_configure_offline_target(swinglab_run)
     pinpoint_add_diagnostics_resources(swinglab_run)
     # The runner resolves the ViTPose model next to its own binary, same as the app.

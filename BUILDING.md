@@ -199,6 +199,8 @@ The app links Homebrew's libraries at run time, so a `brew` change can stop a bu
 
 A new `ffmpeg` also makes the next configure rebuild the pinned OpenCV, because OpenCV links it.
 
+**`'stdio.h' file not found` after a Command Line Tools or Xcode update.** The build tree still names the old SDK in `CMAKE_OSX_SYSROOT`. Set it to the output of `xcrun --show-sdk-path` in that tree's `CMakeCache.txt` and build again.
+
 ---
 
 ## Windows
@@ -249,8 +251,10 @@ runs normally minus that backend.
 ### 5. Aravis (Optional)
 Set the `ARAVIS_ROOT` environment variable to your Aravis installation directory.
 
-### 6. OpenCV (Required, 3.0+)
-Download from [opencv.org](https://opencv.org/releases/). CMake probes `C:\opencv\build` and `C:\tools\opencv\build` automatically. For a custom location: `-DOpenCV_DIR=C:\path\to\opencv\build`.
+### 6. OpenCV
+Nothing to install. The first configure builds a pinned version from source, static, and keeps a separate copy for Debug and Release because MSVC cannot mix them (`cmake/PinPointOpenCV.cmake`). It takes a few minutes and is shared by every build tree in `build\_opencv\`. To use an installed OpenCV instead, pass `-DPP_OPENCV_NO_PIN=ON -DOpenCV_DIR=C:\path\to\opencv\build`.
+
+The installed app decodes video with Media Foundation. `swinglab_run` decodes with FFmpeg, through OpenCV's `opencv_videoio_ffmpeg` plugin, which the build copies beside it. The two give slightly different pixels, so compare sweeps from the same tool.
 
 ### 7. FFmpeg (Optional — swing video export)
 The swing-export H.264 encoder needs FFmpeg dev libraries with **libx264**, found via `pkg-config`:
@@ -533,7 +537,7 @@ PinPoint Studio has ten standalone unit-test suites (194 tests under the umbrell
 
 There are two ways to build and run them: the **umbrella** (all suites in one configure/build/ctest) and **per-suite standalone** (fastest single-suite iteration). Both use the shared CMake infrastructure in `tests/`. For the architecture, `pp_add_test` reference, and how to add a test or a new suite, see **[docs/developer/testing_developer_guide.md](docs/developer/testing_developer_guide.md)**.
 
-> On Windows/MSVC: the Analysis and Pose suites need `-DOpenCV_DIR=C:/tools/opencv/build` at configure (the app's OpenCV auto-probe is not in the test projects), and ctest needs Qt's `bin` plus OpenCV's `bin` on `PATH` or the test exes fail with `0xc0000135` (DLL not found).
+> On Windows/MSVC: ctest needs Qt's `bin` on `PATH` or the test exes fail with `0xc0000135` (DLL not found).
 
 ### Run all suites (umbrella)
 
@@ -604,7 +608,7 @@ The following are fetched at `cmake ..` time — no manual steps required:
 | whisper.cpp v1.7.2 | Built from source | — | Always |
 | espeak-ng 1.52.0 | Built from source | — | Only if not found on system |
 | libsamplerate 0.2.2 | Built from source | — | Always |
-| OpenCV 4.14.0 | Built from source, once, into `build/_opencv/` (core, imgproc, imgcodecs, videoio) | ~30 MB | macOS and Linux; Windows uses an installed OpenCV |
+| OpenCV 4.14.0 | Built from source, once, into `build/_opencv/` (core, imgproc, imgcodecs, videoio) | ~30 MB; ~200 MB on Windows, with Intel IPP | Always |
 | Eigen 3.4.0 | Header-only (IMU EKF) | ~few MB | Always |
 | libwrist (`main`) | Built from source (HackMotion wG3 wrist sensor) | ~2 MB | Always — unless a sibling `../libwrist` checkout is found, see below |
 | libgspro (`main`) | Built from source (GSPro Open Connect launch monitor server) | ~1 MB | Always — unless a sibling `../libgspro` checkout is found, see below |
@@ -753,7 +757,7 @@ ORT on Linux with Intel integrated graphics runs on CPU — see the note above o
 | `-DPINPOINT_BUILD_TOOLS=ON/OFF` | OFF | Build the SwingLab offline analysis tools (`swinglab_run`) — see below |
 | `-DPINPOINT_DEBUG_LEVEL=<n>` | 1 | Log verbosity (2 = startup info + warnings/errors) |
 | `-DASSEMBLYAI_API_KEY=<key>` | — | Seed AssemblyAI API key into settings at build time |
-| `-DOpenCV_DIR=<path>` | — | Path to OpenCV CMake config (Windows, non-standard location) |
+| `-DOpenCV_DIR=<path>` | — | Path to OpenCV CMake config, with `-DPP_OPENCV_NO_PIN=ON` |
 | `-DPP_OPENCV_NO_PIN=ON` | OFF | Skip the pinned OpenCV build and use `OpenCV_DIR` instead |
 | `-DFFMPEG_DIR=<path>` | — | FFmpeg root for swing export (Windows, non-standard location; must contain `lib/pkgconfig`) |
 

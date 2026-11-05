@@ -24,12 +24,16 @@
 # names in shared libraries that are loaded alongside it, and OpenCV's JPEG is built with
 # a different ABI from the system's. macOS's two-level namespace cannot do that.
 #
-# Windows does nothing here yet, and uses its installed OpenCV. -DPP_OPENCV_NO_PIN=ON opts
-# out on every platform and honours -DOpenCV_DIR=.
+# Windows keeps what its prebuilt OpenCV did, so that analysis results stay put. Media
+# Foundation decodes by default, and FFmpeg is the optional opencv_videoio_ffmpeg plugin
+# rather than a link. Intel IPP stays on, because it changes output as well as speed. MSVC
+# cannot mix Debug and Release runtimes, so each configuration gets its own build.
+#
+# -DPP_OPENCV_NO_PIN=ON opts out on every platform and honours -DOpenCV_DIR=.
 include_guard(GLOBAL)
 
 option(PP_OPENCV_NO_PIN "Do not build the pinned OpenCV; honour OpenCV_DIR instead" OFF)
-if(WIN32 OR PP_OPENCV_NO_PIN)
+if(PP_OPENCV_NO_PIN)
     return()
 endif()
 
@@ -61,6 +65,10 @@ if(APPLE)
     get_filename_component(_pp_ocv_ffmpeg_ver "${_pp_ocv_ffmpeg_real}" NAME)
     set(_pp_ocv_pc_path "${_pp_ocv_ffmpeg}/lib/pkgconfig:${_pp_ocv_pc_path}")
     set(_pp_ocv_bundle_image_libs ON)
+elseif(WIN32)
+    # OpenCV downloads its own prebuilt plugin here, so no FFmpeg is needed to build it.
+    set(_pp_ocv_ffmpeg_ver "plugin")
+    set(_pp_ocv_bundle_image_libs ON)
 else()
     set(_pp_ocv_ffmpeg_ver "")
     if(_pp_ocv_pkgconfig)
@@ -88,6 +96,13 @@ endif()
 # Bump _pp_ocv_recipe when the options below change, so existing builds are replaced.
 set(_pp_ocv_recipe 2)
 set(_pp_ocv_key "${_pp_ocv_version}-r${_pp_ocv_recipe}-${_pp_ocv_arch}-${_pp_ocv_min}-ffmpeg${_pp_ocv_ffmpeg_ver}")
+set(_pp_ocv_config Release)
+if(MSVC)
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(_pp_ocv_config Debug)
+    endif()
+    string(APPEND _pp_ocv_key "-${_pp_ocv_config}")
+endif()
 set(_pp_ocv_dir     "${PP_OPENCV_ROOT}/${_pp_ocv_key}")
 set(_pp_ocv_install "${_pp_ocv_dir}/install")
 set(_pp_ocv_stamp   "${_pp_ocv_dir}/complete.stamp")
@@ -116,7 +131,7 @@ if(NOT EXISTS "${_pp_ocv_stamp}")
     endif()
 
     set(_pp_ocv_args
-        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_BUILD_TYPE=${_pp_ocv_config}
         "-DCMAKE_INSTALL_PREFIX=${_pp_ocv_install}"
         "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
         "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
@@ -133,13 +148,20 @@ if(NOT EXISTS "${_pp_ocv_stamp}")
         -DWITH_AVIF=OFF -DWITH_JPEGXL=OFF -DWITH_SPNG=OFF -DWITH_GDAL=OFF -DWITH_GDCM=OFF
         -DWITH_IMGCODEC_HDR=OFF -DWITH_IMGCODEC_SUNRASTER=OFF
         -DWITH_IMGCODEC_PXM=OFF -DWITH_IMGCODEC_PFM=OFF
-        # Maths and threads: OpenCV's own code, with GCD on macOS and pthreads on Linux.
-        -DWITH_LAPACK=OFF -DWITH_EIGEN=OFF -DWITH_OPENCL=OFF -DWITH_TBB=OFF -DWITH_IPP=OFF
+        # Maths and threads: OpenCV's own code, with GCD on macOS, pthreads on Linux and
+        # Microsoft's Concurrency Runtime on Windows, where IPP is added below.
+        -DWITH_LAPACK=OFF -DWITH_EIGEN=OFF -DWITH_OPENCL=OFF -DWITH_TBB=OFF
         -DWITH_ITT=OFF -DWITH_PROTOBUF=OFF -DWITH_ADE=OFF -DWITH_QUIRC=OFF -DWITH_OBSENSOR=OFF
-        # Video: FFmpeg linked in, nothing else, no run-time plugins.
-        -DWITH_FFMPEG=ON -DVIDEOIO_ENABLE_PLUGINS=OFF -DWITH_AVFOUNDATION=OFF
-        -DWITH_GSTREAMER=OFF -DWITH_1394=OFF -DWITH_V4L=OFF
+        -DWITH_FFMPEG=ON -DWITH_AVFOUNDATION=OFF -DWITH_GSTREAMER=OFF -DWITH_1394=OFF
+        -DWITH_V4L=OFF -DWITH_DSHOW=OFF
         "-DPKG_CONFIG_EXECUTABLE=${_pp_ocv_pkgconfig}")
+    if(WIN32)
+        list(APPEND _pp_ocv_args -DWITH_IPP=ON -DWITH_MSMF=ON -DVIDEOIO_ENABLE_PLUGINS=ON
+                                 -DBUILD_WITH_STATIC_CRT=OFF)
+    else()
+        # FFmpeg linked in, nothing else, no run-time plugins.
+        list(APPEND _pp_ocv_args -DWITH_IPP=OFF -DVIDEOIO_ENABLE_PLUGINS=OFF)
+    endif()
     if(CMAKE_MAKE_PROGRAM)
         list(APPEND _pp_ocv_args "-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}")
     endif()
@@ -194,8 +216,25 @@ endif()
 
 file(LOCK "${PP_OPENCV_ROOT}/.lock" RELEASE)
 
-# FORCE on purpose: a tree configured before this file carries a Homebrew OpenCV_DIR in
-# its cache, and that is exactly the state that has to repair itself.
-set(OpenCV_DIR "${_pp_ocv_install}/lib/cmake/opencv4" CACHE PATH
+# OpenCV's install layout differs on Windows, where it names the toolset, so ask the disk.
+file(GLOB_RECURSE _pp_ocv_configs "${_pp_ocv_install}/OpenCVConfig.cmake")
+if(WIN32)
+    list(FILTER _pp_ocv_configs INCLUDE REGEX "/staticlib/")
+endif()
+if(NOT _pp_ocv_configs)
+    message(FATAL_ERROR "OpenCV: no OpenCVConfig.cmake under ${_pp_ocv_install}")
+endif()
+list(GET _pp_ocv_configs 0 _pp_ocv_config_file)
+get_filename_component(_pp_ocv_config_dir "${_pp_ocv_config_file}" DIRECTORY)
+
+# FORCE on purpose: a tree configured before this file carries another OpenCV_DIR in its
+# cache, and that is exactly the state that has to repair itself.
+set(OpenCV_DIR "${_pp_ocv_config_dir}" CACHE PATH
     "Pinned OpenCV, built by cmake/PinPointOpenCV.cmake" FORCE)
+
+# Not linked, so the build has to put it where cv::CAP_FFMPEG will look: beside the exe.
+if(WIN32)
+    file(GLOB PP_OPENCV_FFMPEG_PLUGIN "${_pp_ocv_install}/*/*/bin/opencv_videoio_ffmpeg*_64.dll")
+endif()
+
 message(STATUS "OpenCV: using pinned build ${_pp_ocv_key}")
