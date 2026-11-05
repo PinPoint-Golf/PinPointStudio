@@ -277,9 +277,8 @@ CMake derives the bundle version + DMG name from these — nothing else to edit.
 **A release MUST NOT be cut while any test is failing or not building.** PinPoint's unit
 tests are *not* part of the app build — they are nine standalone CTest suites that the
 `tests/` umbrella configures, builds and runs as a single registry (see
-[`../../BUILDING.md`](../../BUILDING.md) § Testing). OpenCV comes from Homebrew, so no
-`OpenCV_DIR` is needed — CMake asks for the keg-only **`opencv@4`** by name; the plain
-`opencv` formula is 5.x now and is rejected explicitly:
+[`../../BUILDING.md`](../../BUILDING.md) § Testing). No `OpenCV_DIR` is needed: the first
+configure builds the pinned OpenCV from source (`cmake/PinPointOpenCV.cmake`):
 ```bash
 # Point QT at whichever Qt 6.11.x you actually have installed — `ls ~/Qt` to check.
 # A stale version here fails at the first configure, before any test runs.
@@ -335,7 +334,7 @@ profile + EdDSA key from Part 0 in place, the packaging script does the whole
 build → deploy → relocate → verify → **sign → notarize → staple** → DMG. It builds
 **host-native only** — the DMG is for the Mac you are sitting at:
 ```bash
-brew install opencv@4 ffmpeg aravis   # build deps (once) — @4, NOT plain opencv (that is 5.x)
+brew install ffmpeg aravis pkgconf    # build deps (once); OpenCV is built from source
 export SIGN_IDENTITY="Developer ID Application: M R LIVERSEDGE (WKLCK77L4U)"  # or omit → auto-detect
 export NOTARY_PROFILE=pinpoint-notary
 tools/package_macos.sh                # slow the first time

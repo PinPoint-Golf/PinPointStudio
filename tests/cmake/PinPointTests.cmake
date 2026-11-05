@@ -56,6 +56,7 @@ set(PP_THIRD  "${PP_REPO_ROOT}/third_party"  CACHE INTERNAL "")  # imu_ekf, imu_
 # whether they configure the app or a suite. Picks the newest ~/Qt/<ver>/<abi>;
 # see that file for why it is not a hardcoded version.
 include(${PP_REPO_ROOT}/cmake/PinPointQtPrefix.cmake)
+include(${PP_REPO_ROOT}/cmake/PinPointOpenCV.cmake)
 
 # Components needed by nearly every suite. Suites that need more (Qml, Bluetooth)
 # add their own find_package — that is additive and cheap (results are cached).

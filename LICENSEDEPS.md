@@ -31,7 +31,7 @@ GPL note. See **Known conflict — Teledyne FLIR Spinnaker SDK** below.
 | Component | Version | Licence | Basis of compatibility |
 |---|---|---|---|
 | Qt 6 — Quick, QuickControls2, Quick3D, SerialPort, Bluetooth, Multimedia, Network, WebSockets, Concurrent, ShaderTools, Gui/CorePrivate | 6.x | LGPL-3.0 (GPLv2+/GPLv3/commercial options) | LGPL-3.0 combines with GPL-3.0. Qt is dynamically linked and its licence notices are reproduced; users may relink against their own Qt build. |
-| OpenCV | ≥ 4.5.0 | Apache-2.0 | Apache-2.0 is compatible with GPL-3.0. (OpenCV 4.4 and earlier are BSD-3-Clause.) |
+| OpenCV | ≥ 4.5.0 (4.14.0, static, on macOS) | Apache-2.0 | Apache-2.0 is compatible with GPL-3.0. (OpenCV 4.4 and earlier are BSD-3-Clause.) The macOS build also statically links OpenCV's bundled zlib, libpng and libjpeg-turbo, and KleidiCV on Apple Silicon. |
 | whisper.cpp (bundles ggml) | v1.7.2 | MIT | Permissive; GPL-compatible. |
 | libsamplerate | 0.2.2 | BSD-2-Clause | Permissive; GPL-compatible. |
 | Eigen | 3.4.0 | MPL-2.0 | MPL-2.0 carries an explicit GPL-2.0-or-later compatibility clause. |

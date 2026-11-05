@@ -17,7 +17,7 @@
 #   1. Resolve the version from src/Core/version.h (single source of truth).
 #   2. Build a Release tree (or reuse one / an already-built .app via --app).
 #   3. macdeployqt: bundle Qt frameworks + QML modules + plugins, relinking the
-#      app's Homebrew dylibs (OpenCV / FFmpeg / Aravis, all under /usr/local/opt)
+#      app's Homebrew dylibs (FFmpeg / Aravis, all under /usr/local/opt)
 #      into Contents/Frameworks with @rpath install names.
 #   4. Bundle the deps macdeployqt misses — the @rpath ONNX Runtime dylib (from the
 #      build's _deps tree) and, if present, Spinnaker (dlopen'd, so not in NEEDED).
@@ -174,15 +174,14 @@ list_rpaths() {
 
 # Strip build-machine LC_RPATH entries from every bundled Mach-O. macdeployqt adds an
 # @executable_path/../Frameworks rpath but does NOT remove the rpaths the linker baked
-# in at build time — notably the Homebrew OpenCV lib dir (/usr/local/opt/opencv/lib,
-# from `brew --prefix opencv` on CMAKE_PREFIX_PATH) and the build tree's _deps/sparkle-src.
-# Those survive into the shipped bundle, and because a stray Homebrew rpath is searched
-# BEFORE @executable_path/../Frameworks, dyld resolves @rpath/libopencv_*.dylib to the
-# Homebrew copy on any host that has Homebrew OpenCV installed — loading a SECOND
-# OpenMP/OpenBLAS stack alongside the bundled one. Two libomp runtimes make
-# __kmp_register_library_startup abort before main() (the classic OMP Error #15 launch
-# crash). Delete every rpath that points at the build host so only @executable_path/
-# @loader_path/@rpath relative entries remain.
+# in at build time — notably the Homebrew espeak-ng, Aravis and glib lib dirs and the
+# build tree's _deps/sparkle-src. Those survive into the shipped bundle, and because a
+# stray Homebrew rpath is searched BEFORE @executable_path/../Frameworks, dyld resolves
+# an @rpath dependency to the Homebrew copy on any host that has one installed. That
+# used to load a second libomp through Homebrew's OpenCV and abort before main() (OMP
+# Error #15). OpenCV is linked statically now, but the same trap holds for every other
+# Homebrew library. Delete every rpath that points at the build host so only
+# @executable_path/@loader_path/@rpath relative entries remain.
 strip_build_rpaths() {
     local macho rp stripped=0
     while IFS= read -r macho; do
@@ -573,13 +572,12 @@ for y in "$BUILD_DIR/yt-dlp_macos" "$MACOS/yt-dlp_macos" "$REPO_ROOT/tools/yt-dl
 done
 
 # 4d. Recursively relocate the Homebrew closure macdeployqt left half-done.
-log "relocating Homebrew dependency closure (OpenCV/FFmpeg/Aravis + transitive deps)"
+log "relocating Homebrew dependency closure (FFmpeg/Aravis + transitive deps)"
 relocate_closure
 
 # 4d′. Strip build-machine LC_RPATH entries the linker/macdeployqt left behind. Without
-#      this a stray /usr/local/opt/opencv/lib rpath makes dyld load the Homebrew OpenCV
-#      (→ Homebrew OpenBLAS → a 2nd libomp) on hosts that have Homebrew OpenCV, which
-#      aborts at launch with OMP Error #15. See strip_build_rpaths above.
+#      this a stray Homebrew rpath makes dyld load that copy of a dylib ahead of the
+#      bundled one. See strip_build_rpaths above.
 log "stripping build-machine rpaths (Homebrew + build-tree leftovers)"
 strip_build_rpaths
 

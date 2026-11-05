@@ -16,7 +16,7 @@ if(NOT COMMAND pp_add_test)
 endif()
 
 # ball_temporal.h is OpenCV-only (no Qt); ball_detector.cpp pulls in Qt + the profiler.
-find_package(OpenCV REQUIRED COMPONENTS core imgproc features2d)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc)
 
 set(POSE ${CMAKE_CURRENT_SOURCE_DIR}/..)   # src/Pose
 set(CORE ${POSE}/../Core)                  # profiler core

@@ -116,13 +116,13 @@ Dependencies are best managed via [Homebrew](https://brew.sh/).
 ### 1. Install Dependencies
 Install Xcode first; the dev Mac and the release runners both build with it. Then:
 ```bash
-brew install pkgconf espeak-ng aravis opencv@4 ffmpeg openssl@3
+brew install pkgconf espeak-ng aravis ffmpeg openssl@3
 ```
 `cmake` and `ninja` are also needed. Take them from the Qt installer (step 2), or add them to the line above.
 
 `pkgconf` provides `pkg-config`, which CMake needs to find FFmpeg. `glib` and `gettext` come in with `aravis`.
 
-`opencv@4`, not `opencv`: the plain formula is 5.x now, which does not build here (see the macOS packaging section).
+OpenCV is not installed by hand on macOS. The first configure builds a pinned version from source, with only the modules the app uses, and links it statically (`cmake/PinPointOpenCV.cmake`). That takes about a minute and is shared by every build tree in `build/_opencv/`. It needs FFmpeg, so the configure stops with an error if `ffmpeg` or `pkgconf` is missing.
 `openssl@3` is the PPCP capture-device link (`src/Ppcp`, TLS with a pre-shared
 key). It is keg-only, so CMake probes `brew --prefix openssl@3` directly rather
 than relying on the default search — otherwise it would find LibreSSL, which has
@@ -151,7 +151,7 @@ Use the [Qt Online Installer](https://www.qt.io/download-qt-installer), into the
 
 WebAssembly, Android and iOS are not needed.
 
-⚠ **Do not build against Homebrew's Qt.** It has no Quick 3D and no QtMultimedia backend. `opencv@4` installs it anyway as a dependency, so leave it installed; CMake keeps it off the link line (see the note on `OpenCV_DIR` in `CMakeLists.txt`).
+⚠ **Do not build against Homebrew's Qt.** It has no Quick 3D and no QtMultimedia backend.
 
 ⚠ **Qt 6.11.1 and older crash on macOS 27.3.** Qt frees an image's colour space too early when it hands the image to CoreGraphics. Older macOS versions usually hid this; on the macOS 27.3 beta it crashes every time, typically when a cursor is drawn. Qt 6.11.2 fixed it.
 
@@ -193,14 +193,11 @@ Troubleshooting: `codesign` resolves `-s <name>` through the keychain **search l
 
 The app links Homebrew's libraries at run time, so a `brew` change can stop a build that was working, with no change to this repository.
 
-**`Library not loaded` at launch, before Qt starts.** Homebrew upgraded a library but not everything that uses it. The `dyld` message names the missing library.
-
-This happened on 3 Nov 2026: `openexr` went from 3.4 to 3.5 and `openjph` from 0.31 to 0.32, while the installed `opencv@4` 4.14.0 still wanted the 3.4 libraries. There are two ways out:
-
-- **Upgrade the formula that is out of date**, for example `brew upgrade opencv@4`. This is the proper fix, but it can bring dozens of other upgrades with it. Check first with `--dry-run`, then rebuild as described below.
-- **Link the old library back.** Old versions usually stay in `/opt/homebrew/Cellar` until `brew cleanup` removes them, so a symlink in the current version's `lib` folder restores the name. Link the old library's own dependencies too; the old OpenEXR needs `libopenjph.0.31.dylib`. Nothing changes version, but a later `brew` run can remove the links.
+**`Library not loaded` at launch, before Qt starts.** Homebrew upgraded a library but not everything that uses it. The `dyld` message names the missing library. Upgrade the formula that wants the old version, checking first with `--dry-run` because it can bring many other upgrades with it, then rebuild as described below.
 
 **Rebuild after upgrading anything the app links.** Its run-time search path holds versioned folders for `espeak-ng`, `aravis` and `glib` (`/opt/homebrew/Cellar/aravis/0.8.36/lib`, for example), and a new version leaves those paths stale. Re-run CMake and rebuild.
+
+A new `ffmpeg` also makes the next configure rebuild the pinned OpenCV, because OpenCV links it.
 
 ---
 
@@ -319,7 +316,7 @@ the version there, then build as usual:
 ```bash
 sed -i '' 's#/Qt/6.11.1/#/Qt/6.11.3/#g' <build-dir>/CMakeCache.txt    # GNU sed: -i without ''
 cmake -S . -B <build-dir>
-cmake --build <build-dir> -j 8
+cmake --build <build-dir> -j 6
 ```
 
 Deleting the tree also works, but downloads the models again (over 1 GB). In Qt
@@ -341,7 +338,7 @@ macOS (Sparkle) / Windows (WinSparkle) update story. Design:
 # Host tools (once): linuxdeploy, linuxdeploy-plugin-qt, appimagetool,
 # appimageupdatetool, zsync (zsyncmake). All from the AppImageCommunity releases.
 export SIGN_KEY=<your-release-gpg-key-fpr>
-export CMAKE_PREFIX=~/Qt/6.11.1/gcc_64
+export CMAKE_PREFIX=~/Qt/6.11.3/gcc_64
 export CUDA_LIB_DIR=/usr/local/cuda-12/lib64   # for GPU ORT
 export CUDNN_LIB_DIR=/usr/lib/x86_64-linux-gnu # cuDNN 9
 tools/package_appimage.sh                      # → dist/PinPointStudio-<ver>-x86_64.AppImage{,.zsync,.sig}
@@ -378,11 +375,9 @@ date in place by **Sparkle** (the framework WinSparkle is a port of), gated by a
 
 **Build the DMG:**
 ```bash
-# Build deps come from Homebrew (CMake probes them): opencv@4, ffmpeg, aravis.
-#   brew install opencv@4 ffmpeg aravis
-# NB opencv@4, NOT opencv — the plain formula is 5.x now, which moves calib3d into
-# separate 3d/calib modules and does not build here. CMake asks for opencv@4 by name
-# (it is keg-only, so `brew --prefix opencv` cannot see it) and rejects 5.x explicitly.
+# Build deps come from Homebrew (CMake probes them): ffmpeg, aravis, pkgconf.
+#   brew install ffmpeg aravis pkgconf
+# OpenCV is built from source by cmake/PinPointOpenCV.cmake.
 tools/package_macos.sh                         # → dist/PinPointStudio-<ver>-<arch>.dmg (signs+notarizes if creds set)
 tools/package_macos.sh --no-sign               # unsigned dev build (no in-app update trust)
 tools/package_macos.sh --app <prebuilt.app>    # package an already-built .app (copied, never mutated)
@@ -609,6 +604,7 @@ The following are fetched at `cmake ..` time — no manual steps required:
 | whisper.cpp v1.7.2 | Built from source | — | Always |
 | espeak-ng 1.52.0 | Built from source | — | Only if not found on system |
 | libsamplerate 0.2.2 | Built from source | — | Always |
+| OpenCV 4.14.0 | Built from source, once, into `build/_opencv/` (core, imgproc, imgcodecs, videoio) | ~30 MB | macOS only; Linux and Windows use an installed OpenCV |
 | Eigen 3.4.0 | Header-only (IMU EKF) | ~few MB | Always |
 | libwrist (`main`) | Built from source (HackMotion wG3 wrist sensor) | ~2 MB | Always — unless a sibling `../libwrist` checkout is found, see below |
 | libgspro (`main`) | Built from source (GSPro Open Connect launch monitor server) | ~1 MB | Always — unless a sibling `../libgspro` checkout is found, see below |
@@ -758,6 +754,7 @@ ORT on Linux with Intel integrated graphics runs on CPU — see the note above o
 | `-DPINPOINT_DEBUG_LEVEL=<n>` | 1 | Log verbosity (2 = startup info + warnings/errors) |
 | `-DASSEMBLYAI_API_KEY=<key>` | — | Seed AssemblyAI API key into settings at build time |
 | `-DOpenCV_DIR=<path>` | — | Path to OpenCV CMake config (Windows, non-standard location) |
+| `-DPP_OPENCV_NO_PIN=ON` | OFF | macOS: skip the pinned OpenCV build and use `OpenCV_DIR` instead |
 | `-DFFMPEG_DIR=<path>` | — | FFmpeg root for swing export (Windows, non-standard location; must contain `lib/pkgconfig`) |
 
 ---

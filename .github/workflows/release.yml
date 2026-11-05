@@ -322,11 +322,10 @@ jobs:
             exit 1
           }
 
-      # CMake probes Homebrew for these; absent on a fresh runner.
-      # opencv@4, NOT opencv: the plain formula is 5.x now, which this project does not
-      # build against (CMakeLists rejects it explicitly with the same rationale).
-      - name: Install Homebrew deps (OpenCV 4 / FFmpeg / Aravis)
-        run: brew install opencv@4 ffmpeg aravis
+      # CMake probes Homebrew for these; absent on a fresh runner. OpenCV is not here:
+      # cmake/PinPointOpenCV.cmake builds the pinned version from source, against this FFmpeg.
+      - name: Install Homebrew deps (FFmpeg / Aravis / pkg-config)
+        run: brew install ffmpeg aravis pkgconf
 
       - name: Install Qt 6.11
         uses: jurplel/install-qt-action@v4
