@@ -1566,8 +1566,9 @@ heading ("continued").
 - *Example:* a cause path is one atom. The clean-conditions index may break between rows, and its
   next page opens with "Index, continued" and the column head.
 
-**7. One encoding per fact.** Colour means "outside its corridor" and nothing else. The picked
-shot gets one mark. Accent means a live control. In Vector the accent orange is too close to warn
+**7. One encoding per fact.** Colour means "outside its corridor" and nothing else, with one
+exception: the heat of a table cell (§15.4 item 4), which says how much and never good or bad, with
+its word still in the cell. The picked shot gets one mark. Accent means a live control. In Vector the accent orange is too close to warn
 orange, so Vector's links are ink with an underline.
 - *Why:* when everything is coloured, nothing stands out.
 - *Example:* a fired value is set in warn. There is no pill, meter or orange tick beside it.
@@ -1704,7 +1705,8 @@ The mock library holds the roles in `Roles.qml`. The build moves them into Theme
 | `link` | `accent`, or `colorText2` underlined | a link |
 | `paper` | `colorBg`; white in print | the page |
 | `rule`, `hair`, `hw` | `colorText` at `ruleAlpha` / `hairAlpha`; width 1 px, 0.5 in print | the top rule; row hairlines |
-| `wash` | `colorText` at `zoneTint` × `tintScale` | the corridor, the only wash in a chart |
+| `wash` | `colorText` at `zoneTint` × `tintScale` | the corridor, the only wash in a chart but `heat` |
+| `heat(level, soft)` | `attention` (`colorAttention`) at `colorHeatSome`, `colorHeatLoose` or `colorHeatAfter`, × `tintScale` | the heat of a table cell, the one exception |
 | `fault` | `colorWarn` at `faultAlpha` | the fault line, a hairline |
 | `passEdge` | `colorText3` at `passAlpha`, dashed | the pass edge |
 | `pickWash` | `colorText` at 0.07 light, 0.10 dark | the picked shot as a column |
@@ -1769,12 +1771,19 @@ bind every panel.
    - "Shot N of M" uses the ordinal (`shotIndex + 1`), not the shot id.
 3. **One mark for the picked shot.** It is an ink ring where the shot is a point, and a 7 % ink
    column where it is a cell (a strip, a barcode or a ledger column). A hovered shot takes the same
-   form, lighter. A highlight dims everything else to 0.28.
+   form, lighter. A highlight dims everything else to 0.28. A table cell that can carry heat
+   (PpChMatrix's rectangle) is picked with an ink outline instead, because the wash has taken over
+   the column's job.
 4. **One chart wash, on the corridor.**
    - The corridor gets a neutral ink wash.
    - The fault line is a warn hairline, and the pass edge a dashed ink3 line.
    - A warn wash on the fault zone (proposed by two variants) was rejected, because it spends
      colour on a region rather than on data.
+   - **One exception: the heat of a table cell** (PpChMatrix). One hue, `colorAttention`, at 0.15
+     (some), 0.40 (loose) and 0.12 (the span after the ball), × `tintScale` on paper. It says how
+     much and never good or bad, so it is never `colorWarn`. The word, or the mark and its key,
+     stays in the cell, so colour is never the only channel. It belongs to a cell of data, never
+     to a plot or a region.
 5. **One mark shape per theme.** Folio's marks are round, with clean marks hollow. Vector's are
    square, with clean marks filled.
 6. **Links.** Folio uses the accent. Vector uses ink2 with an underline.

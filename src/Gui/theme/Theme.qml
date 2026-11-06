@@ -372,6 +372,12 @@ QtObject {
     // "do this next" frame. Strong variant = border/text, Light variant = fill.
     readonly property color colorAttention: _m.colorAttention
     readonly property color colorAttentionLight: _m.colorAttentionLight
+    // The heat of a table cell (PpChMatrix, the Consistency table): how much a part of the swing moves, one hue
+    // at three strengths, so it says how much and never good or bad. The word stays in the cell, so colour is
+    // never the only channel. Some, loose, and the span after the ball, which is read differently and drawn lighter.
+    readonly property color colorHeatSome:  Qt.alpha(colorAttention, 0.15)
+    readonly property color colorHeatLoose: Qt.alpha(colorAttention, 0.40)
+    readonly property color colorHeatAfter: Qt.alpha(colorAttention, 0.12)
 
     // RAG assessment palette (Wrist diagnostics, design §8.4). Semantic aliases onto the existing
     // status family so a "good/watch/fault/no-data" reading reuses the same hues a user already

@@ -149,6 +149,13 @@ for n, tgt, u in [("colorRagGood", "colorGood", "RAG reading: good. Always with 
                   ("colorRagNone", "colorText3", "RAG reading: no data.")]:
     add(n, "{%s}" % tgt, u)
 
+# The heat of a table cell: colorAttention at three strengths (computed in Theme.qml)
+def heat(alpha):
+    return per(lambda a, m: theme[a]["modes"][m][0]["colorAttention"].lower() + "%02x" % round(alpha * 255))
+add("colorHeatSome", heat(0.15), "Table cell heat: 'some' (PpChMatrix). colorAttention at 0.15. Says how much, never good or bad; the word stays in the cell.")
+add("colorHeatLoose", heat(0.40), "Table cell heat: 'loose' (PpChMatrix). colorAttention at 0.40.")
+add("colorHeatAfter", heat(0.12), "Table cell heat: a span after the ball, drawn lighter (PpChMatrix). colorAttention at 0.12.")
+
 def hairline(a, m):
     v = theme[a]["modes"][m][0]["colorBorder"]
     alpha = int(v[7:9], 16) * 0.6

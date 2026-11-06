@@ -119,6 +119,7 @@ The typeset controls live in `src/Gui/typeset/` and serve both screen and print:
 - [PpMark](PpMark.md) — THE point mark of every chart: one shot, fired (warn) or clean (ink3), in the theme's one shape, with the picked or hovered ring.
 - [PpStub](PpStub.md) — The not-measured mark: a short flat ink3 bar on the foot of a figure or strip — present, never a gap.
 - [PpShotStrip](PpShotStrip.md) — The session strip: a cell per shot in the order struck — warn bar, ink3 tick or stub — narrowing then wrapping, never dropping a shot.
+- [PpChMatrix](PpChMatrix.md) — A table of short cells under one heavy rule: a lower triangle of figures, or named columns with a one-hue wash and a short form that never drops a column.
 - [PpBoxPlot](PpBoxPlot.md) — THE box plot: middle half, median, whiskers, the shots, an optional corridor, and its values on the plot while examined.
 - [PpBoxReading](PpBoxReading.md) — A stood-up box's full reading beside it — whisker ends, quartiles, median and count line — each ticked from its true height.
 - [PpFigureScale](PpFigureScale.md) — The value axis a figure row's panels share: f → y, the zone edges named once, fault-forward bands behind drawn breaks.

@@ -132,6 +132,7 @@ QtObject {
     readonly property color ink2: _fm ? _fm.colorText2 : Theme.colorText2
     readonly property color ink3: _fm ? _fm.colorText3 : Theme.colorText3
     readonly property color warn: _fm ? _fm.colorWarn : Theme.colorWarn            // "outside its corridor", and nothing else
+    readonly property color attention: _fm ? _fm.colorAttention : Theme.colorAttention   // "how much": a table cell's heat, never a fault
     readonly property color accent: _fm ? _fm.colorAccent : Theme.colorAccent
     readonly property bool _dark: _fm ? false : Theme.dark
     readonly property color paper: isPrint ? "#FFFFFF" : (_fm ? _fm.colorBg : Theme.colorBg)
@@ -145,6 +146,9 @@ QtObject {
     readonly property color baseline: _fm ? _fv("chartBaseline", Qt.alpha(ink3, 0.6)) : Theme.baselineColor(Qt.alpha(Theme.colorText3, 0.6))
     readonly property real baselineOpacity: _fm ? _fv("chartBaselineOpacity", 1.0) : Theme.baselineOpacity(1.0)
     readonly property color wash: Qt.alpha(ink, r.zoneTint * tintK)   // THE chart wash: the corridor
+    // the heat of a table cell, the one wash besides the corridor: level 1 some, 2 loose; soft is lighter whatever the
+    // level. The strengths are Theme's tokens, the hue is this panel's own (a fixed aesthetic's on paper), scaled by tintK.
+    function heat(level, soft) { return Qt.alpha(attention, (soft ? Theme.colorHeatAfter : level >= 2 ? Theme.colorHeatLoose : Theme.colorHeatSome).a * tintK) }
     readonly property color fault: Qt.alpha(warn, r.faultAlpha)        // the fault line
     readonly property color passEdge: Qt.alpha(ink3, r.passAlpha)     // the pass edge (dashed)
     readonly property color pickWash: Qt.alpha(ink, _dark ? 0.10 : 0.07)   // the picked shot, as a column

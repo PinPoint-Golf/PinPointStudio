@@ -284,6 +284,7 @@ set(PP_QML_FILES
     src/Gui/typeset/PpTypeset.qml
     src/Gui/typeset/figure_format.js
     src/Gui/typeset/PpBrush.qml
+    src/Gui/typeset/PpChMatrix.qml
     src/Gui/typeset/PpFigureScale.qml
     src/Gui/typeset/PpFolio.qml
     src/Gui/typeset/PpInlinePicker.qml
@@ -399,7 +400,6 @@ set(PP_QML_FILES
     src/Gui/charts/PpChDeliveryFlight.qml
     src/Gui/charts/PpChShotShapeGrid.qml
     src/Gui/charts/PpChPlaneLabels.qml
-    src/Gui/charts/PpChMatrix.qml
     src/Gui/charts/PpChReadingPicker.qml
     src/Gui/charts/PpChSeqSession.qml
     src/Gui/charts/PpChReplaySession.qml

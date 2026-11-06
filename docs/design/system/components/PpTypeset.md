@@ -87,8 +87,8 @@ Families, sizes and weights come from `r` (a theme's `typeset` block overrides `
 Units are never capitalised: a label that carries a unit is set in `fLabelUnit` with its text from `labelUnit(words, unit)` — `labelUnit("Peak", "°/s")` → "PEAK °/s" in Vector, "Peak °/s" in Folio. `labelCase(s)` applies the label role's case.
 
 ## Inks and marks (read-only)
-- **Ink:** `ink`, `ink2`, `ink3` (Theme `colorText`/`2`/`3`, or the fixed aesthetic's light values), `warn` ("outside its corridor", and nothing else), `accent`, `paper` (`colorBg`; white in print), `link` (accent when `r.linkAccent`, else ink2), `rule` / `hair` (ink at `r.ruleAlpha` / `r.hairAlpha`), `hw` (hairline width), `tintK`.
-- **Chart furniture:** `grid`, `gridOpacity`, `baseline`, `baselineOpacity` (via `Theme.gridColor` / `gridOpacity` / `baselineColor` / `baselineOpacity`), `wash` (THE chart wash: the corridor, ink at `r.zoneTint × tintK`), `fault` (warn at `r.faultAlpha`), `passEdge` (ink3 at `r.passAlpha`, dashed).
+- **Ink:** `ink`, `ink2`, `ink3` (Theme `colorText`/`2`/`3`, or the fixed aesthetic's light values), `warn` ("outside its corridor", and nothing else), `attention` (Theme `colorAttention`, or the fixed aesthetic's: a table cell's heat, never a fault), `accent`, `paper` (`colorBg`; white in print), `link` (accent when `r.linkAccent`, else ink2), `rule` / `hair` (ink at `r.ruleAlpha` / `r.hairAlpha`), `hw` (hairline width), `tintK`.
+- **Chart furniture:** `grid`, `gridOpacity`, `baseline`, `baselineOpacity` (via `Theme.gridColor` / `gridOpacity` / `baselineColor` / `baselineOpacity`), `wash` (THE chart wash: the corridor, ink at `r.zoneTint × tintK`), `heat(level, soft)` (a table cell's heat, the one exception: `attention` at the strength of `colorHeatSome` for level 1, `colorHeatLoose` for 2, `colorHeatAfter` when `soft`, × `tintK`), `fault` (warn at `r.faultAlpha`), `passEdge` (ink3 at `r.passAlpha`, dashed).
 - **Focus:** `pickWash` (ink at 0.10 dark / 0.07 light), `hoverWash` (0.065 / 0.045), `rowHover` (0.05 / 0.03), `dim` 0.28 (what recedes under a highlight); `fast` / `normal` = `Theme.durationFast` / `durationNormal`.
 - **Marks** (one shape per theme): `square` (`r.markShape === "square"`), `markFired`, `markClean`, `ringD`, `stripPitch`, `stripBar` (≥ 2), `stripH`, `stateColor(s)` (fired → warn, else ink3).
 - **Strip at any session length:** `stripMinPitch` (max(2.5, u(3))), `stripMaxShots` 22, `stripWidthFor(n)`, `stripFit(n, avail, pitch, barW, barH, rowGap)` → `{ pitch, perRow, rows, barW, width, height }` (narrow the pitch, then wrap; never clip, never drop a shot), `stubH(barH)`, `shotLabelStep(pitchPx, labelPx)`, `axisLabelShown(i, n, step, keep)`.
@@ -104,7 +104,7 @@ Units are never capitalised: a label that carries a unit is set in `fLabelUnit` 
 - **Pulse:** `takePulse(brush, cue, token)` hands a register's after-shot cue to its PpBrush once per token.
 
 ## Tokens
-Reads `Theme.typeset` (`_typesetDefault` merged with the aesthetic's `typeset` block — Vector and Folio carry one), `Theme.typesetPrint`, `Theme._themes` (fixed aesthetic only), `Theme.sp`, `Theme.gap`, `Theme.colorText`/`2`/`3`, `colorWarn`, `colorAccent`, `colorBg`, `Theme.dark`, `gridColor`, `gridOpacity`, `baselineColor`, `baselineOpacity`, `durationFast`, `durationNormal`.
+Reads `Theme.typeset` (`_typesetDefault` merged with the aesthetic's `typeset` block — Vector and Folio carry one), `Theme.typesetPrint`, `Theme._themes` (fixed aesthetic only), `Theme.sp`, `Theme.gap`, `Theme.colorText`/`2`/`3`, `colorWarn`, `colorAttention`, `colorHeatSome`, `colorHeatLoose`, `colorHeatAfter`, `colorAccent`, `colorBg`, `Theme.dark`, `gridColor`, `gridOpacity`, `baselineColor`, `baselineOpacity`, `durationFast`, `durationNormal`.
 
 ## Variants
 - **Default aesthetics:** round marks (fired 7, clean 5, hollow clean, ring 14), labels mixed case, links in accent.
