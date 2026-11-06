@@ -1,0 +1,1724 @@
+session,metric,column,area,unit,spread,sigma,norm_sigma,spread_over_norm,verdict
+2026-07-04_Mark-Liversedge_Wrist_01,armHang,P1,setup,°,0.881,,5.0,0.176,steady
+2026-07-04_Mark-Liversedge_Wrist_01,attackAngle,P6-P7,impact,°,9.135,1.28,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,balanceHeelToe,P1,setup,% foot length,5.907,,5.0,1.181,loose
+2026-07-04_Mark-Liversedge_Wrist_01,ballBodyDistance,P1,setup,cm,2.263,0.349,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,ballPosition,P1,setup,% stance width,41.14,,10.0,4.114,loose
+2026-07-04_Mark-Liversedge_Wrist_01,ballReachExcess,P1,setup,cm,1.441,0.055,4.0,0.36,steady
+2026-07-04_Mark-Liversedge_Wrist_01,clubAngularSpeed,P4-P5,sequence,°/s,19.913,22.046,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,clubAngularSpeed,P5-P6,sequence,°/s,60.314,22.046,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,clubAngularSpeed,P6-P7,sequence,°/s,71.151,22.046,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,clubAngularSpeed,P7-P8,sequence,°/s,59.073,22.046,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,clubPeakSpeed,P6-P7,sequence,°/s,76.545,46.479,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,clubPeakTime,P6-P7,sequence,ms,2.033,14.189,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,clubheadPeakLead,P6-P7,sequence,ms,1.802,1.934,15.0,0.12,steady
+2026-07-04_Mark-Liversedge_Wrist_01,clubheadSpeed,P1,sequence,mph,10.043,5.399,4.15,2.42,loose
+2026-07-04_Mark-Liversedge_Wrist_01,clubheadSpeed,P1-P2,sequence,mph,1.585,3.073,4.15,0.382,steady
+2026-07-04_Mark-Liversedge_Wrist_01,clubheadSpeed,P2-P3,sequence,mph,0.642,3.073,4.15,0.155,steady
+2026-07-04_Mark-Liversedge_Wrist_01,clubheadSpeed,P3-P4,sequence,mph,0.472,3.073,4.15,0.114,steady
+2026-07-04_Mark-Liversedge_Wrist_01,clubheadSpeed,P4-P5,sequence,mph,0.505,3.073,4.15,0.122,steady
+2026-07-04_Mark-Liversedge_Wrist_01,clubheadSpeed,P5-P6,sequence,mph,1.49,3.073,4.15,0.359,steady
+2026-07-04_Mark-Liversedge_Wrist_01,clubheadSpeed,P6-P7,sequence,mph,2.716,3.073,4.15,0.655,steady
+2026-07-04_Mark-Liversedge_Wrist_01,comOverLeadFoot,P1,finish,% stance width,3.033,4.268,10.0,0.303,steady
+2026-07-04_Mark-Liversedge_Wrist_01,comOverLeadFoot,P1-P2,finish,% stance width,3.087,4.268,10.0,0.309,steady
+2026-07-04_Mark-Liversedge_Wrist_01,comOverLeadFoot,P2-P3,finish,% stance width,3.874,4.268,10.0,0.387,steady
+2026-07-04_Mark-Liversedge_Wrist_01,comOverLeadFoot,P3-P4,finish,% stance width,7.169,4.268,10.0,0.717,steady
+2026-07-04_Mark-Liversedge_Wrist_01,comOverLeadFoot,P4-P5,finish,% stance width,8.387,4.268,10.0,0.839,loose
+2026-07-04_Mark-Liversedge_Wrist_01,comOverLeadFoot,P5-P6,finish,% stance width,5.718,4.268,10.0,0.572,steady
+2026-07-04_Mark-Liversedge_Wrist_01,comOverLeadFoot,P6-P7,finish,% stance width,4.253,4.268,10.0,0.425,steady
+2026-07-04_Mark-Liversedge_Wrist_01,comOverLeadFoot,P7-P8,finish,% stance width,3.66,4.268,10.0,0.366,steady
+2026-07-04_Mark-Liversedge_Wrist_01,elbowAlignment,P1,armsAndClub,°,2.738,2.149,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,elbowAlignment,P1-P2,armsAndClub,°,1.251,2.149,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,elbowAlignment,P2-P3,armsAndClub,°,1.805,2.149,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,elbowAlignment,P3-P4,armsAndClub,°,3.685,2.149,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,elbowAlignment,P4-P5,armsAndClub,°,3.881,2.149,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,elbowAlignment,P5-P6,armsAndClub,°,3.461,2.149,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,elbowAlignment,P6-P7,armsAndClub,°,1.127,2.149,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,feetAlignment,P1,setup,°,1.083,1.006,4.0,0.271,steady
+2026-07-04_Mark-Liversedge_Wrist_01,feetAlignment,P1-P2,setup,°,1.133,1.006,4.0,0.283,steady
+2026-07-04_Mark-Liversedge_Wrist_01,feetAlignment,P2-P3,setup,°,1.139,1.006,4.0,0.285,steady
+2026-07-04_Mark-Liversedge_Wrist_01,feetAlignment,P3-P4,setup,°,1.95,1.006,4.0,0.488,steady
+2026-07-04_Mark-Liversedge_Wrist_01,feetAlignment,P4-P5,setup,°,2.274,1.006,4.0,0.569,steady
+2026-07-04_Mark-Liversedge_Wrist_01,feetAlignment,P5-P6,setup,°,0.994,1.006,4.0,0.248,steady
+2026-07-04_Mark-Liversedge_Wrist_01,feetAlignment,P6-P7,setup,°,0.936,1.006,4.0,0.234,steady
+2026-07-04_Mark-Liversedge_Wrist_01,feetAlignment,P7-P8,setup,°,0.865,1.006,4.0,0.216,steady
+2026-07-04_Mark-Liversedge_Wrist_01,handPathLoop,P3-P4,armsAndClub,% hand rise,2.468,,4.333333333333333,0.57,steady
+2026-07-04_Mark-Liversedge_Wrist_01,handPlaneCurve,P1-P2,armsAndClub,°,0.544,0.239,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,handPlaneCurve,P2-P3,armsAndClub,°,0.692,0.239,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,handPlaneCurve,P3-P4,armsAndClub,°,0.741,0.239,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,handPlaneCurve,P4-P5,armsAndClub,°,0.814,0.239,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,handPlaneCurve,P5-P6,armsAndClub,°,1.438,0.239,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,handPlaneCurve,P6-P7,armsAndClub,°,0.939,0.239,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,handPlaneSteepening,P3-P4,armsAndClub,°,0.837,0.441,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,handSpeed,P1,sequence,mph,1.053,1.279,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,handSpeed,P1-P2,sequence,mph,0.31,1.284,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,handSpeed,P2-P3,sequence,mph,0.348,1.284,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,handSpeed,P3-P4,sequence,mph,0.291,1.284,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,handSpeed,P4-P5,sequence,mph,0.375,1.284,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,handSpeed,P5-P6,sequence,mph,0.87,1.284,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,handSpeed,P6-P7,sequence,mph,0.99,1.284,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,handSpeed,P7-P8,sequence,mph,0.696,1.284,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,headLift,P1,posture,cm,0.152,,3.0,0.051,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headLift,P1-P2,posture,cm,0.27,,3.0,0.09,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headLift,P2-P3,posture,cm,0.21,,3.0,0.07,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headLift,P3-P4,posture,cm,0.361,,3.0,0.12,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headLift,P4-P5,posture,cm,0.353,,3.0,0.118,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headLift,P5-P6,posture,cm,0.304,,3.0,0.101,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headLift,P6-P7,posture,cm,0.265,,3.0,0.088,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headLift,P7-P8,posture,cm,0.688,,3.0,0.229,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headPitch,P1,posture,°,5.68,,8.0,0.71,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headRise,P1,posture,cm,0.147,,3.0,0.049,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headRise,P1-P2,posture,cm,0.648,,3.0,0.216,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headRise,P2-P3,posture,cm,0.82,,3.0,0.273,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headRise,P3-P4,posture,cm,1.267,,3.0,0.422,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headRise,P4-P5,posture,cm,1.536,,3.0,0.512,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headRise,P5-P6,posture,cm,1.747,,3.0,0.582,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headRise,P6-P7,posture,cm,1.097,,3.0,0.366,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headSway,P1,lateral,cm,0.0,,3.0,0.0,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headSway,P1-P2,lateral,cm,0.461,,3.0,0.154,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headSway,P2-P3,lateral,cm,1.007,,3.0,0.336,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headSway,P3-P4,lateral,cm,1.128,,3.0,0.376,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headSway,P4-P5,lateral,cm,1.215,,3.0,0.405,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headSway,P5-P6,lateral,cm,0.821,,3.0,0.274,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headSway,P6-P7,lateral,cm,1.033,,3.0,0.344,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headSway,P7-P8,lateral,cm,1.722,,3.0,0.574,steady
+2026-07-04_Mark-Liversedge_Wrist_01,headTilt,P1,posture,°,0.857,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,headTilt,P1-P2,posture,°,2.071,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,headTilt,P2-P3,posture,°,1.646,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,headTilt,P3-P4,posture,°,2.16,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,headTilt,P4-P5,posture,°,3.288,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,headTilt,P5-P6,posture,°,1.381,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,headTilt,P6-P7,posture,°,2.671,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,headTilt,P7-P8,posture,°,2.439,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,hipDepthButt,P1,posture,cm,0.0,,2.5,0.0,steady
+2026-07-04_Mark-Liversedge_Wrist_01,hipDepthButt,P1-P2,posture,cm,1.124,,2.5,0.45,steady
+2026-07-04_Mark-Liversedge_Wrist_01,hipDepthButt,P2-P3,posture,cm,0.717,,2.5,0.287,steady
+2026-07-04_Mark-Liversedge_Wrist_01,hipDepthButt,P3-P4,posture,cm,1.295,,2.5,0.518,steady
+2026-07-04_Mark-Liversedge_Wrist_01,hipDepthButt,P4-P5,posture,cm,1.617,,2.5,0.647,steady
+2026-07-04_Mark-Liversedge_Wrist_01,hipDepthButt,P5-P6,posture,cm,1.495,,2.5,0.598,steady
+2026-07-04_Mark-Liversedge_Wrist_01,hipDepthButt,P6-P7,posture,cm,2.04,,2.5,0.816,loose
+2026-07-04_Mark-Liversedge_Wrist_01,hipLineTilt,P1,setup,°,0.709,1.86,6.0,0.118,steady
+2026-07-04_Mark-Liversedge_Wrist_01,hipLineTilt,P1-P2,setup,°,0.987,1.86,6.0,0.164,steady
+2026-07-04_Mark-Liversedge_Wrist_01,hipLineTilt,P2-P3,setup,°,0.988,1.86,6.0,0.165,steady
+2026-07-04_Mark-Liversedge_Wrist_01,hipLineTilt,P3-P4,setup,°,0.944,1.86,6.0,0.157,steady
+2026-07-04_Mark-Liversedge_Wrist_01,hipLineTilt,P4-P5,setup,°,1.529,1.86,6.0,0.255,steady
+2026-07-04_Mark-Liversedge_Wrist_01,hipLineTilt,P5-P6,setup,°,0.968,1.86,6.0,0.161,steady
+2026-07-04_Mark-Liversedge_Wrist_01,hipLineTilt,P6-P7,setup,°,1.171,1.86,6.0,0.195,steady
+2026-07-04_Mark-Liversedge_Wrist_01,impactShaftLean,P6-P7,impact,°,1.226,1.72,10.0,0.123,steady
+2026-07-04_Mark-Liversedge_Wrist_01,lagAngle,P1,release,°,2.291,7.279,26.0,0.088,steady
+2026-07-04_Mark-Liversedge_Wrist_01,lagAngle,P1-P2,release,°,1.085,2.935,26.0,0.042,steady
+2026-07-04_Mark-Liversedge_Wrist_01,lagAngle,P2-P3,release,°,1.636,2.935,26.0,0.063,steady
+2026-07-04_Mark-Liversedge_Wrist_01,lagAngle,P3-P4,release,°,2.011,2.935,26.0,0.077,steady
+2026-07-04_Mark-Liversedge_Wrist_01,lagAngle,P4-P5,release,°,1.823,2.935,26.0,0.07,steady
+2026-07-04_Mark-Liversedge_Wrist_01,lagAngle,P5-P6,release,°,2.245,2.935,26.0,0.086,steady
+2026-07-04_Mark-Liversedge_Wrist_01,lagAngle,P6-P7,release,°,2.425,2.935,26.0,0.093,steady
+2026-07-04_Mark-Liversedge_Wrist_01,lagAngle,P7-P8,release,°,2.557,2.935,26.0,0.098,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P4-P5,sequence,°/s,38.346,49.598,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P5-P6,sequence,°/s,56.038,49.598,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P6-P7,sequence,°/s,32.778,49.598,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P7-P8,sequence,°/s,26.766,49.598,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,leadArmPeakSpeed,P6-P7,sequence,°/s,52.543,42.3,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,leadArmPeakTime,P6-P7,sequence,ms,7.365,35.876,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,leadArmToTorso,P1,armsAndClub,°,0.72,,10.0,0.072,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadArmToTorso,P1-P2,armsAndClub,°,0.766,,10.0,0.077,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadArmToTorso,P2-P3,armsAndClub,°,1.086,,10.0,0.109,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadArmToTorso,P3-P4,armsAndClub,°,3.533,,10.0,0.353,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadArmToTorso,P4-P5,armsAndClub,°,3.958,,10.0,0.396,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadArmToTorso,P5-P6,armsAndClub,°,0.856,,10.0,0.086,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadArmToTorso,P6-P7,armsAndClub,°,1.668,,10.0,0.167,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadArmToTorso,P7-P8,armsAndClub,°,1.546,,10.0,0.155,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadFootFlare,P1,setup,°,9.956,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,leadHandWidth,P1,armsAndClub,% arm length,0.417,0.985,8.0,0.052,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadHandWidth,P1-P2,armsAndClub,% arm length,0.628,0.985,8.0,0.079,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadHandWidth,P2-P3,armsAndClub,% arm length,0.814,0.985,8.0,0.102,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadHandWidth,P3-P4,armsAndClub,% arm length,1.705,0.985,8.0,0.213,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadHandWidth,P4-P5,armsAndClub,% arm length,1.404,0.985,8.0,0.176,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadHandWidth,P5-P6,armsAndClub,% arm length,0.79,0.985,8.0,0.099,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadHandWidth,P6-P7,armsAndClub,% arm length,0.664,0.985,8.0,0.083,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadHandWidth,P7-P8,armsAndClub,% arm length,1.052,0.985,8.0,0.132,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadHeelLift,P1,lateral,cm,0.19,,2.0,0.095,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadHeelLift,P1-P2,lateral,cm,0.392,,2.0,0.196,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadHeelLift,P2-P3,lateral,cm,0.734,,2.0,0.367,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadHeelLift,P3-P4,lateral,cm,0.857,,2.0,0.429,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadHeelLift,P4-P5,lateral,cm,1.15,,2.0,0.575,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadHeelLift,P5-P6,lateral,cm,0.881,,2.0,0.441,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadHeelLift,P6-P7,lateral,cm,0.586,,2.0,0.293,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadHeelLift,P7-P8,lateral,cm,0.979,,2.0,0.49,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadKneeDrift,P1,lateral,% stance width,0.659,2.037,8.0,0.082,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadKneeDrift,P1-P2,lateral,% stance width,1.603,2.037,8.0,0.2,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadKneeDrift,P2-P3,lateral,% stance width,2.401,2.037,8.0,0.3,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadKneeDrift,P3-P4,lateral,% stance width,2.677,2.037,8.0,0.335,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadKneeDrift,P4-P5,lateral,% stance width,2.638,2.037,8.0,0.33,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadKneeDrift,P5-P6,lateral,% stance width,4.507,2.037,8.0,0.563,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadKneeDrift,P6-P7,lateral,% stance width,4.366,2.037,8.0,0.546,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadKneeFlexion,P1,lateral,°,1.454,,6.0,0.242,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadKneeFlexion,P1-P2,lateral,°,1.588,,6.0,0.265,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadKneeFlexion,P2-P3,lateral,°,1.304,,6.0,0.217,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadKneeFlexion,P3-P4,lateral,°,1.88,,6.0,0.313,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadKneeFlexion,P4-P5,lateral,°,2.021,,6.0,0.337,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadKneeFlexion,P5-P6,lateral,°,1.128,,6.0,0.188,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadKneeFlexion,P6-P7,lateral,°,1.709,,6.0,0.285,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadKneeFlexion,P7-P8,lateral,°,1.914,,6.0,0.319,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P1,armsAndClub,% shoulder width,1.168,1.459,6.0,0.195,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P1-P2,armsAndClub,% shoulder width,1.376,1.459,6.0,0.229,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P2-P3,armsAndClub,% shoulder width,1.598,1.459,6.0,0.266,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P3-P4,armsAndClub,% shoulder width,2.006,1.459,6.0,0.334,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P4-P5,armsAndClub,% shoulder width,1.81,1.459,6.0,0.302,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P5-P6,armsAndClub,% shoulder width,1.103,1.459,6.0,0.184,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P6-P7,armsAndClub,% shoulder width,1.971,1.459,6.0,0.329,steady
+2026-07-04_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P7-P8,armsAndClub,% shoulder width,1.462,1.459,6.0,0.244,steady
+2026-07-04_Mark-Liversedge_Wrist_01,lowPointAhead,P6-P7,impact,in,2.645,6.004,1.6,1.653,nearError
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P4-P5,sequence,°/s,20.299,125.448,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P5-P6,sequence,°/s,30.583,125.448,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P6-P7,sequence,°/s,34.032,125.448,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P7-P8,sequence,°/s,96.502,125.448,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisLift,P1,posture,% stance width,0.495,1.056,6.0,0.082,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisLift,P1-P2,posture,% stance width,2.085,1.056,6.0,0.347,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisLift,P2-P3,posture,% stance width,1.809,1.056,6.0,0.302,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisLift,P3-P4,posture,% stance width,3.497,1.056,6.0,0.583,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisLift,P4-P5,posture,% stance width,2.076,1.056,6.0,0.346,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisLift,P5-P6,posture,% stance width,2.557,1.056,6.0,0.426,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisLift,P6-P7,posture,% stance width,2.261,1.056,6.0,0.377,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisPeakSpeed,P6-P7,sequence,°/s,45.319,155.274,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisPeakTime,P6-P7,sequence,ms,8.401,15.724,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisReversalTime,P6-P7,sequence,ms,27.403,93.074,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotation,P1,sequence,°,0.327,2.723,10.0,0.033,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotation,P1-P2,sequence,°,1.708,4.655,10.0,0.171,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotation,P2-P3,sequence,°,4.591,4.655,10.0,0.459,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotation,P3-P4,sequence,°,4.665,4.655,10.0,0.467,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotation,P4-P5,sequence,°,3.925,4.655,10.0,0.393,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotation,P5-P6,sequence,°,3.131,4.655,10.0,0.313,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotation,P6-P7,sequence,°,3.468,4.655,10.0,0.347,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotation,P7-P8,sequence,°,2.88,4.655,10.0,0.288,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P1,sequence,°,0.437,2.723,100.0,0.004,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P1-P2,sequence,°,2.459,4.655,100.0,0.025,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P2-P3,sequence,°,4.591,4.655,100.0,0.046,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P3-P4,sequence,°,4.665,4.655,100.0,0.047,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P4-P5,sequence,°,3.925,4.655,100.0,0.039,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P5-P6,sequence,°,3.131,4.655,100.0,0.031,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P6-P7,sequence,°,3.655,4.655,100.0,0.037,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P7-P8,sequence,°,2.88,4.655,100.0,0.029,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisSway,P1,lateral,% stance width,0.612,1.056,10.0,0.061,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisSway,P1-P2,lateral,% stance width,1.392,1.056,10.0,0.139,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisSway,P2-P3,lateral,% stance width,3.027,1.056,10.0,0.303,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisSway,P3-P4,lateral,% stance width,3.118,1.056,10.0,0.312,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisSway,P4-P5,lateral,% stance width,3.494,1.056,10.0,0.349,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisSway,P5-P6,lateral,% stance width,2.792,1.056,10.0,0.279,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisSway,P6-P7,lateral,% stance width,3.547,1.056,10.0,0.355,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisThrust,P1-P2,posture,cm,0.248,,2.5,0.099,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisThrust,P2-P3,posture,cm,0.607,,2.5,0.243,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisThrust,P3-P4,posture,cm,0.835,,2.5,0.334,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisThrust,P4-P5,posture,cm,1.175,,2.5,0.47,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisThrust,P5-P6,posture,cm,1.01,,2.5,0.404,steady
+2026-07-04_Mark-Liversedge_Wrist_01,pelvisThrust,P6-P7,posture,cm,1.522,,2.5,0.609,steady
+2026-07-04_Mark-Liversedge_Wrist_01,plumbBobDistance,P1,lateral,in,0.326,0.451,0.5,0.652,steady
+2026-07-04_Mark-Liversedge_Wrist_01,plumbBobDistance,P1-P2,lateral,in,0.359,0.451,0.5,0.718,steady
+2026-07-04_Mark-Liversedge_Wrist_01,plumbBobDistance,P2-P3,lateral,in,0.509,0.451,0.5,1.018,loose
+2026-07-04_Mark-Liversedge_Wrist_01,plumbBobDistance,P3-P4,lateral,in,0.727,0.451,0.5,1.453,loose
+2026-07-04_Mark-Liversedge_Wrist_01,plumbBobDistance,P4-P5,lateral,in,0.84,0.451,0.5,1.679,loose
+2026-07-04_Mark-Liversedge_Wrist_01,plumbBobDistance,P5-P6,lateral,in,0.648,0.451,0.5,1.296,loose
+2026-07-04_Mark-Liversedge_Wrist_01,plumbBobDistance,P6-P7,lateral,in,0.514,0.451,0.5,1.029,loose
+2026-07-04_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P1,posture,°,0.784,0.656,6.0,0.131,steady
+2026-07-04_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P1-P2,posture,°,0.963,0.656,6.0,0.16,steady
+2026-07-04_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P2-P3,posture,°,0.699,0.656,6.0,0.116,steady
+2026-07-04_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P3-P4,posture,°,1.691,0.656,6.0,0.282,steady
+2026-07-04_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P4-P5,posture,°,2.42,0.656,6.0,0.403,steady
+2026-07-04_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P5-P6,posture,°,0.537,0.656,6.0,0.089,steady
+2026-07-04_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P6-P7,posture,°,0.835,0.656,6.0,0.139,steady
+2026-07-04_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P1,armsAndClub,°,3.336,1.198,15.0,0.222,steady
+2026-07-04_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P1-P2,armsAndClub,°,9.08,1.143,15.0,0.605,steady
+2026-07-04_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P2-P3,armsAndClub,°,9.62,1.143,15.0,0.641,steady
+2026-07-04_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P3-P4,armsAndClub,°,11.795,1.143,15.0,0.786,loose
+2026-07-04_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P4-P5,armsAndClub,°,30.637,1.143,15.0,2.042,loose
+2026-07-04_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P5-P6,armsAndClub,°,44.508,1.143,15.0,2.967,loose
+2026-07-04_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P6-P7,armsAndClub,°,12.537,1.143,15.0,0.836,loose
+2026-07-04_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P7-P8,armsAndClub,°,4.414,1.143,15.0,0.294,steady
+2026-07-04_Mark-Liversedge_Wrist_01,shaftLie,P6-P7,impact,°,0.556,0.626,0.75,0.741,steady
+2026-07-04_Mark-Liversedge_Wrist_01,shoulderPlane,P1,,°,0.353,0.103,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P1,armsAndClub,°,0.757,1.321,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P1-P2,armsAndClub,°,0.87,1.321,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P2-P3,armsAndClub,°,1.221,1.321,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P3-P4,armsAndClub,°,4.118,1.321,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P4-P5,armsAndClub,°,5.518,1.321,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P5-P6,armsAndClub,°,0.718,1.321,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P6-P7,armsAndClub,°,0.649,1.321,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,spineBackLine,P1-P2,posture,°,0.625,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,spineBackLine,P3-P4,posture,°,1.153,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,spineBackLine,P5-P6,posture,°,0.746,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,spineBackLine,P6-P7,posture,°,0.862,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,spineForwardBend,P1,setup,°,1.079,,3.0,0.36,steady
+2026-07-04_Mark-Liversedge_Wrist_01,spineForwardBend,P1-P2,setup,°,1.298,,3.0,0.433,steady
+2026-07-04_Mark-Liversedge_Wrist_01,spineForwardBend,P2-P3,setup,°,0.964,,3.0,0.321,steady
+2026-07-04_Mark-Liversedge_Wrist_01,spineForwardBend,P3-P4,setup,°,1.023,,3.0,0.341,steady
+2026-07-04_Mark-Liversedge_Wrist_01,spineForwardBend,P4-P5,setup,°,0.722,,3.0,0.241,steady
+2026-07-04_Mark-Liversedge_Wrist_01,spineForwardBend,P5-P6,setup,°,0.61,,3.0,0.203,steady
+2026-07-04_Mark-Liversedge_Wrist_01,spineForwardBend,P6-P7,setup,°,0.495,,3.0,0.165,steady
+2026-07-04_Mark-Liversedge_Wrist_01,spineSideBend,P1,posture,°,1.604,2.308,6.0,0.267,steady
+2026-07-04_Mark-Liversedge_Wrist_01,spineSideBend,P1-P2,posture,°,1.385,2.308,6.0,0.231,steady
+2026-07-04_Mark-Liversedge_Wrist_01,spineSideBend,P2-P3,posture,°,1.506,2.308,6.0,0.251,steady
+2026-07-04_Mark-Liversedge_Wrist_01,spineSideBend,P3-P4,posture,°,3.954,2.308,6.0,0.659,steady
+2026-07-04_Mark-Liversedge_Wrist_01,spineSideBend,P4-P5,posture,°,3.606,2.308,6.0,0.601,steady
+2026-07-04_Mark-Liversedge_Wrist_01,spineSideBend,P5-P6,posture,°,1.013,2.308,6.0,0.169,steady
+2026-07-04_Mark-Liversedge_Wrist_01,spineSideBend,P6-P7,posture,°,1.303,2.308,6.0,0.217,steady
+2026-07-04_Mark-Liversedge_Wrist_01,stanceWidth,P1,setup,% shoulder width,4.945,,10.0,0.494,steady
+2026-07-04_Mark-Liversedge_Wrist_01,stanceWidthMm,P1,setup,mm,11.38,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlane,P1-P2,armsAndClub,°,4.355,0.773,7.0,0.622,steady
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlane,P2-P3,armsAndClub,°,4.355,0.773,7.0,0.622,steady
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlane,P3-P4,armsAndClub,°,4.355,0.773,7.0,0.622,steady
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlane,P4-P5,armsAndClub,°,0.841,0.773,7.0,0.12,steady
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlane,P5-P6,armsAndClub,°,0.841,0.773,7.0,0.12,steady
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlane,P6-P7,armsAndClub,°,0.841,0.773,7.0,0.12,steady
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlaneAngle,P1-P2,armsAndClub,°,3.83,0.589,4.0,0.958,loose
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlaneAngle,P2-P3,armsAndClub,°,3.83,0.589,4.0,0.958,loose
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlaneAngle,P3-P4,armsAndClub,°,3.83,0.589,4.0,0.958,loose
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlaneAngle,P4-P5,armsAndClub,°,0.956,0.589,4.0,0.239,steady
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlaneAngle,P5-P6,armsAndClub,°,0.956,0.589,4.0,0.239,steady
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlaneAngle,P6-P7,armsAndClub,°,0.956,0.589,4.0,0.239,steady
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlaneCurve,P1-P2,armsAndClub,°,0.653,0.493,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlaneCurve,P2-P3,armsAndClub,°,1.064,0.493,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlaneCurve,P3-P4,armsAndClub,°,0.949,0.493,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlaneCurve,P4-P5,armsAndClub,°,0.726,0.493,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlaneCurve,P5-P6,armsAndClub,°,0.729,0.493,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlaneCurve,P6-P7,armsAndClub,°,0.591,0.493,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlaneIotaBack,P3-P4,,°,4.577,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,swingPlaneIotaDown,P6-P7,,°,3.164,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,tempoBackswing,P3-P4,sequence,s,0.017,0.042,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,tempoRatio,P3-P4,sequence,:1,0.068,0.481,0.4,0.17,steady
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P4-P5,sequence,°/s,168.622,224.481,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P5-P6,sequence,°/s,42.582,224.481,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P6-P7,sequence,°/s,67.09,224.481,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P7-P8,sequence,°/s,52.238,224.481,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P1,lateral,% stance width,3.012,5.324,10.0,0.301,steady
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P1-P2,lateral,% stance width,3.946,5.324,10.0,0.395,steady
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P2-P3,lateral,% stance width,5.674,5.324,10.0,0.567,steady
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P3-P4,lateral,% stance width,9.77,5.324,10.0,0.977,loose
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P4-P5,lateral,% stance width,10.541,5.324,10.0,1.054,loose
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P5-P6,lateral,% stance width,7.829,5.324,10.0,0.783,loose
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P6-P7,lateral,% stance width,5.168,5.324,10.0,0.517,steady
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxPeakSpeed,P6-P7,sequence,°/s,70.237,36.724,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxPeakTime,P6-P7,sequence,ms,6.652,7.5,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotation,P1,armsAndClub,°,0.618,1.28,12.0,0.052,steady
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotation,P1-P2,armsAndClub,°,1.143,6.982,12.0,0.095,steady
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotation,P2-P3,armsAndClub,°,1.698,6.982,12.0,0.141,steady
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotation,P3-P4,armsAndClub,°,4.278,6.982,12.0,0.356,steady
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotation,P4-P5,armsAndClub,°,4.765,6.982,12.0,0.397,steady
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotation,P5-P6,armsAndClub,°,3.446,6.982,12.0,0.287,steady
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotation,P6-P7,armsAndClub,°,2.614,6.982,12.0,0.218,steady
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotation,P7-P8,armsAndClub,°,4.203,6.982,12.0,0.35,steady
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P1,armsAndClub,°,0.618,1.28,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P1-P2,armsAndClub,°,1.143,6.982,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P2-P3,armsAndClub,°,1.698,6.982,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P3-P4,armsAndClub,°,4.278,6.982,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P4-P5,armsAndClub,°,4.765,6.982,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P5-P6,armsAndClub,°,3.446,6.982,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P6-P7,armsAndClub,°,2.817,6.982,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P7-P8,armsAndClub,°,4.203,6.982,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,toeLineAngle,P1,setup,°,2.61,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,trailElbowHeight,P1,armsAndClub,% shoulder width,0.978,2.205,15.0,0.065,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailElbowHeight,P1-P2,armsAndClub,% shoulder width,1.71,2.205,15.0,0.114,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailElbowHeight,P2-P3,armsAndClub,% shoulder width,1.59,2.205,15.0,0.106,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailElbowHeight,P3-P4,armsAndClub,% shoulder width,10.699,2.205,15.0,0.713,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailElbowHeight,P4-P5,armsAndClub,% shoulder width,13.921,2.205,15.0,0.928,loose
+2026-07-04_Mark-Liversedge_Wrist_01,trailElbowHeight,P5-P6,armsAndClub,% shoulder width,1.701,2.205,15.0,0.113,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailElbowHeight,P6-P7,armsAndClub,% shoulder width,0.864,2.205,15.0,0.058,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailElbowHeight,P7-P8,armsAndClub,% shoulder width,2.39,2.205,15.0,0.159,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailFootFlare,P1,setup,°,10.406,,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,trailForearmAngle,P1-P2,armsAndClub,°,1.8,,15.0,0.12,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailForearmAngle,P2-P3,armsAndClub,°,3.038,,15.0,0.203,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailForearmAngle,P3-P4,armsAndClub,°,4.585,,15.0,0.306,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailForearmAngle,P4-P5,armsAndClub,°,2.559,,15.0,0.171,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailForearmAngle,P5-P6,armsAndClub,°,2.179,,15.0,0.145,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailForearmAngle,P6-P7,armsAndClub,°,1.374,,15.0,0.092,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailForearmAngle,P7-P8,armsAndClub,°,3.566,,15.0,0.238,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailKneeFlexion,P1,setup,°,1.28,,7.5,0.171,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailKneeFlexion,P1-P2,setup,°,1.211,,7.5,0.161,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailKneeFlexion,P2-P3,setup,°,1.614,,7.5,0.215,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailKneeFlexion,P3-P4,setup,°,1.064,,7.5,0.142,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailKneeFlexion,P4-P5,setup,°,2.027,,7.5,0.27,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailKneeFlexion,P5-P6,setup,°,2.368,,7.5,0.316,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailKneeFlexion,P6-P7,setup,°,1.809,,7.5,0.241,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailKneeFlexion,P7-P8,setup,°,1.376,,7.5,0.183,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailWristFlexExt,P1,release,°,3.725,1.859,11.0,0.339,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailWristFlexExt,P1-P2,release,°,3.509,1.859,11.0,0.319,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailWristFlexExt,P2-P3,release,°,3.417,1.859,11.0,0.311,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailWristFlexExt,P3-P4,release,°,3.808,1.859,11.0,0.346,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailWristFlexExt,P4-P5,release,°,4.492,1.859,11.0,0.408,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailWristFlexExt,P5-P6,release,°,4.894,1.859,11.0,0.445,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailWristFlexExt,P6-P7,release,°,3.883,1.859,11.0,0.353,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trailWristFlexExt,P7-P8,release,°,3.458,1.859,11.0,0.314,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trunkRise,P1,posture,%,0.495,1.22,4.5,0.11,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trunkRise,P1-P2,posture,%,1.771,1.22,4.5,0.394,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trunkRise,P2-P3,posture,%,2.51,1.22,4.5,0.558,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trunkRise,P3-P4,posture,%,3.24,1.22,4.5,0.72,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trunkRise,P4-P5,posture,%,3.185,1.22,4.5,0.708,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trunkRise,P5-P6,posture,%,2.23,1.22,4.5,0.495,steady
+2026-07-04_Mark-Liversedge_Wrist_01,trunkRise,P6-P7,posture,%,2.347,1.22,4.5,0.522,steady
+2026-07-04_Mark-Liversedge_Wrist_01,xFactor,P1,sequence,°,0.651,2.978,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,xFactor,P1-P2,sequence,°,1.317,8.473,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,xFactor,P2-P3,sequence,°,4.279,8.473,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,xFactor,P3-P4,sequence,°,5.157,8.473,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,xFactor,P4-P5,sequence,°,7.171,8.473,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,xFactor,P5-P6,sequence,°,6.41,8.473,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,xFactor,P6-P7,sequence,°,4.33,8.473,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,xFactor,P7-P8,sequence,°,2.324,8.473,,,unjudged
+2026-07-04_Mark-Liversedge_Wrist_01,xFactorStretch,P1,sequence,°,7.373,2.978,3.5,2.107,loose
+2026-07-04_Mark-Liversedge_Wrist_01,xFactorStretch,P1-P2,sequence,°,6.773,8.473,3.5,1.935,nearError
+2026-07-04_Mark-Liversedge_Wrist_01,xFactorStretch,P2-P3,sequence,°,6.871,8.473,3.5,1.963,nearError
+2026-07-04_Mark-Liversedge_Wrist_01,xFactorStretch,P3-P4,sequence,°,9.563,8.473,3.5,2.732,loose
+2026-07-04_Mark-Liversedge_Wrist_01,xFactorStretch,P4-P5,sequence,°,7.375,8.473,3.5,2.107,nearError
+2026-07-04_Mark-Liversedge_Wrist_01,xFactorStretch,P5-P6,sequence,°,7.655,8.473,3.5,2.187,nearError
+2026-07-04_Mark-Liversedge_Wrist_01,xFactorStretch,P6-P7,sequence,°,8.132,8.473,3.5,2.324,nearError
+2026-07-04_Mark-Liversedge_Wrist_01,xFactorStretch,P7-P8,sequence,°,13.504,8.473,3.5,3.858,loose
+2026-10-05_Mark-Liversedge_Wrist_01,armHang,P1,setup,°,0.788,,5.0,0.158,steady
+2026-10-05_Mark-Liversedge_Wrist_01,attackAngle,P6-P7,impact,°,12.515,1.905,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,balanceHeelToe,P1,setup,% foot length,2.955,,5.0,0.591,steady
+2026-10-05_Mark-Liversedge_Wrist_01,ballBodyDistance,P1,setup,cm,2.65,0.311,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,ballPosition,P1,setup,% stance width,16.641,,10.0,1.664,loose
+2026-10-05_Mark-Liversedge_Wrist_01,ballReachExcess,P1,setup,cm,1.603,0.037,4.0,0.401,steady
+2026-10-05_Mark-Liversedge_Wrist_01,clubAngularSpeed,P4-P5,sequence,°/s,47.184,25.664,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,clubAngularSpeed,P5-P6,sequence,°/s,69.949,25.664,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,clubAngularSpeed,P6-P7,sequence,°/s,125.215,25.664,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,clubAngularSpeed,P7-P8,sequence,°/s,131.989,25.664,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,clubPeakSpeed,P6-P7,sequence,°/s,93.24,43.924,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,clubPeakTime,P6-P7,sequence,ms,5.992,17.009,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,clubheadPeakLead,P6-P7,sequence,ms,0.923,1.934,15.0,0.062,steady
+2026-10-05_Mark-Liversedge_Wrist_01,clubheadSpeed,P1,sequence,mph,1.75,3.936,4.15,0.422,steady
+2026-10-05_Mark-Liversedge_Wrist_01,clubheadSpeed,P1-P2,sequence,mph,1.283,3.017,4.15,0.309,steady
+2026-10-05_Mark-Liversedge_Wrist_01,clubheadSpeed,P2-P3,sequence,mph,1.193,3.017,4.15,0.288,steady
+2026-10-05_Mark-Liversedge_Wrist_01,clubheadSpeed,P3-P4,sequence,mph,0.803,3.017,4.15,0.194,steady
+2026-10-05_Mark-Liversedge_Wrist_01,clubheadSpeed,P4-P5,sequence,mph,1.256,3.017,4.15,0.303,steady
+2026-10-05_Mark-Liversedge_Wrist_01,clubheadSpeed,P5-P6,sequence,mph,1.838,3.017,4.15,0.443,steady
+2026-10-05_Mark-Liversedge_Wrist_01,clubheadSpeed,P6-P7,sequence,mph,4.903,3.017,4.15,1.181,loose
+2026-10-05_Mark-Liversedge_Wrist_01,comOverLeadFoot,P1,finish,% stance width,4.197,3.101,10.0,0.42,steady
+2026-10-05_Mark-Liversedge_Wrist_01,comOverLeadFoot,P1-P2,finish,% stance width,3.517,3.101,10.0,0.352,steady
+2026-10-05_Mark-Liversedge_Wrist_01,comOverLeadFoot,P2-P3,finish,% stance width,4.084,3.101,10.0,0.408,steady
+2026-10-05_Mark-Liversedge_Wrist_01,comOverLeadFoot,P3-P4,finish,% stance width,5.536,3.101,10.0,0.554,steady
+2026-10-05_Mark-Liversedge_Wrist_01,comOverLeadFoot,P4-P5,finish,% stance width,7.965,3.101,10.0,0.797,loose
+2026-10-05_Mark-Liversedge_Wrist_01,comOverLeadFoot,P5-P6,finish,% stance width,6.289,3.101,10.0,0.629,steady
+2026-10-05_Mark-Liversedge_Wrist_01,comOverLeadFoot,P6-P7,finish,% stance width,5.512,3.101,10.0,0.551,steady
+2026-10-05_Mark-Liversedge_Wrist_01,comOverLeadFoot,P7-P8,finish,% stance width,9.906,3.101,10.0,0.991,loose
+2026-10-05_Mark-Liversedge_Wrist_01,compoundMiss,P6-P7,,ratio,0.0,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,elbowAlignment,P1,armsAndClub,°,2.815,1.913,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,elbowAlignment,P1-P2,armsAndClub,°,1.651,1.913,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,elbowAlignment,P2-P3,armsAndClub,°,3.302,1.913,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,elbowAlignment,P3-P4,armsAndClub,°,7.05,1.913,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,elbowAlignment,P4-P5,armsAndClub,°,4.351,1.913,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,elbowAlignment,P5-P6,armsAndClub,°,2.858,1.913,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,elbowAlignment,P6-P7,armsAndClub,°,1.444,1.913,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,feetAlignment,P1,setup,°,0.622,0.823,4.0,0.156,steady
+2026-10-05_Mark-Liversedge_Wrist_01,feetAlignment,P1-P2,setup,°,0.764,0.823,4.0,0.191,steady
+2026-10-05_Mark-Liversedge_Wrist_01,feetAlignment,P2-P3,setup,°,0.94,0.823,4.0,0.235,steady
+2026-10-05_Mark-Liversedge_Wrist_01,feetAlignment,P3-P4,setup,°,0.985,0.823,4.0,0.246,steady
+2026-10-05_Mark-Liversedge_Wrist_01,feetAlignment,P4-P5,setup,°,0.97,0.823,4.0,0.242,steady
+2026-10-05_Mark-Liversedge_Wrist_01,feetAlignment,P5-P6,setup,°,0.794,0.823,4.0,0.198,steady
+2026-10-05_Mark-Liversedge_Wrist_01,feetAlignment,P6-P7,setup,°,0.785,0.823,4.0,0.196,steady
+2026-10-05_Mark-Liversedge_Wrist_01,feetAlignment,P7-P8,setup,°,1.781,0.823,4.0,0.445,steady
+2026-10-05_Mark-Liversedge_Wrist_01,handPathLoop,P3-P4,armsAndClub,% hand rise,2.616,,4.333333333333333,0.604,steady
+2026-10-05_Mark-Liversedge_Wrist_01,handPlaneCurve,P1-P2,armsAndClub,°,0.932,0.248,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,handPlaneCurve,P2-P3,armsAndClub,°,1.303,0.248,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,handPlaneCurve,P3-P4,armsAndClub,°,1.541,0.248,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,handPlaneCurve,P4-P5,armsAndClub,°,2.141,0.248,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,handPlaneCurve,P5-P6,armsAndClub,°,2.959,0.248,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,handPlaneCurve,P6-P7,armsAndClub,°,1.529,0.248,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,handPlaneSteepening,P3-P4,armsAndClub,°,1.778,0.532,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,handSpeed,P1,sequence,mph,0.246,1.292,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,handSpeed,P1-P2,sequence,mph,0.576,1.297,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,handSpeed,P2-P3,sequence,mph,0.861,1.297,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,handSpeed,P3-P4,sequence,mph,0.476,1.297,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,handSpeed,P4-P5,sequence,mph,0.528,1.297,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,handSpeed,P5-P6,sequence,mph,1.246,1.297,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,handSpeed,P6-P7,sequence,mph,1.238,1.297,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,handSpeed,P7-P8,sequence,mph,10.113,1.297,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,headLift,P1,posture,cm,0.478,,3.0,0.159,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headLift,P1-P2,posture,cm,0.422,,3.0,0.141,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headLift,P2-P3,posture,cm,0.419,,3.0,0.14,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headLift,P3-P4,posture,cm,0.772,,3.0,0.257,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headLift,P4-P5,posture,cm,0.68,,3.0,0.227,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headLift,P5-P6,posture,cm,0.689,,3.0,0.23,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headLift,P6-P7,posture,cm,0.994,,3.0,0.331,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headLift,P7-P8,posture,cm,4.294,,3.0,1.431,loose
+2026-10-05_Mark-Liversedge_Wrist_01,headPitch,P1,posture,°,4.313,,8.0,0.539,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headRise,P1,posture,cm,0.3,,3.0,0.1,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headRise,P1-P2,posture,cm,0.731,,3.0,0.244,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headRise,P2-P3,posture,cm,1.386,,3.0,0.462,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headRise,P3-P4,posture,cm,1.231,,3.0,0.41,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headRise,P4-P5,posture,cm,1.83,,3.0,0.61,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headRise,P5-P6,posture,cm,1.356,,3.0,0.452,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headRise,P6-P7,posture,cm,1.837,,3.0,0.612,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headSway,P1,lateral,cm,0.015,,3.0,0.005,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headSway,P1-P2,lateral,cm,0.681,,3.0,0.227,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headSway,P2-P3,lateral,cm,1.269,,3.0,0.423,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headSway,P3-P4,lateral,cm,1.969,,3.0,0.656,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headSway,P4-P5,lateral,cm,1.357,,3.0,0.452,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headSway,P5-P6,lateral,cm,1.451,,3.0,0.484,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headSway,P6-P7,lateral,cm,1.568,,3.0,0.523,steady
+2026-10-05_Mark-Liversedge_Wrist_01,headSway,P7-P8,lateral,cm,5.399,,3.0,1.8,loose
+2026-10-05_Mark-Liversedge_Wrist_01,headTilt,P1,posture,°,2.368,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,headTilt,P1-P2,posture,°,1.894,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,headTilt,P2-P3,posture,°,2.247,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,headTilt,P3-P4,posture,°,2.69,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,headTilt,P4-P5,posture,°,3.033,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,headTilt,P5-P6,posture,°,2.349,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,headTilt,P6-P7,posture,°,3.485,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,headTilt,P7-P8,posture,°,6.4,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,hipDepthButt,P1,posture,cm,0.0,,2.5,0.0,steady
+2026-10-05_Mark-Liversedge_Wrist_01,hipDepthButt,P1-P2,posture,cm,0.618,,2.5,0.247,steady
+2026-10-05_Mark-Liversedge_Wrist_01,hipDepthButt,P2-P3,posture,cm,0.704,,2.5,0.282,steady
+2026-10-05_Mark-Liversedge_Wrist_01,hipDepthButt,P3-P4,posture,cm,0.711,,2.5,0.284,steady
+2026-10-05_Mark-Liversedge_Wrist_01,hipDepthButt,P4-P5,posture,cm,0.846,,2.5,0.338,steady
+2026-10-05_Mark-Liversedge_Wrist_01,hipDepthButt,P5-P6,posture,cm,1.152,,2.5,0.461,steady
+2026-10-05_Mark-Liversedge_Wrist_01,hipDepthButt,P6-P7,posture,cm,1.415,,2.5,0.566,steady
+2026-10-05_Mark-Liversedge_Wrist_01,hipLineTilt,P1,setup,°,1.604,1.988,6.0,0.267,steady
+2026-10-05_Mark-Liversedge_Wrist_01,hipLineTilt,P1-P2,setup,°,1.5,1.988,6.0,0.25,steady
+2026-10-05_Mark-Liversedge_Wrist_01,hipLineTilt,P2-P3,setup,°,1.202,1.988,6.0,0.2,steady
+2026-10-05_Mark-Liversedge_Wrist_01,hipLineTilt,P3-P4,setup,°,2.041,1.988,6.0,0.34,steady
+2026-10-05_Mark-Liversedge_Wrist_01,hipLineTilt,P4-P5,setup,°,2.027,1.988,6.0,0.338,steady
+2026-10-05_Mark-Liversedge_Wrist_01,hipLineTilt,P5-P6,setup,°,1.062,1.988,6.0,0.177,steady
+2026-10-05_Mark-Liversedge_Wrist_01,hipLineTilt,P6-P7,setup,°,0.848,1.988,6.0,0.141,steady
+2026-10-05_Mark-Liversedge_Wrist_01,impactShaftLean,P6-P7,impact,°,1.693,1.782,10.0,0.169,steady
+2026-10-05_Mark-Liversedge_Wrist_01,lagAngle,P1,release,°,3.583,2.605,26.0,0.138,steady
+2026-10-05_Mark-Liversedge_Wrist_01,lagAngle,P1-P2,release,°,3.869,3.208,26.0,0.149,steady
+2026-10-05_Mark-Liversedge_Wrist_01,lagAngle,P2-P3,release,°,2.277,3.208,26.0,0.088,steady
+2026-10-05_Mark-Liversedge_Wrist_01,lagAngle,P3-P4,release,°,2.709,3.208,26.0,0.104,steady
+2026-10-05_Mark-Liversedge_Wrist_01,lagAngle,P4-P5,release,°,2.471,3.208,26.0,0.095,steady
+2026-10-05_Mark-Liversedge_Wrist_01,lagAngle,P5-P6,release,°,2.96,3.208,26.0,0.114,steady
+2026-10-05_Mark-Liversedge_Wrist_01,lagAngle,P6-P7,release,°,3.175,3.208,26.0,0.122,steady
+2026-10-05_Mark-Liversedge_Wrist_01,lagAngle,P7-P8,release,°,29.855,3.208,26.0,1.148,loose
+2026-10-05_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P4-P5,sequence,°/s,69.703,56.994,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P5-P6,sequence,°/s,56.393,56.994,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P6-P7,sequence,°/s,113.415,56.994,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P7-P8,sequence,°/s,61.088,56.994,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,leadArmPeakSpeed,P6-P7,sequence,°/s,131.122,56.763,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,leadArmPeakTime,P6-P7,sequence,ms,14.895,34.378,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,leadArmToTorso,P1,armsAndClub,°,0.701,,10.0,0.07,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadArmToTorso,P1-P2,armsAndClub,°,1.622,,10.0,0.162,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadArmToTorso,P2-P3,armsAndClub,°,2.087,,10.0,0.209,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadArmToTorso,P3-P4,armsAndClub,°,5.132,,10.0,0.513,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadArmToTorso,P4-P5,armsAndClub,°,3.524,,10.0,0.352,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadArmToTorso,P5-P6,armsAndClub,°,1.889,,10.0,0.189,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadArmToTorso,P6-P7,armsAndClub,°,2.276,,10.0,0.228,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadArmToTorso,P7-P8,armsAndClub,°,38.014,,10.0,3.801,loose
+2026-10-05_Mark-Liversedge_Wrist_01,leadFootFlare,P1,setup,°,5.544,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,leadHandWidth,P1,armsAndClub,% arm length,0.872,0.976,8.0,0.109,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadHandWidth,P1-P2,armsAndClub,% arm length,0.618,0.976,8.0,0.077,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadHandWidth,P2-P3,armsAndClub,% arm length,1.13,0.976,8.0,0.141,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadHandWidth,P3-P4,armsAndClub,% arm length,1.696,0.976,8.0,0.212,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadHandWidth,P4-P5,armsAndClub,% arm length,2.737,0.976,8.0,0.342,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadHandWidth,P5-P6,armsAndClub,% arm length,1.23,0.976,8.0,0.154,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadHandWidth,P6-P7,armsAndClub,% arm length,0.604,0.976,8.0,0.075,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadHandWidth,P7-P8,armsAndClub,% arm length,13.286,0.976,8.0,1.661,loose
+2026-10-05_Mark-Liversedge_Wrist_01,leadHeelLift,P1,lateral,cm,0.338,,2.0,0.169,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadHeelLift,P1-P2,lateral,cm,0.434,,2.0,0.217,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadHeelLift,P2-P3,lateral,cm,0.743,,2.0,0.371,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadHeelLift,P3-P4,lateral,cm,1.306,,2.0,0.653,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadHeelLift,P4-P5,lateral,cm,1.07,,2.0,0.535,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadHeelLift,P5-P6,lateral,cm,1.184,,2.0,0.592,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadHeelLift,P6-P7,lateral,cm,0.861,,2.0,0.431,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadHeelLift,P7-P8,lateral,cm,1.614,,2.0,0.807,loose
+2026-10-05_Mark-Liversedge_Wrist_01,leadKneeDrift,P1,lateral,% stance width,0.515,1.484,8.0,0.064,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadKneeDrift,P1-P2,lateral,% stance width,1.68,1.484,8.0,0.21,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadKneeDrift,P2-P3,lateral,% stance width,2.275,1.484,8.0,0.284,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadKneeDrift,P3-P4,lateral,% stance width,2.419,1.484,8.0,0.302,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadKneeDrift,P4-P5,lateral,% stance width,2.481,1.484,8.0,0.31,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadKneeDrift,P5-P6,lateral,% stance width,2.997,1.484,8.0,0.375,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadKneeDrift,P6-P7,lateral,% stance width,3.106,1.484,8.0,0.388,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadKneeFlexion,P1,lateral,°,2.249,,6.0,0.375,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadKneeFlexion,P1-P2,lateral,°,2.08,,6.0,0.347,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadKneeFlexion,P2-P3,lateral,°,1.947,,6.0,0.325,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadKneeFlexion,P3-P4,lateral,°,1.798,,6.0,0.3,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadKneeFlexion,P4-P5,lateral,°,1.762,,6.0,0.294,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadKneeFlexion,P5-P6,lateral,°,1.373,,6.0,0.229,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadKneeFlexion,P6-P7,lateral,°,2.844,,6.0,0.474,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadKneeFlexion,P7-P8,lateral,°,4.58,,6.0,0.763,loose
+2026-10-05_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P1,armsAndClub,% shoulder width,1.71,1.362,6.0,0.285,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P1-P2,armsAndClub,% shoulder width,2.176,1.362,6.0,0.363,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P2-P3,armsAndClub,% shoulder width,2.958,1.362,6.0,0.493,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P3-P4,armsAndClub,% shoulder width,2.716,1.362,6.0,0.453,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P4-P5,armsAndClub,% shoulder width,4.35,1.362,6.0,0.725,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P5-P6,armsAndClub,% shoulder width,2.365,1.362,6.0,0.394,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P6-P7,armsAndClub,% shoulder width,3.339,1.362,6.0,0.557,steady
+2026-10-05_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P7-P8,armsAndClub,% shoulder width,6.415,1.362,6.0,1.069,loose
+2026-10-05_Mark-Liversedge_Wrist_01,lowPointAhead,P6-P7,impact,in,2.057,6.018,1.6,1.285,nearError
+2026-10-05_Mark-Liversedge_Wrist_01,lowPointFromAttack,P6-P7,impact,in,1.126,0.586,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P4-P5,sequence,°/s,58.348,348.976,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P5-P6,sequence,°/s,161.413,348.976,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P6-P7,sequence,°/s,135.487,348.976,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P7-P8,sequence,°/s,231.175,348.976,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisLift,P1,posture,% stance width,0.934,0.78,6.0,0.156,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisLift,P1-P2,posture,% stance width,2.483,0.78,6.0,0.414,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisLift,P2-P3,posture,% stance width,2.183,0.78,6.0,0.364,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisLift,P3-P4,posture,% stance width,2.028,0.78,6.0,0.338,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisLift,P4-P5,posture,% stance width,3.047,0.78,6.0,0.508,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisLift,P5-P6,posture,% stance width,3.228,0.78,6.0,0.538,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisLift,P6-P7,posture,% stance width,2.356,0.78,6.0,0.393,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisPeakSpeed,P6-P7,sequence,°/s,39.543,144.752,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisPeakTime,P6-P7,sequence,ms,4.968,13.014,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisReversalTime,P6-P7,sequence,ms,52.666,80.625,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotation,P1,sequence,°,0.665,2.832,10.0,0.067,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotation,P1-P2,sequence,°,1.053,4.416,10.0,0.105,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotation,P2-P3,sequence,°,3.189,4.416,10.0,0.319,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotation,P3-P4,sequence,°,4.229,4.416,10.0,0.423,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotation,P4-P5,sequence,°,3.776,4.416,10.0,0.378,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotation,P5-P6,sequence,°,6.047,4.416,10.0,0.605,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotation,P6-P7,sequence,°,3.583,4.416,10.0,0.358,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotation,P7-P8,sequence,°,27.288,4.416,10.0,2.729,loose
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P1,sequence,°,0.665,2.832,100.0,0.007,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P1-P2,sequence,°,1.053,4.416,100.0,0.011,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P2-P3,sequence,°,3.189,4.416,100.0,0.032,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P3-P4,sequence,°,4.229,4.416,100.0,0.042,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P4-P5,sequence,°,3.776,4.416,100.0,0.038,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P5-P6,sequence,°,6.047,4.416,100.0,0.06,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P6-P7,sequence,°,4.196,4.416,100.0,0.042,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P7-P8,sequence,°,27.288,4.416,100.0,0.273,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisSway,P1,lateral,% stance width,0.426,0.78,10.0,0.043,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisSway,P1-P2,lateral,% stance width,1.314,0.78,10.0,0.131,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisSway,P2-P3,lateral,% stance width,3.025,0.78,10.0,0.302,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisSway,P3-P4,lateral,% stance width,4.42,0.78,10.0,0.442,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisSway,P4-P5,lateral,% stance width,4.092,0.78,10.0,0.409,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisSway,P5-P6,lateral,% stance width,2.551,0.78,10.0,0.255,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisSway,P6-P7,lateral,% stance width,2.442,0.78,10.0,0.244,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisThrust,P1-P2,posture,cm,0.342,,2.5,0.137,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisThrust,P2-P3,posture,cm,0.465,,2.5,0.186,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisThrust,P3-P4,posture,cm,0.974,,2.5,0.389,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisThrust,P4-P5,posture,cm,1.199,,2.5,0.48,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisThrust,P5-P6,posture,cm,1.374,,2.5,0.55,steady
+2026-10-05_Mark-Liversedge_Wrist_01,pelvisThrust,P6-P7,posture,cm,1.198,,2.5,0.479,steady
+2026-10-05_Mark-Liversedge_Wrist_01,plumbBobDistance,P1,lateral,in,0.748,0.587,0.5,1.495,loose
+2026-10-05_Mark-Liversedge_Wrist_01,plumbBobDistance,P1-P2,lateral,in,0.933,0.587,0.5,1.866,loose
+2026-10-05_Mark-Liversedge_Wrist_01,plumbBobDistance,P2-P3,lateral,in,1.013,0.587,0.5,2.027,loose
+2026-10-05_Mark-Liversedge_Wrist_01,plumbBobDistance,P3-P4,lateral,in,1.116,0.587,0.5,2.233,loose
+2026-10-05_Mark-Liversedge_Wrist_01,plumbBobDistance,P4-P5,lateral,in,1.308,0.587,0.5,2.617,loose
+2026-10-05_Mark-Liversedge_Wrist_01,plumbBobDistance,P5-P6,lateral,in,1.345,0.587,0.5,2.69,loose
+2026-10-05_Mark-Liversedge_Wrist_01,plumbBobDistance,P6-P7,lateral,in,1.108,0.587,0.5,2.217,loose
+2026-10-05_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P1,posture,°,1.055,0.664,6.0,0.176,steady
+2026-10-05_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P1-P2,posture,°,1.29,0.664,6.0,0.215,steady
+2026-10-05_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P2-P3,posture,°,1.555,0.664,6.0,0.259,steady
+2026-10-05_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P3-P4,posture,°,1.264,0.664,6.0,0.211,steady
+2026-10-05_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P4-P5,posture,°,2.418,0.664,6.0,0.403,steady
+2026-10-05_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P5-P6,posture,°,1.848,0.664,6.0,0.308,steady
+2026-10-05_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P6-P7,posture,°,1.267,0.664,6.0,0.211,steady
+2026-10-05_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P1,armsAndClub,°,2.965,1.229,15.0,0.198,steady
+2026-10-05_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P1-P2,armsAndClub,°,5.313,2.005,15.0,0.354,steady
+2026-10-05_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P2-P3,armsAndClub,°,3.867,2.005,15.0,0.258,steady
+2026-10-05_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P3-P4,armsAndClub,°,3.845,2.005,15.0,0.256,steady
+2026-10-05_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P4-P5,armsAndClub,°,4.994,2.005,15.0,0.333,steady
+2026-10-05_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P5-P6,armsAndClub,°,9.965,2.005,15.0,0.664,steady
+2026-10-05_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P6-P7,armsAndClub,°,25.41,2.005,15.0,1.694,loose
+2026-10-05_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P7-P8,armsAndClub,°,39.567,2.005,15.0,2.638,loose
+2026-10-05_Mark-Liversedge_Wrist_01,shaftLie,P6-P7,impact,°,0.834,0.638,0.75,1.112,loose
+2026-10-05_Mark-Liversedge_Wrist_01,shoulderPlane,P1,,°,0.703,0.103,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P1,armsAndClub,°,1.661,1.368,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P1-P2,armsAndClub,°,1.226,1.368,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P2-P3,armsAndClub,°,1.61,1.368,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P3-P4,armsAndClub,°,4.401,1.368,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P4-P5,armsAndClub,°,5.85,1.368,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P5-P6,armsAndClub,°,1.363,1.368,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P6-P7,armsAndClub,°,1.266,1.368,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,spineBackLine,P1,posture,°,1.338,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,spineBackLine,P1-P2,posture,°,0.6,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,spineBackLine,P2-P3,posture,°,0.962,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,spineBackLine,P3-P4,posture,°,2.742,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,spineBackLine,P4-P5,posture,°,1.39,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,spineBackLine,P5-P6,posture,°,0.93,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,spineBackLine,P6-P7,posture,°,0.84,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,spineForwardBend,P1,setup,°,0.995,,3.0,0.332,steady
+2026-10-05_Mark-Liversedge_Wrist_01,spineForwardBend,P1-P2,setup,°,0.878,,3.0,0.293,steady
+2026-10-05_Mark-Liversedge_Wrist_01,spineForwardBend,P2-P3,setup,°,1.094,,3.0,0.365,steady
+2026-10-05_Mark-Liversedge_Wrist_01,spineForwardBend,P3-P4,setup,°,0.97,,3.0,0.323,steady
+2026-10-05_Mark-Liversedge_Wrist_01,spineForwardBend,P4-P5,setup,°,1.093,,3.0,0.364,steady
+2026-10-05_Mark-Liversedge_Wrist_01,spineForwardBend,P5-P6,setup,°,0.963,,3.0,0.321,steady
+2026-10-05_Mark-Liversedge_Wrist_01,spineForwardBend,P6-P7,setup,°,1.13,,3.0,0.377,steady
+2026-10-05_Mark-Liversedge_Wrist_01,spineSideBend,P1,posture,°,0.996,2.814,6.0,0.166,steady
+2026-10-05_Mark-Liversedge_Wrist_01,spineSideBend,P1-P2,posture,°,1.295,2.814,6.0,0.216,steady
+2026-10-05_Mark-Liversedge_Wrist_01,spineSideBend,P2-P3,posture,°,1.977,2.814,6.0,0.33,steady
+2026-10-05_Mark-Liversedge_Wrist_01,spineSideBend,P3-P4,posture,°,3.99,2.814,6.0,0.665,steady
+2026-10-05_Mark-Liversedge_Wrist_01,spineSideBend,P4-P5,posture,°,6.0,2.814,6.0,1.0,loose
+2026-10-05_Mark-Liversedge_Wrist_01,spineSideBend,P5-P6,posture,°,1.33,2.814,6.0,0.222,steady
+2026-10-05_Mark-Liversedge_Wrist_01,spineSideBend,P6-P7,posture,°,1.278,2.814,6.0,0.213,steady
+2026-10-05_Mark-Liversedge_Wrist_01,stanceWidth,P1,setup,% shoulder width,5.588,,10.0,0.559,steady
+2026-10-05_Mark-Liversedge_Wrist_01,stanceWidthMm,P1,setup,mm,20.904,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlane,P1-P2,armsAndClub,°,2.944,1.158,7.0,0.421,steady
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlane,P2-P3,armsAndClub,°,2.944,1.158,7.0,0.421,steady
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlane,P3-P4,armsAndClub,°,2.944,1.158,7.0,0.421,steady
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlane,P4-P5,armsAndClub,°,2.209,1.158,7.0,0.316,steady
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlane,P5-P6,armsAndClub,°,2.209,1.158,7.0,0.316,steady
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlane,P6-P7,armsAndClub,°,2.209,1.158,7.0,0.316,steady
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlaneAngle,P1-P2,armsAndClub,°,2.659,1.045,4.0,0.665,steady
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlaneAngle,P2-P3,armsAndClub,°,2.659,1.045,4.0,0.665,steady
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlaneAngle,P3-P4,armsAndClub,°,2.659,1.045,4.0,0.665,steady
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlaneAngle,P4-P5,armsAndClub,°,2.106,1.045,4.0,0.527,steady
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlaneAngle,P5-P6,armsAndClub,°,2.106,1.045,4.0,0.527,steady
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlaneAngle,P6-P7,armsAndClub,°,2.106,1.045,4.0,0.527,steady
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlaneCurve,P1-P2,armsAndClub,°,1.19,0.415,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlaneCurve,P2-P3,armsAndClub,°,1.403,0.415,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlaneCurve,P3-P4,armsAndClub,°,1.542,0.415,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlaneCurve,P4-P5,armsAndClub,°,2.143,0.415,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlaneCurve,P5-P6,armsAndClub,°,2.343,0.415,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlaneCurve,P6-P7,armsAndClub,°,1.337,0.415,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlaneIotaBack,P3-P4,,°,11.613,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,swingPlaneIotaDown,P6-P7,,°,15.407,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,tempoBackswing,P3-P4,sequence,s,0.03,0.042,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,tempoRatio,P3-P4,sequence,:1,0.18,0.448,0.4,0.451,steady
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P4-P5,sequence,°/s,132.654,225.543,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P5-P6,sequence,°/s,31.697,225.543,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P6-P7,sequence,°/s,61.985,225.543,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P7-P8,sequence,°/s,74.961,225.543,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P1,lateral,% stance width,4.563,3.595,10.0,0.456,steady
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P1-P2,lateral,% stance width,5.406,3.595,10.0,0.541,steady
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P2-P3,lateral,% stance width,5.261,3.595,10.0,0.526,steady
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P3-P4,lateral,% stance width,6.68,3.595,10.0,0.668,steady
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P4-P5,lateral,% stance width,8.466,3.595,10.0,0.847,loose
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P5-P6,lateral,% stance width,7.491,3.595,10.0,0.749,steady
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P6-P7,lateral,% stance width,7.024,3.595,10.0,0.702,steady
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxPeakSpeed,P6-P7,sequence,°/s,49.355,33.404,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxPeakTime,P6-P7,sequence,ms,18.457,8.5,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotation,P1,armsAndClub,°,1.731,1.336,12.0,0.144,steady
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotation,P1-P2,armsAndClub,°,1.705,5.606,12.0,0.142,steady
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotation,P2-P3,armsAndClub,°,3.915,5.606,12.0,0.326,steady
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotation,P3-P4,armsAndClub,°,17.085,5.606,12.0,1.424,loose
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotation,P4-P5,armsAndClub,°,11.695,5.606,12.0,0.975,loose
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotation,P5-P6,armsAndClub,°,3.161,5.606,12.0,0.263,steady
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotation,P6-P7,armsAndClub,°,2.973,5.606,12.0,0.248,steady
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotation,P7-P8,armsAndClub,°,52.193,5.606,12.0,4.349,loose
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P1,armsAndClub,°,1.731,1.336,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P1-P2,armsAndClub,°,1.705,5.606,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P2-P3,armsAndClub,°,3.915,5.606,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P3-P4,armsAndClub,°,17.085,5.606,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P4-P5,armsAndClub,°,11.695,5.606,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P5-P6,armsAndClub,°,3.161,5.606,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P6-P7,armsAndClub,°,3.247,5.606,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P7-P8,armsAndClub,°,52.193,5.606,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,toeLineAngle,P1,setup,°,0.742,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,trailElbowHeight,P1,armsAndClub,% shoulder width,1.772,2.771,15.0,0.118,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailElbowHeight,P1-P2,armsAndClub,% shoulder width,1.43,2.771,15.0,0.095,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailElbowHeight,P2-P3,armsAndClub,% shoulder width,1.544,2.771,15.0,0.103,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailElbowHeight,P3-P4,armsAndClub,% shoulder width,9.348,2.771,15.0,0.623,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailElbowHeight,P4-P5,armsAndClub,% shoulder width,11.7,2.771,15.0,0.78,loose
+2026-10-05_Mark-Liversedge_Wrist_01,trailElbowHeight,P5-P6,armsAndClub,% shoulder width,2.173,2.771,15.0,0.145,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailElbowHeight,P6-P7,armsAndClub,% shoulder width,1.258,2.771,15.0,0.084,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailElbowHeight,P7-P8,armsAndClub,% shoulder width,30.692,2.771,15.0,2.046,loose
+2026-10-05_Mark-Liversedge_Wrist_01,trailFootFlare,P1,setup,°,6.727,,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,trailForearmAngle,P1-P2,armsAndClub,°,1.4,,15.0,0.093,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailForearmAngle,P2-P3,armsAndClub,°,4.927,,15.0,0.328,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailForearmAngle,P3-P4,armsAndClub,°,8.048,,15.0,0.537,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailForearmAngle,P4-P5,armsAndClub,°,8.904,,15.0,0.594,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailForearmAngle,P5-P6,armsAndClub,°,2.201,,15.0,0.147,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailForearmAngle,P6-P7,armsAndClub,°,1.468,,15.0,0.098,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailForearmAngle,P7-P8,armsAndClub,°,104.391,,15.0,6.959,loose
+2026-10-05_Mark-Liversedge_Wrist_01,trailKneeFlexion,P1,setup,°,1.755,,7.5,0.234,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailKneeFlexion,P1-P2,setup,°,2.07,,7.5,0.276,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailKneeFlexion,P2-P3,setup,°,1.838,,7.5,0.245,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailKneeFlexion,P3-P4,setup,°,1.064,,7.5,0.142,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailKneeFlexion,P4-P5,setup,°,2.214,,7.5,0.295,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailKneeFlexion,P5-P6,setup,°,2.49,,7.5,0.332,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailKneeFlexion,P6-P7,setup,°,1.877,,7.5,0.25,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailKneeFlexion,P7-P8,setup,°,7.895,,7.5,1.053,loose
+2026-10-05_Mark-Liversedge_Wrist_01,trailWristFlexExt,P1,release,°,3.163,3.396,11.0,0.288,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailWristFlexExt,P1-P2,release,°,3.184,3.396,11.0,0.289,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailWristFlexExt,P2-P3,release,°,3.442,3.396,11.0,0.313,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailWristFlexExt,P3-P4,release,°,8.435,3.396,11.0,0.767,loose
+2026-10-05_Mark-Liversedge_Wrist_01,trailWristFlexExt,P4-P5,release,°,5.634,3.396,11.0,0.512,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailWristFlexExt,P5-P6,release,°,7.143,3.396,11.0,0.649,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailWristFlexExt,P6-P7,release,°,2.556,3.396,11.0,0.232,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trailWristFlexExt,P7-P8,release,°,9.87,3.396,11.0,0.897,loose
+2026-10-05_Mark-Liversedge_Wrist_01,trunkRise,P1,posture,%,0.826,1.408,4.5,0.183,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trunkRise,P1-P2,posture,%,1.935,1.408,4.5,0.43,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trunkRise,P2-P3,posture,%,2.02,1.408,4.5,0.449,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trunkRise,P3-P4,posture,%,2.306,1.408,4.5,0.512,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trunkRise,P4-P5,posture,%,3.144,1.408,4.5,0.699,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trunkRise,P5-P6,posture,%,2.501,1.408,4.5,0.556,steady
+2026-10-05_Mark-Liversedge_Wrist_01,trunkRise,P6-P7,posture,%,1.814,1.408,4.5,0.403,steady
+2026-10-05_Mark-Liversedge_Wrist_01,xFactor,P1,sequence,°,1.735,3.176,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,xFactor,P1-P2,sequence,°,1.689,7.093,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,xFactor,P2-P3,sequence,°,2.644,7.093,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,xFactor,P3-P4,sequence,°,21.625,7.093,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,xFactor,P4-P5,sequence,°,10.788,7.093,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,xFactor,P5-P6,sequence,°,4.456,7.093,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,xFactor,P6-P7,sequence,°,4.69,7.093,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,xFactor,P7-P8,sequence,°,8.001,7.093,,,unjudged
+2026-10-05_Mark-Liversedge_Wrist_01,xFactorStretch,P1,sequence,°,25.852,3.176,3.5,7.386,loose
+2026-10-05_Mark-Liversedge_Wrist_01,xFactorStretch,P1-P2,sequence,°,26.12,7.093,3.5,7.463,loose
+2026-10-05_Mark-Liversedge_Wrist_01,xFactorStretch,P2-P3,sequence,°,24.775,7.093,3.5,7.079,loose
+2026-10-05_Mark-Liversedge_Wrist_01,xFactorStretch,P3-P4,sequence,°,12.664,7.093,3.5,3.618,loose
+2026-10-05_Mark-Liversedge_Wrist_01,xFactorStretch,P4-P5,sequence,°,14.179,7.093,3.5,4.051,loose
+2026-10-05_Mark-Liversedge_Wrist_01,xFactorStretch,P5-P6,sequence,°,22.498,7.093,3.5,6.428,loose
+2026-10-05_Mark-Liversedge_Wrist_01,xFactorStretch,P6-P7,sequence,°,25.348,7.093,3.5,7.242,loose
+2026-10-05_Mark-Liversedge_Wrist_01,xFactorStretch,P7-P8,sequence,°,30.441,7.093,3.5,8.697,loose
+2026-10-07_Mark-Liversedge_Wrist_01,armHang,P1,setup,°,1.104,,5.0,0.221,steady
+2026-10-07_Mark-Liversedge_Wrist_01,attackAngle,P6-P7,impact,°,45.462,1.99,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,balanceHeelToe,P1,setup,% foot length,3.618,,5.0,0.724,steady
+2026-10-07_Mark-Liversedge_Wrist_01,ballBodyDistance,P1,setup,cm,2.745,0.33,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,ballPosition,P1,setup,% stance width,6.215,,10.0,0.622,steady
+2026-10-07_Mark-Liversedge_Wrist_01,ballReachExcess,P1,setup,cm,2.492,0.064,4.0,0.623,steady
+2026-10-07_Mark-Liversedge_Wrist_01,clubAngularSpeed,P4-P5,sequence,°/s,69.886,25.464,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,clubAngularSpeed,P5-P6,sequence,°/s,80.032,25.464,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,clubAngularSpeed,P6-P7,sequence,°/s,202.195,25.464,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,clubPeakSpeed,P6-P7,sequence,°/s,160.197,46.0,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,clubPeakTime,P6-P7,sequence,ms,16.953,17.422,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,clubheadPeakLead,P6-P7,sequence,ms,1.434,1.934,15.0,0.096,steady
+2026-10-07_Mark-Liversedge_Wrist_01,clubheadSpeed,P1,sequence,mph,1.922,3.737,4.15,0.463,steady
+2026-10-07_Mark-Liversedge_Wrist_01,clubheadSpeed,P1-P2,sequence,mph,1.263,3.196,4.15,0.304,steady
+2026-10-07_Mark-Liversedge_Wrist_01,clubheadSpeed,P2-P3,sequence,mph,1.345,3.196,4.15,0.324,steady
+2026-10-07_Mark-Liversedge_Wrist_01,clubheadSpeed,P3-P4,sequence,mph,1.338,3.196,4.15,0.322,steady
+2026-10-07_Mark-Liversedge_Wrist_01,clubheadSpeed,P4-P5,sequence,mph,2.265,3.196,4.15,0.546,steady
+2026-10-07_Mark-Liversedge_Wrist_01,clubheadSpeed,P5-P6,sequence,mph,2.735,3.196,4.15,0.659,steady
+2026-10-07_Mark-Liversedge_Wrist_01,clubheadSpeed,P6-P7,sequence,mph,5.534,3.196,4.15,1.333,loose
+2026-10-07_Mark-Liversedge_Wrist_01,comOverLeadFoot,P1,finish,% stance width,2.641,3.266,10.0,0.264,steady
+2026-10-07_Mark-Liversedge_Wrist_01,comOverLeadFoot,P1-P2,finish,% stance width,3.042,3.266,10.0,0.304,steady
+2026-10-07_Mark-Liversedge_Wrist_01,comOverLeadFoot,P2-P3,finish,% stance width,5.193,3.266,10.0,0.519,steady
+2026-10-07_Mark-Liversedge_Wrist_01,comOverLeadFoot,P3-P4,finish,% stance width,8.001,3.266,10.0,0.8,loose
+2026-10-07_Mark-Liversedge_Wrist_01,comOverLeadFoot,P4-P5,finish,% stance width,5.992,3.266,10.0,0.599,steady
+2026-10-07_Mark-Liversedge_Wrist_01,comOverLeadFoot,P5-P6,finish,% stance width,3.96,3.266,10.0,0.396,steady
+2026-10-07_Mark-Liversedge_Wrist_01,comOverLeadFoot,P6-P7,finish,% stance width,5.342,3.266,10.0,0.534,steady
+2026-10-07_Mark-Liversedge_Wrist_01,comOverLeadFoot,P7-P8,finish,% stance width,8.233,3.266,10.0,0.823,loose
+2026-10-07_Mark-Liversedge_Wrist_01,elbowAlignment,P1,armsAndClub,°,2.665,1.958,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,elbowAlignment,P1-P2,armsAndClub,°,1.61,1.958,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,elbowAlignment,P2-P3,armsAndClub,°,3.067,1.958,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,elbowAlignment,P3-P4,armsAndClub,°,9.278,1.958,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,elbowAlignment,P4-P5,armsAndClub,°,11.031,1.958,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,elbowAlignment,P5-P6,armsAndClub,°,4.221,1.958,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,elbowAlignment,P6-P7,armsAndClub,°,1.077,1.958,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,feetAlignment,P1,setup,°,0.81,0.844,4.0,0.202,steady
+2026-10-07_Mark-Liversedge_Wrist_01,feetAlignment,P1-P2,setup,°,0.816,0.844,4.0,0.204,steady
+2026-10-07_Mark-Liversedge_Wrist_01,feetAlignment,P2-P3,setup,°,0.886,0.844,4.0,0.222,steady
+2026-10-07_Mark-Liversedge_Wrist_01,feetAlignment,P3-P4,setup,°,1.346,0.844,4.0,0.336,steady
+2026-10-07_Mark-Liversedge_Wrist_01,feetAlignment,P4-P5,setup,°,1.065,0.844,4.0,0.266,steady
+2026-10-07_Mark-Liversedge_Wrist_01,feetAlignment,P5-P6,setup,°,0.984,0.844,4.0,0.246,steady
+2026-10-07_Mark-Liversedge_Wrist_01,feetAlignment,P6-P7,setup,°,0.934,0.844,4.0,0.234,steady
+2026-10-07_Mark-Liversedge_Wrist_01,feetAlignment,P7-P8,setup,°,2.913,0.844,4.0,0.728,steady
+2026-10-07_Mark-Liversedge_Wrist_01,handPathLoop,P3-P4,armsAndClub,% hand rise,3.631,,4.333333333333333,0.838,loose
+2026-10-07_Mark-Liversedge_Wrist_01,handPlaneCurve,P1-P2,armsAndClub,°,1.149,0.237,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,handPlaneCurve,P2-P3,armsAndClub,°,2.152,0.237,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,handPlaneCurve,P3-P4,armsAndClub,°,1.761,0.237,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,handPlaneCurve,P4-P5,armsAndClub,°,1.675,0.237,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,handPlaneCurve,P5-P6,armsAndClub,°,2.38,0.237,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,handPlaneCurve,P6-P7,armsAndClub,°,1.618,0.237,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,handPlaneSteepening,P3-P4,armsAndClub,°,1.799,0.483,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,handSpeed,P1,sequence,mph,0.47,1.225,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,handSpeed,P1-P2,sequence,mph,0.522,1.225,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,handSpeed,P2-P3,sequence,mph,0.528,1.225,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,handSpeed,P3-P4,sequence,mph,0.608,1.225,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,handSpeed,P4-P5,sequence,mph,1.45,1.225,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,handSpeed,P5-P6,sequence,mph,0.929,1.225,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,handSpeed,P6-P7,sequence,mph,0.957,1.225,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,handSpeed,P7-P8,sequence,mph,9.451,1.225,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,headLift,P1,posture,cm,1.161,,3.0,0.387,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headLift,P1-P2,posture,cm,1.654,,3.0,0.551,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headLift,P2-P3,posture,cm,1.768,,3.0,0.589,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headLift,P3-P4,posture,cm,1.632,,3.0,0.544,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headLift,P4-P5,posture,cm,1.428,,3.0,0.476,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headLift,P5-P6,posture,cm,1.556,,3.0,0.519,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headLift,P6-P7,posture,cm,1.95,,3.0,0.65,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headLift,P7-P8,posture,cm,4.081,,3.0,1.36,loose
+2026-10-07_Mark-Liversedge_Wrist_01,headPitch,P1,posture,°,4.365,,8.0,0.546,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headRise,P1,posture,cm,0.121,,3.0,0.04,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headRise,P1-P2,posture,cm,0.739,,3.0,0.246,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headRise,P2-P3,posture,cm,1.087,,3.0,0.362,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headRise,P3-P4,posture,cm,1.54,,3.0,0.513,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headRise,P4-P5,posture,cm,1.849,,3.0,0.616,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headRise,P5-P6,posture,cm,1.308,,3.0,0.436,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headRise,P6-P7,posture,cm,1.341,,3.0,0.447,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headSway,P1,lateral,cm,0.224,,3.0,0.075,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headSway,P1-P2,lateral,cm,0.764,,3.0,0.255,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headSway,P2-P3,lateral,cm,1.063,,3.0,0.354,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headSway,P3-P4,lateral,cm,1.323,,3.0,0.441,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headSway,P4-P5,lateral,cm,1.837,,3.0,0.612,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headSway,P5-P6,lateral,cm,2.018,,3.0,0.673,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headSway,P6-P7,lateral,cm,2.18,,3.0,0.727,steady
+2026-10-07_Mark-Liversedge_Wrist_01,headSway,P7-P8,lateral,cm,6.894,,3.0,2.298,loose
+2026-10-07_Mark-Liversedge_Wrist_01,headTilt,P1,posture,°,5.582,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,headTilt,P1-P2,posture,°,5.6,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,headTilt,P2-P3,posture,°,6.592,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,headTilt,P3-P4,posture,°,8.731,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,headTilt,P4-P5,posture,°,10.65,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,headTilt,P5-P6,posture,°,7.326,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,headTilt,P6-P7,posture,°,6.299,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,headTilt,P7-P8,posture,°,8.054,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,hipDepthButt,P1,posture,cm,0.0,,2.5,0.0,steady
+2026-10-07_Mark-Liversedge_Wrist_01,hipDepthButt,P1-P2,posture,cm,1.257,,2.5,0.503,steady
+2026-10-07_Mark-Liversedge_Wrist_01,hipDepthButt,P2-P3,posture,cm,2.711,,2.5,1.084,loose
+2026-10-07_Mark-Liversedge_Wrist_01,hipDepthButt,P3-P4,posture,cm,6.605,,2.5,2.642,loose
+2026-10-07_Mark-Liversedge_Wrist_01,hipDepthButt,P4-P5,posture,cm,1.502,,2.5,0.601,steady
+2026-10-07_Mark-Liversedge_Wrist_01,hipDepthButt,P5-P6,posture,cm,3.03,,2.5,1.212,loose
+2026-10-07_Mark-Liversedge_Wrist_01,hipDepthButt,P6-P7,posture,cm,11.164,,2.5,4.466,loose
+2026-10-07_Mark-Liversedge_Wrist_01,hipLineTilt,P1,setup,°,1.636,2.063,6.0,0.273,steady
+2026-10-07_Mark-Liversedge_Wrist_01,hipLineTilt,P1-P2,setup,°,1.323,2.063,6.0,0.221,steady
+2026-10-07_Mark-Liversedge_Wrist_01,hipLineTilt,P2-P3,setup,°,1.107,2.063,6.0,0.184,steady
+2026-10-07_Mark-Liversedge_Wrist_01,hipLineTilt,P3-P4,setup,°,2.307,2.063,6.0,0.384,steady
+2026-10-07_Mark-Liversedge_Wrist_01,hipLineTilt,P4-P5,setup,°,1.903,2.063,6.0,0.317,steady
+2026-10-07_Mark-Liversedge_Wrist_01,hipLineTilt,P5-P6,setup,°,1.145,2.063,6.0,0.191,steady
+2026-10-07_Mark-Liversedge_Wrist_01,hipLineTilt,P6-P7,setup,°,1.748,2.063,6.0,0.291,steady
+2026-10-07_Mark-Liversedge_Wrist_01,impactShaftLean,P6-P7,impact,°,1.664,1.926,10.0,0.166,steady
+2026-10-07_Mark-Liversedge_Wrist_01,lagAngle,P1,release,°,2.304,2.652,26.0,0.089,steady
+2026-10-07_Mark-Liversedge_Wrist_01,lagAngle,P1-P2,release,°,2.257,3.308,26.0,0.087,steady
+2026-10-07_Mark-Liversedge_Wrist_01,lagAngle,P2-P3,release,°,3.236,3.308,26.0,0.124,steady
+2026-10-07_Mark-Liversedge_Wrist_01,lagAngle,P3-P4,release,°,3.303,3.308,26.0,0.127,steady
+2026-10-07_Mark-Liversedge_Wrist_01,lagAngle,P4-P5,release,°,3.175,3.308,26.0,0.122,steady
+2026-10-07_Mark-Liversedge_Wrist_01,lagAngle,P5-P6,release,°,2.298,3.308,26.0,0.088,steady
+2026-10-07_Mark-Liversedge_Wrist_01,lagAngle,P6-P7,release,°,4.654,3.308,26.0,0.179,steady
+2026-10-07_Mark-Liversedge_Wrist_01,lagAngle,P7-P8,release,°,27.27,3.308,26.0,1.049,loose
+2026-10-07_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P4-P5,sequence,°/s,86.445,57.836,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P5-P6,sequence,°/s,60.307,57.836,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P6-P7,sequence,°/s,68.517,57.836,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P7-P8,sequence,°/s,43.357,57.836,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,leadArmPeakSpeed,P6-P7,sequence,°/s,74.232,54.504,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,leadArmPeakTime,P6-P7,sequence,ms,9.932,38.892,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,leadArmToTorso,P1,armsAndClub,°,1.638,,10.0,0.164,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadArmToTorso,P1-P2,armsAndClub,°,2.068,,10.0,0.207,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadArmToTorso,P2-P3,armsAndClub,°,1.752,,10.0,0.175,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadArmToTorso,P3-P4,armsAndClub,°,5.749,,10.0,0.575,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadArmToTorso,P4-P5,armsAndClub,°,4.175,,10.0,0.418,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadArmToTorso,P5-P6,armsAndClub,°,1.749,,10.0,0.175,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadArmToTorso,P6-P7,armsAndClub,°,2.084,,10.0,0.208,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadArmToTorso,P7-P8,armsAndClub,°,42.0,,10.0,4.2,loose
+2026-10-07_Mark-Liversedge_Wrist_01,leadFootFlare,P1,setup,°,6.424,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,leadHandWidth,P1,armsAndClub,% arm length,1.184,1.023,8.0,0.148,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadHandWidth,P1-P2,armsAndClub,% arm length,1.546,1.023,8.0,0.193,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadHandWidth,P2-P3,armsAndClub,% arm length,1.971,1.023,8.0,0.246,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadHandWidth,P3-P4,armsAndClub,% arm length,4.262,1.023,8.0,0.533,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadHandWidth,P4-P5,armsAndClub,% arm length,4.474,1.023,8.0,0.559,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadHandWidth,P5-P6,armsAndClub,% arm length,3.461,1.023,8.0,0.433,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadHandWidth,P6-P7,armsAndClub,% arm length,1.696,1.023,8.0,0.212,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadHandWidth,P7-P8,armsAndClub,% arm length,16.864,1.023,8.0,2.108,loose
+2026-10-07_Mark-Liversedge_Wrist_01,leadHeelLift,P1,lateral,cm,0.315,,2.0,0.158,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadHeelLift,P1-P2,lateral,cm,0.418,,2.0,0.209,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadHeelLift,P2-P3,lateral,cm,0.565,,2.0,0.282,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadHeelLift,P3-P4,lateral,cm,1.151,,2.0,0.576,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadHeelLift,P4-P5,lateral,cm,1.051,,2.0,0.525,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadHeelLift,P5-P6,lateral,cm,0.649,,2.0,0.324,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadHeelLift,P6-P7,lateral,cm,0.638,,2.0,0.319,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadHeelLift,P7-P8,lateral,cm,1.5,,2.0,0.75,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadKneeDrift,P1,lateral,% stance width,1.522,1.596,8.0,0.19,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadKneeDrift,P1-P2,lateral,% stance width,1.725,1.596,8.0,0.216,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadKneeDrift,P2-P3,lateral,% stance width,3.282,1.596,8.0,0.41,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadKneeDrift,P3-P4,lateral,% stance width,3.615,1.596,8.0,0.452,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadKneeDrift,P4-P5,lateral,% stance width,3.392,1.596,8.0,0.424,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadKneeDrift,P5-P6,lateral,% stance width,3.059,1.596,8.0,0.382,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadKneeDrift,P6-P7,lateral,% stance width,2.891,1.596,8.0,0.361,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadKneeFlexion,P1,lateral,°,2.237,,6.0,0.373,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadKneeFlexion,P1-P2,lateral,°,2.024,,6.0,0.337,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadKneeFlexion,P2-P3,lateral,°,2.179,,6.0,0.363,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadKneeFlexion,P3-P4,lateral,°,1.808,,6.0,0.301,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadKneeFlexion,P4-P5,lateral,°,2.045,,6.0,0.341,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadKneeFlexion,P5-P6,lateral,°,2.248,,6.0,0.375,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadKneeFlexion,P6-P7,lateral,°,3.464,,6.0,0.577,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadKneeFlexion,P7-P8,lateral,°,6.438,,6.0,1.073,loose
+2026-10-07_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P1,armsAndClub,% shoulder width,2.359,1.366,6.0,0.393,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P1-P2,armsAndClub,% shoulder width,2.234,1.366,6.0,0.372,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P2-P3,armsAndClub,% shoulder width,2.448,1.366,6.0,0.408,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P3-P4,armsAndClub,% shoulder width,3.55,1.366,6.0,0.592,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P4-P5,armsAndClub,% shoulder width,3.236,1.366,6.0,0.539,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P5-P6,armsAndClub,% shoulder width,2.167,1.366,6.0,0.361,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P6-P7,armsAndClub,% shoulder width,3.102,1.366,6.0,0.517,steady
+2026-10-07_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P7-P8,armsAndClub,% shoulder width,11.37,1.366,6.0,1.895,loose
+2026-10-07_Mark-Liversedge_Wrist_01,lowPointAhead,P6-P7,impact,in,3.917,6.013,1.6,2.448,nearError
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P4-P5,sequence,°/s,74.007,232.173,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P5-P6,sequence,°/s,176.889,232.173,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P6-P7,sequence,°/s,148.396,232.173,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P7-P8,sequence,°/s,174.973,232.173,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisLift,P1,posture,% stance width,0.954,0.832,6.0,0.159,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisLift,P1-P2,posture,% stance width,2.797,0.832,6.0,0.466,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisLift,P2-P3,posture,% stance width,2.963,0.832,6.0,0.494,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisLift,P3-P4,posture,% stance width,2.974,0.832,6.0,0.496,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisLift,P4-P5,posture,% stance width,2.995,0.832,6.0,0.499,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisLift,P5-P6,posture,% stance width,3.208,0.832,6.0,0.535,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisLift,P6-P7,posture,% stance width,2.879,0.832,6.0,0.48,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisPeakSpeed,P6-P7,sequence,°/s,90.662,162.544,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisPeakTime,P6-P7,sequence,ms,9.933,15.128,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisReversalTime,P6-P7,sequence,ms,103.329,33.393,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotation,P1,sequence,°,0.693,2.466,10.0,0.069,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotation,P1-P2,sequence,°,1.244,5.299,10.0,0.124,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotation,P2-P3,sequence,°,3.578,5.299,10.0,0.358,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotation,P3-P4,sequence,°,6.19,5.299,10.0,0.619,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotation,P4-P5,sequence,°,5.892,5.299,10.0,0.589,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotation,P5-P6,sequence,°,5.839,5.299,10.0,0.584,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotation,P6-P7,sequence,°,3.295,5.299,10.0,0.329,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotation,P7-P8,sequence,°,34.993,5.299,10.0,3.499,loose
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P1,sequence,°,0.693,2.466,100.0,0.007,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P1-P2,sequence,°,1.244,5.299,100.0,0.012,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P2-P3,sequence,°,3.578,5.299,100.0,0.036,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P3-P4,sequence,°,6.19,5.299,100.0,0.062,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P4-P5,sequence,°,5.892,5.299,100.0,0.059,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P5-P6,sequence,°,5.839,5.299,100.0,0.058,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P6-P7,sequence,°,3.995,5.299,100.0,0.04,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P7-P8,sequence,°,34.993,5.299,100.0,0.35,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisSway,P1,lateral,% stance width,1.183,0.832,10.0,0.118,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisSway,P1-P2,lateral,% stance width,1.79,0.832,10.0,0.179,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisSway,P2-P3,lateral,% stance width,1.901,0.832,10.0,0.19,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisSway,P3-P4,lateral,% stance width,2.762,0.832,10.0,0.276,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisSway,P4-P5,lateral,% stance width,3.527,0.832,10.0,0.353,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisSway,P5-P6,lateral,% stance width,3.735,0.832,10.0,0.373,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisSway,P6-P7,lateral,% stance width,4.199,0.832,10.0,0.42,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisThrust,P1-P2,posture,cm,0.479,,2.5,0.192,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisThrust,P2-P3,posture,cm,0.641,,2.5,0.256,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisThrust,P3-P4,posture,cm,0.809,,2.5,0.324,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisThrust,P4-P5,posture,cm,0.878,,2.5,0.351,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisThrust,P5-P6,posture,cm,1.163,,2.5,0.465,steady
+2026-10-07_Mark-Liversedge_Wrist_01,pelvisThrust,P6-P7,posture,cm,1.347,,2.5,0.539,steady
+2026-10-07_Mark-Liversedge_Wrist_01,plumbBobDistance,P1,lateral,in,0.485,0.5,0.5,0.971,nearError
+2026-10-07_Mark-Liversedge_Wrist_01,plumbBobDistance,P1-P2,lateral,in,0.504,0.5,0.5,1.008,loose
+2026-10-07_Mark-Liversedge_Wrist_01,plumbBobDistance,P2-P3,lateral,in,0.865,0.5,0.5,1.73,loose
+2026-10-07_Mark-Liversedge_Wrist_01,plumbBobDistance,P3-P4,lateral,in,0.991,0.5,0.5,1.983,loose
+2026-10-07_Mark-Liversedge_Wrist_01,plumbBobDistance,P4-P5,lateral,in,0.923,0.5,0.5,1.846,loose
+2026-10-07_Mark-Liversedge_Wrist_01,plumbBobDistance,P5-P6,lateral,in,0.692,0.5,0.5,1.383,loose
+2026-10-07_Mark-Liversedge_Wrist_01,plumbBobDistance,P6-P7,lateral,in,0.78,0.5,0.5,1.56,loose
+2026-10-07_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P1,posture,°,1.385,0.591,6.0,0.231,steady
+2026-10-07_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P1-P2,posture,°,1.351,0.591,6.0,0.225,steady
+2026-10-07_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P2-P3,posture,°,1.067,0.591,6.0,0.178,steady
+2026-10-07_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P3-P4,posture,°,2.456,0.591,6.0,0.409,steady
+2026-10-07_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P4-P5,posture,°,2.566,0.591,6.0,0.428,steady
+2026-10-07_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P5-P6,posture,°,1.66,0.591,6.0,0.277,steady
+2026-10-07_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P6-P7,posture,°,1.666,0.591,6.0,0.278,steady
+2026-10-07_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P1,armsAndClub,°,3.515,1.086,15.0,0.234,steady
+2026-10-07_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P1-P2,armsAndClub,°,3.978,2.31,15.0,0.265,steady
+2026-10-07_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P2-P3,armsAndClub,°,2.473,2.31,15.0,0.165,steady
+2026-10-07_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P3-P4,armsAndClub,°,5.293,2.31,15.0,0.353,steady
+2026-10-07_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P4-P5,armsAndClub,°,4.699,2.31,15.0,0.313,steady
+2026-10-07_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P5-P6,armsAndClub,°,9.402,2.31,15.0,0.627,steady
+2026-10-07_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P6-P7,armsAndClub,°,16.748,2.31,15.0,1.117,loose
+2026-10-07_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P7-P8,armsAndClub,°,23.818,2.31,15.0,1.588,loose
+2026-10-07_Mark-Liversedge_Wrist_01,shaftLie,P6-P7,impact,°,1.483,0.613,0.75,1.977,loose
+2026-10-07_Mark-Liversedge_Wrist_01,shoulderPlane,P1,,°,1.033,0.103,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P1,armsAndClub,°,1.183,1.346,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P1-P2,armsAndClub,°,1.292,1.346,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P2-P3,armsAndClub,°,1.53,1.346,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P3-P4,armsAndClub,°,4.341,1.346,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P4-P5,armsAndClub,°,3.967,1.346,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P5-P6,armsAndClub,°,1.807,1.346,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P6-P7,armsAndClub,°,1.242,1.346,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,spineBackLine,P1,posture,°,1.485,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,spineBackLine,P1-P2,posture,°,4.098,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,spineBackLine,P2-P3,posture,°,3.477,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,spineBackLine,P3-P4,posture,°,4.44,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,spineBackLine,P4-P5,posture,°,5.104,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,spineBackLine,P5-P6,posture,°,3.731,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,spineBackLine,P6-P7,posture,°,7.808,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,spineForwardBend,P1,setup,°,1.343,,3.0,0.448,steady
+2026-10-07_Mark-Liversedge_Wrist_01,spineForwardBend,P1-P2,setup,°,1.242,,3.0,0.414,steady
+2026-10-07_Mark-Liversedge_Wrist_01,spineForwardBend,P2-P3,setup,°,1.22,,3.0,0.407,steady
+2026-10-07_Mark-Liversedge_Wrist_01,spineForwardBend,P3-P4,setup,°,1.271,,3.0,0.424,steady
+2026-10-07_Mark-Liversedge_Wrist_01,spineForwardBend,P4-P5,setup,°,1.412,,3.0,0.471,steady
+2026-10-07_Mark-Liversedge_Wrist_01,spineForwardBend,P5-P6,setup,°,1.051,,3.0,0.35,steady
+2026-10-07_Mark-Liversedge_Wrist_01,spineForwardBend,P6-P7,setup,°,1.52,,3.0,0.507,steady
+2026-10-07_Mark-Liversedge_Wrist_01,spineSideBend,P1,posture,°,1.722,2.764,6.0,0.287,steady
+2026-10-07_Mark-Liversedge_Wrist_01,spineSideBend,P1-P2,posture,°,1.11,2.764,6.0,0.185,steady
+2026-10-07_Mark-Liversedge_Wrist_01,spineSideBend,P2-P3,posture,°,1.93,2.764,6.0,0.322,steady
+2026-10-07_Mark-Liversedge_Wrist_01,spineSideBend,P3-P4,posture,°,3.868,2.764,6.0,0.645,steady
+2026-10-07_Mark-Liversedge_Wrist_01,spineSideBend,P4-P5,posture,°,3.438,2.764,6.0,0.573,steady
+2026-10-07_Mark-Liversedge_Wrist_01,spineSideBend,P5-P6,posture,°,1.761,2.764,6.0,0.294,steady
+2026-10-07_Mark-Liversedge_Wrist_01,spineSideBend,P6-P7,posture,°,1.433,2.764,6.0,0.239,steady
+2026-10-07_Mark-Liversedge_Wrist_01,stanceWidth,P1,setup,% shoulder width,3.533,,10.0,0.353,steady
+2026-10-07_Mark-Liversedge_Wrist_01,stanceWidthMm,P1,setup,mm,14.002,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlane,P1-P2,armsAndClub,°,3.88,1.132,7.0,0.554,steady
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlane,P2-P3,armsAndClub,°,3.88,1.132,7.0,0.554,steady
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlane,P3-P4,armsAndClub,°,3.88,1.132,7.0,0.554,steady
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlane,P4-P5,armsAndClub,°,2.511,1.132,7.0,0.359,steady
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlane,P5-P6,armsAndClub,°,2.511,1.132,7.0,0.359,steady
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlane,P6-P7,armsAndClub,°,2.511,1.132,7.0,0.359,steady
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlaneAngle,P1-P2,armsAndClub,°,3.919,1.019,4.0,0.98,loose
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlaneAngle,P2-P3,armsAndClub,°,3.919,1.019,4.0,0.98,loose
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlaneAngle,P3-P4,armsAndClub,°,3.919,1.019,4.0,0.98,loose
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlaneAngle,P4-P5,armsAndClub,°,2.26,1.019,4.0,0.565,steady
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlaneAngle,P5-P6,armsAndClub,°,2.26,1.019,4.0,0.565,steady
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlaneAngle,P6-P7,armsAndClub,°,2.26,1.019,4.0,0.565,steady
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlaneCurve,P1-P2,armsAndClub,°,1.272,0.384,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlaneCurve,P2-P3,armsAndClub,°,2.254,0.384,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlaneCurve,P3-P4,armsAndClub,°,1.775,0.384,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlaneCurve,P4-P5,armsAndClub,°,1.587,0.384,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlaneCurve,P5-P6,armsAndClub,°,2.075,0.384,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlaneCurve,P6-P7,armsAndClub,°,1.68,0.384,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlaneIotaBack,P3-P4,,°,5.672,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,swingPlaneIotaDown,P6-P7,,°,6.384,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,tempoBackswing,P3-P4,sequence,s,0.045,0.037,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,tempoRatio,P3-P4,sequence,:1,0.299,0.397,0.4,0.747,steady
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P4-P5,sequence,°/s,186.491,180.072,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P5-P6,sequence,°/s,61.775,180.072,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P6-P7,sequence,°/s,85.239,180.072,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P7-P8,sequence,°/s,125.495,180.072,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P1,lateral,% stance width,3.678,4.045,10.0,0.368,steady
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P1-P2,lateral,% stance width,4.814,4.045,10.0,0.481,steady
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P2-P3,lateral,% stance width,6.012,4.045,10.0,0.601,steady
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P3-P4,lateral,% stance width,6.818,4.045,10.0,0.682,steady
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P4-P5,lateral,% stance width,7.876,4.045,10.0,0.788,loose
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P5-P6,lateral,% stance width,6.097,4.045,10.0,0.61,steady
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P6-P7,lateral,% stance width,6.467,4.045,10.0,0.647,steady
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxPeakSpeed,P6-P7,sequence,°/s,61.792,29.462,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxPeakTime,P6-P7,sequence,ms,23.256,7.217,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotation,P1,armsAndClub,°,0.936,1.329,12.0,0.078,steady
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotation,P1-P2,armsAndClub,°,1.675,7.097,12.0,0.14,steady
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotation,P2-P3,armsAndClub,°,2.268,7.097,12.0,0.189,steady
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotation,P3-P4,armsAndClub,°,5.363,7.097,12.0,0.447,steady
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotation,P4-P5,armsAndClub,°,8.333,7.097,12.0,0.694,steady
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotation,P5-P6,armsAndClub,°,3.646,7.097,12.0,0.304,steady
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotation,P6-P7,armsAndClub,°,2.587,7.097,12.0,0.216,steady
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotation,P7-P8,armsAndClub,°,54.843,7.097,12.0,4.57,loose
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P1,armsAndClub,°,0.936,1.329,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P1-P2,armsAndClub,°,1.675,7.097,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P2-P3,armsAndClub,°,2.268,7.097,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P3-P4,armsAndClub,°,5.363,7.097,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P4-P5,armsAndClub,°,8.333,7.097,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P5-P6,armsAndClub,°,3.646,7.097,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P6-P7,armsAndClub,°,2.705,7.097,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P7-P8,armsAndClub,°,54.843,7.097,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,toeLineAngle,P1,setup,°,0.708,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,trailElbowHeight,P1,armsAndClub,% shoulder width,2.572,2.629,15.0,0.171,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailElbowHeight,P1-P2,armsAndClub,% shoulder width,1.539,2.629,15.0,0.103,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailElbowHeight,P2-P3,armsAndClub,% shoulder width,1.695,2.629,15.0,0.113,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailElbowHeight,P3-P4,armsAndClub,% shoulder width,49.677,2.629,15.0,3.312,loose
+2026-10-07_Mark-Liversedge_Wrist_01,trailElbowHeight,P4-P5,armsAndClub,% shoulder width,46.89,2.629,15.0,3.126,loose
+2026-10-07_Mark-Liversedge_Wrist_01,trailElbowHeight,P5-P6,armsAndClub,% shoulder width,2.196,2.629,15.0,0.146,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailElbowHeight,P6-P7,armsAndClub,% shoulder width,1.742,2.629,15.0,0.116,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailElbowHeight,P7-P8,armsAndClub,% shoulder width,113.012,2.629,15.0,7.534,loose
+2026-10-07_Mark-Liversedge_Wrist_01,trailFootFlare,P1,setup,°,4.664,,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,trailForearmAngle,P1-P2,armsAndClub,°,1.923,,15.0,0.128,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailForearmAngle,P2-P3,armsAndClub,°,3.695,,15.0,0.246,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailForearmAngle,P3-P4,armsAndClub,°,7.681,,15.0,0.512,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailForearmAngle,P4-P5,armsAndClub,°,6.922,,15.0,0.461,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailForearmAngle,P5-P6,armsAndClub,°,3.466,,15.0,0.231,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailForearmAngle,P6-P7,armsAndClub,°,1.881,,15.0,0.125,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailForearmAngle,P7-P8,armsAndClub,°,94.776,,15.0,6.318,loose
+2026-10-07_Mark-Liversedge_Wrist_01,trailKneeFlexion,P1,setup,°,1.872,,7.5,0.25,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailKneeFlexion,P1-P2,setup,°,1.82,,7.5,0.243,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailKneeFlexion,P2-P3,setup,°,2.057,,7.5,0.274,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailKneeFlexion,P3-P4,setup,°,1.236,,7.5,0.165,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailKneeFlexion,P4-P5,setup,°,1.074,,7.5,0.143,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailKneeFlexion,P5-P6,setup,°,3.758,,7.5,0.501,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailKneeFlexion,P6-P7,setup,°,2.87,,7.5,0.383,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailKneeFlexion,P7-P8,setup,°,12.16,,7.5,1.621,loose
+2026-10-07_Mark-Liversedge_Wrist_01,trailWristFlexExt,P1,release,°,4.675,4.318,11.0,0.425,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailWristFlexExt,P1-P2,release,°,3.681,4.318,11.0,0.335,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailWristFlexExt,P2-P3,release,°,4.146,4.318,11.0,0.377,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailWristFlexExt,P3-P4,release,°,13.432,4.318,11.0,1.221,loose
+2026-10-07_Mark-Liversedge_Wrist_01,trailWristFlexExt,P4-P5,release,°,53.393,4.318,11.0,4.854,loose
+2026-10-07_Mark-Liversedge_Wrist_01,trailWristFlexExt,P5-P6,release,°,5.334,4.318,11.0,0.485,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailWristFlexExt,P6-P7,release,°,3.596,4.318,11.0,0.327,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trailWristFlexExt,P7-P8,release,°,11.366,4.318,11.0,1.033,loose
+2026-10-07_Mark-Liversedge_Wrist_01,trunkRise,P1,posture,%,0.88,1.444,4.5,0.196,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trunkRise,P1-P2,posture,%,1.784,1.444,4.5,0.397,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trunkRise,P2-P3,posture,%,3.226,1.444,4.5,0.717,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trunkRise,P3-P4,posture,%,3.608,1.444,4.5,0.802,loose
+2026-10-07_Mark-Liversedge_Wrist_01,trunkRise,P4-P5,posture,%,3.541,1.444,4.5,0.787,loose
+2026-10-07_Mark-Liversedge_Wrist_01,trunkRise,P5-P6,posture,%,3.25,1.444,4.5,0.722,steady
+2026-10-07_Mark-Liversedge_Wrist_01,trunkRise,P6-P7,posture,%,3.162,1.444,4.5,0.703,steady
+2026-10-07_Mark-Liversedge_Wrist_01,xFactor,P1,sequence,°,1.005,2.777,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,xFactor,P1-P2,sequence,°,1.913,8.975,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,xFactor,P2-P3,sequence,°,3.57,8.975,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,xFactor,P3-P4,sequence,°,5.62,8.975,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,xFactor,P4-P5,sequence,°,11.069,8.975,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,xFactor,P5-P6,sequence,°,6.522,8.975,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,xFactor,P6-P7,sequence,°,3.728,8.975,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,xFactor,P7-P8,sequence,°,9.085,8.975,,,unjudged
+2026-10-07_Mark-Liversedge_Wrist_01,xFactorStretch,P1,sequence,°,9.352,2.777,3.5,2.672,loose
+2026-10-07_Mark-Liversedge_Wrist_01,xFactorStretch,P1-P2,sequence,°,9.419,8.975,3.5,2.691,loose
+2026-10-07_Mark-Liversedge_Wrist_01,xFactorStretch,P2-P3,sequence,°,8.589,8.975,3.5,2.454,nearError
+2026-10-07_Mark-Liversedge_Wrist_01,xFactorStretch,P3-P4,sequence,°,9.081,8.975,3.5,2.595,loose
+2026-10-07_Mark-Liversedge_Wrist_01,xFactorStretch,P4-P5,sequence,°,9.606,8.975,3.5,2.745,loose
+2026-10-07_Mark-Liversedge_Wrist_01,xFactorStretch,P5-P6,sequence,°,10.691,8.975,3.5,3.055,loose
+2026-10-07_Mark-Liversedge_Wrist_01,xFactorStretch,P6-P7,sequence,°,9.009,8.975,3.5,2.574,loose
+2026-10-07_Mark-Liversedge_Wrist_01,xFactorStretch,P7-P8,sequence,°,12.411,8.975,3.5,3.546,loose
+2026-10-08_Mark-Liversedge_Wrist_01,armHang,P1,setup,°,0.878,,5.0,0.176,steady
+2026-10-08_Mark-Liversedge_Wrist_01,attackAngle,P6-P7,impact,°,41.617,2.115,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,balanceHeelToe,P1,setup,% foot length,3.506,,5.0,0.701,steady
+2026-10-08_Mark-Liversedge_Wrist_01,ballBodyDistance,P1,setup,cm,1.831,0.341,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,ballPosition,P1,setup,% stance width,8.33,,10.0,0.833,loose
+2026-10-08_Mark-Liversedge_Wrist_01,ballReachExcess,P1,setup,cm,1.252,0.047,4.0,0.313,steady
+2026-10-08_Mark-Liversedge_Wrist_01,clubAngularSpeed,P4-P5,sequence,°/s,76.995,25.025,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,clubAngularSpeed,P5-P6,sequence,°/s,116.417,25.025,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,clubAngularSpeed,P6-P7,sequence,°/s,216.116,25.025,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,clubAngularSpeed,P7-P8,sequence,°/s,468.322,25.025,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,clubPeakSpeed,P6-P7,sequence,°/s,142.511,65.329,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,clubPeakTime,P6-P7,sequence,ms,23.538,13.925,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,clubheadPeakLead,P6-P7,sequence,ms,1.03,1.934,15.0,0.069,steady
+2026-10-08_Mark-Liversedge_Wrist_01,clubheadSpeed,P1,sequence,mph,2.447,3.895,4.15,0.59,steady
+2026-10-08_Mark-Liversedge_Wrist_01,clubheadSpeed,P1-P2,sequence,mph,0.995,2.958,4.15,0.24,steady
+2026-10-08_Mark-Liversedge_Wrist_01,clubheadSpeed,P2-P3,sequence,mph,0.89,2.958,4.15,0.214,steady
+2026-10-08_Mark-Liversedge_Wrist_01,clubheadSpeed,P3-P4,sequence,mph,1.453,2.958,4.15,0.35,steady
+2026-10-08_Mark-Liversedge_Wrist_01,clubheadSpeed,P4-P5,sequence,mph,2.255,2.958,4.15,0.543,steady
+2026-10-08_Mark-Liversedge_Wrist_01,clubheadSpeed,P5-P6,sequence,mph,1.374,2.958,4.15,0.331,steady
+2026-10-08_Mark-Liversedge_Wrist_01,clubheadSpeed,P6-P7,sequence,mph,2.027,2.958,4.15,0.488,steady
+2026-10-08_Mark-Liversedge_Wrist_01,comOverLeadFoot,P1,finish,% stance width,4.179,3.042,10.0,0.418,steady
+2026-10-08_Mark-Liversedge_Wrist_01,comOverLeadFoot,P1-P2,finish,% stance width,3.922,3.042,10.0,0.392,steady
+2026-10-08_Mark-Liversedge_Wrist_01,comOverLeadFoot,P2-P3,finish,% stance width,3.634,3.042,10.0,0.363,steady
+2026-10-08_Mark-Liversedge_Wrist_01,comOverLeadFoot,P3-P4,finish,% stance width,4.962,3.042,10.0,0.496,steady
+2026-10-08_Mark-Liversedge_Wrist_01,comOverLeadFoot,P4-P5,finish,% stance width,5.322,3.042,10.0,0.532,steady
+2026-10-08_Mark-Liversedge_Wrist_01,comOverLeadFoot,P5-P6,finish,% stance width,3.659,3.042,10.0,0.366,steady
+2026-10-08_Mark-Liversedge_Wrist_01,comOverLeadFoot,P6-P7,finish,% stance width,4.675,3.042,10.0,0.468,steady
+2026-10-08_Mark-Liversedge_Wrist_01,comOverLeadFoot,P7-P8,finish,% stance width,7.919,3.042,10.0,0.792,loose
+2026-10-08_Mark-Liversedge_Wrist_01,elbowAlignment,P1,armsAndClub,°,2.377,1.947,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,elbowAlignment,P1-P2,armsAndClub,°,1.791,1.947,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,elbowAlignment,P2-P3,armsAndClub,°,2.459,1.947,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,elbowAlignment,P3-P4,armsAndClub,°,7.487,1.947,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,elbowAlignment,P4-P5,armsAndClub,°,9.89,1.947,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,elbowAlignment,P5-P6,armsAndClub,°,2.49,1.947,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,elbowAlignment,P6-P7,armsAndClub,°,1.704,1.947,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,feetAlignment,P1,setup,°,0.562,0.822,4.0,0.141,steady
+2026-10-08_Mark-Liversedge_Wrist_01,feetAlignment,P1-P2,setup,°,0.917,0.822,4.0,0.229,steady
+2026-10-08_Mark-Liversedge_Wrist_01,feetAlignment,P2-P3,setup,°,0.639,0.822,4.0,0.16,steady
+2026-10-08_Mark-Liversedge_Wrist_01,feetAlignment,P3-P4,setup,°,1.083,0.822,4.0,0.271,steady
+2026-10-08_Mark-Liversedge_Wrist_01,feetAlignment,P4-P5,setup,°,0.954,0.822,4.0,0.239,steady
+2026-10-08_Mark-Liversedge_Wrist_01,feetAlignment,P5-P6,setup,°,0.893,0.822,4.0,0.223,steady
+2026-10-08_Mark-Liversedge_Wrist_01,feetAlignment,P6-P7,setup,°,0.904,0.822,4.0,0.226,steady
+2026-10-08_Mark-Liversedge_Wrist_01,feetAlignment,P7-P8,setup,°,2.826,0.822,4.0,0.707,steady
+2026-10-08_Mark-Liversedge_Wrist_01,handPathLoop,P3-P4,armsAndClub,% hand rise,2.368,,4.333333333333333,0.546,steady
+2026-10-08_Mark-Liversedge_Wrist_01,handPlaneCurve,P1-P2,armsAndClub,°,0.496,0.238,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,handPlaneCurve,P2-P3,armsAndClub,°,1.143,0.238,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,handPlaneCurve,P3-P4,armsAndClub,°,0.768,0.238,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,handPlaneCurve,P4-P5,armsAndClub,°,0.848,0.238,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,handPlaneCurve,P5-P6,armsAndClub,°,1.271,0.238,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,handPlaneCurve,P6-P7,armsAndClub,°,0.776,0.238,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,handPlaneSteepening,P3-P4,armsAndClub,°,1.016,0.629,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,handSpeed,P1,sequence,mph,0.842,1.144,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,handSpeed,P1-P2,sequence,mph,0.525,1.145,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,handSpeed,P2-P3,sequence,mph,0.412,1.145,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,handSpeed,P3-P4,sequence,mph,0.603,1.145,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,handSpeed,P4-P5,sequence,mph,1.796,1.145,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,handSpeed,P5-P6,sequence,mph,0.692,1.145,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,handSpeed,P6-P7,sequence,mph,0.774,1.145,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,handSpeed,P7-P8,sequence,mph,2.82,1.145,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,headLift,P1,posture,cm,2.756,,3.0,0.919,loose
+2026-10-08_Mark-Liversedge_Wrist_01,headLift,P1-P2,posture,cm,2.239,,3.0,0.746,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headLift,P2-P3,posture,cm,2.373,,3.0,0.791,loose
+2026-10-08_Mark-Liversedge_Wrist_01,headLift,P3-P4,posture,cm,2.669,,3.0,0.89,loose
+2026-10-08_Mark-Liversedge_Wrist_01,headLift,P4-P5,posture,cm,1.777,,3.0,0.592,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headLift,P5-P6,posture,cm,2.789,,3.0,0.93,loose
+2026-10-08_Mark-Liversedge_Wrist_01,headLift,P6-P7,posture,cm,2.372,,3.0,0.791,loose
+2026-10-08_Mark-Liversedge_Wrist_01,headLift,P7-P8,posture,cm,4.116,,3.0,1.372,loose
+2026-10-08_Mark-Liversedge_Wrist_01,headPitch,P1,posture,°,6.482,,8.0,0.81,loose
+2026-10-08_Mark-Liversedge_Wrist_01,headRise,P1,posture,cm,0.178,,3.0,0.059,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headRise,P1-P2,posture,cm,0.774,,3.0,0.258,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headRise,P2-P3,posture,cm,1.038,,3.0,0.346,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headRise,P3-P4,posture,cm,0.84,,3.0,0.28,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headRise,P4-P5,posture,cm,1.125,,3.0,0.375,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headRise,P5-P6,posture,cm,1.552,,3.0,0.517,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headRise,P6-P7,posture,cm,1.323,,3.0,0.441,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headSway,P1,lateral,cm,0.306,,3.0,0.102,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headSway,P1-P2,lateral,cm,0.646,,3.0,0.215,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headSway,P2-P3,lateral,cm,0.788,,3.0,0.263,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headSway,P3-P4,lateral,cm,1.033,,3.0,0.344,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headSway,P4-P5,lateral,cm,1.573,,3.0,0.524,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headSway,P5-P6,lateral,cm,1.369,,3.0,0.456,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headSway,P6-P7,lateral,cm,1.656,,3.0,0.552,steady
+2026-10-08_Mark-Liversedge_Wrist_01,headSway,P7-P8,lateral,cm,5.56,,3.0,1.853,loose
+2026-10-08_Mark-Liversedge_Wrist_01,headTilt,P1,posture,°,2.364,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,headTilt,P1-P2,posture,°,5.798,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,headTilt,P2-P3,posture,°,7.827,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,headTilt,P3-P4,posture,°,7.072,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,headTilt,P4-P5,posture,°,6.447,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,headTilt,P5-P6,posture,°,5.395,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,headTilt,P6-P7,posture,°,5.714,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,headTilt,P7-P8,posture,°,12.273,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,hipDepthButt,P1,posture,cm,0.0,,2.5,0.0,steady
+2026-10-08_Mark-Liversedge_Wrist_01,hipDepthButt,P1-P2,posture,cm,0.809,,2.5,0.324,steady
+2026-10-08_Mark-Liversedge_Wrist_01,hipDepthButt,P2-P3,posture,cm,1.205,,2.5,0.482,steady
+2026-10-08_Mark-Liversedge_Wrist_01,hipDepthButt,P3-P4,posture,cm,0.994,,2.5,0.398,steady
+2026-10-08_Mark-Liversedge_Wrist_01,hipDepthButt,P4-P5,posture,cm,0.886,,2.5,0.354,steady
+2026-10-08_Mark-Liversedge_Wrist_01,hipDepthButt,P5-P6,posture,cm,1.642,,2.5,0.657,steady
+2026-10-08_Mark-Liversedge_Wrist_01,hipDepthButt,P6-P7,posture,cm,1.921,,2.5,0.769,loose
+2026-10-08_Mark-Liversedge_Wrist_01,hipLineTilt,P1,setup,°,1.999,1.986,6.0,0.333,steady
+2026-10-08_Mark-Liversedge_Wrist_01,hipLineTilt,P1-P2,setup,°,1.477,1.986,6.0,0.246,steady
+2026-10-08_Mark-Liversedge_Wrist_01,hipLineTilt,P2-P3,setup,°,1.258,1.986,6.0,0.21,steady
+2026-10-08_Mark-Liversedge_Wrist_01,hipLineTilt,P3-P4,setup,°,1.978,1.986,6.0,0.33,steady
+2026-10-08_Mark-Liversedge_Wrist_01,hipLineTilt,P4-P5,setup,°,1.837,1.986,6.0,0.306,steady
+2026-10-08_Mark-Liversedge_Wrist_01,hipLineTilt,P5-P6,setup,°,0.902,1.986,6.0,0.15,steady
+2026-10-08_Mark-Liversedge_Wrist_01,hipLineTilt,P6-P7,setup,°,1.196,1.986,6.0,0.199,steady
+2026-10-08_Mark-Liversedge_Wrist_01,impactShaftLean,P6-P7,impact,°,1.83,1.768,10.0,0.183,steady
+2026-10-08_Mark-Liversedge_Wrist_01,lagAngle,P1,release,°,3.132,2.622,26.0,0.12,steady
+2026-10-08_Mark-Liversedge_Wrist_01,lagAngle,P1-P2,release,°,2.947,3.157,26.0,0.113,steady
+2026-10-08_Mark-Liversedge_Wrist_01,lagAngle,P2-P3,release,°,2.981,3.157,26.0,0.115,steady
+2026-10-08_Mark-Liversedge_Wrist_01,lagAngle,P3-P4,release,°,2.768,3.157,26.0,0.106,steady
+2026-10-08_Mark-Liversedge_Wrist_01,lagAngle,P4-P5,release,°,2.826,3.157,26.0,0.109,steady
+2026-10-08_Mark-Liversedge_Wrist_01,lagAngle,P5-P6,release,°,1.917,3.157,26.0,0.074,steady
+2026-10-08_Mark-Liversedge_Wrist_01,lagAngle,P6-P7,release,°,2.442,3.157,26.0,0.094,steady
+2026-10-08_Mark-Liversedge_Wrist_01,lagAngle,P7-P8,release,°,21.111,3.157,26.0,0.812,loose
+2026-10-08_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P4-P5,sequence,°/s,72.638,57.138,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P5-P6,sequence,°/s,43.187,57.138,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P6-P7,sequence,°/s,53.713,57.138,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P7-P8,sequence,°/s,45.412,57.138,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,leadArmPeakSpeed,P6-P7,sequence,°/s,50.127,52.98,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,leadArmPeakTime,P6-P7,sequence,ms,6.208,30.337,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,leadArmToTorso,P1,armsAndClub,°,0.95,,10.0,0.095,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadArmToTorso,P1-P2,armsAndClub,°,1.882,,10.0,0.188,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadArmToTorso,P2-P3,armsAndClub,°,1.559,,10.0,0.156,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadArmToTorso,P3-P4,armsAndClub,°,3.878,,10.0,0.388,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadArmToTorso,P4-P5,armsAndClub,°,3.991,,10.0,0.399,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadArmToTorso,P5-P6,armsAndClub,°,2.065,,10.0,0.206,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadArmToTorso,P6-P7,armsAndClub,°,1.737,,10.0,0.174,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadArmToTorso,P7-P8,armsAndClub,°,30.429,,10.0,3.043,loose
+2026-10-08_Mark-Liversedge_Wrist_01,leadFootFlare,P1,setup,°,4.713,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,leadHandWidth,P1,armsAndClub,% arm length,0.851,1.049,8.0,0.106,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadHandWidth,P1-P2,armsAndClub,% arm length,1.016,1.049,8.0,0.127,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadHandWidth,P2-P3,armsAndClub,% arm length,1.277,1.049,8.0,0.16,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadHandWidth,P3-P4,armsAndClub,% arm length,3.322,1.049,8.0,0.415,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadHandWidth,P4-P5,armsAndClub,% arm length,2.986,1.049,8.0,0.373,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadHandWidth,P5-P6,armsAndClub,% arm length,2.334,1.049,8.0,0.292,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadHandWidth,P6-P7,armsAndClub,% arm length,1.273,1.049,8.0,0.159,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadHandWidth,P7-P8,armsAndClub,% arm length,12.638,1.049,8.0,1.58,loose
+2026-10-08_Mark-Liversedge_Wrist_01,leadHeelLift,P1,lateral,cm,0.287,,2.0,0.144,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadHeelLift,P1-P2,lateral,cm,0.4,,2.0,0.2,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadHeelLift,P2-P3,lateral,cm,0.671,,2.0,0.335,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadHeelLift,P3-P4,lateral,cm,0.669,,2.0,0.335,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadHeelLift,P4-P5,lateral,cm,0.735,,2.0,0.368,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadHeelLift,P5-P6,lateral,cm,0.846,,2.0,0.423,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadHeelLift,P6-P7,lateral,cm,0.709,,2.0,0.355,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadHeelLift,P7-P8,lateral,cm,2.879,,2.0,1.439,loose
+2026-10-08_Mark-Liversedge_Wrist_01,leadKneeDrift,P1,lateral,% stance width,0.938,1.528,8.0,0.117,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadKneeDrift,P1-P2,lateral,% stance width,1.712,1.528,8.0,0.214,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadKneeDrift,P2-P3,lateral,% stance width,2.595,1.528,8.0,0.324,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadKneeDrift,P3-P4,lateral,% stance width,2.997,1.528,8.0,0.375,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadKneeDrift,P4-P5,lateral,% stance width,2.714,1.528,8.0,0.339,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadKneeDrift,P5-P6,lateral,% stance width,2.719,1.528,8.0,0.34,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadKneeDrift,P6-P7,lateral,% stance width,2.734,1.528,8.0,0.342,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadKneeFlexion,P1,lateral,°,1.763,,6.0,0.294,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadKneeFlexion,P1-P2,lateral,°,1.787,,6.0,0.298,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadKneeFlexion,P2-P3,lateral,°,1.517,,6.0,0.253,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadKneeFlexion,P3-P4,lateral,°,2.008,,6.0,0.335,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadKneeFlexion,P4-P5,lateral,°,2.437,,6.0,0.406,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadKneeFlexion,P5-P6,lateral,°,1.529,,6.0,0.255,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadKneeFlexion,P6-P7,lateral,°,2.344,,6.0,0.391,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadKneeFlexion,P7-P8,lateral,°,6.17,,6.0,1.028,loose
+2026-10-08_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P1,armsAndClub,% shoulder width,1.834,1.535,6.0,0.306,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P1-P2,armsAndClub,% shoulder width,2.543,1.535,6.0,0.424,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P2-P3,armsAndClub,% shoulder width,2.196,1.535,6.0,0.366,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P3-P4,armsAndClub,% shoulder width,2.566,1.535,6.0,0.428,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P4-P5,armsAndClub,% shoulder width,2.667,1.535,6.0,0.445,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P5-P6,armsAndClub,% shoulder width,2.51,1.535,6.0,0.418,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P6-P7,armsAndClub,% shoulder width,2.624,1.535,6.0,0.437,steady
+2026-10-08_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P7-P8,armsAndClub,% shoulder width,6.775,1.535,6.0,1.129,loose
+2026-10-08_Mark-Liversedge_Wrist_01,lowPointAhead,P6-P7,impact,in,2.325,6.011,1.6,1.453,nearError
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P4-P5,sequence,°/s,67.898,443.913,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P5-P6,sequence,°/s,137.862,443.913,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P6-P7,sequence,°/s,141.754,443.913,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P7-P8,sequence,°/s,158.151,443.913,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisLift,P1,posture,% stance width,0.787,0.808,6.0,0.131,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisLift,P1-P2,posture,% stance width,1.755,0.808,6.0,0.292,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisLift,P2-P3,posture,% stance width,1.954,0.808,6.0,0.326,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisLift,P3-P4,posture,% stance width,2.104,0.808,6.0,0.351,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisLift,P4-P5,posture,% stance width,2.196,0.808,6.0,0.366,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisLift,P5-P6,posture,% stance width,2.755,0.808,6.0,0.459,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisLift,P6-P7,posture,% stance width,2.151,0.808,6.0,0.359,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisPeakSpeed,P6-P7,sequence,°/s,244.802,244.726,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisPeakTime,P6-P7,sequence,ms,44.688,17.802,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisReversalTime,P6-P7,sequence,ms,17.504,108.911,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotation,P1,sequence,°,0.899,2.336,10.0,0.09,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotation,P1-P2,sequence,°,0.808,4.617,10.0,0.081,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotation,P2-P3,sequence,°,3.174,4.617,10.0,0.317,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotation,P3-P4,sequence,°,3.826,4.617,10.0,0.383,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotation,P4-P5,sequence,°,2.727,4.617,10.0,0.273,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotation,P5-P6,sequence,°,3.458,4.617,10.0,0.346,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotation,P6-P7,sequence,°,3.009,4.617,10.0,0.301,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotation,P7-P8,sequence,°,39.403,4.617,10.0,3.94,loose
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P1,sequence,°,0.899,2.336,100.0,0.009,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P1-P2,sequence,°,0.808,4.617,100.0,0.008,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P2-P3,sequence,°,3.174,4.617,100.0,0.032,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P3-P4,sequence,°,3.826,4.617,100.0,0.038,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P4-P5,sequence,°,2.727,4.617,100.0,0.027,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P5-P6,sequence,°,3.458,4.617,100.0,0.035,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P6-P7,sequence,°,3.305,4.617,100.0,0.033,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisRotationSigned,P7-P8,sequence,°,39.789,4.617,100.0,0.398,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisSway,P1,lateral,% stance width,0.559,0.808,10.0,0.056,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisSway,P1-P2,lateral,% stance width,1.802,0.808,10.0,0.18,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisSway,P2-P3,lateral,% stance width,2.096,0.808,10.0,0.21,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisSway,P3-P4,lateral,% stance width,2.465,0.808,10.0,0.247,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisSway,P4-P5,lateral,% stance width,2.98,0.808,10.0,0.298,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisSway,P5-P6,lateral,% stance width,2.466,0.808,10.0,0.247,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisSway,P6-P7,lateral,% stance width,2.369,0.808,10.0,0.237,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisThrust,P1-P2,posture,cm,0.5,,2.5,0.2,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisThrust,P2-P3,posture,cm,0.491,,2.5,0.197,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisThrust,P3-P4,posture,cm,0.879,,2.5,0.351,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisThrust,P4-P5,posture,cm,0.973,,2.5,0.389,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisThrust,P5-P6,posture,cm,1.053,,2.5,0.421,steady
+2026-10-08_Mark-Liversedge_Wrist_01,pelvisThrust,P6-P7,posture,cm,1.154,,2.5,0.462,steady
+2026-10-08_Mark-Liversedge_Wrist_01,plumbBobDistance,P1,lateral,in,0.746,0.485,0.5,1.493,loose
+2026-10-08_Mark-Liversedge_Wrist_01,plumbBobDistance,P1-P2,lateral,in,0.701,0.485,0.5,1.403,loose
+2026-10-08_Mark-Liversedge_Wrist_01,plumbBobDistance,P2-P3,lateral,in,0.571,0.485,0.5,1.143,loose
+2026-10-08_Mark-Liversedge_Wrist_01,plumbBobDistance,P3-P4,lateral,in,0.742,0.485,0.5,1.484,loose
+2026-10-08_Mark-Liversedge_Wrist_01,plumbBobDistance,P4-P5,lateral,in,0.749,0.485,0.5,1.497,loose
+2026-10-08_Mark-Liversedge_Wrist_01,plumbBobDistance,P5-P6,lateral,in,0.664,0.485,0.5,1.328,loose
+2026-10-08_Mark-Liversedge_Wrist_01,plumbBobDistance,P6-P7,lateral,in,0.685,0.485,0.5,1.369,loose
+2026-10-08_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P1,posture,°,1.0,0.681,6.0,0.167,steady
+2026-10-08_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P1-P2,posture,°,1.087,0.681,6.0,0.181,steady
+2026-10-08_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P2-P3,posture,°,1.02,0.681,6.0,0.17,steady
+2026-10-08_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P3-P4,posture,°,1.4,0.681,6.0,0.233,steady
+2026-10-08_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P4-P5,posture,°,2.947,0.681,6.0,0.491,steady
+2026-10-08_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P5-P6,posture,°,1.211,0.681,6.0,0.202,steady
+2026-10-08_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P6-P7,posture,°,1.035,0.681,6.0,0.173,steady
+2026-10-08_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P1,armsAndClub,°,2.761,0.988,15.0,0.184,steady
+2026-10-08_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P1-P2,armsAndClub,°,4.44,2.14,15.0,0.296,steady
+2026-10-08_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P2-P3,armsAndClub,°,3.021,2.14,15.0,0.201,steady
+2026-10-08_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P3-P4,armsAndClub,°,4.338,2.14,15.0,0.289,steady
+2026-10-08_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P4-P5,armsAndClub,°,4.19,2.14,15.0,0.279,steady
+2026-10-08_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P5-P6,armsAndClub,°,17.385,2.14,15.0,1.159,loose
+2026-10-08_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P6-P7,armsAndClub,°,54.57,2.14,15.0,3.638,loose
+2026-10-08_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P7-P8,armsAndClub,°,32.832,2.14,15.0,2.189,loose
+2026-10-08_Mark-Liversedge_Wrist_01,shaftLie,P6-P7,impact,°,1.019,0.537,0.75,1.359,loose
+2026-10-08_Mark-Liversedge_Wrist_01,shoulderPlane,P1,,°,0.468,0.098,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P1,armsAndClub,°,1.15,1.41,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P1-P2,armsAndClub,°,1.171,1.41,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P2-P3,armsAndClub,°,1.51,1.41,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P3-P4,armsAndClub,°,4.673,1.41,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P4-P5,armsAndClub,°,4.503,1.41,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P5-P6,armsAndClub,°,1.564,1.41,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P6-P7,armsAndClub,°,1.208,1.41,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,spineBackLine,P1,posture,°,0.57,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,spineBackLine,P1-P2,posture,°,0.7,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,spineBackLine,P2-P3,posture,°,1.583,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,spineBackLine,P3-P4,posture,°,3.793,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,spineBackLine,P4-P5,posture,°,1.078,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,spineBackLine,P5-P6,posture,°,1.539,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,spineBackLine,P6-P7,posture,°,1.258,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,spineForwardBend,P1,setup,°,0.833,,3.0,0.278,steady
+2026-10-08_Mark-Liversedge_Wrist_01,spineForwardBend,P1-P2,setup,°,0.723,,3.0,0.241,steady
+2026-10-08_Mark-Liversedge_Wrist_01,spineForwardBend,P2-P3,setup,°,1.196,,3.0,0.399,steady
+2026-10-08_Mark-Liversedge_Wrist_01,spineForwardBend,P3-P4,setup,°,1.115,,3.0,0.372,steady
+2026-10-08_Mark-Liversedge_Wrist_01,spineForwardBend,P4-P5,setup,°,1.267,,3.0,0.422,steady
+2026-10-08_Mark-Liversedge_Wrist_01,spineForwardBend,P5-P6,setup,°,0.702,,3.0,0.234,steady
+2026-10-08_Mark-Liversedge_Wrist_01,spineForwardBend,P6-P7,setup,°,0.84,,3.0,0.28,steady
+2026-10-08_Mark-Liversedge_Wrist_01,spineSideBend,P1,posture,°,1.839,2.851,6.0,0.307,steady
+2026-10-08_Mark-Liversedge_Wrist_01,spineSideBend,P1-P2,posture,°,1.467,2.851,6.0,0.245,steady
+2026-10-08_Mark-Liversedge_Wrist_01,spineSideBend,P2-P3,posture,°,1.702,2.851,6.0,0.284,steady
+2026-10-08_Mark-Liversedge_Wrist_01,spineSideBend,P3-P4,posture,°,3.31,2.851,6.0,0.552,steady
+2026-10-08_Mark-Liversedge_Wrist_01,spineSideBend,P4-P5,posture,°,4.396,2.851,6.0,0.733,steady
+2026-10-08_Mark-Liversedge_Wrist_01,spineSideBend,P5-P6,posture,°,1.316,2.851,6.0,0.219,steady
+2026-10-08_Mark-Liversedge_Wrist_01,spineSideBend,P6-P7,posture,°,1.123,2.851,6.0,0.187,steady
+2026-10-08_Mark-Liversedge_Wrist_01,stanceWidth,P1,setup,% shoulder width,2.964,,10.0,0.296,steady
+2026-10-08_Mark-Liversedge_Wrist_01,stanceWidthMm,P1,setup,mm,10.206,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlane,P1-P2,armsAndClub,°,1.184,2.195,7.0,0.169,steady
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlane,P2-P3,armsAndClub,°,1.184,2.195,7.0,0.169,steady
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlane,P3-P4,armsAndClub,°,1.184,2.195,7.0,0.169,steady
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlane,P4-P5,armsAndClub,°,0.721,2.195,7.0,0.103,steady
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlane,P5-P6,armsAndClub,°,0.721,2.195,7.0,0.103,steady
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlane,P6-P7,armsAndClub,°,0.721,2.195,7.0,0.103,steady
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlaneAngle,P1-P2,armsAndClub,°,1.161,2.137,4.0,0.29,steady
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlaneAngle,P2-P3,armsAndClub,°,1.161,2.137,4.0,0.29,steady
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlaneAngle,P3-P4,armsAndClub,°,1.161,2.137,4.0,0.29,steady
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlaneAngle,P4-P5,armsAndClub,°,1.189,2.137,4.0,0.297,steady
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlaneAngle,P5-P6,armsAndClub,°,1.189,2.137,4.0,0.297,steady
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlaneAngle,P6-P7,armsAndClub,°,1.189,2.137,4.0,0.297,steady
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlaneCurve,P1-P2,armsAndClub,°,1.106,0.447,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlaneCurve,P2-P3,armsAndClub,°,1.726,0.447,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlaneCurve,P3-P4,armsAndClub,°,0.766,0.447,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlaneCurve,P4-P5,armsAndClub,°,0.903,0.447,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlaneCurve,P5-P6,armsAndClub,°,1.138,0.447,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlaneCurve,P6-P7,armsAndClub,°,0.994,0.447,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlaneIotaBack,P3-P4,,°,10.518,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,swingPlaneIotaDown,P6-P7,,°,7.72,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,tempoBackswing,P3-P4,sequence,s,0.032,0.037,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,tempoRatio,P3-P4,sequence,:1,0.303,0.418,0.4,0.758,nearError
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P4-P5,sequence,°/s,168.428,228.514,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P5-P6,sequence,°/s,51.807,228.514,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P6-P7,sequence,°/s,66.837,228.514,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P7-P8,sequence,°/s,98.193,228.514,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P1,lateral,% stance width,6.386,3.805,10.0,0.639,steady
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P1-P2,lateral,% stance width,5.575,3.805,10.0,0.558,steady
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P2-P3,lateral,% stance width,4.194,3.805,10.0,0.419,steady
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P3-P4,lateral,% stance width,5.937,3.805,10.0,0.594,steady
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P4-P5,lateral,% stance width,6.071,3.805,10.0,0.607,steady
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P5-P6,lateral,% stance width,4.105,3.805,10.0,0.411,steady
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P6-P7,lateral,% stance width,4.94,3.805,10.0,0.494,steady
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxPeakSpeed,P6-P7,sequence,°/s,59.903,31.808,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxPeakTime,P6-P7,sequence,ms,11.045,6.58,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotation,P1,armsAndClub,°,0.884,1.264,12.0,0.074,steady
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotation,P1-P2,armsAndClub,°,1.426,6.379,12.0,0.119,steady
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotation,P2-P3,armsAndClub,°,2.364,6.379,12.0,0.197,steady
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotation,P3-P4,armsAndClub,°,4.68,6.379,12.0,0.39,steady
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotation,P4-P5,armsAndClub,°,5.569,6.379,12.0,0.464,steady
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotation,P5-P6,armsAndClub,°,2.895,6.379,12.0,0.241,steady
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotation,P6-P7,armsAndClub,°,3.2,6.379,12.0,0.267,steady
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotation,P7-P8,armsAndClub,°,52.436,6.379,12.0,4.37,loose
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P1,armsAndClub,°,0.884,1.264,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P1-P2,armsAndClub,°,1.426,6.379,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P2-P3,armsAndClub,°,2.364,6.379,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P3-P4,armsAndClub,°,4.68,6.379,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P4-P5,armsAndClub,°,5.569,6.379,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P5-P6,armsAndClub,°,2.895,6.379,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P6-P7,armsAndClub,°,3.283,6.379,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,thoraxRotationSigned,P7-P8,armsAndClub,°,53.02,6.379,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,toeLineAngle,P1,setup,°,0.976,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,trailElbowHeight,P1,armsAndClub,% shoulder width,1.916,2.794,15.0,0.128,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailElbowHeight,P1-P2,armsAndClub,% shoulder width,1.622,2.794,15.0,0.108,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailElbowHeight,P2-P3,armsAndClub,% shoulder width,1.947,2.794,15.0,0.13,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailElbowHeight,P3-P4,armsAndClub,% shoulder width,35.73,2.794,15.0,2.382,loose
+2026-10-08_Mark-Liversedge_Wrist_01,trailElbowHeight,P4-P5,armsAndClub,% shoulder width,24.141,2.794,15.0,1.609,loose
+2026-10-08_Mark-Liversedge_Wrist_01,trailElbowHeight,P5-P6,armsAndClub,% shoulder width,2.032,2.794,15.0,0.135,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailElbowHeight,P6-P7,armsAndClub,% shoulder width,2.116,2.794,15.0,0.141,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailElbowHeight,P7-P8,armsAndClub,% shoulder width,116.03,2.794,15.0,7.735,loose
+2026-10-08_Mark-Liversedge_Wrist_01,trailFootFlare,P1,setup,°,5.169,,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,trailForearmAngle,P1-P2,armsAndClub,°,1.42,,15.0,0.095,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailForearmAngle,P2-P3,armsAndClub,°,2.852,,15.0,0.19,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailForearmAngle,P3-P4,armsAndClub,°,6.88,,15.0,0.459,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailForearmAngle,P4-P5,armsAndClub,°,3.522,,15.0,0.235,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailForearmAngle,P5-P6,armsAndClub,°,4.522,,15.0,0.301,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailForearmAngle,P6-P7,armsAndClub,°,1.478,,15.0,0.099,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailForearmAngle,P7-P8,armsAndClub,°,97.24,,15.0,6.483,loose
+2026-10-08_Mark-Liversedge_Wrist_01,trailKneeFlexion,P1,setup,°,1.193,,7.5,0.159,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailKneeFlexion,P1-P2,setup,°,1.747,,7.5,0.233,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailKneeFlexion,P2-P3,setup,°,1.733,,7.5,0.231,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailKneeFlexion,P3-P4,setup,°,1.179,,7.5,0.157,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailKneeFlexion,P4-P5,setup,°,1.359,,7.5,0.181,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailKneeFlexion,P5-P6,setup,°,2.456,,7.5,0.327,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailKneeFlexion,P6-P7,setup,°,2.098,,7.5,0.28,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailKneeFlexion,P7-P8,setup,°,12.566,,7.5,1.675,loose
+2026-10-08_Mark-Liversedge_Wrist_01,trailWristFlexExt,P1,release,°,3.934,4.992,11.0,0.358,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailWristFlexExt,P1-P2,release,°,4.152,4.992,11.0,0.377,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailWristFlexExt,P2-P3,release,°,3.477,4.992,11.0,0.316,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailWristFlexExt,P3-P4,release,°,9.549,4.992,11.0,0.868,loose
+2026-10-08_Mark-Liversedge_Wrist_01,trailWristFlexExt,P4-P5,release,°,34.82,4.992,11.0,3.165,loose
+2026-10-08_Mark-Liversedge_Wrist_01,trailWristFlexExt,P5-P6,release,°,8.069,4.992,11.0,0.734,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailWristFlexExt,P6-P7,release,°,5.871,4.992,11.0,0.534,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trailWristFlexExt,P7-P8,release,°,8.15,4.992,11.0,0.741,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trunkRise,P1,posture,%,0.796,1.411,4.5,0.177,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trunkRise,P1-P2,posture,%,1.235,1.411,4.5,0.274,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trunkRise,P2-P3,posture,%,2.505,1.411,4.5,0.557,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trunkRise,P3-P4,posture,%,3.833,1.411,4.5,0.852,loose
+2026-10-08_Mark-Liversedge_Wrist_01,trunkRise,P4-P5,posture,%,2.96,1.411,4.5,0.658,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trunkRise,P5-P6,posture,%,2.074,1.411,4.5,0.461,steady
+2026-10-08_Mark-Liversedge_Wrist_01,trunkRise,P6-P7,posture,%,2.106,1.411,4.5,0.468,steady
+2026-10-08_Mark-Liversedge_Wrist_01,xFactor,P1,sequence,°,0.651,2.672,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,xFactor,P1-P2,sequence,°,2.177,7.923,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,xFactor,P2-P3,sequence,°,3.444,7.923,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,xFactor,P3-P4,sequence,°,4.659,7.923,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,xFactor,P4-P5,sequence,°,6.627,7.923,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,xFactor,P5-P6,sequence,°,3.822,7.923,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,xFactor,P6-P7,sequence,°,3.788,7.923,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,xFactor,P7-P8,sequence,°,7.966,7.923,,,unjudged
+2026-10-08_Mark-Liversedge_Wrist_01,xFactorStretch,P1,sequence,°,4.862,2.672,3.5,1.389,loose
+2026-10-08_Mark-Liversedge_Wrist_01,xFactorStretch,P1-P2,sequence,°,6.038,7.923,3.5,1.725,nearError
+2026-10-08_Mark-Liversedge_Wrist_01,xFactorStretch,P2-P3,sequence,°,5.86,7.923,3.5,1.674,nearError
+2026-10-08_Mark-Liversedge_Wrist_01,xFactorStretch,P3-P4,sequence,°,8.25,7.923,3.5,2.357,loose
+2026-10-08_Mark-Liversedge_Wrist_01,xFactorStretch,P4-P5,sequence,°,8.376,7.923,3.5,2.393,loose
+2026-10-08_Mark-Liversedge_Wrist_01,xFactorStretch,P5-P6,sequence,°,6.317,7.923,3.5,1.805,nearError
+2026-10-08_Mark-Liversedge_Wrist_01,xFactorStretch,P6-P7,sequence,°,6.998,7.923,3.5,1.999,nearError
+2026-10-08_Mark-Liversedge_Wrist_01,xFactorStretch,P7-P8,sequence,°,11.853,7.923,3.5,3.386,loose
+2026-10-20_Mark-Liversedge_Wrist_01,attackAngle,P6-P7,impact,°,29.153,1.899,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,ballPosition,P1,setup,% stance width,4.4,,10.0,0.44,steady
+2026-10-20_Mark-Liversedge_Wrist_01,clubAngularSpeed,P4-P5,sequence,°/s,93.05,24.901,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,clubAngularSpeed,P5-P6,sequence,°/s,133.833,24.901,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,clubAngularSpeed,P6-P7,sequence,°/s,215.312,24.901,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,clubPeakSpeed,P6-P7,sequence,°/s,229.439,75.801,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,clubPeakTime,P6-P7,sequence,ms,13.721,10.383,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,clubheadPeakLead,P6-P7,sequence,ms,1.662,1.934,15.0,0.111,steady
+2026-10-20_Mark-Liversedge_Wrist_01,clubheadSpeed,P1,sequence,mph,2.274,3.425,4.15,0.548,steady
+2026-10-20_Mark-Liversedge_Wrist_01,clubheadSpeed,P1-P2,sequence,mph,1.749,3.141,4.15,0.422,steady
+2026-10-20_Mark-Liversedge_Wrist_01,clubheadSpeed,P2-P3,sequence,mph,0.79,3.141,4.15,0.19,steady
+2026-10-20_Mark-Liversedge_Wrist_01,clubheadSpeed,P3-P4,sequence,mph,1.417,3.141,4.15,0.341,steady
+2026-10-20_Mark-Liversedge_Wrist_01,clubheadSpeed,P4-P5,sequence,mph,2.803,3.141,4.15,0.675,steady
+2026-10-20_Mark-Liversedge_Wrist_01,clubheadSpeed,P5-P6,sequence,mph,2.89,3.141,4.15,0.696,steady
+2026-10-20_Mark-Liversedge_Wrist_01,clubheadSpeed,P6-P7,sequence,mph,6.628,3.141,4.15,1.597,loose
+2026-10-20_Mark-Liversedge_Wrist_01,comOverLeadFoot,P1,finish,% stance width,5.592,3.067,10.0,0.559,steady
+2026-10-20_Mark-Liversedge_Wrist_01,comOverLeadFoot,P1-P2,finish,% stance width,6.234,3.067,10.0,0.623,steady
+2026-10-20_Mark-Liversedge_Wrist_01,comOverLeadFoot,P2-P3,finish,% stance width,7.038,3.067,10.0,0.704,steady
+2026-10-20_Mark-Liversedge_Wrist_01,comOverLeadFoot,P3-P4,finish,% stance width,8.015,3.067,10.0,0.801,loose
+2026-10-20_Mark-Liversedge_Wrist_01,comOverLeadFoot,P4-P5,finish,% stance width,8.651,3.067,10.0,0.865,loose
+2026-10-20_Mark-Liversedge_Wrist_01,comOverLeadFoot,P5-P6,finish,% stance width,5.835,3.067,10.0,0.583,steady
+2026-10-20_Mark-Liversedge_Wrist_01,comOverLeadFoot,P6-P7,finish,% stance width,8.859,3.067,10.0,0.886,loose
+2026-10-20_Mark-Liversedge_Wrist_01,comOverLeadFoot,P7-P8,finish,% stance width,8.866,3.067,10.0,0.887,loose
+2026-10-20_Mark-Liversedge_Wrist_01,compoundMiss,P6-P7,,ratio,0.0,,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,elbowAlignment,P1,armsAndClub,°,1.525,1.724,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,elbowAlignment,P1-P2,armsAndClub,°,1.782,1.724,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,elbowAlignment,P2-P3,armsAndClub,°,1.828,1.724,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,elbowAlignment,P3-P4,armsAndClub,°,8.432,1.724,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,elbowAlignment,P4-P5,armsAndClub,°,7.647,1.724,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,elbowAlignment,P5-P6,armsAndClub,°,2.495,1.724,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,elbowAlignment,P6-P7,armsAndClub,°,0.979,1.724,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,feetAlignment,P1,setup,°,1.05,0.84,4.0,0.262,steady
+2026-10-20_Mark-Liversedge_Wrist_01,feetAlignment,P1-P2,setup,°,1.336,0.84,4.0,0.334,steady
+2026-10-20_Mark-Liversedge_Wrist_01,feetAlignment,P2-P3,setup,°,1.279,0.84,4.0,0.32,steady
+2026-10-20_Mark-Liversedge_Wrist_01,feetAlignment,P3-P4,setup,°,1.762,0.84,4.0,0.441,steady
+2026-10-20_Mark-Liversedge_Wrist_01,feetAlignment,P4-P5,setup,°,2.001,0.84,4.0,0.5,steady
+2026-10-20_Mark-Liversedge_Wrist_01,feetAlignment,P5-P6,setup,°,1.156,0.84,4.0,0.289,steady
+2026-10-20_Mark-Liversedge_Wrist_01,feetAlignment,P6-P7,setup,°,1.951,0.84,4.0,0.488,steady
+2026-10-20_Mark-Liversedge_Wrist_01,feetAlignment,P7-P8,setup,°,1.82,0.84,4.0,0.455,steady
+2026-10-20_Mark-Liversedge_Wrist_01,handSpeed,P1,sequence,mph,0.531,1.192,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,handSpeed,P1-P2,sequence,mph,0.629,1.191,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,handSpeed,P2-P3,sequence,mph,0.615,1.191,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,handSpeed,P3-P4,sequence,mph,0.807,1.191,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,handSpeed,P4-P5,sequence,mph,2.178,1.191,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,handSpeed,P5-P6,sequence,mph,0.986,1.191,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,handSpeed,P6-P7,sequence,mph,0.786,1.191,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,handSpeed,P7-P8,sequence,mph,0.998,1.191,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,headLift,P1,posture,cm,0.898,,3.0,0.299,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headLift,P1-P2,posture,cm,0.614,,3.0,0.205,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headLift,P2-P3,posture,cm,0.565,,3.0,0.188,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headLift,P3-P4,posture,cm,0.631,,3.0,0.21,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headLift,P4-P5,posture,cm,0.549,,3.0,0.183,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headLift,P5-P6,posture,cm,0.461,,3.0,0.154,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headLift,P6-P7,posture,cm,0.403,,3.0,0.134,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headLift,P7-P8,posture,cm,0.497,,3.0,0.166,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headSway,P1,lateral,cm,0.19,,3.0,0.063,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headSway,P1-P2,lateral,cm,0.379,,3.0,0.126,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headSway,P2-P3,lateral,cm,0.986,,3.0,0.329,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headSway,P3-P4,lateral,cm,1.057,,3.0,0.352,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headSway,P4-P5,lateral,cm,1.029,,3.0,0.343,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headSway,P5-P6,lateral,cm,0.62,,3.0,0.207,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headSway,P6-P7,lateral,cm,0.76,,3.0,0.253,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headSway,P7-P8,lateral,cm,1.689,,3.0,0.563,steady
+2026-10-20_Mark-Liversedge_Wrist_01,headTilt,P1,posture,°,5.64,,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,headTilt,P1-P2,posture,°,3.953,,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,headTilt,P2-P3,posture,°,3.204,,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,headTilt,P3-P4,posture,°,4.872,,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,headTilt,P4-P5,posture,°,5.765,,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,headTilt,P5-P6,posture,°,2.872,,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,headTilt,P6-P7,posture,°,3.833,,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,headTilt,P7-P8,posture,°,4.952,,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,hipLineTilt,P1,setup,°,1.469,1.716,6.0,0.245,steady
+2026-10-20_Mark-Liversedge_Wrist_01,hipLineTilt,P1-P2,setup,°,1.013,1.716,6.0,0.169,steady
+2026-10-20_Mark-Liversedge_Wrist_01,hipLineTilt,P2-P3,setup,°,1.107,1.716,6.0,0.185,steady
+2026-10-20_Mark-Liversedge_Wrist_01,hipLineTilt,P3-P4,setup,°,1.359,1.716,6.0,0.227,steady
+2026-10-20_Mark-Liversedge_Wrist_01,hipLineTilt,P4-P5,setup,°,1.135,1.716,6.0,0.189,steady
+2026-10-20_Mark-Liversedge_Wrist_01,hipLineTilt,P5-P6,setup,°,0.724,1.716,6.0,0.121,steady
+2026-10-20_Mark-Liversedge_Wrist_01,hipLineTilt,P6-P7,setup,°,0.699,1.716,6.0,0.117,steady
+2026-10-20_Mark-Liversedge_Wrist_01,impactShaftLean,P6-P7,impact,°,1.129,1.807,10.0,0.113,steady
+2026-10-20_Mark-Liversedge_Wrist_01,lagAngle,P1,release,°,2.434,2.361,26.0,0.094,steady
+2026-10-20_Mark-Liversedge_Wrist_01,lagAngle,P1-P2,release,°,2.3,3.218,26.0,0.088,steady
+2026-10-20_Mark-Liversedge_Wrist_01,lagAngle,P2-P3,release,°,1.552,3.218,26.0,0.06,steady
+2026-10-20_Mark-Liversedge_Wrist_01,lagAngle,P3-P4,release,°,2.24,3.218,26.0,0.086,steady
+2026-10-20_Mark-Liversedge_Wrist_01,lagAngle,P4-P5,release,°,2.948,3.218,26.0,0.113,steady
+2026-10-20_Mark-Liversedge_Wrist_01,lagAngle,P5-P6,release,°,2.737,3.218,26.0,0.105,steady
+2026-10-20_Mark-Liversedge_Wrist_01,lagAngle,P6-P7,release,°,3.976,3.218,26.0,0.153,steady
+2026-10-20_Mark-Liversedge_Wrist_01,lagAngle,P7-P8,release,°,30.102,3.218,26.0,1.158,loose
+2026-10-20_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P4-P5,sequence,°/s,93.362,55.359,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P5-P6,sequence,°/s,54.543,55.359,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P6-P7,sequence,°/s,51.301,55.359,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,leadArmAngularSpeed,P7-P8,sequence,°/s,40.447,55.359,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,leadArmPeakSpeed,P6-P7,sequence,°/s,48.541,52.755,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,leadArmPeakTime,P6-P7,sequence,ms,4.966,29.072,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,leadArmToTorso,P1,armsAndClub,°,1.239,,10.0,0.124,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadArmToTorso,P1-P2,armsAndClub,°,0.958,,10.0,0.096,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadArmToTorso,P2-P3,armsAndClub,°,1.198,,10.0,0.12,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadArmToTorso,P3-P4,armsAndClub,°,8.245,,10.0,0.825,loose
+2026-10-20_Mark-Liversedge_Wrist_01,leadArmToTorso,P4-P5,armsAndClub,°,5.272,,10.0,0.527,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadArmToTorso,P5-P6,armsAndClub,°,1.422,,10.0,0.142,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadArmToTorso,P6-P7,armsAndClub,°,0.902,,10.0,0.09,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadArmToTorso,P7-P8,armsAndClub,°,3.311,,10.0,0.331,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadFootFlare,P1,setup,°,6.374,,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,leadHandWidth,P1,armsAndClub,% arm length,0.992,0.997,8.0,0.124,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadHandWidth,P1-P2,armsAndClub,% arm length,1.076,0.997,8.0,0.135,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadHandWidth,P2-P3,armsAndClub,% arm length,1.256,0.997,8.0,0.157,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadHandWidth,P3-P4,armsAndClub,% arm length,2.628,0.997,8.0,0.329,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadHandWidth,P4-P5,armsAndClub,% arm length,2.867,0.997,8.0,0.358,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadHandWidth,P5-P6,armsAndClub,% arm length,1.325,0.997,8.0,0.166,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadHandWidth,P6-P7,armsAndClub,% arm length,0.648,0.997,8.0,0.081,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadHandWidth,P7-P8,armsAndClub,% arm length,1.522,0.997,8.0,0.19,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadHeelLift,P1,lateral,cm,0.145,,2.0,0.073,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadHeelLift,P1-P2,lateral,cm,0.476,,2.0,0.238,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadHeelLift,P2-P3,lateral,cm,0.723,,2.0,0.362,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadHeelLift,P3-P4,lateral,cm,1.054,,2.0,0.527,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadHeelLift,P4-P5,lateral,cm,0.874,,2.0,0.437,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadHeelLift,P5-P6,lateral,cm,0.818,,2.0,0.409,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadHeelLift,P6-P7,lateral,cm,0.847,,2.0,0.424,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadHeelLift,P7-P8,lateral,cm,0.669,,2.0,0.335,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadKneeDrift,P1,lateral,% stance width,1.44,1.505,8.0,0.18,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadKneeDrift,P1-P2,lateral,% stance width,1.426,1.505,8.0,0.178,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadKneeDrift,P2-P3,lateral,% stance width,2.03,1.505,8.0,0.254,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadKneeDrift,P3-P4,lateral,% stance width,2.263,1.505,8.0,0.283,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadKneeDrift,P4-P5,lateral,% stance width,1.787,1.505,8.0,0.223,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadKneeDrift,P5-P6,lateral,% stance width,1.48,1.505,8.0,0.185,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadKneeDrift,P6-P7,lateral,% stance width,1.92,1.505,8.0,0.24,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P1,armsAndClub,% shoulder width,1.315,1.498,6.0,0.219,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P1-P2,armsAndClub,% shoulder width,1.7,1.498,6.0,0.283,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P2-P3,armsAndClub,% shoulder width,2.346,1.498,6.0,0.391,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P3-P4,armsAndClub,% shoulder width,2.747,1.498,6.0,0.458,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P4-P5,armsAndClub,% shoulder width,3.135,1.498,6.0,0.522,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P5-P6,armsAndClub,% shoulder width,2.301,1.498,6.0,0.383,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P6-P7,armsAndClub,% shoulder width,1.772,1.498,6.0,0.295,steady
+2026-10-20_Mark-Liversedge_Wrist_01,leadUpperArmToChest,P7-P8,armsAndClub,% shoulder width,1.583,1.498,6.0,0.264,steady
+2026-10-20_Mark-Liversedge_Wrist_01,lowPointAhead,P6-P7,impact,in,1.824,6.009,1.6,1.14,nearError
+2026-10-20_Mark-Liversedge_Wrist_01,lowPointFromAttack,P6-P7,impact,in,0.747,0.699,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P4-P5,sequence,°/s,48.813,521.833,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P5-P6,sequence,°/s,315.802,521.833,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P6-P7,sequence,°/s,133.309,521.833,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisAngularSpeed,P7-P8,sequence,°/s,107.099,521.833,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisLift,P1,posture,% stance width,1.435,0.775,6.0,0.239,steady
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisLift,P1-P2,posture,% stance width,1.641,0.775,6.0,0.274,steady
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisLift,P2-P3,posture,% stance width,1.684,0.775,6.0,0.281,steady
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisLift,P3-P4,posture,% stance width,2.909,0.775,6.0,0.485,steady
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisLift,P4-P5,posture,% stance width,2.375,0.775,6.0,0.396,steady
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisLift,P5-P6,posture,% stance width,1.547,0.775,6.0,0.258,steady
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisLift,P6-P7,posture,% stance width,1.408,0.775,6.0,0.235,steady
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisSway,P1,lateral,% stance width,0.293,0.775,10.0,0.029,steady
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisSway,P1-P2,lateral,% stance width,1.07,0.775,10.0,0.107,steady
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisSway,P2-P3,lateral,% stance width,2.327,0.775,10.0,0.233,steady
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisSway,P3-P4,lateral,% stance width,2.159,0.775,10.0,0.216,steady
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisSway,P4-P5,lateral,% stance width,2.527,0.775,10.0,0.253,steady
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisSway,P5-P6,lateral,% stance width,1.974,0.775,10.0,0.197,steady
+2026-10-20_Mark-Liversedge_Wrist_01,pelvisSway,P6-P7,lateral,% stance width,1.859,0.775,10.0,0.186,steady
+2026-10-20_Mark-Liversedge_Wrist_01,plumbBobDistance,P1,lateral,in,0.836,0.435,0.5,1.672,loose
+2026-10-20_Mark-Liversedge_Wrist_01,plumbBobDistance,P1-P2,lateral,in,0.869,0.435,0.5,1.739,loose
+2026-10-20_Mark-Liversedge_Wrist_01,plumbBobDistance,P2-P3,lateral,in,1.024,0.435,0.5,2.048,loose
+2026-10-20_Mark-Liversedge_Wrist_01,plumbBobDistance,P3-P4,lateral,in,0.993,0.435,0.5,1.987,loose
+2026-10-20_Mark-Liversedge_Wrist_01,plumbBobDistance,P4-P5,lateral,in,1.155,0.435,0.5,2.31,loose
+2026-10-20_Mark-Liversedge_Wrist_01,plumbBobDistance,P5-P6,lateral,in,0.766,0.435,0.5,1.532,loose
+2026-10-20_Mark-Liversedge_Wrist_01,plumbBobDistance,P6-P7,lateral,in,1.336,0.435,0.5,2.673,loose
+2026-10-20_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P1,posture,°,0.972,0.744,6.0,0.162,steady
+2026-10-20_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P1-P2,posture,°,0.892,0.744,6.0,0.149,steady
+2026-10-20_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P2-P3,posture,°,1.247,0.744,6.0,0.208,steady
+2026-10-20_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P3-P4,posture,°,4.523,0.744,6.0,0.754,loose
+2026-10-20_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P4-P5,posture,°,3.669,0.744,6.0,0.611,steady
+2026-10-20_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P5-P6,posture,°,0.937,0.744,6.0,0.156,steady
+2026-10-20_Mark-Liversedge_Wrist_01,secondaryAxisTilt,P6-P7,posture,°,0.869,0.744,6.0,0.145,steady
+2026-10-20_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P1,armsAndClub,°,3.336,1.181,15.0,0.222,steady
+2026-10-20_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P1-P2,armsAndClub,°,4.866,2.494,15.0,0.324,steady
+2026-10-20_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P2-P3,armsAndClub,°,11.504,2.494,15.0,0.767,loose
+2026-10-20_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P3-P4,armsAndClub,°,7.839,2.494,15.0,0.523,steady
+2026-10-20_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P4-P5,armsAndClub,°,4.961,2.494,15.0,0.331,steady
+2026-10-20_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P5-P6,armsAndClub,°,3.246,2.494,15.0,0.216,steady
+2026-10-20_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P6-P7,armsAndClub,°,14.253,2.494,15.0,0.95,loose
+2026-10-20_Mark-Liversedge_Wrist_01,shaftAngleVsHorizontal,P7-P8,armsAndClub,°,35.089,2.494,15.0,2.339,loose
+2026-10-20_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P1,armsAndClub,°,1.11,1.34,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P1-P2,armsAndClub,°,1.156,1.34,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P2-P3,armsAndClub,°,1.373,1.34,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P3-P4,armsAndClub,°,2.933,1.34,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P4-P5,armsAndClub,°,5.512,1.34,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P5-P6,armsAndClub,°,2.237,1.34,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,shoulderPlaneAngle,P6-P7,armsAndClub,°,0.591,1.34,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,spineSideBend,P1,posture,°,1.033,2.705,6.0,0.172,steady
+2026-10-20_Mark-Liversedge_Wrist_01,spineSideBend,P1-P2,posture,°,0.969,2.705,6.0,0.161,steady
+2026-10-20_Mark-Liversedge_Wrist_01,spineSideBend,P2-P3,posture,°,0.96,2.705,6.0,0.16,steady
+2026-10-20_Mark-Liversedge_Wrist_01,spineSideBend,P3-P4,posture,°,4.232,2.705,6.0,0.705,steady
+2026-10-20_Mark-Liversedge_Wrist_01,spineSideBend,P4-P5,posture,°,4.569,2.705,6.0,0.761,loose
+2026-10-20_Mark-Liversedge_Wrist_01,spineSideBend,P5-P6,posture,°,1.497,2.705,6.0,0.249,steady
+2026-10-20_Mark-Liversedge_Wrist_01,spineSideBend,P6-P7,posture,°,0.456,2.705,6.0,0.076,steady
+2026-10-20_Mark-Liversedge_Wrist_01,stanceWidth,P1,setup,% shoulder width,9.392,,10.0,0.939,loose
+2026-10-20_Mark-Liversedge_Wrist_01,stanceWidthMm,P1,setup,mm,32.203,,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,swingPlaneIotaBack,P3-P4,,°,3.692,,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,swingPlaneIotaDown,P6-P7,,°,4.576,,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,tempoBackswing,P3-P4,sequence,s,0.072,0.037,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,tempoRatio,P3-P4,sequence,:1,0.401,0.438,0.4,1.003,nearError
+2026-10-20_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P4-P5,sequence,°/s,442.061,221.717,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P5-P6,sequence,°/s,60.557,221.717,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P6-P7,sequence,°/s,64.885,221.717,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,thoraxAngularSpeed,P7-P8,sequence,°/s,74.864,221.717,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P1,lateral,% stance width,6.694,4.119,10.0,0.669,steady
+2026-10-20_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P1-P2,lateral,% stance width,7.341,4.119,10.0,0.734,steady
+2026-10-20_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P2-P3,lateral,% stance width,7.544,4.119,10.0,0.754,loose
+2026-10-20_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P3-P4,lateral,% stance width,7.989,4.119,10.0,0.799,loose
+2026-10-20_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P4-P5,lateral,% stance width,9.5,4.119,10.0,0.95,loose
+2026-10-20_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P5-P6,lateral,% stance width,7.82,4.119,10.0,0.782,loose
+2026-10-20_Mark-Liversedge_Wrist_01,thoraxLateralDrift,P6-P7,lateral,% stance width,11.242,4.119,10.0,1.124,loose
+2026-10-20_Mark-Liversedge_Wrist_01,thoraxPeakSpeed,P6-P7,sequence,°/s,77.181,31.491,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,thoraxPeakTime,P6-P7,sequence,ms,14.491,7.5,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,toeLineAngle,P1,setup,°,0.924,,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,trailElbowHeight,P1,armsAndClub,% shoulder width,1.847,2.73,15.0,0.123,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trailElbowHeight,P1-P2,armsAndClub,% shoulder width,1.281,2.73,15.0,0.085,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trailElbowHeight,P2-P3,armsAndClub,% shoulder width,2.709,2.73,15.0,0.181,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trailElbowHeight,P3-P4,armsAndClub,% shoulder width,24.075,2.73,15.0,1.605,loose
+2026-10-20_Mark-Liversedge_Wrist_01,trailElbowHeight,P4-P5,armsAndClub,% shoulder width,17.45,2.73,15.0,1.163,loose
+2026-10-20_Mark-Liversedge_Wrist_01,trailElbowHeight,P5-P6,armsAndClub,% shoulder width,1.986,2.73,15.0,0.132,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trailElbowHeight,P6-P7,armsAndClub,% shoulder width,1.146,2.73,15.0,0.076,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trailElbowHeight,P7-P8,armsAndClub,% shoulder width,4.812,2.73,15.0,0.321,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trailFootFlare,P1,setup,°,4.45,,,,unjudged
+2026-10-20_Mark-Liversedge_Wrist_01,trailWristFlexExt,P1,release,°,7.583,3.984,11.0,0.689,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trailWristFlexExt,P1-P2,release,°,3.402,3.984,11.0,0.309,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trailWristFlexExt,P2-P3,release,°,4.545,3.984,11.0,0.413,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trailWristFlexExt,P3-P4,release,°,8.515,3.984,11.0,0.774,loose
+2026-10-20_Mark-Liversedge_Wrist_01,trailWristFlexExt,P4-P5,release,°,47.661,3.984,11.0,4.333,loose
+2026-10-20_Mark-Liversedge_Wrist_01,trailWristFlexExt,P5-P6,release,°,11.004,3.984,11.0,1.0,loose
+2026-10-20_Mark-Liversedge_Wrist_01,trailWristFlexExt,P6-P7,release,°,2.88,3.984,11.0,0.262,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trailWristFlexExt,P7-P8,release,°,3.578,3.984,11.0,0.325,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trunkRise,P1,posture,%,0.979,1.352,4.5,0.218,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trunkRise,P1-P2,posture,%,1.277,1.352,4.5,0.284,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trunkRise,P2-P3,posture,%,1.119,1.352,4.5,0.249,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trunkRise,P3-P4,posture,%,2.604,1.352,4.5,0.579,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trunkRise,P4-P5,posture,%,2.349,1.352,4.5,0.522,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trunkRise,P5-P6,posture,%,2.365,1.352,4.5,0.526,steady
+2026-10-20_Mark-Liversedge_Wrist_01,trunkRise,P6-P7,posture,%,1.659,1.352,4.5,0.369,steady

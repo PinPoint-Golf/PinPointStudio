@@ -1,0 +1,205 @@
+session,swing,club,carry_yd,offline_yd,flag,stand_outs,top_stand_outs
+2026-07-04_Mark-Liversedge_Wrist_01,swing_0001,7 IRON,,,,3,swingPlane P1-P2 z-6.8; swingPlaneAngle P1-P2 z-6.3; armHang P1 z-4.7
+2026-07-04_Mark-Liversedge_Wrist_01,swing_0002,7 IRON,,,,4,handPlaneSteepening P3-P4 z-5.8; shaftLie P6-P7 z4.7; armHang P1 z-3.8; trailKneeFlexion P1 z-3.7
+2026-07-04_Mark-Liversedge_Wrist_01,swing_0003,7 IRON,,,,8,headRise P1 z-9.2; swingPlane P1-P2 z-7.9; thoraxRotationSigned P6-P7 z7.6; swingPlaneAngle P1-P2 z-7.6; thoraxRotation P2-P3 z-5.6; armHang P1 z-4.1
+2026-07-04_Mark-Liversedge_Wrist_01,swing_0004,7 IRON,,,,3,trunkRise P1 z-6.9; pelvisLift P1 z5.6; shaftAngleVsHorizontal P6-P7 z3.9
+2026-07-04_Mark-Liversedge_Wrist_01,swing_0005,7 IRON,,,,0,
+2026-07-04_Mark-Liversedge_Wrist_01,swing_0006,7 IRON,,,,1,headRise P1 z-8.8
+2026-07-04_Mark-Liversedge_Wrist_01,swing_0007,7 IRON,,,,4,thoraxPeakTime P6-P7 z7.5; shaftLie P6-P7 z-4.6; thoraxLateralDrift P6-P7 z3.5; headLift P1 z3.5
+2026-07-04_Mark-Liversedge_Wrist_01,swing_0008,7 IRON,,,,3,headRise P1 z9.7; thoraxPeakTime P6-P7 z6.0; headLift P1 z5.0
+2026-07-04_Mark-Liversedge_Wrist_01,swing_0009,7 IRON,,,,1,shaftAngleVsHorizontal P7-P8 z-7.4
+2026-07-04_Mark-Liversedge_Wrist_01,swing_0010,7 IRON,,,,1,headRise P1 z14.0
+2026-07-04_Mark-Liversedge_Wrist_01,swing_0011,7 IRON,,,,1,headRise P1 z-8.0
+2026-07-04_Mark-Liversedge_Wrist_01,swing_0012,7 IRON,,,,0,
+2026-07-04_Mark-Liversedge_Wrist_01,swing_0013,7 IRON,,,,3,swingPlaneAngle P1-P2 z-9.3; swingPlane P1-P2 z-8.0; shaftLie P6-P7 z4.7
+2026-07-04_Mark-Liversedge_Wrist_01,swing_0014,7 IRON,,,,0,
+2026-07-04_Mark-Liversedge_Wrist_01,swing_0015,7 IRON,,,,3,shaftAngleVsHorizontal P2-P3 z7.4; swingPlaneAngle P1-P2 z-7.0; swingPlane P1-P2 z-6.4
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0001,7 IRON,125.8439,9.8136,short,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0002,7 IRON,152.7009,11.3149,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0004,7 IRON,183.9281,-3.6927,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0005,7 IRON,185.5975,-1.7556,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0006,DRIVER,181.2799,-32.2141,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0007,DRIVER,185.9464,14.9468,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0008,DRIVER,217.1209,9.8234,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0009,DRIVER,193.1631,31.4838,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0010,DRIVER,177.7857,-41.5429,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0011,DRIVER,204.1679,26.0811,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0012,DRIVER,190.2508,-6.1469,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0013,DRIVER,150.7517,5.5285,short,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0014,7 IRON,152.0689,6.3176,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0015,7 IRON,158.317,-5.9425,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0016,7 IRON,157.6956,-6.8153,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0017,7 IRON,163.1303,-19.9033,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0018,7 IRON,150.2022,-0.355,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0019,7 IRON,148.4381,15.4482,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0020,7 IRON,148.5239,2.6052,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0021,7 IRON,167.0483,-10.7027,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0022,7 IRON,160.5106,-9.2461,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0023,7 IRON,154.999,3.1191,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0024,7 IRON,161.0763,-6.0916,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0025,7 IRON,164.533,-3.1047,,0,
+2026-08-04_Mark-Liversedge_Wrist_05,swing_0026,7 IRON,164.7449,-6.9961,,0,
+2026-08-18_Mark-Liversedge_Wrist_01,swing_0001,7 IRON,140.5115,22.5154,,0,
+2026-08-18_Mark-Liversedge_Wrist_01,swing_0002,7 IRON,132.5777,-3.1884,,0,
+2026-08-18_Mark-Liversedge_Wrist_01,swing_0003,7 IRON,159.9971,-18.396,,0,
+2026-08-18_Mark-Liversedge_Wrist_01,swing_0004,7 IRON,133.3128,21.5183,,0,
+2026-08-18_Mark-Liversedge_Wrist_01,swing_0005,7 IRON,143.3322,-2.5729,,0,
+2026-08-18_Mark-Liversedge_Wrist_02,swing_0001,7 IRON,133.9698,-13.315,,0,
+2026-08-18_Mark-Liversedge_Wrist_02,swing_0002,7 IRON,137.8595,1.523,,0,
+2026-08-18_Mark-Liversedge_Wrist_02,swing_0003,7 IRON,134.3658,6.7429,,0,
+2026-08-18_Mark-Liversedge_Wrist_02,swing_0004,7 IRON,131.9325,-10.654,,0,
+2026-08-18_Mark-Liversedge_Wrist_02,swing_0005,7 IRON,140.1237,-5.6636,,0,
+2026-08-18_Mark-Liversedge_Wrist_02,swing_0006,7 IRON,141.7501,6.4138,,0,
+2026-09-09_Mark-Liversedge_Wrist_01,swing_0001,6 IRON,,,,0,
+2026-09-09_Mark-Liversedge_Wrist_01,swing_0002,6 IRON,,,,0,
+2026-09-09_Mark-Liversedge_Wrist_01,swing_0003,6 IRON,,,,0,
+2026-09-09_Mark-Liversedge_Wrist_01,swing_0004,6 IRON,,,,0,
+2026-09-09_Mark-Liversedge_Wrist_01,swing_0005,6 IRON,,,,0,
+2026-09-09_Mark-Liversedge_Wrist_01,swing_0006,6 IRON,,,,0,
+2026-09-09_Mark-Liversedge_Wrist_01,swing_0007,6 IRON,,,,0,
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0001,GAP WEDGE,93.7456,-1.5491,,5,spineBackLine P1-P2 z-9.4; balanceHeelToe P1 z-7.7; trailKneeFlexion P1 z-5.3; spineForwardBend P1 z-4.1; leadArmToTorso P7-P8 z3.7
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0002,GAP WEDGE,,,,7,feetAlignment P1 z132.4; comOverLeadFoot P7-P8 z53.3; headLift P1 z24.7; headTilt P1 z15.0; tempoBackswing P3-P4 z12.4; leadArmPeakTime P6-P7 z10.3
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0003,GAP WEDGE,,,,6,tempoRatio P3-P4 z49.5; tempoBackswing P3-P4 z24.6; headSway P6-P7 z10.6; trailWristFlexExt P6-P7 z-9.4; headTilt P6-P7 z8.1; leadArmAngularSpeed P6-P7 z-4.5
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0004,GAP WEDGE,96.0947,-4.5914,,2,swingPlaneAngle P1-P2 z4.0; leadHandWidth P7-P8 z-3.7
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0005,GAP WEDGE,90.2745,-1.8358,,1,spineBackLine P3-P4 z3.7
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0006,GAP WEDGE,99.3793,-9.9517,,2,headTilt P1 z10.5; headRise P1 z3.8
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0007,GAP WEDGE,85.897,4.2918,short,0,
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0008,GAP WEDGE,10.6493,30.1107,short+offline,3,spineBackLine P4-P5 z7.8; tempoBackswing P3-P4 z-4.1; ballBodyDistance P1 z-3.7
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0009,GAP WEDGE,96.6712,-2.4604,,0,
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0010,GAP WEDGE,96.423,-0.2022,,1,headTilt P1 z11.1
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0011,GAP WEDGE,96.8508,-0.2444,,0,
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0012,GAP WEDGE,107.3721,-9.5047,,1,spineBackLine P1 z4.6
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0013,GAP WEDGE,102.5253,-7.796,,5,headTilt P1 z-12.7; thoraxPeakSpeed P6-P7 z9.7; thoraxPeakTime P6-P7 z8.5; headRise P1 z7.1; trailElbowHeight P7-P8 z4.1
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0014,GAP WEDGE,101.1691,-3.0758,,1,headRise P1 z7.6
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0015,GAP WEDGE,97.9066,-6.7296,,2,leadArmPeakTime P6-P7 z10.3; stanceWidthMm P1 z4.3
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0016,GAP WEDGE,99.8667,-1.3723,,2,headRise P1 z-9.7; spineBackLine P4-P5 z4.8
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0017,GAP WEDGE,102.1535,-7.3705,,2,pelvisPeakSpeed P6-P7 z-16.4; pelvisPeakTime P6-P7 z9.7
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0018,GAP WEDGE,100.7206,-9.7085,,1,spineBackLine P2-P3 z7.5
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0019,GAP WEDGE,105.418,-8.1627,,1,clubPeakTime P6-P7 z7.7
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0020,GAP WEDGE,110.162,-10.8085,,0,
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0021,GAP WEDGE,98.3658,-2.8078,,1,spineBackLine P1-P2 z5.1
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0022,GAP WEDGE,102.9631,-5.5574,,1,thoraxPeakSpeed P6-P7 z4.1
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0023,GAP WEDGE,97.8565,-2.7378,,1,spineBackLine P1 z6.4
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0024,GAP WEDGE,108.9409,-12.5495,,6,clubPeakSpeed P6-P7 z185.4; clubPeakTime P6-P7 z95.1; ballReachExcess P1 z6.7; pelvisReversalTime P6-P7 z4.8; attackAngle P6-P7 z4.5; balanceHeelToe P1 z3.6
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0025,GAP WEDGE,104.0366,-11.1222,,3,attackAngle P6-P7 z6.6; ballReachExcess P1 z4.5; spineBackLine P3-P4 z3.8
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0026,GAP WEDGE,107.8063,-16.0679,,3,ballReachExcess P1 z5.3; handPathLoop P3-P4 z-5.0; shaftAngleVsHorizontal P6-P7 z-3.6
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0027,GAP WEDGE,105.964,-5.7505,,0,
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0028,GAP WEDGE,102.371,-10.0876,,3,pelvisPeakTime P6-P7 z-24.3; pelvisPeakSpeed P6-P7 z-13.1; spineBackLine P3-P4 z4.0
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0029,GAP WEDGE,97.9945,-5.3852,,1,shaftAngleVsHorizontal P6-P7 z-3.8
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0030,GAP WEDGE,100.2893,-2.627,,0,
+2026-10-05_Mark-Liversedge_Wrist_01,swing_0031,GAP WEDGE,101.5139,-1.4303,,1,spineBackLine P1-P2 z-3.8
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0001,7 IRON,,,,3,headTilt P1 z-11.3; balanceHeelToe P1 z4.7; headLift P1 z-4.2
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0002,7 IRON,,,,4,headTilt P1 z-7.1; armHang P1 z-6.4; spineBackLine P1 z4.6; spineForwardBend P1 z3.8
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0003,7 IRON,,,,3,spineBackLine P1 z5.2; armHang P1 z-4.4; balanceHeelToe P1 z4.1
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0004,7 IRON,,,,2,armHang P1 z-5.8; balanceHeelToe P1 z5.6
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0005,7 IRON,,,,3,headTilt P1 z-5.2; balanceHeelToe P1 z4.8; armHang P1 z-3.8
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0006,7 IRON,,,,1,headTilt P1-P2 z-8.9
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0007,7 IRON,,,,3,pelvisPeakTime P6-P7 z-12.8; hipDepthButt P1-P2 z5.3; pelvisPeakSpeed P6-P7 z-5.0
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0008,7 IRON,,,,2,headRise P1 z-5.4; pelvisPeakSpeed P6-P7 z-4.5
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0009,7 IRON,,,,2,headTilt P1 z-13.6; hipDepthButt P1-P2 z-5.1
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0010,7 IRON,,,,2,headRise P1 z-14.6; hipDepthButt P5-P6 z-5.3
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0011,7 IRON,,,,1,hipDepthButt P1-P2 z-7.4
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0012,7 IRON,,,,1,headRise P1 z3.9
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0013,7 IRON,,,,1,hipDepthButt P4-P5 z-13.1
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0014,7 IRON,,,,5,hipDepthButt P2-P3 z-5.6; handPathLoop P3-P4 z4.3; handPlaneSteepening P3-P4 z3.9; pelvisSway P4-P5 z3.8; plumbBobDistance P5-P6 z3.6
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0015,7 IRON,,,,2,swingPlaneAngle P4-P5 z-4.9; handSpeed P6-P7 z-3.9
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0016,7 IRON,,,,2,headTilt P1 z-11.3; hipDepthButt P5-P6 z-4.2
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0017,7 IRON,,,,1,headRise P1 z13.1
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0018,7 IRON,,,,2,trailKneeFlexion P1 z3.9; stanceWidthMm P1 z3.5
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0019,7 IRON,,,,0,
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0020,7 IRON,,,,0,
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0021,7 IRON,,,,2,hipDepthButt P2-P3 z-5.0; tempoRatio P3-P4 z-3.6
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0022,7 IRON,,,,3,headLift P1 z4.6; headTilt P1 z3.8; hipDepthButt P5-P6 z-3.7
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0023,7 IRON,,,,0,
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0024,7 IRON,,,,1,headRise P1 z-9.5
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0025,7 IRON,,,,4,thoraxPeakSpeed P6-P7 z14.9; headTilt P1 z11.7; headRise P1 z7.1; thoraxPeakTime P6-P7 z4.2
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0026,7 IRON,,,,0,
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0027,7 IRON,,,,0,
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0028,7 IRON,,,,5,pelvisPeakTime P6-P7 z-12.8; hipDepthButt P2-P3 z-5.4; pelvisPeakSpeed P6-P7 z-4.3; headRise P1 z4.0; headTilt P1 z4.0
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0029,7 IRON,,,,1,hipDepthButt P2-P3 z-6.6
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0030,7 IRON,,,,0,
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0031,7 IRON,,,,6,pelvisPeakTime P6-P7 z22.9; clubPeakTime P6-P7 z15.7; clubPeakSpeed P6-P7 z11.8; headRise P1 z-5.1; pelvisReversalTime P6-P7 z3.9; hipDepthButt P4-P5 z3.7
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0032,7 IRON,,,,1,hipDepthButt P5-P6 z-6.4
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0033,7 IRON,,,,2,pelvisPeakTime P6-P7 z-10.8; pelvisPeakSpeed P6-P7 z-4.7
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0034,7 IRON,,,,0,
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0035,7 IRON,,,,1,hipDepthButt P2-P3 z-4.7
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0036,7 IRON,,,,0,
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0037,7 IRON,,,,0,
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0038,7 IRON,,,,4,thoraxPeakSpeed P6-P7 z17.3; headRise P1 z5.6; thoraxPeakTime P6-P7 z4.8; headLift P1 z4.1
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0039,7 IRON,,,,2,headRise P1 z-17.7; hipDepthButt P4-P5 z-6.2
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0040,7 IRON,,,,0,
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0041,7 IRON,,,,1,hipDepthButt P1-P2 z-6.1
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0042,7 IRON,,,,2,headLift P1 z6.9; headRise P1 z3.9
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0043,7 IRON,,,,2,headLift P1 z4.2; hipDepthButt P5-P6 z-3.7
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0044,7 IRON,,,,1,hipDepthButt P5-P6 z-5.5
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0045,7 IRON,,,,2,headTilt P1 z10.3; leadFootFlare P1 z4.0
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0046,7 IRON,,,,1,headTilt P1-P2 z9.6
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0047,7 IRON,,,,1,hipDepthButt P4-P5 z3.6
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0048,7 IRON,,,,0,
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0049,7 IRON,,,,1,hipDepthButt P1-P2 z-9.6
+2026-10-07_Mark-Liversedge_Wrist_01,swing_0050,7 IRON,,,,1,headTilt P6-P7 z9.3
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0001,7 IRON,,,,0,
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0002,7 IRON,,,,0,
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0003,7 IRON,,,,37,trailForearmAngle P6-P7 z-85.7; trailElbowHeight P6-P7 z57.1; lagAngle P6-P7 z43.9; shoulderPlaneAngle P6-P7 z38.8; leadArmToTorso P6-P7 z37.2; thoraxRotation P6-P7 z30.4
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0004,7 IRON,,,,1,handPlaneCurve P1-P2 z-3.5
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0005,7 IRON,,,,2,handPlaneSteepening P3-P4 z4.3; trailKneeFlexion P1 z-3.9
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0006,7 IRON,,,,1,headTilt P1 z-18.3
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0007,7 IRON,,,,0,
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0008,7 IRON,,,,1,spineBackLine P4-P5 z6.1
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0009,7 IRON,,,,1,headTilt P5-P6 z-12.1
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0010,7 IRON,,,,1,spineBackLine P3-P4 z-5.2
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0011,7 IRON,,,,1,headTilt P1 z-20.4
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0012,7 IRON,,,,2,spineBackLine P2-P3 z-9.6; headRise P1 z4.0
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0013,7 IRON,,,,2,swingPlaneCurve P2-P3 z7.6; spineBackLine P1 z-4.8
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0014,7 IRON,,,,2,clubPeakTime P6-P7 z12.9; clubPeakSpeed P6-P7 z8.7
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0015,7 IRON,,,,1,spineBackLine P2-P3 z-9.1
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0016,7 IRON,,,,1,headTilt P1 z-3.6
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0017,7 IRON,,,,3,headTilt P1 z-8.7; spineBackLine P3-P4 z-5.8; ballReachExcess P1 z-3.8
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0018,7 IRON,,,,1,spineBackLine P2-P3 z3.7
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0019,7 IRON,,,,2,headRise P1 z-13.0; spineBackLine P2-P3 z-10.0
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0020,7 IRON,,,,3,headTilt P1 z-63.1; headRise P1 z-8.1; shaftAngleVsHorizontal P2-P3 z7.1
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0021,7 IRON,,,,0,
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0022,7 IRON,,,,2,headTilt P5-P6 z11.6; tempoBackswing P3-P4 z3.7
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0023,7 IRON,,,,3,headTilt P1 z-62.3; thoraxPeakTime P6-P7 z-4.0; trunkRise P1 z-3.9
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0024,7 IRON,,,,0,
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0025,7 IRON,,,,0,
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0026,7 IRON,,,,0,
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0027,7 IRON,,,,0,
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0028,7 IRON,,,,2,spineBackLine P2-P3 z-9.6; headRise P1 z-7.3
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0029,7 IRON,,,,0,
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0030,7 IRON,,,,2,ballReachExcess P1 z-4.4; headRise P1 z4.2
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0031,7 IRON,,,,4,feetAlignment P1 z-4.9; shaftLie P6-P7 z4.0; shaftAngleVsHorizontal P2-P3 z3.8; leadFootFlare P1 z-3.6
+2026-10-08_Mark-Liversedge_Wrist_01,swing_0032,7 IRON,,,,4,thoraxPeakTime P6-P7 z14.4; thoraxPeakSpeed P6-P7 z13.4; spineBackLine P1 z-3.7; feetAlignment P1 z3.5
+2026-10-13_Mark-Liversedge_Wrist_01,swing_0001,7 IRON,,,,0,
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0001,7 IRON,,,,5,leadArmToTorso P7-P8 z11.9; trailElbowHeight P7-P8 z-5.8; headSway P5-P6 z-5.0; shaftAngleVsHorizontal P5-P6 z4.6; headLift P6-P7 z-3.6
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0002,7 IRON,,,,0,
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0003,7 IRON,,,,1,headTilt P1 z5.6
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0004,7 IRON,,,,0,
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0005,7 IRON,,,,1,headTilt P5-P6 z11.9
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0006,7 IRON,,,,1,headTilt P1 z3.6
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0007,7 IRON,,,,0,
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0008,7 IRON,,,,0,
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0009,7 IRON,,,,0,
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0010,7 IRON,,,,0,
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0011,7 IRON,,,,2,headSway P5-P6 z-4.5; pelvisSway P6-P7 z-4.3
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0012,7 IRON,,,,0,
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0013,7 IRON,94.8431,1.8891,,3,ballPosition P1 z25.0; thoraxPeakTime P6-P7 z5.1; headSway P5-P6 z-3.9
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0014,7 IRON,94.6581,-0.2947,,2,tempoRatio P3-P4 z7.4; shaftAngleVsHorizontal P4-P5 z-4.6
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0015,7 IRON,96.8892,1.4771,,0,
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0016,7 IRON,95.4919,0.7501,,1,headTilt P5-P6 z6.7
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0017,7 IRON,101.8162,-4.8452,,0,
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0018,7 IRON,98.8747,-0.5153,,0,
+2026-10-20_Mark-Liversedge_Wrist_01,swing_0019,7 IRON,100.9686,-4.848,,0,
+2026-11-02_Mark-Liversedge_Wrist_01,swing_0001,7 IRON,,,,0,
+2026-11-02_Mark-Liversedge_Wrist_01,swing_0002,7 IRON,,,,0,
+2026-11-02_Mark-Liversedge_Wrist_01,swing_0003,7 IRON,,,,0,
+2026-11-02_Mark-Liversedge_Wrist_01,swing_0004,7 IRON,,,,0,
+2026-11-02_Mark-Liversedge_Wrist_01,swing_0005,7 IRON,,,,0,
+2026-11-02_Mark-Liversedge_Wrist_02,swing_0001,7 IRON,173.4471,,,0,
+2026-11-02_Mark-Liversedge_Wrist_02,swing_0002,7 IRON,177.3841,,,0,
+2026-11-02_Mark-Liversedge_Wrist_02,swing_0003,7 IRON,163.1671,,,0,
+2026-11-02_Mark-Liversedge_Wrist_02,swing_0004,7 IRON,183.8364,,,0,
+2026-11-02_Mark-Liversedge_Wrist_02,swing_0005,7 IRON,116.2511,,short,0,
+2026-11-02_Mark-Liversedge_Wrist_02,swing_0006,7 IRON,176.6185,,,0,
+2026-11-02_Mark-Liversedge_Wrist_02,swing_0008,7 IRON,183.399,,,0,
+2026-11-02_Mark-Liversedge_Wrist_02,swing_0010,7 IRON,176.8373,,,0,
