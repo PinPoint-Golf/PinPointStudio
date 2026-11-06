@@ -329,6 +329,11 @@ jobs:
         # against (cmake/PinPointOpenCV.cmake stops with the same message).
         run: brew install ffmpeg@8 aravis pkgconf
 
+      # A shipping build refuses to configure without the phone link, and libppcp is found
+      # as a checkout beside this repository.
+      - name: Check out libppcp beside the repository
+        run: git clone --depth 1 https://github.com/PinPoint-Golf/libppcp.git ../libppcp
+
       - name: Install Qt 6.11
         uses: jurplel/install-qt-action@v4
         with:
