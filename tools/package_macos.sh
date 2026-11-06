@@ -659,7 +659,12 @@ verify_bundle
 #     signed by our Team ID. Re-signing every nested binary could let us drop this later.
 #   - allow-jit / allow-unsigned-executable-memory / allow-dyld-environment-variables are
 #     deliberately OMITTED until a launch crash proves one is needed (add the minimum).
-# Camera/mic/Bluetooth/Speech are Info.plist NSxxxUsageDescription strings, not here.
+#   - device.audio-input / device.camera: the Hardened Runtime blocks the microphone and
+#     camera outright without these: macOS refuses at once, with no prompt, so the user
+#     is never asked. Debug builds hide this because they are not hardened. Each needs
+#     its Info.plist NSxxxUsageDescription as well.
+# Bluetooth, Speech and Local Network are not Hardened Runtime resources, so they need
+# only their Info.plist NSxxxUsageDescription strings.
 ENTITLEMENTS="$REPO_ROOT/packaging/macos/entitlements.plist"
 
 detect_identity() {   # echo a Developer ID Application identity if one exists, else nothing
