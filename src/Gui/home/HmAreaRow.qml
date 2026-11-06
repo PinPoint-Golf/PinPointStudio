@@ -19,9 +19,11 @@
 // One area of "Your swing" (HmSwingAreas): a PpExpandRow on the area table's column template.
 //
 //   header   chevron · area · habits (a PpBandBar of the four counts and "N habits") · trend ·
+//            consistency ("Loose P6-P7", the word alone when Steady, "-" with no judgement) ·
 //            biggest fault · work-ons ("1 active · 1 new")
-//   detail   every one of the area's items at Theme.itemIndent, one Theme.itemRowH row each: the
-//            condition, how many swings it fired on of those that assessed it, the typical value
+//   detail   the area's spans and their words on one line (wrapped on a narrow table), when it has
+//            any; then every one of the area's items at Theme.itemIndent, one Theme.itemRowH row
+//            each: the condition, how many swings it fired on of those that assessed it, the typical value
 //            with its unit and corridor, the grade word, and an action — Practise on an active or
 //            easing work-on, a "New" tag on a newly listed one, nothing otherwise. Every item opens
 //            in place (HmFaultRow: HmFaultDetail, its chevron at the right), one at a time.
@@ -30,13 +32,15 @@
 //   { group, label, measurable, measured, habits, occasional, clean, unclear, habitTrend, hasTrend,
 //     topFault, topFaultId, workOnsActive, workOnsNew, items: [{ conditionId, label, golfer, band,
 //     share, fired, assessable, measureId, hasTypical, typical, corridorLo, corridorHi,
-//     corridorShape, tail, unit, grade, workOn, sessionsListed }] }
+//     corridorShape, tail, unit, grade, workOn, sessionsListed },
+//     consistencyWord, consistencyLoosest, consistencySpans: [{ span, word }] }
+// The consistency keys are patched in after the catch-up, so a row reads "-" until they land.
 //
 // An area the rig cannot measure says so in place of the bar, and does not open: no chevron, no
 // press, no focus.
 //
 // Colour is never the only channel: the bar carries the count beside it, the trend its sign, the
-// grade its word, the work-ons their words.
+// grade its word, the work-ons their words. Consistency is words alone.
 //
 // The trend is habits gained (+) or cleared (−) since the newest substantive session; FEWER habits
 // is better, so its tone is Theme.trendTone of the negated figure.
@@ -56,9 +60,11 @@ PpExpandRow {
     property var area: ({})
     // The work-ons controller: an item opens to its faultDetail() (HmFaultRow).
     property var controller: null
-    // The item open in place ("" when none): one at a time.
+    // The item open in place ("" when none): one at a time. HmSwingAreas holds it, because a new
+    // areaItems rebuilds this row; the row only asks.
     property string openItem: ""
 
+    signal openItemRequested(string conditionId)
     signal practiseRequested(string conditionId, string label)
     signal reviewSessionRequested(string sessionDir)
 
@@ -75,6 +81,12 @@ PpExpandRow {
                                        : areaRow.trend > 0 ? "+" + areaRow.trend
                                        : areaRow.trend < 0 ? "−" + (-areaRow.trend)
                                        :                 "±0"
+    readonly property string consistencyWord: areaRow.area && areaRow.area.consistencyWord
+                                              ? String(areaRow.area.consistencyWord) : "-"
+    readonly property string consistencySpan: areaRow.area && areaRow.area.consistencyLoosest
+                                              ? String(areaRow.area.consistencyLoosest) : ""
+    readonly property var    consistencySpans: areaRow.area && areaRow.area.consistencySpans
+                                               ? Array.from(areaRow.area.consistencySpans) : []
     readonly property string faultText:  areaRow.area && areaRow.area.topFault ? String(areaRow.area.topFault) : "—"
     readonly property int    newCount:    areaRow.count("workOnsNew")
     readonly property int    activeCount: Math.max(0, areaRow.count("workOnsActive") - areaRow.newCount)
@@ -167,7 +179,7 @@ PpExpandRow {
         objectName: "areaHabits"
         // Unmeasurable, the words run on over the trend and fault columns, which it leaves empty.
         width: areaRow.measurable ? areaRow.headerRow.columnWidth(2)
-                              : areaRow.headerRow.columnX(4) + areaRow.headerRow.columnWidth(4) - areaRow.headerRow.columnX(2)
+                              : areaRow.headerRow.columnX(5) + areaRow.headerRow.columnWidth(5) - areaRow.headerRow.columnX(2)
         height: Math.max(habitsWords.implicitHeight, Theme.sp(Theme.bandBarH))
         readonly property int wordsW: Math.max(habitsWords.implicitWidth, Theme.sp(64))
         PpBandBar {
@@ -184,8 +196,9 @@ PpExpandRow {
             id: habitsWords
             objectName: "areaHabitsText"
             anchors.verticalCenter: parent.verticalCenter
-            x: areaRow.measurable ? habitsCell.width - habitsCell.wordsW : 0
-            width: areaRow.measurable ? habitsCell.wordsW : habitsCell.width
+            // Habits gives up its width first on a narrow table: the words stay in the cell, off Area.
+            x: areaRow.measurable ? Math.max(0, habitsCell.width - habitsCell.wordsW) : 0
+            width: areaRow.measurable ? Math.min(habitsCell.wordsW, habitsCell.width) : habitsCell.width
             elide: Text.ElideRight
             text:  areaRow.measurable ? areaRow.habitsText : qsTr("not measured with this rig")
             font.family:    Theme.fontBody
@@ -204,10 +217,33 @@ PpExpandRow {
         color: areaRow.hasTrend ? Theme.trendTone(-areaRow.trend) : Theme.colorText3
     }
 
+    Row {                                       // consistency: the word, then the loosest span
+        objectName: "areaConsistency"
+        visible: areaRow.measurable
+        width: areaRow.headerRow.columnWidth(4)
+        spacing: Theme.gap(8)
+        Text {
+            objectName: "areaConsistencyWord"
+            text:  areaRow.consistencyWord
+            font.family:    Theme.fontBody
+            font.pixelSize: Theme.fontSzBody2
+            font.weight:    Theme.fontBodyWeight
+            color: areaRow.consistencySpan !== "" ? Theme.colorText : Theme.colorText3
+        }
+        Text {
+            objectName: "areaConsistencySpan"
+            visible: areaRow.consistencySpan !== ""
+            text:  areaRow.consistencySpan
+            font.family:    Theme.fontData
+            font.pixelSize: Theme.fontSzBody2
+            color: Theme.colorText3
+        }
+    }
+
     Text {                                      // biggest fault
         objectName: "areaFault"
         visible: areaRow.measurable
-        width: areaRow.headerRow.columnWidth(4)
+        width: areaRow.headerRow.columnWidth(5)
         text:  areaRow.faultText
         elide: Text.ElideRight
         font.family:    Theme.fontBody
@@ -249,6 +285,53 @@ PpExpandRow {
     detail: Component {
         Column {
 
+            PpTableRow {                        // the area's spans, on the item rows' columns
+                id: spansRow
+                objectName: "areaConsistencySpans"
+                visible: areaRow.consistencySpans.length > 0
+                // One line; a table too narrow for it wraps rather than cutting spans off.
+                height: Math.max(Theme.sp(Theme.itemRowH), spansFlow.implicitHeight + Theme.gap(8))
+                padH: 0
+                hoverEnabled: false
+                layout: areaRow.itemLayout(spansRow.width)
+
+                Text {
+                    width: spansRow.columnWidth(0)
+                    text:  qsTr("Consistency")
+                    elide: Text.ElideRight
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody
+                    font.weight:    Theme.fontBodyWeight
+                    color: Theme.colorText
+                }
+                Flow {                          // the rest of the row: each span, then its word
+                    id: spansFlow
+                    objectName: "areaConsistencySpansList"
+                    width: Math.max(0, spansRow.width - spansRow.columnX(1))
+                    spacing: Theme.gap(16)
+                    Repeater {
+                        model: areaRow.consistencySpans
+                        Row {
+                            required property var modelData
+                            spacing: Theme.gap(6)
+                            Text {
+                                text: parent.modelData.span
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzBody2
+                                color: Theme.colorText2
+                            }
+                            Text {
+                                text: parent.modelData.word
+                                font.family:    Theme.fontBody
+                                font.pixelSize: Theme.fontSzBody2
+                                font.weight:    Theme.fontBodyWeight
+                                color: Theme.colorText2
+                            }
+                        }
+                    }
+                }
+            }
+
             Repeater {
                 model: areaRow.items
                 HmFaultRow {
@@ -264,7 +347,7 @@ PpExpandRow {
                     controller:  areaRow.controller
                     conditionId: itemRow.modelData.conditionId || ""
                     openId:      areaRow.openItem
-                    onOpenRequested: (next) => areaRow.openItem = next
+                    onOpenRequested: (next) => areaRow.openItemRequested(next)
                     onReviewSessionRequested: (dir) => areaRow.reviewSessionRequested(dir)
 
                     width: parent ? parent.width : 0

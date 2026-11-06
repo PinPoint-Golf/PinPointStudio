@@ -22,12 +22,14 @@ The home screen: onboarding, athlete/club/session-type selection, the coaching t
 | [ScreenHome](#screenhome) | 595 | `Item` | 1 | 9 |  |
 
 ### HmAreaRow
-`src/Gui/home/HmAreaRow.qml` · 361 lines · root `PpExpandRow`
+`src/Gui/home/HmAreaRow.qml` · 422 lines · root `PpExpandRow`
 
 > One area of "Your swing" (HmSwingAreas): a PpExpandRow on the area table's column template.
 > header   chevron · area · habits (a PpBandBar of the four counts and "N habits") · trend ·
+> consistency ("Loose P6-P7", the word alone when Steady, "-" with no judgement) ·
 > biggest fault · work-ons ("1 active · 1 new")
-> detail   every one of the area's items at Theme.itemIndent, one Theme.itemRowH row each: the
+> detail   the area's spans and their words on one line (wrapped on a narrow table), when it has
+> any; then every one of the area's items at Theme.itemIndent, one Theme.itemRowH row each: the
 > condition, how many swings it fired on of those that assessed it, the typical value
 > with its unit and corridor, the grade word, and an action — Practise on an active or
 > easing work-on, a "New" tag on a newly listed one, nothing otherwise. Every item opens
@@ -36,7 +38,9 @@ The home screen: onboarding, athlete/club/session-type selection, the coaching t
 > { group, label, measurable, measured, habits, occasional, clean, unclear, habitTrend, hasTrend,
 > topFault, topFaultId, workOnsActive, workOnsNew, items: [{ conditionId, label, golfer, band,
 > share, fired, assessable, measureId, hasTypical, typical, corridorLo, corridorHi,
-> corridorShape, tail, unit, grade, workOn, sessionsListed }] }
+> corridorShape, tail, unit, grade, workOn, sessionsListed }],
+> consistencyWord, consistencyLoosest, consistencySpans: [{ span, word }] }
+> The consistency keys are patched in after the catch-up, so a row reads "-" until they land.
 > An area the rig cannot measure says so in place of the bar, and does not open: no chevron, no
 > press, no focus.
 > Colour is never the only channel: the bar carries the count beside it, the trend its sign, the
@@ -165,12 +169,12 @@ The home screen: onboarding, athlete/club/session-type selection, the coaching t
 - **Used by (1):** `ScreenHome`
 
 ### HmSwingAreas
-`src/Gui/home/HmSwingAreas.qml` · 182 lines · root `Column`
+`src/Gui/home/HmSwingAreas.qml` · 196 lines · root `Column`
 
 > YOUR SWING, as areas (docs/design/ux_refactor_away_from_4_modes.md §2.3, §5.2 D1): one table card,
 > a row per area (HmAreaRow) rated by counting its habits, in the controller's display order
 > (habits, then occasional, then the worst share; an area this rig cannot measure last).
-> chevron · Area · Habits · Trend · Biggest fault · Work-ons
+> chevron · Area · Habits · Trend · Consistency · Biggest fault · Work-ons
 > An open area lists every one of its conditions, and each opens its detail in place (HmAreaRow,
 > HmFaultDetail).
 > Paint-only: every row is WorkOnsController.areaItems. Before the first areas land it says it is

@@ -20,7 +20,7 @@
 // a row per area (HmAreaRow) rated by counting its habits, in the controller's display order
 // (habits, then occasional, then the worst share; an area this rig cannot measure last).
 //
-//   chevron · Area · Habits · Trend · Biggest fault · Work-ons
+//   chevron · Area · Habits · Trend · Consistency · Biggest fault · Work-ons
 //
 // An open area lists every one of its conditions, and each opens its detail in place (HmAreaRow,
 // HmFaultDetail).
@@ -65,7 +65,17 @@ Column {
     property bool _seen: false
     property string _loadedFor: "\u0001"     // the uuid openGroups was read for; never a real one
 
+    // The fault open in each area, { group: conditionId }. Held here and not on the row: the
+    // consistency words land in areaItems during the catch-up, and each landing rebuilds the rows.
+    // For this sitting only, as an open fault always was.
+    property var openItems: ({})
+
     function isOpen(group) { return root.openGroups.indexOf(group) >= 0 }
+    function setOpenItem(group, conditionId) {
+        const map = Object.assign({}, root.openItems)
+        map[group] = conditionId
+        root.openItems = map
+    }
 
     function _write(groups) {
         root.openGroups = groups
@@ -90,6 +100,7 @@ Column {
                 seen   = !!e.expandedSeen
             }
             root.openGroups = groups
+            root.openItems = ({})
             root._seen = seen
         }
         // Not while the controller is catching up: the areas showing may still be the last athlete's.
@@ -146,11 +157,24 @@ Column {
         width:   root.width
         height:  visible ? implicitHeight : 0
         table:   true
+
+        // Wide enough for the longest cell, "Steady" and a span, in Folio at Spacious.
+        readonly property int consistencyW: Theme.sp(96)
+        // Habits alone pays for Consistency. Fixed fill weights can't do that at every width, so
+        // Biggest fault is worked out as it was without the column (1 in 2.3 of what the other
+        // columns left) and Habits takes the rest. Only once Habits is gone does the fault give way,
+        // so a narrow table doesn't push Work-ons out of the card.
+        readonly property int spareW: Math.max(0, table.contentWidth - Theme.sp(14) - Theme.sp(170)
+                                                  - Theme.sp(48) - Theme.sp(130) - 5 * table.columnGap)
+        readonly property int faultW: Math.max(0, Math.min(Math.floor(table.spareW / 2.3),
+                                                           table.spareW - table.consistencyW - table.columnGap))
+
         columns: [{ title: "",                       width: Theme.sp(14) },
                   { title: qsTr("Area"),             width: Theme.sp(170) },
-                  { title: qsTr("Habits"),           fill: 1.3 },
+                  { title: qsTr("Habits"),           fill: 1 },
                   { title: qsTr("Trend"),            width: Theme.sp(48), align: "right" },
-                  { title: qsTr("Biggest fault"),    fill: 1 },
+                  { title: qsTr("Consistency"),      width: table.consistencyW },
+                  { title: qsTr("Biggest fault"),    width: table.faultW },
                   { title: qsTr("Work-ons"),         width: Theme.sp(130), align: "right" }]
 
         Repeater {
@@ -161,6 +185,8 @@ Column {
                 controller: root.controller
                 autoToggle: false
                 expanded:   root.isOpen(String(modelData.group))
+                openItem:   root.openItems[String(modelData.group)] || ""
+                onOpenItemRequested: (conditionId) => root.setOpenItem(String(modelData.group), conditionId)
                 onToggled:  root.toggle(String(modelData.group))
                 onPractiseRequested:  (conditionId, label) => root.practiseRequested(conditionId, label)
                 onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)

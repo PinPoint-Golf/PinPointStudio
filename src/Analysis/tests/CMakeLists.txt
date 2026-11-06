@@ -1351,10 +1351,31 @@ set_tests_properties(session_diagnostics_model_test PROPERTIES
 # record is current, kept in swing_themes.json under a fingerprint, recomputed when a session
 # arrives or the file is from another rule, cancelled by a live session. Its threads are Qt's
 # (QThreadPool), so nothing is added to the link line.
+# The same scan keeps each session's consistency.json current (src/Gui/charts/consistency_summary.h):
+# its job runs the Consistency tab's two layers over the documents, so the charts maths, the shot
+# extractor with its wrist engine, and the metric manifest the env reads come along. The real swing
+# is live_measure_source_test's rich_7iron, staged as a session.
 pp_add_test(work_ons_controller_test
     SOURCES ${DIAG}/tests/work_ons_controller_test.cpp
             ${SRC}/Gui/diagnostics/work_ons_controller.cpp
             ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
+            ${SRC}/Gui/charts/consistency_summary.cpp
+            ${SRC}/Gui/charts/consistency_env.cpp
+            ${SRC}/Gui/charts/session_consistency.cpp
+            ${SRC}/Gui/charts/session_series_model.cpp
+            ${SRC}/Gui/charts/session_curves.cpp
+            ${SRC}/Gui/charts/session_warp.cpp
+            ${SRC}/Gui/charts/session_traces.cpp
+            ${SRC}/Gui/charts/session_wrist.cpp
+            ${SRC}/Gui/charts/session_posture.cpp
+            ${SRC}/Wrist/wrist_analysis_adapter.cpp
+            ${SRC}/Wrist/wrist_assessment_engine.cpp
+            ${SRC}/Wrist/assessment_rules.cpp
+            ${SRC}/Wrist/reference_bands.cpp
+            ${SRC}/Metrics/metric_catalogue.cpp
+            ${SRC}/Metrics/metric_resolver.cpp
+            ${SRC}/Metrics/metric_catalogue_manifest.cpp
+            ${SRC}/Metrics/metric_providers.cpp
             ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
             ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
             ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp
@@ -1368,9 +1389,10 @@ pp_add_test(work_ons_controller_test
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${SRC}/Gui/charts
     LINK    Qt6::Qml
-    AUTOMOC)
+    AUTOMOC
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
 set_tests_properties(work_ons_controller_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 

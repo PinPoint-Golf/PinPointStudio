@@ -549,6 +549,8 @@ set(PP_QML_SOURCES
     # Its production env: areas and norm sigma from the packs.
     src/Gui/charts/consistency_env.h
     src/Gui/charts/consistency_env.cpp
+    src/Gui/charts/consistency_summary.h
+    src/Gui/charts/consistency_summary.cpp
     src/Gui/charts/session_sequence.h
     src/Gui/charts/session_sequence.cpp
     src/Gui/charts/session_bridge.h

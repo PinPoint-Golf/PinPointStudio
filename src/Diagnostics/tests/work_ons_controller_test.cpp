@@ -33,18 +33,31 @@
 // shape QML binds to, the display order, the grade beside a typical value, and the newest session.
 // swing_areas_test proves the counting; this proves the plumbing and the words.
 //
-// The sessions are LEDGERS ON DISK with empty swing folders beside them: the model loads the
+// And each session's Consistency table (consistency_summary.h), kept by the same scan on its own
+// fingerprint and its own queue, over REAL swing documents staged from rich_7iron: written on the
+// first scan, the same table the tab computes, left alone when fresh, derived again when a swing or
+// the rule moves, never touching the work-on records or the summary, holding while a session is live,
+// and rolled up into the three keys Home reads. session_consistency_test proves the rules.
+//
+// The other sessions are LEDGERS ON DISK with empty swing folders beside them: the model loads the
 // rows, finds nothing to back-fill, and no swing document is ever read — the catch-up path for
 // a library that already has its ledgers, which is the one the app meets first.
 
 #include "Gui/diagnostics/work_ons_controller.h"
+#include "Gui/charts/consistency_env.h"
+#include "Gui/charts/session_consistency.h"
+#include "Gui/charts/session_series_model.h"
+#include "Gui/charts/session_warp.h"
 #include "Coaching/swing_areas_pack.h"
 #include "Diagnostics/packs/characteristic_pack.h"
+#include "Export/swing_store.h"
 
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDeadlineTimer>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -52,6 +65,7 @@
 #include <QJsonObject>
 #include <QLocale>
 #include <QTemporaryDir>
+#include <QThread>
 
 #include <algorithm>
 #include <cmath>
@@ -495,7 +509,9 @@ static void checkAreasShape(const WorkOnsController &c, const char *when)
                                             QStringLiteral("measured"), QStringLiteral("habits"), QStringLiteral("occasional"),
                                             QStringLiteral("clean"), QStringLiteral("unclear"), QStringLiteral("habitTrend"),
                                             QStringLiteral("hasTrend"), QStringLiteral("topFault"), QStringLiteral("topFaultId"),
-                                            QStringLiteral("workOnsActive"), QStringLiteral("workOnsNew"), QStringLiteral("items") });
+                                            QStringLiteral("workOnsActive"), QStringLiteral("workOnsNew"), QStringLiteral("items"),
+                                            QStringLiteral("consistencyWord"), QStringLiteral("consistencyLoosest"),
+                                            QStringLiteral("consistencySpans") });
         const bool measurable = a.value(QStringLiteral("measurable")).toBool();
         const int habits = a.value(QStringLiteral("habits")).toInt();
         const int counted = habits + a.value(QStringLiteral("occasional")).toInt() + a.value(QStringLiteral("clean")).toInt()
@@ -563,6 +579,630 @@ static void checkAreasShape(const WorkOnsController &c, const char *when)
     check(itemOrder, label);
     std::snprintf(label, sizeof label, "%s: a corridor grade exactly when there is a typical value; without one, only a yes/no condition's action", when);
     check(gradeIff, label);
+}
+
+// ── Consistency fixtures ─────────────────────────────────────────────────────────────────
+
+namespace pc = pinpoint::charts;
+
+#ifndef PP_LIVE_SWINGS_DIR
+#  define PP_LIVE_SWINGS_DIR "."
+#endif
+
+// A real analysis block, less its pose: what SwingStore::loadAnalysis leaves of rich_7iron.
+static const QJsonObject &richSwing()
+{
+    static const QJsonObject root = pinpoint::SwingStore::loadAnalysis(
+        QStringLiteral(PP_LIVE_SWINGS_DIR "/rich_7iron"));
+    return root;
+}
+
+// One session of the real swing, each shot's every reading scaled by its own small factor so that the
+// spreads aren't nothing, written by the real writer, one wall clock apart from the next.
+static void stageSwings(const QString &athleteDir, const QString &session, int shots, const QDateTime &when)
+{
+    for (int i = 0; i < shots; ++i) {
+        const double scale = 1.0 + 0.03 * double((i * 7) % 5 - 2);
+        QJsonObject root = richSwing();
+        QJsonObject clock = root.value(QStringLiteral("clock")).toObject();
+        clock[QStringLiteral("wallclock")] = when.addSecs(45 * i).toUTC().toString(Qt::ISODateWithMs);
+        root[QStringLiteral("clock")] = clock;
+
+        QJsonObject analysis = root.value(QStringLiteral("analysis")).toObject();
+        QJsonArray metrics = analysis.value(QStringLiteral("metrics")).toArray();
+        for (qsizetype m = 0; m < metrics.size(); ++m) {
+            QJsonObject metric = metrics.at(m).toObject();
+            QJsonArray values = metric.value(QStringLiteral("value")).toArray();
+            for (qsizetype k = 0; k < values.size(); ++k) values[k] = values.at(k).toDouble() * scale;
+            metric[QStringLiteral("value")] = values;
+            QJsonArray samples = metric.value(QStringLiteral("phaseSamples")).toArray();
+            for (qsizetype k = 0; k < samples.size(); ++k) {
+                QJsonObject sample = samples.at(k).toObject();
+                sample[QStringLiteral("value")] = sample.value(QStringLiteral("value")).toDouble() * scale;
+                samples[k] = sample;
+            }
+            metric[QStringLiteral("phaseSamples")] = samples;
+            metrics[m] = metric;
+        }
+        analysis[QStringLiteral("metrics")] = metrics;
+        root[QStringLiteral("analysis")] = analysis;
+
+        const QString dir = QDir(athleteDir).filePath(session) + QStringLiteral("/swing_%1").arg(i + 1, 4, 10, QLatin1Char('0'));
+        QDir().mkpath(dir);
+        QString why;
+        if (!pinpoint::SwingStore::save(dir, root, &why))
+            std::printf("  could not stage %s: %s\n", qPrintable(dir), qPrintable(why));
+    }
+}
+
+static QString tablePath(const QString &athleteDir, const QString &session)
+{
+    return pc::consistencySummaryPath(QDir(athleteDir).filePath(session));
+}
+
+static QByteArray bytesOf(const QString &path)
+{
+    QFile f(path);
+    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+}
+
+static QJsonObject jsonOf(const QString &path) { return QJsonDocument::fromJson(bytesOf(path)).object(); }
+
+static QString fingerprintOf(const QString &path)
+{
+    return jsonOf(path).value(QStringLiteral("derivedFrom")).toObject().value(QStringLiteral("fingerprint")).toString();
+}
+
+// Backdated, so that a rewrite shows however fast the test runs.
+static void backdate(const QString &path, const QDateTime &when)
+{
+    QFile f(path);
+    if (f.open(QIODevice::ReadWrite)) f.setFileTime(when, QFileDevice::FileModificationTime);
+}
+
+static QDateTime mtimeOf(const QString &path) { return QFileInfo(path).lastModified(); }
+
+// Every cell of a stored table set to `rest`, then the named ones ("area|column") to their word. The
+// derivedFrom stays, so the file reads as fresh and the scan carries these words to Home.
+static void setWords(const QString &path, const QHash<QString, QString> &words, const QString &rest)
+{
+    QJsonObject root = jsonOf(path);
+    QJsonArray cells = root.value(QStringLiteral("cells")).toArray();
+    for (qsizetype i = 0; i < cells.size(); ++i) {
+        QJsonObject c = cells.at(i).toObject();
+        const QString id = c.value(QStringLiteral("area")).toString() + QLatin1Char('|')
+                         + QString::number(c.value(QStringLiteral("column")).toInt());
+        c[QStringLiteral("word")] = words.value(id, rest);
+        cells[i] = c;
+    }
+    root[QStringLiteral("cells")] = cells;
+    QFile f(path);
+    if (f.open(QIODevice::WriteOnly)) f.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+}
+
+static bool areaSays(const WorkOnsController &c, const char *group, const char *word, const char *loosest, const QStringList &spans)
+{
+    const QVariantMap a = area(c, group);
+    QStringList have;
+    for (const QVariant &v : a.value(QStringLiteral("consistencySpans")).toList()) {
+        const QVariantMap m = v.toMap();
+        have << m.value(QStringLiteral("span")).toString() + QLatin1Char(' ') + m.value(QStringLiteral("word")).toString();
+    }
+    const bool same = a.value(QStringLiteral("consistencyWord")).toString() == QLatin1String(word)
+                   && a.value(QStringLiteral("consistencyLoosest")).toString() == QLatin1String(loosest) && have == spans;
+    if (!same)
+        std::printf("      %s: %s / %s / %s\n", group, qPrintable(a.value(QStringLiteral("consistencyWord")).toString()),
+                    qPrintable(a.value(QStringLiteral("consistencyLoosest")).toString()), qPrintable(have.join(QStringLiteral(", "))));
+    return same;
+}
+
+static void checkConsistency()
+{
+    std::printf("consistency.json\n");
+    QTemporaryDir tmp;
+    const QDateTime sep1 = QDateTime::fromMSecsSinceEpoch(1'790'000'000'000LL), sep2 = sep1.addDays(1);
+    const QDateTime old = QDateTime::currentDateTime().addDays(-30);
+
+    // ── The file, on the first scan ──────────────────────────────────────────────────
+    const QString golfer = tmp.filePath(QStringLiteral("Tables"));
+    QDir().mkpath(golfer);
+    const QString first = QStringLiteral("s_first"), second = QStringLiteral("s_second");
+    stageSwings(golfer, first, 8, sep1);
+    stageSwings(golfer, second, 8, sep2);
+
+    WorkOnsController c;
+    c.setSynchronous(true);
+    c.setAthleteDir(golfer);
+    const QString tableA = tablePath(golfer, first), tableB = tablePath(golfer, second);
+    const QString recordA = WorkOnsController::recordPath(QDir(golfer).filePath(first));
+    const QString recordB = WorkOnsController::recordPath(QDir(golfer).filePath(second));
+    const QString themes = WorkOnsController::themesPath(golfer);
+
+    const QJsonObject file = jsonOf(tableA);
+    check(QFile::exists(tableA) && QFile::exists(tableB) && c.consistencyJobs() == 2, "the first scan writes a table for each session");
+    check(keysAre(file.toVariantMap(), { QStringLiteral("schema"), QStringLiteral("derivedFrom"), QStringLiteral("shots"),
+                                         QStringLiteral("sessionDate"), QStringLiteral("cells"), QStringLiteral("afterImpactMs") })
+          && keysAre(file.value(QStringLiteral("derivedFrom")).toObject().toVariantMap(),
+                     { QStringLiteral("fingerprint"), QStringLiteral("ruleVersion") }),
+          "…{schema, derivedFrom:{fingerprint, ruleVersion}, shots, sessionDate, cells, afterImpactMs}, nothing more");
+    check(file.value(QStringLiteral("schema")).toInt() == pc::kConsistencySummarySchema
+          && fingerprintOf(tableA).size() == 16
+          && file.value(QStringLiteral("derivedFrom")).toObject().value(QStringLiteral("ruleVersion")).toInt() == pc::kConsistencyRuleVersion
+          && file.value(QStringLiteral("shots")).toInt() == 8
+          && qint64(file.value(QStringLiteral("sessionDate")).toDouble()) == sep1.toMSecsSinceEpoch()
+          && file.value(QStringLiteral("afterImpactMs")).toDouble() > 0.0,
+          "…stamped, 8 shots, the first shot's wall clock, P7-P8's length");
+    check(file.value(QStringLiteral("cells")).toArray().size() == 33
+          && keysAre(file.value(QStringLiteral("cells")).toArray().at(0).toObject().toVariantMap(),
+                     { QStringLiteral("area"), QStringLiteral("column"), QStringLiteral("word") }),
+          "…33 cells of {area, column, word}");
+    check(bytesOf(tableA).size() < 4096, "…a file Home can read in a blink");
+
+    // The table the tab computes: the model's snapshot, the same two layers.
+    const pc::ConsistencyEnv env = pc::consistencyEnvFromPacks();
+    {
+        pc::SessionSeriesModel model;
+        model.setSynchronous(true);
+        model.activateSession(QDir(golfer).filePath(first));
+        const auto snapshot = model.snapshot();
+        const pc::ConsistencyResult tab = pc::consistencyResult(pc::consistencyInput(*snapshot, pc::alignSession(*snapshot), env));
+        pc::ConsistencySummary stored;
+        const bool read = pc::consistencySummaryFromJson(file, &stored);
+        bool same = read && stored.cells.size() == tab.cells.size();
+        int judged = 0;
+        for (size_t i = 0; same && i < tab.cells.size(); ++i) {
+            same = stored.cells[i].area == tab.cells[i].area && stored.cells[i].column == tab.cells[i].column
+                && stored.cells[i].word == tab.cells[i].word;
+            if (tab.cells[i].word != pc::ConsistencyWord::Dash) ++judged;
+        }
+        check(same && judged > 0, "…the very table the Consistency tab computes, with words in it");
+        std::printf("      %d of %d cells judged\n", judged, int(tab.cells.size()));
+    }
+
+    // ── Fresh: left alone ────────────────────────────────────────────────────────────
+    for (const QString &p : { tableA, tableB, recordA, recordB, themes }) backdate(p, old);
+    QByteArray before = bytesOf(tableA);
+    int jobs = c.consistencyJobs();
+    c.refresh();
+    check(c.consistencyJobs() == jobs && bytesOf(tableA) == before && mtimeOf(tableA) == mtimeOf(tableB) && mtimeOf(tableA).date() == old.date(),
+          "a fresh table is not derived again or rewritten");
+
+    // ── A work-on freshness of its own ───────────────────────────────────────────────
+    const QByteArray recordBytes = bytesOf(recordA), themesBytes = bytesOf(themes);
+    QFile::remove(tableA);
+    c.refresh();
+    check(c.consistencyJobs() == jobs + 1 && QFile::exists(tableA) && mtimeOf(tableB).date() == old.date(),
+          "fresh work-ons, a stale table: only the table is queued");
+    check(bytesOf(recordA) == recordBytes && mtimeOf(recordA).date() == old.date()
+          && bytesOf(themes) == themesBytes && mtimeOf(themes).date() == old.date(),
+          "…work_ons.json and swing_themes.json are not touched");
+    backdate(tableA, old);
+
+    jobs = c.consistencyJobs();
+    QFile::remove(recordB);
+    c.refresh();
+    check(c.consistencyJobs() == jobs && QFile::exists(recordB) && mtimeOf(tableB).date() == old.date(),
+          "fresh table, a stale work-on record: only the record is derived");
+    backdate(recordB, old);
+
+    // ── The work-on fingerprint is what it was ───────────────────────────────────────
+    {
+        const QDir d(QDir(golfer).filePath(first));
+        const QJsonObject from = jsonOf(recordA).value(QStringLiteral("derivedFrom")).toObject();
+        QCryptographicHash h(QCryptographicHash::Sha1);
+        h.addData(QByteArray::number(kWorkOnRuleVersion));
+        h.addData(from.value(QStringLiteral("contentStamp")).toString().toUtf8());
+        for (const QString &name : d.entryList({ QStringLiteral("swing_*") }, QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+            const pinpoint::SwingStore::DocInfo doc = pinpoint::SwingStore::info(d.filePath(name));
+            h.addData(name.toUtf8());
+            h.addData(QByteArray::number(doc.size));
+            h.addData(QByteArray::number(doc.mtimeMs));
+        }
+        check(from.value(QStringLiteral("fingerprint")).toString() == QString::fromLatin1(h.result().toHex().left(16)),
+              "work_ons.json's fingerprint is still rule, content and swings, nothing of Consistency's");
+    }
+
+    // ── A new rule ───────────────────────────────────────────────────────────────────
+    jobs = c.consistencyJobs();
+    const QString fpA = fingerprintOf(tableA);
+    const QByteArray recordA2 = bytesOf(recordA), themes2 = bytesOf(themes);
+    c.setConsistencyRuleVersion(pc::kConsistencyRuleVersion + 1);
+    c.refresh();
+    check(c.consistencyJobs() == jobs + 2 && fingerprintOf(tableA) != fpA
+          && jsonOf(tableB).value(QStringLiteral("derivedFrom")).toObject().value(QStringLiteral("ruleVersion")).toInt() == pc::kConsistencyRuleVersion + 1,
+          "a new rule version derives every table again");
+    check(bytesOf(recordA) == recordA2 && mtimeOf(recordA).date() == old.date()
+          && bytesOf(themes) == themes2 && mtimeOf(themes).date() == old.date(),
+          "…and moves no record and no summary");
+    c.setConsistencyRuleVersion(pc::kConsistencyRuleVersion);
+    c.refresh();
+    backdate(tableA, old);
+    backdate(tableB, old);
+
+    // ── A swing changes ──────────────────────────────────────────────────────────────
+    jobs = c.consistencyJobs();
+    const QString fpB = fingerprintOf(tableB);
+    backdate(pinpoint::SwingStore::ppswPath(QDir(golfer).filePath(second) + QStringLiteral("/swing_0003")), old.addDays(1));
+    c.refresh();
+    check(c.consistencyJobs() == jobs + 1 && fingerprintOf(tableB) != fpB && mtimeOf(tableB).date() != old.date()
+          && mtimeOf(tableA).date() == old.date(),
+          "a swing changing makes its session's table stale, and only that one");
+    stageSwings(golfer, second, 9, sep2);       // shot 9 arrives, every document rewritten
+    jobs = c.consistencyJobs();
+    c.refresh();
+    check(c.consistencyJobs() == jobs + 1 && jsonOf(tableB).value(QStringLiteral("shots")).toInt() == 9,
+          "a new shot arrives by the same route");
+
+    // ── Corrupt, empty ───────────────────────────────────────────────────────────────
+    {
+        const QString broken = QDir(golfer).filePath(QStringLiteral("2036-01-02_broken"));
+        QDir().mkpath(broken + QStringLiteral("/swing_0001"));
+        QFile f(broken + QStringLiteral("/swing_0001/swing.json"));
+        if (f.open(QIODevice::WriteOnly)) f.write("{ this is not a swing");
+        f.close();
+        QDir().mkpath(QDir(golfer).filePath(QStringLiteral("2036-01-01_empty/swing_0001")));
+        QFile::remove(tableA);          // dated today by its folder, so behind those two in the queue
+        QStringList order;
+        c.setConsistencyJobHook([&order](const QString &dir) { order << QFileInfo(dir).fileName(); });
+        jobs = c.consistencyJobs();
+        c.refresh();
+        c.setConsistencyJobHook({});
+        check(c.consistencyJobs() == jobs + 3 && !QFile::exists(tablePath(golfer, QStringLiteral("2036-01-02_broken")))
+              && !QFile::exists(tablePath(golfer, QStringLiteral("2036-01-01_empty"))),
+              "a corrupt session and an empty one write nothing");
+        check(QFile::exists(tableA) && order.value(2) == first, "…and the queue goes on past them");
+        jobs = c.consistencyJobs();
+        c.refresh();
+        check(c.consistencyJobs() == jobs, "…they are not tried again until their swings change");
+        std::atomic<bool> stop{ true };
+        pc::ConsistencySummary none;
+        check(!pc::deriveConsistencySummary(QDir(golfer).filePath(first), 8, env, &stop, &none), "a raised cancel stops a job");
+    }
+
+    // ── Paused ───────────────────────────────────────────────────────────────────────
+    const QString held = tmp.filePath(QStringLiteral("Held"));
+    QDir().mkpath(held);
+    stageSwings(held, first, 6, sep1);
+    {
+        WorkOnsController p;
+        p.setSynchronous(true);
+        p.setPaused(true);
+        p.setAthleteDir(held);
+        check(p.consistencyJobs() == 0 && !QFile::exists(tablePath(held, first)), "a live session holds the queue");
+        p.setPaused(false);
+        check(p.consistencyJobs() == 1 && QFile::exists(tablePath(held, first)), "…and the pause lifting runs it");
+    }
+
+    // ── On its own thread ────────────────────────────────────────────────────────────
+    const QString threaded = tmp.filePath(QStringLiteral("Threaded"));
+    QDir().mkpath(threaded);
+    for (int i = 0; i < 3; ++i) stageSwings(threaded, QStringLiteral("s%1").arg(i), 8, sep1.addDays(i));
+    {
+        WorkOnsController t;
+        t.setAthleteDir(threaded);
+        QDeadlineTimer deadline(60000);
+        while (t.consistencyJobs() == 0 && !deadline.hasExpired())
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 1);
+        t.setPaused(true);
+        const int started = t.consistencyJobs();
+        t.waitForIdle();
+        int written = 0;
+        for (int i = 0; i < 3; ++i) written += QFile::exists(tablePath(threaded, QStringLiteral("s%1").arg(i))) ? 1 : 0;
+        check(started >= 1 && started < 3 && t.consistencyJobs() == started && written < 3,
+              "going live mid-queue stops it: the job is cancelled and no other starts");
+        t.setPaused(false);
+        check(t.waitForIdle(), "…the pause lifting drains it on the job's own thread");
+        written = 0;
+        for (int i = 0; i < 3; ++i) written += QFile::exists(tablePath(threaded, QStringLiteral("s%1").arg(i))) ? 1 : 0;
+        check(written == 3, "…and every session has its table");
+    }
+
+    // ── Things going wrong around a job ──────────────────────────────────────────────
+    const QString trouble = tmp.filePath(QStringLiteral("Trouble"));
+    const QString otherAthlete = tmp.filePath(QStringLiteral("TroubleOther"));
+    QDir().mkpath(trouble);
+    QDir().mkpath(otherAthlete);
+    stageSwings(trouble, first, 6, sep1);
+    stageSwings(otherAthlete, first, 6, sep1);
+    {
+        WorkOnsController t;
+        t.setSynchronous(true);
+        t.setAthleteDir(trouble);
+        const QString session = QDir(trouble).filePath(first), table = tablePath(trouble, first);
+        const QString shown = area(t, "setup").value(QStringLiteral("consistencyWord")).toString();
+
+        // A share that won't take the file: the temporary's name is held by a folder.
+        QFile::remove(table);
+        QDir().mkpath(table + QStringLiteral(".tmp"));
+        int n = t.consistencyJobs();
+        t.refresh();
+        check(t.consistencyJobs() == n + 1 && !QFile::exists(table) && shown != QLatin1String("-")
+              && area(t, "setup").value(QStringLiteral("consistencyWord")).toString() == shown,
+              "a write that fails keeps the table in memory, and the word");
+        n = t.consistencyJobs();
+        t.refresh();
+        t.refresh();
+        check(t.consistencyJobs() == n && area(t, "setup").value(QStringLiteral("consistencyWord")).toString() == shown,
+              "…and a read-only share isn't derived again at every look");
+        QDir().rmdir(table + QStringLiteral(".tmp"));
+
+        // A swing that won't read: nothing stored under a fingerprint that names every swing.
+        QDir().mkpath(session + QStringLiteral("/swing_0007"));
+        QFile bad(session + QStringLiteral("/swing_0007/swing.json"));
+        if (bad.open(QIODevice::WriteOnly)) bad.write("{ this is not a swing");
+        bad.close();
+        n = t.consistencyJobs();
+        t.refresh();
+        check(t.consistencyJobs() == n + 1 && !QFile::exists(table)
+              && area(t, "setup").value(QStringLiteral("consistencyWord")).toString() == shown,
+              "a partial read is not persisted, and the word stands");
+        n = t.consistencyJobs();
+        t.refresh();
+        check(t.consistencyJobs() == n, "…nor derived again this run");
+        QFile::remove(bad.fileName());
+        QDir(session + QStringLiteral("/swing_0007")).removeRecursively();
+        t.refresh();
+        check(QFile::exists(table) && jsonOf(table).value(QStringLiteral("shots")).toInt() == 6,
+              "…the swings right again, the table is written");
+
+        // A corrupt file reads as no table and is derived again.
+        const QByteArray good = bytesOf(table);
+        QFile corrupt(table);
+        if (corrupt.open(QIODevice::WriteOnly)) corrupt.write("{ not a table");
+        corrupt.close();
+        n = t.consistencyJobs();
+        t.refresh();
+        check(t.consistencyJobs() == n + 1 && bytesOf(table) == good, "a corrupt consistency.json is derived again");
+
+        // A swing moves between the job's reading and its landing: the scan's newer fingerprint wins.
+        bool once = true;
+        t.setConsistencyJobHook([&](const QString &dir) {
+            if (!once) return;
+            once = false;
+            backdate(pinpoint::SwingStore::ppswPath(dir + QStringLiteral("/swing_0002")), old);
+            t.refresh();
+        });
+        const QString before = fingerprintOf(table);
+        t.setConsistencyRuleVersion(pc::kConsistencyRuleVersion + 7);
+        n = t.consistencyJobs();
+        t.refresh();
+        t.setConsistencyJobHook({});
+        const int rounds = t.consistencyJobs() - n;
+        const QString settled = fingerprintOf(table);
+        t.refresh();
+        check(rounds == 2 && settled != before && fingerprintOf(table) == settled && t.consistencyJobs() == n + 2,
+              "a swing moving mid-job goes round again, and ends fresh");
+
+        // The athlete changes mid-job: nothing written for the old one, the new one's tables land.
+        QFile::remove(table);
+        once = true;
+        t.setConsistencyJobHook([&](const QString &) {
+            if (!once) return;
+            once = false;
+            t.setAthleteDir(otherAthlete);
+        });
+        t.refresh();
+        t.setConsistencyJobHook({});
+        check(!QFile::exists(table) && QFile::exists(tablePath(otherAthlete, first)) && t.waitForIdle(1000)
+              && area(t, "setup").value(QStringLiteral("consistencyWord")).toString() != QLatin1String("-"),
+              "the athlete changing mid-job writes nothing for the old one, and the new one's words land");
+
+        // The session is trashed mid-job: no orphan folder holding a table.
+        t.setAthleteDir(trouble);
+        t.setConsistencyRuleVersion(pc::kConsistencyRuleVersion);
+        t.setConsistencyJobHook([](const QString &dir) { QDir(dir).removeRecursively(); });
+        t.refresh();
+        t.setConsistencyJobHook({});
+        check(!QDir(session).exists(), "a session trashed mid-job is not raised again by writing its table");
+        t.refresh();
+        check(t.waitForIdle(1000), "…and the queue carries on");
+    }
+
+    // ── A document gone between the scan and the job ─────────────────────────────────
+    // As a share dropping shows it: the stat fails, so the read is never tried. The newer session's job
+    // takes the older one's document away after the scan has counted it.
+    const QString shortfall = tmp.filePath(QStringLiteral("Shortfall"));
+    QDir().mkpath(shortfall);
+    stageSwings(shortfall, QStringLiteral("newer"), 6, sep2);
+    stageSwings(shortfall, QStringLiteral("older"), 6, sep1);
+    {
+        WorkOnsController u;
+        u.setSynchronous(true);
+        u.setAthleteDir(shortfall);
+        const QString older = QDir(shortfall).filePath(QStringLiteral("older")), table = tablePath(shortfall, QStringLiteral("older"));
+        const QString doc = pinpoint::SwingStore::ppswPath(older + QStringLiteral("/swing_0003"));
+        const QByteArray bytes = bytesOf(doc);
+        const QDateTime stamp = mtimeOf(doc);
+        const QByteArray before = bytesOf(table);
+        const QString word = area(u, "setup").value(QStringLiteral("consistencyWord")).toString();
+
+        bool once = true;
+        u.setConsistencyJobHook([&](const QString &) {
+            if (!once) return;
+            once = false;
+            QFile::remove(doc);
+        });
+        u.setConsistencyRuleVersion(pc::kConsistencyRuleVersion + 1);
+        const int n = u.consistencyJobs();
+        u.refresh();
+        u.setConsistencyJobHook({});
+        check(u.consistencyJobs() == n + 2 && bytesOf(table) == before
+              && area(u, "setup").value(QStringLiteral("consistencyWord")).toString() == word,
+              "a document gone between the scan and the job: nothing stored under the full fingerprint, the word stands");
+
+        // A blip: the document back as it was, so the same fingerprint. Nothing stale was ever written over it.
+        QFile back(doc);
+        if (back.open(QIODevice::WriteOnly)) back.write(bytes);
+        back.close();
+        backdate(doc, stamp);
+        const int m = u.consistencyJobs();
+        u.refresh();
+        check(u.consistencyJobs() == m, "…the document back, the session waits for the next launch rather than re-derive");
+
+        // Really gone: the scan counts five, the fingerprint moves, and the table is stored as five.
+        QFile::remove(doc);
+        u.refresh();
+        check(jsonOf(table).value(QStringLiteral("shots")).toInt() == 5, "…really gone, the scan's own count stores the table");
+    }
+
+    // ── Queue order ──────────────────────────────────────────────────────────────────
+    // Played order against folder mtime: the oldest-played folder is the last one touched.
+    const QString ordered = tmp.filePath(QStringLiteral("Ordered"));
+    QDir().mkpath(ordered);
+    stageSwings(ordered, QStringLiteral("a_played_third"), 6, sep1.addDays(2));
+    stageSwings(ordered, QStringLiteral("b_played_second"), 6, sep1.addDays(1));
+    stageSwings(ordered, QStringLiteral("c_played_first"), 6, sep1);
+    {
+        WorkOnsController q;
+        q.setSynchronous(true);
+        q.setAthleteDir(ordered);
+        for (const char *name : { "a_played_third", "b_played_second", "c_played_first" }) {
+            QFile touch(QDir(ordered).filePath(QLatin1String(name)) + QStringLiteral("/touch"));
+            if (touch.open(QIODevice::WriteOnly)) touch.close();
+            QFile::remove(touch.fileName());
+            QThread::msleep(20);
+        }
+        QStringList order;
+        q.setConsistencyJobHook([&order](const QString &dir) { order << QFileInfo(dir).fileName(); });
+        q.setConsistencyRuleVersion(pc::kConsistencyRuleVersion + 1);
+        q.refresh();
+        check(order == QStringList{ "a_played_third", "b_played_second", "c_played_first" },
+              "the catch-up runs newest played first, whatever the folders' mtimes say");
+    }
+
+    // ── The word Home publishes ──────────────────────────────────────────────────────
+    // Dates against names, so a sort by name would read them backwards. The middle session judged nothing.
+    const QString words = tmp.filePath(QStringLiteral("Words"));
+    QDir().mkpath(words);
+    stageSwings(words, QStringLiteral("a_newest"), 6, sep1.addDays(2));
+    stageSwings(words, QStringLiteral("b_nothing"), 6, sep1.addDays(1));
+    stageSwings(words, QStringLiteral("c_oldest"), 6, sep1);
+    stage(words, QStringLiteral("d_no_table"), sep1.toMSecsSinceEpoch(), { { "pull", 1 } });  // a ledger, no swings: no table, and a ball-flight row
+    {
+        WorkOnsController w;
+        w.setSynchronous(true);
+        w.setAthleteDir(words);
+        setWords(tablePath(words, QStringLiteral("a_newest")),
+                 { { "setup|0", "steady" }, { "impact|6", "loose" }, { "finish|7", "steady" },
+                   { "release|5", "loose" }, { "release|6", "steady" }, { "release|7", "loose" } }, QStringLiteral("dash"));
+        setWords(tablePath(words, QStringLiteral("b_nothing")), {}, QStringLiteral("dash"));
+        setWords(tablePath(words, QStringLiteral("c_oldest")),
+                 { { "setup|0", "some" }, { "impact|6", "steady" }, { "finish|7", "nearError" },
+                   { "release|5", "loose" }, { "release|6", "steady" }, { "release|7", "loose" } }, QStringLiteral("dash"));
+        int jobs2 = w.consistencyJobs();
+        int areas = 0;
+        QObject::connect(&w, &WorkOnsController::areasChanged, [&areas] { ++areas; });
+        w.refresh();
+        check(w.consistencyJobs() == jobs2 && areas > 0, "tables read by the scan reach areaItems, with no job");
+        // 0 against ½ at a fade of .75: .214. Were the empty session to age the older by another .75, .18: Steady.
+        check(areaSays(w, "setup", "Some", "P1", { QStringLiteral("P1 Some") }),
+              "the sessions that can judge it: a session that judged nothing takes no place in the fade");
+        check(areaSays(w, "impact", "Loose", "P6-P7", { QStringLiteral("P6-P7 Loose") }),
+              "newest first by when it was played, not by name: 1 then 0 is .57");
+        check(areaSays(w, "release", "Loose", "P5-P6", { QStringLiteral("P5-P6 Loose"), QStringLiteral("P6-P7 Steady") }),
+              "P7-P8 counts only for Finish: release is loose, steady, so .5, and no third span");
+        check(areaSays(w, "finish", "Steady", "", { QStringLiteral("P7-P8 Steady") }),
+              "Finish reads P7-P8; a ⚠ scores as steady; steady names no span");
+        check(areaSays(w, "sequence", "-", "", {}), "an area nothing judged says -");
+        check(!area(w, "ballFlight").isEmpty() && areaSays(w, "ballFlight", "-", "", {}), "ball flight says -: it has no spans");
+
+        // A table lands: once for the scan's publish, once more with no scan when the job delivers.
+        areas = 0;
+        QFile::remove(tablePath(words, QStringLiteral("c_oldest")));
+        w.refresh();
+        check(areas == 2 && area(w, "sequence").value(QStringLiteral("consistencyWord")).toString() != QLatin1String("-"),
+              "a table landing moves the words by itself");
+
+        // Every table real now. The same tables again under a new rule: no word moves, nothing rebuilds Home's rows.
+        w.setConsistencyRuleVersion(pc::kConsistencyRuleVersion + 1);
+        w.refresh();
+        areas = 0;
+        w.setConsistencyRuleVersion(pc::kConsistencyRuleVersion);
+        w.refresh();
+        check(areas == 1, "a landing that moves no word announces nothing: only the scan's publish");
+    }
+
+    // A stale table's word stands until the new one lands, read from the file on a fresh start.
+    {
+        for (const char *name : { "a_newest", "b_nothing", "c_oldest" })
+            setWords(tablePath(words, QLatin1String(name)), {}, QStringLiteral("loose"));
+        WorkOnsController s;
+        s.setSynchronous(true);
+        s.setConsistencyRuleVersion(pc::kConsistencyRuleVersion + 2);
+        s.setPaused(true);
+        s.setAthleteDir(words);
+        check(s.consistencyJobs() == 0 && area(s, "setup").value(QStringLiteral("consistencyWord")).toString() == QLatin1String("Loose"),
+              "a stale table's word shows until it is replaced, never a dash");
+        s.setPaused(false);
+        check(s.consistencyJobs() == 4 && QFile::exists(tablePath(words, QStringLiteral("a_newest")))
+              && jsonOf(tablePath(words, QStringLiteral("a_newest"))).value(QStringLiteral("derivedFrom")).toObject()
+                     .value(QStringLiteral("ruleVersion")).toInt() == pc::kConsistencyRuleVersion + 2,
+              "…and the replacement lands");
+    }
+
+    // Only a verdict takes the words away: every swing readable, and none of them analysed.
+    const QString verdict = tmp.filePath(QStringLiteral("Verdict"));
+    QDir().mkpath(verdict);
+    stageSwings(verdict, first, 6, sep1);
+    {
+        WorkOnsController v;
+        v.setSynchronous(true);
+        v.setAthleteDir(verdict);
+        check(area(v, "setup").value(QStringLiteral("consistencyWord")).toString() != QLatin1String("-"), "a session has its word");
+        for (int i = 1; i <= 6; ++i)
+            QFile::remove(pinpoint::SwingStore::ppswPath(QDir(verdict).filePath(first) + QStringLiteral("/swing_%1").arg(i, 4, 10, QLatin1Char('0'))));
+        v.refresh();
+        check(area(v, "setup").value(QStringLiteral("consistencyWord")).toString() == QLatin1String("-"),
+              "…a no-table verdict clears it, stale file or not");
+        const int n = v.consistencyJobs();
+        v.refresh();
+        check(v.consistencyJobs() == n && area(v, "setup").value(QStringLiteral("consistencyWord")).toString() == QLatin1String("-"),
+              "…and it stays cleared");
+    }
+
+    // A catch-up's words on the real thread: landings coalesced, the last one kept.
+    const QString coalesced = tmp.filePath(QStringLiteral("Coalesced"));
+    QDir().mkpath(coalesced);
+    for (int i = 0; i < 3; ++i) stageSwings(coalesced, QStringLiteral("s%1").arg(i), 8, sep1.addDays(i));
+    {
+        WorkOnsController a;
+        a.setAthleteDir(coalesced);
+        a.waitForIdle();
+        const QString real = area(a, "setup").value(QStringLiteral("consistencyWord")).toString();
+        for (int i = 0; i < 3; ++i)
+            setWords(tablePath(coalesced, QStringLiteral("s%1").arg(i)),
+                     { { "setup|0", real == QLatin1String("Loose") ? "steady" : "loose" } }, QStringLiteral("dash"));
+        a.refresh();
+        a.waitForIdle();                    // the planted words are showing
+        const QString planted = area(a, "setup").value(QStringLiteral("consistencyWord")).toString();
+        int areas = 0;
+        QObject::connect(&a, &WorkOnsController::areasChanged, [&areas] { ++areas; });
+        QElapsedTimer t;
+        t.start();
+        a.setConsistencyRuleVersion(pc::kConsistencyRuleVersion + 3);
+        a.refresh();
+        a.waitForIdle();
+        const int allowed = 1 + 1 + int(t.elapsed() / 3000);    // the scan's, and one per 3 s of landings
+        check(planted != real && area(a, "setup").value(QStringLiteral("consistencyWord")).toString() == real && areas <= allowed,
+              "three landings that change words give one area update, and the last word is in it");
+        std::printf("      %d updates in %d ms\n", areas, int(t.elapsed()));
+    }
+
+    // ── What it costs ────────────────────────────────────────────────────────────────
+    const QString cost = tmp.filePath(QStringLiteral("Cost"));
+    QDir().mkpath(cost);
+    const int shots = 30;
+    stageSwings(cost, QStringLiteral("s"), shots, sep1);
+    {
+        pc::ConsistencySummary out;
+        QElapsedTimer t;
+        t.start();
+        const bool ok = pc::deriveConsistencySummary(QDir(cost).filePath(QStringLiteral("s")), shots, env, nullptr, &out);
+        const double ms = double(t.nsecsElapsed()) / 1e6;
+        check(ok && out.shots == shots, "a session of 30 is derived");
+        std::printf("      %.1f ms for %d shots: %.2f ms a swing (%d metrics each, this build unoptimised)\n", ms, shots, ms / shots,
+                    int(richSwing().value(QStringLiteral("analysis")).toObject().value(QStringLiteral("metrics")).toArray().size()));
+    }
 }
 
 int main(int argc, char **argv)
@@ -1002,6 +1642,8 @@ int main(int argc, char **argv)
         check(info.contains(QStringLiteral("arms_ride_the_turn")) && !info.value(QStringLiteral("arms_ride_the_turn")).binary,
               "nor is a ratio (arms ride the turn): a gain is a matter of degree");
     }
+
+    checkConsistency();
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;
