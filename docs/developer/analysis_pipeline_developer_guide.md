@@ -13,6 +13,7 @@
 2. [Where It Fits in Pinpoint](#2-where-it-fits-in-pinpoint)
 3. [Core Concepts](#3-core-concepts)
 4. [The Wrist Profile, Stage by Stage](#4-the-wrist-profile-stage-by-stage)
+   - [4a. What Actually Runs: the Activity Diagram](#4a-what-actually-runs-the-activity-diagram)
 5. [Ordering Invariants — What Must Not Move](#5-ordering-invariants--what-must-not-move)
 6. [Adding a New Analysis Stage](#6-adding-a-new-analysis-stage)
 7. [Managing Performance](#7-managing-performance)
@@ -253,6 +254,39 @@ Two things the table's row granularity hides:
   `shaft_positions.h`). EventRefine (stage 11) then re-walks the same
   `addressHoldEndFrame` machinery from its refined takeaway; it reuses, never
   re-derives.
+
+---
+
+## 4a. What Actually Runs: the Activity Diagram
+
+The stage list says what *may* run. [`analysis_pipeline_activity.pdf`](analysis_pipeline_activity.pdf)
+shows what *does*: a UML activity diagram, one page per part of the run, with every decision that
+picks a path through a swing's analysis drawn as a diamond with its guards. Use the bookmarks, or
+click a connector circle to follow the flow to the next page.
+
+Read it before changing anything that decides whether a stage computes or loads. Stage boxes in
+`analysis.timings.stages` can't show this: reuse is decided inside the stage, so `Pose` records
+`ran: true` whether it inferred the track or loaded it from the document. That is how #154 stayed
+hidden. Each diamond says whether the document keeps its answer, and red ones do not.
+
+Boxes are coloured by what they do: computes, loads from the document, or `ran: true` but did
+nothing. A join means everything before it has finished before the next thing is drawn. The executor
+may overlap more than that, never less.
+
+**Keeping it current.** The branches live inside stages, so no export can see them and the flow in
+`tools/analysis/pipeline_activity.py` is written by hand. The tool refuses to draw a diagram that has
+drifted from the code. It fails if a stage is missing, if a real ordering edge is drawn backwards or
+across parallel branches, or if a decision's source line can no longer be found.
+
+```bash
+# After changing a stage's declaration, refresh the export from any swing:
+swinglab_run <swing dir> --out <run dir> --dag docs/developer/analysis_dag.json
+# After changing a stage or a decision, regenerate the PDF (--check writes nothing):
+python3 tools/analysis/pipeline_activity.py
+```
+
+If you add a decision that picks a path, add it to `DECISIONS` in the tool and draw it in `flow()`.
+It needs python3 only.
 
 ---
 
@@ -803,6 +837,13 @@ src/Core/cpu_topology.h         physicalCoreCount() — the pose.intraOpThreads=
 tools/swinglab/parity_diff.py   Corpus result differ (timings-stripped byte compare)
 CMakeLists.txt                  Root, single file: app target_sources +
                                   _pinpoint_offline_sources (PINPOINT_BUILD_TOOLS)
+
+docs/developer/
+├── analysis_pipeline_activity.pdf  What runs and why: the UML activity diagram (§4a)
+└── analysis_dag.json               The executor's export it is checked against
+tools/analysis/
+├── pipeline_activity.py        Draws that PDF and fails if the flow disagrees with the code
+└── analysis_dag.py             The stage graph and a run's timeline
 ```
 
 ---

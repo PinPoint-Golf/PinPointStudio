@@ -1,0 +1,4296 @@
+{
+ "schema": "pinpoint.analysisDag/1",
+ "profile": "Wrist",
+ "nodes": [
+  {
+   "appends": [],
+   "id": 0,
+   "name": "FrameDecodeFaceOn",
+   "reads": [
+    "window.faceOn"
+   ],
+   "writes": [
+    "frames.faceOn"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 1,
+   "name": "FrameDecodeDtl",
+   "reads": [
+    "window.dtl"
+   ],
+   "writes": [
+    "frames.dtl"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 2,
+   "name": "ImuResample",
+   "reads": [
+    "window.imu",
+    "halted"
+   ],
+   "writes": [
+    "streams",
+    "doRefuse"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 3,
+   "name": "ImuSegmentation",
+   "reads": [
+    "streams",
+    "halted"
+   ],
+   "writes": [
+    "segImu"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 4,
+   "name": "WristMetrics",
+   "reads": [
+    "segImu",
+    "streams",
+    "halted"
+   ],
+   "writes": [
+    "ctx.series"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 5,
+   "name": "Pose",
+   "reads": [
+    "window.faceOn",
+    "segImu",
+    "halted",
+    "frames.faceOn"
+   ],
+   "writes": [
+    "detail.pose2d",
+    "runnerOpt"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 6,
+   "name": "PoseSmooth",
+   "reads": [
+    "runnerOpt",
+    "detail.pose2d",
+    "halted"
+   ],
+   "writes": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 7,
+   "name": "Ball",
+   "reads": [
+    "frames.faceOn",
+    "runnerOpt",
+    "detail.pose2d",
+    "halted"
+   ],
+   "writes": [
+    "ball"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 8,
+   "name": "Impact",
+   "reads": [
+    "window.impact",
+    "halted"
+   ],
+   "writes": [
+    "detail.impact"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 9,
+   "name": "Shaft",
+   "reads": [
+    "frames.faceOn",
+    "ball",
+    "detail.pose2d",
+    "streams",
+    "segImu",
+    "seg",
+    "halted"
+   ],
+   "writes": [
+    "detail.shaft",
+    "segVision",
+    "foWitness",
+    "detail.ball"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 10,
+   "name": "SegResolve",
+   "reads": [
+    "segImu",
+    "segVision",
+    "halted"
+   ],
+   "writes": [
+    "seg"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 11,
+   "name": "ImpactAnchor",
+   "reads": [
+    "frames.faceOn",
+    "detail.shaft",
+    "detail.pose2d",
+    "halted"
+   ],
+   "writes": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 12,
+   "name": "ShaftLean",
+   "reads": [
+    "detail.shaft",
+    "seg",
+    "detail.pose2d",
+    "ctx.series",
+    "halted"
+   ],
+   "writes": [
+    "ctx.series"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 13,
+   "name": "RequireProducts",
+   "reads": [
+    "ctx.series",
+    "detail.pose2d",
+    "streams"
+   ],
+   "writes": [
+    "halted"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 14,
+   "name": "EventRefine",
+   "reads": [
+    "segImu",
+    "detail.shaft",
+    "detail.ball",
+    "seg",
+    "halted"
+   ],
+   "writes": [
+    "seg",
+    "detail.shaft"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 15,
+   "name": "PositionsLadder",
+   "reads": [
+    "detail.shaft",
+    "seg",
+    "halted"
+   ],
+   "writes": [
+    "seg"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 16,
+   "name": "TimelineFusion",
+   "reads": [
+    "detail.shaft",
+    "seg",
+    "halted"
+   ],
+   "writes": [
+    "seg"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 17,
+   "name": "BindDetail",
+   "reads": [
+    "ctx.series",
+    "seg",
+    "halted"
+   ],
+   "writes": [
+    "detail.series",
+    "detail.phases"
+   ]
+  },
+  {
+   "appends": [
+    "detail.series"
+   ],
+   "id": 18,
+   "name": "HeadTrack",
+   "reads": [
+    "detail.pose2d",
+    "seg",
+    "halted"
+   ],
+   "writes": []
+  },
+  {
+   "appends": [
+    "detail.series"
+   ],
+   "id": 19,
+   "name": "FootMetrics",
+   "reads": [
+    "detail.pose2d",
+    "seg",
+    "detail.ball",
+    "halted"
+   ],
+   "writes": []
+  },
+  {
+   "appends": [
+    "detail.series"
+   ],
+   "id": 20,
+   "name": "LowerBodyMetrics",
+   "reads": [
+    "detail.pose2d",
+    "seg",
+    "detail.ball",
+    "halted"
+   ],
+   "writes": []
+  },
+  {
+   "appends": [
+    "detail.series"
+   ],
+   "id": 21,
+   "name": "UpperBodyMetrics",
+   "reads": [
+    "detail.pose2d",
+    "seg",
+    "halted"
+   ],
+   "writes": []
+  },
+  {
+   "appends": [
+    "detail.series"
+   ],
+   "id": 22,
+   "name": "BodyRotation",
+   "reads": [
+    "detail.pose2d",
+    "streams",
+    "seg",
+    "halted"
+   ],
+   "writes": []
+  },
+  {
+   "appends": [
+    "detail.series"
+   ],
+   "id": 23,
+   "name": "ClubDelivery",
+   "reads": [
+    "detail.shaft",
+    "seg",
+    "detail.ball",
+    "detail.pose2d",
+    "halted"
+   ],
+   "writes": []
+  },
+  {
+   "appends": [
+    "detail.series"
+   ],
+   "id": 24,
+   "name": "Tempo",
+   "reads": [
+    "seg",
+    "halted"
+   ],
+   "writes": []
+  },
+  {
+   "appends": [
+    "detail.series"
+   ],
+   "id": 25,
+   "name": "Kinematics",
+   "reads": [
+    "detail.shaft",
+    "detail.pose2d",
+    "seg",
+    "halted"
+   ],
+   "writes": []
+  },
+  {
+   "appends": [
+    "detail.series"
+   ],
+   "id": 26,
+   "name": "ShaftPlane",
+   "reads": [
+    "detail.shaft",
+    "seg",
+    "halted"
+   ],
+   "writes": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 27,
+   "name": "DtlPose",
+   "reads": [
+    "window.dtl",
+    "detail.pose2d",
+    "seg",
+    "halted",
+    "frames.dtl"
+   ],
+   "writes": [
+    "detail.poseDtl"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 28,
+   "name": "DtlShaft",
+   "reads": [
+    "frames.dtl",
+    "detail.poseDtl",
+    "detail.shaft",
+    "foWitness",
+    "halted"
+   ],
+   "writes": [
+    "detail.shaftDtl"
+   ]
+  },
+  {
+   "appends": [
+    "detail.series"
+   ],
+   "id": 29,
+   "name": "ShaftFusion",
+   "reads": [
+    "detail.shaft",
+    "detail.shaftDtl",
+    "detail.poseDtl",
+    "seg",
+    "halted"
+   ],
+   "writes": [
+    "detail.shaft3d"
+   ]
+  },
+  {
+   "appends": [
+    "detail.series"
+   ],
+   "id": 30,
+   "name": "DtlPosture",
+   "reads": [
+    "detail.poseDtl",
+    "detail.pose2d",
+    "seg",
+    "detail.ball",
+    "detail.shaftDtl",
+    "halted"
+   ],
+   "writes": [
+    "detail.dtlRuler"
+   ]
+  },
+  {
+   "appends": [
+    "detail.series"
+   ],
+   "id": 31,
+   "name": "AddressMarks",
+   "reads": [
+    "window.faceOn",
+    "window.dtl",
+    "seg",
+    "detail.pose2d",
+    "detail.poseDtl",
+    "detail.dtlRuler",
+    "halted",
+    "frames.faceOn",
+    "frames.dtl"
+   ],
+   "writes": [
+    "detail.addressMarks"
+   ]
+  },
+  {
+   "appends": [
+    "detail.series"
+   ],
+   "id": 32,
+   "name": "DtlShaftLie",
+   "reads": [
+    "detail.shaftDtl",
+    "detail.shaft",
+    "seg",
+    "halted"
+   ],
+   "writes": []
+  },
+  {
+   "appends": [],
+   "id": 33,
+   "name": "Skeleton3D",
+   "reads": [
+    "detail.pose2d",
+    "detail.poseDtl",
+    "detail.shaft",
+    "detail.shaftDtl",
+    "seg",
+    "detail.ball",
+    "streams",
+    "detail.series",
+    "ctx.series",
+    "halted"
+   ],
+   "writes": [
+    "detail.skeleton3d"
+   ]
+  },
+  {
+   "appends": [
+    "detail.series"
+   ],
+   "id": 34,
+   "name": "BodyRotationTriangulated",
+   "reads": [
+    "detail.skeleton3d",
+    "seg",
+    "detail.series",
+    "halted"
+   ],
+   "writes": []
+  },
+  {
+   "appends": [
+    "detail.series"
+   ],
+   "id": 35,
+   "name": "KinematicSequence",
+   "reads": [
+    "detail.pose2d",
+    "detail.poseDtl",
+    "streams",
+    "detail.shaft",
+    "detail.shaft3d",
+    "detail.skeleton3d",
+    "seg",
+    "detail.series",
+    "halted"
+   ],
+   "writes": [
+    "detail.kinematicSequence"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 36,
+   "name": "DtlSynth3D",
+   "reads": [
+    "detail.shaft",
+    "detail.shaft3d",
+    "detail.skeleton3d",
+    "seg",
+    "detail.shaftDtl",
+    "halted"
+   ],
+   "writes": [
+    "detail.shaftDtl"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 37,
+   "name": "Bindings",
+   "reads": [
+    "halted"
+   ],
+   "writes": [
+    "detail.bindings"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 38,
+   "name": "Resemblance",
+   "reads": [
+    "ctx.series",
+    "seg",
+    "streams",
+    "doRefuse",
+    "halted"
+   ],
+   "writes": [
+    "detail.score"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 39,
+   "name": "Assessment",
+   "reads": [
+    "ctx.series",
+    "streams",
+    "detail.series",
+    "detail.phases",
+    "halted"
+   ],
+   "writes": [
+    "detail.score"
+   ]
+  },
+  {
+   "appends": [],
+   "id": 40,
+   "name": "PoseAssessment",
+   "reads": [
+    "streams",
+    "detail.pose2d",
+    "detail.phases",
+    "halted"
+   ],
+   "writes": [
+    "detail.score"
+   ]
+  }
+ ],
+ "edges": [
+  {
+   "from": 2,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 3,
+   "via": [
+    "streams"
+   ]
+  },
+  {
+   "from": 2,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 4,
+   "via": [
+    "streams"
+   ]
+  },
+  {
+   "from": 3,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 4,
+   "via": [
+    "segImu"
+   ]
+  },
+  {
+   "from": 0,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 5,
+   "via": [
+    "frames.faceOn"
+   ]
+  },
+  {
+   "from": 3,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 5,
+   "via": [
+    "segImu"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw",
+    "waw"
+   ],
+   "reduced": false,
+   "to": 6,
+   "via": [
+    "detail.pose2d",
+    "runnerOpt"
+   ]
+  },
+  {
+   "from": 0,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 7,
+   "via": [
+    "frames.faceOn"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 7,
+   "via": [
+    "detail.pose2d",
+    "runnerOpt"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 7,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 0,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 9,
+   "via": [
+    "frames.faceOn"
+   ]
+  },
+  {
+   "from": 2,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 9,
+   "via": [
+    "streams"
+   ]
+  },
+  {
+   "from": 3,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 9,
+   "via": [
+    "segImu"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 9,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 9,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 7,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 9,
+   "via": [
+    "ball"
+   ]
+  },
+  {
+   "from": 3,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 10,
+   "via": [
+    "segImu"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw",
+    "war"
+   ],
+   "reduced": false,
+   "to": 10,
+   "via": [
+    "segVision",
+    "seg"
+   ]
+  },
+  {
+   "from": 0,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 11,
+   "via": [
+    "frames.faceOn"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 11,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 11,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw",
+    "waw"
+   ],
+   "reduced": false,
+   "to": 11,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 4,
+   "kinds": [
+    "raw",
+    "waw"
+   ],
+   "reduced": false,
+   "to": 12,
+   "via": [
+    "ctx.series"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 12,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 12,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 12,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 12,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 12,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 2,
+   "kinds": [
+    "raw",
+    "halted"
+   ],
+   "reduced": true,
+   "to": 13,
+   "via": [
+    "streams",
+    "halted"
+   ]
+  },
+  {
+   "from": 3,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 13,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 4,
+   "kinds": [
+    "raw",
+    "halted"
+   ],
+   "reduced": true,
+   "to": 13,
+   "via": [
+    "ctx.series",
+    "halted"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw",
+    "halted"
+   ],
+   "reduced": true,
+   "to": 13,
+   "via": [
+    "detail.pose2d",
+    "halted"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw",
+    "halted"
+   ],
+   "reduced": true,
+   "to": 13,
+   "via": [
+    "detail.pose2d",
+    "halted"
+   ]
+  },
+  {
+   "from": 7,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 13,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 8,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": false,
+   "to": 13,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 13,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 13,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 13,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 12,
+   "kinds": [
+    "raw",
+    "halted"
+   ],
+   "reduced": false,
+   "to": 13,
+   "via": [
+    "ctx.series",
+    "halted"
+   ]
+  },
+  {
+   "from": 3,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 14,
+   "via": [
+    "segImu"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw",
+    "waw",
+    "war"
+   ],
+   "reduced": true,
+   "to": 14,
+   "via": [
+    "detail.shaft",
+    "detail.ball",
+    "seg"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw",
+    "waw",
+    "serial"
+   ],
+   "reduced": true,
+   "to": 14,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "raw",
+    "waw",
+    "war"
+   ],
+   "reduced": true,
+   "to": 14,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 12,
+   "kinds": [
+    "war"
+   ],
+   "reduced": true,
+   "to": 14,
+   "via": [
+    "detail.shaft",
+    "seg"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": false,
+   "to": 14,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw",
+    "war"
+   ],
+   "reduced": true,
+   "to": 15,
+   "via": [
+    "detail.shaft",
+    "seg"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw",
+    "waw"
+   ],
+   "reduced": true,
+   "to": 15,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 15,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 12,
+   "kinds": [
+    "war"
+   ],
+   "reduced": true,
+   "to": 15,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 15,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw",
+    "waw",
+    "war",
+    "serial"
+   ],
+   "reduced": false,
+   "to": 15,
+   "via": [
+    "seg",
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw",
+    "war"
+   ],
+   "reduced": true,
+   "to": 16,
+   "via": [
+    "detail.shaft",
+    "seg"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw",
+    "waw"
+   ],
+   "reduced": true,
+   "to": 16,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 16,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 12,
+   "kinds": [
+    "war"
+   ],
+   "reduced": true,
+   "to": 16,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 16,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw",
+    "waw",
+    "war"
+   ],
+   "reduced": true,
+   "to": 16,
+   "via": [
+    "seg",
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw",
+    "waw",
+    "war",
+    "serial"
+   ],
+   "reduced": false,
+   "to": 16,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 4,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 17,
+   "via": [
+    "ctx.series"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 17,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 12,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 17,
+   "via": [
+    "ctx.series"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 17,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 17,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 17,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 17,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 18,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 18,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 18,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 18,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 18,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 18,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 18,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 18,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 19,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 19,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 19,
+   "via": [
+    "detail.ball"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 19,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 19,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 19,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 19,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 19,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 19,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 20,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 20,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 20,
+   "via": [
+    "detail.ball"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 20,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 20,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 20,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 20,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 20,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 20,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 21,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 21,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 21,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 21,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 21,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 21,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 21,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 21,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 2,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 22,
+   "via": [
+    "streams"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 22,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 22,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 22,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 22,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 22,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 22,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 22,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 22,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 23,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 23,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 23,
+   "via": [
+    "detail.shaft",
+    "detail.ball"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 23,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 23,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 23,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 23,
+   "via": [
+    "seg",
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 23,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 23,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 23,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 24,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 24,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 24,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 24,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 24,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 24,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 25,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 25,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 25,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 25,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 25,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 25,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 25,
+   "via": [
+    "seg",
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 25,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 25,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 25,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw",
+    "waw"
+   ],
+   "reduced": true,
+   "to": 26,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 26,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "raw",
+    "waw",
+    "war"
+   ],
+   "reduced": true,
+   "to": 26,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 12,
+   "kinds": [
+    "war"
+   ],
+   "reduced": true,
+   "to": 26,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 26,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw",
+    "waw",
+    "war"
+   ],
+   "reduced": true,
+   "to": 26,
+   "via": [
+    "seg",
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw",
+    "war"
+   ],
+   "reduced": true,
+   "to": 26,
+   "via": [
+    "seg",
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw",
+    "war"
+   ],
+   "reduced": true,
+   "to": 26,
+   "via": [
+    "seg",
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 26,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 23,
+   "kinds": [
+    "war"
+   ],
+   "reduced": false,
+   "to": 26,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 25,
+   "kinds": [
+    "war"
+   ],
+   "reduced": false,
+   "to": 26,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 1,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 27,
+   "via": [
+    "frames.dtl"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 27,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 27,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 27,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 27,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 27,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 27,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 27,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 1,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 28,
+   "via": [
+    "frames.dtl"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 28,
+   "via": [
+    "detail.shaft",
+    "foWitness"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 28,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 28,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 28,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 26,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 28,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 27,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 28,
+   "via": [
+    "detail.poseDtl"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 29,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 29,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 29,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 29,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 29,
+   "via": [
+    "seg",
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 29,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 29,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 29,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 26,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 29,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 27,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 29,
+   "via": [
+    "detail.poseDtl"
+   ]
+  },
+  {
+   "from": 28,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 29,
+   "via": [
+    "detail.shaftDtl"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 30,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 30,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 30,
+   "via": [
+    "detail.ball"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 30,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 30,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 30,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 30,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 30,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 30,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 27,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 30,
+   "via": [
+    "detail.poseDtl"
+   ]
+  },
+  {
+   "from": 28,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 30,
+   "via": [
+    "detail.shaftDtl"
+   ]
+  },
+  {
+   "from": 0,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 31,
+   "via": [
+    "frames.faceOn"
+   ]
+  },
+  {
+   "from": 1,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 31,
+   "via": [
+    "frames.dtl"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 31,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 31,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 31,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 31,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 31,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 31,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 31,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 31,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 27,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 31,
+   "via": [
+    "detail.poseDtl"
+   ]
+  },
+  {
+   "from": 30,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 31,
+   "via": [
+    "detail.dtlRuler"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 32,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 32,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 32,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 32,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 32,
+   "via": [
+    "seg",
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 32,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 32,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 32,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 26,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 32,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 28,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 32,
+   "via": [
+    "detail.shaftDtl"
+   ]
+  },
+  {
+   "from": 2,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "streams"
+   ]
+  },
+  {
+   "from": 4,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "ctx.series"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "detail.shaft",
+    "detail.ball"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 12,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "ctx.series"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "seg",
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 18,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 33,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 19,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 33,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 20,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 33,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 21,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 33,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 22,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 33,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 23,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 24,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 33,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 25,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 26,
+   "kinds": [
+    "raw",
+    "append"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "detail.shaft",
+    "detail.series"
+   ]
+  },
+  {
+   "from": 27,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "detail.poseDtl"
+   ]
+  },
+  {
+   "from": 28,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "detail.shaftDtl"
+   ]
+  },
+  {
+   "from": 29,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 33,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 30,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 31,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 33,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 32,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 33,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "raw",
+    "append"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 18,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 19,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 20,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 21,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 22,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 23,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 24,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 25,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 26,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 29,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 30,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 31,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 32,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 33,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 34,
+   "via": [
+    "detail.skeleton3d"
+   ]
+  },
+  {
+   "from": 2,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "streams"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "seg",
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "raw",
+    "append"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 18,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 19,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 20,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 21,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 22,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 23,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 24,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 25,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 26,
+   "kinds": [
+    "raw",
+    "append"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.shaft",
+    "detail.series"
+   ]
+  },
+  {
+   "from": 27,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.poseDtl"
+   ]
+  },
+  {
+   "from": 29,
+   "kinds": [
+    "raw",
+    "append"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.shaft3d",
+    "detail.series"
+   ]
+  },
+  {
+   "from": 30,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 31,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 32,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 33,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "detail.skeleton3d"
+   ]
+  },
+  {
+   "from": 34,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 35,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 36,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 36,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 36,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 36,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 36,
+   "via": [
+    "seg",
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 36,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 36,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 26,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 36,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 28,
+   "kinds": [
+    "raw",
+    "waw"
+   ],
+   "reduced": true,
+   "to": 36,
+   "via": [
+    "detail.shaftDtl"
+   ]
+  },
+  {
+   "from": 29,
+   "kinds": [
+    "raw",
+    "war"
+   ],
+   "reduced": true,
+   "to": 36,
+   "via": [
+    "detail.shaft3d",
+    "detail.shaftDtl"
+   ]
+  },
+  {
+   "from": 30,
+   "kinds": [
+    "war"
+   ],
+   "reduced": true,
+   "to": 36,
+   "via": [
+    "detail.shaftDtl"
+   ]
+  },
+  {
+   "from": 32,
+   "kinds": [
+    "war"
+   ],
+   "reduced": true,
+   "to": 36,
+   "via": [
+    "detail.shaftDtl"
+   ]
+  },
+  {
+   "from": 33,
+   "kinds": [
+    "raw",
+    "war"
+   ],
+   "reduced": false,
+   "to": 36,
+   "via": [
+    "detail.skeleton3d",
+    "detail.shaftDtl"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": false,
+   "to": 37,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 2,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 38,
+   "via": [
+    "streams",
+    "doRefuse"
+   ]
+  },
+  {
+   "from": 4,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 38,
+   "via": [
+    "ctx.series"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 38,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 12,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 38,
+   "via": [
+    "ctx.series"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 38,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 38,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 15,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 38,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 16,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": false,
+   "to": 38,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 2,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "streams"
+   ]
+  },
+  {
+   "from": 4,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "ctx.series"
+   ]
+  },
+  {
+   "from": 12,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "ctx.series"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "detail.series",
+    "detail.phases"
+   ]
+  },
+  {
+   "from": 18,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 19,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 20,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 21,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 22,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 23,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 24,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 25,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 26,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 29,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 30,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 31,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 32,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 34,
+   "kinds": [
+    "append"
+   ],
+   "reduced": true,
+   "to": 39,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 35,
+   "kinds": [
+    "append"
+   ],
+   "reduced": false,
+   "to": 39,
+   "via": [
+    "detail.series"
+   ]
+  },
+  {
+   "from": 38,
+   "kinds": [
+    "waw"
+   ],
+   "reduced": false,
+   "to": 39,
+   "via": [
+    "detail.score"
+   ]
+  },
+  {
+   "from": 2,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 40,
+   "via": [
+    "streams"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 40,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 40,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 40,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 17,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 40,
+   "via": [
+    "detail.phases"
+   ]
+  },
+  {
+   "from": 38,
+   "kinds": [
+    "waw"
+   ],
+   "reduced": true,
+   "to": 40,
+   "via": [
+    "detail.score"
+   ]
+  },
+  {
+   "from": 39,
+   "kinds": [
+    "waw"
+   ],
+   "reduced": false,
+   "to": 40,
+   "via": [
+    "detail.score"
+   ]
+  }
+ ],
+ "serialGroups": [
+  [
+   "SegResolve",
+   "EventRefine",
+   "PositionsLadder",
+   "TimelineFusion"
+  ]
+ ]
+}
