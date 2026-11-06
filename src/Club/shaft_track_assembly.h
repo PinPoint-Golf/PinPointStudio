@@ -267,6 +267,15 @@ struct ShaftV3Config {
     // coverage span — 0709_swing_0004 escalation). 0 disables; inert when no
     // impact frame is supplied (hands-derived impf must not filter its inputs).
     int64_t runMaxStartAfterImpactUs = 1000000;
+    // With a supplied impact the motion through it is the downswing, whatever else it chains to
+    // (#159). The net-displacement gate below no longer drops a chained run holding the impact: it
+    // keeps the raw run at impact instead. Noisy hands after impact had bridged the follow-through
+    // into a chain going nowhere, the gate rejected the downswing with it, and the backswing was
+    // left alone, top and finish together at its end, both before impact (2 Nov s1, s2; 7 Oct s11;
+    // 20 Oct W03 s2). The two-longest ranking must also hold a run ending after impact, and if
+    // none exists the finish sits finishFloorAfterImpactUs after it. false = the old model.
+    bool    finishAfterImpact = true;
+    int64_t finishFloorAfterImpactUs = 400000;
     // Capture-hole clip (0 = off; inert without frame timestamps or a supplied
     // impact frame). A single inter-frame interval longer than this many median
     // frame periods AFTER the impact anchor is a capture drop, not motion: the

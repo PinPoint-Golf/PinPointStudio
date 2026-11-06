@@ -513,8 +513,12 @@ int main()
         std::printf("    bsEnd=%d down=%d impact=%d hole=%d | null top=%d fin0=%d | holed top=%d fin0=%d hole=%d\n",
                     bsEnd, downStart, impact, hole, pNull.top, pNull.fin0, pHole.top, pHole.fin0,
                     pHole.captureHole);
-        check(pNull.top <= bsEnd && pNull.captureHole < 0,
-              "fixture sane: without the clip the top collapses onto the backswing run end");
+        ShaftV3Config noRule = cfg; noRule.finishAfterImpact = false;
+        const PhaseModel pBare = segmentPhases(t.gx, t.gy, nf, 150.0, impact, noRule, nullptr);
+        check(pBare.top <= bsEnd && pBare.captureHole < 0,
+              "fixture sane: without the clip or the #159 rule the top collapses onto the backswing run end");
+        check(pNull.top > bsEnd && pNull.top < downStart && pNull.captureHole < 0,
+              "the #159 rule alone keeps the downswing, with no hole to clip at");
         check(pHole.captureHole == hole, "holed timestamps: clip fires at the first post-impact hole");
         check(pHole.top > bsEnd && pHole.top < downStart,
               "holed timestamps: top lands in the dwell (two-run rule restored)");
@@ -601,6 +605,71 @@ int main()
               "ON+hold: Address at hold end, Takeaway at bs0");
         check(segHold.eventFor(Phase::Address)->t_us < segHold.eventFor(Phase::Takeaway)->t_us,
               "ON+hold: Address strictly before Takeaway");
+    }
+
+    // ── The finish cannot fall before impact (#159) ──────────────────────────
+    // Built from speed per frame: a path of straight legs, gx fixed, so gy alone sets the speed.
+    {
+        std::printf("finish after impact\n");
+        struct Leg { int frames; double perFrame; };
+        const auto path = [](const std::vector<Leg>& legs) {
+            std::vector<double> gy{ 800.0 };
+            for (const Leg& l : legs)
+                for (int f = 0; f < l.frames; ++f) gy.push_back(gy.back() + l.perFrame);
+            return gy;
+        };
+        ShaftV3Config cfg;
+        cfg.swLow = 0.0;          // no onset walk-back: these cases are about top and finish
+        ShaftV3Config off = cfg;
+        off.finishAfterImpact = false;
+
+        // The 2 Nov shape: after impact the hands rise back to the top, and bursts bridge onto the
+        // downswing into a chain that goes nowhere, so the gate rejects the whole of it.
+        const std::vector<double> chained = path({ { 100, 0 }, { 40, -20 }, { 40, 0 },      // address, backswing 100-139, top
+                                                   { 20, 20 }, { 20, -20 },                 // downswing 180-199, impact 200, through
+                                                   { 5, 0 }, { 12, 20 }, { 5, 0 }, { 12, -20 },
+                                                   { 5, 0 }, { 12, 20 }, { 5, 0 }, { 12, -20 }, { 150, 0 } });
+        const int nA = int(chained.size()), impactA = 200;
+        const std::vector<double> gxA(nA, 400.0);
+        const PhaseModel was = segmentPhases(gxA, chained, nA, 150.0, impactA, off, nullptr);
+        check(was.fin0 < impactA, "off: the gate drops the downswing and the finish falls before impact");
+        const PhaseModel now = segmentPhases(gxA, chained, nA, 150.0, impactA, cfg, nullptr);
+        check(now.fin0 > impactA, "the chain holding impact leaves its raw run, and the finish follows impact");
+        check(now.fin0 < impactA + 40, "the finish is the end of the raw run, not of the whole chain");
+        check(now.top > 140 && now.top < 180, "the top sits in the dwell between backswing and downswing");
+
+        // Two long pieces of a fragmented backswing outrank a shorter downswing for the two slots.
+        const std::vector<double> fragmented = path({ { 100, 0 }, { 40, -15 }, { 16, 0 }, { 40, -15 }, { 30, 0 },
+                                                      { 12, 40 }, { 200, 0 } });
+        const int nB = int(fragmented.size()), impactB = 236;
+        const std::vector<double> gxB(nB, 400.0);
+        check(segmentPhases(gxB, fragmented, nB, 150.0, impactB, off, nullptr).fin0 < impactB,
+              "off: two backswing pieces win and the finish falls before impact");
+        check(segmentPhases(gxB, fragmented, nB, 150.0, impactB, cfg, nullptr).fin0 > impactB,
+              "the run past impact takes the second slot");
+
+        // No motion at all past impact: the floor, clamped to the clip.
+        const std::vector<double> still = path({ { 100, 0 }, { 60, -15 }, { 200, 0 } });
+        const int nC = int(still.size());
+        const std::vector<double> gxC(nC, 400.0);
+        check(segmentPhases(gxC, still, nC, 150.0, 260, cfg, nullptr).fin0 == 320,
+              "no run past impact: the finish sits 400 ms after it");
+        check(segmentPhases(gxC, still, nC, 150.0, nC - 10, cfg, nullptr).fin0 == nC - 1,
+              "the floor stops at the last frame");
+
+        // A swing the model already reads is untouched.
+        const std::vector<double> clean = path({ { 100, 0 }, { 40, -20 }, { 40, 0 }, { 20, 20 }, { 30, -8.5 }, { 200, 0 } });
+        const int nD = int(clean.size());
+        const std::vector<double> gxD(nD, 400.0);
+        const PhaseModel cOff = segmentPhases(gxD, clean, nD, 150.0, 200, off, nullptr);
+        const PhaseModel cOn  = segmentPhases(gxD, clean, nD, 150.0, 200, cfg, nullptr);
+        check(cOff.fin0 > 200 && cOn.fin0 == cOff.fin0 && cOn.top == cOff.top && cOn.bs0 == cOff.bs0,
+              "a clean swing's model is the same with the rule on or off");
+
+        // Hands-derived impact: no anchor, no rule.
+        check(segmentPhases(gxA, chained, nA, 150.0, -1, cfg, nullptr).fin0
+                  == segmentPhases(gxA, chained, nA, 150.0, -1, off, nullptr).fin0,
+              "without an anchor the rule is inert");
     }
 
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);

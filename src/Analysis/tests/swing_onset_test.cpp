@@ -377,6 +377,7 @@ int main()
     {
         const ShaftV3Config on;                      // topRepairEnabled=true (FROZEN ON 2026-08-10)
         ShaftV3Config dark = on; dark.topRepairEnabled = false;
+        dark.finishAfterImpact = false;              // the bare collapse: #159's floor would follow the dragged impact
         std::vector<double> gx, gy; makeCollapseA().build(gx, gy);
         const int nf = int(gx.size());
         const int anchor = anchorFrame(gy, 122);
@@ -401,6 +402,7 @@ int main()
     {
         const ShaftV3Config on;
         ShaftV3Config dark = on; dark.topRepairEnabled = false;
+        dark.finishAfterImpact = false;              // the bare collapse: #159's floor would follow the dragged impact
         std::vector<double> gx, gy; makeCollapseB().build(gx, gy);
         const int nf = int(gx.size());
         const int anchor = anchorFrame(gy, 126);
@@ -478,6 +480,7 @@ int main()
     {
         const ShaftV3Config on;
         ShaftV3Config dark = on; dark.topRepairEnabled = false;
+        dark.finishAfterImpact = false;              // the bare collapse: #159's floor would follow the dragged impact
         // Healthy swing + anchor: top sits well before the anchor — gate quiet.
         std::vector<double> gx, gy; makeSwing().build(gx, gy);
         const int nf = int(gx.size());
@@ -502,6 +505,7 @@ int main()
     {
         const ShaftV3Config on;
         ShaftV3Config dark = on; dark.topRepairEnabled = false;
+        dark.finishAfterImpact = false;              // the bare collapse: #159's floor would follow the dragged impact
         Builder b = makeCollapseA();
         std::vector<double> gx, gy; b.build(gx, gy);
         const int nf = int(gx.size());

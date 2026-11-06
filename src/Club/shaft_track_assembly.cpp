@@ -506,6 +506,8 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.onsetBridgeMinNetFrac", c.onsetBridgeMinNetFrac);
     apply(ov, "shaft.emitTakeaway", c.emitTakeaway);
     apply(ov, "shaft.runMaxStartAfterImpactUs", c.runMaxStartAfterImpactUs);
+    apply(ov, "shaft.finishAfterImpact", c.finishAfterImpact);
+    apply(ov, "shaft.finishFloorAfterImpactUs", c.finishFloorAfterImpactUs);
     apply(ov, "shaft.captureHolePeriods", c.captureHolePeriods);
     apply(ov, "shaft.topRepair.enabled", c.topRepairEnabled);
     apply(ov, "shaft.topRepair.minDownswingUs", c.topRepairMinDownswingUs);
@@ -825,6 +827,7 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
     // unmerged run). Carried through the clamp so the m3gate below can tell a
     // long oscillation chain from an ordinary run or a 2-fragment merge.
     std::vector<int> chain(runs.size(), 1);
+    const std::vector<std::pair<int, int>> rawRuns = runs;   // before bridging: the gate's way back to the raw run at impact
     if (cfg.onsetRunBridgeFrames > 0 && runs.size() > 1) {
         std::vector<std::pair<int, int>> merged{ runs.front() };
         std::vector<int> mChain{ 1 };
@@ -917,7 +920,13 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
                     for (int f = runs[i].first + 1; f <= runs[i].second; ++f) path += spd[f];
                     ok = net >= cfg.onsetBridgeMinNetFrac * path;
                 }
-                if (ok) kept.push_back(runs[i]);
+                if (ok) {
+                    kept.push_back(runs[i]);
+                } else if (cfg.finishAfterImpact && impactFrame >= runs[i].first && impactFrame <= runs[i].second) {
+                    // Not a flap: the swing passes through this chain (#159). The raw run at impact stands in for it.
+                    for (const std::pair<int, int>& r : rawRuns)
+                        if (r.first >= runs[i].first && r.second >= impactFrame) { kept.push_back(r); break; }
+                }
             }
             if (!kept.empty()) runs = std::move(kept);
         }
@@ -929,6 +938,16 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
     std::vector<std::pair<int, int>> big(runs.begin(), runs.begin() + std::min<size_t>(2, runs.size()));
     std::stable_sort(big.begin(), big.end(),
                      [](const std::pair<int, int>& a, const std::pair<int, int>& b) { return a.first < b.first; });
+    // The ranking can pick two pieces of a fragmented backswing and no downswing at all (#159).
+    if (cfg.finishAfterImpact && impactFrame >= 0 && big.back().second <= impactFrame) {
+        const std::pair<int, int>* after = nullptr;
+        for (const std::pair<int, int>& r : runs)
+            if (r.second > impactFrame && (!after || r.first < after->first)) after = &r;
+        if (after) {
+            if (big.size() >= 2) big.back() = *after;
+            else big.push_back(*after);
+        }
+    }
     int bs0 = big[0].first;   // non-const: a fired top repair may reseed it (below)
     int top, dsEnd;
     if (big.size() >= 2) {
@@ -1036,7 +1055,9 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
         for (int f = top; f <= dsEnd; ++f) if (gy[f] >= addrGy - 20.0) { impf = f; break; }
     }
     impf = std::clamp(impf, top + 1, nf - 1);
-    const int fin0 = std::min(dsEnd, nf - 1);
+    int fin0 = std::min(dsEnd, nf - 1);
+    if (cfg.finishAfterImpact && impactFrame >= 0 && fin0 <= impf)   // no motion found past impact (#159)
+        fin0 = std::min(nf - 1, impf + int(std::lround(double(cfg.finishFloorAfterImpactUs) * 1e-6 * fps)));
     const int IMP = cfg.impHalf;
 
     // Stage A true-onset walk-back (swing_span_bounding_plan.md §4). The

@@ -214,6 +214,7 @@ History:
 
 - **impactBoundary** — 3c201a58 (2026-09-06), with `kinematics.composed` and `synth.curveRate`. On the six 08-18 LM pairs the speed peak moved −17…−19 ms → −1…−9 ms and the pre-impact SD went 3.3 → 1.8 mph. Two deeper probes were rejected and are not in the tree: splitting the φ Gaussian at impact, and DP prior ×0.25 across contact (SD 1.9 → 5.2 mph).
 - **impactGeom** — 7ee515cd dark, 02cf2b0f ON (2026-08-10): fixed 8 clamp-corrupted impacts (0703_0002 +234 → −10 ms). One-sided override from 02e04113 (2026-09-11). From #158 (2026-11-06) `shaft.impactGeom.maxBeforeRawAnchorUs` (100 ms, ≤ 0 off) stops the search reaching back past the top, where a wander of the track could override a correct anchor.
+- **finishAfterImpact** — #159 (2026-11-06), `shaft.finishAfterImpact`, ON; `shaft.finishFloorAfterImpactUs` 400 ms. The phase model keeps the raw run through impact when the net-displacement gate rejects its chain, the two-longest ranking must hold a run ending after impact, and with no such run the finish sits at the floor. False restores the old model.
 - **followThrough** — df044ff2 (2026-09-17), triggered by 15 Sept pitch shots where the tracker captured the lead arm (a 190° flip in 80 ms). Sample angles and timing were unchanged elsewhere; 28/55 swings touched, a median of 2 samples each.
 
 ### 3.10 P-positions & blur wedge
