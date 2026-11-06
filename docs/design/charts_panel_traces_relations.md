@@ -61,8 +61,9 @@ falls back to Session there.
   typical, the previous or next shot, or "shots like this one" (the group fit of the shots shaped like it,
   warped onto this swing's own P-positions). Optional "this minus the reference" strip under each trace,
   with the largest gap marked: *when* this swing left your normal one.
-- **Apart from the session** (B): the readings that put this shot past the session's whiskers lead
-  ("Seven readings apart from the session"), then every reading the swing produced, each at the instant
+- **Apart from the session** (B): what stood out on this shot leads, club for club: the launch monitor's
+  readings past their fences, then the swing's stand-outs ("Seven readings apart from the session";
+  consistency_design.md §4.3, §5), then every reading the swing produced, each at the instant
   its card reads it, beside a box plot of the session with this shot ringed. A row opens its curve in place,
   with a box of all shots at each P-position. Folds below the traces; in print it is an index at the back.
 

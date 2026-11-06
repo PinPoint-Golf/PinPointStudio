@@ -421,7 +421,7 @@ PpChViewBase {
                                                    interactive: sv.interactive; cast: sv.cast }
     }
 
-    // Apart from the session (B): the readings past the session's whiskers lead
+    // Apart from the session (B): what stood out from the other shots, club for club, leads
     Column {
         objectName: "chApart"
         visible: !sv.replay && !!sv.rs && sv.rs.available === true

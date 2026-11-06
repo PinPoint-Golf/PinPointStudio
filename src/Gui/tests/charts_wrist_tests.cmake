@@ -9,6 +9,8 @@ pp_add_test(charts_wrist_presenter_test
     SOURCES charts_wrist_presenter_test.cpp
             ${GUI}/charts/charts_wrist_presenter.cpp
             ${GUI}/charts/charts_relations_presenter.cpp
+            ${GUI}/charts/session_consistency.cpp
+            ${GUI}/charts/consistency_env.cpp
             ${GUI}/charts/session_series_model.cpp
             ${GUI}/charts/session_curves.cpp
             ${GUI}/charts/session_warp.cpp

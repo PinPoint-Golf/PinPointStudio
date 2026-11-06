@@ -36,7 +36,7 @@ Item {
     function selfCheck(what) {
         if (!body) return "no body"
         if (what === "open") {
-            if (apartEmpty) return "SKIP this shot's Apart list is empty (nothing sits past the session's whiskers)"
+            if (apartEmpty) return "SKIP this shot's Apart list is empty (nothing stood out on this shot)"
             // the row opens in the Apart list; the same reading also opens where "Every reading against the
             // session" lists it (one openId per panel), so count the Apart list's own
             const lists = shown("chApartList")

@@ -53,6 +53,26 @@
 // for a delta, "rate of change to P7" for a rate. Every kind marks the key@phase reading; the word says
 // what was graded there. thisShot.firedElsewhere rows carry { reducer, instant } too.
 //
+// ── APART FROM THE SESSION (consistency_design.md §4.3, §5) ──────────────────────────────────
+// The Consistency tab's own rule, so the two cannot disagree. thisShot.apart is consistencyLmRows for the
+// picked shot, ball then club, then its stand-outs, in the rule's order; apartCount counts those. Both are
+// read from the session as recorded, compared club by club, and worked out once a snapshot, on the worker.
+// A row is a READING ROW holding what was tested, not the reading at its card's instant:
+//   · a launch-monitor row: the club's values, and the club's box, the shot in it.
+//   · a stand-out: `value` is the point of the reading the rule tested, the weakest of the five in a span.
+//     `box` and `medianText` are the OTHER shots' at that point (min and max still reach this shot, for the
+//     scale; n counts it), set on this shot's club's scale, so value less median is what was judged.
+//     `tag` is the table's column: "P7" for Impact, else the span ("P4-P5") or "P1".
+//     A span's row is not graded (no fired mark, no corridor): a condition grades an instant.
+// `readingId` is a real reading of the key, read at the column's end if the key is, so opening the row opens
+// that reading's curve or run. A key with a curve and no reading at all (swingPlaneCurve) has no such id: the
+// row takes "key@phase" with `opens` "trace", and openRow resolves that to the picked shot's curve, by key. With
+// no curve on this shot there is nothing to open, and the row says so: `opens` "" and `readingId` "".
+// The row's `apart` and `side` keep the box's meaning, past a whisker;
+// apartFrom (session_relations.h) still means that too, and is no longer what counts as apart.
+// A shot whose ladder is guarded says so in `standfirst`; `status.timings.consistencyMs` is what a job spent
+// on the rule, 0 once it has run for the snapshot.
+//
 // ── THREADING AND COST (STEP2A) ──────────────────────────────────────────────────────────────
 // Everything but the playhead runs on one private single-thread pool, coalesced (a change while a job
 // runs queues ONE re-run with the latest inputs), delivered by queued invocation; `busy` meanwhile, and
@@ -73,7 +93,7 @@
 //     whiskers' ends), numbers null when n = 0.
 //   · A READING ROW (thisShot rows, family rows) =
 //       { readingId, key, phase, tag ("P7"), phaseName ("Impact"), label, short, unit ("mph", "°", "%"),
-//         unitText (the unit column: "" for ° and :1), group, multi (key read at several instants),
+//         unitText (the unit column: "" for °, :1 and ratio), group, multi (key read at several instants),
 //         measured, value (number|null), valueText ("82"), valueFigure ("82 mph"), medianText ("72"),
 //         place ("3rd highest" | "highest of 15" | ""), rankHi, rankLo, rz, side (−1|0|1), apart (bool),
 //         box, values, firedShots: [bool per shot], fired (bool, this shot), firedWord ("out of its
@@ -125,9 +145,9 @@
 //     place, warn, warnWord (as a row's firedWord; "late" for a sequence peak), sentence ("82 mph, median 72, 3rd highest") }] },
 //   lead: { readingId, trace (TRACE) | null }      — the family's lead reading on this shot (any n)
 //   familyRows: [READING ROW]                      — the family's other readings (Replay)
-//   apart: [READING ROW]                           — past a whisker, most extreme first
+//   apart: [READING ROW]                           — the launch monitor's rows, then the stand-outs (below)
 //   groups: [{ name, rows: [READING ROW] }]         — EVERY reading by family (D5)
-//   notes (string; the apart definition),
+//   notes (string; what apart means),
 //   firedElsewhere: [{ condition, name, metricKey, phase }],
 //   asks: [{ id, text, answer, lit: [ordinal], go ("" | "relations" | "kinds"), upId }] }
 // openRow: {} or { readingId, opens: "trace" | "run", trace: TRACE | null, run: RUN }
@@ -207,6 +227,7 @@
 //
 // Unit-tested in src/Gui/tests/charts_relations_presenter_test.cpp.
 
+#include "session_consistency.h"
 #include "session_curves.h"
 #include "session_series_types.h"
 
@@ -222,6 +243,11 @@
 #include <functional>
 #include <memory>
 #include <vector>
+
+namespace pinpoint::analysis {
+struct GradePolicy;
+class INormProvider;
+}
 
 namespace pinpoint::charts {
 
@@ -383,10 +409,49 @@ private:
     // the worker
     QThreadPool m_pool;
     std::shared_ptr<Cache> m_cache;        // touched only inside a job (jobs never overlap)
+    ConsistencyEnv m_consistencyEnv;       // taken on the GUI thread; a job holds a copy
     bool m_synchronous = false;
     bool m_running = false;
     bool m_dirty = false;
     int  m_generation = 0;
+};
+
+// THE ROWS CHARTS' APART AND THE CONSISTENCY TAB BOTH SHOW, so the two cannot disagree: this file's own session
+// cache and row builders (the mappings described under APART FROM THE SESSION above), for a presenter that wants
+// them over a whole snapshot. update() does the session-level work once per snapshot and revision, on the worker
+// that calls it; everything else reads what it left. Never touched by two threads at once. `shot` is a shot's index
+// in strike order, -1 for none: a row then carries no value of its own, only the session's box.
+class ConsistencyReadingRows
+{
+public:
+    ConsistencyReadingRows();
+    ~ConsistencyReadingRows();
+
+    // True when the snapshot was new to it. `faultZ`, `policy` and `norms` are the job's, as Charts' own.
+    bool update(const std::shared_ptr<const SessionSnapshot> &snapshot, const ConsistencyEnv &env, double faultZ,
+                const pinpoint::analysis::GradePolicy &policy,
+                const std::shared_ptr<const pinpoint::analysis::INormProvider> &norms);
+    int    runs() const;            // how many times the session-level work has run
+    double ms() const;              // what the latest update spent on the rule, 0 when the snapshot was not new
+
+    const SessionSnapshot   &session() const;       // as recorded, in strike order
+    const ConsistencyInput  &input() const;
+    const ConsistencyResult &result() const;
+    const std::vector<ConsistencyLmRow> &lmRows(int shot) const;
+
+    // READING ROWs. readingRow is a reading of the table at the middle of its span (its one point for a position),
+    // against every shot's box there.
+    QVariantMap lmRow(int shot, const ConsistencyLmRow &row) const;
+    QVariantMap standOutRow(int shot, const ConsistencyStandOut &standOut) const;
+    QVariantMap readingRow(int shot, const ConsistencyJudged &judged) const;
+
+    // Why no test could run on this shot, "" when one could; `swingOnly` asks of the swing's tests alone.
+    QString cannotCompare(int shot, bool swingOnly) const;
+    static QString guardNote();                     // the ⚠ words of a shot whose ladder is guarded
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> m;
 };
 
 } // namespace pinpoint::charts

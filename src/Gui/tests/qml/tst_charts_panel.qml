@@ -369,12 +369,12 @@ Item {
             verify(textOf(oneShown("chKindMembers")).indexOf("Not measured") >= 0)
         }
 
-        // ── Apart from the session (§2.1 B): seven readings, a row opens in place ──
+        // ── Apart from the session (consistency_design.md §5): the stand-out rule's rows, a row opens in place ──
         function test_11_the_apart_ledger_and_a_row_that_opens_in_place() {
             const apart = oneShown("chApart")
-            verify(textOf(apart).indexOf("Seven readings apart from the session") >= 0)
+            verify(textOf(apart).indexOf("Six readings apart from the session") >= 0)
             const rows = shownAll("chApartRow", oneShown("chApartList"))
-            compare(rows.length, 7)
+            compare(rows.length, 6)
             const id = rows[0].readingId
             pressAt(rows[0], 30, 10)
             compare(hn.body.openId, id)

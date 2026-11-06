@@ -19,14 +19,18 @@
 // The Charts panel's relations presenter (src/Gui/charts/charts_relations_presenter.h) on the trimmed
 // 4 July fixture — the session variant B's mock was drawn from — read at the metric catalogue's card
 // instants, and on the real scratch session through SessionSeriesModel (QSKIP when the share is not
-// mounted). The mock's own sentences and counts are the expectations: shot 8's seven readings apart,
-// clubhead speed's ledger with 4 of 67 clearing chance, shaft lean at P7 drifting at r −.88, the kinds
-// with no structure (silhouette .02) and an 8 mph split of 6 and 9.
+// mounted). The mock's own sentences and counts are the expectations: clubhead speed's ledger with 4 of 67 clearing chance, shaft lean at P7 drifting at r −.88, the kinds
+// with no structure (silhouette .02) and an 8 mph split of 6 and 9. Apart from the session is the Consistency
+// stand-out rule (consistency_design.md §5): its rows are checked against the rule itself, and on the 5 Oct
+// launch-monitor fixture against that session's golden.
 
 #include "charts/charts_relations_presenter.h"
 #include "charts/charts_words.h"
+#include "charts/consistency_env.h"
+#include "charts/session_consistency.h"
 #include "charts/session_relations.h"
 #include "charts/session_series_model.h"
+#include "charts/session_warp.h"
 #include "charts_maths_fixture.h"
 
 #include <QDir>
@@ -56,6 +60,73 @@ std::shared_ptr<SessionSnapshot> withDirs(const SessionSnapshot &in)
 }
 
 QString text(const QVariant &sentence) { return sentence.toMap().value(QStringLiteral("text")).toString(); }
+
+// A copy of a session with `key` a curve and nothing else, as swingPlaneCurve is: no phase samples, so no reading.
+// Each shot's curve is flat at its ordinal/10, `outlier`'s far above the rest.
+std::shared_ptr<SessionSnapshot> withCurveOnly(const SessionSnapshot &in, const QString &key, int outlier)
+{
+    auto s = std::make_shared<SessionSnapshot>(in);
+    ++s->revision;
+    for (auto &sp : s->shots) {
+        auto c = std::make_shared<ShotSeries>(*sp);
+        MetricSeries m;
+        m.key = key; m.label = QStringLiteral("Swing plane curve"); m.unit = QStringLiteral("°");
+        for (qint64 t = c->impactUs - 3000000; t <= c->impactUs + 500000; t += 5000) {
+            m.tUs.push_back(t);
+            m.value.push_back(c->ordinal / 10.0 + (c->ordinal == outlier ? 100.0 : 0.0));
+        }
+        if (!c->metrics.contains(key)) c->metricOrder << key;
+        c->metrics.insert(key, m);
+        sp = c;
+    }
+    return s;
+}
+
+// Readings past a whisker on this shot, what used to be Apart: the rows' `apart` keeps that meaning.
+int boxApartCount(const QVariantMap &thisShot)
+{
+    int n = 0;
+    for (const QVariant &g : thisShot.value(QStringLiteral("groups")).toList())
+        for (const QVariant &r : g.toMap().value(QStringLiteral("rows")).toList())
+            n += r.toMap().value(QStringLiteral("apart")).toBool() ? 1 : 0;
+    return n;
+}
+
+// The rows of one shot against the rule, worked out here apart from the presenter: its launch-monitor rows, then
+// its stand-outs in the rule's order, each showing the point tested, the others' box there and the difference judged.
+void checkApart(const SessionSnapshot &s, int ordinal, const QVariantList &rows)
+{
+    const ConsistencyInput in = consistencyInput(s, alignSession(s), consistencyEnvFromPacks());
+    const ConsistencyResult res = consistencyResult(in);
+    const std::vector<ConsistencyLmRow> lm = consistencyLmRows(s, ordinal);
+    QStringList want;
+    std::vector<const ConsistencyStandOut *> standOuts;
+    for (const ConsistencyLmRow &r : lm) want << r.key;
+    for (const ConsistencyStandOut &o : res.standouts)
+        if (o.ordinal == ordinal) { want << o.key; standOuts.push_back(&o); }
+    QStringList got;
+    for (const QVariant &r : rows) got << r.toMap().value(QStringLiteral("key")).toString();
+    QCOMPARE(got, want);
+
+    for (size_t i = 0; i < lm.size(); ++i) {
+        const QVariantMap r = rows.at(int(i)).toMap();
+        QCOMPARE(r.value(QStringLiteral("value")).toDouble(), lm[i].value);
+        QVERIFY(r.value(QStringLiteral("apart")).toBool());     // the club's own box: past a whisker, by the same fence
+        QCOMPARE(r.value(QStringLiteral("side")).toInt(), lm[i].side);
+    }
+    for (size_t i = 0; i < standOuts.size(); ++i) {
+        const ConsistencyStandOut &o = *standOuts[i];
+        const QVariantMap r = rows.at(int(lm.size() + i)).toMap();
+        const ConsistencyReading &tested = in.readings[size_t(o.reading)];
+        const int shot = ordinal - 1;
+        QCOMPARE(r.value(QStringLiteral("value")).toDouble(), tested.at(shot, o.sample));
+        const QVariantMap box = r.value(QStringLiteral("box")).toMap();
+        QVERIFY2(std::abs(tested.at(shot, o.sample) - box.value(QStringLiteral("med")).toDouble() - o.dv) < 1e-9, qPrintable(o.key));
+        const double value = r.value(QStringLiteral("value")).toDouble();
+        QVERIFY(value >= box.value(QStringLiteral("min")).toDouble() && value <= box.value(QStringLiteral("max")).toDouble());
+        QVERIFY(r.value(QStringLiteral("apart")).toBool());     // 3.5 spreads from the median is past either whisker
+    }
+}
 
 QVariantMap rowOf(const QVariantMap &thisShot, const QString &id)
 {
@@ -89,6 +160,225 @@ class ChartsRelationsPresenterTest : public QObject
     }
 
 private slots:
+    // A ratio has no unit word and a whole number says nothing of it: "0.99, median 1.09", never "1 ratio, median 1".
+    void aRatioReadsTwoPlaces()
+    {
+        const charts_test::Fixture oct = charts_test::loadFixture(kDataDir + QStringLiteral("/session_1005.json"));
+        QVERIFY(oct.ok);
+        auto p = make(withDirs(oct.session), 7);
+        for (const QVariant &v : p->thisShot().value(QStringLiteral("apart")).toList()) {
+            const QVariantMap r = v.toMap();
+            if (r.value(QStringLiteral("key")).toString() != QLatin1String("lm.smashFactor")) continue;
+            QCOMPARE(r.value(QStringLiteral("valueText")).toString(), QStringLiteral("0.99"));
+            QCOMPARE(r.value(QStringLiteral("valueFigure")).toString(), QStringLiteral("0.99"));
+            QCOMPARE(r.value(QStringLiteral("medianText")).toString(), QStringLiteral("1.09"));
+            QCOMPARE(r.value(QStringLiteral("unitText")).toString(), QString());
+            return;
+        }
+        QFAIL("no smash factor row on shot 7");
+    }
+
+    // Every shot of the session on the launch-monitor fixture: Apart is exactly the launch-monitor rows and the
+    // golden's stand-outs, the sum of what the tab reads, and picking between them computes nothing.
+    void apartOnTheLaunchMonitorSession()
+    {
+        const charts_test::Fixture oct = charts_test::loadFixture(kDataDir + QStringLiteral("/session_1005.json"));
+        QVERIFY(oct.ok);
+        auto snap = withDirs(oct.session);
+        QFile f(kDataDir + QStringLiteral("/goldens_1005_consistency.json"));
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        const QJsonArray golden = QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("standouts")).toArray();
+
+        auto p = std::make_unique<ChartsRelationsPresenter>();
+        p->setSynchronous(true);
+        p->setSnapshot(snap);
+        p->setPickedSwingDir(dirOf(1));
+        const double firstMs = p->status().value(QStringLiteral("timings")).toMap().value(QStringLiteral("consistencyMs")).toDouble();
+        QVERIFY(firstMs > 0.0);
+        QStringList counts;
+        for (const auto &sh : snap->shots) {
+            p->setPickedSwingDir(dirOf(sh->ordinal));
+            if (sh->ordinal > 1)
+                QCOMPARE(p->status().value(QStringLiteral("timings")).toMap().value(QStringLiteral("consistencyMs")).toDouble(), 0.0);
+            const QVariantMap ts = p->thisShot();
+            const QVariantList rows = ts.value(QStringLiteral("apart")).toList();
+            checkApart(*snap, sh->ordinal, rows);
+
+            int lm = 0;
+            for (const QVariant &r : rows) lm += r.toMap().value(QStringLiteral("key")).toString().startsWith(QStringLiteral("lm.")) ? 1 : 0;
+            QList<QJsonObject> want;
+            for (const QJsonValue &v : golden)
+                if (v.toObject().value(QStringLiteral("ordinal")).toInt() == sh->ordinal) want << v.toObject();
+            QCOMPARE(rows.size() - lm, want.size());
+            for (int i = 0; i < want.size(); ++i) {
+                const QVariantMap r = rows.at(lm + i).toMap();
+                QCOMPARE(r.value(QStringLiteral("key")).toString(), want[i].value(QStringLiteral("key")).toString());
+                const int column = want[i].value(QStringLiteral("column")).toInt();
+                if (r.value(QStringLiteral("tag")).toString() != QLatin1String("P7") || column != 6)
+                    QCOMPARE(r.value(QStringLiteral("tag")).toString(), consistencyColumnName(column));
+            }
+            counts << QStringLiteral("%1:%2>%3").arg(sh->ordinal).arg(boxApartCount(ts)).arg(rows.size());
+        }
+        qInfo().noquote() << "[apart 5 Oct] shot:past-a-whisker>apart" << counts.join(QLatin1Char(' ')) << "| rule" << firstMs << "ms";
+        for (int shot : { 7, 8 }) {     // for reading: the words as a golfer gets them
+            p->setPickedSwingDir(dirOf(shot));
+            const QVariantMap ts = p->thisShot();
+            qInfo().noquote() << "[apart 5 Oct]" << text(ts.value(QStringLiteral("head"))) << "|" << text(ts.value(QStringLiteral("standfirst")));
+            for (const QVariant &v : ts.value(QStringLiteral("apart")).toList()) {
+                const QVariantMap r = v.toMap();
+                qInfo().noquote() << "[apart row]" << r.value(QStringLiteral("label")).toString() << r.value(QStringLiteral("tag")).toString() << r.value(QStringLiteral("valueText")).toString()
+                                  << r.value(QStringLiteral("unitText")).toString() << "median" << r.value(QStringLiteral("medianText")).toString() << "opens" << r.value(QStringLiteral("readingId")).toString() << r.value(QStringLiteral("opens")).toString();
+            }
+        }
+
+        // Shot 2's ladder is guarded: it says so, and its spans are not counted.
+        p->setPickedSwingDir(dirOf(2));
+        QVERIFY2(text(p->thisShot().value(QStringLiteral("standfirst"))).contains(QStringLiteral("⚠ The timing of this swing's positions looks unusual")),
+                 qPrintable(text(p->thisShot().value(QStringLiteral("standfirst")))));
+
+        // Two clubs in one session: the row still shows what was judged, on the shot's own club's scale.
+        auto mixed = std::make_shared<SessionSnapshot>(*snap);
+        ++mixed->revision;
+        for (auto &sp : mixed->shots) {
+            auto c = std::make_shared<ShotSeries>(*sp);
+            if (c->ordinal % 2) c->club = QStringLiteral("Other");
+            sp = c;
+        }
+        p->setSnapshot(mixed);
+        for (const auto &sh : mixed->shots) {
+            p->setPickedSwingDir(dirOf(sh->ordinal));
+            checkApart(*mixed, sh->ordinal, p->thisShot().value(QStringLiteral("apart")).toList());
+        }
+    }
+
+    // Nothing to report is said plainly; a shot that could not be compared is not called unremarkable.
+    void apartWithNothingToShow()
+    {
+        auto p = make(m_snap, 8);
+        QStringList counts;
+        int none = 0;
+        for (int ordinal = 1; ordinal <= 15; ++ordinal) {
+            p->setPickedSwingDir(dirOf(ordinal));
+            const QVariantMap ts = p->thisShot();
+            const int n = ts.value(QStringLiteral("apartCount")).toInt();
+            counts << QStringLiteral("%1:%2>%3").arg(ordinal).arg(boxApartCount(ts)).arg(n);
+            if (n) continue;
+            ++none;
+            QCOMPARE(text(ts.value(QStringLiteral("head"))), QStringLiteral("Nothing stood out on shot %1").arg(ordinal));
+            QVERIFY(text(ts.value(QStringLiteral("standfirst"))).contains(QStringLiteral("nothing on shot %1 stood out").arg(ordinal)));
+        }
+        qInfo().noquote() << "[apart 4 July] shot:past-a-whisker>apart" << counts.join(QLatin1Char(' '));
+        QVERIFY(none > 0);
+    }
+
+    // A launch monitor and no camera, 20 shots of five clubs: no swing to test, and eight of a club are never reached.
+    void apartWithNoTestToRun()
+    {
+        auto s = std::make_shared<SessionSnapshot>();
+        s->revision = 3;
+        for (int ordinal = 1; ordinal <= 20; ++ordinal) {
+            auto sh = std::make_shared<ShotSeries>();
+            sh->ordinal = ordinal;
+            sh->club = QStringLiteral("Club %1").arg(ordinal % 5);
+            sh->swingDir = dirOf(ordinal);
+            MetricSeries m;
+            m.key = QStringLiteral("lm.carryDistance"); m.label = QStringLiteral("Carry"); m.unit = QStringLiteral("yd");
+            PhaseSample at;
+            at.phase = phase::Impact; at.value = 100.0 + ordinal;
+            m.phaseSamples.push_back(at);
+            sh->metrics.insert(m.key, m);
+            sh->metricOrder << m.key;
+            s->shots.push_back(sh);
+        }
+        auto p = make(s, 3);
+        QCOMPARE(p->thisShot().value(QStringLiteral("apartCount")).toInt(), 0);
+        QCOMPARE(text(p->thisShot().value(QStringLiteral("head"))), QStringLiteral("Shot 3 cannot be compared"));
+        QCOMPARE(text(p->thisShot().value(QStringLiteral("standfirst"))),
+                 QStringLiteral("This shot has no camera readings, and the launch monitor needs eight shots with a club to compare it."));
+    }
+
+    // Five 7 irons and three singles: eight shots, but a 7 iron has four others, and a single has no club to speak of.
+    void apartWithFewComparableOthers()
+    {
+        auto s = std::make_shared<SessionSnapshot>(*m_snap);
+        s->shots.resize(8);
+        ++s->revision;
+        for (int i = 5; i < 8; ++i) {
+            auto c = std::make_shared<ShotSeries>(*s->shots[size_t(i)]);
+            c->club = QStringLiteral("Single %1").arg(i);
+            s->shots[size_t(i)] = c;
+        }
+        auto p = make(s, 3);
+        QCOMPARE(p->thisShot().value(QStringLiteral("apartCount")).toInt(), 0);
+        QCOMPARE(text(p->thisShot().value(QStringLiteral("head"))), QStringLiteral("Shot 3 cannot be compared"));
+        QVERIFY(text(p->thisShot().value(QStringLiteral("standfirst"))).contains(QStringLiteral("too few shots in the session")));
+        p->setPickedSwingDir(dirOf(7));
+        QCOMPARE(text(p->thisShot().value(QStringLiteral("head"))), QStringLiteral("Shot 7 cannot be compared"));
+        QVERIFY(text(p->thisShot().value(QStringLiteral("standfirst"))).contains(QStringLiteral("too few shots with this club")));
+    }
+
+    // A stand-out on a key with a curve and no phase samples: no reading in the session, and it opens its curve.
+    void aCurveOnlyRowOpensItsCurve()
+    {
+        const QString key = QStringLiteral("swingPlaneCurve");
+        auto p = make(withCurveOnly(*m_snap, key, 8), 8);
+        QVariantMap row;
+        for (const QVariant &v : p->thisShot().value(QStringLiteral("apart")).toList())
+            if (v.toMap().value(QStringLiteral("key")).toString() == key) row = v.toMap();
+        QVERIFY2(!row.isEmpty(), "the curve stands out");
+        const QString id = row.value(QStringLiteral("readingId")).toString();
+        QVERIFY(id.startsWith(key + QLatin1Char('@')));
+        QVERIFY(rowOf(p->thisShot(), id).isEmpty());               // there is no such reading
+        QCOMPARE(row.value(QStringLiteral("opens")).toString(), QStringLiteral("trace"));
+        QVERIFY(row.value(QStringLiteral("hasCurve")).toBool());
+        QCOMPARE(row.value(QStringLiteral("group")).toString(), QStringLiteral("Club delivery"));
+
+        p->setOpenId(id);
+        const QVariantMap open = p->openRow();
+        QCOMPARE(open.value(QStringLiteral("readingId")).toString(), id);
+        QCOMPARE(open.value(QStringLiteral("opens")).toString(), QStringLiteral("trace"));
+        const QVariantMap trace = open.value(QStringLiteral("trace")).toMap();
+        QCOMPARE(trace.value(QStringLiteral("key")).toString(), key);
+        QVERIFY(!trace.value(QStringLiteral("curve")).toMap().value(QStringLiteral("t")).toList().isEmpty());
+        QVERIFY(trace.value(QStringLiteral("instants")).toList().isEmpty());
+    }
+
+    void apartTooFewToCompare()
+    {
+        auto few = std::make_shared<SessionSnapshot>(*m_snap);
+        few->shots.resize(6);
+        ++few->revision;
+        auto p = make(few, 3);
+        QCOMPARE(p->thisShot().value(QStringLiteral("apartCount")).toInt(), 0);
+        QCOMPARE(text(p->thisShot().value(QStringLiteral("head"))), QStringLiteral("Shot 3 cannot be compared"));
+
+        auto one = std::make_shared<SessionSnapshot>(*m_snap);
+        ++one->revision;
+        auto lone = std::make_shared<ShotSeries>(*one->shots[2]);
+        lone->club = QStringLiteral("Other");
+        one->shots[2] = lone;
+        auto q = make(one, 3);
+        QCOMPARE(q->thisShot().value(QStringLiteral("apartCount")).toInt(), 0);
+        QVERIFY(text(q->thisShot().value(QStringLiteral("standfirst"))).contains(QStringLiteral("too few shots with this club")));
+    }
+
+    // A row opens that reading's curve or its run, though a span has no key@phase of its own.
+    void anApartRowOpens()
+    {
+        auto p = make(m_snap, 8);
+        const QVariantList rows = p->thisShot().value(QStringLiteral("apart")).toList();
+        QVERIFY(!rows.isEmpty());
+        for (const QVariant &v : rows) {
+            const QVariantMap r = v.toMap();
+            const QString id = r.value(QStringLiteral("readingId")).toString();
+            p->setOpenId(id);
+            const QVariantMap open = p->openRow();
+            QCOMPARE(open.value(QStringLiteral("readingId")).toString(), id);
+            QVERIFY(!open.value(QStringLiteral("run")).toMap().isEmpty());
+            if (r.value(QStringLiteral("hasCurve")).toBool()) QVERIFY(!open.value(QStringLiteral("trace")).toMap().isEmpty());
+        }
+    }
+
     void initTestCase()
     {
         m_fx = charts_test::loadFixture(kDataDir + QStringLiteral("/session_0704.json"));
@@ -101,26 +391,26 @@ private slots:
 
     // ── This shot ──────────────────────────────────────────────────────────────────────────
 
-    void shotEightIsSevenReadingsApart()
+    void shotEightApartIsTheStandOutRule()
     {
         auto p = make(m_snap, 8);
         QVERIFY(p->ready());
         const QVariantMap ts = p->thisShot();
         QVERIFY(ts.value(QStringLiteral("available")).toBool());
-        QCOMPARE(ts.value(QStringLiteral("apartCount")).toInt(), 7);
-        QCOMPARE(text(ts.value(QStringLiteral("head"))), QStringLiteral("Seven readings apart from the session"));
-        QStringList apart, want;
-        for (const QVariant &r : ts.value(QStringLiteral("apart")).toList()) apart << r.toMap().value(QStringLiteral("readingId")).toString();
-        for (const QJsonValue &v : m_g.value(QStringLiteral("apart")).toArray()) want << v.toString();
-        QCOMPARE(apart, want);                                     // the mock's order, most extreme first
+        const QVariantList rows = ts.value(QStringLiteral("apart")).toList();
+        checkApart(*m_snap, 8, rows);
+        QCOMPARE(ts.value(QStringLiteral("apartCount")).toInt(), rows.size());
+        QCOMPARE(rows.size(), 6);                                  // all swing: no launch monitor on 4 July
+        QCOMPARE(text(ts.value(QStringLiteral("head"))), QStringLiteral("Six readings apart from the session"));
         const QString st = text(ts.value(QStringLiteral("standfirst")));
-        QVERIFY2(st.contains(QStringLiteral("seven sit past the session's whiskers")), qPrintable(st));
-        QVERIFY2(st.contains(QStringLiteral("the most secondary axis tilt at P4")), qPrintable(st));
+        QVERIFY2(st.contains(QStringLiteral("shot 8 stood out on six readings, starting with")), qPrintable(st));
+        QVERIFY2(!st.contains(QStringLiteral("whisker")), qPrintable(st));
+        QVERIFY(!ts.value(QStringLiteral("notes")).toString().contains(QStringLiteral("whisker")));
         // D5: every reading, grouped by family
-        int rows = 0;
-        for (const QVariant &g : ts.value(QStringLiteral("groups")).toList()) rows += g.toMap().value(QStringLiteral("rows")).toList().size();
-        QCOMPARE(rows, ts.value(QStringLiteral("total")).toInt());
-        QCOMPARE(rows, 68);
+        int all = 0;
+        for (const QVariant &g : ts.value(QStringLiteral("groups")).toList()) all += g.toMap().value(QStringLiteral("rows")).toList().size();
+        QCOMPARE(all, ts.value(QStringLiteral("total")).toInt());
+        QCOMPARE(all, 68);
         QCOMPARE(p->status().value(QStringLiteral("kicker")).toString(), QStringLiteral("Shot 8 of 15  ·  7 iron"));
     }
 

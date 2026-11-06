@@ -20,6 +20,8 @@
 
 #include "box_map.h"
 #include "charts_words.h"
+#include "consistency_env.h"
+#include "session_consistency.h"
 #include "session_relations.h"
 #include "session_sequence.h"
 #include "session_series_model.h"
@@ -94,9 +96,11 @@ QString dText(double d)
 }
 
 using words::shortUnit;
-QString unitText(const QString &u) { return (u == QStringLiteral("°") || u == QLatin1String(":1")) ? QString() : u; }
-QString figBare(double v, const QString &u) { return words::fig(v, words::decimalsFor(u)); }
-QString figU(double v, const QString &u) { return words::figUnit(v, u); }
+// A "ratio" reading has no unit word, and a whole number says nothing of it: a smash factor is 1.09, never 1.
+bool isRatio(const QString &u) { return u == QLatin1String("ratio"); }
+QString unitText(const QString &u) { return (u == QStringLiteral("°") || u == QLatin1String(":1") || isRatio(u)) ? QString() : u; }
+QString figBare(double v, const QString &u) { return words::fig(v, isRatio(u) ? 2 : words::decimalsFor(u)); }
+QString figU(double v, const QString &u) { return words::withUnit(figBare(v, u), u); }
 bool closedUnit(const QString &u) { return u == QStringLiteral("°") || u == QLatin1String("%") || u == QLatin1String(":1"); }
 
 // "Lead wrist — bow / cup" → "lead wrist bow/cup" (Words.qml lowerLabel).
@@ -327,6 +331,14 @@ struct ChartsRelationsPresenter::Cache {
     std::shared_ptr<const SessionSnapshot> clubBase;  // the largest club's shots, for kinds within it
     QString clubName;
 
+    // The stand-out rule (doc §5). Read from the session as recorded, not `snap`, whose trunk estimates the
+    // Consistency tab does not have: the two must not disagree. Worked out once a snapshot, on the first pick.
+    std::shared_ptr<const SessionSnapshot> recorded;   // the session, with a live picked shot added
+    bool consistencyRun = false;
+    ConsistencyInput consistencyIn;
+    ConsistencyResult consistencyOut;
+    std::vector<std::vector<ConsistencyLmRow>> lmRows; // per shot
+
     int indexOf(const QString &id) const { return byId.value(id, -1); }
     int n() const { return snap ? snap->count() : 0; }
 
@@ -347,6 +359,18 @@ struct ChartsRelationsPresenter::Cache {
         if (it == corr.end()) it = corr.insert(y, correlate(readings, y));
         return it.value();
     }
+    // Returns the time it took, 0 once it has run.
+    double ensureConsistency(const ConsistencyEnv &env)
+    {
+        if (consistencyRun) return 0.0;
+        QElapsedTimer t;
+        t.start();
+        consistencyRun = true;
+        consistencyIn = consistencyInput(*recorded, align(), env);     // alignment reads the P-marks, which estimates leave alone
+        consistencyOut = consistencyResult(consistencyIn);
+        for (const auto &sh : recorded->shots) lmRows.push_back(consistencyLmRows(*recorded, sh->ordinal));
+        return double(t.nsecsElapsed()) / 1e6;
+    }
 };
 
 struct ChartsRelationsPresenter::Output {
@@ -360,6 +384,7 @@ struct ChartsRelationsPresenter::Output {
     TraceCurve openCurve, leadCurve;
     QString openUnit, leadUnit;
     double jobMs = 0;
+    double consistencyMs = 0;   // what this job spent on the stand-out rule: 0 unless the snapshot changed
 };
 
 namespace {
@@ -453,6 +478,7 @@ void ensureSession(Cache &c, const std::shared_ptr<const SessionSnapshot> &base,
             copy->shots.push_back(s);
             c.snap = copy;
         }
+    c.recorded = c.snap;
     QHash<QString, double> refusedEstimates;
     c.snap = withTrunkEstimates(c.snap, &refusedEstimates);
     const SessionSnapshot &S = *c.snap;
@@ -545,6 +571,7 @@ struct Ctx {
     // #10: the norms and the grade policy the Readings rows' corridors are drawn from; null = no corridors
     const pinpoint::analysis::INormProvider *norms = nullptr;
     pinpoint::analysis::GradePolicy policy;
+    const ConsistencyEnv *env = nullptr;    // the stand-out rule's, taken on the GUI thread
 
     // A shot's own ordinal from its 1-based position in S (identity in a session; not in a club's subset).
     int ord(int pos) const { return pos >= 1 && pos <= int(S.shots.size()) ? S.shots[size_t(pos - 1)]->ordinal : pos; }
@@ -666,21 +693,21 @@ QVariantMap boxTexts(const SessionReading &r, const QVariantMap &c)
     return m;
 }
 
-QVariantMap rowMap(const Ctx &x, int i)
+// `link` is the reading whose fired links and corridor belong to the row, or -1 for a row that reads something
+// else: what a condition graded is an instant, and a point inside a span is not it.
+QVariantMap rowMapOf(const Ctx &x, const SessionReading &r, const ReadingMeta &m, int link)
 {
-    const SessionReading &r = x.r(i);
-    const ReadingMeta &m = x.m(i);
     const ReadingPlace p = x.pick >= 0 ? placeOf(r, x.pick) : ReadingPlace{};
-    const bool fired = x.pick >= 0 && size_t(x.pick) < r.fired.size() && r.fired[size_t(x.pick)];
+    const bool fired = link >= 0 && x.pick >= 0 && size_t(x.pick) < r.fired.size() && r.fired[size_t(x.pick)];
     // this shot's verdict on the reading (the Readings tab's filter): past the fault line (the grade's Action band),
     // out of its corridor (Watch), graded inside it, or "" when no condition graded it on this shot
     const bool fault = fired && size_t(x.pick) < r.firedZ.size() && r.firedZ[size_t(x.pick)] > x.faultZ;
-    const bool inside = !fired && x.pick >= 0 && size_t(x.pick) < r.clean.size() && r.clean[size_t(x.pick)];
+    const bool inside = !fired && link >= 0 && x.pick >= 0 && size_t(x.pick) < r.clean.size() && r.clean[size_t(x.pick)];
     const QString verdict = fault ? QStringLiteral("fault") : fired ? QStringLiteral("outside") : inside ? QStringLiteral("inside") : QString();
     QVariantList conds, links;
     QString firedWord;
     if (fired)
-        for (const FiredLink &l : x.c.firedBy.value(qint64(i) * x.n + x.pick)) {
+        for (const FiredLink &l : x.c.firedBy.value(qint64(link) * x.n + x.pick)) {
             const QString name = x.S.conditions.value(l.id).name.isEmpty() ? l.id : x.S.conditions.value(l.id).name;
             const QString inst = instantPhrase(x.v, l.reducer, l.phase);
             const QString text = inst.isEmpty() ? name : name + QStringLiteral(", ") + inst;
@@ -691,7 +718,7 @@ QVariantMap rowMap(const Ctx &x, int i)
         }
     if (fired && firedWord.isEmpty()) firedWord = fault ? QStringLiteral("past its fault line") : QStringLiteral("out of its corridor");
     const bool curve = m.drawsCurve && x.pickedHasCurve(r.key);
-    const QVariantMap corr = corridorOf(x, r);
+    const QVariantMap corr = link >= 0 ? corridorOf(x, r) : QVariantMap{ { QStringLiteral("known"), false } };
     // no value on this shot because a gate refused it: a plain "-" in the row; why is said once, in the panel's tail
     // (Mark, 17 Oct 2026). gateWords stays on the map for readers that name it (none on screen).
     const QVariantMap gate = x.pick >= 0 && !p.measured ? gateOfPicked(x, r.key) : QVariantMap{};
@@ -725,6 +752,214 @@ QVariantMap rowMap(const Ctx &x, int i)
         { QStringLiteral("conditions"), conds }, { QStringLiteral("firedConditions"), links },
         { QStringLiteral("corridor"), corr }, { QStringLiteral("boxText"), boxTexts(r, corr) },
         { QStringLiteral("hasCurve"), curve }, { QStringLiteral("opens"), curve ? QStringLiteral("trace") : QStringLiteral("run") } };
+}
+
+QVariantMap rowMap(const Ctx &x, int i) { return rowMapOf(x, x.r(i), x.m(i), i); }
+
+// ── "Apart from the session": the stand-out rule's rows (doc §5) ────────────────────────────
+
+// One row of it. `reading` is the reading the row opens: the curve a span was sampled from, or the launch
+// monitor's run. -1 when the session has no reading of the key: the key has a curve but no phase samples
+// (swingPlaneCurve), or too few shots read it at a P-position. See curveOnlyReading.
+struct ApartRow {
+    QVariantMap row;
+    QString key;
+    int reading = -1;
+    int side = 0;           // the side of the others the shot fell on
+    QString words;          // "secondary axis tilt at P4-P5"
+};
+
+// The reading that opens a key's row: read at the column's end, else its start, else wherever the key is read.
+int readingOfKey(const Ctx &x, const QString &key, int column)
+{
+    int any = -1, start = -1;
+    for (size_t i = 0; i < x.c.readings.size(); ++i) {
+        const SessionReading &r = x.c.readings[i];
+        if (r.key != key) continue;
+        if (column < 0 || r.phase == kConsistencyPhases[column]) return int(i);
+        if (column > 0 && r.phase == kConsistencyPhases[column - 1]) start = int(i);
+        if (any < 0) any = int(i);
+    }
+    return start >= 0 ? start : any;
+}
+
+// A row's reading, with `values` in place of its own. The opening reading lends everything else.
+SessionReading readingLike(const Ctx &x, int reading, const QString &key, const QString &label, const QString &unit,
+                           int phase, std::vector<double> values)
+{
+    SessionReading r;
+    if (reading >= 0) r = x.r(reading);
+    else {
+        r.key = key; r.phase = phase; r.id = key + QLatin1Char('@') + QString::number(phase);
+        r.label = label; r.unit = shortUnit(unit);
+    }
+    r.values = std::move(values);
+    r.fired.resize(r.values.size(), 0);
+    return r;
+}
+
+ReadingMeta metaOf(const Ctx &x, int reading, const QString &key, const QString &label)
+{
+    if (reading >= 0) return x.m(reading);
+    ReadingMeta m;
+    const pa::MetricDescriptor *d = catalogue().descriptor(key);
+    m.shortLabel = d ? d->shortLabel : label;
+    if (d) m.group = d->group;
+    return m;
+}
+
+// A row with no reading behind it opens the picked shot's curve of the key, by its id ("key@phase"), which
+// openRow resolves here. This is the reading it opens: the curve's, with no session values, the key having no
+// instant to read them at. Empty when the shot has no such curve to show.
+SessionReading curveOnlyReading(const Ctx &x, const QString &id)
+{
+    const int at = id.lastIndexOf(QLatin1Char('@'));
+    if (at <= 0 || !x.pickedHasCurve(id.left(at))) return {};
+    const ShotSeries &shot = *x.S.shots[size_t(x.pick)];
+    SessionReading r;
+    r.key = id.left(at);
+    if (shotCurve(shot, r.key).empty()) return {};
+    const MetricSeries *m = shot.metric(r.key);
+    r.id = id;
+    r.phase = id.mid(at + 1).toInt();
+    r.label = m->label;
+    r.unit = shortUnit(m->unit);
+    r.values.assign(size_t(x.n), kNaN);
+    r.fired.assign(size_t(x.n), 0);
+    return r;
+}
+
+// Such a row offers its curve, or, with none on this shot, nothing: no opens and no id to open.
+void offerWhatOpens(const Ctx &x, ApartRow &a)
+{
+    if (a.reading >= 0) return;
+    const bool curve = !curveOnlyReading(x, a.row.value(QStringLiteral("readingId")).toString()).id.isEmpty();
+    a.row.insert(QStringLiteral("hasCurve"), curve);
+    a.row.insert(QStringLiteral("opens"), curve ? QStringLiteral("trace") : QString());
+    if (!curve) a.row.insert(QStringLiteral("readingId"), QString());
+}
+
+// The launch monitor's reading against its own club: the club's values, and the club's box, the shot in it,
+// as the fence that put it here was worked out.
+ApartRow lmRowOf(const Ctx &x, const ConsistencyLmRow &lm)
+{
+    ApartRow a;
+    a.key = lm.key;
+    a.side = lm.side;
+    a.reading = readingOfKey(x, lm.key, -1);
+    a.words = lowerLabel(lm.label);
+    SessionReading r = readingLike(x, a.reading, lm.key, lm.label, lm.unit, phase::Impact, lm.values);
+    r.box = boxStats(r.values);
+    a.row = rowMapOf(x, r, metaOf(x, a.reading, lm.key, lm.label), a.reading);
+    offerWhatOpens(x, a);
+    return a;
+}
+
+// A tested reading at one of its points, as a row's reading. The test compares residuals, so every shot is set on
+// this shot's club's scale, the club's median at that point put back. In a session of one club those are the plain
+// values, and whatever the clubs, this shot's value less the median is the difference that was judged. `leaveShotOut`
+// takes the shot out of the box, as a stand-out's comparison does; it stays on the row's scale. A shot its club's
+// count left out of the comparison keeps its own value beside the rest, outside the box.
+SessionReading readingAtPoint(const Ctx &x, const ConsistencyReading &tested, int opens, int column, int sample, bool leaveShotOut)
+{
+    const ConsistencyInput &in = x.c.consistencyIn;
+    QStringList clubs;
+    for (const ConsistencyShot &sh : in.shots) clubs << sh.club;
+    const std::vector<double> residuals = consistencyResiduals(tested.values, tested.samples, clubs);
+    const auto residualOf = [&](int i) { return residuals[size_t(i) * size_t(tested.samples) + size_t(sample)]; };
+    const int N = int(in.shots.size());
+    const bool compared = x.pick >= 0 && fin(residualOf(x.pick));
+    double scale = kNaN;
+    if (compared) scale = tested.at(x.pick, sample) - residualOf(x.pick);
+    else {
+        std::vector<double> raw;
+        for (int i = 0; i < N; ++i) if (fin(residualOf(i))) raw.push_back(tested.at(i, sample));
+        scale = medianOf(std::move(raw));
+    }
+    std::vector<double> values(size_t(N), kNaN);
+    for (int i = 0; i < N; ++i) values[size_t(i)] = residualOf(i) + scale;
+    std::vector<double> inBox = values;
+    if (x.pick >= 0 && (leaveShotOut || !compared)) inBox[size_t(x.pick)] = kNaN;
+    if (x.pick >= 0 && !compared) values[size_t(x.pick)] = tested.at(x.pick, sample);
+
+    SessionReading r = readingLike(x, opens, tested.key, tested.label, tested.unit, kConsistencyPhases[column], std::move(values));
+    r.box = boxStats(inBox);
+    if (x.pick >= 0 && !fin(inBox[size_t(x.pick)]) && fin(r.values[size_t(x.pick)]) && r.box.n > 0) {
+        const double v = r.values[size_t(x.pick)];
+        r.box.min = std::min(r.box.min, v);
+        r.box.max = std::max(r.box.max, v);
+        ++r.box.n;
+    }
+    return r;
+}
+
+// A row showing what was tested, so the number shown is the number judged.
+ApartRow testedRowOf(const Ctx &x, const ConsistencyReading &tested, int column, int sample, bool leaveShotOut)
+{
+    ApartRow a;
+    a.key = tested.key;
+    a.reading = readingOfKey(x, tested.key, column);
+    const bool atImpact = tested.area == QLatin1String("impact");       // Impact reads P7 itself, not the span into it
+    const QString tag = atImpact ? x.v.tag(phase::Impact) : consistencyColumnName(column);
+    a.words = lowerLabel(tested.label) + QStringLiteral(" at ") + tag;
+
+    SessionReading r = readingAtPoint(x, tested, a.reading, column, sample, leaveShotOut);
+    const bool sameInstant = tested.kind == ConsistencyReadingKind::Position && a.reading >= 0 && x.r(a.reading).phase == kConsistencyPhases[column];
+    if (!sameInstant) std::fill(r.fired.begin(), r.fired.end(), uint8_t(0));
+    a.row = rowMapOf(x, r, metaOf(x, a.reading, tested.key, tested.label), sameInstant ? a.reading : -1);
+    offerWhatOpens(x, a);
+    a.row.insert(QStringLiteral("tag"), tag);
+    a.row.insert(QStringLiteral("phaseName"), atImpact ? x.v.name(phase::Impact) : tag);
+    return a;
+}
+
+// A stand-out: the weakest point of the reading, this shot against the others' box there.
+ApartRow standOutRowOf(const Ctx &x, const ConsistencyStandOut &s)
+{
+    ApartRow a = testedRowOf(x, x.c.consistencyIn.readings[size_t(s.reading)], s.column, s.sample, true);
+    a.side = s.dv < 0 ? -1 : 1;
+    return a;
+}
+
+// Ball, then club, then swing, each as the rule orders it.
+std::vector<ApartRow> apartRows(const Ctx &x)
+{
+    std::vector<ApartRow> rows;
+    for (const ConsistencyLmRow &lm : x.c.lmRows[size_t(x.pick)]) rows.push_back(lmRowOf(x, lm));
+    const int ordinal = x.c.consistencyIn.shots[size_t(x.pick)].ordinal;
+    for (const ConsistencyStandOut &s : x.c.consistencyOut.standouts)
+        if (s.ordinal == ordinal) rows.push_back(standOutRowOf(x, s));
+    return rows;
+}
+
+// The other shots on the same side of the same reading, by ordinal.
+std::vector<int> othersApart(const Ctx &x, const ApartRow &a)
+{
+    std::vector<int> same;
+    const int me = x.c.consistencyIn.shots[size_t(x.pick)].ordinal;
+    for (size_t i = 0; i < x.c.lmRows.size(); ++i)
+        for (const ConsistencyLmRow &lm : x.c.lmRows[i])
+            if (lm.key == a.key && lm.side == a.side && int(i) != x.pick) same.push_back(x.c.consistencyIn.shots[i].ordinal);
+    for (const ConsistencyStandOut &s : x.c.consistencyOut.standouts)
+        if (s.key == a.key && (s.dv < 0 ? -1 : 1) == a.side && s.ordinal != me) same.push_back(s.ordinal);
+    return same;
+}
+
+// Why a shot with no rows has none, when the reason is that no test could run on it. "" when one could. `swingOnly`
+// asks of the swing's tests alone, for a sentence about the swing.
+QString cannotCompare(const Ctx &x, bool swingOnly)
+{
+    const ConsistencyInput &in = x.c.consistencyIn;
+    const ConsistencyComparable can = consistencyComparable(*x.c.recorded, in, x.c.consistencyOut, x.pick);
+    if (can.swing || (!swingOnly && can.ball)) return QString();
+    if (!can.measured && !swingOnly)
+        return can.launchMonitor ? QStringLiteral("This shot has no camera readings, and the launch monitor needs eight shots with a club to compare it.")
+                                 : QStringLiteral("This shot has no camera or launch-monitor readings to compare.");
+    const QString &club = in.shots[size_t(x.pick)].club;
+    const int sameClub = int(std::count_if(in.shots.begin(), in.shots.end(), [&](const ConsistencyShot &s) { return s.club == club; }));
+    const int ordinal = in.shots[size_t(x.pick)].ordinal;
+    if (sameClub < kConsistencyMinClubShots) return QStringLiteral("There are too few shots with this club to set shot %1 against them.").arg(ordinal);
+    return QStringLiteral("There are too few shots in the session to set shot %1 against them.").arg(ordinal);
 }
 
 QVariantMap driftMap(const Correlation &d, int n)
@@ -824,7 +1059,8 @@ QVariantMap traceMap(const Ctx &x, const SessionReading &r, TraceCurve *keep)
     if (keep) *keep = c;
     return { { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key }, { QStringLiteral("label"), r.label },
              { QStringLiteral("tag"), x.v.tag(r.phase) }, { QStringLiteral("unit"), r.unit }, { QStringLiteral("unitText"), unitText(r.unit) },
-             { QStringLiteral("caption"), QStringLiteral("%1, shot %2; at each P-position a box of all %3 shots").arg(r.label).arg(s.ordinal).arg(x.n) },
+             { QStringLiteral("caption"), instants.isEmpty() ? QStringLiteral("%1, shot %2").arg(r.label).arg(s.ordinal)
+                                                             : QStringLiteral("%1, shot %2; at each P-position a box of all %3 shots").arg(r.label).arg(s.ordinal).arg(x.n) },
              { QStringLiteral("window"), QVariantMap{ { QStringLiteral("t0"), t0 }, { QStringLiteral("t1"), t1 } } },
              { QStringLiteral("yRange"), rangeMap(ylo - pad, yhi + pad) },
              { QStringLiteral("curve"), QVariantMap{ { QStringLiteral("t"), tt }, { QStringLiteral("v"), vv }, { QStringLiteral("raw"), rr }, { QStringLiteral("ok"), ok } } },
@@ -1097,31 +1333,29 @@ QVariantMap thisShotMap(const Ctx &x, const Cache::Family *fam, Output *out)
     }
     m.insert(QStringLiteral("available"), true);
 
-    // apart, most extreme first
-    const std::vector<int> ap = apartFrom(x.c.readings, x.pick);
+    // apart: the launch monitor's rows, then the stand-outs, by the rule the Consistency tab shares
+    out->consistencyMs = x.c.ensureConsistency(*x.env);
+    const std::vector<ApartRow> ap = apartRows(x);
     QVariantList apart;
-    for (int i : ap) apart.append(rowMap(x, i));
+    for (const ApartRow &a : ap) apart.append(a.row);
     const int na = int(ap.size());
+    const QString cannot = na ? QString() : cannotCompare(x, false);
     m.insert(QStringLiteral("apartCount"), na);
     m.insert(QStringLiteral("apart"), apart);
-    m.insert(QStringLiteral("head"), (na == 0 ? Sentence().append(QStringLiteral("Shot %1 sits inside the session").arg(ps.ordinal))
-                                               : Sentence().append(words::cap1(words::word(na)) + (na == 1 ? QStringLiteral(" reading") : QStringLiteral(" readings"))
-                                                                   + QStringLiteral(" apart from the session"))).toVariant());
+    m.insert(QStringLiteral("head"), (na ? Sentence().append(words::cap1(words::word(na)) + (na == 1 ? QStringLiteral(" reading") : QStringLiteral(" readings"))
+                                                             + QStringLiteral(" apart from the session"))
+                                         : !cannot.isEmpty() ? Sentence().append(QStringLiteral("Shot %1 cannot be compared").arg(ps.ordinal))
+                                                             : Sentence().append(QStringLiteral("Nothing stood out on shot %1").arg(ps.ordinal))).toVariant());
     Sentence st;
-    st.append(QStringLiteral("Of ")).figure(QString::number(total))
-      .append(QStringLiteral(" readings taken on shot %1 at the instants their cards read them, ").arg(ps.ordinal));
-    if (!na) st.append(QStringLiteral("none sits past the session's whiskers; this swing is the session's own."));
+    if (!cannot.isEmpty()) st.append(cannot);
+    else if (!na) st.append(QStringLiteral("Set against the other shots, club for club, nothing on shot %1 stood out.").arg(ps.ordinal));
     else {
-        st.append(words::word(na) + (na == 1 ? QStringLiteral(" sits") : QStringLiteral(" sit")) + QStringLiteral(" past the session's whiskers"));
-        std::vector<int> hi, lo;
-        for (int i : ap) { const ReadingPlace p = placeOf(x.r(i), x.pick); if (p.rankHi == 1) hi.push_back(i); if (p.rankLo == 1) lo.push_back(i); }
-        QStringList parts;
-        if (!hi.empty()) parts << QStringLiteral("the most ") + x.readingText(hi[0])
-                                  + (hi.size() > 1 ? QStringLiteral(" and ") + words::word(int(hi.size()) - 1) + QStringLiteral(" other highest") : QString());
-        if (!lo.empty()) parts << QStringLiteral("the least ") + x.readingText(lo[0]);
-        st.append(parts.isEmpty() ? QStringLiteral(".")
-                                  : QStringLiteral(": it had ") + parts.join(QStringLiteral(", and ")) + QStringLiteral(" of all ") + words::word(x.n) + QStringLiteral("."));
+        st.append(QStringLiteral("Set against the other shots, club for club, shot %1 stood out on ").arg(ps.ordinal));
+        if (na == 1) st.append(QStringLiteral("one reading: ") + ap[0].words + QStringLiteral("."));
+        else st.append(words::word(na) + QStringLiteral(" readings, starting with ") + ap[0].words + QStringLiteral("."));
     }
+    if (x.c.consistencyIn.shots[size_t(x.pick)].guarded)
+        st.append(QLatin1Char(' ') + ConsistencyReadingRows::guardNote());
     m.insert(QStringLiteral("standfirst"), st.toVariant());
 
     // every reading by family (D5)
@@ -1133,9 +1367,11 @@ QVariantMap thisShotMap(const Ctx &x, const Cache::Family *fam, Output *out)
         if (!rows.isEmpty()) groups.append(QVariantMap{ { QStringLiteral("name"), g }, { QStringLiteral("rows"), rows } });
     }
     m.insert(QStringLiteral("groups"), groups);
-    m.insert(QStringLiteral("notes"), QStringLiteral("Apart: past a whisker, which reaches 1.5 times the middle half beyond its quartiles. "
-                                                     "Each row has its own scale, the session's lowest to highest. A fired mark is a reading a "
-                                                     "diagnostics condition graded and found outside its corridor."));
+    m.insert(QStringLiteral("notes"), QStringLiteral("Apart: a long way from the other shots, each shot set against its own club, across the whole "
+                                                     "of a span and not at one instant in it. A launch-monitor figure is apart when it falls well "
+                                                     "outside its club's usual range, which takes eight shots with that club. A span's row shows the "
+                                                     "point closest to the others, with their box at that point. Each row has its own scale, lowest "
+                                                     "to highest. A fired mark is a reading a diagnostics condition graded and found outside its corridor."));
     m.insert(QStringLiteral("firedElsewhere"), x.c.firedElsewhere.value(x.pick));
 
     // the family: the lead reading's trace and the other rows (Replay)
@@ -1155,23 +1391,21 @@ QVariantMap thisShotMap(const Ctx &x, const Cache::Family *fam, Output *out)
 
     // questions (Analyse.qml shotAsks)
     QVariantList asks;
-    for (int i : ap) {
-        const SessionReading &r = x.r(i);
-        const double pv = r.values[size_t(x.pick)];
-        std::vector<int> same;
-        for (int o : r.box.outliers) if (o != x.pick && (r.values[size_t(o)] - r.box.med) * (pv - r.box.med) > 0) same.push_back(o + 1);
+    for (const ApartRow &a : ap) {
+        const std::vector<int> same = othersApart(x, a);
         if (same.empty()) continue;
         std::vector<int> lit = same; lit.push_back(ps.ordinal);
-        asks.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("same") }, { QStringLiteral("text"), r.label + QStringLiteral(": was any other shot out there?") },
+        asks.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("same") },
+                                 { QStringLiteral("text"), a.row.value(QStringLiteral("label")).toString() + QStringLiteral(": was any other shot out there?") },
                                  { QStringLiteral("answer"), words::cap1(words::shotsList(same)) + (same.size() == 1 ? QStringLiteral(" was") : QStringLiteral(" were"))
-                                                             + QStringLiteral(" past the same whisker; lit in every row.") },
+                                                             + QStringLiteral(" apart the same way; lit in every row.") },
                                  { QStringLiteral("lit"), ints(lit) }, { QStringLiteral("go"), QString() }, { QStringLiteral("upId"), QString() } });
         break;
     }
-    if (!ap.empty())
-        asks.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("moves") }, { QStringLiteral("text"), x.r(ap[0]).label + QStringLiteral(": what moves with it?") },
+    if (!ap.empty() && ap[0].reading >= 0)
+        asks.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("moves") }, { QStringLiteral("text"), x.r(ap[0].reading).label + QStringLiteral(": what moves with it?") },
                                  { QStringLiteral("answer"), QStringLiteral("Relations opens on it.") }, { QStringLiteral("lit"), QVariantList{} },
-                                 { QStringLiteral("go"), QStringLiteral("relations") }, { QStringLiteral("upId"), x.r(ap[0]).id } });
+                                 { QStringLiteral("go"), QStringLiteral("relations") }, { QStringLiteral("upId"), x.r(ap[0].reading).id } });
     if (x.c.kinds.method != KindsMethod::None)
         asks.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("kind") }, { QStringLiteral("text"), QStringLiteral("Shot %1: which kind of swing was it?").arg(ps.ordinal) },
                                  { QStringLiteral("answer"), QStringLiteral("Kinds opens with shot %1 marked.").arg(ps.ordinal) },
@@ -2142,7 +2376,7 @@ static std::shared_ptr<ChartsRelationsPresenter::Output> computeRelations(const 
                                                                    const ChartsRelationsPresenter::ReadAt &readAt, int readAtGen,
                                                                    double faultZ, const pinpoint::analysis::GradePolicy &policy,
                                                                    const std::shared_ptr<const pinpoint::analysis::INormProvider> &norms,
-                                                                   ChartsRelationsPresenter::Cache &cache)
+                                                                   const ConsistencyEnv &env, ChartsRelationsPresenter::Cache &cache)
 {
     QElapsedTimer timer;
     timer.start();
@@ -2158,6 +2392,7 @@ static std::shared_ptr<ChartsRelationsPresenter::Output> computeRelations(const 
     x.faultZ = faultZ;
     x.norms = norms.get();
     x.policy = policy;
+    x.env = &env;
     for (int i = 0; i < x.n; ++i) if (!picked.isEmpty() && cleanDir(S.shots[size_t(i)]->swingDir) == picked) { x.pick = i; break; }
 
     int pickIdx = -1;
@@ -2224,6 +2459,14 @@ static std::shared_ptr<ChartsRelationsPresenter::Output> computeRelations(const 
         if (trace) { tr = traceMap(x, x.r(oi), &out->openCurve); out->openUnit = x.r(oi).unit; }
         out->openRow = { { QStringLiteral("readingId"), x.r(oi).id }, { QStringLiteral("opens"), trace && !tr.isEmpty() ? QStringLiteral("trace") : QStringLiteral("run") },
                          { QStringLiteral("trace"), tr.isEmpty() ? QVariant::fromValue(nullptr) : QVariant(tr) }, { QStringLiteral("run"), runMap(x, x.r(oi)) } };
+    } else if (x.n >= 3) {
+        const SessionReading r = curveOnlyReading(x, open);     // a row with no reading behind it: its curve, by key
+        if (!r.id.isEmpty()) {
+            const QVariantMap tr = traceMap(x, r, &out->openCurve);
+            out->openUnit = r.unit;
+            out->openRow = { { QStringLiteral("readingId"), r.id }, { QStringLiteral("opens"), QStringLiteral("trace") },
+                             { QStringLiteral("trace"), tr }, { QStringLiteral("run"), runMap(x, r) } };
+        }
     }
     out->sequence = sequenceMap(x);
     out->relations = relationsMap(x, up, across, facet, nullptr);
@@ -2235,12 +2478,90 @@ static std::shared_ptr<ChartsRelationsPresenter::Output> computeRelations(const 
     return out;
 }
 
+// ── the rows the Consistency tab shares ───────────────────────────────────────────────────────
+
+struct ConsistencyReadingRows::Impl {
+    ChartsRelationsPresenter::Cache cache;
+    std::shared_ptr<const SessionSnapshot> none = std::make_shared<SessionSnapshot>();
+    std::shared_ptr<const pinpoint::analysis::INormProvider> norms;
+    pa::GradePolicy policy;
+    double faultZ = 3.0;
+    int runs = 0;
+    double ms = 0.0;
+
+    // A job's context on one shot. Vocab is a QObject, so each call makes its own on the thread it runs on.
+    template <typename F> auto with(int shot, F &&f)
+    {
+        const Vocab vocab;
+        Ctx x{ cache, *cache.snap, vocab };
+        x.n = cache.snap->count();
+        x.pick = shot;
+        x.faultZ = faultZ;
+        x.norms = norms.get();
+        x.policy = policy;
+        return f(x);
+    }
+};
+
+ConsistencyReadingRows::ConsistencyReadingRows() : m(std::make_unique<Impl>()) {}
+ConsistencyReadingRows::~ConsistencyReadingRows() = default;
+
+bool ConsistencyReadingRows::update(const std::shared_ptr<const SessionSnapshot> &snapshot, const ConsistencyEnv &env, double faultZ,
+                                    const pinpoint::analysis::GradePolicy &policy,
+                                    const std::shared_ptr<const pinpoint::analysis::INormProvider> &norms)
+{
+    ensureSession(m->cache, snapshot ? snapshot : m->none, QString(), QVariantMap{}, {}, 0, false);
+    m->faultZ = faultZ;
+    m->policy = policy;
+    m->norms = norms;
+    const bool fresh = !m->cache.consistencyRun;
+    m->ms = m->cache.ensureConsistency(env);
+    if (fresh) ++m->runs;
+    return fresh;
+}
+
+int ConsistencyReadingRows::runs() const { return m->runs; }
+double ConsistencyReadingRows::ms() const { return m->ms; }
+const SessionSnapshot &ConsistencyReadingRows::session() const { return *m->cache.recorded; }
+const ConsistencyInput &ConsistencyReadingRows::input() const { return m->cache.consistencyIn; }
+const ConsistencyResult &ConsistencyReadingRows::result() const { return m->cache.consistencyOut; }
+const std::vector<ConsistencyLmRow> &ConsistencyReadingRows::lmRows(int shot) const { return m->cache.lmRows[size_t(shot)]; }
+
+QVariantMap ConsistencyReadingRows::lmRow(int shot, const ConsistencyLmRow &row) const
+{
+    return m->with(shot, [&](const Ctx &x) { return lmRowOf(x, row).row; });
+}
+
+QVariantMap ConsistencyReadingRows::standOutRow(int shot, const ConsistencyStandOut &standOut) const
+{
+    return m->with(shot, [&](const Ctx &x) { return standOutRowOf(x, standOut).row; });
+}
+
+QVariantMap ConsistencyReadingRows::readingRow(int shot, const ConsistencyJudged &judged) const
+{
+    return m->with(shot, [&](const Ctx &x) {
+        const ConsistencyReading &tested = x.c.consistencyIn.readings[size_t(judged.reading)];
+        return testedRowOf(x, tested, judged.column, tested.samples / 2, false).row;
+    });
+}
+
+QString ConsistencyReadingRows::cannotCompare(int shot, bool swingOnly) const
+{
+    return m->with(shot, [swingOnly](const Ctx &x) { return charts::cannotCompare(x, swingOnly); });
+}
+
+QString ConsistencyReadingRows::guardNote()
+{
+    return QStringLiteral("⚠ ") + words::cap1(consistencyGuardWords()) + QStringLiteral(", so comparisons across its spans are not counted.");
+}
+
 // ── the QObject ───────────────────────────────────────────────────────────────────────────
 
 ChartsRelationsPresenter::ChartsRelationsPresenter(QObject *parent)
     : QObject(parent), m_cache(std::make_shared<Cache>())
 {
     m_pool.setMaxThreadCount(1);
+    m_consistencyEnv = consistencyEnvFromPacks();     // on the GUI thread, for the worker to hold by value
 }
 
 ChartsRelationsPresenter::~ChartsRelationsPresenter()
@@ -2324,16 +2645,17 @@ void ChartsRelationsPresenter::start()
     const pa::GradePolicy gp = pa::gradePolicyByName(m_gradePolicy);
     const double faultZ = gp.idealMaxZ > 0.0 ? gp.watchMaxZ / gp.idealMaxZ : 3.0;
     const auto norms = pinpoint::analysis::sharedNormProvider();
+    const ConsistencyEnv env = m_consistencyEnv;
     auto cache = m_cache;
     if (m_synchronous) {
         m_pool.waitForDone();
-        deliver(computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, *cache));
+        deliver(computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, env, *cache));
         return;
     }
     m_running = true;
     emit busyChanged();
-    m_pool.start([this, snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, cache]() {
-        auto out = computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, *cache);
+    m_pool.start([this, snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, env, cache]() {
+        auto out = computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, env, *cache);
         QMetaObject::invokeMethod(this, [this, out]() {
             m_running = false;
             deliver(out);
@@ -2352,7 +2674,8 @@ void ChartsRelationsPresenter::deliver(std::shared_ptr<const Output> out)
     m_replayIndex = -2;          // force the playhead outputs
     emit resultsChanged();
     updatePlayhead(true);
-    QVariantMap tm{ { QStringLiteral("jobMs"), o->jobMs }, { QStringLiteral("applyMs"), double(t.nsecsElapsed()) / 1e6 } };
+    QVariantMap tm{ { QStringLiteral("jobMs"), o->jobMs }, { QStringLiteral("consistencyMs"), o->consistencyMs },
+                    { QStringLiteral("applyMs"), double(t.nsecsElapsed()) / 1e6 } };
     st.insert(QStringLiteral("timings"), tm);
     o->status = st;              // read on this thread only
     if (o->jobMs > 250.0)

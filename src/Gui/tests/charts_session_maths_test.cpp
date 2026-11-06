@@ -399,12 +399,18 @@ private slots:
             QCOMPARE(p.rankLo, w.value(QStringLiteral("rankLo")).toInt());
             QCOMPARE(p.side, w.value(QStringLiteral("side")).toInt());
         }
-        // the "apart" ledger, most extreme first (seven readings on shot 8)
-        QStringList apart;
-        for (int i : apartFrom(rs, pick)) apart << rs[size_t(i)].id;
-        QStringList wantApart;
-        for (const QJsonValue &v : m_g.value(QStringLiteral("apart")).toArray()) wantApart << v.toString();
-        QCOMPARE(apart, wantApart);
+        // apartFrom keeps the boxes' meaning: past a whisker, most extreme first. What counts as apart on the
+        // page is the stand-out rule now (consistency_design.md §5): charts_relations_presenter_test.
+        const std::vector<int> past = apartFrom(rs, pick);
+        int sides = 0;
+        for (const SessionReading &r : rs) sides += placeOf(r, pick).side != 0 ? 1 : 0;
+        QCOMPARE(int(past.size()), sides);
+        QVERIFY(!past.empty());
+        for (size_t i = 0; i < past.size(); ++i) {
+            const ReadingPlace p = placeOf(rs[size_t(past[i])], pick);
+            QVERIFY(p.side != 0);
+            if (i) QVERIFY(std::abs(p.rz) <= std::abs(placeOf(rs[size_t(past[i - 1])], pick).rz));
+        }
     }
 
     void goldenCorrelationAndDrift()

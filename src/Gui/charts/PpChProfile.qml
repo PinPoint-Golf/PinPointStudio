@@ -120,6 +120,7 @@ Column {
             readonly property var r: parent && parent.md ? parent.md.row : null
             readonly property string readingId: r ? r.readingId : ""
             readonly property bool open: pt.openId !== "" && pt.openId === readingId
+            readonly property bool opensNothing: !!r && r.opens === ""      // a reading with no curve on this shot
             objectName: open ? "chApartRowOpen" : "chApartRow"
             readonly property bool two: !pt.wideCols || (r && (r.fired || r.caution))
             readonly property real line1: Math.max(pt.roles.u(24), name.implicitHeight + pt.roles.u(8))
@@ -202,14 +203,14 @@ Column {
             MouseArea {
                 id: ma; enabled: pt.interactive; hoverEnabled: true
                 width: pt.nameW + pt.valW + pt.unitW + 2 * pt.gap + (pt.wideCols ? pt.atW + pt.gap : 0); height: row.line1 + row.line2
-                cursorShape: Qt.PointingHandCursor
+                cursorShape: row.opensNothing ? Qt.ArrowCursor : Qt.PointingHandCursor
                 // a click on a gated value's words opens the reason; anywhere else, the row
                 onClicked: (mouse) => {
                     if (valT.gated) {
                         const q = valT.mapFromItem(ma, mouse.x, mouse.y)
                         if (q.x >= 0 && q.x <= Math.min(valT.width, valT.implicitWidth + 4)) { pt.trustClicked(row.r.trustSubject); return }
                     }
-                    pt.rowActivated(row.readingId)
+                    if (!row.opensNothing) pt.rowActivated(row.readingId)
                 }
             }
         }
