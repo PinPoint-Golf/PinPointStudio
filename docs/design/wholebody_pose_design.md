@@ -163,6 +163,11 @@ all body keypoints with conf ≥ threshold, expanded by a margin that covers
 raised arms + club grip at the top of the backswing (the club head does NOT
 need to be inside — pose only needs the person). Then:
 
+> **Changed 6 Nov 2026 (#154).** As built, this crop differed from the single-pass
+> path's and pass 1 stayed full-frame, so the same swing got different hands from
+> the two paths and its positions moved by up to 160 ms. Both paths now take the
+> crop from one eight-frame scan before any posing, and pass 1 runs through it.
+
 - Pass 2 crops every frame with **one fixed, swing-level crop rect**, aspect
   locked to 3:4 (192×256), and back-projects heatmap peaks through the (now
   constant) affine transform.

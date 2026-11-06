@@ -134,6 +134,9 @@ struct ShotAnalysisJob {
     // wrote it is the one that would run now. Non-empty ⇒ the stage reuses it and
     // does not run the model / replay. Empty in live capture.
     pinpoint::analysis::PoseTrack2D posePreloaded;
+    // The scope the reused pose was recorded with. It describes those frames, so the write-back keeps
+    // it: stamping this run's scope would call a full-window pose "span" and re-pose it next time.
+    QString posePreloadedScope;
     pinpoint::analysis::BallTrack2D ballPreloaded;
     // The DOWN-THE-LINE pose, the same two ways (DtlPoseStage). `poseDtlPreloaded` is a track
     // already in hand; `poseDtlTrackPath` is SwingLab's `--dtl-pose`, which pins the DTL pose so a

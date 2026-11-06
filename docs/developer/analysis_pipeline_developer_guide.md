@@ -553,7 +553,10 @@ Two levers/examples worth knowing by name:
    conf 0) the pose/span chicken-and-egg is broken by a coarse-stride pass
    then a dense pass around impact (`pose.coarseStride`, `pose.densePreMs/
    -PostMs`, `pose.denseStride`). The same pattern (coarse locate → dense
-   refine) is the first thing to reach for in any new per-frame pass.
+   refine) is the first thing to reach for in any new per-frame pass. Both
+   passes go through the one person crop the single-pass path makes
+   (`selectCropScan`): the crop moves the hands by several pixels, and the
+   positions read off the hand speed follow them (#154).
 
 ### 7.4 Injection paths — skip the expensive stage entirely
 

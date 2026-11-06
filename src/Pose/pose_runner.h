@@ -83,7 +83,7 @@ struct ShotAnalysisRunnerOptions {
     // denseStride, sparseStride elsewhere), reusing the pass-1 frames rather than
     // re-posing them. The coarse frames stay in the returned track as the
     // address-hold coverage — this subsumes addressScanPadUs on the two-pass
-    // path. Ignored when scanStartUs/scanEndUs are already set (an IMU/G3 bound
+    // path. Both passes run through one person crop, taken as the single-pass path takes it. Ignored when scanStartUs/scanEndUs are already set (an IMU/G3 bound
     // wins). On the degenerate no-run coarse pass the runner falls back to a
     // full-window single pass — never a worse result, only a lost optimisation.
     bool    twoPass      = false;

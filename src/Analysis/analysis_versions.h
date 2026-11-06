@@ -42,7 +42,8 @@
 // matches, so it re-runs once and is stamped by the write-back.
 namespace pinpoint::analysis {
 
-constexpr int kPoseStageVersion  = 1;
+constexpr int kPoseStageVersion  = 2;   // 2: every frame of a two-pass pose goes through the one crop the single-pass path
+                                        //    makes, pass 1 included; the hands move, and the positions read off them (#154, 2026-11-06)
 constexpr int kBallStageVersion  = 2;   // 2: replay bounded at max(launch, impact) + 150 ms, ROI-only decode (2026-10-06)
 constexpr int kShaftStageVersion = 7;
                                               // 1: first stamped version (2026-09-09)

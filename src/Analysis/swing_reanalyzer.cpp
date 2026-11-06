@@ -929,6 +929,7 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
         if (poseMatch) {
             ls.job.posePreloaded = PoseRunner::fromJsonObject(ls.analysisIn, ls.job.cameraSources.front());
             if (ls.job.posePreloaded.frames.empty()) ls.job.posePreloaded = {};
+            else ls.job.posePreloadedScope = vp[QStringLiteral("scope")].toString();
         }
         // The DOWN-THE-LINE pose, under the face-on pose's rule: its own stage version, the
         // same model identity, no pose./ball./address override — and a DTL camera to put it

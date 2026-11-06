@@ -282,6 +282,19 @@ static void testFrameSchedules()
         CHECK(label, same);
     }
 
+    // (a2) The crop scan both face-on paths share (#154): the eight frames the single-pass path
+    // always measured, ends included, and no index twice on a span shorter than the scan.
+    {
+        CHECK("crop scan: eight frames evenly across the window, both ends",
+              selectCropScan(0, 746) == (std::vector<size_t>{ 0, 106, 212, 319, 425, 532, 638, 745 }));
+        CHECK("crop scan: offset by the range start",
+              selectCropScan(100, 108) == (std::vector<size_t>{ 100, 101, 102, 103, 104, 105, 106, 107 }));
+        CHECK("crop scan: a span shorter than the scan repeats no index",
+              selectCropScan(10, 13) == (std::vector<size_t>{ 10, 11, 12 }));
+        CHECK("crop scan: one frame, and none",
+              selectCropScan(5, 6) == (std::vector<size_t>{ 5 }) && selectCropScan(5, 5).empty());
+    }
+
     // (b) Zones: first zone decides, stride counted from the zone's first frame, both edges posed,
     // the rest at restStride.
     {

@@ -84,14 +84,6 @@ struct BodyBboxAccum {
         x0 = std::min(x0, x); y0 = std::min(y0, y);
         x1 = std::max(x1, x); y1 = std::max(y1, y);
     }
-    // From a stored PoseFrame2D (pass-1 whole-window frames stay in the track).
-    void add(const std::array<QPointF, pinpoint::analysis::kWholeBodyJoints> &kp,
-             const std::array<float, pinpoint::analysis::kWholeBodyJoints> &conf, float thr) {
-        bool any = false;
-        for (int j = 0; j < PoseResult::kNumKeypoints; ++j)
-            if (conf[size_t(j)] >= thr) { any = true; addPoint(kp[size_t(j)].x(), kp[size_t(j)].y()); }
-        if (any) ++frames;
-    }
     // From a live PoseResult (mini-scan frames, discarded after bbox use).
     void addResult(const PoseResult &r, float thr) {
         bool any = false;
@@ -663,6 +655,44 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         return &cropRectStore;
     };
 
+    // WB1 person crop (design §3.2): a cheap mini-scan of evenly spaced full-frame inferences across
+    // [i0, i1), purely to accumulate the body bbox. Those frames are DISCARDED (not appended: they
+    // don't match the stride sampling semantics). The loop is serial and fully-consuming (sole
+    // payloadOf caller, one resident frame at a time, finished before runPipeline's producer
+    // starts), so the frozen-window read contract holds.
+    auto scanPersonBbox = [&](size_t i0, size_t i1) -> BodyBboxAccum {
+        BodyBboxAccum bb;
+        for (size_t idx : pinpoint::analysis::selectCropScan(i0, i1)) {
+            cv::Mat frameBgr;
+            bool decoded;
+            if (store) {   // decode.frameStore: the same pixels, no fetch
+                decoded = store->bgrOk(entries[idx]) && store->bgr(entries[idx]);
+                if (decoded) frameBgr = *store->bgr(entries[idx]);
+            } else {
+                pinpoint::pose::PoseScopedTimer decodeTimer(
+                    &timingSink, &pinpoint::pose::PoseTiming::decodeMs);
+                const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(entries[idx]);
+                decoded = pinpoint::decodeToBgr(*cfmt, handle.data, handle.bytes, frameBgr);
+            }
+            if (!decoded)
+                continue;
+            std::vector<float> buf;
+            estimator.preprocess(frameBgr, buf);
+            if (batchedPath) {   // same session options as the dense pass (static batch)
+                std::vector<PoseEstimatorViTPose::FrameResult> one;
+                if (estimator.inferBatch({ &buf }, one, decodeSet, decodeThreads, ioBinding)
+                    && !one.empty())
+                    bb.addResult(one.front().pose, 0.30f);
+                continue;
+            }
+            gotPose = false;
+            estimator.inferPrepared(buf);
+            if (gotPose)
+                bb.addResult(res, 0.30f);
+        }
+        return bb;
+    };
+
     // Dense zone around impact (both scan paths share it): pose every
     // denseStride-th frame here, every sparseStride-th elsewhere in span.
     const int64_t denseLo = opt.impactUs - static_cast<int64_t>(opt.densePreMs)  * 1000;
@@ -683,22 +713,21 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     if (opt.twoPass && opt.scanEndUs <= opt.scanStartUs) {
         const size_t coarse = static_cast<size_t>(std::max(1, opt.coarseStride));
 
-        // Pass 1 — coarse, whole window, always full-frame (its frames stay in the
-        // track as address-hold coverage and its body keypoints seed the crop).
+        // The swing-level person crop, made as the single-pass path makes it and BEFORE pass 1, so
+        // every frame of the track is posed through one crop. Both passes read it: a pass-1 frame
+        // posed full-frame among cropped neighbours put a step in the hand track every coarse-th
+        // frame, and a union bbox over the coarse frames made a different crop from the single-pass
+        // one. Either way the same swing got different hands, and the positions read off the hand
+        // speed moved by up to 160 ms between the two paths (#154).
+        const cv::Rect *cropPtr = acc.crop.enabled ? makeCrop(scanPersonBbox(0, entries.size())) : nullptr;
+
+        // Pass 1 — coarse, whole window (its frames stay in the track as address-hold coverage).
         std::vector<std::pair<size_t, float>> jobs1;
         jobs1.reserve(entries.size() / coarse + 1);
         for (size_t i : pinpoint::analysis::selectTwoPassCoarse(entries.size(), opt.coarseStride))
             jobs1.emplace_back(i, 0.2f * float(i + 1) / float(entries.size()));
-        runPipeline(jobs1, track, nullptr);
+        runPipeline(jobs1, track, cropPtr);
         const size_t pass1Posed = track.frames.size();
-
-        // Swing-level person crop from the union bbox of pass-1 body keypoints
-        // (design §3.2). Pass-1 frames are already full-frame normalized — kept
-        // as-is (mixed provenance is fine); only pass 2 runs cropped.
-        BodyBboxAccum bb;
-        for (size_t k = 0; k < pass1Posed; ++k)
-            bb.add(track.frames[k].kp, track.frames[k].conf, 0.30f);
-        const cv::Rect *cropPtr = makeCrop(bb);
 
         // Coarse grip track in PIXELS (leadHand/trailHand are normalized [0,1])
         // + coarse frame rate (median inter-frame dt) for the span estimate.
@@ -828,55 +857,8 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     }
     for (size_t i : picked)
         jobs.emplace_back(i, float(i + 1 - iAddr0) / float(i1 - iAddr0));
-    // WB1 person crop (design §3.2). No pass-1 bbox exists on this path, so run a
-    // cheap mini-scan — 8 evenly-spaced full-frame inferences across the scan
-    // range — purely to accumulate the body bbox. Those frames are DISCARDED (not
-    // appended: they don't match the stride sampling semantics). The loop is
-    // serial and fully-consuming (sole payloadOf caller, one resident frame at a
-    // time, finished before runPipeline's producer starts), so the frozen-window
-    // read contract holds. Skipped entirely when cropping is off ⇒ no extra
-    // inference and a byte-identical flags-off path.
-    const cv::Rect *cropPtr = nullptr;
-    if (acc.crop.enabled && i1 > iAddr0) {
-        BodyBboxAccum bb;
-        constexpr int kMiniScanN = 8;
-        const size_t span = i1 - iAddr0;
-        size_t prev = entries.size();   // impossible index ⇒ dedup sentinel
-        for (int k = 0; k < kMiniScanN; ++k) {
-            const size_t idx = iAddr0
-                + (span <= 1 ? 0 : size_t(uint64_t(k) * (span - 1) / (kMiniScanN - 1)));
-            if (idx == prev)            // span < N ⇒ deduplicate repeated indices
-                continue;
-            prev = idx;
-            cv::Mat frameBgr;
-            bool decoded;
-            if (store) {   // decode.frameStore: the same pixels, no fetch
-                decoded = store->bgrOk(entries[idx]) && store->bgr(entries[idx]);
-                if (decoded) frameBgr = *store->bgr(entries[idx]);
-            } else {
-                pinpoint::pose::PoseScopedTimer decodeTimer(
-                    &timingSink, &pinpoint::pose::PoseTiming::decodeMs);
-                const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(entries[idx]);
-                decoded = pinpoint::decodeToBgr(*cfmt, handle.data, handle.bytes, frameBgr);
-            }
-            if (!decoded)
-                continue;
-            std::vector<float> buf;
-            estimator.preprocess(frameBgr, buf);
-            if (batchedPath) {   // same session options as the dense pass (static batch)
-                std::vector<PoseEstimatorViTPose::FrameResult> one;
-                if (estimator.inferBatch({ &buf }, one, decodeSet, decodeThreads, ioBinding)
-                    && !one.empty())
-                    bb.addResult(one.front().pose, 0.30f);
-                continue;
-            }
-            gotPose = false;
-            estimator.inferPrepared(buf);
-            if (gotPose)
-                bb.addResult(res, 0.30f);
-        }
-        cropPtr = makeCrop(bb);
-    }
+    // Skipped when cropping is off ⇒ no extra inference and a byte-identical flags-off path.
+    const cv::Rect *cropPtr = acc.crop.enabled && i1 > iAddr0 ? makeCrop(scanPersonBbox(iAddr0, i1)) : nullptr;
 
     const size_t sampled = jobs.size();
     runPipeline(jobs, track, cropPtr);

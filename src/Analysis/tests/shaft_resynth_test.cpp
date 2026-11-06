@@ -81,6 +81,21 @@ int main()
     cfg.synth.enabled = true;
 
     {
+        // #154: EventRefine moves P1 after the synth is built. Rebuilt from the moved anchor, the
+        // synth starts at the new P1 and carries no tick from the old one, so a fresh track and the
+        // same track reloaded (which rebuilds from the recorded P1) give the same synth.
+        ShaftTrack2D t = makeTrack();
+        resynthesizeLayerC(t, cfg);
+        const size_t before = t.synth.size();
+        const ShaftSample2D &moved = t.samples[12];
+        ShaftPosition &p1 = t.positions.front();
+        p1.t_us = moved.t_us; p1.gripPx = moved.gripPx; p1.headPx = moved.headPx; p1.thetaRad = moved.thetaRad;
+        resynthesizeLayerC(t, cfg);
+        check(!t.synth.empty() && t.synth.front().t_us > moved.t_us, "rebuilt after P1 moved: the synth starts past the new P1");
+        check(t.synth.size() < before, "rebuilt after P1 moved: the ticks before it are gone");
+    }
+
+    {
         ShaftTrack2D t = makeTrack();
         t.synth.push_back(t.samples[3]);   // stale synth from a previous producer — must be replaced
         resynthesizeLayerC(t, cfg);

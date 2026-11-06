@@ -650,7 +650,9 @@ struct PoseStage : AnalysisStage {
         ctx.detail->timings.poseMs = int(poseWall.elapsed());
         ctx.detail->versions.pose      = kPoseStageVersion;
         ctx.detail->versions.poseModel = PoseRunner::modelIdentity(ctx.job.motionCaptureQuality);
-        ctx.detail->versions.poseScope = ctx.job.fullWindow ? QStringLiteral("full") : QStringLiteral("span");
+        ctx.detail->versions.poseScope = !ctx.job.posePreloadedScope.isEmpty() ? ctx.job.posePreloadedScope
+                                       : ctx.job.fullWindow                    ? QStringLiteral("full")
+                                                                               : QStringLiteral("span");
         ctx.runnerOpt = std::move(opt);
     }
 };
@@ -1112,7 +1114,8 @@ struct RequireProductsStage : AnalysisStage {
 //     a no-op run, so ctx.seg is code-path-identical when off.
 struct EventRefineStage : AnalysisStage {
     QString name() const override { return QStringLiteral("EventRefine"); }
-    StageDecl decl() const override { return D({ kSegImu, kShaft, kDetailBall, kSeg }, { kSeg }, {}); }
+    // Writes kShaft as well as kSeg: a refined Address drags P1 with it (event_refine.cpp).
+    StageDecl decl() const override { return D({ kSegImu, kShaft, kDetailBall, kSeg }, { kSeg, kShaft }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return EventRefineConfig::fromOverrides(ctx.job.tuningOverrides).enabled
@@ -1139,6 +1142,11 @@ struct EventRefineStage : AnalysisStage {
                      << (r.takeawayRefined ? "Takeaway" : "-") << (r.addressRefined ? "Address" : "-")
                      << (r.p1Synced ? "+P1" : "-") << "conf" << r.conf << "tier" << r.tier
                      << "L" << r.departFrame;
+        // The synth runs between the P-anchors, so one that moved leaves it starting at the old
+        // P1. Rebuild it, as a re-analysis that reuses this track does from the moved P1 (ShaftStage),
+        // so this move gives the same synth both ways (#154).
+        if (r.p1Synced)
+            resynthesizeLayerC(ctx.detail->shaft, ShaftV3Config::fromOverrides(ctx.job.tuningOverrides));
     }
 };
 

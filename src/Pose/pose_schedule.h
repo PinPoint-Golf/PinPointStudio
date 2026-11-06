@@ -94,6 +94,22 @@ inline std::vector<size_t> selectTwoPassFill(const std::vector<int64_t> &ts, siz
     return out;
 }
 
+// The frames the person crop is measured on: `n` evenly spaced across [i0, i1), both ends
+// included, no index twice. Both face-on paths take their crop from these, so a camera-only swing
+// gets the same crop two-pass and full-window (the crop moves the hands, and with them the
+// positions; #154). An IMU-bounded scan measures its own range, so its crop can still differ.
+inline std::vector<size_t> selectCropScan(size_t i0, size_t i1, int n = 8)
+{
+    std::vector<size_t> out;
+    if (i1 <= i0 || n < 1) return out;
+    const size_t span = i1 - i0;
+    for (int k = 0; k < n; ++k) {
+        const size_t idx = i0 + (span <= 1 || n <= 1 ? 0 : size_t(uint64_t(k) * (span - 1) / size_t(n - 1)));
+        if (out.empty() || out.back() != idx) out.push_back(idx);
+    }
+    return out;
+}
+
 // ── The general zone schedule ───────────────────────────────────────────────
 
 struct PoseZone {
