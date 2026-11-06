@@ -50,6 +50,7 @@
 #include "report/report_words.h"
 #include "report/report_posture.h"
 #include "report/report_wrist.h"
+#include "report/report_consistency.h"
 #include "report/report_delivery.h"
 #include "../../Diagnostics/packs/drill_pack.h"
 #include "../../Diagnostics/packs/gate_words_pack.h"
@@ -1011,6 +1012,70 @@ int main(int argc, char **argv)
            QStringLiteral("No swing in this session has both the launch monitor's path and the plane, so the plane is not set against the ball flight."),
            "and the sentence says why");
         eq(nb.value(QStringLiteral("flight")).toMap().value(QStringLiteral("legend")).toString(), QString(), "no scatter: no legend");
+    }
+
+    std::printf("the consistency page: absent with nothing to read, the presenter's words, the report's swings, the caps\n");
+    {
+        using pinpoint::report::consistencyReportBlock;
+        using pinpoint::report::kConsistencyReportRowCap;
+        using pinpoint::report::kConsistencyReportSwingCap;
+        const QHash<QString, int> noSwings;
+        const auto sentence = [](const QString &t) { return QVariantMap{ { QStringLiteral("text"), t }, { QStringLiteral("runs"), QVariantList{} } }; };
+        check(consistencyReportBlock(QVariantMap{}, noSwings).isNull(), "no payload: no consistency block");
+        check(consistencyReportBlock(QVariantMap{ { QStringLiteral("available"), false } }, noSwings).isNull(), "nothing to read: no consistency block");
+
+        // one more flagged shot than the cap, the first with one more row than its cap, ball rows first
+        QVariantList ball, swing;
+        for (int i = 0; i < 2; ++i) ball.append(QVariantMap{ { QStringLiteral("key"), QStringLiteral("lm.ball%1").arg(i) }, { QStringLiteral("label"), QStringLiteral("Ball %1").arg(i) },
+                                                             { QStringLiteral("tag"), QStringLiteral("P7") }, { QStringLiteral("valueFigure"), QStringLiteral("96 yd") },
+                                                             { QStringLiteral("medianText"), QStringLiteral("120") }, { QStringLiteral("values"), QVariantList{ 1.0, 2.0 } } });
+        for (int i = 0; i < kConsistencyReportRowCap - 1; ++i)
+            swing.append(QVariantMap{ { QStringLiteral("key"), QStringLiteral("swing%1").arg(i) }, { QStringLiteral("label"), QStringLiteral("Reading %1").arg(i) },
+                                      { QStringLiteral("caution"), i == 0 }, { QStringLiteral("cautionText"), QStringLiteral("⚠ a rough estimate") } });
+        QVariantList flagged;
+        QHash<QString, int> swingNo;
+        for (int i = 0; i <= kConsistencyReportSwingCap; ++i) {
+            const QString dir = QStringLiteral("/s/swing_%1").arg(i);
+            swingNo.insert(dir, 40 + i);
+            flagged.append(QVariantMap{ { QStringLiteral("ordinal"), i + 1 }, { QStringLiteral("swingDir"), dir }, { QStringLiteral("club"), QStringLiteral("Gap wedge") },
+                                        { QStringLiteral("lm"), QStringLiteral("launch monitor: short") }, { QStringLiteral("sentence"), sentence(QStringLiteral("Carry 96 yd.")) },
+                                        { QStringLiteral("guardNote"), QString() }, { QStringLiteral("headLabel"), QStringLiteral("What stood out") },
+                                        { QStringLiteral("note"), QStringLiteral("These happened on the same shot.") },
+                                        { QStringLiteral("groups"), QVariantList{ QVariantMap{ { QStringLiteral("name"), QStringLiteral("The ball") }, { QStringLiteral("rows"), ball } },
+                                                                                  QVariantMap{ { QStringLiteral("name"), QStringLiteral("Your swing") }, { QStringLiteral("rows"), swing } } } } });
+        }
+        QVariantMap payload{ { QStringLiteral("available"), true }, { QStringLiteral("kicker"), QStringLiteral("Consistency  ·  31 swings") },
+                             { QStringLiteral("headline"), sentence(QStringLiteral("Your swing repeats from shot to shot.")) }, { QStringLiteral("ball"), QVariantMap{} },
+                             { QStringLiteral("empty"), QString() }, { QStringLiteral("notes"), QVariantList{ sentence(QStringLiteral("A note.")) } },
+                             { QStringLiteral("table"), true }, { QStringLiteral("matrix"), QVariantMap{ { QStringLiteral("columns"), QVariantList{} } } },
+                             { QStringLiteral("key"), QStringLiteral("The key.") }, { QStringLiteral("keyMarks"), QStringLiteral("The marks.") }, { QStringLiteral("flagged"), flagged } };
+        const QVariantMap b = consistencyReportBlock(payload, swingNo).toMap();
+        eq(b.value(QStringLiteral("head")).toString(), QStringLiteral("Your swing repeats from shot to shot."), "the headline is the presenter's, verbatim");
+        eq(b.value(QStringLiteral("ball")).toString(), QString(), "no ball line: empty");
+        eq(b.value(QStringLiteral("notes")).toStringList().join(QLatin1Char('|')), QStringLiteral("A note."), "the notes, as strings");
+        const QVariantList fl = b.value(QStringLiteral("flagged")).toList();
+        check(fl.size() == kConsistencyReportSwingCap, "the flagged swings are capped");
+        eq(b.value(QStringLiteral("flaggedMore")).toString(), QStringLiteral("1 more flagged swing: 46"), "the swing past the cap is named, by the report's number");
+        const QVariantMap first = fl.first().toMap();
+        eq(first.value(QStringLiteral("title")).toString(), QStringLiteral("Swing 40  ·  gap wedge"), "a flagged shot takes the report's swing number");
+        eq(first.value(QStringLiteral("shotLabel")).toString(), QStringLiteral("Swing 40"), "and its column head");
+        eq(first.value(QStringLiteral("more")).toString(), QStringLiteral("1 more reading"), "its rows past the cap are counted");
+        const QVariantList gs = first.value(QStringLiteral("groups")).toList();
+        eq(gs.first().toMap().value(QStringLiteral("name")).toString(), QStringLiteral("The ball"), "ball first");
+        check(gs.first().toMap().value(QStringLiteral("rows")).toList().size() == 2 && gs.last().toMap().value(QStringLiteral("rows")).toList().size() == kConsistencyReportRowCap - 2,
+              "the cap falls on the swing's readings, not the ball's");
+        const QVariantMap row = gs.first().toMap().value(QStringLiteral("rows")).toList().first().toMap();
+        eq(row.value(QStringLiteral("value")).toString(), QStringLiteral("96 yd"), "a row's figure, verbatim");
+        check(!row.contains(QStringLiteral("values")), "a row keeps only what paper prints");
+        eq(gs.last().toMap().value(QStringLiteral("rows")).toList().first().toMap().value(QStringLiteral("cautionText")).toString(), QStringLiteral("⚠ a rough estimate"), "a row's ⚠ stays");
+        eq(b.value(QStringLiteral("note")).toString(), QStringLiteral("These happened on the same shot."), "the same-shot note, once");
+
+        // no cell has a word: the head and the ball stay, the table and its key do not
+        payload[QStringLiteral("table")] = false;
+        const QVariantMap nt = consistencyReportBlock(payload, swingNo).toMap();
+        check(nt.value(QStringLiteral("table")).isNull(), "no word in the table: no table");
+        eq(nt.value(QStringLiteral("key")).toString(), QString(), "and no key");
+        eq(nt.value(QStringLiteral("head")).toString(), QStringLiteral("Your swing repeats from shot to shot."), "the head stays");
     }
 
     std::printf("an edit in the Diagnostic Model reaches the next report (#60): goal, an attached drill, a gate's words\n");

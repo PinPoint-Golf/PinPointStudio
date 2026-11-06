@@ -178,6 +178,13 @@ Item {
             visible: root.kind !== "note" && !!root.rep.delivery
             ro: rr; dl: root.rep.delivery || null
         }
+        // the consistency page (consistency_design.md §3, Print): after the Club delivery page, before the back matter;
+        // absent when the map has no `consistency` (nothing to read: report_consistency.h). Not on the cover's Inside line.
+        PpConsistencyPage {
+            width: pager.textW
+            visible: root.kind !== "note" && !!root.rep.consistency
+            ro: rr; cs: root.rep.consistency || null
+        }
         PpNumbersTable {
             width: pager.textW
             visible: root.kind !== "note" && (!!root.rep.practice || !!root.rep.numbers)

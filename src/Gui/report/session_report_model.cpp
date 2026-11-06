@@ -19,6 +19,7 @@
 #include "session_report_model.h"
 
 #include "report_meta.h"
+#include "report_consistency.h"
 #include "report_delivery.h"
 #include "report_posture.h"
 #include "report_wrist.h"
@@ -26,10 +27,12 @@
 #include "report_words.h"
 
 #include "../athlete/athlete_controller.h"
+#include "../charts/charts_consistency_presenter.h"
 #include "../charts/charts_delivery_presenter.h"
 #include "../charts/charts_posture_presenter.h"
 #include "../charts/charts_relations_presenter.h"
 #include "../charts/charts_wrist_presenter.h"
+#include "../charts/consistency_env.h"
 #include "../charts/session_series_model.h"
 #include "../charts/session_wrist.h"
 #include "../diagnostics/session_diagnostics_model.h"
@@ -40,6 +43,7 @@
 #include "../../Core/pp_debug.h"
 #include "../../Core/pp_settings.h"
 #include "../../Core/studio_profile.h"
+#include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Diagnostics/packs/drill_pack.h"
 #include "../../Diagnostics/packs/gate_words_pack.h"
 #include "../../Diagnostics/packs/pack_provider.h"
@@ -110,8 +114,11 @@ struct DocFacts {
 // session payload (nothing picked, Auto pattern), the Wrist presenter's (nothing picked, Auto style, the dominant
 // style's wash) and the Club delivery presenter's (nothing picked; its fits over the golfer's day, read from the day's
 // other sessions' swing_phasegrid.json). The same numbers and words the Charts Posture, Wrist and Club delivery
-// sections draw for the session. { posture, wrist, delivery }, each empty when nothing reads.
-QVariantMap readChartsPages(const QString &sessionDir)
+// sections draw for the session. Over it too the Consistency presenter's report payload (the Consistency tab's table and
+// flagged shots, on a swings kicker); `env` and `norms` come from the GUI thread (consistency_env.h).
+// { posture, wrist, delivery, consistency }, each empty when nothing reads.
+QVariantMap readChartsPages(const QString &sessionDir, const pinpoint::charts::ConsistencyEnv &env, const QString &gradePolicy,
+                            const std::shared_ptr<const INormProvider> &norms)
 {
     pinpoint::charts::SessionSeriesModel series;
     series.setSynchronous(true);
@@ -120,7 +127,8 @@ QVariantMap readChartsPages(const QString &sessionDir)
     if (!snap || snap->count() == 0) return {};
     return { { QStringLiteral("posture"), pinpoint::charts::postureSessionReportPayload(*snap, -1, QStringLiteral("swings")) },   // the report says swings
              { QStringLiteral("wrist"), pinpoint::charts::wristSessionReportPayload(*snap, -1, QStringLiteral("swings")) },
-             { QStringLiteral("delivery"), pinpoint::charts::deliverySessionReportPayload(*snap, QStringLiteral("swings")) } };
+             { QStringLiteral("delivery"), pinpoint::charts::deliverySessionReportPayload(*snap, QStringLiteral("swings")) },
+             { QStringLiteral("consistency"), pinpoint::charts::consistencySessionReportPayload(snap, env, gradePolicy, norms, QStringLiteral("swings")) } };
 }
 
 QVector<DocFacts> readDocs(const QString &sessionDir)
@@ -243,8 +251,8 @@ struct SessionReportModel::Job {
     bool        built = false;
     QFutureWatcher<QVector<DocFacts>> docsWatcher;
     QVector<DocFacts> docs;
-    QFutureWatcher<QVariantMap> chartsWatcher;      // the Posture, Wrist and Club delivery pages' payloads (readChartsPages)
-    QVariantMap posture, wrist, delivery;
+    QFutureWatcher<QVariantMap> chartsWatcher;      // the Posture, Wrist, Club delivery and Consistency pages' payloads (readChartsPages)
+    QVariantMap posture, wrist, delivery, consistency;
 
     QVariantMap         map;
     QVector<StillRequest> requests;
@@ -473,8 +481,12 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
     // The Posture and Wrist pages' reading, alongside. The wrist grader's shared norm set is built here first, on
     // this thread, as SessionSeriesModel's constructor does for its own worker (session_wrist.h).
     pinpoint::charts::warmWristBands();
+    // The Consistency page's env and norms are taken here for the same reason, and handed over by value.
+    const pinpoint::charts::ConsistencyEnv consistencyEnv = pinpoint::charts::consistencyEnvFromPacks();
+    const std::shared_ptr<const INormProvider> norms = sharedNormProvider();
+    const QString policy = gradePolicyName();
     connect(&m_job->chartsWatcher, &QFutureWatcher<QVariantMap>::finished, this, &SessionReportModel::onChartsRead);
-    m_job->chartsWatcher.setFuture(QtConcurrent::run([dir] { return readChartsPages(dir); }));
+    m_job->chartsWatcher.setFuture(QtConcurrent::run([dir, consistencyEnv, policy, norms] { return readChartsPages(dir, consistencyEnv, policy, norms); }));
 
     SessionDiagnosticsModel *m = model();
     m->setGradePolicy(gradePolicyName());
@@ -513,6 +525,7 @@ void SessionReportModel::onChartsRead()
     m_job->posture = pages.value(QStringLiteral("posture")).toMap();
     m_job->wrist = pages.value(QStringLiteral("wrist")).toMap();
     m_job->delivery = pages.value(QStringLiteral("delivery")).toMap();
+    m_job->consistency = pages.value(QStringLiteral("consistency")).toMap();
     m_job->chartsReady = true;
     QTimer::singleShot(0, this, [this] { maybeBuild(); });
 }
@@ -1949,6 +1962,17 @@ void SessionReportModel::build()
             for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), k + 1);
             map[QStringLiteral("delivery")] = M::deliveryReportBlock(job.delivery, swingNoOfDir,
                 [](double lo, double hi, int n, const QString &unit) { return pinpoint::charts::ChartsRelationsPresenter::axisTicks(lo, hi, n, unit); });
+        }
+
+        // The Consistency page (consistency_design.md §3, Print): the Consistency tab's table and the launch monitor's
+        // flagged shots, numbered as the report numbers its swings. Not in a note (the cover alone); absent when the
+        // table has no word, there is no ball line and nothing is flagged (data decides).
+        if (isNote) {
+            map[QStringLiteral("consistency")] = kNull;
+        } else {
+            QHash<QString, int> swingNoOfDir;
+            for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), k + 1);
+            map[QStringLiteral("consistency")] = M::consistencyReportBlock(job.consistency, swingNoOfDir);
         }
 
         if (isNote) {
