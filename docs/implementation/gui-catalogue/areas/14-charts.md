@@ -19,7 +19,7 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 | [PpChKeyFigures](#ppchkeyfigures) | 88 | `Item` | 1 | 0 |  |
 | [PpChKindCurve](#ppchkindcurve) | 169 | `Item` | 1 | 1 |  |
 | [PpChKindTable](#ppchkindtable) | 163 | `Column` | 1 | 1 |  |
-| [PpChMatrix](#ppchmatrix) | 86 | `Column` | 1 | 0 |  |
+| [PpChMatrix](#ppchmatrix) | 140 | `Column` | 1 | 0 |  |
 | [PpChMovesWith](#ppchmoveswith) | 148 | `Column` | 2 | 1 |  |
 | [PpChPlaneLabels](#ppchplanelabels) | 93 | `Item` | 2 | 0 |  |
 | [PpChPlot](#ppchplot) | 169 | `Canvas` | 4 | 0 |  |
@@ -260,17 +260,24 @@ The Charts stage panel (PpCh*): This shot / Session / Relations / Kinds views an
 - **Used by (1):** `PpChartsKindsView`
 
 ### PpChMatrix
-`src/Gui/charts/PpChMatrix.qml` · 86 lines · root `Column` · no direct `Theme.*` refs
+`src/Gui/typeset/PpChMatrix.qml` · 140 lines · root `Column` · no direct `Theme.*` refs
 
-> PPCHMATRIX — the Up reading's family against itself (design §2.3 "the family matrix"): a lower triangle of
-> r set as FIGURES, an annual-report table and not a heat map (the only wash in a chart is the corridor's): a
-> figure is ink when it clears chance and ink3 inside it, the pair on the scatter in the pick wash. Rows are
-> named and numbered, columns carry the numbers. As many readings as their columns fit (ch.matrixCellEm);
-> the rest stay in the "Moves with" ledger. A cell puts that pair on the scatter.
-> objectName: chMatrix; each cell chMatrixCell (+ xId, yId).
+> PPCHMATRIX — a table of short cells under one heavy rule (design system components/PpChMatrix.md). An annual-report
+> table: rows are named, a cell is a figure or a word in ink or ink3, and it works one of two ways.
+> THE FAMILY (`matrix`, Charts Relations, design §2.3): the Up reading's family against itself, a lower triangle of r
+> as figures, numbered rows and columns, ink when it clears chance and ink3 inside it, the pair on the scatter in the
+> pick wash. As many readings as their columns fit (ch.matrixCellEm); the rest stay in the "Moves with" ledger, and
+> under three it hides. A cell puts that pair on the scatter (pairActivated).
+> THE RECTANGLE (`columns` + `rows`, Consistency): named columns across the full width and generic cells on an optional
+> wash, the one exception to "the corridor is the only wash" (§15.4): the word stays in the cell. When the words do not
+> fit, `short` turns on: each cell takes its short form on the same wash and `keyText` appears. No column is ever
+> dropped. A picked cell (`on`) takes an outline, because the wash has taken over its old highlight.
+>   columns: [string | { text, short }]    rows: [{ id, name, cells: [{ text, short, strong, heavy, on, mark, tap, heat, soft }] }]
+> One body draws both: `family` is mapped onto rows here. `roles` is any PpTypeset. Give it a width.
+> objectName: chMatrix; each cell chMatrixCell (+ xId, yId in the family).
 
-- **Properties:** `QtObject roles`, `var matrix`, `bool interactive`, `bool atom`, `readonly var keyKinds`, `readonly real em`, `readonly real cellW`, `readonly real nameW`, `readonly var all`, `readonly int n`, `readonly real rowH`
-- **Signals:** `pairActivated(string xId, string yId)`
+- **Properties:** `QtObject roles`, `var matrix`, `var columns`, `var rows`, `bool wash`, `string keyText`, `bool interactive`, `bool atom`, `readonly var keyKinds`, `readonly real em`, `readonly int nCols`, `readonly bool family`, `readonly real nameMax`, `readonly real wordW`, `readonly bool short`, `readonly real indent`, `readonly real nameW`, `readonly real cellW`, `readonly var all`, `readonly int n`, `readonly real rowH`, `readonly real tableW`, `readonly var heads`, `readonly var body`
+- **Signals:** `pairActivated(string xId, string yId)`, `cellActivated(string rowId, int column)`
 - **Used by (1):** `PpChartsRelationsView`
 
 ### PpChMovesWith

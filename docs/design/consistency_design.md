@@ -1,15 +1,17 @@
 # Consistency: where your swing repeats, where it gets loose, and what stood out on a bad shot
 
-Status: DESIGN, 6 Nov 2026. Nothing built. The mock is done (§3); the items in §8 marked open need Mark's word
-before the build. Mark's brief (6 Nov): "for each area, e.g. setup, posture there are curves where there is a clear
+Status: BUILT, 6 Nov 2026. Uncommitted. Mark has read the sheets and ruled (§8); the cells his rulings moved are still to be
+shown to him, and the windowed run is still to do. Mark's brief (6 Nov): "for each area, e.g. setup, posture there are curves where there is a clear
 and consistent pattern at each phase of the swing … there are also some where there is a lot of movement and
 inconsistency from one swing to the next … let the non-statistical expert golfer [see] where their patterns look
 consistent … and where there is variance … where does your swing keep falling out of the same pattern. Secondly, when
 a bad shot is hit … what in that shot was particularly different to any other? … make sure we don't already cover this
 in some other way — the last thing we need to do is build another solution to pretty much the same problem."
 
-Every number here reproduces from `docs/research/data/consistency/` with `tools/diagnostics/consistency_extract.py` and
-`tools/diagnostics/consistency_tally.py` (Appendix A). The tally is also the reference the C++ goldens are cut from.
+Every number here reproduces in three steps (Appendix A): `tools/diagnostics/consistency_extract.py` writes each session
+in the charts fixture's shape on the cabin PC, `consistency_dump` runs the C++ sampling over those files on the Mac, and
+`tools/diagnostics/consistency_tally.py` runs its own copy of the rules on what C++ sampled, and with `--check` lists any
+difference. The results are in `docs/research/data/consistency/`. The C++ goldens are cut from the tally.
 
 ---
 
@@ -20,8 +22,8 @@ Each cell says how much that part of the swing moves from shot to shot: **steady
 that deepens as it loosens. Picking a shot puts a ◆ where it left the pattern, and lists what stood out on it: the ball
 first, then the club, then the swing. A shot the launch monitor reads as short or offline is flagged for you.
 
-- **Where it goes:** a new **Consistency** tab in Session diagnostics, between Session and Watching, and a Consistency
-  column on Home's Your swing table.
+- **Where it goes:** a new **Consistency** tab in Session diagnostics, between Session and Watching, in Analyse and
+  Replay; a Consistency column on Home's Your swing table; and a Consistency page in the session report.
 - **What it is:** a roll-up. No new statistics engine, chart or norm. It reuses the box statistics, the P-aligned
   time, the norms, the launch-monitor readings, `PpChProfile` and the Readings curve. The table is `PpChMatrix`, extended.
 - **What it replaces:** "Compare the cleanest and worst shot" in #66, and the rule behind Charts' "Apart from the session".
@@ -33,6 +35,7 @@ first, then the club, then the swing. A shot the launch monitor reads as short o
 ## 1. What we already have
 
 Most of this exists, in pieces, and that was the risk Mark named. The gap is an overview, and a way in from the ball.
+This table is the app as it stood on 6 Nov; §5 says what changed in Charts.
 
 | Question | Already in the app | What it lacks |
 |---|---|---|
@@ -52,45 +55,52 @@ Not a duplicate of Kinds (which groups the shots) or of Drift (which reads a tre
 ## 2. What the library shows
 
 Mark's 12 sessions, 204 shots, read on the cabin PC. Five have 15 or more camera shots and are judged here: 4 July (15),
-5 Oct (31), 7 Oct (50), 8 Oct (32), 20 Oct (19). One golfer only; the thresholds are first guesses on him.
+5 Oct (31), 7 Oct (50), 8 Oct (32), 20 Oct (19). The thresholds are first guesses on him; §2.7 reads the other four
+golfers.
+
+These figures are re-issued from the rebuilt tally and differ from the 6 Nov draft, for two reasons. The draft sampled each
+shot between its own P-times, in Python. The build samples on the app's real alignment. And P7–P8 now has a rule of
+its own (§2.6). So on 5 Oct, P7–P8 was loose in all five of its areas and is now loose in none: some in Arms and club,
+steady in the rest. Three other cells moved:
+Posture P4–P5 (some to steady), Arms and club P5–P6 (steady to some), Impact (loose to some).
 
 ### 2.1 The table holds up
 
 Which reading is loose, against which is steady, is stable when a session is split in half at random (rank correlation
-0.78 to 0.91). That figure is flattered by the gap between one metric and another, so the sharper test is **within a
+0.80 to 0.89). That figure is flattered by the gap between one metric and another, so the sharper test is **within a
 metric: is the same span the loosest in another session?**
 
 | Sessions compared | Rank correlation |
 |---|---|
-| 5, 7, 8 Oct against each other | 0.77 to 0.82 |
-| 20 Oct against those | 0.62 to 0.68 |
-| 4 July against the rest | 0.51 to 0.58 |
+| 5, 7, 8 Oct against each other | 0.70 to 0.79 |
+| 20 Oct against those | 0.69 to 0.77 |
+| 4 July against the rest | 0.52 to 0.64 |
 
 So the pattern is real and repeats, more strongly between neighbouring sessions. Measurement noise would repeat the same
 way, so this does not prove all of it is the golfer.
 
-5 Oct, the session in the mock (⚠ never fires on it):
+5 Oct, the session in the mock (⚠ never fires on a cell of it):
 
 ```
                  P1      P1-P2   P2-P3   P3-P4   P4-P5   P5-P6   P6-P7   P7-P8
 Setup            some
-Posture          steady  steady  steady  steady  some    steady  steady  loose
-Arms and club            steady  steady  some    some    steady  some    loose
+Posture          steady  steady  steady  steady  steady  steady  steady  steady
+Arms and club            steady  steady  some    some    some    some    some
 Sequence                         some    some    some    some    loose
-Lateral motion           some    some    some    some    some    some    loose
-Release                                                  steady  steady  loose
-Impact                                                           loose
-Finish                                                                   loose
+Lateral motion           some    some    some    some    some    some    steady
+Release                                                  steady  steady  steady
+Impact                                                           some
+Finish                                                                   steady
 ```
 
-P7–P8 is not always loose: Posture and Lateral motion are steady there on 4 July and 20 Oct.
-Cells across the 33 in a session: steady 7 to 18, some 8 to 19, loose 0 to 10, ⚠ 0 to 2.
+Lateral motion and Release are steady at P7–P8 here, but near the line (§2.6).
+Cells across the 33 in a session: steady 9 to 16, some 7 to 20, loose 0 to 9, ⚠ 0 to 2.
 
 ### 2.2 Noise is a smaller problem than it looked
 
-Between 35 % and 53 % of readings with a σ have a spread no bigger than that σ, which looked fatal. It is not, because
+Between 38 % and 53 % of readings with a σ have a spread no bigger than that σ, which looked fatal. It is not, because
 **noise can only widen a spread**. A small spread is steady whatever σ says. σ only matters for a reading that would
-otherwise be called loose, and those are 1 to 6 readings a session (of 233 to 375). σ may also carry fixed offsets that
+otherwise be called loose, and those are 1 to 7 readings a session (of 233 to 373). σ may also carry fixed offsets that
 do not change from shot to shot, so even that may overstate it.
 
 ### 2.3 About a quarter of readings have no norm
@@ -100,56 +110,113 @@ cell, marked as such. Filling these in belongs to #63, not this feature.
 
 ### 2.4 "Apart from the session" cannot find a stand-out
 
-On the trimmed 4 July fixture (15 shots, 69 readings), `apartFrom` flags at least one reading on 12 of 15 shots. Shuffling
-the shots gives 3.5 a shot, and the worst real shot's 9 only matches the shuffled session's 95th percentile. A bad shot
-gets a list whether or not anything stood out.
+This is the rule as it stood before the build (§5). On the trimmed 4 July fixture (15 shots, 69 readings), `apartFrom` flags
+at least one reading on 12 of 15 shots. Shuffling the shots gives 3.5 a shot, and the worst real shot's 9 only matches the
+shuffled session's 95th percentile. A bad shot gets a list whether or not anything stood out.
 
 A stricter rule (§4.3) still leaves background, so **a count of one to three means nothing by itself**:
 
 | Session | Stand-outs a shot: median · mean | Shots with none | Most on a shot | Shuffled: mean · session max (95th pct) |
 |---|---|---|---|---|
-| 4 July | 3 · 2.33 | 3 of 15 | 8 | 3.39 · 7 |
-| 5 Oct | 1 · 2.00 | 6 of 31 | 7 | 2.27 · 7 |
-| 7 Oct | 1 · 1.68 | 11 of 50 | 6 | 2.15 · 6 |
-| 8 Oct | 1 · 2.47 | 9 of 32 | **37** | 3.05 · 9 |
-| 20 Oct | 0 · 0.84 | 11 of 19 | 5 | 1.26 · 4 |
+| 4 July | 2 · 2.40 | 3 of 15 | 8 | 3.47 · 7.55 |
+| 5 Oct | 1 · 1.65 | 8 of 31 | 6 | 2.88 · 7.55 |
+| 7 Oct | 1.5 · 1.72 | 11 of 50 | 6 | 3.02 · 8 |
+| 8 Oct | 1 · 1.59 | 9 of 32 | 8 | 4.26 · 10 |
+| 20 Oct | 0 · 0.58 | 12 of 19 | 3 | 1.04 · 3.55 |
 
 The shuffle moves each reading on its own, which breaks the links between readings, so it is a rough yardstick.
 
-**Swing 3 on 8 Oct** is the 37. Its top of backswing is 0.46 s and its impact 0.61 s after address, against about 0.74 s
-and 1.00 s on another shot of that session. Every reading then compares the wrong part of the swing. Either the P-positions
-are wrong or it was a very different swing; the video has not been checked. The build needs a guard either way (§4.3).
+**Swing 3 on 8 Oct** read 37 in the draft. Its top of backswing is 0.46 s and its impact 0.61 s after address, against
+0.72 s and 1.01 s on the shot before. Frames checked on 6 Nov show an ordinary swing: impact is stored at 2.17 s with the club
+at the top of the backswing, and real impact is about 2.5 s. So the positions are wrong, not the swing (#158). The guard (§4.3)
+catches it: its spans no longer count, and the 8 in the table are read at its positions, under that session's line of 10. Those
+positions are wrong too, so the 8 mean nothing either. The other guarded shots have not been checked.
+
+The guard takes 6 of the 147 shots here: 5 Oct swings 2 and 3, 7 Oct swings 11 and 21, 8 Oct swing 3, 20 Oct swing 14. None
+on 4 July. One shot passes the chance line (§4.3): 4 July swing 3, 8 against 7.55.
 
 ### 2.5 Bad shots: only two to test on
 
 Flagged by the launch monitor, club by club, across the library: five shots. Three have no camera data. The two that do:
 
-- **5 Oct swing 8:** 11 yd carry, 30 yd right, launched at 1°. Three swing readings stood out, within the background.
+- **5 Oct swing 8:** 11 yd carry, 30 yd right, launched at 1°. Four swing readings stood out, within the background.
 - **5 Oct swing 7:** 86 yd, smash 0.99 and ball speed 74 mph, both the session's lowest. Nothing in the swing stood out.
 
 Swing 7 is the useful result: the tab says nothing stood out, instead of inventing a reason. Two shots are not a
 validation. 5 Oct is the only large session with cameras and a full launch monitor, and Premier sessions have carry
 but no offline.
 
+### 2.6 P7–P8 is read at the same time after impact
+
+The time from P7 to P8 has two modes on 5, 7 and 8 Oct, about 0.09 s or about 0.4 s. So the draft compared the
+follow-through at two different moments. Split at 0.2 s, with each group's median:
+
+| Session | Shots with a P8 | About 0.09 s | About 0.4 s | P8 confidence 0.30 |
+|---|---|---|---|---|
+| 4 July | 15 | 15 (0.08) | 0 | 1 |
+| 5 Oct | 30 | 22 (0.09) | 8 (0.37) | 19 |
+| 7 Oct | 41 | 24 (0.11) | 17 (0.44) | 27 |
+| 8 Oct | 32 | 23 (0.09) | 9 (0.43) | 19 |
+| 20 Oct | 18 | 17 (0.09) | 1 (0.41) | 11 |
+
+P8's confidence is 0.30 on about 60 % of shots on four of these, under the warp's gate 1 (0.35), so P8 often has no canonical
+time at all. Aligned on P8, those sessions would have no P7–P8 column and Finish would be blank. Confidence does not
+separate the modes either: among shots at 0.35 or over, the split is 10 and 1 on 5 Oct, 8 and 6 on 7 Oct, 6 and 7 on 8 Oct.
+
+Hence the rule (§4.1; Mark, 6 Nov): P7–P8 is a fixed 100 ms after impact on every shot of every session
+(`kConsistencyAfterImpactMs`). A length of the session's own would not do: the median of marks 40 to 200 ms after impact ran 84
+to 122 ms across sessions, so no two sessions read the same window. Where P8 lands is #24.
+
+A fixed length makes sessions comparable. It does not make every cell firm. 5 Oct's Lateral motion and Release sit near the
+line at P7–P8: steady at 81 ms, loose at 91, steady at 100. Read those two as close calls. And a confident P8 is still an
+alignment anchor, so it can slightly affect P6–P7 on that shot.
+
+### 2.7 All golfers
+
+Five golfers, 23 sessions, 285 shots, tallied with `--min-shots 7`, which judges 15 sessions. The thresholds are unchanged.
+Mark kept them on 6 Nov, as first guesses. Share of a golfer's cells:
+
+| Golfer | Sessions judged | Shots | Steady | Some | Loose | ⚠ | "-" |
+|---|---|---|---|---|---|---|---|
+| Mark | 6 | 154 | 43 % | 44 % | 10 % | 3 % | |
+| Jess | 3 | 23 | 49 % | 32 % | 16 % | 2 % | |
+| Nick | 4 | 36 | 55 % | 37 % | 8 % | | |
+| Chris | 1 | 8 | 76 % | 21 % | | 3 % | |
+| Paddy | 1 | 12 | 33 % | 12 % | 27 % | | 27 % |
+
+Chris is one session of 8 shots. Paddy's "-" cells are all in the backswing, P1–P2 to P3–P4.
+
+Stand-out counts do not beat shuffled. In all 15 sessions the real mean is below the shuffled mean. Three shots pass the
+chance line: Paddy's swing 10 (15 against 14, and guarded, so those are positions alone), 4 July swing 3 (8 against 7.55) and
+Nick's 20 Oct session 2 swing 3 (9 against 8.55). The last two pass by under half a reading. The words carry this: nothing
+under the line is called more than chance.
+
+The launch monitor flags 13 of the 285 shots: Mark 5, Nick 5, Paddy 2, Chris 1.
+
 ---
 
 ## 3. What the golfer sees
 
-The mock runs on real components and real figures. Files are in `docs/design/consistency/`.
+**Every picture here is the 6 Nov mock:** all six files in `docs/design/consistency/`, kept as they were. The mock ran on
+real components and the draft's figures. The build is on the review sheets, and differs where this section says: the
+headline, the P7–P8 column, the ◆, and Home's widths.
 
 ![The tab](consistency/1_consistency_tab.png)
 
 **The tab, top to bottom** (the Charts page pattern: headline, the plot, then the detail):
 
-1. Kicker and headline in plain words: "You repeat your swing best in the backswing. It loosens on the way down, and your
-   impact position moves most." Built by the core from the table, never by QML.
-2. The ball in one line: carry and offline, each with the middle half, in whole units.
+1. Kicker and headline in plain words. 5 Oct now reads: "Your swing holds about the same all the way through, and your
+   sequence moves most." The mock's was "You repeat your swing best in the backswing. It loosens on the way down, and your
+   impact position moves most." With no camera shots: "This session has no camera shots, so only launch monitor readings can
+   be judged." Built by the core from the table (§4.2), never by QML.
+2. The ball in one line: carry and offline, each with the middle half, in whole units. Then any note: a club left out, or
+   carry with no offline.
 3. The table, then its key.
 4. A cell, when picked: the readings behind the word, loosest first, as `PpChProfile` rows. A row opens the same curve
-   as Readings.
+   as Readings, in place: Session diagnostics has no way to open a reading in Charts.
 5. The picked shot: what the launch monitor made of it, a sentence, then what stood out, grouped as the ball, the club
-   and your swing. Each row carries this shot, the median and the session's box. It ends: "These happened on the same
-   shot. That does not show one caused another."
+   and your swing. Each row carries this shot, the median and the box of what it was compared with (§4.3). With two rows
+   or more it ends: "These happened on the same shot. That does not show one caused another."
 
 ![Two bad shots](consistency/2_bad_shots.png)
 
@@ -162,13 +229,17 @@ column is ever dropped.
 
 **Home.** One column on Your swing, after Trend: a word and the loosest span, from the sessions that can judge it, the
 newest counting most (fading 0.75 a session, as the work-ons do). Words only, because that table already has its bars.
-An open area gets its spans in its detail. Ball flight shows "-": it has no spans.
+An open area gets its spans in its detail. Ball flight shows "-": it has no spans. The picture takes the column's width from
+Biggest fault; the build takes it from Habits (§6). Rolled up over the five judged sessions, the words are Loose for
+Lateral motion, Steady for Posture and Release, and Some for the rest, Finish included.
 
 ![Home](consistency/6_home_your_swing.png)
 
 **Replay and Print** (a diagnostics surface goes everywhere). Replay opens on the headline, the table and the picked
-shot's one sentence. Print gets a Consistency page in the session report, built from the same presenter, with the table
-and the flagged shots, no affordances. Neither is mocked yet.
+shot's one sentence; a cell pressed there opens in Analyse, as other detail does. Print is a Consistency page in the
+client session report, `PpConsistencyPage`, from the same presenter's words: the headline, the ball line, the table and
+key, then the flagged shots, at most 6 swings and 8 rows each, ball first, with a line naming the rest. Nothing to press,
+and no ◆. The technical appendix (`PpDiagPrint`) is unchanged. Neither was mocked; see the sheets.
 
 **The words.** Steady, some, loose. Mark, 6 Nov: "the loose term means 'all over the place'". The first draft's "mixed"
 and "varies" both just meant "not steady", and had no order (§8; options on `consistency/7_wording_and_heat.png`).
@@ -177,24 +248,42 @@ and "varies" both just meant "not steady", and had no order (§8; options on `co
 
 ## 4. Rules
 
-Constants live in one header and are pinned by the goldens. All are first guesses on one golfer.
+Constants live in `src/Gui/charts/session_consistency.h` and `src/Coaching/consistency_home.h`, and are pinned by the goldens.
+All are first guesses on one golfer.
 
 ### 4.1 A reading
 
-- **Like with like:** each shot is compared with its own club. Each value is taken less its club's median. A club with
-  under 3 shots is left out, and the head says so.
-- **A span:** the curve is sampled at five points inside the span, on P-aligned time, valid samples only. **Spread** is the
-  middle half ÷ 1.349, taken at each point, and the median of those. At least 5 shots.
-- **Positions, not spans, where the position is the point:** Setup reads P1. Impact reads P7 itself: a shaft lean halfway
-  down is not what the Impact area judges. An instant-only reading sits in the span ending at its P-position. Backswing
-  timing reads are stamped at impact but sit in P3–P4.
-- **The verdict:** spread ÷ the norm's σ, Posture's rule (decision 6 there) for everything. Under 0.75: steady. At or
-  over: loose, unless the spread is no bigger than the reading's own σ, when it is ⚠ "too close to measurement error". No norm: not judged.
+- **Like with like:** each value is taken less the median of its club at that point, the shot itself included in that
+  median. A club under 3 shots, counting every shot with the label, is left out, and the head says so. A blank club
+  label is a club of its own.
+- **A span:** the curve is sampled at five points inside the span, at (j + ½)/5 of it, on P-aligned time, valid samples only.
+  A gap in the curve gives no value there. A span whose P has no canonical time (kept on under half the shots) has no reading.
+- **P7–P8** is sampled differently, on every session (§2.6). The same five points, over a fixed 100 ms after impact on the
+  shot's own clock (`kConsistencyAfterImpactMs`), not between P7 and P8. The key says so. A confident P8 is still an alignment
+  anchor, so it can slightly affect P6–P7 on that shot.
+- **Spread:** the middle half ÷ 1.349 of the residuals at a point, needing 5 finite ones. A span's spread is the median over
+  its points, needing a spread at 3 of the 5. With fewer, the reading is dropped from the table and from stand-outs.
+- **Positions, not spans, where the position is the point:** Setup reads P1, the phase sample there. Impact reads P7 itself:
+  a shaft lean halfway down is not what the Impact area judges. An instant-only reading sits in the span ending at its
+  P-position. Backswing timing (`tempoBackswing`, `tempoRatio`) is stamped at impact but sits in P3–P4. A position needs 5
+  finite values.
+- **The norm's σ:** for each shot with a value, the first measure of the key at the column's P (a span's end P) with a norm
+  in the club's context, ½(σlo + σhi). With none there, the median of the key's measures' σ in that context, then in
+  "any". The reading takes the median over its shots. This lookup moved 3 of 1260 verdicts and 1 of 284 cells against the
+  draft's single figure.
+- **The reading's own σ:** a position's is the median of its phase samples' σ, a span's the median over shots of the
+  curve's σ.
+- **The verdict:** spread ÷ the norm's σ. Under 0.75: steady. At or over: loose, unless the spread is no bigger than the
+  reading's own σ, when it is ⚠ "too close to measurement error". No norm or no spread: not judged. This is
+  (IQR ÷ 1.349) ÷ σ, which is not quite Posture's rule (decision 6 there): Posture quotes IQR ÷ σ. The 0.75 belongs to
+  this form.
 
 ### 4.2 A cell
 
-Of the judged readings in that area and column: a third or more loose is **loose**, at least one is **some**, a third or
-more ⚠ is **⚠**, else **steady**. No judged readings shows "-". A blank means the area does not apply to that span:
+Of the judged readings in that area and column: a third or more loose (at least one) is **loose**, at least one is **some**,
+a third or more ⚠ is **⚠**, else **steady**. **"-" and blank are different things.** "-" means the area is read at that column
+and nothing was judged there, with readings or without. A blank means the area does not apply to that span, and there is no
+cell at all:
 
 | Area | Read at |
 |---|---|
@@ -208,24 +297,57 @@ more ⚠ is **⚠**, else **steady**. No judged readings shows "-". A blank mean
 
 **P7–P8 is after the ball has gone.** It draws lighter, and it is left out of the headline and Home, except for Finish.
 
-**Home's word:** steady 0, some ½, loose 1, averaged over an area's columns: under 0.2 Steady, under 0.5 Some, else
-Loose. The loosest span is named unless the word is Steady.
+**The headline:** steady and ⚠ 0, some ½, loose 1; "-" has no score. It needs a word in at least 2 areas
+(`kConsistencyHeadlineMinAreas`): one area's reading is not the swing, so with fewer there is no headline. With nothing above
+0 it reads "Your swing repeats from shot to shot." Otherwise, the mean of P1–P2 to P3–P4 against the mean of P4–P5 to P6–P7; the
+lower by 0.1 or more is where the swing repeats best, else it "holds about the same". The area named is the highest mean. A
+table with nothing in one of those two bands just names the area.
+
+**Home's word:** the same scores. For each column of an area, the mean over sessions with a word in that cell, session j back
+weighing 0.75^j ("-" has no word and no weight). The area's score is the mean of its columns: under 0.2 Steady, under 0.5
+Some, else Loose. The loosest span is named unless the word is Steady.
 
 ### 4.3 A stand-out
 
-One shot against the session's others, on the same club, **itself left out** of the comparison:
+One shot against the session's other shots, **itself left out** of the comparison. The residuals (§4.1) have already put
+each shot on its own club, so the others may be of any club, and it takes at least 6 of them at a point:
 
 - at least 3.5 robust spreads from their median, and past 2σ where the reading has a σ;
-- across the whole span, not one instant in it;
+- across the whole span, not one instant in it: of the five points, the **weakest** decides, the one nearest the pattern;
 - one row per metric, at its most extreme column; ordered ball, club, swing, then by size.
 
-The sentence says what the count means: with none, "Nothing in your swing stood out"; with a count no higher than most
-shots show, "this may be chance"; above the shuffled session's 95th percentile, "more than chance would give". The
-shuffle is seeded, memoised per snapshot and off the GUI thread.
+Only readings that reached the table count, in a column their area applies to. **A stand-out row shows the sample tested:**
+the value at that weakest point, with the median and box of the other shots there, so value less median is exactly what was
+judged. A span's row carries no fired mark, because a condition grades an instant. An opened cell's rows are different:
+each shows the middle of its span against every shot.
 
-**The P-ladder guard.** Alignment uses `session_warp`'s anchors, which already drop a P-position whose segment is an
-outlier. A shot that loses anchors keeps its readings with a ⚠ ("the timing of this swing's positions looks unusual"), and
-its span comparisons are not counted as stand-outs. It is shown, never hidden.
+The sentence says what the count means: with none, "Nothing in your swing stood out."; with a count up to what most shots show,
+"Most shots this session show ..., so this may be chance."; above that, "more than most shots this session, but chance can
+reach that."; above the shuffled session's 95th percentile, the chance line, "more than chance would give." A shot that could not be compared says why instead. The line is strict, and uses swing readings alone. The shuffle
+moves each reading's shots on its own, 30 times, guard ignored; it is seeded (splitmix64, seed 5, shared with the tally),
+memoised per snapshot and off the GUI thread.
+
+**The P-ladder guard.** Alignment uses `session_warp`'s anchors. A shot is guarded when it has a curve and any of these holds:
+it was not aligned on its P-positions; it kept under 4 of P1–P7 as anchors; or one of P1–P7 was dropped as an outlier segment
+or for running backwards. **A lost P8 never counts:** it would have guarded about a third of shots, by a model at planning (9
+of 31, 18 of 50, 10 of 32). A shot with no curve has nothing to mis-time and is never guarded, which is every launch-monitor-only
+shot. A guarded shot keeps its readings with a ⚠ ("the timing of this swing's positions looks unusual"), and its spans and
+backswing timing are not counted as stand-outs. It is shown, never hidden.
+
+The guarded shots, 15 of 285. These numbers are the tab's shot numbers, and each matches its swing folder here; where a session
+has a swing with no analysis the two differ (#157):
+
+| Golfer | Session | Swings |
+|---|---|---|
+| Mark | 5 Oct | 2, 3 |
+| | 7 Oct | 11, 21 |
+| | 8 Oct | 3 |
+| | 20 Oct | 14 |
+| | 2 Nov, session 1 | 1, 2 |
+| Jess | 20 Oct, sessions 2 and 3 | 2 in each |
+| Nick | 13 Oct, session 2 | 1 |
+| | 2 Nov | 4 |
+| Paddy | 24 Oct | 2, 10, 11 |
 
 ### 4.4 A bad shot
 
@@ -233,6 +355,9 @@ The launch monitor, against the same club that session, needing 8 shots with the
 
 - **short:** carry below the lower Tukey fence;
 - **offline:** offline past either fence.
+
+A flag is not a row. The ball and club rows of a shot are every launch-monitor reading past either fence of its own club,
+with the same 8, so a long carry is a row though only a short one is a flag.
 
 Descriptive only: PPS does not model intent, so a shot deliberately aimed elsewhere can read offline. With carry and no
 offline (Premier), it flags short only and the tab says so. With no launch monitor, nothing is flagged and every shot
@@ -249,31 +374,46 @@ never cause. Words come from C++, and QML only places them. No reading is judged
 
 ## 5. One stand-out rule
 
-Charts' "Apart from the session" moves to §4.3, so the Consistency tab and Charts can never disagree. Its heading and place
-stay. `apartFrom` keeps its name for the boxes: a dot past a whisker is still drawn, and `side` still means past a whisker.
-The change is what counts as apart, and it now compares within the club. This changes what Charts shows on existing
-sessions, and its tests.
+Charts' "Apart from the session" has moved to §4.3, so the Consistency tab and Charts cannot disagree: both take their rows from
+`ConsistencyReadingRows`. Its heading and place stay. The list is now the launch monitor's rows, ball then club, each
+needing 8 values of the shot's club (§4.4), then the shot's stand-outs in the rule's order, and `apartCount` counts those. A
+guarded shot says so in the standfirst. `apartFrom` keeps its name for the boxes: a dot past a whisker is still drawn, and `side`
+is unchanged, still meaning past a whisker. The change is what counts as apart, and it now compares within the club. This
+changes what Charts shows on existing sessions; its tests and `goldens_0704.json` were updated to match.
 
 ---
 
 ## 6. Design-system changes
 
-Each needs Mark's approval first (`docs/design/system/README.md`). Approved items are in §8.
+Mark approved these as one package on 6 Nov (§8), and the `PpChProfile` change, the last row, with his rulings that day.
+Nothing else was changed.
 
-| Change | Detail | Screens |
+| Change | As built | Screens |
 |---|---|---|
-| Extend `PpChMatrix` | Named columns, full rectangle, generic cells, optional wash, a general `cellActivated`, a short form that never drops a column. A new page in `docs/design/system/components/` | Consistency, Relations (must look exactly the same: a control render is part of the build) |
-| Move it to `src/Gui/typeset/` | `roles.ch` exists only on PpChRoles. The cell width goes through `r.ch` so any PpTypeset can use it | Both |
-| Heat tokens | Three alphas on `colorAttention`, in `Theme.qml`: some 0.15, loose 0.40, after the ball 0.12. `make_design_system.py` regenerates `tokens.json` | Consistency |
-| The wash rule | Design system §15 says the corridor is "the only wash in a chart". It gains one exception: the heat of a table cell. The word stays beside it, so colour is never the only channel | Consistency |
-| A new Session diagnostics tab: This shot, Session, Consistency, Watching | `PpTabs` as it stands | Session diagnostics |
-| A Home column | `HmSwingAreas`'s columns and `HmAreaRow` | Home |
+| `PpChMatrix` extended | Two forms. Setting `columns` gives the rectangle: named columns, generic cells, optional wash, `cellActivated`, and a short form that never drops a column. Without it, the family as Relations has always had it. Page: `docs/design/system/components/PpChMatrix.md` | Consistency, report, Relations |
+| Moved to `src/Gui/typeset/` | `roles.ch` existed only on PpChRoles. The cell width goes through `r.ch`, so any PpTypeset can use it | All three |
+| Heat tokens | `colorHeatSome` 0.15, `colorHeatLoose` 0.40, `colorHeatAfter` 0.12: alphas on `colorAttention`, in `Theme.qml`. `make_design_system.py` computes them into `tokens.json` | Consistency, report |
+| The wash rule | Design system §15.4 item 4: the corridor stays the one chart wash, with one exception, the heat of a table cell. The word, or the mark and its key, stays in the cell, so colour is never the only channel | Consistency, report |
+| Rule 7 amended | §15.2 rule 7 said colour means "outside its corridor" and nothing else. It now names the same one exception. Without this the wash breaks the rule | Consistency, report |
+| The outline | §15.4 item 3: a cell that can carry heat is picked with an ink outline, because the wash has taken over the 7 % column's job | Consistency |
+| Print ink | `PpTypeset` gains `attention` and `heat(level, soft)`. The hue honours `fixedAesthetic`, so a printed page does not follow the app's theme, and is scaled by `tintK` | Report |
+| A new Session diagnostics tab: This shot, Session, Consistency, Watching | `PpTabs` as it stands. `PpConsistencyView` is made on first show | Session diagnostics |
+| A Home column | `HmSwingAreas`'s columns and `HmAreaRow`. A fixed `sp(96)` after Trend. Habits alone pays for it, so Biggest fault keeps its width until Habits has gone | Home |
+| A report page | `PpConsistencyPage`, like Posture, Wrist and Delivery | Report |
+| `PpChProfile`, a shared component | A row with `opens` "" (a reading with no curve on this shot) takes an arrow cursor and no click, in place of a hand cursor on a click that did nothing | Every `PpChProfile` list |
 
 Why one hue: it says how much, not good or bad. Red and green would say a steady fault is good. `colorAttention` is "watch",
 not `colorWarn`, which means a fault. A picked cell takes an outline, because the wash has taken over its old highlight.
 
-`PpChProfile` and `PpChText` need PpChRoles, which `PpDiagRoles` is not. The tab makes its own PpChRoles, and the mock
-proves that works. No line is added to `design_system_allowlist.txt`.
+**The ◆ is ink, not warn.** The mock drew it in warn red. Rule 7 keeps warn for "outside its corridor". A shot leaving its own
+pattern is not that, and the amendment covers the wash and nothing else. So the build sets it in ink. Mark, 6 Nov: ink.
+
+**The plain-word ⚠ reaches rows through their existing caution.** A guarded shot's readings carry "⚠ the timing of this
+swing's positions looks unusual" in the row's own `caution` and `cautionText`, added to any caution already there. No new row
+form.
+
+`PpChProfile` and `PpChText` need PpChRoles, which `PpDiagRoles` is not. The tab makes its own PpChRoles, and the report page
+a print one on the Folio aesthetic. No line was added to `design_system_allowlist.txt`.
 
 ---
 
@@ -296,65 +436,108 @@ proves that works. No line is added to `design_system_allowlist.txt`.
 | 3 | Bad shots come from launch-monitor data for now | Mark, 6 Nov |
 | 4 | Extend `PpChMatrix`, not a new component | Mark, 6 Nov ("this looks good") |
 | 5 | Words: steady, some, loose | Mark, 6 Nov |
-| 6 | The one-hue wash, and the exception to the wash rule | **Open:** read as yes from Mark's 6 Nov reply; needs saying outright |
+| 6 | The one-hue wash, and the exception to the wash rule | Mark, 6 Nov: approved, with #8 and #9 as one package (§6) |
 | 7 | The tab sits in Session diagnostics, is called Consistency and comes before Watching | Mark, 6 Nov ("move the consistency tab to before Watching") |
-| 8 | P7–P8 lighter, and out of the headline and Home except Finish | **Open:** the mock does this |
-| 9 | Narrow panels use marks on the wash | **Open:** the mock does this |
-| 10 | The Home column's width comes from the Habits bar | **Open:** the mock takes it from Biggest fault, which cuts off two names in Folio |
-| 11 | The 28 hand-placed readings (Appendix B) | **Open:** Mark to review |
-| 12 | Charts' Apart moves to the stricter rule (§5) | **Open:** it changes what Charts shows |
+| 8 | P7–P8 lighter, and out of the headline and Home except Finish | Mark, 6 Nov: approved in that package |
+| 9 | Narrow panels use marks on the wash | Mark, 6 Nov: approved in that package |
+| 10 | The Home column's width comes from the Habits bar | Mark, 6 Nov: Habits gives the width. The mock took it from Biggest fault, which cut off two names in Folio |
+| 11 | The 28 hand-placed readings (Appendix B) | Mark, 6 Nov: accepted as written, to be read on the sheets |
+| 12 | Charts' Apart moves to the stricter rule (§5) | Mark, 6 Nov: Apart moves |
+| 13 | Print | Mark, 6 Nov: a client report page only; the technical appendix (`PpDiagPrint`) is unchanged |
+| 14 | The ◆ | Mark, 6 Nov: ink (§6) |
+| 15 | P7–P8's length | Mark, 6 Nov: a fixed 100 ms after impact, every shot of every session (§2.6) |
+| 16 | The thresholds, with all golfers read | Mark, 6 Nov: kept, as first guesses (§2.7) |
+| 17 | A `PpChProfile` row with nothing to open | Mark, 6 Nov: approved, an arrow cursor and no click (§6) |
+| 18 | The size of the committed `session_1005.json` | Mark, 6 Nov: accepted at 4.2 MB |
+| 19 | The no-camera headline | Mark, 6 Nov: "This session has no camera shots, so only launch monitor readings can be judged." |
+
 
 ---
 
-## 9. Build plan
+## 9. What shipped
 
-Each stage ends with something Mark can look at. All commits come at the end.
+All of it is in the working tree, uncommitted. Commits come after Mark has judged the sheets.
 
-1. **The maths.** `src/Gui/charts/session_consistency.{h,cpp}`, pure and header-tested like `session_relations.h`: spreads,
-   verdicts, cells, stand-outs, ball flags, Home's word. Reuses `box_stats.h`, `session_warp`, `session_traces` (`envelope`)
-   and the norms. A golden test against the tally. Add an optional `consistencyArea` to `MetricDescriptor` for the 28
-   hand-placed readings; the rest come from the conditions through `swing_areas_pack.h`.
-2. **The shared rule.** Charts' Apart moves to the stand-out function (§5).
-3. **The presenter.** `charts/charts_consistency_presenter.{h,cpp}` on `SessionSeriesModel`: every word and figure, off the
-   GUI thread, a Sentence for the head and each line.
-4. **The component.** Extend and move `PpChMatrix`, heat tokens, design-system page, regenerate `tokens.json`, then a
-   Relations control render.
-5. **The tab.** Analyse, then Replay. Rows open Readings' curve. Windowed run with Mark (one batch; it takes his screen).
-6. **Home.** `<session>/consistency.json`, written by the work-ons catch-up with the same fingerprint rule (rule version,
-   content stamp, swing document size and mtime), off the GUI thread, because Home cannot load swing documents. Then
-   the area roll-up in `swing_areas.h` and the column.
-7. **Print.** The Consistency page in the session report.
+1. **The maths.** `src/Gui/charts/session_consistency.{h,cpp}`, in two layers: sampling (snapshot to readings) and rules
+   (readings to cells, stand-outs, flags). `src/Gui/charts/consistency_env.{h,cpp}` is the one place those reach the shipped
+   catalogue, conditions and norms. `src/Coaching/consistency_home.h` holds the table's shape and Home's word, header-only,
+   so Coaching takes them without the charts maths. Reuses `box_stats.h` and `session_warp`. An optional `consistencyArea` on
+   `MetricDescriptor` carries the 28 hand-placed readings, set in `metric_catalogue_manifest.cpp`; `metricAreasForPack` in
+   `swing_areas_pack.h` places the rest. Five rules in `gate_catalogue_rules.h` and `gate_words.json`.
+2. **The check.** `consistency_extract.py` (extract v2), `src/Gui/tests/consistency_dump.cpp`, `consistency_tally.py`,
+   `consistency_trim_fixture.py` (cuts the committed `session_1005.json`) and `consistency_make_goldens.sh` (cuts the goldens).
+3. **The shared rule.** Charts' Apart moved to the stand-out rule (§5): `charts_relations_presenter.{h,cpp}`,
+   `PpChartsShotView.qml`, with `ConsistencyReadingRows` as the row builder both surfaces share.
+4. **The presenter.** `src/Gui/charts/charts_consistency_presenter.{h,cpp}`: every word and figure, off the GUI thread, a
+   Sentence for the head and each line, memoised per snapshot.
+5. **The component.** `PpChMatrix` extended and moved, heat tokens, `PpTypeset`, design-system pages, `tokens.json`, and
+   `src/Gui/charts/PpChProfile.qml` (§6).
+6. **The tab.** `src/Gui/diagnostics/PpConsistencyView.qml`, in `PpDiagAnalyse.qml`, `PpDiagReplay.qml`,
+   `PpSessionDiagnosticsBody.qml` and `PpSessionDiagnosticsPanel.qml`.
+7. **Home.** `<session>/consistency.json`: `src/Gui/charts/consistency_summary.{h,cpp}`, written by `work_ons_controller.{h,cpp}`
+   on its own queue, its own one-thread pool and its own fingerprint (rule version, content stamp, each swing document's name,
+   size and mtime), off the GUI thread, because Home cannot load swing documents. It feeds no work-on or themes fingerprint.
+   Then `HmSwingAreas.qml` and `HmAreaRow.qml`.
+8. **Print.** `src/Gui/report/report_consistency.h` cuts the presenter's report payload; `PpConsistencyPage.qml`,
+   `session_report_model.{h,cpp}`, `PpSessionReport.qml`.
 
-Files: new as above, plus `PpConsistencyView.qml` in `src/Gui/diagnostics/`. Modified: `session_relations.{h,cpp}`,
-`PpChMatrix.qml` (moved), `PpChartsRelationsView.qml`, `charts_relations_presenter.cpp`, `PpDiagAnalyse.qml`,
-`PpDiagReplay.qml`, `PpDiagPrint.qml`, `work_ons_controller.{h,cpp}`, `swing_areas.h`, `HmSwingAreas.qml`, `HmAreaRow.qml`,
-`metric_catalog.cpp`, `metric_descriptor.h`, `Theme.qml`, `tokens.json`, `pinpoint_qml_design_system.md`.
+**Corrections to the 6 Nov plan:**
 
-**Done means:** the goldens match the tally; `design_system_lint_test` and `design_system_tokens_check` pass; Relations is
-pixel-identical to its control; the tab, Replay, Home and Print have been shown to Mark as annotated sheets, including a
-windowed run; a tally over other golfers' sessions has been read and the thresholds kept or changed. Then #66's cleanest
-vs worst item is closed as replaced.
+- The area field went in `metric_catalogue_manifest.cpp`, not `metric_catalog.cpp`.
+- The tab owns a `SessionSeriesModel`, as `PpTrustPanel.qml` does, because the diagnostics body has none.
+- Print is a client report page, not `PpDiagPrint.qml`.
+- "Goldens match the tally" could not hold for sampling, so C++ does the sampling and the tally checks the rules on it.
+- `session_relations.{h,cpp}`, `swing_areas.h`, `PpChartsRelationsView.qml` and `PpDiagPrint.qml` did not change. `envelope`
+  did not fit and is not used. Home's roll-up is in `consistency_home.h` and `work_ons_controller.cpp`.
+
+**Gates passed:** on the fixed 100 ms, `--check` finds 0 differences over all 23 dumps and `consistency_make_goldens.sh`
+reproduces both goldens byte for byte. Before the rulings: Relations pixel-identical to its control, 4 of 4 (Folio light, Vector
+dark; 4 July, 5 Oct); a real catch-up on a copy, 6 sessions and 152 shots in 29 s of jobs, worst GUI gap 358 ms, Home's words
+equal to the tally's; all golfers read (§2.7).
+
+**Done means, still to come:** the cells the rulings moved re-shown to Mark; a windowed run; then the commits, and #66's
+cleanest vs worst item closed as replaced.
 
 ---
 
 ## Appendix A: reproduce
 
-```
-# on the cabin PC, where the share is local (read-only; 15 s for 204 swings)
-python tools\diagnostics\consistency_extract.py C:\PinPointStudio\Mark-Liversedge C:\PinPointStudio\scratch\consistency\extract
+The route is extract, dump, tally. The tally reads dumps only; given an extract it fails.
 
-# on the Mac
-python3 tools/diagnostics/consistency_tally.py /mnt/swingdata/scratch/consistency/extract docs/research/data/consistency
+```
+# 1. Extract, on the cabin PC, where the share is local (read-only). One athlete at a time.
+python tools\diagnostics\consistency_extract.py C:\PinPointStudio\Mark-Liversedge C:\PinPointStudio\scratch\consistency\fixtures\Mark-Liversedge
+
+# 2. Dump, on the Mac: the C++ sampling over those compact files, on the shipped packs
+~/Qt/Tools/Ninja/ninja -C build/tests -j4 consistency_dump
+F=/mnt/swingdata/scratch/consistency/fixtures/Mark-Liversedge
+D=/mnt/swingdata/scratch/consistency/dump/Mark-Liversedge
+mkdir -p $D
+for f in $F/*.json; do build/tests/Gui/consistency_dump $f $D/$(basename $f); done
+
+# 3. Tally: the rules again, independently
+python3 tools/diagnostics/consistency_tally.py $D docs/research/data/consistency --check    # exits 1 on any difference
+python3 tools/diagnostics/consistency_tally.py $D docs/research/data/consistency
+
+# All golfers (§2.7): every athlete's dumps in one directory, and keep the output out of the repo
+A=/mnt/swingdata/scratch/consistency/dump-all
+mkdir -p $A && cp /mnt/swingdata/scratch/consistency/dump/*/*.json $A/
+python3 tools/diagnostics/consistency_tally.py $A /mnt/swingdata/scratch/consistency/all-out --min-shots 7
+
+# The C++ goldens, into src/Gui/tests/data/charts, or anywhere else to diff them
+tools/diagnostics/consistency_make_goldens.sh [out dir]
 ```
 
-The tally prints every figure in §2 and §4.2 and writes `consistency_readings.csv`, `consistency_cells.csv` and
-`consistency_shots.csv`. Its seeds are fixed. The extract is run output, on the share; delete it once this design is
-accepted, as the CSVs hold what the doc quotes.
+The tally prints every figure in §2 except the P-times of §2.4 and §2.6, the launch readings of §2.5 and the word shares of
+§2.7, which come from the fixtures and from `consistency_cells.csv`. It writes `consistency_readings.csv`, `consistency_cells.csv` and `consistency_shots.csv`, and takes
+about two minutes. Its seeds are fixed. The goldens are cut from the committed `session_1005.json` standing for 5 Oct, as the
+tests load, with the other four sessions from `$D`. `fixtures/` and `dump/` are run output, on the share; delete them
+once this design is accepted, as the CSVs hold what the doc quotes.
 
 ## Appendix B: readings placed by hand
 
-A reading's area normally comes from the conditions that detect on it, taking the group that uses it most (51 of the 83
-readings on 5 Oct). These 28 have no such condition:
+A reading's area normally comes from the conditions that detect on it, taking the group that uses it most (50 of the 82
+readings on 5 Oct). These 28 have no such condition. Mark accepted them as written on 6 Nov, to be read on the sheets:
 
 | Area | Readings |
 |---|---|
@@ -369,10 +552,12 @@ readings on 5 Oct). These 28 have no such condition:
 Four more are unplaced and not read: `compoundMiss` (ball flight, which has no spans), `shoulderPlane`, `swingPlaneIotaBack`
 and `swingPlaneIotaDown`.
 
-The group rule itself gives some odd homes: `thoraxRotation` lands in Arms and club and `pelvisRotation` in Sequence.
-Worth reading with this table.
+The group rule itself gives some odd homes: `thoraxRotation` lands in Arms and club. Four readings tie and go to the group
+met first in the pack: `spineForwardBend` and `shaftDirection` to Setup, `leadKneeFlexion` to Lateral motion, `pelvisRotation`
+to Sequence. Worth reading with this table.
 
 ## Appendix C: the mock
 
-`build/run-me/consistency-mock/` (not committed): `mock/` holds the QML and its data, `sheets.py` the review sheets.
-It runs on the typeset harness with no build; Home uses its own probe, on a copy of the athlete folder.
+Superseded by the build; kept only because §3's pictures came from it. `build/run-me/consistency-mock/` (not committed):
+`mock/` holds the QML and its data, `sheets.py` the review sheets. It runs on the typeset harness with no build; Home uses
+its own probe, on a copy of the athlete folder.

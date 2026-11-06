@@ -30,7 +30,7 @@ PpChFoldHead,src/Gui/charts/PpChFoldHead.qml,charts,59,34,Item,0,5,0,0,11,1,0,0,
 PpChKeyFigures,src/Gui/charts/PpChKeyFigures.qml,charts,88,60,Item,0,1,0,0,9,1,0,0,0,0,1,app
 PpChKindCurve,src/Gui/charts/PpChKindCurve.qml,charts,169,133,Item,0,1,0,1,21,0,2,0,0,0,1,app
 PpChKindTable,src/Gui/charts/PpChKindTable.qml,charts,163,128,Column,0,1,0,1,17,1,0,0,0,0,1,app
-PpChMatrix,src/Gui/charts/PpChMatrix.qml,charts,86,59,Column,0,1,0,0,11,1,0,0,0,0,1,app
+PpChMatrix,src/Gui/typeset/PpChMatrix.qml,charts,140,105,Column,0,1,0,0,24,2,0,0,0,0,1,app
 PpChMovesWith,src/Gui/charts/PpChMovesWith.qml,charts,148,115,Column,0,2,0,1,18,1,0,0,0,0,1,app
 PpChPlaneLabels,src/Gui/charts/PpChPlaneLabels.qml,charts,93,58,Item,0,2,0,0,9,0,3,0,0,0,1,app
 PpChPlot,src/Gui/charts/PpChPlot.qml,charts,169,124,Canvas,0,4,0,0,11,0,4,0,0,0,1,app
@@ -144,6 +144,7 @@ RingMenu,src/Gui/diagnosticmodel/RingMenu.qml,diagnosticmodel,625,393,Popup,0,1,
 PpBarcode,src/Gui/diagnostics/PpBarcode.qml,diagnostics,267,223,Item,0,3,1,4,47,4,2,0,0,0,1,app
 PpBoxStrip,src/Gui/diagnostics/PpBoxStrip.qml,diagnostics,178,113,Item,0,1,1,3,36,2,4,0,0,0,1,app
 PpCauseGraph,src/Gui/diagnostics/PpCauseGraph.qml,diagnostics,418,374,Item,0,2,1,3,20,3,7,1,0,0,1,app
+PpConsistencyView,src/Gui/diagnostics/PpConsistencyView.qml,diagnostics,257,188,Column,0,2,0,8,25,0,6,1,0,0,1,app
 PpDetailBar,src/Gui/diagnostics/PpDetailBar.qml,diagnostics,63,39,Item,0,1,1,1,8,2,0,0,0,0,1,app
 PpDiagAnalyse,src/Gui/diagnostics/PpDiagAnalyse.qml,diagnostics,792,680,Item,0,1,0,23,40,0,11,4,0,0,1,app
 PpDiagPrint,src/Gui/diagnostics/PpDiagPrint.qml,diagnostics,320,241,Item,0,1,1,18,38,0,4,0,0,0,1,app
@@ -205,6 +206,7 @@ RmWarningNotice,src/Gui/monitor/RmWarningNotice.qml,monitor,72,45,Rectangle,0,1,
 ScreenResourceMonitor,src/Gui/monitor/ScreenResourceMonitor.qml,monitor,2390,2019,Item,0,1,0,8,4,1,2,0,933,22,0,app
 PpPdfPrinter,src/Gui/print/PpPdfPrinter.qml,print,188,121,QtObject,0,1,5,0,8,2,2,0,0,0,1,app
 PpBallTiles,src/Gui/report/PpBallTiles.qml,report,119,87,Column,0,1,0,0,6,0,0,0,0,0,1,app
+PpConsistencyPage,src/Gui/report/PpConsistencyPage.qml,report,243,183,Column,0,1,0,3,19,0,0,0,0,0,1,app
 PpDeliveryPage,src/Gui/report/PpDeliveryPage.qml,report,306,235,Column,0,1,0,4,14,0,0,0,0,0,1,app
 PpDrillCard,src/Gui/report/PpDrillCard.qml,report,70,45,Rectangle,0,1,0,0,5,0,0,0,0,0,1,app
 PpLmAppendix,src/Gui/report/PpLmAppendix.qml,report,352,304,Column,0,1,0,1,5,0,0,2,0,0,1,app
