@@ -610,6 +610,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the apparent hand-against-forearm angle in the face-on image "
                                "plane, from the WholeBody hand keypoints")) },
         .usedBy = { QStringLiteral("assessment:wrist") },
+        .consistencyArea = QStringLiteral("release"),
     });
 
     // -------------------------------- Body rotation (LIVE — body_rotation.cpp; IMU or face-on estimate)
@@ -825,6 +826,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the shoulder line's signed bearing from the two-camera skeleton fit, "
                                "lead-relative — the second camera's placement is assumed until it "
                                "is calibrated")) },
+        .consistencyArea = QStringLiteral("armsAndClub"),
     });
 
     cat.addDescriptor({
@@ -858,6 +860,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("both bearings from the two-camera skeleton fit, so the separation "
                                "carries both turns' uncertainty")), },
+        .consistencyArea = QStringLiteral("sequence"),
     });
 
     cat.addDescriptor({
@@ -1026,6 +1029,7 @@ void installMetricManifest(MetricCatalogue &cat)
                                "shortens with the trunk's lean toward the camera")) },
         .usedBy = { QStringLiteral("characteristic:loss_of_posture"),
                     QStringLiteral("characteristic:posture_sinks_impact") },
+        .consistencyArea = QStringLiteral("posture"),
     });
 
     cat.addDescriptor({
@@ -1062,6 +1066,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("lateral trunk flexion, read in the frontal plane the face-on "
                                "camera sees square-on")) },
+        .consistencyArea = QStringLiteral("posture"),
     });
 
     cat.addDescriptor({
@@ -1235,6 +1240,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the rear outline of the person mask behind the trunk, read square-on "
                                "from down the line")) },
         .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("posture"),
     });
 
     cat.addDescriptor({
@@ -1267,6 +1273,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the rear edge of the person mask at hip height in the down-the-line "
                                "view, scaled by the ball or by the face-on ruler carried across")) },
         .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("posture"),
     });
 
     // STANDING UP GOING BACK, from down the line (posture_metrics_design.md §4.5, 22 Oct 2026). The
@@ -1462,6 +1469,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the hip centre's offset from the ankle-line centre along the stance "
                                "line in the face-on image, in the ball's own diameter ruler")) },
         .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("lateral"),
     });
 
     cat.addDescriptor({
@@ -1557,6 +1565,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("differentiated from the clubhead's path in the face-on image, "
                                "scaled by the ball-diameter ruler")) },
         .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("sequence"),
     });
 
     cat.addDescriptor({
@@ -1594,6 +1603,7 @@ void installMetricManifest(MetricCatalogue &cat)
         // the ball). A floor on it fired "quitting on it" on ordinary swings. The fault is the
         // CLUBHEAD peaking early, which is `clubheadPeakLead` below.
         .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("sequence"),
     });
 
     // The timing of the clubhead's peak, as a number, because no reducer returns the TIME of an
@@ -1857,6 +1867,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the plane through the target line and the shaft is read from the "
                                "down-the-line view; the face-on track says which frames see it")) },
         .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("armsAndClub"),
     });
 
     // The hand plane: the plane through the ball's target line and the hands, as one smooth curve
@@ -1894,6 +1905,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the image line from the down-the-line ball to the grip; the shaft "
                                "track supplies both")) },
         .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("armsAndClub"),
     });
 
     // How much steeper the hands come down than they went up, at the same height: the hand plane's
@@ -1929,6 +1941,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the hand plane's downswing half against its backswing half, at the "
                                "same height in the down-the-line image")) },
         .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("armsAndClub"),
     });
 
     // The shoulder plane: the plane through the ball's target line and the TRAIL shoulder at
@@ -2120,6 +2133,7 @@ void installMetricManifest(MetricCatalogue &cat)
         // measure reads the launch monitor only until the tracker's impact geometry is validated
         // against the hand-marked P7 truth. The series stays for the chart.
         .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("impact"),
     });
 
     cat.addDescriptor({
@@ -2211,6 +2225,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("timed off the segmented phase ladder, whatever produced it — a "
                                "motion-sensor-only swing and a camera-only swing both qualify, and the "
                                "producer refuses a ladder it does not trust")) },
+        .consistencyArea = QStringLiteral("sequence"),
     });
 
     cat.addDescriptor({
@@ -2422,6 +2437,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
                 QStringLiteral("the shoulder span's cosine unfolded across the square-up and "
                                "differentiated, with the uncertainty propagated through 1/sin θ")) },
+        .consistencyArea = QStringLiteral("sequence"),
     });
 
     cat.addDescriptor({
@@ -2465,6 +2481,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
                 QStringLiteral("the shoulder→wrist image angle de-projected through the "
                                "swing-plane ellipse and differentiated")) },
+        .consistencyArea = QStringLiteral("sequence"),
     });
 
     cat.addDescriptor({
@@ -2510,6 +2527,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOnClub", RM::Projected, Estimated, { .faceOnCamera = true, .clubTrack = true },
                 QStringLiteral("the filtered shaft angle rate de-projected through the "
                                "swing-plane ellipse")) },
+        .consistencyArea = QStringLiteral("sequence"),
     });
 
     // ── The PLACED trunk nodes' instants (segment_rates.h sequencePeakTimeSeries, 2026-10-02) ───────
@@ -2961,6 +2979,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the same heel-to-heel span through the ball-diameter ruler, which "
                                "is what puts it in millimetres")) },
         .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("setup"),
     });
 
     cat.addDescriptor({
@@ -3025,6 +3044,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the heel-to-big-toe line's angle, in the face-on image")) },
         .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("setup"),
     });
 
     cat.addDescriptor({
@@ -3052,6 +3072,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the heel-to-big-toe line's angle, in the face-on image")) },
         .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("setup"),
     });
 
     cat.addDescriptor({
@@ -3080,6 +3101,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the big-toe-to-big-toe line's angle, in the face-on image")) },
         .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("setup"),
     });
 
     cat.addDescriptor({
@@ -3202,6 +3224,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the elbow line's angle, in the face-on image")) },
+        .consistencyArea = QStringLiteral("armsAndClub"),
     });
 
 
@@ -3342,6 +3365,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the ear-to-nose line against the trunk, seen side-on from down the "
                                "line")) },
         .usedBy = { QStringLiteral("characteristic:poor_setup_posture") },
+        .consistencyArea = QStringLiteral("posture"),
     });
 
     cat.addDescriptor({
@@ -3370,6 +3394,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the eye line's angle in the face-on image — an angle, so it needs "
                                "no scale")) },
         .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("posture"),
     });
 
     // ------------------------------------------ Diagnostics-pack measures (src/Resources/diagnostics)
@@ -3486,6 +3511,7 @@ void installMetricManifest(MetricCatalogue &cat)
         // zero read 5° to 59° on swings of one shape. The P4 reading is `shoulderPlaneAngle3d` below,
         // planned on the triangulated pair. Address and impact stay honest here.
         .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("armsAndClub"),
     });
 
     // The shoulder line's inclination at the top as GEOMETRY — the reading `flat_shoulder_plane`
@@ -3616,6 +3642,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the ball's standoff is measured across the stance line, which is "
                                "the depth axis the face-on camera cannot see")) },
         .usedBy = {},
+        .consistencyArea = QStringLiteral("setup"),
     });
 
     cat.addDescriptor({
@@ -4931,6 +4958,7 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:low_point_too_far_ahead"),
                     QStringLiteral("characteristic:top"),
                     QStringLiteral("characteristic:sky") },
+        .consistencyArea = QStringLiteral("impact"),
     });
 }
 

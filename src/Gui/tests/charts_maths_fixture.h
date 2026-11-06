@@ -18,15 +18,20 @@
 
 #pragma once
 
-// TEST-ONLY: the trimmed 4 July fixture (data/charts/session_0704.json, made by
-// build/charts-build/goldens/trim_fixture.py from the Charts round-1 fixture) read into a
-// SessionSnapshot, plus the card read-at table it carries (readat_from_manifest.py's extraction of
-// MetricCardSpec::readAt, so the maths test needs no ChartMetrics and no catalogue).
+// TEST-ONLY: a session fixture read into a SessionSnapshot, plus the card read-at table it carries
+// (readat_from_manifest.py's extraction of MetricCardSpec::readAt, so the maths test needs no ChartMetrics
+// and no catalogue). Two sources make the shape:
+//   data/charts/session_0704.json (≈ 370 KB): build/charts-build/goldens/trim_fixture.py, from the Charts
+//     round-1 fixture.
+//   any session: tools/diagnostics/consistency_extract.py, run on the library, every metric with its whole
+//     curve and values exact; tools/diagnostics/consistency_trim_fixture.py cuts one of those down to
+//     data/charts/session_1005.json so that consistency_dump's result over it equals the whole file's.
 //
-// Shape (compact on purpose, ≈ 370 KB): shots[] { ordinal, club, impactUs, phases [[phase, t_us, conf]],
-// kinematicSequence { order, nodes }, metricOrder [key], metrics { key: { label, unit, sigma, sigmaKind,
-// at [[phase, t_us, value, sigma]], t_us?, value?, valid? } }, fired [id] }, conditions { id: { name,
-// group } }, readAt { key: [phase] }, pickedOrdinal.
+// Shape: shots[] { ordinal, swing?, club, impactUs, phases [[phase, t_us, conf]], kinematicSequence? { order,
+// nodes }, metricOrder [key], metrics { key: { label, unit, sigma?, sigmaKind?, at [[phase, t_us, value,
+// sigma?]], t_us?, value?, valid? } }, fired [id] }, conditions { id: { name, group } }, readAt { key: [phase] },
+// pickedOrdinal, session?. `swing` is the swing's folder name. A missing number reads as NaN, or -1 for
+// sigmaKind.
 
 #include "charts/session_series_types.h"
 
@@ -48,6 +53,7 @@ inline double num(const QJsonValue &v) { return v.isDouble() ? v.toDouble() : kN
 
 struct Fixture {
     SessionSnapshot session;
+    QString name;                       // the file's `session`, empty when it has none
     QHash<QString, std::vector<int>> readAt;
     int picked = 0;
     bool ok = false;
@@ -66,6 +72,7 @@ inline Fixture loadFixture(const QString &path)
     if (!f.open(QIODevice::ReadOnly))
         return fx;
     const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    fx.name = root.value(QStringLiteral("session")).toString();
     fx.picked = root.value(QStringLiteral("pickedOrdinal")).toInt();
     const QJsonObject ra = root.value(QStringLiteral("readAt")).toObject();
     for (auto it = ra.begin(); it != ra.end(); ++it) {
@@ -84,6 +91,7 @@ inline Fixture loadFixture(const QString &path)
         const QJsonObject so = sv.toObject();
         auto sh = std::make_shared<ShotSeries>();
         sh->ordinal  = so.value(QStringLiteral("ordinal")).toInt();
+        sh->swingDir = so.value(QStringLiteral("swing")).toString();
         sh->shotId   = sh->ordinal;
         sh->club     = so.value(QStringLiteral("club")).toString();
         sh->impactUs = qint64(so.value(QStringLiteral("impactUs")).toDouble());

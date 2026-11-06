@@ -400,6 +400,26 @@
       "golfer": "a swing position was found too uncertainly to line the swings up on"
     },
     {
+      "id": "rule.charts.consistencyVerdict",
+      "golfer": "too few swings, or nothing to judge it against, to say how much it moves from swing to swing"
+    },
+    {
+      "id": "rule.charts.consistencyCell",
+      "golfer": "none of the readings here could be judged, so this part of the swing stays open"
+    },
+    {
+      "id": "rule.charts.consistencyStandOut",
+      "golfer": "too few other shots to say this one stood out"
+    },
+    {
+      "id": "rule.charts.consistencyBallFlag",
+      "golfer": "too few shots with this club to say a shot was short or offline"
+    },
+    {
+      "id": "rule.charts.consistencyLadderGuard",
+      "golfer": "the timing of this swing's positions looks unusual, so it is not compared part by part"
+    },
+    {
       "id": "rule.lm.spreadMin",
       "golfer": "too few shots to show how much they varied"
     },

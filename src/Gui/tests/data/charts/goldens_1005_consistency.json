@@ -1,0 +1,3010 @@
+{
+ "cells": [
+  {
+   "area": "setup",
+   "column": 0,
+   "word": "some",
+   "judged": 9,
+   "loose": 1,
+   "nearError": 0,
+   "unjudged": 5
+  },
+  {
+   "area": "posture",
+   "column": 0,
+   "word": "steady",
+   "judged": 8,
+   "loose": 0,
+   "nearError": 0,
+   "unjudged": 2
+  },
+  {
+   "area": "posture",
+   "column": 1,
+   "word": "steady",
+   "judged": 8,
+   "loose": 0,
+   "nearError": 0,
+   "unjudged": 2
+  },
+  {
+   "area": "posture",
+   "column": 2,
+   "word": "steady",
+   "judged": 8,
+   "loose": 0,
+   "nearError": 0,
+   "unjudged": 2
+  },
+  {
+   "area": "posture",
+   "column": 3,
+   "word": "steady",
+   "judged": 8,
+   "loose": 0,
+   "nearError": 0,
+   "unjudged": 2
+  },
+  {
+   "area": "posture",
+   "column": 4,
+   "word": "steady",
+   "judged": 8,
+   "loose": 0,
+   "nearError": 0,
+   "unjudged": 2
+  },
+  {
+   "area": "posture",
+   "column": 5,
+   "word": "steady",
+   "judged": 8,
+   "loose": 0,
+   "nearError": 0,
+   "unjudged": 2
+  },
+  {
+   "area": "posture",
+   "column": 6,
+   "word": "steady",
+   "judged": 8,
+   "loose": 0,
+   "nearError": 0,
+   "unjudged": 2
+  },
+  {
+   "area": "posture",
+   "column": 7,
+   "word": "steady",
+   "judged": 1,
+   "loose": 0,
+   "nearError": 0,
+   "unjudged": 1
+  },
+  {
+   "area": "armsAndClub",
+   "column": 1,
+   "word": "steady",
+   "judged": 9,
+   "loose": 0,
+   "nearError": 0,
+   "unjudged": 5
+  },
+  {
+   "area": "armsAndClub",
+   "column": 2,
+   "word": "steady",
+   "judged": 9,
+   "loose": 0,
+   "nearError": 0,
+   "unjudged": 5
+  },
+  {
+   "area": "armsAndClub",
+   "column": 3,
+   "word": "some",
+   "judged": 10,
+   "loose": 1,
+   "nearError": 0,
+   "unjudged": 5
+  },
+  {
+   "area": "armsAndClub",
+   "column": 4,
+   "word": "some",
+   "judged": 9,
+   "loose": 1,
+   "nearError": 0,
+   "unjudged": 4
+  },
+  {
+   "area": "armsAndClub",
+   "column": 5,
+   "word": "some",
+   "judged": 9,
+   "loose": 1,
+   "nearError": 0,
+   "unjudged": 5
+  },
+  {
+   "area": "armsAndClub",
+   "column": 6,
+   "word": "some",
+   "judged": 9,
+   "loose": 1,
+   "nearError": 0,
+   "unjudged": 5
+  },
+  {
+   "area": "armsAndClub",
+   "column": 7,
+   "word": "some",
+   "judged": 7,
+   "loose": 2,
+   "nearError": 0,
+   "unjudged": 1
+  },
+  {
+   "area": "sequence",
+   "column": 2,
+   "word": "some",
+   "judged": 4,
+   "loose": 1,
+   "nearError": 0,
+   "unjudged": 2
+  },
+  {
+   "area": "sequence",
+   "column": 3,
+   "word": "some",
+   "judged": 5,
+   "loose": 1,
+   "nearError": 0,
+   "unjudged": 3
+  },
+  {
+   "area": "sequence",
+   "column": 4,
+   "word": "some",
+   "judged": 4,
+   "loose": 1,
+   "nearError": 0,
+   "unjudged": 6
+  },
+  {
+   "area": "sequence",
+   "column": 5,
+   "word": "some",
+   "judged": 4,
+   "loose": 1,
+   "nearError": 0,
+   "unjudged": 6
+  },
+  {
+   "area": "sequence",
+   "column": 6,
+   "word": "loose",
+   "judged": 5,
+   "loose": 2,
+   "nearError": 0,
+   "unjudged": 15
+  },
+  {
+   "area": "lateral",
+   "column": 1,
+   "word": "some",
+   "judged": 7,
+   "loose": 1,
+   "nearError": 0,
+   "unjudged": 0
+  },
+  {
+   "area": "lateral",
+   "column": 2,
+   "word": "some",
+   "judged": 7,
+   "loose": 1,
+   "nearError": 0,
+   "unjudged": 0
+  },
+  {
+   "area": "lateral",
+   "column": 3,
+   "word": "some",
+   "judged": 7,
+   "loose": 1,
+   "nearError": 0,
+   "unjudged": 0
+  },
+  {
+   "area": "lateral",
+   "column": 4,
+   "word": "some",
+   "judged": 7,
+   "loose": 2,
+   "nearError": 0,
+   "unjudged": 0
+  },
+  {
+   "area": "lateral",
+   "column": 5,
+   "word": "some",
+   "judged": 7,
+   "loose": 1,
+   "nearError": 0,
+   "unjudged": 0
+  },
+  {
+   "area": "lateral",
+   "column": 6,
+   "word": "some",
+   "judged": 7,
+   "loose": 1,
+   "nearError": 0,
+   "unjudged": 0
+  },
+  {
+   "area": "lateral",
+   "column": 7,
+   "word": "steady",
+   "judged": 3,
+   "loose": 0,
+   "nearError": 0,
+   "unjudged": 0
+  },
+  {
+   "area": "release",
+   "column": 5,
+   "word": "steady",
+   "judged": 2,
+   "loose": 0,
+   "nearError": 0,
+   "unjudged": 0
+  },
+  {
+   "area": "release",
+   "column": 6,
+   "word": "steady",
+   "judged": 2,
+   "loose": 0,
+   "nearError": 0,
+   "unjudged": 0
+  },
+  {
+   "area": "release",
+   "column": 7,
+   "word": "steady",
+   "judged": 2,
+   "loose": 0,
+   "nearError": 0,
+   "unjudged": 0
+  },
+  {
+   "area": "impact",
+   "column": 6,
+   "word": "some",
+   "judged": 4,
+   "loose": 1,
+   "nearError": 1,
+   "unjudged": 1
+  },
+  {
+   "area": "finish",
+   "column": 7,
+   "word": "steady",
+   "judged": 1,
+   "loose": 0,
+   "nearError": 0,
+   "unjudged": 0
+  }
+ ],
+ "readings": [
+  {
+   "key": "armHang",
+   "column": 0,
+   "spread": 0.7876577052080518,
+   "verdict": "steady"
+  },
+  {
+   "key": "attackAngle",
+   "column": 6,
+   "spread": 12.514628069336263,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "balanceHeelToe",
+   "column": 0,
+   "spread": 2.9547851241801735,
+   "verdict": "steady"
+  },
+  {
+   "key": "ballBodyDistance",
+   "column": 0,
+   "spread": 2.6500104719622173,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "ballPosition",
+   "column": 0,
+   "spread": 16.641271956533767,
+   "verdict": "loose"
+  },
+  {
+   "key": "ballReachExcess",
+   "column": 0,
+   "spread": 1.602824856685965,
+   "verdict": "steady"
+  },
+  {
+   "key": "clubAngularSpeed",
+   "column": 4,
+   "spread": 44.84464804474265,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "clubAngularSpeed",
+   "column": 5,
+   "spread": 63.24141818132601,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "clubAngularSpeed",
+   "column": 6,
+   "spread": 113.95243898092382,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "clubAngularSpeed",
+   "column": 7,
+   "spread": 137.15172637843241,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "clubPeakSpeed",
+   "column": 6,
+   "spread": 93.24026292003911,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "clubPeakTime",
+   "column": 6,
+   "spread": 5.992031134173461,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "clubheadPeakLead",
+   "column": 6,
+   "spread": 0.9234618235730172,
+   "verdict": "steady"
+  },
+  {
+   "key": "clubheadSpeed",
+   "column": 0,
+   "spread": 1.7498373760138461,
+   "verdict": "steady"
+  },
+  {
+   "key": "clubheadSpeed",
+   "column": 1,
+   "spread": 0.6111206583165751,
+   "verdict": "steady"
+  },
+  {
+   "key": "clubheadSpeed",
+   "column": 2,
+   "spread": 0.9461395686513361,
+   "verdict": "steady"
+  },
+  {
+   "key": "clubheadSpeed",
+   "column": 3,
+   "spread": 0.6744980241519271,
+   "verdict": "steady"
+  },
+  {
+   "key": "clubheadSpeed",
+   "column": 4,
+   "spread": 1.3847263558244614,
+   "verdict": "steady"
+  },
+  {
+   "key": "clubheadSpeed",
+   "column": 5,
+   "spread": 1.8547218657860172,
+   "verdict": "steady"
+  },
+  {
+   "key": "clubheadSpeed",
+   "column": 6,
+   "spread": 4.560754944751263,
+   "verdict": "loose"
+  },
+  {
+   "key": "comOverLeadFoot",
+   "column": 0,
+   "spread": 4.196617836396935,
+   "verdict": "steady"
+  },
+  {
+   "key": "comOverLeadFoot",
+   "column": 1,
+   "spread": 3.751406080566923,
+   "verdict": "steady"
+  },
+  {
+   "key": "comOverLeadFoot",
+   "column": 2,
+   "spread": 3.688432749723192,
+   "verdict": "steady"
+  },
+  {
+   "key": "comOverLeadFoot",
+   "column": 3,
+   "spread": 5.402766297185352,
+   "verdict": "steady"
+  },
+  {
+   "key": "comOverLeadFoot",
+   "column": 4,
+   "spread": 7.325458835427393,
+   "verdict": "steady"
+  },
+  {
+   "key": "comOverLeadFoot",
+   "column": 5,
+   "spread": 6.000984926623019,
+   "verdict": "steady"
+  },
+  {
+   "key": "comOverLeadFoot",
+   "column": 6,
+   "spread": 5.419553772200846,
+   "verdict": "steady"
+  },
+  {
+   "key": "comOverLeadFoot",
+   "column": 7,
+   "spread": 4.680746396850784,
+   "verdict": "steady"
+  },
+  {
+   "key": "compoundMiss",
+   "column": 6,
+   "spread": 0.0,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "elbowAlignment",
+   "column": 0,
+   "spread": 2.8154518380046762,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "elbowAlignment",
+   "column": 1,
+   "spread": 1.3082770161992203,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "elbowAlignment",
+   "column": 2,
+   "spread": 1.9214598094714586,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "elbowAlignment",
+   "column": 5,
+   "spread": 2.7836078032474174,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "elbowAlignment",
+   "column": 6,
+   "spread": 1.456869578974982,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "feetAlignment",
+   "column": 0,
+   "spread": 0.6220113343628371,
+   "verdict": "steady"
+  },
+  {
+   "key": "feetAlignment",
+   "column": 1,
+   "spread": 0.7698098302178342,
+   "verdict": "steady"
+  },
+  {
+   "key": "feetAlignment",
+   "column": 2,
+   "spread": 0.791556302573916,
+   "verdict": "steady"
+  },
+  {
+   "key": "feetAlignment",
+   "column": 3,
+   "spread": 0.9935364068323758,
+   "verdict": "steady"
+  },
+  {
+   "key": "feetAlignment",
+   "column": 4,
+   "spread": 0.9534088102873787,
+   "verdict": "steady"
+  },
+  {
+   "key": "feetAlignment",
+   "column": 5,
+   "spread": 0.754139819237461,
+   "verdict": "steady"
+  },
+  {
+   "key": "feetAlignment",
+   "column": 6,
+   "spread": 0.6941491728879218,
+   "verdict": "steady"
+  },
+  {
+   "key": "feetAlignment",
+   "column": 7,
+   "spread": 0.9130481684948879,
+   "verdict": "steady"
+  },
+  {
+   "key": "handPathLoop",
+   "column": 3,
+   "spread": 2.616091700042777,
+   "verdict": "steady"
+  },
+  {
+   "key": "handPlaneCurve",
+   "column": 1,
+   "spread": 0.9359764507242799,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "handPlaneCurve",
+   "column": 2,
+   "spread": 1.287784741192218,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "handPlaneCurve",
+   "column": 3,
+   "spread": 1.5614901325236756,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "handPlaneCurve",
+   "column": 4,
+   "spread": 2.125460227615188,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "handPlaneCurve",
+   "column": 5,
+   "spread": 2.9453901515671403,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "handPlaneCurve",
+   "column": 6,
+   "spread": 1.5165209630021614,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "handPlaneSteepening",
+   "column": 3,
+   "spread": 1.777849570771088,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "handSpeed",
+   "column": 0,
+   "spread": 0.2457975909647538,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "handSpeed",
+   "column": 1,
+   "spread": 0.43027846674676795,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "handSpeed",
+   "column": 2,
+   "spread": 0.6133647252840594,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "handSpeed",
+   "column": 3,
+   "spread": 0.3942232749862475,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "handSpeed",
+   "column": 4,
+   "spread": 0.6069313190698502,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "handSpeed",
+   "column": 5,
+   "spread": 1.241661161699822,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "handSpeed",
+   "column": 6,
+   "spread": 1.2440067613657702,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "handSpeed",
+   "column": 7,
+   "spread": 2.606710039790057,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "headLift",
+   "column": 0,
+   "spread": 0.478361016681752,
+   "verdict": "steady"
+  },
+  {
+   "key": "headLift",
+   "column": 1,
+   "spread": 0.39549049913137524,
+   "verdict": "steady"
+  },
+  {
+   "key": "headLift",
+   "column": 2,
+   "spread": 0.4288053734821093,
+   "verdict": "steady"
+  },
+  {
+   "key": "headLift",
+   "column": 3,
+   "spread": 0.7325618645558372,
+   "verdict": "steady"
+  },
+  {
+   "key": "headLift",
+   "column": 4,
+   "spread": 0.6803202313006049,
+   "verdict": "steady"
+  },
+  {
+   "key": "headLift",
+   "column": 5,
+   "spread": 0.713045697913375,
+   "verdict": "steady"
+  },
+  {
+   "key": "headLift",
+   "column": 6,
+   "spread": 1.0592046068864285,
+   "verdict": "steady"
+  },
+  {
+   "key": "headLift",
+   "column": 7,
+   "spread": 1.2587431588193716,
+   "verdict": "steady"
+  },
+  {
+   "key": "headPitch",
+   "column": 0,
+   "spread": 4.313404956159514,
+   "verdict": "steady"
+  },
+  {
+   "key": "headRise",
+   "column": 0,
+   "spread": 0.3003518843298731,
+   "verdict": "steady"
+  },
+  {
+   "key": "headRise",
+   "column": 1,
+   "spread": 0.6286200495275207,
+   "verdict": "steady"
+  },
+  {
+   "key": "headRise",
+   "column": 2,
+   "spread": 1.3872239882997046,
+   "verdict": "steady"
+  },
+  {
+   "key": "headRise",
+   "column": 3,
+   "spread": 1.2182585061608642,
+   "verdict": "steady"
+  },
+  {
+   "key": "headRise",
+   "column": 4,
+   "spread": 1.8163678918590285,
+   "verdict": "steady"
+  },
+  {
+   "key": "headRise",
+   "column": 5,
+   "spread": 1.3202413136480258,
+   "verdict": "steady"
+  },
+  {
+   "key": "headRise",
+   "column": 6,
+   "spread": 1.8301061735628035,
+   "verdict": "steady"
+  },
+  {
+   "key": "headSway",
+   "column": 0,
+   "spread": 0.015321995376326822,
+   "verdict": "steady"
+  },
+  {
+   "key": "headSway",
+   "column": 1,
+   "spread": 0.7031641282430536,
+   "verdict": "steady"
+  },
+  {
+   "key": "headSway",
+   "column": 2,
+   "spread": 1.2533270160945817,
+   "verdict": "steady"
+  },
+  {
+   "key": "headSway",
+   "column": 3,
+   "spread": 1.977615048575804,
+   "verdict": "steady"
+  },
+  {
+   "key": "headSway",
+   "column": 4,
+   "spread": 1.5373568532173632,
+   "verdict": "steady"
+  },
+  {
+   "key": "headSway",
+   "column": 5,
+   "spread": 1.5701731104719592,
+   "verdict": "steady"
+  },
+  {
+   "key": "headSway",
+   "column": 6,
+   "spread": 1.5307693384882775,
+   "verdict": "steady"
+  },
+  {
+   "key": "headSway",
+   "column": 7,
+   "spread": 1.8123833767179873,
+   "verdict": "steady"
+  },
+  {
+   "key": "headTilt",
+   "column": 0,
+   "spread": 2.367936249858363,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "headTilt",
+   "column": 1,
+   "spread": 2.298024304060663,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "headTilt",
+   "column": 2,
+   "spread": 2.3682367098608976,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "headTilt",
+   "column": 3,
+   "spread": 2.6673689193150834,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "headTilt",
+   "column": 4,
+   "spread": 3.4980797640770653,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "headTilt",
+   "column": 5,
+   "spread": 2.264474673444904,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "headTilt",
+   "column": 6,
+   "spread": 3.5571173256575084,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "headTilt",
+   "column": 7,
+   "spread": 3.0986764153375286,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "hipDepthButt",
+   "column": 0,
+   "spread": 0.0,
+   "verdict": "steady"
+  },
+  {
+   "key": "hipDepthButt",
+   "column": 1,
+   "spread": 0.6180017652930232,
+   "verdict": "steady"
+  },
+  {
+   "key": "hipDepthButt",
+   "column": 2,
+   "spread": 0.7041485696988322,
+   "verdict": "steady"
+  },
+  {
+   "key": "hipDepthButt",
+   "column": 3,
+   "spread": 0.7105710028433618,
+   "verdict": "steady"
+  },
+  {
+   "key": "hipDepthButt",
+   "column": 4,
+   "spread": 0.8459523595366448,
+   "verdict": "steady"
+  },
+  {
+   "key": "hipDepthButt",
+   "column": 5,
+   "spread": 1.1524615373814444,
+   "verdict": "steady"
+  },
+  {
+   "key": "hipDepthButt",
+   "column": 6,
+   "spread": 1.415151844343094,
+   "verdict": "steady"
+  },
+  {
+   "key": "hipLineTilt",
+   "column": 0,
+   "spread": 1.6037289616486432,
+   "verdict": "steady"
+  },
+  {
+   "key": "hipLineTilt",
+   "column": 1,
+   "spread": 1.3560258953033666,
+   "verdict": "steady"
+  },
+  {
+   "key": "hipLineTilt",
+   "column": 2,
+   "spread": 1.2601027885239704,
+   "verdict": "steady"
+  },
+  {
+   "key": "hipLineTilt",
+   "column": 3,
+   "spread": 2.1265838760908813,
+   "verdict": "steady"
+  },
+  {
+   "key": "hipLineTilt",
+   "column": 4,
+   "spread": 1.9516461939137948,
+   "verdict": "steady"
+  },
+  {
+   "key": "hipLineTilt",
+   "column": 5,
+   "spread": 1.088032049029451,
+   "verdict": "steady"
+  },
+  {
+   "key": "hipLineTilt",
+   "column": 6,
+   "spread": 0.8211721636846919,
+   "verdict": "steady"
+  },
+  {
+   "key": "impactShaftLean",
+   "column": 6,
+   "spread": 1.692962321780953,
+   "verdict": "steady"
+  },
+  {
+   "key": "lagAngle",
+   "column": 0,
+   "spread": 3.5825963611951708,
+   "verdict": "steady"
+  },
+  {
+   "key": "lagAngle",
+   "column": 1,
+   "spread": 3.388017182290524,
+   "verdict": "steady"
+  },
+  {
+   "key": "lagAngle",
+   "column": 2,
+   "spread": 2.02268810811498,
+   "verdict": "steady"
+  },
+  {
+   "key": "lagAngle",
+   "column": 3,
+   "spread": 2.309849956444284,
+   "verdict": "steady"
+  },
+  {
+   "key": "lagAngle",
+   "column": 4,
+   "spread": 2.675944407665508,
+   "verdict": "steady"
+  },
+  {
+   "key": "lagAngle",
+   "column": 5,
+   "spread": 2.9607670398391996,
+   "verdict": "steady"
+  },
+  {
+   "key": "lagAngle",
+   "column": 6,
+   "spread": 3.0546500238353023,
+   "verdict": "steady"
+  },
+  {
+   "key": "lagAngle",
+   "column": 7,
+   "spread": 15.755070958968268,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadArmAngularSpeed",
+   "column": 4,
+   "spread": 73.75645037594838,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "leadArmAngularSpeed",
+   "column": 5,
+   "spread": 58.366383273125415,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "leadArmAngularSpeed",
+   "column": 6,
+   "spread": 115.15010430088545,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "leadArmAngularSpeed",
+   "column": 7,
+   "spread": 50.257790995226365,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "leadArmPeakSpeed",
+   "column": 6,
+   "spread": 131.121595240265,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "leadArmPeakTime",
+   "column": 6,
+   "spread": 14.894736842105265,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "leadArmToTorso",
+   "column": 0,
+   "spread": 0.7014594042354635,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadArmToTorso",
+   "column": 1,
+   "spread": 1.62397919743244,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadArmToTorso",
+   "column": 2,
+   "spread": 2.0418936478940277,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadArmToTorso",
+   "column": 3,
+   "spread": 4.984400913797175,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadArmToTorso",
+   "column": 4,
+   "spread": 3.4110394987219927,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadArmToTorso",
+   "column": 5,
+   "spread": 2.0708076896229923,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadArmToTorso",
+   "column": 6,
+   "spread": 1.9878110446166437,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadArmToTorso",
+   "column": 7,
+   "spread": 1.2949672576389937,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadFootFlare",
+   "column": 0,
+   "spread": 5.543564441803754,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "leadHandWidth",
+   "column": 0,
+   "spread": 0.8721281775316225,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadHandWidth",
+   "column": 1,
+   "spread": 0.6736938001537651,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadHandWidth",
+   "column": 2,
+   "spread": 1.0844153017889941,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadHandWidth",
+   "column": 3,
+   "spread": 1.7716852454697414,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadHandWidth",
+   "column": 4,
+   "spread": 2.6485538006856624,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadHandWidth",
+   "column": 5,
+   "spread": 1.1092794435595577,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadHandWidth",
+   "column": 6,
+   "spread": 0.5569661027307635,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadHandWidth",
+   "column": 7,
+   "spread": 1.0838075667875988,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadHeelLift",
+   "column": 0,
+   "spread": 0.3382216502653945,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadHeelLift",
+   "column": 1,
+   "spread": 0.4845723477693237,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadHeelLift",
+   "column": 2,
+   "spread": 0.5575987427730767,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadHeelLift",
+   "column": 3,
+   "spread": 1.3369495401662357,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadHeelLift",
+   "column": 4,
+   "spread": 1.0389025461678685,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadHeelLift",
+   "column": 5,
+   "spread": 1.043960652037798,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadHeelLift",
+   "column": 6,
+   "spread": 0.9003563030860855,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadHeelLift",
+   "column": 7,
+   "spread": 1.4798302957788536,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadKneeDrift",
+   "column": 0,
+   "spread": 0.5148916607094032,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadKneeDrift",
+   "column": 1,
+   "spread": 1.457392441781835,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadKneeDrift",
+   "column": 2,
+   "spread": 2.0140398819808447,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadKneeDrift",
+   "column": 3,
+   "spread": 2.326549523889809,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadKneeDrift",
+   "column": 4,
+   "spread": 2.4264833225069617,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadKneeDrift",
+   "column": 5,
+   "spread": 2.7927171305747853,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadKneeDrift",
+   "column": 6,
+   "spread": 2.881972685937037,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadKneeFlexion",
+   "column": 0,
+   "spread": 2.248765097460596,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadKneeFlexion",
+   "column": 1,
+   "spread": 2.0221978672071814,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadKneeFlexion",
+   "column": 2,
+   "spread": 2.000719901628536,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadKneeFlexion",
+   "column": 3,
+   "spread": 1.9358054909111002,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadKneeFlexion",
+   "column": 4,
+   "spread": 1.7863123635981724,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadKneeFlexion",
+   "column": 5,
+   "spread": 1.5055437342191913,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadKneeFlexion",
+   "column": 6,
+   "spread": 2.7216223918827698,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadKneeFlexion",
+   "column": 7,
+   "spread": 3.2716225086367263,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadUpperArmToChest",
+   "column": 0,
+   "spread": 1.7104606682181431,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadUpperArmToChest",
+   "column": 1,
+   "spread": 1.8902555785164814,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadUpperArmToChest",
+   "column": 2,
+   "spread": 2.0735315072566776,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadUpperArmToChest",
+   "column": 3,
+   "spread": 2.7067719729369806,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadUpperArmToChest",
+   "column": 4,
+   "spread": 4.053715080722456,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadUpperArmToChest",
+   "column": 5,
+   "spread": 2.028182151326133,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadUpperArmToChest",
+   "column": 6,
+   "spread": 3.1176358196131084,
+   "verdict": "steady"
+  },
+  {
+   "key": "leadUpperArmToChest",
+   "column": 7,
+   "spread": 2.021017026757046,
+   "verdict": "steady"
+  },
+  {
+   "key": "lowPointAhead",
+   "column": 6,
+   "spread": 2.0566703345270105,
+   "verdict": "nearError"
+  },
+  {
+   "key": "lowPointFromAttack",
+   "column": 6,
+   "spread": 1.126153591617079,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisAngularSpeed",
+   "column": 4,
+   "spread": 53.5084135796665,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "pelvisAngularSpeed",
+   "column": 5,
+   "spread": 134.13876850002066,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "pelvisAngularSpeed",
+   "column": 6,
+   "spread": 92.28923495017808,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "pelvisAngularSpeed",
+   "column": 7,
+   "spread": 128.50429372782995,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "pelvisLift",
+   "column": 0,
+   "spread": 0.9335810134687115,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisLift",
+   "column": 1,
+   "spread": 2.411995618544872,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisLift",
+   "column": 2,
+   "spread": 2.19454216636472,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisLift",
+   "column": 3,
+   "spread": 1.9562071487595543,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisLift",
+   "column": 4,
+   "spread": 3.217806592094793,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisLift",
+   "column": 5,
+   "spread": 3.0349436618010137,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisLift",
+   "column": 6,
+   "spread": 2.0930668815485465,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisPeakSpeed",
+   "column": 6,
+   "spread": 39.54278976825639,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "pelvisPeakTime",
+   "column": 6,
+   "spread": 4.968124536693849,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "pelvisReversalTime",
+   "column": 6,
+   "spread": 52.66567828020758,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "pelvisRotation",
+   "column": 0,
+   "spread": 0.665301829435814,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisRotation",
+   "column": 1,
+   "spread": 1.420445652916502,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisRotation",
+   "column": 2,
+   "spread": 3.2303423042217423,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisRotation",
+   "column": 3,
+   "spread": 4.254208068439638,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisRotation",
+   "column": 4,
+   "spread": 3.933272893819492,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisRotation",
+   "column": 5,
+   "spread": 5.843814800027863,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisRotation",
+   "column": 6,
+   "spread": 2.7211462243745315,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisRotation",
+   "column": 7,
+   "spread": 3.7857490846185278,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisRotationSigned",
+   "column": 0,
+   "spread": 0.665301829435814,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisRotationSigned",
+   "column": 1,
+   "spread": 1.420445652916502,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisRotationSigned",
+   "column": 2,
+   "spread": 3.2303423042217423,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisRotationSigned",
+   "column": 3,
+   "spread": 4.254208068439638,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisRotationSigned",
+   "column": 4,
+   "spread": 3.933272893819492,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisRotationSigned",
+   "column": 5,
+   "spread": 5.843814800027863,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisRotationSigned",
+   "column": 6,
+   "spread": 4.164316455915221,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisRotationSigned",
+   "column": 7,
+   "spread": 3.7857490846185278,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisSway",
+   "column": 0,
+   "spread": 0.4263243895281381,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisSway",
+   "column": 1,
+   "spread": 1.1323563523510503,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisSway",
+   "column": 2,
+   "spread": 2.9509660355635225,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisSway",
+   "column": 3,
+   "spread": 4.3320642255197015,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisSway",
+   "column": 4,
+   "spread": 4.001298791029962,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisSway",
+   "column": 5,
+   "spread": 2.4443144594062103,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisSway",
+   "column": 6,
+   "spread": 2.342087952676358,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisThrust",
+   "column": 1,
+   "spread": 0.33627906470060803,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisThrust",
+   "column": 2,
+   "spread": 0.49886165986149716,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisThrust",
+   "column": 3,
+   "spread": 0.9869722626229768,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisThrust",
+   "column": 4,
+   "spread": 1.2048020771456747,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisThrust",
+   "column": 5,
+   "spread": 1.324062396931462,
+   "verdict": "steady"
+  },
+  {
+   "key": "pelvisThrust",
+   "column": 6,
+   "spread": 1.230606783854349,
+   "verdict": "steady"
+  },
+  {
+   "key": "plumbBobDistance",
+   "column": 0,
+   "spread": 0.7475670288599504,
+   "verdict": "loose"
+  },
+  {
+   "key": "plumbBobDistance",
+   "column": 1,
+   "spread": 0.8759301347099152,
+   "verdict": "loose"
+  },
+  {
+   "key": "plumbBobDistance",
+   "column": 2,
+   "spread": 0.8913089416310968,
+   "verdict": "loose"
+  },
+  {
+   "key": "plumbBobDistance",
+   "column": 3,
+   "spread": 1.1125566993300402,
+   "verdict": "loose"
+  },
+  {
+   "key": "plumbBobDistance",
+   "column": 4,
+   "spread": 1.3102246572200191,
+   "verdict": "loose"
+  },
+  {
+   "key": "plumbBobDistance",
+   "column": 5,
+   "spread": 1.3660813230496105,
+   "verdict": "loose"
+  },
+  {
+   "key": "plumbBobDistance",
+   "column": 6,
+   "spread": 1.045491133262213,
+   "verdict": "loose"
+  },
+  {
+   "key": "secondaryAxisTilt",
+   "column": 0,
+   "spread": 1.0550158377483823,
+   "verdict": "steady"
+  },
+  {
+   "key": "secondaryAxisTilt",
+   "column": 1,
+   "spread": 1.2726928097196062,
+   "verdict": "steady"
+  },
+  {
+   "key": "secondaryAxisTilt",
+   "column": 2,
+   "spread": 1.558776673763874,
+   "verdict": "steady"
+  },
+  {
+   "key": "secondaryAxisTilt",
+   "column": 3,
+   "spread": 1.1709266867232377,
+   "verdict": "steady"
+  },
+  {
+   "key": "secondaryAxisTilt",
+   "column": 4,
+   "spread": 2.2964254962229873,
+   "verdict": "steady"
+  },
+  {
+   "key": "secondaryAxisTilt",
+   "column": 5,
+   "spread": 1.7386481821370825,
+   "verdict": "steady"
+  },
+  {
+   "key": "secondaryAxisTilt",
+   "column": 6,
+   "spread": 1.2471105872520847,
+   "verdict": "steady"
+  },
+  {
+   "key": "shaftAngleVsHorizontal",
+   "column": 0,
+   "spread": 2.9651593773165255,
+   "verdict": "steady"
+  },
+  {
+   "key": "shaftAngleVsHorizontal",
+   "column": 1,
+   "spread": 4.276843320502107,
+   "verdict": "steady"
+  },
+  {
+   "key": "shaftAngleVsHorizontal",
+   "column": 2,
+   "spread": 6.4639821536314095,
+   "verdict": "steady"
+  },
+  {
+   "key": "shaftAngleVsHorizontal",
+   "column": 3,
+   "spread": 4.247454032232931,
+   "verdict": "steady"
+  },
+  {
+   "key": "shaftAngleVsHorizontal",
+   "column": 4,
+   "spread": 6.393724519449113,
+   "verdict": "steady"
+  },
+  {
+   "key": "shaftAngleVsHorizontal",
+   "column": 5,
+   "spread": 14.091465384558477,
+   "verdict": "loose"
+  },
+  {
+   "key": "shaftAngleVsHorizontal",
+   "column": 6,
+   "spread": 44.9797199112126,
+   "verdict": "loose"
+  },
+  {
+   "key": "shaftAngleVsHorizontal",
+   "column": 7,
+   "spread": 52.31046250336497,
+   "verdict": "loose"
+  },
+  {
+   "key": "shaftLie",
+   "column": 6,
+   "spread": 0.8339510748702809,
+   "verdict": "loose"
+  },
+  {
+   "key": "shoulderPlane",
+   "column": 0,
+   "spread": 0.7031233188031092,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "shoulderPlaneAngle",
+   "column": 0,
+   "spread": 1.6613973604204275,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "shoulderPlaneAngle",
+   "column": 1,
+   "spread": 1.1703014748919036,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "shoulderPlaneAngle",
+   "column": 2,
+   "spread": 1.151494447070027,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "shoulderPlaneAngle",
+   "column": 3,
+   "spread": 4.723822864472625,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "shoulderPlaneAngle",
+   "column": 4,
+   "spread": 3.545662636461086,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "shoulderPlaneAngle",
+   "column": 5,
+   "spread": 1.4360215199542865,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "shoulderPlaneAngle",
+   "column": 6,
+   "spread": 1.1528703795324888,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "spineBackLine",
+   "column": 0,
+   "spread": 1.3377873665862159,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "spineBackLine",
+   "column": 1,
+   "spread": 0.5998466053079455,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "spineBackLine",
+   "column": 2,
+   "spread": 0.9615103699839432,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "spineBackLine",
+   "column": 3,
+   "spread": 2.7424139656456816,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "spineBackLine",
+   "column": 4,
+   "spread": 1.3899659397708573,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "spineBackLine",
+   "column": 5,
+   "spread": 0.9302806507352401,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "spineBackLine",
+   "column": 6,
+   "spread": 0.8403758019328638,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "spineForwardBend",
+   "column": 0,
+   "spread": 0.9948776519314326,
+   "verdict": "steady"
+  },
+  {
+   "key": "spineForwardBend",
+   "column": 1,
+   "spread": 0.8605612464655155,
+   "verdict": "steady"
+  },
+  {
+   "key": "spineForwardBend",
+   "column": 2,
+   "spread": 0.9403741981765253,
+   "verdict": "steady"
+  },
+  {
+   "key": "spineForwardBend",
+   "column": 3,
+   "spread": 0.9956257414950551,
+   "verdict": "steady"
+  },
+  {
+   "key": "spineForwardBend",
+   "column": 4,
+   "spread": 1.0721807707031952,
+   "verdict": "steady"
+  },
+  {
+   "key": "spineForwardBend",
+   "column": 5,
+   "spread": 0.9845745555871056,
+   "verdict": "steady"
+  },
+  {
+   "key": "spineForwardBend",
+   "column": 6,
+   "spread": 1.1914248910756355,
+   "verdict": "steady"
+  },
+  {
+   "key": "spineSideBend",
+   "column": 0,
+   "spread": 0.9956697614661185,
+   "verdict": "steady"
+  },
+  {
+   "key": "spineSideBend",
+   "column": 1,
+   "spread": 1.1346481447660062,
+   "verdict": "steady"
+  },
+  {
+   "key": "spineSideBend",
+   "column": 2,
+   "spread": 1.5613661056021846,
+   "verdict": "steady"
+  },
+  {
+   "key": "spineSideBend",
+   "column": 3,
+   "spread": 2.8474239609155543,
+   "verdict": "steady"
+  },
+  {
+   "key": "spineSideBend",
+   "column": 4,
+   "spread": 3.910939717990631,
+   "verdict": "steady"
+  },
+  {
+   "key": "spineSideBend",
+   "column": 5,
+   "spread": 1.3870446851180949,
+   "verdict": "steady"
+  },
+  {
+   "key": "spineSideBend",
+   "column": 6,
+   "spread": 1.190199677171176,
+   "verdict": "steady"
+  },
+  {
+   "key": "stanceWidth",
+   "column": 0,
+   "spread": 5.588370921360204,
+   "verdict": "steady"
+  },
+  {
+   "key": "stanceWidthMm",
+   "column": 0,
+   "spread": 20.90350518329939,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "swingPlane",
+   "column": 1,
+   "spread": 2.943660489251297,
+   "verdict": "steady"
+  },
+  {
+   "key": "swingPlane",
+   "column": 2,
+   "spread": 2.943660489251297,
+   "verdict": "steady"
+  },
+  {
+   "key": "swingPlane",
+   "column": 3,
+   "spread": 2.943660489251297,
+   "verdict": "steady"
+  },
+  {
+   "key": "swingPlane",
+   "column": 4,
+   "spread": 2.2088628613787997,
+   "verdict": "steady"
+  },
+  {
+   "key": "swingPlane",
+   "column": 5,
+   "spread": 2.2088628613787997,
+   "verdict": "steady"
+  },
+  {
+   "key": "swingPlane",
+   "column": 6,
+   "spread": 2.2088628613787997,
+   "verdict": "steady"
+  },
+  {
+   "key": "swingPlaneAngle",
+   "column": 1,
+   "spread": 2.6591586360266857,
+   "verdict": "steady"
+  },
+  {
+   "key": "swingPlaneAngle",
+   "column": 2,
+   "spread": 2.6591586360266857,
+   "verdict": "steady"
+  },
+  {
+   "key": "swingPlaneAngle",
+   "column": 3,
+   "spread": 2.6591586360266857,
+   "verdict": "steady"
+  },
+  {
+   "key": "swingPlaneAngle",
+   "column": 4,
+   "spread": 2.1062824314306887,
+   "verdict": "steady"
+  },
+  {
+   "key": "swingPlaneAngle",
+   "column": 5,
+   "spread": 2.1062824314306887,
+   "verdict": "steady"
+  },
+  {
+   "key": "swingPlaneAngle",
+   "column": 6,
+   "spread": 2.1062824314306887,
+   "verdict": "steady"
+  },
+  {
+   "key": "swingPlaneCurve",
+   "column": 1,
+   "spread": 1.0201978046357987,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "swingPlaneCurve",
+   "column": 2,
+   "spread": 1.4400699071949554,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "swingPlaneCurve",
+   "column": 3,
+   "spread": 1.5610516450431937,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "swingPlaneCurve",
+   "column": 4,
+   "spread": 2.1338752933073812,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "swingPlaneCurve",
+   "column": 5,
+   "spread": 2.3592836966791064,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "swingPlaneCurve",
+   "column": 6,
+   "spread": 1.4348652486897497,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "swingPlaneIotaBack",
+   "column": 3,
+   "spread": 11.613332295141188,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "swingPlaneIotaDown",
+   "column": 6,
+   "spread": 15.407200688220945,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "tempoBackswing",
+   "column": 3,
+   "spread": 0.02978280207561154,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "tempoRatio",
+   "column": 3,
+   "spread": 0.18030563896823074,
+   "verdict": "steady"
+  },
+  {
+   "key": "thoraxAngularSpeed",
+   "column": 4,
+   "spread": 117.98088666244182,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "thoraxAngularSpeed",
+   "column": 5,
+   "spread": 25.839889681079075,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "thoraxAngularSpeed",
+   "column": 6,
+   "spread": 60.89060689886949,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "thoraxAngularSpeed",
+   "column": 7,
+   "spread": 76.33932656958946,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "thoraxLateralDrift",
+   "column": 0,
+   "spread": 4.563138921256696,
+   "verdict": "steady"
+  },
+  {
+   "key": "thoraxLateralDrift",
+   "column": 1,
+   "spread": 6.504502398221816,
+   "verdict": "steady"
+  },
+  {
+   "key": "thoraxLateralDrift",
+   "column": 2,
+   "spread": 4.616177781125403,
+   "verdict": "steady"
+  },
+  {
+   "key": "thoraxLateralDrift",
+   "column": 3,
+   "spread": 6.803918720332367,
+   "verdict": "steady"
+  },
+  {
+   "key": "thoraxLateralDrift",
+   "column": 4,
+   "spread": 8.73519594963991,
+   "verdict": "loose"
+  },
+  {
+   "key": "thoraxLateralDrift",
+   "column": 5,
+   "spread": 7.451096653433833,
+   "verdict": "steady"
+  },
+  {
+   "key": "thoraxLateralDrift",
+   "column": 6,
+   "spread": 6.835516682043273,
+   "verdict": "steady"
+  },
+  {
+   "key": "thoraxPeakSpeed",
+   "column": 6,
+   "spread": 49.3550454827148,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "thoraxPeakTime",
+   "column": 6,
+   "spread": 18.456634544106745,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "thoraxRotation",
+   "column": 0,
+   "spread": 1.7309555378341954,
+   "verdict": "steady"
+  },
+  {
+   "key": "thoraxRotation",
+   "column": 1,
+   "spread": 2.3483605132248764,
+   "verdict": "steady"
+  },
+  {
+   "key": "thoraxRotation",
+   "column": 2,
+   "spread": 4.343002079869337,
+   "verdict": "steady"
+  },
+  {
+   "key": "thoraxRotation",
+   "column": 3,
+   "spread": 17.142419008387925,
+   "verdict": "loose"
+  },
+  {
+   "key": "thoraxRotation",
+   "column": 4,
+   "spread": 12.352692701846525,
+   "verdict": "loose"
+  },
+  {
+   "key": "thoraxRotation",
+   "column": 5,
+   "spread": 3.197856461371455,
+   "verdict": "steady"
+  },
+  {
+   "key": "thoraxRotation",
+   "column": 6,
+   "spread": 2.6121984495030968,
+   "verdict": "steady"
+  },
+  {
+   "key": "thoraxRotation",
+   "column": 7,
+   "spread": 4.06501608189235,
+   "verdict": "steady"
+  },
+  {
+   "key": "thoraxRotationSigned",
+   "column": 0,
+   "spread": 1.7309555378341954,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "thoraxRotationSigned",
+   "column": 1,
+   "spread": 2.3483605132248764,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "thoraxRotationSigned",
+   "column": 2,
+   "spread": 4.343002079869337,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "thoraxRotationSigned",
+   "column": 3,
+   "spread": 17.142419008387925,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "thoraxRotationSigned",
+   "column": 4,
+   "spread": 12.352692701846525,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "thoraxRotationSigned",
+   "column": 5,
+   "spread": 3.197856461371455,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "thoraxRotationSigned",
+   "column": 6,
+   "spread": 3.147415183556627,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "thoraxRotationSigned",
+   "column": 7,
+   "spread": 4.157650924213139,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "toeLineAngle",
+   "column": 0,
+   "spread": 0.7419020116923588,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "trailElbowHeight",
+   "column": 0,
+   "spread": 1.7720437457060418,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailElbowHeight",
+   "column": 1,
+   "spread": 1.0605226393634783,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailElbowHeight",
+   "column": 2,
+   "spread": 1.4910891139792422,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailElbowHeight",
+   "column": 3,
+   "spread": 4.678118541907441,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailElbowHeight",
+   "column": 4,
+   "spread": 5.413978717765704,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailElbowHeight",
+   "column": 5,
+   "spread": 2.137085265606466,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailElbowHeight",
+   "column": 6,
+   "spread": 1.1156564875267236,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailElbowHeight",
+   "column": 7,
+   "spread": 4.5570007101731544,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailFootFlare",
+   "column": 0,
+   "spread": 6.727381666408353,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "trailForearmAngle",
+   "column": 1,
+   "spread": 1.2396806462810335,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailForearmAngle",
+   "column": 2,
+   "spread": 4.838149272457503,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailForearmAngle",
+   "column": 3,
+   "spread": 7.6274842838798955,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailForearmAngle",
+   "column": 4,
+   "spread": 7.485167960481857,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailForearmAngle",
+   "column": 5,
+   "spread": 2.4282986821747556,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailForearmAngle",
+   "column": 6,
+   "spread": 1.4978257968780708,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailForearmAngle",
+   "column": 7,
+   "spread": 65.6829781479023,
+   "verdict": "loose"
+  },
+  {
+   "key": "trailKneeFlexion",
+   "column": 0,
+   "spread": 1.754540608234941,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailKneeFlexion",
+   "column": 1,
+   "spread": 2.0305644409502657,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailKneeFlexion",
+   "column": 2,
+   "spread": 1.6830887589977217,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailKneeFlexion",
+   "column": 3,
+   "spread": 1.0424804054345878,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailKneeFlexion",
+   "column": 4,
+   "spread": 2.0241940855181006,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailKneeFlexion",
+   "column": 5,
+   "spread": 2.6342723486703723,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailKneeFlexion",
+   "column": 6,
+   "spread": 1.8040563067942967,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailKneeFlexion",
+   "column": 7,
+   "spread": 1.8764552070941898,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailWristFlexExt",
+   "column": 0,
+   "spread": 3.1632769631911395,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailWristFlexExt",
+   "column": 1,
+   "spread": 3.563391505172488,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailWristFlexExt",
+   "column": 2,
+   "spread": 2.8065782990550474,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailWristFlexExt",
+   "column": 3,
+   "spread": 7.885655902329636,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailWristFlexExt",
+   "column": 4,
+   "spread": 5.423245555077621,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailWristFlexExt",
+   "column": 5,
+   "spread": 6.687200407175783,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailWristFlexExt",
+   "column": 6,
+   "spread": 2.2290370613019723,
+   "verdict": "steady"
+  },
+  {
+   "key": "trailWristFlexExt",
+   "column": 7,
+   "spread": 3.233577429339516,
+   "verdict": "steady"
+  },
+  {
+   "key": "trunkRise",
+   "column": 0,
+   "spread": 0.8257150446640937,
+   "verdict": "steady"
+  },
+  {
+   "key": "trunkRise",
+   "column": 1,
+   "spread": 1.9320424516753156,
+   "verdict": "steady"
+  },
+  {
+   "key": "trunkRise",
+   "column": 2,
+   "spread": 2.3062322229032146,
+   "verdict": "steady"
+  },
+  {
+   "key": "trunkRise",
+   "column": 3,
+   "spread": 2.265897175754704,
+   "verdict": "steady"
+  },
+  {
+   "key": "trunkRise",
+   "column": 4,
+   "spread": 2.350080235724784,
+   "verdict": "steady"
+  },
+  {
+   "key": "trunkRise",
+   "column": 5,
+   "spread": 2.2986751345190415,
+   "verdict": "steady"
+  },
+  {
+   "key": "trunkRise",
+   "column": 6,
+   "spread": 1.8019075758264922,
+   "verdict": "steady"
+  },
+  {
+   "key": "xFactor",
+   "column": 0,
+   "spread": 1.7347088116863738,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "xFactor",
+   "column": 1,
+   "spread": 1.548196816453445,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "xFactor",
+   "column": 2,
+   "spread": 2.606924190333636,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "xFactor",
+   "column": 3,
+   "spread": 21.349778340646097,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "xFactor",
+   "column": 4,
+   "spread": 11.055632160179556,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "xFactor",
+   "column": 5,
+   "spread": 4.538815428148146,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "xFactor",
+   "column": 6,
+   "spread": 4.269325603201153,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "xFactor",
+   "column": 7,
+   "spread": 5.395399125505479,
+   "verdict": "unjudged"
+  },
+  {
+   "key": "xFactorStretch",
+   "column": 0,
+   "spread": 25.851701595545872,
+   "verdict": "loose"
+  },
+  {
+   "key": "xFactorStretch",
+   "column": 1,
+   "spread": 25.924157089020355,
+   "verdict": "loose"
+  },
+  {
+   "key": "xFactorStretch",
+   "column": 2,
+   "spread": 24.4990653087338,
+   "verdict": "loose"
+  },
+  {
+   "key": "xFactorStretch",
+   "column": 3,
+   "spread": 12.551060866188575,
+   "verdict": "loose"
+  },
+  {
+   "key": "xFactorStretch",
+   "column": 4,
+   "spread": 13.05885186866978,
+   "verdict": "loose"
+  },
+  {
+   "key": "xFactorStretch",
+   "column": 5,
+   "spread": 22.332017673641186,
+   "verdict": "loose"
+  },
+  {
+   "key": "xFactorStretch",
+   "column": 6,
+   "spread": 25.449440737566547,
+   "verdict": "loose"
+  },
+  {
+   "key": "xFactorStretch",
+   "column": 7,
+   "spread": 27.07930631269603,
+   "verdict": "loose"
+  }
+ ],
+ "standouts": [
+  {
+   "ordinal": 1,
+   "key": "spineBackLine",
+   "column": 1,
+   "z": -9.426148162969154,
+   "dv": -5.638110487934881,
+   "k": 0
+  },
+  {
+   "ordinal": 1,
+   "key": "balanceHeelToe",
+   "column": 0,
+   "z": -7.747087250884534,
+   "dv": -23.89021036196663,
+   "k": 0
+  },
+  {
+   "ordinal": 1,
+   "key": "trailKneeFlexion",
+   "column": 0,
+   "z": -5.289375424679696,
+   "dv": -8.122696587524445,
+   "k": 0
+  },
+  {
+   "ordinal": 1,
+   "key": "spineForwardBend",
+   "column": 0,
+   "z": -4.0622598342411615,
+   "dv": -3.3948140898355206,
+   "k": 0
+  },
+  {
+   "ordinal": 2,
+   "key": "feetAlignment",
+   "column": 0,
+   "z": 132.36764917665548,
+   "dv": 82.95274453136638,
+   "k": 0
+  },
+  {
+   "ordinal": 2,
+   "key": "headLift",
+   "column": 0,
+   "z": 24.68330372359851,
+   "dv": 11.480220275774991,
+   "k": 0
+  },
+  {
+   "ordinal": 2,
+   "key": "headTilt",
+   "column": 0,
+   "z": 14.952114160960543,
+   "dv": 31.63249242083517,
+   "k": 0
+  },
+  {
+   "ordinal": 2,
+   "key": "leadArmPeakTime",
+   "column": 6,
+   "z": 10.343709692671395,
+   "dv": 154.06300000000002,
+   "k": 0
+  },
+  {
+   "ordinal": 2,
+   "key": "leadArmPeakSpeed",
+   "column": 6,
+   "z": -5.130931312285475,
+   "dv": -654.4018859441769,
+   "k": 0
+  },
+  {
+   "ordinal": 4,
+   "key": "swingPlaneAngle",
+   "column": 1,
+   "z": 3.9952298066542977,
+   "dv": 9.312662999999993,
+   "k": 0
+  },
+  {
+   "ordinal": 5,
+   "key": "spineBackLine",
+   "column": 3,
+   "z": 3.714624234464908,
+   "dv": 6.020824969529208,
+   "k": 0
+  },
+  {
+   "ordinal": 6,
+   "key": "headTilt",
+   "column": 0,
+   "z": 10.460135424197917,
+   "dv": 22.129322379758634,
+   "k": 0
+  },
+  {
+   "ordinal": 6,
+   "key": "headRise",
+   "column": 0,
+   "z": 3.7941788842067363,
+   "dv": 0.798490000186529,
+   "k": 0
+  },
+  {
+   "ordinal": 8,
+   "key": "spineBackLine",
+   "column": 4,
+   "z": 7.839897868123436,
+   "dv": 10.948689036782394,
+   "k": 0
+  },
+  {
+   "ordinal": 8,
+   "key": "tempoBackswing",
+   "column": 3,
+   "z": -4.102916847891029,
+   "dv": -0.12726949999999998,
+   "k": 0
+  },
+  {
+   "ordinal": 8,
+   "key": "headTilt",
+   "column": 1,
+   "z": -3.856497085063838,
+   "dv": -8.762713037903643,
+   "k": 1
+  },
+  {
+   "ordinal": 8,
+   "key": "ballBodyDistance",
+   "column": 0,
+   "z": -3.666094081304191,
+   "dv": -8.887994881825733,
+   "k": 0
+  },
+  {
+   "ordinal": 10,
+   "key": "headTilt",
+   "column": 0,
+   "z": 11.14641521350254,
+   "dv": 23.581206708627093,
+   "k": 0
+  },
+  {
+   "ordinal": 12,
+   "key": "spineBackLine",
+   "column": 0,
+   "z": 4.64605384666452,
+   "dv": 5.284277934328575,
+   "k": 0
+  },
+  {
+   "ordinal": 13,
+   "key": "headTilt",
+   "column": 0,
+   "z": -12.725473171811782,
+   "dv": -29.03412672190349,
+   "k": 0
+  },
+  {
+   "ordinal": 13,
+   "key": "thoraxPeakSpeed",
+   "column": 6,
+   "z": 9.709215860460604,
+   "dv": 470.49167396328716,
+   "k": 0
+  },
+  {
+   "ordinal": 13,
+   "key": "thoraxPeakTime",
+   "column": 6,
+   "z": 8.532379980583311,
+   "dv": 156.35950000000003,
+   "k": 0
+  },
+  {
+   "ordinal": 13,
+   "key": "headRise",
+   "column": 0,
+   "z": 7.072268637194661,
+   "dv": 1.488368355255716,
+   "k": 0
+  },
+  {
+   "ordinal": 14,
+   "key": "headRise",
+   "column": 0,
+   "z": 7.61340060581901,
+   "dv": 1.602250298863162,
+   "k": 0
+  },
+  {
+   "ordinal": 15,
+   "key": "leadArmPeakTime",
+   "column": 6,
+   "z": 10.343709692671395,
+   "dv": 154.06300000000002,
+   "k": 0
+  },
+  {
+   "ordinal": 15,
+   "key": "stanceWidthMm",
+   "column": 0,
+   "z": 4.253453827908396,
+   "dv": 86.22148427320406,
+   "k": 0
+  },
+  {
+   "ordinal": 16,
+   "key": "headRise",
+   "column": 0,
+   "z": -9.718839404528506,
+   "dv": -2.9328414188070813,
+   "k": 0
+  },
+  {
+   "ordinal": 16,
+   "key": "spineBackLine",
+   "column": 4,
+   "z": 4.776648107090554,
+   "dv": 6.670754599407534,
+   "k": 0
+  },
+  {
+   "ordinal": 17,
+   "key": "pelvisPeakSpeed",
+   "column": 6,
+   "z": -16.398958041400462,
+   "dv": -592.237117284674,
+   "k": 0
+  },
+  {
+   "ordinal": 17,
+   "key": "pelvisPeakTime",
+   "column": 6,
+   "z": 9.71162401480774,
+   "dv": 60.28550000000001,
+   "k": 0
+  },
+  {
+   "ordinal": 17,
+   "key": "trunkRise",
+   "column": 3,
+   "z": -5.740458332700336,
+   "dv": -6.548024156781697,
+   "k": 0
+  },
+  {
+   "ordinal": 18,
+   "key": "spineBackLine",
+   "column": 2,
+   "z": 7.519883131964684,
+   "dv": 6.562386557262588,
+   "k": 0
+  },
+  {
+   "ordinal": 19,
+   "key": "clubPeakTime",
+   "column": 6,
+   "z": 7.6804286101694945,
+   "dv": 41.989,
+   "k": 0
+  },
+  {
+   "ordinal": 21,
+   "key": "spineBackLine",
+   "column": 1,
+   "z": 5.125642685430767,
+   "dv": 3.071172505564032,
+   "k": 0
+  },
+  {
+   "ordinal": 22,
+   "key": "thoraxPeakSpeed",
+   "column": 6,
+   "z": 4.1075183981350545,
+   "dv": 199.04318070047333,
+   "k": 0
+  },
+  {
+   "ordinal": 23,
+   "key": "spineBackLine",
+   "column": 0,
+   "z": 6.386846091487821,
+   "dv": 7.26420118773083,
+   "k": 0
+  },
+  {
+   "ordinal": 24,
+   "key": "clubPeakSpeed",
+   "column": 6,
+   "z": 185.35245423567994,
+   "dv": 18485.290394547414,
+   "k": 0
+  },
+  {
+   "ordinal": 24,
+   "key": "clubPeakTime",
+   "column": 6,
+   "z": 95.12928501694917,
+   "dv": 520.0729999999999,
+   "k": 0
+  },
+  {
+   "ordinal": 24,
+   "key": "ballReachExcess",
+   "column": 0,
+   "z": 6.737258331587505,
+   "dv": 8.998384282014683,
+   "k": 0
+  },
+  {
+   "ordinal": 24,
+   "key": "pelvisReversalTime",
+   "column": 6,
+   "z": 4.763545826088114,
+   "dv": 198.50549999999998,
+   "k": 0
+  },
+  {
+   "ordinal": 24,
+   "key": "attackAngle",
+   "column": 6,
+   "z": 4.468787089347166,
+   "dv": 57.220130202328654,
+   "k": 0
+  },
+  {
+   "ordinal": 24,
+   "key": "balanceHeelToe",
+   "column": 0,
+   "z": 3.6402374922414666,
+   "dv": 11.019396546851194,
+   "k": 0
+  },
+  {
+   "ordinal": 25,
+   "key": "attackAngle",
+   "column": 6,
+   "z": 6.6361455718244,
+   "dv": 84.97185166117893,
+   "k": 0
+  },
+  {
+   "ordinal": 25,
+   "key": "ballReachExcess",
+   "column": 0,
+   "z": 4.488749356083823,
+   "dv": 5.995241634466275,
+   "k": 0
+  },
+  {
+   "ordinal": 25,
+   "key": "spineBackLine",
+   "column": 3,
+   "z": 3.7538235950117063,
+   "dv": 6.084361002751621,
+   "k": 0
+  },
+  {
+   "ordinal": 26,
+   "key": "ballReachExcess",
+   "column": 0,
+   "z": 5.274102623591125,
+   "dv": 7.0441713548888245,
+   "k": 0
+  },
+  {
+   "ordinal": 26,
+   "key": "handPathLoop",
+   "column": 3,
+   "z": -4.967279885817402,
+   "dv": -13.478626507417161,
+   "k": 0
+  },
+  {
+   "ordinal": 28,
+   "key": "pelvisPeakTime",
+   "column": 6,
+   "z": -24.271834060809546,
+   "dv": -120.572,
+   "k": 0
+  },
+  {
+   "ordinal": 28,
+   "key": "pelvisPeakSpeed",
+   "column": 6,
+   "z": -13.099285074384023,
+   "dv": -473.0716921988558,
+   "k": 0
+  },
+  {
+   "ordinal": 28,
+   "key": "spineBackLine",
+   "column": 3,
+   "z": 3.9961350004427447,
+   "dv": 6.477109896888706,
+   "k": 0
+  },
+  {
+   "ordinal": 31,
+   "key": "spineBackLine",
+   "column": 1,
+   "z": -3.8342534697184005,
+   "dv": -2.2934017508813014,
+   "k": 0
+  }
+ ],
+ "flags": [
+  {
+   "ordinal": 7,
+   "flags": [
+    "short"
+   ]
+  },
+  {
+   "ordinal": 8,
+   "flags": [
+    "short",
+    "offline"
+   ]
+  }
+ ],
+ "shuffledMean": 2.878494623655914,
+ "p95": 7.549999999999997,
+ "home": {
+  "setup": {
+   "word": "Some",
+   "score": 0.40781049935979513,
+   "loosest": "P1"
+  },
+  "posture": {
+   "word": "Steady",
+   "score": 0.17861715749039694,
+   "loosest": null
+  },
+  "armsAndClub": {
+   "word": "Some",
+   "score": 0.40183525394793,
+   "loosest": "P3-P4"
+  },
+  "sequence": {
+   "word": "Some",
+   "score": 0.2676056338028169,
+   "loosest": "P6-P7"
+  },
+  "lateral": {
+   "word": "Loose",
+   "score": 0.6279342723004695,
+   "loosest": "P2-P3"
+  },
+  "release": {
+   "word": "Steady",
+   "score": 0.16389244558258642,
+   "loosest": null
+  },
+  "impact": {
+   "word": "Some",
+   "score": 0.499359795134443,
+   "loosest": "P6-P7"
+  },
+  "finish": {
+   "word": "Some",
+   "score": 0.32778489116517284,
+   "loosest": "P7-P8"
+  }
+ }
+}

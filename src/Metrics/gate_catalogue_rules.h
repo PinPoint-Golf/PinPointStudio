@@ -41,9 +41,11 @@ inline void appendRules(std::vector<GateEntry> &c)
     const char *themes    = "src/Coaching/swing_themes.h";
     const char *seqChecks = "src/Coaching/sequence_checks.h";
     const char *traces    = "src/Gui/charts/session_traces.cpp";
+    const char *consistency = "src/Gui/charts/session_consistency.cpp";
 
     const char *diagDesign   = "docs/design/session_diagnostics_design.md";
     const char *chartsDesign = "docs/design/charts_panel_traces_relations.md";
+    const char *consistencyDesign = "docs/design/consistency_design.md";
     const char *lmDesign     = "docs/design/lm_panel_fsx.md";
 
     // ── Session diagnostics: the ledger (diagnostic_ledger.h §4 policy numbers) ──
@@ -214,6 +216,44 @@ inline void appendRules(std::vector<GateEntry> &c)
          "src/Gui/charts/session_warp.cpp", chartsDesign)
         .tuning = { tune("charts.warp.minConf", 0.35, ""), tune("charts.warp.maxSegmentRatio", 2.0, ""),
                     tune("charts.warp.minSegmentShots", 3, "shots") };
+    // The Consistency tab's rules (src/Gui/charts/session_consistency.h, whose constants these quote).
+    rule(c, "rule.charts.consistencyVerdict", charts, "Spread not judged", "not judged",
+         QStringLiteral("How much a reading moves from shot to shot, each shot measured from the middle of its own "
+                        "club's shots, is judged only with at least five shots and a norm. A club with fewer than "
+                        "three shots is left out. Under three quarters of the norm's spread is steady. "
+                        "Over it is loose, unless the spread is no bigger than the reading's own measurement error, "
+                        "when it is marked as too close to call."),
+         consistency, consistencyDesign)
+        .tuning = { tune("charts.consistency.minShots", 5, "shots"), tune("charts.consistency.minClubShots", 3, "shots"),
+                    tune("charts.consistency.steadyBelow", 0.75, "") };
+    rule(c, "rule.charts.consistencyCell", charts, "Nothing to judge here", "nothing to judge",
+         QStringLiteral("A cell of the table takes the word of its judged readings: a third or more loose is loose, at "
+                        "least one is some, a third or more too close to call is marked so, else steady. With "
+                        "readings but none judged it shows \"-\"."),
+         consistency, consistencyDesign)
+        .tuning = { tune("charts.consistency.cellShare", 1.0 / 3.0, "") };
+    rule(c, "rule.charts.consistencyStandOut", charts, "Did not stand out", "did not stand out",
+         QStringLiteral("Every shot is measured from the middle of its own club's shots. One shot then stands out on a "
+                        "reading only against at least six other shots of any club, itself left out, when it sits at "
+                        "least three and a half times their usual scatter from their middle at every point of the "
+                        "span, and past twice the reading's own measurement error."),
+         consistency, consistencyDesign)
+        .tuning = { tune("charts.consistency.minOthers", 6, "shots"), tune("charts.consistency.standOutZ", 3.5, ""),
+                    tune("charts.consistency.standOutSigma", 2.0, "") };
+    rule(c, "rule.charts.consistencyBallFlag", charts, "Too few shots to flag the ball", "too few shots",
+         QStringLiteral("A shot is flagged short or offline against the same club's shots that session, when it falls "
+                        "well beyond the middle half of them, by more than one and a half times that middle half's "
+                        "width, and only with at least eight shots of that club with the reading."),
+         consistency, consistencyDesign)
+        .tuning = { tune("charts.consistency.minBallShots", 8, "shots"), tune("charts.consistency.fence", 1.5, "") };
+    rule(c, "rule.charts.consistencyLadderGuard", charts, "Timing of the positions looks unusual", "unusual timing",
+         QStringLiteral("A shot that was not lined up on its swing positions, kept fewer than four of them from address "
+                        "to impact, or lost one of those for running backwards or making a stretch out of all "
+                        "proportion, keeps its readings with a warning, but its spans and backswing timing do not "
+                        "count as standing out. A lost follow-through position does not count, and a shot with no "
+                        "curves has nothing to mis-time."),
+         consistency, consistencyDesign)
+        .tuning = { tune("charts.consistency.minKeptAnchors", 4, "positions") };
 
     // ── Launch monitor: the session board ──
     rule(c, "rule.lm.spreadMin", lmArea, "Too few shots for a spread", "too few shots",

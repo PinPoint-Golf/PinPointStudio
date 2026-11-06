@@ -29,10 +29,15 @@
 #include "work_ons_pack.h"                          // workOnClassFor
 #include "firing_side.h"                            // conditionFiringSide
 #include "../Diagnostics/engine/characteristic.h"
+#include "../Diagnostics/engine/condition_reading.h"  // conditionReadings
 
 #include <QHash>
 #include <QSet>
 #include <QString>
+
+#include <algorithm>
+#include <utility>
+#include <vector>
 
 namespace pinpoint::analysis {
 
@@ -85,6 +90,52 @@ inline QHash<QString, AreaConditionInfo> areaConditionInfoForPack(const Characte
         i.lmOnly = anyMeasure && allLm;
         i.binary = allBinary;
         out.insert(c.id, std::move(i));
+    }
+    return out;
+}
+
+// THE AREA EACH CATALOGUE KEY IS READ UNDER, from the conditions that detect on it (Consistency,
+// consistency_design.md Appendix B). Walks every condition the pack authors, so a key has its area
+// whether or not anything fired on this golfer, which ConditionInfo.group cannot say.
+//
+// One use is one condition reading a measure whose OWN metricKey is the key. Not the wider key ladder:
+// a better instrument's rung reads the same quantity, but it is not what the condition was authored on.
+// conditionReadings counts a measure once per condition, however many of its signals read it.
+//
+// The group used most wins. On a tie the group met FIRST wins, walking pack.conditions in order, then
+// each condition's detectedBy, then each signal's measures. That is deliberately not areaGroupOrder():
+// it is what tools/diagnostics/consistency_tally.py's Counter.most_common(1) answers, and the tally is
+// the reference for this rule.
+//
+// Ball flight is left out: it has no spans to read. A key no body condition detects on is absent.
+inline QHash<QString, QString> metricAreasForPack(const CharacteristicPack &pack)
+{
+    using GroupUses = std::vector<std::pair<QString, int>>;     // first met first
+    QHash<QString, GroupUses> uses;
+    for (const Condition &c : pack.conditions) {
+        const QString group = conditionGroupName(c.group);
+        if (group == kAreaBallFlight() || !areaGroupOrder().contains(group)) continue;
+        for (const ConditionReading &r : conditionReadings(pack, c.id)) {
+            const Measure *m = pack.measure(r.measureId);
+            if (!m || m->metricKey.isEmpty()) continue;
+            GroupUses &u = uses[m->metricKey];
+            const auto it = std::find_if(u.begin(), u.end(), [&](const std::pair<QString, int> &e) {
+                return e.first == group;
+            });
+            if (it == u.end()) u.emplace_back(group, 1);
+            else ++it->second;
+        }
+    }
+
+    QHash<QString, QString> out;
+    out.reserve(uses.size());
+    for (auto it = uses.constBegin(); it != uses.constEnd(); ++it) {
+        const GroupUses &u = it.value();
+        const auto most = std::max_element(u.begin(), u.end(),   // the first of equals, as the tally's
+                                           [](const std::pair<QString, int> &a, const std::pair<QString, int> &b) {
+                                               return a.second < b.second;
+                                           });
+        out.insert(it.key(), most->first);
     }
     return out;
 }

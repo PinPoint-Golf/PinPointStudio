@@ -5,7 +5,10 @@
 # The goldens (data/charts/goldens_0704.json) are the MOCKS' OWN numbers, computed by
 # build/charts-build/goldens/make_goldens.js running variant_a/lib/traces.js and variant_b/lib/Stats.js on
 # the trimmed 4 July fixture (data/charts/session_0704.json, made by goldens/trim_fixture.py). Regenerate
-# both with those two scripts if the fixture or the mocks change.
+# both with those two scripts if the fixture or the mocks change. The one thing taken out by hand is the
+# mock's `apart` list: Apart from the session is now the Consistency stand-out rule (consistency_design.md
+# §5), which charts_relations_presenter_test asserts; this test checks that apartFrom still means past a
+# whisker, for the boxes. Drop `apart` again if make_goldens.js is ever re-run.
 #
 # No ChartMetrics and no metric catalogue: the windowed mean is series_reduce.h's (header-only), and the
 # card read-at instants come from the fixture's readAt table.
@@ -33,3 +36,68 @@ pp_add_test(trust_readings_test
             ${GUI}/charts/session_sequence.cpp
             ${GUI}/charts/session_curves.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/trust ${SRC} ${SRC}/Core)
+
+# The Consistency env (src/Gui/charts/consistency_env.{h,cpp}): where each reading is placed and what norm it is
+# judged against, on the REAL manifest, conditions and norms, so the catalogue chain chart_metrics_test links
+# comes along with the pack stack. consistency_readings.csv is the tally's own output, committed with the design
+# doc, and its area column is the reference for every reading it names.
+include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)      # CHARTS_NORM_ENV
+set(CONSISTENCY_ENV_SOURCES
+    ${GUI}/charts/consistency_env.cpp
+    ${SRC}/Metrics/metric_catalogue.cpp
+    ${SRC}/Metrics/metric_resolver.cpp
+    ${SRC}/Metrics/metric_catalogue_manifest.cpp
+    ${SRC}/Metrics/metric_providers.cpp
+    ${SRC}/Wrist/reference_bands.cpp
+    ${SRC}/Diagnostics/norms/norm.cpp
+    ${SRC}/Diagnostics/norms/norm_pack.cpp
+    ${SRC}/Diagnostics/norms/context_tree.cpp
+    ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
+    ${SRC}/Diagnostics/norms/file_norm_provider.cpp
+    ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
+    ${SRC}/Diagnostics/engine/pack_io.cpp
+    ${SRC}/Diagnostics/engine/characteristic.cpp
+    ${SRC}/Diagnostics/packs/characteristic_pack.cpp
+    ${SRC}/Diagnostics/packs/reference_pack.cpp
+    ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
+    ${SRC}/Diagnostics/packs/file_pack_provider.cpp
+    ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
+    ${SRC}/Diagnostics/measures/measure_facets.cpp
+    ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
+    ${SRC}/Core/pp_log_stream.cpp
+    ${SRC}/Core/PpMessageLog.cpp)
+set(CONSISTENCY_ENV_INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Metrics)
+set(CONSISTENCY_ENV_ENV "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
+pp_add_test(consistency_env_test
+    SOURCES consistency_env_test.cpp ${CONSISTENCY_ENV_SOURCES}
+    INCLUDE ${CONSISTENCY_ENV_INCLUDE}
+    DEFINES CONSISTENCY_READINGS_CSV="${SRC}/../docs/research/data/consistency/consistency_readings.csv"
+    LINK    Qt6::Qml Qt6::Test
+    AUTOMOC)
+set_tests_properties(consistency_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
+
+# The Consistency maths (src/Gui/charts/session_consistency.{h,cpp}, consistency_design.md §4): the rules on a stub
+# env and synthetic shots, the guard and sampling on the 4 July fixture, and the 5 Oct fixture on the real env for
+# its timing and its golden (goldens_1005_consistency.json, cut by consistency_tally.py from a dump of that fixture).
+# tools/diagnostics/consistency_make_goldens.sh cuts it and goldens_home_consistency.json again.
+set(CONSISTENCY_MATHS_SOURCES
+    ${GUI}/charts/session_consistency.cpp
+    ${GUI}/charts/session_curves.cpp
+    ${GUI}/charts/session_warp.cpp
+    ${GUI}/charts/session_traces.cpp)
+pp_add_test(session_consistency_test
+    SOURCES session_consistency_test.cpp ${CONSISTENCY_MATHS_SOURCES} ${CONSISTENCY_ENV_SOURCES}
+    INCLUDE ${CONSISTENCY_ENV_INCLUDE}
+    DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
+    LINK    Qt6::Qml Qt6::Test
+    AUTOMOC)
+set_tests_properties(session_consistency_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
+
+# consistency_dump <fixture.json> <out.json>: both layers on the production env, for consistency_tally.py to recompute
+# and diff. A tool, not a test: no ctest entry. The shipped files' paths are compiled in as its defaults.
+pp_require_swingstore()
+add_executable(consistency_dump consistency_dump.cpp ${CONSISTENCY_MATHS_SOURCES} ${CONSISTENCY_ENV_SOURCES})
+target_include_directories(consistency_dump PRIVATE ${PP_BUFFER} ${CONSISTENCY_ENV_INCLUDE})
+target_compile_definitions(consistency_dump PRIVATE PP_DIAGNOSTICS_DIR="${SRC}/Resources/diagnostics")
+target_link_libraries(consistency_dump PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
+set_target_properties(consistency_dump PROPERTIES AUTOMOC ON)

@@ -1,79 +1,100 @@
 #!/usr/bin/env python3
-"""Consistency: a compact, read-only extract of an athlete's sessions, one JSON per session
-(docs/design/consistency_design.md, Appendix A). Run it on the cabin PC, where the share is local:
+"""Consistency: extract v2, a read-only copy of an athlete's sessions, one JSON per session, in exactly the shape
+charts_test::loadFixture reads (src/Gui/tests/charts_maths_fixture.h). This is the first of three steps: extract here,
+consistency_dump over the files, consistency_tally.py over the dumps (docs/design/consistency_design.md, Appendix A).
+The tally never reads these files. Run this on the cabin PC, where the share is local:
 
-    python tools\\diagnostics\\consistency_extract.py C:\\PinPointStudio\\Mark-Liversedge C:\\PinPointStudio\\scratch\\consistency\\extract
+    python tools\\diagnostics\\consistency_extract.py C:\\PinPointStudio\\Mark-Liversedge C:\\PinPointStudio\\scratch\\consistency\\fixtures\\Mark-Liversedge
 
-Each shot keeps its club, rating, P-position times, launch-monitor readings and, per metric, the unit, sigma, the
-phase samples and K samples inside each span P1-P2 .. P7-P8. Each span is sampled by its own start and end time, so
-the shots are aligned on their own P-positions. Only samples marked valid are used. consistency_tally.py reads the result.
+Arguments: <athlete dir> <out dir> [one session folder].
+
+Each shot keeps its swing folder name and every metric of the swing, lm.* included: label, unit, sigma, phase samples
+and the whole curve. Shots are read as SessionSeriesModel::extractShot reads them: the same club, order and ordinals
+(a swing with no analysis metrics is not a shot and takes no ordinal), the same window-relative times, the same impact.
+Values are NEVER rounded: a reading at z 3.5003 stands out only by its last digits. The files are kept small by what
+the loader reads as missing anyway: a null sigma, sigmaKind or phase sigma is left out, and an all-ones valid. A missing
+value stays null. conditions, readAt and fired stay empty, and kinematicSequence is left out: the loader tolerates all
+four and the consistency layers read none of them. consistency_trim_fixture.py cuts a committed fixture from a file.
 """
-import sys, os, json, glob, time, bisect
+import sys, os, json, glob, math, time, collections
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from pp_swingdoc import load_swing, has_swing
 ROOT = sys.argv[1]
 OUT  = sys.argv[2]
 ONLY = sys.argv[3] if len(sys.argv) > 3 else ""    # one session folder name, for a quick check
 os.makedirs(OUT, exist_ok=True)
-P = [0, 12, 8, 2, 13, 9, 5, 14]   # P1..P8 as Phase ids
-K = 5                             # samples inside each span
-def rnd(x):
-    return None if x is None or x != x else round(float(x), 4)
-def interp(ts, vs, t):
-    i = bisect.bisect_left(ts, t)
-    if i <= 0 or i >= len(ts): return None
-    t0, t1 = ts[i-1], ts[i]
-    if t1 == t0: return vs[i]
-    return vs[i-1] + (vs[i]-vs[i-1]) * (t-t0)/(t1-t0)
+IMPACT = 5                        # Phase::Impact
+def isnum(x):
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+def num(x):                       # a number, or null: a missing reading never becomes 0
+    if not isnum(x): return None
+    return int(x) if x == int(x) else x
+def whole(x):                     # QJsonValue::toInt(-1)
+    return int(x) if isnum(x) and x == int(x) else -1
+def rel_us(v, t0):                # SessionSeriesModel::relUs: absolute times come back to the window, relative ones pass
+    t = int(v) if isnum(v) else 0
+    return t - t0 if t >= t0 else t
+def text(x):
+    return x.strip() if isinstance(x, str) else ""
+def shot_id(wd):                  # SessionSeriesModel::folderShotId
+    tail = os.path.basename(wd).rsplit("_", 1)[-1]
+    return int(tail) if tail.isdigit() else -1
+def strike_order(wd):             # buildSnapshot: the folder number, then the folder name for anything unnumbered
+    i = shot_id(wd)
+    return (0, i, wd) if i >= 0 else (1, 0, wd)
+def sample(p, t0):                # a missing sigma is a short row: the loader reads it as NaN
+    row = [whole(p.get("phase")), rel_us(p.get("t_us"), t0), num(p.get("value"))]
+    return row + [num(p["sigma"])] if isnum(p.get("sigma")) else row
+def metric(m, t0):
+    ts, vs = m.get("t_us") or [], m.get("value") or []
+    n = min(len(ts), len(vs))
+    sk = m.get("sigmaKind")
+    e = {"label": m.get("label") or "", "unit": m.get("unit") or "", "at": [sample(p, t0) for p in m.get("phaseSamples") or []]}
+    if isnum(m.get("sigma")): e["sigma"] = num(m["sigma"])
+    if isnum(sk): e["sigmaKind"] = whole(sk)
+    if n:
+        e["t_us"] = [rel_us(t, t0) for t in ts[:n]]
+        e["value"] = [num(v) for v in vs[:n]]
+    vd = [1 if isnum(v) and v != 0 else 0 for v in (m.get("valid") or [])[:n]]
+    if vd and (len(vd) < n or not all(vd)):    # all ones is the same as absent
+        e["valid"] = vd
+    return e
+def shot(d, swing, ordinal):
+    a = d.get("analysis")
+    ms = a.get("metrics") if isinstance(a, dict) else None
+    if not ms: return None
+    review = d.get("review") or {}; cap = d.get("capture") or {}
+    t0 = int((d.get("clock") or {}).get("t0_us") or 0)
+    metrics, order = {}, []
+    for m in ms:
+        k = m.get("key")
+        if not k or k in metrics: continue
+        order.append(k); metrics[k] = metric(m, t0)
+    impact, phases = -1, []
+    for p in a.get("phases") or []:
+        ph, t = whole(p.get("phase")), rel_us(p.get("t_us"), t0)
+        if ph == IMPACT and impact < 0: impact = t
+        phases.append([ph, t, num(p.get("conf"))])
+    ks = a.get("kinematicSequence") or {}
+    if impact < 0 and "impactUs" in ks: impact = rel_us(ks["impactUs"], t0)
+    return {"ordinal": ordinal, "swing": swing, "club": text(review.get("club")) or text((cap.get("club") or {}).get("name")),
+            "impactUs": impact, "phases": phases, "metricOrder": order, "metrics": metrics, "fired": []}
 t00 = time.time()
 for sd in sorted(glob.glob(os.path.join(ROOT, "2026-*"))):
-    name = os.path.basename(sd); shots = []
-    if ONLY and name != ONLY: continue
-    for wd in sorted(glob.glob(os.path.join(sd, "swing_*"))):
-        if not has_swing(wd): continue
-        try: d = load_swing(wd)
+    name = os.path.basename(sd); shots = []; skipped = 0
+    if not os.path.isdir(sd) or (ONLY and name != ONLY): continue
+    for wd in sorted(glob.glob(os.path.join(sd, "swing_*")), key=strike_order):
+        if not os.path.isdir(wd) or not has_swing(wd): continue
+        try: s = shot(load_swing(wd), os.path.basename(wd), len(shots) + 1)
         except Exception as e:
-            print("skip", wd, e, flush=True); continue
-        a = d.get("analysis") or {}
-        ms = a.get("metrics") or []
-        if not ms: continue
-        review = d.get("review") or {}; cap = d.get("capture") or {}
-        club = review.get("club") or (cap.get("club") or {}).get("name") or ""
-        ph = {}
-        for p in a.get("phases") or []:
-            if p.get("phase") in P and p["phase"] not in ph: ph[p["phase"]] = p["t_us"]
-        times = [ph.get(x) for x in P]
-        rec = {"swing": os.path.basename(wd), "club": club, "rating": review.get("rating", 0),
-               "p": times, "lm": {}, "m": {}}
-        for m in ms:
-            k = m.get("key")
-            if not k: continue
-            at = {}
-            for s in m.get("phaseSamples") or []:
-                if s.get("value") is None: continue
-                at[str(s["phase"])] = [rnd(s["value"]), rnd(s.get("sigma"))]
-            if k.startswith("lm."):
-                for s in m.get("phaseSamples") or []:
-                    if s.get("value") is not None: rec["lm"][k] = rnd(s["value"]); break
-                continue
-            ts, vs, valid = m.get("t_us") or [], m.get("value") or [], m.get("valid") or []
-            if len(ts) >= 2 and valid and len(valid) == len(ts):
-                pairs = [(t, v) for t, v, ok in zip(ts, vs, valid) if ok and v is not None]
-                ts = [p[0] for p in pairs]; vs = [p[1] for p in pairs]
-            else:
-                pairs = [(t, v) for t, v in zip(ts, vs) if v is not None]
-                ts = [p[0] for p in pairs]; vs = [p[1] for p in pairs]
-            spans = []
-            for i in range(7):
-                a0, b0 = times[i], times[i+1]
-                if a0 is None or b0 is None or b0 <= a0 or len(ts) < 2:
-                    spans.append(None); continue
-                vals = [interp(ts, vs, a0 + (b0-a0)*(j+0.5)/K) for j in range(K)]
-                spans.append([rnd(v) for v in vals])
-            rec["m"][k] = {"u": m.get("unit", ""), "s": rnd(m.get("sigma")), "sk": m.get("sigmaKind"),
-                           "l": m.get("label", ""), "at": at, "sp": spans if any(spans) else None}
-        shots.append(rec)
-    with open(os.path.join(OUT, name + ".json"), "w") as f:
-        json.dump({"session": name, "shots": shots}, f, separators=(",", ":"))
-    print(name, len(shots), round(time.time()-t00, 1), flush=True)
+            print("skip", wd, e, flush=True); s = None
+        if s: shots.append(s)
+        else: skipped += 1
+    clubs = collections.Counter(s["club"] for s in shots)
+    out = {"session": name, "date": name[:10], "club": clubs.most_common(1)[0][0] if shots else "",
+           "pickedOrdinal": 1 if shots else 0, "shotCount": len(shots), "conditions": {}, "readAt": {}, "shots": shots}
+    with open(os.path.join(OUT, name + ".json"), "w", encoding="utf-8") as f:
+        json.dump(out, f, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+    print(name, len(shots), "skipped", skipped, "blank-club", clubs[""], "no-phases",
+          sum(not s["phases"] for s in shots), round(time.time()-t00, 1), flush=True)
 print("DONE", round(time.time()-t00, 1), flush=True)
