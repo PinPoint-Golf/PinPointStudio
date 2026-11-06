@@ -443,11 +443,10 @@ unset(_wrist_local)
 # its fixes are made in that clone. NEVER edit the fetched copy under
 # build/*/_deps/ppcp-src: the update step overwrites it on reconfigure.
 #
-# ⚠ PP_LIBPPCP_FETCH DEFAULTS OFF, AND THAT IS TEMPORARY. A4 says FetchContent
-# from GitHub with the sibling overriding it, and that is what this block does —
-# but the repository is not published yet, and a failed clone is a failed
-# configure for everyone including people who do not care about PPCP. Flip this
-# default to ON the day PinPoint-Golf/libppcp is pushed; nothing else changes.
+# ⚠ PP_LIBPPCP_FETCH DEFAULTS OFF. A4 says FetchContent from GitHub with the
+# sibling overriding it, and that is what this block does. The repository is
+# public, so turning it on needs no credentials. A shipping build with neither a
+# sibling nor this on stops at configure rather than ship without the phone link.
 option(PP_LIBPPCP_LOCAL "Prefer a sibling ../libppcp checkout over GitHub" ON)
 option(PP_LIBPPCP_FETCH "Fetch libppcp from GitHub when no sibling checkout exists" OFF)
 

@@ -622,7 +622,7 @@ The following are fetched at `cmake ..` time — no manual steps required:
 If a download fails, the affected feature is disabled but the rest of the build continues normally. Re-run CMake to retry failed downloads.
 
 > **Not downloaded at build time:**
-> - **libppcp** — the PPCP protocol library needs a sibling `../libppcp` checkout; auto-fetch is off while the repository is private. See [Co-developing libppcp](#co-developing-libppcp).
+> - **libppcp** — the PPCP protocol library needs a sibling `../libppcp` checkout, or `-DPP_LIBPPCP_FETCH=ON` to fetch it. See [Co-developing libppcp](#co-developing-libppcp).
 > - The local LLM model (Phi-4-mini) is fetched by the app itself on first run — into the per-user app-data directory, and only when a compatible GPU is present.
 > - **ViTPose++-L wholebody** (`vitpose-l-wholebody.onnx`, ~1.2 GB) — the "High" motion-capture-quality pose model. Deliberately never built or packaged; the app downloads it on demand (with an explicit size warning) when the user selects the **High** tier in Settings → General, into `AppLocalDataLocation/models/vitpose/`. "High" runs ViTPose++-L; "Low"/"Medium" run the packaged ViTPose-B.
 
@@ -661,8 +661,8 @@ tag pin once the library stabilises.
 PinPoint Capture Protocol, shared between PinPoint Studio and the PinPoint Capture phone app. It
 is embedded exactly as libwrist is, with one difference that matters today:
 
-⚠ **It is not fetched automatically.** `PP_LIBPPCP_FETCH` defaults **OFF** while the repository is
-private, so libppcp resolves *only* from a sibling checkout:
+⚠ **It is not fetched automatically.** `PP_LIBPPCP_FETCH` defaults **OFF**, so unless you turn it
+on, libppcp resolves *only* from a sibling checkout:
 
 ```bash
 git clone https://github.com/PinPoint-Golf/libppcp   # beside this repository
@@ -670,7 +670,7 @@ git clone https://github.com/PinPoint-Golf/libppcp   # beside this repository
 
 With no sibling checkout, CMake prints `libppcp: not embedded` and — regardless of OpenSSL — the
 PPCP transport is not built, so the app has no phone support. Pass `-DPP_LIBPPCP_FETCH=ON` to take
-`main` from GitHub instead (the default flips to ON once the repository is public), or
+`main` from GitHub instead (the repository is public, so this needs no credentials), or
 `-DPP_LIBPPCP_LOCAL=OFF` to ignore a sibling checkout and always take upstream.
 
 The same fix-and-push rule as libwrist applies: edit the sibling clone, never the fetched copy
