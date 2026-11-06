@@ -191,6 +191,8 @@ copy_lib /usr/lib/x86_64-linux-gnu/libavcodec.so* \
          /usr/lib/x86_64-linux-gnu/libavutil.so* \
          /usr/lib/x86_64-linux-gnu/libswscale.so* \
          /usr/lib/x86_64-linux-gnu/libswresample.so*
+# The copies above replace the files linuxdeploy patched, so point them back at the bundle.
+for l in "$APPDIR"/usr/lib/lib{avcodec,avformat,avutil,swscale,swresample}.so*; do patchelf --set-rpath '$ORIGIN' "$l"; done
 # Aravis, espeak-ng — usually linuxdeploy finds these from the binary's NEEDED
 # entries; copy_lib here is a backstop, harmless if duplicated. OpenCV is static.
 
