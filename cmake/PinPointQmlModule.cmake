@@ -334,6 +334,7 @@ set(PP_QML_FILES
     src/Gui/diagnostics/PpDiagReplayCold.qml
     src/Gui/diagnostics/PpDiagReplaySessionRows.qml
     src/Gui/diagnostics/PpDiagReviewFoot.qml
+    src/Gui/diagnostics/PpConsistencyView.qml
     src/Gui/typeset/PpViewFlick.qml
     src/Gui/diagnostics/PpDiagReplay.qml
     src/Gui/diagnostics/PpDiagAnalyse.qml
@@ -557,6 +558,9 @@ set(PP_QML_SOURCES
     src/Gui/charts/charts_traces_presenter.cpp
     src/Gui/charts/charts_relations_presenter.h
     src/Gui/charts/charts_relations_presenter.cpp
+    # The Consistency tab's presenter (consistency_design.md §3): its words and figures, on the rows Charts' Apart builds.
+    src/Gui/charts/charts_consistency_presenter.h
+    src/Gui/charts/charts_consistency_presenter.cpp
     src/Gui/charts/session_wrist.h
     src/Gui/charts/session_wrist.cpp
     # The Posture section's core (posture_chart_design.md stage 2a): pure C++ over the snapshot.

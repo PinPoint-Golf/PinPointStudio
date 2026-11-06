@@ -39,8 +39,10 @@
 // THIS API IS THE INTEGRATION SEAM (the panel's navigation save and restore, PpModeStage's card, the
 // cast window, the tests and every probe reach in): source, readout, tab, _tab, cardFilter,
 // watchingExpanded, interactive, framed, cardAside, readingShot, reviewing, detailOpen,
-// detailConditionId, detail, cards, header, chains, pulseCue; _openDetail, _closeDetail,
-// _setDetailMeasure, _declareFocus, _declareMiss, pulseAfterShot; screenRequested, shotRequested;
+// detailConditionId, detail, cards, header, chains, pulseCue, consistencyCell, consistencyGlanceCell,
+// consistencyOpenCell, consistencyOverGlance; _openDetail,
+// _closeDetail, _setDetailMeasure, _declareFocus, _declareMiss, pulseAfterShot, _openConsistencyCell,
+// _closeConsistencyCell; screenRequested, shotRequested;
 // objectName "sdBody". Change none of it without changing every caller.
 
 import QtQuick
@@ -90,10 +92,11 @@ Item {
     // The user's choice is `tab`, and every tab can always be pressed: a tab with nothing to show says
     // why. `_tab` differs only on the auto-closing cast, where nobody can press a tab and the shot is
     // what the cast is for.
-    property string tab: "session"           // "shot" | "session" | "watching"
+    property string tab: "session"           // "shot" | "session" | "consistency" | "watching"
     readonly property var _tabDefs: [
         { key: "shot",     label: Theme.caps(qsTr("This shot")) },
         { key: "session",  label: Theme.caps(qsTr("Session")) },
+        { key: "consistency", label: Theme.caps(qsTr("Consistency")) },
         { key: "watching", label: Theme.caps(qsTr("Watching")) }
     ]
     readonly property bool _shotAvailable: readingShot || (!isClosing && !reviewing)
@@ -101,7 +104,8 @@ Item {
                                  : (_shotAvailable ? "shot" : "session")
     // PICKING A SHOT OFF THE CAROUSEL IS ASKING ABOUT IT. Only on the edge into shot-reading, never on
     // every re-fetch of the readout, so a reader who goes back to Session is not dragged back.
-    onReadingShotChanged: if (readingShot) tab = "shot"
+    // Consistency keeps the reader: it has a picked shot of its own, which follows the same selection.
+    onReadingShotChanged: if (readingShot && tab !== "consistency") tab = "shot"
     // What the register shows: the open detail over the tab (an open detail loads PpDiagAnalyse; the cast's
     // PpDiagReplay, and the one held under the detail, read "detail" as the reader's tab, D9).
     readonly property string view: detailOpen ? "detail" : _tab
@@ -180,6 +184,31 @@ Item {
         source ? (source.detailConditionId || "") : ""
     readonly property var detail: source ? source.detail : null
     readonly property bool detailOpen: detailConditionId !== "" && !!detail && !!detail.header
+
+    // ── the open cell of the Consistency table ───────────────────────────────
+    // "area:column", or "" with none. TWO STATES, because the register reads one of them. consistencyCell is Analyse's,
+    // a VIEW state like the tab, saved with the navigation; Replay ignores it, so a cell left open in Analyse just shows
+    // the glance there. consistencyGlanceCell is a press made in the Replay glance, which draws no detail: it is read in
+    // the Analyse register with the stage still in Replay, as an open detail is, and its way back is the chip in the tab
+    // row. It is a plain input, written only by that press and cleared on leaving, so the register it moves is never
+    // part of what decides it. A panel rebuild drops it.
+    property string consistencyCell: ""
+    property string consistencyGlanceCell: ""
+    readonly property string consistencyOpenCell: consistencyGlanceCell !== "" ? consistencyGlanceCell : consistencyCell
+    readonly property bool consistencyOverGlance: consistencyGlanceCell !== ""
+    function _openConsistencyCell(key) {
+        if (_baseRegister === "Replay" && forceRegister === "" && surface !== "cast")
+            consistencyGlanceCell = consistencyGlanceCell === key ? "" : key
+        else
+            consistencyCell = consistencyCell === key ? "" : key
+    }
+    // Going somewhere else, or back to the glance: the tab first, since closing can tear down the register calling.
+    function _closeConsistencyCell(toTab) {
+        if (toTab) tab = toTab
+        consistencyGlanceCell = ""
+    }
+    onTabChanged: if (tab !== "consistency") consistencyGlanceCell = ""
+    on_BaseRegisterChanged: consistencyGlanceCell = ""
 
     // ── the after-shot pulse (§B3, §B8; D1) ──────────────────────────────────
     // ONE CUE OBJECT, PUBLISHED DOWNWARD: { token, ids, focusId }. `ids` are condition IDS, in the
@@ -353,11 +382,11 @@ Item {
     // An open detail is read in the Analyse register whatever the stage's mode: a condition clicked in
     // Replay opens in place, and Back returns to the glance, without the stage leaving Replay. The glance
     // is HELD while the detail is up (hidden, renamed, never torn down), so Back finds its tab, scroll and
-    // hover where they were.
+    // hover where they were. A Consistency cell open over the glance is read the same way.
     readonly property string _baseRegister: forceRegister !== "" ? forceRegister
                                           : surface === "cast" ? "Replay"
                                           : SessionMode.mode === SessionMode.analyse ? "Analyse" : "Replay"
-    readonly property string register: _baseRegister === "Replay" && detailOpen && forceRegister === ""
+    readonly property string register: _baseRegister === "Replay" && (detailOpen || consistencyOverGlance) && forceRegister === ""
                                        && surface !== "cast" ? "Analyse" : _baseRegister
     readonly property Item registerItem: register === "Analyse" ? analyseLoader.item : replayLoader.item
 

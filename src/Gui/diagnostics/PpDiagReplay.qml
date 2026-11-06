@@ -27,6 +27,8 @@ import PinPointStudio
 //              with nothing to read it says why, in the old panel's words for the tense (F19).
 //   Session    one PpSparkRow per pattern (or the small multiples when all fit the height); Cold says the
 //              n is too small and shows the expectations (F41-F42); the coverage line at the foot (F39).
+//   Consistency  PpConsistencyView's glance: the headline, the table, the picked shot's one sentence. A cell is the
+//              glance's other door into depth: it opens in PpDiagAnalyse as a detail does (never from the cast).
 //   Watching   C's PpBarcode, emerging first; empty, the old sentence (F45).
 //   Detail     never drawn here. A condition clicked in the glance opens its detail, and the body reads an
 //              open detail in PpDiagAnalyse with the stage still in Replay, holding this register hidden
@@ -67,8 +69,8 @@ Item {
     // D9: the cast never drills. "detail" (open on the main stage) shows the tab the reader is on, and the
     // tab row stays live.
     readonly property string bodyTab: body && body.tab ? String(body.tab) : "shot"
-    readonly property string shown: (view === "shot" || view === "session" || view === "watching") ? view
-                                  : (["shot", "session", "watching"].indexOf(bodyTab) >= 0 ? bodyTab : "shot")
+    readonly property var _views: ["shot", "session", "consistency", "watching"]
+    readonly property string shown: _views.indexOf(view) >= 0 ? view : (_views.indexOf(bodyTab) >= 0 ? bodyTab : "shot")
 
     // ── data ──
     readonly property var shot: ss.shot
@@ -179,6 +181,7 @@ Item {
     readonly property bool castTabs: cast && interactive
     readonly property real castEm: (shown === "shot" ? 9 + fired.length * 1.25
                                   : shown === "session" ? 6 + (cards || []).length * 2.3
+                                  : shown === "consistency" ? 38
                                   : 8 + watching.length * 1.95) + (castTabs ? 2.2 : 0)
     readonly property real zoom: cast ? ro.castZoom(width, height, castEm) : 1
     Item {
@@ -198,7 +201,8 @@ Item {
                    font: ro.fKicker; color: ro.ink2 }
             Text { visible: !root.castTabs
                    anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.bottomMargin: ro.u(6)
-                   text: root.shown === "shot" ? "This shot" : root.shown === "session" ? "Session" : "Watching"
+                   text: root.shown === "shot" ? "This shot" : root.shown === "session" ? "Session"
+                         : root.shown === "consistency" ? "Consistency" : "Watching"
                    font: ro.fLabel; color: ro.ink3 }
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: ro.hw; color: ro.hair }
         }
@@ -218,7 +222,8 @@ Item {
             chipOn: root.missOpen
             onChipActivated: root.missOpen = !root.missOpen
             // no counts: in a glance each view's head states its own; the toggles alone stay (RULES 11)
-            tabs: [{ key: "shot", label: "This shot" }, { key: "session", label: "Session" }, { key: "watching", label: "Watching" }]
+            tabs: [{ key: "shot", label: "This shot" }, { key: "session", label: "Session" },
+                   { key: "consistency", label: "Consistency" }, { key: "watching", label: "Watching" }]
             onTabActivated: k => root.pickView(k)
         }
         Column {
@@ -240,6 +245,7 @@ Item {
 
         ViewFlick { id: shotFlick; objectName: "sdShotCardsFlick"; key: "shot"; view: shotC }
         ViewFlick { id: sessionFlick; objectName: "sdCardsFlick"; key: "session"; view: sessionC }
+        ViewFlick { id: consistencyFlick; objectName: "sdConsistencyFlick"; key: "consistency"; view: consistencyC }
         ViewFlick { id: watchingFlick; objectName: "sdWatchingFlick"; key: "watching"; view: watchingC }
     }
     // the auto-closing cast takes no clicks, no hovers, no wheel: every affordance is a trap on a surface
@@ -497,6 +503,17 @@ Item {
                 font: ro.fSmall; color: ro.ink3
             }
             ReviewFoot { width: sv.width }
+        }
+    }
+
+    // ── CONSISTENCY: the glance (its data is built with the view, on first show) ──
+    Component {
+        id: consistencyC
+        Column {
+            id: cv
+            spacing: ro.g(10)
+            PpConsistencyView { width: cv.width; glance: true; body: root.body; interactive: root.interactive && !root.cast; medium: root.medium }
+            ReviewFoot { width: cv.width }
         }
     }
 

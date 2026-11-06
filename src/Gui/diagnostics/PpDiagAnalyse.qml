@@ -31,6 +31,8 @@ import PinPointStudio
 //     zero fired is one line, not an empty table (S38).
 //   • Session: Cold says the n is too small + expectations (F41-42); the filter is body.cardFilter (D8)
 //     and an emptying filter explains itself (F35); focus on the rows (F33); evidence line (F30).
+//   • Consistency: PpConsistencyView, which owns its data; no count on its tab, no sharper questions. A cell pressed
+//     in the Replay glance is read here (body.consistencyOverGlance), and the tab row's chip is the way back.
 //   • Watching: empty, the old sentence (F45).
 //   • Detail: measure tabs (F49), "Run the screen" (F64 → body.screenRequested), Esc closes (F47). The
 //     honesty mark (F56), the norm's source (F51) and the hover readout (F53) are the lib's (PpFeatureHead,
@@ -156,7 +158,14 @@ Item {
     // ── wiring: every click goes somewhere real ──
     function openCondition(id) { if (body && id && interactive) body._openDetail(id) }
     // A tab is the body's own view state (the panel and the cast read it), so a press goes to the body.
-    function pickView(key) { if (!interactive) return; if (root.body) root.body.tab = key; else root.view = key }
+    // A cell read over the Replay glance closes on the way, or the glance's Consistency tab would reopen it.
+    function pickView(key) {
+        if (!interactive) return
+        if (!root.body) root.view = key
+        else if (root.cellOverGlance) root.body._closeConsistencyCell(key)
+        else root.body.tab = key
+    }
+    readonly property bool cellOverGlance: !!body && body.consistencyOverGlance === true
     function pickShot(dir, id) { if (body && interactive && id > 0) body.shotRequested(dir || br.dirOf(id), id) }
     function setFilter(k) { if (!interactive) return; if (root.body) root.body.cardFilter = k; else root.cardFilter = k }
     function stepThrough(ids) {           // "step through them": the next answering shot after the picked one
@@ -263,7 +272,7 @@ Item {
         onStepRequested: ids => root.stepThrough(ids)
     }
     // the review note, folded to the foot of a view below medium (F7), or when the miss chip takes the right
-    component ReviewFoot: PpDiagReviewFoot { roles: ro; header: root.header; missShown: ss.missShown }
+    component ReviewFoot: PpDiagReviewFoot { roles: ro; header: root.header; missShown: ss.missShown || root.cellOverGlance }
 
     // ═══════════════════════════ SCREEN ═══════════════════════════
     Item {
@@ -277,15 +286,21 @@ Item {
             width: parent.width; height: visible ? implicitHeight : 0
             roles: ro; brush: br
             current: root.view
-            note: root.header && !ss.missShown ? ro.cap1(root.header.reviewNote) : ""
+            note: root.header && !ss.missShown && !root.cellOverGlance ? ro.cap1(root.header.reviewNote) : ""
             interactive: root.interactive
-            // F66: the declared-miss chip at the right of the tab row; it stands down on the detail
-            chip: ss.missShown ? ss.missText : ""
-            chipOn: root.missOpen
-            onChipActivated: root.missOpen = !root.missOpen
+            // F66: the declared-miss chip at the right of the tab row; it stands down on the detail, and gives way to
+            // Back while a Consistency cell is read over the Replay glance
+            chip: root.cellOverGlance ? "‹ Back" : ss.missShown ? ss.missText : ""
+            chipOn: !root.cellOverGlance && root.missOpen
+            chipObjectName: root.cellOverGlance ? "sdConsistencyBack" : "sdMissChip"
+            onChipActivated: {
+                if (root.cellOverGlance) root.body._closeConsistencyCell()
+                else root.missOpen = !root.missOpen
+            }
             // F2: the shot tab's note is its fired count, "quiet" on a quiet shot, nothing with nothing to read
             tabs: [{ key: "shot", label: "This shot", count: !ss.shot ? undefined : ss.quiet ? "quiet" : root.fired.length },
                    { key: "session", label: "Session", count: root.shownCards.length },
+                   { key: "consistency", label: "Consistency" },
                    { key: "watching", label: "Watching", count: root.watching.length }]
             onTabActivated: k => root.pickView(k)
         }
@@ -318,6 +333,7 @@ Item {
         }
         ViewFlick { id: shotFlick; objectName: "sdShotCardsFlick"; key: "shot"; view: shotC }
         ViewFlick { id: sessionFlick; objectName: "sdCardsFlick"; key: "session"; view: sessionC }
+        ViewFlick { id: consistencyFlick; objectName: "sdConsistencyFlick"; key: "consistency"; view: consistencyC }
         ViewFlick { id: watchingFlick; objectName: "sdWatchingFlick"; key: "watching"; view: watchingC }
         ViewFlick { id: detailFlick; objectName: "sdDetailFlick"; key: "detail"; view: detailC }
     }
@@ -744,6 +760,17 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    // ── CONSISTENCY: how the swing repeats (its data is built with the view, on first show) ──
+    Component {
+        id: consistencyC
+        Column {
+            id: cv
+            spacing: ro.g(10)
+            PpConsistencyView { width: cv.width; body: root.body; interactive: root.interactive; medium: root.medium }
+            ReviewFoot { width: cv.width }
         }
     }
 

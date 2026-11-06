@@ -262,7 +262,7 @@ Item {
     PpReaderPlace {
         id: place
         content: body
-        flickNames: ["sdShotCardsFlick", "sdCardsFlick", "sdWatchingFlick", "sdDetailFlick"]
+        flickNames: ["sdShotCardsFlick", "sdCardsFlick", "sdConsistencyFlick", "sdWatchingFlick", "sdDetailFlick"]
         active: root.remembersNav
         model: diagModel
         onSaveRequested: root._saveNav()
@@ -272,6 +272,7 @@ Item {
             tab:               body.tab,
             cardFilter:        body.cardFilter,
             watchingExpanded:  body.watchingExpanded,
+            consistencyCell:   body.consistencyCell,
             detailConditionId: diagModel.detailConditionId || "",
             detailMeasureId:   (diagModel.detail && diagModel.detail.measurePicked) || ""
         })
@@ -283,6 +284,7 @@ Item {
         body.tab              = nav.tab
         body.cardFilter       = nav.cardFilter
         body.watchingExpanded = nav.watchingExpanded
+        body.consistencyCell  = nav.consistencyCell || ""
         if (nav.detailConditionId !== "") {
             diagModel.openDetail(nav.detailConditionId)   // a no-op for an id the pack lacks
             if (nav.detailMeasureId)
@@ -299,6 +301,7 @@ Item {
         function onTabChanged()              { root._saveNav(); place.resume() }
         function onCardFilterChanged()       { root._saveNav() }
         function onWatchingExpandedChanged() { root._saveNav(); place.resume() }
+        function onConsistencyCellChanged()  { root._saveNav() }
         function onDetailOpenChanged()       { place.resume() }
         function onRegisterItemChanged()     { if (root.remembersNav) { place.watch(); place.resume() } }
     }

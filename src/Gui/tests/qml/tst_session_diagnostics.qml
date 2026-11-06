@@ -1259,7 +1259,7 @@ Item {
             for (const r of ["Replay", "Analyse"]) {
                 useRegister(r)
                 setSource(spied(formingSource(false)))
-                compare(shownAll(body, "sdTab").length, 3, r + ": three tabs")
+                compare(shownAll(body, "sdTab").length, 4, r + ": four tabs")
                 compare(body.tab, "session", r + ": Session rests")
                 verify(shown(viewOf("session")))
                 compare(shownAll(body, "sdShotView").length, 0, r + ": This shot is not stacked over it")
@@ -3022,7 +3022,7 @@ Item {
             // The persistent cast (a coach's second screen).
             body.interactive = true
             laidOut()
-            compare(shownAll(body, "sdTab").length, 3, "a persistent cast keeps its tabs")
+            compare(shownAll(body, "sdTab").length, 4, "a persistent cast keeps its tabs")
             showTab("shot")
             const dot2 = shownAll(viewOf("shot"), "sdDotRow")[0]
             intoView(dot2)
