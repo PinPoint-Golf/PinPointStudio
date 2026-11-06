@@ -325,7 +325,9 @@ jobs:
       # CMake probes Homebrew for these; absent on a fresh runner. OpenCV is not here:
       # cmake/PinPointOpenCV.cmake builds the pinned version from source, against this FFmpeg.
       - name: Install Homebrew deps (FFmpeg / Aravis / pkg-config)
-        run: brew install ffmpeg aravis pkgconf
+        # ffmpeg@8, NOT ffmpeg: the plain formula is 9.x now, which OpenCV 4.14 does not build
+        # against (cmake/PinPointOpenCV.cmake stops with the same message).
+        run: brew install ffmpeg@8 aravis pkgconf
 
       - name: Install Qt 6.11
         uses: jurplel/install-qt-action@v4

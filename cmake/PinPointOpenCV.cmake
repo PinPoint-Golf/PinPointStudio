@@ -53,16 +53,30 @@ if(APPLE)
     # OpenCV records FFmpeg's versioned Cellar folder in its CMake config, so the key uses
     # that folder name: a Homebrew rebuild can change it without changing FFmpeg's version.
     find_program(_pp_ocv_brew brew HINTS /opt/homebrew/bin /usr/local/bin)
+    # ⚠ FFmpeg 9 does not build: Homebrew's plain ffmpeg moved to it on the release runners
+    # and OpenCV 4.14 fails to compile against it. So the versioned formula comes first, and
+    # the app links whichever this picks (PP_OPENCV_FFMPEG_PREFIX), so the two always agree.
     set(_pp_ocv_ffmpeg "")
     if(_pp_ocv_brew)
-        execute_process(COMMAND "${_pp_ocv_brew}" --prefix ffmpeg
-            OUTPUT_VARIABLE _pp_ocv_ffmpeg OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        foreach(_pp_ocv_formula ffmpeg@8 ffmpeg)
+            execute_process(COMMAND "${_pp_ocv_brew}" --prefix ${_pp_ocv_formula}
+                OUTPUT_VARIABLE _pp_ocv_try OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+            if(EXISTS "${_pp_ocv_try}/lib/pkgconfig/libavcodec.pc")
+                set(_pp_ocv_ffmpeg "${_pp_ocv_try}")
+                break()
+            endif()
+        endforeach()
     endif()
-    if(NOT EXISTS "${_pp_ocv_ffmpeg}/lib/pkgconfig/libavcodec.pc" OR NOT _pp_ocv_pkgconfig)
-        message(FATAL_ERROR "OpenCV: needs FFmpeg and pkg-config. Run: brew install ffmpeg pkgconf")
+    if(NOT _pp_ocv_ffmpeg OR NOT _pp_ocv_pkgconfig)
+        message(FATAL_ERROR "OpenCV: needs FFmpeg and pkg-config. Run: brew install ffmpeg@8 pkgconf")
     endif()
     get_filename_component(_pp_ocv_ffmpeg_real "${_pp_ocv_ffmpeg}" REALPATH)
     get_filename_component(_pp_ocv_ffmpeg_ver "${_pp_ocv_ffmpeg_real}" NAME)
+    if(_pp_ocv_ffmpeg_ver VERSION_GREATER_EQUAL 9)
+        message(FATAL_ERROR "OpenCV ${_pp_ocv_version} does not build against FFmpeg "
+            "${_pp_ocv_ffmpeg_ver}. Run: brew install ffmpeg@8")
+    endif()
+    set(PP_OPENCV_FFMPEG_PREFIX "${_pp_ocv_ffmpeg}")
     set(_pp_ocv_pc_path "${_pp_ocv_ffmpeg}/lib/pkgconfig:${_pp_ocv_pc_path}")
     set(_pp_ocv_bundle_image_libs ON)
 elseif(WIN32)

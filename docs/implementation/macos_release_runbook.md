@@ -334,7 +334,7 @@ profile + EdDSA key from Part 0 in place, the packaging script does the whole
 build → deploy → relocate → verify → **sign → notarize → staple** → DMG. It builds
 **host-native only** — the DMG is for the Mac you are sitting at:
 ```bash
-brew install ffmpeg aravis pkgconf    # build deps (once); OpenCV is built from source
+brew install ffmpeg@8 aravis pkgconf  # build deps (once); @8, NOT plain ffmpeg (that is 9.x); OpenCV is built from source
 export SIGN_IDENTITY="Developer ID Application: M R LIVERSEDGE (WKLCK77L4U)"  # or omit → auto-detect
 export NOTARY_PROFILE=pinpoint-notary
 tools/package_macos.sh                # slow the first time

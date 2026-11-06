@@ -2735,13 +2735,18 @@ endif()
 # link.  GPL builds of FFmpeg (libx264) are fine: the project is GPLv2+.
 # macOS: inject Homebrew prefix so pkg-config can locate the .pc files
 if(APPLE)
-    execute_process(
-        COMMAND brew --prefix ffmpeg
-        OUTPUT_VARIABLE _brew_ffmpeg
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-        RESULT_VARIABLE _brew_ffmpeg_result
-    )
+    # The app links the FFmpeg the pinned OpenCV was built against.
+    set(_brew_ffmpeg "${PP_OPENCV_FFMPEG_PREFIX}")
+    set(_brew_ffmpeg_result 0)
+    if(NOT _brew_ffmpeg)
+        execute_process(
+            COMMAND brew --prefix ffmpeg
+            OUTPUT_VARIABLE _brew_ffmpeg
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+            RESULT_VARIABLE _brew_ffmpeg_result
+        )
+    endif()
     if(_brew_ffmpeg_result EQUAL 0 AND EXISTS "${_brew_ffmpeg}")
         set(ENV{PKG_CONFIG_PATH} "${_brew_ffmpeg}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
     endif()

@@ -116,13 +116,13 @@ Dependencies are best managed via [Homebrew](https://brew.sh/).
 ### 1. Install Dependencies
 Install Xcode first; the dev Mac and the release runners both build with it. Then:
 ```bash
-brew install pkgconf espeak-ng aravis ffmpeg openssl@3
+brew install pkgconf espeak-ng aravis ffmpeg@8 openssl@3
 ```
 `cmake` and `ninja` are also needed. Take them from the Qt installer (step 2), or add them to the line above.
 
 `pkgconf` provides `pkg-config`, which CMake needs to find FFmpeg. `glib` and `gettext` come in with `aravis`.
 
-OpenCV is not installed by hand on macOS. The first configure builds a pinned version from source, with only the modules the app uses, and links it statically (`cmake/PinPointOpenCV.cmake`). That takes about a minute and is shared by every build tree in `build/_opencv/`. It needs FFmpeg, so the configure stops with an error if `ffmpeg` or `pkgconf` is missing.
+OpenCV is not installed by hand on macOS. The first configure builds a pinned version from source, with only the modules the app uses, and links it statically (`cmake/PinPointOpenCV.cmake`). That takes about a minute and is shared by every build tree in `build/_opencv/`. It needs FFmpeg 8, so the configure stops with an error if FFmpeg or `pkgconf` is missing. Use `ffmpeg@8`, not `ffmpeg`: the plain formula is 9.x now, which OpenCV 4.14 does not build against.
 `openssl@3` is the PPCP capture-device link (`src/Ppcp`, TLS with a pre-shared
 key). It is keg-only, so CMake probes `brew --prefix openssl@3` directly rather
 than relying on the default search — otherwise it would find LibreSSL, which has
@@ -197,7 +197,7 @@ The app links Homebrew's libraries at run time, so a `brew` change can stop a bu
 
 **Rebuild after upgrading anything the app links.** Its run-time search path holds versioned folders for `espeak-ng`, `aravis` and `glib` (`/opt/homebrew/Cellar/aravis/0.8.36/lib`, for example), and a new version leaves those paths stale. Re-run CMake and rebuild.
 
-A new `ffmpeg` also makes the next configure rebuild the pinned OpenCV, because OpenCV links it.
+A new FFmpeg also makes the next configure rebuild the pinned OpenCV, because OpenCV links it.
 
 **`'stdio.h' file not found` after a Command Line Tools or Xcode update.** The build tree still names the old SDK in `CMAKE_OSX_SYSROOT`. Set it to the output of `xcrun --show-sdk-path` in that tree's `CMakeCache.txt` and build again.
 
@@ -379,8 +379,8 @@ date in place by **Sparkle** (the framework WinSparkle is a port of), gated by a
 
 **Build the DMG:**
 ```bash
-# Build deps come from Homebrew (CMake probes them): ffmpeg, aravis, pkgconf.
-#   brew install ffmpeg aravis pkgconf
+# Build deps come from Homebrew (CMake probes them): ffmpeg@8, aravis, pkgconf.
+#   brew install ffmpeg@8 aravis pkgconf
 # OpenCV is built from source by cmake/PinPointOpenCV.cmake.
 tools/package_macos.sh                         # → dist/PinPointStudio-<ver>-<arch>.dmg (signs+notarizes if creds set)
 tools/package_macos.sh --no-sign               # unsigned dev build (no in-app update trust)
