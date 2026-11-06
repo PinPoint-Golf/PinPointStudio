@@ -249,7 +249,7 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
         ShaftTrack2D t = decideTrack(frameAt, tUs, gx, gy, phiRaw, rawJoints, w, h, fps,
                                      job.bandCentersMm, job.clubLengthM * 1000.0, impf, cfg, trace,
                                      ball.frames.empty() ? nullptr : &ball, priorPtr,
-                                     handAxisDeg, handAxisConf, &segGeom, &phiTrailRaw);
+                                     handAxisDeg, handAxisConf, &segGeom, &phiTrailRaw, job.impactUs);
         t.camera = pose.camera;
         // v3.4 (design §9): additive post-hoc ball anchor — reads the frozen DP
         // output above, never re-solves it. No-op when `ball` is empty.

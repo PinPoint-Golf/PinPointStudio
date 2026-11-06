@@ -87,7 +87,44 @@ struct ImpactGeomConfig {
     bool    overrideLater = false;
     int64_t windowUs   = 600000;   // anchor-centred search half-window; generous vs the observed
                                    // +362 ms worst clamp corruption, short of the address hold
+    // How far before the RAW anchor (job.impactUs) a crossing may lie. Every failure this
+    // module rescues leaves the raw anchor at truth and only its frame MAPPING or the emission
+    // late, so the real crossing is near the raw anchor. Before it the search would otherwise
+    // reach back past the top, and "first crossing" takes any wander of the track through the
+    // grip->ball direction: #158 (8 Oct swing 3, 24 Oct swing 2) overrode a correct anchor with
+    // a backswing detour 356 and 314 ms earlier. They were the only stored impacts more than
+    // 20 ms before the anchor in the library and corpus (383 documents, 2026-11-06).
+    // <= 0: off, the plain windowUs edge.
+    int64_t maxBeforeRawAnchorUs = 100000;
 };
+
+// The frame window locateImpactGeom searches when an anchor exists: anchorFrame +- windowUs, with
+// its early edge lifted to rawAnchorUs - maxBeforeRawAnchorUs. The late edge stays on the mapped
+// frame. rawAnchorUs < 0 (no raw instant to hand) falls back to the mapped frame's time. The early
+// edge keeps the last frame at or before the limit, so a crossing interpolated across a coverage
+// gap still has its arming frame.
+struct ImpactGeomWindow {
+    int lo = 0, hi = 0;
+};
+
+inline ImpactGeomWindow impactGeomSearchWindow(const std::vector<int64_t>& tUs, int anchorFrame,
+                                               int64_t rawAnchorUs, const ImpactGeomConfig& cfg)
+{
+    ImpactGeomWindow w;
+    const int n = int(tUs.size());
+    if (n == 0) return w;
+    const int64_t tA = tUs[size_t(std::clamp(anchorFrame, 0, n - 1))];
+    w.hi = n - 1;
+    while (w.lo < n - 1 && tUs[size_t(w.lo)] < tA - cfg.windowUs) ++w.lo;
+    while (w.hi > 0 && tUs[size_t(w.hi)] > tA + cfg.windowUs) --w.hi;
+    if (cfg.maxBeforeRawAnchorUs > 0) {
+        const int64_t limit = (rawAnchorUs >= 0 ? rawAnchorUs : tA) - cfg.maxBeforeRawAnchorUs;
+        int lo = w.lo;
+        while (lo < n - 1 && tUs[size_t(lo + 1)] <= limit) ++lo;
+        w.lo = lo;
+    }
+    return w;
+}
 
 struct ImpactGeomResult {
     bool    found = false;   // a hysteresis-confirmed theta==theta_ball transit exists in (top, fin]

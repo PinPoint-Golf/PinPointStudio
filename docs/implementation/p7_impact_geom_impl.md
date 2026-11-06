@@ -21,7 +21,7 @@ address-ball cluster, and arbitrates the phase model's Impact **emission** with 
 - `decideImpactFrame()` — geometry vs `pm.impact`: abstain (no geometry) / adopt
   (no anchor — the "legitimate refine path") / override (>`overrideUs` = 100 ms
   apart) / sub-frame retime (corroborated + `retime`).
-- Keys `shaft.impactGeom.{enabled,retime,hystDeg,maxStepDeg,overrideUs,windowUs}`;
+- Keys `shaft.impactGeom.{enabled,retime,hystDeg,maxStepDeg,overrideUs,windowUs,maxBeforeRawAnchorUs}`;
   `enabled` FLIPPED ON at `02cf2b0`, `retime` measured not-green and dark.
 - The address ball comes from `medianGripBallLenPx`'s accepted cluster
   (`ball_anchor.h` — new `clusterBallPx` out-param), inheriting the mis-lock

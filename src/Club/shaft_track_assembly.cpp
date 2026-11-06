@@ -636,6 +636,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.impactGeom.overrideUs", c.impactGeom.overrideUs);
     apply(ov, "shaft.impactGeom.overrideLater", c.impactGeom.overrideLater);
     apply(ov, "shaft.impactGeom.windowUs", c.impactGeom.windowUs);
+    apply(ov, "shaft.impactGeom.maxBeforeRawAnchorUs", c.impactGeom.maxBeforeRawAnchorUs);
     // Serial sections in parallel (step G) — reorder only, byte-identical.
     apply(ov, "shaft.parallel.snap", c.par.snap);
     apply(ov, "shaft.parallel.head", c.par.head);
@@ -2439,7 +2440,8 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                          const std::vector<double>& handAxisDeg,
                          const std::vector<double>& handAxisConf,
                          const SegmentGeom* segGeom,
-                         const std::vector<double>* phiTrailRaw)
+                         const std::vector<double>* phiTrailRaw,
+                         int64_t rawImpactUs)
 {
     ShaftTrack2D out;
     out.frameWidth = frameW; out.frameHeight = frameH;
@@ -3835,8 +3837,10 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     // pm.top/pm.fin0 are corrupt on exactly the swings needing rescue when the
     // top-collapse repair cannot fire (no anchor — with one, topRepairEnabled
     // heals pm.top at the source); the (top, fin0] window is the anchor-absent
-    // fallback only. Gated on the address ball resolving — data, never
-    // sessionType. Only the P5/P6/P8 windows and the P7/Impact emissions below
+    // fallback only. The window's early edge sits just before the RAW anchor
+    // (rawImpactUs): further back, a wander of the track through the ball
+    // direction near the top is the "first crossing" (#158). Gated on the
+    // address ball resolving — data, never sessionType. Only the P5/P6/P8 windows and the P7/Impact emissions below
     // follow the decision; the mid-pipeline consumers (wedge swingProgress,
     // blur band, tier windows) ran before this point on pm as segmented.
     int     impactRefFrame = pm.impact;
@@ -3845,9 +3849,8 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     if (cfg.impactGeom.enabled && haveAddrBall) {
         int lo = pm.top + 1, hi = pm.fin0;
         if (impactFrame >= 0) {
-            const int64_t tA = tUs[size_t(std::clamp(impactFrame, 0, nf - 1))];
-            lo = 0;  while (lo < nf - 1 && tUs[size_t(lo)] < tA - cfg.impactGeom.windowUs) ++lo;
-            hi = nf - 1; while (hi > 0 && tUs[size_t(hi)] > tA + cfg.impactGeom.windowUs) --hi;
+            const ImpactGeomWindow w = impactGeomSearchWindow(tUs, impactFrame, rawImpactUs, cfg.impactGeom);
+            lo = w.lo; hi = w.hi;
         }
         const ImpactGeomResult ig = locateImpactGeom(tUs, rec.thetaOut, gx, gy,
                                                      addrBallPx.x(), addrBallPx.y(),

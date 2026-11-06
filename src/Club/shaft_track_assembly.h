@@ -976,6 +976,10 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt,
                          const SegmentGeom* segGeom = nullptr,
                          // Raw trail-forearm angle per frame (deg, NaN = no elbow), the
                          // twin of phiRaw for the other arm. nullptr = no trail veto.
-                         const std::vector<double>* phiTrailRaw = nullptr);
+                         const std::vector<double>* phiTrailRaw = nullptr,
+                         // The raw anchor instant (job.impactUs) impactFrame was mapped from; the
+                         // impact geometry bounds its search with it (#158). -1 = the mapped
+                         // frame's own time.
+                         int64_t rawImpactUs = -1);
 
 } // namespace pinpoint::analysis

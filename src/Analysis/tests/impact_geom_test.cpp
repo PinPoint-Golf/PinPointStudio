@@ -216,7 +216,7 @@ int main()
         check(def.retime == false, "retime defaults false (measured not green — stays dark)");
         check(def.overrideLater == false, "overrideLater defaults false (a later crossing never overrides the emission)");
         check(def.hystDeg == 8.0 && def.maxStepDeg == 120.0 && def.overrideUs == 100000
-                  && def.windowUs == 600000,
+                  && def.windowUs == 600000 && def.maxBeforeRawAnchorUs == 100000,
               "tuning defaults pinned");
     }
 
@@ -252,6 +252,63 @@ int main()
               "stale impact bound admits the through-swing transit as P6");
         check(p6f && std::llabs(p6f->tUs - 85 * kDt) <= kDt,
               "corrected impact bound restores the delivery P6 at f85");
+    }
+
+    // ── (10) a wander of the track near the top is not impact (#158) ─────────
+    // The swing_0003 shape, 8 Oct: the anchor and the real crossing sit at f90 (450 ms) and the
+    // emission agrees, but the track wanders through θ_ball at f20, 350 ms earlier, well inside
+    // windowUs. The plain window takes that FIRST crossing and overrides a correct anchor.
+    {
+        std::printf("(10) early wander\n");
+        std::vector<double> th(kNf);
+        for (int f = 0; f < kNf; ++f) {
+            if (f <= 10)      th[f] = 75.0;                          // armed above θ_ball
+            else if (f <= 30) th[f] = 75.0 - 3.0 * double(f - 10);   // → 15 @30, through 45 @20
+            else if (f <= 40) th[f] = 15.0 + 6.0 * double(f - 30);   // → 75 @40, back above
+            else if (f <= 80) th[f] = 75.0;
+            else              th[f] = 75.0 - 3.0 * double(f - 80);   // through 45 @90: the real one
+        }
+        const int     anchorF = 90;
+        const int64_t rawUs   = anchorF * kDt;
+
+        ImpactGeomConfig off = cfg; off.maxBeforeRawAnchorUs = 0;
+        const ImpactGeomWindow wo = impactGeomSearchWindow(t, anchorF, rawUs, off);
+        check(wo.lo == 0 && wo.hi == kNf - 1, "off: the plain anchor +- windowUs edges");
+        const ImpactGeomResult bad = locateImpactGeom(t, th, gx, gy, kBx, kBy, wo.lo, wo.hi, off);
+        check(bad.found && std::llabs(bad.tUs - 20 * kDt) <= kDt, "off: the wander is the first crossing");
+        const ImpactDecision was = decideImpactFrame(true, anchorF, bad, t, off);
+        check(was.applied == kImpactGeomOverride && was.tUs == bad.tUs, "off: it overrides the correct anchor");
+
+        const ImpactGeomWindow w = impactGeomSearchWindow(t, anchorF, rawUs, cfg);
+        check(w.lo == 70 && w.hi == kNf - 1, "the early edge sits 100 ms before the raw anchor");
+        const ImpactGeomResult geo = locateImpactGeom(t, th, gx, gy, kBx, kBy, w.lo, w.hi, cfg);
+        check(geo.found && std::llabs(geo.tUs - 90 * kDt) <= kDt, "the real crossing is found");
+        const ImpactDecision d = decideImpactFrame(true, anchorF, geo, t, cfg);
+        check(d.applied == kImpactGeomKept && d.frame == anchorF, "the correct anchor stands");
+    }
+
+    // ── (11) the rescue survives: raw anchor at truth, mapped frame late ──────
+    // A coverage gap maps the anchor 300 ms past the raw instant. The early edge follows the raw
+    // anchor, not the mapped frame, so the real crossing stays in the window and still overrides.
+    {
+        std::printf("(11) late mapping still rescued\n");
+        const ImpactGeomWindow w = impactGeomSearchWindow(t, 100, 40 * kDt, cfg);
+        check(w.lo == 20, "the early edge follows the raw anchor");
+        const std::vector<double> th = ramp(40.0, 6.0);
+        const ImpactGeomResult geo = locateImpactGeom(t, th, gx, gy, kBx, kBy, w.lo, w.hi, cfg);
+        const ImpactDecision d = decideImpactFrame(true, 100, geo, t, cfg);
+        check(geo.found && d.applied == kImpactGeomOverride && std::llabs(d.tUs - 40 * kDt) <= kDt,
+              "a late mapped frame is still overridden by the crossing at the raw anchor");
+
+        // A gap across the limit: the frame before the gap is kept, so the crossing can arm.
+        std::vector<int64_t> gapped;
+        for (int f = 0; f <= 30; ++f)   gapped.push_back(int64_t(f) * kDt);
+        for (int f = 90; f <= 100; ++f) gapped.push_back(int64_t(f) * kDt);
+        const ImpactGeomWindow g = impactGeomSearchWindow(gapped, int(gapped.size()) - 1, 90 * kDt, cfg);
+        check(g.lo == 30, "the last frame before a coverage gap stays in the window");
+
+        // No raw instant to hand: the mapped frame's own time.
+        check(impactGeomSearchWindow(t, 90, -1, cfg).lo == 70, "no raw anchor falls back to the mapped frame");
     }
 
     std::printf("%s\n", g_fail ? "FAILED" : "OK");
