@@ -133,6 +133,19 @@ int main()
         if (!noPron)   ++g_fail;
     }
 
+    // analysis.path.ladder names the same winner, in the same order, as resolveSegmentation.
+    {
+        Segmentation hi; hi.conf = 0.8f;
+        Segmentation none; none.conf = 0.f;
+        const auto name = [](const std::optional<Segmentation> &i, const std::optional<Segmentation> &v,
+                             const std::optional<Segmentation> &r) { return std::string(segmentationSourceName(i, v, r)); };
+        const bool ok = name(hi, hi, hi) == "recorded" && name(hi, hi, std::nullopt) == "sensors"
+                     && name(none, hi, std::nullopt) == "vision" && name(none, none, std::nullopt) == "sensorClamp"
+                     && name(std::nullopt, none, std::nullopt) == "none";
+        std::printf("  [%s] the ladder's source name follows the resolve order\n", ok ? "PASS" : "FAIL");
+        if (!ok) ++g_fail;
+    }
+
     // SegResolve's rule (seg_resolve.h; trunk design §8.5, defect 3). A TRUNK-ONLY job — hip and
     // chest sensors, no hand or forearm — still gets an IMU segmentation from the segmenter: the
     // clamp fallback, conf 0. It must not replace a confident camera ladder.

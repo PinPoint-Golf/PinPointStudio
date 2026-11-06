@@ -1477,6 +1477,7 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
 void ShotProcessor::startAnalysis()
 {
     ShotAnalysisJob job = m_analysisJob;   // resolved in captureWindowAndLaunch
+    job.path.origin = QStringLiteral("live");
 
     const pinpoint::SwingWindow *win = &*m_swingWindow;   // stable optional storage
     m_analysisInFlight = true;

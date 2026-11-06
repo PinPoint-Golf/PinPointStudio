@@ -3,9 +3,10 @@
 
 Pairs every `result.json` found (recursively, any depth) under two swinglab
 run roots by their path relative to the root, and diffs each pair. Excluded --
-BY DESIGN, because they are wall-clock readings that legitimately differ
-between two runs of the SAME deterministic pipeline, not because they are
-expected to match:
+BY DESIGN, because they legitimately differ between two runs of the SAME
+deterministic pipeline, not because they are expected to match: the wall-clock
+readings below, and analysis.path, which says how a run got there (two runs on
+different settings differ in it by definition):
 
   * analysis.timings, wherever an "analysis" object holds one (the top-level
     document's, and any nested analysis block): per-stage milliseconds, and
@@ -53,14 +54,16 @@ def _strip_path(obj, path):
 
 
 def strip_timings(doc):
-    """Delete, in place, every wall-clock field (see the module docstring) --
-    nothing else -- and return doc: `timings` under any "analysis" object at
-    any depth, and skeleton3d's solver ms / branchMs under it."""
+    """Delete, in place, every excluded field (see the module docstring) --
+    nothing else -- and return doc: `timings` and `path` under any "analysis"
+    object at any depth, and skeleton3d's solver ms / branchMs under it. Only
+    those: analysis.impact.path is a measurement."""
     def walk(node):
         if isinstance(node, dict):
             analysis = node.get("analysis")
             if isinstance(analysis, dict):
                 analysis.pop("timings", None)
+                analysis.pop("path", None)    # how the run got there, not what it found
                 sk = analysis.get("skeleton3d")
                 if isinstance(sk, dict):
                     for path in SKELETON3D_WALLCLOCK:

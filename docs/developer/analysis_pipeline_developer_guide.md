@@ -137,8 +137,9 @@ class AnalysisStage {
 public:
     virtual QString name() const = 0;
     virtual bool    canRun(const AnalysisContext &) const { return true; }
-    virtual QString skipReason(const AnalysisContext &) const { return QString(); }
+    virtual QString skipReason(const AnalysisContext &) const { return QStringLiteral("run condition not met"); }
     virtual void    run(AnalysisContext &) = 0;
+    virtual QString runSource(const AnalysisContext &) const { return QStringLiteral("computed"); }
 };
 ```
 
@@ -264,13 +265,19 @@ shows what *does*: a UML activity diagram, one page per part of the run, with ev
 picks a path through a swing's analysis drawn as a diamond with its guards. Use the bookmarks, or
 click a connector circle to follow the flow to the next page.
 
-Read it before changing anything that decides whether a stage computes or loads. Stage boxes in
-`analysis.timings.stages` can't show this: reuse is decided inside the stage, so `Pose` records
-`ran: true` whether it inferred the track or loaded it from the document. That is how #154 stayed
-hidden. Each diamond says whether the document keeps its answer, and red ones do not.
+Read it before changing anything that decides whether a stage computes or loads. Each diamond says
+whether the document keeps its answer, and a red one does not.
 
-Boxes are coloured by what they do: computes, loads from the document, or `ran: true` but did
-nothing. A join means everything before it has finished before the next thing is drawn. The executor
+Reuse is decided inside a stage, so `ran: true` can't tell inferring a track from loading it. That
+is how #154 stayed hidden. Since then every run writes `analysis.path`: where it came from, the
+frames each camera read, each reuse verdict with its first reason, the pose path, the ladder that
+won, the witness and the tracker span. Each stage in `analysis.timings.stages` records its `source`
+(`computed`, `loaded` or `refused`), and every skip has a reason. A new decision that picks a path
+belongs in `AnalysisPath`, filled in `bindAnalysisPath`, which reads what happened and decides
+nothing.
+
+Boxes are coloured by what they do: computes, loads from the document, or started and refused. A
+join means everything before it has finished before the next thing is drawn. The executor
 may overlap more than that, never less.
 
 **Keeping it current.** The branches live inside stages, so no export can see them and the flow in

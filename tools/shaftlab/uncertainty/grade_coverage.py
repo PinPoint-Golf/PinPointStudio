@@ -36,6 +36,14 @@ def is_timing(k):
     return k in ("timings", "ms", "wallMs", "wall") or (k.endswith("Ms") and k[:-2][-1:].islower())
 
 
+def without_run_path(doc):
+    """analysis.path says how a run got there, so two runs of one analysis can differ in it. Only
+    that one key: analysis.impact.path is a measurement, so strip() must never drop "path" by name."""
+    if isinstance(doc, dict) and isinstance(doc.get("analysis"), dict):
+        return dict(doc, analysis={k: v for k, v in doc["analysis"].items() if k != "path"})
+    return doc
+
+
 def strip(o, keys):
     if isinstance(o, dict):
         return {k: strip(v, keys) for k, v in o.items() if k not in keys and not is_timing(k)}
@@ -94,7 +102,7 @@ def compare_roots(ra, rb, ids, drop):
             if (A is None) != (B is None):
                 bad.setdefault(sw, []).append(f"{fn}: present in one run only")
                 continue
-            d = diff_paths(strip(A, drop), strip(B, drop))
+            d = diff_paths(strip(without_run_path(A), drop), strip(without_run_path(B), drop))
             if d:
                 bad.setdefault(sw, []).extend(f"{fn}:{x}" for x in d)
     return bad

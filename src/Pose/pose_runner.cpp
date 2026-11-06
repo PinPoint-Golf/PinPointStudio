@@ -788,6 +788,8 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         runPipeline(jobs2, track, cropPtr);
         const size_t pass2Posed = track.frames.size() - pass1Posed;
 
+        track.scanPath = est.ok ? QStringLiteral("twoPass") : QStringLiteral("twoPassWindow");
+
         // Pass-1 (whole window) and pass-2 (span fill) interleave in time — merge.
         std::sort(track.frames.begin(), track.frames.end(),
                   [](const PoseFrame2D &a, const PoseFrame2D &b) { return a.t_us < b.t_us; });
@@ -860,6 +862,7 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     // Skipped when cropping is off ⇒ no extra inference and a byte-identical flags-off path.
     const cv::Rect *cropPtr = acc.crop.enabled && i1 > iAddr0 ? makeCrop(scanPersonBbox(iAddr0, i1)) : nullptr;
 
+    track.scanPath = bounded ? QStringLiteral("bounded") : QStringLiteral("window");
     const size_t sampled = jobs.size();
     runPipeline(jobs, track, cropPtr);
 

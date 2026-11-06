@@ -94,6 +94,14 @@ int main()
                                                          {QStringLiteral("t_us"), static_cast<qint64>(10000)} };
 
     SwingAnalysis a;
+    a.path.origin = QStringLiteral("reanalysis");
+    a.path.fullWindow = true;
+    a.path.overrides = QStringList{ QStringLiteral("pose.crop.enabled") };
+    a.path.framesFaceOn = QStringLiteral("mp4");
+    a.path.reuse.insert(QStringLiteral("pose"), QStringLiteral("version 1, want 2"));
+    a.path.pose = QStringLiteral("twoPass");
+    a.path.ladder = QStringLiteral("vision");
+    a.path.trackerSpan = QStringLiteral("bounded");
     a.tier          = int(ReconstructionTier::Mono3DPlusImu);
     a.score.overall = 82;
     MetricSeries m;
@@ -245,6 +253,20 @@ int main()
     const QJsonObject an = root[QStringLiteral("analysis")].toObject();
     check(an[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.analysis/3"), "analysis schema /3");
     // /3: "score" is now a ScoreBreakdown object (design §B.0a); overall preserved, default kind=adherence.
+    // analysis.path (AnalysisPath): which way each decision went, for a person reading the document.
+    {
+        const QJsonObject path = an[QStringLiteral("path")].toObject();
+        check(path[QStringLiteral("origin")].toString() == QStringLiteral("reanalysis"), "path.origin");
+        check(path[QStringLiteral("forced")].toBool() == false && path[QStringLiteral("fullWindow")].toBool() == true, "path.forced, fullWindow");
+        check(path[QStringLiteral("overrides")].toArray().size() == 1, "path.overrides");
+        check(path[QStringLiteral("frames")].toObject()[QStringLiteral("faceOn")].toString() == QStringLiteral("mp4"), "path.frames.faceOn");
+        check(!path[QStringLiteral("frames")].toObject().contains(QStringLiteral("dtl")), "path.frames: no DTL camera, no key");
+        check(path[QStringLiteral("reuse")].toObject()[QStringLiteral("pose")].toString() == QStringLiteral("version 1, want 2"), "path.reuse says why");
+        check(path[QStringLiteral("pose")].toString() == QStringLiteral("twoPass"), "path.pose");
+        check(path[QStringLiteral("ladder")].toString() == QStringLiteral("vision"), "path.ladder");
+        check(!path.contains(QStringLiteral("witness")), "path: an empty answer writes no key");
+        check(path[QStringLiteral("trackerSpan")].toString() == QStringLiteral("bounded"), "path.trackerSpan");
+    }
     const QJsonObject scoreObj = an[QStringLiteral("score")].toObject();
     check(scoreObj[QStringLiteral("overall")].toInt() == 82, "analysis score.overall = 82");
     check(scoreObj[QStringLiteral("kind")].toString() == QStringLiteral("adherence"), "analysis score.kind = adherence");

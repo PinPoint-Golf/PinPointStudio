@@ -340,7 +340,7 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
     // One decode configuration for every MP4 camera of this swing (decode.* keys).
     const Mp4FrameDecoder::Config mp4Cfg = mp4DecodeConfig(opts.tuningOverrides);
 
-    struct VidTmp { SourceId id; bool faceOn; bool impact = false; bool dtl = false; };
+    struct VidTmp { SourceId id; bool faceOn; bool impact = false; bool dtl = false; bool raw = false; };
     std::vector<VidTmp> vids;
 
     for (const QJsonValue& sv : root[QStringLiteral("streams")].toArray()) {
@@ -522,7 +522,7 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
                        || kDtlName.match(base).hasMatch();
                 }
             }
-            vids.push_back({ id, faceOn && !impact, impact, dtl });
+            vids.push_back({ id, faceOn && !impact, impact, dtl, useRaw });
 
         } else if (kind == QLatin1String("imu")) {
             const QJsonObject samples = s[QStringLiteral("samples")].toObject();
@@ -696,10 +696,13 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
     }
 
     // Camera order: face-on first (analyzers prefer it without re-sorting).
+    job.path.origin = QStringLiteral("replay");   // reanalyzeSwingDir says otherwise for itself
+    const auto frameSource = [](const VidTmp &v) { return v.raw ? QStringLiteral("raw") : QStringLiteral("mp4"); };
     for (const VidTmp& v : vids) {
         if (v.faceOn) {
             job.cameraSources.insert(job.cameraSources.begin(), v.id);
             ++job.faceOnCameraCount;
+            job.path.framesFaceOn = frameSource(v);   // the last one, as it becomes cameraSources.front()
         } else {
             job.cameraSources.push_back(v.id);
         }
@@ -707,8 +710,10 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
             job.impactSource = v.id;
         // FIRST DTL stream wins; camera ORDER is untouched by this (the DTL camera
         // rides in cameraSources exactly where it always did).
-        if (v.dtl && job.dtlSource == kInvalidSourceId)
+        if (v.dtl && job.dtlSource == kInvalidSourceId) {
             job.dtlSource = v.id;
+            job.path.framesDtl = frameSource(v);
+        }
     }
 
     // Match the live window's time-ordered index (stable: per-source order kept).
@@ -899,6 +904,10 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
     if (!opts.poseTrackPath.isEmpty())
         ls.job.poseTrackPath = opts.poseTrackPath;
     ls.job.fullWindow = opts.fullWindow;
+    ls.job.path.origin = QStringLiteral("reanalysis");
+    ls.job.path.forced = opts.forceRerun;
+    for (const char *k : { "pose", "ball", "shaft", "ladder", "poseDtl" })
+        ls.job.path.reuse.insert(QString::fromLatin1(k), opts.forceRerun ? QStringLiteral("forced") : QString());
     // skeleton3d values held fixed: SwingLab's --skeleton-calib only (the app never pools).
     if (opts.skeletonCalib)
         ls.job.skeletonCalib = opts.skeletonCalib;
@@ -988,6 +997,47 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
                 }
             }
         }
+        // The same answers for the document, each with its first reason (analysis.path.reuse).
+        const auto version = [](const QJsonObject &v, int want) {
+            return QStringLiteral("version %1, want %2").arg(v[QStringLiteral("code")].toInt()).arg(want);
+        };
+        const auto scopeOf = [&vp] { return vp[QStringLiteral("scope")].toString(); };
+        const bool anyOverride = !ls.job.tuningOverrides.isEmpty();
+        QMap<QString, QString> &reuse = ls.job.path.reuse;
+        const QString reused = QStringLiteral("reused");
+        const QString noRecord = QStringLiteral("no record");
+        reuse[QStringLiteral("pose")] =
+              !ls.job.posePreloaded.frames.empty() ? reused
+            : poseOverride ? QStringLiteral("tuning override")
+            : vp.isEmpty() ? noRecord
+            : vp[QStringLiteral("code")].toInt() != kPoseStageVersion ? version(vp, kPoseStageVersion)
+            : vp[QStringLiteral("model")].toString() != PoseRunner::modelIdentity(ls.job.motionCaptureQuality) ? QStringLiteral("model changed")
+            : (scopeOf() != QLatin1String("full") && scopeOf() != wantScope) ? QStringLiteral("scope %1, want %2").arg(scopeOf(), wantScope)
+            : ls.job.cameraSources.empty() ? QStringLiteral("no face-on camera")
+                                           : QStringLiteral("recorded track is empty");
+        reuse[QStringLiteral("ball")] =
+              !ls.job.ballPreloaded.frames.empty() ? reused
+            : ls.job.posePreloaded.frames.empty() ? QStringLiteral("needs a reloaded pose")
+            : vb.isEmpty() || !ls.analysisIn.contains(QStringLiteral("ball")) ? noRecord
+            : vb[QStringLiteral("code")].toInt() != kBallStageVersion ? version(vb, kBallStageVersion)
+                                                                     : QStringLiteral("recorded track is empty");
+        reuse[QStringLiteral("shaft")] =
+              !ls.job.shaftPreloaded.samples.empty() ? reused
+            : ls.job.ballPreloaded.frames.empty() ? QStringLiteral("needs a reloaded ball")
+            : anyOverride ? QStringLiteral("tuning override")
+            : vs.isEmpty() || !ls.analysisIn.contains(QStringLiteral("club")) ? noRecord
+            : vs[QStringLiteral("code")].toInt() != kShaftStageVersion ? version(vs, kShaftStageVersion)
+            : shaftMatch ? QStringLiteral("no usable track, or no ladder with it")
+                         : QStringLiteral("not reusable");
+        reuse[QStringLiteral("ladder")] = ls.job.ladderPreloaded ? reused : reuse[QStringLiteral("shaft")];
+        reuse[QStringLiteral("poseDtl")] =
+              !ls.job.poseDtlPreloaded.frames.empty() ? reused
+            : ls.job.dtlSource == kInvalidSourceId ? QStringLiteral("no down-the-line camera")
+            : poseOverride ? QStringLiteral("tuning override")
+            : vpd.isEmpty() || !ls.analysisIn.contains(QStringLiteral("poseDtl")) ? noRecord
+            : vpd[QStringLiteral("code")].toInt() != kDtlPoseStageVersion ? version(vpd, kDtlPoseStageVersion)
+            : vpd[QStringLiteral("model")].toString() != PoseRunner::modelIdentity(ls.job.motionCaptureQuality) ? QStringLiteral("model changed")
+                                                                                                                : QStringLiteral("recorded track is empty");
         ppInfo() << "[Reanalysis]" << swingDir << "reuse: pose"
                  << (ls.job.posePreloaded.frames.empty() ? "re-run" : "recorded") << "ball"
                  << (ls.job.ballPreloaded.frames.empty() ? "re-run" : "recorded") << "shaft"

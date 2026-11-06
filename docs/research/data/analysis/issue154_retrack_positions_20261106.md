@@ -81,3 +81,29 @@ An independent read of the change found no defect in it. It found these limits, 
   it on one frame of about 220, and several had only 2–3 % margin at the top.
 - The pose bump leaves the down-the-line pose reused, so a swing can hold a new face-on pose beside a
   DTL pose scheduled around its old ladder.
+
+## The corpus sweep
+
+Run on the cabin PC on 6 Nov 2026 over the 139 corpus swings with video, in place, with
+`kPoseStageVersion` 2, `kDtlPoseStageVersion` 3 and the path record. Three normal write-backs, then
+the ledgers of all 18 sessions were regraded after the second. No swing failed or timed out. Data:
+`issue154_sweep_positions.csv`, `issue154_sweep_swings.csv`, `issue154_sweep_settled.csv`.
+
+- First to second write-back: 0 of 1,240 positions moved.
+- Second to third: every position the same on all 139 swings, and metrics identical on 137. The
+  other two differ by up to 5.3 on `pelvisAngularSpeed`.
+- First to second, metrics: 24 swings differ, once. The worst is 1,583 on `pelvisAngularSpeed`, on a
+  swing whose kinematic sequence changed route, so that compares two routes rather than one reading.
+  On 7 of the 24 the re-applied follow-through check demoted samples. The rest are the same family
+  of first-reuse differences as above, not traced swing by swing.
+- Metrics: 9,412 before, 10,546 after, on the code the stored results predated.
+- Stored against after, positions: P2, P3, P5, P6 and P7 barely move (median under 1 ms). Moves over
+  50 ms are mostly P1, P8 and P10 on the October sessions, whose stored tracks came from the old
+  two-pass crop. Those sessions have no truth marks. Medians and p90s against the hand marks are the
+  same or slightly better; the worst P8 goes from 21 to 56 ms.
+- P8 outside 30–300 ms after impact: 20 swings before, 16 after.
+- One regression: `2026-10-20_Jess-Ratcliffe_Wrist_01/swing_0006` had a valid track and is now
+  refused (`phaseSuspect`): a club length of 658 px against 364 and P1 about 1.5 s late. It shows no
+  club metrics. Four swings went the other way and now have them.
+
+Not compared: which diagnostic conditions changed in the regraded ledgers.

@@ -335,6 +335,7 @@ def strip(doc):
     a.pop('skeleton3d', None)
     a.get('versions', {}).pop('skeleton3d', None)
     a.pop('timings', None)
+    a.pop('path', None)
     doc.pop('runmeta', None)
     return doc
 

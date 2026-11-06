@@ -11,7 +11,7 @@ the club rate and nothing else" is a measurement and not a hope.
 """
 import json, os, sys
 
-IGNORE = {"timings"}
+IGNORE = {"timings", "path"}
 
 
 def load(p):

@@ -62,7 +62,7 @@ def main():
         aa = {kk: vv for kk, vv in analysis_of(da).items() if kk != "metrics"}
         bb = {kk: vv for kk, vv in analysis_of(db).items() if kk != "metrics"}
         for kk in sorted(set(aa) | set(bb)):
-            if kk in ("timings",): continue
+            if kk in ("timings", "path"): continue
             if aa.get(kk) != bb.get(kk): other.append((k, f"analysis.{kk} differs"))
     print(f"swings paired: {len([k for k in keys if k in A and k in B])}")
     print(f"value/t_us differences: {value_diffs}")

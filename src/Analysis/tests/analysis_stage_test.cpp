@@ -128,6 +128,28 @@ int main()
               "canRun=false: trace has ran=false + the stage's skipReason");
     }
 
+    // Every skip says something, and a stage that ran says how: a stage that declares neither gets
+    // the base answers, so the document never holds a bare ran: false or an unexplained ran: true.
+    {
+        class Plain : public AnalysisStage {
+        public:
+            explicit Plain(bool go) : m_go(go) {}
+            QString name() const override { return QStringLiteral("Plain"); }
+            bool canRun(const AnalysisContext &) const override { return m_go; }
+            void run(AnalysisContext &) override {}
+        private:
+            bool m_go;
+        };
+        SessionProfile profile;
+        profile.stages.push_back(std::make_unique<Plain>(true));
+        profile.stages.push_back(std::make_unique<Plain>(false));
+        AnalysisContext ctx{ caps, job, nullptr };
+        runStages(profile, ctx);
+        check(ctx.trace[0].ran && ctx.trace[0].source == QStringLiteral("computed"), "a stage that ran records its source");
+        check(!ctx.trace[1].ran && !ctx.trace[1].skipReason.isEmpty() && ctx.trace[1].source.isEmpty(),
+              "a skip always has a reason, and no source");
+    }
+
     // 3. ctx.halted ⇒ every subsequent stage is skipped with reason "halted", run() never
     //    called, even for a stage whose own canRun() would return true.
     {

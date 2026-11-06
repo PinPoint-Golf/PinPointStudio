@@ -491,6 +491,7 @@ private:
 //    the analysis degrades to the camera-only (pose) path.
 struct ImuResampleStage : AnalysisStage {
     QString name() const override { return QStringLiteral("ImuResample"); }
+    QString skipReason(const AnalysisContext &) const override { return QStringLiteral("no motion sensors"); }
     StageDecl decl() const override { return D({ kWindowImu }, { kStreams, kDoRefuse }, {}); }
     bool canRun(const AnalysisContext &ctx) const override { return !ctx.caps.imus.empty(); }
     void run(AnalysisContext &ctx) override
@@ -534,6 +535,7 @@ struct ImuResampleStage : AnalysisStage {
 // 2. Phase segmentation — IMU-derived, so it needs fused streams.
 struct ImuSegmentationStage : AnalysisStage {
     QString name() const override { return QStringLiteral("ImuSegmentation"); }
+    QString skipReason(const AnalysisContext &) const override { return QStringLiteral("no sensor streams"); }
     StageDecl decl() const override { return D({ kStreams }, { kSegImu }, {}); }
     bool canRun(const AnalysisContext &ctx) const override { return ctx.hasImuStreams(); }
     void run(AnalysisContext &ctx) override
@@ -548,6 +550,7 @@ struct ImuSegmentationStage : AnalysisStage {
 //    shaft qHand sampling keeps the full streams.
 struct WristMetricsStage : AnalysisStage {
     QString name() const override { return QStringLiteral("WristMetrics"); }
+    QString skipReason(const AnalysisContext &) const override { return QStringLiteral("no sensor ladder"); }
     StageDecl decl() const override { return D({ kSegImu, kStreams }, { kCtxSeries }, {}); }
     bool canRun(const AnalysisContext &ctx) const override { return ctx.segImu.has_value(); }
     void run(AnalysisContext &ctx) override
@@ -584,6 +587,11 @@ static void logPoseTiming(const char *camera, const pinpoint::pose::PoseTiming &
 //    resolved runner options for the ball/shaft stages.
 struct PoseStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Pose"); }
+    QString runSource(const AnalysisContext &ctx) const override
+    {
+        return !ctx.job.posePreloaded.frames.empty() || !ctx.job.poseTrackPath.isEmpty()
+            ? QStringLiteral("loaded") : QStringLiteral("computed");
+    }
     StageDecl decl() const override { return D({ kWindowFaceOn, kSegImu }, { kPose2d, kRunnerOpt }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
@@ -731,6 +739,11 @@ struct PoseSmoothStage : AnalysisStage {
 //    production ball detector offline over this frozen window. Empty is a valid no-op.
 struct BallStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Ball"); }
+    QString runSource(const AnalysisContext &ctx) const override
+    {
+        return !ctx.job.ballPreloaded.frames.empty() || !ctx.job.ballTrackPath.isEmpty() || !ctx.job.ballTrack.frames.empty()
+            ? QStringLiteral("loaded") : QStringLiteral("computed");
+    }
     StageDecl decl() const override { return D({ kWindowFaceOn, kRunnerOpt, kPose2d }, { kBall }, {}); }
     StageDecl declFor(const ShotAnalysisJob &job) const override { return viaFrameStore(decl(), job); }
     bool canRun(const AnalysisContext &ctx) const override
@@ -761,6 +774,7 @@ struct BallStage : AnalysisStage {
 //     valid no-op: the overlay draws nothing and the doc carries no block.
 struct ImpactStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Impact"); }
+    QString skipReason(const AnalysisContext &) const override { return QStringLiteral("no impact camera stream"); }
     StageDecl decl() const override { return D({ kWindowImpact }, { kImpact }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
@@ -785,6 +799,10 @@ struct ImpactStage : AnalysisStage {
 //    segmentation to fall back on.
 struct ShaftStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Shaft"); }
+    QString runSource(const AnalysisContext &ctx) const override
+    {
+        return !ctx.job.shaftPreloaded.samples.empty() ? QStringLiteral("loaded") : QStringLiteral("computed");
+    }
     StageDecl decl() const override { return D({ kWindowFaceOn, kBall, kPose2d, kStreams, kSegImu, kSeg }, { kShaft, kSegVision, kFoWitness, kDetailBall }, {}); }
     StageDecl declFor(const ShotAnalysisJob &job) const override { return viaFrameStore(decl(), job); }
     bool canRun(const AnalysisContext &ctx) const override { return ctx.ball.has_value(); }
@@ -1114,6 +1132,14 @@ struct RequireProductsStage : AnalysisStage {
 //     a no-op run, so ctx.seg is code-path-identical when off.
 struct EventRefineStage : AnalysisStage {
     QString name() const override { return QStringLiteral("EventRefine"); }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        if (!EventRefineConfig::fromOverrides(ctx.job.tuningOverrides).enabled) return QStringLiteral("refine.enabled is off");
+        if (ctx.job.ladderPreloaded) return QStringLiteral("the recorded ladder is already refined");
+        if (imuSegmentationAdopted(ctx.segImu)) return QStringLiteral("the sensor ladder was adopted");
+        if (!ctx.detail->shaft.valid) return QStringLiteral("no valid shaft track");
+        return QStringLiteral("no vision ladder to refine");
+    }
     // Writes kShaft as well as kSeg: a refined Address drags P1 with it (event_refine.cpp).
     StageDecl decl() const override { return D({ kSegImu, kShaft, kDetailBall, kSeg }, { kSeg, kShaft }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
@@ -1169,6 +1195,13 @@ struct EventRefineStage : AnalysisStage {
 //     strict subset of fusion's). This stage retires when that flag freezes ON.
 struct PositionsLadderStage : AnalysisStage {
     QString name() const override { return QStringLiteral("PositionsLadder"); }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        if (!PositionsLadderConfig::fromOverrides(ctx.job.tuningOverrides).enabled) return QStringLiteral("refine.positionsLadder is off");
+        if (ctx.job.ladderPreloaded) return QStringLiteral("the recorded ladder already has its positions");
+        if (TimelineFusionConfig::fromOverrides(ctx.job.tuningOverrides).enabled) return QStringLiteral("refine.fusion is on");
+        return QStringLiteral("no positions or no events");
+    }
     StageDecl decl() const override { return D({ kShaft, kSeg }, { kSeg }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
@@ -1196,6 +1229,12 @@ struct PositionsLadderStage : AnalysisStage {
 //     parity baseline the corpus gate measures against.
 struct TimelineFusionStage : AnalysisStage {
     QString name() const override { return QStringLiteral("TimelineFusion"); }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        if (!TimelineFusionConfig::fromOverrides(ctx.job.tuningOverrides).enabled) return QStringLiteral("refine.fusion is off");
+        if (ctx.job.ladderPreloaded) return QStringLiteral("the recorded ladder is already fused");
+        return QStringLiteral("no positions or no events");
+    }
     StageDecl decl() const override { return D({ kShaft, kSeg }, { kSeg }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
@@ -1939,6 +1978,10 @@ struct ResemblanceStage : AnalysisStage {
 //     Overrides the headline score, clears the interval.
 struct AssessmentStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Assessment"); }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        return ctx.hasImuStreams() ? QStringLiteral("no wrist series") : QStringLiteral("no sensor streams");
+    }
     StageDecl decl() const override { return D({ kCtxSeries, kStreams, kSeries, kPhases }, { kScore }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
@@ -1982,6 +2025,11 @@ struct AssessmentStage : AnalysisStage {
 //     re-derives .enabled and run() rebuilds the full config.
 struct PoseAssessmentStage : AnalysisStage {
     QString name() const override { return QStringLiteral("PoseAssessment"); }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        if (!PoseWristAngleConfig::fromOverrides(ctx.job.tuningOverrides).enabled) return QStringLiteral("pose.wristAngles is off");
+        return ctx.hasImuStreams() ? QStringLiteral("sensors are present") : QStringLiteral("no face-on pose");
+    }
     StageDecl decl() const override { return D({ kStreams, kPose2d, kPhases }, { kScore }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
@@ -2071,6 +2119,11 @@ struct PoseAssessmentStage : AnalysisStage {
 //      dtl_shaft_tracker_design.md §5.3 forbids. Hence explicit bounds and twoPass = false.
 struct DtlPoseStage : AnalysisStage {
     QString name() const override { return QStringLiteral("DtlPose"); }
+    QString runSource(const AnalysisContext &ctx) const override
+    {
+        return !ctx.job.poseDtlPreloaded.frames.empty() || !ctx.job.poseDtlTrackPath.isEmpty()
+            ? QStringLiteral("loaded") : QStringLiteral("computed");
+    }
     StageDecl decl() const override { return D({ kWindowDtl, kPose2d, kSeg }, { kPoseDtl }, {}); }
     // pose.dtlEarly: the ladder comes from the IMU segmentation or the face-on pose's own span
     // estimate (early()), so the stage no longer waits on seg — under analysis.parallel it
@@ -3173,6 +3226,10 @@ struct KinematicSequenceStage : AnalysisStage {
 //      it is the 3-D swing panel's input until the design §8.2 grade promotes it.
 struct Skeleton3DStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Skeleton3D"); }
+    QString runSource(const AnalysisContext &ctx) const override
+    {
+        return ctx.detail->skeleton3d.valid ? QStringLiteral("computed") : QStringLiteral("refused");
+    }
     StageDecl decl() const override { return D({ kPose2d, kPoseDtl, kShaft, kShaftDtl, kSeg, kDetailBall, kStreams, kSeries, kCtxSeries }, { kSkeleton3d }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
@@ -4260,6 +4317,33 @@ static void logOpenCvPoolOnce()
     });
 }
 
+// analysis.path: which way each decision went, from what finally happened. One place, after the
+// stages, so nothing here depends on the order they ran in. It reads the outcome; it decides nothing.
+static void bindAnalysisPath(AnalysisContext &ctx)
+{
+    if (!ctx.detail) return;
+    AnalysisPath p = ctx.job.path;
+    p.fullWindow = ctx.job.fullWindow;
+    p.overrides  = ctx.job.tuningOverrides.keys();
+    if (p.origin == QLatin1String("live")) {
+        if (ctx.job.faceOnCameraCount > 0 && !ctx.job.cameraSources.empty())
+            p.framesFaceOn = QStringLiteral("live");
+        if (ctx.job.dtlSource != pinpoint::kInvalidSourceId) p.framesDtl = QStringLiteral("live");
+    }
+    p.pose = !ctx.job.posePreloaded.frames.empty() ? QStringLiteral("recorded")
+           : !ctx.job.poseTrackPath.isEmpty()      ? QStringLiteral("injected")
+                                                   : ctx.detail->pose2d.scanPath;
+    p.ladder = QString::fromLatin1(segmentationSourceName(ctx.segImu, ctx.segVision, ctx.job.ladderPreloaded));
+    if (ctx.foWitness)
+        p.witness = !ctx.job.shaftPreloaded.samples.empty() ? QStringLiteral("flags") : QStringLiteral("traced");
+    if (!ctx.job.shaftPreloaded.samples.empty())
+        p.trackerSpan = QStringLiteral("recorded");
+    else if (!ctx.detail->shaft.samples.empty())
+        p.trackerSpan = ctx.job.fullWindow || !ShaftV3Config::fromOverrides(ctx.job.tuningOverrides).spanBound
+                            ? QStringLiteral("window") : QStringLiteral("bounded");
+    ctx.detail->path = std::move(p);
+}
+
 void runProfile(const SessionProfile &profile, AnalysisContext &ctx)
 {
     bool parallel = pinpoint::tuned::dag::kParallel;
@@ -4286,6 +4370,7 @@ void runProfile(const SessionProfile &profile, AnalysisContext &ctx)
     }
     attachStagePreds(ctx, graph);
     bindStageTimings(ctx);
+    bindAnalysisPath(ctx);
 }
 
 QJsonObject analysisGraphJson(const std::vector<StageTiming> *timeline, const ShotAnalysisJob *job)

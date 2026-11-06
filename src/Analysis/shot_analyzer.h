@@ -137,6 +137,9 @@ struct ShotAnalysisJob {
     // The scope the reused pose was recorded with. It describes those frames, so the write-back keeps
     // it: stamping this run's scope would call a full-window pose "span" and re-pose it next time.
     QString posePreloadedScope;
+    // Where this run came from and what it could reuse. The reanalyzer fills it; a live shot keeps
+    // the defaults. The pipeline completes it into SwingAnalysis::path.
+    pinpoint::analysis::AnalysisPath path;
     pinpoint::analysis::BallTrack2D ballPreloaded;
     // The DOWN-THE-LINE pose, the same two ways (DtlPoseStage). `poseDtlPreloaded` is a track
     // already in hand; `poseDtlTrackPath` is SwingLab's `--dtl-pose`, which pins the DTL pose so a

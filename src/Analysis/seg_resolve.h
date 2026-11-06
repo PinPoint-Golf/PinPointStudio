@@ -58,4 +58,15 @@ inline Segmentation resolveSegmentation(const std::optional<Segmentation> &segIm
     return segImu ? *segImu : Segmentation{};
 }
 
+// Which of those won, for the document (analysis.path.ladder). Keep in step with the order above.
+inline const char *segmentationSourceName(const std::optional<Segmentation> &segImu,
+                                          const std::optional<Segmentation> &segVision,
+                                          const std::optional<Segmentation> &ladderPreloaded)
+{
+    if (ladderPreloaded) return "recorded";
+    if (imuSegmentationAdopted(segImu)) return "sensors";
+    if (segVision && segVision->conf > 0.f) return "vision";
+    return segImu ? "sensorClamp" : "none";
+}
+
 } // namespace pinpoint::analysis

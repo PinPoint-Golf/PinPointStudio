@@ -185,6 +185,7 @@ struct CaptureCapabilities {
 struct StageTraceEntry {
     QString name;
     bool    ran        = false;   // false ⇒ the stage was skipped
+    QString source;               // when it ran: AnalysisStage::runSource
     QString skipReason;           // "halted", or the canRun skip reason; empty when ran
     qint64  elapsedNs  = 0;       // run() wall time; 0 when skipped
     // WHEN, not just how long (analysis_dag_design.md step A): offsets from the start of
@@ -381,8 +382,12 @@ public:
     virtual ~AnalysisStage() = default;
     virtual QString name() const = 0;
     virtual bool    canRun(const AnalysisContext &) const { return true; }
-    virtual QString skipReason(const AnalysisContext &) const { return QString(); }
+    virtual QString skipReason(const AnalysisContext &) const { return QStringLiteral("run condition not met"); }
     virtual void    run(AnalysisContext &) = 0;
+    // Asked after run(): what running meant this time. ran alone can't tell a stage that did the
+    // work from one that loaded a track instead of producing it, or (Skeleton3D, one camera)
+    // started and refused. Only the stages that can do so override it.
+    virtual QString runSource(const AnalysisContext &) const { return QStringLiteral("computed"); }
     // What run() and canRun() read and write (StageDecl). Undeclared ⇒ a barrier.
     virtual StageDecl decl() const { StageDecl d; d.barrier = true; return d; }
     // The same for one job, where a tuning key changes what the stage reads (DtlPose under
@@ -419,6 +424,7 @@ inline void runStages(const SessionProfile &profile, AnalysisContext &ctx)
             t.start();
             stage->run(ctx);
             e.ran       = true;
+            e.source    = stage->runSource(ctx);
             e.elapsedNs = t.nsecsElapsed();
         }
         e.endNs = clock.nsecsElapsed();
@@ -438,6 +444,7 @@ inline void bindStageTimings(AnalysisContext &ctx)
         StageTiming s;
         s.name       = e.name;
         s.ran        = e.ran;
+        s.source     = e.source;
         s.skipReason = e.skipReason;
         s.ms         = double(e.elapsedNs) / 1e6;
         s.startMs    = double(e.startNs) / 1e6;

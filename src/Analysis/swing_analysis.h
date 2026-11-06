@@ -22,11 +22,13 @@
 #include "../Body/address_marks.h"
 
 #include <QHash>
+#include <QMap>
 #include <QMetaType>
 #include <QPointF>
 #include <QQuaternion>
 #include <QRectF>
 #include <QString>
+#include <QStringList>
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -442,9 +444,29 @@ struct PoseKpAux {                       // per-frame per-keypoint smoother hone
     std::array<float, kWholeBodyJoints>   sigma{};  // posterior σ (px); 0 = no smoothed value
 };
 
+// The path one analysis took (analysis.path; docs/developer/analysis_pipeline_activity.pdf).
+// timings.stages can't say this: reuse is decided inside a stage, so a stage that loaded its result
+// and one that computed it both ran. Written once, when the stages have finished (bindAnalysisPath),
+// from what really happened. Telemetry for people: nothing reads it back to choose a path.
+struct AnalysisPath {
+    QString     origin;                            // "live" | "reanalysis" | "replay" (swinglab off disk, no reuse gate)
+    bool        forced = false;                    // swinglab --force-rerun
+    bool        fullWindow = false;
+    QStringList overrides;                         // tuning keys in play; empty in production
+    QString     framesFaceOn, framesDtl;           // "live" | "raw" | "mp4"
+    QMap<QString, QString> reuse;                  // pose, ball, shaft, ladder, poseDtl: "reused" or why not
+    QString     pose;                              // "recorded" | "injected" | PoseTrack2D::scanPath
+    QString     ladder;                            // segmentationSourceName (seg_resolve.h)
+    QString     witness;                           // "traced" | "flags" | empty: none built
+    QString     trackerSpan;                       // "bounded" | "window" | "recorded" | empty: no track
+};
+
 struct PoseTrack2D {
     pinpoint::SourceId camera = pinpoint::kInvalidSourceId;
     std::vector<PoseFrame2D> frames;
+    // How PoseRunner chose its frames: "bounded" (a given span), "twoPass", "twoPassWindow" (the
+    // coarse pass found no span, so pass 2 filled the window), "window". Empty on a loaded track.
+    QString scanPath;
     // Offline-smoothed companion track (pose_smoother.cpp, Motion overlay):
     // parallel to `frames` (same t_us grid, normalized kp; conf carries the
     // render-alpha contract), with per-kp honesty in `smoothedAux`. Empty on
@@ -976,6 +998,8 @@ struct BindingRecord {
 struct StageTiming {
     QString name;
     bool    ran = false;
+    QString source;       // when it ran: "computed", "loaded" (a track it did not produce: the document,
+                          // an injected file, the live detector's) or "refused" inside the stage
     QString skipReason;
     double  ms = 0.0;
     double  startMs = 0.0;
@@ -1075,6 +1099,7 @@ struct SwingAnalysis {
     BallTrack2D               ball;    // face-on ball track for the replay overlay (empty ⇒ none)
     ImpactTrack2D             impact;  // the impact camera's ball + club track (check .valid)
     AnalysisTimings           timings; // per-stage wall times (telemetry); -1 = not measured
+    AnalysisPath              path;     // which way each decision went (analysis.path)
     AnalysisVersions          versions; // producer versions (analysis_versions.h) — stamped by the stages, persisted, gate re-analysis reuse
     // The kinematic sequence — the ordered peaks of the four segment angular-speed series that
     // ALSO sit in `series` (segment_rates.h). `valid` false ⇒ no route produced a node; the

@@ -344,6 +344,7 @@ inline void runStagesParallel(const SessionProfile &profile, const StageGraph &g
                     stage.run(ctx);
                     e.elapsedNs = t.nsecsElapsed();
                     e.ran = true;
+                    e.source = stage.runSource(ctx);
                 }
             } catch (...) {
                 thrown = std::current_exception();

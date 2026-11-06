@@ -1270,6 +1270,7 @@ int main(int argc, char **argv)
             for (const auto &st : result.detail->timings.stages) {
                 QJsonObject so{ { "name", st.name }, { "ran", st.ran }, { "ms", st.ms },
                                 { "startMs", st.startMs }, { "endMs", st.endMs }, { "thread", st.thread } };
+                if (!st.source.isEmpty()) so["source"] = st.source;
                 if (!st.skipReason.isEmpty()) so["skipReason"] = st.skipReason;
                 stages.append(so);
             }

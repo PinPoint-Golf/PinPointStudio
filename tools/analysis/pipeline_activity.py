@@ -45,48 +45,48 @@ SR = "src/Analysis/seg_resolve.h"
 # ── The decisions ────────────────────────────────────────────────────────────
 # kept: none = nowhere, log = app log only, part = partly in the document, doc = in the document.
 DECISIONS = {
-    "force": dict(q="Forced re-run?", kept="none", src=(RA, "if (!opts.forceRerun)"),
-        where="Nowhere. The reuse log line sits inside this branch, so a forced run doesn't even log it.",
+    "force": dict(q="Forced re-run?", kept="doc", src=(RA, "if (!opts.forceRerun)"),
+        where='In the document: path.forced, and every reuse verdict says "forced".',
         why="swinglab only; the app never sets it. Throws away every recorded track."),
-    "over": dict(q="Tuning overrides?", kept="none", src=(RA, "bool poseOverride = false;"),
-        where="Nowhere in the document. swinglab prints one line to stderr.",
+    "over": dict(q="Tuning overrides?", kept="doc", src=(RA, "bool poseOverride = false;"),
+        where='In the document: path.overrides lists the keys.',
         why="A pose., ball. or address key re-runs pose. Any key at all re-runs the shaft."),
-    "raw": dict(q=".raw on disk?", kept="log", src=(RA, "if (QFile::exists(rawPath)) {"),
-        where="Log only: an Mp4Reader line appears when the MP4 was read.",
+    "raw": dict(q=".raw on disk?", kept="doc", src=(RA, "if (QFile::exists(rawPath)) {"),
+        where='In the document: path.frames, one answer per camera.',
         why="Raw frames or the compressed MP4. Everything downstream sees different pixels."),
-    "pose": dict(q="Reload face-on pose?", kept="log", src=(RA, "const bool poseMatch = !poseOverride"),
-        where="Log only, one [Reanalysis] line. The document says ran: true either way.",
+    "pose": dict(q="Reload face-on pose?", kept="doc", src=(RA, "const bool poseMatch = !poseOverride"),
+        where='In the document: path.reuse.pose, with the first reason if refused. The stage records source: loaded.',
         why="Pose version, model file and scope all match, and no pose override."),
-    "ball": dict(q="Reload ball?", kept="log", src=(RA, "const bool ballMatch = "),
-        where="Log only. ran: true either way.",
+    "ball": dict(q="Reload ball?", kept="doc", src=(RA, "const bool ballMatch = "),
+        where='In the document: path.reuse.ball, and source: loaded.',
         why="Needs a reloaded pose and a matching ball version."),
-    "shaft": dict(q="Reload shaft track?", kept="log", src=(RA, "const bool shaftMatch = "),
-        where="Log only. ran: true either way.",
+    "shaft": dict(q="Reload shaft track?", kept="doc", src=(RA, "const bool shaftMatch = "),
+        where='In the document: path.reuse.shaft, and source: loaded.',
         why="Reloaded ball, matching shaft version, a recorded track, and NO tuning override of any kind."),
-    "ladder": dict(q="Ladder recorded?", kept="part", src=(RA, "ls.job.ladderPreloaded = segmentationFromAnalysisJson"),
-        where="Partly: EventRefine and TimelineFusion show ran: false, with no reason.",
+    "ladder": dict(q="Ladder recorded?", kept="doc", src=(RA, "ls.job.ladderPreloaded = segmentationFromAnalysisJson"),
+        where='In the document: path.reuse.ladder, and each stood-down stage gives its reason.',
         why="A track without its ladder cancels shaft reuse. With one, the ladder stages stand down."),
-    "dtlpose": dict(q="Reload DTL pose?", kept="log", src=(RA, "const bool poseDtlMatch = "),
-        where="Log only. ran: true either way.",
+    "dtlpose": dict(q="Reload DTL pose?", kept="doc", src=(RA, "const bool poseDtlMatch = "),
+        where='In the document: path.reuse.poseDtl, and source: loaded.',
         why="Independent of the face-on decision, so a swing can hold a new face-on pose beside an old DTL one."),
-    "scan": dict(q="Which pose path?", kept="part", src=(P, "if (segImu.conf > 0.f && !ctx.job.fullWindow) {"),
-        where='Partly: scope says "span" for both bounded and two-pass. Only the log separates them.',
+    "scan": dict(q="Which pose path?", kept="doc", src=(P, "if (segImu.conf > 0.f && !ctx.job.fullWindow) {"),
+        where='In the document: path.pose is bounded, twoPass, twoPassWindow, window or recorded.',
         why="The branch #154 was hiding behind."),
-    "span": dict(q="Coarse pass found a span?", kept="log", src=(PR, "two-pass: no swing span from the coarse pass"),
-        where="Log only, one warning.", why="If not, pass 2 fills the whole window."),
+    "span": dict(q="Coarse pass found a span?", kept="doc", src=(PR, "two-pass: no swing span from the coarse pass"),
+        where='In the document: path.pose reads twoPassWindow when no span was found.', why="If not, pass 2 fills the whole window."),
     "crop": dict(q="Crop accepted?", kept="doc", src=(PR, "auto makeCrop = [&]"),
         where="In the document: pose2d.cropRect, absent when full-frame.",
         why="A crop of 90 % of the frame or more, or too few bbox frames, falls back to full-frame."),
-    "bound": dict(q="Tracker span-bounded?", kept="none", src=(ST, "if (job.fullWindow)"),
-        where="Nowhere, and not logged.", why="--full-window turns it off. Series lengths change; positions don't."),
+    "bound": dict(q="Tracker span-bounded?", kept="doc", src=(ST, "if (job.fullWindow)"),
+        where='In the document: path.trackerSpan is bounded, window or recorded.', why="--full-window turns it off. Series lengths change; positions don't."),
     "demote": dict(q="Implausible samples?", kept="part", src=(P, "const int windowDemoted = demoteImplausibleImpactWindow"),
         where="Partly: demoted samples carry a flag, not that a reuse pass set it.",
         why="The checks run again on every reuse, and can demote one more sample than the fresh run did."),
-    "witness": dict(q="DTL witness source?", kept="log", src=(P, "buildFaceOnWitness(ctx.detail->shaft, nullptr, ctx.job.impactUs)"),
-        where='Log only: "witness traced" or "from reused flags".',
+    "witness": dict(q="DTL witness source?", kept="doc", src=(P, "buildFaceOnWitness(ctx.detail->shaft, nullptr, ctx.job.impactUs)"),
+        where='In the document: path.witness is traced or flags.',
         why="Shifted 2 of 410 published DTL frames on one swing."),
-    "seg": dict(q="Which ladder wins?", kept="part", src=(SR, "if (ladderPreloaded) return *ladderPreloaded;"),
-        where="Partly: phases carry a role and the ladder a confidence. Nothing states which won.",
+    "seg": dict(q="Which ladder wins?", kept="doc", src=(SR, "if (ladderPreloaded) return *ladderPreloaded;"),
+        where='In the document: path.ladder is recorded, sensors, vision or sensorClamp.',
         why="Reused, then adopted sensors, then vision, then the sensor clamp."),
     "ballp1": dict(q="Ball found at address?", kept="part", src=(ST, "if (!ns || !(ns->flags & ShaftBallAnchored)) continue;"),
         where="Partly: club.addressBall is absent when no ball anchored.",
@@ -438,10 +438,10 @@ def flow():
                  A("WristMetrics", "Wrist series.", when="a sensor ladder exists")),
              A("Impact", "Impact camera frames around the strike.", when=GATE["Impact"])),
         Jump("faceon"))),
-    ("faceon", "3  Face-on pose, ball and shaft", "The heart of #154: each producer either loads or computes, and the document says ran: true both ways.", Seq(
+    ("faceon", "3  Face-on pose, ball and shaft", "The heart of #154: each producer either loads or computes. Since the path record, the document says which.", Seq(
         Jump("inputs", True),
         If("posePreloaded?",
-            Act("Pose: load", "Copy the recorded track. 0 ms, recorded as ran: true.", stage="Pose", kind="load"),
+            Act("Pose: load", "Copy the recorded track. 0 ms, recorded as source: loaded.", stage="Pose", kind="load"),
             Seq(If("scan",
                     Act("Pose: one bounded pass", "Sensor span plus pad, address hold reached back sparsely.", stage="Pose"),
                     If("--full-window?",
@@ -452,9 +452,9 @@ def flow():
                     "sensor span", "none"),
                 If("crop", None, Act("Pose full-frame", "No crop.", kind="note"))), "yes", "no"),
         A("PoseSmooth", "Motion overlay smoother, on loaded and computed tracks alike.", when="pose has frames"),
-        If("ballPreloaded?", Act("Ball: load", "0 ms, recorded as ran: true.", stage="Ball", kind="load"), Act("Ball: replay", "Tracks the ball through the window.", stage="Ball"), "yes", "no"),
+        If("ballPreloaded?", Act("Ball: load", "0 ms, recorded as source: loaded.", stage="Ball", kind="load"), Act("Ball: replay", "Tracks the ball through the window.", stage="Ball"), "yes", "no"),
         If("shaftPreloaded?",
-            Seq(Act("Shaft: load", "3 ms, recorded as ran: true.", stage="Shaft", kind="load"),
+            Seq(Act("Shaft: load", "3 ms, recorded as source: loaded.", stage="Shaft", kind="load"),
                 If("demote", Act("Demote them", "The plausibility checks run again on a reloaded track.", kind="note"), None),
                 Act("Rebuild the synth", "From the recorded samples and P1.", kind="note")),
             If("bound", Act("Track the swing span", "The default.", stage="Shaft"), Act("Track the whole window", "--full-window only.", stage="Shaft")), "yes", "no"),
@@ -498,7 +498,7 @@ def flow():
     ("skel", "7  Skeleton and sequence", "The 3-D fit needs both cameras, but it starts either way.", Seq(
         Jump("dtl", True),
         If("Two cameras?", A("Skeleton3D", "Rigid skeleton fit to both poses, the shaft and any sensors."),
-           Act("Skeleton3D: refuses", "Starts, stops at 1 ms. Recorded as ran: true.", stage="Skeleton3D", kind="silent"), "yes", "no"),
+           Act("Skeleton3D: refuses", "Starts, stops at 1 ms. Recorded as source: refused.", stage="Skeleton3D", kind="silent"), "yes", "no"),
         Fork(Seq(A("BodyRotationTriangulated", "", when=GATE["BodyRotationTriangulated"]),
                  A("KinematicSequence", "", when=GATE["KinematicSequence"])),
              A("DtlSynth3D", "", when=GATE["DtlSynth3D"])),
@@ -507,7 +507,7 @@ def flow():
         Jump("skel", True),
         Fork(A("Bindings", "Which sensor sat where."), A("Resemblance", "The score against the reference.")),
         If("imu", A("Assessment", "Scored from the sensor lanes."), A("PoseAssessment", "Off by default, so it never runs.", kind="note"), "yes", "no"),
-        Act("Write the document", "versions and timings.stages: name, ran, ms, thread, sometimes a skip reason. No record of the decisions on these pages beyond their Kept tags.", kind="note"),
+        Act("Write the document", "versions; analysis.path, which way each decision went; timings.stages, with each stage's source or its skip reason.", kind="note"),
         Stop("done"))),
     ]
 
@@ -588,7 +588,7 @@ def contents(sections, ctx, dag):
     y += 12
     p.text(M, y, "Reading a page", 11, "F2"); y += 10
     x = M
-    for kind, lab in (("run", "computes"), ("load", "loads from the document"), ("silent", "ran: true, did nothing"), ("note", "a step inside a stage")):
+    for kind, lab in (("run", "computes"), ("load", "loads from the document"), ("silent", "started, then refused"), ("note", "a step inside a stage")):
         f, st, d = {"run": (RUNF, RUNS, None), "load": (LOADF, LOADS, [4, 3]), "silent": (SILF, SILS, [1, 2]), "note": (NOTEF, NOTES, None)}[kind]
         p.rrect(x, y, 22, 12, r=3, fill=f, stroke=st, lw=1, dash=d); p.text(x + 27, y + 9, lab, 7.8); x += 34 + tw(lab, 7.8) + 12
     y += 28
@@ -599,7 +599,8 @@ def contents(sections, ctx, dag):
     p.text(M + 30, y + 3, "bar: fork or join. A join means all of it is finished before what is drawn next; the executor may overlap more, never less.", 7.8)
     y += 12
     nk = sum(1 for d in DECISIONS.values() if d["kept"] in ("none", "log"))
-    p.text(M, y + 12, f"{nk} of {len(DECISIONS)} decisions leave no record in the document. Italic-free fine print inside a box lists what it reads (in) and writes (out), from the executor's export.".replace("Italic-free fine print inside a box lists", "The fine print inside a box lists"), 7.8, color=MUT)
+    np = sum(1 for d in DECISIONS.values() if d["kept"] == "part")
+    p.text(M, y + 12, f"Of {len(DECISIONS)} decisions, {nk} leave no record in the document and {np} are only partly kept. The fine print in a box lists what it reads (in) and writes (out), from the executor's export.", 7.8, color=MUT)
     y += 30
     p.text(M, y, "The decisions", 11, "F2"); y += 13
     cols = (M, M + 112, M + 172, M + 450, M + 662)

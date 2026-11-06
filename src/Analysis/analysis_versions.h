@@ -77,7 +77,9 @@ constexpr int kImpactStageVersion = 1;
 // shaftDtl — kDtlShaftStageVersion: the down-the-line club track (DtlShaftStage).
 //           Stamped; never reused — it is recomputed from the reused poses and face-on
 //           shaft on every re-analysis. Bump when dtl_shaft_* changes its output.
-constexpr int kDtlPoseStageVersion  = 2;   // 2: posed on schedule B (P2 − 50 … P8 + 150 ms dense, backswing ÷2, rest ÷4) (2026-10-06)
+constexpr int kDtlPoseStageVersion  = 3;   // 3: re-pose with the face-on bump: schedule B follows the ladder, and that ladder moved with
+                                           //    the face-on crop, so an older DTL pose is scheduled around the wrong positions (#154, 2026-11-06)
+                                           // 2: posed on schedule B (P2 − 50 … P8 + 150 ms dense, backswing ÷2, rest ÷4) (2026-10-06)
 constexpr int kDtlShaftStageVersion = 6;   // 2: HELD / OCCLUDED_WRIST / OCCLUDED_ROW tiers, END_ON before quarantine,
                                            //    band-edge runs, one drawn length, late escapes refused (2026-10-02)
                                            // 3: per-frame σθ and gross risk (shaft uncertainty design, 2026-10-01)

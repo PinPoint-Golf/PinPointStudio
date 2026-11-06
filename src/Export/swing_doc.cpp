@@ -283,6 +283,30 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
     };
     QJsonObject o;
     o[QStringLiteral("schema")] = QStringLiteral("pinpoint.analysis/3");
+    // Which way each decision went (AnalysisPath): the versions below say what produced a
+    // track, this says whether this run produced it or loaded it, and why.
+    if (!a.path.pose.isEmpty() || !a.path.ladder.isEmpty()) {
+        const auto put = [](QJsonObject &j, const char *k, const QString &v) {
+            if (!v.isEmpty()) j.insert(QString::fromLatin1(k), v);
+        };
+        QJsonObject frames;
+        put(frames, "faceOn", a.path.framesFaceOn);
+        put(frames, "dtl", a.path.framesDtl);
+        QJsonObject reuse;
+        for (auto it = a.path.reuse.cbegin(); it != a.path.reuse.cend(); ++it)
+            reuse.insert(it.key(), it.value());
+        QJsonObject p{ { QStringLiteral("origin"), a.path.origin },
+                       { QStringLiteral("forced"), a.path.forced },
+                       { QStringLiteral("fullWindow"), a.path.fullWindow },
+                       { QStringLiteral("overrides"), QJsonArray::fromStringList(a.path.overrides) },
+                       { QStringLiteral("frames"), frames } };
+        if (!reuse.isEmpty()) p.insert(QStringLiteral("reuse"), reuse);
+        put(p, "pose", a.path.pose);
+        put(p, "ladder", a.path.ladder);
+        put(p, "witness", a.path.witness);
+        put(p, "trackerSpan", a.path.trackerSpan);
+        o[QStringLiteral("path")] = p;
+    }
     // Producer versions (analysis_versions.h): what produced pose / ball / shaft.
     // Re-analysis reuses a recorded stage output when these match the code that
     // would run now. Additive — absent on swings analysed before 2026-09-09.
@@ -482,6 +506,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
                     { QStringLiteral("startMs"), r2(s.startMs) },
                     { QStringLiteral("endMs"),   r2(s.endMs) },
                     { QStringLiteral("thread"),  s.thread } };
+                if (!s.source.isEmpty())
+                    so.insert(QStringLiteral("source"), s.source);
                 if (!s.skipReason.isEmpty())
                     so.insert(QStringLiteral("skipReason"), s.skipReason);
                 stages.append(so);
