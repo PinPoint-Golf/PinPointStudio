@@ -117,6 +117,25 @@ Found while documenting, for Mark:
 
 - **The family guide moved out of the README (Mark, 7 Nov).** The README's "Variability words" and "Variability marks" sections outweighed every other component's entry, so their text moved word for word to `docs/design/system/variability.md` (principles, family, eligibility, classification, rules, words, phrasing, basis strings). The README keeps one bullet under Content and one under Cards and marks, each linking there; the component pages and the index link to it too.
 
+#### Mark's rulings on the audit (7 Nov)
+
+The audit's classification and copy audit were posted and ruled on one question at a time. The rules that belong to the design system are in `docs/design/system/variability.md`; the rest are here.
+
+- **R1, cells that pool readings.** The Consistency matrix keeps its layout and shows no marks. Each cell takes the grade at its loosest third (the 67th-percentile ρ of its graded readings) and shows that grade's word. The marks go on the reading rows a cell opens to.
+- **R2a, the matrix's club pooling.** Residuals about each club's median, pooled across clubs, are within-club spread: eligible, one grade.
+- **R2b, displays that pool raw values across clubs** (box strips, Charts session curves, Readings, Wrist, Posture): one badge per club, each named; the plot stays as drawn.
+- **R3, noise.** Calibration proposal 1 is adopted: grades are taken on the observed spread and a propagated σ is never subtracted as σnoise. A reading whose observed spread is no larger than its own propagated σ (the matrix's old "⚠ error") is measurement-limited: "Checking" on the golfer layer, "· measurement-limited" on the technical layer. This supersedes spec §8.6's subtraction until a validated noise figure exists for a reading.
+- **R4, ball flight.** Ungraded until shots record an intent: no badge on the launch-monitor dispersion, the Consistency ball line, the cover's ball tiles or the ball half of the launch-monitor tiles.
+- **R4b, club delivery.** Movement, so eligible per club: club speed, path, face, face to path, attack, dynamic loft, lie, low point, strike location. Smash factor is an outcome and stays ungraded.
+- **R5, Home's Consistency column.** It grades the measure of the **Biggest fault** cell beside it (how that fault is chosen is unchanged: `summariseAreas`, `src/Coaching/swing_areas.h`). The window is the fault's last 20 readings on that measure across sessions (`Variability.nWindow`), from each session's `diagnostics.json` ledger, warm-ups and unassessable rows left out, centred per club. One golfer-layer badge. Yes/no, composite and fixed-number conditions are ungraded ("-"). The opened area's row of span words goes; each fault row in the opened list gets its own badge over the same window.
+- **R6, sequence peak-timing spread.** Ungraded: its only yardstick is a cohort (19 touring professionals). It waits for a scale decision. The work-on page's "2.1× as widely as touring professionals" sentence stays.
+- **R7, Posture and Wrist.** Graded against the band each panel draws (the posture pattern's σ, the wrist style's σ), "of scale" in the basis. The Wrist ranking moves from raw degrees to the grade.
+- **R8, typicality's window.** The session's other swings with the same club, this swing left out, at least 8.
+- **R9, client report pages.** A badge replaces only the figures that describe spread; the pages' other figures stay.
+- **R10, work-ons.** The consistency badge sits beside a work-on's status wherever it shows. Easing and cleared still follow the firing rule alone.
+- **R11, wording.** The design system's words apply everywhere, through the vocabularies. Ungraded spreads use statistic words; level trends say "no change"; the median is "median"; "Repeatable?" becomes "Consistency"; "Sequence not repeatable" becomes "Sequence changes from swing to swing". The old-words table is in `variability.md`.
+- **Work on `main`.** The plan's branch instructions were replaced: every session commits on `main`.
+
 ## 3. Open items
 
 - **Windows D3D11 is unmeasured.** The cabin PC has only a shipping build, with the probe hook compiled out. Check frame time and clipping when Session 5 puts the marks on real screens.

@@ -1,7 +1,7 @@
 # PinPoint Studio: Variability marks implementation plan
 
 **Reference:** `docs/design/variability-mark/spec.md` (the spec).
-**Shape:** five sessions, each run as a fresh Claude Code session on one branch (`feature/variability-marks`), merged after session 4. Session 5 runs on a new branch.
+**Shape:** five sessions, each run as a fresh Claude Code session. Every session commits on `main`; never branch.
 
 ## Ground rules (repeat in every session prompt)
 
@@ -133,7 +133,7 @@
 - [ ] Cards, README sections and tokens documented.
 - [ ] Synced, or a manual resync flagged.
 - [ ] `decisions.md` written.
-- [ ] **Then merge the branch.**
+- [ ] **Then push to `main`.**
 
 **Prompt:**
 > Read the spec and the plan. You are doing **Session 4: design-system documentation**. Follow the ground rules. The aim is that someone could apply the marks correctly from the design system alone. Stop at Session 4's Done list.

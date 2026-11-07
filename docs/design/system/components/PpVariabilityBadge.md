@@ -23,7 +23,7 @@ The graded and technical previews are offscreen renders (software painter, dpr 1
 - **Technical layer** (Swing diagnostics, session screens, a technical catalogue): the badge is **paired** with the σ and any box plot, which stay. It shows the word, then the basis string.
 - **Measurement** (a device, rig, calibration or capture-quality surface): a Needle badge, next to the reading's name.
 - **Typicality** (a per-swing "vs your average" or outlier display): a Typicality or TypicalityTrace badge.
-- **Launch-monitor ball flight:** keep the existing dispersion plot and add a per-club Dispersion badge as its summary ("7-iron · Settling").
+- **Launch-monitor ball flight:** keep the existing dispersion plot and add a per-club Dispersion badge as its summary ("7-iron · Settling"), once shots record an intent. Until then ball flight has no badge.
 
 Pick the variant from the grader's basis: `scalar` → Dispersion, `trace` → Overlay, `measurement` → Needle. An `ordinal` result has no named variant in the spec; use the recommended default, Dispersion (an open item in decisions.md).
 
@@ -43,7 +43,7 @@ From the presenter's `variabilityResult` (`src/Gui/variability/variability_facad
 | dense | bool | false | Icon only: the mark at `sp(16)` rather than `variabilityIconSize` (20), for dense lists. |
 | contentLayer | string | `"golfer"` | `"golfer"` or `"technical"`. Not `layer`: that is Item's own. |
 | basisText | string | "" | Technical layer: the grader's basis string, shown as given. Empty shows nothing, separator included. |
-| measurementLimited | bool | false | The source's Needle grade is 1–2 (§8.6). See States. |
+| measurementLimited | bool | false | The source's Needle grade is 1–2 (§8.6), or the observed spread is no larger than the reading's own propagated σ. See States. |
 | values | var | null | The typicality variants only: passed to the mark (`{ z, ghosts, corridor, band }` or `{ mean, sd, swing, corridor, band }`). |
 | showCorridor | bool | false | The typicality variants only: passed to the mark. |
 | tone | color | the shown grade's tone; `colorAccent` for typicality | The mark's and the word's tone. Overridable, never to change the meaning. |
@@ -153,7 +153,7 @@ PpVariabilityBadge {
     basisText: swing.typicalityBasis           // "this swing 5.2 cm · usual 4.8 cm"
 }
 ```
-Ball flight, per club and per intent, under the existing launch-monitor plot, the club named beside it ("7-iron · Settling"). The grade is graded against per-club offline and carry tolerances (`variabilityScale`), none of which are set yet; how the offline and carry grades combine into the one badge is not built or specified (decisions.md).
+Ball flight, per club and per intent, under the existing launch-monitor plot, the club named beside it ("7-iron · Settling"). The grade is graded against per-club offline and carry tolerances (`variabilityScale`), none of which are set yet; how the offline and carry grades combine into the one badge is not built or specified, and no shot records an intent yet, so this badge is not shown anywhere today (decisions.md).
 ```qml
 PpVariabilityBadge {
     visible: club.result.graded

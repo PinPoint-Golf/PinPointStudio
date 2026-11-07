@@ -34,6 +34,11 @@ This page is the family guide: when a mark is allowed, how to classify an existi
 
 All three must hold: the spread is repeatability (the same measure, across swings, in comparable conditions); the spread isn't expected (never across clubs, shot types or contexts, never movement within one swing); and a grade exists.
 
+- **Clubs.** Spread about each club's own median, pooled across clubs, is within-club spread and is eligible: one grade. A display that pools raw values from several clubs gets **one badge per club**, each named ("7-iron · Settling · Driver · Repeatable"); the plot beside it stays as drawn. A club with fewer than `Variability.nMin` (8) swings shows "Not enough swings".
+- **Outcome or movement.** Without a recorded intent, outcome measures get no grade: ball flight (carry, total, offline, ball speed, launch, spin, peak height, shot shape) and smash factor. Club delivery at impact is movement and stays eligible: club speed, path, face, face to path, attack, dynamic loft, lie, low point, strike location.
+- **The scale is the band the reader sees.** Grade against the norm corridor. Where a display draws a different band (a posture pattern's, a wrist style's), grade against that band's σ, (σLo + σHi)/2; its basis string says "of scale", never "of corridor".
+- **Cells that pool readings.** A table cell that rolls up several readings (an area at a span) takes the grade at its loosest third: the 67th-percentile ρ of its graded readings, through the scalar bands. The cell shows the word alone; the marks go on the readings it opens to. Ungraded readings don't count. No graded reading: "-". Every graded reading under 8 swings: "Not enough swings". A measurement-limited cell reads "Checking".
+
 ## Classifying a display
 
 | class | when | treatment |
@@ -49,13 +54,15 @@ All three must hold: the spread is repeatability (the same measure, across swing
 
 - Technical-layer box plots stay: they carry location, skew and outliers. A golfer-layer box plot that shows position against the corridor is **leave** until its replacement is decided.
 - The Needle is for validated pipeline accuracy, triangulation, camera calibration, IMU noise and drift, clock sync, pose and tracking jitter, and a consistency grade limited by its source. Never for golfer variability, detector confidence, dropouts, corrected bias or launch-monitor and vendor figures. On the golfer layer it goes only on capture, setup and device surfaces; never on Home or diagnosis cards, except as the "Checking" substitution. Never put a Needle and a consistency mark on one value without naming which is which.
-- A measurement-limited grade (the source's Needle is Unsteady or Noisy) shows "Checking" on the golfer layer and the grade with "· measurement-limited" on the technical layer. `PpVariabilityBadge` does it.
+- A measurement-limited grade (the source's Needle is Unsteady or Noisy, or the observed spread is no larger than the reading's own propagated σ) shows "Checking" on the golfer layer and the grade with "· measurement-limited" on the technical layer. `PpVariabilityBadge` does it. Grades are taken on the observed spread: a propagated σ is never subtracted as noise.
 - Intent: grade within each shot shape or type, never across. With no intent, outcome measures get no grade; body-movement measures stay eligible.
-- A work-on is achieved only when its mean is in the corridor **and** its consistency is Repeatable or better over at least 8 swings (`Variability.nMin`). Show both.
+- A work-on is achieved only when its mean is in the corridor **and** its consistency is Repeatable or better over at least 8 swings (`Variability.nMin`). Show both: wherever a work-on's status shows, its consistency badge sits beside it. The status itself (active, easing, cleared) still follows the firing rule.
+- Typicality ("your usual") is this swing against the session's **other** swings with the same club, at least `Variability.nMin` (8) of them. Fewer: no typicality badge.
 - The strength mark sits with the finding; the variability mark sits with the measure.
 - Print and greyscale: the shape and the word carry the grade without colour. On paper the marks take the page's `roles` and lift their fills by `variabilityPrintAlphaScale`, never by `variabilityWashAlpha`.
+- On a client report page (the golfer layer on paper), a badge replaces the figures that only describe spread (a middle-half width, "N wide", ±½ middle half, a "most / least repeatable" line). The page's other figures are not the marks' business. An ungraded spread figure stays, in statistic words.
 - Once cohort norms exist, never mix cohort and universal scales in one column without saying so in its header.
-- Launch-monitor ball flight: keep the dispersion plot and add a per-club Dispersion badge ("7-iron · Settling"), per club and per intent; a pooled view isn't graded. No Needle for launch-monitor error.
+- Launch-monitor ball flight: keep the dispersion plot and add a per-club Dispersion badge ("7-iron · Settling"), per club and per intent; a pooled view isn't graded. No Needle for launch-monitor error. Until shots record an intent, ball flight has no badge.
 - Host marks in tables with a real model (`ListModel` or C++), never an integer model.
 
 ## Words
@@ -117,7 +124,10 @@ Every variability word, line and accessible name lives in one of four singletons
 
 - Golfer layer: the word, and its line as the tooltip. No figures: no σ, ρ, CV or counts. No causal claims.
 - Technical layer: the word, then " · " and the basis string in the data face (`fontSzDataSm`, `colorText2`). Every basis string is built in C++ from computed values (`src/Metrics/variability/`), never hand-written, and shows only what was computed. An empty one shows nothing.
-- Keep existing headings. "Consistency" stays a heading; the grade words and lines under it are what change.
+- Keep existing headings. "Consistency" stays a heading; the grade words and lines under it are what change. A heading that is a grade word ("Repeatable?") becomes "Consistency".
+- A spread with no grade is named by its statistic only: "middle half", "SD", "range", "narrowest", "widest". Outside the four vocabularies nothing spells a variability word (a grade, trend or typicality word), nor a judgement word that echoes one: steady, loose, tight, repeatable, consistent.
+- Words that sound like the vocabularies but aren't about spread change too, so the two never meet: a level trend is "no change", never "steady"; the median is "median" or "the session median", never "your usual".
+- Left alone: "typical" for a median ("Typical value") and "most / least typical shot" (a navigation pick); body instructions ("Keep your lead knee steady", "Hold steady"); a fault's consequence lines ("contact gets harder to repeat").
 
 ### Basis strings
 
@@ -142,6 +152,26 @@ As the grader builds them:
 - A fallback scale is never called a corridor.
 - σ takes the measure's own decimals; ρ and CV two places; milliseconds none. "°", "%" and ":" sit against the number ("2.1°"); any other unit follows a space ("4.8 cm").
 - "Peak on time" means within the golfer's usual spread of time-to-peak (|z| ≤ 1), or a deviation that rounds to 0 ms. "higher" or "lower" appears only past |z| 1 of the window's peaks.
+
+### Old words
+
+The words the app used before the vocabularies, and what replaces them. Don't bring them back.
+
+| old | where | now |
+|---|---|---|
+| steady · / some ◐ / loose ● | Consistency matrix cells, Home | The grade word (Grooved … Scattered); marks on the opened rows only |
+| ⚠ error, ⚠ near error, too close to measurement error | Consistency matrix and rows | Technical: the grade, then "· measurement-limited". Golfer: "Checking" |
+| - / not judged | Consistency matrix | Fewer than 8 swings: "Not enough swings". Ungraded: "-", no mark |
+| Your swing repeats from shot to shot; You repeat your swing best in the backswing. It loosens on the way down | Consistency head | "Your backswing is %1, your downswing %2; your %3 moves most", with grade words |
+| Too few readings could be judged to say how your swing repeats | Consistency head | Grade 0: the Consistency line. Ungraded: "Nothing here has a range to judge it against." |
+| Repeatable? | Posture, Wrist headings | Consistency |
+| most repeatable … least …; the tightest … the loosest | Wrist, Posture | The grade words, ranked by ρ ("Most: %1 · Grooved   Least: %2 · Variable") |
+| Steadiest at … loosest at … | Club delivery (ungraded) | Narrowest at … widest at … |
+| close to your usual, against your usual | Consistency flagged swings | The typicality badge; basis "this swing … · usual …" |
+| your usual swing | This shot → Against | the session median |
+| typical (the session median) | Replay, session figure | median |
+| Sequence not repeatable | Condition name | Sequence changes from swing to swing |
+| steady, holding steady, steady from first swing to last | Level trends (diagnostics, work-ons, Usually yours, Home) | no change |
 
 ## Not repeated here
 
