@@ -30,7 +30,7 @@
 // `showCorridor` to its mark and has no grade: the word is the band's (values.band, the C++ grader's:
 // "Your usual", "A little off", "Unusual"), always in the tone, the accent (never a status colour and
 // never colorText3); the golfer-layer tooltip is the band's line; the technical layer's basis string
-// ("this swing 5.2 cm · usual 4.8 cm") follows as for any badge. Measurement-limited substitution
+// ("this swing 5.2 cm · median 4.8 cm") follows as for any badge. Measurement-limited substitution
 // (§8.6) is a consistency rule and never applies to typicality. A TypicalityTrace badge is always laid
 // out as a Cell badge, because its mark is always drawn as a Cell (§6.2: no icon form).
 //
@@ -44,10 +44,13 @@
 // (MeasurementVocabulary's grade 0); the technical layer shows the real grade, and its basis string
 // already ends "· measurement-limited". The grade itself never changes (the grader's rule).
 //
-// PRINT (§9.5.4). `medium` defaults to the optional `roles` (a PpTypeset) and passes to the mark. On
-// paper with roles, the sizes are roles.u(), the gaps roles.g(), the word is set in roles.fBody and the
-// basis in roles.fFig, and the inks are the page's (the tone by grade, ink3, ink2). On paper without
-// roles the gaps are sp(), never gap(), so a printed badge does not follow the screen's Density.
+// TYPESET HOSTS (R17, decisions.md §2). `roles` is the host's PpTypeset, optional, and passes to the
+// mark. With roles, on screen and on paper alike, the sizes are roles.u(), the gaps roles.g(), the word
+// is set in roles.fBody and the basis in roles.fFig, and the inks are the host's (the tone by grade,
+// ink3, ink2), so the badge reads in proportion to the panel's type. Without roles it reads Theme.
+//
+// PRINT (§9.5.4). `medium` defaults to roles.medium and passes to the mark. The tooltip is screen-only.
+// On paper without roles the gaps are sp(), never gap(), so a printed badge does not follow Density.
 
 pragma ComponentBehavior: Bound
 
@@ -87,10 +90,12 @@ Item {
     readonly property bool _cell: markItem._cell
     readonly property bool _technical: contentLayer === "technical"
     readonly property bool _print: medium === "print"
-    readonly property bool _ts: roles !== null && roles !== undefined && _print
-    // A size: roles.u() on paper with roles, else Theme.sp().
+    // With the host's roles (R17): its sizes, spaces, type and inks, on screen as on paper.
+    readonly property bool _ts: roles !== null && roles !== undefined
+    // A size: roles.u() with roles, else Theme.sp().
     function _size(n) { return _ts ? roles.u(n) : Theme.sp(n) }
-    // A space: gap() on screen; on paper roles.g(), or sp() without roles, so Density never reaches paper.
+    // A space: roles.g() with roles (gap() on screen, u() on paper); without roles gap() on screen and
+    // sp() on paper, so Density never reaches paper.
     function _space(n) { return _ts ? roles.g(n) : _print ? Theme.sp(n) : Theme.gap(n) }
     // §4.7: grade 0 is colorText3. Typicality has no grade, so its word is always in the tone (§6.2).
     readonly property color _wordInk: !markItem._typicality && markItem._grade === 0 ? (_ts ? roles.ink3 : Theme.colorText3) : tone
@@ -136,8 +141,8 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             Accessible.ignored: true   // the mark's accessible name already says it
             text: markItem.label
-            // body 12 (Icon) and body2 (Cell) are the same token: the body face at fontSzBody2. On paper
-            // with roles, the page's body role.
+            // body 12 (Icon) and body2 (Cell) are the same token: the body face at fontSzBody2. With
+            // roles, the host's body role.
             font: badge._ts ? badge.roles.fBody
                             : Qt.font({ family: Theme.fontBody, pixelSize: Theme.fontSzBody2, weight: Theme.fontBodyWeight })
             color: badge._wordInk

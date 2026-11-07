@@ -63,12 +63,14 @@
 //     ghost dots, the trace's envelope) has its alpha multiplied
 //     by Theme.variabilityPrintAlphaScale, clamped to 1 (never roles.tintK, never variabilityWashAlpha);
 //     strokes keep their alpha;
-//   - with `roles`, the page's inks and sizes replace the screen's: the default size is roles.u(), the
-//     tones are roles.good / attention / warn / ink3 / accent, the neutral elements are the page's
-//     chart furniture (colorBorderStrong → roles.baseline, colorBorderMid → roles.grid, each at its
-//     opacity), and text → roles.ink, text2 → ink2, text3 → ink3, surface → paper, good → good, so a
-//     printed page never depends on a screen setting.
-// Without `roles` (or on screen) the mark reads Theme, as it always has.
+//   - surface → roles.paper (with roles), so a printed page never depends on a screen setting.
+//
+// TYPESET HOSTS (R17, decisions.md §2). With `roles`, on screen and on paper alike, the host's inks
+// and sizes replace Theme's: the default size is roles.u(), the tones are roles.good / attention /
+// warn / ink3 / accent, the neutral elements are the host's chart furniture (colorBorderStrong →
+// roles.baseline, colorBorderMid → roles.grid, each at its opacity), and text → roles.ink, text2 →
+// ink2, text3 → ink3, good → good. On screen the ring's knock-out stays colorSurface and the washes
+// keep variabilityWashAlpha. Without `roles` the mark reads Theme, as it always has.
 
 pragma ComponentBehavior: Bound
 
@@ -119,8 +121,10 @@ Item {
     // The band the caller computed (C++, the grader's typicality); "" until there is one.
     readonly property string _band: values && typeof values.band === "string" ? values.band : ""
     readonly property bool _print: medium === "print"
-    // On paper with a page's roles: its inks and sizes, not the screen's.
-    readonly property bool _ts: roles !== null && roles !== undefined && medium === "print"
+    // With a host's roles (a typeset panel on screen, or a page on paper): its inks and sizes, not
+    // Theme's (R17). The screen-only rules (the wash multiplier) and the paper-only ones (the print
+    // alpha scale, the paper knock-out) still follow `medium`.
+    readonly property bool _ts: roles !== null && roles !== undefined
 
     implicitWidth: _cell ? size * 80 / 24 : size
     implicitHeight: size
@@ -148,7 +152,7 @@ Item {
                          + "In an icon context use Typicality with the trace's RMS z")
     }
 
-    // §3: the tone of a grade, in the page's inks on paper with roles. Typicality is never graded and
+    // §3: the tone of a grade, in the host's inks when it passes roles. Typicality is never graded and
     // wears the accent.
     function _toneOf(g) {
         if (_ts)
@@ -198,8 +202,8 @@ Item {
     // A value with a small-size variant: the small one at size ≤ smallMaxSize px (0 = none). An element
     // with no small variant (the §6 ones) has no smallMaxSize, and takes the big one.
     function _pick(e, big, small) { return mark.size <= e.smallMaxSize ? small : big }
-    // A provider role's token (variability_geometry.h, GeometryRole): Theme's, or on paper with roles
-    // the page's.
+    // A provider role's token (variability_geometry.h, GeometryRole): Theme's, or with roles
+    // the host's.
     function _roleColor(role) {
         switch (role) {
         case "tone":          return mark._ink
@@ -220,14 +224,15 @@ Item {
         const c = _roleColor(role)
         return Qt.rgba(c.r, c.g, c.b, c.a * alpha)
     }
-    // The neutral inks: Theme's borders, or on paper with roles the page's chart furniture.
+    // The neutral inks: Theme's borders, or with roles the host's chart furniture.
     readonly property color _neutralStrong: _ts ? Qt.alpha(roles.baseline, roles.baseline.a * roles.baselineOpacity) : Theme.colorBorderStrong
     readonly property color _neutralMid: _ts ? Qt.alpha(roles.grid, roles.grid.a * roles.gridOpacity) : Theme.colorBorderMid
-    // The typicality elements' inks (§6.2): Theme's, or on paper with roles the page's.
+    // The typicality elements' inks (§6.2): Theme's, or with roles the host's.
     readonly property color _text:    _ts ? roles.ink   : Theme.colorText
     readonly property color _text2:   _ts ? roles.ink2  : Theme.colorText2
     readonly property color _text3:   _ts ? roles.ink3  : Theme.colorText3
-    readonly property color _surface: _ts ? roles.paper : Theme.colorSurface
+    // The ring's knock-out: the page's paper in print; on screen the panel surface, roles or not.
+    readonly property color _surface: _ts && _print ? roles.paper : Theme.colorSurface
     readonly property color _good:    _ts ? roles.good  : Theme.colorGood
     // A FILL's alpha: in print a translucent fill is lifted by variabilityPrintAlphaScale, at most 1.
     function _fillAlpha(a) { return _print && a < 1 ? Math.min(1, a * Theme.variabilityPrintAlphaScale) : a }

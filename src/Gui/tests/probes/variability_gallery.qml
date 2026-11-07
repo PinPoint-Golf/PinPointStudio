@@ -1041,13 +1041,13 @@ Item {
         return a <= 1 ? "usual" : a <= 2 ? "aLittleOff" : "unusual"
     }
     // TEST DATA: the scalar typicality basis, spelled as the grader's TypicalityResult::basisString
-    // spells it ("this swing 5.2 cm · usual 4.8 cm"; ° and % attach, other units take a space).
+    // spells it ("this swing 5.2 cm · median 4.8 cm"; ° and % attach, other units take a space).
     function unitText(v, unit) {
         const n = Number(v).toFixed(1)
         return unit === "" ? n : (unit.charAt(0) === "°" || unit.charAt(0) === "%") ? n + unit : n + " " + unit
     }
     function typBasis(value, usual, unit) {
-        return "this swing " + unitText(value, unit) + " · usual " + unitText(usual, unit)
+        return "this swing " + unitText(value, unit) + " · median " + unitText(usual, unit)
     }
     // A reading's shown swings: the session's latest, its largest |z| and its smallest |z| (distinct),
     // each with the latest 12 OTHER shots as its ghosts, oldest first.
@@ -1207,7 +1207,7 @@ Item {
                                 caption: "z " + probe.zText(modelData) + (synthRow.modelData ? " · showCorridor" : "")
                                 values: probe.synthTyp(modelData)
                                 showCorridor: synthRow.modelData
-                                basis: "this swing " + (4.8 + modelData * 0.6).toFixed(1) + " cm · usual 4.8 cm"
+                                basis: "this swing " + (4.8 + modelData * 0.6).toFixed(1) + " cm · median 4.8 cm"
                             }
                         }
                     }
@@ -1265,7 +1265,7 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 variant: PpVariabilityMark.Typicality; form: badgeSet.modelData.form; dense: badgeSet.modelData.dense
                                 contentLayer: badgeSet.modelData.layer; values: probe.synthTyp(modelData)
-                                basisText: "this swing " + (4.8 + modelData * 0.6).toFixed(1) + " cm · usual 4.8 cm"
+                                basisText: "this swing " + (4.8 + modelData * 0.6).toFixed(1) + " cm · median 4.8 cm"
                             }
                         }
                     }
@@ -1307,7 +1307,7 @@ Item {
                                 PpVariabilityBadge { required property real modelData; anchors.verticalCenter: parent.verticalCenter
                                                      variant: PpVariabilityMark.Typicality; form: PpVariabilityMark.Cell; roles: typTs
                                                      values: probe.synthTyp(modelData); contentLayer: "technical"
-                                                     basisText: "this swing " + (4.8 + modelData * 0.6).toFixed(1) + " cm · usual 4.8 cm" }
+                                                     basisText: "this swing " + (4.8 + modelData * 0.6).toFixed(1) + " cm · median 4.8 cm" }
                             }
                             PpVariabilityBadge { anchors.verticalCenter: parent.verticalCenter; variant: PpVariabilityMark.Typicality
                                                  roles: typTs; values: probe.synthTyp(0.4) }

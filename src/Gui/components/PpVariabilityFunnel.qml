@@ -51,13 +51,15 @@
 //   - every translucent FILL (the band fill) has its alpha multiplied by
 //     Theme.variabilityPrintAlphaScale, clamped to 1 (never roles.tintK, never variabilityWashAlpha);
 //     strokes keep their alpha;
-//   - with `roles`, the page's sizes, spaces, type and inks replace the screen's: the compact width
-//     and the height are roles.u(), the gaps roles.g(), the words in roles.fBody and the basis in
-//     roles.fFig; the tones are roles.good / attention / warn / ink3, colorBorderStrong → roles.baseline
-//     and colorBorderMid → roles.grid (each at its opacity), text → ink, text2 → ink2, text3 → ink3,
-//     surface → paper, good → good;
+//   - surface → roles.paper (with roles);
 //   - without `roles` the gaps are sp(), never gap(), so a printed funnel never follows Density.
-// Without `roles` (or on screen) the funnel reads Theme.
+//
+// TYPESET HOSTS (R17, decisions.md §2). With `roles`, on screen and on paper alike, the host's sizes,
+// spaces, type and inks replace Theme's: the compact width and the height are roles.u(), the gaps
+// roles.g(), the words in roles.fBody and the basis in roles.fFig; the tones are roles.good /
+// attention / warn / ink3, colorBorderStrong → roles.baseline and colorBorderMid → roles.grid (each at
+// its opacity), text → ink, text2 → ink2, text3 → ink3, good → good. On screen the band keeps
+// variabilityWashAlpha. Without `roles` the funnel reads Theme.
 
 pragma ComponentBehavior: Bound
 
@@ -115,8 +117,8 @@ Item {
         if (variant !== PpVariabilityMark.Dispersion && variant !== PpVariabilityMark.Overlay)
             console.warn("PpVariabilityFunnel: variant " + variant + " is not Dispersion or Overlay; drawn as Dispersion")
     }
-    // On paper with a page's roles: its inks, sizes, spaces and type, not the screen's.
-    readonly property bool _ts: roles !== null && roles !== undefined && _print
+    // With the host's roles (R17), on screen as on paper: its inks, sizes, spaces and type, not Theme's.
+    readonly property bool _ts: roles !== null && roles !== undefined
     readonly property bool _technical: contentLayer === "technical"
     readonly property real _graphicH: _size(Theme.variabilityFunnelH)
     // Compact: 120 (§6.1; no token). Wide: the item's width; the provider lifts anything under 96.
@@ -140,25 +142,26 @@ Item {
     // run, trendAfter3) for the words. The provider's own answers, asked a second time.
     readonly property var  _facts: VariabilityGeometry.funnel(_sessionList, 0, _graphicH)
 
-    // A size: roles.u() on paper with roles, else Theme.sp().
+    // A size: roles.u() with roles, else Theme.sp().
     function _size(n) { return _ts ? roles.u(n) : Theme.sp(n) }
-    // A space: gap() on screen; on paper roles.g(), or sp() without roles, so Density never reaches paper.
+    // A space: roles.g() with roles (gap() on screen, u() on paper); without roles gap() on screen and
+    // sp() on paper, so Density never reaches paper.
     function _space(n) { return _ts ? roles.g(n) : _print ? Theme.sp(n) : Theme.gap(n) }
 
-    // §3: the tone of a grade (grade 0 has none: colorText3), in the page's inks on paper with roles.
+    // §3: the tone of a grade (grade 0 has none: colorText3), in the host's inks with roles.
     function _toneOf(g) {
         if (_ts)
             return g >= 4 ? roles.good : g === 3 ? roles.attention : g >= 1 ? roles.warn : roles.ink3
         return g >= 4 ? Theme.colorGood : g === 3 ? Theme.colorAttention : g >= 1 ? Theme.colorWarn : Theme.colorText3
     }
-    // The inks the words and neutral elements use: Theme's, or on paper with roles the page's (the
-    // neutrals are its chart furniture, each at its opacity).
+    // The inks the words and neutral elements use: Theme's, or with roles the host's (the neutrals are
+    // its chart furniture, each at its opacity).
     readonly property color _neutralStrong: _ts ? Qt.alpha(roles.baseline, roles.baseline.a * roles.baselineOpacity) : Theme.colorBorderStrong
     readonly property color _neutralMid: _ts ? Qt.alpha(roles.grid, roles.grid.a * roles.gridOpacity) : Theme.colorBorderMid
     readonly property color _text:     _ts ? roles.ink   : Theme.colorText
     readonly property color _text2:    _ts ? roles.ink2  : Theme.colorText2
     readonly property color _text3:    _ts ? roles.ink3  : Theme.colorText3
-    readonly property color _surface:  _ts ? roles.paper : Theme.colorSurface
+    readonly property color _surface:  _ts && _print ? roles.paper : Theme.colorSurface   // a knock-out
     readonly property color _good:     _ts ? roles.good  : Theme.colorGood
     // The tone as drawn: colour changes ease over durationSlow; the geometry never animates.
     property color _ink: tone
@@ -353,7 +356,7 @@ Item {
                 Accessible.ignored: true   // the funnel's accessible name says it
                 text: ConsistencyVocabulary.word(funnel.currentGrade)
                 color: funnel._ink   // the tone; grade 0's tone is colorText3 (§3, §4.7)
-                // Body 12 (PpCaption's own face); on paper with roles, the page's body role.
+                // Body 12 (PpCaption's own face); with roles, the host's body role.
                 font.family:    funnel._ts ? funnel.roles.fBody.family : Theme.fontBody
                 font.pixelSize: funnel._ts ? funnel.roles.fBody.pixelSize : Theme.fontSzBody2
                 font.weight:    funnel._ts ? funnel.roles.fBody.weight : Theme.fontBodyWeight
@@ -370,7 +373,7 @@ Item {
                 // badge's and the arrow glyphs are (§7).
                 text: " · " + trendLabel
                 color: funnel._text2
-                // Body 12 (PpCaption's own face); on paper with roles, the page's body role.
+                // Body 12 (PpCaption's own face); with roles, the host's body role.
                 font.family:    funnel._ts ? funnel.roles.fBody.family : Theme.fontBody
                 font.pixelSize: funnel._ts ? funnel.roles.fBody.pixelSize : Theme.fontSzBody2
                 font.weight:    funnel._ts ? funnel.roles.fBody.weight : Theme.fontBodyWeight
@@ -384,14 +387,14 @@ Item {
                 Accessible.ignored: true   // the funnel's accessible name says it
                 text: " · " + TrendVocabulary.tooFewSessions
                 color: funnel._text3   // colorText3 (§6.1), or the page's ink3
-                // Body 12 (PpCaption's own face); on paper with roles, the page's body role.
+                // Body 12 (PpCaption's own face); with roles, the host's body role.
                 font.family:    funnel._ts ? funnel.roles.fBody.family : Theme.fontBody
                 font.pixelSize: funnel._ts ? funnel.roles.fBody.pixelSize : Theme.fontSzBody2
                 font.weight:    funnel._ts ? funnel.roles.fBody.weight : Theme.fontBodyWeight
             }
             // The technical layer's basis string, in the data face (the badge's basis: no text component
-            // sets data-sm, so this is the badge's own Text, token for token); on paper with roles, the
-            // page's figure role.
+            // sets data-sm, so this is the badge's own Text, token for token); with roles, the host's
+            // figure role.
             Text {
                 objectName: "funnelBasis"
                 visible: funnel._technical && funnel.basisText !== ""
