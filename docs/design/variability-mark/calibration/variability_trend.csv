@@ -1,0 +1,554 @@
+athlete,metric,phase,club,basis,sessions,rhoFirst,rhoLast,change,se,word,sessionsWithReading,scaleSourceLast,phaseListed
+Chris-Marriott,armHang,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,balanceHeelToe,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,ballPosition,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,clubPeakSpeed,P7,7 IRON,scalar,1,,,,,Insufficient,1,cv,1
+Chris-Marriott,clubheadPeakLead,P7,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,clubheadSpeed,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,comOverLeadFoot,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,comOverLeadFoot,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,feetAlignment,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,handPathLoop,P4,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,handSpeed,P1,7 IRON,scalar,1,,,,,Insufficient,1,cv,0
+Chris-Marriott,headLift,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,headLift,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,headPitch,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,headRise,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,headRise,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,headSway,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,headSway,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,headTilt,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,hipDepthButt,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,hipDepthButt,P2,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,hipDepthButt,P3,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,hipDepthButt,P4,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,hipDepthButt,P5,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,hipDepthButt,P6,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,hipDepthButt,P7,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,hipLineTilt,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,impactShaftLean,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,impactShaftLean,P7,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,lagAngle,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,lagAngle,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,leadArmPeakSpeed,P7,7 IRON,scalar,1,,,,,Insufficient,1,cv,1
+Chris-Marriott,leadArmToTorso,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,leadArmToTorso,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,leadHandWidth,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,leadHandWidth,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,leadHeelLift,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,leadHeelLift,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,leadKneeDrift,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,leadKneeFlexion,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,leadKneeFlexion,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,leadUpperArmToChest,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,leadUpperArmToChest,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,lm.backSpin,LM,7 IRON,scalar,1,,,,,Insufficient,1,cv,
+Chris-Marriott,lm.ballSpeed,LM,7 IRON,scalar,1,,,,,Insufficient,1,cv,
+Chris-Marriott,lm.carryDistance,LM,7 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Chris-Marriott,lm.launchAngle,LM,7 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Chris-Marriott,lm.launchDirection,LM,7 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Chris-Marriott,lm.peakHeight,LM,7 IRON,scalar,1,,,,,Insufficient,1,cv,
+Chris-Marriott,lm.spinAxis,LM,7 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Chris-Marriott,lm.spinRate,LM,7 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Chris-Marriott,lm.totalDistance,LM,7 IRON,scalar,1,,,,,Insufficient,1,cv,
+Chris-Marriott,lowPointAhead,P7,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,pelvisLift,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,pelvisRotation,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,pelvisRotation,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,pelvisRotationSigned,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,pelvisRotationSigned,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,pelvisSway,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,pelvisThrust,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,plumbBobDistance,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,secondaryAxisTilt,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,shaftAngleVsHorizontal,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,spineForwardBend,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,spineForwardBend,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,spineSideBend,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,stanceWidth,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,stanceWidthMm,P1,7 IRON,scalar,1,,,,,Insufficient,1,cv,1
+Chris-Marriott,tempoBackswing,P4,7 IRON,scalar,1,,,,,Insufficient,1,cv,1
+Chris-Marriott,tempoRatio,P4,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,thoraxLateralDrift,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,thoraxPeakSpeed,P7,7 IRON,scalar,1,,,,,Insufficient,1,cv,1
+Chris-Marriott,thoraxRotation,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,thoraxRotation,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,thoraxRotationSigned,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,trailElbowHeight,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,trailElbowHeight,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,trailForearmAngle,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,trailKneeFlexion,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,trailKneeFlexion,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,trailWristFlexExt,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,trailWristFlexExt,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,trunkRise,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Chris-Marriott,xFactor,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Chris-Marriott,xFactorStretch,P1,7 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Chris-Marriott,xFactorStretch,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,armHang,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,balanceHeelToe,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,ballPosition,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,clubPeakSpeed,P7,8 IRON,scalar,1,,,,,Insufficient,1,cv,1
+Jess-Ratcliffe,clubheadPeakLead,P7,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,clubheadSpeed,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,comOverLeadFoot,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,comOverLeadFoot,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,feetAlignment,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,handPathLoop,P4,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,handSpeed,P1,8 IRON,scalar,1,,,,,Insufficient,1,cv,0
+Jess-Ratcliffe,headLift,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,headLift,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,headPitch,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,headSway,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,headSway,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,headTilt,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,hipLineTilt,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,impactShaftLean,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,impactShaftLean,P7,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,lagAngle,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,lagAngle,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,leadArmToTorso,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,leadArmToTorso,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,leadHandWidth,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,leadHandWidth,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,leadHeelLift,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,leadHeelLift,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,leadKneeDrift,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,leadKneeFlexion,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,leadKneeFlexion,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,leadUpperArmToChest,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,leadUpperArmToChest,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,lm.attackAngle,LM,8 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Jess-Ratcliffe,lm.backSpin,LM,8 IRON,scalar,1,,,,,Insufficient,1,cv,
+Jess-Ratcliffe,lm.ballSpeed,LM,8 IRON,scalar,1,,,,,Insufficient,1,cv,
+Jess-Ratcliffe,lm.carryDistance,LM,8 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Jess-Ratcliffe,lm.clubPath,LM,8 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Jess-Ratcliffe,lm.clubheadSpeed,LM,8 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Jess-Ratcliffe,lm.faceToPath,LM,8 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Jess-Ratcliffe,lm.launchAngle,LM,8 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Jess-Ratcliffe,lm.launchDirection,LM,8 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Jess-Ratcliffe,lm.peakHeight,LM,8 IRON,scalar,1,,,,,Insufficient,1,cv,
+Jess-Ratcliffe,lm.smashFactor,LM,8 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Jess-Ratcliffe,lm.spinAxis,LM,8 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Jess-Ratcliffe,lm.spinRate,LM,8 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Jess-Ratcliffe,lm.strikeLocation,LM,8 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Jess-Ratcliffe,lm.totalDistance,LM,8 IRON,scalar,1,,,,,Insufficient,1,cv,
+Jess-Ratcliffe,lowPointAhead,P7,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,lowPointFromAttack,P7,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,pelvisLift,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,pelvisRotation,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,pelvisRotationSigned,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,pelvisSway,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,plumbBobDistance,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,secondaryAxisTilt,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,shaftAngleVsHorizontal,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,spineForwardBend,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,spineSideBend,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,stanceWidth,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,stanceWidthMm,P1,8 IRON,scalar,1,,,,,Insufficient,1,cv,1
+Jess-Ratcliffe,tempoBackswing,P4,8 IRON,scalar,1,,,,,Insufficient,1,cv,1
+Jess-Ratcliffe,tempoRatio,P4,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,thoraxLateralDrift,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,thoraxPeakSpeed,P7,8 IRON,scalar,1,,,,,Insufficient,1,cv,1
+Jess-Ratcliffe,thoraxRotation,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,thoraxRotationSigned,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,trailElbowHeight,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,trailForearmAngle,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,trailKneeFlexion,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,trailKneeFlexion,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,trailWristFlexExt,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,0
+Jess-Ratcliffe,trailWristFlexExt,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,trunkRise,P1,8 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Jess-Ratcliffe,xFactor,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Jess-Ratcliffe,xFactorStretch,P4-P7,8 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,armHang,P1,7 IRON,scalar,3,0.2589775703432423,0.17675666097309067,-0.08222090937015164,0.053844712726931594,Holding,3,corridor,1
+Mark-Liversedge,armHang,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,balanceHeelToe,P1,7 IRON,scalar,3,0.956046096363151,0.5990100580876166,-0.3570360382755343,0.19603832911094238,Holding,3,corridor,1
+Mark-Liversedge,balanceHeelToe,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,ballBodyDistance,P1,7 IRON,scalar,3,0.026527302169297266,0.027315011040811486,0.00078770887151422,0.006164091613955299,Holding,3,cv,1
+Mark-Liversedge,ballBodyDistance,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,cv,1
+Mark-Liversedge,ballPosition,P1,7 IRON,scalar,3,0.5617632636422897,2.0737198864411615,1.5119566227988717,0.3502475619147763,Loosening,3,corridor,1
+Mark-Liversedge,ballPosition,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,ballReachExcess,P1,7 IRON,scalar,3,0.365226573871723,0.4717091901778485,0.10648261630612549,0.09273789073538817,Holding,3,corridor,1
+Mark-Liversedge,ballReachExcess,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,clubPeakSpeed,P7,7 IRON,scalar,4,0.0290319376783603,0.09013938815475107,0.0729858672474395,0.02401541259951481,Loosening,4,cv,1
+Mark-Liversedge,clubPeakSpeed,P7,GAP WEDGE,scalar,1,,,,,Insufficient,1,cv,1
+Mark-Liversedge,clubheadPeakLead,P7,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,1
+Mark-Liversedge,clubheadPeakLead,P7,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,clubheadSpeed,P1,7 IRON,scalar,4,1.3843600205924282,0,-1.2459240185331852,0.23545750753721703,Tightening,4,corridor,0
+Mark-Liversedge,clubheadSpeed,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,comOverLeadFoot,P1,7 IRON,scalar,4,0.20652895943380453,0.2697001999543266,0.07764585603804394,0.05517754794253518,Holding,4,corridor,0
+Mark-Liversedge,comOverLeadFoot,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,comOverLeadFoot,P4-P7,7 IRON,trace,4,3.517881961821563,0.8428794147642549,-2.6743089253799326,0.6168545036109975,Tightening,4,peakFraction,
+Mark-Liversedge,comOverLeadFoot,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,feetAlignment,P1,7 IRON,scalar,4,0.13671285327956992,0.16352698629551987,0.056923160529593834,0.03517762401422485,Holding,4,corridor,1
+Mark-Liversedge,feetAlignment,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,handPathLoop,P4,7 IRON,scalar,3,0.3842193682612013,0.659716525961988,0.27549715770078675,0.11086963914866495,Loosening,3,corridor,1
+Mark-Liversedge,handPathLoop,P4,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,handPlaneCurve,P4-P7,7 IRON,trace,3,2.395221499335907,1.0019382811820443,-1.3932832181538628,0.47204063802547624,Tightening,3,peakFraction,
+Mark-Liversedge,handPlaneCurve,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,handSpeed,P1,7 IRON,scalar,4,0,0,0,0,Holding,4,cv,0
+Mark-Liversedge,handSpeed,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,cv,0
+Mark-Liversedge,handSpeed,P4-P7,7 IRON,trace,4,0.3163041435676986,1.265778705111008,1.342874079796212,0.3354836817697002,Loosening,4,peakFraction,
+Mark-Liversedge,handSpeed,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,headLift,P1,7 IRON,scalar,4,0.05293829981496143,0.023655073847400548,-0.11059420335582337,0.018230305202011667,Tightening,4,corridor,0
+Mark-Liversedge,headLift,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,headLift,P4-P7,7 IRON,trace,4,1.2208285758081778,1.4633975208910988,-0.30132578060232307,0.4356433146934704,Holding,4,peakFraction,
+Mark-Liversedge,headLift,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,headPitch,P1,7 IRON,scalar,3,0.7378822210624564,0.777049907901368,0.039167686838911586,0.17083377524697174,Holding,3,corridor,1
+Mark-Liversedge,headPitch,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,headRise,P1,7 IRON,scalar,3,0.37897097481700465,0.33978428394041366,-0.03918669087659099,0.08437905638809332,Holding,3,corridor,0
+Mark-Liversedge,headRise,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,headRise,P4-P7,7 IRON,trace,3,2.747640197413855,4.313358996831989,1.5657187994181343,1.0262815029336547,Holding,3,peakFraction,
+Mark-Liversedge,headRise,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,headSway,P1,7 IRON,scalar,4,0.046133264237123696,0.028841393945159933,-0.021669944695343092,0.009196183710862721,Tightening,4,corridor,0
+Mark-Liversedge,headSway,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,headSway,P4-P7,7 IRON,trace,4,4.926873618079097,4.3599713451275495,0.03118567113829647,1.1419427803244138,Holding,4,peakFraction,
+Mark-Liversedge,headSway,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,headTilt,P4-P7,7 IRON,trace,4,2.651807102430341,1.3834678316944466,-0.9752078806827705,0.5362188594555585,Holding,4,peakFraction,
+Mark-Liversedge,headTilt,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,hipDepthButt,P1,7 IRON,scalar,3,0,0,0,0,Holding,3,corridor,0
+Mark-Liversedge,hipDepthButt,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,hipDepthButt,P2,7 IRON,scalar,3,0.36227706033434337,0.4802372734361772,0.11796021310183386,0.10198439828513518,Holding,3,corridor,0
+Mark-Liversedge,hipDepthButt,P2,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,hipDepthButt,P3,7 IRON,scalar,3,0.3505557402053674,1.4521557623191184,1.101600022113751,0.22252708290307222,Loosening,3,corridor,0
+Mark-Liversedge,hipDepthButt,P3,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,hipDepthButt,P4,7 IRON,scalar,3,0.3810595416564147,0.4253915349079124,0.044331993251497726,0.09915483773859322,Holding,3,corridor,1
+Mark-Liversedge,hipDepthButt,P4,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,hipDepthButt,P5,7 IRON,scalar,3,0.5909073242727987,0.557113482192107,-0.033793842080691694,0.1456802348283926,Holding,3,corridor,0
+Mark-Liversedge,hipDepthButt,P5,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,hipDepthButt,P6,7 IRON,scalar,3,0.5357183223642473,0.8413176685683899,0.30559934620414253,0.15889902908062864,Holding,3,corridor,0
+Mark-Liversedge,hipDepthButt,P6,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,hipDepthButt,P7,7 IRON,scalar,3,0.6674715220413,0.8020914863943732,0.13461996435307322,0.17703977834085852,Holding,3,corridor,1
+Mark-Liversedge,hipDepthButt,P7,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,hipLineTilt,P1,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,1
+Mark-Liversedge,hipLineTilt,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,impactShaftLean,P4-P7,7 IRON,trace,4,0.3288846036188132,0.7914164741935823,0.3322104739217604,0.14556626769026426,Loosening,4,peakFraction,
+Mark-Liversedge,impactShaftLean,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,impactShaftLean,P7,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,1
+Mark-Liversedge,impactShaftLean,P7,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,kinematicSequence,P4-P8,7 IRON,ordinal,4,,,,,Insufficient (ordinal),4,none,
+Mark-Liversedge,lagAngle,P1,7 IRON,scalar,4,0.14616140570704853,0,-0.0922107827482668,0.025373062310723955,Tightening,4,corridor,0
+Mark-Liversedge,lagAngle,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,lagAngle,P4-P7,7 IRON,trace,4,0.4767338868603238,0.8560799265401563,0.287510237579171,0.17220104355010793,Holding,4,peakFraction,
+Mark-Liversedge,lagAngle,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,leadArmAngularSpeed,P4-P7,7 IRON,trace,2,,,,,Insufficient,2,peakFraction,
+Mark-Liversedge,leadArmAngularSpeed,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,leadArmPeakSpeed,P7,7 IRON,scalar,4,0,0.007299113860202936,-0.0063463502538919974,0.001723776629158815,Tightening,4,cv,1
+Mark-Liversedge,leadArmPeakSpeed,P7,GAP WEDGE,scalar,1,,,,,Insufficient,1,cv,1
+Mark-Liversedge,leadArmToTorso,P1,7 IRON,scalar,4,0.07586496366723547,0.07812042709835842,-0.013957684811814421,0.019276204790608292,Holding,4,corridor,0
+Mark-Liversedge,leadArmToTorso,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,leadArmToTorso,P4-P7,7 IRON,trace,4,1.002432564434184,1.6621778372784248,0.4276181570065539,0.3295537339639975,Holding,4,peakFraction,
+Mark-Liversedge,leadArmToTorso,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,leadHandWidth,P1,7 IRON,scalar,4,0,0,-0.039958624962152106,0.0040364306682325445,Tightening,4,corridor,0
+Mark-Liversedge,leadHandWidth,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,leadHandWidth,P4-P7,7 IRON,trace,4,0.4372174594605557,1.5415179753215926,0.7149193588992617,0.27337908214169326,Loosening,4,peakFraction,
+Mark-Liversedge,leadHandWidth,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,leadHeelLift,P1,7 IRON,scalar,4,0.12917793377543563,0.10354905707878742,-0.014795316093620786,0.027506669746616755,Holding,4,corridor,0
+Mark-Liversedge,leadHeelLift,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,leadHeelLift,P4-P7,7 IRON,trace,4,5.063305187887405,3.954093314727078,-1.0813204706628354,1.1000902143793276,Holding,4,peakFraction,
+Mark-Liversedge,leadHeelLift,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,leadKneeDrift,P1,7 IRON,scalar,4,0,0,-0.03335937576818095,0.0033698058316901348,Tightening,4,corridor,0
+Mark-Liversedge,leadKneeDrift,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,leadKneeFlexion,P1,7 IRON,scalar,3,0.26094500372846646,0.2995263129798346,0.03858130925136816,0.06228081672426531,Holding,3,corridor,0
+Mark-Liversedge,leadKneeFlexion,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,leadKneeFlexion,P4-P7,7 IRON,trace,3,1.963900314013151,1.731641417835219,-0.23225889617793194,0.4332700704291088,Holding,3,peakFraction,
+Mark-Liversedge,leadKneeFlexion,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,leadUpperArmToChest,P1,7 IRON,scalar,4,0,0,-0.011690009955305176,0.014501618606410279,Holding,4,corridor,0
+Mark-Liversedge,leadUpperArmToChest,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,leadUpperArmToChest,P4-P7,7 IRON,trace,4,1.251872335239538,2.010366094124712,0.5898311447955956,0.40379597815960094,Holding,4,peakFraction,
+Mark-Liversedge,leadUpperArmToChest,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,lm.attackAngle,LM,7 IRON,scalar,2,,,,,Insufficient,2,corridor,
+Mark-Liversedge,lm.attackAngle,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.attackAngle,LM,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.backSpin,LM,7 IRON,scalar,2,,,,,Insufficient,2,cv,
+Mark-Liversedge,lm.backSpin,LM,DRIVER,scalar,1,,,,,Insufficient,1,cv,
+Mark-Liversedge,lm.backSpin,LM,GAP WEDGE,scalar,1,,,,,Insufficient,1,cv,
+Mark-Liversedge,lm.ballSpeed,LM,7 IRON,scalar,2,,,,,Insufficient,2,cv,
+Mark-Liversedge,lm.ballSpeed,LM,DRIVER,scalar,1,,,,,Insufficient,1,cv,
+Mark-Liversedge,lm.ballSpeed,LM,GAP WEDGE,scalar,1,,,,,Insufficient,1,cv,
+Mark-Liversedge,lm.carryDistance,LM,7 IRON,scalar,2,,,,,Insufficient,2,corridor,
+Mark-Liversedge,lm.carryDistance,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.carryDistance,LM,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.clubPath,LM,7 IRON,scalar,2,,,,,Insufficient,2,corridor,
+Mark-Liversedge,lm.clubPath,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.clubPath,LM,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.clubheadSpeed,LM,7 IRON,scalar,2,,,,,Insufficient,2,corridor,
+Mark-Liversedge,lm.clubheadSpeed,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.clubheadSpeed,LM,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.faceToPath,LM,7 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.faceToPath,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.launchAngle,LM,7 IRON,scalar,2,,,,,Insufficient,2,corridor,
+Mark-Liversedge,lm.launchAngle,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.launchAngle,LM,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.launchDirection,LM,7 IRON,scalar,2,,,,,Insufficient,2,corridor,
+Mark-Liversedge,lm.launchDirection,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.launchDirection,LM,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.peakHeight,LM,7 IRON,scalar,1,,,,,Insufficient,1,cv,
+Mark-Liversedge,lm.peakHeight,LM,DRIVER,scalar,1,,,,,Insufficient,1,cv,
+Mark-Liversedge,lm.peakHeight,LM,GAP WEDGE,scalar,1,,,,,Insufficient,1,cv,
+Mark-Liversedge,lm.smashFactor,LM,7 IRON,scalar,2,,,,,Insufficient,2,corridor,
+Mark-Liversedge,lm.smashFactor,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.smashFactor,LM,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.spinAxis,LM,7 IRON,scalar,2,,,,,Insufficient,2,corridor,
+Mark-Liversedge,lm.spinAxis,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.spinAxis,LM,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.spinRate,LM,7 IRON,scalar,2,,,,,Insufficient,2,corridor,
+Mark-Liversedge,lm.spinRate,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.spinRate,LM,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.strikeLocation,LM,7 IRON,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.strikeLocation,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Mark-Liversedge,lm.totalDistance,LM,7 IRON,scalar,1,,,,,Insufficient,1,cv,
+Mark-Liversedge,lm.totalDistance,LM,DRIVER,scalar,1,,,,,Insufficient,1,cv,
+Mark-Liversedge,lm.totalDistance,LM,GAP WEDGE,scalar,1,,,,,Insufficient,1,cv,
+Mark-Liversedge,lowPointAhead,P7,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,1
+Mark-Liversedge,lowPointAhead,P7,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,lowPointFromAttack,P7,7 IRON,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,lowPointFromAttack,P7,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,pelvisAngularSpeed,P4-P7,7 IRON,trace,3,0,2.4616135363267877,2.4616135363267877,0.5504335201560345,Loosening,3,peakFraction,
+Mark-Liversedge,pelvisAngularSpeed,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,pelvisLift,P1,7 IRON,scalar,4,0.08986241737543127,0.08151406730759667,-0.046344405481524145,0.021030164931694486,Tightening,4,corridor,0
+Mark-Liversedge,pelvisLift,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,pelvisPeakSpeed,P7,7 IRON,scalar,3,0,0,0,0,Holding,3,cv,1
+Mark-Liversedge,pelvisPeakSpeed,P7,GAP WEDGE,scalar,1,,,,,Insufficient,1,cv,1
+Mark-Liversedge,pelvisRotation,P1,7 IRON,scalar,3,0,0,0,0,Holding,3,corridor,0
+Mark-Liversedge,pelvisRotation,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,pelvisRotation,P4-P7,7 IRON,trace,3,1.0497014150065085,1.42906550414026,0.3793640891337515,0.2709054193408677,Holding,3,peakFraction,
+Mark-Liversedge,pelvisRotation,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,pelvisRotationSigned,P1,7 IRON,scalar,3,0,0,0,0,Holding,3,corridor,0
+Mark-Liversedge,pelvisRotationSigned,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,pelvisRotationSigned,P4-P7,7 IRON,trace,3,1.0497014150065085,1.42906550414026,0.3793640891337515,0.2709054193408677,Holding,3,peakFraction,
+Mark-Liversedge,pelvisRotationSigned,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,pelvisSway,P1,7 IRON,scalar,4,0,0,-0.01896639371651241,0.003832292492424369,Tightening,4,corridor,0
+Mark-Liversedge,pelvisSway,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,pelvisThrust,P4-P7,7 IRON,trace,3,1.4323247444788565,1.3046789933333687,-0.12764575114548782,0.42592897085877973,Holding,3,peakFraction,
+Mark-Liversedge,pelvisThrust,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,plumbBobDistance,P1,7 IRON,scalar,4,0.5914157356098931,0.9483541138123095,0.4000068893831472,0.18122882161818965,Loosening,4,corridor,1
+Mark-Liversedge,plumbBobDistance,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,secondaryAxisTilt,P1,7 IRON,scalar,4,0.18155192697711284,0.31917732116236147,0.11138978004652085,0.058985801350964796,Holding,4,corridor,0
+Mark-Liversedge,secondaryAxisTilt,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,shaftAngleVsHorizontal,P1,7 IRON,scalar,4,0.9648991403767236,0.2915163742472373,-0.6195892779556393,0.17062698890058015,Tightening,4,corridor,0
+Mark-Liversedge,shaftAngleVsHorizontal,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,shaftAngleVsHorizontal,P4-P7,7 IRON,trace,4,5.036244496750079,3.4985650387422447,-0.8151832691210503,1.1946948174205594,Holding,4,peakFraction,
+Mark-Liversedge,shaftAngleVsHorizontal,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,shaftLie,P7,7 IRON,scalar,3,2.0998448780162957,1.7729307406224042,-0.3269141373938915,0.46007746535942584,Holding,3,corridor,1
+Mark-Liversedge,shaftLie,P7,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,spineForwardBend,P1,7 IRON,scalar,3,0.1411680375741609,0.10155975465985026,-0.03960828291431065,0.02963258560529574,Holding,3,corridor,1
+Mark-Liversedge,spineForwardBend,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,spineForwardBend,P4-P7,7 IRON,trace,3,0.3487892771590195,0.9541200179580664,0.6053307407990469,0.18541366100545545,Loosening,3,peakFraction,
+Mark-Liversedge,spineForwardBend,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,spineSideBend,P1,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,0
+Mark-Liversedge,spineSideBend,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,stanceWidth,P1,7 IRON,scalar,4,0.503647570176198,1.0400310006263518,0.4623166976447518,0.17885987563651637,Loosening,4,corridor,1
+Mark-Liversedge,stanceWidth,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,stanceWidthMm,P1,7 IRON,scalar,4,0.04507051686106077,0.0991422321715997,0.045309766128473275,0.016806857632078464,Loosening,4,cv,1
+Mark-Liversedge,stanceWidthMm,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,cv,1
+Mark-Liversedge,swingPlaneCurve,P4-P7,7 IRON,trace,3,0.9240983803660938,1.1486994560119568,0.22460107564586296,0.236376171015011,Holding,3,peakFraction,
+Mark-Liversedge,swingPlaneCurve,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,tempoBackswing,P4,7 IRON,scalar,4,0,0,-0.0006607509882327225,0.0024048135917665997,Holding,4,cv,1
+Mark-Liversedge,tempoBackswing,P4,GAP WEDGE,scalar,1,,,,,Insufficient,1,cv,1
+Mark-Liversedge,tempoRatio,P4,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,1
+Mark-Liversedge,tempoRatio,P4,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,thoraxLateralDrift,P1,7 IRON,scalar,4,0.4042518714194828,0.4602320886472772,0.09040789039823513,0.09976709943418981,Holding,4,corridor,1
+Mark-Liversedge,thoraxLateralDrift,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,thoraxPeakSpeed,P7,7 IRON,scalar,4,0.09567127843120807,0.10306818785287325,-0.05566502657854739,0.024064755481302158,Tightening,4,cv,1
+Mark-Liversedge,thoraxPeakSpeed,P7,GAP WEDGE,scalar,1,,,,,Insufficient,1,cv,1
+Mark-Liversedge,thoraxRotation,P1,7 IRON,scalar,3,0,0,0,0,Holding,3,corridor,0
+Mark-Liversedge,thoraxRotation,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,thoraxRotation,P4-P7,7 IRON,trace,3,0.8834206993003846,1.327570866518632,0.4441501672182475,0.23926272080770747,Holding,3,peakFraction,
+Mark-Liversedge,thoraxRotation,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,thoraxRotationSigned,P4-P7,7 IRON,trace,3,0.8834206993003846,1.327570866518632,0.4441501672182475,0.23926272080770747,Holding,3,peakFraction,
+Mark-Liversedge,thoraxRotationSigned,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,trailElbowHeight,P1,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,0
+Mark-Liversedge,trailElbowHeight,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,trailForearmAngle,P4-P7,7 IRON,trace,3,0.2662695804248487,0.3472904639463185,0.0810208835214698,0.0673966052262688,Holding,3,peakFraction,
+Mark-Liversedge,trailForearmAngle,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,trailKneeFlexion,P1,7 IRON,scalar,3,0.2895318463969906,0.247098803073303,-0.04243304332368758,0.06307682072185432,Holding,3,corridor,1
+Mark-Liversedge,trailKneeFlexion,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,trailKneeFlexion,P4-P7,7 IRON,trace,3,0.6695432502671165,0.5803748210698886,-0.0891684291972279,0.14705171579929638,Holding,3,peakFraction,
+Mark-Liversedge,trailKneeFlexion,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,trailWristFlexExt,P1,7 IRON,scalar,4,0.28043311889990813,0.23626444618637923,0.02367518533467529,0.06282932794669098,Holding,4,corridor,0
+Mark-Liversedge,trailWristFlexExt,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,trailWristFlexExt,P4-P7,7 IRON,trace,4,1.2858485647155158,3.9939693003827603,2.675808292647604,0.7302710535885186,Loosening,4,peakFraction,
+Mark-Liversedge,trailWristFlexExt,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,trunkRise,P1,7 IRON,scalar,4,0,0,-0.013213415359193221,0.0013347565147314297,Tightening,4,corridor,1
+Mark-Liversedge,trunkRise,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,1
+Mark-Liversedge,xFactor,P4-P7,7 IRON,trace,3,1.025037026590236,1.7705475159757662,0.7455104893855302,0.29962032773443525,Loosening,3,peakFraction,
+Mark-Liversedge,xFactor,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Mark-Liversedge,xFactorStretch,P1,7 IRON,scalar,3,2.362228190003948,3.7926761719713578,1.4304479819674096,0.6567316069596583,Loosening,3,corridor,0
+Mark-Liversedge,xFactorStretch,P1,GAP WEDGE,scalar,1,,,,,Insufficient,1,corridor,0
+Mark-Liversedge,xFactorStretch,P4-P7,7 IRON,trace,3,0.8622767698284086,2.198112554874715,1.3358357850463065,0.32723484374692274,Loosening,3,peakFraction,
+Mark-Liversedge,xFactorStretch,P4-P7,GAP WEDGE,trace,1,,,,,Insufficient,1,peakFraction,
+Nick-Henn,armHang,P1,7 IRON,scalar,4,0.14907906515933783,0.14926829575581876,-0.016797589792418334,0.05081589925070563,Holding,4,corridor,1
+Nick-Henn,balanceHeelToe,P1,7 IRON,scalar,4,0.3230076012751889,0.9057101996818987,0.5719325589894565,0.21046443969251494,Loosening,4,corridor,1
+Nick-Henn,ballBodyDistance,P1,7 IRON,scalar,3,0.014512000245522495,0.0358488733047115,0.021336873059189007,0.009297283858636197,Loosening,3,cv,1
+Nick-Henn,ballPosition,P1,7 IRON,scalar,4,0.3783838409418498,0.21977265772777144,-0.11611006751748075,0.11122335106178008,Holding,4,corridor,1
+Nick-Henn,ballReachExcess,P1,7 IRON,scalar,3,0.18150376071100502,0.2771600489786468,0.0956562882676418,0.08136808320976134,Holding,3,corridor,1
+Nick-Henn,clubPeakSpeed,P7,7 IRON,scalar,1,,,,,Insufficient,1,cv,1
+Nick-Henn,clubheadPeakLead,P7,7 IRON,scalar,3,0,0,0,0,Holding,3,corridor,1
+Nick-Henn,clubheadSpeed,P1,7 IRON,scalar,3,0,0,0,0,Holding,3,corridor,0
+Nick-Henn,comOverLeadFoot,P1,7 IRON,scalar,4,0,0,0.02787137110809451,0.011163140058295681,Loosening,4,corridor,0
+Nick-Henn,comOverLeadFoot,P4-P7,7 IRON,trace,4,0.5849874227626417,5.5084590123647805,4.508338581876037,1.2479989355542718,Loosening,4,peakFraction,
+Nick-Henn,feetAlignment,P1,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,1
+Nick-Henn,handPathLoop,P4,7 IRON,scalar,4,0.37949642849535165,0.4024838837406091,0.018768522081252112,0.1303086451338223,Holding,4,corridor,1
+Nick-Henn,handPlaneCurve,P4-P7,7 IRON,trace,3,0.27082135090709364,0.37245678753827915,0.10163543663118552,0.1137794527384334,Holding,3,peakFraction,
+Nick-Henn,handSpeed,P1,7 IRON,scalar,3,0,0,0,0,Holding,3,cv,0
+Nick-Henn,headLift,P1,7 IRON,scalar,4,0.022427151715375307,0.07667762320661338,0.04433073234219795,0.01803231838589328,Loosening,4,corridor,0
+Nick-Henn,headLift,P4-P7,7 IRON,trace,4,6.441021223623599,7.629972798307997,1.2546249180940188,2.4056043642362335,Holding,4,peakFraction,
+Nick-Henn,headPitch,P1,7 IRON,scalar,4,0.47749963791202316,0.5980714518095092,0.09164559794575505,0.17712957342495034,Holding,4,corridor,1
+Nick-Henn,headRise,P1,7 IRON,scalar,4,0.06594118832236631,0.03769431514638593,-0.0050007347305941075,0.022718427086875156,Holding,4,corridor,0
+Nick-Henn,headRise,P4-P7,7 IRON,trace,2,,,,,Insufficient,2,peakFraction,
+Nick-Henn,headSway,P1,7 IRON,scalar,4,0.02249031079411695,0.10555364217071865,0.07153303258108262,0.023398811055542583,Loosening,4,corridor,0
+Nick-Henn,headSway,P4-P7,7 IRON,trace,4,1.5528814608213621,7.4430481496765,5.361833453648135,1.7217565571935531,Loosening,4,peakFraction,
+Nick-Henn,headTilt,P4-P7,7 IRON,trace,4,2.0413070789860366,5.901985311534539,4.499470904230428,1.514969262074907,Loosening,4,peakFraction,
+Nick-Henn,hipDepthButt,P1,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,0
+Nick-Henn,hipDepthButt,P2,7 IRON,scalar,4,0.23648162397887237,5.062974060689445,4.369094361910436,1.0761035415302724,Loosening,4,corridor,0
+Nick-Henn,hipDepthButt,P3,7 IRON,scalar,4,0.21075187208822302,6.830082887812843,5.986390055514798,1.4504414681133042,Loosening,4,corridor,0
+Nick-Henn,hipDepthButt,P4,7 IRON,scalar,4,0.2507372478820097,4.067439927753479,3.4294021006067847,0.8659367318985538,Loosening,4,corridor,1
+Nick-Henn,hipDepthButt,P5,7 IRON,scalar,4,0.38481297356921795,7.277958750548462,6.20989015715401,1.5473567065080625,Loosening,4,corridor,0
+Nick-Henn,hipDepthButt,P6,7 IRON,scalar,4,0.39069587719045124,3.9708749114693,3.23312104511694,0.8488658003303158,Loosening,4,corridor,0
+Nick-Henn,hipDepthButt,P7,7 IRON,scalar,4,0.4033472863011579,6.965920294474104,5.875163557948037,1.4816447657296812,Loosening,4,corridor,1
+Nick-Henn,hipLineTilt,P1,7 IRON,scalar,4,0.16347000539747442,0,-0.14712300485772697,0.039320276992163755,Tightening,4,corridor,1
+Nick-Henn,impactShaftLean,P4-P7,7 IRON,trace,3,0.6117682718304783,0.3946787302491876,-0.21708954158129073,0.18811392332087817,Holding,3,peakFraction,
+Nick-Henn,impactShaftLean,P7,7 IRON,scalar,3,0,0,0,0,Holding,3,corridor,1
+Nick-Henn,lagAngle,P1,7 IRON,scalar,3,0,0.03114797019240243,0.03114797019240243,0.007341646981081404,Loosening,3,corridor,0
+Nick-Henn,lagAngle,P4-P7,7 IRON,trace,3,1.2394298393781997,1.538869345764394,0.2994395063861943,0.49121253428764766,Holding,3,peakFraction,
+Nick-Henn,leadArmAngularSpeed,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Nick-Henn,leadArmPeakSpeed,P7,7 IRON,scalar,3,0,0,0,0,Holding,3,cv,1
+Nick-Henn,leadArmToTorso,P1,7 IRON,scalar,4,0.12060333522734412,0.11434446107015181,-0.008988886087343894,0.04004750101218529,Holding,4,corridor,0
+Nick-Henn,leadArmToTorso,P4-P7,7 IRON,trace,4,0.9765166426604599,0.8289228886407347,-0.17165612697602706,0.3218842169258691,Holding,4,peakFraction,
+Nick-Henn,leadHandWidth,P1,7 IRON,scalar,4,0,0.5807185612857805,0.47805729837160904,0.12489904595788738,Loosening,4,corridor,0
+Nick-Henn,leadHandWidth,P4-P7,7 IRON,trace,4,1.6959832676772113,0.978092356324289,-0.8959859217856113,0.4857879823029986,Holding,4,peakFraction,
+Nick-Henn,leadHeelLift,P1,7 IRON,scalar,4,0.10596251769655379,0.09952596246803945,-0.00417120961703556,0.034825392069425566,Holding,4,corridor,0
+Nick-Henn,leadHeelLift,P4-P7,7 IRON,trace,4,4.676777712381335,2.2723376130851998,-2.296937941546947,1.3510948752572425,Holding,4,peakFraction,
+Nick-Henn,leadKneeDrift,P1,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,0
+Nick-Henn,leadKneeFlexion,P1,7 IRON,scalar,4,0.4148490606926553,0.44252658305584763,-0.005635144279327764,0.14915992789248889,Holding,4,corridor,0
+Nick-Henn,leadKneeFlexion,P4-P7,7 IRON,trace,4,0.8318498617270775,1.0842584167877132,0.25966864840498244,0.3313448711793381,Holding,4,peakFraction,
+Nick-Henn,leadUpperArmToChest,P1,7 IRON,scalar,4,0.13050610633300874,0,-0.16905459522155103,0.034286878520516484,Tightening,4,corridor,0
+Nick-Henn,leadUpperArmToChest,P4-P7,7 IRON,trace,4,0.7542740603849789,0.40810058119033055,-0.0842815928914798,0.2351920578697983,Holding,4,peakFraction,
+Nick-Henn,lm.attackAngle,LM,7 IRON,scalar,2,,,,,Insufficient,2,corridor,
+Nick-Henn,lm.backSpin,LM,7 IRON,scalar,3,0.10246667243410475,0.15985579696807262,0.05738912453396787,0.046579161275609716,Holding,3,cv,
+Nick-Henn,lm.ballSpeed,LM,7 IRON,scalar,3,0.043837223575357034,0.03937374047654213,-0.004463483098814905,0.014946295291614455,Holding,3,cv,
+Nick-Henn,lm.carryDistance,LM,7 IRON,scalar,3,0.9754767594772795,2.762883743893675,1.7874069844163956,0.7014649085025745,Loosening,3,corridor,
+Nick-Henn,lm.clubPath,LM,7 IRON,scalar,2,,,,,Insufficient,2,corridor,
+Nick-Henn,lm.clubheadSpeed,LM,7 IRON,scalar,2,,,,,Insufficient,2,corridor,
+Nick-Henn,lm.faceToPath,LM,7 IRON,scalar,2,,,,,Insufficient,2,corridor,
+Nick-Henn,lm.launchAngle,LM,7 IRON,scalar,3,0.36687697223887017,1.1876046875464836,0.8207277153076135,0.29659740593339917,Loosening,3,corridor,
+Nick-Henn,lm.launchDirection,LM,7 IRON,scalar,3,0.8118188174539861,0.9716172222970718,0.15979840484308572,0.315470526860231,Holding,3,corridor,
+Nick-Henn,lm.peakHeight,LM,7 IRON,scalar,3,0.1610834349279512,0.3383319678392877,0.1772485329113365,0.09062439929993454,Holding,3,cv,
+Nick-Henn,lm.smashFactor,LM,7 IRON,scalar,2,,,,,Insufficient,2,corridor,
+Nick-Henn,lm.spinAxis,LM,7 IRON,scalar,3,1.4582490215420834,4.196342832865878,2.738093811323795,1.0631021695142715,Loosening,3,corridor,
+Nick-Henn,lm.spinRate,LM,7 IRON,scalar,3,0.3007157071187611,0.6565078732614871,0.35579216614272596,0.1743670536028987,Loosening,3,corridor,
+Nick-Henn,lm.strikeLocation,LM,7 IRON,scalar,2,,,,,Insufficient,2,corridor,
+Nick-Henn,lm.totalDistance,LM,7 IRON,scalar,3,0.0600140095717095,0.14649204947958386,0.08647803990787437,0.03807204699165271,Loosening,3,cv,
+Nick-Henn,lowPointAhead,P7,7 IRON,scalar,3,0,0,0,0,Holding,3,corridor,1
+Nick-Henn,lowPointFromAttack,P7,7 IRON,scalar,2,,,,,Insufficient,2,corridor,1
+Nick-Henn,pelvisAngularSpeed,P4-P7,7 IRON,trace,2,,,,,Insufficient,2,peakFraction,
+Nick-Henn,pelvisLift,P1,7 IRON,scalar,4,0,0.1520592033223314,0.12008929217778906,0.03256629745218549,Loosening,4,corridor,0
+Nick-Henn,pelvisPeakSpeed,P7,7 IRON,scalar,1,,,,,Insufficient,1,cv,1
+Nick-Henn,pelvisRotation,P1,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,0
+Nick-Henn,pelvisRotation,P4-P7,7 IRON,trace,4,1.3568488028825942,0.5295405304627563,-0.6725612398421266,0.34899473585481744,Holding,4,peakFraction,
+Nick-Henn,pelvisRotationSigned,P1,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,0
+Nick-Henn,pelvisRotationSigned,P4-P7,7 IRON,trace,4,1.3568488028825942,0.5295405304627563,-0.6725612398421266,0.34899473585481744,Holding,4,peakFraction,
+Nick-Henn,pelvisSway,P1,7 IRON,scalar,4,0.05018479760226322,0,-0.05719168522876328,0.012491727914886152,Tightening,4,corridor,0
+Nick-Henn,pelvisThrust,P4-P7,7 IRON,trace,2,,,,,Insufficient,2,peakFraction,
+Nick-Henn,plumbBobDistance,P1,7 IRON,scalar,4,0,0.3652218473234974,0.36469619250565566,0.09900117009070754,Loosening,4,corridor,1
+Nick-Henn,secondaryAxisTilt,P1,7 IRON,scalar,4,0.31443401174261765,0.24512875998736325,0.003839028509219189,0.0957943807060821,Holding,4,corridor,0
+Nick-Henn,shaftAngleVsHorizontal,P1,7 IRON,scalar,3,0,0.2118642074939075,0.2118642074939075,0.049936872603218586,Loosening,3,corridor,0
+Nick-Henn,shaftLie,P7,7 IRON,scalar,3,3.6726439181075397,2.072801200274567,-1.5998427178329728,1.096424035447677,Holding,3,corridor,1
+Nick-Henn,spineForwardBend,P1,7 IRON,scalar,4,0.10193174548145888,0.07750989554355078,-0.02979944452156015,0.031243516268508367,Holding,4,corridor,1
+Nick-Henn,spineForwardBend,P4-P7,7 IRON,trace,2,,,,,Insufficient,2,peakFraction,
+Nick-Henn,spineSideBend,P1,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,0
+Nick-Henn,stanceWidth,P1,7 IRON,scalar,4,0.18069358835921334,0.13696149117061068,-0.03469178837097582,0.061660321244804236,Holding,4,corridor,1
+Nick-Henn,stanceWidthMm,P1,7 IRON,scalar,4,0.014862011408471983,0.006975447050381471,-0.005748532755246668,0.004445335767349023,Holding,4,cv,1
+Nick-Henn,swingPlaneCurve,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Nick-Henn,tempoBackswing,P4,7 IRON,scalar,4,0.03844113945532481,0.027648982793155082,-0.041529063824995785,0.014017935705803057,Tightening,4,cv,1
+Nick-Henn,tempoRatio,P4,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,1
+Nick-Henn,thoraxLateralDrift,P1,7 IRON,scalar,4,0,0.07409588269992338,0.09441587976555181,0.02420912109115135,Loosening,4,corridor,1
+Nick-Henn,thoraxPeakSpeed,P7,7 IRON,scalar,4,0.054389709028665516,0.2789777132179167,0.19913531500193105,0.06153048360831292,Loosening,4,cv,1
+Nick-Henn,thoraxRotation,P1,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,0
+Nick-Henn,thoraxRotation,P4-P7,7 IRON,trace,4,1.8340021977709213,2.409383188197645,0.5553135735201389,0.7277390428871262,Holding,4,peakFraction,
+Nick-Henn,thoraxRotationSigned,P4-P7,7 IRON,trace,4,1.8340021977709213,2.409383188197645,0.5553135735201389,0.7277390428871262,Holding,4,peakFraction,
+Nick-Henn,trailElbowHeight,P1,7 IRON,scalar,4,0,0,0,0,Holding,4,corridor,0
+Nick-Henn,trailElbowHeight,P4-P7,7 IRON,trace,1,,,,,Insufficient,1,peakFraction,
+Nick-Henn,trailForearmAngle,P4-P7,7 IRON,trace,4,0.19852978429547102,0.4469083850866448,0.23700498039801646,0.11361266291001859,Loosening,4,peakFraction,
+Nick-Henn,trailKneeFlexion,P1,7 IRON,scalar,4,0.16456632266960172,0.21091973371608536,0.06461589080795124,0.0666804951286275,Holding,4,corridor,1
+Nick-Henn,trailKneeFlexion,P4-P7,7 IRON,trace,4,0.6760729893119104,1.2642141951074235,0.3425894646381765,0.3538954598240832,Holding,4,peakFraction,
+Nick-Henn,trailWristFlexExt,P1,7 IRON,scalar,4,0.2986860845038295,0.35998855659033197,0.08091533773391421,0.10629265339937348,Holding,4,corridor,0
+Nick-Henn,trailWristFlexExt,P4-P7,7 IRON,trace,4,1.1841235436984905,0.592217037146548,-0.24848176169353095,0.4722482590658085,Holding,4,peakFraction,
+Nick-Henn,trunkRise,P1,7 IRON,scalar,4,0,0.17375709353397056,0.1563813841805735,0.036859445735140745,Loosening,4,corridor,1
+Nick-Henn,xFactor,P4-P7,7 IRON,trace,4,1.6578078910195793,2.6413434952427357,0.8504550629995848,0.7406218181592801,Holding,4,peakFraction,
+Nick-Henn,xFactorStretch,P1,7 IRON,scalar,4,4.188176916109664,3.310302185221674,-1.1121425174571042,1.3034559840694824,Holding,4,corridor,0
+Nick-Henn,xFactorStretch,P4-P7,7 IRON,trace,4,2.672943680315054,4.239050967623664,1.7616861707345182,1.185571235858399,Holding,4,peakFraction,
+Paddy-Marriott,armHang,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,1
+Paddy-Marriott,balanceHeelToe,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,1
+Paddy-Marriott,ballPosition,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,1
+Paddy-Marriott,comOverLeadFoot,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,comOverLeadFoot,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,feetAlignment,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,1
+Paddy-Marriott,handPathLoop,P4,DRIVER,scalar,1,,,,,Insufficient,1,corridor,1
+Paddy-Marriott,headLift,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,headLift,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,headPitch,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,1
+Paddy-Marriott,headSway,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,headSway,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,headTilt,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,hipLineTilt,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,1
+Paddy-Marriott,leadArmPeakSpeed,P7,DRIVER,scalar,1,,,,,Insufficient,1,cv,1
+Paddy-Marriott,leadArmToTorso,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,leadArmToTorso,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,leadHandWidth,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,leadHandWidth,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,leadHeelLift,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,leadKneeDrift,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,leadKneeFlexion,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,leadKneeFlexion,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,leadUpperArmToChest,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,leadUpperArmToChest,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,lm.attackAngle,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Paddy-Marriott,lm.backSpin,LM,DRIVER,scalar,1,,,,,Insufficient,1,cv,
+Paddy-Marriott,lm.ballSpeed,LM,DRIVER,scalar,1,,,,,Insufficient,1,cv,
+Paddy-Marriott,lm.carryDistance,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Paddy-Marriott,lm.clubPath,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Paddy-Marriott,lm.clubheadSpeed,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Paddy-Marriott,lm.faceToPath,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Paddy-Marriott,lm.launchAngle,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Paddy-Marriott,lm.launchDirection,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Paddy-Marriott,lm.peakHeight,LM,DRIVER,scalar,1,,,,,Insufficient,1,cv,
+Paddy-Marriott,lm.smashFactor,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Paddy-Marriott,lm.spinAxis,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Paddy-Marriott,lm.spinRate,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Paddy-Marriott,lm.strikeLocation,LM,DRIVER,scalar,1,,,,,Insufficient,1,corridor,
+Paddy-Marriott,lm.totalDistance,LM,DRIVER,scalar,1,,,,,Insufficient,1,cv,
+Paddy-Marriott,lowPointFromAttack,P7,DRIVER,scalar,1,,,,,Insufficient,1,corridor,1
+Paddy-Marriott,pelvisLift,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,pelvisPeakSpeed,P7,DRIVER,scalar,1,,,,,Insufficient,1,cv,1
+Paddy-Marriott,pelvisRotation,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,pelvisRotation,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,pelvisRotationSigned,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,pelvisRotationSigned,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,pelvisSway,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,plumbBobDistance,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,1
+Paddy-Marriott,secondaryAxisTilt,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,spineForwardBend,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,1
+Paddy-Marriott,spineForwardBend,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,spineSideBend,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,stanceWidth,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,1
+Paddy-Marriott,stanceWidthMm,P1,DRIVER,scalar,1,,,,,Insufficient,1,cv,1
+Paddy-Marriott,tempoBackswing,P4,DRIVER,scalar,1,,,,,Insufficient,1,cv,1
+Paddy-Marriott,tempoRatio,P4,DRIVER,scalar,1,,,,,Insufficient,1,corridor,1
+Paddy-Marriott,thoraxLateralDrift,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,1
+Paddy-Marriott,thoraxPeakSpeed,P7,DRIVER,scalar,1,,,,,Insufficient,1,cv,1
+Paddy-Marriott,thoraxRotation,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,thoraxRotation,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,thoraxRotationSigned,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,trailElbowHeight,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,trailForearmAngle,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,trailKneeFlexion,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,1
+Paddy-Marriott,trailKneeFlexion,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,trailWristFlexExt,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,trailWristFlexExt,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,trunkRise,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,1
+Paddy-Marriott,xFactor,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,
+Paddy-Marriott,xFactorStretch,P1,DRIVER,scalar,1,,,,,Insufficient,1,corridor,0
+Paddy-Marriott,xFactorStretch,P4-P7,DRIVER,trace,1,,,,,Insufficient,1,peakFraction,

@@ -76,6 +76,16 @@ pp_add_test(consistency_env_test
     AUTOMOC)
 set_tests_properties(consistency_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
+# The variability scale provider (src/Gui/charts/variability_env.{h,cpp}, docs/design/variability-mark/spec.md §8.2
+# step 4): the corridor rung is consistencyEnvFromPacks().normSigma on the real norms, a key with no norm has no
+# scale, the scale type is the descriptor's; then the ladder and σnoise on a stub env.
+pp_add_test(variability_env_test
+    SOURCES variability_env_test.cpp ${GUI}/charts/variability_env.cpp ${CONSISTENCY_ENV_SOURCES}
+    INCLUDE ${CONSISTENCY_ENV_INCLUDE}
+    LINK    Qt6::Qml Qt6::Test
+    AUTOMOC)
+set_tests_properties(variability_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
+
 # The Consistency maths (src/Gui/charts/session_consistency.{h,cpp}, consistency_design.md §4): the rules on a stub
 # env and synthetic shots, the guard and sampling on the 4 July fixture, and the 5 Oct fixture on the real env for
 # its timing and its golden (goldens_1005_consistency.json, cut by consistency_tally.py from a dump of that fixture).
@@ -101,3 +111,19 @@ target_include_directories(consistency_dump PRIVATE ${PP_BUFFER} ${CONSISTENCY_E
 target_compile_definitions(consistency_dump PRIVATE PP_DIAGNOSTICS_DIR="${SRC}/Resources/diagnostics")
 target_link_libraries(consistency_dump PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
 set_target_properties(consistency_dump PROPERTIES AUTOMOC ON)
+
+# variability_calibrate <fixtures-root> <ks-root> <out-dir>: the variability grader (src/Metrics/variability/, spec
+# §8) over a read-only extract of every athlete's sessions, for calibrating the §8.10 constants: the calibration and
+# trend CSVs and the mark gallery's fixture. A tool, not a test: no ctest entry. Reads <fixtures-root>/<athlete>/*.json
+# and the app's stored kinematic-sequence orders <ks-root>/<athlete>/<session>.json, and writes only into <out-dir>.
+# The façade's token spellings (src/Gui/variability/variability_facade.cpp) are linked, not copied.
+add_executable(variability_calibrate variability_calibrate.cpp ${GUI}/charts/variability_env.cpp
+    ${GUI}/variability/variability_facade.cpp
+    ${GUI}/charts/session_sequence.cpp
+    ${SRC}/Metrics/variability/variability_grader.cpp ${SRC}/Metrics/variability/variability_result.cpp
+    ${SRC}/Metrics/variability/variability_typicality.cpp ${SRC}/Metrics/variability/variability_trend.cpp
+    ${CONSISTENCY_MATHS_SOURCES} ${CONSISTENCY_ENV_SOURCES})
+target_include_directories(variability_calibrate PRIVATE ${PP_BUFFER} ${CONSISTENCY_ENV_INCLUDE})
+target_compile_definitions(variability_calibrate PRIVATE PP_DIAGNOSTICS_DIR="${SRC}/Resources/diagnostics")
+target_link_libraries(variability_calibrate PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
+set_target_properties(variability_calibrate PROPERTIES AUTOMOC ON)
