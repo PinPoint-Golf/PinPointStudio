@@ -212,9 +212,9 @@ Two telemetry layers — do not conflate them:
 | 6 | Ball | `runnerOpt` && pose frames | `ball`, `timings.ballMs` (injection path wins, else job track, else offline replay) |
 | 7 | Shaft | `ball` present | `detail->shaft`, `detail->ball`, `segVision` (only when no IMU seg), `timings.shaftMs` |
 | 8 | SegResolve | always | `seg` = segImu, else confident segVision, else default |
-| 9 | ShaftLean | `shaft.valid` | appends to **local** `series` |
-| 10 | RequireProducts | always | `halted` when `series` empty **and** no pose frames |
-| 11 | EventRefine | `refine.enabled` && **no** `segImu` && FaceOn && `shaft.valid` && `seg.conf > 0` | retimed Address/Takeaway `t_us` + conf + `provenance = Club`, `Segmentation.version = 3`, `swingStartUs` clamped ≤ refined Address (never Impact; abstains below `minConf` / beyond `maxShiftS`) |
+| 9 | EventRefine | `refine.enabled` && **no** `segImu` && FaceOn && `shaft.valid` && `seg.conf > 0` | retimed Address/Takeaway `t_us` + conf + `provenance = Club`, `Segmentation.version = 3`, `swingStartUs` clamped ≤ refined Address (never Impact; abstains below `minConf` / beyond `maxShiftS`) |
+| 10 | ShaftLean | `shaft.valid` | appends to **local** `series` |
+| 11 | RequireProducts | always | `halted` when `series` empty **and** no pose frames |
 | 12 | BindDetail | always | `detail->series/phases/segmentation` ← local products |
 | 13 | HeadTrack | FaceOn && pose frames | appends to `detail->series` only (unscored) |
 | 14 | FootMetrics | FaceOn && pose frames | appends to `detail->series` only (unscored) |
@@ -324,16 +324,18 @@ note); 6–7 arrived with EventRefine:
 5. **`projectResult()` is the profile-runner tail, not a stage** — a Project
    stage would need special halted-handling in the orchestrator (it must run
    *especially* when halted), which is exactly the machinery §10.6 forbids.
-6. **EventRefine sits after SegResolve and before BindDetail — exactly there.**
+6. **EventRefine sits straight after SegResolve, before ImpactAnchor and BindDetail.**
    It mutates `ctx.seg` in place, so it must run after the resolve (there is
    no seg to refine earlier) and before BindDetail so the refined ladder binds
    with zero extra plumbing — every downstream `ctx.seg` reader (HeadTrack /
    FootMetrics addressUs, assessment P1, buildTrace, swing.json, timeline)
-   picks the refined times up automatically. Only ShaftLean and
-   RequireProducts sit between SegResolve and EventRefine, and neither reads
-   `seg.events`, so the refine slot is the last safe point. A stage inserted
-   between EventRefine and BindDetail that reads `seg.events` would see
-   refined times — usually what you want, but say so in its design note.
+   picks the refined times up automatically. It must also run before
+   ImpactAnchor, because a refined Address drags P1 with it and ImpactAnchor
+   searches for the ball around the P1 clubhead: in the other order a fresh
+   track and a reused one searched different places (#161). A halted shot has
+   no valid shaft, so `canRun` already skips it. A stage inserted between
+   EventRefine and BindDetail that reads `seg.events` would see refined
+   times — usually what you want, but say so in its design note.
 7. **EventRefine NEVER touches Impact.** Impact is the acoustic-anchored
    marker contract (`ShotController` back-dated true-impact estimate; every
    truth swing is acoustic-anchored) — the refine pass retimes existing

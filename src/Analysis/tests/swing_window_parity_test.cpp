@@ -41,6 +41,8 @@
 //   Test 6  re-analysis keeps the wrist assessment (#110/#111) — a swing recorded as a
 //           Swing session, stored with its live analysis, re-analysed through
 //           reanalyzeSwingDir: same analysis.assessment block, same headline score.
+//   Test 7  stage order — EventRefine before ImpactAnchor, so the address ball is searched for
+//           around the P1 a reused track would hold (#161).
 //
 // Built as a tools target (PINPOINT_BUILD_TOOLS) in the root CMakeLists, beside
 // swinglab_run, where the Buffer/Export/FFmpeg/OpenCV deps are already wired.
@@ -740,6 +742,26 @@ void testReanalysisKeepsAssessment(const RamSwing &ram)
 }
 
 
+// ── Test 7: the address ball is found after P1 has moved (#161) ─────────────
+
+// EventRefine moves P1 back to the real address on a fresh track, and ImpactAnchor searches around
+// P1 and reads the toes at P1. In the other order a fresh track and a reused one find different
+// balls: 11 June swing 4 took the edge of a shoe, 117 px from the ball.
+void testBallFoundAfterRefine()
+{
+    const QJsonArray stages = pinpoint::analysis::analysisGraphJson().value(QStringLiteral("nodes")).toArray();
+    int refine = -1, anchor = -1, lean = -1;
+    for (int i = 0; i < stages.size(); ++i) {
+        const QString name = stages.at(i).toObject().value(QStringLiteral("name")).toString();
+        if (name == QStringLiteral("EventRefine"))  refine = i;
+        if (name == QStringLiteral("ImpactAnchor")) anchor = i;
+        if (name == QStringLiteral("ShaftLean"))    lean = i;
+    }
+    CHECK(refine >= 0 && anchor >= 0 && lean >= 0);
+    CHECK(refine < anchor);
+    CHECK(anchor < lean);   // shaft lean reads the ball line
+}
+
 // ── Test 5: burst-stamped lane must keep the grid on the floor ──────────────
 //
 // Witmotion samples are stamped at HOST arrival (WT9011DCL_Base::receiveData),
@@ -890,6 +912,9 @@ int main(int argc, char** argv)
 
     // ── re-analysis keeps the wrist assessment (Test 6) ──
     testReanalysisKeepsAssessment(ram);
+
+    // ── the address ball is found after P1 has moved (Test 7) ──
+    testBallFoundAfterRefine();
 
     std::fprintf(stderr, "\n%s — %d check failure(s)\n",
                  g_failures == 0 ? "PASS" : "FAIL", g_failures);

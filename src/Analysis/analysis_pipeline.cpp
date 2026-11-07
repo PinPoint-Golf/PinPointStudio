@@ -946,7 +946,11 @@ struct SegResolveStage : AnalysisStage {
 //     the synth takes the ball as evidence only when synth.ballAnchorSigmaDeg > 0 (dark, 0 by
 //     default). Runs every analysis
 //     (the stage is cheap: ~10 decoded frames), reused tracks included. Nothing found ⇒ nothing
-//     anchored and every metric as before.
+//     anchored and every metric as before. Runs AFTER EventRefine (#161): it looks for the ball
+//     around the P1 clubhead and at the toes at P1, and on a fresh track P1 is only the real
+//     address once EventRefine has moved it. Before that it can be the takeaway, with the club
+//     already rising, which let 11 June swing 4 take the edge of a shoe for the ball; a reused
+//     track already held the moved P1, so the two paths found different balls.
 struct ImpactAnchorStage : AnalysisStage {
     QString name() const override { return QStringLiteral("ImpactAnchor"); }
     StageDecl decl() const override { return D({ kWindowFaceOn, kShaft, kPose2d }, { kShaft }, {}); }
@@ -1045,7 +1049,25 @@ struct ImpactAnchorStage : AnalysisStage {
             for (int j = 17; j <= 22 && j < kWholeBodyJoints; ++j)
                 if (nearest->conf[size_t(j)] > 0.3f) toeY = std::max(toeY, nearest->kp[size_t(j)].y() * H);
         }
-        const AddressBall ball = findAddressBallByDeparture(medianFrame(bf), medianFrame(af), p1->headPx, toeY, cfg);
+        // The clubhead through the address hold (the 300 ms before P1): the fallback search centre when
+        // nothing is found around P1, for a P1 that landed a few frames into the takeaway (#161,
+        // impact_anchor.h).
+        QPointF holdHead(-1.0, -1.0);
+        {
+            std::vector<double> hx, hy;
+            for (const ShaftSample2D &sm : shaft.samples)
+                if (sm.t_us >= p1->t_us - 300000 && sm.t_us <= p1->t_us
+                    && std::isfinite(sm.headPx.x()) && std::isfinite(sm.headPx.y())) {
+                    hx.push_back(sm.headPx.x());
+                    hy.push_back(sm.headPx.y());
+                }
+            if (!hx.empty()) {
+                std::nth_element(hx.begin(), hx.begin() + hx.size() / 2, hx.end());
+                std::nth_element(hy.begin(), hy.begin() + hy.size() / 2, hy.end());
+                holdHead = QPointF(hx[hx.size() / 2], hy[hy.size() / 2]);
+            }
+        }
+        const AddressBall ball = findAddressBallByDeparture(medianFrame(bf), medianFrame(af), p1->headPx, toeY, cfg, holdHead);
         logSplit();
         if (!ball.ok) {
             ppInfo() << "[WristAnalysis] impact anchor: no address ball found";
@@ -1120,9 +1142,11 @@ struct RequireProductsStage : AnalysisStage {
 };
 
 // 10b. EventRefine (P3 event fusion) — fine-tune the timeline events users see
-//     from the FINISHED shaft/ball products (event_refine.h), slotted after
-//     RequireProducts so halted contexts skip it free and BEFORE BindDetail so the
-//     refined ctx.seg binds with zero extra plumbing (every downstream consumer —
+//     from the FINISHED shaft/ball products (event_refine.h), slotted straight after
+//     SegResolve so ImpactAnchor sees the moved P1 (#161; the halted contexts it once
+//     sat behind RequireProducts for have no valid shaft, so canRun already skips them)
+//     and BEFORE BindDetail so the refined ctx.seg binds with zero extra plumbing
+//     (every downstream consumer —
 //     HeadTrack/FootMetrics addressUs, assessment P1, buildTrace, swing.json,
 //     timeline — picks the refined times up automatically). canRun gates on "the
 //     ladder we'd mutate is the VISION one" (no ADOPTED IMU segmentation — fused-swing
@@ -4214,10 +4238,12 @@ SessionProfile fullProfile()
     p.stages.push_back(std::make_unique<ImpactStage>());
     p.stages.push_back(std::make_unique<ShaftStage>());
     p.stages.push_back(std::make_unique<SegResolveStage>());
+    // EventRefine before ImpactAnchor: the ball is searched for around the P1 clubhead, and
+    // EventRefine is what moves P1 back to the real address on a fresh track (#161).
+    p.stages.push_back(std::make_unique<EventRefineStage>());
     p.stages.push_back(std::make_unique<ImpactAnchorStage>());
     p.stages.push_back(std::make_unique<ShaftLeanStage>());
     p.stages.push_back(std::make_unique<RequireProductsStage>());
-    p.stages.push_back(std::make_unique<EventRefineStage>());
     // Slot 10c, one of two: PositionsLadder back-fills, TimelineFusion
     // arbitrates, and refine.fusion decides which one canRun lets through.
     p.stages.push_back(std::make_unique<PositionsLadderStage>());

@@ -45,7 +45,7 @@ namespace pinpoint::analysis {
 constexpr int kPoseStageVersion  = 2;   // 2: every frame of a two-pass pose goes through the one crop the single-pass path
                                         //    makes, pass 1 included; the hands move, and the positions read off them (#154, 2026-11-06)
 constexpr int kBallStageVersion  = 2;   // 2: replay bounded at max(launch, impact) + 150 ms, ROI-only decode (2026-10-06)
-constexpr int kShaftStageVersion = 9;
+constexpr int kShaftStageVersion = 10;
                                               // 1: first stamped version (2026-09-09)
                                               // 2: markerless stack ON — seg lock, snap, projPrior (2026-09-10)
                                               // 3: the blur wedge reads its LEADING edge; timed trail/mid/lead evidence (2026-09-29)
@@ -60,6 +60,9 @@ constexpr int kShaftStageVersion = 9;
                                               //    anchor; a wander of the track near the top had overridden it (#158, 2026-11-06)
                                               // 9: the phase model keeps the downswing run through impact, and its finish can
                                               //    no longer fall before impact (#159, 2026-11-06)
+                                              // 10: on a fresh track the address ball is searched for around the refined P1,
+                                              //     as a reused track always was, then around the clubhead through the address
+                                              //     hold if nothing is there; it could land on a shoe or miss the ball (#161, 2026-11-07)
 // shaft — REUSABLE since 2026-09-17 (swing_reanalyzer.cpp): the recorded samples,
 //         P-anchors, lengths and plane fit are reloaded when this version matches,
 //         the pose and ball were themselves reused, and no tuning override is in

@@ -4,34 +4,53 @@
  "nodes": [
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [
+    "window.faceOn"
+   ],
+   "height": 23,
    "id": 0,
    "name": "FrameDecodeFaceOn",
+   "rank": 0,
    "reads": [
     "window.faceOn"
    ],
+   "series": "none",
    "writes": [
     "frames.faceOn"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [
+    "window.dtl"
+   ],
+   "height": 10,
    "id": 1,
    "name": "FrameDecodeDtl",
+   "rank": 0,
    "reads": [
     "window.dtl"
    ],
+   "series": "none",
    "writes": [
     "frames.dtl"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 24,
    "id": 2,
    "name": "ImuResample",
+   "rank": 0,
    "reads": [
     "window.imu",
     "halted"
    ],
+   "series": "none",
    "writes": [
     "streams",
     "doRefuse"
@@ -39,39 +58,56 @@
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 23,
    "id": 3,
    "name": "ImuSegmentation",
+   "rank": 1,
    "reads": [
     "streams",
     "halted"
    ],
+   "series": "none",
    "writes": [
     "segImu"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 16,
    "id": 4,
    "name": "WristMetrics",
+   "rank": 2,
    "reads": [
     "segImu",
     "streams",
     "halted"
    ],
+   "series": "none",
    "writes": [
     "ctx.series"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [
+    "window.faceOn"
+   ],
+   "height": 22,
    "id": 5,
    "name": "Pose",
+   "rank": 2,
    "reads": [
     "window.faceOn",
     "segImu",
     "halted",
     "frames.faceOn"
    ],
+   "series": "none",
    "writes": [
     "detail.pose2d",
     "runnerOpt"
@@ -79,47 +115,68 @@
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 21,
    "id": 6,
    "name": "PoseSmooth",
+   "rank": 3,
    "reads": [
     "runnerOpt",
     "detail.pose2d",
     "halted"
    ],
+   "series": "none",
    "writes": [
     "detail.pose2d"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 20,
    "id": 7,
    "name": "Ball",
+   "rank": 4,
    "reads": [
     "frames.faceOn",
     "runnerOpt",
     "detail.pose2d",
     "halted"
    ],
+   "series": "none",
    "writes": [
     "ball"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [
+    "window.impact"
+   ],
+   "height": 15,
    "id": 8,
    "name": "Impact",
+   "rank": 0,
    "reads": [
     "window.impact",
     "halted"
    ],
+   "series": "none",
    "writes": [
     "detail.impact"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 19,
    "id": 9,
    "name": "Shaft",
+   "rank": 5,
    "reads": [
     "frames.faceOn",
     "ball",
@@ -129,6 +186,7 @@
     "seg",
     "halted"
    ],
+   "series": "none",
    "writes": [
     "detail.shaft",
     "segVision",
@@ -138,63 +196,30 @@
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 18,
    "id": 10,
    "name": "SegResolve",
+   "rank": 6,
    "reads": [
     "segImu",
     "segVision",
     "halted"
    ],
+   "series": "none",
    "writes": [
     "seg"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 17,
    "id": 11,
-   "name": "ImpactAnchor",
-   "reads": [
-    "frames.faceOn",
-    "detail.shaft",
-    "detail.pose2d",
-    "halted"
-   ],
-   "writes": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "appends": [],
-   "id": 12,
-   "name": "ShaftLean",
-   "reads": [
-    "detail.shaft",
-    "seg",
-    "detail.pose2d",
-    "ctx.series",
-    "halted"
-   ],
-   "writes": [
-    "ctx.series"
-   ]
-  },
-  {
-   "appends": [],
-   "id": 13,
-   "name": "RequireProducts",
-   "reads": [
-    "ctx.series",
-    "detail.pose2d",
-    "streams"
-   ],
-   "writes": [
-    "halted"
-   ]
-  },
-  {
-   "appends": [],
-   "id": 14,
    "name": "EventRefine",
+   "rank": 7,
    "reads": [
     "segImu",
     "detail.shaft",
@@ -202,6 +227,7 @@
     "seg",
     "halted"
    ],
+   "series": "none",
    "writes": [
     "seg",
     "detail.shaft"
@@ -209,39 +235,111 @@
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 16,
+   "id": 12,
+   "name": "ImpactAnchor",
+   "rank": 8,
+   "reads": [
+    "frames.faceOn",
+    "detail.shaft",
+    "detail.pose2d",
+    "halted"
+   ],
+   "series": "none",
+   "writes": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 15,
+   "id": 13,
+   "name": "ShaftLean",
+   "rank": 9,
+   "reads": [
+    "detail.shaft",
+    "seg",
+    "detail.pose2d",
+    "ctx.series",
+    "halted"
+   ],
+   "series": "none",
+   "writes": [
+    "ctx.series"
+   ]
+  },
+  {
+   "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 14,
+   "id": 14,
+   "name": "RequireProducts",
+   "rank": 10,
+   "reads": [
+    "ctx.series",
+    "detail.pose2d",
+    "streams"
+   ],
+   "series": "none",
+   "writes": [
+    "halted"
+   ]
+  },
+  {
+   "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 13,
    "id": 15,
    "name": "PositionsLadder",
+   "rank": 11,
    "reads": [
     "detail.shaft",
     "seg",
     "halted"
    ],
+   "series": "none",
    "writes": [
     "seg"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 12,
    "id": 16,
    "name": "TimelineFusion",
+   "rank": 12,
    "reads": [
     "detail.shaft",
     "seg",
     "halted"
    ],
+   "series": "none",
    "writes": [
     "seg"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 11,
    "id": 17,
    "name": "BindDetail",
+   "rank": 13,
    "reads": [
     "ctx.series",
     "seg",
     "halted"
    ],
+   "series": "gated",
    "writes": [
     "detail.series",
     "detail.phases"
@@ -251,76 +349,105 @@
    "appends": [
     "detail.series"
    ],
+   "barrier": false,
+   "cameras": [],
+   "height": 6,
    "id": 18,
    "name": "HeadTrack",
+   "rank": 14,
    "reads": [
     "detail.pose2d",
     "seg",
     "halted"
    ],
+   "series": "buffered",
    "writes": []
   },
   {
    "appends": [
     "detail.series"
    ],
+   "barrier": false,
+   "cameras": [],
+   "height": 6,
    "id": 19,
    "name": "FootMetrics",
+   "rank": 14,
    "reads": [
     "detail.pose2d",
     "seg",
     "detail.ball",
     "halted"
    ],
+   "series": "buffered",
    "writes": []
   },
   {
    "appends": [
     "detail.series"
    ],
+   "barrier": false,
+   "cameras": [],
+   "height": 6,
    "id": 20,
    "name": "LowerBodyMetrics",
+   "rank": 14,
    "reads": [
     "detail.pose2d",
     "seg",
     "detail.ball",
     "halted"
    ],
+   "series": "buffered",
    "writes": []
   },
   {
    "appends": [
     "detail.series"
    ],
+   "barrier": false,
+   "cameras": [],
+   "height": 6,
    "id": 21,
    "name": "UpperBodyMetrics",
+   "rank": 14,
    "reads": [
     "detail.pose2d",
     "seg",
     "halted"
    ],
+   "series": "buffered",
    "writes": []
   },
   {
    "appends": [
     "detail.series"
    ],
+   "barrier": false,
+   "cameras": [],
+   "height": 6,
    "id": 22,
    "name": "BodyRotation",
+   "rank": 14,
    "reads": [
     "detail.pose2d",
     "streams",
     "seg",
     "halted"
    ],
+   "series": "buffered",
    "writes": []
   },
   {
    "appends": [
     "detail.series"
    ],
+   "barrier": false,
+   "cameras": [],
+   "height": 10,
    "id": 23,
    "name": "ClubDelivery",
+   "rank": 14,
    "reads": [
     "detail.shaft",
     "seg",
@@ -328,53 +455,75 @@
     "detail.pose2d",
     "halted"
    ],
+   "series": "buffered",
    "writes": []
   },
   {
    "appends": [
     "detail.series"
    ],
+   "barrier": false,
+   "cameras": [],
+   "height": 6,
    "id": 24,
    "name": "Tempo",
+   "rank": 14,
    "reads": [
     "seg",
     "halted"
    ],
+   "series": "buffered",
    "writes": []
   },
   {
    "appends": [
     "detail.series"
    ],
+   "barrier": false,
+   "cameras": [],
+   "height": 10,
    "id": 25,
    "name": "Kinematics",
+   "rank": 14,
    "reads": [
     "detail.shaft",
     "detail.pose2d",
     "seg",
     "halted"
    ],
+   "series": "buffered",
    "writes": []
   },
   {
    "appends": [
     "detail.series"
    ],
+   "barrier": false,
+   "cameras": [],
+   "height": 9,
    "id": 26,
    "name": "ShaftPlane",
+   "rank": 15,
    "reads": [
     "detail.shaft",
     "seg",
     "halted"
    ],
+   "series": "buffered",
    "writes": [
     "detail.shaft"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [
+    "window.dtl"
+   ],
+   "height": 9,
    "id": 27,
    "name": "DtlPose",
+   "rank": 13,
    "reads": [
     "window.dtl",
     "detail.pose2d",
@@ -382,14 +531,19 @@
     "halted",
     "frames.dtl"
    ],
+   "series": "none",
    "writes": [
     "detail.poseDtl"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 8,
    "id": 28,
    "name": "DtlShaft",
+   "rank": 16,
    "reads": [
     "frames.dtl",
     "detail.poseDtl",
@@ -397,6 +551,7 @@
     "foWitness",
     "halted"
    ],
+   "series": "none",
    "writes": [
     "detail.shaftDtl"
    ]
@@ -405,8 +560,12 @@
    "appends": [
     "detail.series"
    ],
+   "barrier": false,
+   "cameras": [],
+   "height": 6,
    "id": 29,
    "name": "ShaftFusion",
+   "rank": 17,
    "reads": [
     "detail.shaft",
     "detail.shaftDtl",
@@ -414,6 +573,7 @@
     "seg",
     "halted"
    ],
+   "series": "buffered",
    "writes": [
     "detail.shaft3d"
    ]
@@ -422,8 +582,12 @@
    "appends": [
     "detail.series"
    ],
+   "barrier": false,
+   "cameras": [],
+   "height": 7,
    "id": 30,
    "name": "DtlPosture",
+   "rank": 17,
    "reads": [
     "detail.poseDtl",
     "detail.pose2d",
@@ -432,6 +596,7 @@
     "detail.shaftDtl",
     "halted"
    ],
+   "series": "buffered",
    "writes": [
     "detail.dtlRuler"
    ]
@@ -440,8 +605,15 @@
    "appends": [
     "detail.series"
    ],
+   "barrier": false,
+   "cameras": [
+    "window.faceOn",
+    "window.dtl"
+   ],
+   "height": 6,
    "id": 31,
    "name": "AddressMarks",
+   "rank": 18,
    "reads": [
     "window.faceOn",
     "window.dtl",
@@ -453,6 +625,7 @@
     "frames.faceOn",
     "frames.dtl"
    ],
+   "series": "buffered",
    "writes": [
     "detail.addressMarks"
    ]
@@ -461,20 +634,29 @@
    "appends": [
     "detail.series"
    ],
+   "barrier": false,
+   "cameras": [],
+   "height": 6,
    "id": 32,
    "name": "DtlShaftLie",
+   "rank": 17,
    "reads": [
     "detail.shaftDtl",
     "detail.shaft",
     "seg",
     "halted"
    ],
+   "series": "buffered",
    "writes": []
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 5,
    "id": 33,
    "name": "Skeleton3D",
+   "rank": 19,
    "reads": [
     "detail.pose2d",
     "detail.poseDtl",
@@ -487,6 +669,7 @@
     "ctx.series",
     "halted"
    ],
+   "series": "gated",
    "writes": [
     "detail.skeleton3d"
    ]
@@ -495,22 +678,31 @@
    "appends": [
     "detail.series"
    ],
+   "barrier": false,
+   "cameras": [],
+   "height": 4,
    "id": 34,
    "name": "BodyRotationTriangulated",
+   "rank": 20,
    "reads": [
     "detail.skeleton3d",
     "seg",
     "detail.series",
     "halted"
    ],
+   "series": "gated",
    "writes": []
   },
   {
    "appends": [
     "detail.series"
    ],
+   "barrier": false,
+   "cameras": [],
+   "height": 3,
    "id": 35,
    "name": "KinematicSequence",
+   "rank": 21,
    "reads": [
     "detail.pose2d",
     "detail.poseDtl",
@@ -522,14 +714,19 @@
     "detail.series",
     "halted"
    ],
+   "series": "gated",
    "writes": [
     "detail.kinematicSequence"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 1,
    "id": 36,
    "name": "DtlSynth3D",
+   "rank": 20,
    "reads": [
     "detail.shaft",
     "detail.shaft3d",
@@ -538,25 +735,35 @@
     "detail.shaftDtl",
     "halted"
    ],
+   "series": "none",
    "writes": [
     "detail.shaftDtl"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 1,
    "id": 37,
    "name": "Bindings",
+   "rank": 11,
    "reads": [
     "halted"
    ],
+   "series": "none",
    "writes": [
     "detail.bindings"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 3,
    "id": 38,
    "name": "Resemblance",
+   "rank": 13,
    "reads": [
     "ctx.series",
     "seg",
@@ -564,14 +771,19 @@
     "doRefuse",
     "halted"
    ],
+   "series": "none",
    "writes": [
     "detail.score"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 2,
    "id": 39,
    "name": "Assessment",
+   "rank": 22,
    "reads": [
     "ctx.series",
     "streams",
@@ -579,20 +791,26 @@
     "detail.phases",
     "halted"
    ],
+   "series": "gated",
    "writes": [
     "detail.score"
    ]
   },
   {
    "appends": [],
+   "barrier": false,
+   "cameras": [],
+   "height": 1,
    "id": 40,
    "name": "PoseAssessment",
+   "rank": 23,
    "reads": [
     "streams",
     "detail.pose2d",
     "detail.phases",
     "halted"
    ],
+   "series": "none",
    "writes": [
     "detail.score"
    ]
@@ -792,255 +1010,12 @@
    ]
   },
   {
-   "from": 0,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 11,
-   "via": [
-    "frames.faceOn"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 11,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 11,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw",
-    "waw"
-   ],
-   "reduced": false,
-   "to": 11,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 4,
-   "kinds": [
-    "raw",
-    "waw"
-   ],
-   "reduced": false,
-   "to": 12,
-   "via": [
-    "ctx.series"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 12,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 12,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 12,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 12,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 12,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 2,
-   "kinds": [
-    "raw",
-    "halted"
-   ],
-   "reduced": true,
-   "to": 13,
-   "via": [
-    "streams",
-    "halted"
-   ]
-  },
-  {
-   "from": 3,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 13,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 4,
-   "kinds": [
-    "raw",
-    "halted"
-   ],
-   "reduced": true,
-   "to": 13,
-   "via": [
-    "ctx.series",
-    "halted"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw",
-    "halted"
-   ],
-   "reduced": true,
-   "to": 13,
-   "via": [
-    "detail.pose2d",
-    "halted"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw",
-    "halted"
-   ],
-   "reduced": true,
-   "to": 13,
-   "via": [
-    "detail.pose2d",
-    "halted"
-   ]
-  },
-  {
-   "from": 7,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 13,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 8,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": false,
-   "to": 13,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 13,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 13,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 13,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 12,
-   "kinds": [
-    "raw",
-    "halted"
-   ],
-   "reduced": false,
-   "to": 13,
-   "via": [
-    "ctx.series",
-    "halted"
-   ]
-  },
-  {
    "from": 3,
    "kinds": [
     "raw"
    ],
    "reduced": true,
-   "to": 14,
+   "to": 11,
    "via": [
     "segImu"
    ]
@@ -1053,7 +1028,7 @@
     "war"
    ],
    "reduced": true,
-   "to": 14,
+   "to": 11,
    "via": [
     "detail.shaft",
     "detail.ball",
@@ -1067,10 +1042,55 @@
     "waw",
     "serial"
    ],
-   "reduced": true,
-   "to": 14,
+   "reduced": false,
+   "to": 11,
    "via": [
     "seg"
+   ]
+  },
+  {
+   "from": 0,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 12,
+   "via": [
+    "frames.faceOn"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 12,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 12,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw",
+    "waw"
+   ],
+   "reduced": true,
+   "to": 12,
+   "via": [
+    "detail.shaft"
    ]
   },
   {
@@ -1080,32 +1100,230 @@
     "waw",
     "war"
    ],
-   "reduced": true,
-   "to": 14,
+   "reduced": false,
+   "to": 12,
    "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 4,
+   "kinds": [
+    "raw",
+    "waw"
+   ],
+   "reduced": false,
+   "to": 13,
+   "via": [
+    "ctx.series"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 13,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 13,
+   "via": [
+    "detail.pose2d"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 13,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 13,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 13,
+   "via": [
+    "seg",
     "detail.shaft"
    ]
   },
   {
    "from": 12,
    "kinds": [
-    "war"
+    "raw"
+   ],
+   "reduced": false,
+   "to": 13,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 2,
+   "kinds": [
+    "raw",
+    "halted"
    ],
    "reduced": true,
    "to": 14,
    "via": [
-    "detail.shaft",
-    "seg"
+    "streams",
+    "halted"
    ]
   },
   {
-   "from": 13,
+   "from": 3,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 14,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 4,
+   "kinds": [
+    "raw",
+    "halted"
+   ],
+   "reduced": true,
+   "to": 14,
+   "via": [
+    "ctx.series",
+    "halted"
+   ]
+  },
+  {
+   "from": 5,
+   "kinds": [
+    "raw",
+    "halted"
+   ],
+   "reduced": true,
+   "to": 14,
+   "via": [
+    "detail.pose2d",
+    "halted"
+   ]
+  },
+  {
+   "from": 6,
+   "kinds": [
+    "raw",
+    "halted"
+   ],
+   "reduced": true,
+   "to": 14,
+   "via": [
+    "detail.pose2d",
+    "halted"
+   ]
+  },
+  {
+   "from": 7,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 14,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 8,
    "kinds": [
     "halted"
    ],
    "reduced": false,
    "to": 14,
    "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 9,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 14,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 10,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 14,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 11,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 14,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 12,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 14,
+   "via": [
+    "halted"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "raw",
+    "halted"
+   ],
+   "reduced": false,
+   "to": 14,
+   "via": [
+    "ctx.series",
     "halted"
    ]
   },
@@ -1136,50 +1354,50 @@
   },
   {
    "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 15,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 12,
-   "kinds": [
-    "war"
-   ],
-   "reduced": true,
-   "to": 15,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 15,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
    "kinds": [
     "raw",
     "waw",
     "war",
     "serial"
    ],
-   "reduced": false,
+   "reduced": true,
    "to": 15,
    "via": [
     "seg",
     "detail.shaft"
+   ]
+  },
+  {
+   "from": 12,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 15,
+   "via": [
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 13,
+   "kinds": [
+    "war"
+   ],
+   "reduced": true,
+   "to": 15,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": false,
+   "to": 15,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -1210,6 +1428,20 @@
   {
    "from": 11,
    "kinds": [
+    "raw",
+    "waw",
+    "war"
+   ],
+   "reduced": true,
+   "to": 16,
+   "via": [
+    "seg",
+    "detail.shaft"
+   ]
+  },
+  {
+   "from": 12,
+   "kinds": [
     "raw"
    ],
    "reduced": true,
@@ -1219,7 +1451,7 @@
    ]
   },
   {
-   "from": 12,
+   "from": 13,
    "kinds": [
     "war"
    ],
@@ -1230,28 +1462,14 @@
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 16,
-   "via": [
-    "halted"
-   ]
-  },
-  {
    "from": 14,
    "kinds": [
-    "raw",
-    "waw",
-    "war"
+    "halted"
    ],
    "reduced": true,
    "to": 16,
    "via": [
-    "seg",
-    "detail.shaft"
+    "halted"
    ]
   },
   {
@@ -1291,7 +1509,18 @@
    ]
   },
   {
-   "from": 12,
+   "from": 11,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 17,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 13,
    "kinds": [
     "raw"
    ],
@@ -1302,25 +1531,14 @@
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 17,
-   "via": [
-    "halted"
-   ]
-  },
-  {
    "from": 14,
    "kinds": [
-    "raw"
+    "halted"
    ],
    "reduced": true,
    "to": 17,
    "via": [
-    "seg"
+    "halted"
    ]
   },
   {
@@ -1379,18 +1597,7 @@
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 18,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 11,
    "kinds": [
     "raw"
    ],
@@ -1398,6 +1605,17 @@
    "to": 18,
    "via": [
     "seg"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 18,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -1478,18 +1696,7 @@
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 19,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 11,
    "kinds": [
     "raw"
    ],
@@ -1497,6 +1704,17 @@
    "to": 19,
    "via": [
     "seg"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 19,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -1577,18 +1795,7 @@
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 20,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 11,
    "kinds": [
     "raw"
    ],
@@ -1596,6 +1803,17 @@
    "to": 20,
    "via": [
     "seg"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 20,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -1665,18 +1883,7 @@
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 21,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 11,
    "kinds": [
     "raw"
    ],
@@ -1684,6 +1891,17 @@
    "to": 21,
    "via": [
     "seg"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 21,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -1764,18 +1982,7 @@
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 22,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 11,
    "kinds": [
     "raw"
    ],
@@ -1783,6 +1990,17 @@
    "to": 22,
    "via": [
     "seg"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 22,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -1871,30 +2089,30 @@
    "reduced": true,
    "to": 23,
    "via": [
+    "seg",
     "detail.shaft"
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 23,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 12,
    "kinds": [
     "raw"
    ],
    "reduced": true,
    "to": 23,
    "via": [
-    "seg",
     "detail.shaft"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 23,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -1942,18 +2160,7 @@
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 24,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 11,
    "kinds": [
     "raw"
    ],
@@ -1961,6 +2168,17 @@
    "to": 24,
    "via": [
     "seg"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 24,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -2048,30 +2266,30 @@
    "reduced": true,
    "to": 25,
    "via": [
+    "seg",
     "detail.shaft"
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 25,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 12,
    "kinds": [
     "raw"
    ],
    "reduced": true,
    "to": 25,
    "via": [
-    "seg",
     "detail.shaft"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 25,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -2140,12 +2358,15 @@
    "reduced": true,
    "to": 26,
    "via": [
+    "seg",
     "detail.shaft"
    ]
   },
   {
    "from": 12,
    "kinds": [
+    "raw",
+    "waw",
     "war"
    ],
    "reduced": true,
@@ -2157,26 +2378,23 @@
   {
    "from": 13,
    "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 26,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "raw",
-    "waw",
     "war"
    ],
    "reduced": true,
    "to": 26,
    "via": [
-    "seg",
     "detail.shaft"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 26,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -2283,18 +2501,7 @@
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 27,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 11,
    "kinds": [
     "raw"
    ],
@@ -2302,6 +2509,17 @@
    "to": 27,
    "via": [
     "seg"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 27,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -2361,18 +2579,7 @@
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 28,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 12,
    "kinds": [
     "raw"
    ],
@@ -2380,6 +2587,17 @@
    "to": 28,
    "via": [
     "detail.shaft"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 28,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -2434,30 +2652,30 @@
    "reduced": true,
    "to": 29,
    "via": [
+    "seg",
     "detail.shaft"
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 29,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 12,
    "kinds": [
     "raw"
    ],
    "reduced": true,
    "to": 29,
    "via": [
-    "seg",
     "detail.shaft"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 29,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -2571,18 +2789,7 @@
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 30,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 11,
    "kinds": [
     "raw"
    ],
@@ -2590,6 +2797,17 @@
    "to": 30,
    "via": [
     "seg"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 30,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -2703,18 +2921,7 @@
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 31,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 11,
    "kinds": [
     "raw"
    ],
@@ -2722,6 +2929,17 @@
    "to": 31,
    "via": [
     "seg"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 31,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -2809,30 +3027,30 @@
    "reduced": true,
    "to": 32,
    "via": [
+    "seg",
     "detail.shaft"
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 32,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 12,
    "kinds": [
     "raw"
    ],
    "reduced": true,
    "to": 32,
    "via": [
-    "seg",
     "detail.shaft"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 32,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -2965,6 +3183,7 @@
    "reduced": true,
    "to": 33,
    "via": [
+    "seg",
     "detail.shaft"
    ]
   },
@@ -2976,30 +3195,29 @@
    "reduced": true,
    "to": 33,
    "via": [
-    "ctx.series"
+    "detail.shaft"
    ]
   },
   {
    "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
    "kinds": [
     "raw"
    ],
    "reduced": true,
    "to": 33,
    "via": [
-    "seg",
-    "detail.shaft"
+    "ctx.series"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 33,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -3214,18 +3432,7 @@
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 11,
    "kinds": [
     "raw"
    ],
@@ -3233,6 +3440,17 @@
    "to": 34,
    "via": [
     "seg"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 34,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -3486,30 +3704,30 @@
    "reduced": true,
    "to": 35,
    "via": [
+    "seg",
     "detail.shaft"
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 12,
    "kinds": [
     "raw"
    ],
    "reduced": true,
    "to": 35,
    "via": [
-    "seg",
     "detail.shaft"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 35,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -3756,30 +3974,30 @@
    "reduced": true,
    "to": 36,
    "via": [
+    "seg",
     "detail.shaft"
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 36,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 14,
+   "from": 12,
    "kinds": [
     "raw"
    ],
    "reduced": true,
    "to": 36,
    "via": [
-    "seg",
     "detail.shaft"
+   ]
+  },
+  {
+   "from": 14,
+   "kinds": [
+    "halted"
+   ],
+   "reduced": true,
+   "to": 36,
+   "via": [
+    "halted"
    ]
   },
   {
@@ -3876,7 +4094,7 @@
    ]
   },
   {
-   "from": 13,
+   "from": 14,
    "kinds": [
     "halted"
    ],
@@ -3921,7 +4139,18 @@
    ]
   },
   {
-   "from": 12,
+   "from": 11,
+   "kinds": [
+    "raw"
+   ],
+   "reduced": true,
+   "to": 38,
+   "via": [
+    "seg"
+   ]
+  },
+  {
+   "from": 13,
    "kinds": [
     "raw"
    ],
@@ -3932,25 +4161,14 @@
    ]
   },
   {
-   "from": 13,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 38,
-   "via": [
-    "halted"
-   ]
-  },
-  {
    "from": 14,
    "kinds": [
-    "raw"
+    "halted"
    ],
    "reduced": true,
    "to": 38,
    "via": [
-    "seg"
+    "halted"
    ]
   },
   {
@@ -3998,7 +4216,7 @@
    ]
   },
   {
-   "from": 12,
+   "from": 13,
    "kinds": [
     "raw"
    ],
@@ -4009,7 +4227,7 @@
    ]
   },
   {
-   "from": 13,
+   "from": 14,
    "kinds": [
     "halted"
    ],
@@ -4241,7 +4459,7 @@
    ]
   },
   {
-   "from": 13,
+   "from": 14,
    "kinds": [
     "halted"
    ],

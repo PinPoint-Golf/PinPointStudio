@@ -181,13 +181,14 @@ The analysis runs as a pipeline of stages (`fullProfile()` in `src/Analysis/anal
 
 1. **Pose**, **PoseSmooth**, **Ball**. These are prerequisites. The tracker uses pose for the hands, arms and body, and the ball as a witness.
 2. **ShaftStage**: runs `ShaftTracker::track`, or *reuses* a track stored in the swing document if nothing relevant has changed (§9.2).
-3. **ImpactAnchor**: finds the ball by its disappearance at impact and records it on the track.
-4. **ShaftLean**: the shaft-lean series.
-5. Event refinement, the positions ladder and timeline fusion. The coaching positions found by the tracker join the swing's event timeline here.
-6. **ClubDelivery** and **Kinematics**: shaft angle at the top, attack angle, low point, clubhead and hand speed, lag.
-7. **ShaftPlane**: the face-on, single-camera swing-plane estimate.
-8. **DtlPose**, then **DtlShaft**, then **ShaftFusion**, then **DtlPosture**, then **DtlShaftLie**.
-9. **KinematicSequence**, then **Skeleton3D**, then **DtlSynth3D**.
+3. **Event refinement**: fine-tunes Takeaway and Address, and a refined Address moves P1 with it.
+4. **ImpactAnchor**: finds the ball by its disappearance at impact and records it on the track. It runs after event refinement because it searches around the P1 clubhead (#161).
+5. **ShaftLean**: the shaft-lean series.
+6. The positions ladder and timeline fusion. The coaching positions found by the tracker join the swing's event timeline here.
+7. **ClubDelivery** and **Kinematics**: shaft angle at the top, attack angle, low point, clubhead and hand speed, lag.
+8. **ShaftPlane**: the face-on, single-camera swing-plane estimate.
+9. **DtlPose**, then **DtlShaft**, then **ShaftFusion**, then **DtlPosture**, then **DtlShaftLie**.
+10. **KinematicSequence**, then **Skeleton3D**, then **DtlSynth3D**.
 
 On the development Mac the face-on shaft stage takes about three seconds per swing after parallelisation (it was 10.8 s before). The DTL stage takes about 2.2 s.
 
@@ -1322,7 +1323,7 @@ Then, as §4.1 noted, the address position P1 is re-read if its sample was rewri
 **`ImpactAnchorStage`** is a separate pipeline stage that runs after the shaft stage, even on reused tracks. It finds the address ball a second, independent way, **by its disappearance** (`impact_anchor.h`):
 
 1. Compute the per-pixel median of frames during the backswing (the ball is there, the club is up) minus the median of frames 150–410 ms after impact (the ball is gone).
-2. A ball shows up as a bright disc in that difference. Search for one near the address clubhead and below the toes, scoring discs of radius 5–9 px.
+2. A ball shows up as a bright disc in that difference. Search for one near the address clubhead and below the toes, scoring discs of radius 5–9 px. If nothing is found there, search again around the clubhead's median over the 300 ms before P1, in case P1 landed a few frames into the takeaway (#161).
 3. If found, record it on the track (`ballAnchored`, `addressBallPx`) and rebuild the synthetic track.
 
 It does **not** pin the ball into the track. Shaft lean (§8) reads the line from the hands to this ball directly, and the low point measures from it. Against 32 hand-marked contacts the hands-to-ball line reads −0.8° (standard deviation 2.1°), and the ball is placed within 10 px on 29 of 32 swings.

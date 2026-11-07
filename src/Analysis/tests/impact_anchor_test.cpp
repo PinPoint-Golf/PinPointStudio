@@ -72,6 +72,41 @@ int main()
     check(!far.ok || std::hypot(far.px.x() - 665, far.px.y() - 985) > 50,
           "the search stays beside the P1 clubhead");
 
+    // The search zone comes from the P1 clubhead, so P1 must be the real address (#161). Something
+    // that scores better than the ball sits higher up, beside the feet (11 June swing 4: the edge
+    // of a shoe that moves after impact). From the address P1 it is out of reach and the ball is
+    // found; from a P1 at the takeaway, with the club already rising, the zone reaches it.
+    {
+        cv::Mat bs = mat(), as = mat();
+        disc(bs, 665, 985, 10, 150);   // a faint ball...
+        disc(bs, 640, 880, 8, 250);    // ...and a much stronger shape that goes away after impact
+        cv::Mat B2, A2;
+        bs.convertTo(B2, CV_32F);
+        as.convertTo(A2, CV_32F);
+        const AddressBall atAddress = findAddressBallByDeparture(B2, A2, QPointF(650, 985), -1.0);
+        check(atAddress.ok && std::hypot(atAddress.px.x() - 665, atAddress.px.y() - 985) < 3.0,
+              "#161: from the address P1 the ball is found, the higher shape is out of reach");
+        const AddressBall atTakeaway = findAddressBallByDeparture(B2, A2, QPointF(650, 920), -1.0);
+        check(atTakeaway.ok && std::hypot(atTakeaway.px.x() - 640, atTakeaway.px.y() - 880) < 3.0,
+              "#161: from a takeaway P1 the zone reaches the shape, so P1 must be refined first");
+    }
+
+    // A P1 a few frames into the takeaway has already left the ball (11 June swing 3): the clubhead's
+    // median through the address hold is the fallback centre, and the ball is found from it (#161).
+    // It is only a fallback: a ball found around P1 stands, even when the hold zone holds a
+    // stronger disc (3 July swing 2 took a decoy 115 px away when both zones were searched together).
+    {
+        const AddressBall kept = findAddressBallByDeparture(B, A, p1Head, toeY, {}, QPointF(300, 985));
+        check(kept.ok && std::hypot(kept.px.x() - 665, kept.px.y() - 985) < 3.0,
+              "#161: a ball found around P1 stands; the hold zone is not searched");
+        const QPointF movedP1(665 - 260, 985);      // 260 px back: beyond the zone's 150
+        check(!findAddressBallByDeparture(B, A, movedP1, toeY).ok,
+              "#161: from a P1 already in the takeaway the ball is out of reach");
+        const AddressBall held = findAddressBallByDeparture(B, A, movedP1, toeY, {}, QPointF(650, 985));
+        check(held.ok && std::hypot(held.px.x() - 665, held.px.y() - 985) < 3.0,
+              "#161: the address-hold clubhead brings it back into reach");
+    }
+
     // No ball at all: before and after identical ⇒ nothing (never fabricate).
     const AddressBall none = findAddressBallByDeparture(A, A, p1Head, toeY);
     check(!none.ok, "no departure ⇒ no ball");

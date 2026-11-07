@@ -110,10 +110,15 @@ inline cv::Mat medianFrame(const std::vector<cv::Mat>& frames)
 // The address ball from a BEFORE median (backswing: club up, ball still there) and an AFTER median
 // (well past impact: ball gone), both CV_32F grey of one size. p1HeadPx is the tracker's clubhead at
 // address; toeLineY the lowest foot keypoint (image y grows downward), ≤ 0 ⇒ unknown. Scales its
-// pixel figures by width/1280.
+// pixel figures by width/1280. holdHeadPx, when given (x > 0), is a fallback centre: the clubhead's
+// median over the address hold before P1, searched only when the P1 zone finds no ball (#161). P1 is
+// one instant, and when it lands a few frames into the takeaway its clubhead has already left the
+// ball (11 June swing 3: 226 px, past the zone's 150). Searching both zones together was tried and
+// let a decoy in the hold zone outscore the real ball in the P1 zone (3 July swing 2, 115 px away).
 inline AddressBall findAddressBallByDeparture(const cv::Mat& before, const cv::Mat& after,
                                               QPointF p1HeadPx, double toeLineY,
-                                              const ImpactAnchorConfig& cfg = {})
+                                              const ImpactAnchorConfig& cfg = {},
+                                              QPointF holdHeadPx = QPointF(-1.0, -1.0))
 {
     using namespace impact_anchor_detail;
     AddressBall res;
@@ -123,32 +128,44 @@ inline AddressBall findAddressBallByDeparture(const cv::Mat& before, const cv::M
     const double s = double(W) / 1280.0;
     const cv::Mat diff = before - after;
 
-    const double yMin = std::max(toeLineY > 0.0 ? toeLineY + cfg.belowToesPx * s : 0.0,
-                                 p1HeadPx.y() - cfg.aboveHeadPx * s);
-    const int x0 = std::max(0, int(std::floor(p1HeadPx.x() - cfg.searchHalfWidthPx * s)));
-    const int x1 = std::min(W - 1, int(std::ceil(p1HeadPx.x() + cfg.searchHalfWidthPx * s)));
-    const int y0 = std::max(0, int(std::ceil(yMin)));
-    if (x1 <= x0 || y0 >= H) return res;
-
+    // The search zone: beside the clubhead, below the toes, not far above the head.
     const int rLo = std::max(2, int(std::lround(cfg.minRadiusPx * s)));
     const int rHi = std::max(rLo, int(std::lround(cfg.maxRadiusPx * s)));
-    double best = -std::numeric_limits<double>::infinity();
-    for (int r = rLo; r <= rHi; ++r) {
-        const cv::Mat score = discResponse(diff, r) + cfg.beforeWeight * discResponse(before, r)
-                            - cfg.afterWeight * cv::abs(discResponse(after, r));
-        for (int y = y0; y < H; ++y) {
-            const float* row = score.ptr<float>(y);
-            for (int x = x0; x <= x1; ++x) {
-                if (row[x] > best) {
-                    best = row[x];
-                    res.px = QPointF(x, y);
-                    res.radiusPx = r;
+    std::vector<cv::Mat> scores;
+    for (int r = rLo; r <= rHi; ++r)
+        scores.push_back(discResponse(diff, r) + cfg.beforeWeight * discResponse(before, r)
+                         - cfg.afterWeight * cv::abs(discResponse(after, r)));
+    const auto search = [&](QPointF head) {
+        AddressBall z;
+        const double yMin = std::max(toeLineY > 0.0 ? toeLineY + cfg.belowToesPx * s : 0.0,
+                                     head.y() - cfg.aboveHeadPx * s);
+        const int x0 = std::max(0, int(std::floor(head.x() - cfg.searchHalfWidthPx * s)));
+        const int x1 = std::min(W - 1, int(std::ceil(head.x() + cfg.searchHalfWidthPx * s)));
+        const int y0 = std::max(0, int(std::ceil(yMin)));
+        if (x1 <= x0 || y0 >= H) return z;
+        double best = -std::numeric_limits<double>::infinity();
+        for (int r = rLo; r <= rHi; ++r) {
+            const cv::Mat& score = scores[size_t(r - rLo)];
+            for (int y = y0; y < H; ++y) {
+                const float* row = score.ptr<float>(y);
+                for (int x = x0; x <= x1; ++x) {
+                    if (row[x] > best) {
+                        best = row[x];
+                        z.px = QPointF(x, y);
+                        z.radiusPx = r;
+                    }
                 }
             }
         }
+        z.score = best;
+        z.ok = std::isfinite(best) && best >= cfg.minScore;
+        return z;
+    };
+    res = search(p1HeadPx);
+    if (!res.ok && holdHeadPx.x() > 0.0 && holdHeadPx.y() > 0.0) {
+        const AddressBall held = search(holdHeadPx);
+        if (held.ok) res = held;
     }
-    res.score = best;
-    res.ok = std::isfinite(best) && best >= cfg.minScore;
     return res;
 }
 
