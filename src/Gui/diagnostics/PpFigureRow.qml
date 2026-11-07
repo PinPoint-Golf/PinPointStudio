@@ -32,6 +32,11 @@ import PinPointStudio
 //   showNotes  draw the notes (margin or below); false when the register sets them elsewhere
 //   roles, brush, medium, interactive
 //   signals shotActivated(swingDir, shotId), shotHovered(shotId), sessionActivated(sessionDir)
+// THE VARIABILITY MARKS (docs/design/system/variability.md; technical layer, PAIRED): the box and the
+// per-session boxes stay exactly as drawn. Under the run and its box, one consistency badge per club
+// (spread.clubBadges, R2b: "7 iron · Repeatable · σ …"); under the history, a wide spread funnel per club
+// of this session with enough swings (history.funnels). Every grade, word and basis is the model's (C++
+// grader); a measure the grader leaves ungraded publishes nothing and nothing stands in its place.
 Item {
     id: fg
     property QtObject roles: PpDiagRoles {}           // the register passes its one PpDiagRoles; this default only covers creation order
@@ -70,6 +75,11 @@ Item {
     readonly property var hdr: (detail && detail.header) || ({})
     readonly property var s: hdr.spread || ({})
     readonly property var hist: (detail && detail.history) || ({})
+    readonly property var clubBadges: s.clubBadges || []
+    readonly property var funnels: hist.funnels || []
+    // where the history panel stands in the row form, and the width the run and its box take together
+    readonly property real histX: axisW + p2 + bg + bw + pg
+    readonly property real runBoxW: (form === "stack" ? stackRunW : p2) + bg + bw
     readonly property bool sym: { const u = String(hist.unit || ""); return u.length > 0 && u.length <= 2 && !/[a-z]/i.test(u) }
     readonly property bool margin: showNotes && roles.shows("margin", width)
     readonly property real marginW: roles.u(236)
@@ -276,6 +286,38 @@ Item {
                                           gutterX: fg.gutterXOf(parent); gutterYs: fg.gutterYs
                                           onSessionActivated: d => fg.sessionActivated(d) } }
 
+    // a spread funnel per club, named, wide (the graphic across the width, its words beneath)
+    component Funnels: Column {
+        id: fu
+        spacing: fg.roles.g(10)
+        Repeater {
+            model: fg.roles ? fg.funnels : []
+            delegate: Column {
+                required property var modelData
+                width: fu.width
+                spacing: fg.roles.g(4)
+                Text {
+                    objectName: "sdHistoryFunnelClub"
+                    visible: text !== ""
+                    text: ClubFormat.display(modelData.club || "")
+                    font: fg.roles.fSmall; color: fg.roles.ink2
+                }
+                PpVariabilityFunnel {
+                    objectName: "sdHistoryFunnel"
+                    width: parent.width
+                    wide: true
+                    roles: fg.roles
+                    variant: PpVariabilityMark.Dispersion
+                    contentLayer: "technical"
+                    sessions: modelData.sessions || []
+                    trend: modelData.trend || ""
+                    basisText: modelData.basisText || ""
+                    measureName: modelData.measureName || ""
+                }
+            }
+        }
+    }
+
     Column {
         id: figCol
         width: fg.mainW
@@ -290,6 +332,74 @@ Item {
         ValueRow { width: fg.mainW
                    kinds: fg.form === "row" ? ["run", "box", "hist"] : ["run", "box"]
                    widths: fg.form === "row" ? [fg.p2, fg.bw, fg.p3] : fg.form === "pair" ? [fg.p2, fg.bw] : [fg.stackRunW, fg.bw] }
+        // under the run and its box: the session's consistency, one badge per club, each named; in the row
+        // form the history's funnels stand beside them, under the history — or, when a badge with its basis is
+        // wider than the run and its box, under the badges, so the two never overlap
+        Item {
+            id: marksItem
+            objectName: "sdFigureMarks"
+            visible: fg.clubBadges.length > 0 || (fg.rowMode && fg.funnels.length > 0)
+            // the badges keep to the run and its box; a wider one pushes the funnels down a line. The widest badge
+            // line is measured off the delegates (never the Flow's childrenRect, which the Flow's own layout moves)
+            property real badgesW: 0
+            function measureBadges() {
+                let w = 0
+                for (let i = 0; i < clubRep.count; ++i) {
+                    const d = clubRep.itemAt(i)
+                    if (d && d.visible) w = Math.max(w, d.implicitWidth)
+                }
+                badgesW = w
+            }
+            readonly property bool badgesFit: !clubRow.visible || badgesW <= clubRow.width + 0.5
+            width: fg.mainW
+            height: Math.max(clubRow.visible ? clubRow.height : 0, rowFunnels.visible ? rowFunnels.y + rowFunnels.height : 0)
+            Flow {
+                id: clubRow
+                objectName: "sdSpreadBadges"
+                visible: fg.clubBadges.length > 0
+                x: fg.axisW; width: fg.runBoxW
+                spacing: fg.roles.g(14)
+                Repeater {
+                    id: clubRep
+                    model: fg.roles ? fg.clubBadges : []
+                    onItemAdded: marksItem.measureBadges()
+                    onItemRemoved: marksItem.measureBadges()
+                    delegate: Row {
+                        id: cb
+                        required property var modelData
+                        readonly property string club: ClubFormat.display(modelData.club || "")
+                        visible: !!modelData.result && modelData.result.graded
+                        onImplicitWidthChanged: marksItem.measureBadges()
+                        onVisibleChanged: marksItem.measureBadges()
+                        // the club, then " · " outside the words, then the badge
+                        Text {
+                            objectName: "sdSpreadBadgeClub"
+                            visible: cb.club !== ""
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: cb.club + " · "
+                            font: fg.roles.fSmall; color: fg.roles.ink2
+                        }
+                        PpVariabilityBadge {
+                            objectName: "sdSpreadBadge"
+                            anchors.verticalCenter: parent.verticalCenter
+                            roles: fg.roles
+                            variant: PpVariabilityMark.Dispersion
+                            form: PpVariabilityMark.Icon
+                            contentLayer: "technical"
+                            grade: cb.modelData.result ? cb.modelData.result.grade : 0
+                            measurementLimited: cb.modelData.result ? cb.modelData.result.measurementLimited : false
+                            basisText: cb.modelData.result ? cb.modelData.result.basisText : ""
+                        }
+                    }
+                }
+            }
+            Funnels {
+                id: rowFunnels
+                visible: fg.rowMode && fg.funnels.length > 0
+                x: fg.histX; width: Math.max(fg.p3, fg.mainW - fg.histX)
+                y: marksItem.badgesFit ? 0 : clubRow.height + fg.roles.g(10)
+            }
+        }
         // the picked shot's refused reading, in place (the run caption's link, Trust panel off)
         PpTrustInlineFor {
             objectName: "sdRunGateInline"
@@ -301,6 +411,11 @@ Item {
         }
         ValueRow { visible: !fg.rowMode; height: visible ? implicitHeight : 0; showMeasure: false; width: fg.mainW; kinds: fg.rowMode ? [] : ["hist"]
                    widths: [fg.form === "stack" ? fg.stackW : fg.p2 + fg.bg + fg.bw] }
+        // under the history, when it has a row of its own
+        Funnels {
+            visible: !fg.rowMode && fg.funnels.length > 0
+            x: fg.axisW; width: fg.form === "stack" ? fg.stackW : fg.p2 + fg.bg + fg.bw
+        }
         // below ~290 px the zone labels leave the right gutter and stand under the figure as one key line
         Flow {
             visible: fg.zoneBelow

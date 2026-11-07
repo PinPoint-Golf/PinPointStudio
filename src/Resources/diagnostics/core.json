@@ -7244,7 +7244,7 @@
     },
     {
       "id": "inconsistent_sequence",
-      "label": "Sequence not repeatable",
+      "label": "Sequence changes from swing to swing",
       "golfer": "your body's timing changes from swing to swing",
       "golferWell": "your body fires the same way every swing",
       "golferWhy": "Skilled players fire their body in the same order swing after swing, and that repeatability is what most clearly sets them apart.",

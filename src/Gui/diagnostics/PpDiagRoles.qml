@@ -203,7 +203,7 @@ PpTypeset {
     function trendWord(c) {
         if (!c) return "-"
         return c.trend === "worsening" ? "worsening ↑" : c.trend === "improving" ? "improving ↓"
-             : c.trend === "stable" ? "steady" : (c.trend || "-")
+             : c.trend === "stable" ? "no change" : (c.trend || "-")
     }
     function recWords(rec, shotCount) {
         const q = recParts(rec)
@@ -216,7 +216,7 @@ PpTypeset {
         if (!c) return ""
         if (c.trend === "worsening") return "and getting worse"
         if (c.trend === "improving" || c.resolving) return "and easing"
-        return "holding steady"
+        return "no change"          // a level trend (R11): never "steady", a vocabulary word
     }
     function afterWords(n) { return (n === undefined || n === null) ? "" : n === 0 ? "none after this one" : (word(n) + " more after this one") }
 

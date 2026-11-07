@@ -705,6 +705,24 @@ private:
     // The distinct measures a condition's signals read, in pack order.
     QStringList conditionMeasures(const QString &conditionId) const;
 
+    // ── The variability marks on the strip and the history (docs/design/system/variability.md) ──
+    //
+    // TECHNICAL LAYER, PAIRED: the box and the per-session boxes stay exactly as drawn; beside them, a
+    // consistency grade (src/Metrics/variability/) per club, never across clubs (Mark's ruling R2b).
+    //   spread.clubBadges   [{ club, n, result }]   one per club with a reading, perClubInputs' order
+    //                                               (readings descending); `result` a variabilityResult
+    //   history.funnels     [{ club, n, sessions[{ rho, grade, breakBefore }], trend, basisText,
+    //                          measureName }]      one per club of THIS session with ≥ N_MIN readings
+    // The scale is the measure's NORM corridor half-width (σLo + σHi)/2 in the club's context, as it
+    // grades today. UNGRADED — nothing published, nothing in its place: a measure no corridor signal
+    // of the condition reads (a threshold test's fault line, an order, a ratio), a composite, or a
+    // club whose context resolves no norm with a σ. No propagated σ: the ledger rows carry none per
+    // reading, so the measurement-limited test (R3) has nothing to compare against here.
+    bool    consistencyGradable(const pinpoint::analysis::ConditionLedger &l, const QString &measureId) const;
+    double  consistencyScaleOf(const QString &measureId, const QString &contextId) const;
+    QVariantList spreadClubBadges(const pinpoint::analysis::ConditionLedger &l, const QString &measureId,
+                                  const std::vector<double> &values, int decimals, const QString &unit) const;
+
     // ── A composite's evidence (posture_metrics_design.md §8, principle 5) ──────────
     //
     // A COMPOSITE's number is never shown. Every surface that would print a row's value prints the
@@ -836,7 +854,8 @@ private:
     // never the verdicts: those were graded against whatever the norms were on that day, and the
     // columns are drawn against the bands as they stand today so that every column is measured
     // with one ruler. Nothing here reaches a tier, a count or this session's diagnostics.json.
-    struct HistoryReading { QString measureId; double value = 0.0; };
+    // `club` and `contextId` for the funnel (one series per club, a break where the context changes).
+    struct HistoryReading { QString measureId; double value = 0.0; QString club; QString contextId; };
     struct HistorySession {
         QString sessionDir;
         QString label;

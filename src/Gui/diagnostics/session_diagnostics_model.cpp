@@ -31,6 +31,11 @@
 #include "../../Coaching/work_ons_pack.h"
 #include "../../Metrics/gate_catalogue.h"
 #include "../../Core/pp_debug.h"
+#include "../../Metrics/variability/variability_grader.h"
+#include "../../Metrics/variability/variability_trend.h"
+#include "../charts/variability_clubs.h"            // perClubInputs (R2b)
+#include "../variability/variability_facade.h"      // VariabilityResultView: the `variabilityResult` QML reads
+#include "../variability/variability_measures.h"    // isOutcomeMeasure, measureScaleType, normCorridorHalfWidth
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -49,6 +54,7 @@
 #include <utility>
 
 using namespace pinpoint::analysis;
+namespace PV = pinpoint::variability;
 
 namespace {
 
@@ -2512,6 +2518,95 @@ void publishCorridor(QVariantMap &out, const SpreadCorridor &c, const SpreadAxis
 
 } // namespace
 
+// ── The variability marks (docs/design/system/variability.md; Mark's rulings R2b, R11) ─────────────
+//
+// TECHNICAL LAYER, PAIRED. The strip's box and the history's per-session boxes stay exactly as drawn (every
+// shot, all clubs); a consistency grade goes beside them per club, because spread across clubs is expected
+// and is never graded (R2b). The grade is the variability grader's (src/Metrics/variability/): nothing here
+// computes a ρ, a band or a word.
+
+namespace {
+
+// The commonest context among a club's readings; ties to the smaller id, so the answer does not depend on
+// the order the rows were read in.
+QString commonestContext(const QHash<QString, int> &counts)
+{
+    QString best;
+    int bestN = 0;
+    for (auto it = counts.constBegin(); it != counts.constEnd(); ++it)
+        if (it.value() > bestN || (it.value() == bestN && it.key() < best)) { best = it.key(); bestN = it.value(); }
+    return best;
+}
+
+} // namespace
+
+bool SessionDiagnosticsModel::consistencyGradable(const ConditionLedger &l, const QString &measureId) const
+{
+    // A composite is a weighted sum of z-scores with no unit and no corridor of its own (principle 5).
+    if (measureId.isEmpty() || !m_packProv || !m_norms) return false;
+    if (isCompositeMeasure(measureId) || readsComposite(l, measureId)) return false;
+    // A BAND, NOT A LINE: graded only when a corridor test of this condition reads the measure. A measure
+    // the condition reads only through a threshold (an authored fault line, "peaks before impact"), an
+    // order or a ratio has no band whose width is a scale, so there is nothing to grade its spread against.
+    const CharacteristicPack &pack = m_packProv->pack();
+    const Condition *c = pack.condition(l.id);
+    if (!c) return false;
+    // AN OUTCOME IS NOT GRADED, BY MEASURE (R4, R4b; variability_outcome.h): what the ball did (carry, start
+    // direction, launch, spin, ball speed, the shot shape) and smash factor have no recorded intent to grade their
+    // spread within. Club delivery is movement and stays eligible, under an outcome condition too: a thin or a chunk
+    // read on strike height, a top read on low point.
+    if (PV::isOutcomeMeasure(pack.measure(measureId))) return false;
+    for (const QString &sid : c->detectedBy) {
+        const Signal *sg = pack.signal(sid);
+        if (!sg || sg->test != SignalTest::OutsideCorridor) continue;
+        if (sg->measures.contains(measureId) || sg->fallback.contains(measureId)) return true;
+    }
+    return false;
+}
+
+double SessionDiagnosticsModel::consistencyScaleOf(const QString &measureId, const QString &contextId) const
+{
+    // The NORM corridor half-width for the context, (σLo + σHi)/2 (spec §8.2 step 4.1, Mark 7 Nov), whatever the
+    // norm's shape (R12): the one lookup Home and the report grade by (variability_measures.h). No norm, or one that
+    // admits only mu: no scale, so no grade.
+    return PV::normCorridorHalfWidth(m_norms.get(), measureId, contextId);
+}
+
+QVariantList SessionDiagnosticsModel::spreadClubBadges(const ConditionLedger &l, const QString &measureId,
+                                                       const std::vector<double> &values, int decimals,
+                                                       const QString &unit) const
+{
+    QVariantList out;
+    if (!consistencyGradable(l, measureId)) return out;
+
+    // Every shot's (club, reading), strike order; the club's context from its rows that read.
+    std::vector<pinpoint::charts::VariabilityClubValue> swings;
+    QHash<QString, QHash<QString, int>> contexts;
+    swings.reserve(m_shots.size());
+    for (size_t i = 0; i < m_shots.size() && i < values.size(); ++i) {
+        swings.push_back({ m_shots[i].club, values[i] });
+        if (!std::isfinite(values[i])) continue;
+        if (const ConditionRow *r = rowFor(m_shots[i], l.id)) ++contexts[m_shots[i].club][r->contextId];
+    }
+
+    const std::unique_ptr<PV::IVariabilityGrader> grader = PV::makeVariabilityGrader(PV::Basis::Scalar);
+    PV::VariabilityInput base;
+    base.scaleType = PV::measureScaleType(m_packProv->pack().measure(measureId));
+    for (pinpoint::charts::VariabilityClubWindow &w : pinpoint::charts::perClubInputs(swings, base)) {
+        const double scale = consistencyScaleOf(measureId, commonestContext(contexts.value(w.club)));
+        if (!std::isfinite(scale)) continue;                 // ungraded: no badge, nothing in its place
+        w.input.corridorHalfWidth = scale;
+        const PV::VariabilityResult r = grader->grade(w.input);
+        if (!r.graded) continue;
+        out.append(QVariantMap{
+            { QStringLiteral("club"),   w.club },
+            { QStringLiteral("n"),      w.readings },
+            { QStringLiteral("result"), QVariant::fromValue(PV::VariabilityResultView::fromResult(r, unit, decimals)) },
+        });
+    }
+    return out;
+}
+
 QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi, int selectedTick,
                                                const QString &measure) const
 {
@@ -2608,6 +2703,8 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
         for (int i : placedIdx) ids.push_back(m_shots[size_t(i)].shotId);
         out[QStringLiteral("box")] = boxOf(placed, ids, a, unit);
     }
+    // The box stays as drawn (every shot, all clubs); beside it, one consistency grade per club (R2b).
+    out[QStringLiteral("clubBadges")] = spreadClubBadges(l, measureId, values, a.decimals, unit);
 
     // THE EDGE MARKERS' WORDS. A pinned dot says "further than this", and the marker beside it
     // says how much further: the most extreme reading on that side, and how many share the edge.
@@ -3195,7 +3292,7 @@ SessionDiagnosticsModel::readHistory(const QString &sessionDir, int *missing)
                 for (const MeasureRow &m : rowReadings(r)) {
                     if (!std::isfinite(m.value) || seen.contains(m.measureId)) continue;
                     seen.insert(m.measureId);
-                    hs.byCondition[r.conditionId].push_back(HistoryReading{ m.measureId, m.value });
+                    hs.byCondition[r.conditionId].push_back(HistoryReading{ m.measureId, m.value, s.club, r.contextId });
                 }
             }
         }
@@ -3252,7 +3349,9 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
     if (readsComposite(l, measureId)) return out;
     const QString unit      = measureUnitOf(measureId);
 
-    struct Col { QString dir, label; qint64 firstMs = 0; bool current = false; std::vector<double> v; };
+    // `clubs` and `contexts` run beside `v`, one per reading, for the funnel (one series per club).
+    struct Col { QString dir, label; qint64 firstMs = 0; bool current = false; std::vector<double> v;
+                 std::vector<QString> clubs, contexts; };
     std::vector<Col> cols;
     auto onRuler = [&](const QString &m) { return measureId.isEmpty() || m == measureId; };
 
@@ -3263,7 +3362,11 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
         const auto it = hs.byCondition.constFind(l.id);
         if (it != hs.byCondition.constEnd())
             for (const HistoryReading &r : *it)
-                if (onRuler(r.measureId)) c.v.push_back(r.value);
+                if (onRuler(r.measureId)) {
+                    c.v.push_back(r.value);
+                    c.clubs.push_back(r.club);
+                    c.contexts.push_back(r.contextId);
+                }
         cols.push_back(std::move(c));
     }
     {
@@ -3275,11 +3378,13 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
             if (s.timestampMs > 0) c.firstMs = std::min(c.firstMs, s.timestampMs);
             const ConditionRow *r = rowFor(s, l.id);
             if (!r || r->state == ShotState::NotAssessable) continue;
-            if (measureId.isEmpty()) {
-                if (std::isfinite(r->value)) c.v.push_back(r->value);
-            } else if (const std::optional<MeasureRow> m = rowReadingOf(*r, measureId)) {
-                if (std::isfinite(m->value)) c.v.push_back(m->value);
-            }
+            double v = std::numeric_limits<double>::quiet_NaN();
+            if (measureId.isEmpty()) v = r->value;
+            else if (const std::optional<MeasureRow> m = rowReadingOf(*r, measureId)) v = m->value;
+            if (!std::isfinite(v)) continue;
+            c.v.push_back(v);
+            c.clubs.push_back(s.club);
+            c.contexts.push_back(r->contextId);
         }
         if (c.firstMs == std::numeric_limits<qint64>::max()) c.firstMs = QDateTime::currentMSecsSinceEpoch();
         cols.push_back(std::move(c));
@@ -3370,6 +3475,74 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
         });
     }
     out[QStringLiteral("columns")]       = columns;
+
+    // ── THE SPREAD FUNNEL, per club (R2b; PpVariabilityFunnel) ─────────────────────────────
+    //
+    // The per-session boxes above stay; under them, for each club of THIS session with at least N_MIN
+    // readings, that club's sessions as a series: each session its own frozen assessment (plain bands, no
+    // hysteresis) of that club's readings, against the norm corridor of that club's context in that session
+    // as it grades today — one ruler for every session, as the columns are. Oldest first, ending at this
+    // session (a later one is not part of "so far"); a session with no ρ (no scale, or under N_MIN) is left
+    // out. A break where the context or the scale changes, so a driver corridor and a 7-iron one are never
+    // read as one series; variabilityTrend() finds the same breaks from the same keys.
+    QVariantList funnels;
+    if (consistencyGradable(l, measureId)) {
+        const Col &now = cols[size_t(curIdx)];
+        std::vector<pinpoint::charts::VariabilityClubValue> nowSwings;
+        for (size_t k = 0; k < now.v.size(); ++k) nowSwings.push_back({ now.clubs[k], now.v[k] });
+        const std::unique_ptr<PV::IVariabilityGrader> grader = PV::makeVariabilityGrader(PV::Basis::Scalar);
+        PV::VariabilityInput trendBase;
+        trendBase.scaleType = PV::measureScaleType(m_packProv->pack().measure(measureId));
+        for (const pinpoint::charts::VariabilityClubWindow &w : pinpoint::charts::perClubInputs(nowSwings, trendBase)) {
+            if (w.readings < PV::kNMin) continue;
+            QVariantList sessions;
+            std::vector<PV::TrendPoint> points;
+            QString prevContext, prevScale;
+            bool nowGraded = false;
+            for (int i = 0; i <= curIdx; ++i) {
+                const Col &col = cols[size_t(i)];
+                PV::VariabilityInput in;
+                in.scaleType = w.input.scaleType;
+                QHash<QString, int> contexts;
+                for (size_t k = 0; k < col.v.size(); ++k) {
+                    if (col.clubs[k] != w.club) continue;
+                    in.values.push_back(col.v[k]);
+                    ++contexts[col.contexts[k]];
+                }
+                if (in.values.empty()) continue;
+                const QString context = commonestContext(contexts);
+                const double scale = consistencyScaleOf(measureId, context);
+                if (!std::isfinite(scale)) continue;
+                in.corridorHalfWidth = scale;
+                const PV::VariabilityResult r = grader->grade(in);
+                if (!r.graded || !std::isfinite(r.rho)) continue;
+                const QString scaleKey = QString::number(scale, 'g', 12);
+                const bool breakBefore = !points.empty() && (context != prevContext || scaleKey != prevScale);
+                sessions.append(QVariantMap{
+                    { QStringLiteral("rho"),         r.rho },
+                    { QStringLiteral("grade"),       r.grade },
+                    { QStringLiteral("breakBefore"), breakBefore },
+                    { QStringLiteral("n"),           r.n },
+                    { QStringLiteral("sessionDir"),  col.dir },
+                });
+                points.push_back(PV::TrendPoint{ r.rho, r.n, context, PV::Basis::Scalar, scaleKey });
+                prevContext = context;
+                prevScale   = scaleKey;
+                nowGraded   = nowGraded || col.current;
+            }
+            if (!nowGraded) continue;      // this session's own club has no grade: no funnel for it
+            const PV::TrendResult t = PV::variabilityTrend(points);
+            funnels.append(QVariantMap{
+                { QStringLiteral("club"),        w.club },
+                { QStringLiteral("n"),           w.readings },
+                { QStringLiteral("sessions"),    sessions },
+                { QStringLiteral("trend"),       PV::VariabilityResultView::trendDirectionToken(t.direction) },
+                { QStringLiteral("basisText"),   t.basisString() },
+                { QStringLiteral("measureName"), measureLabelOf(measureId) },
+            });
+        }
+    }
+    out[QStringLiteral("funnels")]       = funnels;
     out[QStringLiteral("hiddenEarlier")] = start;
     out[QStringLiteral("hiddenLater")]   = total - end;
     out[QStringLiteral("loading")]       = m_historyLoading;
@@ -3930,8 +4103,8 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
                           : (l.trendPoints < m_opt.minPointsForTrend
                                  ? QStringLiteral("trend after %1 measurable shots").arg(m_opt.minPointsForTrend)
                                  : (l.rangeRestricted
-                                        ? QStringLiteral("every firing, holding steady")
-                                        : QStringLiteral("steady — the miss isn't growing or shrinking")));
+                                        ? QStringLiteral("every firing, no change")
+                                        : QStringLiteral("no change — the miss isn't growing or shrinking")));
         c[QStringLiteral("recencyText")] =
             l.resolving
                 ? QStringLiteral("resolving · none in the last %1").arg(l.sinceLastFiring)

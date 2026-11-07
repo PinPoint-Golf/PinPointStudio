@@ -30,6 +30,7 @@
 
 #include "../../Gui/typeset/box_stats.h"
 #include "../../Gui/diagnostics/session_diagnostics_model.h"
+#include "../../Gui/variability/variability_facade.h"   // the per-club badges' variabilityResult
 #include "../../Coaching/sequence_checks.h"
 #include "../engine/characteristic_engine.h"
 #include "../packs/pack_provider.h"                // makeCharacteristicPackProvider (#16 side checks)
@@ -1208,6 +1209,188 @@ static void compositePresentationSuite(const QTemporaryDir &tmp)
           "…the address reading against its ideal band, its band and its share, no change");
     check(figOf(distCell.value(QStringLiteral("valueText")).toString(), QString(QChar(0x00B0))) == 52.0,
           "…and the value slot quotes the setup's dominant part as it stands at address");
+}
+
+// ── The variability marks on the strip and the history (docs/design/system/variability.md) ───────
+//
+// Technical layer, PAIRED: the box and the per-session boxes stay; beside them a consistency grade per
+// club (R2b), graded by src/Metrics/variability/ against the norm corridor of the club's context. What is
+// asserted: one badge per club, in perClubInputs' order; none at all for a measure graded only against a
+// threshold, or for an outcome; the funnel per club of THIS session with ≥ N_MIN swings, its sessions that
+// club's only, oldest first and ending at this session, a break where the context changes; and the level
+// trend's words, "no change" (R11). Written ledgers, so every number is known.
+namespace {
+struct MarkShot { const char *club; const char *context; double v; };
+
+bool writeMarksLedger(const QString &dir, const std::vector<MarkShot> &shots, qint64 t0,
+                      bool withOthers = false)
+{
+    std::vector<ShotRecord> out;
+    for (size_t i = 0; i < shots.size(); ++i) {
+        ShotRecord s;
+        s.shotId      = int(i) + 1;
+        s.timestampMs = t0 + qint64(i) * 60000;
+        s.club        = QLatin1String(shots[i].club);
+        s.contextId   = QLatin1String(shots[i].context);
+        ConditionRow r;
+        r.conditionId      = QStringLiteral("over_the_top");
+        r.drivingMeasureId = QStringLiteral("m_handPathLoop");
+        r.contextId        = s.contextId;
+        r.value            = shots[i].v;
+        r.corridorLo = 0.0; r.corridorHi = 13.0 / 3.0;
+        r.corridorShape = CorridorShape::Ceiling;
+        r.z     = shots[i].v / (13.0 / 3.0);
+        r.state = shots[i].v > 26.0 / 3.0 ? ShotState::Fired : ShotState::Clean;
+        r.direction = r.state == ShotState::Fired ? 1 : 0;
+        s.rows.push_back(r);
+        if (withOthers) {
+            // a THRESHOLD test's measure: the hips peak before impact (sig_pelvisBeforeImpact, a line at 0)
+            ConditionRow t;
+            t.conditionId      = QStringLiteral("hips_peak_after_impact");
+            t.drivingMeasureId = QStringLiteral("m_pelvisPeakTime");
+            t.contextId        = s.contextId;
+            t.value            = -60.0 - 3.0 * double(i % 4);
+            t.faultAt          = 0.0;
+            t.corridorShape    = CorridorShape::None;
+            t.z                = 0.0;
+            t.state            = ShotState::Clean;
+            s.rows.push_back(t);
+            // an OUTCOME on a corridor (launch_high, m_lmLaunchAngle): fired every shot, the miss level
+            ConditionRow o;
+            o.conditionId      = QStringLiteral("launch_high");
+            o.drivingMeasureId = QStringLiteral("m_lmLaunchAngle");
+            o.contextId        = s.contextId;
+            o.value            = 28.0 + double(i % 3);
+            o.corridorLo = 14.0; o.corridorHi = 20.0;
+            o.corridorShape = CorridorShape::TwoSided;
+            o.z         = 2.5;
+            o.state     = ShotState::Fired;
+            o.direction = 1;
+            s.rows.push_back(o);
+        }
+        out.push_back(s);
+    }
+    QJsonObject root;
+    root[QStringLiteral("schemaVersion")] = 1;
+    root[QStringLiteral("ledger")] = toJson(out);
+    return writeDiagnosticsJson(dir, root);
+}
+
+std::vector<MarkShot> sevenIron(const char *context, std::initializer_list<double> vs)
+{
+    std::vector<MarkShot> out;
+    for (double v : vs) out.push_back({ "7 IRON", context, v });
+    return out;
+}
+} // namespace
+
+static void variabilityMarksSuite(const QTemporaryDir &tmp)
+{
+    using pinpoint::variability::VariabilityResultView;
+    std::printf("\nthe variability marks: per-club badges on the strip, the funnel under the history\n");
+    const qint64 day = 86400000LL;
+
+    // THIS session: nine 7-iron swings (a tight 10–13 %) and three driver swings, interleaved.
+    std::vector<MarkShot> cur = sevenIron("iron_7", { 10, 11, 12, 13, 12, 11, 10, 12, 11 });
+    cur.insert(cur.begin() + 2, MarkShot{ "DRIVER", "driver", 5 });
+    cur.insert(cur.begin() + 6, MarkShot{ "DRIVER", "driver", 15 });
+    cur.push_back(MarkShot{ "DRIVER", "driver", 25 });
+    const QString now  = makeSession(tmp, "athlete_marks", "2026-10-07_M_01");
+    const QString s0   = makeSession(tmp, "athlete_marks", "2026-06-01_M_01");   // another context: a break after it
+    const QString s1   = makeSession(tmp, "athlete_marks", "2026-07-04_M_01");   // wide
+    const QString s2   = makeSession(tmp, "athlete_marks", "2026-09-09_M_01");   // narrower
+    const QString drv  = makeSession(tmp, "athlete_marks", "2026-08-01_M_01");   // drivers only
+    const QString late = makeSession(tmp, "athlete_marks", "2026-11-01_M_01");   // after this one
+    std::vector<MarkShot> drivers;
+    for (int i = 0; i < 9; ++i) drivers.push_back({ "DRIVER", "driver", 5.0 + 2.0 * i });
+    check(writeMarksLedger(now, cur, kStageEpochMs + 279 * day, /*withOthers*/ true)
+              && writeMarksLedger(s0, sevenIron("iron", { 2, 20, 4, 18, 6, 16, 8, 14, 10 }), kStageEpochMs + 151 * day)
+              && writeMarksLedger(s1, sevenIron("iron_7", { 4, 18, 6, 16, 8, 14, 10, 12, 20 }), kStageEpochMs + 184 * day)
+              && writeMarksLedger(s2, sevenIron("iron_7", { 8, 13, 9, 12, 10, 14, 11, 7, 15 }), kStageEpochMs + 250 * day)
+              && writeMarksLedger(drv, drivers, kStageEpochMs + 212 * day)
+              && writeMarksLedger(late, sevenIron("iron_7", { 11, 11, 11, 11, 11, 11, 11, 11, 12 }), kStageEpochMs + 305 * day),
+          "marks: six written ledgers in one athlete folder");
+
+    auto m = freshModel();
+    m->activateSession(now);
+
+    // ── the Spread strip: one badge per club ──
+    const QVariantMap sp = m->spreadOf(QStringLiteral("over_the_top"));
+    const QVariantList badges = sp.value(QStringLiteral("clubBadges")).toList();
+    const auto resultOf = [](const QVariant &b) { return qvariant_cast<VariabilityResultView>(b.toMap().value(QStringLiteral("result"))); };
+    check(badges.size() == 2, "spread: one badge per club (7 iron, driver), never one across them");
+    if (badges.size() == 2) {
+        const QVariantMap b0 = badges.at(0).toMap(), b1 = badges.at(1).toMap();
+        const VariabilityResultView r0 = resultOf(badges.at(0)), r1 = resultOf(badges.at(1));
+        std::printf("      7 iron: grade %d \"%s\" · driver: grade %d n %d\n", r0.grade(), qPrintable(r0.basisText()),
+                    r1.grade(), r1.n());
+        check(b0.value(QStringLiteral("club")).toString() == QLatin1String("7 IRON") && b0.value(QStringLiteral("n")).toInt() == 9
+                  && b1.value(QStringLiteral("club")).toString() == QLatin1String("DRIVER") && b1.value(QStringLiteral("n")).toInt() == 3,
+              "…ordered by readings: the 7 iron's nine, then the driver's three");
+        check(r0.graded() && r0.grade() >= 1 && r0.basis() == QLatin1String("scalar") && r0.n() == 9
+                  && r0.basisText().contains(QLatin1String("of corridor")) && r0.basisText().endsWith(QLatin1String("n 9")),
+              "…the 7 iron graded against the norm corridor, its basis \"σ … · … of corridor · n 9\"");
+        check(std::fabs(r0.rho() - 1.0 / (13.0 / 3.0)) < 1e-9 && r0.grade() == 5,
+              "…ρ is the 7 iron's own SD (1.0) over the corridor half-width (σLo + σHi)/2 = 13/3, the driver's swings left out: Grooved");
+        check(r1.graded() && r1.grade() == 0 && r1.ungradedReason() == QLatin1String("tooFewSwings") && r1.basisText().isEmpty(),
+              "…the driver under N_MIN is graded 0, \"Not enough swings\", with no basis");
+    }
+    // the box is unchanged: still every shot, all clubs
+    check(sp.value(QStringLiteral("box")).toMap().value(QStringLiteral("n")).toInt() == 12,
+          "spread: the box still draws every shot of every club (12)");
+
+    // ── ungraded: a threshold test's measure, an outcome ──
+    check(m->spreadOf(QStringLiteral("hips_peak_after_impact")).value(QStringLiteral("clubBadges")).toList().isEmpty(),
+          "spread: a measure graded only against a threshold has no badge at all");
+    check(m->spreadOf(QStringLiteral("launch_high")).value(QStringLiteral("clubBadges")).toList().isEmpty(),
+          "spread: an outcome (launch angle) has no badge: no intent to grade within (R4)");
+
+    // ── the funnel under the history ──
+    const QVariantMap h = m->historyOf(QStringLiteral("over_the_top"));
+    const QVariantList funnels = h.value(QStringLiteral("funnels")).toList();
+    check(funnels.size() == 1, "history: one funnel, for the one club of this session with ≥ N_MIN swings (the 7 iron)");
+    if (funnels.size() == 1) {
+        const QVariantMap f = funnels.first().toMap();
+        const QVariantList ss = f.value(QStringLiteral("sessions")).toList();
+        QStringList dirs, rhos, breaks;
+        for (const QVariant &v : ss) {
+            const QVariantMap x = v.toMap();
+            dirs << QFileInfo(x.value(QStringLiteral("sessionDir")).toString()).fileName();
+            rhos << QString::number(x.value(QStringLiteral("rho")).toDouble(), 'f', 2);
+            breaks << (x.value(QStringLiteral("breakBefore")).toBool() ? QStringLiteral("|") : QStringLiteral("-"));
+        }
+        std::printf("      funnel: %s · ρ %s · breaks %s · trend %s · \"%s\"\n", qPrintable(dirs.join(QLatin1Char(','))),
+                    qPrintable(rhos.join(QLatin1Char(','))), qPrintable(breaks.join(QString())),
+                    qPrintable(f.value(QStringLiteral("trend")).toString()), qPrintable(f.value(QStringLiteral("basisText")).toString()));
+        check(f.value(QStringLiteral("club")).toString() == QLatin1String("7 IRON")
+                  && f.value(QStringLiteral("measureName")).toString() == h.value(QStringLiteral("measure")).toString(),
+              "…named by its club, and by the condition's measure");
+        check(dirs.join(QLatin1Char(',')) == QLatin1String("2026-06-01_M_01,2026-07-04_M_01,2026-09-09_M_01,2026-10-07_M_01"),
+              "…its sessions are the 7 iron's only (the drivers-only session is not one), oldest first, ending at this session");
+        check(breaks.join(QString()) == QLatin1String("-|--"),
+              "…a break where the context changed (iron → iron_7), none within the run");
+        bool sameNow = false;
+        if (!ss.isEmpty() && badges.size() == 2)
+            sameNow = std::fabs(ss.last().toMap().value(QStringLiteral("rho")).toDouble() - resultOf(badges.at(0)).rho()) < 1e-12
+                   && ss.last().toMap().value(QStringLiteral("grade")).toInt() == resultOf(badges.at(0)).grade();
+        check(sameNow, "…this session's point is the strip's 7-iron grade, to the digit");
+        check(f.value(QStringLiteral("trend")).toString() == QLatin1String("tightening")
+                  && f.value(QStringLiteral("basisText")).toString().endsWith(QLatin1String("over 3 sessions")),
+              "…the trend reads the latest unbroken run (3 sessions): tightening, \"ρ … → … over 3 sessions\"");
+    }
+    check(m->historyOf(QStringLiteral("hips_peak_after_impact")).value(QStringLiteral("funnels")).toList().isEmpty(),
+          "history: a threshold-only measure has no funnel");
+
+    // ── R11: a level trend is "no change", never "steady" ──
+    const QString levelClean = m->conditionDetail(QStringLiteral("hips_peak_after_impact"))
+                                   .value(QStringLiteral("header")).toMap().value(QStringLiteral("trendText")).toString();
+    const QString levelFired = m->conditionDetail(QStringLiteral("launch_high"))
+                                   .value(QStringLiteral("header")).toMap().value(QStringLiteral("trendText")).toString();
+    std::printf("      level trends: \"%s\" | \"%s\"\n", qPrintable(levelClean), qPrintable(levelFired));
+    check(levelClean == QStringLiteral("no change — the miss isn't growing or shrinking"),
+          "R11: a level trend reads \"no change — the miss isn't growing or shrinking\"");
+    check(levelFired == QStringLiteral("every firing, no change"),
+          "R11: …and on a condition that fired on every shot, \"every firing, no change\"");
 }
 
 int main(int argc, char **argv)
@@ -3265,6 +3448,7 @@ int main(int argc, char **argv)
     sequenceChecksSuite(tmp);
     sequenceConsistencySuite(tmp);
     compositePresentationSuite(tmp);
+    variabilityMarksSuite(tmp);
 
     std::printf("\npatterns at close: %d\n", patternsAtClose);
     std::printf("\n%s\n", g_fail == 0 ? "OK" : "FAILURES");
