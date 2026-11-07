@@ -1297,6 +1297,86 @@ int main()
         std::printf("    Posture preset: %s\n", qPrintable(posture.join(QStringLiteral(", "))));
     }
 
+    // 9. The variability grade basis (docs/design/variability-mark/spec.md §8.2, §8.5, §8.10).
+    //
+    // `scaleType` decides how a metric's spread is taken and whether the CV rung is open to it, so
+    // a wrong one grades a golfer on the wrong formula with no other symptom. Two of the
+    // definitions are checkable against the unit the descriptor already states: a Ratio quantity
+    // has a true zero, which no angle does, and a Circular one wraps at ±180°, which only an angle
+    // in degrees can.
+    {
+        std::printf("--- 9. variability scale type ---\n");
+        using pinpoint::variability::ScaleType;
+        using pinpoint::variability::scaleTypeToken;
+        using pinpoint::variability::scaleTypeFromToken;
+
+        const auto isAngleUnit = [](const QString &u) {
+            return u == QStringLiteral("°") || u == QLatin1String("deg") || u == QLatin1String("rad");
+        };
+        int ratioAngles = 0, circularNotDeg = 0, ratios = 0, circulars = 0;
+        for (const MetricDescriptor *d : cat.all()) {
+            if (d->scaleType == ScaleType::Ratio) {
+                ++ratios;
+                if (isAngleUnit(d->unit)) {      // °/s is a RATE and passes; ° itself does not
+                    ++ratioAngles;
+                    std::printf("      %s is Ratio but its unit is an angle (%s)\n",
+                                qPrintable(d->key), qPrintable(d->unit));
+                }
+            }
+            if (d->scaleType == ScaleType::Circular) {
+                ++circulars;
+                if (d->unit != QStringLiteral("°")) {
+                    ++circularNotDeg;
+                    std::printf("      %s is Circular but its unit is \"%s\", not degrees\n",
+                                qPrintable(d->key), qPrintable(d->unit));
+                }
+            }
+        }
+        checkEqI(ratioAngles, 0, "no Ratio metric is stated in an angle unit");
+        checkEqI(circularNotDeg, 0, "every Circular metric is stated in degrees");
+        std::printf("    %d Ratio, %d Circular\n", ratios, circulars);
+
+        const MetricDescriptor *smash = cat.descriptor(QStringLiteral("lm.smashFactor"));
+        check(smash && smash->scaleType == ScaleType::Ratio,
+              "smash factor is Ratio (a ratio of two speeds, strictly positive)");
+        const MetricDescriptor *bow = cat.descriptor(QStringLiteral("leadWristFlexExt"));
+        check(bow && bow->scaleType == ScaleType::Interval,
+              "a bounded joint angle (lead wrist bow/cup) stays Interval, never Circular");
+
+        // The tokens are the spec's spellings and parse back exactly; anything else is refused
+        // rather than read as Interval.
+        bool roundTrip = true;
+        for (ScaleType t : { ScaleType::Interval, ScaleType::Ratio, ScaleType::Circular,
+                             ScaleType::Ordinal, ScaleType::Categorical }) {
+            const auto back = scaleTypeFromToken(scaleTypeToken(t));
+            if (!back || *back != t) roundTrip = false;
+        }
+        check(roundTrip, "every scale-type token round-trips through scaleTypeFromToken");
+        check(scaleTypeToken(ScaleType::Circular) == "circular", "the circular token is the spec's spelling");
+        check(!scaleTypeFromToken("Ratio") && !scaleTypeFromToken("") && !scaleTypeFromToken("nominal"),
+              "an unknown or mis-cased token parses to nothing");
+
+        // GUARD: NO descriptor states a variabilityScale or a measurementTolerance yet. The spec
+        // gives no number for either, and an invented one would grade golfers against a guess
+        // while looking authoritative. A value may only come from calibration against logged
+        // sessions, or from Mark. When one does, it lands WITH its source cited beside it in the
+        // manifest, and this guard is narrowed to name the metrics that have earned one — never
+        // simply deleted.
+        int scaled = 0, toleranced = 0;
+        for (const MetricDescriptor *d : cat.all()) {
+            if (d->variabilityScale) {
+                ++scaled;
+                std::printf("      %s sets a variabilityScale\n", qPrintable(d->key));
+            }
+            if (d->measurementTolerance) {
+                ++toleranced;
+                std::printf("      %s sets a measurementTolerance\n", qPrintable(d->key));
+            }
+        }
+        checkEqI(scaled, 0, "no descriptor sets variabilityScale (calibration or Mark only)");
+        checkEqI(toleranced, 0, "no descriptor sets measurementTolerance (calibration or Mark only)");
+    }
+
     std::printf("=== %s ===\n", g_fail == 0 ? "ALL PASS" : "FAILURES");
     return g_fail ? 1 : 0;
 }

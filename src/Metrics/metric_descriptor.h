@@ -23,10 +23,12 @@
 // wrist_assessment_types.h is no longer needed HERE (PpJointDof left with MetricNormative at stage 9)
 // but several includers of this header have always got PpJointDof / PpSwingPosition through it.
 #include "../Wrist/wrist_assessment_types.h"
+#include "variability/variability_scale_type.h"   // ScaleType — the variability grade basis
 
 #include <QString>
 #include <QStringList>
 
+#include <optional>
 #include <vector>
 
 // MetricDescriptor — the stable identity + metadata of a metric (design §3.4). Constant for every
@@ -572,6 +574,30 @@ struct MetricDescriptor {
     // detect on it (metricAreasForPack), so this is set only on the readings no condition detects on
     // (consistency_design.md Appendix B). When set it wins. Empty for everything else.
     QString            consistencyArea;
+
+    // ── Variability grade basis (docs/design/variability-mark/spec.md §8.10) ────────────────────
+    // Three OPTIONAL fields the variability marks read. All three default to "not stated", and
+    // not stated is an honest answer: the grader then falls to the next rung of its ladder, and
+    // past the last rung the measure is ungraded — no mark, never a raw SD.
+
+    // What kind of number this is, which decides how its spread is taken (§8.2 step 3: circular SD
+    // for Circular), whether the CV rung of §8.2 step 4 is open to it (Ratio only), and whether it
+    // is graded on an SD at all (Ordinal / Categorical go to modal share, §8.4). See
+    // Metrics/variability/variability_scale_type.h. Interval unless the quantity clearly is
+    // something else — the manifest sets it only where the spec's definition plainly applies.
+    pinpoint::variability::ScaleType scaleType = pinpoint::variability::ScaleType::Interval;
+
+    // The spread, in this metric's own `unit`, that counts as ρ = 1 when no norm corridor resolves
+    // for the context (§8.2 step 4.2; also the trace-amplitude scale of §8.3). Second rung: the
+    // corridor half-width (σLo + σHi)/2 always wins when there is one. UNSET EVERYWHERE until a
+    // number comes from calibration against logged sessions or from Mark — the spec gives none,
+    // and an invented one would grade golfers against a guess (metric_catalogue_test guards it).
+    std::optional<double> variabilityScale;
+
+    // The measurement uncertainty, in `unit`, that counts as ρm = 1 for the Needle (§8.5). Unset
+    // means MEAS_TOL_FRACTION × the corridor half-width, else ungraded. Unset everywhere, for the
+    // same reason and under the same guard as `variabilityScale`.
+    std::optional<double> measurementTolerance;
 
     // ── Readings of the ladder ──────────────────────────────────────────────────────────────────
     // Derived, never stored. `planned` used to be a field beside `requirement`, and the pair could

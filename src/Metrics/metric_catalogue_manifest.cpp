@@ -93,6 +93,7 @@ void installMetricManifest(MetricCatalogue &cat)
     using P  = Phase;
     using R  = SegmentRole;
     using RM = RouteMethod;
+    using ST = pinpoint::variability::ScaleType;                  // spec §8.10; Interval unless set
     constexpr RouteQuality Direct    = RouteQuality::Direct;      // → Measured when this rung fires
     constexpr RouteQuality Estimated = RouteQuality::Estimated;   // → Bridged
     constexpr bool         PLANNED   = true;                      // this ROUTE has no producer yet
@@ -1566,6 +1567,8 @@ void installMetricManifest(MetricCatalogue &cat)
                                "scaled by the ball-diameter ruler")) },
         .usedBy = { QStringLiteral("chart:review") },
         .consistencyArea = QStringLiteral("sequence"),
+        // Variability scale (spec §8.2): a speed: strictly positive, with a true zero.
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -1604,6 +1607,8 @@ void installMetricManifest(MetricCatalogue &cat)
         // CLUBHEAD peaking early, which is `clubheadPeakLead` below.
         .usedBy = { QStringLiteral("chart:review") },
         .consistencyArea = QStringLiteral("sequence"),
+        // Variability scale (spec §8.2): a speed: strictly positive, with a true zero.
+        .scaleType = ST::Ratio,
     });
 
     // The timing of the clubhead's peak, as a number, because no reducer returns the TIME of an
@@ -1707,6 +1712,9 @@ void installMetricManifest(MetricCatalogue &cat)
         .usedBy = { QStringLiteral("chart:review"),
                     QStringLiteral("characteristic:insufficient_shaft_lean"),
                     QStringLiteral("characteristic:excessive_shaft_lean") },
+        // Variability scale (spec §8.2): a LINE angle on (−180°, 180°] (line_angle.h); through the
+        // top it passes straight up, across the seam.
+        .scaleType = ST::Circular,
     });
 
     // The shaft's angle to the ground as the down-the-line camera sees it (dtl_shaft_lie.h), read
@@ -2226,6 +2234,8 @@ void installMetricManifest(MetricCatalogue &cat)
                                "motion-sensor-only swing and a camera-only swing both qualify, and the "
                                "producer refuses a ladder it does not trust")) },
         .consistencyArea = QStringLiteral("sequence"),
+        // Variability scale (spec §8.2): a duration: strictly positive, with a true zero.
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -2261,6 +2271,9 @@ void installMetricManifest(MetricCatalogue &cat)
                                "motion-sensor-only swing and a camera-only swing both qualify, and the "
                                "producer refuses a ladder it does not trust")) },
         .usedBy = { QStringLiteral("characteristic:transition_rush") },
+        // Variability scale (spec §8.2): a ratio of two durations, strictly positive — as smash
+        // factor is of two speeds.
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -2318,6 +2331,9 @@ void installMetricManifest(MetricCatalogue &cat)
         // thoraxPeakTime (below), the placed nodes' instants; before that it graded the ROTATION peaks
         // (m_pelvisRotPeak / m_thoraxRotPeak) — angles, which its Order test cannot read (design §11
         // item 3, done). The integrity test checks this claim in both directions.
+        // Variability scale (spec §8.2): graded on its ORDER of four peaks, k = 4! (spec §8.4 names
+        // it).
+        .scaleType = ST::Ordinal,
     });
 
     // ── The four segment angular-speed series the sequence is read from (segment_rates.h) ──────
@@ -2727,6 +2743,9 @@ void installMetricManifest(MetricCatalogue &cat)
         .phases = { P::Impact },
         .routes = pelvisRungs("the peak of"),
         .usedBy = { QStringLiteral("characteristic:chest_not_faster_than_hips"), QStringLiteral("characteristic:no_pelvis_braking") },
+        // Variability scale (spec §8.2): a peak speed, never negative (the signed curve is
+        // pelvisAngularSpeed).
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -2750,6 +2769,9 @@ void installMetricManifest(MetricCatalogue &cat)
         .phases = { P::Impact },
         .routes = thoraxRungs("the peak of"),
         .usedBy = { QStringLiteral("characteristic:chest_not_faster_than_hips"), QStringLiteral("characteristic:arms_ride_the_turn") },
+        // Variability scale (spec §8.2): a peak speed, never negative (the signed curve is
+        // thoraxAngularSpeed).
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -2772,6 +2794,9 @@ void installMetricManifest(MetricCatalogue &cat)
         .phases = { P::Impact },
         .routes = armRungs("the peak of"),
         .usedBy = { QStringLiteral("characteristic:arms_ride_the_turn"), QStringLiteral("characteristic:club_not_released") },
+        // Variability scale (spec §8.2): a peak speed, never negative (the signed curve is
+        // leadArmAngularSpeed).
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -2794,6 +2819,9 @@ void installMetricManifest(MetricCatalogue &cat)
         .phases = { P::Impact },
         .routes = clubRungs("the peak of"),
         .usedBy = { QStringLiteral("characteristic:club_not_released") },
+        // Variability scale (spec §8.2): a peak speed, never negative (the signed curve is
+        // clubAngularSpeed).
+        .scaleType = ST::Ratio,
     });
 
     // The reversals: the signed rate's zero crossing into the downswing — the crossing that opens
@@ -2951,6 +2979,9 @@ void installMetricManifest(MetricCatalogue &cat)
         .usedBy = { QStringLiteral("chart:review"),
                     QStringLiteral("characteristic:stance_narrow"),
                     QStringLiteral("characteristic:stance_wide") },
+        // Variability scale (spec §8.2): a width against shoulder width: strictly positive, with a
+        // true zero.
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -2980,6 +3011,8 @@ void installMetricManifest(MetricCatalogue &cat)
                                "is what puts it in millimetres")) },
         .usedBy = { QStringLiteral("chart:review") },
         .consistencyArea = QStringLiteral("setup"),
+        // Variability scale (spec §8.2): a width: strictly positive, with a true zero.
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -3643,6 +3676,9 @@ void installMetricManifest(MetricCatalogue &cat)
                                "the depth axis the face-on camera cannot see")) },
         .usedBy = {},
         .consistencyArea = QStringLiteral("setup"),
+        // Variability scale (spec §8.2): the plain distance, strictly positive (the signed part is
+        // ballReachExcess).
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -4163,6 +4199,8 @@ void installMetricManifest(MetricCatalogue &cat)
                                "detector we have locks the stationary ball and reports the "
                                "instant it vanishes"), PLANNED) },
         .usedBy = { QStringLiteral("characteristic:ball_speed_deficit") },
+        // Variability scale (spec §8.2): a speed: strictly positive, with a true zero.
+        .scaleType = ST::Ratio,
     });
 
     // ---------------------------------------------------- Launch monitor
@@ -4220,6 +4258,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("launchMonitor", RM::Device, Direct, { .launchMonitor = true },
                 QStringLiteral("read from a launch monitor")) },
+        // Variability scale (spec §8.2): a speed: strictly positive, with a true zero.
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -4248,6 +4288,8 @@ void installMetricManifest(MetricCatalogue &cat)
         // both keys answer for it: this one first, the bare one where no monitor reported. Every
         // rung of a ladder is a use (diagnostics_catalogue_integrity_test).
         .usedBy = { QStringLiteral("characteristic:ball_speed_deficit") },
+        // Variability scale (spec §8.2): a speed: strictly positive, with a true zero.
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -4275,6 +4317,8 @@ void installMetricManifest(MetricCatalogue &cat)
             via("launchMonitor", RM::Device, Direct, { .launchMonitor = true },
                 QStringLiteral("ball speed over clubhead speed, both from a launch monitor")) },
         .usedBy = { QStringLiteral("characteristic:smash_deficit") },
+        // Variability scale (spec §8.2): a ratio of two speeds, strictly positive.
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -4662,6 +4706,8 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("read from a launch monitor")) },
         .usedBy = { QStringLiteral("characteristic:spin_deficit"),
                     QStringLiteral("characteristic:spin_excess") },
+        // Variability scale (spec §8.2): a spin rate: a magnitude, with a true zero.
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -4684,6 +4730,9 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("launchMonitor", RM::Device, Direct, { .launchMonitor = true },
                 QStringLiteral("read from a launch monitor")) },
+        // Variability scale (spec §8.2): a spin rate that cannot go negative (signNegative is
+        // empty).
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -4758,6 +4807,8 @@ void installMetricManifest(MetricCatalogue &cat)
             via("launchMonitor", RM::Device, Direct, { .launchMonitor = true },
                 QStringLiteral("read from a launch monitor's flight model")) },
         .usedBy = { QStringLiteral("characteristic:carry_deficit") },
+        // Variability scale (spec §8.2): a distance: strictly positive, with a true zero.
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -4781,6 +4832,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("launchMonitor", RM::Device, Direct, { .launchMonitor = true },
                 QStringLiteral("read from a launch monitor's flight model")) },
+        // Variability scale (spec §8.2): a distance: strictly positive, with a true zero.
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -4830,6 +4883,9 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("launchMonitor", RM::Device, Direct, { .launchMonitor = true },
                 QStringLiteral("read from a launch monitor's flight model")) },
+        // Variability scale (spec §8.2): a height above the ground: strictly positive, with a true
+        // zero.
+        .scaleType = ST::Ratio,
     });
 
     cat.addDescriptor({
@@ -4878,6 +4934,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("launchMonitor", RM::Device, Direct, { .launchMonitor = true },
                 QStringLiteral("read from a launch monitor's flight model")) },
+        // Variability scale left Interval: zero is the target, so it is an error magnitude, and CV
+        // would reward missing by more.
     });
 
     // ------------------------------------------- Derived from launch-monitor readings

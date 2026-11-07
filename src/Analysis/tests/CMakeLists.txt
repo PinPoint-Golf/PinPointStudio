@@ -426,6 +426,20 @@ pp_add_test(metric_catalogue_test
     INCLUDE ${DIAG} ${SRC}/Metrics ${SRC}/LaunchMonitor ${ANALYSIS})
 pp_norm_env(metric_catalogue_test)
 
+# Variability grader (src/Metrics/variability/, docs/design/variability-mark/spec.md §8): the scalar,
+# trace, ordinal and measurement graders, typicality, the session trend and live hysteresis, and the
+# §7.5 basis strings. Pure maths over synthetic windows: QtCore only, no norms, no fixture. Qt Test.
+find_package(Qt6 REQUIRED COMPONENTS Test)
+pp_add_test(variability_grader_test
+    SOURCES ${SRC}/Metrics/tests/variability_grader_test.cpp
+            ${SRC}/Metrics/variability/variability_grader.cpp
+            ${SRC}/Metrics/variability/variability_result.cpp
+            ${SRC}/Metrics/variability/variability_typicality.cpp
+            ${SRC}/Metrics/variability/variability_trend.cpp
+    INCLUDE ${SRC}/Metrics/variability
+    LINK    Qt6::Test
+    AUTOMOC)
+
 # Setup capability (setup_capability.{h,cpp}): the closing page of session setup — a ShotContext
 # built from a PLANNED setup and summarised per metric group over the same resolver. Asserts
 # invariants (one bucket per metric, adding kit never worsens a metric, launch-monitor and arm
