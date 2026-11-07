@@ -19,28 +19,34 @@
 // One area of "Your swing" (HmSwingAreas): a PpExpandRow on the area table's column template.
 //
 //   header   chevron · area · habits (a PpBandBar of the four counts and "N habits") · trend ·
-//            consistency ("Loose P6-P7", the word alone when Steady, "-" with no judgement) ·
-//            biggest fault · work-ons ("1 active · 1 new")
-//   detail   the area's spans and their words on one line (wrapped on a narrow table), when it has
-//            any; then every one of the area's items at Theme.itemIndent, one Theme.itemRowH row
-//            each: the condition, how many swings it fired on of those that assessed it, the typical value
-//            with its unit and corridor, the grade word, and an action — Practise on an active or
-//            easing work-on, a "New" tag on a newly listed one, nothing otherwise. Every item opens
-//            in place (HmFaultRow: HmFaultDetail, its chevron at the right), one at a time.
+//            consistency (the consistency badge of the measure behind the biggest fault, beside it;
+//            "-" when that is ungraded or there is no biggest fault) · biggest fault · work-ons
+//            ("1 active · 1 new")
+//   detail   every one of the area's items at Theme.itemIndent, one Theme.itemRowH row each: the
+//            condition, how many swings it fired on of those that assessed it, the typical value with
+//            its unit and corridor, the grade word, its own consistency badge (nothing when
+//            ungraded), and an action — Practise on an active or easing work-on, a "New" tag on a
+//            newly listed one, nothing otherwise. The badge sits beside the work-on's status (R10).
+//            Every item opens in place (HmFaultRow: HmFaultDetail, its chevron at the right), one at a
+//            time.
+//
+// The badges are the golfer layer (docs/design/system/variability.md): a Dispersion Icon, dense, the
+// word with its line as the tooltip, no figures. Each is a `variabilityResult` from the controller
+// (WorkOnsController, CONSISTENCY MARKS): the measure's last Variability.nWindow readings across
+// sessions, centred per club, against its norm corridor. "Checking" when measurement-limited.
 //
 // `area` is one of WorkOnsController.areaItems (swing_areas.h AreaSummary, every string final):
 //   { group, label, measurable, measured, habits, occasional, clean, unclear, habitTrend, hasTrend,
 //     topFault, topFaultId, workOnsActive, workOnsNew, items: [{ conditionId, label, golfer, band,
 //     share, fired, assessable, measureId, hasTypical, typical, corridorLo, corridorHi,
-//     corridorShape, tail, unit, grade, workOn, sessionsListed },
-//     consistencyWord, consistencyLoosest, consistencySpans: [{ span, word }] }
-// The consistency keys are patched in after the catch-up, so a row reads "-" until they land.
+//     corridorShape, tail, unit, grade, workOn, sessionsListed, consistency }], consistency }
+// `consistency` is ungraded until the controller's marks land, so a row reads "-" until then.
 //
 // An area the rig cannot measure says so in place of the bar, and does not open: no chevron, no
 // press, no focus.
 //
 // Colour is never the only channel: the bar carries the count beside it, the trend its sign, the
-// grade its word, the work-ons their words. Consistency is words alone.
+// grade its word, the work-ons their words, a consistency badge its shape and its word.
 //
 // The trend is habits gained (+) or cleared (−) since the newest substantive session; FEWER habits
 // is better, so its tone is Theme.trendTone of the negated figure.
@@ -81,12 +87,11 @@ PpExpandRow {
                                        : areaRow.trend > 0 ? "+" + areaRow.trend
                                        : areaRow.trend < 0 ? "−" + (-areaRow.trend)
                                        :                 "±0"
-    readonly property string consistencyWord: areaRow.area && areaRow.area.consistencyWord
-                                              ? String(areaRow.area.consistencyWord) : "-"
-    readonly property string consistencySpan: areaRow.area && areaRow.area.consistencyLoosest
-                                              ? String(areaRow.area.consistencyLoosest) : ""
-    readonly property var    consistencySpans: areaRow.area && areaRow.area.consistencySpans
-                                               ? Array.from(areaRow.area.consistencySpans) : []
+    // The biggest fault's consistency mark (a variabilityResult), or null.
+    readonly property var    consistency: areaRow.area && areaRow.area.consistency ? areaRow.area.consistency : null
+    readonly property bool   consistencyGraded: !!(areaRow.consistency && areaRow.consistency.graded)
+    // The word the badge draws ("-" with none), for a probe.
+    readonly property string consistencyWord: areaRow.consistencyGraded ? consistencyBadge.word : "-"
     readonly property string faultText:  areaRow.area && areaRow.area.topFault ? String(areaRow.area.topFault) : "—"
     readonly property int    newCount:    areaRow.count("workOnsNew")
     readonly property int    activeCount: Math.max(0, areaRow.count("workOnsActive") - areaRow.newCount)
@@ -127,6 +132,7 @@ PpExpandRow {
         return c !== "" ? v + " · " + c : v
     }
     function practisable(it) { return it && (it.workOn === "active" || it.workOn === "easing") }
+    function graded(r) { return !!(r && r.graded) }
 
     // The item rows' own template, on the detail's width (PpCard.resolveColumns' rule: fixed
     // columns keep their width, fill columns share the rest by weight).
@@ -134,7 +140,8 @@ PpExpandRow {
     readonly property int itemGap: Theme.gap(16)
     function itemLayout(w) {
         const cols = [{ fill: 1.2 }, { width: Theme.sp(56) }, { fill: 1.4 },
-                      { width: Theme.sp(72) }, { width: Theme.sp(112), align: "right" },
+                      { width: Theme.sp(72) }, { width: Theme.sp(136) },    // the grade, the consistency badge
+                      { width: Theme.sp(112), align: "right" },
                       { width: Theme.sp(10) }]                          // the chevron's
         let fixed = 0, weights = 0
         for (const c of cols) { if (c.fill) weights += c.fill; else fixed += c.width }
@@ -217,25 +224,29 @@ PpExpandRow {
         color: areaRow.hasTrend ? Theme.trendTone(-areaRow.trend) : Theme.colorText3
     }
 
-    Row {                                       // consistency: the word, then the loosest span
+    Item {                                      // consistency: the biggest fault's measure (R5)
         objectName: "areaConsistency"
         visible: areaRow.measurable
-        width: areaRow.headerRow.columnWidth(4)
-        spacing: Theme.gap(8)
+        width:  areaRow.headerRow.columnWidth(4)
+        height: Math.max(consistencyBadge.implicitHeight, consistencyDash.implicitHeight)
+        PpVariabilityBadge {
+            id: consistencyBadge
+            objectName: "areaConsistencyBadge"
+            anchors.verticalCenter: parent.verticalCenter
+            visible: areaRow.consistencyGraded          // ungraded: no badge, never a raw σ
+            dense: true
+            grade: areaRow.consistency ? areaRow.consistency.grade : 0
+            measurementLimited: !!(areaRow.consistency && areaRow.consistency.measurementLimited)
+        }
         Text {
+            id: consistencyDash
             objectName: "areaConsistencyWord"
-            text:  areaRow.consistencyWord
+            anchors.verticalCenter: parent.verticalCenter
+            visible: !areaRow.consistencyGraded
+            text:  "-"
             font.family:    Theme.fontBody
             font.pixelSize: Theme.fontSzBody2
             font.weight:    Theme.fontBodyWeight
-            color: areaRow.consistencySpan !== "" ? Theme.colorText : Theme.colorText3
-        }
-        Text {
-            objectName: "areaConsistencySpan"
-            visible: areaRow.consistencySpan !== ""
-            text:  areaRow.consistencySpan
-            font.family:    Theme.fontData
-            font.pixelSize: Theme.fontSzBody2
             color: Theme.colorText3
         }
     }
@@ -284,53 +295,6 @@ PpExpandRow {
     // ── Detail: the items, then the way into the whole area ─────────────────
     detail: Component {
         Column {
-
-            PpTableRow {                        // the area's spans, on the item rows' columns
-                id: spansRow
-                objectName: "areaConsistencySpans"
-                visible: areaRow.consistencySpans.length > 0
-                // One line; a table too narrow for it wraps rather than cutting spans off.
-                height: Math.max(Theme.sp(Theme.itemRowH), spansFlow.implicitHeight + Theme.gap(8))
-                padH: 0
-                hoverEnabled: false
-                layout: areaRow.itemLayout(spansRow.width)
-
-                Text {
-                    width: spansRow.columnWidth(0)
-                    text:  qsTr("Consistency")
-                    elide: Text.ElideRight
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    font.weight:    Theme.fontBodyWeight
-                    color: Theme.colorText
-                }
-                Flow {                          // the rest of the row: each span, then its word
-                    id: spansFlow
-                    objectName: "areaConsistencySpansList"
-                    width: Math.max(0, spansRow.width - spansRow.columnX(1))
-                    spacing: Theme.gap(16)
-                    Repeater {
-                        model: areaRow.consistencySpans
-                        Row {
-                            required property var modelData
-                            spacing: Theme.gap(6)
-                            Text {
-                                text: parent.modelData.span
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzBody2
-                                color: Theme.colorText2
-                            }
-                            Text {
-                                text: parent.modelData.word
-                                font.family:    Theme.fontBody
-                                font.pixelSize: Theme.fontSzBody2
-                                font.weight:    Theme.fontBodyWeight
-                                color: Theme.colorText2
-                            }
-                        }
-                    }
-                }
-            }
 
             Repeater {
                 model: areaRow.items
@@ -396,8 +360,21 @@ PpExpandRow {
                         font.weight:    Font.DemiBold
                         color: Theme.corridorTone(itemRow.modelData.grade || "")
                     }
-                    Item {                      // the action
+                    Item {                      // its consistency, beside the work-on's status (R5, R10)
                         width:  itemRow.columnWidth(4)
+                        height: itemRow.rowHeight
+                        PpVariabilityBadge {
+                            objectName: "areaItemConsistency"
+                            readonly property var r: itemRow.modelData.consistency || null
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: areaRow.graded(r)          // ungraded: no badge
+                            dense: true
+                            grade: r ? r.grade : 0
+                            measurementLimited: !!(r && r.measurementLimited)
+                        }
+                    }
+                    Item {                      // the action
+                        width:  itemRow.columnWidth(5)
                         height: itemRow.rowHeight
                         PpButton {
                             objectName: "areaPractise"

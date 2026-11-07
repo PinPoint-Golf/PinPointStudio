@@ -66,7 +66,7 @@ Column {
     property string _loadedFor: "\u0001"     // the uuid openGroups was read for; never a real one
 
     // The fault open in each area, { group: conditionId }. Held here and not on the row: the
-    // consistency words land in areaItems during the catch-up, and each landing rebuilds the rows.
+    // consistency marks land in areaItems after the catch-up, and each landing rebuilds the rows.
     // For this sitting only, as an open fault always was.
     property var openItems: ({})
 
@@ -158,8 +158,8 @@ Column {
         height:  visible ? implicitHeight : 0
         table:   true
 
-        // Wide enough for the longest cell, "Steady" and a span, in Folio at Spacious.
-        readonly property int consistencyW: Theme.sp(96)
+        // Wide enough for the longest cell, a dense badge and "Not enough swings", in Folio at Spacious.
+        readonly property int consistencyW: Theme.sp(136)
         // Habits alone pays for Consistency. Fixed fill weights can't do that at every width, so
         // Biggest fault is worked out as it was without the column (1 in 2.3 of what the other
         // columns left) and Habits takes the rest. Only once Habits is gone does the fault give way,

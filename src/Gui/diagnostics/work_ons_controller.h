@@ -20,7 +20,7 @@
 
 #include "../../Coaching/swing_themes.h"
 #include "../../Coaching/work_ons.h"
-#include "../charts/consistency_summary.h"
+#include "../variability/variability_facade.h"      // VariabilityResultView: the consistency marks
 
 #include <QHash>
 #include <QObject>
@@ -38,8 +38,7 @@
 #include <vector>
 
 class SessionDiagnosticsModel;
-namespace pinpoint::analysis { class ICharacteristicPackProvider; struct CharacteristicPack; }
-namespace pinpoint::charts { struct ConsistencyEnv; }
+namespace pinpoint::analysis { class ICharacteristicPackProvider; struct CharacteristicPack; class INormProvider; }
 
 // WORK ONS — the list of the faults a golfer keeps producing (each opened in place under its row on
 // Home's Coaching and Your swing tabs, HmFaultDetail), and the thing that keeps each session's record
@@ -84,35 +83,38 @@ namespace pinpoint::charts { struct ConsistencyEnv; }
 // The WORDS are made at publish from the stored structure (swingSummaryView over the pack's
 // golfer phrases), so editing a phrase needs no recompute.
 //
-// CONSISTENCY — the same scan keeps each session's Consistency table current for Home's column
-// (<session>/consistency.json, consistency_summary.h, docs/design/consistency_design.md §3). Its own
-// fingerprint, its own freshness, its own queue, so neither catch-up ever moves the other: a session
-// with fresh work-ons and a stale table queues only the table, and the reverse. Its fingerprint is in
-// no work-on record and not in the themes fingerprint.
+// CONSISTENCY MARKS — Home's Consistency column and the badges beside its faults (Mark's rulings R5 and
+// R10, docs/design/variability-mark/decisions.md; docs/design/system/variability.md). One golfer-layer
+// grade per (condition, measure): how consistently the golfer repeats the measure behind that fault.
 //
-//   - Tables are read on the scan pool. Deriving one is a job on its own single-thread, low-priority
-//     pool, one session at a time, newest first, with no use of the model's worker; a table that lands
-//     travels back in memory, so the GUI thread never opens one of these files.
-//   - `paused` cancels the running job, checked before each swing, and holds the queue. The pause
-//     lifting scans again, so a cancelled session simply comes up stale. The athlete changing cancels too.
-//   - The queue runs by when the session was played, not by folder mtime: writing a table bumps that.
-//   - A STALE TABLE'S WORDS STAND UNTIL THE NEW ONE LANDS: show, never hide. A new release or a core.json
-//     edit would otherwise blank the column for minutes and show partial roll-ups on the way back. Only a
-//     verdict that the session has no table takes its words away: every swing readable, none analysed.
-//   - A session with no shot to read writes nothing and is not tried again until its fingerprint moves.
-//   - A table that can't be stored is held in memory under its fingerprint (m_consistencyUnstored), so
-//     it still counts and isn't derived again this run: a write that failed (a read-only share), or a
-//     read that did (a swing unreadable, which a share dropping and a corrupt document both look like,
-//     so the file stays unwritten rather than fix 30 of 50 swings under a fingerprint naming all 50).
-//     The next launch asks again. With nothing readable at all, the words already showing stand.
-//   - Words move at most once per kConsistencyWordsMs, and only when one changed: areaItems reaching
-//     QML rebuilds every area row, and that closes whatever fault the golfer has open in one. A changed
-//     word still rebuilds them. To patch a word in place the rows would have to read it from a property
-//     of its own rather than through the Repeater's model.
-//   - The env is taken once, on the GUI thread, by the first refresh, and it keeps the packs it read for
-//     the life of the process (consistency_env.h). So a table is stamped with the content stamp of that
-//     moment, not today's: a corridor edited mid-run leaves the table's words as they are, and its
-//     stamp says so, until the next launch re-derives it.
+//   - THE WINDOW is the condition's last kNWindow (20) readings on that measure ACROSS sessions, newest
+//     first by shot time, off each session's diagnostics.json ledger. Which rows are readings, and how a
+//     window is graded, is the rule the report's work-on page shares (src/Gui/variability/
+//     variability_ledger.h): rows of that condition whose driving measure is that measure, assessed
+//     (not NotAssessable), with a finite value. Warm-ups count (R13), and so does a shot carrying a data
+//     warning: the ledger has already made a broken recording's rows NotAssessable, and a warning that
+//     withholds nothing (a refused club track) leaves rows the habit counts beside this column count too.
+//   - Centred per club (R2a, pooledWithinClubInput) and graded by the scalar grader against the norm
+//     corridor half-width, (σLo + σHi)/2 whatever the norm's shape (R12), resolved for each shot's
+//     context the way the session panel resolves it (sharedNormProvider, the row's context): the median
+//     over the window's shots. The measure's catalogue scale type, else Interval (variability_measures.h).
+//     No propagated σ: a ledger row stores none.
+//   - UNGRADED (no badge, "-"): no measure; a yes/no condition (every signal an order test or a
+//     threshold, AreaConditionInfo::binary); a composite measure; an outcome measure (ball flight, smash
+//     factor: R4, isOutcomeMeasure); a reading tested against a fixed number (a finite faultAt) or
+//     carrying no band (CorridorShape::None); no norm σ. Under kNMin (8) readings after the club
+//     centring: grade 0, "Not enough swings".
+//   - Which conditions: every one faultDetail() answers for, each on the measure an area item names
+//     (latestEvidence's driving measure, else the newest listing's: AreaItem::measureId's rule).
+//
+// The job runs once the catch-up settles (where the swing summary is started), one at a time on its
+// own single-thread, low-priority pool, never while a session is live, and is cancelled by the athlete
+// changing or a session going live. It first stats every session's ledger: the job's fingerprint is the
+// rule, the content stamp, the conditions asked for and every ledger's (name, size, mtime), so an
+// unchanged library costs a stat per session and nothing else. Otherwise it reads the ledgers newest
+// session first and stops once every window is full and no unread session could hold a newer reading.
+// The grades travel back in memory; nothing is written. A landing that changes a grade publishes again
+// (areaItems and faultDetail() carry `consistency`); one that changes none moves nothing.
 class WorkOnsController : public QObject
 {
     Q_OBJECT
@@ -146,19 +148,16 @@ class WorkOnsController : public QObject
     // Empty before the first publish and while no session has a record. Each area:
     //   {group (token), label ("Lateral motion"), measurable, measured, habits, occasional, clean,
     //    unclear, habitTrend (habits now − without the newest substantive session), hasTrend,
-    //    topFault (label, "" when none), topFaultId, workOnsActive, workOnsNew, items [item]}
+    //    topFault (label, "" when none), topFaultId, workOnsActive, workOnsNew, items [item], consistency}
     // Each item, habits first, then occasional, then the rest, by share within each — every one (Home
     // lists them all, each opening in place):
     //   {conditionId, label, golfer, band ("habit" | "occasional" | "clean" | "unclear"), share (0..1,
     //    recency-weighted), fired, assessable (unweighted swings), measureId, hasTypical, typical,
     //    corridorLo, corridorHi, corridorShape, tail ("high" | "low" | ""), unit, grade, workOn
-    //    ("active" | "easing" | "new" | ""), sessionsListed}
-    // And what Consistency makes of the area, rolled up over the sessions with a table in it, newest
-    // first (consistencyHomeWord):
-    //   consistencyWord     "Steady" | "Some" | "Loose", or "-": no spans (ball flight), or nothing judged
-    //   consistencyLoosest  the loosest span ("P3-P4"), "" when the word is Steady or "-"
-    //   consistencySpans    [{span ("P3-P4"), word (as consistencyWord)}], the area's spans in swing order,
-    //                       for its detail; empty when the word is "-". P7-P8 only for Finish, as the word
+    //    ("active" | "easing" | "new" | ""), sessionsListed, consistency}
+    // And `consistency` on the area and on each item, a `variabilityResult` (VariabilityResultView): the
+    // consistency mark of the item's measure (CONSISTENCY MARKS, above). The area's is its biggest fault's
+    // (topFaultId's item), ungraded with no biggest fault. Ungraded until the first marks job lands.
     // `grade` is the typical value graded against its stored corridor under `gradePolicy`, in the
     // panel's tokens ("ideal" | "good" | "watch" | "action", for Theme.corridorTone/corridorWord);
     // "" when there is no typical value or no corridor to read it against. Only the condition's own
@@ -214,7 +213,9 @@ public:
     // session assessed, not only the listed work-ons: a listed one's is its `items` entry exactly;
     // any other's has the same keys, its "Latest" from the newest session that assessed it.
     // Empty when no session assessed it. One map, not a map of them all: a QVariantMap property
-    // read is a deep copy, and every fault row on Home asks.
+    // read is a deep copy, and every fault row on Home asks. `consistency` is the condition's
+    // consistency mark (CONSISTENCY MARKS, above), the one its area item shows; it sits beside the
+    // work-on's status (R10).
     Q_INVOKABLE QVariantMap faultDetail(const QString &conditionId) const { return m_details.value(conditionId); }
     int  clearedCount() const { return m_clearedCount; }
     int  sessionCount() const { return int(m_records.size()); }
@@ -241,15 +242,11 @@ public:
 
     // Test seam, as SessionDiagnosticsModel's: scan, derive and reduce the themes inline.
     void setSynchronous(bool on) { m_synchronous = on; }
-    // Test seam: the rule version the Consistency tables are stamped with, from the next refresh.
-    void setConsistencyRuleVersion(int version) { m_consistencyRuleVersion = version; }
-    // Test seam: called on the job's thread with the session, once its table is derived and before it
-    // is written, the one window a session can vanish, a swing can move or the athlete can change in.
-    void setConsistencyJobHook(std::function<void(const QString &)> hook) { m_consistencyJobHook = std::move(hook); }
-    // Waits for the scan, the derivation, the swing summary AND the Consistency queue.
+    // Waits for the scan, the derivation, the swing summary AND the consistency marks.
     bool waitForIdle(int msTimeout = 60000);
-    // How many Consistency jobs have started, for the tests.
-    int  consistencyJobs() const { return m_consistencyJobs; }
+    // For the tests: marks jobs started, and ledgers they have read between them.
+    int  consistencyJobs() const { return m_marksJobs; }
+    int  consistencyLedgersRead() const { return m_marksLedgersRead; }
 
     static QString recordPath(const QString &sessionDir);
     static QString themesPath(const QString &athleteDir);
@@ -270,15 +267,8 @@ private:
         bool    fresh = false;
         qint64  mtimeMs = 0;
         pinpoint::analysis::SessionWorkOns record;   // valid when fresh
-        QString consistencyFingerprint;
-        bool    consistencyReadable = false;    // a table is on disk, current or not
-        bool    consistencyFresh = false;       // and it is current
-        qint64  playedMs = 0;                   // the table's date, else the folder's: the queue's order
-        int     documents = 0;                  // swings with a document, for the job to hold its reading to
-        pinpoint::charts::ConsistencySummary consistency;   // valid when consistencyReadable
     };
-    static std::vector<Scanned> scan(const QString &athleteDir, const QString &contentStamp,
-                                     const QString &consistencyStamp, int consistencyRule);
+    static std::vector<Scanned> scan(const QString &athleteDir, const QString &contentStamp);
     void applyScan(int generation, std::vector<Scanned> rows);
 
     void deriveNext();
@@ -316,24 +306,39 @@ private:
     void publishSummary();
     void clearSummary();
 
-    // ── Consistency ──
-    struct ConsistencyOutcome {
-        QString sessionDir;
-        QString fingerprint;        // the job's, carried back
-        bool    table = false;      // a table was read from the session (and not cancelled)
-        bool    stored = false;     // and it is on disk
-        bool    gone = false;       // the session's folder went while the job ran
-        pinpoint::charts::ConsistencySummary summary;
+    // ── Consistency marks ──
+    struct MarksRequest {
+        QString conditionId;
+        QString measureId;
+        QString unit;
+        bool    ungraded = false;       // decided from the pack: no measure, yes/no, composite, an outcome (R4)
+        pinpoint::variability::ScaleType scaleType = pinpoint::variability::ScaleType::Interval;
     };
-    static ConsistencyOutcome runConsistency(const QString &sessionDir, const QString &fingerprint, int documents, int ruleVersion,
-                                             const pinpoint::charts::ConsistencyEnv &env, const std::atomic<bool> *cancel,
-                                             const std::function<void(const QString &)> &hook);
-    void consistencyNext();
-    void cancelConsistency();
-    void applyConsistency(int generation, ConsistencyOutcome out);
-    bool rollUpConsistency();       // true when an area's words moved
-    void consistencyWordsDue();     // a table came or went: roll up now, or at the next timer
-    void publishConsistencyWords();
+    struct MarksSession {
+        QString dir;
+        qint64  startMs = 0, endMs = 0;
+    };
+    struct MarksJob {
+        int     generation = 0;
+        QString seed;                   // the rule, the content stamp and the requests
+        QString previous;               // the fingerprint of the grades in hand
+        std::vector<MarksSession> sessions;     // newest first
+        std::vector<MarksRequest> requests;
+        std::shared_ptr<const pinpoint::analysis::INormProvider> norms;
+    };
+    struct MarksOutcome {
+        QString fingerprint;
+        bool    unchanged = false;      // the ledgers and requests are those of the grades in hand
+        bool    computed  = false;      // graded here (and not cancelled)
+        int     ledgersRead = 0;
+        QHash<QString, pinpoint::variability::VariabilityResultView> marks;   // markKey -> mark
+    };
+    static QString markKey(const QString &conditionId, const QString &measureId);
+    static MarksOutcome runMarks(const MarksJob &job, const std::atomic<bool> *cancel);
+    void maybeMarks();
+    void cancelMarks();
+    void applyMarks(int generation, MarksOutcome out);
+    QVariant markFor(const QString &conditionId, const QString &measureId) const;
 
     QString m_athleteDir;
     QString m_gradePolicy = QStringLiteral("standard");
@@ -381,22 +386,15 @@ private:
     QThreadPool  m_themesPool;          // one job at a time
     QThreadPool  m_replicatePool;       // that job's replicates
 
-    // ── Consistency ──
-    QHash<QString, pinpoint::charts::ConsistencySummary> m_consistency;   // session dir -> the table it shows, current or not
-    QHash<QString, pinpoint::charts::ConsistencySummary> m_consistencyUnstored;   // session dir -> a table not on disk, by its fingerprint
-    QHash<QString, QString> m_consistencyFingerprints;   // session dir -> what the queue will stamp
-    QHash<QString, int>     m_consistencyDocuments;      // session dir -> swings the scan found a document for
-    QHash<QString, QString> m_consistencyNoTable;        // session dir -> the fingerprint no table came from
-    QStringList  m_consistencyQueue;                     // stale session dirs, newest first
-    QString      m_consistencyDir;                       // the running job's
-    bool         m_consistencyRunning = false;
-    int          m_consistencyGeneration = 0;
-    int          m_consistencyJobs = 0;
-    int          m_consistencyRuleVersion = pinpoint::charts::kConsistencyRuleVersion;
-    QString      m_consistencyStamp;                     // the content the env was taken under
-    std::shared_ptr<const pinpoint::charts::ConsistencyEnv> m_consistencyEnv;
-    std::shared_ptr<std::atomic<bool>> m_consistencyCancel;   // the running job's
-    std::function<void(const QString &)> m_consistencyJobHook;
-    QTimer       m_consistencyWords;    // holds a landing's words back, single shot
-    QThreadPool  m_consistencyPool;     // one session at a time
+    // ── Consistency marks ──
+    QHash<QString, pinpoint::variability::VariabilityResultView> m_marks;   // markKey -> the mark shown
+    QString      m_marksFingerprint;                     // what m_marks was graded from
+    QHash<QString, MarksRequest> m_markRequests;         // markKey -> what publish() asks for
+    bool         m_marksRunning = false;
+    bool         m_marksAgain   = false;                 // asked while a job ran
+    int          m_marksGeneration = 0;
+    int          m_marksJobs = 0;
+    int          m_marksLedgersRead = 0;
+    std::shared_ptr<std::atomic<bool>> m_marksCancel;    // the running job's
+    QThreadPool  m_marksPool;                            // one job at a time
 };

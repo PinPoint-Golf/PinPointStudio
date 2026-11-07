@@ -1327,6 +1327,27 @@ set_tests_properties(live_measure_source_test PROPERTIES
 #
 # Reuses live_measure_source_test's corpus fixtures, staged into <athlete>/<session>/swing_NNNN so
 # the fault profile lands in the athlete folder the way it will in the app.
+# THE VARIABILITY MARKS the model publishes on the strip and the history (per-club badges, the funnel):
+# the grader, its trend and result strings, the façade's value type, and the per-club windows
+# (variability_clubs.cpp, which needs the Consistency maths for its R2a half). Every target that compiles
+# session_diagnostics_model.cpp links these: the model test and the regrade / report / rank-diff tools.
+set(SESSION_DIAG_MARKS_SOURCES
+    ${SRC}/Metrics/variability/variability_result.cpp
+    ${SRC}/Metrics/variability/variability_grader.cpp
+    ${SRC}/Metrics/variability/variability_trend.cpp
+    ${SRC}/Metrics/variability/variability_typicality.cpp
+    ${SRC}/Gui/variability/variability_facade.cpp
+    ${SRC}/Gui/charts/variability_clubs.cpp
+    ${SRC}/Gui/charts/session_consistency.cpp ${SRC}/Gui/charts/session_curves.cpp
+    ${SRC}/Gui/charts/session_warp.cpp ${SRC}/Gui/charts/session_traces.cpp)
+# The metric manifest the model reads a measure's scale type from (src/Gui/variability/variability_measures.h:
+# one lookup for every surface). Listed apart because work_ons_controller_test already links it.
+set(SESSION_DIAG_CATALOGUE_SOURCES
+    ${SRC}/Metrics/metric_catalogue.cpp
+    ${SRC}/Metrics/metric_resolver.cpp
+    ${SRC}/Metrics/metric_catalogue_manifest.cpp
+    ${SRC}/Metrics/metric_providers.cpp
+    ${SRC}/Wrist/reference_bands.cpp)
 pp_add_test(session_diagnostics_model_test
     SOURCES ${DIAG}/tests/session_diagnostics_model_test.cpp
             ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
@@ -1348,6 +1369,8 @@ pp_add_test(session_diagnostics_model_test
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
+            ${SESSION_DIAG_MARKS_SOURCES}
+            ${SESSION_DIAG_CATALOGUE_SOURCES}
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
     LINK    Qt6::Qml
     AUTOMOC
@@ -1365,21 +1388,17 @@ set_tests_properties(session_diagnostics_model_test PROPERTIES
 # record is current, kept in swing_themes.json under a fingerprint, recomputed when a session
 # arrives or the file is from another rule, cancelled by a live session. Its threads are Qt's
 # (QThreadPool), so nothing is added to the link line.
-# The same scan keeps each session's consistency.json current (src/Gui/charts/consistency_summary.h):
-# its job runs the Consistency tab's two layers over the documents, so the charts maths, the shot
-# extractor with its wrist engine, and the metric manifest the env reads come along. The real swing
-# is live_measure_source_test's rich_7iron, staged as a session.
+# The same catch-up ends in Home's consistency marks (R5, R10): each fault's last 20 readings across
+# the ledgers, centred per club (variability_clubs.cpp over the charts maths' consistencyResiduals) and
+# graded by the variability grader against the norm corridor, handed to QML as the façade's
+# variabilityResult (all in SESSION_DIAG_MARKS_SOURCES, above); the metric manifest gives each measure
+# its scale type.
 pp_add_test(work_ons_controller_test
     SOURCES ${DIAG}/tests/work_ons_controller_test.cpp
             ${SRC}/Gui/diagnostics/work_ons_controller.cpp
             ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
-            ${SRC}/Gui/charts/consistency_summary.cpp
-            ${SRC}/Gui/charts/consistency_env.cpp
-            ${SRC}/Gui/charts/session_consistency.cpp
+            ${SESSION_DIAG_MARKS_SOURCES}
             ${SRC}/Gui/charts/session_series_model.cpp
-            ${SRC}/Gui/charts/session_curves.cpp
-            ${SRC}/Gui/charts/session_warp.cpp
-            ${SRC}/Gui/charts/session_traces.cpp
             ${SRC}/Gui/charts/session_wrist.cpp
             ${SRC}/Gui/charts/session_posture.cpp
             ${SRC}/Wrist/wrist_analysis_adapter.cpp
@@ -1419,6 +1438,8 @@ set_tests_properties(work_ons_controller_test PROPERTIES
 add_executable(regrade_ledger
     ${PP_REPO_ROOT}/tools/diagnostics/regrade_ledger.cpp
     ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
+    ${SESSION_DIAG_MARKS_SOURCES}
+    ${SESSION_DIAG_CATALOGUE_SOURCES}
     ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
     ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
     ${DIAG}/packs/screen_pack.cpp
@@ -1477,6 +1498,8 @@ set_tests_properties(measure_dump_test PROPERTIES
 add_executable(diag_uncertainty_report
     ${PP_REPO_ROOT}/tools/diagnostics/diag_uncertainty_report.cpp
     ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
+    ${SESSION_DIAG_MARKS_SOURCES}
+    ${SESSION_DIAG_CATALOGUE_SOURCES}
     ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
     ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
     ${DIAG}/packs/screen_pack.cpp
@@ -1505,6 +1528,8 @@ pp_apply_sanitizers(diag_uncertainty_report)
 add_executable(diag_rank_diff
     ${PP_REPO_ROOT}/tools/diagnostics/diag_rank_diff.cpp
     ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
+    ${SESSION_DIAG_MARKS_SOURCES}
+    ${SESSION_DIAG_CATALOGUE_SOURCES}
     ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
     ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
     ${DIAG}/packs/screen_pack.cpp

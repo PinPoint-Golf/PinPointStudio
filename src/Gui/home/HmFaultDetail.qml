@@ -20,7 +20,8 @@
 // it is, never on another page). Used by Coaching's focus ("Right now") and "Next on your list", and
 // by an open area's items on Your swing:
 //   what it costs   the pack's consequence
-//   Now · Latest    where it stands, and the newest session that judged it
+//   Now · Latest    where it stands — a listed work-on's status, its consistency badge beside it
+//                   (R10; the badge alone never makes the line) — and the newest session that judged it
 //   Swings          fired of every swing, and where it could not be measured
 //   Sessions        the pips' key, counted over every session
 //   Linked          what it may follow from
@@ -73,7 +74,29 @@ Column {
 
     Item { width: 1; height: Theme.gap(2) }
 
-    PpFact { width: parent.width; label: Theme.caps(qsTr("Now"));    text: root.str("statusText") }
+    // NOW: the status, and its consistency badge before it when the mark is graded. Two facts rather
+    // than one with a hidden badge: PpFact sets its words after any mark it holds, shown or not.
+    readonly property var consistency: root.item && root.item.consistency ? root.item.consistency : null
+    readonly property bool consistencyGraded: !!(root.consistency && root.consistency.graded)
+    PpFact {
+        objectName: "faultNow"
+        width: parent.width
+        label: Theme.caps(qsTr("Now"))
+        text:  root.str("statusText")
+        visible: text !== "" && root.consistencyGraded
+        PpVariabilityBadge {                            // golfer layer: the word, its line the tooltip
+            objectName: "faultConsistency"
+            dense: true
+            grade: root.consistency ? root.consistency.grade : 0
+            measurementLimited: !!(root.consistency && root.consistency.measurementLimited)
+        }
+    }
+    PpFact {
+        width: parent.width
+        label: Theme.caps(qsTr("Now"))
+        text:  root.str("statusText")
+        visible: text !== "" && !root.consistencyGraded  // ungraded: the status alone, no badge
+    }
     PpFact { width: parent.width; label: Theme.caps(qsTr("Latest")); text: root.str("latestText") }
     PpFact {
         width: parent.width

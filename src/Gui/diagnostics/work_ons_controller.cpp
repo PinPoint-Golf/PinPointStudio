@@ -21,9 +21,9 @@
 #include "session_diagnostics_model.h"
 #include "session_spread.h"
 
-#include "../charts/consistency_env.h"
+#include "../variability/variability_ledger.h"     // ledgerConsistencyReading/Grade: the rule Home and the report share
+#include "../variability/variability_measures.h"   // measureScaleType, isOutcomeMeasure, normCorridorHalfWidth
 
-#include "../../Coaching/consistency_home.h"
 #include "../../Coaching/swing_areas_pack.h"
 
 #include "../../Diagnostics/packs/characteristic_pack.h"
@@ -31,6 +31,8 @@
 #include "../../Diagnostics/engine/pack_io.h"
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Diagnostics/packs/swing_themes_pack.h"
+#include "../../Diagnostics/norms/norm_provider.h"
+#include "../../Metrics/variability/variability_grader.h"
 #include "../../Core/pp_debug.h"
 #include "../../Export/swing_store.h"
 
@@ -55,7 +57,7 @@
 #include <cmath>
 
 using namespace pinpoint::analysis;
-using namespace pinpoint::charts;
+namespace pv = pinpoint::variability;
 
 namespace {
 
@@ -63,8 +65,9 @@ const QString kRecordFile = QStringLiteral("work_ons.json");
 const QString kThemesFile = QStringLiteral("swing_themes.json");
 const QString kLedgerFile = QStringLiteral("diagnostics.json");
 
-// The least time between two moves of Home's Consistency words in a catch-up: a move rebuilds its rows.
-constexpr int kConsistencyWordsMs = 3000;
+// THE VERSION OF THE CONSISTENCY MARKS' RULE (the window, the filters, the scale): in the marks job's
+// fingerprint, so a new rule grades again. Nothing is stored, so a bump only costs the next settle a read.
+constexpr int kConsistencyMarksRule = 2;     // 2: warm-ups and data-warning shots in (R13), outcomes ungraded (R4)
 
 QString dayLabel(qint64 ms)
 {
@@ -126,36 +129,6 @@ QString packLabel(const CharacteristicPack &pack, const QString &id, const QStri
     return fallback.isEmpty() ? id : fallback;
 }
 
-// A rolled-up word as the golfer reads it. The words are the table's; "-" is no value.
-QString consistencyHomeLabel(ConsistencyWord word)
-{
-    switch (word) {
-    case ConsistencyWord::Steady: return QStringLiteral("Steady");
-    case ConsistencyWord::Some:   return QStringLiteral("Some");
-    case ConsistencyWord::Loose:  return QStringLiteral("Loose");
-    default:                      return QStringLiteral("-");
-    }
-}
-
-// Each span's own word: the home rule asked of that one column, so a span and its area can't read
-// differently. P7-P8 counts for Finish alone, and a span Home doesn't count isn't listed.
-QVariantList consistencyHomeSpans(const QString &area, const std::vector<std::vector<ConsistencyCell>> &sessions)
-{
-    QVariantList out;
-    for (int column : consistencyColumnsOf(area)) {
-        if (column == kConsistencyAfterBallColumn && area != QLatin1String("finish")) continue;
-        std::vector<std::vector<ConsistencyCell>> oneColumn(sessions.size());
-        for (size_t j = 0; j < sessions.size(); ++j)
-            for (const ConsistencyCell &c : sessions[j])
-                if (c.column == column) oneColumn[j].push_back(c);
-        out.append(QVariantMap{
-            { QStringLiteral("span"), consistencyColumnName(column) },
-            { QStringLiteral("word"), consistencyHomeLabel(consistencyHomeWord(area, oneColumn).word) },
-        });
-    }
-    return out;
-}
-
 } // namespace
 
 WorkOnsController::WorkOnsController(QObject *parent)
@@ -163,11 +136,8 @@ WorkOnsController::WorkOnsController(QObject *parent)
 {
     m_pool.setMaxThreadCount(1);
     m_themesPool.setMaxThreadCount(1);
-    m_consistencyPool.setMaxThreadCount(1);
-    m_consistencyPool.setThreadPriority(QThread::LowPriority);
-    m_consistencyWords.setSingleShot(true);
-    m_consistencyWords.setInterval(kConsistencyWordsMs);
-    connect(&m_consistencyWords, &QTimer::timeout, this, &WorkOnsController::publishConsistencyWords);
+    m_marksPool.setMaxThreadCount(1);
+    m_marksPool.setThreadPriority(QThread::LowPriority);
     // The job's own thread works through the replicates too, so this plus it is every core.
     m_replicatePool.setMaxThreadCount(std::max(1, QThread::idealThreadCount() - 1));
     // Seconds of every core, beside a home screen being used: the screen comes first.
@@ -180,8 +150,8 @@ WorkOnsController::~WorkOnsController()
     // The pools' lambdas deliver back to `this`; drain them before the members go. A themes job
     // in flight is told to stop first, so quitting does not wait out a reduction.
     if (m_themesCancel) m_themesCancel->store(true);
-    if (m_consistencyCancel) m_consistencyCancel->store(true);
-    m_consistencyPool.waitForDone();
+    if (m_marksCancel) m_marksCancel->store(true);
+    m_marksPool.waitForDone();
     m_themesPool.waitForDone();
     m_replicatePool.waitForDone();
     m_pool.waitForDone();
@@ -230,14 +200,11 @@ void WorkOnsController::setAthleteDir(const QString &dir)
     m_queue.clear();
     m_sessionsFound = 0;
     cancelThemes();
-    cancelConsistency();
-    m_consistencyWords.stop();
-    m_consistency.clear();
-    m_consistencyUnstored.clear();
-    m_consistencyFingerprints.clear();
-    m_consistencyDocuments.clear();
-    m_consistencyNoTable.clear();
-    m_consistencyQueue.clear();
+    // The marks are this golfer's ledgers' alone.
+    cancelMarks();
+    m_marks.clear();
+    m_marksFingerprint.clear();
+    m_markRequests.clear();
     clearSummary();
     publish();
     refresh();
@@ -258,9 +225,8 @@ void WorkOnsController::setPaused(bool on)
     // A reduction is all cores for seconds; it never runs beside capture. The summary on screen
     // stays, and the pause lifting computes it again.
     if (on) cancelThemes();
-    // Reading swing documents doesn't compete with capture either. The queue holds, and the cancelled
-    // session comes up stale again when the pause lifts.
-    if (on) cancelConsistency();
+    // Nor does reading every ledger for the consistency marks; the pause lifting grades them again.
+    if (on) cancelMarks();
     // Unpausing is a session ending: the one moment a session is certain to have gone stale.
     if (!on) refresh();
 }
@@ -280,21 +246,12 @@ void WorkOnsController::refresh()
     const QString dir = m_athleteDir;
     const QString stamp = model()->contentStamp();
 
-    // Here, on the GUI thread, for the workers to hold (consistency_env.h). The stamp beside it is the
-    // content this env reads, for as long as the process lasts.
-    if (!m_consistencyEnv) {
-        m_consistencyEnv = std::make_shared<const ConsistencyEnv>(consistencyEnvFromPacks());
-        m_consistencyStamp = stamp;
-    }
-    const QString consistencyStamp = m_consistencyStamp;
-    const int consistencyRule = m_consistencyRuleVersion;
-
     if (m_synchronous) {
-        applyScan(generation, scan(dir, stamp, consistencyStamp, consistencyRule));
+        applyScan(generation, scan(dir, stamp));
         return;
     }
-    m_pool.start([this, generation, dir, stamp, consistencyStamp, consistencyRule]() {
-        std::vector<Scanned> rows = scan(dir, stamp, consistencyStamp, consistencyRule);
+    m_pool.start([this, generation, dir, stamp]() {
+        std::vector<Scanned> rows = scan(dir, stamp);
         QMetaObject::invokeMethod(this, [this, generation, rows = std::move(rows)]() mutable {
             applyScan(generation, std::move(rows));
         }, Qt::QueuedConnection);
@@ -306,14 +263,10 @@ void WorkOnsController::refresh()
 // THE FINGERPRINT is everything a record depends on: the selection rule, the content the rows
 // are graded against, and every swing document's identity. Not diagnostics.json's own stamp —
 // the panel rewrites that file for reasons that change no verdict (a focus declared, a screen
-// answered), and the model reconciles the ledger against these same documents anyway.
-//
-// THE CONSISTENCY FINGERPRINT is the same idea and a separate hash, so a new Consistency rule moves no
-// record, and with it no swing summary. It is cut the same way over the same documents.
+// answered), and the model reconciles the ledger against these same documents anyway. (The
+// consistency marks, which read the ledger itself, fingerprint it in their own job: runMarks.)
 std::vector<WorkOnsController::Scanned> WorkOnsController::scan(const QString &athleteDir,
-                                                                const QString &contentStamp,
-                                                                const QString &consistencyStamp,
-                                                                int consistencyRule)
+                                                                const QString &contentStamp)
 {
     std::vector<Scanned> out;
     const QFileInfoList sessions = QDir(athleteDir).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
@@ -328,31 +281,16 @@ std::vector<WorkOnsController::Scanned> WorkOnsController::scan(const QString &a
         QCryptographicHash h(QCryptographicHash::Sha1);
         h.addData(QByteArray::number(kWorkOnRuleVersion));
         h.addData(contentStamp.toUtf8());
-        QCryptographicHash c(QCryptographicHash::Sha1);
-        c.addData(QByteArray::number(consistencyRule));
-        c.addData(consistencyStamp.toUtf8());
         for (const QString &name : swings) {
             const pinpoint::SwingStore::DocInfo doc = pinpoint::SwingStore::info(d.filePath(name));
-            if (doc.exists()) ++s.documents;
-            for (QCryptographicHash *x : { &h, &c }) {
-                x->addData(name.toUtf8());
-                x->addData(QByteArray::number(doc.size));
-                x->addData(QByteArray::number(doc.mtimeMs));
-            }
+            h.addData(name.toUtf8());
+            h.addData(QByteArray::number(doc.size));
+            h.addData(QByteArray::number(doc.mtimeMs));
         }
 
         s.sessionDir  = sessionDir;
         s.fingerprint = QString::fromLatin1(h.result().toHex().left(16));
         s.mtimeMs     = fi.lastModified().toMSecsSinceEpoch();
-        s.consistencyFingerprint = QString::fromLatin1(c.result().toHex().left(16));
-
-        QFile table(consistencySummaryPath(sessionDir));
-        if (table.open(QIODevice::ReadOnly)) {
-            const QJsonObject root = QJsonDocument::fromJson(table.readAll()).object();
-            s.consistencyReadable = consistencySummaryFromJson(root, &s.consistency);
-            s.consistencyFresh = s.consistencyReadable && s.consistency.fingerprint == s.consistencyFingerprint;
-        }
-        s.playedMs = s.consistencyReadable ? s.consistency.sessionDateMs : consistencyFolderDateMs(sessionDir);
 
         QFile f(recordPath(sessionDir));
         if (f.open(QIODevice::ReadOnly)) {
@@ -380,55 +318,25 @@ void WorkOnsController::applyScan(int generation, std::vector<Scanned> rows)
     m_records.clear();
     m_fingerprints.clear();
     m_dirMtime.clear();
-    m_consistencyFingerprints.clear();
-    m_consistencyDocuments.clear();
     m_sessionsFound = int(rows.size());
 
     // Newest first: the latest session is the one the golfer is about to look for.
     std::sort(rows.begin(), rows.end(),
               [](const Scanned &a, const Scanned &b) { return a.mtimeMs > b.mtimeMs; });
     QStringList queue;
-    QHash<QString, ConsistencySummary> tables;      // a session the scan didn't find goes with this
-    std::vector<const Scanned *> stale;
     for (Scanned &s : rows) {
         m_fingerprints.insert(s.sessionDir, s.fingerprint);
         m_dirMtime.insert(s.sessionDir, s.mtimeMs);
         if (s.fresh) m_records.insert(s.sessionDir, std::move(s.record));
         else         queue << s.sessionDir;
-
-        m_consistencyFingerprints.insert(s.sessionDir, s.consistencyFingerprint);
-        m_consistencyDocuments.insert(s.sessionDir, s.documents);
-        const auto unstored = m_consistencyUnstored.constFind(s.sessionDir);
-        if (s.consistencyFresh) {
-            tables.insert(s.sessionDir, s.consistency);
-        } else if (unstored != m_consistencyUnstored.constEnd() && unstored->fingerprint == s.consistencyFingerprint) {
-            tables.insert(s.sessionDir, *unstored);
-        } else if (m_consistencyNoTable.value(s.sessionDir) != s.consistencyFingerprint) {
-            // Stale. Its words stand till the new table lands: what's showing, else what's on disk.
-            const auto shown = m_consistency.constFind(s.sessionDir);
-            if (shown != m_consistency.constEnd()) tables.insert(s.sessionDir, *shown);
-            else if (s.consistencyReadable)        tables.insert(s.sessionDir, s.consistency);
-            stale.push_back(&s);
-        }
     }
-    m_consistency = std::move(tables);
-    // By when it was played. Not the sort above: writing a table moves its folder's mtime, so that would
-    // run the next catch-up oldest first.
-    std::sort(stale.begin(), stale.end(), [](const Scanned *a, const Scanned *b) {
-        return a->playedMs != b->playedMs ? a->playedMs > b->playedMs : a->sessionDir > b->sessionDir;
-    });
-    QStringList consistencyQueue;
-    for (const Scanned *s : stale) consistencyQueue << s->sessionDir;
     // A derivation in flight keeps its place; it will land in the new record set.
     if (m_deriving) queue.removeAll(m_derivingDir);
     m_queue = queue;
-    if (m_consistencyRunning) consistencyQueue.removeAll(m_consistencyDir);
-    m_consistencyQueue = consistencyQueue;
 
     publish();
     emit updatingChanged();
     deriveNext();
-    consistencyNext();
 }
 
 // ── Derive ──────────────────────────────────────────────────────────────────────────────
@@ -454,8 +362,10 @@ void WorkOnsController::deriveNext()
     }
     if (!m_deriving && m_queue.isEmpty() && m_model && !m_model->sessionDir().isEmpty())
         m_model->activateSession(QString());     // let go of the last session's rows
-    // Every record current: every ledger is reconciled, so the summary can be read off them.
+    // Every record current: every ledger is reconciled, so the summary can be read off them, and the
+    // consistency marks too.
     maybeThemes();
+    maybeMarks();
 }
 
 void WorkOnsController::onModelSettled()
@@ -507,7 +417,7 @@ bool WorkOnsController::waitForIdle(int msTimeout)
     // zero-timer, and the summary starts from the end of that call — so for one turn after the
     // last derivation nothing reads as busy although the reduction is about to begin.
     const auto busy = [this] {
-        return (updating() && !(m_paused && !m_scanning && !m_deriving)) || m_themesRunning || m_consistencyRunning;
+        return (updating() && !(m_paused && !m_scanning && !m_deriving)) || m_themesRunning || m_marksRunning;
     };
     QDeadlineTimer deadline(msTimeout);
     while (!deadline.hasExpired()) {
@@ -519,14 +429,9 @@ bool WorkOnsController::waitForIdle(int msTimeout)
         QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
         m_pool.waitForDone(20);
         if (m_themesRunning) m_themesPool.waitForDone(20);
-        if (m_consistencyRunning) m_consistencyPool.waitForDone(20);
+        if (m_marksRunning) m_marksPool.waitForDone(20);
     }
-    // Idle means the words are in too, however long the timer had to run.
-    if (!m_consistencyRunning && m_consistencyWords.isActive()) {
-        m_consistencyWords.stop();
-        publishConsistencyWords();
-    }
-    return !m_scanning && !m_deriving && !m_themesRunning && !m_consistencyRunning;
+    return !m_scanning && !m_deriving && !m_themesRunning && !m_marksRunning;
 }
 
 // ── Publish ─────────────────────────────────────────────────────────────────────────────
@@ -559,6 +464,9 @@ void WorkOnsController::publish()
             { QStringLiteral("label"), weekdayLabel(newest->startMs) },
             { QStringLiteral("shots"), newest->shotCount },
         };
+
+    // What the consistency marks are asked for, gathered afresh below (each area item, each detail).
+    m_markRequests.clear();
 
     // The areas first, while `sessions` is still whole: summariseAreas copies what it sorts. One call —
     // the every-condition aggregate, and the same again without the newest substantive session for the
@@ -684,6 +592,18 @@ void WorkOnsController::publish()
         m[QStringLiteral("drillLabel")]       = drill ? drill->label : QString();
         m[QStringLiteral("drillInstruction")] = drill ? drill->instruction : QString();
 
+        // Its consistency mark, on the measure an area item names (AreaItem::measureId's rule), so the
+        // detail and its row agree. It sits beside the work-on's status (R10).
+        const QString measureId = (w.hasLatestEvidence && !w.latestEvidence.measureId.isEmpty())
+                                      ? w.latestEvidence.measureId
+                                      : (w.hasLatest ? w.latest.measureId : QString());
+        m[QStringLiteral("consistency")] = markFor(w.id, measureId);
+        const QString key = markKey(w.id, measureId);
+        if (!m_markRequests.contains(key)) {
+            const Measure *mm = pack.measure(measureId);
+            m_markRequests.insert(key, MarksRequest{ w.id, measureId, mm ? mm->unit : QString() });
+        }
+
         // Where to go and look: the newest session in which it was a pattern.
         m[QStringLiteral("sessionDir")]   = lastPattern ? dirOf.value(lastPattern->sessionId) : QString();
         m[QStringLiteral("sessionLabel")] = lastPattern ? dayLabel(lastPattern->startMs) : QString();
@@ -768,8 +688,16 @@ void WorkOnsController::publishAreas(const CharacteristicPack &pack, const std::
                 { QStringLiteral("grade"),          grade },
                 { QStringLiteral("workOn"),         it.workOn },
                 { QStringLiteral("sessionsListed"), it.sessionsListed },
+                // Its own consistency mark (R5), over the same window rule as the column's.
+                { QStringLiteral("consistency"),    markFor(it.conditionId, it.measureId) },
             });
+            m_markRequests.insert(markKey(it.conditionId, it.measureId), MarksRequest{ it.conditionId, it.measureId, it.unit });
         }
+        // The Consistency column: the mark of the measure behind the biggest fault (R5). How that fault
+        // is chosen is summariseAreas' (topFaultId), unchanged; ungraded with none.
+        QVariant consistency = QVariant::fromValue(pinpoint::variability::VariabilityResultView());
+        for (const AreaItem &it : a.items)
+            if (!a.topFaultId.isEmpty() && it.conditionId == a.topFaultId) consistency = markFor(it.conditionId, it.measureId);
 
         m_areaItems.append(QVariantMap{
             { QStringLiteral("group"),         a.group },
@@ -787,191 +715,229 @@ void WorkOnsController::publishAreas(const CharacteristicPack &pack, const std::
             { QStringLiteral("workOnsActive"), a.workOnsActive },
             { QStringLiteral("workOnsNew"),    a.workOnsNew },
             { QStringLiteral("items"),         items },
+            { QStringLiteral("consistency"),   consistency },
         });
     }
-    rollUpConsistency();    // publish() emits areasChanged
 }
 
-// ── Consistency ─────────────────────────────────────────────────────────────────────────
+// ── Consistency marks ───────────────────────────────────────────────────────────────────
 
-// Starts the next stale session. One at a time: the next starts when this one is delivered.
-void WorkOnsController::consistencyNext()
+QString WorkOnsController::markKey(const QString &conditionId, const QString &measureId)
 {
-    if (m_consistencyRunning || m_paused || m_consistencyQueue.isEmpty()) return;
+    return conditionId + QLatin1Char('\x1f') + measureId;
+}
 
-    const QString dir = m_consistencyQueue.takeFirst();
-    const QString fingerprint = m_consistencyFingerprints.value(dir);
-    const int documents = m_consistencyDocuments.value(dir);
-    const int rule = m_consistencyRuleVersion;
-    const std::shared_ptr<const ConsistencyEnv> env = m_consistencyEnv;
-    const std::function<void(const QString &)> hook = m_consistencyJobHook;
+// The mark publish() shows for one condition on one measure: the last job's, else ungraded (no badge).
+QVariant WorkOnsController::markFor(const QString &conditionId, const QString &measureId) const
+{
+    return QVariant::fromValue(m_marks.value(markKey(conditionId, measureId), pv::VariabilityResultView()));
+}
+
+// Called once the catch-up is done, beside maybeThemes. Cheap when the ledgers have not moved: the
+// job stats them and stops.
+void WorkOnsController::maybeMarks()
+{
+    if (m_athleteDir.isEmpty() || m_paused || m_scanning || m_deriving || !m_queue.isEmpty()) return;
+    if (m_marksRunning) { m_marksAgain = true; return; }
+    m_marksAgain = false;
+
+    if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
+    const CharacteristicPack &pack = m_packProv->pack();
+
+    // What the pack says before a ledger is read: no measure, a yes/no condition, a composite measure, an outcome (R4).
+    const QHash<QString, AreaConditionInfo> info = areaConditionInfoForPack(pack);
+    MarksJob job;
+    QStringList keys = m_markRequests.keys();
+    keys.sort();
+    QCryptographicHash seed(QCryptographicHash::Sha1);
+    seed.addData(QByteArray::number(kConsistencyMarksRule));
+    seed.addData((m_model ? m_model->contentStamp() : QString()).toUtf8());
+    for (const QString &key : keys) {
+        MarksRequest r = m_markRequests.value(key);
+        const Measure *m = pack.measure(r.measureId);
+        r.ungraded = r.measureId.isEmpty() || info.value(r.conditionId).binary
+                  || (m && m->kind == MeasureKind::Composite) || pv::isOutcomeMeasure(m);
+        r.scaleType = pv::measureScaleType(m);
+        seed.addData(key.toUtf8());
+        seed.addData(QByteArray::number(int(r.ungraded)));
+        seed.addData(QByteArray::number(int(r.scaleType)));
+        seed.addData(r.unit.toUtf8());
+        seed.addData(QByteArrayLiteral("\x1e"));
+        job.requests.push_back(std::move(r));
+    }
+    // Newest first by when each was played, then by name, as the aggregate orders them.
+    for (auto it = m_records.constBegin(); it != m_records.constEnd(); ++it)
+        job.sessions.push_back({ it.key(), it->startMs, std::max(it->startMs, it->endMs) });
+    std::sort(job.sessions.begin(), job.sessions.end(), [](const MarksSession &a, const MarksSession &b) {
+        return a.startMs != b.startMs ? a.startMs > b.startMs : QFileInfo(a.dir).fileName() > QFileInfo(b.dir).fileName();
+    });
+    job.generation = ++m_marksGeneration;
+    job.seed       = QString::fromLatin1(seed.result().toHex());
+    job.previous   = m_marksFingerprint;
+    // Here, on the GUI thread: sharedNormProvider()'s first build is not safe on a worker (norm_provider.h).
+    job.norms      = sharedNormProvider();
+
     auto cancel = std::make_shared<std::atomic<bool>>(false);
-    m_consistencyCancel = cancel;
-    m_consistencyDir = dir;
-    m_consistencyRunning = true;
-    ++m_consistencyJobs;
+    m_marksCancel = cancel;
+    m_marksRunning = true;
+    ++m_marksJobs;
 
-    const int generation = m_consistencyGeneration;
     if (m_synchronous) {
-        applyConsistency(generation, runConsistency(dir, fingerprint, documents, rule, *env, cancel.get(), hook));
+        applyMarks(job.generation, runMarks(job, cancel.get()));
         return;
     }
-    m_consistencyPool.start([this, generation, dir, fingerprint, documents, rule, env, cancel, hook]() {
-        ConsistencyOutcome out = runConsistency(dir, fingerprint, documents, rule, *env, cancel.get(), hook);
-        QMetaObject::invokeMethod(this, [this, generation, out = std::move(out)]() mutable {
-            applyConsistency(generation, std::move(out));
+    m_marksPool.start([this, job = std::move(job), cancel]() {
+        MarksOutcome out = runMarks(job, cancel.get());
+        QMetaObject::invokeMethod(this, [this, generation = job.generation, out = std::move(out)]() mutable {
+            applyMarks(generation, std::move(out));
         }, Qt::QueuedConnection);
     });
 }
 
 // Stops the running job, if any. Its result, should it still arrive, is a generation behind and is
-// dropped. It wrote nothing unless it had already finished, and then the file is true of the session.
-void WorkOnsController::cancelConsistency()
+// dropped; the marks on screen stay.
+void WorkOnsController::cancelMarks()
 {
-    if (m_consistencyCancel) m_consistencyCancel->store(true);
-    m_consistencyCancel.reset();
-    m_consistencyDir.clear();
-    m_consistencyRunning = false;
-    ++m_consistencyGeneration;
+    if (m_marksCancel) m_marksCancel->store(true);
+    m_marksCancel.reset();
+    m_marksRunning = false;
+    m_marksAgain = false;
+    ++m_marksGeneration;
 }
 
 // Worker thread (or inline when synchronous). Touches no member.
-WorkOnsController::ConsistencyOutcome WorkOnsController::runConsistency(const QString &sessionDir, const QString &fingerprint,
-                                                                        int documents, int ruleVersion, const ConsistencyEnv &env,
-                                                                        const std::atomic<bool> *cancel,
-                                                                        const std::function<void(const QString &)> &hook)
+WorkOnsController::MarksOutcome WorkOnsController::runMarks(const MarksJob &job, const std::atomic<bool> *cancel)
 {
     QElapsedTimer clock;
     clock.start();
-    ConsistencyOutcome out;
-    out.sessionDir = sessionDir;
-    out.fingerprint = fingerprint;
-    out.summary.fingerprint = fingerprint;
-    out.summary.ruleVersion = ruleVersion;
-    const QString name = QFileInfo(sessionDir).fileName();
+    MarksOutcome out;
 
-    out.table = deriveConsistencySummary(sessionDir, documents, env, cancel, &out.summary);
-    if (hook) hook(sessionDir);
-    if (cancel && cancel->load()) {
-        out.table = false;
+    // ── 1. The ledgers' identity: an unchanged library stops here ──
+    QCryptographicHash h(QCryptographicHash::Sha1);
+    h.addData(job.seed.toUtf8());
+    for (const MarksSession &s : job.sessions) {
+        const QFileInfo fi(QDir(s.dir).filePath(kLedgerFile));
+        h.addData(QFileInfo(s.dir).fileName().toUtf8());
+        h.addData(QByteArrayLiteral("\x1f"));
+        h.addData(QByteArray::number(fi.exists() ? fi.size() : -1));
+        h.addData(QByteArray::number(fi.exists() ? fi.lastModified().toMSecsSinceEpoch() : 0));
+        h.addData(QByteArray::number(s.startMs));
+        h.addData(QByteArrayLiteral("\x1e"));
+    }
+    out.fingerprint = QString::fromLatin1(h.result().toHex().left(16));
+    if (out.fingerprint == job.previous) {
+        out.unchanged = true;
         return out;
     }
-    // Trashed or moved while the job ran. atomicWrite makes the folders it writes into, so writing
-    // now would raise an orphan session holding nothing but this file.
-    if (!QFileInfo(sessionDir).isDir()) {
-        out.table = false;
-        out.gone = true;
-        return out;
+
+    // ── 2. Each request's window: its newest kNWindow readings across sessions ──
+    struct Reading {
+        qint64  ms = 0;         // the shot's clock, else its session's start
+        int     session = 0;    // index into job.sessions: lower is newer
+        int     shotId = 0;
+        pv::LedgerConsistencyReading reading;   // the shared rule's (variability_ledger.h)
+    };
+    const auto newer = [](const Reading &a, const Reading &b) {
+        if (a.ms != b.ms) return a.ms > b.ms;
+        if (a.session != b.session) return a.session < b.session;
+        return a.shotId > b.shotId;
+    };
+    QHash<QString, std::vector<int>> byCondition;           // conditionId -> the requests reading it
+    for (int i = 0; i < int(job.requests.size()); ++i)
+        if (!job.requests[size_t(i)].ungraded) byCondition[job.requests[size_t(i)].conditionId].push_back(i);
+    std::vector<std::vector<Reading>> windows(job.requests.size());
+
+    // The latest a reading in session i or any older one can be: past it, a full window is final.
+    std::vector<qint64> latestFrom(job.sessions.size() + 1, std::numeric_limits<qint64>::min());
+    for (int i = int(job.sessions.size()) - 1; i >= 0; --i)
+        latestFrom[size_t(i)] = std::max(latestFrom[size_t(i) + 1], job.sessions[size_t(i)].endMs);
+
+    for (int i = 0; i < int(job.sessions.size()) && !byCondition.isEmpty(); ++i) {
+        if (cancel && cancel->load()) return out;
+        bool settled = true;
+        for (const auto &ids : byCondition)
+            for (int r : ids) {
+                const std::vector<Reading> &w = windows[size_t(r)];
+                if (int(w.size()) < pv::kNWindow || w[size_t(pv::kNWindow - 1)].ms < latestFrom[size_t(i)]) settled = false;
+            }
+        if (settled) break;
+
+        const MarksSession &s = job.sessions[size_t(i)];
+        const QString path = QDir(s.dir).filePath(kLedgerFile);
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly)) continue;     // a session with no ledger has no reading to give
+        QJsonParseError err;
+        const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
+        if (err.error != QJsonParseError::NoError || !doc.isObject()) {
+            ppWarn() << "[Consistency] ledger unreadable, left out:" << qPrintable(path) << "—" << qPrintable(err.errorString());
+            continue;
+        }
+        ++out.ledgersRead;
+        const std::vector<ShotRecord> shots = fromJson(doc.object().value(QStringLiteral("ledger")).toObject());
+        // Every shot, warm-ups and data-warning shots included (R13; variability_ledger.h): a broken recording's rows
+        // are already NotAssessable in the ledger, and the shared rule leaves those out.
+        for (const ShotRecord &shot : shots) {
+            const qint64 ms = shot.timestampMs > 0 ? shot.timestampMs : s.startMs;
+            for (const ConditionRow &row : shot.rows) {
+                const auto ids = byCondition.constFind(row.conditionId);
+                if (ids == byCondition.constEnd()) continue;
+                for (int r : *ids) {
+                    std::optional<pv::LedgerConsistencyReading> x =
+                        pv::ledgerConsistencyReading(shot, row, job.requests[size_t(r)].measureId);
+                    if (!x) continue;
+                    windows[size_t(r)].push_back(Reading{ ms, i, shot.shotId, std::move(*x) });
+                }
+            }
+        }
+        for (std::vector<Reading> &w : windows) {
+            std::sort(w.begin(), w.end(), newer);
+            if (int(w.size()) > pv::kNWindow) w.resize(size_t(pv::kNWindow));
+        }
     }
-    if (!out.table) {
-        ppInfo() << qPrintable(QStringLiteral("[Consistency] %1: 0 shots, no table, %2 ms").arg(name).arg(clock.elapsed()));
-        return out;
+
+    // ── 3. Grade each window: the shared rule (variability_ledger.h), the report's too ──
+    int graded = 0;
+    for (int r = 0; r < int(job.requests.size()); ++r) {
+        if (cancel && cancel->load()) return out;
+        const MarksRequest &req = job.requests[size_t(r)];
+        const std::vector<Reading> &w = windows[size_t(r)];
+        std::vector<pv::LedgerConsistencyReading> readings;
+        readings.reserve(w.size());
+        for (auto it = w.rbegin(); it != w.rend(); ++it) readings.push_back(it->reading);    // strike order
+        const auto *norms = job.norms.get();
+        const QString measureId = req.measureId;
+        const std::optional<pv::VariabilityResult> result = pv::ledgerConsistencyGrade(
+            readings, req.ungraded, req.scaleType,
+            [norms, measureId](const QString &context) { return pv::normCorridorHalfWidth(norms, measureId, context); });
+        pv::VariabilityResultView view;     // no result: no badge
+        if (result) {
+            view = pv::VariabilityResultView::fromResult(*result, req.unit, 1);
+            ++graded;
+        }
+        out.marks.insert(markKey(req.conditionId, req.measureId), view);
     }
-    if (out.summary.unread > 0) {
-        ppWarn() << qPrintable(QStringLiteral("[Consistency] %1: %2 swings unread, table held in memory only")
-                                   .arg(name).arg(out.summary.unread));
-    } else {
-        QString why;
-        out.stored = atomicWrite(consistencySummaryPath(sessionDir),
-                                 QJsonDocument(consistencySummaryToJson(out.summary)).toJson(QJsonDocument::Compact), &why);
-        if (!out.stored)
-            ppWarn() << "[Consistency] could not write" << qPrintable(consistencySummaryPath(sessionDir)) << "-" << qPrintable(why);
-    }
-    ppInfo() << qPrintable(QStringLiteral("[Consistency] %1: %2 shots, %3 ms").arg(name).arg(out.summary.shots).arg(clock.elapsed()));
+    out.computed = true;
+    ppInfo() << qPrintable(QStringLiteral("[Consistency] marks: %1 faults, %2 graded, %3 of %4 ledgers read, %5 ms")
+                               .arg(job.requests.size()).arg(graded).arg(out.ledgersRead)
+                               .arg(job.sessions.size()).arg(clock.elapsed()));
     return out;
 }
 
-void WorkOnsController::applyConsistency(int generation, ConsistencyOutcome out)
+void WorkOnsController::applyMarks(int generation, MarksOutcome out)
 {
-    if (generation != m_consistencyGeneration) return;     // cancelled
-    m_consistencyRunning = false;
-    m_consistencyCancel.reset();
-    m_consistencyDir.clear();
+    if (generation != m_marksGeneration) return;       // cancelled or superseded
+    m_marksRunning = false;
+    m_marksCancel.reset();
+    m_marksLedgersRead += out.ledgersRead;
 
-    // A swing moved while the job ran, and the file it wrote names the old fingerprint: round again.
-    // A session no longer on the list has nothing to land in.
-    const QString dir = out.sessionDir;
-    const auto current = m_consistencyFingerprints.constFind(dir);
-    if (current != m_consistencyFingerprints.constEnd() && !out.gone) {
-        const auto shown = m_consistency.constFind(dir);
-        if (current.value() != out.fingerprint) {
-            m_consistencyQueue.prepend(dir);
-        } else if (out.table) {
-            if (out.stored) m_consistencyUnstored.remove(dir);
-            else            m_consistencyUnstored.insert(dir, out.summary);
-            m_consistency.insert(dir, std::move(out.summary));
-            consistencyWordsDue();
-        } else if (out.summary.unread > 0 && shown != m_consistency.constEnd()) {
-            // Nothing could be read, which says nothing of the session: its words stand, under this
-            // fingerprint, so that a share gone away isn't asked again and again.
-            ConsistencySummary held = *shown;
-            held.fingerprint = out.fingerprint;
-            m_consistencyUnstored.insert(dir, std::move(held));
-        } else {
-            m_consistencyNoTable.insert(dir, out.fingerprint);      // until the swings change
-            if (m_consistency.remove(dir)) consistencyWordsDue();
+    if (out.computed) {
+        m_marksFingerprint = out.fingerprint;
+        if (out.marks != m_marks) {
+            m_marks = std::move(out.marks);
+            publish();      // the marks ride on areaItems and faultDetail(): a changed one rebuilds them
         }
     }
-    consistencyNext();
-}
-
-// One table among a library's: the words alone, not a publish of everything, and then only every so
-// often. The timer runs out once a burst of landings has had its say, so the last word is never lost.
-void WorkOnsController::consistencyWordsDue()
-{
-    if (m_synchronous) publishConsistencyWords();
-    else if (!m_consistencyWords.isActive()) m_consistencyWords.start();
-}
-
-void WorkOnsController::publishConsistencyWords()
-{
-    if (rollUpConsistency()) emit areasChanged();
-}
-
-// Home's three keys on each area, from the tables in hand. consistencyHomeWord is the rule; this picks
-// its sessions: those with a table, newest first (when played, then the folder name, as the aggregate
-// orders them). A table with no word in it judged nothing, a session of three balls say, so it can
-// judge no area and takes no place in the fade.
-bool WorkOnsController::rollUpConsistency()
-{
-    struct Table { qint64 date; QString name; const ConsistencySummary *summary; };
-    std::vector<Table> tables;
-    for (auto it = m_consistency.constBegin(); it != m_consistency.constEnd(); ++it) {
-        const bool judged = std::any_of(it->cells.begin(), it->cells.end(), [](const ConsistencyCell &c) {
-            return c.word != ConsistencyWord::Dash;
-        });
-        if (judged) tables.push_back({ it->sessionDateMs, QFileInfo(it.key()).fileName(), &it.value() });
-    }
-    std::sort(tables.begin(), tables.end(), [](const Table &a, const Table &b) {
-        return a.date != b.date ? a.date > b.date : a.name > b.name;
-    });
-
-    // Split by area once: the rule looks through a session's cells per column of each area asked.
-    QHash<QString, std::vector<std::vector<ConsistencyCell>>> byArea;
-    for (size_t j = 0; j < tables.size(); ++j)
-        for (const ConsistencyCell &c : tables[j].summary->cells) {
-            auto &sessions = byArea[c.area];
-            sessions.resize(tables.size());
-            sessions[j].push_back(c);
-        }
-
-    bool moved = false;
-    for (QVariant &v : m_areaItems) {
-        QVariantMap area = v.toMap();
-        const QString group = area.value(QStringLiteral("group")).toString();
-        const std::vector<std::vector<ConsistencyCell>> sessions = byArea.value(group);
-        const ConsistencyHomeWord home = consistencyHomeWord(group, sessions);
-        const QVariantMap before = area;
-        area[QStringLiteral("consistencyWord")]    = consistencyHomeLabel(home.word);
-        area[QStringLiteral("consistencyLoosest")] = consistencyColumnName(home.loosestColumn);
-        area[QStringLiteral("consistencySpans")]   = home.word == ConsistencyWord::Dash ? QVariantList{}
-                                                                                         : consistencyHomeSpans(group, sessions);
-        if (area != before) {
-            v = area;
-            moved = true;
-        }
-    }
-    return moved;
+    if (m_marksAgain) maybeMarks();
 }
 
 // ── Your swing ──────────────────────────────────────────────────────────────────────────

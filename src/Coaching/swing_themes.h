@@ -2122,7 +2122,7 @@ struct NeedsWorkItem {
     QString text;               // "You stand up through the ball"
     double  share = 0.0;
     QString frequency;          // "every swing" / "almost every swing" / "most swings" / "more than half your swings"
-    int     trend = 0;          // +1 growing, −1 easing, 0 steady or too few sessions
+    int     trend = 0;          // +1 growing, −1 easing, 0 no change or too few sessions
     std::vector<bool> pips;     // per judged session, oldest first
     QString conditionId;        // the row's condition id (not stored; carried for the GUI)
 };
