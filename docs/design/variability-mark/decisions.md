@@ -94,7 +94,7 @@ Gaps the build filled:
 
 Awaiting Mark:
 - **The trace corridor** is undefined in the spec. Built as a timing window `{ loT, hiT }` in normalised time.
-- **Trace vertical scale:** min(17 / maxPositive, 2.5 / maxNegative), zero on the baseline. A mostly negative curve draws small.
+- **Trace vertical scale:** min(17 / maxPositive, 2.5 / maxNegative), zero on the baseline. A mostly negative curve draws small. *Resolved (R35): the curve scales to its bigger side; see §3.*
 - **Typicality Icon ring at |z| 2.2** (x 23.55, r 2.6) overflows the 24-unit icon by about 2 units. Followed literally. *Resolved (R25): the ring stops at x 12 ± 8.525 (the edge less r 2.6 and half the 1.75 px stroke), reached at |z| ≈ 1.62; past it the Icon looks the same and the word tells "A little off" from "Unusual".*
 - **The funnel never applies the "Checking" substitution:** its word comes from the session grade. Should a measurement-limited funnel say "Checking"? *Resolved (R25): a `measurementLimited` input (the current session's flag). Golfer layer: "Checking", in grade 0's tone, then the trend word; the too-few badge substitutes itself. Technical layer unchanged.*
 - **TypicalityTrace asked for an Icon** warns and draws the 80 : 24 Cell, breaking the icon slot. The alternative: draw the Your-group Icon from `values.rmsZ`.
@@ -240,46 +240,40 @@ What the retrofit left alone, what has no surface yet, the measurement surfaces 
 - **Tuning values changed** in `gate_catalogue_rules.h` along with the texts: minShots 5 → `variability.nMin` 8, `minClubShots` 3, `cellLoosestPercentile` 0.67. They can be reverted.
 - **Retired** (R15): `consistency_summary.{h,cpp}`, the matrix verdicts and cell words, Home's roll-up, `consistency_dump`, `consistency_tally.py`, `consistency_make_goldens.sh` and the Home goldens. `goldens_1005_consistency.json` is frozen, and only its stand-outs, flags and shuffle figures are still read. The `consistency.json` files in the libraries stay, unread.
 
-**Still open for Mark** (collected during the build, not yet ruled):
-- The common order needs every segment placed: allow "probable" peaks?
-- A Consistency "stood out" row (robust z ≥ 3.5) can read "Your usual" (mean and SD, |z| ≤ 1): two rules, both by design. Should typicality on stand-outs use the robust z?
-- The matrix's short form on paper: grade figures on a golfer-layer page? **Part done (7 Nov):** the report page passes each graded cell's vocabulary word as its text, and `PpChMatrix` (R25) takes the full form when the widest of those words fits. On the 674 px page eight columns leave 70.6 px a cell: "Repeatable" needs 71 (58.4 px at 11 px Inter, a 6 px gutter each side, rounded up) and "Not enough swings" 113, so a table holding either still prints figures. Still for Mark: a two-line cell, a narrower name column on paper, or accept figures with the key.
-- `PpChMatrix`'s full-form threshold was sized for "steady": "Not enough swings" and "Repeatable" may overflow at middle widths (a design-system change if they do). *Resolved (R25): the full form needs the widest word in use, measured in its face, with its gutters and any mark (and the widest full head). Nothing overflows; the cost is that a table holding "Not enough swings" needs about 8.4 em + 8 × 126 px ≈ 1130 px for the full form on screen (≈ 1215 px with a ◆ on that word), so the Consistency tab and the report page show the short form at most widths whenever a cell says it. A table with no word longer than "Repeatable" keeps the full form down to ≈ 860 px.* **Resolved (7 Nov, R25):** the threshold is the widest word the cells hold, measured in its face.
-- The report's Posture page is badge-heavy (up to 6 badges a row, on 2 lines); a smaller paper badge would be a design-system change.
-- The Launch monitor appendix badge on its own line: OK, or a shorter basis? The longest basis (attack angle) crosses the AVG column's edge. **Resolved (7 Nov):** a ledger row's typicality badge keeps its basis beside the word only when both fit left of the Avg column (the row's width when folded); otherwise the word stays on the badge's line and the basis wraps on a line under it, inside that column (as `PpChKeyFigures`).
-- `core.json`'s new label ("Sequence changes from swing to swing") changes the pack's content stamp, so every session's `diagnostics.json` regrades once when next opened. The library and corpus sweeps (cabin PC).
-- `SESSION_DIAG_MARKS_SOURCES` (`src/Analysis/tests/CMakeLists.txt`) now feeds `regrade_ledger`, `diag_uncertainty_report` and `diag_rank_diff`: the cabin build must pick it up.
-- Diagnostics measurement-limited needs a σ in the ledger (a schema change).
-- `gate_words`' consistencyVerdict split needs a new gate id.
-- Launch-monitor data the build listed as unread (the launch / spin, path / face and strike ellipses) is still published; check its readers before removing it. **Resolved (7 Nov):** `clubs[].ellipses.launchSpin`, `.pathFace` and `graphics.strikeEllipse` had no reader and are no longer published (fixtures and `lm_panel_fsx.md` updated). `ellipses.dispersion` (the dispersion plot) and `ellipses.strike` (`strikeEll` → `strikeEllipseFace()`, the Impact face) are read and stay.
-- Old consistency words in QML test fixtures (`tst_*.qml`, `src/Gui/tests/qml/data/session_report/*.json`), not run; the frozen `jess.json` fixture keeps "Sequence not repeatable". **Resolved (7 Nov):** the report fixtures (jess included: it is generated like the rest, not frozen), `fixtures.js`, `diag_session.js` and `tst_session_report.qml` use the new words; `consistency.json`'s table and head are in the graded shape; the retired `repeat` lines are gone. Not run.
-- `build/report-build/REPORT_MAP.md` (untracked) should gain `workOns[].consistency` and the Launch monitor appendix rows' `variability`. **Resolved (7 Nov):** both are documented there.
-- **R26 applied (7 Nov):** the scalar grader's CV rung is gone: a ratio measure with no corridor and no `variabilityScale` is ungraded (`noScale`); `ScaleSource::CV`, `nonPositiveForRatio` and the "CV" basis string are removed; `variability.md` and `PpVariabilityMark.md` updated.
+**Collected during the build — all settled (7 Nov, end of Session 5):**
+- Common order and probable peaks: settled by R23 and R32 (graded over the segments placed on enough swings; probable peaks stay out).
+- A stood-out row reading "Your usual": settled by R22 (typicality uses the robust z, as the stand-out pick does).
+- The paper matrix showing grade numbers, and `PpChMatrix` overflowing: settled by R25 and R33 ("Too few" in the table; the printed page always shows words).
+- The badge-heavy Posture page: settled by R20 (one badge per row on paper).
+- The launch-monitor basis crossing the AVG column: fixed (the basis wraps inside its column).
+- The renamed condition making sessions regrade: settled by R24 (lazy, once per session). The gate-word split does not change the content stamp.
+- The cabin build picking up the new test sources: automatic on its next build.
+- Diagnostics measurement-limited needing a σ in the ledger: deferred by R27 to the next ledger schema change.
+- The consistency gate split: done (`rule.charts.consistencyNoScale`).
+- The unread launch-monitor ellipses: removed.
+- Old words in the QML test fixtures and the report map note: updated.
+- R26 (no CV fallback): applied.
 
 ## 3. Open items
 
-- **Windows D3D11 is unmeasured.** The cabin PC has only a shipping build, with the probe hook compiled out. Check frame time and clipping when Session 5 puts the marks on real screens.
-- **The calibration proposals are not applied** (`calibration/report.md`; every constant still carries `TODO(calibrate)`):
-  1. §8.6 noise: don't subtract the propagated σ as noise or use it as the Needle's uncertainty; grade on the observed SD until a measured noise exists.
-  2. CV fallback: leave ratio measures without a corridor ungraded until each has a `variabilityScale` (61 of 67 CV rows grade Grooved).
-  3. Scalar bands: keep 0.25 / 0.50 / 0.75 / 1.00.
-  4. TIMING_SCALE_MS: not yet; first decide which traces have a meaningful peak inside top → impact.
-  5. Trace amplitude: give each trace an associated scalar corridor in the descriptor (a model change).
-  6. MEAS_TOL_FRACTION: leave at 0.25 until a validation RMSE exists.
-  7. Trace typicality: calibrate a separate threshold pair for RMS z(t).
-  8. Ordinal partial orders: choose a rule.
-  9. N_MIN = 8: keep it.
-- **Gallery fixture, superseded.** Three of the six fixture funnels were flat at ρ 0 because the noise subtraction zeroed them. That is superseded: the gallery now reads `gallery_real.json`, graded on the observed SD.
-- **The gallery's real funnels use observed SD.** `gallery_real.json` grades Mark's 7-iron on ρ from the observed SD (no noise subtraction, as proposal 1), while the shipped grader still subtracts σnoise. So `previews/funnel_wide.png` and the real rows of the gallery show what proposal 1 would give, not what the grader computes today.
-- **Print without `roles` follows the screen theme (known limitation).** On paper without a PpTypeset, the marks, badge and funnel draw with the live screen theme's inks, so a dark screen theme puts dark-theme inks on white paper. The pages say: on paper, always pass `roles`. A printed client report is the golfer layer; only the technical appendix is technical.
-- **Print hosting choices await a real printed page.** No report page hosts a mark yet. As built: fills × `variabilityPrintAlphaScale`, never `roles.tintK`; neutral elements map to `roles.baseline` / `roles.grid` at their opacities; the word in `roles.fBody`, the basis in `roles.fFig`; PpTypeset's new `good` ink; on paper without `roles` the marks keep Theme's colours, and only the gaps stop following Density.
-- **For Mark** (collected from above):
-  - the Session 1 grader gaps, ordinal wording, kinematicSequence trend, ordinal partial orders, trace typicality thresholds;
-  - tone fade on delegate reuse; the grade-0 accessible name; the Overlay Cell grade-1 overshoot (*all three resolved by R25*);
-  - the trace corridor; the trace vertical scale; the Icon ring overflow at |z| 2.2 (*resolved, R25*); "Checking" on the funnel (*resolved, R25*); TypicalityTrace as an Icon;
-  - the ordinal variant; the C++ token helper; ball flight's one badge; the typicality corridor in z;
-  - the funnel's last session with no ρ: it is not drawn, but `currentGrade` (tone and word) comes from it, and a break it carried is dropped; *resolved (R25): the current session is the last one drawn (tone, word and current marker); none drawn is grade 0;*
-  - the reviewer's contrast note (S4 cold read): at ×3 in dark themes the innermost Needle wedge composites to about 91 % of the tone, so the full-tone needle is nearly lost inside it at grades 1–3; and the funnel band's fill (48 %) sits close to its 55 % edge. The wedge widths still carry the grade. *The Needle half resolved (R25): a Theme token `variabilityWedgeCompositeMax` (0.8) caps where the three wedges overlap; the mark lowers the innermost wedge's alpha to fit (dark: 72 % → 40 %, so the regions read 36 / 67 / 80 %). Light themes (44 %) and paper (60 %) are unchanged. The funnel band's fill against its edge is still open.*
-- **Funnel accessibility, too-few state.** The embedded badge's mark is a second accessible Graphic inside the funnel's own, so a screen reader may read the grade twice. *Resolved (R25): the badge gains `accessibleIgnored`, which ignores its mark; the funnel sets it on its too-few badge, so the grade is read once, in the funnel's name.*
-- **Verification.** Full ctest 281/281 (qml_ui run once), 7 Nov 2026.
-- **README line 10** named "the PinPoint Studio design system artifact on claude.ai" as the visual reference. Reworded in Session 5: the design system is the repo folder, and the visual reference is the component pages and their previews (`previews/`).
+**Waiting on data or a later change (no decision needed now):**
+- **Diagnostics measurement-limited** needs a per-reading σ in the ledger: at the next ledger schema change (R27).
+- **The measurement tolerance (`MEAS_TOL_FRACTION`, 0.25, provisional)** needs validation RMSEs from three or four more metrics (calibration/report-s5.md §5). Until then no surface feeds the Needle.
+- **Ball flight's one badge** (how carry and offline combine) waits for shots to record an intent (R4).
+
+**Still to decide (raised with Mark at the end of Session 5):**
+- **Windows D3D11** frame time and clipping are unmeasured. It needs someone logged in at the cabin PC's own screen (a program started over ssh has no desktop, and remote desktop swaps the graphics driver), and the Release-Installer tree rebuilt briefly without the shipping flag so the probe hook exists, then rebuilt as shipping (the cabin keeps two trees only). Run it the next time Mark is logged in there.
+- ~~The Session 1 grader interpretations~~ **accepted as built (Mark, 7 Nov, R34).**
+- ~~Two small look details~~ **approved (Mark, 7 Nov, R35):** a trace scales to whichever side of its baseline is bigger, so every curve fills its cell; in dark themes the funnel band's fill is capped below its edge's 55 %. **Built 7 Nov:**
+  - *Trace scale* (`DataVariabilityGeometry::typicalityTrace`). P is the curve's largest value above zero and N its largest below, over the envelope and this swing. The bigger side spans 17 units (the band y 4.5 … 21.5); the smaller side may take 2.5 units beyond the baseline. So k = min(17 / max(P, N), 19.5 / (P + N)). A mostly positive curve keeps the spec's layout: the baseline stays at y 21.5, with room below it to y 24. A mostly negative curve takes the same layout turned over inside the band: the baseline sits at y 4.5 with room above it to y 2, and its deepest value lands on y 21.5, clear of the corridor bracket. When the smaller side needs more than its 2.5 units, the whole curve spans 19.5 units and the baseline moves into the band just enough to fit both sides. Every curve that stays at or above zero draws exactly as before. The turn-over keeps every curve in the same 17-unit band, so a column of cells reads alike, and keeps the bracket clear. The alternative was to move the baseline only as far as needed, which hangs a negative curve down to the cell's edge, across the bracket.
+  - *Funnel band fill*: a new Theme token, `variabilityBandFillMax` (0.32). On screen the band's fill is min(16 % × `variabilityWashAlpha`, 0.32). Dark themes draw it at 32 % (it was 48 %) against the 55 % edge. Light themes (16 %) and paper (× `variabilityPrintAlphaScale`) are unchanged. `variabilityWedgeCompositeMax` (0.8) did not fit: it caps three overlapping wedges, and 48 % is already below it.
+  - Renders: `/mnt/swingdata/scratch/r35/{before,after}/` (the probe gallery, Instrument Light and Dark; the gallery gains a row of signed synthetic traces).
+
+**Settled since this list was first written:**
+- The calibration proposals: 1 by R3 (observed spread), 2 by R26 (no CV fallback), 3 and 9 keep their values, 4 and 5 by R31 (curves borrow a norm; timing only on rate traces), 6 stays provisional (above), 7 by R30 (curve edge 1.25), 8 by R23/R32.
+- The gallery notes: superseded — the grader no longer subtracts noise (R3), so the gallery and the grader agree.
+- Print hosting and print without `roles`: real report pages now host the marks, and every print host passes the page's typeset (`roles`), checked by the Session 5 review.
+- The Session 2–4 "For Mark" items: tone fade, grade-0 name, Overlay overshoot, Icon ring overflow, "Checking" on the funnel, the funnel's last session, the dark Needle contrast and funnel accessibility by R25; the trace corridor by R31; the ordinal variant (Dispersion, used); the C++ token helper and the typicality corridor in z (built in Session 5).
+- With no surface, so nothing to decide until one exists: wording for a yes/no checkpoint (no surface grades one), a trend for the kinematic-sequence order (no surface shows one), and TypicalityTrace in an icon slot (no surface asks for it).
+- **Verification.** Full ctest 281/281 (qml_ui run once) at the end of sessions 1–4; Session 5's 31 touched targets pass.
+- **README line 10:** reworded in Session 5 (the design system is the repo folder).
