@@ -99,13 +99,6 @@ const ConsistencyStandOut *standOutOn(const ConsistencyResult &res, int ordinal,
     return nullptr;
 }
 
-const ConsistencyCell *cellOf(const ConsistencyResult &res, const QString &area, int column)
-{
-    for (const ConsistencyCell &c : res.cells)
-        if (c.area == area && c.column == column) return &c;
-    return nullptr;
-}
-
 const ConsistencyJudged *judgedOf(const ConsistencyResult &res, const QString &key, int column)
 {
     for (const ConsistencyJudged &r : res.readings)
@@ -172,9 +165,7 @@ private slots:
     void residualsAreAgainstTheClub();
     void spreadNeedsFiveFinite();
     void tableDropsThinReadings();
-    void verdicts();
-    void cellRules();
-    void resultCells();
+    void resultReadings();
     void weakestPointRule();
     void leaveOneOutAndSixOthers();
     void twoSigmaRule();
@@ -182,7 +173,6 @@ private slots:
     void guardTakesSpansAndTiming();
     void ballFlags();
     void launchMonitorRows();
-    void homeWord();
     void splitmixReferenceVector();
     void shuffleMatchesTheSlowWay();
     // ── the sampling ────────────────────────────────────────────────────────────────────────────
@@ -198,7 +188,6 @@ private slots:
     // ── the fixture ─────────────────────────────────────────────────────────────────────────────
     void timing5Oct();
     void golden5Oct();
-    void goldenHome();
 };
 
 void SessionConsistencyTest::residualsAreAgainstTheClub()
@@ -256,78 +245,31 @@ void SessionConsistencyTest::tableDropsThinReadings()
     QVERIFY(!judgedOf(res, "four", 4));
     QVERIFY(standOutOn(res, 1, "three"));
     QVERIFY(!standOutOn(res, 1, "two"));
-    QCOMPARE(cellOf(res, "posture", 2)->word, ConsistencyWord::Dash);       // applies, nothing judged
-    QCOMPARE(cellOf(res, "posture", 2)->judged + cellOf(res, "posture", 2)->unjudged, 0);
-    QCOMPARE(cellOf(res, "posture", 4)->word, ConsistencyWord::Dash);
 
-    // 5 finite raw values on clubs too small for a residual: in the table, no spread, so unjudged: a dash.
+    // 5 finite raw values on clubs too small for a residual: still in the table.
     ConsistencyInput small = inputOf({ "a", "a", "b", "b", "c", "c" });
     ConsistencyReading r = position("x", "posture", 3, { 1, 2, 3, 4, 5, 6 });
     r.normSigma = 1.0;
     small.readings.push_back(r);
     const ConsistencyResult sr = consistencyResult(small);
     QVERIFY(judgedOf(sr, "x", 3));
-    QCOMPARE(judgedOf(sr, "x", 3)->verdict, ConsistencyVerdict::Unjudged);
-    QCOMPARE(cellOf(sr, "posture", 3)->word, ConsistencyWord::Dash);
 }
 
-void SessionConsistencyTest::verdicts()
+void SessionConsistencyTest::resultReadings()
 {
-    QCOMPARE(consistencyVerdict(kNaN, 1, 1), ConsistencyVerdict::Unjudged);
-    QCOMPARE(consistencyVerdict(1, kNaN, 1), ConsistencyVerdict::Unjudged);
-    QCOMPARE(consistencyVerdict(0.74, 1, kNaN), ConsistencyVerdict::Steady);
-    // noise can only widen a spread: small is steady whatever σ says
-    QCOMPARE(consistencyVerdict(0.74, 1, 5), ConsistencyVerdict::Steady);
-    QCOMPARE(consistencyVerdict(0.75, 1, kNaN), ConsistencyVerdict::Loose);
-    QCOMPARE(consistencyVerdict(0.75, 1, 0.5), ConsistencyVerdict::Loose);
-    QCOMPARE(consistencyVerdict(0.75, 1, 0.75), ConsistencyVerdict::NearError);
-    QCOMPARE(consistencyVerdict(2, 1, 3), ConsistencyVerdict::NearError);
-}
-
-void SessionConsistencyTest::cellRules()
-{
-    using V = ConsistencyVerdict;
-    const auto word = [](const std::vector<V> &v) { return consistencyCell("posture", 1, v).word; };
-    QCOMPARE(word({}), ConsistencyWord::Dash);      // applies, no readings: never blank
-    QCOMPARE(word({ V::Unjudged, V::Unjudged }), ConsistencyWord::Dash);
-    QCOMPARE(word({ V::Steady, V::Unjudged }), ConsistencyWord::Steady);
-    QCOMPARE(word({ V::Loose, V::Steady, V::Steady }), ConsistencyWord::Loose);                  // 1 of 3
-    QCOMPARE(word({ V::Loose, V::Steady, V::Steady, V::Steady }), ConsistencyWord::Some);        // 1 of 4
-    QCOMPARE(word({ V::Loose, V::Loose, V::Steady, V::Steady, V::Steady, V::Steady }), ConsistencyWord::Loose);  // 2 of 6
-    QCOMPARE(word({ V::NearError, V::Steady, V::Steady }), ConsistencyWord::NearError);          // 1 of 3
-    QCOMPARE(word({ V::NearError, V::Steady, V::Steady, V::Steady }), ConsistencyWord::Steady);  // 1 of 4
-    QCOMPARE(word({ V::Loose, V::NearError, V::NearError, V::Steady }), ConsistencyWord::Some);  // loose comes first
-    const ConsistencyCell c = consistencyCell("posture", 1, { V::Loose, V::NearError, V::Steady, V::Unjudged });
-    QCOMPARE(c.judged, 3); QCOMPARE(c.loose, 1); QCOMPARE(c.nearError, 1); QCOMPARE(c.unjudged, 1);
-}
-
-void SessionConsistencyTest::resultCells()
-{
+    // Every reading with enough shots reaches the table, whether or not its area is read at its column or it has an
+    // area at all; a norm is not needed (the grades, consistency_grades.h, are what read it).
     ConsistencyInput in = inputOf({ "7i", "7i", "7i", "7i", "7i", "7i", "7i", "7i" });
     ConsistencyReading judged = position("a", "setup", 0, oneOut(0.0));
     judged.normSigma = 1.0;
-    ConsistencyReading dash = position("b", "impact", 6, oneOut(0.0));          // no norm
+    ConsistencyReading noNorm = position("b", "impact", 6, oneOut(0.0));
     ConsistencyReading elsewhere = position("c", "sequence", 1, oneOut(0.0));   // sequence is not read at P1-P2
-    elsewhere.normSigma = 1.0;
     ConsistencyReading unplaced = position("d", "", 3, oneOut(0.0));
-    unplaced.normSigma = 1.0;
-    in.readings = { judged, dash, elsewhere, unplaced };
+    in.readings = { judged, noNorm, elsewhere, unplaced };
     const ConsistencyResult res = consistencyResult(in);
-
-    int expected = 0;
-    for (const QString &area : consistencyAreas()) expected += int(consistencyColumnsOf(area).size());
-    QCOMPARE(int(res.cells.size()), expected);          // every applicable cell, no other
-    QCOMPARE(expected, 33);                             // doc §2.1: "the 33 in a session"
-    QCOMPARE(res.cells.front().area, QStringLiteral("setup"));
-    QCOMPARE(res.cells.back().area, QStringLiteral("finish"));
-    QCOMPARE(cellOf(res, "setup", 0)->word, ConsistencyWord::Steady);
-    QCOMPARE(cellOf(res, "impact", 6)->word, ConsistencyWord::Dash);
-    QCOMPARE(cellOf(res, "finish", 7)->word, ConsistencyWord::Dash);        // no readings
-    for (const ConsistencyCell &c : res.cells) QVERIFY(c.word != ConsistencyWord::Blank);
-    QVERIFY(!cellOf(res, "sequence", 1));
-    // readings outside any cell stay in the readings, unplaced included
-    QVERIFY(judgedOf(res, "c", 1));
-    QVERIFY(judgedOf(res, "d", 3));
+    QCOMPARE(int(res.readings.size()), 4);
+    QVERIFY(judgedOf(res, "a", 0) && judgedOf(res, "b", 6) && judgedOf(res, "c", 1) && judgedOf(res, "d", 3));
+    QCOMPARE(judgedOf(res, "d", 3)->reading, 3);
 }
 
 void SessionConsistencyTest::weakestPointRule()
@@ -520,57 +462,6 @@ void SessionConsistencyTest::launchMonitorRows()
     few.shots.pop_back();
     few.shots.pop_back();
     QVERIFY(consistencyLmRows(few, 1).empty());
-}
-
-void SessionConsistencyTest::homeWord()
-{
-    const auto cell = [](const QString &area, int column, ConsistencyWord w) {
-        ConsistencyCell c;
-        c.area = area; c.column = column; c.word = w;
-        return c;
-    };
-    using W = ConsistencyWord;
-    const QString p = QStringLiteral("posture");
-
-    // newest first, .75^j
-    ConsistencyHomeWord h = consistencyHomeWord(p, { { cell(p, 1, W::Loose) }, { cell(p, 1, W::Steady) } });
-    QVERIFY(near(h.score, 1.0 / 1.75));
-    QCOMPARE(h.word, W::Loose);
-    QCOMPARE(h.loosestColumn, 1);
-
-    // a session with no word in the cell has no weight there, and the older ones keep their own fade
-    h = consistencyHomeWord(p, { { cell(p, 1, W::Dash) }, { cell(p, 1, W::Loose) }, { cell(p, 1, W::Steady) } });
-    QVERIFY(near(h.score, 0.75 / (0.75 + 0.5625)));
-
-    // nearError scores 0, some ½; the column values are averaged; under .2 Steady names nothing
-    h = consistencyHomeWord(p, { { cell(p, 1, W::Some), cell(p, 2, W::NearError), cell(p, 3, W::Steady) } });
-    QVERIFY(near(h.score, 0.5 / 3.0));
-    QCOMPARE(h.word, W::Steady);
-    QCOMPARE(h.loosestColumn, -1);
-
-    // at .2 it is Some, and at .5 Loose
-    h = consistencyHomeWord(p, { { cell(p, 1, W::Some), cell(p, 2, W::Some), cell(p, 3, W::Steady), cell(p, 4, W::Steady),
-                                   cell(p, 5, W::Steady) } });
-    QVERIFY(near(h.score, 0.2));
-    QCOMPARE(h.word, W::Some);
-    QCOMPARE(h.loosestColumn, 1);        // the first of equals
-    h = consistencyHomeWord(p, { { cell(p, 1, W::Loose), cell(p, 2, W::Steady) } });
-    QCOMPARE(h.word, W::Loose);
-
-    // P7-P8 is dropped, except for Finish
-    h = consistencyHomeWord(p, { { cell(p, 1, W::Steady), cell(p, 7, W::Loose) } });
-    QCOMPARE(h.word, W::Steady);
-    QVERIFY(near(h.score, 0.0));
-    const QString f = QStringLiteral("finish");
-    h = consistencyHomeWord(f, { { cell(f, 7, W::Loose) } });
-    QCOMPARE(h.word, W::Loose);
-    QCOMPARE(h.loosestColumn, 7);
-
-    // nothing to say: a dash. Other areas' cells are ignored.
-    h = consistencyHomeWord(p, { { cell(p, 1, W::Dash), cell(p, 2, W::Blank), cell(f, 7, W::Loose) } });
-    QCOMPARE(h.word, W::Dash);
-    QVERIFY(std::isnan(h.score));
-    QCOMPARE(consistencyHomeWord(p, {}).word, W::Dash);
 }
 
 void SessionConsistencyTest::splitmixReferenceVector()
@@ -1039,12 +930,14 @@ void SessionConsistencyTest::timing5Oct()
           int(in.readings.size()), alignMs, layer1Ms, layer2Ms);
     QCOMPARE(int(in.shots.size()), 31);
     QVERIFY(isfinite(in.afterImpactMs));
-    QCOMPARE(int(res.cells.size()), 33);
+    QVERIFY(!res.readings.empty());
     QVERIFY(res.shuffledMean > 0.0);
 }
 
-// The golden: goldens_1005_consistency.json is consistency_tally.py's `result` for a dump of session_1005.json itself,
-// and its `home` block, which goldenHome reads.
+// The golden: goldens_1005_consistency.json, the rules' result on session_1005.json, frozen since the tally that cut it
+// was retired with the matrix verdicts (Mark, 7 Nov). Its `readings` (which reached the table), `standouts`, `flags` and
+// shuffle figures are what the stand-out rules still produce; its `cells`, verdicts, spreads and `home` block are no
+// longer read.
 void SessionConsistencyTest::golden5Oct()
 {
     QFile f(kData + QStringLiteral("/goldens_1005_consistency.json"));
@@ -1059,19 +952,6 @@ void SessionConsistencyTest::golden5Oct()
         return v.isDouble() ? near(v.toDouble(), x, 1e-6) : std::isnan(x);
     };
 
-    const QJsonArray cells = g.value("cells").toArray();
-    QCOMPARE(int(res.cells.size()), int(cells.size()));
-    for (qsizetype i = 0; i < cells.size(); ++i) {
-        const QJsonObject o = cells[i].toObject();
-        const ConsistencyCell &c = res.cells[size_t(i)];
-        QCOMPARE(c.area, o.value("area").toString());
-        QCOMPARE(c.column, o.value("column").toInt());
-        QCOMPARE(consistencyWordToken(c.word), o.value("word").toString());
-        QCOMPARE(c.judged, o.value("judged").toInt());
-        QCOMPARE(c.loose, o.value("loose").toInt());
-        QCOMPARE(c.nearError, o.value("nearError").toInt());
-        QCOMPARE(c.unjudged, o.value("unjudged").toInt());
-    }
     const QJsonArray readings = g.value("readings").toArray();
     QCOMPARE(int(res.readings.size()), int(readings.size()));
     for (qsizetype i = 0; i < readings.size(); ++i) {
@@ -1079,8 +959,6 @@ void SessionConsistencyTest::golden5Oct()
         const ConsistencyJudged &r = res.readings[size_t(i)];
         QCOMPARE(r.key, o.value("key").toString());
         QCOMPARE(r.column, o.value("column").toInt());
-        QVERIFY2(same(o.value("spread"), r.spread), qPrintable(r.key));
-        QCOMPARE(consistencyVerdictToken(r.verdict), o.value("verdict").toString());
     }
     const QJsonArray standouts = g.value("standouts").toArray();
     QCOMPARE(int(res.standouts.size()), int(standouts.size()));
@@ -1104,56 +982,6 @@ void SessionConsistencyTest::golden5Oct()
     }
     QVERIFY(same(g.value("shuffledMean"), res.shuffledMean));
     QVERIFY(same(g.value("p95"), res.p95));
-}
-
-// Home's word against the tally's. goldens_home_consistency.json holds the `result.cells` of the five dumps the golden's
-// `home` block was rolled up from, Mark's five judged sessions newest first, session_1005.json's dump standing for 5 Oct.
-// The tally rolled them up in Python from its own cells; --check holds those equal to these.
-void SessionConsistencyTest::goldenHome()
-{
-    QFile cf(kData + QStringLiteral("/goldens_home_consistency.json"));
-    QVERIFY2(cf.open(QIODevice::ReadOnly), "goldens_home_consistency.json is missing");
-    QFile gf(kData + QStringLiteral("/goldens_1005_consistency.json"));
-    QVERIFY2(gf.open(QIODevice::ReadOnly), "goldens_1005_consistency.json is missing");
-    const QJsonObject home = QJsonDocument::fromJson(gf.readAll()).object().value("home").toObject();
-    QCOMPARE(home.size(), consistencyAreas().size());
-
-    std::vector<std::vector<ConsistencyCell>> sessions;
-    QStringList names;
-    for (const QJsonValue &sv : QJsonDocument::fromJson(cf.readAll()).object().value("sessions").toArray()) {
-        names << sv.toObject().value("session").toString();
-        sessions.emplace_back();
-        for (const QJsonValue &cv : sv.toObject().value("cells").toArray()) {
-            const QJsonObject o = cv.toObject();
-            ConsistencyCell c;
-            c.area = o.value("area").toString();
-            c.column = o.value("column").toInt();
-            c.word = consistencyWordFromToken(o.value("word").toString());
-            sessions.back().push_back(c);
-        }
-    }
-    QCOMPARE(int(sessions.size()), 5);
-    QVERIFY(names.first().startsWith("2026-10-20") && names.last().startsWith("2026-07-04"));   // newest first
-
-    for (const QString &area : consistencyAreas()) {
-        const QJsonObject want = home.value(area).toObject();
-        const ConsistencyHomeWord got = consistencyHomeWord(area, sessions);
-        if (want.value("word").isNull()) {
-            QCOMPARE(got.word, ConsistencyWord::Dash);
-            continue;
-        }
-        QCOMPARE(consistencyWordToken(got.word), want.value("word").toString().toLower());
-        QVERIFY2(near(got.score, want.value("score").toDouble(), 1e-9), qPrintable(area));
-        QCOMPARE(consistencyColumnName(got.loosestColumn), want.value("loosest").toString());
-    }
-
-    // These are this fixture's own cells, so the two goldens cannot have been cut from different dumps.
-    const charts_test::Fixture fx = charts_test::loadFixture(kData + QStringLiteral("/session_1005.json"));
-    QVERIFY(fx.ok);
-    const ConsistencyResult res = consistencyResult(consistencyInput(fx.session, alignSession(fx.session), consistencyEnvFromPacks()));
-    const std::vector<ConsistencyCell> &oct5 = sessions[size_t(names.indexOf(fx.name))];
-    QCOMPARE(oct5.size(), res.cells.size());
-    for (size_t i = 0; i < oct5.size(); ++i) QCOMPARE(oct5[i].word, res.cells[i].word);
 }
 
 QTEST_GUILESS_MAIN(SessionConsistencyTest)

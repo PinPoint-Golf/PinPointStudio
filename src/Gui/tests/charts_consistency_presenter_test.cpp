@@ -1,14 +1,19 @@
 // The Consistency tab's presenter (src/Gui/charts/charts_consistency_presenter.h) on the trimmed 5 Oct fixture, with a
 // launch monitor, against that session's golden; on 4 July, with none; and on cut copies of them for what the data
-// can leave out. The words are pinned verbatim: they are what the golfer reads.
+// can leave out. The words are pinned verbatim: they are what the golfer reads. The variability words are not here:
+// the presenter hands grades and templates, and QML takes the words from the vocabularies, so these pin the grades
+// (against the grader run on its own) and the templates' placeholders.
 
 #include "charts/charts_consistency_presenter.h"
 #include "charts/consistency_env.h"
+#include "charts/consistency_grades.h"
+#include "charts/variability_env.h"
 #include "charts/session_consistency.h"
 #include "charts/session_series_model.h"
 #include "charts/session_warp.h"
 #include "charts_maths_fixture.h"
 #include "Diagnostics/norms/norm_provider.h"
+#include "variability/variability_facade.h"
 
 #include <QDir>
 #include <QFile>
@@ -23,6 +28,7 @@
 #include <QtTest>
 
 using namespace pinpoint::charts;
+namespace pv = pinpoint::variability;
 
 namespace {
 
@@ -126,6 +132,44 @@ QVariantMap cellAt(const QVariantMap &matrix, const QString &area, int column)
     return {};
 }
 
+// The session's grades worked out here, as the presenter must: its input on the production env, graded on the
+// production scales.
+struct Graded {
+    ConsistencyInput in;
+    ConsistencyGrades grades;
+    std::unique_ptr<IVariabilityScaleProvider> provider;
+};
+Graded gradedOf(const SessionSnapshot &s)
+{
+    Graded g;
+    g.provider = makeVariabilityScaleProvider();
+    g.in = consistencyInput(s, alignSession(s), consistencyEnvFromPacks());
+    g.grades = consistencyGrades(g.in, consistencyGradeScales(*g.provider));
+    return g;
+}
+
+// A pooled cell's grade, by hand, for the head's rule.
+pv::CellGrade cellGradeOf(int grade, double rho, bool limited = false)
+{
+    pv::CellGrade c;
+    c.graded = true;
+    c.grade = grade;
+    c.rho = rho;
+    c.measurementLimited = limited;
+    c.n = grade > 0 ? 1 : 0;
+    c.setting = grade > 0 ? 0 : -1;
+    return c;
+}
+
+// A template holds every placeholder the QML fills, and no variability word of its own.
+void checkTemplate(const QString &t)
+{
+    for (int i = 1; i <= 7; ++i) QVERIFY2(t.contains(QStringLiteral("%%1").arg(i)), qPrintable(t));
+    for (const char *w : { "Grooved", "Repeatable", "Settling", "Variable", "Scattered", "Not enough swings", "Checking",
+                           "steady", "loose", "repeat", "usual" })
+        QVERIFY2(!t.contains(QLatin1String(w), Qt::CaseInsensitive), qPrintable(t));
+}
+
 } // namespace
 
 class ChartsConsistencyPresenterTest : public QObject
@@ -152,8 +196,15 @@ private slots:
         const auto p = make(m_oct);
         const QVariantMap head = p->head();
         QCOMPARE(head.value(QStringLiteral("kicker")).toString(), QStringLiteral("Consistency  ·  31 shots  ·  Gap wedge"));
-        QCOMPARE(text(head.value(QStringLiteral("headline"))),
-                 QStringLiteral("Your swing holds about the same all the way through, and your sequence moves most."));
+        // the headline is the grades' (the rule's own cases are theHeadlineRule's): the session's head, worked out here
+        const Graded g = gradedOf(*m_oct);
+        const QVariantMap want = ChartsConsistencyPresenter::headline(consistencyHead(g.grades));
+        const QVariantMap line = head.value(QStringLiteral("headline")).toMap();
+        QCOMPARE(line.value(QStringLiteral("kind")).toString(), want.value(QStringLiteral("kind")).toString());
+        QVERIFY2(line.value(QStringLiteral("kind")).toString() == QLatin1String("halves") || line.value(QStringLiteral("kind")).toString() == QLatin1String("most"),
+                 qPrintable(line.value(QStringLiteral("kind")).toString()));
+        QCOMPARE(text(line), text(want));
+        QVERIFY(text(line).endsWith(QStringLiteral(" moves most.")) || text(line).endsWith(QStringLiteral(" move most.")));
         QCOMPARE(text(head.value(QStringLiteral("ball"))).replace(kNbsp, QLatin1Char(' ')),
                  QStringLiteral("Your ball: carry 100 yd, middle half 97 to 103 yd. It finishes 5 yd left, middle half 2 to 10 yd left."));
         QVERIFY(head.value(QStringLiteral("notes")).toList().isEmpty());
@@ -161,44 +212,135 @@ private slots:
         QVERIFY(p->key().contains(QStringLiteral("P7-P8 is after the ball has gone")));
         QVERIFY(p->key().contains(QStringLiteral("after impact on every shot, and is shown lighter")));
         QVERIFY(!p->key().contains(QStringLiteral("spread")));
-        QVERIFY(p->keyMarks().contains(QStringLiteral("◐ some")));
+        checkTemplate(p->key());
+        checkTemplate(p->keyMarks());
+        QVERIFY(p->keyMarks().contains(QStringLiteral("⚠ %7")));
+        QVERIFY(!p->keyMarks().contains(QStringLiteral("◐")));
     }
 
-    // Every branch of the rule, on tables made for it.
+    // Every branch of the head's rule, on graded cells made for it (consistencyHead, then the presenter's words).
     void theHeadlineRule_data()
     {
-        QTest::addColumn<QString>("cells");     // area:column:word ...
+        QTest::addColumn<QString>("cells");     // area:column:grade:rho[:limited] ..., or area:column:none
+        QTest::addColumn<QString>("kind");
         QTest::addColumn<QString>("want");
-        const QString wayDown = QStringLiteral("You repeat your swing best in the backswing. It loosens on the way down, and ");
-        const QString wayBack = QStringLiteral("You repeat your swing best on the way down. It is looser in the backswing, and ");
-        const QString same = QStringLiteral("Your swing holds about the same all the way through, and ");
-        QTest::newRow("backswing lower") << "posture:1:steady posture:4:loose impact:6:loose" << wayDown + "your impact position moves most.";
-        QTest::newRow("downswing lower") << "armsAndClub:2:loose armsAndClub:5:steady setup:0:steady" << wayBack + "your arms and club move most.";
-        QTest::newRow("within .1") << "posture:2:some posture:5:some setup:0:loose" << same + "your setup moves most.";
-        // the downswing's mean is one some in five, .1 over the backswing's 0: that is apart. One in six is not
-        const QString steadyBack = QStringLiteral("posture:1:steady posture:2:steady posture:3:steady lateral:1:steady lateral:2:steady ");
-        QTest::newRow("exactly .1") << steadyBack + "posture:4:steady posture:5:steady posture:6:steady lateral:4:steady lateral:5:some"
-                                    << wayDown + "your lateral motion moves most.";
-        QTest::newRow("just under .1") << steadyBack + "posture:4:steady posture:5:steady posture:6:steady lateral:4:steady lateral:5:some lateral:6:steady"
-                                       << same + "your lateral motion moves most.";
-        QTest::newRow("nothing above steady") << "posture:1:steady posture:5:nearError setup:0:steady" << "Your swing repeats from shot to shot.";
-        QTest::newRow("after the ball is left out") << "posture:1:steady setup:0:steady posture:7:loose" << "Your swing repeats from shot to shot.";
-        QTest::newRow("except for Finish") << "posture:1:steady posture:5:steady finish:7:loose" << same + "your finish moves most.";
-        QTest::newRow("a dash has no word") << "posture:1:dash posture:5:steady setup:0:steady" << "Your swing repeats from shot to shot.";
-        QTest::newRow("no word at all") << "posture:1:dash" << QString();
-        QTest::newRow("one area is not the swing") << "impact:6:loose posture:1:dash" << QString();
-        QTest::newRow("nor is one area and its span after the ball") << "lateral:3:loose posture:7:loose" << QString();
+        QTest::addColumn<QString>("grades");    // back,down
+        const QString halves = QStringLiteral("Your backswing is %1, your downswing %2; ");
+        QTest::newRow("both halves") << "posture:1:4:0.4 posture:5:2:0.8 setup:0:5:0.2" << "halves"
+                                     << halves + "your posture moves most." << "4,2";
+        QTest::newRow("a half takes its loosest third") << "posture:1:5:0.2 posture:2:5:0.2 posture:3:3:0.6 impact:6:4:0.3" << "halves"
+                                                        << halves + "your posture moves most." << "3,4";
+        QTest::newRow("the area named is the loosest") << "armsAndClub:2:3:0.6 armsAndClub:5:4:0.3 setup:0:5:0.1" << "halves"
+                                                       << halves + "your arms and club move most." << "3,4";
+        QTest::newRow("a missing half") << "impact:6:3:0.6 setup:0:5:0.2" << "most" << "Your impact position moves most." << "";
+        QTest::newRow("after the ball is left out") << "posture:7:1:1.5 setup:0:5:0.2" << "grade0" << "" << "";
+        QTest::newRow("except for Finish") << "finish:7:2:0.8 posture:1:4:0.4 posture:5:4:0.4" << "halves"
+                                           << halves + "your finish moves most." << "4,4";
+        QTest::newRow("grade 0 only") << "posture:1:0:nan setup:0:0:nan" << "grade0" << "" << "";
+        QTest::newRow("one area is not the swing") << "impact:6:2:0.9 posture:1:none" << "grade0" << "" << "";
+        QTest::newRow("nothing graded") << "posture:1:none setup:0:none" << "ungraded"
+                                        << "Nothing here has a range to judge it against." << "";
     }
     void theHeadlineRule()
     {
         QFETCH(QString, cells);
+        QFETCH(QString, kind);
         QFETCH(QString, want);
-        ConsistencyResult res;
+        QFETCH(QString, grades);
+        ConsistencyGrades g;
         for (const QString &c : cells.split(QLatin1Char(' '))) {
             const QStringList f = c.split(QLatin1Char(':'));
-            res.cells.push_back(ConsistencyCell{ f[0], f[1].toInt(), consistencyWordFromToken(f[2]) });
+            ConsistencyCellGrade cell;
+            cell.area = f[0];
+            cell.column = f[1].toInt();
+            if (f[2] != QLatin1String("none"))
+                cell.grade = cellGradeOf(f[2].toInt(), f[3] == QLatin1String("nan") ? pv::VariabilityResult::kNaN : f[3].toDouble(),
+                                         f.size() > 4);
+            g.cells.push_back(cell);
         }
-        QCOMPARE(ChartsConsistencyPresenter::headline(res), want);
+        const QVariantMap h = ChartsConsistencyPresenter::headline(consistencyHead(g));
+        QCOMPARE(h.value(QStringLiteral("kind")).toString(), kind);
+        QCOMPARE(text(h), want);
+        QStringList got;
+        for (const QVariant &v : h.value(QStringLiteral("grades")).toList()) got << QString::number(v.toMap().value(QStringLiteral("grade")).toInt());
+        QCOMPARE(got.join(QLatin1Char(',')), grades);
+        if (kind == QLatin1String("halves"))     // a surface that will not say a half's word says only which area
+            QCOMPARE(h.value(QStringLiteral("fallback")).toString(), want.mid(want.indexOf(QStringLiteral("; ")) + 2).replace(0, 1, QStringLiteral("Y")));
+    }
+
+    // A reading's grade (consistency_grades.h): its spread against its corridor, pooled within club, R3 when the spread is
+    // no bigger than its own measurement σ, grade 0 under eight shots, none without a scale.
+    void aReadingsGrade()
+    {
+        std::vector<ConsistencyShot> shots(10);
+        for (int i = 0; i < 10; ++i) { shots[size_t(i)].ordinal = i + 1; shots[size_t(i)].club = QStringLiteral("7i"); }
+        ConsistencyReading r;
+        r.key = QStringLiteral("someAngle"); r.unit = QStringLiteral("°"); r.column = 2; r.samples = 1;
+        r.kind = ConsistencyReadingKind::Position;
+        r.normSigma = 10.0;
+        for (int i = 0; i < 10; ++i) r.values.push_back(40.0 + i);       // SD 3.03, ρ 0.30: grade 4
+        const ConsistencyGradeScales none;
+
+        r.ownSigma = 5.0;                                                 // the spread is inside its own σ
+        const pv::VariabilityResult limited = consistencyReadingGrade(r, shots, none);
+        QVERIFY(limited.graded);
+        QCOMPARE(limited.grade, 4);
+        QVERIFY(limited.measurementLimited);
+        QCOMPARE(limited.n, 10);
+        const pv::VariabilityResultView view = pv::VariabilityResultView::fromResult(limited, QStringLiteral("°"), 1);
+        QVERIFY2(view.basisText().endsWith(QStringLiteral("· measurement-limited")), qPrintable(view.basisText()));
+        QVERIFY2(view.basisText().contains(QStringLiteral("of corridor")), qPrintable(view.basisText()));
+
+        r.ownSigma = 1.0;
+        QVERIFY(!consistencyReadingGrade(r, shots, none).measurementLimited);
+
+        // another club's offset is not spread (R2a), and a club under three shots is left out
+        std::vector<ConsistencyShot> two = shots;
+        ConsistencyReading moved = r;
+        for (int i = 5; i < 10; ++i) { two[size_t(i)].club = QStringLiteral("PW"); moved.values[size_t(i)] += 100.0; }
+        const pv::VariabilityResult pooled = consistencyReadingGrade(moved, two, none);
+        QVERIFY(pooled.graded);
+        QVERIFY2(pooled.rho < 0.25, qPrintable(QString::number(pooled.rho)));
+
+        std::vector<ConsistencyShot> seven(shots.begin(), shots.begin() + 7);
+        ConsistencyReading few = r;
+        few.values.resize(7);
+        const pv::VariabilityResult zero = consistencyReadingGrade(few, seven, none);
+        QVERIFY(zero.graded);
+        QCOMPARE(zero.grade, 0);
+
+        ConsistencyReading noScale = r;
+        noScale.normSigma = kNaN;
+        QVERIFY(!consistencyReadingGrade(noScale, shots, none).graded);
+        ConsistencyGradeScales scale;
+        scale.variabilityScale = [](const QString &) { return std::optional<double>(10.0); };
+        QVERIFY(consistencyReadingGrade(noScale, shots, scale).graded);   // the descriptor's scale is the next rung
+
+        // a span takes its median point by ρ
+        ConsistencyReading span = r;
+        span.kind = ConsistencyReadingKind::Span;
+        span.samples = 5;
+        span.values.clear();
+        const double widths[5] = { 0.5, 1.0, 2.0, 4.0, 8.0 };
+        for (int i = 0; i < 10; ++i)
+            for (double w : widths) span.values.push_back(40.0 + w * i);
+        r.values.clear();
+        for (int i = 0; i < 10; ++i) r.values.push_back(40.0 + 2.0 * i);
+        QCOMPARE(consistencyReadingGrade(span, shots, none).rho, consistencyReadingGrade(r, shots, none).rho);
+
+        // a guarded shot is left out of a reading on its P-ladder (a span), as the stand-outs leave it out, and kept in a
+        // position (R13: guarded readings out, nothing else)
+        std::vector<ConsistencyShot> guarded = shots;
+        guarded[9].guarded = true;
+        ConsistencyReading wild = span;
+        for (int k = 0; k < 5; ++k) wild.values[size_t(9 * 5 + k)] = 400.0;      // shot 10's span, far off
+        std::vector<ConsistencyShot> nine(shots.begin(), shots.begin() + 9);
+        ConsistencyReading spanNine = span;
+        spanNine.values.resize(9 * 5);
+        QCOMPARE(consistencyReadingGrade(wild, guarded, none).rho, consistencyReadingGrade(spanNine, nine, none).rho);
+        QCOMPARE(consistencyReadingGrade(wild, guarded, none).n, 9);
+        ConsistencyReading position = r;
+        QCOMPARE(consistencyReadingGrade(position, guarded, none).n, 10);
     }
 
     // The table has the golden's words, and a shot marks only the cells it stood out in.
@@ -215,26 +357,42 @@ private slots:
         QCOMPARE(rows.size(), consistencyAreas().size());
         QCOMPARE(rows.at(2).toMap().value(QStringLiteral("name")).toString(), QStringLiteral("Arms and club"));
 
-        const QHash<QString, QString> wordOf{ { QStringLiteral("steady"), QStringLiteral("steady") }, { QStringLiteral("some"), QStringLiteral("some") },
-                                              { QStringLiteral("loose"), QStringLiteral("loose") }, { QStringLiteral("nearError"), QStringLiteral("⚠ error") },
-                                              { QStringLiteral("dash"), QStringLiteral("-") } };
-        const QHash<QString, QString> markOf{ { QStringLiteral("steady"), QStringLiteral("·") }, { QStringLiteral("some"), QStringLiteral("◐") },
-                                              { QStringLiteral("loose"), QStringLiteral("●") }, { QStringLiteral("nearError"), QStringLiteral("⚠") },
-                                              { QStringLiteral("dash"), QStringLiteral("-") } };
-        int judged = 0;
+        // R1: each cell is cellGrade() over its readings, each graded on its own here; the word is QML's, from the grade
+        const Graded g = gradedOf(*m_oct);
+        int cells = 0, graded = 0;
         for (const QJsonValue &v : m_golden.value(QStringLiteral("cells")).toArray()) {
             const QJsonObject c = v.toObject();
-            const QString area = c.value(QStringLiteral("area")).toString(), word = c.value(QStringLiteral("word")).toString();
-            const QVariantMap cell = cellAt(matrix, area, c.value(QStringLiteral("column")).toInt());
-            QCOMPARE(cell.value(QStringLiteral("text")).toString(), wordOf.value(word));
-            QCOMPARE(cell.value(QStringLiteral("short")).toString(), markOf.value(word));
-            QCOMPARE(cell.value(QStringLiteral("heat")).toInt(), word == QLatin1String("loose") ? 2 : word == QLatin1String("some") ? 1 : 0);
-            QCOMPARE(cell.value(QStringLiteral("strong")).toBool(), word == QLatin1String("loose") || word == QLatin1String("some"));
-            QCOMPARE(cell.value(QStringLiteral("heavy")).toBool(), word == QLatin1String("loose"));
-            QVERIFY(cell.value(QStringLiteral("tap")).toBool());
-            ++judged;
+            const QString area = c.value(QStringLiteral("area")).toString();
+            const int column = c.value(QStringLiteral("column")).toInt();
+            const QVariantMap cell = cellAt(matrix, area, column);
+            std::vector<pv::VariabilityResult> readings;
+            int at = 0;
+            for (size_t r = 0; r < g.in.readings.size(); ++r)
+                if (g.in.readings[r].area == area && g.in.readings[r].column == column) {
+                    readings.push_back(consistencyReadingGrade(g.in.readings[r], g.in.shots, consistencyGradeScales(*g.provider)));
+                    ++at;
+                }
+            const pv::CellGrade want = pv::cellGrade(readings);
+            const QVariantMap result = cell.value(QStringLiteral("result")).toMap();
+            QCOMPARE(result.value(QStringLiteral("graded")).toBool(), want.graded);
+            QCOMPARE(result.value(QStringLiteral("grade")).toInt(), want.grade);
+            QCOMPARE(result.value(QStringLiteral("measurementLimited")).toBool(), want.measurementLimited);
+            QCOMPARE(result.value(QStringLiteral("basisText")).toString(), QString());      // a cell shows the word alone
+            const bool limited = want.graded && want.measurementLimited;
+            const bool moved = want.graded && !limited && want.grade >= 1 && want.grade <= 3;
+            QCOMPARE(cell.value(QStringLiteral("text")).toString(), want.graded ? QString() : QStringLiteral("-"));
+            QCOMPARE(cell.value(QStringLiteral("short")).toString(),
+                     !want.graded ? QStringLiteral("-") : limited ? QStringLiteral("⚠") : QString::number(want.grade));
+            QCOMPARE(cell.value(QStringLiteral("heat")).toInt(), moved && want.grade <= 2 ? 2 : moved ? 1 : 0);
+            QCOMPARE(cell.value(QStringLiteral("strong")).toBool(), moved);
+            QCOMPARE(cell.value(QStringLiteral("heavy")).toBool(), moved && want.grade <= 2);
+            QCOMPARE(cell.value(QStringLiteral("tap")).toBool(), at > 0);
+            QVERIFY(cell.value(QStringLiteral("mark")).toString().isEmpty() || cell.value(QStringLiteral("mark")).toString() == QStringLiteral("◆"));
+            ++cells;
+            graded += want.graded && want.grade >= 1 ? 1 : 0;
         }
-        QCOMPARE(judged, 33);
+        QCOMPARE(cells, 33);
+        QVERIFY2(graded > 0, "a 31-shot session grades some of its table");
         // a column that does not apply is blank, and not pressable
         const QVariantMap blank = cellAt(matrix, QStringLiteral("setup"), 3);
         QCOMPARE(blank.value(QStringLiteral("text")).toString(), QString());
@@ -296,9 +454,18 @@ private slots:
         QVERIFY(shot.value(QStringLiteral("available")).toBool());
         QCOMPARE(shot.value(QStringLiteral("kicker")).toString(), QStringLiteral("Shot 8 of 31  ·  gap wedge"));
         QCOMPARE(shot.value(QStringLiteral("lm")).toString(), QStringLiteral("launch monitor: short and offline"));
-        QCOMPARE(text(shot.value(QStringLiteral("sentence"))).replace(kNbsp, QLatin1Char(' ')),
-                 QStringLiteral("Carry 11 yd against your usual 100 yd. It finished 30 yd right. 4 swing readings stood out, "
-                                "more than most shots this session, but chance can reach that."));
+        // ball flight has no badge (R4): the carry is set against its club's median in the sentence
+        const QString sentence8 = text(shot.value(QStringLiteral("sentence"))).replace(kNbsp, QLatin1Char(' '));
+        QVERIFY2(sentence8.startsWith(QStringLiteral("Carry 11 yd against a median of ")), qPrintable(sentence8));
+        QVERIFY2(sentence8.endsWith(QStringLiteral(" yd. It finished 30 yd right. 4 swing readings stood out, "
+                                                   "more than most shots this session, but chance can reach that.")), qPrintable(sentence8));
+        for (const QVariant &r : groupOf(shot, QStringLiteral("The ball")).value(QStringLiteral("rows")).toList())
+            QVERIFY2(!r.toMap().contains(QStringLiteral("variability")), qPrintable(r.toMap().value(QStringLiteral("key")).toString()));
+        QVERIFY(shot.value(QStringLiteral("carry")).isNull());
+        int typical = 0;
+        for (const QVariant &r : groupOf(shot, QStringLiteral("Your swing")).value(QStringLiteral("rows")).toList())
+            typical += r.toMap().value(QStringLiteral("variability")).toMap().value(QStringLiteral("kind")).toString() == QLatin1String("typicality") ? 1 : 0;
+        QVERIFY(typical > 0);
         QStringList names;
         for (const QVariant &g : shot.value(QStringLiteral("groups")).toList()) names << g.toMap().value(QStringLiteral("name")).toString();
         QCOMPARE(names, QStringList({ QStringLiteral("The ball"), QStringLiteral("Your swing") }));
@@ -316,8 +483,11 @@ private slots:
         const auto p = make(m_oct, 7);
         const QVariantMap shot = p->shot();
         QCOMPARE(shot.value(QStringLiteral("lm")).toString(), QStringLiteral("launch monitor: short"));
-        QCOMPARE(text(shot.value(QStringLiteral("sentence"))).replace(kNbsp, QLatin1Char(' ')),
-                 QStringLiteral("Carry 86 yd against your usual 100 yd. Nothing in your swing stood out. The ball and club readings below did."));
+        const QString sentence7 = text(shot.value(QStringLiteral("sentence"))).replace(kNbsp, QLatin1Char(' '));
+        QVERIFY2(sentence7.startsWith(QStringLiteral("Carry 86 yd against a median of ")), qPrintable(sentence7));
+        QVERIFY2(sentence7.endsWith(QStringLiteral(" yd. Nothing in your swing stood out. The ball and club readings below did.")), qPrintable(sentence7));
+        // smash factor is an outcome: no typicality on its row (R4)
+        QVERIFY(!rowOf(groupOf(shot, QStringLiteral("The club")), QStringLiteral("lm.smashFactor")).contains(QStringLiteral("variability")));
         QVERIFY(groupOf(shot, QStringLiteral("Your swing")).isEmpty());
         // a smash factor to its two places, with no unit word: the shared row, so Charts' Apart reads the same
         const QVariantMap smash = rowOf(groupOf(shot, QStringLiteral("The club")), QStringLiteral("lm.smashFactor"));
@@ -333,7 +503,11 @@ private slots:
         // shot 12: one stand-out, carry inside its club's fences
         const auto p = make(m_oct, 12);
         const QString s = text(p->shot().value(QStringLiteral("sentence"))).replace(kNbsp, QLatin1Char(' '));
-        QVERIFY2(s.contains(QStringLiteral(", close to your usual 100 yd. 1 swing reading stood out. Most shots this session show one or two, so this may be chance.")), qPrintable(s));
+        QVERIFY2(s.contains(QStringLiteral(" yd. 1 swing reading stood out. Most shots this session show one or two, so this may be chance.")), qPrintable(s));
+        QVERIFY2(!s.contains(QStringLiteral("usual")), qPrintable(s));
+        // ball flight has no badge (R4): no typicality beside the sentence, which sets the carry against its median
+        QVERIFY(p->shot().value(QStringLiteral("carry")).isNull());
+        QVERIFY2(s.contains(QStringLiteral(" against a median of ")), qPrintable(s));
         QCOMPARE(p->shot().value(QStringLiteral("lm")).toString(), QStringLiteral("launch monitor: not short or offline"));
         QCOMPARE(p->shot().value(QStringLiteral("note")).toString(), QString());   // one row: nothing to go together
     }
@@ -375,42 +549,47 @@ private slots:
         QCOMPARE(cell.value(QStringLiteral("area")).toString(), QStringLiteral("Sequence"));
         QCOMPARE(cell.value(QStringLiteral("tag")).toString(), QStringLiteral("P6-P7"));
         QCOMPARE(cell.value(QStringLiteral("title")).toString(), QStringLiteral("Sequence, P6-P7"));
-        QCOMPARE(cell.value(QStringLiteral("word")).toString(), QStringLiteral("loose"));
-        QCOMPARE(text(cell.value(QStringLiteral("sub"))), QStringLiteral("2 of 5 readings loose; a row opens its curve"));
-        const QVariantList subRuns = cell.value(QStringLiteral("sub")).toMap().value(QStringLiteral("runs")).toList();
-        QCOMPARE(subRuns.at(0).toMap().value(QStringLiteral("text")).toString(), QStringLiteral("2"));
-        QVERIFY(subRuns.at(0).toMap().value(QStringLiteral("fig")).toBool());
-        QCOMPARE(cell.value(QStringLiteral("unjudged")).toInt(), 15);
-        QCOMPARE(cell.value(QStringLiteral("unjudgedNote")).toString(), QStringLiteral("15 readings have no range to be judged against, and are listed as not judged."));
+        const Graded g = gradedOf(*m_oct);
+        const ConsistencyCellGrade *want = g.grades.cellAt(QStringLiteral("sequence"), 6);
+        QVERIFY(want);
+        QCOMPARE(cell.value(QStringLiteral("result")).toMap().value(QStringLiteral("grade")).toInt(), want->grade.grade);
+        QCOMPARE(cell.value(QStringLiteral("headLabel")).toString(), QStringLiteral("Widest spread first"));
         QCOMPARE(cell.value(QStringLiteral("shotLabel")).toString(), QStringLiteral("Shot 8"));
 
-        // loosest first, by spread over the norm's σ, the readings not judged after them all
-        const ConsistencyInput in = consistencyInput(*m_oct, alignSession(*m_oct), consistencyEnvFromPacks());
+        // widest spread first by ρ, then those under eight shots, then those with no scale; each with its grade
         const QVariantList rows = cell.value(QStringLiteral("rows")).toList();
-        QCOMPARE(rows.size(), 20);
-        QHash<QString, double> ratio;
-        for (const QJsonValue &v : m_golden.value(QStringLiteral("readings")).toArray()) {
-            const QJsonObject r = v.toObject();
-            if (r.value(QStringLiteral("column")).toInt() != 6) continue;
-            for (const ConsistencyReading &g : in.readings)
-                if (g.column == 6 && g.key == r.value(QStringLiteral("key")).toString())
-                    ratio[g.key] = r.value(QStringLiteral("spread")).toDouble() / g.normSigma;
-        }
+        QCOMPARE(rows.size(), int(want->readings.size()));
+        int stage = 0, gradedN = 0, ungraded = 0;
         double last = 1e9;
-        bool notJudged = false;
         for (const QVariant &v : rows) {
             const QVariantMap r = v.toMap();
-            const QString place = r.value(QStringLiteral("place")).toString();
             QCOMPARE(r.value(QStringLiteral("tag")).toString(), QStringLiteral("P6-P7"));
-            if (place == QLatin1String("not judged")) { notJudged = true; QVERIFY(!r.value(QStringLiteral("judged")).toBool()); continue; }
-            QVERIFY(!notJudged);
-            QVERIFY(place == QLatin1String("loose") || place == QLatin1String("steady") || place == QLatin1String("⚠ near error"));
-            const double here = ratio.value(r.value(QStringLiteral("key")).toString());
-            QVERIFY(here <= last);
-            last = here;
+            const QVariantMap vb = r.value(QStringLiteral("variability")).toMap();
+            QCOMPARE(vb.value(QStringLiteral("kind")).toString(), QStringLiteral("consistency"));
+            const QVariantMap res = vb.value(QStringLiteral("result")).toMap();
+            QCOMPARE(r.value(QStringLiteral("graded")).toBool(), res.value(QStringLiteral("graded")).toBool());
+            const bool hasRho = res.value(QStringLiteral("hasRho")).toBool() && res.value(QStringLiteral("grade")).toInt() >= 1;
+            const int here = hasRho ? 0 : res.value(QStringLiteral("graded")).toBool() ? 1 : 2;
+            QVERIFY(here >= stage);
+            stage = here;
+            if (here == 0) {
+                const double rho = res.value(QStringLiteral("rho")).toDouble();
+                QVERIFY(rho <= last);
+                last = rho;
+                ++gradedN;
+                QVERIFY2(res.value(QStringLiteral("basisText")).toString().startsWith(QStringLiteral("σ ")), qPrintable(res.value(QStringLiteral("basisText")).toString()));
+            }
+            if (here == 2) { ++ungraded; QCOMPARE(res.value(QStringLiteral("basisText")).toString(), QString()); }
+            QVERIFY(r.value(QStringLiteral("place")).toString() != QLatin1String("loose"));
         }
-        QVERIFY(notJudged);
-        QCOMPARE(rows.at(0).toMap().value(QStringLiteral("place")).toString(), QStringLiteral("loose"));
+        QVERIFY(gradedN > 0);
+        QCOMPARE(cell.value(QStringLiteral("unjudged")).toInt(), ungraded);
+        QVERIFY2(text(cell.value(QStringLiteral("sub"))).startsWith(QStringLiteral("%1 of %2 reading").arg(gradedN).arg(rows.size())),
+                 qPrintable(text(cell.value(QStringLiteral("sub")))));
+        QVERIFY(text(cell.value(QStringLiteral("sub"))).endsWith(QStringLiteral("; a row opens its curve")));
+        if (ungraded > 1)
+            QCOMPARE(cell.value(QStringLiteral("unjudgedNote")).toString(),
+                     QStringLiteral("%1 readings have no range to be judged against, and no grade.").arg(ungraded));
 
         // Impact reads P7 itself. No such cell, or no pick, is not an error
         const auto impact = make(m_oct, 0, QStringLiteral("impact:6"));
@@ -428,8 +607,8 @@ private slots:
         const auto p = make(m_july, 8);
         const QVariantMap head = p->head();
         QCOMPARE(head.value(QStringLiteral("kicker")).toString(), QStringLiteral("Consistency  ·  15 shots  ·  7 iron"));
-        QCOMPARE(text(head.value(QStringLiteral("headline"))),
-                 QStringLiteral("Your swing holds about the same all the way through, and your impact position moves most."));
+        const QString kind = head.value(QStringLiteral("headline")).toMap().value(QStringLiteral("kind")).toString();
+        QVERIFY2(kind == QLatin1String("halves") || kind == QLatin1String("most"), qPrintable(kind));
         QVERIFY(head.value(QStringLiteral("ball")).toMap().isEmpty());
         QVERIFY(head.value(QStringLiteral("notes")).toList().isEmpty());
         for (const QVariant &s : p->shots())
@@ -554,11 +733,22 @@ private slots:
         s->shots.resize(4);
         const auto p = make(s, 2);
         QCOMPARE(p->empty().value(QStringLiteral("kind")).toString(), QStringLiteral("tooFew"));
-        const QString words = QStringLiteral("Most of this table is \"-\" because a reading needs five shots with one club to show how much it moves.");
+        const QString words = QStringLiteral("Most of this table can't be graded yet: a reading needs eight shots with one club to show how much it moves.");
         QCOMPARE(text(p->empty().value(QStringLiteral("sentence"))), words);
         QCOMPARE(text(p->head().value(QStringLiteral("headline"))), words);
-        QCOMPARE(cellAt(p->matrix(), QStringLiteral("posture"), 3).value(QStringLiteral("text")).toString(), QStringLiteral("-"));
-        QCOMPARE(cellAt(p->matrix(), QStringLiteral("posture"), 3).value(QStringLiteral("short")).toString(), QStringLiteral("-"));
+        QCOMPARE(p->head().value(QStringLiteral("headline")).toMap().value(QStringLiteral("kind")).toString(), QStringLiteral("empty"));
+        // under eight shots a graded cell is grade 0 ("Not enough swings", QML's word), its short form "0"
+        int zero = 0;
+        for (const QVariant &r : p->matrix().value(QStringLiteral("rows")).toList())
+            for (const QVariant &c : r.toMap().value(QStringLiteral("cells")).toList()) {
+                const QVariantMap res = c.toMap().value(QStringLiteral("result")).toMap();
+                if (!res.value(QStringLiteral("graded")).toBool()) continue;
+                QCOMPARE(res.value(QStringLiteral("grade")).toInt(), 0);
+                QCOMPARE(c.toMap().value(QStringLiteral("short")).toString(), QStringLiteral("0"));
+                QCOMPARE(c.toMap().value(QStringLiteral("text")).toString(), QString());
+                ++zero;
+            }
+        QVERIFY(zero > 0);
         QCOMPARE(cellAt(p->matrix(), QStringLiteral("setup"), 3).value(QStringLiteral("text")).toString(), QString());
         QVERIFY(p->shot().value(QStringLiteral("available")).toBool());
 
@@ -568,6 +758,35 @@ private slots:
         const auto one = make(s, 1);
         QCOMPARE(one->empty().value(QStringLiteral("kind")).toString(), QStringLiteral("tooFew"));
         QVERIFY(one->shot().value(QStringLiteral("available")).toBool());
+    }
+
+    // R8: a row's typicality is this shot against eight or more OTHER shots of its club. A club of eight has seven others:
+    // its rows and its carry have none, and are as they were; the rest of the session's still do.
+    void typicalityNeedsEightOthers()
+    {
+        auto s = std::make_shared<SessionSnapshot>(*m_oct);
+        for (int i = 0; i < 8; ++i) {
+            auto c = std::make_shared<ShotSeries>(*s->shots[size_t(i)]);
+            c->club = QStringLiteral("PW");
+            s->shots[size_t(i)] = c;
+        }
+        int rows = 0, medians = 0;
+        for (int ordinal = 1; ordinal <= 8; ++ordinal) {
+            const QVariantMap shot = make(s, ordinal)->shot();
+            QVERIFY(shot.value(QStringLiteral("carry")).isNull() || shot.value(QStringLiteral("carry")).toMap().isEmpty());
+            for (const QVariant &g : shot.value(QStringLiteral("groups")).toList())
+                for (const QVariant &r : g.toMap().value(QStringLiteral("rows")).toList()) {
+                    QVERIFY(!r.toMap().contains(QStringLiteral("variability")));
+                    ++rows;
+                }
+            // with no badge, the carry is set against its club's median, never "your usual"
+            const QString sentence = text(shot.value(QStringLiteral("sentence")));
+            QVERIFY2(!sentence.contains(QStringLiteral("usual")), qPrintable(sentence));
+            medians += sentence.contains(QStringLiteral(" against a median of ")) ? 1 : 0;
+        }
+        QVERIFY(medians > 0);
+        QVERIFY2(rows > 0, "a stand-out or a fenced reading on the eight-shot club");
+        QVERIFY(make(s, 12)->shot().value(QStringLiteral("carry")).isNull());     // ball flight has no badge, whatever the club (R4)
     }
 
     void noCameraShots()

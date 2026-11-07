@@ -104,8 +104,8 @@ inline QHash<QString, AreaConditionInfo> areaConditionInfoForPack(const Characte
 //
 // The group used most wins. On a tie the group met FIRST wins, walking pack.conditions in order, then
 // each condition's detectedBy, then each signal's measures. That is deliberately not areaGroupOrder():
-// it is what tools/diagnostics/consistency_tally.py's Counter.most_common(1) answers, and the tally is
-// the reference for this rule.
+// it is a most-common count with first-met ties (as Python's Counter.most_common(1) answers, which the
+// retired consistency tally cross-checked it with).
 //
 // Ball flight is left out: it has no spans to read. A key no body condition detects on is absent.
 inline QHash<QString, QString> metricAreasForPack(const CharacteristicPack &pack)

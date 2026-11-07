@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Consistency: cut a committed test fixture from an extract file (consistency_extract.py) so that consistency_dump's
-`result` over the cut EQUALS its result over the whole file. The 5 Oct fixture is made by
+"""Consistency: cut a committed test fixture from an extract file (consistency_extract.py) so that the Consistency
+rules' result (consistencyResult) over the cut EQUALS their result over the whole file. The 5 Oct fixture is made by
 
     python3 tools/diagnostics/consistency_trim_fixture.py <fixtures>/Mark-Liversedge/2026-10-05_Mark-Liversedge_Wrist_01.json \\
         docs/research/data/consistency/consistency_readings.csv src/Gui/tests/data/charts/session_1005.json
@@ -9,8 +9,9 @@ Every shot and every metric stay, with label, unit, sigma and phase samples: the
 stand-outs and the shuffle. Dropped: sigmaKind (nothing downstream of the loader in Consistency reads it); the curves of
 impact-area metrics (read at P7 only); and curve samples no reading can reach. Curve values go to DP decimal places,
 the coarsest that keeps every spread, z and dv within 1e-6 of the whole file's on 5 Oct (at 5 a z moves 7e-6, and a z
-is judged at a hard 3.5). Phase samples and sigmas stay exact, nothing is resampled. After any change, run
-consistency_dump on both files and diff their `result`; the two margins below take the same check.
+is judged at a hard 3.5). Phase samples and sigmas stay exact, nothing is resampled. After any change, compare the
+stand-outs session_consistency_test reads from both files (the dump tool that diffed them was retired); the two
+margins below take the same check.
 
 What a reading reaches. Spans P1-P2 .. P6-P7 run from P1 to impact; P7-P8 runs L after impact on the shot's own clock,
 L being kConsistencyAfterImpactMs. So the end of every curve is cut at impact + L. The start is cut

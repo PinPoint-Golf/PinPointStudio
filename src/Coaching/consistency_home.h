@@ -18,17 +18,12 @@
 
 #pragma once
 
-// THE CONSISTENCY TABLE'S SHAPE, AND HOME'S WORD (docs/design/consistency_design.md §4.2). Pure,
-// header-only, QString and std only, so work_ons_controller.cpp can roll a golfer's sessions up
-// from each session's stored cells without pulling in the charts maths. The rules that fill the cells
-// are src/Gui/charts/session_consistency.h, which includes this file.
-//
-// HOME'S WORD. Sessions newest first, session j weighing 0.75^j, as the work-ons fade. Per column of
-// the area, the weighted mean of the score over the sessions with a word in that cell: steady and ⚠
-// score 0, some ½, loose 1. A cell with "-" or no reading has no word and no weight. P7-P8 is after the
-// ball has gone, so it counts for Finish alone. The area's score is the mean of its columns: under 0.2
-// Steady, under 0.5 Some, else Loose. The loosest span is the column with the highest value, the first
-// on a tie, and it is named unless the word is Steady.
+// THE CONSISTENCY TABLE'S SHAPE (docs/design/consistency_design.md §4.2): its columns and its areas. A cell's grade is
+// the variability grader's (src/Gui/charts/consistency_grades.h); the old cell words were retired (Mark, 7 Nov).
+// Pure, header-only, QString and std only. The rules that fill the cells are src/Gui/charts/session_consistency.h,
+// which includes this file. Home no longer rolls the table up (Mark's rulings R5 and R15, 7 Nov): its Consistency
+// column is the consistency mark of the biggest fault's measure (work_ons_controller.h, CONSISTENCY MARKS), and the
+// old per-session <session>/consistency.json files stay in the libraries, unread.
 
 #include <QString>
 #include <QStringList>
@@ -38,18 +33,6 @@
 #include <vector>
 
 namespace pinpoint::charts {
-
-// Home's rule. These sit here rather than with session_consistency.h's constants so that Home takes
-// them without the charts maths.
-inline constexpr double kConsistencyHomeFade    = 0.75;  // doc §3 Home: fading 0.75 a session, as the work-ons do
-inline constexpr double kConsistencyHomeSome    = 0.5;   // doc §4.2: some scores ½, loose 1, steady and ⚠ 0
-inline constexpr double kConsistencyHomeSteady  = 0.2;   // doc §4.2: an area under this is Steady
-inline constexpr double kConsistencyHomeLoose   = 0.5;   // doc §4.2: an area at or over this is Loose
-
-// THE VERSION OF THE RULES BEHIND A STORED TABLE (<session>/consistency.json, src/Gui/charts/consistency_summary.h).
-// Bump it when anything that can move a cell changes: the sampling, a rule, a constant, the hand placing of a reading.
-// The bump re-derives every session's table and nothing else: it is in no work-on or themes fingerprint.
-inline constexpr int kConsistencyRuleVersion = 2;
 
 // The table's columns: P1, then the seven spans. Index 7 is after the ball has gone (doc §4.2).
 inline constexpr int kConsistencyColumns = 8;
@@ -91,84 +74,6 @@ inline bool consistencyApplies(const QString &area, int column)
 {
     for (int c : consistencyColumnsOf(area)) if (c == column) return true;
     return false;
-}
-
-// What a cell says. Dash: the area is read at this column and nothing was judged there, with or without
-// readings. Blank: the area is not read at this column, so a session's cells hold no record for it.
-enum class ConsistencyWord { Blank, Dash, Steady, NearError, Some, Loose };
-
-inline QString consistencyWordToken(ConsistencyWord w)
-{
-    switch (w) {
-    case ConsistencyWord::Blank:     return QStringLiteral("blank");
-    case ConsistencyWord::Dash:      return QStringLiteral("dash");
-    case ConsistencyWord::Steady:    return QStringLiteral("steady");
-    case ConsistencyWord::NearError: return QStringLiteral("nearError");
-    case ConsistencyWord::Some:      return QStringLiteral("some");
-    case ConsistencyWord::Loose:     return QStringLiteral("loose");
-    }
-    return QStringLiteral("blank");
-}
-
-inline ConsistencyWord consistencyWordFromToken(const QString &token)
-{
-    for (ConsistencyWord w : { ConsistencyWord::Dash, ConsistencyWord::Steady, ConsistencyWord::NearError,
-                               ConsistencyWord::Some, ConsistencyWord::Loose })
-        if (consistencyWordToken(w) == token) return w;
-    return ConsistencyWord::Blank;
-}
-
-// One cell of a session's table: its word and the counts behind it.
-struct ConsistencyCell {
-    QString area;
-    int     column = -1;
-    ConsistencyWord word = ConsistencyWord::Blank;
-    int     judged = 0, loose = 0, nearError = 0, unjudged = 0;
-};
-
-// An area rolled up. `word` is Steady, Some or Loose, or Dash when no session had a word for it.
-struct ConsistencyHomeWord {
-    ConsistencyWord word = ConsistencyWord::Dash;
-    double score = std::numeric_limits<double>::quiet_NaN();
-    int    loosestColumn = -1;      // -1 when Steady or Dash
-};
-
-// `sessions` holds each session's cells, newest session first; cells of other areas are ignored.
-inline ConsistencyHomeWord consistencyHomeWord(const QString &area,
-                                               const std::vector<std::vector<ConsistencyCell>> &sessions)
-{
-    ConsistencyHomeWord out;
-    double sum = 0.0, top = -1.0;
-    int columns = 0, loosest = -1;
-    for (int column : consistencyColumnsOf(area)) {
-        if (column == kConsistencyAfterBallColumn && area != QLatin1String("finish")) continue;
-        double weighted = 0.0, weight = 0.0;
-        for (size_t j = 0; j < sessions.size(); ++j) {
-            for (const ConsistencyCell &c : sessions[j]) {
-                if (c.area != area || c.column != column) continue;
-                double score = 0.0;
-                if (c.word == ConsistencyWord::Blank || c.word == ConsistencyWord::Dash) break;  // no word here
-                if (c.word == ConsistencyWord::Some) score = kConsistencyHomeSome;
-                else if (c.word == ConsistencyWord::Loose) score = 1.0;
-                const double w = std::pow(kConsistencyHomeFade, double(j));
-                weighted += w * score;
-                weight += w;
-                break;
-            }
-        }
-        if (weight <= 0.0) continue;
-        const double value = weighted / weight;
-        sum += value;
-        ++columns;
-        if (value > top) { top = value; loosest = column; }
-    }
-    if (!columns) return out;
-    out.score = sum / double(columns);
-    out.word = out.score < kConsistencyHomeSteady ? ConsistencyWord::Steady
-             : out.score < kConsistencyHomeLoose  ? ConsistencyWord::Some
-                                                  : ConsistencyWord::Loose;
-    if (out.word != ConsistencyWord::Steady) out.loosestColumn = loosest;
-    return out;
 }
 
 } // namespace pinpoint::charts

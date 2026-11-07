@@ -25,7 +25,7 @@
 //     round-1 fixture.
 //   any session: tools/diagnostics/consistency_extract.py, run on the library, every metric with its whole
 //     curve and values exact; tools/diagnostics/consistency_trim_fixture.py cuts one of those down to
-//     data/charts/session_1005.json so that consistency_dump's result over it equals the whole file's.
+//     data/charts/session_1005.json so that the Consistency rules' result over it equals the whole file's.
 //
 // Shape: shots[] { ordinal, swing?, club, impactUs, phases [[phase, t_us, conf]], kinematicSequence? { order,
 // nodes }, metricOrder [key], metrics { key: { label, unit, sigma?, sigmaKind?, at [[phase, t_us, value,

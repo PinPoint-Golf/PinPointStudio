@@ -273,35 +273,6 @@ double consistencySpread(const std::vector<double> &values)
     return (quantile7(values, 0.75) - quantile7(values, 0.25)) / kConsistencySpreadDivisor;
 }
 
-ConsistencyVerdict consistencyVerdict(double spread, double normSigma, double ownSigma)
-{
-    // gate rule: PP_GATE("rule.charts.consistencyVerdict")
-    if (!isFinite(normSigma) || !isFinite(spread)) return ConsistencyVerdict::Unjudged;
-    if (spread / normSigma < kConsistencySteadyBelow) return ConsistencyVerdict::Steady;
-    return isFinite(ownSigma) && spread <= ownSigma ? ConsistencyVerdict::NearError : ConsistencyVerdict::Loose;
-}
-
-ConsistencyCell consistencyCell(const QString &area, int column, const std::vector<ConsistencyVerdict> &verdicts)
-{
-    ConsistencyCell c;
-    c.area = area;
-    c.column = column;
-    for (ConsistencyVerdict v : verdicts) {
-        if (v == ConsistencyVerdict::Unjudged) { ++c.unjudged; continue; }
-        ++c.judged;
-        if (v == ConsistencyVerdict::Loose) ++c.loose;
-        if (v == ConsistencyVerdict::NearError) ++c.nearError;
-    }
-    // gate rule: PP_GATE("rule.charts.consistencyCell")
-    const double third = std::max(1.0, double(c.judged) / double(kConsistencyCellShare));
-    if (!c.judged)                     c.word = ConsistencyWord::Dash;
-    else if (double(c.loose) >= third) c.word = ConsistencyWord::Loose;
-    else if (c.loose >= 1)             c.word = ConsistencyWord::Some;
-    else if (double(c.nearError) >= third) c.word = ConsistencyWord::NearError;
-    else                               c.word = ConsistencyWord::Steady;
-    return c;
-}
-
 ConsistencyPoint consistencyStandOutOf(const std::vector<double> &residuals, int samples, int shot, double ownSigma)
 {
     ConsistencyPoint weakest;
@@ -354,18 +325,14 @@ std::vector<double> sampleColumn(const std::vector<double> &rows, int samples, i
 }
 
 // A reading's spread. False when it has too little to reach the table.
-bool spreadOf(const ConsistencyReading &r, const std::vector<double> &residuals, int n, double &spread)
+// Whether a reading reached the table: a position with 5 finite values, a span with a spread at 3 of its 5 points.
+bool hasSpread(const ConsistencyReading &r, const std::vector<double> &residuals, int n)
 {
-    if (r.kind == ConsistencyReadingKind::Position) {
-        if (int(std::count_if(r.values.begin(), r.values.end(), isFinite)) < kConsistencyMinSpreadShots) return false;
-        spread = consistencySpread(residuals);
-        return true;
-    }
-    std::vector<double> spreads;
-    for (int j = 0; j < r.samples; ++j) spreads.push_back(consistencySpread(sampleColumn(residuals, r.samples, j, n)));
-    if (int(std::count_if(spreads.begin(), spreads.end(), isFinite)) < kConsistencyMinSpanSamples) return false;
-    spread = medianOf(std::move(spreads));
-    return true;
+    if (r.kind == ConsistencyReadingKind::Position)
+        return int(std::count_if(r.values.begin(), r.values.end(), isFinite)) >= kConsistencyMinSpreadShots;
+    int spreads = 0;
+    for (int j = 0; j < r.samples; ++j) spreads += isFinite(consistencySpread(sampleColumn(residuals, r.samples, j, n))) ? 1 : 0;
+    return spreads >= kConsistencyMinSpanSamples;
 }
 
 // A club's Tukey fences on one launch-monitor reading. Too few values and nothing is past them.
@@ -421,19 +388,12 @@ ConsistencyResult consistencyResult(const ConsistencyInput &in)
     // The readings, residuals first: everything after them reads those.
     const int R = int(in.readings.size());
     std::vector<std::vector<double>> residuals(size_t(R), std::vector<double>{});
-    std::map<std::pair<QString, int>, std::vector<ConsistencyVerdict>> verdicts;
     for (int r = 0; r < R; ++r) {
         const ConsistencyReading &reading = in.readings[size_t(r)];
         residuals[size_t(r)] = consistencyResiduals(reading.values, reading.samples, clubs);
-        double spread = kNaN;
-        if (!spreadOf(reading, residuals[size_t(r)], n, spread)) continue;
-        const ConsistencyVerdict v = consistencyVerdict(spread, reading.normSigma, reading.ownSigma);
-        out.readings.push_back(ConsistencyJudged{ reading.key, reading.column, r, spread, v });
-        verdicts[{ reading.area, reading.column }].push_back(v);
+        if (!hasSpread(reading, residuals[size_t(r)], n)) continue;
+        out.readings.push_back(ConsistencyJudged{ reading.key, reading.column, r });
     }
-    for (const QString &area : consistencyAreas())
-        for (int column : consistencyColumnsOf(area))
-            out.cells.push_back(consistencyCell(area, column, verdicts[{ area, column }]));
 
     // Whether each row of each reading stands out, in the shots it was recorded on. Only readings that
     // reached the table and whose area applies at the column: one with too little for a spread has too

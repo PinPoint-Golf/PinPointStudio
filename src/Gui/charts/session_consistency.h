@@ -23,9 +23,11 @@
 //
 //   consistencyInput   SessionSnapshot + alignment + env → ConsistencyInput. The sampling: every metric
 //                      of every shot turned into readings, one row per shot.
-//   consistencyResult  ConsistencyInput → ConsistencyResult. The rules. Pure: no snapshot, no pack, no
-//                      catalogue, so tools/diagnostics/consistency_tally.py can recompute it from a dump
-//                      of the input and check it.
+//   consistencyResult  ConsistencyInput → ConsistencyResult. The stand-out, ball-flag and shuffle rules.
+//                      Pure: no snapshot, no pack, no catalogue.
+//
+// The table's GRADES are not here: every reading and cell is graded by the variability grader
+// (consistency_grades.h). The old steady / some / loose verdict and cell words were retired (Mark, 7 Nov).
 //
 // Neither touches a pack: areas and norms come through ConsistencyEnv. Both are safe on any thread with
 // an env in hand. Take the production env (consistencyEnvFromPacks) on the GUI thread, and capture it by
@@ -42,7 +44,7 @@
 // compared with are the same wherever it lands, so a row stands out or not once and for all. Each
 // shuffle only counts which shot it landed on.
 
-#include "../../Coaching/consistency_home.h"    // the table's shape, ConsistencyCell, Home's word
+#include "../../Coaching/consistency_home.h"    // the table's shape: columns and areas
 #include "session_series_types.h"
 #include "session_warp.h"
 
@@ -63,8 +65,6 @@ inline constexpr double kConsistencySpreadDivisor  = 1.349; // doc §4.1: the mi
 inline constexpr int    kConsistencyMinClubShots   = 3;     // doc §4.1: a club under 3 shots is left out, counting every shot
                                                             // with the label. The club's median INCLUDES the shot
 inline constexpr int    kConsistencyMinSpreadShots = 5;     // doc §4.1: a spread needs at least 5 shots
-inline constexpr double kConsistencySteadyBelow    = 0.75;  // doc §4.1: spread ÷ the norm's σ under this is steady
-inline constexpr int    kConsistencyCellShare      = 3;     // doc §4.2: a third or more of a cell's judged readings
 inline constexpr int    kConsistencyMinOthers      = 6;     // doc §4.3: a stand-out needs 6 other shots at the point
 inline constexpr double kConsistencyStandOutZ      = 3.5;   // doc §4.3: robust spreads from the others' median
 inline constexpr double kConsistencyStandOutSigma  = 2.0;   // doc §4.3: and past 2σ, where the reading has a σ
@@ -83,7 +83,6 @@ inline constexpr int    kConsistencyBackswingFirst = 1;        // the headline's
 inline constexpr int    kConsistencyBackswingLast  = 3;        // ... to P3-P4
 inline constexpr int    kConsistencyDownswingFirst = 4;        // the headline's downswing: P4-P5 ...
 inline constexpr int    kConsistencyDownswingLast  = 6;        // ... to P6-P7
-inline constexpr double kConsistencyHeadlineMargin = 0.1;      // one band reads tighter when its mean is lower by this much
 inline constexpr int    kConsistencyHeadlineMinAreas = 2;      // one area's reading is not the swing: no headline from it
 
 // The P-position each column ends at: Phase ids of P1..P8.
@@ -147,26 +146,12 @@ inline QString consistencyGuardWords() { return QStringLiteral("the timing of th
 
 // ── Layer 2 ─────────────────────────────────────────────────────────────────────────────────────
 
-enum class ConsistencyVerdict { Unjudged, Steady, NearError, Loose };
-
-inline QString consistencyVerdictToken(ConsistencyVerdict v)
-{
-    switch (v) {
-    case ConsistencyVerdict::Unjudged:  return QStringLiteral("unjudged");
-    case ConsistencyVerdict::Steady:    return QStringLiteral("steady");
-    case ConsistencyVerdict::NearError: return QStringLiteral("nearError");
-    case ConsistencyVerdict::Loose:     return QStringLiteral("loose");
-    }
-    return QStringLiteral("unjudged");
-}
-
-// A reading that reached the table.
+// A reading that reached the table: enough shots for a spread (a position 5 finite values, a span a spread at 3 of
+// its 5 points). Only these can stand out.
 struct ConsistencyJudged {
     QString key;
     int     column = -1;
     int     reading = -1;       // index into ConsistencyInput::readings
-    double  spread = kNaN;
-    ConsistencyVerdict verdict = ConsistencyVerdict::Unjudged;
 };
 
 struct ConsistencyStandOut {
@@ -184,7 +169,6 @@ struct ConsistencyBallFlag {
 };
 
 struct ConsistencyResult {
-    std::vector<ConsistencyCell>     cells;     // exactly the applicable cells, area order then column; none blank
     std::vector<ConsistencyJudged>   readings;  // by (key, column)
     std::vector<ConsistencyStandOut> standouts; // strike order; within a shot biggest |z| first, then (key, column)
     std::vector<ConsistencyBallFlag> flags;     // strike order
@@ -226,11 +210,6 @@ std::vector<double> consistencyResiduals(const std::vector<double> &values, int 
 
 // The middle half ÷ 1.349 of the finite values; NaN under 5.
 double consistencySpread(const std::vector<double> &values);
-
-ConsistencyVerdict consistencyVerdict(double spread, double normSigma, double ownSigma);
-
-// The cell of an applicable column. With nothing judged it is a dash, with or without readings: never blank.
-ConsistencyCell consistencyCell(const QString &area, int column, const std::vector<ConsistencyVerdict> &verdicts);
 
 // One shot against the others, itself left out, at the weakest point of the reading.
 // z, dv and sample mean something only when standsOut.

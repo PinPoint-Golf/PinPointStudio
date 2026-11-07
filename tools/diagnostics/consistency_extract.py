@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Consistency: extract v2, a read-only copy of an athlete's sessions, one JSON per session, in exactly the shape
-charts_test::loadFixture reads (src/Gui/tests/charts_maths_fixture.h). This is the first of three steps: extract here,
-consistency_dump over the files, consistency_tally.py over the dumps (docs/design/consistency_design.md, Appendix A).
-The tally never reads these files. Run this on the cabin PC, where the share is local:
+charts_test::loadFixture reads (src/Gui/tests/charts_maths_fixture.h): the Consistency tests' fixtures and the
+variability calibration's input (variability_calibrate). The old dump-and-tally steps were retired with the matrix
+verdicts (Mark, 7 Nov). Run this on the cabin PC, where the share is local:
 
     python tools\\diagnostics\\consistency_extract.py C:\\PinPointStudio\\Mark-Liversedge C:\\PinPointStudio\\scratch\\consistency\\fixtures\\Mark-Liversedge
 

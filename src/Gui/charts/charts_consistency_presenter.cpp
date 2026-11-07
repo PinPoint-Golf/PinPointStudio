@@ -20,8 +20,14 @@
 
 #include "charts_words.h"
 #include "consistency_env.h"
+#include "consistency_grades.h"
 #include "session_consistency.h"
 #include "session_series_model.h"
+#include "variability_env.h"
+
+#include "../variability/variability_facade.h"           // VariabilityResultView, typicalityPayload
+#include "../../Metrics/variability/variability_outcome.h"       // isOutcomeMetric (R4)
+#include "../../Metrics/variability/variability_typicality.h"
 
 #include "../../Core/pp_debug.h"
 #include "../../Diagnostics/norms/norm.h"           // the grade policy
@@ -42,6 +48,7 @@ namespace pinpoint::charts {
 namespace {
 
 namespace pa = pinpoint::analysis;
+namespace pv = pinpoint::variability;
 using words::fin;
 using words::Sentence;
 
@@ -128,25 +135,64 @@ bool hasCurves(const SessionSnapshot &session)
 QString loadingWords() { return QStringLiteral("Reading this session…"); }
 QVariantMap settlingLine() { return Sentence().append(loadingWords()).toVariant(); }
 
-// ── the headline's scores ──────────────────────────────────────────────────────────────────
+// ── the grades, as QML reads them ─────────────────────────────────────────────────────────
 
-double scoreOf(ConsistencyWord w)
+// A result as PpVariabilityBadge reads it: the façade's variabilityResult (variability_facade.h), as a map, because it
+// travels inside a payload. Every field is the view's own.
+QVariantMap resultMap(const pv::VariabilityResultView &v) { return v.toMap(); }
+
+// The unit a basis string sets ("ratio" is no unit word), and its places: a figure at the row's own decimals, a ratio
+// two. A σ takes as many more as two significant figures need (the basis builder's one rule, variability_result.cpp).
+QString basisUnit(const QString &unit)
 {
-    switch (w) {
-    case ConsistencyWord::Steady:
-    case ConsistencyWord::NearError: return 0.0;
-    case ConsistencyWord::Some:      return kConsistencyHomeSome;
-    case ConsistencyWord::Loose:     return 1.0;
-    default:                         return kNaN;
-    }
+    const QString u = words::shortUnit(unit);
+    return u == QLatin1String("ratio") ? QString() : u;
+}
+int valueDecimals(const QString &unit)
+{
+    const QString u = words::shortUnit(unit);
+    return u == QLatin1String("ratio") ? 2 : words::decimalsFor(u);
 }
 
-struct Mean {
-    double sum = 0.0;
-    int    n = 0;
-    void   add(double v) { sum += v; ++n; }
-    double value() const { return n ? sum / double(n) : kNaN; }
-};
+QVariantMap readingResult(const ConsistencyReading &r, const pv::VariabilityResult &res)
+{
+    return resultMap(pv::VariabilityResultView::fromResult(res, basisUnit(r.unit), valueDecimals(r.unit)));
+}
+
+// R8: this shot against the session's other shots with its club, itself left out, at least N_MIN of them. `values` is
+// one per shot in strike order: the ROW's own (its `values`, what the row draws: a stand-out's point on this shot's
+// club's scale, a launch-monitor row's club values), so the badge speaks of the numbers beside it. A guarded shot is
+// not in the window of a reading that rests on its P-ladder (`ladder`: consistencyGuardCovers), as it is not in the
+// grade; this shot is compared whatever it is. {} with fewer: no typicality badge, and the row stays as it was.
+QVariantMap typicalityOf(const ConsistencyInput &in, int shot, const std::vector<double> &values, const QString &unit,
+                         pv::ScaleType type, bool ladder)
+{
+    std::vector<pv::TypicalitySwing> swings;
+    swings.reserve(in.shots.size());
+    for (size_t i = 0; i < in.shots.size(); ++i) {
+        const bool counted = int(i) == shot || !(ladder && in.shots[i].guarded);
+        swings.push_back(pv::TypicalitySwing{ QString::number(in.shots[i].ordinal), in.shots[i].club,
+                                              counted && i < values.size() ? values[i] : kNaN });
+    }
+    const auto window = pv::scalarTypicalityWindow(swings, QString::number(in.shots[size_t(shot)].ordinal), type);
+    if (!window) return {};
+    const pv::TypicalityPayload p = pv::typicalityPayload(*window, basisUnit(unit), valueDecimals(unit));
+    return { { QStringLiteral("kind"), QStringLiteral("typicality") }, { QStringLiteral("values"), p.values },
+             { QStringLiteral("basisText"), p.basisText } };
+}
+
+// A row's own `values` (one per shot, strike order; null where a shot has none), as numbers.
+std::vector<double> rowValues(const QVariantMap &row)
+{
+    std::vector<double> out;
+    for (const QVariant &v : row.value(QStringLiteral("values")).toList()) out.push_back(v.isNull() || !v.isValid() ? kNaN : v.toDouble());
+    return out;
+}
+
+pv::ScaleType scaleTypeOf(const ConsistencyGradeScales &scales, const QString &key)
+{
+    return scales.scaleType ? scales.scaleType(key) : pv::ScaleType::Interval;
+}
 
 // ── the head ────────────────────────────────────────────────────────────────────────────────
 
@@ -199,7 +245,7 @@ Sentence ballLine(const SessionSnapshot &session, const ConsistencyInput &in)
     return s.append(QStringLiteral("."));
 }
 
-QVariantMap headOf(const SessionSnapshot &session, const ConsistencyInput &in, const ConsistencyResult &res, const Sentence &empty,
+QVariantMap headOf(const SessionSnapshot &session, const ConsistencyInput &in, const ConsistencyGrades &grades, const Sentence &empty,
                    const QString &noun = QStringLiteral("shots"))
 {
     const auto clubs = clubCounts(in);
@@ -207,9 +253,14 @@ QVariantMap headOf(const SessionSnapshot &session, const ConsistencyInput &in, c
     if (clubs.size() > 1) kicker += QStringLiteral("  ·  mixed clubs");
     else if (clubs.size() == 1 && !clubs.front().first.isEmpty()) kicker += QStringLiteral("  ·  ") + clubWord(clubs.front().first);
 
-    const QString headline = ChartsConsistencyPresenter::headline(res);
-    Sentence line;
-    line.append(!headline.isEmpty() ? headline : !empty.isEmpty() ? empty.text() : QStringLiteral("Too few readings could be judged to say how your swing repeats."));
+    // the grades' sentence when the table has one; else what the table cannot say; else the grade-0 or ungraded line
+    const ConsistencyHead graded = consistencyHead(grades);
+    const bool says = graded.kind == ConsistencyHead::Kind::Halves || graded.kind == ConsistencyHead::Kind::Most;
+    QVariantMap line = ChartsConsistencyPresenter::headline(graded);
+    if (!says && !empty.isEmpty()) {
+        line = empty.toVariant();
+        line.insert(QStringLiteral("kind"), QStringLiteral("empty"));
+    }
 
     QVariantList notes;
     if (anyValue(in, &ConsistencyShot::carry) && !anyValue(in, &ConsistencyShot::offline))
@@ -230,7 +281,7 @@ QVariantMap headOf(const SessionSnapshot &session, const ConsistencyInput &in, c
     }
 
     const Sentence ball = ballLine(session, in);
-    return { { QStringLiteral("kicker"), kicker }, { QStringLiteral("headline"), line.toVariant() },
+    return { { QStringLiteral("kicker"), kicker }, { QStringLiteral("headline"), line },
              { QStringLiteral("ball"), ball.isEmpty() ? QVariantMap{} : ball.toVariant() }, { QStringLiteral("notes"), notes } };
 }
 
@@ -249,43 +300,40 @@ Sentence emptySentence(const SessionSnapshot &session, const ConsistencyInput &i
     }
     int compared = 0;
     for (const auto &c : clubCounts(in)) if (c.second >= kConsistencyMinClubShots) compared += c.second;
-    if (compared < kConsistencyMinSpreadShots) {
+    if (compared < pv::kNMin) {
         *kind = QStringLiteral("tooFew");
-        return s.append(QStringLiteral("Most of this table is \"-\" because a reading needs %1 shots with one club to show how much it moves.")
-                            .arg(words::word(kConsistencyMinSpreadShots)));
+        return s.append(QStringLiteral("Most of this table can't be graded yet: a reading needs %1 shots with one club to show how much it moves.")
+                            .arg(words::word(pv::kNMin)));
     }
     return s;
 }
 
 // ── the table ───────────────────────────────────────────────────────────────────────────────
 
-const ConsistencyCell *cellOf(const ConsistencyResult &res, const QString &area, int column)
+// R1: a cell takes cellGrade() over its readings and shows that grade's word alone, which QML takes from the
+// vocabularies (`result`); the marks go on the readings it opens to. `text` is "-" for a cell with no graded reading
+// and "" for a graded one (QML's word goes there); a column that does not apply to the area is blank. The short form is
+// the grade's figure ("4"), "⚠" for a measurement-limited cell ("Checking"), "-" ungraded; keyMarks says which is which.
+// The heat says how much, as before: grades 1-2 the most, grade 3 some, nothing else.
+QVariantMap cellMap(const ConsistencyCellGrade *g, const QString &area, int column, bool on, bool marked, bool screen)
 {
-    for (const ConsistencyCell &c : res.cells) if (c.area == area && c.column == column) return &c;
-    return nullptr;
-}
-
-QVariantMap cellMap(const ConsistencyCell *c, const QString &area, int column, bool on, bool marked, bool screen)
-{
-    if (!c) return { { QStringLiteral("text"), QString() }, { QStringLiteral("short"), QString() } };   // does not apply
-    QString text, mark;
-    switch (c->word) {
-    case ConsistencyWord::Steady:    text = QStringLiteral("steady");  mark = QStringLiteral("·"); break;
-    case ConsistencyWord::Some:      text = QStringLiteral("some");    mark = QStringLiteral("◐"); break;
-    case ConsistencyWord::Loose:     text = QStringLiteral("loose");   mark = QStringLiteral("●"); break;
-    case ConsistencyWord::NearError: text = QStringLiteral("⚠ error"); mark = QStringLiteral("⚠"); break;
-    default:                         text = QStringLiteral("-");       mark = QStringLiteral("-"); break;
-    }
-    const bool moved = c->word == ConsistencyWord::Some || c->word == ConsistencyWord::Loose;
-    return { { QStringLiteral("text"), text }, { QStringLiteral("short"), mark }, { QStringLiteral("strong"), moved },
-             { QStringLiteral("heavy"), c->word == ConsistencyWord::Loose },
-             { QStringLiteral("heat"), c->word == ConsistencyWord::Loose ? 2 : c->word == ConsistencyWord::Some ? 1 : 0 },
+    if (!g) return { { QStringLiteral("text"), QString() }, { QStringLiteral("short"), QString() } };   // does not apply
+    const pv::CellGrade &c = g->grade;
+    const bool limited = c.graded && c.measurementLimited;
+    const bool moved = c.graded && !limited && c.grade >= 1 && c.grade <= 3;
+    const bool most = moved && c.grade <= 2;
+    return { { QStringLiteral("text"), c.graded ? QString() : QStringLiteral("-") },
+             { QStringLiteral("short"), !c.graded ? QStringLiteral("-") : limited ? QStringLiteral("⚠") : QString::number(c.grade) },
+             { QStringLiteral("strong"), moved }, { QStringLiteral("heavy"), most },
+             { QStringLiteral("heat"), most ? 2 : moved ? 1 : 0 },
              { QStringLiteral("soft"), column == kConsistencyAfterBallColumn && area != kFinish },
              { QStringLiteral("on"), on }, { QStringLiteral("mark"), marked ? QStringLiteral("◆") : QString() },
-             { QStringLiteral("tap"), screen && c->judged + c->unjudged > 0 } };
+             { QStringLiteral("tap"), screen && !g->readings.empty() },
+             { QStringLiteral("result"), resultMap(pv::VariabilityResultView::fromCellGrade(c)) } };
 }
 
-QVariantMap matrixMap(const ConsistencyInput &in, const ConsistencyResult &res, int ordinal, const QString &openCell, bool screen)
+QVariantMap matrixMap(const ConsistencyInput &in, const ConsistencyResult &res, const ConsistencyGrades &grades, int ordinal,
+                      const QString &openCell, bool screen)
 {
     QVariantList columns;
     for (int c = 0; c < kConsistencyColumns; ++c) {
@@ -300,7 +348,7 @@ QVariantMap matrixMap(const ConsistencyInput &in, const ConsistencyResult &res, 
     for (const QString &area : consistencyAreas()) {
         QVariantList cells;
         for (int c = 0; c < kConsistencyColumns; ++c)
-            cells.append(cellMap(cellOf(res, area, c), area, c, openCell == area + QLatin1Char(':') + QString::number(c),
+            cells.append(cellMap(grades.cellAt(area, c), area, c, openCell == area + QLatin1Char(':') + QString::number(c),
                                  marked.count({ area, c }) > 0, screen));
         rows.append(QVariantMap{ { QStringLiteral("id"), area }, { QStringLiteral("name"), QString::fromUtf8(areaWords(area).name) },
                                  { QStringLiteral("cells"), cells } });
@@ -308,35 +356,32 @@ QVariantMap matrixMap(const ConsistencyInput &in, const ConsistencyResult &res, 
     return { { QStringLiteral("columns"), columns }, { QStringLiteral("rows"), rows } };
 }
 
+// The key and the marks' key are TEMPLATES (the header): QML puts the vocabularies' words in, %1 to %5 the Consistency
+// words of grades 5 to 1, %6 its grade 0, %7 the Measurement word of grade 0. Nothing here spells one.
 // `picks`: a shot can be picked here, so a cell can carry the ◆. The report has no picked shot.
 QString keyWords(bool picks = true)
 {
-    return QStringLiteral("Steady: each reading moves little against the range it is judged by. Some: a few readings move. Loose: at "
-                          "least a third do. ⚠ error: too close to measurement error to tell. \"-\": nothing could be judged. P7-P8 is "
-                          "after the ball has gone. It is read over the same %1 after impact on every shot, and is shown lighter. A "
-                          "blank does not apply to that area.").arg(words::figMs(kConsistencyAfterImpactMs))
+    return QStringLiteral("A cell takes the grade of the third of its readings that move most: %1, %2, %3, %4 or %5, from least "
+                          "movement to most. %6: fewer than ") + words::word(pv::kNMin)
+           + QStringLiteral(" swings to grade it. %7: it moves no more than the reading's own measurement error. \"-\": nothing "
+                            "here has a range to judge it against. P7-P8 is after the ball has gone. It is read over the same ")
+           + words::figMs(kConsistencyAfterImpactMs)
+           + QStringLiteral(" after impact on every shot, and is shown lighter. A blank does not apply to that area.")
            + (picks ? QStringLiteral(" ◆ this shot left your pattern here.") : QString());
 }
 
 QString keyMarks(bool picks = true)
 {
-    return QStringLiteral("· steady   ◐ some   ● loose   ⚠ too close to measurement error")
+    return QStringLiteral("5 %1   4 %2   3 %3   2 %4   1 %5   0 %6   ⚠ %7")
            + (picks ? QStringLiteral("   ◆ this shot left your pattern here") : QString());
 }
 
 // ── a cell, opened ──────────────────────────────────────────────────────────────────────────
 
-QString placeWord(ConsistencyVerdict v)
-{
-    switch (v) {
-    case ConsistencyVerdict::Loose:     return QStringLiteral("loose");
-    case ConsistencyVerdict::NearError: return QStringLiteral("⚠ near error");
-    case ConsistencyVerdict::Steady:    return QStringLiteral("steady");
-    default:                            return QStringLiteral("not judged");
-    }
-}
-
-QVariantMap cellDetail(const ConsistencyReadingRows &rows, const QString &openCell, int pick, const QString &shotLabel, bool screen)
+// The readings behind a cell's word, widest spread first (ρ), then those under N_MIN, then those with no scale. Each
+// row is the shared READING ROW with its grade (`variability`, PpChProfile's badge slot).
+QVariantMap cellDetail(const ConsistencyReadingRows &rows, const ConsistencyGrades &grades, const QString &openCell, int pick,
+                       const QString &shotLabel, bool screen)
 {
     const int colon = openCell.lastIndexOf(QLatin1Char(':'));
     if (colon <= 0) return {};
@@ -344,55 +389,67 @@ QVariantMap cellDetail(const ConsistencyReadingRows &rows, const QString &openCe
     bool ok = false;
     const int column = openCell.mid(colon + 1).toInt(&ok);
     const ConsistencyInput &in = rows.input();
-    const ConsistencyCell *c = ok ? cellOf(rows.result(), area, column) : nullptr;
-    if (!c) return {};
+    const ConsistencyCellGrade *g = ok ? grades.cellAt(area, column) : nullptr;
+    if (!g) return {};
 
-    // loosest first; a reading with no norm has no such measure, so those follow in (key, column) order
-    std::vector<const ConsistencyJudged *> list;
-    for (const ConsistencyJudged &j : rows.result().readings)
-        if (j.column == column && in.readings[size_t(j.reading)].area == area) list.push_back(&j);
-    const auto looseness = [&](const ConsistencyJudged *j) {
-        return j->verdict == ConsistencyVerdict::Unjudged ? -1.0 : j->spread / in.readings[size_t(j->reading)].normSigma;
+    const auto rank = [&](int r) {
+        const pv::VariabilityResult &v = grades.readings[size_t(r)];
+        return v.graded && v.grade >= 1 && std::isfinite(v.rho) ? 0 : v.graded ? 1 : 2;
     };
-    std::stable_sort(list.begin(), list.end(), [&](const auto *a, const auto *b) { return looseness(a) > looseness(b); });
+    std::vector<int> list = g->readings;
+    std::stable_sort(list.begin(), list.end(), [&](int a, int b) {
+        if (rank(a) != rank(b)) return rank(a) < rank(b);
+        return rank(a) == 0 && grades.readings[size_t(a)].rho > grades.readings[size_t(b)].rho;
+    });
 
     const bool guarded = pick >= 0 && in.shots[size_t(pick)].guarded;
+    int gradedN = 0, tooFew = 0, ungraded = 0, limited = 0;
     QVariantList out;
-    for (const ConsistencyJudged *j : list) {
-        QVariantMap row = rows.readingRow(pick, *j);
+    for (int r : list) {
+        const ConsistencyReading &reading = in.readings[size_t(r)];
+        const pv::VariabilityResult &v = grades.readings[size_t(r)];
+        const int k = rank(r);
+        gradedN += k == 0 ? 1 : 0;
+        tooFew += k == 1 ? 1 : 0;
+        ungraded += k == 2 ? 1 : 0;
+        limited += k == 0 && v.measurementLimited ? 1 : 0;
+
+        ConsistencyJudged judged{ reading.key, reading.column, r };
+        for (const ConsistencyJudged &j : rows.result().readings) if (j.reading == r) { judged = j; break; }
+        QVariantMap row = rows.readingRow(pick, judged);
         // doc §4.3: a guarded shot keeps its readings with a ⚠. Its value here rests on a ladder that cannot be trusted
-        if (guarded && consistencyGuardCovers(in.readings[size_t(j->reading)]) && row.value(QStringLiteral("measured")).toBool()) {
+        if (guarded && consistencyGuardCovers(reading) && row.value(QStringLiteral("measured")).toBool()) {
             const QString had = row.value(QStringLiteral("cautionText")).toString();
             row.insert(QStringLiteral("caution"), true);
             row.insert(QStringLiteral("cautionText"), had.isEmpty() ? QStringLiteral("⚠ ") + consistencyGuardWords()
                                                                     : had + QStringLiteral("; ") + consistencyGuardWords());
         }
-        row.insert(QStringLiteral("place"), placeWord(j->verdict));
-        row.insert(QStringLiteral("word"), consistencyVerdictToken(j->verdict));
-        row.insert(QStringLiteral("judged"), j->verdict != ConsistencyVerdict::Unjudged);
+        row.insert(QStringLiteral("variability"), QVariantMap{ { QStringLiteral("kind"), QStringLiteral("consistency") },
+                                                               { QStringLiteral("result"), readingResult(reading, v) } });
+        row.insert(QStringLiteral("graded"), v.graded);
         out.append(row);
     }
+    const int total = int(list.size());
     Sentence sub;
-    if (c->judged == 0) sub.append(QStringLiteral("nothing here could be judged"));
-    else if (c->loose == 0) sub.append(QStringLiteral("no reading loose"));
-    else {
-        sub.figure(QString::number(c->loose)).append(QStringLiteral(" of ")).figure(QString::number(c->judged));
-        sub.append(words::plural(c->judged, QStringLiteral(" reading loose"), QStringLiteral(" readings loose")));
-    }
-    if (c->nearError > 0) sub.append(QStringLiteral("; ")).figure(QString::number(c->nearError)).append(QStringLiteral(" too close to measurement error"));
+    if (gradedN > 0) {
+        sub.figure(QString::number(gradedN)).append(QStringLiteral(" of ")).figure(QString::number(total));
+        sub.append(words::plural(total, QStringLiteral(" reading graded"), QStringLiteral(" readings graded")));
+    } else if (tooFew > 0) sub.append(QStringLiteral("too few swings to grade a reading here"));
+    else sub.append(QStringLiteral("nothing here could be judged"));
+    if (limited > 0) sub.append(QStringLiteral("; ")).figure(QString::number(limited)).append(QStringLiteral(" measurement-limited"));
     if (screen && !out.isEmpty()) sub.append(QStringLiteral("; a row opens its curve"));
 
     const QString name = QString::fromUtf8(areaWords(area).name);
     const QString tag = area == kImpact ? QStringLiteral("P7") : consistencyColumnName(column);
     const int n = int(in.shots.size());
     return { { QStringLiteral("area"), name }, { QStringLiteral("areaId"), area }, { QStringLiteral("column"), column }, { QStringLiteral("tag"), tag },
-             { QStringLiteral("word"), consistencyWordToken(c->word) }, { QStringLiteral("title"), name + QStringLiteral(", ") + tag },
-             { QStringLiteral("sub"), sub.toVariant() }, { QStringLiteral("rows"), out }, { QStringLiteral("unjudged"), c->unjudged },
-             { QStringLiteral("unjudgedNote"), c->unjudged ? QStringLiteral("%1 %2 no range to be judged against, and %3 listed as not judged.")
-                                                                 .arg(c->unjudged).arg(c->unjudged == 1 ? QStringLiteral("reading has") : QStringLiteral("readings have"))
-                                                                 .arg(c->unjudged == 1 ? QStringLiteral("is") : QStringLiteral("are"))
-                                                           : QString() },
-             { QStringLiteral("headLabel"), QStringLiteral("Loosest first") }, { QStringLiteral("shotLabel"), shotLabel },
+             { QStringLiteral("result"), resultMap(pv::VariabilityResultView::fromCellGrade(g->grade)) },
+             { QStringLiteral("title"), name + QStringLiteral(", ") + tag },
+             { QStringLiteral("sub"), sub.toVariant() }, { QStringLiteral("rows"), out }, { QStringLiteral("unjudged"), ungraded },
+             { QStringLiteral("unjudgedNote"), ungraded ? QStringLiteral("%1 %2 no range to be judged against, and no grade.")
+                                                              .arg(ungraded).arg(ungraded == 1 ? QStringLiteral("reading has") : QStringLiteral("readings have"))
+                                                        : QString() },
+             { QStringLiteral("headLabel"), QStringLiteral("Widest spread first") }, { QStringLiteral("shotLabel"), shotLabel },
              { QStringLiteral("countLabel"), QStringLiteral("%1 %2").arg(n).arg(words::plural(n, QStringLiteral("shot"), QStringLiteral("shots"))) } };
 }
 
@@ -435,27 +492,25 @@ QString lmWords(const ConsistencyInput &in, const ConsistencyResult &res, const 
     return lead + (shortKnown && offlineKnown ? QStringLiteral("not short or offline") : shortKnown ? QStringLiteral("not short") : QStringLiteral("not offline"));
 }
 
-// The ball's half of the sentence: the shot against its club's usual carry, "close to" only where the fence says so.
+// The ball's half of the sentence. With a typicality for the carry (R8: eight or more other shots of its club), the
+// badge beside the sentence says how it compares, so the sentence gives the carry alone (R11); with fewer, the carry
+// against its club's median, as long as the club has three.
 void ballSentence(Sentence &s, const SessionSnapshot &session, const ConsistencyInput &in, const ConsistencyResult &res,
-                  const std::vector<ConsistencyLmRow> &lm, const ConsistencyShot &shot)
+                  const ConsistencyShot &shot, bool typical)
 {
     const QString yd = lmUnit(session, QStringLiteral("lm.carryDistance"));
     if (fin(shot.carry)) {
         const std::vector<double> carry = clubValues(in, shot.club, &ConsistencyShot::carry);
         s.append(QStringLiteral("Carry ")).figure(words::figUnit(shot.carry, yd));
-        if (int(carry.size()) >= kConsistencyMinClubShots) {
-            const bool past = std::any_of(lm.begin(), lm.end(), [](const ConsistencyLmRow &r) { return r.key == QLatin1String("lm.carryDistance"); });
-            const bool close = !past && int(carry.size()) >= kConsistencyMinBallShots;
-            s.append(close ? QStringLiteral(", close to your usual ") : QStringLiteral(" against your usual "));
-            s.figure(words::figUnit(medianOf(carry), yd));
-        }
+        if (!typical && int(carry.size()) >= kConsistencyMinClubShots)
+            s.append(QStringLiteral(" against a median of ")).figure(words::figUnit(medianOf(carry), yd));
         s.append(QStringLiteral(". "));
     }
     if (flagsOf(res, shot.ordinal).contains(QStringLiteral("offline")))
         s.append(QStringLiteral("It finished ")).figure(sideWords(shot.offline, lmUnit(session, QStringLiteral("lm.offline")))).append(QStringLiteral(". "));
 }
 
-QVariantMap shotDetail(const ConsistencyReadingRows &rows, int pick, bool screen)
+QVariantMap shotDetail(const ConsistencyReadingRows &rows, const ConsistencyGradeScales &scales, int pick, bool screen)
 {
     const ConsistencyInput &in = rows.input();
     const ConsistencyResult &res = rows.result();
@@ -468,10 +523,22 @@ QVariantMap shotDetail(const ConsistencyReadingRows &rows, int pick, bool screen
     for (const ConsistencyLmRow &r : lm) {
         QVariantMap row = rows.lmRow(pick, r);
         row.insert(QStringLiteral("label"), QString(r.label).remove(QStringLiteral(" (measured)")));   // the group says whose reading it is
+        // Ball flight has no badge at all, typicality included (R4): only a club-delivery row carries one.
+        if (!pv::isOutcomeMetric(r.key)) {
+            const QVariantMap t = typicalityOf(in, pick, rowValues(row), r.unit, scaleTypeOf(scales, r.key), false);
+            if (!t.isEmpty()) row.insert(QStringLiteral("variability"), t);
+        }
         (r.ball ? ball : club).append(row);
     }
-    for (const ConsistencyStandOut &s : res.standouts)
-        if (s.ordinal == shot.ordinal) swing.append(rows.standOutRow(pick, s));
+    for (const ConsistencyStandOut &s : res.standouts) {
+        if (s.ordinal != shot.ordinal) continue;
+        QVariantMap row = rows.standOutRow(pick, s);
+        const ConsistencyReading &reading = in.readings[size_t(s.reading)];
+        const QVariantMap t = typicalityOf(in, pick, rowValues(row), reading.unit, scaleTypeOf(scales, reading.key),
+                                           consistencyGuardCovers(reading));
+        if (!t.isEmpty()) row.insert(QStringLiteral("variability"), t);
+        swing.append(row);
+    }
     QVariantList groups;
     const auto group = [&](const QString &name, const QVariantList &list) {
         if (!list.isEmpty()) groups.append(QVariantMap{ { QStringLiteral("name"), name }, { QStringLiteral("rows"), list } });
@@ -480,9 +547,13 @@ QVariantMap shotDetail(const ConsistencyReadingRows &rows, int pick, bool screen
     group(QStringLiteral("The club"), club);
     group(QStringLiteral("Your swing"), swing);
 
+    // the carry is ball flight: no typicality beside the sentence (R4, "Ball flight has no badge at all"), so the
+    // sentence sets the carry against its club's median
+    const QVariant carry = QVariant::fromValue(nullptr);
+
     // the sentence (doc §4.3): the count said for what it means
     Sentence s;
-    ballSentence(s, rows.session(), in, res, lm, shot);
+    ballSentence(s, rows.session(), in, res, shot, false);
     const int n = int(swing.size());
     const bool measured = hasCurve(*rows.session().shots[size_t(pick)]);
     if (n == 0) {
@@ -510,7 +581,7 @@ QVariantMap shotDetail(const ConsistencyReadingRows &rows, int pick, bool screen
              { QStringLiteral("shotLabel"), QStringLiteral("Shot %1").arg(shot.ordinal) },
              { QStringLiteral("countLabel"), QStringLiteral("%1 %2").arg(total).arg(words::plural(total, QStringLiteral("shot"), QStringLiteral("shots"))) },
              { QStringLiteral("headLabel"), QStringLiteral("What stood out") }, { QStringLiteral("lm"), lmWords(in, res, shot) },
-             { QStringLiteral("sentence"), s.toVariant() }, { QStringLiteral("guarded"), shot.guarded },
+             { QStringLiteral("sentence"), s.toVariant() }, { QStringLiteral("carry"), carry }, { QStringLiteral("guarded"), shot.guarded },
              { QStringLiteral("guardNote"), shot.guarded ? ConsistencyReadingRows::guardNote() : QString() },
              { QStringLiteral("groups"), groups }, { QStringLiteral("count"), count },
              { QStringLiteral("note"), count >= 2 ? QStringLiteral("These happened on the same shot. That does not show one caused another.") : QString() } };
@@ -540,6 +611,7 @@ QVariantList shotsList(const SessionSnapshot &session, const ConsistencyInput &i
 
 struct ChartsConsistencyPresenter::Cache {
     ConsistencyReadingRows rows;
+    ConsistencyGrades grades;           // the readings and cells graded (consistency_grades.h): once a snapshot
     // what depends on the session alone: made once a snapshot
     QVariantMap head, empty;
     QVariantList shots;
@@ -558,7 +630,8 @@ struct ChartsConsistencyPresenter::Output {
 static std::shared_ptr<ChartsConsistencyPresenter::Output>
 computeConsistency(const std::shared_ptr<const SessionSnapshot> &snapshot, const QString &pickedRaw, int pickedOrdinal,
                    const QString &openCell, bool screen, bool loading, const ConsistencyEnv &env, double faultZ, const pa::GradePolicy &policy,
-                   const std::shared_ptr<const pa::INormProvider> &norms, ChartsConsistencyPresenter::Cache &cache)
+                   const std::shared_ptr<const pa::INormProvider> &norms, const IVariabilityScaleProvider &provider,
+                   ChartsConsistencyPresenter::Cache &cache)
 {
     QElapsedTimer timer;
     timer.start();
@@ -568,11 +641,13 @@ computeConsistency(const std::shared_ptr<const SessionSnapshot> &snapshot, const
     const SessionSnapshot &S = rows.session();
     const ConsistencyInput &in = rows.input();
     const ConsistencyResult &res = rows.result();
+    const ConsistencyGradeScales scales = consistencyGradeScales(provider);
     if (fresh) {
+        cache.grades = consistencyGrades(in, scales);
         QString kind;
         const Sentence empty = emptySentence(S, in, &kind);
         cache.empty = kind.isEmpty() ? QVariantMap{} : QVariantMap{ { QStringLiteral("kind"), kind }, { QStringLiteral("sentence"), empty.toVariant() } };
-        cache.head = headOf(S, in, res, empty);
+        cache.head = headOf(S, in, cache.grades, empty);
         cache.shots = shotsList(S, in, res);
         cache.key = keyWords();
     }
@@ -594,9 +669,9 @@ computeConsistency(const std::shared_ptr<const SessionSnapshot> &snapshot, const
     out->shots = cache.shots;
     out->key = cache.key;
     out->keyMarks = keyMarks();
-    out->matrix = matrixMap(in, res, ordinal, openCell, screen);
-    out->cell = cellDetail(rows, openCell, pick, pick >= 0 ? QStringLiteral("Shot %1").arg(ordinal) : QString(), screen);
-    out->shot = shotDetail(rows, pick, screen);
+    out->matrix = matrixMap(in, res, cache.grades, ordinal, openCell, screen);
+    out->cell = cellDetail(rows, cache.grades, openCell, pick, pick >= 0 ? QStringLiteral("Shot %1").arg(ordinal) : QString(), screen);
+    out->shot = shotDetail(rows, scales, pick, screen);
     out->ready = true;
     out->thread = QThread::currentThread();
     out->jobMs = double(timer.nsecsElapsed()) / 1e6;
@@ -619,7 +694,7 @@ computeConsistency(const std::shared_ptr<const SessionSnapshot> &snapshot, const
 
 QVariantMap consistencySessionReportPayload(const std::shared_ptr<const SessionSnapshot> &snapshot, const ConsistencyEnv &env,
                                             const QString &gradePolicy, const std::shared_ptr<const pa::INormProvider> &norms,
-                                            const QString &noun)
+                                            const QString &noun, const IVariabilityScaleProvider *scaleProvider)
 {
     ConsistencyReadingRows rows;
     const pa::GradePolicy policy = pa::gradePolicyByName(gradePolicy);
@@ -627,11 +702,16 @@ QVariantMap consistencySessionReportPayload(const std::shared_ptr<const SessionS
     const SessionSnapshot &S = rows.session();
     const ConsistencyInput &in = rows.input();
     const ConsistencyResult &res = rows.result();
+    // the env was taken on the GUI thread (the caller's contract), so the production provider may be made here
+    std::unique_ptr<IVariabilityScaleProvider> made;
+    if (!scaleProvider) { made = makeVariabilityScaleProvider(); scaleProvider = made.get(); }
+    const ConsistencyGradeScales scales = consistencyGradeScales(*scaleProvider);
+    const ConsistencyGrades grades = consistencyGrades(in, scales);
 
     QVariantList flagged;
     for (size_t i = 0; i < in.shots.size(); ++i) {
         if (flagsOf(res, in.shots[i].ordinal).isEmpty()) continue;
-        QVariantMap shot = shotDetail(rows, int(i), false);
+        QVariantMap shot = shotDetail(rows, scales, int(i), false);
         shot.insert(QStringLiteral("swingDir"), S.shots[i]->swingDir);
         shot.insert(QStringLiteral("club"), in.shots[i].club);
         flagged.append(shot);
@@ -639,52 +719,52 @@ QVariantMap consistencySessionReportPayload(const std::shared_ptr<const SessionS
 
     QString kind;
     const Sentence empty = emptySentence(S, in, &kind);
-    const QVariantMap head = headOf(S, in, res, empty, noun);
+    const QVariantMap head = headOf(S, in, grades, empty, noun);
     const QVariantMap ball = head.value(QStringLiteral("ball")).toMap();
-    const bool table = std::any_of(res.cells.begin(), res.cells.end(), [](const ConsistencyCell &c) { return fin(scoreOf(c.word)); });
+    const bool table = std::any_of(grades.cells.begin(), grades.cells.end(), [](const ConsistencyCellGrade &c) { return c.grade.graded; });
     const QString line = head.value(QStringLiteral("headline")).toMap().value(QStringLiteral("text")).toString();
     return { { QStringLiteral("available"), table || !ball.isEmpty() || !flagged.isEmpty() },
              { QStringLiteral("kicker"), head.value(QStringLiteral("kicker")) }, { QStringLiteral("headline"), head.value(QStringLiteral("headline")) },
              { QStringLiteral("ball"), ball }, { QStringLiteral("notes"), head.value(QStringLiteral("notes")) },
              { QStringLiteral("empty"), kind.isEmpty() || empty.text() == line ? QString() : empty.text() },
-             { QStringLiteral("table"), table }, { QStringLiteral("matrix"), matrixMap(in, res, 0, QString(), false) },
+             { QStringLiteral("table"), table }, { QStringLiteral("matrix"), matrixMap(in, res, grades, 0, QString(), false) },
              { QStringLiteral("key"), keyWords(false) }, { QStringLiteral("keyMarks"), keyMarks(false) },
              { QStringLiteral("flagged"), flagged } };
 }
 
-// ── the headline (doc §3): built from the table, never by QML ───────────────────────────────
+// ── the headline (doc §3): built from the grades. The grade words are QML's (the header) ─────────
 
-QString ChartsConsistencyPresenter::headline(const ConsistencyResult &res)
+QVariantMap ChartsConsistencyPresenter::headline(const ConsistencyHead &head)
 {
-    Mean back, down;
-    std::map<QString, Mean> areas;
-    bool moved = false;
-    for (const ConsistencyCell &c : res.cells) {
-        const double score = scoreOf(c.word);
-        if (!fin(score)) continue;
-        if (c.column == kConsistencyAfterBallColumn && c.area != kFinish) continue;     // after the ball has gone
-        moved = moved || score > 0.0;
-        areas[c.area].add(score);
-        if (c.column >= kConsistencyBackswingFirst && c.column <= kConsistencyBackswingLast) back.add(score);
-        if (c.column >= kConsistencyDownswingFirst && c.column <= kConsistencyDownswingLast) down.add(score);
+    const QString most = head.most.isEmpty() ? QString() : movesMost(head.most);
+    QString text, kind;
+    QVariantList grades;
+    QString fallback;
+    switch (head.kind) {
+    case ConsistencyHead::Kind::Halves:
+        kind = QStringLiteral("halves");
+        text = QStringLiteral("Your backswing is %1, your downswing %2; ") + most + QLatin1Char('.');
+        fallback = words::cap1(most) + QLatin1Char('.');
+        for (const variability::CellGrade *g : { &head.back, &head.down })
+            grades.append(QVariantMap{ { QStringLiteral("grade"), g->grade }, { QStringLiteral("measurementLimited"), g->measurementLimited } });
+        break;
+    case ConsistencyHead::Kind::Most:
+        kind = QStringLiteral("most");
+        text = words::cap1(most) + QLatin1Char('.');
+        break;
+    case ConsistencyHead::Kind::Grade0:
+        kind = QStringLiteral("grade0");      // the Consistency vocabulary's grade-0 line, set by QML
+        break;
+    case ConsistencyHead::Kind::Ungraded:
+        kind = QStringLiteral("ungraded");
+        text = QStringLiteral("Nothing here has a range to judge it against.");
+        break;
     }
-    if (int(areas.size()) < kConsistencyHeadlineMinAreas) return QString();
-    if (!moved) return QStringLiteral("Your swing repeats from shot to shot.");
-
-    QString loosest;
-    double top = -1.0;
-    for (const QString &area : consistencyAreas()) {
-        const auto it = areas.find(area);
-        if (it != areas.end() && it->second.value() > top) { top = it->second.value(); loosest = area; }
-    }
-    const QString most = movesMost(loosest);
-    if (!back.n || !down.n) return words::cap1(most) + QLatin1Char('.');    // a table with no band to compare
-    const double margin = kConsistencyHeadlineMargin - 1e-9;                // .1 as a mean of halves, not as its binary neighbour
-    if (down.value() - back.value() >= margin)
-        return QStringLiteral("You repeat your swing best in the backswing. It loosens on the way down, and ") + most + QLatin1Char('.');
-    if (back.value() - down.value() >= margin)
-        return QStringLiteral("You repeat your swing best on the way down. It is looser in the backswing, and ") + most + QLatin1Char('.');
-    return QStringLiteral("Your swing holds about the same all the way through, and ") + most + QLatin1Char('.');
+    QVariantMap m = Sentence().append(text).toVariant();
+    m.insert(QStringLiteral("kind"), kind);
+    m.insert(QStringLiteral("grades"), grades);
+    m.insert(QStringLiteral("fallback"), fallback.isEmpty() ? text : fallback);
+    return m;
 }
 
 // ── the QObject ───────────────────────────────────────────────────────────────────────────
@@ -694,6 +774,7 @@ ChartsConsistencyPresenter::ChartsConsistencyPresenter(QObject *parent)
 {
     m_pool.setMaxThreadCount(1);
     m_env = consistencyEnvFromPacks();      // on the GUI thread, for the worker to hold by value
+    m_scales = makeVariabilityScaleProvider();     // on the GUI thread too; then safe on any thread (variability_env.h)
 }
 
 ChartsConsistencyPresenter::~ChartsConsistencyPresenter()
@@ -771,19 +852,20 @@ void ChartsConsistencyPresenter::start()
     const double faultZ = faultZOf(policy);
     const auto norms = pa::sharedNormProvider();
     const ConsistencyEnv env = m_env;
+    const std::shared_ptr<const IVariabilityScaleProvider> scales = m_scales;
     // Still reading it. A live session's next shot keeps the model busy too, but it has shots to show meanwhile.
     const auto *model = m_directSnapshot ? nullptr : qobject_cast<SessionSeriesModel *>(m_model.data());
     const bool loading = model && model->busy() && (!snap || snap->shots.empty());
     auto cache = m_cache;
     if (m_synchronous) {
         m_pool.waitForDone();
-        deliver(computeConsistency(snap, picked, ordinal, open, screen, loading, env, faultZ, policy, norms, *cache));
+        deliver(computeConsistency(snap, picked, ordinal, open, screen, loading, env, faultZ, policy, norms, *scales, *cache));
         return;
     }
     m_running = true;
     emit busyChanged();
-    m_pool.start([this, snap, picked, ordinal, open, screen, loading, env, faultZ, policy, norms, cache]() {
-        auto out = computeConsistency(snap, picked, ordinal, open, screen, loading, env, faultZ, policy, norms, *cache);
+    m_pool.start([this, snap, picked, ordinal, open, screen, loading, env, faultZ, policy, norms, scales, cache]() {
+        auto out = computeConsistency(snap, picked, ordinal, open, screen, loading, env, faultZ, policy, norms, *scales, *cache);
         QMetaObject::invokeMethod(this, [this, out]() {
             m_running = false;
             deliver(out);

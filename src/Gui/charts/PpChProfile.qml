@@ -33,8 +33,21 @@ import PinPointStudio
 //   at (P tag)      3     line 2, first
 //   median          3     line 2, "median 72"
 //   place           3     line 2, "highest of 15"
+// A ROW MAY CARRY A VARIABILITY BADGE (docs/design/system/variability.md), on line 2: the row's optional
+// `variability` field, one of
+//   { kind: "consistency", result }            result: the presenter's variabilityResult map ({ grade, graded,
+//                                              measurementLimited, basisText, … }, variability_facade.h). A Dispersion
+//                                              Cell badge; `graded` false shows no badge (and no line 2 of its
+//                                              own), never a raw σ.
+//   { kind: "typicality", values, basisText }  values: PpVariabilityMark's Typicality shape ({ z, ghosts, corridor, band });
+//                                              basisText the grader's "this swing … · median …". A Typicality Icon badge;
+//                                              null `values` shows nothing.
+// in the layer `variabilityLayer` ("technical" by default: the word and its basis; "golfer": the word, its line the
+// tooltip). In the wide form the badge leads line 2; in the folded form it follows the folded columns (at, median,
+// place, the warn word), on the same line when both fit the row, else on a line of its own under them, so neither
+// is ever pushed past the row's edge. A row with no `variability` is drawn as it always was.
 // objectNames: chApart (the apart list) / chProfile (every reading); each row chApartRow (+ readingId),
-// the open one also chApartRowOpen.
+// the open one also chApartRowOpen; a row's badge chProfileVariability.
 Column {
     id: pt
     property QtObject roles: null
@@ -52,6 +65,7 @@ Column {
     property bool interactive: true
     property bool showPlace: true
     property bool showCorridor: false            // #10: the Readings tab draws each graded reading's corridor (PpChBoxCell)
+    property string variabilityLayer: "technical"   // a row's badge: "technical" | "golfer" (the header)
     readonly property var keyKinds: ["box", "ring", "fired"]
     signal rowActivated(string readingId)
     signal shotActivated(int ordinal)
@@ -122,9 +136,17 @@ Column {
             readonly property bool open: pt.openId !== "" && pt.openId === readingId
             readonly property bool opensNothing: !!r && r.opens === ""      // a reading with no curve on this shot
             objectName: open ? "chApartRowOpen" : "chApartRow"
-            readonly property bool two: !pt.wideCols || (r && (r.fired || r.caution))
+            // the row's variability (the header): a badge, or nothing for a consistency reading with no grade
+            readonly property var vb: r && r.variability ? r.variability : null
+            readonly property bool typ: !!vb && vb.kind === "typicality"
+            readonly property bool badged: !!vb && (typ ? !!vb.values : !!(vb.result && vb.result.graded))
+            readonly property bool two: !pt.wideCols || (r && (r.fired || r.caution)) || badged
             readonly property real line1: Math.max(pt.roles.u(24), name.implicitHeight + pt.roles.u(8))
-            readonly property real line2: two ? pt.roles.u(16) : 0
+            // line 2 holds the facts and the badge: on one line when both fit, else the second under the first
+            readonly property real factsH: facts.implicitWidth > 0 ? facts.implicitHeight : 0
+            readonly property real badgeH: badged ? vbadge.implicitHeight : 0
+            readonly property real line2: !two ? 0 : !badged ? pt.roles.u(16)
+                                        : Math.max(pt.roles.u(16), (l2.split ? factsH + pt.roles.g(4) + badgeH : Math.max(factsH, badgeH)) + pt.roles.g(4))
             readonly property bool hot: ma.containsMouse
             width: pt.width
             height: line1 + line2 + (open ? openL.height + pt.roles.u(10) : 0) + pt.roles.u(2)
@@ -170,20 +192,52 @@ Column {
                     onShotActivated: (o) => pt.shotActivated(o)
                 }
             }
-            // line 2: the folded columns, and the warn word (a fired value is a mark AND a word)
-            Row {
+            // line 2: the folded columns and the warn word (a fired value is a mark AND a word), then the row's
+            // variability badge — beside them when both fit the row, else on a line of its own under them. In the wide
+            // form the columns hold the facts, so the badge leads. A consistency reading with no grade shows nothing here.
+            Item {
+                id: l2
                 visible: row.two
                 y: row.line1 - pt.roles.u(3); x: pt.roles.u(12)
-                spacing: pt.roles.g(8)
-                Text { visible: !pt.wideCols; text: row.r ? row.r.tag : ""; font: pt.roles.fSmall; color: pt.roles.ink3 }
-                Text { visible: !pt.wideCols; text: "median"; font: pt.roles.fSmall; color: pt.roles.ink3 }
-                Text { visible: !pt.wideCols; text: row.r ? row.r.medianText : ""; font: pt.roles.fFigLabel; color: pt.roles.ink3 }
-                Text { visible: !pt.wideCols && !!(row.r && row.r.place); text: row.r ? (row.r.place || "") : ""; font: pt.roles.fSmall; color: pt.roles.ink3 }
-                Text { visible: !!(row.r && row.r.fired); text: row.r ? (row.r.firedWord || "") : ""; font: pt.roles.fSmall; color: pt.roles.warn
-                       Rectangle { anchors.top: parent.baseline; anchors.topMargin: 2; width: parent.width; height: 1; color: pt.roles.warn } }
-                // an estimate a gate refused: shown, with its health warning (why: the trust fold)
-                Text { objectName: "chProfileCaution"; visible: !!(row.r && row.r.caution); text: row.r ? (row.r.cautionText || "") : ""
-                       font: pt.roles.fSmall; color: pt.roles.ink2 }
+                width: row.width - x
+                height: row.line2
+                readonly property real gap: pt.roles.g(8)
+                readonly property bool hasFacts: row.factsH > 0
+                readonly property bool badgeFirst: pt.wideCols
+                readonly property bool split: row.badged && hasFacts && facts.implicitWidth + gap + vbadge.implicitWidth > width
+                readonly property real lineH: Math.max(row.factsH, row.badgeH)
+                readonly property real badgeX: split || !hasFacts || badgeFirst ? 0 : facts.implicitWidth + gap
+                readonly property real badgeY: split ? (badgeFirst ? 0 : row.factsH + pt.roles.g(4)) : (lineH - row.badgeH) / 2
+                Row {
+                    id: facts
+                    x: l2.split || !row.badged || !l2.badgeFirst ? 0 : vbadge.implicitWidth + l2.gap
+                    y: l2.split ? (l2.badgeFirst ? row.badgeH + pt.roles.g(4) : 0) : (l2.lineH - row.factsH) / 2
+                    spacing: pt.roles.g(8)
+                    Text { visible: !pt.wideCols; text: row.r ? row.r.tag : ""; font: pt.roles.fSmall; color: pt.roles.ink3 }
+                    Text { visible: !pt.wideCols; text: "median"; font: pt.roles.fSmall; color: pt.roles.ink3 }
+                    Text { visible: !pt.wideCols; text: row.r ? row.r.medianText : ""; font: pt.roles.fFigLabel; color: pt.roles.ink3 }
+                    Text { visible: !pt.wideCols && !!(row.r && row.r.place); text: row.r ? (row.r.place || "") : ""; font: pt.roles.fSmall; color: pt.roles.ink3 }
+                    Text { visible: !!(row.r && row.r.fired); text: row.r ? (row.r.firedWord || "") : ""; font: pt.roles.fSmall; color: pt.roles.warn
+                           Rectangle { anchors.top: parent.baseline; anchors.topMargin: 2; width: parent.width; height: 1; color: pt.roles.warn } }
+                    // an estimate a gate refused: shown, with its health warning (why: the trust fold)
+                    Text { objectName: "chProfileCaution"; visible: !!(row.r && row.r.caution); text: row.r ? (row.r.cautionText || "") : ""
+                           font: pt.roles.fSmall; color: pt.roles.ink2 }
+                }
+                PpVariabilityBadge {
+                    id: vbadge
+                    x: l2.badgeX; y: l2.badgeY
+                    objectName: "chProfileVariability"
+                    visible: row.badged
+                    variant: row.typ ? PpVariabilityMark.Typicality : PpVariabilityMark.Dispersion
+                    form: row.typ ? PpVariabilityMark.Icon : PpVariabilityMark.Cell
+                    contentLayer: pt.variabilityLayer
+                    grade: !row.typ && row.vb && row.vb.result ? row.vb.result.grade : 0
+                    measurementLimited: !row.typ && !!(row.vb && row.vb.result && row.vb.result.measurementLimited)
+                    basisText: !row.vb ? "" : row.typ ? (row.vb.basisText || "") : (row.vb.result ? (row.vb.result.basisText || "") : "")
+                    values: row.typ ? row.vb.values : null
+                    showCorridor: row.typ && !!row.vb && row.vb.showCorridor === true
+                    roles: pt.roles
+                }
             }
             Loader {
                 id: openL

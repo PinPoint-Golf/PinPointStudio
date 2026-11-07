@@ -20,7 +20,11 @@ import QtQuick
 import PinPointStudio
 
 // THE CONSISTENCY TAB (docs/design/consistency_design.md §3): how the swing repeats, area by span, and what stood out
-// on the picked shot. Every word and figure is ChartsConsistencyPresenter's; this file only places them.
+// on the picked shot. Every word and figure is ChartsConsistencyPresenter's; this file only places them, but for the
+// VARIABILITY WORDS (docs/design/system/variability.md): the presenter grades and hands over grades and templates
+// (charts_consistency_presenter.h, THE GRADES), and the words come from ConsistencyVocabulary and MeasurementVocabulary
+// here. The technical layer: a cell shows its grade's word (R1), its opened readings a Dispersion Cell badge with the
+// basis string, a picked shot's rows a Typicality Icon badge.
 //
 // IT OWNS ITS DATA. A SessionSeriesModel, the presenter, a PpChRoles and a PpBrush, kept current as Charts' panel keeps
 // its own (ingest, re-analysis, trash, the ledger written). A register builds this inside a PpViewFlick, which makes a
@@ -62,12 +66,41 @@ Column {
     readonly property var empty: presenter.empty
     readonly property var status: presenter.status
     // what the table cannot say, unless the headline has already said it
-    readonly property var emptyLine: ro.has(empty.sentence) && !(hd.headline && hd.headline.text === empty.sentence.text) ? empty.sentence : null
+    readonly property var emptyLine: ro.has(empty.sentence) && !(hd.headline && hd.headline.kind === "empty") ? empty.sentence : null
     // no table yet, and the model or the presenter is still on its way to one; `ready` alone is not enough, because the
     // presenter publishes for the model's empty snapshot too. There is no gap between the two busies: the model's
     // snapshotChanged makes the presenter busy before the model's own busy goes false.
     readonly property bool settling: (!ready || presenter.busy || seriesModel.busy) && !(status.shotCount > 0)
     readonly property var settlingLine: status.settling || null
+
+    // ── the vocabularies' words into the presenter's grades (THE GRADES in charts_consistency_presenter.h) ──
+    // %1-%5 the Consistency words of grades 5 to 1, %6 its grade 0, %7 the Measurement grade 0 ("Checking")
+    function _fill(t) {
+        if (!t || t.indexOf("%1") < 0) return t || ""     // a plain string (an older payload) is shown as it is
+        return t.arg(ConsistencyVocabulary.word(5)).arg(ConsistencyVocabulary.word(4)).arg(ConsistencyVocabulary.word(3))
+                .arg(ConsistencyVocabulary.word(2)).arg(ConsistencyVocabulary.word(1)).arg(ConsistencyVocabulary.word(0))
+                .arg(MeasurementVocabulary.word(0))
+    }
+    // a graded cell's word: its grade's, or "Checking" when measurement-limited; the presenter's "-" or blank otherwise
+    function _cells(rows) {
+        return (rows || []).map(r => ({ id: r.id, name: r.name, cells: (r.cells || []).map(c => {
+            const v = c.result
+            if (!v || !v.graded) return c
+            const o = Object.assign({}, c)
+            o.text = v.measurementLimited ? MeasurementVocabulary.word(0) : ConsistencyVocabulary.word(v.grade)
+            return o
+        }) }))
+    }
+    // the headline: the halves' grade words, lower case, into its template; the grade-0 line; else its own words
+    function _head(h) {
+        if (!h) return ""
+        if (h.kind === "grade0") return ConsistencyVocabulary.line(0)
+        if (h.kind !== "halves") return h.text || ""
+        let t = h.text || ""
+        for (const g of (h.grades || [])) t = t.arg(ConsistencyVocabulary.word(g.grade).toLowerCase())
+        return t
+    }
+    readonly property var matrixRows: _cells(matrix.rows)
 
     // ── the session ──
     readonly property string sessionDir:
@@ -181,7 +214,7 @@ Column {
         width: root.width
         roles: ro; brush: br; interactive: false
         kicker: root.hd.kicker || ""
-        head: root.hd.headline ? root.hd.headline.text : ""
+        head: root._head(root.hd.headline)
         standfirst: root.glance ? "" : ro.html(root.hd.ball)
     }
     PpChText { roles: ro; font: ro.fBody; sentence: root.settling ? root.settlingLine : root.emptyLine }
@@ -193,8 +226,8 @@ Column {
         width: root.width
         roles: ro
         columns: root.matrix.columns || []
-        rows: root.matrix.rows || []
-        keyText: presenter.keyMarks
+        rows: root.matrixRows
+        keyText: root._fill(presenter.keyMarks)
         interactive: root.interactive
         onCellActivated: (rowId, column) => root._pressCell(rowId + ":" + column)
     }
@@ -202,7 +235,7 @@ Column {
     component TableNotes: Column {
         width: root.width
         spacing: ro.g(2)
-        PpNotes { visible: root.status.shotCount > 0; width: parent.width; roles: ro; text: ro.esc(presenter.key) }
+        PpNotes { visible: root.status.shotCount > 0; width: parent.width; roles: ro; text: ro.esc(root._fill(presenter.key)) }
         Repeater {
             model: root.hd.notes || []
             delegate: PpChText { required property var modelData; roles: ro; sentence: modelData }
