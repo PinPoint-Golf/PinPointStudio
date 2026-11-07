@@ -83,6 +83,11 @@ constexpr std::array<double, 5> kOverCellTsp    = {9, 6.2, 3.8, 1.8, 0.4};
 constexpr std::array<double, 5> kOverCellThv    = {0.3, 0.21, 0.13, 0.06, 0.015};
 constexpr double kOverCellWidth = 1.3;
 constexpr double kOverCellAlpha = 0.60;
+// R25 (Mark, 7 Nov 2026): no trace rises past the cell's top. A trace whose peak would sit above
+// y = half its stroke (0.65: the stroke's outer edge on the cell's top edge at 24 px) is scaled down
+// about the baseline, bump included, so its shape is kept. Only grade 1's tallest trace (trace 4,
+// h 22.1, which §4.5 puts at y ≈ −0.56) reaches it.
+constexpr double kOverCellTop = kOverCellWidth / 2;
 
 // §4.6 Needle, both forms: the three wedges' share of the table value and their alphas.
 constexpr std::array<double, 3> kWedgeShare      = {1, 0.62, 0.3};
@@ -148,9 +153,14 @@ constexpr double kChevronWidth = 1.5;
 // §6.2 Your group, Icon.
 constexpr double kTypIconC = 12, kTypIconOuterR = 10.5, kTypIconInnerR = 5.25, kTypIconSd = 5.25;
 constexpr double kTypIconW = 24;
-constexpr double kTypIconRingR = 2.6, kTypIconClampZ = 2.2;
+constexpr double kTypIconRingR = 2.6;
 // Spec silent: the Icon ring's stroke and fill. The Cell ring's: 1.75 px tone, colorSurface fill.
 constexpr double kTypIconRingWidth = kRingWidth;
+// R25 (Mark, 7 Nov 2026): the ring stays inside the 24-unit icon, its stroke included at 24 px. §6.2's
+// stop at |z| 2.2 put it at x 23.55, half outside; the furthest it now goes is 12 ± 8.525 (the edge
+// less r 2.6 and half the 1.75 px stroke), reached at |z| ≈ 1.62. Past that it looks the same.
+constexpr double kTypIconRingReach = kTypIconW / 2 - kTypIconRingR - kTypIconRingWidth / 2;
+constexpr double kTypIconClampZ = kTypIconRingReach / kTypIconSd;
 
 // §6.2 showCorridor. Spec silent: where "beneath" is and the end ticks. The line at y 23.25, so a
 // 1.5 px stroke at k = 1 ends exactly on the cell's bottom edge (24), with 0.75-unit ticks up toward
@@ -279,11 +289,22 @@ void buildOverlayCell(VariabilityShape &s)
         t.centre = kOverCellC + kOverCellTsp[g] * kOverCellTshift[j];
         t.height = kOverCellH * (1 + kOverCellThv[g] * kOverCellTh[j]);
         t.points.reserve(samples);
+        double rise = 0;   // the trace's highest point above the baseline
         for (int n = 0; n < samples; ++n) {
             const double x = kOverCellX0 + n * kOverCellStep;
             const double e = (x - t.centre) / kOverCellWidthScale;
             const double b = (x - kOverCellBumpC) / kOverCellBumpWidth;
-            t.points.emplace_back(x, kOverCellBaseY - t.height * std::exp(-e * e) - kOverCellBumpH * std::exp(-b * b));
+            const double up = t.height * std::exp(-e * e) + kOverCellBumpH * std::exp(-b * b);
+            rise = std::max(rise, up);
+            t.points.emplace_back(x, kOverCellBaseY - up);
+        }
+        // R25: held inside the cell, scaled about the baseline (kOverCellTop).
+        const double room = kOverCellBaseY - kOverCellTop;
+        if (rise > room) {
+            const double k = room / rise;
+            for (QPointF &p : t.points)
+                p.setY(kOverCellBaseY - (kOverCellBaseY - p.y()) * k);
+            t.height *= k;
         }
         t.width = t.widthSmall = kOverCellWidth;
         t.alpha = kOverCellAlpha;
@@ -684,10 +705,8 @@ VariabilityFunnelShape DataVariabilityGeometry::funnel(const std::vector<Variabi
 
     f.centre = neutralLine(GeometryRole::NeutralStrong, 0, cy, W, cy);
     f.centre.dashed = true;
-    if (!in.empty()) {
-        f.currentGrade = clampGrade(in.back().grade);
+    if (!in.empty())
         f.currentHasReading = hasFunnelReading(in.back().rho);
-    }
 
     // The sessions with a reading. A skipped session's break carries to the next kept one: the change
     // still lies between the two readings either side of it.
@@ -708,6 +727,10 @@ VariabilityFunnelShape DataVariabilityGeometry::funnel(const std::vector<Variabi
         kept.erase(kept.begin(), kept.begin() + f.rolledOff);
         kept.front().breakBefore = false;
     }
+    // R25 (Mark, 7 Nov 2026): the current session is the last one DRAWN, so the tone, the word and the
+    // current marker never come from a trailing session the funnel cannot draw. None drawn: grade 0.
+    const int currentInput = kept.empty() ? -1 : kept.back().input;
+    f.currentGrade = kept.empty() ? 0 : clampGrade(in[std::size_t(currentInput)].grade);
     const int n = int(kept.size());
     if (n == 0)
         return f;
@@ -726,7 +749,7 @@ VariabilityFunnelShape DataVariabilityGeometry::funnel(const std::vector<Variabi
         p.x = n > 1 ? kFunnelPad + i * step : W - kFunnelPad;
         p.halfWidth = std::clamp(s.rho / kFunnelRhoScale, kFunnelMinFrac, kFunnelMaxFrac) * halfMax;
         p.run = run;
-        p.current = p.input == int(in.size()) - 1;
+        p.current = p.input == currentInput;
         p.marker.role = p.current ? GeometryRole::Tone : GeometryRole::Text2;
         p.marker.x = p.x;
         p.marker.y = cy;
@@ -845,7 +868,7 @@ VariabilityTypicalityShape DataVariabilityGeometry::typicality(MarkForm form, do
         ring.width = kRingWidth;
     } else {
         t.clamped = std::abs(z) > kTypIconClampZ;
-        ring.cx = kTypIconC + std::clamp(z, -kTypIconClampZ, kTypIconClampZ) * kTypIconSd;
+        ring.cx = kTypIconC + std::clamp(z * kTypIconSd, -kTypIconRingReach, kTypIconRingReach);
         ring.cy = kTypIconC;
         ring.r = kTypIconRingR;
         ring.width = kTypIconRingWidth;

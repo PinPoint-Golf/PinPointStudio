@@ -171,9 +171,9 @@ Item {
             const cases = [
                 [PpVariabilityMark.Dispersion, 4, "Consistency: Repeatable (4 of 5)", "Repeatable"],
                 [PpVariabilityMark.Overlay,    1, "Consistency: Scattered (1 of 5)", "Scattered"],
-                [PpVariabilityMark.Dispersion, 0, "Consistency: Not enough swings (0 of 5)", "Not enough swings"],
+                [PpVariabilityMark.Dispersion, 0, "Consistency: Not enough swings", "Not enough swings"],
                 [PpVariabilityMark.Needle,     4, "Measurement: Steady (4 of 5)", "Steady"],
-                [PpVariabilityMark.Needle,     0, "Measurement: Checking (0 of 5)", "Checking"],
+                [PpVariabilityMark.Needle,     0, "Measurement: Checking", "Checking"],
             ]
             for (const c of cases) {
                 const m = probe.mk({ variant: c[0], grade: c[1] })
@@ -345,11 +345,21 @@ Item {
                     if (dark) {
                         const l = seen.light
                         fuzzyCompare(a.ellipse, Math.min(1, 3 * l.ellipse), 0.005, w + ": ellipse × 3")
-                        for (let i = 0; i < 3; ++i) {
-                            fuzzyCompare(a.wedgesIcon[i], Math.min(1, 3 * l.wedgesIcon[i]), 0.005, w + ": Icon wedge " + i + " × 3")
-                            fuzzyCompare(a.wedgesSmall[i], Math.min(1, 3 * l.wedgesSmall[i]), 0.005, w + ": small Icon wedge " + i + " × 3")
-                            fuzzyCompare(a.wedgesCell[i], Math.min(1, 3 * l.wedgesCell[i]), 0.005, w + ": Cell wedge " + i + " × 3")
+                        // × 3, but the innermost is lowered so the three composite to at most
+                        // variabilityWedgeCompositeMax where they overlap (R25), and the needle reads.
+                        const x3 = (ws, i) => {
+                            const t = Math.min(1, 3 * ws[i])
+                            if (i < 2) return t
+                            const under = (1 - Math.min(1, 3 * ws[0])) * (1 - Math.min(1, 3 * ws[1]))
+                            return Math.max(0, Math.min(t, 1 - (1 - Theme.variabilityWedgeCompositeMax) / under))
                         }
+                        for (let i = 0; i < 3; ++i) {
+                            fuzzyCompare(a.wedgesIcon[i], x3(l.wedgesIcon, i), 0.005, w + ": Icon wedge " + i + " × 3")
+                            fuzzyCompare(a.wedgesSmall[i], x3(l.wedgesSmall, i), 0.005, w + ": small Icon wedge " + i + " × 3")
+                            fuzzyCompare(a.wedgesCell[i], x3(l.wedgesCell, i), 0.005, w + ": Cell wedge " + i + " × 3")
+                        }
+                        for (const ws of [a.wedgesIcon, a.wedgesSmall, a.wedgesCell])
+                            verify(1 - (1 - ws[0]) * (1 - ws[1]) * (1 - ws[2]) <= Theme.variabilityWedgeCompositeMax + 0.005, w + ": the wedges composite under the cap")
                         fuzzyCompare(a.dot, l.dot, 0.005, w + ": a dot is not a wash")
                         fuzzyCompare(a.trace, l.trace, 0.005, w + ": a trace is a stroke")
                         fuzzyCompare(a.needle, l.needle, 0.005, w + ": the needle is a stroke")
@@ -491,7 +501,7 @@ Item {
                 compare(pg.word.text, MeasurementVocabulary.word(0))
                 compare(pg.word.text, "Checking")
                 verify(Qt.colorEqual(pg.word.color, Theme.colorText3))
-                compare(pg.mark.Accessible.name, "Measurement: Checking (0 of 5)")
+                compare(pg.mark.Accessible.name, "Measurement: Checking")
                 compare(pg.mark.variant, PpVariabilityMark.Dispersion, "still the Dispersion shape")
                 for (const p of probe.paths(pg.mark))
                     if (!probe.isNeutral(p)) verify(!probe.seen(p.fillColor) && !probe.seen(p.strokeColor), "grade-0 mark: no tone")

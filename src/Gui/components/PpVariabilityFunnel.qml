@@ -45,6 +45,13 @@
 // colorText2: "Repeatable · ↑ Tightening". The technical layer adds the caller's basis string
 // ("ρ 0.62 → 0.38 over 6 sessions", the grader's TrendResult::basisString) in data-sm colorText2. QML
 // never formats ρ. Text tokens are the badge's: body face at fontSzBody2, data face at fontSzDataSm.
+// MEASUREMENT-LIMITED (R25, as the badge, §8.6): with `measurementLimited` on the golfer layer the word is
+// "Checking" (MeasurementVocabulary's grade 0) and the tone is grade 0's (colorText3); the trend word
+// still follows it. The technical layer keeps the grade. The current grade itself never changes.
+// THE CURRENT SESSION is the last one drawn (R25): a trailing session with no ρ never sets the tone or
+// the word (the provider's currentGrade).
+// REUSE (R25): a host that reuses delegates calls snapTone() from TableView.onReused / ListView.onReused,
+// so a reused row shows its own tone at once.
 //
 // PRINT (§9.5.4), as PpVariabilityMark and PpVariabilityBadge do it. `medium` is "screen" or "print",
 // PpTypeset's vocabulary, and defaults to the optional `roles` (a PpTypeset). In print:
@@ -88,20 +95,29 @@ Item {
     // The measure's own mark (§6.1's "show the badge" is the measure's badge): Dispersion for a scalar
     // measure, Overlay for a time series. Anything else warns and draws Dispersion.
     property int    variant: PpVariabilityMark.Dispersion
+    // R25: the current session's reading is measurement-limited (its observed spread is no larger than
+    // its propagated σ, or its source's Needle is Unsteady or Noisy): on the golfer layer the word is
+    // "Checking", as the badge's. The presenter passes the current session's flag.
+    property bool   measurementLimited: false
     property var    roles: null                                // a PpTypeset, optional
     property string medium: roles ? roles.medium : "screen"   // "screen" | "print"
 
     // ── What it shows, for hosts and tests ───────────────────────────────────────────────────────
     // From _facts, not _geom: they never depend on the width, so a wide funnel sized by its label
-    // (implicitWidth) cannot loop through its own geometry.
+    // (implicitWidth) cannot loop through its own geometry. currentGrade is the last DRAWN session's.
     readonly property int    currentGrade: _facts ? _facts.currentGrade : 0
+    // R25, as the badge's: the golfer layer is showing "Checking" for a measurement-limited grade.
+    readonly property bool   substituted: measurementLimited && contentLayer === "golfer"
+    readonly property int    shownGrade: substituted ? 0 : currentGrade
+    // The word shown: the grade's, or "Checking" when substituted.
+    readonly property string word: substituted ? MeasurementVocabulary.word(0) : ConsistencyVocabulary.word(currentGrade)
     readonly property bool   trendAfter3: _facts ? _facts.trendAfter3 : true
     // Sessions in the latest unbroken run: the "over N sessions" of the accessible name.
     readonly property int    sessionCount: _facts ? _facts.latestRun : 0
-    readonly property color  tone: _toneOf(currentGrade)
+    readonly property color  tone: _toneOf(shownGrade)
     // The label as shown, in one string: "Repeatable · ↑ Tightening", or, with too few sessions, the
     // badge's word and "Trend after 3 sessions". The basis string is not part of it.
-    readonly property string label: trendAfter3 ? ConsistencyVocabulary.word(currentGrade) + waitText.text
+    readonly property string label: trendAfter3 ? word + waitText.text
                                                 : wordText.text + (trendText.visible ? trendText.text : "")
     // The minimum width, the provider's own (§6.1: 96). Read once from an empty shape, so it never
     // depends on this item's width.
@@ -165,7 +181,15 @@ Item {
     readonly property color _good:     _ts ? roles.good  : Theme.colorGood
     // The tone as drawn: colour changes ease over durationSlow; the geometry never animates.
     property color _ink: tone
-    Behavior on _ink { ColorAnimation { duration: Theme.durationSlow } }
+    Behavior on _ink { enabled: !funnel._toneSnap; ColorAnimation { duration: Theme.durationSlow } }
+    // R25: a reused delegate's funnel shows its own tone at once (see REUSE above).
+    property bool _toneSnap: false
+    function snapTone() {
+        tooFewBadge.snapTone()
+        _toneSnap = true
+        _ink = Qt.binding(function () { return funnel.tone })
+        _toneSnap = false
+    }
 
     // A provider role's token (variability_geometry.h, GeometryRole).
     function _roleColor(role) {
@@ -201,7 +225,7 @@ Item {
     Accessible.role: Accessible.Graphic
     Accessible.name: {
         const measure = measureName !== "" ? measureName : ConsistencyVocabulary.domain
-        const word = ConsistencyVocabulary.word(currentGrade)
+        const word = funnel.word
         if (trendAfter3)
             //: PpVariabilityFunnel: the accessible name while too few sessions have been graded for a trend. %1 the measure ("Pelvis rotation at top"), %2 the grade word ("Repeatable"), %3 "Trend after 3 sessions"
             return qsTr("%1: %2. %3").arg(measure).arg(word).arg(TrendVocabulary.tooFewSessions)
@@ -338,10 +362,14 @@ Item {
 
             // Too few sessions for a trend (§6.1): the grade's badge stands in for the word.
             PpVariabilityBadge {
+                id: tooFewBadge
                 objectName: "funnelBadge"
                 visible: funnel.trendAfter3
                 anchors.verticalCenter: parent.verticalCenter
+                // R25: the funnel's own accessible name already says the grade, so its mark is not read.
+                accessibleIgnored: true
                 grade: funnel.currentGrade
+                measurementLimited: funnel.measurementLimited   // the badge substitutes "Checking" itself
                 variant: funnel._variant
                 contentLayer: funnel.contentLayer
                 roles: funnel.roles
@@ -354,8 +382,8 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 elide: Text.ElideNone
                 Accessible.ignored: true   // the funnel's accessible name says it
-                text: ConsistencyVocabulary.word(funnel.currentGrade)
-                color: funnel._ink   // the tone; grade 0's tone is colorText3 (§3, §4.7)
+                text: funnel.word
+                color: funnel._ink   // the tone; grade 0's (and "Checking"'s) is colorText3 (§3, §4.7)
                 // Body 12 (PpCaption's own face); with roles, the host's body role.
                 font.family:    funnel._ts ? funnel.roles.fBody.family : Theme.fontBody
                 font.pixelSize: funnel._ts ? funnel.roles.fBody.pixelSize : Theme.fontSzBody2

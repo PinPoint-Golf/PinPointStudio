@@ -19,7 +19,8 @@
 // THE CONSISTENCY WORDS (docs/design/variability-mark/spec.md §3, §7.1): what a Dispersion or Overlay
 // mark, its badge and the spread funnel say about a grade. This singleton is the ONE home for them:
 // no screen, data pack or C++ presenter spells a grade word or line.
-//   grade 5 "Grooved" (least variable) … 1 "Scattered" (most); 0 "Not enough swings" (no grade).
+//   grade 5 "Grooved" (least variable) … 1 "Scattered" (most); 0 "Not enough swings" (no grade), "Too few" in the
+//   Consistency table only (shortWord, R33).
 // A grade is an int 0–5 from the C++ grader (variabilityResult.grade); QML never grades. Anything
 // else is the grade-0 entry, with a console warning.
 //
@@ -52,6 +53,15 @@ QtObject {
         }
     }
 
+    // The word in the Consistency table only (R33, Mark 7 Nov 2026): grade 0 is "Too few", so the words fit the matrix's
+    // cells; grades 1-5 are word()'s. The table's key says what it means. Every other surface keeps word(0).
+    function shortWord(grade) {
+        const g = _grade(grade)
+        if (g !== 0) return word(g)
+        //: ConsistencyVocabulary, grade 0 (too few swings to grade) in the Consistency table only, where the cells are narrow; the table's key explains it ("Too few: fewer than eight swings to grade it."). Elsewhere the word is "Not enough swings"
+        return qsTr("Too few")
+    }
+
     // The golfer-layer line for a grade (§7.1). The word and this line are all the golfer layer shows.
     function line(grade) {
         switch (_grade(grade)) {
@@ -70,12 +80,15 @@ QtObject {
         }
     }
 
-    // §4.2, literally. `label` is the mark's label (§4.1: the label is used for the accessible name),
+    // §4.2. `label` is the mark's label (§4.1: the label is used for the accessible name),
     // and defaults to this grade's word. "<domain>: <word> (<grade> of 5)", e.g. "Consistency: Repeatable (4 of 5)".
-    // Grade 0 reads "Consistency: Not enough swings (0 of 5)".
+    // Grade 0 has no grade to count, so it reads "Consistency: Not enough swings" (R25, Mark 7 Nov 2026).
     function accessibleName(grade, label) {
         const g = _grade(grade)
-        //: ConsistencyVocabulary: a mark's accessible name. %1 the domain ("Consistency"), %2 the grade word, %3 the grade 0-5
+        if (g === 0)
+            //: ConsistencyVocabulary: a mark's accessible name at grade 0, which has no grade to count. %1 the domain ("Consistency"), %2 the word ("Not enough swings")
+            return qsTr("%1: %2").arg(domain).arg(label === undefined ? word(0) : label)
+        //: ConsistencyVocabulary: a mark's accessible name. %1 the domain ("Consistency"), %2 the grade word, %3 the grade 1-5
         return qsTr("%1: %2 (%3 of 5)").arg(domain).arg(label === undefined ? word(g) : label).arg(g)
     }
 

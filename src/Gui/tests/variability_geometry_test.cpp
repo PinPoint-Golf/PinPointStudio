@@ -261,9 +261,34 @@ void VariabilityGeometryTest::overlayNumbers()
         QCOMPARE(t.points.back().x(), 78.0);
     }
     QVERIFY(near(c1.traces[4].centre, 34.6));   // 40 + 9·−0.6
-    QVERIFY(near(c1.traces[4].height, 22.1));   // 17·(1 + 0.3·1)
     QVERIFY(near(c1.traces[4].points[32].x(), 34));
-    QVERIFY(near(c1.traces[4].points[32].y(), -0.5048914075806953, 1e-9));
+    // R25: §4.5's trace 4 (h 17·(1 + 0.3·1) = 22.1) would peak at y ≈ −0.56, above the cell. It is scaled
+    // about the baseline so its highest sample sits at y 0.65 (half the 1.3 px stroke), shape kept.
+    {
+        const auto &t4 = c1.traces[4];
+        double top = 1e9, specRise = 0;
+        for (const auto &p : t4.points) {
+            top = std::min(top, p.y());
+            specRise = std::max(specRise, 21.5 - traceY(p.x(), t4.centre, 22.1, 9, 21.5)
+                                              + 1.5 * std::exp(-std::pow((p.x() - 14) / 8, 2)));
+        }
+        QVERIFY(near(top, 0.65, 1e-9));
+        const double k = (21.5 - 0.65) / specRise;
+        QVERIFY(k < 1 && k > 0.9);
+        QVERIFY(near(t4.height, 22.1 * k, 1e-9));
+        for (const auto &p : t4.points)
+            QVERIFY(near(p.y(), 21.5 - k * (21.5 - traceY(p.x(), t4.centre, 22.1, 9, 21.5)
+                                            + 1.5 * std::exp(-std::pow((p.x() - 14) / 8, 2))), 1e-9));
+        QVERIFY(near(t4.points[32].y(), 21.5 - k * (21.5 + 0.5048914075806953), 1e-9));
+    }
+    // Every Overlay trace, both forms, every grade, stays inside its 24-unit box (R25).
+    for (const auto f : kForms)
+        for (int g = 0; g <= 5; ++g)
+            for (const auto &t : shapeOf(MarkVariant::Overlay, f, g).traces)
+                for (const auto &p : t.points)
+                    QVERIFY2(p.y() >= 0.65 - 1e-9 && p.y() <= 24, qPrintable(QStringLiteral("grade %1 y %2").arg(g).arg(p.y())));
+    // Grades 2 to 5 are untouched: grade 2's tallest trace (h 20.57) peaks at y 0.93.
+    QVERIFY(near(shapeOf(MarkVariant::Overlay, MarkForm::Cell, 2).traces[4].height, 17 * (1 + 0.21)));
     const auto &c3 = shapeOf(MarkVariant::Overlay, MarkForm::Cell, 3);   // tsp 3.8, thv 0.13
     QVERIFY(near(c3.traces[1].centre, 40 + 3.8 * 0.55));
     QVERIFY(near(c3.traces[1].height, 17 * (1 + 0.13 * 0.6)));

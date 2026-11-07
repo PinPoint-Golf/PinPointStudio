@@ -28,7 +28,8 @@ import PinPointStudio
 // THE RECTANGLE (`columns` + `rows`, Consistency): named columns across the full width and generic cells on an optional
 // wash, the one exception to "the corridor is the only wash" (§15.4): the word stays in the cell. When the words do not
 // fit, `short` turns on: each cell takes its short form on the same wash and `keyText` appears. No column is ever
-// dropped. A picked cell (`on`) takes an outline, because the wash has taken over its old highlight.
+// dropped. Whether they fit is MEASURED (R25, Mark 7 Nov 2026): the widest word in use (in fSmall, fSmallM when heavy),
+// its gutters and any mark, and the widest full head, so no word overflows its cell at any width. A picked cell (`on`) takes an outline, because the wash has taken over its old highlight.
 //   columns: [string | { text, short }]    rows: [{ id, name, cells: [{ text, short, strong, heavy, on, mark, tap, heat, soft }] }]
 // One body draws both: `family` is mapped onto rows here. `roles` is any PpTypeset. Give it a width.
 // objectName: chMatrix; each cell chMatrixCell (+ xId, yId in the family).
@@ -41,6 +42,8 @@ Column {
     property var rows: []
     property bool wash: true                     // false: the cells' heat is not drawn
     property string keyText: ""                  // the marks' words, from the presenter; shown only in the short form
+    property real nameEm: 8.4                    // the rectangle's row-name column in the full form, in em; a page of fixed
+                                                 // width narrows it so the words keep their cells (R33: the printed page)
     property bool interactive: true
     property bool atom: true
     readonly property var keyKinds: []
@@ -49,8 +52,29 @@ Column {
     readonly property real em: roles ? roles.em : 14
     readonly property int nCols: columns ? columns.length : 0
     readonly property bool family: nCols === 0
-    readonly property real nameMax: Math.round(8.4 * em)
-    readonly property real wordW: Math.round(4.3 * em)           // "steady" at fSmall, with its gutter
+    readonly property real nameMax: Math.round(nameEm * em)
+    // The full form's narrowest cell (R25): the widest word the cells hold, measured in the face it is set in, with the
+    // gutter g(5) each side, or g(5), the word, g(3), the mark and g(3); and no narrower than the widest full head with its
+    // g(5) gutters. With no roles nothing draws, so the old fixed width stands in.
+    FontMetrics { id: fmWord;  font: mx.roles ? mx.roles.fSmall : Qt.font({}) }
+    FontMetrics { id: fmHeavy; font: mx.roles ? mx.roles.fSmallM : Qt.font({}) }
+    FontMetrics { id: fmFig;   font: mx.roles ? mx.roles.fFigS : Qt.font({}) }
+    FontMetrics { id: fmHead;  font: mx.roles ? mx.roles.fFigLabel : Qt.font({}) }
+    function _advance(fm, t) { return t && fm.font ? fm.advanceWidth(t) : 0 }   // reads fm.font, so wordW rebinds when a face changes
+    readonly property real wordW: {
+        if (!roles || family) return Math.round(4.3 * em)
+        const g3 = roles.g(3), g5 = roles.g(5)
+        let w = 0
+        for (const r of rows || [])
+            for (const c of (r && r.cells) || []) {
+                if (!c) continue
+                const word = _advance(c.heavy ? fmHeavy : fmWord, c.text || "")
+                w = Math.max(w, c.mark ? g5 + word + g3 + _advance(fmFig, c.mark) + g3 : g5 + word + g5)
+            }
+        for (const c of columns || [])
+            w = Math.max(w, g5 + _advance(fmHead, typeof c === "string" ? c : (c && c.text) || "") + g5)
+        return Math.ceil(w)
+    }
     // the words fit, or the short forms take their place
     readonly property bool short: !family && width - nameMax < nCols * wordW
     readonly property real indent: family ? Math.round(2 * em) : 0   // the row numbers

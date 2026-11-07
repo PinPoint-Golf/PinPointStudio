@@ -101,7 +101,8 @@ QtObject {
     // chartMarkerHollow, typeset (a block of typeset roles, §15.3 — see _typesetDefault), and the table and
     // mark geometry (tableRadius, rowH, rowH2, itemRowH, tableHeaderH, rowPadH, itemIndent, colorHairline,
     // meterSeg*, colorMeterUnlit, pipSize, pipGap, bandBarH, tabUnderline, fontSzTab, capDot, variabilityIconSize,
-    // variabilityCellW, variabilityCellH, variabilityFunnelH, variabilityPrintAlphaScale, variabilityWashAlpha).
+    // variabilityCellW, variabilityCellH, variabilityFunnelH, variabilityPrintAlphaScale, variabilityWashAlpha,
+    // variabilityWedgeCompositeMax).
     // Optional keys may also sit in a mode block when they differ between light and dark (Folio's chart
     // greys); variabilityWashAlpha's default already differs (1 light, 3 dark).
     readonly property var _themes: ({
@@ -835,6 +836,11 @@ QtObject {
     // spec §3, §10). A theme or mode block may set its own. Print never reads it: paper is light, and
     // a printed fill takes variabilityPrintAlphaScale instead.
     readonly property real variabilityWashAlpha: _v("variabilityWashAlpha", dark ? 3 : 1)
+    // On SCREEN the Needle's three stacked wedges never composite past this share of the tone where all
+    // three overlap, so the full-tone needle still reads over the innermost (R25, Mark 7 Nov 2026: at ×3
+    // in dark themes it composited to 91 %). The mark lowers the innermost wedge's alpha to fit; the
+    // wider two keep theirs. Light themes composite to 44 % and paper to 60 %, so neither reaches it.
+    readonly property real variabilityWedgeCompositeMax: _v("variabilityWedgeCompositeMax", 0.8)
     // Live-session grade hysteresis (§8.9): a grade changes only when ρ (or s′) crosses a band edge by
     // this much. NOT a theme key: it MUST equal kHysteresis in src/Metrics/variability/variability_constants.h,
     // the value the grader uses, and a theme that changed it would make the two disagree. TODO(calibrate)

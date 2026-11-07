@@ -219,7 +219,7 @@ struct VariabilityTypicalityShape {
     MarkForm form = MarkForm::Cell;
     double   z = 0;              // as given; ±∞ (a zero-spread window, §8.7) clamps like any |z| > 2.6
     bool     hasSwing = false;   // false when z is NaN: no ring, centre or chevron
-    bool     clamped  = false;   // the ring is held at the edge (Cell |z| > 2.6; Icon |z| > 2.2)
+    bool     clamped  = false;   // the ring is held at the edge (Cell |z| > 2.6; Icon |z| > 1.62, R25)
     int      side     = 0;       // −1 left, +1 right, when clamped
     VariabilityZone outer, inner;
     std::vector<VariabilityGhost>      ghosts;    // Cell only; the input order (oldest first), at most 12
@@ -348,7 +348,7 @@ struct VariabilityFunnelPoint {
     double rho = 0, halfWidth = 0, x = 0;   // halfWidth and x in px
     int    grade = 0;
     int    run = 0;            // which unbroken run, 0 = the oldest drawn
-    bool   current = false;    // the current session (the input's last, when it has a reading)
+    bool   current = false;    // the current session: the last one drawn (R25)
     VariabilityDot marker;     // on the centre line: Text2 r 1.6, or Tone r 2.2 for the current one
 };
 
@@ -377,8 +377,10 @@ struct VariabilityFunnelBreak {
 struct VariabilityFunnelShape {
     double width = 0, height = 0;   // px; width ≥ kFunnelMinWidthPx
     double requestedWidth = 0;
-    int    currentGrade = 0;        // the input's LAST session's grade, clamped: the band tone (§6.1)
-    bool   currentHasReading = false;
+    int    currentGrade = 0;        // the last DRAWN session's grade, clamped (0 when none is drawn): the
+                                    // band tone and the word (§6.1). A trailing session with no reading
+                                    // never sets it (R25).
+    bool   currentHasReading = false;   // the input's last session has a reading (is the one drawn current)
     bool   trendAfter3 = true;      // < TREND_MIN_SESSIONS (3) in the latest unbroken run: no bands, no
                                     // ticks; the QML shows the badge plus "Trend after 3 sessions"
     int    latestRun = 0;           // sessions in the latest unbroken run

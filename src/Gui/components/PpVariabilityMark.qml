@@ -49,13 +49,19 @@
 // typicality inner zone, the trace's envelope) multiply their alpha on screen by
 // Theme.variabilityWashAlpha (1 light, 3 dark), clamped to 1, in _washAlpha(). The dots, the ghosts,
 // the dashed outer zone and every stroke keep the provider's alpha. The provider holds the base alphas.
+// The Needle's innermost wedge is then lowered, if it must be, so the three never composite past
+// Theme.variabilityWedgeCompositeMax (R25: at ×3 in dark themes they reached 91 % of the tone and the
+// full-tone needle was lost in them); _wedgeAlpha().
 //
 // COLOUR. The tone is the grade's (§3) unless overridden; neutral elements are colorBorderStrong or
 // colorBorderMid as the provider names them, and the typicality elements take the provider's other
 // roles: text → colorText, text2 → colorText2, text3 → colorText3, surface → colorSurface (the ring's
 // opaque fill), good → colorGood (the corridor bracket only). Dashed elements use the provider's
 // dashPattern. Colour changes ease over Theme.durationSlow (0 under
-// reduce motion); the geometry never animates between grades (§4.2).
+// reduce motion); the geometry never animates between grades (§4.2). A host that REUSES delegates
+// (reuseItems) calls snapTone() from its TableView.onReused / ListView.onReused, so a reused row shows
+// its own tone at once instead of fading from the last row's (R25); a live grade change on the same
+// item still eases.
 //
 // PRINT (§9.5.4). `medium` is "screen" or "print", PpTypeset's vocabulary, and defaults to the
 // optional `roles` (a PpTypeset) as the typeset blocks' does. In print:
@@ -165,7 +171,17 @@ Item {
     // The tone as drawn: colour changes ease over durationSlow (0 under reduceMotion); the geometry
     // never animates (§4.2).
     property color _ink: tone
-    Behavior on _ink { ColorAnimation { duration: Theme.durationSlow } }
+    Behavior on _ink { enabled: !mark._toneSnap; ColorAnimation { duration: Theme.durationSlow } }
+    // R25: a reused delegate shows its new tone at once. A delegate's model properties are updated
+    // BEFORE its view's `reused` signal, so by then the ease has begun; rebinding with the Behavior off
+    // stops it and writes the tone. The reuse host calls this from TableView.onReused or
+    // ListView.onReused (the attached signals reach only a delegate's root item, never a mark inside it).
+    property bool _toneSnap: false
+    function snapTone() {
+        _toneSnap = true
+        _ink = Qt.binding(function () { return mark.tone })
+        _toneSnap = false
+    }
 
     // ── Geometry: the provider's shape for (variant, form, grade), in design units ───────────────
     // One cached JS object per (variant, form, clamped grade), shared by every mark of that grade.
@@ -240,6 +256,21 @@ Item {
     // screen × Theme.variabilityWashAlpha (1 light, 3 dark), at most 1; in print the fill rule above
     // alone, so the paper never follows the screen's theme. Dots, ghosts and strokes are not washes.
     function _washAlpha(a) { return _print ? _fillAlpha(a) : Math.min(1, a * Theme.variabilityWashAlpha) }
+    // A Needle wedge's alpha: its wash. The innermost (the last, painted over the wider two) is lowered,
+    // never raised, so where all three overlap they composite to at most variabilityWedgeCompositeMax
+    // of the tone and the full-tone needle reads over them (R25). Light themes and paper never reach it.
+    function _wedgeAlpha(i) {
+        const ws = _geom.wedges
+        const a = _washAlpha(_pick(ws[i], ws[i].alpha, ws[i].alphaSmall))
+        if (i !== ws.length - 1)
+            return a
+        let under = 1   // what the wider wedges leave of the ground: Π (1 − αⱼ)
+        for (let j = 0; j < i; ++j)
+            if (ws[j].spread > 0)
+                under *= 1 - _washAlpha(_pick(ws[j], ws[j].alpha, ws[j].alphaSmall))
+        const fit = under > 0 ? 1 - (1 - Theme.variabilityWedgeCompositeMax) / under : 0
+        return Math.max(0, Math.min(a, fit))
+    }
 
     // ── Drawing: one Shape per variant and form, chosen once (a table column keeps both) ─────────
     // Paint order, bottom to top (the provider's): ring, arc, line, ticks; ellipse, wedges, traces,
@@ -357,7 +388,7 @@ Item {
         objectName: "variabilityWedge"
         strokeWidth: -1
         strokeColor: "transparent"
-        fillColor: e ? mk._inkOf(e.role, mk._washAlpha(mk._pick(e, e.alpha, e.alphaSmall))) : "transparent"
+        fillColor: e ? mk._inkOf(e.role, mk._wedgeAlpha(wedge.i)) : "transparent"
         PathPolyline {
             path: wedge.e ? VariabilityGeometry.wedgePath(wedge.mk.variant, wedge.mk.form, wedge.mk._grade,
                                                           wedge.i, wedge.mk._k)

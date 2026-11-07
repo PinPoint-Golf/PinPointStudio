@@ -67,12 +67,15 @@ QtObject {
         }
     }
 
-    // §4.2, literally. `label` is the mark's label (§4.1: the label is used for the accessible name),
+    // §4.2. `label` is the mark's label (§4.1: the label is used for the accessible name),
     // and defaults to this grade's word. "<domain>: <word> (<grade> of 5)", e.g. "Measurement: Steady (4 of 5)".
-    // Grade 0 reads "Measurement: Checking (0 of 5)".
+    // Grade 0 has no grade to count, so it reads "Measurement: Checking" (R25, Mark 7 Nov 2026).
     function accessibleName(grade, label) {
         const g = _grade(grade)
-        //: MeasurementVocabulary: a Needle mark's accessible name. %1 the domain ("Measurement"), %2 the grade word, %3 the grade 0-5
+        if (g === 0)
+            //: MeasurementVocabulary: a mark's accessible name at grade 0 ("Checking"), which has no grade to count. %1 the domain ("Measurement"), %2 the word ("Checking")
+            return qsTr("%1: %2").arg(domain).arg(label === undefined ? word(0) : label)
+        //: MeasurementVocabulary: a Needle mark's accessible name. %1 the domain ("Measurement"), %2 the grade word, %3 the grade 1-5
         return qsTr("%1: %2 (%3 of 5)").arg(domain).arg(label === undefined ? word(g) : label).arg(g)
     }
 

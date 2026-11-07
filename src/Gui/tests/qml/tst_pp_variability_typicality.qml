@@ -119,7 +119,8 @@ Item {
         function cleanup() { Theme.themeIndex = was }
 
         // §6.2 Cell: x = 40 + z × 14, ring r 3, 1.75 px whatever the size; |z| > 2.6 clamps at x 4 / 76
-        // and adds an outward chevron. Icon: x = 12 + clamp(z, ±2.2) × 5.25, r 2.6, no chevron.
+        // and adds an outward chevron. Icon: x = 12 + clamp(z × 5.25, ±8.525), r 2.6, no chevron: the ring and
+        // its stroke stay inside the 24-unit icon (R25).
         function test_ringFollowsZ() {
             for (const s of [24, 48]) {
                 const k = s / 24
@@ -147,7 +148,7 @@ Item {
                     m.destroy()
                 }
             }
-            for (const c of [[0, 12], [1, 17.25], [-1, 6.75], [3, 23.55], [-3, 0.45]]) {
+            for (const c of [[0, 12], [1, 17.25], [-1, 6.75], [3, 20.525], [-3, 3.475]]) {
                 const m = probe.mk({ variant: probe.typ, form: probe.icon, size: 24, values: probe.typValues(c[0], "usual") })
                 const ring = probe.one(m, "variabilityRing")
                 fuzzyCompare(ring.pathElements[0].centerX, c[1], 1e-9, "Icon ring x at z " + c[0])

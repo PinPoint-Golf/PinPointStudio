@@ -124,7 +124,7 @@ private slots:
     void funnelKeepsTheLatestTwelve();
     void funnelMinimumWidth();
     void ringFollowsZAndClampsInTheCell();
-    void ringClampsAtTwoPointTwoInTheIcon();
+    void ringStaysInsideTheIcon();
     void zonesAreTheSpecs();
     void ghostJitterIsDeterministicAndBounded();
     void sequentialIdsSpread();
@@ -215,15 +215,32 @@ void VariabilityDataGeometryTest::funnelLayoutAndRoles()
     QCOMPARE(b.edgeWidth, 1.0);
     QCOMPARE(geometryRoleToken(GeometryRole::Text2), QStringLiteral("text2"));
 
-    // A current session with no reading: not drawn, no current marker, its grade still the tone's.
+    // A last session with no reading (R25): not drawn, and never the current one. The current session
+    // is the last DRAWN: its grade sets the tone and the word, and it wears the current marker.
     auto none = sessionsOf({0.5, 0.5, 0.5, kNaN});
+    none[2].grade = 4;
     none.back().grade = 0;
     const auto n = DataVariabilityGeometry::funnel(none, 120, 32);
     QCOMPARE(int(n.sessions.size()), 3);
     QVERIFY(!n.currentHasReading);
-    QCOMPARE(n.currentGrade, 0);
-    for (const auto &s : n.sessions)
-        QVERIFY(!s.current);
+    QCOMPARE(n.currentGrade, 4);
+    for (std::size_t i = 0; i < n.sessions.size(); ++i) {
+        QCOMPARE(n.sessions[i].current, i == 2);
+        QCOMPARE(n.sessions[i].marker.role, i == 2 ? GeometryRole::Tone : GeometryRole::Text2);
+        QCOMPARE(n.sessions[i].marker.r, i == 2 ? 2.2 : 1.6);
+    }
+    // A trailing run of sessions with no reading, and a 1-5 grade on one of them: still the last drawn.
+    auto tail = sessionsOf({0.5, 0.4, kNaN, kNaN});
+    tail[1].grade = 2;
+    tail[2].grade = 5;
+    tail[3].grade = 1;
+    QCOMPARE(DataVariabilityGeometry::funnel(tail, 120, 32).currentGrade, 2);
+    // Nothing drawn: grade 0, whatever the sessions say.
+    auto blank = sessionsOf({kNaN, kNaN});
+    blank.back().grade = 4;
+    const auto b0 = DataVariabilityGeometry::funnel(blank, 120, 32);
+    QCOMPARE(b0.currentGrade, 0);
+    QVERIFY(b0.sessions.empty());
 
     // One session sits where the current one always does, W − 6.
     const auto one = DataVariabilityGeometry::funnel(sessionsOf({0.5}), 120, 32);
@@ -415,12 +432,16 @@ void VariabilityDataGeometryTest::ringFollowsZAndClampsInTheCell()
     QVERIFY(!none.hasSwing && !none.ring && !none.centre && !none.chevron);
 }
 
-void VariabilityDataGeometryTest::ringClampsAtTwoPointTwoInTheIcon()
+void VariabilityDataGeometryTest::ringStaysInsideTheIcon()
 {
-    // x = 12 + clamp(z, −2.2, 2.2) × 5.25, y 12, r 2.6.
+    // x = 12 + clamp(z × 5.25, ±8.525), y 12, r 2.6 (R25: §6.2's stop at |z| 2.2 put the ring at
+    // x 23.55, half outside the icon). 8.525 = 12 − r 2.6 − half the 1.75 px stroke, so at 24 px the
+    // stroke's outer edge meets the icon's edge; reached at |z| = 8.525 / 5.25 ≈ 1.624.
+    const double reach = 12 - 2.6 - 1.75 / 2;
     struct Case { double z, x; bool clamped; };
-    const Case cases[] = {{0, 12, false}, {1, 17.25, false}, {-1.5, 4.125, false}, {2.2, 23.55, false},
-                          {3, 23.55, true}, {-5, 0.45, true}, {-kInf, 0.45, true}};
+    const Case cases[] = {{0, 12, false}, {1, 17.25, false}, {-1.5, 4.125, false}, {1.6, 20.4, false},
+                          {2.2, 12 + reach, true}, {3, 12 + reach, true}, {-5, 12 - reach, true},
+                          {-kInf, 12 - reach, true}, {kInf, 12 + reach, true}};
     for (const auto &c : cases) {
         const auto t = DataVariabilityGeometry::typicality(MarkForm::Icon, c.z, {{"a", 0.5}}, std::nullopt);
         const QByteArray at = QByteArray::number(c.z);
@@ -428,6 +449,10 @@ void VariabilityDataGeometryTest::ringClampsAtTwoPointTwoInTheIcon()
         QVERIFY(near(t.ring->cy, 12));
         QCOMPARE(t.ring->r, 2.6);
         QCOMPARE(t.clamped, c.clamped);
+        QCOMPARE(t.side, c.clamped ? (c.z < 0 ? -1 : 1) : 0);
+        // Inside the 24-unit icon, the stroke included at 24 px (k = 1).
+        QVERIFY2(t.ring->cx - t.ring->r - t.ring->width / 2 >= -1e-9, at);
+        QVERIFY2(t.ring->cx + t.ring->r + t.ring->width / 2 <= 24 + 1e-9, at);
         // §6.2 gives the Icon no ghosts, centre dot or chevron.
         QVERIFY(t.ghosts.empty());
         QVERIFY(!t.centre);
@@ -773,7 +798,7 @@ void VariabilityDataGeometryTest::singletonBuildsPlainObjects()
     const QJSValue inf = geo.typicality(0, kInf, QJSValue(), QJSValue());
     QVERIFY(inf.property("z").isNull());
     QVERIFY(inf.property("clamped").toBool());
-    QCOMPARE(inf.property("ring").property("cx").toNumber(), 12 + 2.2 * 5.25);
+    QCOMPARE(inf.property("ring").property("cx").toNumber(), 12 + (12 - 2.6 - 1.75 / 2));
     QVERIFY(inf.property("chevron").isNull());   // the Icon has none
 
     // typicalityTrace(): from JS arrays.

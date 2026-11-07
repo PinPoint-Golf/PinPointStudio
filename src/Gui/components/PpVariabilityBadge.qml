@@ -24,7 +24,12 @@
 //         variabilityCellW at the token sizes), a gap of 10, the word in body2.
 // The word wears the tone; at grade 0 it is colorText3 (§4.7). Screen readers hear the mark's
 // accessible name ("Consistency: Repeatable (4 of 5)"); the drawn words are ignored, so nothing is
-// read twice.
+// read twice. A host that already says the grade in its own accessible name (the funnel's too-few
+// label) sets `accessibleIgnored`, and the mark is ignored too (R25).
+//
+// REUSE. A host that reuses delegates calls snapTone() from its TableView.onReused / ListView.onReused:
+// the word and the mark then show the reused row's tone at once, never a fade from the last row's
+// (R25). A live grade change on the same badge still eases.
 //
 // TYPICALITY (§6.2, §7.4). With variant Typicality or TypicalityTrace the badge passes `values` and
 // `showCorridor` to its mark and has no grade: the word is the band's (values.band, the C++ grader's:
@@ -76,6 +81,18 @@ Item {
     property color  tone: markItem._toneOf(markItem._grade)
     property var    roles: null                                // a PpTypeset, optional
     property string medium: roles ? roles.medium : "screen"   // "screen" | "print"
+    // R25: the mark, the badge's one accessible element, is ignored too: for a host whose own
+    // accessible name already says the grade, so it is read once.
+    property bool   accessibleIgnored: false
+
+    // R25: a reused delegate's badge shows its own tone at once (see REUSE above).
+    property bool _toneSnap: false
+    function snapTone() {
+        markItem.snapTone()
+        _toneSnap = true
+        wordText.color = Qt.binding(function () { return badge._wordInk })
+        _toneSnap = false
+    }
 
     // §8.6: the golfer layer stands a measurement-limited grade down to the grade-0 "Checking" mark.
     readonly property bool substituted: measurementLimited && contentLayer === "golfer" && !markItem._typicality
@@ -120,8 +137,9 @@ Item {
             showCorridor: badge.showCorridor
             roles: badge.roles
             medium: badge.medium
+            Accessible.ignored: badge.accessibleIgnored
             // §8.6: "Checking" is the measurement word, so the substituted mark speaks Measurement and
-            // its accessible name reads "Measurement: Checking (0 of 5)".
+            // its accessible name reads "Measurement: Checking".
             vocabulary: badge.substituted ? MeasurementVocabulary
                       : markItem._typicality ? TypicalityVocabulary
                       : badge.variant === PpVariabilityMark.Needle ? MeasurementVocabulary
@@ -146,7 +164,7 @@ Item {
             font: badge._ts ? badge.roles.fBody
                             : Qt.font({ family: Theme.fontBody, pixelSize: Theme.fontSzBody2, weight: Theme.fontBodyWeight })
             color: badge._wordInk
-            Behavior on color { ColorAnimation { duration: Theme.durationSlow } }
+            Behavior on color { enabled: !badge._toneSnap; ColorAnimation { duration: Theme.durationSlow } }
         }
         // The technical layer's basis: a separator, then the grader's string, both in data-sm. The
         // separator is punctuation, not a word, so it stays outside the translatable strings (§7: as
