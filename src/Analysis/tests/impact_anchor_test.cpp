@@ -107,6 +107,22 @@ int main()
               "#161: the address-hold clubhead brings it back into reach");
     }
 
+    // A shoe that turns after impact departs like a ball, just below the toe line (Jess 20 Oct: 13–19
+    // px below it; 11 June swing 4: 33). The ball sits at least 50 px below the toes (#161).
+    {
+        cv::Mat bs = mat(), as = mat();
+        disc(bs, 640, 925, 8, 250);    // the toe's edge, 25 px below the toe line, gone after impact
+        cv::Mat B3, A3;
+        bs.convertTo(B3, CV_32F);
+        as.convertTo(A3, CV_32F);
+        check(!findAddressBallByDeparture(B3, A3, QPointF(640, 950), 900.0).ok,
+              "#161: a departure just below the toes is a shoe, not the ball");
+        ImpactAnchorConfig old;
+        old.belowToesPx = 10.0;
+        check(findAddressBallByDeparture(B3, A3, QPointF(640, 950), 900.0, old).ok,
+              "#161: with the old 10 px margin the shoe was taken");
+    }
+
     // No ball at all: before and after identical ⇒ nothing (never fabricate).
     const AddressBall none = findAddressBallByDeparture(A, A, p1Head, toeY);
     check(!none.ok, "no departure ⇒ no ball");

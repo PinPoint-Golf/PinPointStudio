@@ -1323,7 +1323,7 @@ Then, as §4.1 noted, the address position P1 is re-read if its sample was rewri
 **`ImpactAnchorStage`** is a separate pipeline stage that runs after the shaft stage, even on reused tracks. It finds the address ball a second, independent way, **by its disappearance** (`impact_anchor.h`):
 
 1. Compute the per-pixel median of frames during the backswing (the ball is there, the club is up) minus the median of frames 150–410 ms after impact (the ball is gone).
-2. A ball shows up as a bright disc in that difference. Search for one near the address clubhead and below the toes, scoring discs of radius 5–9 px. If nothing is found there, search again around the clubhead's median over the 300 ms before P1, in case P1 landed a few frames into the takeaway (#161).
+2. A ball shows up as a bright disc in that difference. Search for one near the address clubhead and at least 50 px (at 1280 wide) below the toes, scoring discs of radius 5–9 px. If nothing is found there, search again around the clubhead's median over the 300 ms before P1, in case P1 landed a few frames into the takeaway (#161). The toe margin keeps out a shoe that turns after impact, which departs like a ball.
 3. If found, record it on the track (`ballAnchored`, `addressBallPx`) and rebuild the synthetic track.
 
 It does **not** pin the ball into the track. Shaft lean (§8) reads the line from the hands to this ball directly, and the low point measures from it. Against 32 hand-marked contacts the hands-to-ball line reads −0.8° (standard deviation 2.1°), and the ball is placed within 10 px on 29 of 32 swings.

@@ -54,7 +54,10 @@ struct ImpactAnchorConfig {
     int64_t afterDelayUs     = 150000;  // impactAnchor.afterDelayUs — the "gone" frames start this long after impact
     int64_t afterSpanUs      = 260000;  // impactAnchor.afterSpanUs — …and run this long
     double  searchHalfWidthPx = 150.0;  // impactAnchor.searchHalfWidthPx — |x − P1 head x| ≤ this (at 1280 px)
-    double  belowToesPx      = 10.0;    // impactAnchor.belowToesPx — the ball sits below the lowest toe/heel point
+    double  belowToesPx      = 50.0;    // impactAnchor.belowToesPx — the ball sits this far below the lowest toe/heel
+                                        // point. 10 → 50 (#161, 2026-11-07): a shoe that turns after impact departs like
+                                        // a ball; the shoe picks sat 13–33 px below the toe line, every marked or
+                                        // checked ball at least 108 (84 balls, corpus + Jess library)
     double  aboveHeadPx      = 60.0;    // impactAnchor.aboveHeadPx — …and not far above the P1 clubhead
     double  minRadiusPx      = 5.0;     // impactAnchor.minRadiusPx — ball radius range (at 1280 px wide)
     double  maxRadiusPx      = 9.0;     // impactAnchor.maxRadiusPx
