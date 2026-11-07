@@ -102,7 +102,7 @@ QtObject {
     // mark geometry (tableRadius, rowH, rowH2, itemRowH, tableHeaderH, rowPadH, itemIndent, colorHairline,
     // meterSeg*, colorMeterUnlit, pipSize, pipGap, bandBarH, tabUnderline, fontSzTab, capDot, variabilityIconSize,
     // variabilityCellW, variabilityCellH, variabilityFunnelH, variabilityPrintAlphaScale, variabilityWashAlpha,
-    // variabilityWedgeCompositeMax).
+    // variabilityWedgeCompositeMax, variabilityBandFillMax).
     // Optional keys may also sit in a mode block when they differ between light and dark (Folio's chart
     // greys); variabilityWashAlpha's default already differs (1 light, 3 dark).
     readonly property var _themes: ({
@@ -841,6 +841,11 @@ QtObject {
     // in dark themes it composited to 91 %). The mark lowers the innermost wedge's alpha to fit; the
     // wider two keep theirs. Light themes composite to 44 % and paper to 60 %, so neither reaches it.
     readonly property real variabilityWedgeCompositeMax: _v("variabilityWedgeCompositeMax", 0.8)
+    // On SCREEN the most the spread funnel's band FILL may reach after variabilityWashAlpha, so it stays
+    // clearly below the band's 55 % edge (R35, Mark 7 Nov 2026: at ×3 in dark themes the 16 % fill
+    // reached 48 % and the edge barely showed). Dark themes draw the fill at 32 %; light themes (16 %)
+    // never reach it, and paper never reads it (its fill takes variabilityPrintAlphaScale).
+    readonly property real variabilityBandFillMax: _v("variabilityBandFillMax", 0.32)
     // Live-session grade hysteresis (§8.9): a grade changes only when ρ (or s′) crosses a band edge by
     // this much. NOT a theme key: it MUST equal kHysteresis in src/Metrics/variability/variability_constants.h,
     // the value the grader uses, and a theme that changed it would make the two disagree. TODO(calibrate)

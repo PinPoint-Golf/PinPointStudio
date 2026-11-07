@@ -664,29 +664,95 @@ void VariabilityDataGeometryTest::envelopeIsMeanPlusMinusSd()
 
 void VariabilityDataGeometryTest::traceScaleHandlesNegativeValues()
 {
-    // A signed curve: ±22 at the extremes. One scale, zero on the baseline; the negative side has only
-    // 2.5 units to the cell's bottom, so k = min(17/22, 2.5/22) = 2.5/22.
+    // R35: the curve scales to its bigger side. P = the largest value above zero, N = below; the bigger
+    // side spans 17 units, the smaller may take 2.5 beyond the baseline, else the whole curve spans
+    // 19.5 and the baseline moves in.
+    const auto extent = [](const VariabilityTraceShape &t) {
+        double top = 24, bottom = 0;
+        for (const auto &p : t.envelope->points) {
+            top = std::min(top, p.y());
+            bottom = std::max(bottom, p.y());
+        }
+        for (const auto &p : t.swing->points) {
+            top = std::min(top, p.y());
+            bottom = std::max(bottom, p.y());
+        }
+        return std::pair{top, bottom};
+    };
+
+    // A signed curve, ±22 at the extremes: both sides alike, so the whole curve spans 19.5 units,
+    // k = 19.5/44, and the baseline moves up from y 21.5 to 24 − 22k = 14.25.
     const auto mean = grid([](int i) { return 20 * std::sin(2 * kPi * i / 100); });
     const auto sd   = grid([](int) { return 2.0; });
     const auto t = DataVariabilityGeometry::typicalityTrace(mean, sd, mean, std::nullopt);
     QVERIFY(t.valid);
     QVERIFY(near(t.maxPositive, 22, 1e-6) && near(t.maxNegative, 22, 1e-6));
-    QVERIFY(near(t.valueScale, 2.5 / t.maxNegative));
-    QVERIFY(near(t.mean->points[0].y(), 21.5));   // value 0 sits on the baseline
-    double top = 24, bottom = 0;
-    for (const auto &p : t.envelope->points) {
-        top = std::min(top, p.y());
-        bottom = std::max(bottom, p.y());
+    QVERIFY(near(t.valueScale, 19.5 / 44, 1e-9));
+    QVERIFY(near(t.zeroY, 14.25, 1e-6));
+    QVERIFY(near(t.baseline.y1, t.zeroY) && near(t.baseline.y2, t.zeroY));
+    QVERIFY(near(t.mean->points[0].y(), t.zeroY, 1e-9));   // value 0 sits on the baseline
+    {
+        const auto [top, bottom] = extent(t);
+        QVERIFY(near(bottom, 24, 1e-6));                   // the deepest value reaches the cell's edge, not past it
+        QVERIFY(near(top, 4.5, 1e-6));                     // and the highest the band's top: it fills the cell
     }
-    QVERIFY(near(bottom, 24, 1e-9));              // the deepest value reaches the cell's edge, not past it
-    QVERIFY(near(top, 21.5 - 2.5, 1e-9));         // the same scale above: honest, not stretched
 
-    // Mostly positive with a small dip: the largest value still maps to 17 above the baseline.
+    // Mostly positive with a small dip that fits in the 2.5 below: the spec's layout, unchanged. The
+    // largest value maps to 17 above the baseline at y 21.5.
     const auto dip = grid([](int i) { return i == 10 ? -5.0 : 100 * std::sin(kPi * i / 100); });
     const auto zero = grid([](int) { return 0.0; });
     const auto d = DataVariabilityGeometry::typicalityTrace(dip, zero, dip, std::nullopt);
     QVERIFY(near(d.valueScale, 17 / 100.0, 1e-6));
+    QVERIFY(near(d.zeroY, 21.5) && near(d.baseline.y1, 21.5));
     QVERIFY(near(d.swing->points[10].y(), 21.5 + 5 * 0.17, 1e-6));   // below the baseline, on the same scale
+
+    // Wholly negative: the spec's layout turned over in the band. The deepest value maps to 17 BELOW a
+    // baseline at y 4.5, so it sits on y 21.5, clear of the corridor bracket (y 22.5 … 24). Before R35
+    // this curve drew 2.5 units tall.
+    const auto negMean = grid([](int i) { return -(50 + 30 * std::sin(kPi * i / 100)); });
+    const auto negSd   = grid([](int i) { return 5 + 0.05 * i; });
+    const auto n = DataVariabilityGeometry::typicalityTrace(negMean, negSd, negMean, VariabilityCorridor{0.25, 0.75});
+    double deepest = 0;
+    for (std::size_t i = 0; i < 101; ++i)
+        deepest = std::max(deepest, -(negMean[i] - negSd[i]));
+    QCOMPARE(n.maxPositive, 0.0);
+    QVERIFY(near(n.maxNegative, deepest, 1e-9));
+    QVERIFY(near(n.valueScale, 17 / deepest, 1e-9));
+    QVERIFY(near(n.zeroY, 4.5) && near(n.baseline.y1, 4.5) && near(n.baseline.y2, 4.5));
+    for (std::size_t i = 0; i < 101; ++i)
+        QVERIFY(near(n.mean->points[i].y(), 4.5 - negMean[i] * n.valueScale, 1e-9));
+    {
+        const auto [top, bottom] = extent(n);
+        QVERIFY(near(bottom, 21.5, 1e-9));
+        QVERIFY(top > 4.5);                                // nothing above zero
+        QVERIFY(n.corridor && n.corridor->points.front().y() > bottom);   // the bracket stays beneath the curve
+    }
+
+    // Mostly negative with a rise too big for the 2.5 above: P 20, N 100, so k = 19.5/120 and the
+    // baseline moves down to 2 + 20k; the curve spans y 2 … 21.5.
+    const auto rise = grid([](int i) { return i == 90 ? 20.0 : -100 * std::sin(kPi * i / 100); });
+    const auto r = DataVariabilityGeometry::typicalityTrace(rise, zero, rise, std::nullopt);
+    QVERIFY(near(r.valueScale, 19.5 / 120, 1e-9));
+    QVERIFY(near(r.zeroY, 2 + 20 * 19.5 / 120, 1e-9));
+    {
+        const auto [top, bottom] = extent(r);
+        QVERIFY(near(top, 2, 1e-9) && near(bottom, 21.5, 1e-9));
+    }
+
+    // Any mix of sides: inside the cell (y 2 … 24), value 0 on the baseline, and the cell filled: the
+    // bigger side spans 17 units, or the whole curve 19.5.
+    for (const double base : {-40.0, -10.0, -3.0, 0.0, 3.0, 10.0, 40.0})
+        for (const double amp : {-60.0, -30.0, -5.0, 5.0, 30.0, 60.0}) {
+            const auto c = grid([&](int i) { return base + amp * std::sin(kPi * i / 100); });
+            const auto u = DataVariabilityGeometry::typicalityTrace(c, zero, c, std::nullopt);
+            const auto [top, bottom] = extent(u);
+            QVERIFY2(top >= 2 - 1e-9 && bottom <= 24 + 1e-9, qPrintable(QStringLiteral("base %1 amp %2").arg(base).arg(amp)));
+            QVERIFY(near(u.swing->points[0].y(), u.zeroY - base * u.valueScale, 1e-9));
+            const double bigSide = std::max(u.maxPositive, u.maxNegative) * u.valueScale;
+            const double whole = (u.maxPositive + u.maxNegative) * u.valueScale;
+            QVERIFY2(near(bigSide, 17, 1e-9) || near(whole, 19.5, 1e-9),
+                     qPrintable(QStringLiteral("base %1 amp %2: side %3, whole %4").arg(base).arg(amp).arg(bigSide).arg(whole)));
+        }
 
     // Every value 0: flat on the baseline.
     const auto f = DataVariabilityGeometry::typicalityTrace(zero, zero, zero, std::nullopt);

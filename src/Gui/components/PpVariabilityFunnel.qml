@@ -35,7 +35,8 @@
 //
 // COLOUR. The provider names a role per element; this file maps it to a token (_roleColor) and
 // multiplies the element's alpha in. The band FILL is a wash (§3): on screen its alpha is also
-// multiplied by Theme.variabilityWashAlpha (1 light, 3 dark), clamped to 1 (_washAlpha); the band's
+// multiplied by Theme.variabilityWashAlpha (1 light, 3 dark), then held at or under
+// Theme.variabilityBandFillMax (R35: dark themes 32 %, below the 55 % edge; _washAlpha); the band's
 // edge, the lines and the markers keep theirs. "tone" is the CURRENT session's grade tone (§3), for
 // every band, old runs included (§6.1). Colour changes ease over Theme.durationSlow (0 under reduce
 // motion); the geometry never animates: a new session list is a new shape at once.
@@ -215,8 +216,12 @@ Item {
     // A FILL's alpha: in print a translucent fill is lifted by variabilityPrintAlphaScale, at most 1.
     function _fillAlpha(a) { return _print && a < 1 ? Math.min(1, a * Theme.variabilityPrintAlphaScale) : a }
     // A WASH's alpha (the band fill only; spec §3): on screen × Theme.variabilityWashAlpha (1 light,
-    // 3 dark), at most 1; in print the fill rule above alone. The band's edge and the markers are not washes.
-    function _washAlpha(a) { return _print ? _fillAlpha(a) : Math.min(1, a * Theme.variabilityWashAlpha) }
+    // 3 dark), at most Theme.variabilityBandFillMax (R35: 32 %, so the fill stays clearly below the
+    // band's 55 % edge; light themes' 16 % never reaches it); in print the fill rule above alone. The
+    // band's edge and the markers are not washes.
+    function _washAlpha(a) {
+        return _print ? _fillAlpha(a) : Math.min(1, Theme.variabilityBandFillMax, a * Theme.variabilityWashAlpha)
+    }
 
     implicitWidth: wide ? Math.max(minimumWidth, labelRow.implicitWidth) : layout.implicitWidth
     implicitHeight: layout.implicitHeight
@@ -275,7 +280,7 @@ Item {
             }
 
             // One band per unbroken run: filled in the current tone at 16 % (× variabilityWashAlpha on
-            // screen, _washAlpha), edged at 55 %, 1 px. An int
+            // screen, at most variabilityBandFillMax, _washAlpha), edged at 55 %, 1 px. An int
             // model, so a new shape of the same run count rebinds the paths rather than rebuilding them.
             Repeater {
                 model: funnel._geom ? funnel._geom.bands.length : 0

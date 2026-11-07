@@ -1079,16 +1079,18 @@ Item {
     function synthTyp(z, corridor) {
         return { z: z, ghosts: probe.synthGhosts, corridor: corridor === undefined ? { loZ: -1, hiZ: 1.5 } : corridor, band: probe.bandOf(z) }
     }
-    // A synthetic 101-point window: a hump on a positive base; this swing peaks `lead` later and `lift`
-    // SDs higher. Its band is typed in with it.
-    function synthTrace(lead, lift, band) {
+    // A synthetic 101-point window: a hump of height `amp` (default 30) on a base `base` (default 4);
+    // this swing peaks `lead` later and `lift` SDs higher. Its band is typed in with it. A negative
+    // `amp` is a dip: the signed curves of R35 (a trace scales to its bigger side).
+    function synthTrace(lead, lift, band, base, amp) {
+        const b = base === undefined ? 4 : base, a = amp === undefined ? 30 : amp
         const mean = [], sd = [], swing = []
         for (let i = 0; i <= 100; ++i) {
             const t = i / 100
-            const m = 4 + 30 * Math.exp(-Math.pow((t - 0.55) / 0.18, 2))
+            const m = b + a * Math.exp(-Math.pow((t - 0.55) / 0.18, 2))
             const s = 1.5 + 3 * Math.exp(-Math.pow((t - 0.55) / 0.25, 2))
             mean.push(m); sd.push(s)
-            swing.push(4 + 30 * Math.exp(-Math.pow((t - 0.55 - lead) / 0.18, 2)) + lift * s)
+            swing.push(b + a * Math.exp(-Math.pow((t - 0.55 - lead) / 0.18, 2)) + lift * s)
         }
         return { mean: mean, sd: sd, swing: swing, corridor: { loT: 0.45, hiT: 0.7 }, band: band }
     }
@@ -1245,6 +1247,23 @@ Item {
                                      basis: "peak 25 ms late, higher" }
                         TraceSwing { caption: "unusual"; showCorridor: synthTraceRow.modelData; values: probe.synthTrace(-0.1, -1.4, "unusual")
                                      basis: "peak 45 ms early, lower" }
+                    }
+                }
+                Cap { text: "Signed traces (R35) · mostly below zero, a dip below a small rise, both sides alike, a hump with a small dip · top: showCorridor off; bottom: on" }
+                Repeater {
+                    model: [false, true]
+                    Row {
+                        id: signedTraceRow
+                        required property bool modelData
+                        spacing: Theme.gap(28)
+                        TraceSwing { caption: "below zero"; showCorridor: signedTraceRow.modelData; values: probe.synthTrace(0.08, 1.6, "aLittleOff", -4, -30)
+                                     basis: "peak 25 ms late, lower" }
+                        TraceSwing { caption: "dip, small rise"; showCorridor: signedTraceRow.modelData; values: probe.synthTrace(0, 0.4, "usual", 6, -30)
+                                     basis: "peak on time" }
+                        TraceSwing { caption: "both sides"; showCorridor: signedTraceRow.modelData; values: probe.synthTrace(-0.1, -1.4, "unusual", -15, 30)
+                                     basis: "peak 45 ms early, lower" }
+                        TraceSwing { caption: "hump, small dip"; showCorridor: signedTraceRow.modelData; values: probe.synthTrace(0, 0.4, "usual", -3, 30)
+                                     basis: "peak on time" }
                     }
                 }
                 Cap { text: "Badges · Your usual, A little off, Unusual · Icon golfer · Icon dense · Icon technical · Cell golfer · Cell technical" }

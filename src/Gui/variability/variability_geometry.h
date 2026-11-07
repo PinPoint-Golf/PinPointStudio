@@ -232,14 +232,19 @@ struct VariabilityTypicalityShape {
 // The `TypicalityTrace` variant (§6.2 "Trace on envelope"), Cell only.
 //
 // X: the 101 grid points map onto x 2 … 78 (as the Overlay Cell's traces span), x_i = 2 + 76·i/100.
-// Y: ONE linear scale, zero on the baseline (y 21.5), positive up. §6.2 gives no vertical scale. The
-// largest positive value among the envelope (mean ± SD) and this swing maps to 17 units above the
-// baseline (the Overlay Cell's peak height h, §4.5); a negative value maps BELOW the baseline on the
-// same scale, never folded or offset. Only 2.5 units lie below the baseline (the cell's bottom edge
-// is y 24), so when the largest negative excursion would fall past it the scale shrinks until it fits:
-//     valueScale = min(17 / maxPositive, 2.5 / maxNegative)          (units per unit of value)
-// For a curve that stays ≥ 0 this is exactly "the largest |value| → 17". A curve that is mostly
-// negative is drawn honestly small; the spec has no layout for one (reported to Mark).
+// Y: ONE linear scale, zero on the baseline, positive up, never folded. §6.2 gives no vertical scale;
+// R35 (Mark, 7 Nov 2026): the curve scales to whichever side of its baseline is bigger, so every curve
+// fills its cell. Over the envelope (mean ± SD) and this swing, P = the largest value above zero and
+// N = the largest below (both ≥ 0). The bigger side spans 17 units (the Overlay Cell's peak height h,
+// §4.5), the band y 4.5 … 21.5; the smaller side may take 2.5 units beyond the baseline:
+//     valueScale = min(17 / max(P, N), 19.5 / (P + N))               (units per unit of value)
+//     P ≥ N:  zeroY = min(21.5, 24 − N·valueScale)    the spec's layout: baseline y 21.5, room to y 24
+//     P < N:  zeroY = max(4.5, 2 + P·valueScale)      turned over in the band: baseline y 4.5, room to y 2
+// So a curve whose smaller side fits its 2.5 units keeps its baseline at the band's edge (y 21.5 for
+// a mostly positive curve, as the spec; y 4.5 for a mostly negative one, whose deepest value then
+// sits on y 21.5, clear of the corridor bracket); past that the whole curve spans 19.5 units and the
+// baseline moves into the band just enough to fit both sides. For a curve that stays ≥ 0 this is
+// exactly "the largest value → 17 above y 21.5", as before.
 // PAINT ORDER, bottom to top: corridor, baseline, envelope, mean, swing.
 struct VariabilityTraceShape {
     bool valid = false;   // false: the inputs were not three whole 101-point curves (SD ≥ 0); then
@@ -250,7 +255,7 @@ struct VariabilityTraceShape {
     std::optional<VariabilityPolyline> swing;      // 1.75 px tone, round cap and join
     std::optional<VariabilityBracket>  corridor;
     double valueScale = 0;      // design units per unit of value
-    double zeroY      = 21.5;   // the baseline: where value 0 sits
+    double zeroY      = 21.5;   // the baseline: where value 0 sits (y 4.5 … 21.5, R35; above)
     double maxPositive = 0, maxNegative = 0;   // the extremes the scale was taken from (≥ 0 each)
 };
 

@@ -56,7 +56,7 @@ Method: `snapTone()` — the band, marker and words show the current tone at onc
 ## What it draws
 - **Centre line:** at mid-height, the full width, 1 px dashed `colorBorderStrong`.
 - **Sessions:** evenly spaced, 6 px in from each end, oldest left, at most the latest 12 (older ones roll off). One session sits at the right end. A session with no finite ρ is skipped (a grade-0 session usually has none), and its break carries to the next session.
-- **Band:** through each session's half-width, `clamp(ρ / 1.25, 0.08, 1) × (H/2 − 2)`, straight segments. Because it follows ρ, it shows movement within a grade. Fill: the **current** session's grade tone at 16 %, a wash: on screen × `Theme.variabilityWashAlpha`, clamped to 1 (1 in light themes, 3 in dark, so 48 %; Mark, 7 Nov 2026). Edge 1 px, the same tone at 55 %, never multiplied. Every band wears the current tone, older runs included.
+- **Band:** through each session's half-width, `clamp(ρ / 1.25, 0.08, 1) × (H/2 − 2)`, straight segments. Because it follows ρ, it shows movement within a grade. Fill: the **current** session's grade tone at 16 %, a wash: on screen × `Theme.variabilityWashAlpha` (1 in light themes, 3 in dark; Mark, 7 Nov 2026), then held at or under `Theme.variabilityBandFillMax` (0.32), so dark themes draw it at 32 % rather than 48 % and the edge reads (R35). Light themes stay at 16 %. Edge 1 px, the same tone at 55 %, never multiplied or capped. Every band wears the current tone, older runs included.
 - **Breaks:** a change of context, basis or scale stops the band; the next run starts after a 4 px gap marked by a short dashed `colorBorderStrong` tick. Sessions keep their even spacing.
 - **Session markers:** dots r 1.6 in `colorText2` on the centre line; the current session r 2.2 in the tone.
 - **Label:** the grade word in the tone (body face, `fontSzBody2`), then " · " and the trend label in `colorText2`: "↑ Tightening", "↓ Loosening", "→ Holding". Technical layer: then " · " and `basisText` in the data face, `fontSzDataSm`, `colorText2`.
@@ -76,10 +76,10 @@ Everything is in pixels, never scaled: the strokes, padding and marker radii sta
 
 ## Typeset hosts
 - **In a typeset panel or page, pass the host's PpTypeset as `roles`** (Mark's ruling R17, 7 Nov 2026). On screen and on paper alike the compact width and the height are then `roles.u()`, the gaps `roles.g()`, the words `roles.fBody` and the basis `roles.fFig`; tones are `roles.good` / `attention` / `warn` / `ink3`; `colorBorderStrong` → `roles.baseline`, `colorBorderMid` → `roles.grid`, each at its opacity; `colorText2` → `ink2`, `colorText3` → `ink3`. The label reads in proportion to the panel's own words.
-- On screen the band keeps `variabilityWashAlpha`; on paper it takes `variabilityPrintAlphaScale`. Without `roles` the funnel reads Theme, as before.
+- On screen the band keeps `variabilityWashAlpha` and its cap `variabilityBandFillMax`; on paper it takes `variabilityPrintAlphaScale`. Without `roles` the funnel reads Theme, as before.
 
 ## Print
-- `medium: "print"`: the band's fill multiplies its alpha by `Theme.variabilityPrintAlphaScale` (1.5), clamped to 1, and never by `variabilityWashAlpha`; strokes (the edge, the centre line, ticks) keep theirs.
+- `medium: "print"`: the band's fill multiplies its alpha by `Theme.variabilityPrintAlphaScale` (1.5), clamped to 1, and never by `variabilityWashAlpha` or `variabilityBandFillMax`; strokes (the edge, the centre line, ticks) keep theirs.
 - With `roles` on paper: as Typeset hosts, in the page's print-scale `u()`.
 - On paper without roles, gaps are `sp()`, never `gap()`, so the funnel never follows Density on paper. Inks are Theme's.
 - **On paper, always pass `roles`** (the page's PpTypeset). Without it, print draws from the live screen theme: a dark screen theme puts its dark-theme inks on white paper. This is a known limitation (decisions.md).
@@ -91,7 +91,7 @@ Everything is in pixels, never scaled: the strokes, padding and marker radii sta
 - Colour is never the only channel: the band's width and the words carry it.
 
 ## Tokens
-`variabilityFunnelH`, `variabilityWashAlpha` (screen), `variabilityPrintAlphaScale` (print), `colorGood`, `colorAttention`, `colorWarn`, `colorText3`, `colorText2`, `colorBorderStrong`, `fontBody`, `fontSzBody2`, `fontBodyWeight`, `fontData`, `fontSzDataSm`, `trackingData`, `durationSlow`, `Theme.sp()`, `Theme.gap()`, and the badge's. With roles (screen or paper): `roles.u()`, `roles.g()`, `fBody`, `fFig`, `good`, `attention`, `warn`, `ink2`, `ink3`, `baseline`, `grid`.
+`variabilityFunnelH`, `variabilityWashAlpha` and `variabilityBandFillMax` (screen), `variabilityPrintAlphaScale` (print), `colorGood`, `colorAttention`, `colorWarn`, `colorText3`, `colorText2`, `colorBorderStrong`, `fontBody`, `fontSzBody2`, `fontBodyWeight`, `fontData`, `fontSzDataSm`, `trackingData`, `durationSlow`, `Theme.sp()`, `Theme.gap()`, and the badge's. With roles (screen or paper): `roles.u()`, `roles.g()`, `fBody`, `fFig`, `good`, `attention`, `warn`, `ink2`, `ink3`, `baseline`, `grid`.
 
 ## objectNames
 `funnelGraphic`, `funnelShape` (the centre line's Shape), `funnelCentre`, `funnelBand` (one per run), `funnelTicks`, `funnelMarker`, `funnelCurrentMarker`, `funnelLabel`, `funnelBadge` (too few), `funnelWord`, `funnelTrend`, `funnelTrendAfter3`, `funnelBasis`.

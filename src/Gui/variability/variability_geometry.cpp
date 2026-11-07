@@ -170,9 +170,12 @@ constexpr double kBracketY = 23.25, kBracketTick = 0.75, kBracketWidth = 1.5;
 
 // §6.2 Trace on envelope (Cell).
 constexpr double kTraceBaseY = 21.5, kTraceX0 = 2, kTraceX1 = 78;
-// Spec silent: the vertical scale. The Overlay Cell's peak height h (§4.5) above the baseline, and the
-// room below it to the cell's bottom edge (24 − 21.5); VariabilityTraceShape says how both are used.
+// Spec silent: the vertical scale (R35). The bigger side of the curve spans the Overlay Cell's peak
+// height h (§4.5), 17 units: the band y 4.5 … 21.5. The smaller side may take kTraceBelow (the room
+// from the spec's baseline to the cell's bottom edge, 24 − 21.5) beyond the baseline before the scale
+// shrinks; VariabilityTraceShape says how they are used.
 constexpr double kTracePeak = 17, kTraceBelow = 24 - kTraceBaseY;
+constexpr double kTraceTopY = kTraceBaseY - kTracePeak;   // 4.5: the band's top edge
 constexpr std::size_t kGridN = std::size_t(kTraceGridPoints);           // 101
 constexpr double kEnvelopeAlpha = 0.09;                                // colorText at 9 %
 constexpr double kTraceMeanWidth = 1, kTraceSwingWidth = 1.75;
@@ -909,7 +912,7 @@ VariabilityTraceShape DataVariabilityGeometry::typicalityTrace(const std::vector
 {
     VariabilityTraceShape t;
     // §6.2 gives the baseline only its y; it spans the traces' x and takes the Overlay baseline's
-    // colorBorderStrong, 1 px (§4.5).
+    // colorBorderStrong, 1 px (§4.5). It sits at y 21.5 until the scale below moves it (R35).
     t.baseline = neutralLine(GeometryRole::NeutralStrong, kTraceX0, kTraceBaseY, kTraceX1, kTraceBaseY);
     t.zeroY = kTraceBaseY;
     t.corridor = bracket(corridor, kTraceX0, kTraceX1 - kTraceX0, kTraceX0, kTraceX1);
@@ -933,16 +936,27 @@ VariabilityTraceShape DataVariabilityGeometry::typicalityTrace(const std::vector
         see(mean[i] - sd[i]);
         see(swing[i]);
     }
-    double k = std::numeric_limits<double>::infinity();
-    if (maxPos > 0) k = std::min(k, kTracePeak / maxPos);
-    if (maxNeg > 0) k = std::min(k, kTraceBelow / maxNeg);
-    if (!std::isfinite(k)) k = 0;   // every value 0: flat on the baseline
+    // R35: the bigger side spans 17 units, the smaller side may take 2.5 beyond the baseline; past
+    // that the whole curve spans 19.5 (17 + 2.5) and the baseline moves in just enough to fit both.
+    // Mostly above zero (maxPos ≥ maxNeg): the spec's layout, baseline y 21.5, the 2.5 below it.
+    // Mostly below: the same layout turned over inside the band, baseline y 4.5, the 2.5 above it, so
+    // the deepest value sits on y 21.5 and the curve stays clear of the corridor bracket (y 22.5 … 24).
+    const double big = std::max(maxPos, maxNeg);
+    double k = 0;   // every value 0: flat on the baseline
+    double zeroY = kTraceBaseY;
+    if (big > 0) {
+        k = std::min(kTracePeak / big, (kTracePeak + kTraceBelow) / (maxPos + maxNeg));
+        zeroY = maxPos >= maxNeg ? std::min(kTraceBaseY, kTraceBaseY + kTraceBelow - maxNeg * k)
+                                 : std::max(kTraceTopY, kTraceTopY - kTraceBelow + maxPos * k);
+    }
     t.valueScale = k;
+    t.zeroY = zeroY;
     t.maxPositive = maxPos;
     t.maxNegative = maxNeg;
+    t.baseline.y1 = t.baseline.y2 = zeroY;
 
     const auto X = [](std::size_t i) { return kTraceX0 + (kTraceX1 - kTraceX0) * double(i) / double(kGridN - 1); };
-    const auto Y = [k](double v) { return kTraceBaseY - v * k; };
+    const auto Y = [k, zeroY](double v) { return zeroY - v * k; };
 
     VariabilityArea env;
     env.role = GeometryRole::Text;
