@@ -68,14 +68,14 @@ Gaps the build filled:
 - **Tooltip:** there is no design-system tooltip component, so the badge uses the Controls attached ToolTip, as PpButton and PpRowAction do; golfer layer only.
 - **Type:** §5's body 12 and body2 are the same token (`fontSzBody2`, 12); data-sm is `fontSzDataSm` (13). The dense icon is `sp(16)`: §5 gives the number and no token.
 - **Print fills:** dots, ellipse, wedges (and later the typicality fills, envelope and funnel band) × `variabilityPrintAlphaScale`, clamped to 1; strokes keep their alpha. `medium` is a plain property; typeset hosts bind `roles.medium`.
-- **Measurement-limited badge** reads "Measurement: Checking (0 of 5)".
+- **Measurement-limited badge** reads "Measurement: Checking (0 of 5)". *Resolved by R25: "Measurement: Checking".*
 - **Tokens:** `variabilityHysteresis` is a plain Theme property, not a theme key; the generator refuses to run if it differs from `kHysteresis`. `tokens.json` gains a top-level "behaviour" group for it. Token spellings: trend `tightening | loosening | holding` ("insufficient" returns "" quietly); typicality `usual | aLittleOff | unusual`.
 - **Windowed sheets** (`sheets/`, 14 themes, Metal, dpr 2): every grade separates and all five grades stay distinct in greyscale. Weakest pair: the Dispersion Icon at grades 1 and 2; the word carries it. Studio's light body face makes the words look faint; that is the theme. The dark-theme washes were visible but, Mark judged, too faint to tell the Needle's grades apart, so `variabilityWashAlpha` was added (Mark's rulings, above).
 
 Awaiting Mark:
-- **Tone fade on delegate reuse.** §4.2 asks for a fade; in a scrolling table it looks like colour lag. Snap on reuse?
-- **Grade-0 accessible name** reads "… (0 of 5)" when §4.2 is followed literally.
-- **Overlay Cell, grade 1, trace 4** (h 22.1) peaks at y ≈ −0.56, half a unit above the cell. Followed literally.
+- **Tone fade on delegate reuse.** §4.2 asks for a fade; in a scrolling table it looks like colour lag. Snap on reuse? *Resolved (R25): a reused row snaps. The mark, badge and funnel gain `snapTone()`; a host with `reuseItems` calls it from `TableView.onReused` / `ListView.onReused`, because a view's attached signals reach only a delegate's root and nothing inside a delegate can tell a reuse from a live change (checked offscreen: `visible` never changes on pooling). A live grade change on the same item still eases. No app host reuses delegates today.*
+- **Grade-0 accessible name** reads "… (0 of 5)" when §4.2 is followed literally. *Resolved (R25): "Consistency: Not enough swings", "Measurement: Checking" (the two vocabularies' `accessibleName`).*
+- **Overlay Cell, grade 1, trace 4** (h 22.1) peaks at y ≈ −0.56, half a unit above the cell. Followed literally. *Resolved (R25): a trace that would rise past y 0.65 (half its 1.3 px stroke) is scaled down about the baseline, bump included; only this one reaches it (drawn h ≈ 20.9).*
 
 ### Session 3: companion visuals
 
@@ -95,8 +95,8 @@ Gaps the build filled:
 Awaiting Mark:
 - **The trace corridor** is undefined in the spec. Built as a timing window `{ loT, hiT }` in normalised time.
 - **Trace vertical scale:** min(17 / maxPositive, 2.5 / maxNegative), zero on the baseline. A mostly negative curve draws small.
-- **Typicality Icon ring at |z| 2.2** (x 23.55, r 2.6) overflows the 24-unit icon by about 2 units. Followed literally.
-- **The funnel never applies the "Checking" substitution:** its word comes from the session grade. Should a measurement-limited funnel say "Checking"?
+- **Typicality Icon ring at |z| 2.2** (x 23.55, r 2.6) overflows the 24-unit icon by about 2 units. Followed literally. *Resolved (R25): the ring stops at x 12 ± 8.525 (the edge less r 2.6 and half the 1.75 px stroke), reached at |z| ≈ 1.62; past it the Icon looks the same and the word tells "A little off" from "Unusual".*
+- **The funnel never applies the "Checking" substitution:** its word comes from the session grade. Should a measurement-limited funnel say "Checking"? *Resolved (R25): a `measurementLimited` input (the current session's flag). Golfer layer: "Checking", in grade 0's tone, then the trend word; the too-few badge substitutes itself. Technical layer unchanged.*
 - **TypicalityTrace asked for an Icon** warns and draws the 80 : 24 Cell, breaking the icon slot. The alternative: draw the Your-group Icon from `values.rmsZ`.
 
 ### Session 4: design-system documentation
@@ -149,6 +149,15 @@ The audit's classification and copy audit were posted and ruled on one question 
 - **R23, the common order** is graded over the segments the common-order sentence uses (a segment that is never or rarely placed, such as the face-on chest, drops out), with k = m! for those m segments; the basis names them ("Same order in 12 of 15 swings · pelvis, lead arm, club").
 - **R24, the condition rename stays;** sessions regrade lazily, once each, when next opened. No sweep.
 - **The 5 Oct matrix after the fixes** ("backswing repeatable … impact position moves most") matches Mark's sense of the session.
+- **R25, design-system fixes approved as a batch (7 Nov):** PpChMatrix chooses short/full form from the longest vocabulary word; a reused row snaps to its tone; a grade-0 accessible name has no "(0 of 5)"; Overlay grade 1's tallest trace and the typicality Icon ring at |z| 2.2 are clamped inside their boxes; a measurement-limited funnel says "Checking" on the golfer layer; a funnel never takes its word from a last session it can't draw; dark themes lighten the Needle's inner wedge so the needle reads; the funnel's too-few badge is hidden from screen readers. Built 7 Nov (H1): each item's resolution is noted where its "Awaiting Mark" or open item sits (Sessions 2 and 3, §3, Session 5's open list). New API: `snapTone()` on the mark, badge and funnel; `accessibleIgnored` on the badge; `measurementLimited` (and read-only `substituted`, `shownGrade`, `word`) on the funnel; the Theme token `variabilityWedgeCompositeMax`.
+- **R26, no CV fallback** (calibration proposal 2): a ratio measure with no corridor and no `variabilityScale` is ungraded.
+- **R27, the ledger σ** for diagnostics' measurement-limited waits for the next ledger schema change.
+- **R28, calibration pass:** a read-only sweep on the cabin PC proposes trace corridors and the provisional thresholds; nothing is applied until Mark approves.
+- **R29, the speed traces stay ungraded:** the only scale for them is a cohort one (tour-pro peak-timing SDs), as R6.
+- **R30, trace typicality edge:** a whole curve reads "Your usual" up to RMS z(t) 1.25 ("A little off" stays at 2.0), so curves match scalars (calibration report-s5 §3). New constant for traces only. **Built 7 Nov (J1):** `kTraceTypicalityUsualZ = 1.25` (`variability_constants.h`, `TODO(calibrate)`) through `traceTypicalityBand()`; a trace's peak-timing and amplitude words and every scalar keep |z| ≤ 1.
+- **R31, curves borrow a scalar norm as their yardstick** (calibration report-s5 §1): each drawn trace takes the norm of its own quantity inside P4–P7 (24 traces; the 12 without one stay ungraded). Its timing half is graded only on rate traces with an interior peak (all of which stay ungraded under R29), so in practice curves are graded on their shape. **Never a norm measured from golfers' own swings:** a norm with `source: "measured"` is never borrowed. All 24 used today are `heuristic` or `literature`. (Mark: "so long as none are tied to my swings".) **Built 7 Nov (J1):** `MetricDescriptor::traceCorridorMeasure`, filled for the 24 as report-s5 maps them (the 9 without a library window by the report's rule: hipLineTilt m_hipLineTiltTop, leadKneeDrift m_leadKneeDriftImpact, pelvisLift m_pelvisLiftImpact, pelvisSway m_pelvisSwayImpact, spineSideBend m_spineSideBendTop, thoraxLateralDrift m_thoraxDrift, trunkRise m_trunkRiseImpact, hm.leadWristFlexExt m_leadWristAtImpact, hm.leadWristRadUln m_leadWristRadUln_p7); the scale provider's `traceCorridorHalfWidth(key, club)` resolves it per club to (σLo + σHi)/2 and refuses a `measured` norm (and a `seated` one, fitted from the user's marked swings: the build's reading of "never tied to my swings"). `MetricDescriptor::traceTimingGraded` on the four angular speeds and hand speed; the grader grades the timing half only when `VariabilityInput::gradeTiming` says so (default amplitude only). Charts session rows show an Overlay badge per club, and Against a TypicalityTrace badge, for the traces that borrow a norm; basis "of corridor". metric_catalogue_test pins the set.
+- **R32, a two-part order is graded** (lead arm and club, k = 2), naming its parts in the basis — as built.
+- **R33, "Too few" in the Consistency table:** in the matrix only, grade 0 shows the vocabulary's short form "Too few" (the key explains it; every other surface keeps "Not enough swings"), so words fit down to about 860 px; on paper the row-name column narrows so the printed page always shows words, never grade numbers. A small design-system addition (a short form of one word), approved.
 - **Work on `main`.** The plan's branch instructions were replaced: every session commits on `main`.
 
 #### Session 5: applied (7 Nov)
@@ -224,7 +233,7 @@ What the retrofit left alone, what has no surface yet, the measurement surfaces 
 - **Key figures** split the badge's basis onto its own line when the column can't hold it, column-wide.
 - **The Launch monitor appendix badge** sits on its own line under each graded row: a ninth column overflows the 674 px page.
 - **The report's work-on badge** grades that session only (R14), through the rule Home shares (`src/Gui/variability/variability_ledger.h`).
-- **Traces are ungraded** (R16): the Overlay and TypicalityTrace hosts stay in place and show nothing until a trace has a corridor.
+- **Traces are ungraded** (R16): the Overlay and TypicalityTrace hosts stay in place and show nothing until a trace has a corridor. *Superseded by R31 (built 7 Nov): the 24 traces that borrow a norm are graded; the rest still show nothing.*
 - **Diagnostics never sets measurement-limited:** ledger rows store no σ. Setting it would need a ledger schema change (`diagnostic_ledger.h`).
 - **Typicality's basis** says "average" (R18), so Replay's "median 72 mph" can sit beside "average 74 mph". Both are right.
 - **The Home column** widened from `sp(96)` to `sp(136)`. A plain Active work-on has no NOW line, so its badge shows only on the area row.
@@ -234,17 +243,18 @@ What the retrofit left alone, what has no surface yet, the measurement surfaces 
 **Still open for Mark** (collected during the build, not yet ruled):
 - The common order needs every segment placed: allow "probable" peaks?
 - A Consistency "stood out" row (robust z ≥ 3.5) can read "Your usual" (mean and SD, |z| ≤ 1): two rules, both by design. Should typicality on stand-outs use the robust z?
-- The matrix's short form on paper: grade figures on a golfer-layer page?
-- `PpChMatrix`'s full-form threshold was sized for "steady": "Not enough swings" and "Repeatable" may overflow at middle widths (a design-system change if they do).
+- The matrix's short form on paper: grade figures on a golfer-layer page? **Part done (7 Nov):** the report page passes each graded cell's vocabulary word as its text, and `PpChMatrix` (R25) takes the full form when the widest of those words fits. On the 674 px page eight columns leave 70.6 px a cell: "Repeatable" needs 71 (58.4 px at 11 px Inter, a 6 px gutter each side, rounded up) and "Not enough swings" 113, so a table holding either still prints figures. Still for Mark: a two-line cell, a narrower name column on paper, or accept figures with the key.
+- `PpChMatrix`'s full-form threshold was sized for "steady": "Not enough swings" and "Repeatable" may overflow at middle widths (a design-system change if they do). *Resolved (R25): the full form needs the widest word in use, measured in its face, with its gutters and any mark (and the widest full head). Nothing overflows; the cost is that a table holding "Not enough swings" needs about 8.4 em + 8 × 126 px ≈ 1130 px for the full form on screen (≈ 1215 px with a ◆ on that word), so the Consistency tab and the report page show the short form at most widths whenever a cell says it. A table with no word longer than "Repeatable" keeps the full form down to ≈ 860 px.* **Resolved (7 Nov, R25):** the threshold is the widest word the cells hold, measured in its face.
 - The report's Posture page is badge-heavy (up to 6 badges a row, on 2 lines); a smaller paper badge would be a design-system change.
-- The Launch monitor appendix badge on its own line: OK, or a shorter basis? The longest basis (attack angle) crosses the AVG column's edge.
+- The Launch monitor appendix badge on its own line: OK, or a shorter basis? The longest basis (attack angle) crosses the AVG column's edge. **Resolved (7 Nov):** a ledger row's typicality badge keeps its basis beside the word only when both fit left of the Avg column (the row's width when folded); otherwise the word stays on the badge's line and the basis wraps on a line under it, inside that column (as `PpChKeyFigures`).
 - `core.json`'s new label ("Sequence changes from swing to swing") changes the pack's content stamp, so every session's `diagnostics.json` regrades once when next opened. The library and corpus sweeps (cabin PC).
 - `SESSION_DIAG_MARKS_SOURCES` (`src/Analysis/tests/CMakeLists.txt`) now feeds `regrade_ledger`, `diag_uncertainty_report` and `diag_rank_diff`: the cabin build must pick it up.
 - Diagnostics measurement-limited needs a σ in the ledger (a schema change).
 - `gate_words`' consistencyVerdict split needs a new gate id.
-- Launch-monitor data the build listed as unread (the launch / spin, path / face and strike ellipses) is still published; check its readers before removing it.
-- Old consistency words in QML test fixtures (`tst_*.qml`, `src/Gui/tests/qml/data/session_report/*.json`), not run; the frozen `jess.json` fixture keeps "Sequence not repeatable".
-- `build/report-build/REPORT_MAP.md` (untracked) should gain `workOns[].consistency` and the Launch monitor appendix rows' `variability`.
+- Launch-monitor data the build listed as unread (the launch / spin, path / face and strike ellipses) is still published; check its readers before removing it. **Resolved (7 Nov):** `clubs[].ellipses.launchSpin`, `.pathFace` and `graphics.strikeEllipse` had no reader and are no longer published (fixtures and `lm_panel_fsx.md` updated). `ellipses.dispersion` (the dispersion plot) and `ellipses.strike` (`strikeEll` → `strikeEllipseFace()`, the Impact face) are read and stay.
+- Old consistency words in QML test fixtures (`tst_*.qml`, `src/Gui/tests/qml/data/session_report/*.json`), not run; the frozen `jess.json` fixture keeps "Sequence not repeatable". **Resolved (7 Nov):** the report fixtures (jess included: it is generated like the rest, not frozen), `fixtures.js`, `diag_session.js` and `tst_session_report.qml` use the new words; `consistency.json`'s table and head are in the graded shape; the retired `repeat` lines are gone. Not run.
+- `build/report-build/REPORT_MAP.md` (untracked) should gain `workOns[].consistency` and the Launch monitor appendix rows' `variability`. **Resolved (7 Nov):** both are documented there.
+- **R26 applied (7 Nov):** the scalar grader's CV rung is gone: a ratio measure with no corridor and no `variabilityScale` is ungraded (`noScale`); `ScaleSource::CV`, `nonPositiveForRatio` and the "CV" basis string are removed; `variability.md` and `PpVariabilityMark.md` updated.
 
 ## 3. Open items
 
@@ -265,11 +275,11 @@ What the retrofit left alone, what has no surface yet, the measurement surfaces 
 - **Print hosting choices await a real printed page.** No report page hosts a mark yet. As built: fills × `variabilityPrintAlphaScale`, never `roles.tintK`; neutral elements map to `roles.baseline` / `roles.grid` at their opacities; the word in `roles.fBody`, the basis in `roles.fFig`; PpTypeset's new `good` ink; on paper without `roles` the marks keep Theme's colours, and only the gaps stop following Density.
 - **For Mark** (collected from above):
   - the Session 1 grader gaps, ordinal wording, kinematicSequence trend, ordinal partial orders, trace typicality thresholds;
-  - tone fade on delegate reuse; the grade-0 accessible name; the Overlay Cell grade-1 overshoot;
-  - the trace corridor; the trace vertical scale; the Icon ring overflow at |z| 2.2; "Checking" on the funnel; TypicalityTrace as an Icon;
+  - tone fade on delegate reuse; the grade-0 accessible name; the Overlay Cell grade-1 overshoot (*all three resolved by R25*);
+  - the trace corridor; the trace vertical scale; the Icon ring overflow at |z| 2.2 (*resolved, R25*); "Checking" on the funnel (*resolved, R25*); TypicalityTrace as an Icon;
   - the ordinal variant; the C++ token helper; ball flight's one badge; the typicality corridor in z;
-  - the funnel's last session with no ρ: it is not drawn, but `currentGrade` (tone and word) comes from it, and a break it carried is dropped;
-  - the reviewer's contrast note (S4 cold read): at ×3 in dark themes the innermost Needle wedge composites to about 91 % of the tone, so the full-tone needle is nearly lost inside it at grades 1–3; and the funnel band's fill (48 %) sits close to its 55 % edge. The wedge widths still carry the grade.
-- **Funnel accessibility, too-few state (open).** The embedded badge's mark is a second accessible Graphic inside the funnel's own, so a screen reader may read the grade twice. A clean fix needs a badge property (a design-system API change), so it is left for Session 5 or Mark.
+  - the funnel's last session with no ρ: it is not drawn, but `currentGrade` (tone and word) comes from it, and a break it carried is dropped; *resolved (R25): the current session is the last one drawn (tone, word and current marker); none drawn is grade 0;*
+  - the reviewer's contrast note (S4 cold read): at ×3 in dark themes the innermost Needle wedge composites to about 91 % of the tone, so the full-tone needle is nearly lost inside it at grades 1–3; and the funnel band's fill (48 %) sits close to its 55 % edge. The wedge widths still carry the grade. *The Needle half resolved (R25): a Theme token `variabilityWedgeCompositeMax` (0.8) caps where the three wedges overlap; the mark lowers the innermost wedge's alpha to fit (dark: 72 % → 40 %, so the regions read 36 / 67 / 80 %). Light themes (44 %) and paper (60 %) are unchanged. The funnel band's fill against its edge is still open.*
+- **Funnel accessibility, too-few state.** The embedded badge's mark is a second accessible Graphic inside the funnel's own, so a screen reader may read the grade twice. *Resolved (R25): the badge gains `accessibleIgnored`, which ignores its mark; the funnel sets it on its too-few badge, so the grade is read once, in the funnel's name.*
 - **Verification.** Full ctest 281/281 (qml_ui run once), 7 Nov 2026.
 - **README line 10** named "the PinPoint Studio design system artifact on claude.ai" as the visual reference. Reworded in Session 5: the design system is the repo folder, and the visual reference is the component pages and their previews (`previews/`).

@@ -29,6 +29,7 @@ From the C++ grader, per measure and context:
 - `trend`: from `variabilityTrend(points)` (`src/Metrics/variability/variability_trend.h`), one `TrendPoint { rho, n, contextKey, basisKind, scaleKey }` per session, oldest first; it finds the breaks itself from those keys, so set `breakBefore` from the same keys. Its `TrendResult` direction goes to the funnel as a token, `"tightening"`, `"loosening"`, `"holding"` or `"insufficient"`. No C++ helper spells the token yet: the presenter writes it exactly so. The trend reads the latest unbroken run, at most the latest 12 sessions, so it describes what the funnel draws.
 - `basisText` (technical layer): `TrendResult::basisString()`, "ρ 0.62 → 0.38 over 6 sessions".
 - `measureName`: the measure's name, for the accessible name.
+- `measurementLimited`: the **current** session's `variabilityResult.measurementLimited` (the last session drawn). On the golfer layer the funnel then says "Checking", as the badge does.
 
 QML never computes ρ, a grade or a trend.
 
@@ -42,10 +43,13 @@ QML never computes ρ, a grade or a trend.
 | contentLayer | string | `"golfer"` | `"golfer"` or `"technical"`. |
 | wide | bool | false | false: compact, `sp(120)` wide, label beside. true: fills the item's width, label beneath. |
 | variant | enum | `PpVariabilityMark.Dispersion` | The measure's own mark, for the too-few badge: `Dispersion` (scalar) or `Overlay` (time series). Anything else warns and draws Dispersion. |
+| measurementLimited | bool | false | The current session's reading is measurement-limited (R25). Golfer layer: the word is "Checking" in `colorText3`, and the band and current marker take grade 0's tone; the trend word still follows. Technical layer: unchanged. Passed to the too-few badge, which substitutes itself. |
 | roles | var | null | The host's `PpTypeset`, optional. When given, on screen and on paper, its sizes, gaps, type and inks replace Theme's (see Typeset hosts). |
 | medium | string | `roles ? roles.medium : "screen"` | `"screen"` or `"print"`. |
 
-Read-only: `currentGrade` (the last listed session's grade, even when that session has no ρ and is not drawn), `trendAfter3` (true while the latest unbroken run has fewer than 3 sessions), `sessionCount` (sessions in that run), `tone`, `label` (the label as one string, without the basis), `minimumWidth` (96 px).
+Read-only: `currentGrade` (the last **drawn** session's grade: a trailing session with no ρ never sets it; 0 when none is drawn, R25), `substituted` (the golfer layer is showing "Checking"), `shownGrade` (0 when substituted, else `currentGrade`), `word` (the word shown), `trendAfter3` (true while the latest unbroken run has fewer than 3 sessions), `sessionCount` (sessions in that run), `tone`, `label` (the label as one string, without the basis), `minimumWidth` (96 px).
+
+Method: `snapTone()` — the band, marker and words show the current tone at once; for a host that reuses delegates (see States, Changes).
 
 **Size.** The graphic is `sp(variabilityFunnelH)` (32) high in both forms. Compact: `sp(120)` wide, then `gap(10)`, then the label. Wide: set the item's `width`; the graphic fills it, never narrower than 96 px, and the label sits `gap(6)` beneath. A wide funnel with no width set is only as wide as its label.
 
@@ -65,10 +69,10 @@ Everything is in pixels, never scaled: the strokes, padding and marker radii sta
 - **Too few sessions** (`trendAfter3`: under 3 in the latest unbroken run, including just after a break): **no band at all** (older runs' bands are hidden too) and no ticks; the centre line and markers stay. The label is the measure's badge (an Icon `PpVariabilityBadge` of `variant` at the current grade) then " · Trend after 3 sessions" in `colorText3`. On the golfer layer the badge's tooltip is the grade's line.
 - **No sessions:** the centre line only, with the too-few label at grade 0.
 - **Grade 0** as the current grade: the band and the word in `colorText3`, "Not enough swings".
-- **Last session with no ρ:** it is not drawn, but `currentGrade`, and so the tone and the word, still come from it, and a break it carried is dropped (there is no later session to carry it to). Open for Mark (decisions.md). Hand the funnel only sessions with a reading if that is not what you want.
-- **Measurement-limited:** the funnel does **not** substitute "Checking"; its word is always the session's consistency grade. Whether it should is open for Mark (decisions.md).
+- **Last session with no ρ:** it is not drawn, and it is not the current session: the tone, the word and the current marker come from the last session drawn (R25). A break it carried is dropped (there is no later session to carry it to).
+- **Measurement-limited** (`measurementLimited`, golfer layer): the word is "Checking" in `colorText3`, then the trend word as usual ("Checking · ↑ Tightening"); the band and the current marker take grade 0's tone. Too few sessions: the badge shows "Checking" on its grade-0 shape. The technical layer keeps the grade (R25).
 - **More than 12 sessions:** the latest 12 are drawn, and the trend reads the same 12.
-- **Changes:** a new session list redraws at once (the geometry never animates); the tone eases over `Theme.durationSlow` (0 under reduced motion).
+- **Changes:** a new session list redraws at once (the geometry never animates); the tone eases over `Theme.durationSlow` (0 under reduced motion). A reused delegate's funnel snaps instead: a host with `reuseItems` calls `snapTone()` from `TableView.onReused` / `ListView.onReused` (R25).
 
 ## Typeset hosts
 - **In a typeset panel or page, pass the host's PpTypeset as `roles`** (Mark's ruling R17, 7 Nov 2026). On screen and on paper alike the compact width and the height are then `roles.u()`, the gaps `roles.g()`, the words `roles.fBody` and the basis `roles.fFig`; tones are `roles.good` / `attention` / `warn` / `ink3`; `colorBorderStrong` → `roles.baseline`, `colorBorderMid` → `roles.grid`, each at its opacity; `colorText2` → `ink2`, `colorText3` → `ink3`. The label reads in proportion to the panel's own words.
@@ -83,7 +87,7 @@ Everything is in pixels, never scaled: the strokes, padding and marker radii sta
 
 ## Accessibility
 - `Accessible.role: Accessible.Graphic`; the drawn words are ignored.
-- `Accessible.name`: "Pelvis rotation at top: Repeatable, tightening over 6 sessions" (the trend in lower case, the count from the latest unbroken run). With no trend word: "Pelvis rotation at top: Repeatable". Too few sessions: "Pelvis rotation at top: Repeatable. Trend after 3 sessions". With no `measureName`, "Consistency" stands in.
+- `Accessible.name`: "Pelvis rotation at top: Repeatable, tightening over 6 sessions" (the trend in lower case, the count from the latest unbroken run). With no trend word: "Pelvis rotation at top: Repeatable". Too few sessions: "Pelvis rotation at top: Repeatable. Trend after 3 sessions"; the badge's mark is then ignored (`accessibleIgnored`), so the grade is read once (R25). Measurement-limited on the golfer layer: "Pelvis rotation at top: Checking, tightening over 6 sessions". With no `measureName`, "Consistency" stands in.
 - Colour is never the only channel: the band's width and the words carry it.
 
 ## Tokens

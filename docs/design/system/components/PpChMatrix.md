@@ -25,6 +25,7 @@ Setting `columns` chooses the rectangle. Every word comes from the presenter; th
 | rows | var | [] | `[{ id, name, cells }]`; each row has one cell per column. A cell with no `text` is blank. |
 | wash | bool | true | Draw the cells' heat. False sets the same table with no wash. |
 | keyText | string | "" | What the short forms mean, in the presenter's words. Shown under the table, in the short form only. |
+| nameEm | real | 8.4 | The rectangle's row-name column in the full form, in em. A page of fixed width narrows it so the cells keep their words: the printed Consistency page sets it to what is left after `nCols × wordW`, at most 8.4 (R33). |
 | interactive | bool | true | False: drawn, never pressed (print). |
 | atom | bool | true | A pager unit. |
 | signal pairActivated(string xId, string yId) | | | The family: a defined cell was pressed. |
@@ -44,17 +45,17 @@ Setting `columns` chooses the rectangle. Every word comes from the presenter; th
 | mark | string | One glyph after the word in ink, such as `◆` "this shot left your pattern here". It stays inside the cell: in a tight cell it closes up to the right edge and the word moves left only if it must. Say what it means in `keyText` or a note. |
 | tap | bool | Pressable (while `interactive`). |
 
-Read-only: `family` (the family form), `short` (the short form is on: a screen can hang its own words on it), `n` (the family's readings that fit), `nCols`, `em`, `nameMax`, `wordW`, `indent`, `nameW`, `cellW`, `rowH`, `tableW`, `all`, `heads`, `body`, `keyKinds`.
+Read-only: `family` (the family form), `short` (the short form is on: a screen can hang its own words on it), `n` (the family's readings that fit), `nCols`, `em`, `nameMax` (`nameEm` in pixels), `wordW`, `indent`, `nameW`, `cellW`, `rowH`, `tableW`, `all`, `heads`, `body`, `keyKinds`.
 
 objectNames: `chMatrix`, `chMatrixCell` (each cell; `xId`, `yId` in the family).
 
 ## Typeset tokens
-`roles.r.figureRuleTop` + `roles.rule` (the head rule), `roles.hw` + `roles.hair` (row hairlines), `roles.fFigLabel` + `roles.ink3` (heads and row numbers), `roles.fSmall` + `roles.ink` (row names), `roles.fFigS` (figures, short forms, the mark), `roles.fSmall` / `fSmallM` (words), `roles.ink` / `ink3` (strong or not), `roles.ink` (the mark: its shape carries the meaning), `roles.heat(level, soft)` (the wash), `roles.pickWash` (the family's pick), `roles.ink` at `r.figureRuleTop` (the rectangle's outline), `roles.em`, `roles.u(22 / 26 / 6)`, `roles.g(3 / 4 / 5 / 6)`, `roles.r.ch.matrixCellEm`. Theme, through `heat()`: `colorHeatSome`, `colorHeatLoose`, `colorHeatAfter`.
+`roles.r.figureRuleTop` + `roles.rule` (the head rule), `roles.hw` + `roles.hair` (row hairlines), `roles.fFigLabel` + `roles.ink3` (heads and row numbers), `roles.fSmall` + `roles.ink` (row names), `roles.fFigS` (figures, short forms, the mark), `roles.fSmall` / `fSmallM` (words), `roles.ink` / `ink3` (strong or not), `roles.ink` (the mark: its shape carries the meaning), `roles.heat(level, soft)` (the wash), `roles.pickWash` (the family's pick), `roles.ink` at `r.figureRuleTop` (the rectangle's outline), `roles.em`, `roles.u(22 / 26 / 6)`, `roles.g(3 / 4 / 5 / 6)`, `roles.r.ch.matrixCellEm`; `roles.fSmall`, `fSmallM`, `fFigS` and `fFigLabel` also measure the full form's words, marks and heads. Theme, through `heat()`: `colorHeatSome`, `colorHeatLoose`, `colorHeatAfter`.
 
 ## States
 - **The family** fits as many readings as its columns allow and leaves the rest to the "Moves with" ledger; under three readings it hides. It is as wide as its columns, not its `width`.
-- **The rectangle** fills `width`. Row names run to 8.4 em and elide.
-- **Short form:** when the words no longer fit (a cell needs 4.3 em) every cell takes its `short` on the same wash, the heads take theirs, row names give way to 6.2 em and `keyText` appears. No column is ever dropped: the cells narrow.
+- **The rectangle** fills `width`. Row names run to `nameEm` (8.4 em) and elide.
+- **Short form:** when the words no longer fit, every cell takes its `short` on the same wash, the heads take theirs, row names give way to 6.2 em and `keyText` appears. No column is ever dropped: the cells narrow. Whether they fit is measured (R25, Mark 7 Nov 2026): a cell needs the widest word in use (in `fSmall`, `fSmallM` when `heavy`) with `g(5)` each side, or `g(5)`, the word, `g(3)`, the `mark` and `g(3)`, and no less than the widest full head with `g(5)` each side. So no word overflows at any width ("Checking" included); a table whose words are all short keeps the full form at narrower widths. The Consistency table writes grade 0 as "Too few" (R33), so its widest word is about "Repeatable". Read-only `wordW` is that width.
 - **Picked:** the family keeps the pick wash; a cell of the rectangle takes an ink outline, because the heat has taken over the old highlight.
 - **Colour is never the only channel:** the word, or in the short form the mark and its key, stays in every cell with heat. The heat says how much, never good or bad, so it is `colorAttention` and never warn.
 - **Print:** the heat is `roles.attention` scaled by `tintK`; with `fixedAesthetic` it reads the fixed aesthetic's table, so a printed page does not follow the app's theme.

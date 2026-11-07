@@ -49,8 +49,11 @@ From the presenter's `variabilityResult` (`src/Gui/variability/variability_facad
 | tone | color | the shown grade's tone; `colorAccent` for typicality | The mark's and the word's tone. Overridable, never to change the meaning. |
 | roles | var | null | The host's `PpTypeset`, optional. When given, on screen and on paper, its sizes, gaps, type and inks replace Theme's (see Typeset hosts). |
 | medium | string | `roles ? roles.medium : "screen"` | `"screen"` or `"print"`; passed to the mark. |
+| accessibleIgnored | bool | false | The mark, the badge's one accessible element, is ignored too: for a host whose own accessible name already says the grade, so it is read once (the funnel's too-few label, R25). |
 
 Read-only: `substituted` (the golfer layer is showing "Checking" for a measurement-limited grade), `shownGrade` (0 when substituted, else `grade`), `word` (the word shown), `line` (the golfer-layer line of the word shown).
+
+Method: `snapTone()` — the mark and the word show the current tone at once. A host that reuses delegates calls it from `TableView.onReused` / `ListView.onReused` (see States, Tone changes).
 
 The badge has no `label` or `vocabulary` of its own: the word always comes from the vocabulary its variant speaks.
 
@@ -77,13 +80,13 @@ Every variant and form of the mark (see [PpVariabilityMark](PpVariabilityMark.md
 - **Grade 0:** the mark's neutral element only; the word "Not enough swings" (consistency) or "Checking" (measurement) in `colorText3`. Its golfer-layer line still shows as the tooltip ("Hit a few more and we'll show how consistent this is."). There is no basis string at grade 0.
 - **Ungraded** (`graded` false): no badge. Hide it or don't create it; never show the raw SD instead. Record the reason (`ungradedReason`) if the display is left as it was.
 - **Measurement-limited** (`measurementLimited: true`):
-  - Golfer layer: the badge shows the **variant's own grade-0 shape** (a Dispersion badge shows the empty ring, or the bare target line as a Cell; an Overlay the bare baseline; never the Needle's arc) and the measurement word **"Checking"** in `colorText3`, with the line "Not enough data yet to judge this reading." `substituted` is true. The accessible name is "Measurement: Checking (0 of 5)".
+  - Golfer layer: the badge shows the **variant's own grade-0 shape** (a Dispersion badge shows the empty ring, or the bare target line as a Cell; an Overlay the bare baseline; never the Needle's arc) and the measurement word **"Checking"** in `colorText3`, with the line "Not enough data yet to judge this reading." `substituted` is true. The accessible name is "Measurement: Checking".
   - Technical layer: the real grade, mark and word, and the basis string the grader built, which already ends "· measurement-limited".
   - It never applies to typicality.
 - **Typicality:** no grade. The word is the band's, always in the accent, never `colorText3`. The golfer-layer tooltip is the band's line.
 - **No typicality result:** the host must hide the badge. With `values` null, or `values.band` "", the badge still draws the mark's zones (and ghosts, when given) with no word beside them: a shape without its word, which principle 1 forbids. The presenter signals "no result" by handing `null` for `values` (the grader's `scalarTypicality` / `traceTypicality` returned none: fewer than 8 readings in the window, or no reading for this swing), and the host binds `visible` to it.
 - **Technical layer, empty `basisText`:** the word alone, no separator. The Needle's grader basis string is always empty (the spec has no Needle row), so a technical Needle badge is word only.
-- **Tone changes** ease over `Theme.durationSlow` (0 under reduced motion), word and mark together.
+- **Tone changes** ease over `Theme.durationSlow` (0 under reduced motion), word and mark together, when the grade changes on the same badge (a live session). A reused delegate's badge snaps to its own tone (R25): a host with `reuseItems` calls `snapTone()` from `TableView.onReused` / `ListView.onReused`. A badge that is created, not reused, starts at its tone.
 
 ## Tooltip
 Golfer layer only, on screen only: the word's line (§7 of the spec; listed in [variability.md, Words](../variability.md#words)) after 400 ms of hover, through the Controls attached `ToolTip`, as `PpButton` and `PpRowAction` do. Never on the technical layer, never on paper.
@@ -102,7 +105,7 @@ Golfer layer only, on screen only: the word's line (§7 of the spec; listed in [
 - No tooltip on paper.
 
 ## Accessibility
-The mark is the badge's one accessible element: "Consistency: Repeatable (4 of 5)", "Measurement: Checking (0 of 5)" when substituted, "Typicality: A little off". The drawn word, separator and basis are `Accessible.ignored`, so nothing is read twice. The basis string is not in the accessible name.
+The mark is the badge's one accessible element: "Consistency: Repeatable (4 of 5)", "Consistency: Not enough swings" at grade 0, "Measurement: Checking" when substituted, "Typicality: A little off". The drawn word, separator and basis are `Accessible.ignored`, so nothing is read twice. The basis string is not in the accessible name. With `accessibleIgnored` the mark is ignored as well, for a host that says the grade in its own name.
 
 ## Tokens
 `variabilityIconSize`, `variabilityCellH`, `fontBody`, `fontSzBody2`, `fontBodyWeight`, `fontData`, `fontSzDataSm`, `trackingData`, `colorText2`, `colorText3`, `durationSlow`, `Theme.sp()`, `Theme.gap()`, and the mark's. With roles (screen or paper): `roles.u()`, `roles.g()`, `fBody`, `fFig`, `ink2`, `ink3`.
@@ -207,8 +210,8 @@ Charts
 - `src/Gui/charts/PpChProfile.qml` in `PpChartsReadingsView.qml` — Readings rows · Typicality Icon · technical.
 - `src/Gui/charts/PpChProfile.qml` in `PpChartsShotView.qml` — This shot, Apart from the session rows · Typicality Icon · technical.
 - `src/Gui/charts/PpChKeyFigures.qml` — This shot, key figures (KS peak times included) · Typicality Icon · technical where the column holds the basis, else the word with the basis on its own line.
-- `src/Gui/charts/PpChTraceFigure.qml` — This shot, Against · TypicalityTrace Cell · technical. Hidden until a trace has a corridor (R16).
-- `src/Gui/charts/PpChSessionFigure.qml` — Session curves, one per club · Overlay Cell · technical. Hidden until a trace has a corridor (R16).
+- `src/Gui/charts/PpChTraceFigure.qml` — This shot, Against · TypicalityTrace Cell · technical. Shown for the 24 traces that borrow a norm (R31); the rest stay ungraded (R16).
+- `src/Gui/charts/PpChSessionFigure.qml` — Session curves, one per club · Overlay Cell · technical. Shown for the 24 traces that borrow a norm (R31); the rest stay ungraded (R16).
 - `src/Gui/charts/PpChSeqSession.qml` — Session, common order, one per club (ordinal: the default Dispersion) · Dispersion Icon · technical.
 - `src/Gui/charts/PpChReplaySession.qml` — Session, Replay's lead reading · Typicality Icon · technical.
 - `src/Gui/charts/PpChPostureSession.qml`, `PpChWristSession.qml` — Session, Posture and Wrist "Consistency" lines (Most / Least, R7) · Dispersion Icon · technical.

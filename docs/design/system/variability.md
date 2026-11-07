@@ -26,7 +26,7 @@ This page is the family guide: when a mark is allowed, how to classify an existi
 | Trace on envelope | How did this swing compare with my usual? (time series) | `PpVariabilityMark` · `TypicalityTrace` | Cell | Typicality | accent |
 
 - Grades: 5 the least variable, 1 the most; 0 no grade (too few swings). Tones: 5–4 `colorGood`, 3 `colorAttention`, 2–1 `colorWarn`, 0 `colorText3`. Typicality is never graded and wears `colorAccent`.
-- Washes: the group ellipse, the Needle's wedges, the funnel's band fill, the typicality inner zone and the trace's envelope are tone at a low alpha. On screen each × `Theme.variabilityWashAlpha`, clamped to 1: 1 in light themes, 3 in dark (Mark, 7 Nov 2026: the dark-theme Needle wedges could not be told apart). Strokes, the band's edge, the dots, the ghosts and the dashed outer zone are not washes. Paper never reads it.
+- Washes: the group ellipse, the Needle's wedges, the funnel's band fill, the typicality inner zone and the trace's envelope are tone at a low alpha. On screen each × `Theme.variabilityWashAlpha`, clamped to 1: 1 in light themes, 3 in dark (Mark, 7 Nov 2026: the dark-theme Needle wedges could not be told apart). Where the Needle's three wedges overlap they composite to at most `Theme.variabilityWedgeCompositeMax` (0.8) of the tone, so the full-tone needle reads (R25). Strokes, the band's edge, the dots, the ghosts and the dashed outer zone are not washes. Paper never reads it.
 - Defaults: Dispersion for icons and the golfer layer; Overlay Cell for technical-layer tables of time-series measures; the Needle only for measurement.
 - Ungraded (no scale, no uncertainty): no mark at all, never a raw SD in its place.
 
@@ -36,9 +36,10 @@ All three must hold: the spread is repeatability (the same measure, across swing
 
 - **Clubs.** Spread about each club's own median, pooled across clubs, is within-club spread and is eligible: one grade. A display that pools raw values from several clubs gets **one badge per club**, each named ("7-iron · Settling · Driver · Repeatable"); the plot beside it stays as drawn. A club with fewer than `Variability.nMin` (8) swings shows "Not enough swings".
 - **Outcome or movement.** Without a recorded intent, outcome measures get no grade: ball flight (carry, total, offline, ball speed, launch, spin, peak height, shot shape) and smash factor. Club delivery at impact is movement and stays eligible: club speed, path, face, face to path, attack, dynamic loft, lie, low point, strike location.
-- **Traces wait for a corridor.** The grader's trace fallbacks (10 % of the mean peak, `TIMING_SCALE_MS`) are uncalibrated: a surface treats a trace graded only on them as ungraded, so no Overlay or TypicalityTrace badge shows until the trace has a corridor.
+- **Traces use their borrowed norm (R16, R31).** A drawn curve is graded against the norm of its own quantity inside P4–P7, named by its descriptor's `traceCorridorMeasure` (24 traces) and resolved per club to (σLo + σHi)/2; its basis says "of corridor". A norm measured from golfers' own swings (`source: "measured"`, or `seated`) is never borrowed. A trace without a borrowed norm or a `variabilityScale` stays ungraded: the grader's fallbacks (10 % of the mean peak, `TIMING_SCALE_MS`) count as no scale, so no Overlay or TypicalityTrace badge shows. The timing half (σ of time-to-peak against `TIMING_SCALE_MS`) is graded only on rate traces with an interior peak (`traceTimingGraded`: the four angular speeds and hand speed), which have no corridor and so stay ungraded (R29); every other curve is graded on its amplitude alone.
+- **No scale, no grade; no CV fallback (R26).** The scale is the norm corridor, else the measure's `variabilityScale`. A ratio measure with neither is ungraded (`noScale`): its mean is not a scale, so the grader never falls back to the coefficient of variation.
 - **The scale is the band the reader sees.** Grade against the norm corridor. Where a display draws a different band (a posture pattern's, a wrist style's), grade against that band's σ, (σLo + σHi)/2; its basis string says "of scale", never "of corridor".
-- **Cells that pool readings.** A table cell that rolls up several readings (an area at a span) takes the grade at its loosest third: the 67th-percentile ρ of its graded readings, through the scalar bands. The cell shows the word alone; the marks go on the readings it opens to. Ungraded readings don't count. No graded reading: "-". Every graded reading under 8 swings: "Not enough swings". A measurement-limited cell reads "Checking".
+- **Cells that pool readings.** A table cell that rolls up several readings (an area at a span) takes the grade at its loosest third: the 67th-percentile ρ of its graded readings, through the scalar bands. The cell shows the word alone; the marks go on the readings it opens to. Ungraded readings don't count. No graded reading: "-". Every graded reading under 8 swings: "Not enough swings" ("Too few" in the Consistency table, see [Words](#consistency)). A measurement-limited cell reads "Checking".
 
 ## Classifying a display
 
@@ -85,6 +86,8 @@ Every variability word, line and accessible name lives in one of four singletons
 | 1 | Scattered | This is different almost every swing. |
 | 0 | Not enough swings | Hit a few more and we'll show how consistent this is. |
 
+In the Consistency table only, grade 0 is "Too few" (`ConsistencyVocabulary.shortWord(0)`; grades 1–5 are their words), so the words fit its cells (R33, Mark 7 Nov 2026). The table's key explains it: "Too few: fewer than eight swings to grade it." Every other surface, the readings a cell opens to included, keeps "Not enough swings".
+
 ### Measurement
 
 `MeasurementVocabulary`: the Needle only. How far a reading can be trusted. The words describe the measurement, never the golfer, so always name the reading: "Pelvis IMU · Steady".
@@ -116,12 +119,12 @@ Every variability word, line and accessible name lives in one of four singletons
 
 | band | word | golfer-layer line |
 |---|---|---|
-| `usual` (\|z\| ≤ 1) | Your usual | This swing looked like most of your swings. |
-| `aLittleOff` (1 < \|z\| ≤ 2) | A little off | This swing was a little different from your usual. |
+| `usual` (\|z\| ≤ 1; a whole curve's RMS z(t) ≤ 1.25, R30) | Your usual | This swing looked like most of your swings. |
+| `aLittleOff` (1 < \|z\| ≤ 2; a curve 1.25 < RMS z(t) ≤ 2) | A little off | This swing was a little different from your usual. |
 | `unusual` (\|z\| > 2) | Unusual | This swing was quite different from your usual, for better or worse. |
 
 - Zone labels: "most swings" (|z| ≤ 1, `zoneMost`) and "nearly all" (|z| ≤ 2, `zoneNearlyAll`), in lower case. Never "normal" or "abnormal".
-- Accessible names: "Consistency: Repeatable (4 of 5)", "Measurement: Steady (4 of 5)", "Consistency: Not enough swings (0 of 5)"; typicality has no grade, "Typicality: Your usual". The funnel: "Pelvis rotation at top: Repeatable, tightening over 6 sessions".
+- Accessible names: "Consistency: Repeatable (4 of 5)", "Measurement: Steady (4 of 5)"; grade 0 has no grade to count, "Consistency: Not enough swings", "Measurement: Checking" (R25); typicality has no grade, "Typicality: Your usual". The funnel: "Pelvis rotation at top: Repeatable, tightening over 6 sessions".
 
 ### Phrasing
 
@@ -140,9 +143,8 @@ As the grader builds them:
 |---|---|---|
 | Scalar, against the norm corridor | "σ 2.1° · 0.42 of corridor · n 24" | `VariabilityResult::basisString` |
 | Scalar, against the measure's `variabilityScale` | "σ 2.1° · 0.42 of scale · n 24" | the same |
-| Scalar, CV fallback (a ratio measure with no corridor or scale) | "σ 4.1 km/h · CV 0.04 · n 24" | the same |
-| Trace, timing sets the grade | "σ peak 18 ms · n 24" | the same |
-| Trace, amplitude sets the grade | the scalar form, with the RMS of SD(t) and ρₐ: "σ 3.2° · 0.48 of scale · n 24". "of corridor" against a corridor; the 10 %-of-peak fallback reads "of scale". | the same |
+| Trace, timing sets the grade (rate traces only, R31) | "σ peak 18 ms · n 24" | the same |
+| Trace, amplitude sets the grade | the scalar form, with the RMS of SD(t) and ρₐ: "σ 3.2° · 0.48 of scale · n 24". "of corridor" against a corridor (a drawn trace's borrowed norm, R31); a `variabilityScale` reads "of scale". | the same |
 | Ordinal (an order or checkpoint) | "Same order in 21 of 24 swings"; an order names the segments it was graded over, appended by the presenter: "… · pelvis, lead arm, club" | the same |
 | Measurement-limited | the consistency string, then " · measurement-limited" | the same |
 | Needle (measurement) | none: the string is empty | the same |
@@ -153,7 +155,7 @@ As the grader builds them:
 | Ball flight (launch monitor, per club) | "offline ±6 yd · carry ±5 yd · 12 shots" | `ballFlightBasisString` |
 
 - A fallback scale is never called a corridor.
-- σ takes the measure's own decimals; ρ and CV two places; milliseconds none. "°", "%" and ":" sit against the number ("2.1°"); any other unit follows a space ("4.8 cm").
+- σ takes the measure's own decimals; ρ two places; milliseconds none. "°", "%" and ":" sit against the number ("2.1°"); any other unit follows a space ("4.8 cm").
 - "Peak on time" means within the golfer's usual spread of time-to-peak (|z| ≤ 1 about the median peak time), or a deviation that rounds to 0 ms. "higher" or "lower" appears only past |z| 1 of the window's peaks.
 
 ### Old words
@@ -164,7 +166,7 @@ The words the app used before the vocabularies, and what replaces them. Don't br
 |---|---|---|
 | steady · / some ◐ / loose ● | Consistency matrix cells, Home | The grade word (Grooved … Scattered); marks on the opened rows only |
 | ⚠ error, ⚠ near error, too close to measurement error | Consistency matrix and rows | Technical: the grade, then "· measurement-limited". Golfer: "Checking" |
-| - / not judged | Consistency matrix | Fewer than 8 swings: "Not enough swings". Ungraded: "-", no mark |
+| - / not judged | Consistency matrix | Fewer than 8 swings: "Too few" (the table's form of "Not enough swings"). Ungraded: "-", no mark |
 | Your swing repeats from shot to shot; You repeat your swing best in the backswing. It loosens on the way down | Consistency head | "Your backswing is %1, your downswing %2; your %3 moves most", with grade words |
 | Too few readings could be judged to say how your swing repeats | Consistency head | Grade 0: the Consistency line. Ungraded: "Nothing here has a range to judge it against." |
 | Repeatable? | Posture, Wrist headings | Consistency |
