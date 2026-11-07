@@ -1,6 +1,6 @@
 # PinPoint Studio: Variability marks implementation plan
 
-**Reference:** `variability-design-spec.md` (the spec). Commit it to `docs/design/variability-mark/spec.md` before session 1.
+**Reference:** `docs/design/variability-mark/spec.md` (the spec).
 **Shape:** five sessions, each run as a fresh Claude Code session on one branch (`feature/variability-marks`), merged after session 4. Session 5 runs on a new branch.
 
 ## Ground rules (repeat in every session prompt)

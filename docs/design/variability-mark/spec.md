@@ -48,7 +48,7 @@ The badge, `PpVariabilityBadge`, pairs any mark with its word (§5). Recommended
 - **Grade 5 is the least variable;** grade 1 the most. Grade 0 means no grade: too little data, or measurement-limited (§8.6).
 - **Typicality** uses `colorAccent` and is never graded.
 - **Neutral elements** (rings, baselines, rulers, target lines) use `colorBorderStrong` or `colorBorderMid`, as specified per element.
-- **Translucent washes** are tone at a given alpha over `colorSurface`. No shadows, blur effects or gradients.
+- **Translucent washes** are tone at a given alpha over `colorSurface`, multiplied on screen by `variabilityWashAlpha` (1 in light themes, 3 in dark, clamped to 1). They are the group ellipse, the Needle wedges, the funnel band fill, the typicality inner zone and the trace envelope. Strokes and the 70–85% dots are not washes. No shadows, blur effects or gradients. (Mark, 7 Nov 2026: in dark themes the 12/16/24% Needle wedges could not be told apart.)
 
 ## 4. The mark: `PpVariabilityMark`
 
@@ -63,7 +63,7 @@ The badge, `PpVariabilityBadge`, pairs any mark with its word (§5). Recommended
 | `tone` | color | from grade | Overridable. Typicality defaults to `colorAccent`. |
 | `label` | string | from vocabulary | The word, used for the accessible name. The mark never draws text. |
 | `vocabulary` | object | by variant | Consistency (Dispersion, Overlay), Measurement (Needle), Typicality (typicality variants) |
-| `data` | object | none | Per-instance values for the typicality variants (§6.2). |
+| `values` | object | none | Per-instance values for the typicality variants (§6.2). Named `values`, not `data`, which is Qt's built-in children list (Mark, 7 Nov 2026). |
 | `showCorridor` | bool | false | Typicality only. Draws the corridor bracket (§6.2). |
 
 ### 4.2 Behaviour
@@ -300,7 +300,7 @@ By the identity RMSE² = bias² + SD² (population SD):
 2. **Minimum n:** fewer than `N_MIN` swings gives grade 0.
 3. **Spread:** the sample SD. For `scaleType: circular`, use the circular SD `√(−2 ln R̄)`.
 4. **Scale:** take the first available.
-   1. The norm corridor half-width for the context: `(hi − lo)/2`.
+   1. The norm corridor half-width for the context: `(hi − lo)/2`. Norms store μ, σLo and σHi, so the corridor is the in-range band (|z| ≤ 1) and its half-width is `(σLo + σHi)/2`, the σ the Consistency matrix and Posture repeatability already use (Mark, 7 Nov 2026).
    2. `variabilityScale`.
    3. CV, only for `scaleType: ratio` with strictly positive values.
    4. Otherwise the measure is **ungraded**: no mark, never raw SD.
@@ -452,7 +452,7 @@ All are provisional and to be calibrated against logged sessions before being fi
 1. **Intended variability.** Grade within each intent (shot shape or shot type), never across intents. In varied practice where shots carry no intent, outcome measures get no grade. Body-movement measures that should repeat remain eligible.
 2. **Work-on completion.** A work-on is achieved only when its mean is in the corridor **and** its consistency is Repeatable or better over at least `N_MIN` swings. Show both on the work-on.
 3. **Certainty.** Finding and causal-link certainty uses the strength mark (CLEAR, LIKELY, POSSIBLE). The variability mark sits with the measure; the strength mark sits with the finding.
-4. **Print and greyscale.** Shape and word must carry the grade without colour. Print styles multiply translucent fills by `variabilityPrintAlphaScale`.
+4. **Print and greyscale.** Shape and word must carry the grade without colour. Print styles multiply translucent fills by `variabilityPrintAlphaScale`. In print, the mark, badge and funnel take an optional `roles` (PpTypeset) and use its inks, sizes and type, so a printed page never depends on a screen setting (Mark, 7 Nov 2026).
 5. **Roster.** Once cohort norms exist, each golfer is graded on their own cohort corridor. Never mix cohort and universal scales in one column without saying so in the header.
 
 ### 9.6 Launch-monitor ball flight
@@ -476,7 +476,7 @@ All are provisional and to be calibrated against logged sessions before being fi
 | `variabilityFunnelH` | 32 | Compact funnel height |
 | `variabilityPrintAlphaScale` | 1.5 | Print uplift for translucent fills |
 | `variabilityHysteresis` | 0.05 | Live-session grade hysteresis |
-| `variabilityWashAlpha`, `variabilityWashAlphaStrong` | per theme | Only if dark-theme checks show grades blurring together |
+| `variabilityWashAlpha` | 1 light, 3 dark | Screen multiplier on every translucent wash (§3). Added 7 Nov 2026 after Mark found the dark-theme Needle wedges indistinct. `variabilityWashAlphaStrong` was not needed. Print uses `roles` and `variabilityPrintAlphaScale` instead. |
 
 ## 11. Rendering guidance
 
