@@ -313,8 +313,8 @@ public:
     // A snapshot given directly, used while no SessionSeriesModel is set (tests; the fixture).
     void setSnapshot(std::shared_ptr<const SessionSnapshot> snapshot);
     // The variability scales in place of the catalogue's (tests), set before the first snapshot. A trace is graded, and
-    // has a TypicalityTrace, only against a scale of its own (R16), and no descriptor states one yet, so a test that
-    // exercises the grading states one here.
+    // has a TypicalityTrace, only against a scale of its own (R16): the norm it borrows (R31) or a variabilityScale. A
+    // test that grades a trace with no borrowed norm states a scale here.
     void setVariabilityScalesForTest(std::shared_ptr<const IVariabilityScaleProvider> scales);
     Q_INVOKABLE void setSynchronous(bool on);
     Q_INVOKABLE bool waitForIdle(int msTimeout = 60000);

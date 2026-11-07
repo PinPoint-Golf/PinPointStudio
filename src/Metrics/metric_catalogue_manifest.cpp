@@ -482,6 +482,8 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:bowed_lead_wrist"),
                     QStringLiteral("characteristic:cupped_at_top"),
                     QStringLiteral("characteristic:bowed_at_top") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): at P7, 15°.
+        .traceCorridorMeasure = QStringLiteral("m_leadWristAtImpact"),
     });
 
     cat.addDescriptor({
@@ -519,6 +521,8 @@ void installMetricManifest(MetricCatalogue &cat)
                     // ...and its low end, the same preference for holding the angle too long
                     // (sig_excessiveLagHinge, 18 Oct 2026).
                     QStringLiteral("characteristic:excessive_lag") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): change P1 to P7, 10°.
+        .traceCorridorMeasure = QStringLiteral("m_leadWristRadUln_p7"),
     });
 
     cat.addDescriptor({
@@ -612,6 +616,8 @@ void installMetricManifest(MetricCatalogue &cat)
                                "plane, from the WholeBody hand keypoints")) },
         .usedBy = { QStringLiteral("assessment:wrist") },
         .consistencyArea = QStringLiteral("release"),
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): change P1 to P5, 12°.
+        .traceCorridorMeasure = QStringLiteral("m_trailWristFlexExt_p5"),
     });
 
     // -------------------------------- Body rotation (LIVE — body_rotation.cpp; IMU or face-on estimate)
@@ -668,6 +674,8 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:hips_too_open_at_impact"),
                     QStringLiteral("characteristic:late_pelvis_rotation"),
                     QStringLiteral("characteristic:hips_under_rotated_at_top") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): at P7, 10°.
+        .traceCorridorMeasure = QStringLiteral("m_pelvisRotP7"),
     });
 
     // ⚠ THE SIGNED READING — and it is a separate series rather than a mode of the one above,
@@ -743,6 +751,8 @@ void installMetricManifest(MetricCatalogue &cat)
                                "lead-relative — the second camera's placement is assumed until it "
                                "is calibrated")) },
         .usedBy = { QStringLiteral("characteristic:hip_stall") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): pelvisRotation's, at P7, 10°.
+        .traceCorridorMeasure = QStringLiteral("m_pelvisRotP7"),
     });
 
     cat.addDescriptor({
@@ -779,6 +789,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .usedBy = { QStringLiteral("characteristic:abbreviated_finish"),
                     QStringLiteral("characteristic:short_backswing"),
                     QStringLiteral("characteristic:over_rotation_at_top") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): at P4, 12°.
+        .traceCorridorMeasure = QStringLiteral("m_thoraxRotP4"),
     });
 
     // The chest's signed twin (trunk design §8.1 / §8.3: `rot.thorax.turn.series`), the mirror of
@@ -828,6 +840,8 @@ void installMetricManifest(MetricCatalogue &cat)
                                "lead-relative — the second camera's placement is assumed until it "
                                "is calibrated")) },
         .consistencyArea = QStringLiteral("armsAndClub"),
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): thoraxRotation's, at P4, 12°.
+        .traceCorridorMeasure = QStringLiteral("m_thoraxRotP4"),
     });
 
     cat.addDescriptor({
@@ -984,6 +998,8 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:posture_sinks_impact"),
                     QStringLiteral("characteristic:posture_sinks_backswing"),
                     QStringLiteral("characteristic:poor_setup_posture") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): change P1 to P7, 3.75°.
+        .traceCorridorMeasure = QStringLiteral("m_spineBendChangeImpact"),
     });
 
     // FORWARD-BEND CHANGE, READ FACE-ON (posture_metrics_design.md §3.2). The face-on camera cannot
@@ -1031,6 +1047,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .usedBy = { QStringLiteral("characteristic:loss_of_posture"),
                     QStringLiteral("characteristic:posture_sinks_impact") },
         .consistencyArea = QStringLiteral("posture"),
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): change P1 to P7, 4.5%.
+        .traceCorridorMeasure = QStringLiteral("m_trunkRiseImpact"),
     });
 
     cat.addDescriptor({
@@ -1068,6 +1086,8 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("lateral trunk flexion, read in the frontal plane the face-on "
                                "camera sees square-on")) },
         .consistencyArea = QStringLiteral("posture"),
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): at P4, 6°.
+        .traceCorridorMeasure = QStringLiteral("m_spineSideBendTop"),
     });
 
     cat.addDescriptor({
@@ -1157,6 +1177,8 @@ void installMetricManifest(MetricCatalogue &cat)
                     // THE FINISH until 2026-09-04; past impact the lateral projection is
                     // rotation, so the measure was deleted (domain = P1-P7) and both left.
                     QStringLiteral("characteristic:pelvis_drift_lead_backswing") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): change P1 to P7, 10% stance width.
+        .traceCorridorMeasure = QStringLiteral("m_pelvisSwayImpact"),
     });
 
     cat.addDescriptor({
@@ -1199,6 +1221,8 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:loss_of_posture"),
                     QStringLiteral("characteristic:posture_sinks_impact"),
                     QStringLiteral("characteristic:posture_sinks_backswing") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): change P1 to P7, 2.5 cm.
+        .traceCorridorMeasure = QStringLiteral("m_pelvisThrustImpact"),
     });
 
     // THE SILHOUETTE PAIR (posture_chart_design.md §2.3, §10 stage 4a; 22 Oct 2026). Down the line,
@@ -1307,6 +1331,8 @@ void installMetricManifest(MetricCatalogue &cat)
                                "scaled by the ball or by the face-on ruler carried across")) },
         .usedBy = { QStringLiteral("chart:review"),
                     QStringLiteral("characteristic:loss_of_posture_backswing") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): change P1 to P4, 3 cm.
+        .traceCorridorMeasure = QStringLiteral("m_headRiseBackDtl"),
     });
 
     cat.addDescriptor({
@@ -1341,6 +1367,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .usedBy = { QStringLiteral("characteristic:pelvis_rise_backswing"),
                     QStringLiteral("characteristic:loss_of_posture"),
                     QStringLiteral("characteristic:posture_sinks_impact") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): change P1 to P7, 6.2% stance width.
+        .traceCorridorMeasure = QStringLiteral("m_pelvisLiftImpact"),
     });
 
     // The belt line's height — what `pelvis_sink_backswing` actually asks for. The hip keypoints
@@ -1420,6 +1448,8 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:trail_hip_hike"),
                     QStringLiteral("characteristic:hip_alignment_open"),
                     QStringLiteral("characteristic:hip_alignment_closed") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): at P4, 7°; its P7 measures carry no norm.
+        .traceCorridorMeasure = QStringLiteral("m_hipLineTiltTop"),
     });
 
     // The plumb bob: where the hips sit over the stance, and — with hipLineTilt above — the pair a
@@ -1514,6 +1544,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .usedBy = { QStringLiteral("chart:review"),
                     QStringLiteral("characteristic:lead_knee_drifts_in_at_top"),
                     QStringLiteral("characteristic:lead_knee_valgus_impact") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): at P7, 8% stance width.
+        .traceCorridorMeasure = QStringLiteral("m_leadKneeDriftImpact"),
     });
 
     // ------------------------------------------------------- Club delivery: the club's motion (face-on club track, 2D)
@@ -1569,6 +1601,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .consistencyArea = QStringLiteral("sequence"),
         // Variability scale (spec §8.2): a speed: strictly positive, with a true zero.
         .scaleType = ST::Ratio,
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): at P7, per club: iron 3.75, wedge 3.4, driver 4.65 mph.
+        .traceCorridorMeasure = QStringLiteral("m_clubheadSpeedImpact"),
     });
 
     cat.addDescriptor({
@@ -1609,6 +1643,9 @@ void installMetricManifest(MetricCatalogue &cat)
         .consistencyArea = QStringLiteral("sequence"),
         // Variability scale (spec §8.2): a speed: strictly positive, with a true zero.
         .scaleType = ST::Ratio,
+        // R31: a rate trace with an interior peak, so its peak time is graded too (report-s5 §2).
+        // It has no corridor (R29), so it stays ungraded.
+        .traceTimingGraded = true,
     });
 
     // The timing of the clubhead's peak, as a number, because no reducer returns the TIME of an
@@ -1679,6 +1716,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .usedBy = { QStringLiteral("chart:review"),
                     QStringLiteral("characteristic:casting"),
                     QStringLiteral("characteristic:excessive_lag") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): least P5 to P6, 26°.
+        .traceCorridorMeasure = QStringLiteral("m_lagAngleDown"),
     });
 
     cat.addDescriptor({
@@ -2408,6 +2447,9 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the hip span's cosine unfolded across the square-up and "
                                "differentiated, with the uncertainty propagated through 1/sin θ")) },
         .usedBy = { QStringLiteral("characteristic:no_pelvis_braking") },
+        // R31: a rate trace with an interior peak, so its peak time is graded too (report-s5 §2).
+        // It has no corridor (R29), so it stays ungraded.
+        .traceTimingGraded = true,
     });
 
     cat.addDescriptor({
@@ -2454,6 +2496,9 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the shoulder span's cosine unfolded across the square-up and "
                                "differentiated, with the uncertainty propagated through 1/sin θ")) },
         .consistencyArea = QStringLiteral("sequence"),
+        // R31: a rate trace with an interior peak, so its peak time is graded too (report-s5 §2).
+        // It has no corridor (R29), so it stays ungraded.
+        .traceTimingGraded = true,
     });
 
     cat.addDescriptor({
@@ -2498,6 +2543,9 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the shoulder→wrist image angle de-projected through the "
                                "swing-plane ellipse and differentiated")) },
         .consistencyArea = QStringLiteral("sequence"),
+        // R31: a rate trace with an interior peak, so its peak time is graded too (report-s5 §2).
+        // It has no corridor (R29), so it stays ungraded.
+        .traceTimingGraded = true,
     });
 
     cat.addDescriptor({
@@ -2544,6 +2592,9 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the filtered shaft angle rate de-projected through the "
                                "swing-plane ellipse")) },
         .consistencyArea = QStringLiteral("sequence"),
+        // R31: a rate trace with an interior peak, so its peak time is graded too (report-s5 §2).
+        // It has no corridor (R29), so it stays ungraded.
+        .traceTimingGraded = true,
     });
 
     // ── The PLACED trunk nodes' instants (segment_rates.h sequencePeakTimeSeries, 2026-10-02) ───────
@@ -3173,6 +3224,8 @@ void installMetricManifest(MetricCatalogue &cat)
                                "the ground plane")) },
         .usedBy = { QStringLiteral("chart:review"),
                     QStringLiteral("characteristic:excessive_heel_lift") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): at P4, 2 cm.
+        .traceCorridorMeasure = QStringLiteral("m_leadHeelLiftTop"),
     });
 
     // -------------------------------------------- Alignment (pose lines at address / impact)
@@ -3329,6 +3382,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .usedBy = { QStringLiteral("chart:review"),
                     QStringLiteral("characteristic:excessive_head_sway"),
                     QStringLiteral("characteristic:head_drift_lead_backswing") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): change P1 to P4, 3 cm.
+        .traceCorridorMeasure = QStringLiteral("m_headSwayBack"),
     });
 
     cat.addDescriptor({
@@ -3365,6 +3420,8 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:loss_of_posture"),
                     QStringLiteral("characteristic:posture_sinks_impact"),
                     QStringLiteral("characteristic:posture_sinks_backswing") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): change P1 to P7, 3 cm.
+        .traceCorridorMeasure = QStringLiteral("m_headLiftImpact"),
     });
 
     // THE HEAD'S NOD AT ADDRESS (posture_metrics_design.md §3.1), from down the line: body keypoints
@@ -3613,6 +3670,8 @@ void installMetricManifest(MetricCatalogue &cat)
                                "there today"), PLANNED) },
         .usedBy = { QStringLiteral("characteristic:late_buckle"),
                     QStringLiteral("characteristic:lead_knee_folds_backswing") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): change P1 to P7, 6°.
+        .traceCorridorMeasure = QStringLiteral("m_leadKneeFlex_p7"),
     });
 
     cat.addDescriptor({
@@ -3747,6 +3806,8 @@ void installMetricManifest(MetricCatalogue &cat)
                                "the ground plane")) },
         .usedBy = { QStringLiteral("characteristic:forward_lunge"),
                     QStringLiteral("characteristic:hanging_back") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): change P1 to P5, 10% stance width.
+        .traceCorridorMeasure = QStringLiteral("m_thoraxDrift"),
     });
 
     cat.addDescriptor({
@@ -3886,6 +3947,8 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:insufficient_knee_flex"),
                     QStringLiteral("characteristic:posture_sinks_backswing"),
                     QStringLiteral("characteristic:poor_setup_posture") },
+        // R31: graded against the norm of its own quantity (calibration report-s5 §1): change P1 to P7, 8°.
+        .traceCorridorMeasure = QStringLiteral("m_trailKneeFlex_p7"),
     });
 
     cat.addDescriptor({

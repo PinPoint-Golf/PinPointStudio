@@ -60,7 +60,6 @@ QString VariabilityResultView::ungradedReasonToken(UngradedReason reason)
     case UngradedReason::None:                return {};
     case UngradedReason::TooFewSwings:        return QStringLiteral("tooFewSwings");
     case UngradedReason::NoScale:             return QStringLiteral("noScale");
-    case UngradedReason::NonPositiveForRatio: return QStringLiteral("nonPositiveForRatio");
     case UngradedReason::NoUncertainty:       return QStringLiteral("noUncertainty");
     case UngradedReason::ScaleTypeMismatch:   return QStringLiteral("scaleTypeMismatch");
     case UngradedReason::MalformedInput:      return QStringLiteral("malformedInput");

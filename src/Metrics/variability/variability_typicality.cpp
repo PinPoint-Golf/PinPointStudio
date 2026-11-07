@@ -74,6 +74,14 @@ TypicalityBand typicalityBand(double z)
     return TypicalityBand::Unusual;
 }
 
+TypicalityBand traceTypicalityBand(double rmsZ)
+{
+    const double a = std::abs(rmsZ);
+    if (a <= kTraceTypicalityUsualZ) return TypicalityBand::Usual;
+    if (a <= kTypicalityOffZ)        return TypicalityBand::ALittleOff;
+    return TypicalityBand::Unusual;
+}
+
 std::optional<ScalarTypicality> scalarTypicality(double value, const std::vector<double> &window,
                                                  ScaleType scaleType)
 {
@@ -174,7 +182,7 @@ std::optional<TraceTypicality> traceTypicality(const TraceTypicalityInput &in)
     }
     if (used == 0) return std::nullopt;
     t.rmsZ = std::sqrt(sumZ2 / used);
-    t.band = typicalityBand(t.rmsZ);
+    t.band = traceTypicalityBand(t.rmsZ);   // R30
 
     // Timing: this swing's peak against the window's, in real milliseconds, by the robust z (R22).
     std::vector<double> peakTimes, peakValues;

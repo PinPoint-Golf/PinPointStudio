@@ -53,7 +53,7 @@ namespace pinpoint::variability {
 // Tokens, spelled once here and nowhere else in C++:
 //   basis           "scalar" | "trace" | "ordinal" | "measurement"
 //   domain          "consistency" (scalar, trace, ordinal) | "measurement" (the Needle, §4.6)
-//   ungradedReason  "" (none) | "tooFewSwings" | "noScale" | "nonPositiveForRatio" | "noUncertainty"
+//   ungradedReason  "" (none) | "tooFewSwings" | "noScale" | "noUncertainty"
 //                   | "scaleTypeMismatch" | "malformedInput"
 //                   Empty when there is no reason, so `if (r.ungradedReason)` reads as "is there one".
 //   typicalityBand  "usual" | "aLittleOff" | "unusual"                (PpVariabilityMark `values.band`)

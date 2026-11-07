@@ -2400,26 +2400,48 @@ std::vector<VariabilityTrace> sessionVariabilityTraces(Ctx &c, const QString &ke
 
 // R16: a trace is graded for display only against a scale of its own — a corridor, a descriptor's variabilityScale or
 // a timing corridor. On the grader's fallback rungs alone (TRACE_AMP_FRACTION of the mean peak, TIMING_SCALE_MS) every
-// session curve read Scattered, so until a trace is calibrated (calibration proposal 5) those rungs count as no scale:
-// no Overlay grade and no TypicalityTrace badge. The grader's maths is unchanged.
+// session curve read Scattered, so those rungs count as no scale: no Overlay grade and no TypicalityTrace badge.
+// R31: the corridor is the one the trace BORROWS — the norm of its own quantity (MetricDescriptor::traceCorridorMeasure),
+// resolved per club by the scale provider (traceCorridorHalfWidth, never a norm measured from golfers' swings).
 bool traceHasOwnScale(const variability::VariabilityInput &in)
 {
     const auto positive = [](const std::optional<double> &x) { return x && std::isfinite(*x) && *x > 0.0; };
     return positive(in.corridorHalfWidth) || positive(in.variabilityScale) || positive(in.timingCorridorHalfWidthMs);
 }
 
+// The scale a trace is graded against for one club (R16, R31): its borrowed corridor for that club, else its
+// descriptor's variabilityScale; and whether its peak time is graded too (rate traces only). Check it with
+// traceHasOwnScale().
+variability::VariabilityInput traceScaleFor(const Ctx &c, const QString &key, const QString &club)
+{
+    variability::VariabilityInput in;
+    const double corridor = c.w->scales->traceCorridorHalfWidth(key, club);
+    if (std::isfinite(corridor) && corridor > 0.0) in.corridorHalfWidth = corridor;
+    in.variabilityScale = c.w->scales->variabilityScale(key);
+    in.gradeTiming = c.w->scales->traceTimingGraded(key);
+    return in;
+}
+
 // R2b: one technical Overlay grade per club for a Session row — [{ club, result }] in the order of
-// perClubTraceInputs (readings descending, then label). No trace corridor exists, so a trace is graded only where its
-// descriptor sets a variabilityScale (R16, traceHasOwnScale); otherwise the list is empty and the row has no badge.
-// The propagated σ is the median of the club's swings' series σ (R3: the measurement-limited test, never noiseSd).
+// perClubTraceInputs (readings descending, then label). Each club is graded against the trace's borrowed corridor for
+// that club (R31), else its descriptor's variabilityScale; a club with neither has no entry (R16, traceHasOwnScale), so a
+// trace with no yardstick has an empty list and the row no badge. The timing half is graded only where the descriptor
+// says so (rate traces). The propagated σ is the median of the club's swings' series σ (R3: the measurement-limited
+// test, never noiseSd).
 QVariantList clubGradesOf(Ctx &c, const QString &key)
 {
     QVariantList out;
     if (!c.snap || !c.w->scales || !c.w->traceGrader) return out;
     {
-        variability::VariabilityInput scale;
-        scale.variabilityScale = c.w->scales->variabilityScale(key);
-        if (!traceHasOwnScale(scale)) return out;      // R16: the fallback rungs alone are no scale
+        // No club has a scale: skip the curves (each window's own scale is set below).
+        bool any = false;
+        QSet<QString> seen;
+        for (const auto &shot : c.snap->shots) {
+            if (seen.contains(shot->club)) continue;
+            seen.insert(shot->club);
+            if (traceHasOwnScale(traceScaleFor(c, key, shot->club))) { any = true; break; }
+        }
+        if (!any) return out;                           // R16: the fallback rungs alone are no scale
     }
     const variability::ScaleType st = c.w->scales->scaleType(key);
     const std::vector<VariabilityTrace> reads = sessionVariabilityTraces(c, key, st);
@@ -2429,10 +2451,14 @@ QVariantList clubGradesOf(Ctx &c, const QString &key)
         swings.push_back(VariabilityClubCurve{ c.snap->shots[i]->club, reads[i].curve, reads[i].peakMs });
     variability::VariabilityInput base;
     base.scaleType = st;
-    base.variabilityScale = c.w->scales->variabilityScale(key);
     const QString unit = shortUnitOf(c, c.unitOf(key));
     const int dec = W::decimalsFor(c.unitOf(key));
     for (VariabilityClubWindow &win : perClubTraceInputs(swings, base)) {
+        const variability::VariabilityInput scale = traceScaleFor(c, key, win.club);
+        if (!traceHasOwnScale(scale)) continue;         // R16: this club has no yardstick
+        win.input.corridorHalfWidth = scale.corridorHalfWidth;
+        win.input.variabilityScale  = scale.variabilityScale;
+        win.input.gradeTiming       = scale.gradeTiming;
         std::vector<double> sig;
         for (size_t i = 0; i < reads.size(); ++i)
             if (swings[i].club == win.club && wholeReading(reads[i]) && std::isfinite(reads[i].sigma) && reads[i].sigma > 0)
@@ -2515,11 +2541,8 @@ QVariant typicalityOf(Ctx &c, const QString &key)
 {
     const QVariant none = QVariant::fromValue(nullptr);
     if (!c.snap || !c.shot || !c.w->scales) return none;
-    {
-        variability::VariabilityInput scale;     // R16: no TypicalityTrace badge until the trace has a scale of its own
-        scale.variabilityScale = c.w->scales->variabilityScale(key);
-        if (!traceHasOwnScale(scale)) return none;
-    }
+    // R16, R31: no TypicalityTrace badge unless the trace has a scale of its own for this shot's club.
+    if (!traceHasOwnScale(traceScaleFor(c, key, c.shot->club))) return none;
     const double tTop = canonicalTopMs(c);
     if (!std::isfinite(tTop)) return none;
     const variability::ScaleType st = c.w->scales->scaleType(key);

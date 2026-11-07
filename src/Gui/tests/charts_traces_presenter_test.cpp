@@ -159,6 +159,34 @@ qint64 phaseUs(const ShotSeries &s, int ph)
     return -1;
 }
 
+// Every shot given a forward-bend curve (the fixture carries forward bend as phase samples only): 34° at address
+// falling by 9° (± a little, shot to shot) by phase 7, the shape of 4 July's loss of posture. Forward bend borrows
+// m_spineBendChangeImpact's corridor (R31), so it is graded on the shipped scales.
+std::shared_ptr<SessionSnapshot> withForwardBendCurves(const SessionSnapshot &base, quint64 revision)
+{
+    auto snap = std::make_shared<SessionSnapshot>(base);
+    int k = 0;
+    for (auto &sh : snap->shots) {
+        auto c = std::make_shared<ShotSeries>(*sh);
+        MetricSeries &m = c->metrics[QStringLiteral("spineForwardBend")];
+        m.key = QStringLiteral("spineForwardBend");
+        m.unit = QStringLiteral("°");
+        const qint64 a = phaseUs(*c, 0), f = phaseUs(*c, 7);
+        ++k;
+        if (a < 0 || f <= a) continue;
+        const double loss = 9.0 + 1.5 * ((k * 7) % 5 - 2);       // 6 … 12°, deterministic
+        m.tUs.clear(); m.value.clear(); m.valid.clear(); m.phaseSamples.clear();
+        for (int i = 0; i <= 40; ++i) {
+            m.tUs.push_back(a - 100000 + (f - a + 100000) * i / 40);
+            m.value.push_back(i <= 4 ? 34.0 : 34.0 - loss * (i - 4) / 36.0);
+        }
+        if (!c->metricOrder.contains(m.key)) c->metricOrder << m.key;
+        sh = c;
+    }
+    snap->revision += revision;
+    return snap;
+}
+
 } // namespace
 
 class ChartsTracesPresenterTest : public QObject
@@ -407,17 +435,35 @@ private slots:
     }
 
     // ── the variability marks (Session 5): the curves' per-club grade, the order's, typicality ─────
-    // R16: no trace has a scale of its own yet, so on the catalogue's scales no session curve is graded: the grader's
-    // fallback rungs alone are no scale.
-    void sessionCurvesUngradedUntilCalibrated()
+    // R16, R31: on the shipped scales a session curve is graded only against a corridor it borrows — the norm of its
+    // own quantity. The Kinematic sequence's speeds borrow none (R29): no grade, whatever their timing. Forward bend
+    // (Posture) borrows m_spineBendChangeImpact's (σLo 2.5 + σHi 5)/2 = 3.75°: graded per club, the basis "of
+    // corridor", on the amplitude alone.
+    void sessionCurvesGradedOnTheirBorrowedCorridor()
     {
+        namespace pv = pinpoint::variability;
         ChartsTracesPresenter p;
-        setUp(p);
+        setUp(p, withForwardBendCurves(*m_snap, 1100));
         const QVariantList rows = p.session().value(QStringLiteral("rows")).toList();
         QVERIFY(!rows.isEmpty());
         for (const QVariant &rv : rows)
             QVERIFY2(rv.toMap().value(QStringLiteral("clubGrades")).toList().isEmpty(),
                      qPrintable(rv.toMap().value(QStringLiteral("key")).toString()));
+
+        p.setPreset(QStringLiteral("Posture"));
+        if (p.choices().value(QStringLiteral("preset")).toString() != QLatin1String("Posture"))
+            QSKIP("the fixture session carries no Posture member");
+        const QVariantMap bend = rowOf(p.session().value(QStringLiteral("rows")).toList(), QStringLiteral("spineForwardBend"));
+        QVERIFY2(!bend.isEmpty(), "forward bend draws in Posture");
+        const QVariantList g = bend.value(QStringLiteral("clubGrades")).toList();
+        QCOMPARE(g.size(), 1);
+        const pv::VariabilityResultView r = resultOf(g[0]);
+        QCOMPARE(r.basis(), QStringLiteral("trace"));
+        QVERIFY(r.graded());
+        QVERIFY(r.grade() >= 1);
+        QVERIFY2(r.basisText().contains(QStringLiteral(" of corridor")), qPrintable(r.basisText()));
+        QVERIFY2(!r.basisText().contains(QStringLiteral("peak")), qPrintable(r.basisText()));   // amplitude only
+        report("    session spineForwardBend (borrowed corridor): grade %d · %s\n", r.grade(), qPrintable(r.basisText()));
     }
 
     // Session curves (R2b), once a trace has a scale of its own: one Overlay (trace) grade per club, readings
@@ -631,8 +677,9 @@ private slots:
     }
 
     // Against (R8): the session median and the most typical shot carry this shot's typicality against its club's
-    // other shots (at least 8), once the trace has a scale of its own (R16); other references, and a club with fewer,
-    // carry null. On the catalogue's scales (no trace has one yet) every row carries null.
+    // other shots (at least 8), once the trace has a scale of its own (R16, R31); other references, and a club with
+    // fewer, carry null. On the shipped scales the sequence's speeds carry null (no corridor, R29) and forward bend,
+    // which borrows one, carries a typicality.
     void againstTypicality()
     {
         namespace pv = pinpoint::variability;
@@ -650,6 +697,16 @@ private slots:
             u.setAgainst(QStringLiteral("median"));
             QVERIFY(u.reference().value(QStringLiteral("active")).toBool());
             for (const QVariant &t : typOf(u.reference())) QVERIFY2(t.metaType().id() != QMetaType::QVariantMap, "R16: no scale, no badge");
+        }
+        {
+            // R31: forward bend borrows a corridor, so it carries a typicality on the shipped scales
+            ChartsTracesPresenter u;
+            setUp(u, withForwardBendCurves(*m_snap, 1200));
+            u.setPreset(QStringLiteral("Posture"));
+            u.setAgainst(QStringLiteral("median"));
+            if (u.choices().value(QStringLiteral("preset")).toString() == QLatin1String("Posture"))
+                QVERIFY2(typOf(u.reference()).value(QStringLiteral("spineForwardBend")).metaType().id() == QMetaType::QVariantMap,
+                         "a borrowed corridor brings the TypicalityTrace badge");
         }
         ChartsTracesPresenter p;
         p.setVariabilityScalesForTest(scaledTraces(10.0));

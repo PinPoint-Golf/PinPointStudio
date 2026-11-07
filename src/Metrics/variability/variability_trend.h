@@ -52,7 +52,7 @@ struct TrendPoint {
     int     n   = 0;         // the swings behind it
     QString contextKey;      // the norm context (club, shot type)
     Basis   basisKind = Basis::Scalar;
-    QString scaleKey;        // which scale ρ was taken against (corridor id, "variabilityScale", "cv")
+    QString scaleKey;        // which scale ρ was taken against (corridor id, "variabilityScale")
 };
 
 enum class TrendDirection { Insufficient, Holding, Tightening, Loosening };

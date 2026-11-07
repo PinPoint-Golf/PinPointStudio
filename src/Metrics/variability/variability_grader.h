@@ -84,6 +84,12 @@ struct VariabilityInput {
     // |x(t)|.
     std::vector<double>              peakValues;
     std::optional<double>            timingCorridorHalfWidthMs;
+    // Grade the TIMING half too (Mark's ruling R31, 7 Nov; calibration report-s5 §2): only a rate trace with a
+    // real interior peak (MetricDescriptor::traceTimingGraded). Off, the default: the grade is the amplitude
+    // half alone (ρ = ρₐ, limitedBy Amplitude) and the timing fields stay NaN / None — an angle's "peak" at the
+    // top or at impact is not an event, and its time-to-peak spread is the downswing's duration. A swing's
+    // reading is still its curve AND its peak time either way, so `peakTimesMs` is required as before.
+    bool                             gradeTiming = false;
 
     // ---- Ordinal (§8.4) -------------------------------------------------------------------------
     // One category or order token per swing ("pelvis>chest>arm>club", "on"/"off"); empty is missing.

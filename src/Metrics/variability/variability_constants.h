@@ -62,6 +62,10 @@ inline constexpr int    kTrendMinSessions  = 3;     // TREND_MIN_SESSIONS, §8.8
 inline constexpr double kTrendSeMult       = 2.0;   // TREND_SE_MULT, §8.8. TODO(calibrate)
 inline constexpr double kTypicalityUsualZ  = 1.0;   // |z| ≤ 1 is "Your usual", §7.4. TODO(calibrate)
 inline constexpr double kTypicalityOffZ    = 2.0;   // |z| ≤ 2 is "A little off", above is "Unusual". TODO(calibrate)
+// A whole curve's RMS z(t) reads "Your usual" up to 1.25 (Mark's ruling R30, 7 Nov; calibration report-s5 §3: the
+// edge that gives curves the scalars' share), "A little off" still up to kTypicalityOffZ. Traces only: a scalar's
+// band, and a trace's peak-timing and peak-amplitude words, keep kTypicalityUsualZ.
+inline constexpr double kTraceTypicalityUsualZ = 1.25;   // TODO(calibrate)
 
 // The trace grid (§8.3 step 1: top → impact resampled to 101 points). A grid, not a threshold, but
 // it is a spec number and lives with the others.

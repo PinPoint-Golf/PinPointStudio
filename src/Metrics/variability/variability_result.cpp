@@ -66,7 +66,7 @@ int sigmaDecimals(double sd, int decimals)
 }
 
 // "σ 2.1° · 0.42 of corridor · n 24", named for the scale actually used: a fallback scale is never
-// called a corridor, and a CV reads as one.
+// called a corridor.
 QString spreadString(double sd, double rho, ScaleSource source, int n, const QString &unit, int decimals)
 {
     const QString sigma = formatWithUnit(sd, unit, sigmaDecimals(sd, decimals));
@@ -77,9 +77,6 @@ QString spreadString(double sd, double rho, ScaleSource source, int n, const QSt
         //: Technical-layer consistency basis (variability spec §7.5). %1 the spread with its unit,
         //: %2 the spread as a fraction of the norm corridor half-width, %3 the swing count.
         return QCoreApplication::translate("VariabilityBasis", "σ %1 · %2 of corridor · n %3").arg(sigma, ratio, count);
-    case ScaleSource::CV:
-        //: Technical-layer consistency basis. %2 is the coefficient of variation (SD / mean).
-        return QCoreApplication::translate("VariabilityBasis", "σ %1 · CV %2 · n %3").arg(sigma, ratio, count);
     default:
         //: Technical-layer consistency basis. %2 the spread as a fraction of the measure's own
         //: variability scale (not a norm corridor).

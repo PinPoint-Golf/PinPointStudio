@@ -185,7 +185,6 @@ void VariabilityFacadeTest::ungradedReasonTokens()
     QCOMPARE(VariabilityResultView::ungradedReasonToken(UngradedReason::None),                QString());
     QCOMPARE(VariabilityResultView::ungradedReasonToken(UngradedReason::TooFewSwings),        QStringLiteral("tooFewSwings"));
     QCOMPARE(VariabilityResultView::ungradedReasonToken(UngradedReason::NoScale),             QStringLiteral("noScale"));
-    QCOMPARE(VariabilityResultView::ungradedReasonToken(UngradedReason::NonPositiveForRatio), QStringLiteral("nonPositiveForRatio"));
     QCOMPARE(VariabilityResultView::ungradedReasonToken(UngradedReason::NoUncertainty),       QStringLiteral("noUncertainty"));
     QCOMPARE(VariabilityResultView::ungradedReasonToken(UngradedReason::ScaleTypeMismatch),   QStringLiteral("scaleTypeMismatch"));
     QCOMPARE(VariabilityResultView::ungradedReasonToken(UngradedReason::MalformedInput),      QStringLiteral("malformedInput"));

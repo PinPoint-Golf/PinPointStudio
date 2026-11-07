@@ -42,14 +42,14 @@ namespace pinpoint::variability {
 // Which grader produced the result (§8.2 – §8.5).
 enum class Basis { Scalar, Trace, Ordinal, Measurement };
 
-// Where the scale the ratio was taken against came from. The first four are §8.2 step 4; the rest
+// Where the scale the ratio was taken against came from. The first three are §8.2 step 4 (its CV rung
+// is retired, R26); the rest
 // are the trace and measurement rungs (§8.3 steps 2–3, §8.5), named for what they are so a basis
 // string never calls a fallback scale a corridor.
 enum class ScaleSource {
     None,                 // no scale was needed (Ordinal) or none was available (ungraded)
     Corridor,             // the norm corridor half-width the caller supplied
     VariabilityScale,     // MetricDescriptor::variabilityScale
-    CV,                   // the mean, for ScaleType::Ratio with every value > 0 (ρ is then the CV)
     PeakFraction,         // trace amplitude: TRACE_AMP_FRACTION × the mean per-swing peak
     TimingDefault,        // trace timing: TIMING_SCALE_MS
     MeasurementTolerance, // MetricDescriptor::measurementTolerance
@@ -61,8 +61,7 @@ enum class ScaleSource {
 enum class UngradedReason {
     None,
     TooFewSwings,         // n < N_MIN: grade 0, the "Not enough swings" / "Checking" mark
-    NoScale,              // no corridor, no variabilityScale, no CV rung (§8.2 step 4.4), or no tolerance (§8.5)
-    NonPositiveForRatio,  // ScaleType::Ratio with no corridor or variabilityScale, and a value ≤ 0: no CV
+    NoScale,              // no corridor and no variabilityScale (no CV fallback, R26), or no tolerance (§8.5)
     NoUncertainty,        // measurement: none of the three §8.5 uncertainty sources was supplied
     ScaleTypeMismatch,    // a scalar basis asked to grade an Ordinal or Categorical quantity
     MalformedInput,       // a trace not on the 101-point grid, mismatched lengths, k < 2, a negative uncertainty
@@ -94,9 +93,10 @@ struct VariabilityResult {
     // `sdObserved` is the spread before it. Equal when no σnoise was given. Degrees for Circular.
     double sd         = kNaN;
     double sdObserved = kNaN;
-    double rho        = kNaN;   // the value graded on kBands.ratio. Trace: max(ρₐ, ρₜ)
+    double rho        = kNaN;   // the value graded on kBands.ratio. Trace: max(ρₐ, ρₜ), or ρₐ alone without gradeTiming (R31)
 
-    // Trace (§8.3). `sd` holds RMS over t of SD(t) (after any σnoise subtraction).
+    // Trace (§8.3). `sd` holds RMS over t of SD(t) (after any σnoise subtraction). The timing fields stay NaN / None
+    // unless the input asked for the timing half (VariabilityInput::gradeTiming, R31).
     double       rhoAmp          = kNaN;
     double       rhoTiming       = kNaN;
     double       sdPeakMs        = kNaN;

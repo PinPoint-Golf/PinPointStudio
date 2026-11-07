@@ -49,6 +49,10 @@ enum class TypicalityBand { Usual, ALittleOff, Unusual };
 
 TypicalityBand typicalityBand(double z);
 
+// A whole curve's band from its RMS z(t) (Mark's ruling R30): "Your usual" up to kTraceTypicalityUsualZ (1.25),
+// "A little off" up to kTypicalityOffZ, above "Unusual".
+TypicalityBand traceTypicalityBand(double rmsZ);
+
 // ---- Scalar ---------------------------------------------------------------------------------------
 
 struct ScalarTypicality {
@@ -100,7 +104,7 @@ enum class PeakTiming { OnTime, Early, Late };
 
 struct TraceTypicality {
     double         rmsZ  = 0.0;   // RMS over t of z(t) = (x(t) − median(t))/spread(t), over t where spread(t) > 0
-    TypicalityBand band  = TypicalityBand::Usual;
+    TypicalityBand band  = TypicalityBand::Usual;   // traceTypicalityBand(rmsZ) (R30)
     int            n     = 0;
 
     double         timingDeviationMs = 0.0;   // this swing's peak − the window's median peak (robust z, R22)

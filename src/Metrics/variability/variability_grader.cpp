@@ -103,18 +103,9 @@ public:
             r.scale = *in.corridorHalfWidth;  r.scaleSource = ScaleSource::Corridor;
         } else if (usable(in.variabilityScale)) {
             r.scale = *in.variabilityScale;   r.scaleSource = ScaleSource::VariabilityScale;
-        } else if (in.scaleType == ScaleType::Ratio) {
-            // CV only with STRICTLY positive values: one zero or negative reading and the mean is no
-            // longer a scale.
-            if (std::any_of(v.begin(), v.end(), [](double x) { return x <= 0.0; }))
-                return ungraded(Basis::Scalar, UngradedReason::NonPositiveForRatio, n);
-            r.scaleSource = ScaleSource::CV;
-            if (n > 0) {
-                double sum = 0.0;
-                for (double x : v) sum += x;
-                r.scale = sum / n;
-            }
         } else {
+            // R26: no CV fallback. A ratio measure with no corridor and no variabilityScale is
+            // ungraded like any other: its mean is not a scale.
             return ungraded(Basis::Scalar, UngradedReason::NoScale, n);
         }
 
@@ -160,11 +151,13 @@ public:
         r.n                  = n;
         r.measurementLimited = limitedByNeedle(in);
 
-        // Timing scale: the timing corridor, else TIMING_SCALE_MS. Always available.
-        if (usable(in.timingCorridorHalfWidthMs)) {
-            r.timingScaleMs = *in.timingCorridorHalfWidthMs; r.timingScaleSource = ScaleSource::Corridor;
-        } else {
-            r.timingScaleMs = kTimingScaleMs;                r.timingScaleSource = ScaleSource::TimingDefault;
+        // Timing scale, when the timing half is graded (R31): the timing corridor, else TIMING_SCALE_MS.
+        if (in.gradeTiming) {
+            if (usable(in.timingCorridorHalfWidthMs)) {
+                r.timingScaleMs = *in.timingCorridorHalfWidthMs; r.timingScaleSource = ScaleSource::Corridor;
+            } else {
+                r.timingScaleMs = kTimingScaleMs;                r.timingScaleSource = ScaleSource::TimingDefault;
+            }
         }
 
         // Amplitude scale: corridor, else variabilityScale, else TRACE_AMP_FRACTION × the mean peak.
@@ -214,16 +207,22 @@ public:
         // the half that sets the grade is known.
         const bool ampWithinOwnSigma = withinPropagatedSigma(r.sdObserved, in.propagatedSigma);
 
-        // Timing: SD of time-to-peak in real milliseconds.
-        std::vector<double> peaks;
-        peaks.reserve(keep.size());
-        for (size_t i : keep) peaks.push_back(in.peakTimesMs[i]);
-        r.sdPeakMs  = sampleSd(peaks);
-        r.rhoTiming = r.sdPeakMs / r.timingScaleMs;
+        if (in.gradeTiming) {
+            // Timing: SD of time-to-peak in real milliseconds.
+            std::vector<double> peaks;
+            peaks.reserve(keep.size());
+            for (size_t i : keep) peaks.push_back(in.peakTimesMs[i]);
+            r.sdPeakMs  = sampleSd(peaks);
+            r.rhoTiming = r.sdPeakMs / r.timingScaleMs;
 
-        // The WORSE of the two (step 4). A tie is called timing: it is the half averaging would hide.
-        r.limitedBy = r.rhoTiming >= r.rhoAmp ? TraceLimiter::Timing : TraceLimiter::Amplitude;
-        r.rho       = std::max(r.rhoAmp, r.rhoTiming);
+            // The WORSE of the two (step 4). A tie is called timing: it is the half averaging would hide.
+            r.limitedBy = r.rhoTiming >= r.rhoAmp ? TraceLimiter::Timing : TraceLimiter::Amplitude;
+            r.rho       = std::max(r.rhoAmp, r.rhoTiming);
+        } else {
+            // R31: the amplitude half alone.
+            r.limitedBy = TraceLimiter::Amplitude;
+            r.rho       = r.rhoAmp;
+        }
         // Measurement-limited only when the amplitude sets the grade: a timing spread is not measured
         // in the curve's units, so an amplitude inside its own σ says nothing about it.
         if (ampWithinOwnSigma && r.limitedBy == TraceLimiter::Amplitude) r.measurementLimited = true;

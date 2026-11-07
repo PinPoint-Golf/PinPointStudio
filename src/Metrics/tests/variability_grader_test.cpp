@@ -295,40 +295,40 @@ private slots:
         QCOMPARE(makeVariabilityGrader(Basis::Scalar)->grade(in).ungradedReason, UngradedReason::ScaleTypeMismatch);
     }
 
-    void ratioNeedsPositiveValuesForCv()
+    void ratioWithoutScaleIsUngraded()
     {
+        // R26: no CV fallback. A ratio measure with no corridor and no variabilityScale is ungraded,
+        // whatever its values.
         std::vector<double> v = withSd(5.0, 24, 100.0);
         VariabilityResult r = gradeScalar(v, std::nullopt, ScaleType::Ratio);
-        QVERIFY(r.graded);
-        QCOMPARE(r.scaleSource, ScaleSource::CV);
-        QVERIFY(near(r.scale, 100.0, 1e-9));
-        QVERIFY(near(r.rho, 0.05, 1e-12));
-
-        v.back() = 0.0;
-        r = gradeScalar(v, std::nullopt, ScaleType::Ratio);
         QVERIFY(!r.graded);
-        QCOMPARE(r.ungradedReason, UngradedReason::NonPositiveForRatio);
-        // With a corridor the CV rung is never reached.
+        QCOMPARE(r.grade, 0);
+        QCOMPARE(r.ungradedReason, UngradedReason::NoScale);
+        QCOMPARE(r.scaleSource, ScaleSource::None);
+        QVERIFY(r.basisString(QStringLiteral("km/h"), 1).isEmpty());
+        // Too few swings does not make it "Not enough swings": with no scale it is never graded.
+        r = gradeScalar(withSd(5.0, 3, 100.0), std::nullopt, ScaleType::Ratio);
+        QVERIFY(!r.graded);
+        QCOMPARE(r.ungradedReason, UngradedReason::NoScale);
+        v.back() = 0.0;
+        QCOMPARE(gradeScalar(v, std::nullopt, ScaleType::Ratio).ungradedReason, UngradedReason::NoScale);
+        // With a corridor or a variabilityScale a ratio measure grades as any other.
         QVERIFY(gradeScalar(v, 30.0, ScaleType::Ratio).graded);
-        // Noise subtraction on the CV route: SD 5 observed, σnoise 3, golfer SD 4 over a mean of 100.
-        VariabilityInput cv;
-        cv.values = withSd(5.0, 24, 100.0);
-        cv.scaleType = ScaleType::Ratio;
-        cv.noiseSd = 3.0;
-        r = makeVariabilityGrader(Basis::Scalar)->grade(cv);
-        QCOMPARE(r.scaleSource, ScaleSource::CV);
-        QVERIFY(near(r.sdObserved, 5.0, 1e-12));
-        QVERIFY(near(r.sd, 4.0, 1e-12));
-        QVERIFY(near(r.rho, 0.04, 1e-12));
-        // CV is for Ratio only.
-        QCOMPARE(gradeScalar(withSd(5.0, 24, 100.0), std::nullopt, ScaleType::Interval).ungradedReason,
-                 UngradedReason::NoScale);
+        VariabilityInput in;
+        in.values = withSd(5.0, 24, 100.0);
+        in.scaleType = ScaleType::Ratio;
+        in.variabilityScale = 10.0;
+        r = makeVariabilityGrader(Basis::Scalar)->grade(in);
+        QVERIFY(r.graded);
+        QCOMPARE(r.scaleSource, ScaleSource::VariabilityScale);
+        QVERIFY(near(r.rho, 0.5, 1e-12));
     }
 
     // ---- Traces -----------------------------------------------------------------------------
     void pureTimingShiftGradesOnTiming()
     {
         VariabilityInput in;
+        in.gradeTiming = true;      // R31: a rate trace with an interior peak
         const std::vector<double> peaks = withSd(30.0, 24, 250.0);
         for (double p : peaks) { in.curves.push_back(bump()); in.peakTimesMs.push_back(p); }
         const VariabilityResult r = makeVariabilityGrader(Basis::Trace)->grade(in);
@@ -347,6 +347,44 @@ private slots:
         QCOMPARE(wide.grade, 4);   // 0.30
     }
 
+    // R31: the timing half is graded only when the input asks (a rate trace with an interior peak). By default a
+    // curve is graded on its amplitude alone: the same pure timing shift is grooved on a corridor, and the timing
+    // fields stay empty, so no basis string ever names a peak time it did not grade.
+    void timingIsGradedOnlyWhenAsked()
+    {
+        VariabilityInput in;
+        const std::vector<double> peaks = withSd(30.0, 24, 250.0);
+        const std::vector<double> amps = withSd(0.06, 24, 1.0);
+        for (int i = 0; i < 24; ++i) { in.curves.push_back(bump(amps[size_t(i)])); in.peakTimesMs.push_back(peaks[size_t(i)]); }
+        in.corridorHalfWidth = 0.06 * rms(bump()) / 0.2;              // ρₐ 0.2
+        QVERIFY(!in.gradeTiming);                                     // the default
+        const auto grader = makeVariabilityGrader(Basis::Trace);
+        const VariabilityResult off = grader->grade(in);
+        QVERIFY(off.graded);
+        QCOMPARE(off.limitedBy, TraceLimiter::Amplitude);
+        QVERIFY(near(off.rho, off.rhoAmp, 1e-12));
+        QVERIFY(near(off.rhoAmp, 0.2, 1e-9));
+        QCOMPARE(off.grade, 5);
+        QVERIFY(std::isnan(off.rhoTiming));
+        QVERIFY(std::isnan(off.sdPeakMs));
+        QVERIFY(std::isnan(off.timingScaleMs));
+        QCOMPARE(off.timingScaleSource, ScaleSource::None);
+        QCOMPARE(off.basisString(QStringLiteral("°"), 1),
+                 QStringLiteral("σ %1° · 0.20 of corridor · n 24").arg(QString::number(off.sd, 'f', 1)));
+
+        in.gradeTiming = true;                                        // ρₜ 1.5: the timing half sets the grade
+        const VariabilityResult on = grader->grade(in);
+        QCOMPARE(on.limitedBy, TraceLimiter::Timing);
+        QVERIFY(near(on.rhoTiming, 30.0 / kTimingScaleMs, 1e-9));
+        QCOMPARE(on.grade, 1);
+        QCOMPARE(on.n, off.n);
+
+        // A swing's reading is its curve and its peak time either way: a missing peak time drops the swing.
+        in.gradeTiming = false;
+        in.peakTimesMs[0] = std::numeric_limits<double>::quiet_NaN();
+        QCOMPARE(grader->grade(in).n, 23);
+    }
+
     void pureAmplitudeChangeGradesOnAmplitude()
     {
         VariabilityInput in;
@@ -354,7 +392,7 @@ private slots:
         for (double a : amps) { in.curves.push_back(bump(a)); in.peakTimesMs.push_back(250.0); }
         const VariabilityResult r = makeVariabilityGrader(Basis::Trace)->grade(in);
         QVERIFY(r.graded);
-        QVERIFY(near(r.rhoTiming, 0.0, 1e-12));
+        QVERIFY(std::isnan(r.rhoTiming));     // R31: not asked for, not graded
         QCOMPARE(r.limitedBy, TraceLimiter::Amplitude);
         // SD(t) = SD(a)·shape(t), so RMS SD(t) = 0.06·RMS(shape); the scale is 0.10 × the mean peak 100.
         QCOMPARE(r.scaleSource, ScaleSource::PeakFraction);
@@ -379,6 +417,7 @@ private slots:
         const std::vector<double> peaks = withSd(12.0, 24, 250.0);   // ρₜ 0.6
         for (int i = 0; i < 24; ++i) { in.curves.push_back(bump(amps[size_t(i)])); in.peakTimesMs.push_back(peaks[size_t(i)]); }
         in.corridorHalfWidth = 0.06 * rms(bump()) / 0.2;              // ρₐ 0.2
+        in.gradeTiming = true;
         const VariabilityResult r = makeVariabilityGrader(Basis::Trace)->grade(in);
         QCOMPARE(r.limitedBy, TraceLimiter::Timing);
         QCOMPARE(r.grade, 3);
@@ -659,6 +698,7 @@ private slots:
         QCOMPARE(scalarTypicality(8.5, window)->band, TypicalityBand::ALittleOff);   // z −1.5
         QCOMPARE(scalarTypicality(11.9, window)->band, TypicalityBand::ALittleOff);  // z 1.9
         QCOMPARE(typicalityBand(1.0), TypicalityBand::Usual);
+        QCOMPARE(typicalityBand(1.2), TypicalityBand::ALittleOff);   // R30 moves the trace edge only
         QCOMPARE(typicalityBand(-2.0), TypicalityBand::ALittleOff);
         QCOMPARE(scalarTypicality(12.5, window)->band, TypicalityBand::Unusual);
         QVERIFY(near(scalarTypicality(12.5, window)->z, 2.5, 1e-9));
@@ -669,6 +709,39 @@ private slots:
         const auto c = scalarTypicality(-179.5, seam, ScaleType::Circular);
         QVERIFY(c);
         QCOMPARE(c->band, TypicalityBand::Usual);
+    }
+
+    // R30: a whole curve reads "Your usual" up to RMS z(t) 1.25 ("A little off" stays at 2.0); the scalar band and
+    // a trace's peak timing and amplitude words keep |z| ≤ 1.
+    void traceTypicalityUsualEdge()
+    {
+        QCOMPARE(kTraceTypicalityUsualZ, 1.25);
+        QCOMPARE(traceTypicalityBand(1.0), TypicalityBand::Usual);
+        QCOMPARE(traceTypicalityBand(1.25), TypicalityBand::Usual);          // the edge belongs to the tighter band
+        QCOMPARE(traceTypicalityBand(1.26), TypicalityBand::ALittleOff);
+        QCOMPARE(traceTypicalityBand(2.0), TypicalityBand::ALittleOff);
+        QCOMPARE(traceTypicalityBand(2.01), TypicalityBand::Unusual);
+        QCOMPARE(typicalityBand(1.2), TypicalityBand::ALittleOff);          // scalars unchanged
+
+        // A curve at z(t) = 1.2 everywhere is usual (a scalar at 1.2 would not be); its peak, 1.2 above the
+        // window's peaks, still reads "higher" (|z| > 1).
+        TraceTypicalityInput ti;
+        const std::vector<double> amps = withSpread(0.05, 24, 1.0);      // spread(t) = 5·shape(t)
+        for (int i = 0; i < 24; ++i) {
+            ti.windowCurves.push_back(bump(amps[size_t(i)]));
+            ti.windowPeakTimesMs.push_back(200.0);
+        }
+        ti.peakTimeMs = 200.0;
+        ti.curve = bump(1.06);                                            // (1.06 − 1)/0.05 = 1.2
+        auto tt = traceTypicality(ti);
+        QVERIFY(tt);
+        QVERIFY(near(tt->rmsZ, 1.2, 1e-6));
+        QCOMPARE(tt->band, TypicalityBand::Usual);
+        QCOMPARE(tt->amplitudeSign, 1);
+        QCOMPARE(tt->basisString(), QStringLiteral("peak on time, higher"));
+        ti.curve = bump(1.065);                                           // 1.3
+        tt = traceTypicality(ti);
+        QCOMPARE(tt->band, TypicalityBand::ALittleOff);
     }
 
     // R22: z is (x − median)/(IQR/1.349), so one wild swing in the window moves neither the centre nor the
@@ -785,11 +858,10 @@ private slots:
         in.variabilityScale = 5.0;
         QCOMPARE(makeVariabilityGrader(Basis::Scalar)->grade(in).basisString(QStringLiteral("°"), 1),
                  QStringLiteral("σ 2.1° · 0.42 of scale · n 24"));
-        QCOMPARE(gradeScalar(withSd(4.2, 24, 100.0), std::nullopt, ScaleType::Ratio).basisString(QStringLiteral("km/h"), 1),
-                 QStringLiteral("σ 4.2 km/h · CV 0.04 · n 24"));
 
         // Timing-limited trace.
         VariabilityInput tr;
+        tr.gradeTiming = true;
         for (double p : withSd(18.0, 24, 240.0)) { tr.curves.push_back(bump()); tr.peakTimesMs.push_back(p); }
         QCOMPARE(makeVariabilityGrader(Basis::Trace)->grade(tr).basisString(), QStringLiteral("σ peak 18 ms · n 24"));
 
@@ -953,6 +1025,7 @@ private slots:
 
         // Timing sets the grade: an amplitude inside its own σ does not limit it.
         in.propagatedSigma = rmsSd * 1.01;
+        in.gradeTiming = true;
         const std::vector<double> peaks = withSd(200.0, 24, 250.0);
         for (size_t i = 0; i < in.peakTimesMs.size(); ++i) in.peakTimesMs[i] = peaks[i];
         const VariabilityResult t = grader->grade(in);

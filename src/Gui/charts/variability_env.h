@@ -22,6 +22,7 @@
 
 #include "../../Metrics/variability/variability_result.h"     // ScaleSource
 #include "../../Metrics/variability/variability_scale_type.h" // ScaleType
+#include "../../Diagnostics/norms/norm.h"                     // NormSource
 
 #include <QString>
 
@@ -41,8 +42,13 @@
 //      at the phase carrying a norm, the median over the key's measures in the club's context, then in
 //      `any`. So "the corridor for the context" may be a key-wide median, or the `any` context's.
 //   2. VariabilityScale — MetricDescriptor::variabilityScale.
-//   Otherwise None. The third rung (CV, Ratio only) is the GRADER's: it needs the values, and it reads
-//   scaleType() to decide.
+//   Otherwise None. (The CV rung is retired, R26.)
+//
+// A DRAWN TRACE BORROWS ITS YARDSTICK (Mark's ruling R31, 7 Nov; calibration report-s5 §1). A curve has no
+// corridor of its own, so traceCorridorHalfWidth() resolves the norm on the descriptor's traceCorridorMeasure
+// for the club's context and answers (σLo + σHi)/2 (R12). It never borrows a norm measured from golfers' own
+// swings: a norm whose source is `measured` (or `seated`, fitted from swings the user marked) answers NaN, so
+// the trace stays ungraded (R16) rather than being graded against the golfer's own spread.
 //
 // noiseSigma() is the reading's own measurement σ, ConsistencyReading::ownSigma, which consistencyInput
 // already works out (a position's median phase σ, else the series σ). It is a PROPAGATED σ — the
@@ -87,6 +93,15 @@ public:
     virtual std::optional<double> variabilityScale(const QString &key) const = 0;
     virtual std::optional<double> measurementTolerance(const QString &key) const = 0;
 
+    // R31: a drawn trace's borrowed corridor half-width for `club`: (σLo + σHi)/2 of the norm on the key's
+    // MetricDescriptor::traceCorridorMeasure, resolved for the club's context (walking up the context tree). NaN
+    // when the key names no measure, no norm resolves, the half-width is not positive, or the norm was measured
+    // from golfers' own swings (source Measured or Seated): such a norm is NEVER borrowed.
+    virtual double traceCorridorHalfWidth(const QString &key, const QString &club) const = 0;
+
+    // MetricDescriptor::traceTimingGraded (R31): the trace's peak time is graded too. False for an unknown key.
+    virtual bool traceTimingGraded(const QString &key) const = 0;
+
     // A reading's propagated σ: its ownSigma when finite and positive, else NaN (not known). For
     // VariabilityInput::propagatedSigma (R3), never for VariabilityInput::noiseSd (see the header comment).
     virtual double noiseSigma(const ConsistencyReading &reading) const = 0;
@@ -95,11 +110,28 @@ public:
 // The descriptor of a key, or nullptr. The pointer must outlive the provider.
 using VariabilityDescriptorLookup = std::function<const pinpoint::analysis::MetricDescriptor *(const QString &key)>;
 
-// PRODUCTION: consistencyEnvFromPacks() and the shipped metric manifest. Make it on the GUI thread (above).
+// One measure's norm as a trace borrows it (R31): the half-width (σLo + σHi)/2 and where the norm came from.
+struct VariabilityMeasureNorm {
+    double                         halfWidth = kNaN;
+    pinpoint::analysis::NormSource source    = pinpoint::analysis::NormSource::Heuristic;
+};
+
+// The norm of `measureId` resolved for `club`'s context, or nullopt when none resolves.
+using VariabilityMeasureNormLookup =
+    std::function<std::optional<VariabilityMeasureNorm>(const QString &measureId, const QString &club)>;
+
+// PRODUCTION: sharedNormProvider(), each club through contextIdForClub(), unqualified cohort (as the corridor rung).
+// Make it on the GUI thread, as the provider.
+VariabilityMeasureNormLookup variabilityMeasureNorms();
+
+// PRODUCTION: consistencyEnvFromPacks(), the shipped metric manifest and variabilityMeasureNorms(). Make it on the
+// GUI thread (above).
 std::unique_ptr<IVariabilityScaleProvider> makeVariabilityScaleProvider();
 
-// The same provider over any env and descriptor source: a stub env and in-memory descriptors in a test.
+// The same provider over any env, descriptor and measure-norm source: a stub env and in-memory descriptors in a
+// test. With no measure-norm lookup no trace borrows a corridor.
 std::unique_ptr<IVariabilityScaleProvider> makeVariabilityScaleProvider(ConsistencyEnv env,
-                                                                        VariabilityDescriptorLookup descriptors);
+                                                                        VariabilityDescriptorLookup descriptors,
+                                                                        VariabilityMeasureNormLookup measureNorms = {});
 
 } // namespace pinpoint::charts

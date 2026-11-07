@@ -581,7 +581,7 @@ struct MetricDescriptor {
     // past the last rung the measure is ungraded — no mark, never a raw SD.
 
     // What kind of number this is, which decides how its spread is taken (§8.2 step 3: circular SD
-    // for Circular), whether the CV rung of §8.2 step 4 is open to it (Ratio only), and whether it
+    // for Circular; the CV rung of §8.2 step 4 is retired, R26), and whether it
     // is graded on an SD at all (Ordinal / Categorical go to modal share, §8.4). See
     // Metrics/variability/variability_scale_type.h. Interval unless the quantity clearly is
     // something else — the manifest sets it only where the spec's definition plainly applies.
@@ -598,6 +598,25 @@ struct MetricDescriptor {
     // means MEAS_TOL_FRACTION × the corridor half-width, else ungraded. Unset everywhere, for the
     // same reason and under the same guard as `variabilityScale`.
     std::optional<double> measurementTolerance;
+
+    // ── A drawn trace's borrowed yardstick (Mark's ruling R31, 7 Nov; calibration report-s5 §1) ──
+    // A curve has no corridor of its own, so a drawn TimeSeries trace BORROWS the norm of its own
+    // quantity: the id of the norm-pack MEASURE (core.json) read inside P4–P7 in the trace's unit — the
+    // one nearest impact; at one phase an `at` reading before a `delta`, a `delta` before an `extremum`
+    // (an extremum counting at its window's end). The variability scale provider resolves it for the
+    // club's context to (σLo + σHi)/2 (R12), and NEVER borrows a norm measured from golfers' own swings
+    // (`source: "measured"`, or `seated`). Empty, the default: the trace has no yardstick and stays
+    // ungraded (R16) — the four angular speeds, hand speed and the others with no norm of their own.
+    // metric_catalogue_test pins the set.
+    QString traceCorridorMeasure;
+
+    // R31: whether the trace's TIME-TO-PEAK is graded as well (the timing half of §8.3, against
+    // TIMING_SCALE_MS). Only a rate trace with a real interior peak — the pelvis, chest, lead-arm and
+    // club angular speeds and hand speed (calibration report-s5 §2). An angle or position "peaks" at the
+    // top, at impact or wherever |x| is largest, which is not an event, and clubhead speed peaks at
+    // impact, so every other trace is graded on its amplitude alone. The rate traces have no corridor
+    // (R29), so in practice this changes no grade on screen today.
+    bool traceTimingGraded = false;
 
     // ── Readings of the ladder ──────────────────────────────────────────────────────────────────
     // Derived, never stored. `planned` used to be a field beside `requirement`, and the pair could

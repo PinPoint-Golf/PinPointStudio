@@ -170,7 +170,7 @@ private slots:
     void aVariabilityScaleThatIsNotPositiveIsSkipped()
     {
         // variabilityScale is a rung only when finite and positive; otherwise the ladder falls to None (and the
-        // grader then tries its CV rung itself).
+        // grader leaves it ungraded: no CV fallback, R26).
         for (double bad : { 0.0, -1.0, kNaN }) {
             pa::MetricDescriptor d;
             d.key = QStringLiteral("a");
@@ -182,6 +182,136 @@ private slots:
             QCOMPARE(a.source, pv::ScaleSource::None);
             QVERIFY(std::isnan(a.scale));
         }
+    }
+
+    // ── R31: a drawn trace borrows the norm of its own quantity ─────────────────────────────────
+
+    // The shipped manifest's 24 borrowed corridors on the real norms, per club: (σLo + σHi)/2 of the named measure
+    // in the club's context (calibration report-s5 §1). The rate traces borrow none (R29) and grade their timing.
+    void tracesBorrowTheirQuantitysNorm_data()
+    {
+        QTest::addColumn<QString>("key");
+        QTest::addColumn<QString>("club");
+        QTest::addColumn<double>("expected");
+        QTest::newRow("headLift")             << "headLift"             << "7 IRON" << 3.0;
+        QTest::newRow("headRise")             << "headRise"             << "7 IRON" << 3.0;
+        QTest::newRow("headSway")             << "headSway"             << "7 IRON" << 3.0;
+        QTest::newRow("lagAngle")             << "lagAngle"             << "7 IRON" << 26.0;
+        QTest::newRow("leadHeelLift")         << "leadHeelLift"         << "7 IRON" << 2.0;
+        QTest::newRow("leadKneeFlexion")      << "leadKneeFlexion"      << "7 IRON" << 6.0;
+        QTest::newRow("pelvisRotation")       << "pelvisRotation"       << "7 IRON" << 10.0;
+        QTest::newRow("pelvisRotationSigned") << "pelvisRotationSigned" << "7 IRON" << 10.0;
+        QTest::newRow("pelvisThrust")         << "pelvisThrust"         << "7 IRON" << 2.5;
+        QTest::newRow("spineForwardBend")     << "spineForwardBend"     << "7 IRON" << 3.75;
+        QTest::newRow("thoraxRotation")       << "thoraxRotation"       << "7 IRON" << 12.0;
+        QTest::newRow("thoraxRotationSigned") << "thoraxRotationSigned" << "7 IRON" << 12.0;
+        QTest::newRow("trailKneeFlexion")     << "trailKneeFlexion"     << "7 IRON" << 8.0;
+        QTest::newRow("trailWristFlexExt")    << "trailWristFlexExt"    << "7 IRON" << 12.0;
+        QTest::newRow("clubheadSpeed 7 iron") << "clubheadSpeed"        << "7 IRON" << 3.75;
+        QTest::newRow("clubheadSpeed wedge")  << "clubheadSpeed"        << "GAP WEDGE" << 3.4;
+        QTest::newRow("clubheadSpeed driver") << "clubheadSpeed"        << "DRIVER" << 4.65;
+        QTest::newRow("hipLineTilt")          << "hipLineTilt"          << "7 IRON" << 7.0;
+        QTest::newRow("leadKneeDrift")        << "leadKneeDrift"        << "7 IRON" << 8.0;
+        QTest::newRow("pelvisLift")           << "pelvisLift"           << "7 IRON" << 6.2;
+        QTest::newRow("pelvisSway")           << "pelvisSway"           << "7 IRON" << 10.0;
+        QTest::newRow("spineSideBend")        << "spineSideBend"        << "7 IRON" << 6.0;
+        QTest::newRow("thoraxLateralDrift")   << "thoraxLateralDrift"   << "7 IRON" << 10.0;
+        QTest::newRow("trunkRise")            << "trunkRise"            << "7 IRON" << 4.5;
+        QTest::newRow("hm.leadWristFlexExt")  << "hm.leadWristFlexExt"  << "7 IRON" << 15.0;
+        QTest::newRow("hm.leadWristRadUln")   << "hm.leadWristRadUln"   << "7 IRON" << 10.0;
+    }
+
+    void tracesBorrowTheirQuantitysNorm()
+    {
+        QFETCH(QString, key);
+        QFETCH(QString, club);
+        QFETCH(double, expected);
+        QCOMPARE(m_provider->traceCorridorHalfWidth(key, club), expected);
+        QVERIFY(!m_provider->traceTimingGraded(key));
+    }
+
+    void rateTracesBorrowNoneAndGradeTheirTiming()
+    {
+        for (const char *key : { "pelvisAngularSpeed", "thoraxAngularSpeed", "leadArmAngularSpeed", "clubAngularSpeed",
+                                 "handSpeed" }) {
+            QVERIFY2(std::isnan(m_provider->traceCorridorHalfWidth(QString::fromLatin1(key), QStringLiteral("7 IRON"))), key);
+            QVERIFY2(m_provider->traceTimingGraded(QString::fromLatin1(key)), key);
+        }
+        // a trace with no norm of its own, and an unknown key: nothing borrowed, nothing timed
+        for (const char *key : { "headTilt", "swingPlaneCurve", "noSuchKey" }) {
+            QVERIFY2(std::isnan(m_provider->traceCorridorHalfWidth(QString::fromLatin1(key), QStringLiteral("7 IRON"))), key);
+            QVERIFY2(!m_provider->traceTimingGraded(QString::fromLatin1(key)), key);
+        }
+    }
+
+    // R31's one hard rule: never a norm measured from golfers' own swings. On the REAL norms: a descriptor naming a
+    // measure whose norm is `source: "measured"` (m_postureHeldImpact, read off the library by a run) borrows nothing,
+    // although the norm resolves and has a half-width. And none of the shipped 24 resolves to such a norm.
+    void aMeasuredNormIsNeverBorrowed()
+    {
+        const VariabilityMeasureNormLookup norms = variabilityMeasureNorms();
+        QVERIFY(norms);
+        const std::optional<VariabilityMeasureNorm> measured = norms(QStringLiteral("m_postureHeldImpact"), QStringLiteral("7 IRON"));
+        QVERIFY2(measured, "the measured norm resolves");
+        QCOMPARE(measured->source, pa::NormSource::Measured);
+        QVERIFY(std::isfinite(measured->halfWidth) && measured->halfWidth > 0.0);
+
+        pa::MetricDescriptor d;
+        d.key = QStringLiteral("t");
+        d.traceCorridorMeasure = QStringLiteral("m_postureHeldImpact");
+        const auto provider = makeVariabilityScaleProvider(ConsistencyEnv{}, [&](const QString &key) {
+            return key == QLatin1String("t") ? &d : nullptr;
+        }, norms);
+        for (const char *club : { "7 IRON", "DRIVER", "GAP WEDGE", "" })
+            QVERIFY2(std::isnan(provider->traceCorridorHalfWidth(QStringLiteral("t"), QString::fromLatin1(club))), club);
+
+        int borrowing = 0;
+        for (const pa::MetricDescriptor *m : manifest().all()) {
+            if (m->traceCorridorMeasure.isEmpty()) continue;
+            ++borrowing;
+            for (const char *club : { "7 IRON", "DRIVER", "GAP WEDGE" }) {
+                const auto n = norms(m->traceCorridorMeasure, QString::fromLatin1(club));
+                QVERIFY2(n, qPrintable(m->key));
+                QVERIFY2(n->source != pa::NormSource::Measured && n->source != pa::NormSource::Seated, qPrintable(m->key));
+            }
+        }
+        QCOMPARE(borrowing, 24);
+    }
+
+    // On a stub: the source decides, never the number. Measured and Seated (fitted from swings the user marked) are
+    // refused; heuristic, literature and imported are borrowed; no lookup, no measure, or a non-positive half-width
+    // borrows nothing.
+    void theBorrowRefusesSwingDerivedSources()
+    {
+        pa::MetricDescriptor d;
+        d.key = QStringLiteral("t");
+        d.traceCorridorMeasure = QStringLiteral("m_x");
+        pa::MetricDescriptor bare;
+        bare.key = QStringLiteral("b");
+        const auto descriptors = [&](const QString &key) -> const pa::MetricDescriptor * {
+            if (key == QLatin1String("t")) return &d;
+            if (key == QLatin1String("b")) return &bare;
+            return nullptr;
+        };
+        const auto with = [&](pa::NormSource src, double half) {
+            return makeVariabilityScaleProvider(ConsistencyEnv{}, descriptors,
+                [src, half](const QString &id, const QString &) -> std::optional<VariabilityMeasureNorm> {
+                    if (id != QLatin1String("m_x")) return std::nullopt;
+                    return VariabilityMeasureNorm{ half, src };
+                });
+        };
+        QCOMPARE(with(pa::NormSource::Heuristic, 4.0)->traceCorridorHalfWidth(QStringLiteral("t"), QStringLiteral("7 IRON")), 4.0);
+        QCOMPARE(with(pa::NormSource::Literature, 4.0)->traceCorridorHalfWidth(QStringLiteral("t"), QStringLiteral("7 IRON")), 4.0);
+        QCOMPARE(with(pa::NormSource::Imported, 4.0)->traceCorridorHalfWidth(QStringLiteral("t"), QStringLiteral("7 IRON")), 4.0);
+        QVERIFY(std::isnan(with(pa::NormSource::Measured, 4.0)->traceCorridorHalfWidth(QStringLiteral("t"), QStringLiteral("7 IRON"))));
+        QVERIFY(std::isnan(with(pa::NormSource::Seated, 4.0)->traceCorridorHalfWidth(QStringLiteral("t"), QStringLiteral("7 IRON"))));
+        QVERIFY(std::isnan(with(pa::NormSource::Heuristic, 0.0)->traceCorridorHalfWidth(QStringLiteral("t"), QStringLiteral("7 IRON"))));
+        QVERIFY(std::isnan(with(pa::NormSource::Heuristic, 4.0)->traceCorridorHalfWidth(QStringLiteral("b"), QStringLiteral("7 IRON"))));
+        QVERIFY(std::isnan(makeVariabilityScaleProvider(ConsistencyEnv{}, descriptors)
+                               ->traceCorridorHalfWidth(QStringLiteral("t"), QStringLiteral("7 IRON"))));
+        // a borrowed corridor is the trace's own, never the scalar ladder's: scaleFor is unchanged by it
+        QCOMPARE(with(pa::NormSource::Heuristic, 4.0)->scaleFor(QStringLiteral("t"), phase::Impact, QStringLiteral("7 IRON")).source,
+                 pv::ScaleSource::None);
     }
 
     void theNoiseIsTheReadingsOwnSigma()

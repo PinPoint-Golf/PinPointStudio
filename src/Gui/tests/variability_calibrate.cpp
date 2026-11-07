@@ -25,13 +25,16 @@
 //   variability_calibration.csv  one row per graded or ungraded item, per session and club
 //   variability_trend.csv        §8.8 across each athlete's sessions
 //   gallery_fixture.json         real numbers for the mark gallery, from Mark-Liversedge's 7-iron sessions
+//   typicality_scalar.csv        R28: each swing's robust z against its club's other swings (R8, R22), per reading
+//   typicality_trace.csv         R28: the same for each trace: RMS z(t), timing z and deviation, amplitude z
+//   trace_descriptors.csv        R28: each trace key's descriptor (draws a curve, where its peak matters)
 //
 // Each session is loaded and aligned as the Consistency tests load a fixture, and its readings are consistencyInput's. Every
 // grade is WITHIN ONE CLUB: clubs are never pooled (spec §9.1, §9.5.1). A blank club label is a club of its own.
 //
 //   Scalar (§8.2)       every Position reading, flagged phaseListed (phaseCheck). A guarded shot is left out where consistencyGuardCovers says the
-//                       reading rests on the P-ladder. Scale: the provider's corridor, else variabilityScale; the
-//                       grader takes the CV rung itself. The reading's ownSigma is its propagatedSigma (R3): never
+//                       reading rests on the P-ladder. Scale: the provider's corridor, else variabilityScale; else
+//                       ungraded (no CV fallback, R26). The reading's ownSigma is its propagatedSigma (R3): never
 //                       subtracted, but an observed SD no larger than it sets measurementLimited.
 //   Measurement (§8.5)  beside each scalar row: ownSigma (a PROPAGATED σ, fed as the nearest rung, the live
 //                       residual RMSE; the CSV says so) over measurementTolerance, else MEAS_TOL_FRACTION × the
@@ -107,7 +110,6 @@ QString sourceToken(pv::ScaleSource s)
     case pv::ScaleSource::None:                 return QStringLiteral("none");
     case pv::ScaleSource::Corridor:             return QStringLiteral("corridor");
     case pv::ScaleSource::VariabilityScale:     return QStringLiteral("variabilityScale");
-    case pv::ScaleSource::CV:                   return QStringLiteral("cv");
     case pv::ScaleSource::PeakFraction:         return QStringLiteral("peakFraction");
     case pv::ScaleSource::TimingDefault:        return QStringLiteral("timingDefault");
     case pv::ScaleSource::MeasurementTolerance: return QStringLiteral("measurementTolerance");
@@ -225,6 +227,16 @@ struct SessionGallery {
     int shots = 0;
     std::vector<GalleryScalar> scalars;
     std::vector<GalleryTrace>  traces;
+};
+
+// R28 calibration pass: one leave-one-out typicality per swing (R8: same club, this swing out, ≥ N_MIN others; R22
+// robust z), for setting the trace thresholds against the scalar ones. Written to typicality_{scalar,trace}.csv.
+struct TypicalityRow {
+    QString athlete, session, club, metric, phase, swing;
+    int     n = 0;                        // the window: the other swings
+    int     listed = -1;                  // scalar: phaseListed
+    double  z = kNaN;                     // scalar z; trace RMS z(t)
+    double  timingZ = kNaN, timingDevMs = kNaN, amplitudeZ = kNaN;
 };
 
 const QString kGalleryAthlete = QStringLiteral("Mark-Liversedge");
@@ -359,6 +371,7 @@ public:
 
     CalibrationRow base;                  // athlete, session, date filled by the caller
     std::vector<CalibrationRow> rows;
+    std::vector<TypicalityRow>  scalarTypicalityRows, traceTypicalityRows;
     SessionGallery *gallery = nullptr;    // non-null for the gallery's session
     const KsSession *ks = nullptr;        // the session's stored KS verdicts; null: no extract, no ordinal rows
 
@@ -433,6 +446,19 @@ private:
                 row.phaseListed = check == PhaseCheck::NoDescriptor ? -1 : check == PhaseCheck::Pass ? 1 : 0;
                 row.phaseNote = phaseNoteOf(check, m_catalogue.descriptor(reading.key), readPhase);
                 if (galleryClub(club)) row.values = values;
+                // R28: each swing against the club's others (leave-one-out, robust z).
+                for (size_t i = 0; i < values.size(); ++i) {
+                    if (!std::isfinite(values[i])) continue;
+                    std::vector<double> others;
+                    for (size_t j = 0; j < values.size(); ++j)
+                        if (j != i && std::isfinite(values[j])) others.push_back(values[j]);
+                    const auto t = pv::scalarTypicality(values[i], others, scaleType);
+                    if (!t) continue;
+                    TypicalityRow tr{ base.athlete, base.session, club, reading.key, phaseLabel(reading.column),
+                                      swings.at(int(i)) };
+                    tr.n = t->n; tr.listed = row.phaseListed; tr.z = t->z;
+                    scalarTypicalityRows.push_back(tr);
+                }
                 CalibrationRow mrow = row;
                 mrow.r = meas; mrow.rhoM = meas.rhoM; mrow.values.clear();
                 rows.push_back(std::move(row));
@@ -450,7 +476,7 @@ private:
     // scalar grader. consistencyInput leaves lm.* out (it reads the camera), and consistencyLmRows lists only the
     // readings past a fence, so the value is read as the fixture loader exposes it and as session_consistency's own
     // ballReading reads one: the first finite phase sample, whatever its phase. Scale: the env's corridor for the key
-    // at Impact (the core pack carries lm.* measures), else the grader's CV for a Ratio, else no scale. No σnoise and
+    // at Impact (the core pack carries lm.* measures), else no scale (no CV fallback, R26). No σnoise and
     // no measurement row: these are the vendor's figures, which the Needle never grades (§9.4) and a golfer's SD is
     // never corrected by (§9.6). No guard either: an LM reading does not rest on the P-ladder.
     void launchMonitor()
@@ -547,8 +573,19 @@ private:
                     const TraceCurve &c = aligned[i];
                     std::vector<double> onGrid(size_t(pv::kTraceGridPoints), kNaN);
                     double peakMs = kNaN, peakCanonMs = kNaN;
-                    if (!c.empty()) {
-                        for (int j = 0; j < pv::kTraceGridPoints; ++j) onGrid[size_t(j)] = valueAt(c, grid[size_t(j)]);
+                    // As the Charts presenter reads a trace (charts_traces_presenter.cpp variabilityTraceOf): only a
+                    // shot lined up by its P-anchors or landmarks, and a window end that falls short of the curve by
+                    // less than one of its own sample steps reads the curve's end sample (when measured).
+                    const ShotWarp *sw = m_al.warpFor(m_s.shots[i]->ordinal);
+                    const bool routed = sw && (sw->route == AlignRoute::PAnchors || sw->route == AlignRoute::Landmarks);
+                    if (!c.empty() && routed && c.t.size() >= 2 && c.ok.size() == c.t.size()) {
+                        const size_t last = c.t.size() - 1;
+                        const auto at = [&](double x) {
+                            if (x < c.t.front() && c.t.front() - x < c.t[1] - c.t.front()) return c.ok.front() ? c.v.front() : kNaN;
+                            if (x > c.t.back() && x - c.t.back() < c.t.back() - c.t[last - 1]) return c.ok.back() ? c.v.back() : kNaN;
+                            return valueAt(c, x);
+                        };
+                        for (int j = 0; j < pv::kTraceGridPoints; ++j) onGrid[size_t(j)] = at(grid[size_t(j)]);
                         // The |value| peak inside the window, the earliest of equals (seqPeakIndex's rule), on the
                         // canonical axis, then back to the shot's own clock: real ms from impact.
                         double best = -1.0, bestT = kNaN;
@@ -576,6 +613,31 @@ private:
                 row.offered = offered; row.excluded = excluded;
                 if (haveWindow) {
                     row.r = m_trace->grade(ti);
+                    // R28: each whole swing against the club's other whole swings (leave-one-out, robust z).
+                    std::vector<size_t> whole;
+                    for (size_t i = 0; i < ti.curves.size(); ++i) {
+                        const auto &cv = ti.curves[i];
+                        if (std::isfinite(ti.peakTimesMs[i])
+                            && std::all_of(cv.begin(), cv.end(), [](double x) { return std::isfinite(x); }))
+                            whole.push_back(i);
+                    }
+                    for (size_t i : whole) {
+                        pv::TraceTypicalityInput in;
+                        in.curve = ti.curves[i];
+                        in.peakTimeMs = ti.peakTimesMs[i];
+                        in.scaleType = ti.scaleType;
+                        for (size_t j : whole) {
+                            if (j == i) continue;
+                            in.windowCurves.push_back(ti.curves[j]);
+                            in.windowPeakTimesMs.push_back(ti.peakTimesMs[j]);
+                        }
+                        const auto tt = pv::traceTypicality(in);
+                        if (!tt) continue;
+                        TypicalityRow tr{ base.athlete, base.session, club, key, QStringLiteral("P4-P7"), swings.at(int(i)) };
+                        tr.n = tt->n; tr.z = tt->rmsZ; tr.timingZ = tt->timingZ;
+                        tr.timingDevMs = tt->timingDeviationMs; tr.amplitudeZ = tt->amplitudeZ;
+                        traceTypicalityRows.push_back(tr);
+                    }
                     // WHERE THE PEAKS SIT. Not part of the grade: an angle or a position often peaks at the window's
                     // edge, and then ρₜ times the downswing, not a peak. Over the swings the grader used.
                     const double step = -topMs / double(pv::kTraceGridPoints - 1);
@@ -960,6 +1022,7 @@ int main(int argc, char **argv)
     QElapsedTimer total;
     total.start();
     std::vector<CalibrationRow> rows;
+    std::vector<TypicalityRow> scalarTyp, traceTyp;      // R28: leave-one-out typicality per swing
     SessionGallery gallery;
     int sessions = 0, shots = 0;
 
@@ -1008,6 +1071,8 @@ int main(int argc, char **argv)
             ++sessions;
             shots += int(fx.session.shots.size());
             for (CalibrationRow &w : cal.rows) rows.push_back(std::move(w));
+            scalarTyp.insert(scalarTyp.end(), cal.scalarTypicalityRows.begin(), cal.scalarTypicalityRows.end());
+            traceTyp.insert(traceTyp.end(), cal.traceTypicalityRows.begin(), cal.traceTypicalityRows.end());
         }
     }
 
@@ -1053,6 +1118,48 @@ int main(int argc, char **argv)
     if (!writeText(outDir + QStringLiteral("/variability_trend.csv"), trend)) {
         std::fprintf(stderr, "variability_calibrate: cannot write the trend CSV\n");
         return 1;
+    }
+
+    // ---- R28: typicality_scalar.csv, typicality_trace.csv (one leave-one-out row per swing) and
+    // trace_descriptors.csv (what each trace key's descriptor says: draws a curve, where its peak matters)
+    {
+        const auto typCsv = [](const std::vector<TypicalityRow> &v) {
+            QString t = QStringLiteral("athlete,session,club,metric,phase,swing,n,phaseListed,z,timingZ,timingDevMs,amplitudeZ\n");
+            for (const TypicalityRow &w : v) {
+                QStringList f;
+                f << w.athlete << w.session << clubLabel(w.club) << w.metric << w.phase << w.swing << QString::number(w.n)
+                  << (w.listed >= 0 ? QString::number(w.listed) : QString()) << csvNum(w.z) << csvNum(w.timingZ)
+                  << csvNum(w.timingDevMs) << csvNum(w.amplitudeZ);
+                for (QString &x : f) x = csvField(x);
+                t += f.join(QLatin1Char(',')) + QLatin1Char('\n');
+            }
+            return t;
+        };
+        QSet<QString> traceKeys;
+        for (const CalibrationRow &w : rows) if (w.r.basis == pv::Basis::Trace) traceKeys.insert(w.metric);
+        QStringList sorted(traceKeys.begin(), traceKeys.end());
+        sorted.sort();
+        QString d = QStringLiteral("metric,drawsCurve,scaleType,variabilityScale,phases,domain\n");
+        for (const QString &k : sorted) {
+            const pa::MetricDescriptor *md = catalogue.descriptor(k);
+            QStringList ph;
+            if (md) for (pa::Phase p : md->phases) ph << phaseName(p);
+            QStringList f;
+            f << k << (md ? (md->card.drawsCurve() ? "1" : "0") : "")
+              << QString::fromLatin1(pv::scaleTypeToken(provider->scaleType(k)).data(),
+                                     qsizetype(pv::scaleTypeToken(provider->scaleType(k)).size()))
+              << (provider->variabilityScale(k) ? csvNum(*provider->variabilityScale(k)) : QString())
+              << ph.join(QLatin1Char(' '))
+              << (md ? phaseName(md->domain.first) + QLatin1Char('-') + phaseName(md->domain.last) : QString());
+            for (QString &x : f) x = csvField(x);
+            d += f.join(QLatin1Char(',')) + QLatin1Char('\n');
+        }
+        if (!writeText(outDir + QStringLiteral("/typicality_scalar.csv"), typCsv(scalarTyp))
+            || !writeText(outDir + QStringLiteral("/typicality_trace.csv"), typCsv(traceTyp))
+            || !writeText(outDir + QStringLiteral("/trace_descriptors.csv"), d)) {
+            std::fprintf(stderr, "variability_calibrate: cannot write the R28 CSVs\n");
+            return 1;
+        }
     }
 
     // ---- gallery_fixture.json

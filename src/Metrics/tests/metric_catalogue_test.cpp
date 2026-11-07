@@ -1299,7 +1299,7 @@ int main()
 
     // 9. The variability grade basis (docs/design/variability-mark/spec.md §8.2, §8.5, §8.10).
     //
-    // `scaleType` decides how a metric's spread is taken and whether the CV rung is open to it, so
+    // `scaleType` decides how a metric's spread is taken (the CV rung is retired, R26), so
     // a wrong one grades a golfer on the wrong formula with no other symptom. Two of the
     // definitions are checkable against the unit the descriptor already states: a Ratio quantity
     // has a true zero, which no angle does, and a Circular one wraps at ±180°, which only an angle
@@ -1375,6 +1375,55 @@ int main()
         }
         checkEqI(scaled, 0, "no descriptor sets variabilityScale (calibration or Mark only)");
         checkEqI(toleranced, 0, "no descriptor sets measurementTolerance (calibration or Mark only)");
+
+        // R31 (Mark, 7 Nov; calibration report-s5 §1, §2): a drawn trace borrows the norm of its own quantity. The
+        // set is Mark's ruling, not a default: exactly these 24 TimeSeries name a corridor measure, each the one the
+        // report maps (the norm resolution and the "never measured" rule are variability_env_test's), and only the
+        // five rate traces with an interior peak grade their peak time. A new entry lands with Mark's say-so and is
+        // added here, never by deleting the guard.
+        const std::map<QString, QString> borrowed{
+            { "headLift", "m_headLiftImpact" },           { "headRise", "m_headRiseBackDtl" },
+            { "headSway", "m_headSwayBack" },             { "lagAngle", "m_lagAngleDown" },
+            { "leadHeelLift", "m_leadHeelLiftTop" },      { "leadKneeFlexion", "m_leadKneeFlex_p7" },
+            { "pelvisRotation", "m_pelvisRotP7" },        { "pelvisRotationSigned", "m_pelvisRotP7" },
+            { "pelvisThrust", "m_pelvisThrustImpact" },   { "spineForwardBend", "m_spineBendChangeImpact" },
+            { "thoraxRotation", "m_thoraxRotP4" },        { "thoraxRotationSigned", "m_thoraxRotP4" },
+            { "trailKneeFlexion", "m_trailKneeFlex_p7" }, { "trailWristFlexExt", "m_trailWristFlexExt_p5" },
+            { "clubheadSpeed", "m_clubheadSpeedImpact" }, { "hipLineTilt", "m_hipLineTiltTop" },
+            { "leadKneeDrift", "m_leadKneeDriftImpact" }, { "pelvisLift", "m_pelvisLiftImpact" },
+            { "pelvisSway", "m_pelvisSwayImpact" },       { "spineSideBend", "m_spineSideBendTop" },
+            { "thoraxLateralDrift", "m_thoraxDrift" },    { "trunkRise", "m_trunkRiseImpact" },
+            { "hm.leadWristFlexExt", "m_leadWristAtImpact" }, { "hm.leadWristRadUln", "m_leadWristRadUln_p7" } };
+        const QSet<QString> timed{ "pelvisAngularSpeed", "thoraxAngularSpeed", "leadArmAngularSpeed",
+                                   "clubAngularSpeed", "handSpeed" };
+        int corridors = 0, wrongCorridor = 0, notTrace = 0, timings = 0, wrongTiming = 0;
+        for (const MetricDescriptor *d : cat.all()) {
+            if (!d->traceCorridorMeasure.isEmpty()) {
+                ++corridors;
+                const auto it = borrowed.find(d->key);
+                if (it == borrowed.end() || it->second != d->traceCorridorMeasure) {
+                    ++wrongCorridor;
+                    std::printf("      %s borrows %s\n", qPrintable(d->key), qPrintable(d->traceCorridorMeasure));
+                }
+                if (d->type != MetricType::TimeSeries) {
+                    ++notTrace;
+                    std::printf("      %s borrows a trace corridor but is not a TimeSeries\n", qPrintable(d->key));
+                }
+            }
+            if (d->traceTimingGraded) {
+                ++timings;
+                if (!timed.contains(d->key) || d->type != MetricType::TimeSeries || !d->traceCorridorMeasure.isEmpty()) {
+                    ++wrongTiming;
+                    std::printf("      %s grades its peak time\n", qPrintable(d->key));
+                }
+            }
+        }
+        checkEqI(corridors, int(borrowed.size()), "24 drawn traces borrow a corridor measure (R31)");
+        checkEqI(wrongCorridor, 0, "each borrows the measure calibration report-s5 maps it to");
+        checkEqI(notTrace, 0, "only a TimeSeries borrows a trace corridor");
+        checkEqI(timings, int(timed.size()), "the five rate traces grade their peak time (R31)");
+        checkEqI(wrongTiming, 0, "only a rate trace with an interior peak, with no corridor (R29), grades its timing");
+        std::printf("    %d traces borrow a corridor, %d grade their timing\n", corridors, timings);
     }
 
     std::printf("=== %s ===\n", g_fail == 0 ? "ALL PASS" : "FAILURES");

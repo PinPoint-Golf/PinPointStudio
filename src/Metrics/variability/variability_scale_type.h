@@ -22,9 +22,8 @@
 // (docs/design/variability-mark/spec.md §8.2, §8.4, §8.10). The grade basis is not one formula:
 //
 //   Interval    — the default. A plain sample SD over a corridor half-width (or `variabilityScale`).
-//                 No CV fallback, because an interval scale has no true zero to divide by.
 //   Ratio       — a strictly positive quantity with a TRUE zero: a speed, a distance, a duration,
-//                 smash factor. The one scale on which the CV rung of §8.2 step 4 is allowed.
+//                 smash factor. (Its CV rung of §8.2 step 4 is retired, R26: no scale, no grade.)
 //   Circular    — an angle that WRAPS at ±180°, whose readings can cross the seam. Spread is the
 //                 circular SD √(−2 ln R̄); a linear SD over 179° and −179° would read a 2° spread as
 //                 a 358° one. A bounded joint angle is NOT circular — it never reaches the seam.
