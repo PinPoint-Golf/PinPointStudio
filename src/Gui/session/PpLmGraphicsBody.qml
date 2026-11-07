@@ -1021,7 +1021,7 @@ Item {
 
     // THE VARIABILITY MARKS under a block of tiles (the technical layer; docs/design/system/variability.md): one
     // named badge per reading, the tile's label, " · ", then the badge with the grader's basis ("CLUB SPEED · ◎
-    // Repeatable · σ 0.4 mph · CV 0.01 · n 10"). Under the tiles rather than in them: a technical badge with its
+    // Repeatable · σ 0.4 mph · 0.21 of corridor · n 10"). Under the tiles rather than in them: a technical badge with its
     // basis is wider than a tile. `typ`: a Typicality badge (this shot against the other shots of its club, R8);
     // else a Dispersion one (the club's spread, R4b). `items` hold only results: a reading with none is not listed.
     component MarkList: Flow {
@@ -1639,7 +1639,13 @@ Item {
         readonly property real baseH: full || indexOnly ? lineH : lineH + Math.ceil(h.ts.fMicro.pixelSize * 1.5) + h.ts.u(2)
         // this shot against the other shots of its club, without it (R8): a line of its own under the reading
         readonly property var typ: indexOnly ? null : h.typOf(tile.key)
-        height: baseH + (typB.visible ? typB.implicitHeight + h.ts.g(3) : 0)
+        readonly property string typBasis: typ ? (typ.basisText || "") : ""
+        // the badge's column: from its inset to the Avg column (one line), else the row. When the word and the basis
+        // don't fit on one line there, the badge shows its word and the basis takes a line of its own under it, inside
+        // the column (as PpChKeyFigures), so nothing crosses a column edge.
+        readonly property real typW: (full && !indexOnly ? c.avgL : width) - typB.x
+        readonly property bool typFits: typFull.implicitWidth <= typW + 0.5
+        height: baseH + (typB.visible ? typB.implicitHeight + h.ts.g(3) + (typLine.visible ? typLine.implicitHeight + h.ts.g(2) : 0) : 0)
         Text { id: nm; x: 0; y: (lrw.lineH - height) / 2; width: lrw.c.nameW; elide: Text.ElideNone; wrapMode: Text.NoWrap
                text: lrw.h.label(lrw.tile.key) + (lrw.h.measured(lrw.tile.key) ? " †" : ""); font: lrw.h.ts.fBody; color: lrw.h.ts.ink }
         // round 4: the size in the figure column (aligned with every other row), its direction word after the unit
@@ -1676,7 +1682,32 @@ Item {
             dense: true
             contentLayer: "technical"
             values: lrw.typ ? lrw.typ.values : null
-            basisText: lrw.typ ? lrw.typ.basisText : ""
+            basisText: lrw.typFits ? lrw.typBasis : ""
+            roles: lrw.h.ts
+        }
+        // the basis on its own line when the column cannot hold it beside the word (the grader's string, as the badge
+        // sets it: the figure face, ink2)
+        Text {
+            id: typLine
+            objectName: "lmLedgerTypicalityBasis"
+            visible: typB.visible && !lrw.typFits && lrw.typBasis !== ""
+            x: typB.x; y: typB.y + typB.height + lrw.h.ts.g(2); width: Math.max(0, lrw.typW)
+            wrapMode: Text.WordWrap
+            text: lrw.typBasis
+            font: lrw.h.ts.fFig; color: lrw.h.ts.ink2
+        }
+        // the measure: the technical badge as it would be drawn, transparent (never seen, never heard)
+        PpVariabilityBadge {
+            id: typFull
+            opacity: 0
+            enabled: false
+            Accessible.ignored: true
+            variant: PpVariabilityMark.Typicality
+            form: PpVariabilityMark.Icon
+            dense: true
+            contentLayer: "technical"
+            values: lrw.typ ? lrw.typ.values : null
+            basisText: lrw.typBasis
             roles: lrw.h.ts
         }
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: lrw.h.ts.hw; color: lrw.h.ts.hair }
@@ -1691,7 +1722,7 @@ Item {
             const stripX = w - wordW - stripW
             const sdR = stripX - gap, meanR = sdR - sdW - gap * 0.4
             const unitX = meanR - meanW - unitW, valR = unitX - gap * 0.35
-            return { nameW: valR - valW, valR: valR, unitX: unitX, meanR: meanR, sdR: sdR, stripX: stripX, stripW: stripW, wordX: w - wordW + gap * 0.5 }
+            return { nameW: valR - valW, valR: valR, unitX: unitX, meanR: meanR, avgL: meanR - meanW, sdR: sdR, stripX: stripX, stripW: stripW, wordX: w - wordW + gap * 0.5 }
         }
         const unitW = 4.6 * e, wordW = outKeys.length ? 4.6 * e : 0
         const unitX = w - wordW - unitW, valR = unitX - gap * 0.35

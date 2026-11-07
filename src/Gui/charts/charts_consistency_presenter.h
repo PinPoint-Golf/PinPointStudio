@@ -35,8 +35,8 @@
 // field (variability_facade.h): { grade, graded, basis, ungradedReason, measurementLimited, n, hasRho, rho, basisText,
 // domain }. NO VARIABILITY WORD IS SPELLED HERE: the words are the vocabularies' (ConsistencyVocabulary,
 // MeasurementVocabulary), and QML puts them in. Two strings are TEMPLATES for that: `key` and `keyMarks` hold %1 to %5,
-// the Consistency words of grades 5 to 1, %6 its grade-0 word, %7 the Measurement grade-0 word ("Checking"); the
-// headline's `grades` fill its %1 and %2 (below).
+// the Consistency words of grades 5 to 1, %6 its grade-0 word in the table's form ("Too few", R33), %7 the Measurement
+// grade-0 word ("Checking"); the headline's `grades` fill its %1 and %2 (below).
 //
 // head:   { kicker ("Consistency  ·  31 shots  ·  Gap wedge"), headline, ball (Sentence, {} with no carry),
 //           notes: [Sentence] (a club left out; carry with no offline) }
@@ -48,8 +48,9 @@
 //           "Nothing here has a range to judge it against." "empty": what the table cannot say (the empty sentence).
 // matrix: { columns: [{ text, short }], rows: [{ id, name, cells: [{ text, short, strong, heavy, on, mark, tap, heat, soft,
 //           result }] }] }. PpChMatrix's rectangle: one cell per column. A cell with a graded `result` (its cellGrade, R1)
-//           has text "" and QML sets the word: ConsistencyVocabulary.word(grade), or MeasurementVocabulary.word(0)
-//           ("Checking") when measurementLimited; "-" for an applicable cell with no graded reading; "" with no result
+//           has text "" and QML sets the word: ConsistencyVocabulary.shortWord(grade) (grade 0 "Too few", R33: in this
+//           table only), or MeasurementVocabulary.word(0) ("Checking") when measurementLimited; "-" for an applicable cell
+//           with no graded reading; "" with no result
 //           where the column does not apply. Short forms: the grade's figure, "⚠" for Checking, "-". No marks: the marks
 //           go on the readings a cell opens to.
 // key:    the words of the table (a template), for a note under it in either form. keyMarks: the short forms (a template),

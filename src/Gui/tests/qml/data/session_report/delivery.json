@@ -673,7 +673,7 @@
    "phaseWords": "at the top",
    "also": "“standing up on it going back”",
    "count": "10 of 10 swings",
-   "saw": "Your trail leg straightens going back — on all 10 swings, steady from first swing to last. Typical trail-knee bend lost by the top: 22°, against a target of less than 12°.",
+   "saw": "Your trail leg straightens going back — on all 10 swings, no change from first swing to last. Typical trail-knee bend lost by the top: 22°, against a target of less than 12°.",
    "why": "A straight trail leg lets your hips slide instead of turn, so you lose power.",
    "cameWith": "It often drags other habits in with it. Not today — on every swing, your head stays level going back, your hips turn in place going back and your hips hold their height going back.",
    "causes": {
@@ -823,7 +823,7 @@
    "phaseWords": "at impact",
    "also": "“hips not clearing”, “blocked”",
    "count": "10 of 10 swings",
-   "saw": "Your hips haven't turned enough by impact — on all 10 swings, steady from first swing to last. Typical hip turn at impact: 3°, against a target of 18° to 58°.",
+   "saw": "Your hips haven't turned enough by impact — on all 10 swings, no change from first swing to last. Typical hip turn at impact: 3°, against a target of 18° to 58°.",
    "why": "Hips that haven't turned enough get in your arms' way, so your hands take over and the strike varies.",
    "cameWith": "",
    "causes": {
@@ -977,7 +977,7 @@
    "phaseWords": "at impact",
    "also": "“standing up”, “hip thrust toward the ball”",
    "count": "10 of 10 swings",
-   "saw": "You stand up through the ball — on all 10 swings, steady from first swing to last. Typical posture lost by impact: 12.9°, against a target of less than 5°.",
+   "saw": "You stand up through the ball — on all 10 swings, no change from first swing to last. Typical posture lost by impact: 12.9°, against a target of less than 5°.",
    "why": "Standing up takes away the room your arms need, so your hands have to rescue the strike.",
    "cameWith": "It came with club returns toe-up at impact (7 of the 7 swings we could see). That fits the coaching model, though showing up together is not proof that one causes the other. And on every swing, you lean slightly away from the target at impact.",
    "causes": {
@@ -1149,7 +1149,7 @@
    "phaseWords": "coming down",
    "also": "“coming over it”, “OTT”",
    "count": "10 of 10 swings",
-   "saw": "Your hands come over the top coming down — on all 10 swings, steady from first swing to last. Typical hand rise coming down: 11% hand rise, against a target of 9% hand rise or less.",
+   "saw": "Your hands come over the top coming down — on all 10 swings, no change from first swing to last. Typical hand rise coming down: 11% hand rise, against a target of 9% hand rise or less.",
    "why": "When the club comes over the top it cuts across the ball, so shots start left or curve right.",
    "cameWith": "It often drags other habits in with it. Not today — on every swing, you keep your arms wide at the top.",
    "causes": {
@@ -1305,7 +1305,7 @@
    "phaseWords": "at the top",
    "also": "“leaning left at the top”, “forward spine angle at the top”",
    "count": "9 of 10 swings",
-   "saw": "You lean toward the target at the top — on 9 of 10 swings, steady from first swing to last. Typical lean away from the target at the top: −1°, against a target of 0° to 24°; this is a small miss: just outside the range, never far.",
+   "saw": "You lean toward the target at the top — on 9 of 10 swings, no change from first swing to last. Typical lean away from the target at the top: −1°, against a target of 0° to 24°; this is a small miss: just outside the range, never far.",
    "why": "Leaning toward the target at the top strains your lower back and makes it hard to start down smoothly.",
    "cameWith": "",
    "causes": {
@@ -6326,7 +6326,6 @@
     "when": "At impact"
    }
   ],
-  "repeat": "the tightest: trail knee at P2, middle half 2° · the loosest: head at P2, middle half 7.4 cm",
   "strip": {
    "legend": "each mark is a swing's nearest pattern; ringed: not the session's (Level), or between the two",
    "line": "Level on 9 of 10 swings",
@@ -8652,7 +8651,6 @@
   "recurringEmpty": "No wrist finding fired on any swing.",
   "recurringLegend": "Each finding, swing by swing: a filled mark where it fired, a hollow one where it did not.",
   "recurringMore": "",
-  "repeat": "From P3 on, most repeatable: lead wrist hinge at P7 (middle half 2° wide); least: trail wrist at P4 (12°).",
   "scoreLine": "Wrist score median 82, middle half 78–86",
   "scoreRun": {
    "box": {
@@ -9153,7 +9151,7 @@
    ],
    "shown": true,
    "sub": "8 swings with the swing plane curve. Under each box, the median and ± half the middle half.",
-   "varies": "Steadiest at P5 (middle half ±0.3°), loosest at P1 (±1.5°) — your path follows your plane (r −0.63)."
+   "varies": "Narrowest at P5 (middle half ±0.3°), widest at P1 (±1.5°) — your path follows your plane (r −0.63)."
   },
   "flight": {
    "attackText": "Each degree steeper at P6 makes your attack 0.6° steeper.",

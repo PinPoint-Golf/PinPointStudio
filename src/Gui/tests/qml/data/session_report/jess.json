@@ -78,7 +78,7 @@
    "count": "6 of 7 swings"
   },
   {
-   "name": "Sequence not repeatable",
+   "name": "Sequence changes from swing to swing",
    "golfer": "Your body fires in a different order from swing to swing",
    "count": "over the session"
   }
@@ -175,7 +175,7 @@
  "grid": {
   "title": "Your habits, swing by swing",
   "standfirst": "Each row is one thing we measured; each column is one of your seven swings, in the order you hit them. A filled dot means it showed on that swing.",
-  "sessionNote": "Sequence not repeatable is read over the whole session, not swing by swing: see work-on 5.",
+  "sessionNote": "Sequence changes from swing to swing is read over the whole session, not swing by swing: see work-on 5.",
   "swings": [
    1,
    2,
@@ -429,7 +429,7 @@
     ]
    },
    {
-    "name": "Sequence not repeatable",
+    "name": "Sequence changes from swing to swing",
     "marks": [
      {
       "state": "pattern",
@@ -520,7 +520,7 @@
    },
    {
     "rank": 5,
-    "name": "Sequence not repeatable",
+    "name": "Sequence changes from swing to swing",
     "goal": "Your body fires the same way every swing",
     "phase": "",
     "share": 0.0,
@@ -579,7 +579,7 @@
    "phaseWords": "after impact",
    "also": "“lead-elbow breakdown”, “wing”",
    "count": "6 of 6 swings",
-   "saw": "Your lead arm folds after impact — on all 6 swings, steady from first swing to last. Typical lead arm angle from the torso: 106°, against a target of 40° or less.",
+   "saw": "Your lead arm folds after impact — on all 6 swings, no change from first swing to last. Typical lead arm angle from the torso: 106°, against a target of 40° or less.",
    "why": "A folding lead arm shortens your swing where it should be longest, so you lose speed and the clubface wanders.",
    "cameWith": "",
    "causes": {
@@ -711,7 +711,7 @@
    "phaseWords": "at the top",
    "also": "“dipping”, “squatting into it”",
    "count": "7 of 7 swings",
-   "saw": "Your head dips going back — on all 7 swings, steady from first swing to last. Typical head height change: −9 cm, against a target of −6 cm to 6 cm.",
+   "saw": "Your head dips going back — on all 7 swings, no change from first swing to last. Typical head height change: −9 cm, against a target of −6 cm to 6 cm.",
    "why": "When your head dips going back it must come up again in time, or you hit behind the ball.",
    "cameWith": "",
    "causes": {
@@ -839,7 +839,7 @@
    "phaseWords": "at address",
    "also": "",
    "count": "7 of 7 swings",
-   "saw": "Your feet are too far apart — on all 7 swings, steady from first swing to last. Typical stance width: 125% shoulder width, against a target of 82% shoulder width to 118% shoulder width.",
+   "saw": "Your feet are too far apart — on all 7 swings, no change from first swing to last. Typical stance width: 125% shoulder width, against a target of 82% shoulder width to 118% shoulder width.",
    "why": "",
    "cameWith": "It often drags other habits in with it. Not today — on every swing, your hips turn in place going back.",
    "causes": {
@@ -967,7 +967,7 @@
    "phaseWords": "at the top",
    "also": "“leaning left at the top”, “forward spine angle at the top”",
    "count": "6 of 7 swings",
-   "saw": "You lean toward the target at the top — on 6 of 7 swings, steady from first swing to last. Typical lean away from the target at the top: −2°, against a target of 0° to 24°.",
+   "saw": "You lean toward the target at the top — on 6 of 7 swings, no change from first swing to last. Typical lean away from the target at the top: −2°, against a target of 0° to 24°.",
    "why": "Leaning toward the target at the top strains your lower back and makes it hard to start down smoothly.",
    "cameWith": "",
    "causes": {
@@ -1090,7 +1090,7 @@
   {
    "rank": 5,
    "id": "inconsistent_sequence",
-   "name": "Sequence not repeatable",
+   "name": "Sequence changes from swing to swing",
    "goal": "Your body fires the same way every swing",
    "phase": "",
    "phaseWords": "over the session",
@@ -1111,7 +1111,7 @@
    "figureLabel": "",
    "stills": [],
    "kicker": "Work-on 5 of 5  ·  Over the whole session",
-   "coachTerm": "Coaches call the habit <i>Sequence not repeatable</i>, or “timing varies”, “different every swing”."
+   "coachTerm": "Coaches call the habit <i>Sequence changes from swing to swing</i>, or “timing varies”, “different every swing”."
   }
  ],
  "practice": {

@@ -214,7 +214,7 @@ Item {
             // the picture strip (stage 5): the typical swing's frames, each with its lines; the frames' marks are the map's
             const pic = Fx.maps["posture"].posture.picture
             verify(!!pic, "the posture fixture carries a picture")
-            verify(shown("reportPosturePicture"), "the picture strip, between Repeatable? and the trust note")
+            verify(shown("reportPosturePicture"), "the picture strip, between Consistency and the trust note")
             const pframes = findAll(reg, "reportPosturePictureFrame", []).filter(it => it.visible)
             compare(pframes.length, pic.groups.reduce((a, g) => a + g.frames.length, 0), "a frame per picture frame")
             verify(pframes.every(f => f.coachDrawn > 0), "every frame carries its frozen address lines")

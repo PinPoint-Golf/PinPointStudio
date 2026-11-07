@@ -1429,7 +1429,7 @@
    "phaseWords": "at the top",
    "also": "“standing up on it going back”",
    "count": "10 of 10 swings",
-   "saw": "Your trail leg straightens going back — on all 60 swings, steady from first swing to last. Typical trail-knee bend lost by the top: 22°, against a target of less than 12°.",
+   "saw": "Your trail leg straightens going back — on all 60 swings, no change from first swing to last. Typical trail-knee bend lost by the top: 22°, against a target of less than 12°.",
    "why": "A straight trail leg lets your hips slide instead of turn, so you lose power.",
    "cameWith": "It often drags other habits in with it. Not today — on every swing, your head stays level going back, your hips turn in place going back and your hips hold their height going back.",
    "causes": {
@@ -1879,7 +1879,7 @@
    "phaseWords": "at impact",
    "also": "“hips not clearing”, “blocked”",
    "count": "10 of 10 swings",
-   "saw": "Your hips haven't turned enough by impact — on all 60 swings, steady from first swing to last. Typical hip turn at impact: 3°, against a target of 18° to 58°.",
+   "saw": "Your hips haven't turned enough by impact — on all 60 swings, no change from first swing to last. Typical hip turn at impact: 3°, against a target of 18° to 58°.",
    "why": "Hips that haven't turned enough get in your arms' way, so your hands take over and the strike varies.",
    "cameWith": "",
    "causes": {
@@ -2333,7 +2333,7 @@
    "phaseWords": "at impact",
    "also": "“standing up”, “hip thrust toward the ball”",
    "count": "10 of 10 swings",
-   "saw": "You stand up through the ball — on all 60 swings, steady from first swing to last. Typical posture lost by impact: 12.9°, against a target of less than 5°.",
+   "saw": "You stand up through the ball — on all 60 swings, no change from first swing to last. Typical posture lost by impact: 12.9°, against a target of less than 5°.",
    "why": "Standing up takes away the room your arms need, so your hands have to rescue the strike.",
    "cameWith": "It came with club returns toe-up at impact (7 of the 7 swings we could see). That fits the coaching model, though showing up together is not proof that one causes the other. And on every swing, you lean slightly away from the target at impact.",
    "causes": {
@@ -2805,7 +2805,7 @@
    "phaseWords": "coming down",
    "also": "“coming over it”, “OTT”",
    "count": "10 of 10 swings",
-   "saw": "Your hands come over the top coming down — on all 60 swings, steady from first swing to last. Typical hand rise coming down: 11% hand rise, against a target of 9% hand rise or less.",
+   "saw": "Your hands come over the top coming down — on all 60 swings, no change from first swing to last. Typical hand rise coming down: 11% hand rise, against a target of 9% hand rise or less.",
    "why": "When the club comes over the top it cuts across the ball, so shots start left or curve right.",
    "cameWith": "It often drags other habits in with it. Not today — on every swing, you keep your arms wide at the top.",
    "causes": {
@@ -3261,7 +3261,7 @@
    "phaseWords": "at the top",
    "also": "“leaning left at the top”, “forward spine angle at the top”",
    "count": "9 of 10 swings",
-   "saw": "You lean toward the target at the top — on 9 of 10 swings, steady from first swing to last. Typical lean away from the target at the top: −1°, against a target of 0° to 24°; this is a small miss: just outside the range, never far.",
+   "saw": "You lean toward the target at the top — on 9 of 10 swings, no change from first swing to last. Typical lean away from the target at the top: −1°, against a target of 0° to 24°; this is a small miss: just outside the range, never far.",
    "why": "Leaning toward the target at the top strains your lower back and makes it hard to start down smoothly.",
    "cameWith": "",
    "causes": {
@@ -4982,7 +4982,7 @@
  },
  "consistency": {
   "kicker": "Consistency  ·  60 swings  ·  mixed clubs",
-  "head": "You repeat your swing best in the backswing. It loosens on the way down, and your impact position moves most.",
+  "head": "Your backswing is %1, your downswing %2; your impact position moves most.",
   "ball": "Your ball with the 7 iron: carry 121 yd, middle half 114 to 126 yd. It finishes 4 yd right, middle half 2 yd left to 9 yd right.",
   "empty": "",
   "notes": [
@@ -5029,15 +5029,24 @@
      "name": "Setup",
      "cells": [
       {
-       "text": "steady",
-       "short": "·",
+       "text": "",
+       "short": "4",
        "strong": false,
        "heavy": false,
        "heat": 0,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
        "text": "",
@@ -5074,92 +5083,164 @@
      "name": "Posture",
      "cells": [
       {
-       "text": "steady",
-       "short": "·",
+       "text": "",
+       "short": "4",
        "strong": false,
        "heavy": false,
        "heat": 0,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "steady",
-       "short": "·",
+       "text": "",
+       "short": "4",
        "strong": false,
        "heavy": false,
        "heat": 0,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "some",
-       "short": "◐",
+       "text": "",
+       "short": "3",
        "strong": true,
        "heavy": false,
        "heat": 1,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 3,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "steady",
-       "short": "·",
+       "text": "",
+       "short": "4",
        "strong": false,
        "heavy": false,
        "heat": 0,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "some",
-       "short": "◐",
+       "text": "",
+       "short": "3",
        "strong": true,
        "heavy": false,
        "heat": 1,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 3,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "loose",
-       "short": "●",
+       "text": "",
+       "short": "2",
        "strong": true,
        "heavy": true,
        "heat": 2,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 2,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "some",
-       "short": "◐",
+       "text": "",
+       "short": "3",
        "strong": true,
        "heavy": false,
        "heat": 1,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 3,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "steady",
-       "short": "·",
+       "text": "",
+       "short": "4",
        "strong": false,
        "heavy": false,
        "heat": 0,
        "soft": true,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       }
      ]
     },
@@ -5172,81 +5253,144 @@
        "short": ""
       },
       {
-       "text": "steady",
-       "short": "·",
+       "text": "",
+       "short": "4",
        "strong": false,
        "heavy": false,
        "heat": 0,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "steady",
-       "short": "·",
+       "text": "",
+       "short": "4",
        "strong": false,
        "heavy": false,
        "heat": 0,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "some",
-       "short": "◐",
+       "text": "",
+       "short": "3",
        "strong": true,
        "heavy": false,
        "heat": 1,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 3,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "steady",
-       "short": "·",
+       "text": "",
+       "short": "4",
        "strong": false,
        "heavy": false,
        "heat": 0,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "loose",
-       "short": "●",
+       "text": "",
+       "short": "2",
        "strong": true,
        "heavy": true,
        "heat": 2,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 2,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "some",
-       "short": "◐",
+       "text": "",
+       "short": "3",
        "strong": true,
        "heavy": false,
        "heat": 1,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 3,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "loose",
-       "short": "●",
+       "text": "",
+       "short": "2",
        "strong": true,
        "heavy": true,
        "heat": 2,
        "soft": true,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 2,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       }
      ]
     },
@@ -5263,48 +5407,84 @@
        "short": ""
       },
       {
-       "text": "steady",
-       "short": "·",
+       "text": "",
+       "short": "4",
        "strong": false,
        "heavy": false,
        "heat": 0,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "steady",
-       "short": "·",
+       "text": "",
+       "short": "4",
        "strong": false,
        "heavy": false,
        "heat": 0,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "some",
-       "short": "◐",
+       "text": "",
+       "short": "3",
        "strong": true,
        "heavy": false,
        "heat": 1,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 3,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "steady",
-       "short": "·",
+       "text": "",
+       "short": "4",
        "strong": false,
        "heavy": false,
        "heat": 0,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
        "text": "",
@@ -5325,40 +5505,67 @@
        "short": ""
       },
       {
-       "text": "steady",
-       "short": "·",
+       "text": "",
+       "short": "4",
        "strong": false,
        "heavy": false,
        "heat": 0,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "steady",
-       "short": "·",
+       "text": "",
+       "short": "4",
        "strong": false,
        "heavy": false,
        "heat": 0,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "some",
-       "short": "◐",
+       "text": "",
+       "short": "3",
        "strong": true,
        "heavy": false,
        "heat": 1,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 3,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "⚠ error",
+       "text": "",
        "short": "⚠",
        "strong": false,
        "heavy": false,
@@ -5366,7 +5573,16 @@
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": true,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
        "text": "-",
@@ -5380,26 +5596,44 @@
        "tap": false
       },
       {
-       "text": "steady",
-       "short": "·",
+       "text": "",
+       "short": "4",
        "strong": false,
        "heavy": false,
        "heat": 0,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "some",
-       "short": "◐",
+       "text": "",
+       "short": "3",
        "strong": true,
        "heavy": false,
        "heat": 1,
        "soft": true,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 3,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       }
      ]
     },
@@ -5428,37 +5662,64 @@
        "short": ""
       },
       {
-       "text": "steady",
-       "short": "·",
+       "text": "",
+       "short": "4",
        "strong": false,
        "heavy": false,
        "heat": 0,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "some",
-       "short": "◐",
+       "text": "",
+       "short": "3",
        "strong": true,
        "heavy": false,
        "heat": 1,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 3,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
-       "text": "loose",
-       "short": "●",
+       "text": "",
+       "short": "2",
        "strong": true,
        "heavy": true,
        "heat": 2,
        "soft": true,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 2,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       }
      ]
     },
@@ -5491,15 +5752,24 @@
        "short": ""
       },
       {
-       "text": "loose",
-       "short": "●",
+       "text": "",
+       "short": "2",
        "strong": true,
        "heavy": true,
        "heat": 2,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 2,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
       {
        "text": "",
@@ -5540,29 +5810,38 @@
        "short": ""
       },
       {
-       "text": "some",
-       "short": "◐",
+       "text": "",
+       "short": "3",
        "strong": true,
        "heavy": false,
        "heat": 1,
        "soft": false,
        "on": false,
        "mark": "",
-       "tap": false
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 3,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       }
      ]
     }
    ]
   },
-  "key": "Steady: each reading moves little against the range it is judged by. Some: a few readings move. Loose: at least a third do. ⚠ error: too close to measurement error to tell. \"-\": nothing could be judged. P7-P8 is after the ball has gone. It is read over the same 100 ms after impact on every shot, and is shown lighter. A blank does not apply to that area.",
-  "keyMarks": "· steady   ◐ some   ● loose   ⚠ too close to measurement error",
+  "key": "A cell takes the grade of the third of its readings that move most: %1, %2, %3, %4 or %5, from least movement to most. %6: fewer than eight swings to grade it. %7: it moves no more than the reading's own measurement error. \"-\": nothing here has a range to judge it against. P7-P8 is after the ball has gone. It is read over the same 100 ms after impact on every shot, and is shown lighter. A blank does not apply to that area.",
+  "keyMarks": "5 %1   4 %2   3 %3   2 %4   1 %5   0 %6   ⚠ %7",
   "flagged": [
    {
     "swing": 7,
     "shotLabel": "Swing 7",
     "title": "Swing 7  ·  7 iron",
     "lm": "launch monitor: short and offline",
-    "sentence": "Carry 96 yd against your usual 121 yd. It finished 31 yd right. 4 swing readings stood out, more than chance would give.",
+    "sentence": "Carry 96 yd against a median of 121 yd. It finished 31 yd right. 4 swing readings stood out, more than chance would give.",
     "guardNote": "",
     "headLabel": "What stood out",
     "groups": [
@@ -5677,7 +5956,7 @@
     "shotLabel": "Swing 12",
     "title": "Swing 12  ·  7 iron",
     "lm": "launch monitor: short",
-    "sentence": "Carry 102 yd against your usual 121 yd. 1 swing reading stood out. Most shots this session show one or two, so this may be chance.",
+    "sentence": "Carry 102 yd against a median of 121 yd. 1 swing reading stood out. Most shots this session show one or two, so this may be chance.",
     "guardNote": "",
     "headLabel": "What stood out",
     "groups": [
@@ -5721,7 +6000,7 @@
     "shotLabel": "Swing 21",
     "title": "Swing 21  ·  7 iron",
     "lm": "launch monitor: offline",
-    "sentence": "Carry 118 yd, close to your usual 121 yd. It finished 28 yd left. The spans of this swing can't be compared with your other shots. Nothing at its positions stood out. The ball and club readings below did.",
+    "sentence": "Carry 118 yd against a median of 121 yd. It finished 28 yd left. The spans of this swing can't be compared with your other shots. Nothing at its positions stood out. The ball and club readings below did.",
     "guardNote": "⚠ The timing of this swing's positions looks unusual, so comparisons across its spans are not counted.",
     "headLabel": "What stood out",
     "groups": [
@@ -5749,7 +6028,7 @@
     "shotLabel": "Swing 33",
     "title": "Swing 33  ·  5 iron",
     "lm": "launch monitor: short",
-    "sentence": "Carry 88 yd against your usual 112 yd. Nothing in your swing stood out. The ball and club readings below did.",
+    "sentence": "Carry 88 yd against a median of 112 yd. Nothing in your swing stood out. The ball and club readings below did.",
     "guardNote": "",
     "headLabel": "What stood out",
     "groups": [
@@ -5815,7 +6094,7 @@
     "shotLabel": "Swing 44",
     "title": "Swing 44  ·  5 iron",
     "lm": "launch monitor: offline",
-    "sentence": "Carry 109 yd, close to your usual 112 yd. It finished 24 yd right. 2 swing readings stood out. Most shots this session show one or two, so this may be chance.",
+    "sentence": "Carry 109 yd against a median of 112 yd. It finished 24 yd right. 2 swing readings stood out. Most shots this session show one or two, so this may be chance.",
     "guardNote": "",
     "headLabel": "What stood out",
     "groups": [
@@ -5870,7 +6149,7 @@
     "shotLabel": "Swing 52",
     "title": "Swing 52  ·  driver",
     "lm": "launch monitor: short",
-    "sentence": "Carry 71 yd against your usual 96 yd. 3 swing readings stood out, more than chance would give.",
+    "sentence": "Carry 71 yd against a median of 96 yd. 3 swing readings stood out, more than chance would give.",
     "guardNote": "",
     "headLabel": "What stood out",
     "groups": [
@@ -5933,6 +6212,18 @@
    }
   ],
   "flaggedMore": "2 more flagged swings: 55 and 58",
-  "note": "These happened on the same shot. That does not show one caused another."
+  "note": "These happened on the same shot. That does not show one caused another.",
+  "headKind": "halves",
+  "headGrades": [
+   {
+    "grade": 4,
+    "measurementLimited": false
+   },
+   {
+    "grade": 3,
+    "measurementLimited": false
+   }
+  ],
+  "headFallback": "Your impact position moves most."
  }
 }

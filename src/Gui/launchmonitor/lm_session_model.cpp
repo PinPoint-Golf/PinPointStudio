@@ -591,11 +591,9 @@ QVariantMap sessionGraphics(const std::vector<LmShotRow> &rows, int focusRow,
         }
         QVariantMap ellipses;
         addEllipse(ellipses, "dispersion", gr.shots, "lm.carryDistance", "lm.offline");   // yd, yd
-        addEllipse(ellipses, "launchSpin", gr.shots, "lm.launchAngle",   "lm.spinRate");  // °, rpm
         // Face mm, measured from the FORESIGHT origin — the readings as the device reported them.
         // LmClubArt::strikeOriginMm() places that origin on our render.
         addEllipse(ellipses, "strike",     gr.shots, "lm.strikeLocation", "lm.strikeHeight");
-        addEllipse(ellipses, "pathFace",   gr.shots, "lm.clubPath",      "lm.faceAngle"); // °, °
         clubs.append(QVariantMap{
             { QStringLiteral("club"),     gr.club },
             { QStringLiteral("head"),     lmClubHead(gr.club) },
@@ -1331,24 +1329,6 @@ void LmSessionModel::buildGraphics(const std::vector<LmFieldStats> &stats,
         { QStringLiteral("evidence"),  shape.evidence },
         { QStringLiteral("windowIdx"), shape.windowIdx },
         { QStringLiteral("curveIdx"),  shape.curveIdx },
-    });
-
-    // The session's strike PATTERN, as an ellipse. Not two independent spreads: a golfer
-    // who thins it off the heel misses on a diagonal, and that diagonal is the thing
-    // worth showing them. Legitimate here because both axes are millimetres AND the face
-    // is drawn at one scale in both directions — see lmPairStats() for why the same
-    // treatment is wrong for the landing pattern, whose two axes are drawn at 1.8 and
-    // 4.5 px/yd and which the FLIGHT card therefore shades axis-aligned.
-    const LmPairStats face = lmPairStats(scoped, QStringLiteral("lm.strikeLocation"),
-                                                 QStringLiteral("lm.strikeHeight"));
-    g.insert(QStringLiteral("strikeEllipse"), QVariantMap{
-        { QStringLiteral("has"),     face.has },
-        { QStringLiteral("n"),       face.n },
-        { QStringLiteral("meanX"),   face.meanX },
-        { QStringLiteral("meanY"),   face.meanY },
-        { QStringLiteral("majorSd"), face.majorSd },
-        { QStringLiteral("minorSd"), face.minorSd },
-        { QStringLiteral("tiltDeg"), face.tiltDeg },
     });
 
     // ── low point ───────────────────────────────────────────────────────────

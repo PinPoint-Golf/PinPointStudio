@@ -69,7 +69,9 @@ pv::VariabilityResult consistencyReadingGrade(const ConsistencyReading &reading,
 {
     static const auto scalar = pv::makeVariabilityGrader(pv::Basis::Scalar);     // pure maths, no state
 
-    // gate rule: PP_GATE("rule.charts.consistencyVerdict") — grade 0 under N_MIN, ungraded with no scale
+    // gate rule: PP_GATE("rule.charts.consistencyVerdict") — grade 0 under N_MIN (the grader's TooFewSwings)
+    // gate rule: PP_GATE("rule.charts.consistencyNoScale") — no corridor and no variabilityScale: ungraded, no mark
+    // (the grader's NoScale; no CV fallback for a ratio measure, R26)
     pv::VariabilityInput base;
     if (positive(reading.normSigma)) base.corridorHalfWidth = reading.normSigma;
     if (scales.variabilityScale) base.variabilityScale = scales.variabilityScale(reading.key);

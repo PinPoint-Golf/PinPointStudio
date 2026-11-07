@@ -357,7 +357,8 @@ QVariantMap matrixMap(const ConsistencyInput &in, const ConsistencyResult &res, 
 }
 
 // The key and the marks' key are TEMPLATES (the header): QML puts the vocabularies' words in, %1 to %5 the Consistency
-// words of grades 5 to 1, %6 its grade 0, %7 the Measurement word of grade 0. Nothing here spells one.
+// words of grades 5 to 1, %6 its grade 0 (the table's form, "Too few", R33: the key names what the cells show), %7 the
+// Measurement word of grade 0. Nothing here spells one.
 // `picks`: a shot can be picked here, so a cell can carry the ◆. The report has no picked shot.
 QString keyWords(bool picks = true)
 {

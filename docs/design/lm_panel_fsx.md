@@ -91,7 +91,7 @@ The art is vendored from `~/Projects/Resources`:
 | Member | Shape |
 |---|---|
 | `graphics.shots` | One entry per shot in the session, in shot order: `{ id, number, club, recordedClub, clubSource: "recorded"\|"evidence"\|"user", excluded, values: { <lm key>: double }, evidence: { suggest, votes, of } }`. The `values` are the raw doubles, so scatter points no longer stack on rounded display strings. `club` is the effective club. |
-| `graphics.clubs` | One entry per effective club among the included shots: `{ club, head, n, stats: { <lm key>: { mean, sd, n } }, ellipses: { dispersion, launchSpin, strike, pathFace } }`. Each ellipse is `{ cx, cy, a, b, angleDeg }` in that figure's units, or absent when n < 3. `strike` is in face mm, measured from the Foresight origin. |
+| `graphics.clubs` | One entry per effective club among the included shots: `{ club, head, n, stats: { <lm key>: { mean, sd, n } }, ellipses: { dispersion, strike } }`. Each ellipse is `{ cx, cy, a, b, angleDeg }` in that figure's units, or absent when n < 3. `strike` is in face mm, measured from the Foresight origin. |
 | `graphics.mismatch` | `{ count, recorded, suggested, shotIds }`, or empty. This drives the note. |
 | `graphics.device` | `{ name, maker, markers: "four"\|"one"\|"" }`. It comes from the shot data's device, not only the live connection. Use `four` for GC Quad, QuadMAX, Falcon and GCHawk, `one` for GC3 and HMT-only, and empty otherwise. |
 | `graphics.leftHanded` | This publishes the convention. Values stay in the device's convention, and the panel mirrors the art. |

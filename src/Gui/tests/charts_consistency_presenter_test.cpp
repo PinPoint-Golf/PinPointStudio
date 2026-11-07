@@ -165,7 +165,7 @@ pv::CellGrade cellGradeOf(int grade, double rho, bool limited = false)
 void checkTemplate(const QString &t)
 {
     for (int i = 1; i <= 7; ++i) QVERIFY2(t.contains(QStringLiteral("%%1").arg(i)), qPrintable(t));
-    for (const char *w : { "Grooved", "Repeatable", "Settling", "Variable", "Scattered", "Not enough swings", "Checking",
+    for (const char *w : { "Grooved", "Repeatable", "Settling", "Variable", "Scattered", "Not enough swings", "Too few", "Checking",
                            "steady", "loose", "repeat", "usual" })
         QVERIFY2(!t.contains(QLatin1String(w), Qt::CaseInsensitive), qPrintable(t));
 }

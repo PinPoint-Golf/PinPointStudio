@@ -401,7 +401,11 @@
     },
     {
       "id": "rule.charts.consistencyVerdict",
-      "golfer": "too few swings, or nothing to judge it against, to say how much it moves from swing to swing"
+      "golfer": "too few swings to say how much it moves from swing to swing"
+    },
+    {
+      "id": "rule.charts.consistencyNoScale",
+      "golfer": "there is nothing yet to judge how much it moves from swing to swing against"
     },
     {
       "id": "rule.charts.consistencyCell",

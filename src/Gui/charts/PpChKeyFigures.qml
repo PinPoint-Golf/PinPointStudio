@@ -83,9 +83,9 @@ Item {
             // nothing runs past the column
             readonly property bool fits: kf._badgeW <= kf.cw + 0.5
             readonly property real badgeH: tb.implicitHeight + (basisLine.visible ? kf.roles.g(2) + basisLine.implicitHeight : 0)
-            onBadgeShownChanged: kf._measureBadges()
-            onBadgeWChanged: kf._measureBadges()
-            onBadgeHChanged: kf._measureBadges()
+            onBadgeShownChanged: Qt.callLater(kf._measureBadges)
+            onBadgeWChanged: Qt.callLater(kf._measureBadges)
+            onBadgeHChanged: Qt.callLater(kf._measureBadges)
             readonly property int col: index % kf.cols
             readonly property int row: Math.floor(index / kf.cols)
             x: col * kf.cw; y: kf.roles.r.figureRuleTop + row * kf.ch; width: kf.cw; height: kf.ch

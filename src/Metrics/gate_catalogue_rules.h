@@ -217,18 +217,25 @@ inline void appendRules(std::vector<GateEntry> &c)
          "src/Gui/charts/session_warp.cpp", chartsDesign)
         .tuning = { tune("charts.warp.minConf", 0.35, ""), tune("charts.warp.maxSegmentRatio", 2.0, ""),
                     tune("charts.warp.minSegmentShots", 3, "shots") };
-    // The Consistency tab's rules (src/Gui/charts/session_consistency.h; the grades, and the first two gates, are src/Gui/charts/consistency_grades.h
-    // over src/Metrics/variability/, whose constants — kNMin, kCellLoosestPercentile — the first two quote).
-    rule(c, "rule.charts.consistencyVerdict", charts, "Spread not judged", "not judged",
+    // The Consistency tab's rules (src/Gui/charts/session_consistency.h; the grades, and the first three gates, are src/Gui/charts/consistency_grades.h
+    // over src/Metrics/variability/, whose constants — kNMin, kCellLoosestPercentile — they quote). A reading the grader
+    // cannot grade is one of two cases, told apart: too few shots (grade 0, consistencyVerdict) or nothing to set the
+    // spread against (no mark, consistencyNoScale).
+    rule(c, "rule.charts.consistencyVerdict", charts, "Spread not judged", "too few shots",
          QStringLiteral("How much a reading moves from shot to shot is graded by the variability grader. Each shot is "
                         "measured from the middle of its own club's shots, a club with fewer than three shots left out, "
                         "and the spread of what remains is set against the reading's corridor: half the width of its "
                         "norm, else the measure's own variability scale. The ratio of the two gives one of five grades. "
-                        "With fewer than eight shots the reading takes grade 0; with nothing to set the spread against "
-                        "it is not graded. A spread no bigger than the reading's own measurement error keeps its grade "
-                        "and is marked measurement-limited."),
+                        "With fewer than eight shots the reading takes grade 0. A spread no bigger than the reading's "
+                        "own measurement error keeps its grade and is marked measurement-limited."),
          consistencyGrades, consistencyDesign)
         .tuning = { tune("variability.nMin", 8, "shots"), tune("charts.consistency.minClubShots", 3, "shots") };
+    rule(c, "rule.charts.consistencyNoScale", charts, "Nothing to judge the spread against", "no scale",
+         QStringLiteral("A reading whose norm has no corridor, and whose measure has no variability scale of its own, "
+                        "is not graded at all, however many shots there are: there is nothing to set its spread against. "
+                        "A measure with a true zero (a speed, a distance) is no exception: its spread is never taken as "
+                        "a fraction of its mean. It has no consistency mark, and its spread is shown as a statistic."),
+         consistencyGrades, consistencyDesign);
     rule(c, "rule.charts.consistencyCell", charts, "Nothing to judge here", "nothing to judge",
          QStringLiteral("A cell of the table takes the grade of its most varying third: the 67th-percentile ratio of "
                         "spread to corridor among its graded readings, by nearest rank. When none of them has a ratio "

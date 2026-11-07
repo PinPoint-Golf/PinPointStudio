@@ -180,7 +180,7 @@ class LmSessionModel : public QAbstractListModel
     // The FSX panel's session half reads four more keys (docs/design/lm_panel_fsx.md, "Model
     // contract" — the names are binding): `shots` (every shot, its effective club, whether it
     // is left out, its raw readings and its club evidence), `clubs` (per effective club: the
-    // statistics and the four enclosing ellipses), `mismatch` (the note) and `device` (whose
+    // statistics and the two enclosing ellipses, dispersion and strike), `mismatch` (the note) and `device` (whose
     // club markers the Impact face carries). See sessionGraphics() in the .cpp.
     //
     // THE VARIABILITY MARKS (the technical layer; docs/design/system/variability.md). Two more keys:

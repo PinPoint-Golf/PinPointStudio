@@ -52,11 +52,12 @@ Column {
     readonly property var notes: (m.notes || []).slice(0, 4)
     readonly property var flagged: (m.flagged || []).slice(0, 6)                    // the map's cap
 
-    // ── the vocabularies' words into the presenter's grades (as PpConsistencyView, on the golfer layer) ──
+    // ── the vocabularies' words into the presenter's grades (as PpConsistencyView, on the golfer layer): the table's
+    // grade 0 and its key's %6 are the short form "Too few" (R33) ──
     function _fill(t) {
         if (!t || t.indexOf("%1") < 0) return t || ""     // a plain string (an older payload) is shown as it is
         return t.arg(ConsistencyVocabulary.word(5)).arg(ConsistencyVocabulary.word(4)).arg(ConsistencyVocabulary.word(3))
-                .arg(ConsistencyVocabulary.word(2)).arg(ConsistencyVocabulary.word(1)).arg(ConsistencyVocabulary.word(0))
+                .arg(ConsistencyVocabulary.word(2)).arg(ConsistencyVocabulary.word(1)).arg(ConsistencyVocabulary.shortWord(0))
                 .arg(MeasurementVocabulary.word(0))
     }
     function _cells(rows) {
@@ -64,7 +65,7 @@ Column {
             const v = c.result
             if (!v || !v.graded) return c
             const o = Object.assign({}, c)
-            o.text = v.measurementLimited ? MeasurementVocabulary.word(0) : ConsistencyVocabulary.word(v.grade)
+            o.text = v.measurementLimited ? MeasurementVocabulary.word(0) : ConsistencyVocabulary.shortWord(v.grade)
             return o
         }) }))
     }
@@ -119,6 +120,9 @@ Column {
         visible: cp.on && !!cp.table
         width: cp.width
         roles: cr
+        // paper always shows the words, never the short forms (R33): at the page's fixed width the row names give the
+        // cells what the widest word needs (wordW), and keep the rest up to the usual 8.4 em
+        nameEm: Math.max(0, Math.min(8.4, Math.floor(width - nCols * wordW) / Math.max(1, em)))
         columns: cp.table ? (cp.table.columns || []) : []
         rows: cp.tableRows
         keyText: cp._fill(cp.m.keyMarks)

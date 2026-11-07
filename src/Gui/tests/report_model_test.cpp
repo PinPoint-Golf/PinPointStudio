@@ -174,8 +174,8 @@ int main(int argc, char **argv)
     eq(gridMore(QStringLiteral("seen"), 2), QStringLiteral("and two more seen on fewer swings"), "seen ending");
     eq(gridMore(QStringLiteral("habit"), 1), QStringLiteral("and one more habit, not on the list today"), "habit ending, one");
     eq(gridMore(QStringLiteral("ball"), 0), QString(), "no ending when nothing is cut");
-    eq(sessionLevelGridNote(QStringLiteral("Sequence not repeatable"), 5),
-       QStringLiteral("Sequence not repeatable is read over the whole session, not swing by swing: see work-on 5."),
+    eq(sessionLevelGridNote(QStringLiteral("Sequence changes from swing to swing"), 5),
+       QStringLiteral("Sequence changes from swing to swing is read over the whole session, not swing by swing: see work-on 5."),
        "a session-level habit is a line under the grid, never a 0-of-0 row");
     check(referenceText(3, true, QStringLiteral("148"), QStringLiteral("105"), false, 0, 5).startsWith(QLatin1String("Swing 3 came closest to your targets: a 148 yard carry at 105 mph ball speed.")),
           "reference swing, not the longest");
@@ -233,8 +233,8 @@ int main(int argc, char **argv)
     check(timelineNote(true, true, 1, {}).startsWith(QLatin1String("Your first work-on is also the earliest")), "timeline: first is earliest");
     check(timelineNote(true, false, 1, {}).contains(QLatin1String("it missed by most")), "timeline: first leads by magnitude");
     check(timelineNote(true, false, 0, {}).contains(QLatin1String("setting up another")), "timeline: first leads by a supported link");
-    eq(timelineNote(false, false, 1, { QStringLiteral("Sequence not repeatable") }),
-       QStringLiteral("Sequence not repeatable is read over the whole session, so it has no place on it."), "only a session-level habit");
+    eq(timelineNote(false, false, 1, { QStringLiteral("Sequence changes from swing to swing") }),
+       QStringLiteral("Sequence changes from swing to swing is read over the whole session, so it has no place on it."), "only a session-level habit");
     check(timelineNote(true, true, 1, { QStringLiteral("A"), QStringLiteral("B") }).contains(QLatin1String("A and B are read over the whole session, so they have")),
           "two session-level habits");
 

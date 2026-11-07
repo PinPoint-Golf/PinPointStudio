@@ -74,20 +74,22 @@ Column {
     readonly property var settlingLine: status.settling || null
 
     // ── the vocabularies' words into the presenter's grades (THE GRADES in charts_consistency_presenter.h) ──
-    // %1-%5 the Consistency words of grades 5 to 1, %6 its grade 0, %7 the Measurement grade 0 ("Checking")
+    // %1-%5 the Consistency words of grades 5 to 1, %6 its grade 0 in the table's form ("Too few", R33: the key says
+    // what the cells say), %7 the Measurement grade 0 ("Checking")
     function _fill(t) {
         if (!t || t.indexOf("%1") < 0) return t || ""     // a plain string (an older payload) is shown as it is
         return t.arg(ConsistencyVocabulary.word(5)).arg(ConsistencyVocabulary.word(4)).arg(ConsistencyVocabulary.word(3))
-                .arg(ConsistencyVocabulary.word(2)).arg(ConsistencyVocabulary.word(1)).arg(ConsistencyVocabulary.word(0))
+                .arg(ConsistencyVocabulary.word(2)).arg(ConsistencyVocabulary.word(1)).arg(ConsistencyVocabulary.shortWord(0))
                 .arg(MeasurementVocabulary.word(0))
     }
-    // a graded cell's word: its grade's, or "Checking" when measurement-limited; the presenter's "-" or blank otherwise
+    // a graded cell's word: its grade's in the table's form (grade 0 "Too few", R33), or "Checking" when
+    // measurement-limited; the presenter's "-" or blank otherwise
     function _cells(rows) {
         return (rows || []).map(r => ({ id: r.id, name: r.name, cells: (r.cells || []).map(c => {
             const v = c.result
             if (!v || !v.graded) return c
             const o = Object.assign({}, c)
-            o.text = v.measurementLimited ? MeasurementVocabulary.word(0) : ConsistencyVocabulary.word(v.grade)
+            o.text = v.measurementLimited ? MeasurementVocabulary.word(0) : ConsistencyVocabulary.shortWord(v.grade)
             return o
         }) }))
     }
