@@ -29,7 +29,7 @@
 //   · ABSENT (null) when the payload is not available or no swing reads the swing plane (no down-the-line club track:
 //     no page, as the Posture page has none without a posture row). Gated on DATA, never on the session's kind;
 //   · keeps the presenter's sentences and figures VERBATIM (kicker, head, every median and middle half, the varies words,
-//     the usual set-up figures, the fit and attack sentences, the pool words, the shape line, the trust lines), with
+//     the set-up figures (the medians), the fit and attack sentences, the pool words, the shape line, the trust lines), with
 //     one cut: the hands' trust line ends at "your hands." — paper has no plot to shade;
 //   · lays the scatter out in PpChScatter's own shape (the screen's PpChDeliveryFlight does the same in QML): the day's
 //     swings with both readings, this session's in ink and numbered as the report numbers its swings, the day's other
@@ -139,7 +139,7 @@ inline QVariant deliveryReportBlock(const QVariantMap &payload, const QHash<QStr
             { QStringLiteral("varies"), shown ? payload.value(QStringLiteral("varies")).toMap().value(QStringLiteral("words")).toString() : QString() } });
     }
 
-    // ── the usual set-up: the address line, the shoulder plane, the hands' steepening ──
+    // ── your set-up (the session medians): the address line, the shoulder plane, the hands' steepening ──
     {
         const QVariantMap u = payload.value(QStringLiteral("usual")).toMap();
         const auto txt = [&](const char *k) { const QString t = u.value(QString::fromLatin1(k)).toString(); return t.isEmpty() ? QStringLiteral("-") : t; };

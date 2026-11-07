@@ -26,9 +26,9 @@ import PinPointStudio
 //   · the head: the kicker, "Club delivery", the session's sentence;
 //   · "The plane at each position": one box per P-position, P1…P7, over the session's swings on one shared scale
 //     (PpChBoxCell → PpBoxPlot, the ONE box plot, in the swing plane curve's OWN metric colour), the median and ± half
-//     the middle half under each ("-" where nothing was read), then where it varies most. Under five swings with the
+//     the middle half under each ("-" where nothing was read), then where the middle half is narrowest and widest. Under five swings with the
 //     curve: the sentence saying so, no boxes;
-//   · the usual set-up: address, shoulders, the hands' steepening;
+//   · your set-up (the session's medians): address, shoulders, the hands' steepening;
 //   · side by side: "Plane and your ball flight" — the day's fit as a sentence (and the attack's when its own fit
 //     holds), the scatter (PpChScatter, the one scatter, in the Charts print roles: the day's swings with both readings,
 //     this session's in ink, the day's others faint; the fitted line only when the fit holds; its axis from the payload's
@@ -144,13 +144,13 @@ Column {
         }
     }
 
-    // ═══ the usual set-up: the address line, the shoulder plane, the hands' steepening ═══
+    // ═══ your set-up (the medians): the address line, the shoulder plane, the hands' steepening ═══
     Item {
         objectName: "reportDeliveryUsual"
         property bool atom: true
         visible: dp.on && dp.usual.length > 0
         width: dp.width; height: visible ? usualFlow.height + 12 : 0
-        Text { id: usualLab; y: 8; text: "Your usual set-up"; font: dp.ro.fLabel; color: dp.ro.ink3 }
+        Text { id: usualLab; y: 8; text: "Your set-up"; font: dp.ro.fLabel; color: dp.ro.ink3 }
         Flow {
             id: usualFlow
             x: usualLab.width + 14; y: 6; width: dp.width - x; spacing: 18

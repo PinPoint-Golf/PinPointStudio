@@ -26,7 +26,8 @@ import PinPointStudio
 //   · the session profile: one row per posture reading, P1…P8, the pattern's band as a wash in the reading's OWN metric
 //     colour (identity, not judgement), the fault line as a hairline, the session's box per position (PpChBoxCell →
 //     PpBoxPlot, the ONE box plot, with box_stats' numbers from the presenter), and under each column the median ("-"
-//     where nothing was read), how wide the middle half is, or — a median outside the band — the side it falls on,
+//     where nothing was read), how wide the middle half is where the position is not graded, or — a median outside the
+//     band — the side it falls on,
 //     in warn and underlined (a word, never colour alone); a reading under a ⚠ keeps its figure and says the ⚠'s
 //     few words, and is never ringed; under trunk bend at P3–P5 a second, smaller figure — the back line, the session's
 //     median of it — with its own ⚠ words (decision 16 of session_posture.h: not matched, no band of its own);
@@ -34,8 +35,10 @@ import PinPointStudio
 //     golfer's earlier sessions from the same set-up, and the ⚠ "depends on where the camera stands" under each — the
 //     Charts block itself (PpChPostureAddress) on paper: in the report's type and inks, its rows pager atoms;
 //   · what moved, at the top and at impact;
+//   · beside each reading's name its consistency per club: ONE golfer-layer badge for the row (the word alone; the cell
+//     rule over its graded positions, R20), in place of the middle half's width at every graded position (R9);
 //   · the pattern by shot (a mark per shot, ringed where it is not the session's pattern), the departures as counts,
-//     how repeatable it is;
+//     "Consistency": per club, the most and least consistent position, by grade, with no figure;
 //   · the picture strip (stage 5): the session's typical swing at address, the top and impact, with the frozen address
 //     lines and the bands at impact (PpChPostureFrame, the screen's frame, in the report's inks);
 //   · the trust note, said once, open (paper has no fold).
@@ -49,7 +52,7 @@ import PinPointStudio
 // the fixed headings. FOLIO LIGHT through `ro` (the report's palette) and `cr` (the Charts print roles in the same
 // fixed aesthetic, for the box): nothing reads a live theme token. No affordance: nothing here is a link or a fold.
 // objectNames: reportPosture (the head), reportPostureProfile, reportPostureRow (+ key), reportPostureCell (+ tag,
-// text, warned, outside; its second reading reportPostureAltValue: tag, rowKey, text, warned), reportPostureAddress (+ reportPostureAddressRow: measureId, text, warned, hasHistory), reportPostureMoved, reportPostureStrip, reportPostureDepartures, reportPostureRepeat,
+// text, warned, outside; its second reading reportPostureAltValue: tag, rowKey, text, warned), reportPostureAddress (+ reportPostureAddressRow: measureId, text, warned, hasHistory), reportPostureMoved, reportPostureStrip, reportPostureDepartures, reportPostureRepeat (the Consistency block; + reportPostureRepeatLine: club),
 // reportPosturePicture (+ reportPosturePictureGroup — one pager atom per camera —, reportPosturePictureFrame), reportPostureTrust.
 Column {
     id: pp
@@ -220,16 +223,53 @@ Column {
         }
     }
 
-    // ═══ repeatable? ═══
+    // ═══ consistency (Mark's rulings R7, R9, R11): per club — named in a mixed session — the most and the least consistent
+    //     position, each with its golfer-layer badge (the word alone, no figure); a club too few to grade says so once ═══
     Column {
         objectName: "reportPostureRepeat"
         property bool atom: true
-        visible: pp.on && !!pp.m.repeat
+        readonly property var lines: pp.m.consistency || []
+        visible: pp.on && lines.length > 0
         width: pp.width
         Item { width: 1; height: 18 }
-        Text { width: parent.width; text: "Repeatable?"; font: pp.ro.fH3; color: pp.ro.ink }
+        Text { width: parent.width; text: "Consistency"; font: pp.ro.fH3; color: pp.ro.ink }
         Item { width: 1; height: 4 }
-        Text { width: parent.width; text: pp.m.repeat || ""; font: pp.ro.fBody; color: pp.ro.ink; wrapMode: Text.WordWrap; lineHeight: 1.25 }
+        Repeater {
+            model: parent.lines
+            delegate: Flow {
+                id: cl
+                required property var modelData
+                objectName: "reportPostureRepeatLine"
+                readonly property string club: modelData.club || ""
+                width: pp.width
+                spacing: cr.g(16)
+                Text { visible: cl.modelData.named === true; height: cr.u(22); verticalAlignment: Text.AlignVCenter
+                       text: ClubFormat.display(cl.club) + " · "; font: pp.ro.fBodyM; color: pp.ro.ink }
+                Row {
+                    id: tf
+                    readonly property var res: cl.modelData.tooFew === true ? cl.modelData.result : null
+                    visible: !!res && res.graded
+                    height: cr.u(22)
+                    PpVariabilityBadge { anchors.verticalCenter: parent.verticalCenter; roles: cr; contentLayer: "golfer"
+                                         grade: tf.res ? tf.res.grade : 0
+                                         measurementLimited: tf.res ? tf.res.measurementLimited : false }
+                }
+                Repeater {
+                    model: cl.modelData.tooFew === true ? [] : [{ text: cl.modelData.mostText || "", res: cl.modelData.most },
+                                                                { text: cl.modelData.leastText || "", res: cl.modelData.least }]
+                    delegate: Row {
+                        id: ce
+                        required property var modelData
+                        visible: ce.modelData.text !== "" && !!ce.modelData.res && ce.modelData.res.graded
+                        height: cr.u(22)
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: ce.modelData.text + " · "; font: pp.ro.fBody; color: pp.ro.ink }
+                        PpVariabilityBadge { anchors.verticalCenter: parent.verticalCenter; roles: cr; contentLayer: "golfer"
+                                             grade: ce.modelData.res ? ce.modelData.res.grade : 0
+                                             measurementLimited: ce.modelData.res ? ce.modelData.res.measurementLimited : false }
+                    }
+                }
+            }
+        }
     }
 
     // ═══ the picture strip (§5.4, stage 5): the session's typical swing at address, the top and impact, down the line

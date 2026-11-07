@@ -33,14 +33,20 @@
 //   · keeps of each row only what paper prints, and says the same-shot note once, not once a swing.
 //
 //  consistency: {
-//    kicker ("Consistency  ·  31 swings  ·  Gap wedge"), head (the headline), ball ("" none), empty ("" none), notes: [string],
-//    table: { columns: [{ text, short }], rows: [{ id, name, cells }] } | null (PpChMatrix's rectangle),
-//    key, keyMarks,
+//    kicker ("Consistency  ·  31 swings  ·  Gap wedge"), head (the headline's text), headKind, headGrades, headFallback (the
+//    presenter's headline kind, grades and fallback: the page puts the vocabulary's words in), ball ("" none),
+//    empty ("" none), notes: [string],
+//    table: { columns: [{ text, short }], rows: [{ id, name, cells }] } | null (PpChMatrix's rectangle; each graded cell's
+//    word is the page's, from its `result`),
+//    key, keyMarks (the presenter's templates, %1-%7 the vocabularies' words),
 //    flagged: [{ swing, shotLabel ("Swing 12"), title ("Swing 12  ·  gap wedge"), lm ("launch monitor: short"), sentence,
-//                guardNote ("" none), headLabel, groups: [{ name, rows: [ROW] }], more ("3 more readings" | "") }]
+//                carry (null | { label, values }: the carry's typicality, a golfer-layer badge), guardNote ("" none),
+//                headLabel, groups: [{ name, rows: [ROW] }], more ("3 more readings" | "") }]
 //             (≤ kConsistencyReportSwingCap, strike order),
 //    flaggedMore ("" | "2 more flagged swings: 41 and 52"), note ("" | the same-shot note) }
-//  ROW: { key, label, tag, value ("82 mph"), median ("72"), place, fired, firedWord, cautionText }
+//  ROW: { key, label, tag, value ("82 mph"), median ("72"), place, fired, firedWord, cautionText,
+//         typicality (null | the row's typicality `values`, for a golfer-layer badge: the word, no figures) }
+//  See charts/charts_consistency_presenter.h, THE GRADES, for the templates and the headline's kinds.
 
 #include <QDir>
 #include <QHash>
@@ -60,9 +66,18 @@ inline QString consistencyReportSentence(const QVariant &sentence)
     return sentence.toMap().value(QStringLiteral("text")).toString();
 }
 
+// A row's or a carry's typicality `values` (charts_consistency_presenter.h), or null: paper prints the word, so the
+// basis string stays behind.
+inline QVariant consistencyReportTypicality(const QVariant &payload)
+{
+    const QVariantMap p = payload.toMap();
+    if (p.value(QStringLiteral("kind")).toString() != QLatin1String("typicality")) return QVariant::fromValue(nullptr);
+    return p.value(QStringLiteral("values"));
+}
+
 inline QVariantMap consistencyReportRow(const QVariantMap &row)
 {
-    return { { QStringLiteral("key"), row.value(QStringLiteral("key")) }, { QStringLiteral("label"), row.value(QStringLiteral("label")) },
+    return { { QStringLiteral("typicality"), consistencyReportTypicality(row.value(QStringLiteral("variability"))) }, { QStringLiteral("key"), row.value(QStringLiteral("key")) }, { QStringLiteral("label"), row.value(QStringLiteral("label")) },
              { QStringLiteral("tag"), row.value(QStringLiteral("tag")) }, { QStringLiteral("value"), row.value(QStringLiteral("valueFigure")) },
              { QStringLiteral("median"), row.value(QStringLiteral("medianText")) }, { QStringLiteral("place"), row.value(QStringLiteral("place")) },
              { QStringLiteral("fired"), row.value(QStringLiteral("fired")).toBool() }, { QStringLiteral("firedWord"), row.value(QStringLiteral("firedWord")) },
@@ -118,6 +133,9 @@ inline QVariant consistencyReportBlock(const QVariantMap &payload, const QHash<Q
             { QStringLiteral("title"), club.isEmpty() ? label : label + QStringLiteral("  ·  ") + club },
             { QStringLiteral("lm"), shot.value(QStringLiteral("lm")) },
             { QStringLiteral("sentence"), consistencyReportSentence(shot.value(QStringLiteral("sentence"))) },
+            { QStringLiteral("carry"), shot.value(QStringLiteral("carry")).toMap().isEmpty() ? QVariant::fromValue(nullptr)
+                                       : QVariant(QVariantMap{ { QStringLiteral("label"), shot.value(QStringLiteral("carry")).toMap().value(QStringLiteral("label")) },
+                                                               { QStringLiteral("values"), consistencyReportTypicality(shot.value(QStringLiteral("carry"))) } }) },
             { QStringLiteral("guardNote"), shot.value(QStringLiteral("guardNote")) },
             { QStringLiteral("headLabel"), shot.value(QStringLiteral("headLabel")) },
             { QStringLiteral("groups"), groups },
@@ -129,6 +147,9 @@ inline QVariant consistencyReportBlock(const QVariantMap &payload, const QHash<Q
     return QVariantMap{
         { QStringLiteral("kicker"), payload.value(QStringLiteral("kicker")) },
         { QStringLiteral("head"), consistencyReportSentence(payload.value(QStringLiteral("headline"))) },
+        { QStringLiteral("headKind"), payload.value(QStringLiteral("headline")).toMap().value(QStringLiteral("kind")).toString() },
+        { QStringLiteral("headGrades"), payload.value(QStringLiteral("headline")).toMap().value(QStringLiteral("grades")).toList() },
+        { QStringLiteral("headFallback"), payload.value(QStringLiteral("headline")).toMap().value(QStringLiteral("fallback")).toString() },
         { QStringLiteral("ball"), consistencyReportSentence(payload.value(QStringLiteral("ball"))) },
         { QStringLiteral("empty"), payload.value(QStringLiteral("empty")) },
         { QStringLiteral("notes"), notes },

@@ -34,6 +34,11 @@ import PinPointStudio
 // map's (report_consistency.h); the register sets only the fixed headings. FOLIO LIGHT through `ro` (the report's palette
 // and type) and `cr` (the Charts print roles in the same fixed aesthetic, for PpChMatrix, and the units of this page's
 // space: on paper g(n) is u(n)): nothing reads a live theme token. No affordance: nothing here is a link or a fold.
+// THE VARIABILITY WORDS are the vocabularies', put in here (charts_consistency_presenter.h, THE GRADES): each graded cell's
+// word, the key's and the marks' templates, the headline's halves. Paper is the GOLFER layer: a measurement-limited cell
+// reads "Checking", a headline whose half is measurement-limited says only which area moves most, and a flagged swing's
+// swing rows carry a Typicality badge, word only (no figures, no tooltip on paper), in the page's `cr`. The
+// rows' value, median and place stay (R9). Ball flight has no badge (R4): the carry has none.
 // objectNames: reportConsistency (the head), reportConsistencyBall, reportConsistencyEmpty, reportConsistencyTable,
 // reportConsistencyKey, reportConsistencyNote, reportConsistencyFlagged (the heading), reportConsistencySwing (+ swing),
 // reportConsistencyRow (+ rowKey, tag, value), reportConsistencyFoot.
@@ -46,6 +51,35 @@ Column {
     readonly property var table: m.table || null
     readonly property var notes: (m.notes || []).slice(0, 4)
     readonly property var flagged: (m.flagged || []).slice(0, 6)                    // the map's cap
+
+    // ── the vocabularies' words into the presenter's grades (as PpConsistencyView, on the golfer layer) ──
+    function _fill(t) {
+        if (!t || t.indexOf("%1") < 0) return t || ""     // a plain string (an older payload) is shown as it is
+        return t.arg(ConsistencyVocabulary.word(5)).arg(ConsistencyVocabulary.word(4)).arg(ConsistencyVocabulary.word(3))
+                .arg(ConsistencyVocabulary.word(2)).arg(ConsistencyVocabulary.word(1)).arg(ConsistencyVocabulary.word(0))
+                .arg(MeasurementVocabulary.word(0))
+    }
+    function _cells(rows) {
+        return (rows || []).map(r => ({ id: r.id, name: r.name, cells: (r.cells || []).map(c => {
+            const v = c.result
+            if (!v || !v.graded) return c
+            const o = Object.assign({}, c)
+            o.text = v.measurementLimited ? MeasurementVocabulary.word(0) : ConsistencyVocabulary.word(v.grade)
+            return o
+        }) }))
+    }
+    // the golfer layer: a measurement-limited half is not given a word ("Checking" does not read in the sentence)
+    readonly property string headText: {
+        const k = m.headKind || ""
+        if (k === "grade0") return ConsistencyVocabulary.line(0)
+        if (k !== "halves") return m.head || ""
+        const gs = m.headGrades || []
+        if (gs.some(g => g.measurementLimited)) return m.headFallback || ""
+        let t = m.head || ""
+        for (const g of gs) t = t.arg(ConsistencyVocabulary.word(g.grade).toLowerCase())
+        return t
+    }
+    readonly property var tableRows: cs && table ? _cells(table.rows) : []
     visible: on
     width: 600
 
@@ -67,7 +101,7 @@ Column {
     // ═══ the head ═══
     PpReportSectionHead {
         objectName: "reportConsistency"
-        ro: cp.ro; kicker: cp.m.kicker || ""; title: "Consistency"; standfirst: cp.m.head || ""
+        ro: cp.ro; kicker: cp.m.kicker || ""; title: "Consistency"; standfirst: cp.headText
         visible: cp.on
         width: cp.width
         Item { width: 1; height: cr.g(8); visible: ballText.visible }
@@ -86,8 +120,8 @@ Column {
         width: cp.width
         roles: cr
         columns: cp.table ? (cp.table.columns || []) : []
-        rows: cp.table ? (cp.table.rows || []) : []
-        keyText: cp.m.keyMarks || ""
+        rows: cp.tableRows
+        keyText: cp._fill(cp.m.keyMarks)
         interactive: false
     }
 
@@ -100,7 +134,7 @@ Column {
         width: cp.width
         spacing: cr.g(3)
         Item { width: 1; height: cr.g(3) }
-        Text { id: keyText; width: parent.width; visible: text !== ""; text: cp.m.key || ""
+        Text { id: keyText; width: parent.width; visible: text !== ""; text: cp._fill(cp.m.key)
                font: cp.ro.fMicro; color: cp.ro.ink3; wrapMode: Text.WordWrap; lineHeight: 1.2 }
         Repeater {
             model: cp.notes
@@ -192,6 +226,7 @@ Column {
                                 property bool atom: true
                                 width: cp.width
                                 height: line.height + (under.visible ? under.height : 0) + (cp ? cp.g6 : 0)   // a delegate outlives the page at teardown
+                                readonly property var typicality: modelData.typicality || null
                                 Row {
                                     id: line
                                     y: cp.g3
@@ -203,10 +238,30 @@ Column {
                                     Text { width: cp.medianW; horizontalAlignment: Text.AlignRight; text: rw.modelData.median || "-"; font: cp.ro.fFigM; color: cp.ro.ink2 }
                                     Text { width: cp.placeW; text: rw.modelData.place || ""; font: cp.ro.fSmall; color: cp.ro.ink2; wrapMode: Text.WordWrap }
                                 }
-                                // a fired value is a mark AND a word; a ⚠ stays with its reading
-                                Text { id: under; y: line.y + line.height; width: cp.width; visible: text !== ""
-                                       text: rw.fired + (rw.fired !== "" && rw.caution !== "" ? "  ·  " : "") + rw.caution
-                                       font: cp.ro.fMicro; color: cp.ro.ink2; wrapMode: Text.WordWrap }
+                                // its typicality's word (golfer layer, R8); a fired value is a mark AND a word; a ⚠ stays with its reading
+                                Row {
+                                    id: under
+                                    // inset: an Unusual ring sits past the icon's edge (the mark's geometry)
+                                    x: cr.u(3)
+                                    y: line.y + line.height
+                                    visible: rowBadge.visible || underText.text !== ""
+                                    spacing: cp.g6
+                                    PpVariabilityBadge {
+                                        id: rowBadge
+                                        objectName: "reportConsistencyTypicality"
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: !!rw.typicality
+                                        variant: PpVariabilityMark.Typicality
+                                        dense: true
+                                        contentLayer: "golfer"
+                                        values: rw.typicality
+                                        roles: cr
+                                    }
+                                    Text { id: underText; anchors.verticalCenter: parent.verticalCenter
+                                           width: cp.width - under.x - (rowBadge.visible ? rowBadge.width + cp.g6 : 0); visible: text !== ""
+                                           text: rw.fired + (rw.fired !== "" && rw.caution !== "" ? "  ·  " : "") + rw.caution
+                                           font: cp.ro.fMicro; color: cp.ro.ink2; wrapMode: Text.WordWrap }
+                                }
                                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: cp.ro.hw; color: cp.ro.hair }
                             }
                         }

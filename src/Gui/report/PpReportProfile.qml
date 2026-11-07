@@ -31,9 +31,13 @@ import PinPointStudio
 //     warn hairlines where the row has them, the session's box per position (PpChBoxCell → PpBoxPlot, the ONE box
 //     plot, with box_stats' numbers from the presenter) on the row's own scale (yLo…yHi); the pole word (which way is
 //     plus); and under each column the median ("-" where nothing was read), then the side of the band it falls on in
-//     warn and underlined (a word, never colour alone) or how wide the middle half is, then a ⚠'s few words where the
-//     cell has them; under a cell with an alt reading (posture's back line under trunk bend at P3–P5), a second,
-//     smaller figure with its own ⚠ words;
+//     warn and underlined (a word, never colour alone) or — only where the position is not graded — how wide the middle
+//     half is, then a ⚠'s few words where the cell has them; under a cell with an alt reading (posture's back line under
+//     trunk bend at P3–P5), a second, smaller figure with its own ⚠ words; under the row's name, its consistency
+//     (ROW.rowGrades, Mark's ruling R20): ONE golfer-layer Dispersion badge per club (named in a mixed session), the
+//     word alone — the cell rule (R1, the loosest third) over the row's graded positions, built by the presenter —
+//     replacing the middle half's width at every graded position (R9); the per-position badges (ROW.grades) stay on
+//     the Charts screens;
 //   · the caption, kept with the last row.
 // What is optional is optional BY THE DATA: styleText "" draws no style line, a cell without faultHi / faultLo draws
 // no fault line, a cell without alt draws no second reading, a cell without warn no ⚠ — the wrist rows carry none.
@@ -42,7 +46,9 @@ import PinPointStudio
 // aesthetic, for the box): nothing reads a live theme token. The page that holds this keeps its PpChRoles LAST among
 // its children (teardown: the boxes here go before their roles).
 // objectNames, from `prefix`: <prefix>Profile, <prefix>Row (+ key), <prefix>Cell (+ tag, text, warned, outside),
-// <prefix>AltValue (+ tag, rowKey, text, warned) — "reportPosture" keeps the Posture page's names.
+// <prefix>AltValue (+ tag, rowKey, text, warned), <prefix>Grades (+ club: one per club on the row) and <prefix>Grade (its
+// badge) — "reportPosture" keeps
+// the Posture page's names.
 Column {
     id: rp
     property QtObject ro: null
@@ -105,6 +111,7 @@ Column {
             readonly property real lo: rp.roles.fin(r.yLo) ? r.yLo : -1
             readonly property real hi: rp.roles.fin(r.yHi) ? r.yHi : 1
             function vy(v) { return 4 + (rp.plotH - 8) * (1 - (v - lo) / Math.max(1e-9, hi - lo)) }
+            readonly property var rowGrades: r.rowGrades || []
             width: rp.width
             height: Math.max(labCol.height + 6, rp.plotH + nums.height + 12)
 
@@ -115,6 +122,26 @@ Column {
                 Row { spacing: 6
                     Rectangle { width: 7; height: 7; radius: 3.5; color: rw.hue; anchors.verticalCenter: parent.verticalCenter }
                     Text { width: Math.min(implicitWidth, rp.labelW - 25); text: rw.r.label || ""; font: rp.ro.fBodyDM; color: rp.ro.ink; wrapMode: Text.WordWrap } }
+                // the row's consistency beside its name (ROW.rowGrades; Mark's rulings R2b, R9, R20): the golfer layer,
+                // the word alone, one badge per club — the club named first in a mixed session. Ungraded: no entry.
+                Repeater {
+                    model: rw.rowGrades
+                    delegate: Flow {
+                        id: gl
+                        required property var modelData
+                        objectName: rp.prefix + "Grades"
+                        readonly property string club: modelData.club || ""
+                        readonly property var res: modelData.result || null
+                        visible: !!res && res.graded === true
+                        width: labCol.width
+                        Text { visible: gl.modelData.named === true; height: rb.height; verticalAlignment: Text.AlignVCenter
+                               text: ClubFormat.display(gl.club) + " · "; font: rp.ro.fSmallM; color: rp.ro.ink2 }
+                        PpVariabilityBadge { id: rb; objectName: rp.prefix + "Grade"
+                                             dense: true; roles: rp.roles; contentLayer: "golfer"
+                                             grade: gl.res ? gl.res.grade : 0
+                                             measurementLimited: gl.res ? gl.res.measurementLimited === true : false }
+                    }
+                }
                 Text { visible: text !== ""; width: parent.width; text: rw.r.styleText || ""; font: rp.ro.fSmallM; color: rp.ro.ink2; wrapMode: Text.WordWrap }
                 Text { width: parent.width; text: (rw.r.camera || "") + (rw.r.unit ? ", " + rw.r.unit : ""); font: rp.ro.fMicro; color: rp.ro.ink3; wrapMode: Text.WordWrap }
             }
@@ -180,8 +207,10 @@ Column {
                                color: nc.outside ? rp.ro.warn : (nc.text !== "-" ? rp.ro.ink : rp.ro.ink3)
                                Rectangle { visible: nc.outside; anchors.horizontalCenter: parent.horizontalCenter; y: parent.height - 1
                                            width: parent.contentWidth; height: 1; color: rp.ro.warn } }
+                        // the middle half's width only where no grade replaces it (R9): a graded position's consistency
+                        // is in the row's one badge, beside its name (R20)
                         Text { visible: text !== ""; width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                               text: nc.outside ? (nc.c.ringWord || "") : (nc.bc ? (nc.bc.wideText || "") : "")
+                               text: nc.outside ? (nc.c.ringWord || "") : (nc.bc && nc.bc.graded !== true ? (nc.bc.wideText || "") : "")
                                font: rp.ro.fMicro; color: nc.outside ? rp.ro.warn : rp.ro.ink3 }
                         Text { visible: nc.warned; width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                                text: (nc.c.warn || "") + (nc.c.warnShort ? " " + nc.c.warnShort : ""); font: rp.ro.fMicro; color: rp.ro.ink2 }

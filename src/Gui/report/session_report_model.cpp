@@ -24,6 +24,7 @@
 #include "report_posture.h"
 #include "report_wrist.h"
 #include "report_stills.h"
+#include "report_variability.h"
 #include "report_words.h"
 
 #include "../athlete/athlete_controller.h"
@@ -38,7 +39,11 @@
 #include "../diagnostics/session_diagnostics_model.h"
 #include "../launchmonitor/lm_session_model.h"
 #include "../shot/shot_list_model.h"
+#include "../variability/variability_facade.h"
+#include "../variability/variability_ledger.h"         // ledgerConsistencyGrade (R10, R14)
+#include "../variability/variability_measures.h"       // measureScaleType, isOutcomeMeasure, normCorridorHalfWidth
 #include "../../Coaching/session_report.h"
+#include "../../Coaching/swing_areas_pack.h"          // areaConditionInfoForPack: a yes/no condition has no grade
 #include "../../Coaching/work_ons.h"
 #include "../../Core/pp_debug.h"
 #include "../../Core/pp_settings.h"
@@ -797,6 +802,27 @@ QVariantList drillsOf(const Ctx &x, const QString &id)
     return out;
 }
 
+// THE WORK-ON'S CONSISTENCY (R10, R14): the golfer-layer badge's result for the measure its run chart draws, over this
+// session's swings, or null for no badge — the rule Home grades a fault's window by (variability_ledger.h), asked of one
+// session. `ungradedByPack`: a yes/no condition (areaConditionInfoForPack). A composite or an outcome measure (R4) has
+// no badge either.
+QVariant workOnConsistencyOf(const Ctx &x, const Run &r, const QString &id, bool ungradedByPack, const INormProvider *norms)
+{
+    namespace PV = pinpoint::variability;
+    if (r.composite || r.measureId.isEmpty() || !norms) return kNull;
+    std::vector<const ShotRecord *> swings;
+    swings.reserve(x.swings.size());
+    for (const Ctx::Swing &s : x.swings) swings.push_back(&(*x.shots)[size_t(s.idx)]);
+    const Measure *ms = x.measure(r.measureId);
+    const bool ungraded = ungradedByPack || (ms && ms->kind == MeasureKind::Composite) || PV::isOutcomeMeasure(ms);
+    const QString measureId = r.measureId;
+    const std::optional<PV::VariabilityResult> res = PV::ledgerConsistencyGrade(
+        PV::ledgerConsistencyReadings(swings, id, measureId), ungraded, PV::measureScaleType(ms),
+        [norms, measureId](const QString &context) { return PV::normCorridorHalfWidth(norms, measureId, context); });
+    if (!res) return kNull;
+    return PV::VariabilityResultView::fromResult(*res, r.unit, r.decimals).toMap();
+}
+
 // ── The ball (§3: eight figures, per club when several) ──
 struct LmCol { const char *key; QString head, unit; int dp; bool thousands; };
 
@@ -1069,13 +1095,15 @@ QVariant lmAppendixOf(const Ctx &x, const QVariantMap &g, const QHash<int, int> 
                 if (n <= 0) continue;
                 const QString u = unitOf(k);
                 const double lo = st.value(QStringLiteral("min")).toDouble(), hi = st.value(QStringLiteral("max")).toDouble();
-                part << QVariantMap{ { QStringLiteral("label"), labelOf(k) }, { QStringLiteral("unit"), shownUnit(k) },
-                                     { QStringLiteral("cells"), QStringList{
-                                           QString::number(n),
-                                           lmCell(st.value(QStringLiteral("mean")).toDouble(), u),
-                                           st.value(QStringLiteral("hasSpread")).toBool() ? lmCell(st.value(QStringLiteral("sd")).toDouble(), u) : kNA,
-                                           lmCell(lo, u), lmCell(hi, u),
-                                           n >= 2 ? lmCell(hi - lo, u) : kNA } } };
+                // The row's consistency badge (R4b, a technical-layer pair beside the SD): the club's grade as the panel's
+                // model published it, club-delivery readings only (report_variability.h), else null.
+                part << M::lmSummaryRow(labelOf(k), shownUnit(k),
+                                        QStringList{ QString::number(n),
+                                                     lmCell(st.value(QStringLiteral("mean")).toDouble(), u),
+                                                     st.value(QStringLiteral("hasSpread")).toBool() ? lmCell(st.value(QStringLiteral("sd")).toDouble(), u) : kNA,
+                                                     lmCell(lo, u), lmCell(hi, u),
+                                                     n >= 2 ? lmCell(hi - lo, u) : kNA },
+                                        st);
             }
             if (part.isEmpty()) return;
             rows << QVariantMap{ { QStringLiteral("sub"), sub } };
@@ -1677,6 +1705,10 @@ void SessionReportModel::build()
     {
         QVariantList pages;
         const int of = int(wos.size());
+        // For each work-on's consistency badge (R10): the norms (built on this, the GUI thread, by start()) and what the
+        // pack says before a reading is looked at — a yes/no condition has no grade.
+        const std::shared_ptr<const INormProvider> norms = isReport ? sharedNormProvider() : nullptr;
+        const QHash<QString, AreaConditionInfo> condInfo = isReport ? areaConditionInfoForPack(*x.pack) : QHash<QString, AreaConditionInfo>();
         for (size_t i = 0; i < wos.size() && isReport; ++i) {
             const WorkOnEntry &e = *wos[i];
             const Condition *c = x.cond(e.id);
@@ -1746,6 +1778,9 @@ void SessionReportModel::build()
                 figure = figureOf(x, r);
             }
             w[QStringLiteral("saw")] = saw;
+            // Its consistency over this session (R10), beside What we saw: a golfer-layer badge, null for none. A
+            // session-level work-on has no run of readings to grade (the timing spread is ungraded, R6).
+            w[QStringLiteral("consistency")] = scope ? kNull : workOnConsistencyOf(x, r, e.id, condInfo.value(e.id).binary, norms.get());
             w[QStringLiteral("figure")] = figure;
             w[QStringLiteral("figureLabel")] = figure.typeId() == QMetaType::QVariantMap ? W::figureLabel(r.golferName, r.unit) : QString();
             w[QStringLiteral("target")] = target;

@@ -23,7 +23,10 @@ import PinPointStudio
 // page: (a) the launch monitor panel's Session figures for each club, as the appendix's headline — the panel's own
 // blocks (PpLmGraphicsBody, embedded, Folio light), fed the map's `graphics`, which is the panel's model over this
 // session; (b) every shot's readings, a Ball table and a Club table, grouped by club; (c) the summary statistics per
-// club: shots, average, SD, lowest, highest, range.
+// club: shots, average, SD, lowest, highest, range — and, under a reading whose spread carries a grade, its consistency
+// badge (R4b, paired with the SD: technical layer, Dispersion, the word and the grader's basis). Only club delivery is
+// graded, per club (the panel's model decides: LmSessionModel); ball flight and smash factor never are (R4). The badge
+// sits on its own line under the row's figures: beside eight columns its basis string would not fit the text width.
 //
 // Every sentence is the map's (rule 7); only fixed headings are set here. The tables flow (rule 4): each is a
 // printGroup whose first atom is its column heads, repeated on a page that opens inside it; a club's heading row keeps
@@ -312,9 +315,12 @@ Column {
                             required property var modelData
                             required property int index
                             readonly property bool isSub: tr.modelData.sub !== undefined
+                            // the row's grade (the session report model's copy of the panel's), null for none
+                            readonly property var vr: tr.isSub ? null : (tr.modelData.variability || null)
+                            readonly property bool hasMark: !!tr.vr && tr.vr.graded === true
                             property bool atom: true
                             property bool keepNext: isSub
-                            width: la.width; height: isSub ? 22 : 19
+                            width: la.width; height: isSub ? 22 : (hasMark ? cr.u(16) + mark.height + cr.g(3) : 19)
                             Rectangle { visible: !tr.isSub; anchors.fill: parent; color: tr.index % 2 ? "transparent" : Qt.alpha(la.ro.ink, 0.03) }
                             Text { visible: tr.isSub; y: 7; text: tr.modelData.sub || ""; font: la.ro.fLabel; color: la.ro.ink3 }
                             Text { visible: !tr.isSub; x: 0; y: 3; width: fit.cols[0]; text: tr.modelData.label || ""; font: la.ro.fItem; color: la.ro.ink; elide: Text.ElideRight }
@@ -329,6 +335,17 @@ Column {
                                     text: modelData; font: index === 1 || index === 2 ? la.ro.fFigB : la.ro.fFig; color: la.ro.ink
                                 }
                             }
+                            PpVariabilityBadge {
+                                id: mark
+                                objectName: "reportLaunchMonitorStatsMark"
+                                visible: tr.hasMark
+                                x: fit.xOf(2); y: cr.u(16)      // under the line (19 on paper)
+                                roles: cr; contentLayer: "technical"
+                                variant: PpVariabilityMark.Dispersion; form: PpVariabilityMark.Icon; dense: true
+                                grade: tr.vr ? tr.vr.grade : 0
+                                measurementLimited: tr.vr ? tr.vr.measurementLimited === true : false
+                                basisText: tr.vr ? (tr.vr.basisText || "") : ""
+                            }
                         }
                     }
                 }
@@ -342,4 +359,9 @@ Column {
             }
         }
     }
+
+    // the Charts print roles in Folio light, for the summary's consistency badges (PpVariabilityBadge on paper reads a
+    // PpTypeset). LAST in the Column: children are destroyed first-declared first, so the badges go before their roles
+    // (see PpPosturePage).
+    PpChRoles { id: cr; medium: "print"; fixedAesthetic: "folio" }
 }

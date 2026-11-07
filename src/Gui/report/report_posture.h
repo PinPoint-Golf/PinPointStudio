@@ -28,12 +28,13 @@
 // WHAT IT DOES, AND ONLY THIS:
 //   · ABSENT (null) when the payload is not available or carries no profile row (§9.1 rule 6: no page, no head);
 //   · keeps the presenter's sentences and figures VERBATIM (kicker, head, pattern line, the profile's sub and
-//     caption, every row and cell, the strip's line and legend, each departure's line and detail, the
-//     repeatability words, the trust lines) — the page is the screen's reading, not a second one;
+//     caption, every row and cell — its consistency grades (ROW.grades, per position;
+//     ROW.rowGrades, the row's one grade per club that the page draws, R20) among them —, the strip's line and legend, each
+//     departure's line and detail, the consistency lines, the trust lines) — the page is the screen's reading, not a second one;
 //   · renumbers the strip's marks to the REPORT's swing numbers (the presenter's ordinals count the shots it
 //     read; the report numbers the swings the diagnostics read, in folder order) by swing folder;
 //   · caps the lists (rule 4) and words the "N more"; drops what has nothing to say ("What moved" without a
-//     line, an empty repeatability line), so the register draws only what is there;
+//     line, no consistency line), so the register draws only what is there;
 //   · adds the ONE sentence the screen sets in QML and the report may not (rule 7): the departures' sub.
 //
 //   · THE PICTURE (stage 5, §5.4): the presenter's picture of the session's typical swing, its caption numbered as the
@@ -52,7 +53,9 @@
 //    address: { title ("At address"), sub, legend, rows: [ADDRESS, the presenter's, unchanged] (≤ kPostureAddressCap) } | null
 //             (no reading the capture can produce: no block) — under the profile, above What moved; its trust lines are
 //             among `trust`,
-//    repeat ("" none), trust: [string] (≤ kPostureTrustCap), trustMore ("" | "N more"),
+//    consistency: [{ club, named, tooFew, result, mostText, most, leastText, least }] (the presenter's lines verbatim: one
+//                 per club, its most and least consistent cell by grade; each result a variabilityResult),
+//    trust: [string] (≤ kPostureTrustCap), trustMore ("" | "N more"),
 //    picture: { typical ("A typical swing: swing 4"), typicalWhy, legend, why: [string], swingDir,
 //               groups: [{ camera, label, frames: [{ key, camera, tag, when, caption, note, width, height, src, imageWhy,
 //                                                    still, marks: [MARK, the default sets only] }] }] } | null,
@@ -175,7 +178,9 @@ inline QVariant postureReportBlock(const QVariantMap &payload, const QHash<QStri
     out.insert(QStringLiteral("departuresSub"), deps.isEmpty() ? QString()
                : QStringLiteral("Each fault that took a reading out of the band: on how many swings, and the position it starts from."));
 
-    out.insert(QStringLiteral("repeat"), payload.value(QStringLiteral("repeat")).toMap().value(QStringLiteral("words")).toString());
+    // consistency (R7, R9): the presenter's per-club Most / Least lines, verbatim; the page sets each grade as a
+    // golfer-layer badge (the word only, no figure). Lines with nothing graded are not there to drop.
+    out.insert(QStringLiteral("consistency"), payload.value(QStringLiteral("consistency")).toMap().value(QStringLiteral("lines")).toList());
 
     const QStringList allTrust = payload.value(QStringLiteral("trust")).toMap().value(QStringLiteral("lines")).toStringList();
     QStringList trust;

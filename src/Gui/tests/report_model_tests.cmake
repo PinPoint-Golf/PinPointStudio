@@ -7,6 +7,11 @@
 # tools/session-report-mock/dump_report.qml instead (see the test's header). session_spread.h reaches the
 # norms and the measure vocabulary, which include swing_analysis.h non-relatively: hence the three paths.
 #
+# The work-on's consistency badge and the launch monitor summary's (report/report_variability.h): the grade a work-on
+# carries over the session's readings — warm-ups, data warnings and unassessed swings out, pooled within club, scaled by
+# the norm's half-width; grade 0 under eight; no badge for a yes/no condition of the shipped pack, a threshold reading or
+# no norm — and the summary row's copy of the panel's variability map, club delivery only.
+#
 # The golfer words for gate clauses are model content now (Resources/diagnostics/gate_words.json, read through
 # Diagnostics/packs/gate_words_pack.cpp), and the test's last block proves that a Diagnostic Model edit reaches
 # the next report: it writes a user pack, a user drill and a user gate-word override and reads them back the way
@@ -32,6 +37,15 @@ pp_add_test(report_model_test
             ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
             ${SRC}/Diagnostics/packs/drill_pack.cpp
             ${SRC}/Diagnostics/packs/gate_words_pack.cpp
+            # The report's variability marks (report/report_variability.h, R2a R4b R10): the grader, its result, and
+            # the within-club pooling over the Consistency maths' centring (variability_clubs.cpp needs those four).
+            ${SRC}/Metrics/variability/variability_grader.cpp
+            ${SRC}/Metrics/variability/variability_result.cpp
+            ${GUI}/charts/variability_clubs.cpp
+            ${GUI}/charts/session_consistency.cpp
+            ${GUI}/charts/session_curves.cpp
+            ${GUI}/charts/session_warp.cpp
+            ${GUI}/charts/session_traces.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Diagnostics ${SRC}/Metrics ${SRC}/Analysis)
 set_tests_properties(report_model_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${_pp_report_diag}/core.json;PINPOINT_CORE_DRILLS=${_pp_report_diag}/drills.json;PINPOINT_CORE_GATE_WORDS=${_pp_report_diag}/gate_words.json;PINPOINT_CORE_REFERENCES=${_pp_report_diag}/references.json")

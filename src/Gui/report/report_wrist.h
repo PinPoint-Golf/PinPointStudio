@@ -24,14 +24,14 @@
 // report's word). Pure and header-only, like report_posture.h, so report_model_test proves its shape, caps and
 // absence without a session behind it; SessionReportModel feeds it the payload it read and the report's own swing
 // numbers. The page mirrors the Posture page's order (head → checkpoints → score → style → what keeps firing →
-// repeatable → what moves with the lead wrist → trust).
+// consistency → what moves with the lead wrist → trust).
 //
 // WHAT IT DOES, AND ONLY THIS:
 //   · ABSENT (null) when the payload is not available or carries no banded row (no page, no head). Gated on DATA:
 //     any wrist DOF read, a camera-only session included;
 //   · keeps the presenter's sentences and figures VERBATIM (kicker, head, the lines, the profile's sub and caption,
 //     every median and width, the score run's numbers, the style table, the findings' count words, the
-//     repeatability words, the movesWith rows and chance line, the trust lines);
+//     consistency lines, the movesWith rows and chance line, the trust lines);
 //   · maps each profile row onto the POSTURE row's keys, so ONE QML profile component draws both pages (below);
 //   · renumbers the score run's points, the style table's columns and each finding's marks to the REPORT's swing
 //     numbers by cleaned swing folder (a shot the report does not number keeps the presenter's ordinal);
@@ -54,7 +54,8 @@
 //    recurring: [{ id, name, severity ("pattern" | "watching"), tier, count, countText ("4 of 6 swings, at P4"),
 //                  marks: [{ swing, fired }] (≤ kWristStyleColumnCap) }] (≤ kWristRecurringCap), recurringMore ("" | "N more"),
 //    recurringEmpty ("No wrist finding fired on any swing."), recurringLegend ("Each finding, swing by swing: …" | "" with none),
-//    repeat ("From P3 on, most repeatable: lead wrist bow / cup at P7 (middle half 2° wide); least: …." | ""),
+//    consistency: [{ club, named, tooFew, result, mostText ("Most: lead wrist bow / cup at P7"), most, leastText, least }]
+//                 (the presenter's lines verbatim, from P3 on: one per club, each result a variabilityResult),
 //    sizeLine ("Six swings is a small session: each box is drawn from 6 values." — carried for completeness: the trust
 //              lines say it, and the page does not print it twice),
 //    movesWith: { available, head ("What moves with bow / cup P7"), sub, refusal ("" when available), rows: [LEDGER ROW,
@@ -73,7 +74,10 @@
 //                   outside (boxes[p].outside: the median outside that band), ring (= outside),
 //                   ringWord (the pole it fell on: "closed" | "open"; "" inside), warn "", warnShort "" (no ⚠ on a wrist
 //                   cell: a refused reading is a "-" and its reason is in trust) }
-//    boxes[p]   ← { box, values, n, median, medianText, wide, wideText ("2° wide" | "") }
+//    boxes[p]   ← { box, values, n, median, medianText, wide, wideText ("2° wide" | ""), graded (some club graded here) }
+//    grades     ← grades (the presenter's GRADES: per club, the graded checkpoints' variabilityResults)
+//    rowGrades  ← rowGrades (per club, the row's ONE grade: the cell rule R1 over its graded checkpoints, a plain
+//                 variabilityResult map — Mark's ruling R20: the page's one badge per row, beside its name)
 //    plus, wrist-only: dof, name, sub, source, poleTop, poleBottom, poleTopText, poleBottomText, numbersOnly (false: the
 //    Session view draws no numbers-only row — the lead elbow has no corridor and the screen's Session leaves it off)
 //  (posture-only keys the wrist row does not carry: present, style, faultHi/faultLo, alt*, warned — the QML reads
@@ -146,7 +150,7 @@ inline QVariant wristReportBlock(const QVariantMap &payload, const QHash<QString
                 { QStringLiteral("ringWord"), b.value(QStringLiteral("ringWord")).toString() },
                 { QStringLiteral("warn"), QString() }, { QStringLiteral("warnShort"), QString() } });
             QVariantMap bo;
-            for (const char *k : { "box", "values", "n", "median", "medianText", "wide", "wideText" }) bo.insert(QString::fromLatin1(k), b.value(QString::fromLatin1(k)));
+            for (const char *k : { "box", "values", "n", "median", "medianText", "wide", "wideText", "graded" }) bo.insert(QString::fromLatin1(k), b.value(QString::fromLatin1(k)));
             bx.append(bo);
         }
         QVariantMap row{
@@ -157,7 +161,7 @@ inline QVariant wristReportBlock(const QVariantMap &payload, const QHash<QString
             { QStringLiteral("yLo"), r.value(QStringLiteral("yLo")) }, { QStringLiteral("yHi"), r.value(QStringLiteral("yHi")) },
             { QStringLiteral("outCount"), r.value(QStringLiteral("outCount")) }, { QStringLiteral("cells"), cells }, { QStringLiteral("boxes"), bx },
             { QStringLiteral("numbersOnly"), false } };
-        for (const char *k : { "dof", "name", "sub", "source", "poleTop", "poleBottom", "poleTopText", "poleBottomText" })
+        for (const char *k : { "dof", "name", "sub", "source", "poleTop", "poleBottom", "poleTopText", "poleBottomText", "grades", "rowGrades" })
             row.insert(QString::fromLatin1(k), r.value(QString::fromLatin1(k)));
         rows.append(row);
     }
@@ -256,7 +260,9 @@ inline QVariant wristReportBlock(const QVariantMap &payload, const QHash<QString
         out.insert(QStringLiteral("recurringLegend"), rec.isEmpty() ? QString() : QStringLiteral("Each finding, swing by swing: a filled mark where it fired, a hollow one where it did not."));
     }
 
-    out.insert(QStringLiteral("repeat"), payload.value(QStringLiteral("repeat")).toString());
+    // consistency (R7, R9): the presenter's per-club Most / Least lines from P3 on, verbatim; the page sets each grade as
+    // a golfer-layer badge (the word only, no figure)
+    out.insert(QStringLiteral("consistency"), payload.value(QStringLiteral("consistency")).toMap().value(QStringLiteral("lines")).toList());
     out.insert(QStringLiteral("sizeLine"), payload.value(QStringLiteral("sizeLine")).toString());
 
     // what moves with the lead wrist at impact

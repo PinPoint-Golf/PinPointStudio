@@ -27,7 +27,8 @@ import PinPointStudio
 //     index: the head already says the style counts) and the Score line;
 //   · "Checkpoints across the session": PpReportProfile (the Posture page's profile, shared): one row per wrist DOF,
 //     the DOMINANT style's band as a wash in the DOF's own metric colour, the session's box per checkpoint, under each
-//     the median ("-" where too few swings), how wide the middle half is or — outside the band — the side it falls on,
+//     the median ("-" where too few swings), how wide the middle half is where the checkpoint is not graded (beside the
+//     row's name, its consistency per club: ONE golfer-layer badge for the row, the cell rule over its graded checkpoints, R20) or — outside the band — the side it falls on,
 //     in warn and underlined; the caption says whose band is shaded;
 //   · "Wrist score, swing by swing": PpChRunBox in the Charts print roles, non-interactive — a mark per swing, a stub
 //     where a swing has no score, the session's box beside, the value axis from the payload's ticks (paper has no
@@ -37,7 +38,8 @@ import PinPointStudio
 //   · "What keeps firing": one atom per finding — its name and count words, then a mark per swing in the Posture
 //     strip's idiom (filled where it fired, a hairline outline where it did not), the report's swing numbers under;
 //     then "N more";
-//   · "Repeatable?";
+//   · "Consistency": per club, the most and least consistent checkpoint from P3 on, by grade — a golfer-layer badge,
+//     the word alone (R7, R9);
 //   · "What moves with the lead wrist at impact": a PRINT SIBLING of PpChMovesWith reading the same ledger rows — a
 //     different table, not the screen's in other inks: fixed columns sized for the page, the interval's figures under
 //     its rule, the tag set right in the name column, a plain dot for r (the screen's are em-sized tier columns, the
@@ -56,7 +58,7 @@ import PinPointStudio
 // objectNames: reportWrist (the head), reportWristProfile (+ reportWristRow, reportWristCell — PpReportProfile's),
 // reportWristScore, reportWristStyles (+ reportWristStylesLine: from, to; reportWristStyleCell: swing, styleKey, text,
 // graded), reportWristRecurring (+ reportWristFinding: findingId, name, countText; reportWristMark: swing, fired),
-// reportWristRepeat, reportWristMoves (+ reportWristMovesRow: readingId, rText), reportWristTrust (+ reportWristTrustLine).
+// reportWristRepeat (the Consistency block; + reportWristRepeatLine: club), reportWristMoves (+ reportWristMovesRow: readingId, rText), reportWristTrust (+ reportWristTrustLine).
 Column {
     id: wp
     property QtObject ro: null
@@ -318,16 +320,53 @@ Column {
         }
     }
 
-    // ═══ repeatable? ═══
+    // ═══ consistency (Mark's rulings R7, R9, R11): per club — named in a mixed session — the most and the least consistent
+    //     position, each with its golfer-layer badge (the word alone, no figure); a club too few to grade says so once ═══
     Column {
         objectName: "reportWristRepeat"
         property bool atom: true
-        visible: wp.on && !!wp.m.repeat
+        readonly property var lines: wp.m.consistency || []
+        visible: wp.on && lines.length > 0
         width: wp.width
         Item { width: 1; height: 18 }
-        Text { width: parent.width; text: "Repeatable?"; font: wp.ro.fH3; color: wp.ro.ink }
+        Text { width: parent.width; text: "Consistency"; font: wp.ro.fH3; color: wp.ro.ink }
         Item { width: 1; height: 4 }
-        Text { width: parent.width; text: wp.m.repeat || ""; font: wp.ro.fBody; color: wp.ro.ink; wrapMode: Text.WordWrap; lineHeight: 1.25 }
+        Repeater {
+            model: parent.lines
+            delegate: Flow {
+                id: cl
+                required property var modelData
+                objectName: "reportWristRepeatLine"
+                readonly property string club: modelData.club || ""
+                width: wp.width
+                spacing: cr.g(16)
+                Text { visible: cl.modelData.named === true; height: cr.u(22); verticalAlignment: Text.AlignVCenter
+                       text: ClubFormat.display(cl.club) + " · "; font: wp.ro.fBodyM; color: wp.ro.ink }
+                Row {
+                    id: tf
+                    readonly property var res: cl.modelData.tooFew === true ? cl.modelData.result : null
+                    visible: !!res && res.graded
+                    height: cr.u(22)
+                    PpVariabilityBadge { anchors.verticalCenter: parent.verticalCenter; roles: cr; contentLayer: "golfer"
+                                         grade: tf.res ? tf.res.grade : 0
+                                         measurementLimited: tf.res ? tf.res.measurementLimited : false }
+                }
+                Repeater {
+                    model: cl.modelData.tooFew === true ? [] : [{ text: cl.modelData.mostText || "", res: cl.modelData.most },
+                                                                { text: cl.modelData.leastText || "", res: cl.modelData.least }]
+                    delegate: Row {
+                        id: ce
+                        required property var modelData
+                        visible: ce.modelData.text !== "" && !!ce.modelData.res && ce.modelData.res.graded
+                        height: cr.u(22)
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: ce.modelData.text + " · "; font: wp.ro.fBody; color: wp.ro.ink }
+                        PpVariabilityBadge { anchors.verticalCenter: parent.verticalCenter; roles: cr; contentLayer: "golfer"
+                                             grade: ce.modelData.res ? ce.modelData.res.grade : 0
+                                             measurementLimited: ce.modelData.res ? ce.modelData.res.measurementLimited : false }
+                    }
+                }
+            }
+        }
     }
 
     // ═══ what moves with the lead wrist at impact: the Relations ledger's rows, printed (see the header) ═══

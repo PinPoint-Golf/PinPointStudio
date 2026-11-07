@@ -20,7 +20,7 @@ import QtQuick
 import PinPointStudio
 
 // A WORK-ON IN DEPTH — one section per work-on (design §3 pages 4–8): kicker · the goal as the title · the coach's
-// term · What we saw (with the run of the swings against the target range) · the pictures · Why it matters ·
+// term · What we saw (with its consistency badge, R10, and the run of the swings against the target range) · the pictures · Why it matters ·
 // What came with it · What might be behind it (every authored cause in three groups, §3.3) · What to do (the feel,
 // a drill card) · Check it yourself · Next time.
 //
@@ -156,6 +156,23 @@ Column {
             x: stillRow.visible ? stillRow.width + 24 : 0
             width: wp.width - x; spacing: wp.gap(12)
             PpReportPara { ro: wp.ro; dense: wp.dense; lead: wp.lead; label: "What we saw"; text: wp.wo.saw || ""; stacked: true; width: parent.width }
+            // its consistency over the session (R10), beside the lead: a golfer-layer badge, the word alone (paper has no
+            // tooltip, and no figure). None when the reading is ungraded; grade 0 under eight swings ("Not enough swings").
+            Row {
+                id: consRow
+                objectName: "reportWorkOnConsistency" + wp.rank
+                readonly property var res: wp.wo.consistency || null
+                visible: !!res && res.graded === true
+                spacing: chRoles.g(8)
+                Text { anchors.verticalCenter: parent.verticalCenter; text: "Consistency"; font: wp.ro.fLabel; color: wp.ro.ink }
+                PpVariabilityBadge {
+                    anchors.verticalCenter: parent.verticalCenter
+                    roles: chRoles; contentLayer: "golfer"
+                    variant: PpVariabilityMark.Dispersion; form: PpVariabilityMark.Icon
+                    grade: consRow.res ? consRow.res.grade : 0
+                    measurementLimited: consRow.res ? consRow.res.measurementLimited === true : false
+                }
+            }
             RunChart { visible: !!wp.wo.figure && (wp.wo.figure.points || []).length > 0; width: parent.width; ro: wp.ro; roles: chRoles; plotH: wp.squeeze > 1 ? 54 : wp.tight ? 62 : wp.dense ? 76 : 92; fig: wp.wo.figure || ({}); label: wp.wo.figureLabel || "" }
             PpReportPara { ro: wp.ro; dense: wp.dense; lead: wp.lead; label: "Why it matters"; text: wp.wo.why || ""; stacked: true; width: parent.width }
         }

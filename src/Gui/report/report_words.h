@@ -435,7 +435,7 @@ inline QString gridMore(const QString &key, int more)
     return QStringLiteral("and %1 more the ball did on fewer swings").arg(numberWord(more));
 }
 
-// "Sequence not repeatable is read over the whole session, not swing by swing: see work-on 5."
+// "Sequence changes from swing to swing is read over the whole session, not swing by swing: see work-on 5."
 inline QString sessionLevelGridNote(const QString &name, int rank)
 {
     return QStringLiteral("%1 is read over the whole session, not swing by swing: see work-on %2.").arg(name).arg(rank);
@@ -731,11 +731,12 @@ inline QString trendWords(bool known, int trend, int points)
 {
     if (known && trend == 0) return QStringLiteral("easing as the session went on");
     if (known && trend == 2) return QStringLiteral("growing as the session went on");
-    if (points >= 6) return QStringLiteral("steady from first swing to last");
+    // A level trend is "no change", never a variability word (R11; variability.md, Phrasing).
+    if (points >= 6) return QStringLiteral("no change from first swing to last");
     return QString();
 }
 
-// "Your trail leg straightens going back — on all 10 swings, steady from first swing to last."
+// "Your trail leg straightens going back — on all 10 swings, no change from first swing to last."
 inline QString sawLead(const QString &golfer, const QString &swingsOnWords, const QString &trend)
 {
     QString s = cap1(golfer);

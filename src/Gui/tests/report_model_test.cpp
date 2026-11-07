@@ -52,6 +52,9 @@
 #include "report/report_wrist.h"
 #include "report/report_consistency.h"
 #include "report/report_delivery.h"
+#include "report/report_variability.h"
+#include "variability/variability_ledger.h"
+#include "../../Coaching/swing_areas_pack.h"
 #include "../../Diagnostics/packs/drill_pack.h"
 #include "../../Diagnostics/packs/gate_words_pack.h"
 #include "../../Diagnostics/packs/pack_provider.h"
@@ -267,10 +270,10 @@ int main(int argc, char **argv)
        "pack text is escaped in a styled string");
     eq(trendWords(true, 0, 10), QStringLiteral("easing as the session went on"), "trend: easing");
     eq(trendWords(true, 2, 10), QStringLiteral("growing as the session went on"), "trend: growing");
-    eq(trendWords(false, 1, 10), QStringLiteral("steady from first swing to last"), "trend: steady");
+    eq(trendWords(false, 1, 10), QStringLiteral("no change from first swing to last"), "trend: level is no change (R11)");
     eq(trendWords(false, 1, 4), QString(), "trend: too few swings to say anything");
     eq(sawLead(QStringLiteral("your trail leg straightens going back"), swingsOn(10, 10), trendWords(false, 1, 10)),
-       QStringLiteral("Your trail leg straightens going back — on all 10 swings, steady from first swing to last."), "what we saw, lead");
+       QStringLiteral("Your trail leg straightens going back — on all 10 swings, no change from first swing to last."), "what we saw, lead");
     eq(sawLead(QStringLiteral("x"), swingsOn(3, 4), QString()), QStringLiteral("X — on 3 of 4 swings."), "lead without a trend");
     eq(sawResolving(QStringLiteral("your head dips going back"), 5, 10, 6, 4),
        QStringLiteral("Your head dips going back — on 5 of 10 swings, but it stopped after swing 6: none of your last four swings showed it."),
@@ -535,7 +538,6 @@ int main(int argc, char **argv)
             { QStringLiteral("strip"), QVariantMap{ { QStringLiteral("marks"), marks }, { QStringLiteral("line"), QStringLiteral("Level on 9 of 10 shots") },
                                                     { QStringLiteral("legend"), QStringLiteral("each mark is a shot's nearest pattern") } } },
             { QStringLiteral("departures"), deps },
-            { QStringLiteral("repeat"), QVariantMap{ { QStringLiteral("words"), QStringLiteral("The tightest: head at P7.") } } },
             { QStringLiteral("trust"), QVariantMap{ { QStringLiteral("lines"), trust } } },
             { QStringLiteral("address"), QVariantMap{ { QStringLiteral("available"), true }, { QStringLiteral("title"), QStringLiteral("At address") },
                                                       { QStringLiteral("sub"), QStringLiteral("this session against the good-player band") },
@@ -552,7 +554,7 @@ int main(int argc, char **argv)
         check(!bv.isNull(), "a reading: the posture block");
         const QVariantMap b = bv.toMap();
         bool keys = true;
-        for (const char *k : { "kicker", "head", "patternLine", "profile", "moved", "strip", "departures", "departuresMore", "departuresSub", "repeat", "trust", "trustMore" })
+        for (const char *k : { "kicker", "head", "patternLine", "profile", "moved", "strip", "departures", "departuresMore", "departuresSub", "trust", "trustMore" })
             if (!b.contains(QString::fromLatin1(k))) { keys = false; std::printf("        missing: %s\n", k); }
         check(keys, "the block carries every documented key");
         eq(b.value(QStringLiteral("head")).toString(), payload.value(QStringLiteral("headText")).toString(), "the head is the presenter's, verbatim");
@@ -575,7 +577,7 @@ int main(int argc, char **argv)
         check(b.value(QStringLiteral("departures")).toList().size() == 6, "departures capped at six");
         eq(b.value(QStringLiteral("departuresMore")).toString(), QStringLiteral("2 more"), "the departures' ending");
         check(!b.value(QStringLiteral("departuresSub")).toString().isEmpty(), "the departures' sub is the map's");
-        eq(b.value(QStringLiteral("repeat")).toString(), QStringLiteral("The tightest: head at P7."), "repeatability verbatim");
+        check(!b.contains(QStringLiteral("repeat")), "the retired repeatability words are gone (R11, R15)");
         check(b.value(QStringLiteral("trust")).toStringList().size() == 16, "trust lines capped at sixteen");
         eq(b.value(QStringLiteral("trustMore")).toString(), QStringLiteral("2 more"), "the trust ending counts only lines with words");
 
@@ -592,12 +594,11 @@ int main(int argc, char **argv)
         bare.insert(QStringLiteral("departures"), QVariantList{});
         bare.insert(QStringLiteral("strip"), QVariantMap{ { QStringLiteral("marks"), QVariantList{} } });
         bare.insert(QStringLiteral("whatMoved"), QVariantMap{});
-        bare.insert(QStringLiteral("repeat"), QVariantMap{});
         const QVariantMap bb = postureReportBlock(bare, noSwings).toMap();
         check(bb.value(QStringLiteral("departures")).toList().isEmpty() && bb.value(QStringLiteral("departuresSub")).toString().isEmpty(),
               "no departure: no list and no sub");
         check(bb.value(QStringLiteral("address")).isNull(), "no address reading: no At address block");
-        check(bb.value(QStringLiteral("strip")).isNull() && bb.value(QStringLiteral("moved")).toList().isEmpty() && bb.value(QStringLiteral("repeat")).toString().isEmpty(),
+        check(bb.value(QStringLiteral("strip")).isNull() && bb.value(QStringLiteral("moved")).toList().isEmpty(),
               "no mark, no line, no words: absent");
         check(bb.value(QStringLiteral("picture")).isNull() && bb.value(QStringLiteral("pictureWhy")).toStringList().isEmpty(),
               "no picture in the payload: none on the page, and nothing said");
@@ -702,7 +703,6 @@ int main(int argc, char **argv)
             { QStringLiteral("head"), sent(QStringLiteral("Graded as a Cupped wrist on every swing")) },
             { QStringLiteral("styleLine"), QStringLiteral("By the resemblance index, most resemble Cupped (130)") },
             { QStringLiteral("scoreLine"), QStringLiteral("Wrist score median 84, middle half 78–90") },
-            { QStringLiteral("repeat"), QStringLiteral("From P3 on, most repeatable: lead wrist bow / cup at P7 (middle half 2° wide); least: lead wrist hinge at P4 (9°).") },
             { QStringLiteral("sizeLine"), QStringLiteral("Each box is drawn from 130 values.") },
             { QStringLiteral("positions"), positions }, { QStringLiteral("rows"), rows },
             { QStringLiteral("sub"), QStringLiteral("Δ from address, degrees  ·  a box per checkpoint, n 130") },
@@ -729,12 +729,12 @@ int main(int argc, char **argv)
         const QVariantMap b = bv.toMap();
         bool keys = true;
         for (const char *k : { "kicker", "head", "styleLine", "scoreLine", "profile", "scoreRun", "styles", "recurring", "recurringMore", "recurringEmpty",
-                               "repeat", "sizeLine", "movesWith", "trust", "trustMore" })
+                               "sizeLine", "movesWith", "trust", "trustMore" })
             if (!b.contains(QString::fromLatin1(k))) { keys = false; std::printf("        missing: %s\n", k); }
         check(keys, "the block carries every documented key");
         eq(b.value(QStringLiteral("head")).toString(), QStringLiteral("Graded as a Cupped wrist on every swing"), "the head is the presenter's, verbatim");
         eq(b.value(QStringLiteral("scoreLine")).toString(), payload.value(QStringLiteral("scoreLine")).toString(), "the score line verbatim");
-        eq(b.value(QStringLiteral("repeat")).toString(), payload.value(QStringLiteral("repeat")).toString(), "the repeatability words verbatim");
+        check(!b.contains(QStringLiteral("repeat")), "the retired repeatability clause is gone (R11, R15)");
         const QVariantMap pf = b.value(QStringLiteral("profile")).toMap();
         const QVariantList pr = pf.value(QStringLiteral("rows")).toList();
         check(pr.size() == pinpoint::report::kWristRowCap, "rows capped, the numbers-only lead elbow left off (the screen's Session leaves it off)");
@@ -1155,6 +1155,109 @@ int main(int argc, char **argv)
         removeUserLayers();
         QDir().rmdir(QFileInfo(A::userPackPath()).absolutePath());   // only if empty: nothing else of ours is there
         check(A::gateWordsFor(A::sharedGateWordSet(), gate) == shippedClause, "cleaned up: the shipped clause again");
+    }
+
+    // ── The report's variability marks (report/report_variability.h; R2a, R4b, R10) ──
+    std::printf("the work-on's consistency badge, and the launch monitor summary's\n");
+    {
+        namespace A = pinpoint::analysis;
+        namespace V = pinpoint::variability;
+        const QString cond = QStringLiteral("cond.reportTest"), meas = QStringLiteral("m.reportTest");
+        auto shot = [&](int id, const QString &club, double value, A::ShotState st = A::ShotState::Fired) {
+            A::ShotRecord s;
+            s.shotId = id;
+            s.club = club;
+            s.contextId = QStringLiteral("ctx.shot");
+            A::ConditionRow r;
+            r.conditionId = cond;
+            r.state = st;
+            r.drivingMeasureId = meas;
+            r.value = value;
+            r.corridorShape = A::CorridorShape::TwoSided;
+            r.contextId = QStringLiteral("ctx.row");
+            s.rows.push_back(r);
+            return s;
+        };
+        // Ten assessed readings, two clubs, a warm-up and a data-warning shot whose rows the ledger kept (R13: both count),
+        // plus what the rule leaves out: a broken recording (the ledger made its rows NotAssessable), a swing the capture
+        // could not assess, and a row another measure drove.
+        std::vector<A::ShotRecord> shots;
+        for (int k = 0; k < 10; ++k) shots.push_back(shot(k + 1, k % 2 ? QStringLiteral("7i") : QStringLiteral("PW"), (k % 2 ? 40.0 : 30.0) + 0.3 * (k % 3)));
+        A::ShotRecord warm = shot(11, QStringLiteral("7i"), 40.1); warm.warmUp = true; shots.push_back(warm);
+        A::ShotRecord flagged = shot(12, QStringLiteral("PW"), 30.1); flagged.dataWarning = true; shots.push_back(flagged);
+        A::ShotRecord broken = shot(15, QStringLiteral("7i"), 90.0, A::ShotState::NotAssessable); broken.dataWarning = true; shots.push_back(broken);
+        shots.push_back(shot(13, QStringLiteral("7i"), 90.0, A::ShotState::NotAssessable));
+        A::ShotRecord other = shot(14, QStringLiteral("7i"), 90.0); other.rows[0].drivingMeasureId = QStringLiteral("m.other"); shots.push_back(other);
+        std::vector<const A::ShotRecord *> swings;
+        for (const A::ShotRecord &s : shots) swings.push_back(&s);
+
+        const std::vector<V::LedgerConsistencyReading> readings = V::ledgerConsistencyReadings(swings, cond, meas);
+        check(readings.size() == 12, "readings: the assessed ones of that measure, warm-up and kept data-warning shot included (R13); "
+                                     "no broken recording, unassessed swing or other measure");
+        check(!readings.empty() && readings.front().contextId == QLatin1String("ctx.row"), "a reading's context is its row's corridor context");
+        QStringList asked;
+        const auto half = [&asked](const QString &ctx) { asked << ctx; return 2.0; };
+        const std::optional<V::VariabilityResult> g = V::ledgerConsistencyGrade(readings, false, V::ScaleType::Interval, half);
+        check(g.has_value() && g->graded && g->grade >= 1 && g->grade <= 5 && g->n == 12,
+              "a work-on with 12 graded readings carries a consistency grade 1..5, pooled within club");
+        check(asked.size() == 12, "the scale is asked per reading's context (the median of their half-widths)");
+        // Within club the spread is 0.3 at most; across clubs it is ten. Pooled within club it must grade as the small one.
+        check(g.has_value() && g->grade >= 4, "the grade is within club: the gap between the clubs is not spread");
+
+        const std::vector<V::LedgerConsistencyReading> few(readings.begin(), readings.begin() + 6);
+        const std::optional<V::VariabilityResult> g0 = V::ledgerConsistencyGrade(few, false, V::ScaleType::Interval, half);
+        check(g0.has_value() && g0->graded && g0->grade == 0 && g0->ungradedReason == V::UngradedReason::TooFewSwings,
+              "under eight readings: grade 0, a badge saying not enough swings");
+
+        check(!V::ledgerConsistencyGrade(readings, true, V::ScaleType::Interval, half).has_value(),
+              "a yes/no (or composite) work-on: no badge");
+        check(!V::ledgerConsistencyGrade(readings, false, V::ScaleType::Interval,
+                                                        [](const QString &) { return std::numeric_limits<double>::quiet_NaN(); }).has_value(),
+              "no norm in any context: no badge");
+        std::vector<V::LedgerConsistencyReading> fixedLine = readings;
+        fixedLine[3].noBand = true;
+        check(!V::ledgerConsistencyGrade(fixedLine, false, V::ScaleType::Interval, half).has_value(),
+              "a reading judged against an authored number: no badge");
+        A::ShotRecord thr = shot(20, QStringLiteral("7i"), 1.0);
+        thr.rows[0].faultAt = -30.0;
+        check(V::ledgerConsistencyReadings({ &thr }, cond, meas).front().noBand, "a threshold row has no band");
+
+        // The pack's binary rule, on the shipped pack: a condition every one of whose signals is an order or threshold
+        // test is yes/no, so its work-on has no badge — whatever its readings.
+        const std::unique_ptr<A::ICharacteristicPackProvider> prov = A::makeCharacteristicPackProvider();
+        const QHash<QString, A::AreaConditionInfo> info = A::areaConditionInfoForPack(prov->pack());
+        QString binaryId, bandedId;
+        for (auto it = info.constBegin(); it != info.constEnd(); ++it) {
+            if (it->binary && binaryId.isEmpty()) binaryId = it.key();
+            if (!it->binary && !it->tailByMeasure.isEmpty() && bandedId.isEmpty()) bandedId = it.key();
+        }
+        check(!binaryId.isEmpty() && !bandedId.isEmpty(), "the shipped pack has a yes/no condition and a banded one");
+        check(!V::ledgerConsistencyGrade(readings, info.value(binaryId).binary, V::ScaleType::Interval, half).has_value(),
+              "a binary work-on of the shipped pack carries no consistency result");
+        check(V::ledgerConsistencyGrade(readings, info.value(bandedId).binary, V::ScaleType::Interval, half).has_value(),
+              "a banded work-on of the shipped pack does");
+
+        // The launch monitor summary: the row carries its club's variability map as the panel published it — club
+        // delivery only (LmSessionModel) — and null where there is none (ball flight, smash factor).
+        const QVariantMap vr{ { QStringLiteral("graded"), true }, { QStringLiteral("grade"), 4 },
+                              { QStringLiteral("basisText"), QStringLiteral("σ 1.2 mph · 0.40 of corridor · n 12") } };
+        const QVariantMap stats{
+            { QStringLiteral("lm.clubheadSpeed"), QVariantMap{ { QStringLiteral("n"), 12 }, { QStringLiteral("variability"), vr } } },
+            { QStringLiteral("lm.clubPath"), QVariantMap{ { QStringLiteral("n"), 12 }, { QStringLiteral("variability"), vr } } },
+            { QStringLiteral("lm.ballSpeed"), QVariantMap{ { QStringLiteral("n"), 12 } } },
+            { QStringLiteral("lm.carryDistance"), QVariantMap{ { QStringLiteral("n"), 12 } } },
+            { QStringLiteral("lm.smashFactor"), QVariantMap{ { QStringLiteral("n"), 12 } } } };
+        bool clubCarry = true, ballNone = true;
+        for (auto it = stats.constBegin(); it != stats.constEnd(); ++it) {
+            const QVariantMap row = pinpoint::report::lmSummaryRow(QStringLiteral("x"), QString(), { QStringLiteral("12") }, it.value().toMap());
+            const QVariant v = row.value(QStringLiteral("variability"));
+            const bool clubDelivery = it.key() == QLatin1String("lm.clubheadSpeed") || it.key() == QLatin1String("lm.clubPath");
+            if (clubDelivery) clubCarry = clubCarry && v.toMap().value(QStringLiteral("grade")).toInt() == 4
+                                          && v.toMap().value(QStringLiteral("basisText")).toString() == vr.value(QStringLiteral("basisText")).toString();
+            else ballNone = ballNone && v.typeId() == QMetaType::Nullptr;
+        }
+        check(clubCarry, "LM summary: a club-delivery row carries the variability map, basis string and all");
+        check(ballNone, "LM summary: ball flight and smash rows carry null");
     }
 
     std::printf("%s (%d failed)\n", g_fail ? "FAILED" : "OK", g_fail);
