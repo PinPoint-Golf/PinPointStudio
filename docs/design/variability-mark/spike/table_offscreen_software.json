@@ -1,0 +1,50 @@
+{
+  "label": "OFFSCREEN-unless-platform-says-otherwise: frame times here are not GPU-representative when platform is offscreen",
+  "platform": "offscreen",
+  "api": "Software",
+  "dpr": 1,
+  "theme": "instrument_light",
+  "requestedRenderer": "CurveRenderer",
+  "actualRenderer": "SoftwareRenderer",
+  "rows": 500,
+  "rowHeight": 48,
+  "viewportHeight": 941,
+  "scrollSeconds": 10,
+  "frameMs": {
+    "p50": 15.981874999999999,
+    "p95": 16.855833,
+    "p99": 17.122208,
+    "max": 17.932333000000003,
+    "mean": 16.000483932800016,
+    "frames": 625
+  },
+  "frameMsSource": "FrameAnimation.frameTime × 1000",
+  "frameMsWhileLoadingRows": {
+    "n": 0
+  },
+  "frameMsOtherwise": {
+    "n": 625,
+    "mean": 16.000483932800016,
+    "p50": 15.981874999999999,
+    "p95": 16.855833,
+    "p99": 17.122208,
+    "max": 17.932333000000003
+  },
+  "swapIntervalMs": {
+    "n": 1249,
+    "mean": 8.014411529223379,
+    "p50": 12,
+    "p95": 17,
+    "p99": 18,
+    "max": 25
+  },
+  "swapIntervalSource": "frameSwapped, Date.now() deltas (1 ms resolution)",
+  "delegatesCreatedDuringScroll": 0,
+  "delegatesReusedDuringScroll": 959,
+  "delegateCreateMsMean": 0.515,
+  "delegateCreateBench": {
+    "rows": 200,
+    "totalMs": 103,
+    "note": "row delegate (text + 2 Cell marks + 2 words) created synchronously; excludes polish (Shape path processing) and render"
+  }
+}

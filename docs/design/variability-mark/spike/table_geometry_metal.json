@@ -1,0 +1,50 @@
+{
+  "label": "OFFSCREEN-unless-platform-says-otherwise: frame times here are not GPU-representative when platform is offscreen",
+  "platform": "cocoa",
+  "api": "Metal",
+  "dpr": 2,
+  "theme": "instrument_light",
+  "requestedRenderer": "GeometryRenderer",
+  "actualRenderer": "GeometryRenderer",
+  "rows": 500,
+  "rowHeight": 48,
+  "viewportHeight": 1078,
+  "scrollSeconds": 10,
+  "frameMs": {
+    "p50": 16.66375,
+    "p95": 17.53375,
+    "p99": 18.523625,
+    "max": 18.681417,
+    "mean": 16.665068981697157,
+    "frames": 601
+  },
+  "frameMsSource": "FrameAnimation.frameTime × 1000",
+  "frameMsWhileLoadingRows": {
+    "n": 0
+  },
+  "frameMsOtherwise": {
+    "n": 601,
+    "mean": 16.665068981697157,
+    "p50": 16.66375,
+    "p95": 17.53375,
+    "p99": 18.523625,
+    "max": 18.681417
+  },
+  "swapIntervalMs": {
+    "n": 601,
+    "mean": 16.663893510815306,
+    "p50": 17,
+    "p95": 18,
+    "p99": 19,
+    "max": 20
+  },
+  "swapIntervalSource": "frameSwapped, Date.now() deltas (1 ms resolution)",
+  "delegatesCreatedDuringScroll": 0,
+  "delegatesReusedDuringScroll": 954,
+  "delegateCreateMsMean": 0.52,
+  "delegateCreateBench": {
+    "rows": 200,
+    "totalMs": 104,
+    "note": "row delegate (text + 2 Cell marks + 2 words) created synchronously; excludes polish (Shape path processing) and render"
+  }
+}

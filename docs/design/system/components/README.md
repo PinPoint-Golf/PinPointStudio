@@ -48,6 +48,9 @@ The shared Qt Quick controls in `src/Gui/components/`. Use these rather than red
 - [PpPips](PpPips.md) — A row of session pips (`PpPip`), oldest first.
 - [PpStrengthMark](PpStrengthMark.md) — How firmly something holds, as a signal-strength mark: 3 / 2 / 1 bars for firm / probably / possibly, with the word under it.
 - [PpTrace](PpTrace.md) — A declarative polyline trace drawn from normalised (0..1) points — the shot card's IMU-only fallback and the review panel's chart line.
+- [PpVariabilityBadge](PpVariabilityBadge.md) — A variability mark and its word, Icon or Cell: the word's line as the golfer layer's tooltip, the grader's basis string after it on the technical layer, "Checking" for a measurement-limited grade.
+- [PpVariabilityFunnel](PpVariabilityFunnel.md) — The spread funnel: a measure's spread across sessions as a band that narrows as the golfer tightens, labelled with the grade and the trend ("Repeatable · ↑ Tightening").
+- [PpVariabilityMark](PpVariabilityMark.md) — How much something varies, as a grade in geometry: Dispersion (scalar) and Overlay (time series) for consistency, the Needle for measurement quality, and the two ungraded typicality variants (this swing against your usual).
 
 ## Cards
 
@@ -131,3 +134,5 @@ The typeset controls live in `src/Gui/typeset/` and serve both screen and print:
 - [PpFolio](PpFolio.md) — Print furniture at the foot of a page: the page's key, a hairline, the footer and "Section · Page n of N".
 
 `ClubFormat` (a singleton that turns club ids into sentence-case labels) draws nothing and has no page. Nor do `src/Gui/typeset/figure_format.js` (the figure formatter, covered on the PpTypeset page) and `src/Gui/typeset/box_stats.h` (the box statistics, covered on the PpBoxPlot page).
+
+The four variability vocabularies, `ConsistencyVocabulary`, `MeasurementVocabulary`, `TrendVocabulary` and `TypicalityVocabulary` (`src/Gui/components/`), draw nothing and have no page either. They are singletons that hold every variability word, line and accessible name; the PpVariability* components read them, and the [design-system README](../README.md#content) lists their words. The C++ singletons `Variability` (the constants a surface may need: `nMin`, `nWindow`, `trendMinSessions`) and `VariabilityGeometry` (the marks' shapes), and the `variabilityResult` value type, live in `src/Gui/variability/` and are covered on the PpVariabilityMark page.
